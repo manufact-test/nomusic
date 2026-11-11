@@ -1,0 +1,54 @@
+name: Android A1 ARM runner DNS and preinstalled build-tools selfcheck
+on:
+  push:
+    branches:
+      - experiment/android-a1-exit-callsite-witness-20261111
+    paths:
+      - '.github/workflows/android-a1-arm-runner-dns-selfcheck.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runner-capability:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 4
+    steps:
+      - name: Check capabilities without package installs or vendor files
+        shell: bash
+        run: |
+          set -u
+          echo '=== host ==='
+          uname -m
+          echo '=== bundled executables ==='
+          for c in aapt apksigner zipalign adb java docker getent curl; do
+            command -v "$c" || true
+          done
+          echo '=== available android directories (names only) ==='
+          for p in /usr/local/lib/android/sdk /opt/android-sdk /usr/lib/android-sdk /opt/hostedtoolcache /usr/share/java; do
+            if [ -d "$p" ]; then
+              printf '%s exists\n' "$p"
+            fi
+          done
+          echo '=== DNS (success/fail only, no private endpoint addresses) ==='
+          for name in ports.ubuntu.com github.com ghcr.io api.github.com dl.google.com; do
+            if timeout 4s getent ahostsv4 "$name" >/dev/null 2>&1; then
+              echo "$name DNS_OK"
+            else
+              echo "$name DNS_FAIL"
+            fi
+          done
+          echo '=== APT cached package availability (no downloads) ==='
+          for name in aapt apksigner zipalign; do
+            if dpkg-query -W -f='${Status}\n' "$name" 2>/dev/null | grep -q 'install ok installed'; then
+              echo "$name INSTALLED"
+            else
+              echo "$name MISSING"
+            fi
+          done
+          echo '=== public GitHub HTTPS (no tokens, no account requests) ==='
+          if timeout 8s curl -fsSI --max-time 6 https://api.github.com/ >/dev/null 2>&1; then
+            echo GITHUB_HTTPS_OK
+          else
+            echo GITHUB_HTTPS_FAIL
+          fi
+          echo DONE_PROBE_NO_VENDOR_NO_APT
