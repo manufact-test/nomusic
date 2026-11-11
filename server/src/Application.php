@@ -127,8 +127,9 @@ final class Application
                     $data=json_decode($body,true,16,JSON_THROW_ON_ERROR);
                     if(!is_array($data)||!is_string($data['message']??null)||!is_string($data['request_key']??null))throw new \InvalidArgumentException();
                     if(!in_array($data['kind']??'general',['general','song'],true))throw new \InvalidArgumentException();
-                    $report=($data['kind']??'general')==='song'?\Celikom\Support\SongReport::normalize($data['report']??null):null;
-                    $data=['ticket_id'=>$support->create((int)$session['user_id'],$data['message'],$data['request_key'],$report)];
+                    $report=($data['kind']??'general')==='song'?($data['report']??null):($data['support_diagnostics']??null);
+                    if($report!==null&&!is_array($report))throw new \InvalidArgumentException();
+                    $data=['ticket_id'=>$support->create((int)$session['user_id'],$data['message'],$data['request_key'],$report,$data['kind']??'general')];
                 }else return Response::json(405,['error'=>'method_not_allowed']);
                 if(isset($data['tickets'])){$data['has_more']=count($data['tickets'])>5;$data['tickets']=array_slice($data['tickets'],0,5);}
                 $response=new Response(200,['Content-Type'=>'application/json; charset=utf-8','Cache-Control'=>'no-store'],json_encode($data,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));return $response;

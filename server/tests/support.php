@@ -134,6 +134,46 @@ try{
   expect($panel->handle('GET',$url,$query,$viewerHeaders,'')->status===403,'Viewer cannot download diagnostic');
   expect($panel->handle('GET',$url,['ticket'=>(string)$general],$ownerHeaders,'')->status===404,'General tickets cannot be downloaded as song diagnostics');
  });
+ run('Ordinary support automatically stores a bounded attachment with admin-only download and stable retries',function()use($service,$config,$user,$admin,$uuid,$pdo,&$sent):void{
+  $u=$user();$other=$user();$owner=$admin('owner');$viewer=$admin('viewer');$key=$uuid();$before=count($sent);
+  $report=['schema_version'=>1,'platform'=>'chromium','version'=>'0.4.76','account'=>['email'=>'PRIVATE'],
+   'diagnostics'=>['phase'=>'ERROR','currentTime'=>13.5,'activationCount'=>3,'token'=>'SECRET','source'=>'https://private/SECRET',
+    'trace'=>[['event'=>'backend_http','endpoint'=>'resolve','httpCode'=>504,'elapsedMs'=>3000,'authorization'=>'SECRET']]]];
+  $id=$service->create($u,'Не подключается после переключения',$key,$report,'general');
+  expect($service->create($u,'Не подключается после переключения',$key,$report,'general')===$id,'Exact retry preserves attachment');
+  expect(count($sent)===$before+1,'Ordinary mail behavior preserved without duplicate notification');
+  $thread=$service->thread($id,$u);expect($thread['kind']==='general'&&$thread['report']['diagnostics']['currentTime']===13.5,'Ordinary request keeps snapshot even without a track');
+  expect(!str_contains(json_encode($thread),'SECRET')&&!str_contains(json_encode($thread),'PRIVATE'),'Server independently strips unknown private fields');
+  try{$service->thread($id,$other);throw new RuntimeException('cross_user_attachment');}catch(DomainException){}
+  $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
+  expect(str_contains($html,'Скачать диагностику JSON')&&str_contains($html,'/admin/support/reply'),'General attachment keeps ordinary correspondence');
+  $headers=static function(int $id)use($pdo):array{
+   $token=bin2hex(random_bytes(32));$csrf=AdminAuth::csrfForToken($token);
+   $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR)')->execute([hash('sha256',$token),$id,hash('sha256',$csrf)]);
+   return ['cookie'=>AdminAuth::COOKIE.'='.$token];
+  };
+  $panel=new AdminPanel($pdo,new LocalStorageAdapter('/tmp/celikom-support-tests'),false,false,[]);
+  $query=['ticket'=>(string)$id];$ownerHeaders=$headers($owner);
+  $file=$panel->handle('GET','/admin/support/diagnostics',$query,$ownerHeaders,'');
+  expect($file->status===200&&str_contains($file->headers['Content-Disposition'],'attachment'),'General diagnostics downloaded as file');
+  expect(json_decode($file->body,true)['schema']==='celikom-support-diagnostic-v1','Explicit ordinary support schema');
+  expect(!str_contains($file->body,'SECRET')&&!str_contains($file->body,'PRIVATE'),'Download sanitized');
+  expect($panel->handle('GET','/admin/support/diagnostics',$query,[],'')->status===303,'Anonymous export denied');
+  expect($panel->handle('GET','/admin/support/diagnostics',$query,$headers($viewer),'')->status===403,'Viewer export denied');
+  $plain=$service->create($u,'Старое обращение без вложения',$uuid());
+  expect($panel->handle('GET','/admin/support/diagnostics',['ticket'=>(string)$plain],$ownerHeaders,'')->status===404,'Old requests remain readable without inventing diagnostics');
+  // Full HTTP request path: ordinary confirmed user, no admin rights and no trial required.
+  $pdo->prepare('INSERT INTO user_email_security(user_id,verified_at) VALUES (?,UTC_TIMESTAMP(6))')->execute([$u]);
+  $pdo->prepare('INSERT INTO user_devices(user_id,installation_id) VALUES (?,?)')->execute([$u,$uuid()]);$device=(int)$pdo->lastInsertId();
+  $bearer=bin2hex(random_bytes(32));
+  $pdo->prepare('INSERT INTO user_sessions(user_id,device_id,access_hash,refresh_hash,access_expires_at,refresh_expires_at) VALUES (?,?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR,UTC_TIMESTAMP()+INTERVAL 1 DAY)')->execute([$u,$device,hash('sha256',$bearer),hash('sha256',random_bytes(32))]);
+  $app=new \Celikom\Application($config);$auth=['Authorization'=>'Bearer '.$bearer,'Content-Type'=>'application/json'];
+  $payload=['kind'=>'general','message'=>'Проверка скрытой диагностики','request_key'=>$uuid(),'support_diagnostics'=>$report];
+  $response=$app->handle('POST','/api/v1/support',[],$auth,json_encode($payload));expect($response->status===200,'General attachment accepted via authenticated HTTP route');
+  $newId=json_decode($response->body,true)['ticket_id'];expect($service->thread($newId,$u)['report']['diagnostics']['activationCount']===3,'HTTP route persists snapshot');
+  $legacy=$app->handle('POST','/api/v1/support',[],$auth,json_encode(['kind'=>'general','message'=>'Другой прежний клиент','request_key'=>$uuid(),'report'=>['legacy'=>'unchanged']]));expect($legacy->status===200,'Legacy general report field stays compatible');
+  $pdo->prepare('DELETE FROM user_sessions WHERE user_id=?')->execute([$u]);$pdo->prepare('DELETE FROM user_devices WHERE user_id=?')->execute([$u]);$pdo->prepare('DELETE FROM user_email_security WHERE user_id=?')->execute([$u]);
+ });
 }finally{
  foreach($users as $u){$pdo->exec('DELETE m FROM support_messages m JOIN support_tickets t ON t.id=m.ticket_id WHERE t.user_id='.$u);$pdo->exec('DELETE FROM audit_log WHERE entity_type=\'support_ticket\' AND entity_id IN (SELECT id FROM support_tickets WHERE user_id='.$u.')');$pdo->exec('DELETE FROM support_tickets WHERE user_id='.$u);$pdo->exec('DELETE FROM users WHERE id='.$u);}
  foreach($admins as $a){$pdo->exec('DELETE FROM admin_sessions WHERE admin_id='.$a);$pdo->exec('DELETE FROM audit_log WHERE admin_id='.$a);$pdo->exec('DELETE FROM admins WHERE id='.$a);}

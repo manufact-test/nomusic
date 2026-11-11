@@ -10,13 +10,14 @@ final class SupportService
   if(strlen($text)<3||strlen($text)>6000||!preg_match('//u',$text)||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/',$text)||!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D',$key))throw new \InvalidArgumentException('invalid_request');
   return $text;
  }
- public function create(int $user,string $body,string $key,?array $report=null):int {
-  $report=$report===null?null:SongReport::normalize($report);
-  $kind=$report===null?'general':'song';
-  if($report!==null&&trim($body)==='')$body=SongReport::CATEGORIES[$report['category']];
+ public function create(int $user,string $body,string $key,?array $report=null,?string $kind=null):int {
+  $kind??=$report===null?'general':'song';
+  if(!in_array($kind,['general','song'],true))throw new \InvalidArgumentException('invalid_request');
+  $report=$kind==='song'?SongReport::normalize($report):($report===null?null:SupportReport::normalize($report));
+  if($kind==='song'&&trim($body)==='')$body=SongReport::CATEGORIES[$report['category']];
   $body=$this->validate($body,$key);
   $json=$report===null?null:json_encode($report,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
-  $hash=$report===null?null:hash('sha256',json_encode([$report['track']['id'],$report['category'],$body,!empty($report['diagnostics']['trace'])?$key:null],JSON_THROW_ON_ERROR));$this->pdo->beginTransaction();
+  $hash=$kind==='general'?null:hash('sha256',json_encode([$report['track']['id'],$report['category'],$body,!empty($report['diagnostics']['trace'])?$key:null],JSON_THROW_ON_ERROR));$this->pdo->beginTransaction();
   try {
    // Per-account lock makes rate limits and duplicate handling atomic.
    $q=$this->pdo->prepare("SELECT id FROM users WHERE id=? AND status='active' FOR UPDATE");$q->execute([$user]);if(!$q->fetchColumn())throw new \DomainException('invalid_session');
