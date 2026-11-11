@@ -1,0 +1,147 @@
+name: Android A1 exact ChromaSync full vs unwrapped — 75s native ARM13 A/B
+on:
+  push:
+    branches:
+      - experiment/android-a1-chromasync-extended-lifecycle-20261111
+    paths:
+      - '.github/workflows/android-a1-chromasync-extended-lifecycle.yml'
+      - 'android/native-yandex-hooklab/ci/chromasync_extended_lifecycle_arm13.py'
+      - 'android/native-yandex-hooklab/tests/test_chromasync_extended_lifecycle_arm13.py'
+      - 'docs/android/ANDROID-A1-EXTENDED-75S-RETRIGGER-20261111.md'
+permissions:
+  contents: write
+jobs:
+  synthetic-only:
+    name: 75s observer tests — synthetic, NOT native app runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/ci/chromasync_extended_lifecycle_arm13.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_extended_lifecycle_arm13.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_exact_arm13_probe.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_origin_unwrapped_arm13.py -v
+
+  real-native-arm:
+    name: Exactly 75 seconds per native ARM13 guest; full vs naked 2025 origin
+    needs: synthetic-only
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download owner's exact competitor asset from UNPUBLISHED release draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          draft="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == true and .tag_name == "a1-chromasync-301-unpublished-test") | .id' | head -n 1)"
+          test -n "$draft" || { echo '::error::EXACT_UNPUBLISHED_DRAFT_MISSING'; exit 3; }
+          bytes="$(gh api "repos/$GITHUB_REPOSITORY/releases/$draft/assets?per_page=100" \
+            --jq '.[] | select(.name == "ChromaSync-Clone-3.0.1.apk") | .size' | head -n 1)"
+          [ "$bytes" = '102572843' ] || { echo '::error::EXACT_APK_SIZE_MISMATCH'; exit 3; }
+          mkdir -p "$RUNNER_TEMP/competitor"
+          gh release download a1-chromasync-301-unpublished-test \
+            --repo "$GITHUB_REPOSITORY" --pattern ChromaSync-Clone-3.0.1.apk \
+            --dir "$RUNNER_TEMP/competitor" --clobber >/dev/null 2>&1 || {
+              echo '::error::DRAFT_ASSET_DOWNLOAD_FAILED'; exit 3;
+            }
+          apk="$RUNNER_TEMP/competitor/ChromaSync-Clone-3.0.1.apk"
+          test "$(sha256sum "$apk" | cut -d' ' -f1)" = \
+            4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d || {
+              echo '::error::EXACT_OWNER_APK_SHA256_MISMATCH'; exit 3;
+            }
+          echo '{"exact_owner_binary_digest_pass":true,"asset_published":false}'
+      - name: Boot FIRST clean genuine ARM64/ARMv7 Android13 guest
+        timeout-minutes: 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
+      - name: FULL unmodified ChromaSync — 75s MAIN+resumed window activity
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_extended_lifecycle_arm13.py \
+            --outer "$RUNNER_TEMP/competitor/ChromaSync-Clone-3.0.1.apk" \
+            --variant full --seconds 75 | tee "$RUNNER_TEMP/full-75s.json"
+          echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/full-75s.status"
+          set -e
+          echo 'FULL_VARIANT_OBSERVATION_COMPLETED'
+      - name: Destroy FIRST guest and reset guest state before origin control
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker stop celikom-native-arm-android13 >/dev/null || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          echo 'FIRST_GUEST_REMOVED'
+      - name: Boot SECOND independent clean native ARM Android13 guest
+        timeout-minutes: 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
+      - name: BYTE-IDENTICAL unwrapped 2025 origin.apk without module/loader — same 75s gate
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 android/native-yandex-hooklab/ci/chromasync_extended_lifecycle_arm13.py \
+            --outer "$RUNNER_TEMP/competitor/ChromaSync-Clone-3.0.1.apk" \
+            --variant origin --seconds 75 | tee "$RUNNER_TEMP/origin-75s.json"
+          echo "${PIPESTATUS[0]}" > "$RUNNER_TEMP/origin-75s.status"
+          set -e
+          echo 'ORIGIN_VARIANT_OBSERVATION_COMPLETED'
+      - name: Print minimal A/B verdict — no accounts, pixels, tokens or APK logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])
+          full=json.loads((root/"full-75s.json").read_text())
+          origin=json.loads((root/"origin-75s.json").read_text())
+          observed={
+            "same_75s_arm13_window_both_modes_tested": True,
+            "full_verdict": full["verdict"],
+            "origin_verdict": origin["verdict"],
+            "full_same_main_pid_all_samples": full.get("same_main_pid_all_samples",False),
+            "origin_same_main_pid_all_samples": origin.get("same_main_pid_all_samples",False),
+            "full_resumed_samples": full.get("main_activity_resumed_samples",0),
+            "origin_resumed_samples": origin.get("main_activity_resumed_samples",0),
+            "accounts_tested": False, "audio_tested": False, "ui_pixels_verified": False,
+          }
+          print(json.dumps(observed,sort_keys=True))
+          if (full["verdict"]!="LONG_NATIVE_MAIN_STABLE" or
+              origin["verdict"]=="LONG_NATIVE_MAIN_STABLE"):
+            raise SystemExit("A_B_NOT_EXPECTED_RESULT")
+          PY
+      - name: ALWAYS purge owner APK, nested host, diagnostic files and Redroid guest
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/competitor" "$RUNNER_TEMP/full-75s.json" \
+            "$RUNNER_TEMP/full-75s.status" "$RUNNER_TEMP/origin-75s.json" \
+            "$RUNNER_TEMP/origin-75s.status"
+          echo '{"owner_device_untouched":true,"binary_uploaded_as_artifact":false}'
