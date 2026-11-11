@@ -1,0 +1,86 @@
+name: A1 exact ChromaSync nested origin-alone native Android13 AB (NO modifications)
+on:
+  push:
+    branches:
+      - experiment/android-a1-chromasync-origin-without-wrapper-20261111
+    paths:
+      - '.github/workflows/android-a1-chromasync-unwrapped-origin-arm13.yml'
+      - 'android/native-yandex-hooklab/ci/chromasync_origin_unwrapped_arm13.py'
+      - 'android/native-yandex-hooklab/tests/test_chromasync_origin_unwrapped_arm13.py'
+      - 'docs/android/ANDROID-A1-UNWRAPPED-2025-ORIGIN-CONTROL-20261111.md'
+permissions:
+  contents: write
+jobs:
+  origin-structural-unit:
+    name: Synthetic guards ONLY — not Android launch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/ci/chromasync_origin_unwrapped_arm13.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_origin_unwrapped_arm13.py -v
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_chromasync_exact_arm13_probe.py -v
+
+  native-android13-unwrapped:
+    name: Read-only exact nested 2025 origin APK AOSP PackageManager/MAIN witness
+    needs: origin-structural-unit
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch exact UNPUBLISHED ChromaSync draft APK, verify digest, never publish APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'manufact-test/nomusic'
+          draft_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == true and .tag_name == "a1-chromasync-301-unpublished-test") | .id' | head -n 1)"
+          [ -n "$draft_id" ] || { echo '::error::OWNER_EXACT_UNPUBLISHED_APK_NOT_AVAILABLE'; exit 3; }
+          bytes="$(gh api "repos/$GITHUB_REPOSITORY/releases/$draft_id/assets?per_page=100" \
+            --jq '.[] | select(.name == "ChromaSync-Clone-3.0.1.apk") | .size' | head -n 1)"
+          [ "$bytes" = '102572843' ] || { echo '::error::OWNER_EXACT_DRAFT_ASSET_SIZE_MISMATCH'; exit 3; }
+          mkdir -p "$RUNNER_TEMP/chromasync-owner-exact"
+          gh release download 'a1-chromasync-301-unpublished-test' --repo "$GITHUB_REPOSITORY" \
+            --pattern 'ChromaSync-Clone-3.0.1.apk' --dir "$RUNNER_TEMP/chromasync-owner-exact" \
+            --clobber >/dev/null 2>&1 || { echo '::error::PRIVATE_DRAFT_ASSET_READ_FAILED'; exit 3; }
+          test "$(sha256sum "$RUNNER_TEMP/chromasync-owner-exact/ChromaSync-Clone-3.0.1.apk" | cut -d' ' -f1)" = \
+            4e6edb1c471f6b3715eae4c0a35f0bd898b0daaa87f3f8fb3ba0b20d1638b53d || {
+              echo '::error::ORIGINAL_OWNER_APK_DIGEST_DRIFT'; exit 3;
+            }
+          echo '{"exact_owner_apk_sha_verified":true,"asset_public":false,"unwrapped_test_started":false}'
+      - name: Boot genuine clean native ARM64 and ARMv7 Android13 guest
+        timeout-minutes: 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
+      - name: Extract UNMODIFIED embedded origin and test standalone PackageManager + MAIN lifecycle
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          python3 android/native-yandex-hooklab/ci/chromasync_origin_unwrapped_arm13.py \
+            --outer "$RUNNER_TEMP/chromasync-owner-exact/ChromaSync-Clone-3.0.1.apk"
+          echo '{"no_issuer_or_drm_bypass_applied":true,"competitor_module_installed":false,"audio_tested":false}'
+      - name: Purge exact competitor and embedded APK, destroy disposable Android guest
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/chromasync-owner-exact"
+          echo '{"apk_uploaded_as_artifact":false,"owner_phone_touched":false,"android_guest_destroyed":true}'
