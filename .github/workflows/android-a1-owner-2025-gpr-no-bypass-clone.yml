@@ -1,7 +1,7 @@
 name: CELIKOM A1 original signed 2025 GPR vs own separately signed clone — native ARM13, NO bypass
 on:
   push:
-    branches: [experiment/android-a1-genuine2025-original-vs-own-clone-20261111]
+    branches: [experiment/android-a1-2025-signing-readonly-rootcause-20261111]
     paths:
       - '.github/workflows/android-a1-owner-2025-gpr-no-bypass-clone.yml'
       - 'android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py'
@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           [ "$GITHUB_REPOSITORY" = 'manufact-test/nomusic' ]
-          [ "$GITHUB_REF_NAME" = 'experiment/android-a1-genuine2025-original-vs-own-clone-20261111' ]
+          [ "$GITHUB_REF_NAME" = 'experiment/android-a1-2025-signing-readonly-rootcause-20261111' ]
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx '442137464'
           gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx '736739728'
           mkdir -p "$RUNNER_TEMP/owner-gpr-2025"
