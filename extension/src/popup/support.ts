@@ -1,4 +1,4 @@
-import { buildSongReport, reportCategories } from "./song-report.js";
+import { buildSongReport, buildSupportReport, reportCategories } from "./song-report.js";
 import { uploadTargetFromStatus } from "../upload/contract.js";
 export function supportEmail(value: unknown): string {
   const email = typeof value === "string" ? value.trim() : "";
@@ -28,7 +28,8 @@ export async function initSupport(options: any = {}): Promise<void> {
     if (draft && typeof draft.text === "string" && draft.text.length <= 2000 && /^[a-f0-9-]{36}$/.test(draft.key)) { description.value = draft.text; key = draft.key; pendingMessage = typeof draft.message === "string" && draft.message.length < 3000 ? draft.message : "";
       if(kind)kind.value=draft.kind==='song'?'song':'general';
       if(category&&Object.hasOwn(reportCategories,draft.category))category.value=draft.category;
-      if(draft.payload?.kind==='song'&&draft.payload.report?.track?.id){pendingPayload=draft.payload;pinned=draft.payload.report.track;} }
+      if(draft.payload?.kind==='song'&&draft.payload.report?.track?.id){pendingPayload=draft.payload;pinned=draft.payload.report.track;}
+      else if(draft.payload?.kind==='general'&&typeof draft.payload.message==='string')pendingPayload=draft.payload; }
   } catch (_) {}
   function saveDraft(){void chrome.storage.session?.set({[draftKey]:{text:description.value.slice(0,2000),key,kind:song()?'song':'general',category:category?.value,message:pendingMessage,payload:pendingPayload}});}
   const edited=()=>{key=crypto.randomUUID();pendingMessage="";pendingPayload=null;saveDraft();};
@@ -49,7 +50,7 @@ export async function initSupport(options: any = {}): Promise<void> {
     }catch(_){if(current===generation&&trackLabel)trackLabel.textContent="Не удалось определить песню. Повторите выбор после восстановления связи.";}
   }
   kind?.addEventListener("change",()=>{edited();void selectKind();});
-  if(pendingPayload){if(fields)fields.hidden=false;if(label)label.textContent="Комментарий (необязательно)";if(trackLabel)trackLabel.textContent=[pinned.artist,pinned.title].filter(Boolean).join(" — ");}
+  if(pendingPayload?.kind==='song'){if(fields)fields.hidden=false;if(label)label.textContent="Комментарий (необязательно)";if(trackLabel)trackLabel.textContent=[pinned.artist,pinned.title].filter(Boolean).join(" — ");}
   else void selectKind();
   const message = () => supportMessage(description.value || "", chrome.runtime.getManifest().version, options.getState?.());
   function feedback(text: string) { note.hidden = false; note.textContent = text; }
@@ -64,7 +65,13 @@ export async function initSupport(options: any = {}): Promise<void> {
           const state=await send({type:"CELIKOM_SUPPORT_STATUS_GET"});
           if(!pinned||state.track?.id!==pinned.id){feedback("Трек изменился. Выберите вид обращения заново, чтобы сообщить о текущей песне.");return;}
           pendingPayload={kind:'song',message:message(),report:buildSongReport(state,category.value,chrome.runtime.getManifest().version)};
-        }else {if(!pendingMessage)pendingMessage=message();pendingPayload={kind:'general',message:pendingMessage};}
+         }else {
+          if(!pendingMessage)pendingMessage=message();
+          let state;
+          try { state=await send({type:"CELIKOM_SUPPORT_STATUS_GET"}); } catch (_) {}
+          const report=state?.supportReport || buildSupportReport(state?.ok===false || !state ? {connection:{error:"support_status_unavailable"}} : state,chrome.runtime.getManifest().version);
+          pendingPayload={kind:'general',message:pendingMessage,report};
+        }
       }
       await chrome.storage.session?.set({[draftKey]:{text:description.value.slice(0,2000),key,kind:pendingPayload.kind,category:category?.value,message:pendingMessage,payload:pendingPayload}});
       const result = await send({ type: "CELIKOM_AUTH", action: "support-send", ...pendingPayload, request_key: key });

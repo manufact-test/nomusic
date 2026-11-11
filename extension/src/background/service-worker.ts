@@ -1,3 +1,4 @@
+import { buildSupportReport } from "../popup/song-report.js";
 import { redactDiagnostics, publicPlaybackState } from "../auth/diagnostic-access.js";
 import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messages.js";
 import { createControllerBootstrap } from "./controller-bootstrap.js";
@@ -273,6 +274,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     // Popup-only limited snapshot: private full diagnostic access is NOT granted.
     void readState(false,true).then(state => sendResponse({
       ...publicPlaybackState(state),
+      supportReport: buildSupportReport(state, VERSION),
       network: (state.network || []).filter(row =>
         ["config","auth/me","entitlement","tracks/version-status","resolve","rewards"].includes(row.endpoint)
       ).slice(-20).map(row => ({endpoint:row.endpoint,httpStatus:row.httpStatus,

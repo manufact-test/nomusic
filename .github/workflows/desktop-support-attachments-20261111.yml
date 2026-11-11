@@ -1,0 +1,77 @@
+name: Browser support attachments
+on:
+  push:
+    branches: [feature/desktop-support-attachments-20261111]
+permissions:
+  contents: read
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+      REQUIRE_BROWSER_AUDIO: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run test:extension
+      - run: node scripts/test-support-browser.mjs
+      - run: npm --prefix extension run validate
+      - run: npm run security
+      - run: npm run build:extension
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-extension-0.4.76
+          path: |
+            extension/dist/celikom-extension-0.4.76.zip
+            extension/dist/celikom-extension-0.4.76.zip.sha256
+          if-no-files-found: error
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-support-ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 7fcc3c32d217a901e819a40856295051decda585
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Syntax, persistence, exports, private access and compatibility
+        run: |
+          set -euo pipefail
+          php -l server/src/Support/SupportReport.php
+          php -l server/src/Support/SongReport.php
+          php -l server/src/Support/SupportService.php
+          php -l server/src/Support/SupportAdminView.php
+          php -l server/src/Admin/AdminPanel.php
+          php -l server/src/Application.php
+          php server/tests/database.php
+          php server/tests/support.php
+          php server/tests/auth.php
+          php server/tests/entitlement.php
+          php server/tests/uploads.php
+          php server/tests/admin.php

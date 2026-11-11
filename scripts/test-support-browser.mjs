@@ -26,7 +26,8 @@ try {
   const description=document.querySelector('[data-support-description]');description.value='Ошибка воспроизведения';
   document.querySelector('[data-support-send]').click();document.querySelector('[data-support-send]').click();await new Promise(r=>setTimeout(r,150));
   check(submitted.length===1 && submitted[0].message==='Ошибка воспроизведения','single send');
-  check(!submitted[0].message.includes('SECRET')&&!submitted[0].message.includes('PRIVATE'),'request privacy');
+  check(!JSON.stringify(submitted[0]).includes('SECRET')&&!JSON.stringify(submitted[0]).includes('PRIVATE'),'request privacy');
+  check(submitted[0].report?.platform==='chromium'&&submitted[0].report.diagnostics.network[0].httpStatus===504,'ordinary support automatic attachment');
   check(document.querySelector('[data-support-note]').textContent==='Сообщение отправлено' && !document.querySelector('[data-support-note]').hidden,'visible confirmation');
   check(!document.querySelector('[data-support-copy]') && !document.querySelector('[data-support-tickets]'),'simple support form');
   const kind=document.querySelector('[data-support-kind]');kind.value='song';kind.dispatchEvent(new Event('change'));await new Promise(r=>setTimeout(r,50));
