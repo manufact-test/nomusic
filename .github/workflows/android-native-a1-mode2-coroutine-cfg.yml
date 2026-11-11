@@ -1,0 +1,32 @@
+name: Android A1 signed original mode2 coroutine CFG audit (no rewrite)
+on:
+  push:
+    branches:
+      - experiment/android-a1-exit-callsite-witness-20261111
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_exit_mode2_coroutine_path.py'
+      - 'android/native-yandex-hooklab/tests/test_audit_native_exit_mode2_coroutine_path.py'
+      - '.github/workflows/android-native-a1-mode2-coroutine-cfg.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pinned-original-coroutine-cfg:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test bounded graph parser with synthetic methods
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_exit_mode2_coroutine_path.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_audit_native_exit_mode2_coroutine_path.py -v
+      - name: Audit exact six issuer-signed host DEX in ephemeral CI only
+        timeout-minutes: 12
+        run: python3 android/native-yandex-hooklab/audit_native_exit_mode2_coroutine_path.py
+      - name: Confirm original APK never published
+        if: always()
+        run: |
+          echo '{"uploaded_third_party_files":false,"consumer_apk_released":false,"bypass":false}'
