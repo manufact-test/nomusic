@@ -346,8 +346,7 @@ public sealed partial class MainWindow : Form
                 _ = RefreshCompactAccessAsync(force: true);
             }));
         }
-        catch (InvalidOperationException) { }
-        catch (ObjectDisposedException) { }
+        catch (InvalidOperationException) { } // includes disposed handle
     }
 
     private void StopPlaybackExplicitly()
