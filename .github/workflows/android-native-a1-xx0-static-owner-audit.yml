@@ -1,0 +1,33 @@
+name: Android A1 read-only signed source static audit of proven xx0.run exit owner
+on:
+  push:
+    branches:
+      - experiment/android-a1-exit-callsite-witness-20261111
+    paths:
+      - 'android/native-yandex-hooklab/audit_native_exit_owner_xx0.py'
+      - 'android/native-yandex-hooklab/tests/test_audit_native_exit_owner_xx0.py'
+      - '.github/workflows/android-native-a1-xx0-static-owner-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-exit-owner-bytecode-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify bounded independent instruction-shape parser
+        run: |
+          python3 -m py_compile android/native-yandex-hooklab/audit_native_exit_owner_xx0.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_audit_native_exit_owner_xx0.py -v
+      - name: Read-only exact signed 2026 host DEX trace of xx0.run (no emulator or cloned APK)
+        timeout-minutes: 12
+        run: python3 android/native-yandex-hooklab/audit_native_exit_owner_xx0.py
+      - name: Strictly no vendor upload or persistent artifacts
+        if: always()
+        run: |
+          test ! -d android/native-yandex-hooklab/release
+          echo '{"signed_dex_artifact_uploaded":false,"owner_phone_touched":false,"signature_bypass":false}'
