@@ -93,6 +93,18 @@ def lab_manifest_min_sdk(apk: Path) -> int | None:
 
 
 def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,Path]],dict]:
+    # Named configuration split manifests may omit uses-sdk entirely.
+    # Android installs them with the verified base, which defines the
+    # minimum supported API for the whole package; API 1 is not applicable.
+    bases=[p for p in originals if not apk_name(p).get("split","")]
+    if len(bases)!=1:
+        stop("ORIGINAL_2025_BASE_COUNT_INVALID")
+    base_min_sdk=lab_manifest_min_sdk(bases[0])
+    if base_min_sdk is None or not 21 <= base_min_sdk <= 33:
+        stop("ORIGINAL_BASE_MIN_SDK_OUT_OF_SUPPORTED_RESEARCH_RANGE")
+    print(json.dumps({"original_base_manifest_min_sdk":base_min_sdk,
+                      "config_splits_inherit_base_sdk_for_verification":True,
+                      "original_verified_publisher_splits":len(originals)},sort_keys=True))
     jar=work/"APKEditor-1.4.9-verified.jar"
     arsc.download_editor(jar)
     lab_key=work/"unique-ephemeral-signer.jks"
@@ -152,7 +164,7 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
                       "--ks",str(lab_key),"--ks-pass","pass:ephemeral-lab-only",
                       "--ks-key-alias","celikom-lab",
                       "--key-pass","pass:ephemeral-lab-only",
-                      "--min-sdk-version","21","--v1-signing-enabled","true",
+                      "--min-sdk-version",str(base_min_sdk),"--v1-signing-enabled","true",
                       "--v2-signing-enabled","true",
                       "--v3-signing-enabled","true",
                       "--v4-signing-enabled","false",
@@ -173,8 +185,13 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
             stop("OWN_CLONE_SPLIT_MANIFEST_DRIFT")
         if source.native_payload_hashes(original)!=source.native_payload_hashes(aligned):
             stop("OWN_CLONE_DEX_OR_NATIVE_PAYLOAD_DRIFT")
-        verified=cmd([lab_sdk_tool("apksigner"),"verify",
-                      "--verbose","--print-certs",str(aligned)],100)
+        # Use publisher-verified base minimum on named configuration splits.
+        # On base itself the verifier must independently parse minSdk.
+        verify_args=[lab_sdk_tool("apksigner"),"verify","--verbose","--print-certs"]
+        if name:
+            verify_args += ["--min-sdk-version",str(base_min_sdk)]
+        verify_args.append(str(aligned))
+        verified=cmd(verify_args,100)
         if verified.returncode:
             # Classify failure without publishing unsigned app bytes,
             # private paths, certificate, stack, stderr or vendor strings.
@@ -199,7 +216,8 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
                               "split_is_base":name=="",
                               "original_declared_min_sdk":lab_manifest_min_sdk(original),
                               "scratch_signed_declared_min_sdk":lab_manifest_min_sdk(aligned),
-                              "signer_forced_min_sdk":21,
+                              "signer_min_sdk_from_verified_base":base_min_sdk,
+                              "named_split_verifier_sdk_override":bool(name),
                               "sdk_result_exit_nonzero":True,
                               "clone_apk_not_installed":True},sort_keys=True))
             stop("OWN_CLONE_SIGNATURE_NOT_VERIFIED")
@@ -224,6 +242,8 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
       "clone_cert_distinct_from_verified_publisher":True,
       "provider_authorities_from_original_package_rewritten":provider_rewrites,
       "obsolete_v1_jarsign_entries_removed_from_disposable_clone":obsolete_v1_entries_removed,
+      "base_manifest_min_sdk":base_min_sdk,
+      "config_splits_verify_at_true_base_min_sdk":True,
       "original_signer_spoofed":False,"signature_bypass_used":False}
 
 def install_clones(clones: list[tuple[str,Path]]) -> str:
