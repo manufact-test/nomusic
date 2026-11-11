@@ -1,3 +1,5 @@
+> **SUPERSEDED 12.11.2026:** 2025 signer-blocker actually fixed, original+own-key APKs 16/16 verifier PASS; genuine ARM13 lab cloned install 16/16 PASS but Java MAIN CRASH. Do not return to this earlier negative-only state. Read [NEXT-CHAT-ANDROID-A1-2025-SIGNER16-INSTALL16-JAVA-NOGO-20261112.md](NEXT-CHAT-ANDROID-A1-2025-SIGNER16-INSTALL16-JAVA-NOGO-20261112.md) FIRST. Stage A NO-GO; no user APK.
+
 # ПЕРВОЕ СООБЩЕНИЕ ДЛЯ СЛЕДУЮЩЕГО ЧАТА — CELIKOM Android A1
 
 Привет! Ты следующий ведущий разработчик CELIKOM Android A1. Продолжай текущий проект с последнего проверенного состояния. Не начинай с нуля, не меняй архитектуру, не переписывай уже принятые решения и не останавливайся после каждого коммита или очереди GitHub. Работай большими блоками, обязательно сохраняя точные резервные ветки.
