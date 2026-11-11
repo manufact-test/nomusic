@@ -130,5 +130,24 @@ class SafeMainCrashBufferTest(unittest.TestCase):
         self.assertNotIn("user_private", str(report).lower())
         self.assertNotIn("permission", report["native_link_allowlisted_terms"])
 
+    def test_bionic_elf_machine_mismatch_is_extracted_as_fixed_pair(self):
+        msg = ('java.lang.UnsatisfiedLinkError: dlopen failed: '
+               '"/data/app/SECRET_PATH/base.apk!/assets/lspatch/so/x86/liblspatch.so" '
+               'is for EM_386 (3) instead of EM_ARM (40) '
+               'access_token=VERY_SECRET')
+        result = classify_main_crash_buffer(EXIT, row(431, "E", "AndroidRuntime", msg))
+        self.assertEqual(result["native_link_failure_mode"], "ELF_ARCH_INVALID")
+        self.assertEqual(result["native_link_machine_mismatch"],
+                         {"seen": True, "actual": "EM_386", "expected": "EM_ARM"})
+        self.assertNotIn("SECRET", str(result))
+        self.assertNotIn("access_token", str(result))
+        self.assertFalse(result["raw_crash_buffer_exposed"])
+
+    def test_unknown_machine_pair_never_leaks_dynamic_values(self):
+        msg = 'dlopen failed: private.so is for EM_PRIVATE (123) instead of EM_ARM (40)'
+        result = classify_main_crash_buffer(EXIT, row(431, "E", "AndroidRuntime", msg))
+        self.assertFalse(result["native_link_machine_mismatch"]["seen"])
+        self.assertNotIn("EM_PRIVATE", str(result))
+
 if __name__=="__main__":
     unittest.main()

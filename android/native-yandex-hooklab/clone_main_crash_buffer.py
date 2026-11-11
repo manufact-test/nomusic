@@ -48,7 +48,7 @@ def _native_link_failure_mode(log_text: str) -> str:
         ("DEP_MISSING", r"(?:needed by|referenced by|DT_NEEDED).*?(?:not found|missing)|library.{0,150}[.]so.{0,30}not found"),
         ("LIBRARY_NOT_FOUND", r"liblspatch[.]so.{0,80}not found|no such file or directory|couldn.t find|cannot find"),
         ("SYMBOL_UNRESOLVED", r"cannot locate symbol|undefined symbol|symbol lookup error"),
-        ("ELF_ARCH_INVALID", r"wrong ELF class|instead of (?:32|64)-bit|e_machine|unexpected ELF|ELFCLASS"),
+        ("ELF_ARCH_INVALID", r"wrong ELF class|instead of (?:32|64)-bit|e_machine|unexpected ELF|ELFCLASS|is for EM_|instead of EM_"),
         ("ELF_INVALID", r"bad ELF|invalid ELF|not an ELF|ELF header|ELF load command"),
         ("ZIP_ENTRY_INVALID", r"zip entry|zip archive|zip file|not uncompressed|compressed entry|invalid zip"),
         ("PAGE_OR_MMAP", r"mmap failed|couldn't map|could not map|page aligned|not page-aligned|invalid offset|segment.*align"),
@@ -112,6 +112,21 @@ def _dlopen_allowlisted_terms(messages: list[str]) -> list[str]:
     return ordered
 
 
+
+def _elf_machine_mismatch(log_text: str) -> dict:
+    """Bionic EM_MACHINE mismatch pair only; never an ELF path or exception."""
+    match = re.search(
+        r"is for\s+(EM_[A-Z0-9_]+)\s*\(\d+\)\s+instead of\s+(EM_[A-Z0-9_]+)\s*\(\d+\)",
+        log_text, re.I)
+    allowed = {"EM_386", "EM_ARM", "EM_AARCH64", "EM_X86_64"}
+    if match is None:
+        return {"seen": False, "actual": "UNKNOWN", "expected": "UNKNOWN"}
+    actual, expected = match.group(1).upper(), match.group(2).upper()
+    if actual not in allowed or expected not in allowed:
+        return {"seen": False, "actual": "UNKNOWN", "expected": "UNKNOWN"}
+    return {"seen": True, "actual": actual, "expected": expected}
+
+
 def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
     """Fixed category labels only, no raw process/exception data returned."""
     pids = main_exit_pids(exit_dump)
@@ -155,6 +170,7 @@ def classify_main_crash_buffer(exit_dump: str, crash_buffer: str) -> dict:
         "native_link_library_cpp_shared_named": has(r"libc\+\+_shared\.so"),
         "native_link_dlopen_failed": has(r"dlopen failed"),
         "native_link_failure_mode": _native_link_failure_mode(text),
+        "native_link_machine_mismatch": _elf_machine_mismatch(text),
         "native_link_allowlisted_terms": _dlopen_allowlisted_terms(parts),
         "native_link_path_family": _native_link_path_family(text),
         "native_link_error_line_observed": bool([p for p in parts if re.search(r"dlopen failed|UnsatisfiedLinkError", p, re.I)]),
