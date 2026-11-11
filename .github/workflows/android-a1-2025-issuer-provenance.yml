@@ -1,0 +1,42 @@
+name: Android A1 2025 publisher provenance — issuer verify gate (NO APK)
+on:
+  push:
+    branches:
+      - experiment/android-a1-2025-issuer-provenance-gate-20261111
+    paths:
+      - '.github/workflows/android-a1-2025-issuer-provenance.yml'
+      - 'android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py'
+      - 'android/native-yandex-hooklab/ci/official_2025_store_metadata_probe.py'
+      - 'android/native-yandex-hooklab/tests/test_publisher_2025_provenance_gate.py'
+      - 'docs/android/ANDROID-A1-2025-ISSUER-CHECK-RETRIGGER-20261111.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  provenance-only:
+    name: Strict 2025 APK issuer gate — synthetic tests + official metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check exact metadata/signature rejection rules — synthetic only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py
+          python3 -m py_compile android/native-yandex-hooklab/ci/official_2025_store_metadata_probe.py
+          python3 -m unittest discover -s android/native-yandex-hooklab/tests \
+            -p 'test_publisher_2025_provenance_gate.py' -v
+      - name: Current official RuStore public metadata — no binary, no login
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 android/native-yandex-hooklab/ci/official_2025_store_metadata_probe.py
+      - name: Fail-closed candidate preflight when no original APK is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 android/native-yandex-hooklab/ci/publisher_2025_provenance_gate.py
+          echo '{"real_2025_apk_verified":false,"android13_2025_runtime_executed":false,"celikom_stage_a":"NO_GO","publisher_binary_uploaded":false}'
