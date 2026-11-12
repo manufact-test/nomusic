@@ -117,7 +117,7 @@ if (File.Exists(verifiedFeedFile))
     feedText.Replace(NativeIntegrationManager.Official51270AsarSha256,new string('b',64)))),
     "W80 known official hash cannot be silently redefined");
   Reject(()=>OfficialYandexCatalog.ParseVerifiedFeed(Encoding.UTF8.GetBytes(
-    feedText.Replace("43289688797","43289688797\", \"extra\": \"foo"))),
+    feedText.Replace("\"schema\": 1", "\"schema\": 99"))),
     "W80 broken compatibility document rejected");
 }
 
