@@ -24,6 +24,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "PUSH_HELPER_HOOK","PUSH_HELPER_BOOL",
           "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE","PUSH_GUARD_INPUT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
+          "PUSH_FATAL_OBJECT_HOOK","PUSH_FATAL_OBJECT","PUSH_FATAL_OBJECT_LOADER",
+          "PUSH_FATAL_OBJECT_OUTCOME",
           "PUSH_NEAR_GUARD_HOOK","PUSH_NEAR_GUARD_VALUE",
           "PUSH_ALL_FATAL_GUARD_HOOK","PUSH_ALL_FATAL_GUARD_VALUE",
           "METRICA_PROVIDER_RESOLVE","METRICA_PROVIDER_QUERY_HOOK",
@@ -42,6 +44,7 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
           "STOCK_TARGET","CLONE_TARGET","IMPLICIT_TARGET",
           "OTHER_TARGET","UNKNOWN_TARGET",
           "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL","PUSH_NEAR_GUARD",
+          "PUSH_ARG","ARG_ENTER","ARG_THROW","RECEIVER_ENTER","RECEIVER_THROW",
           "CASE_0","CASE_1","CASE_2","CASE_3",
           "CASE_4","CASE_5","CASE_6","CASE_7",
           "STATE_MARK_ACTIVATED","STATE_MARK_FULL","STATE_KILL",
@@ -65,6 +68,8 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE",
          "ENTER","RETURN","THROW","TRUE","FALSE","NON_BOOLEAN",
          "OTHER_THROW","EMPTY","NONEMPTY","NULL","OTHER_INPUT",
+         "OBJECT_NULL","OBJECT_NULL_DEPENDENCY","OBJECT_NO_REFERENCE_FIELDS",
+         "OBJECT_ALL_REFERENCES_SET","OBJECT_TOO_MANY_FIELDS","OBJECT_FIELDS_UNREADABLE",
          "ABSENT","STOCK_OWNER","CLONE_OWNER","OTHER_OWNER","PROBE_ERROR",
          "NULL_RESULT","NONNULL_RESULT","FALSE_RESULT","SUCCESS_RESULT",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -161,6 +166,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     exact_guard_hook=[x for x in seen if x[0]=="PUSH_GUARD_HOOK"]
     exact_fatal=[x for x in seen if x[0]=="PUSH_FATAL_CALL"]
     exact_fatal_hook=[x for x in seen if x[0]=="PUSH_FATAL_HOOK"]
+    obj_hook=[x for x in seen if x[0]=="PUSH_FATAL_OBJECT_HOOK"]
+    obj_state=[x for x in seen if x[0]=="PUSH_FATAL_OBJECT"]
+    obj_loader=[x for x in seen if x[0]=="PUSH_FATAL_OBJECT_LOADER"]
+    obj_outcome=[x for x in seen if x[0]=="PUSH_FATAL_OBJECT_OUTCOME"]
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
     push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
     focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_INIT",
@@ -227,6 +236,11 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "private_push_fatal_result_states":{state:sum(x[2]==state for x in exact_fatal)
             for state in ("ENTER","RETURN","DIRECT_METRICA","OTHER_THROW")},
         "private_push_fatal_timeline":[x[2] for x in exact_fatal[:48]],
+        "exact_push_object_hook_registered":any(x[2]=="REGISTERED" for x in obj_hook),
+        "exact_push_object_state_timeline":[(x[1],x[2]) for x in obj_state[:32]],
+        "exact_push_object_loader_categories":sorted({x[2] for x in obj_loader}),
+        "exact_push_object_outcome_timeline":[x[2] for x in obj_outcome[:16]],
+        "exact_push_object_raw_fields_or_values_disclosed":False,
         "private_push_helper_bool_hook_registered":any(
             x[2]=="REGISTERED" for x in private_helper_hook),
         "private_push_helper_bool_call_states":{
