@@ -193,6 +193,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             m.setAccessible(true);
             hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
+                    boolean optionalOnly = false;
                     try {
                         Object arg = chain.getArg(throwableIndex);
                         if (arg instanceof Throwable) {
@@ -203,8 +204,22 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     "CAUSE_METRICA".equals(category))
                                 emit("FATAL_DETAIL", origin,
                                     throwableDetailCategory(thrown));
+                            // Causal TEMPORARY LAB control ONLY. Suppress the
+                            // Android terminating handler exclusively for
+                            // the EXACT object constructed by AppMetrica.
+                            // Do not suppress other throwables, throw causes,
+                            // app security, login, DRM or any native code.
+                            optionalOnly="RUNTIME_KILL_HANDLER".equals(origin)
+                                && "DIRECT_METRICA".equals(category)
+                                && PACKAGE.equals(Application.getProcessName());
                         } else emit("FATAL_DISPATCH", origin, "NON_THROWABLE");
                     } catch (Throwable ignored) { }
+                    if (optionalOnly) {
+                        emit("LAB_METRICA_FAILOPEN", "RUNTIME_KILL_HANDLER", "DIRECT_METRICA");
+                        return null;
+                    }
+                    // Every unmatched/error case uses original Android crash
+                    // handling without modification.
                     return chain.proceed();
                 });
             emit("FATAL_HOOK", origin, "REGISTERED");
