@@ -27,6 +27,21 @@ import clone_native_splits_ephemeral as source
 JAR_URL = "https://github.com/JingMatrix/LSPatch/releases/download/v1.2/lspatch-v1.2-487-release.jar"
 JAR_SHA256 = "d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165"
 
+def causal_signature_level() -> int:
+    # Explicitly isolated one-time competitor-mechanism feasibility experiment.
+    # The normal main / Test.50 / all historical zero-bypass branches stay 0.
+    if os.environ.get("CELIKOM_A1_COMPETITOR_SIG_MIMIC") != "1":
+        return 0
+    if (os.environ.get("GITHUB_ACTIONS") != "true"
+            or os.environ.get("GITHUB_REPOSITORY") != "manufact-test/nomusic"
+            or os.environ.get("GITHUB_REF_NAME") !=
+               "experiment/android-a1-competitor-loader-level2-causal-20261112"
+            or os.environ.get("CELIKOM_NATIVE_ARM13_REDDROID_CLONE") != "1"
+            or os.environ.get("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID") != "1"
+            or os.uname().machine != "aarch64"):
+        raise ValueError("COMPETITOR_LEVEL2_REQUIRES_EPHEMERAL_ARM13_CI")
+    return 2
+
 
 def download_pinned_patcher(path: Path) -> None:
     h = hashlib.sha256()
@@ -77,9 +92,10 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
             raise arsc.TrialError("METALOADER_CONFIG_MEMBER_BAD_CRC") from None
         except (ValueError, UnicodeError):
             raise arsc.TrialError("METALOADER_CONFIG_INVALID") from None
+        intended_level = causal_signature_level()
         if (type(cfg.get("sigBypassLevel")) is not int or
-                cfg["sigBypassLevel"] != 0):
-            raise arsc.TrialError("NONZERO_SIGNATURE_BYPASS_PROHIBITED")
+                cfg["sigBypassLevel"] != intended_level):
+            raise arsc.TrialError("UNEXPECTED_EXPERIMENT_SIGNATURE_LEVEL")
         if cfg.get("useManager") is not False:
             raise arsc.TrialError("METALOADER_EXTERNAL_MANAGER_NOT_ALLOWED")
         # Compare original code and native libs inside the embedded host, not
@@ -114,7 +130,7 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
         "rootless_one_apk": True,
         "clone_package": source.DEST,
         "issuer_signed_original_touched": False,
-        "signature_bypass_level": 0,
+        "signature_bypass_level": intended_level,
         "separate_module_embedded": witness_module_sha256 is not None,
         "embedded_origin_dex_count": sum(x.startswith("classes") and x.endswith(".dex") for x in actual),
         "embedded_origin_native_lib_count": sum(x.startswith("lib/") for x in actual),
@@ -281,7 +297,7 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
                      "ephemeral-lab-only", "research", "ephemeral-lab-only"]
     if signed_witness is not None:
         patch_command.extend(["-m", str(signed_witness)])
-    patch_command.extend(["-o", str(stage), "-l", "0", str(clone)])
+    patch_command.extend(["-o", str(stage), "-l", str(causal_signature_level()), str(clone)])
     arsc.run(patch_command, "LSPATCH_CLONE_BOOTSTRAP_ZERO_BYPASS", 500)
     print(json.dumps({"lspatch_zero_phase": "PATCH_COMMAND_COMPLETED"}))
     results = list(stage.glob("*.apk"))
