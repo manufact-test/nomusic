@@ -10,7 +10,7 @@ on:
       - '.github/workflows/android-a1-2025-lspatch-sigcompat-arm13.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   isolated-2025-signed-original-vs-lspatch-zero-vs-two:
     runs-on: ubuntu-24.04-arm
