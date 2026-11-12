@@ -3,6 +3,8 @@ package pro.celikom.a1exitwitness;
 import android.app.Application;
 import android.content.Context;
 import android.content.ContentResolver;
+import android.content.Intent;
+import android.content.ComponentName;
 import android.content.pm.ProviderInfo;
 import android.net.Uri;
 import android.os.Looper;
@@ -48,6 +50,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private volatile ClassLoader cloneAppClassLoader;
     private boolean privatePushBoolWitnessReady;
     private boolean metricaProviderQueryHookReady;
+    private boolean metricaServiceHookReady;
+    private final java.util.concurrent.atomic.AtomicInteger metricaServiceHitCount =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger metricaProviderQueryHits =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean privatePushSitesReady;
@@ -1181,6 +1186,74 @@ public final class ExitCallsiteWitness extends XposedModule {
             registered>0 ? "REGISTERED":"NO_HOOK");
     }
 
+
+    // Observe only target package identity on SDK service operations in
+    // the disposable clone MAIN. Intent extras, actions and component
+    // names, device/account data, and exceptions are never logged.
+    private static String privateServiceIntentFamily(Intent intent) {
+        if (intent==null) return "UNKNOWN_TARGET";
+        try {
+            ComponentName target=intent.getComponent();
+            String destination=target!=null ? target.getPackageName()
+                : intent.getPackage();
+            if (destination==null || destination.isEmpty())
+                return "IMPLICIT_TARGET";
+            if (PACKAGE.equals(destination)) return "CLONE_TARGET";
+            if ("ru.yandex.music".equals(destination)) return "STOCK_TARGET";
+        } catch (Throwable ignored) { return "UNKNOWN_TARGET"; }
+        return "OTHER_TARGET";
+    }
+
+    private synchronized void installPrivateMetricaServiceWitness() {
+        if (metricaServiceHookReady) return;
+        int installed=0;
+        try {
+            Class<?> impl=Class.forName("android.app.ContextImpl");
+            for (Method method:impl.getDeclaredMethods()) {
+                String name=method.getName();
+                if (!"startService".equals(name)
+                        && !"startForegroundService".equals(name)
+                        && !"bindService".equals(name)
+                        && !"bindServiceCommon".equals(name))
+                    continue;
+                Class<?>[] params=method.getParameterTypes();
+                if (params.length==0 || params[0]!=Intent.class) continue;
+                method.setAccessible(true);
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        boolean sdk=privateMetricaSdkCaller();
+                        int hit=sdk ? metricaServiceHitCount.incrementAndGet() : 1000;
+                        String family="UNKNOWN_TARGET";
+                        if (sdk && hit<=48) {
+                            try {
+                                Object arg=chain.getArg(0);
+                                if (arg instanceof Intent)
+                                    family=privateServiceIntentFamily((Intent)arg);
+                            } catch (Throwable ignored) { }
+                            emit("METRICA_SERVICE_CALL",family,"ENTER");
+                        }
+                        try {
+                            Object value=chain.proceed();
+                            if (sdk && hit<=48)
+                                emit("METRICA_SERVICE_CALL",family,
+                                    value==null ? "NULL_RESULT"
+                                    : Boolean.FALSE.equals(value)
+                                        ? "FALSE_RESULT":"SUCCESS_RESULT");
+                            return value;
+                        } catch (Throwable failure) {
+                            if (sdk && hit<=48)
+                                emit("METRICA_SERVICE_CALL",family,"THROW");
+                            throw failure;
+                        }
+                    });
+                installed++;
+            }
+        } catch (Throwable ignored) { }
+        metricaServiceHookReady=installed>0;
+        emit("METRICA_SERVICE_HOOK","METRICA_SDK",
+            installed>0 ? "REGISTERED":"NO_HOOK");
+    }
+
     private boolean hookApplicationAttach() {
         try {
             Method attach = Application.class.getDeclaredMethod("attach", Context.class);
@@ -1202,6 +1275,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 cloneAppClassLoader = loader;
                                 observeProviderRegistration(caller);
                                 installPrivateMetricaProviderQueryWitness();
+                                installPrivateMetricaServiceWitness();
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
                                 installMetricaActivationWitness(loader);

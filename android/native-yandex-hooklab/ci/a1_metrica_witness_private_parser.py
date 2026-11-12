@@ -27,7 +27,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "PUSH_NEAR_GUARD_HOOK","PUSH_NEAR_GUARD_VALUE",
           "PUSH_ALL_FATAL_GUARD_HOOK","PUSH_ALL_FATAL_GUARD_VALUE",
           "METRICA_PROVIDER_RESOLVE","METRICA_PROVIDER_QUERY_HOOK",
-          "METRICA_PROVIDER_QUERY",
+          "METRICA_PROVIDER_QUERY","METRICA_SERVICE_HOOK",
+          "METRICA_SERVICE_CALL",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
@@ -38,6 +39,8 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "RUNTIME_LOG_HANDLER","RUNTIME_LOOKUP",
          "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN",
          "STOCK_AUTH","CLONE_AUTH","OTHER_AUTH","UNKNOWN_AUTH",
+          "STOCK_TARGET","CLONE_TARGET","IMPLICIT_TARGET",
+          "OTHER_TARGET","UNKNOWN_TARGET",
           "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL","PUSH_NEAR_GUARD",
           "CASE_0","CASE_1","CASE_2","CASE_3",
           "CASE_4","CASE_5","CASE_6","CASE_7",
@@ -63,7 +66,7 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "ENTER","RETURN","THROW","TRUE","FALSE","NON_BOOLEAN",
          "OTHER_THROW","EMPTY","NONEMPTY","NULL","OTHER_INPUT",
          "ABSENT","STOCK_OWNER","CLONE_OWNER","OTHER_OWNER","PROBE_ERROR",
-         "NULL_RESULT","NONNULL_RESULT",
+         "NULL_RESULT","NONNULL_RESULT","FALSE_RESULT","SUCCESS_RESULT",
          "CLONE","ORIGINAL","MISSING","OTHER",
          "LOADER_MATCH","LOADER_DIFFERENT","LOADER_NULL","LOADER_UNKNOWN",
          "SDK_LEGACY","SDK_LEGACY_PUBLIC","SDK_LEGACY_IMPL","SDK_LEGACY_OTHER",
@@ -142,6 +145,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_inits=[x for x in seen if x[0]=="PUSH_INIT"]
     push_init_hooks=[x for x in seen if x[0]=="PUSH_INIT_HOOK"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
+    service_call=[x for x in seen if x[0]=="METRICA_SERVICE_CALL"]
+    service_hook=[x for x in seen if x[0]=="METRICA_SERVICE_HOOK"]
     provider_resolve=[x for x in seen if x[0]=="METRICA_PROVIDER_RESOLVE"]
     provider_query=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY"]
     provider_query_hook=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY_HOOK"]
@@ -159,7 +164,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
     push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
     focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_INIT",
-                  "METRICA_PROVIDER_QUERY",
+                  "METRICA_PROVIDER_QUERY","METRICA_SERVICE_CALL",
                   "PUSH_NEAR_GUARD_VALUE","PUSH_ALL_FATAL_GUARD_VALUE",
                   "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
                   "APP_LIFECYCLE"}
@@ -178,6 +183,14 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "push_throw_subpackage_categories":sorted({x[2] for x in push_throw_classes}),
         "push_throw_method_categories":sorted({x[2] for x in push_throw_methods}),
         "activation_push_order_bounded":sequence,
+        "service_hook_registered":any(x[2]=="REGISTERED" for x in service_hook),
+        "service_sdk_target_states":{
+            name:{state:sum(x[1]==name and x[2]==state for x in service_call)
+                  for state in ("ENTER","NULL_RESULT","FALSE_RESULT",
+                                "SUCCESS_RESULT","THROW")}
+            for name in ("STOCK_TARGET","CLONE_TARGET","IMPLICIT_TARGET",
+                         "OTHER_TARGET","UNKNOWN_TARGET")},
+        "service_sdk_timeline":[(x[1],x[2]) for x in service_call[:48]],
         "provider_metadata_owners":{
             name:sorted({x[2] for x in provider_resolve if x[1]==name})
             for name in ("STOCK_AUTH","CLONE_AUTH")},

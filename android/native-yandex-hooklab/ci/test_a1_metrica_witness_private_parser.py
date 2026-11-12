@@ -100,6 +100,24 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
 
 
 
+
+    def test_metrica_service_routing_owner_enums_no_intent_data(self):
+        sample=(
+            log(431,"event=METRICA_SERVICE_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")
+            +log(431,"event=METRICA_SERVICE_CALL;origin=STOCK_TARGET;error=ENTER;thread=OTHER")
+            +log(431,"event=METRICA_SERVICE_CALL;origin=STOCK_TARGET;error=FALSE_RESULT;thread=OTHER")
+            +log(431,"event=METRICA_SERVICE_CALL;origin=CLONE_TARGET;error=ENTER;thread=MAIN")
+            +log(431,"event=METRICA_SERVICE_CALL;origin=CLONE_TARGET;error=SUCCESS_RESULT;thread=MAIN")
+            +log(432,"event=METRICA_SERVICE_CALL;origin=STOCK_TARGET;error=THROW;thread=OTHER")
+            +log(431,"event=METRICA_SERVICE_CALL;origin=PRIVATE_INTENT;error=THROW;thread=OTHER"))
+        report=scoped_metrica_witness(EXIT,sample)
+        self.assertTrue(report["service_hook_registered"])
+        self.assertEqual(report["service_sdk_target_states"]["STOCK_TARGET"]["FALSE_RESULT"],1)
+        self.assertEqual(report["service_sdk_target_states"]["STOCK_TARGET"]["THROW"],0)
+        self.assertEqual(report["service_sdk_target_states"]["CLONE_TARGET"]["SUCCESS_RESULT"],1)
+        self.assertNotIn("PRIVATE_INTENT",str(report))
+        self.assertNotIn("432",str(report))
+
     def test_provider_authority_metadata_and_sdk_query_are_bounded_enums(self):
         sample=(
             log(431,"event=METRICA_PROVIDER_RESOLVE;origin=STOCK_AUTH;error=STOCK_OWNER;thread=MAIN")
