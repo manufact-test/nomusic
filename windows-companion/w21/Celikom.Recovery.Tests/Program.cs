@@ -130,6 +130,90 @@ try
         "foreign modification during pending apply blocks recovery");
     Check(File.ReadAllText(asar) == "a third-party change",
         "foreign ASAR preserved on refusal");
+    // W79: upgrading from an already active, verified patch never requires
+    // a destructive restore-then-install sequence.
+    var stageNewExe = Path.Combine(root, "upgrade-new.exe");
+    var stageNewAsar = Path.Combine(root, "upgrade-new.asar");
+    File.WriteAllText(stageNewExe, "integrated-upgrade-new-exe");
+    File.WriteAllText(stageNewAsar, "integrated-upgrade-new-asar");
+    SetOriginal();
+    var backupG = Path.Combine(backups, "snapshot-G");
+    PairRecovery.Capture(host, backupG, originalExe, originalAsar);
+    File.WriteAllText(exe, "integrated-old-exe");
+    File.WriteAllText(asar, "integrated-old-asar");
+    var oldExeHash = Sha(exe);
+    var oldAsarHash = Sha(asar);
+    PairRecovery.RegisterApplied(host, backupG, oldExeHash, oldAsarHash);
+    var snapshotOriginalHash = Sha(Path.Combine(backupG, "original.exe"));
+    var upgraded = PairRecovery.ApplyUpgradeStaged(host, backupG, stageNewExe, stageNewAsar);
+    Check(upgraded.State == "ACTIVE" && upgraded.AppliedExe == Sha(stageNewExe) &&
+        upgraded.AppliedAsar == Sha(stageNewAsar), "W79 fully staged active upgrade commits");
+    Check(Sha(Path.Combine(backupG, "original.exe")) == snapshotOriginalHash &&
+        Sha(Path.Combine(backupG, "original.asar")) == originalAsar,
+        "W79 original vendor backup never overwritten by upgrade");
+    Check(Directory.GetDirectories(Path.Combine(backupG, "upgrades")).Length == 1,
+        "W79 previously active native files retained in separate durable archive");
+    var restoreAfterUpgrade = PairRecovery.Restore(host, backupG);
+    Check(restoreAfterUpgrade.State == "RESTORED" && Sha(exe) == originalExe &&
+        Sha(asar) == originalAsar, "W79 upgraded host can restore original exact bytes");
+
+    // A failure BEFORE the upgrade intent cannot strip an active host.
+    SetOriginal();
+    var backupH = Path.Combine(backups, "snapshot-H");
+    PairRecovery.Capture(host, backupH, originalExe, originalAsar);
+    File.WriteAllText(exe, "old-active-exe-H");
+    File.WriteAllText(asar, "old-active-asar-H");
+    var oldHExe = Sha(exe);
+    var oldHAsar = Sha(asar);
+    PairRecovery.RegisterApplied(host, backupH, oldHExe, oldHAsar);
+    Reject(() => PairRecovery.ApplyUpgradeStaged(host, backupH, stageNewExe,
+        Path.Combine(root, "nonexistent-staged.asar")),
+        "W79 missing candidate refused before active host changes");
+    Check(Sha(exe) == oldHExe && Sha(asar) == oldHAsar &&
+        PairRecovery.Inspect(host, backupH).State == "ACTIVE",
+        "W79 failed preflight preserves active pair and manifest");
+
+    // Process dies halfway through the upgrade: one new file + one old file.
+    var pendingH = PairRecovery.PrepareUpgrade(host, backupH, stageNewExe, stageNewAsar);
+    Check(pendingH.State == "UPGRADING" && pendingH.PreviousAppliedExe == oldHExe,
+        "W79 planned hashes and archived old patch are durable before writes");
+    File.Copy(stageNewExe, exe, overwrite: true);
+    var rolledH = PairRecovery.RollbackUpgrade(host, backupH);
+    Check(rolledH.State == "ACTIVE" && Sha(exe) == oldHExe && Sha(asar) == oldHAsar,
+        "W79 interrupted partial pair returns to previous active host");
+    Check(Sha(Path.Combine(backupH, "original.exe")) == originalExe,
+        "W79 rollback keeps vendor original byte identical");
+
+    // In-flight vendor update (e.g., 5.127.0) is foreign: refuse repair
+    // instead of overwriting it with stale 5.126.1 bytes.
+    PairRecovery.PrepareUpgrade(host, backupH, stageNewExe, stageNewAsar);
+    File.WriteAllText(asar, "third-party-yandex-5.127.0");
+    var foreignHash = Sha(asar);
+    Reject(() => PairRecovery.RollbackUpgrade(host, backupH),
+        "W79 vendor update during in-flight upgrade prevents automatic rollback");
+    Check(Sha(asar) == foreignHash && Sha(exe) == oldHExe &&
+        PairRecovery.Inspect(host, backupH).State == "UPGRADING",
+        "W79 unknown host untouched and durable warning survives restart");
+    Reject(() => PairRecovery.Restore(host, backupH),
+        "W79 explicit restore also refuses unknown 5.127.0 host");
+
+    // Active manifest alone never authorizes updating unknown vendor bytes.
+    SetOriginal();
+    var backupI = Path.Combine(backups, "snapshot-I");
+    PairRecovery.Capture(host, backupI, originalExe, originalAsar);
+    File.WriteAllText(exe, "old-active-exe-I");
+    File.WriteAllText(asar, "old-active-asar-I");
+    PairRecovery.RegisterApplied(host, backupI, Sha(exe), Sha(asar));
+    File.WriteAllText(exe, "different-vendor-exe-5.127.0");
+    File.WriteAllText(asar, "different-vendor-asar-5.127.0");
+    var changedIExe = Sha(exe);
+    var changedIAsar = Sha(asar);
+    Reject(() => PairRecovery.PrepareUpgrade(host, backupI, stageNewExe, stageNewAsar),
+        "W79 unknown files refused even when manifest says ACTIVE");
+    Check(Sha(exe) == changedIExe && Sha(asar) == changedIAsar &&
+        PairRecovery.Inspect(host, backupI).State == "ACTIVE",
+        "W79 upgrade refusal does not modify vendor update or snapshot");
+
     Console.WriteLine("W21_RECOVERY_CONTRACT_PASS " + passed);
 }
 finally
