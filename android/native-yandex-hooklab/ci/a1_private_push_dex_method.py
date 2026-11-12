@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
+from a1_private_push_init import inspect_legacy_push_init
 from a1_private_dex_callers import bounded_fatal_callers
 from a1_private_dex_supply_chain import classify_private_supplier_chain
 from a1_private_dex_predicate import code_items_with_meta,rule_from_synthetic_lengths
@@ -313,7 +314,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[];fatal_signatures=[];push_public_routes=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[];fatal_signatures=[];push_public_routes=[];legacy_init_reports=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -329,6 +330,7 @@ def inspect_xapk(path):
                         guard_rules.extend(private_guard_synthetic_rule(payload))
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
                         push_public_routes.append(private_public_push_entrypoints(payload))
+                        legacy_init_reports.append(inspect_legacy_push_init(payload,Dex,group_call))
                         chain=classify_private_supplier_chain(
                             payload,Dex,group_class,group_call,exact_error_guard_report)
                         if chain is not None:supplier_chains.append(chain)
@@ -339,6 +341,23 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "legacy_push_init_overloads_bounded":min(sum(
+            item["overloads"] for item in legacy_init_reports),12),
+        "legacy_push_init_body_count_bounded":min(sum(
+            item["body_count"] for item in legacy_init_reports),12),
+        "legacy_push_init_parameter_shapes":sorted({
+            shape for item in legacy_init_reports
+            for shape in item["param_signatures"]}),
+        "legacy_push_init_call_families_by_depth":[
+            sorted({cat for item in legacy_init_reports
+                    for cat in item["calls_by_depth"][level]})
+            for level in range(3)],
+        "legacy_push_init_declared_body_methods_by_depth":[
+            min(sum(item["method_counts_by_depth"][level]
+                for item in legacy_init_reports),32)
+            for level in range(3)],
+        "legacy_push_init_flow_unresolved":any(
+            item["unresolved_calls"] for item in legacy_init_reports),
         "public_push_entrypoint_methods_known":sorted({
             x for r in push_public_routes for x in r["public_push_methods"]}),
         "public_push_entrypoint_invoked_candidates":sorted({
