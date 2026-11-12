@@ -27,6 +27,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exitRunHooked;
     private final Map<Object, Integer> constructorModes =
         Collections.synchronizedMap(new WeakHashMap<>());
+    // Identity-only linkage. No message, raw exception, stack, class name,
+    // PID, thread ID or token ever leaves the process or the map.
+    private final Map<Throwable, Boolean> metricaConstructed =
+        Collections.synchronizedMap(new WeakHashMap<>());
 
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
@@ -56,6 +60,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             new Class<?>[] {int.class}, "PROCESS_KILL") ? 1 : 0;
         count += hookApplicationAttach() ? 1 : 0;
         count += observeHi2IllegalStateConstructor() ? 1 : 0;
+        count += observeFatalDispatches();
         // Arms only tell us that a hook was registered, not that it ran.
         emit("ARMED", count > 0 ? "REGISTERED" : "NO_HOOK", "NONE");
     }
@@ -119,8 +124,16 @@ public final class ExitCallsiteWitness extends XposedModule {
                         }
                         String metrica = callerMetricaFrameGroup();
                         if (!"NO_METRICA_FRAME".equals(metrica)) {
+                            // Mark THIS precise Throwable object, not merely
+                            // a timestamp or exception class. A caught SDK
+                            // exception must never be called a fatal cause.
+                            Object result = chain.proceed();
+                            Object constructed = chain.getThisObject();
+                            if (constructed instanceof Throwable)
+                                metricaConstructed.put((Throwable) constructed, Boolean.TRUE);
                             emit("METRICA_EXCEPTION", metrica,
                                  redactedErrorCategory(value));
+                            return result;
                         }
                     } catch (Throwable ignored) { }
                     return chain.proceed();
@@ -129,6 +142,77 @@ public final class ExitCallsiteWitness extends XposedModule {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    /**
+     * Native Android 13 has multiple uncaught-exception dispatch paths.
+     * These hooks are independent, read-only witnesses. They never handle,
+     * replace, suppress or change exceptions, system kills or user data.
+     * Hook registration is an observation, not evidence of a callback.
+     */
+    private int observeFatalDispatches() {
+        int count = 0;
+        if (observeFatalMethod(Thread.class, "dispatchUncaughtException",
+                new Class<?>[]{Throwable.class}, 0, "THREAD_DISPATCH"))
+            count++;
+        if (observeFatalMethod(ThreadGroup.class, "uncaughtException",
+                new Class<?>[]{Thread.class, Throwable.class}, 1, "THREAD_GROUP"))
+            count++;
+        for (String handler : new String[]{
+                "com.android.internal.os.RuntimeInit$KillApplicationHandler",
+                "com.android.internal.os.RuntimeInit$LoggingHandler"}) {
+            try {
+                Class<?> cls = Class.forName(handler);
+                String origin = handler.endsWith("KillApplicationHandler")
+                    ? "RUNTIME_KILL_HANDLER" : "RUNTIME_LOG_HANDLER";
+                if (observeFatalMethod(cls, "uncaughtException",
+                        new Class<?>[]{Thread.class, Throwable.class}, 1, origin))
+                    count++;
+            } catch (Throwable ignored) {
+                emit("FATAL_HOOK", "RUNTIME_LOOKUP", "NO_HOOK");
+            }
+        }
+        return count;
+    }
+
+    private boolean observeFatalMethod(Class<?> cls, String methodName,
+            Class<?>[] args, int throwableIndex, String origin) {
+        try {
+            Method m = cls.getDeclaredMethod(methodName, args);
+            m.setAccessible(true);
+            hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        Object arg = chain.getArg(throwableIndex);
+                        if (arg instanceof Throwable)
+                            emit("FATAL_DISPATCH", origin,
+                                    throwableIdentityCategory((Throwable) arg));
+                        else emit("FATAL_DISPATCH", origin, "NON_THROWABLE");
+                    } catch (Throwable ignored) { }
+                    return chain.proceed();
+                });
+            emit("FATAL_HOOK", origin, "REGISTERED");
+            return true;
+        } catch (Throwable ignored) {
+            emit("FATAL_HOOK", origin, "NO_HOOK");
+            return false;
+        }
+    }
+
+    private String throwableIdentityCategory(Throwable failure) {
+        try {
+            if (metricaConstructed.containsKey(failure))
+                return "DIRECT_METRICA";
+            Throwable step = failure.getCause();
+            for (int i = 0; step != null && i < 8; i++) {
+                if (metricaConstructed.containsKey(step))
+                    return "CAUSE_METRICA";
+                if (step == step.getCause())
+                    break;
+                step = step.getCause();
+            }
+        } catch (Throwable ignored) { }
+        return "NOT_METRICA";
     }
 
     /** Only fixed framework labels, no vendor class, method, thread or text. */
