@@ -74,6 +74,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_CDP_STATE_NOT_PLAYING",
   // Passive current-player evidence: never logs URL/tokens.
   "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED",
+  "PLAYER_DECODER_CELIKOM_PIPELINE_ERROR",
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
   "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
   "PLAYER_URL_SIGNED_FIELDS_INTACT",
@@ -591,8 +592,16 @@ function observeNativePlayback(view) {
             typeof params?.playerId === "string")
           decoderPlayers.delete(params.playerId);
         if (method === "Media.playerErrorsRaised" &&
-            Array.isArray(params?.errors) && params.errors.length > 0)
+            Array.isArray(params?.errors) && params.errors.length > 0) {
           note("PLAYER_CDP_PIPELINE_ERROR");
+          // Only correlate an error to CELIKOM when the actual current signed
+          // decoder source was observed; generic CDP errors remain unassigned.
+          const player = typeof params?.playerId === "string" ?
+            decoderPlayers.get(params.playerId) : null;
+          const currentTrack = lastStatus.get(view)?.trackId;
+          if (player?.sourceTrackId && player.sourceTrackId === currentTrack)
+            note("PLAYER_DECODER_CELIKOM_PIPELINE_ERROR", currentTrack);
+        }
         else if (method === "Media.playerMessagesLogged" &&
             Array.isArray(params?.messages) &&
             params.messages.some(x => x?.level === "error"))
