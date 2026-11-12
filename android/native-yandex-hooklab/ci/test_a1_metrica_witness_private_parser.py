@@ -96,6 +96,22 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertNotIn("private.sdk",str(result))
         self.assertNotIn("432",str(result))
 
+
+    def test_actual_legacy_push_init_is_observed_without_any_mutation(self):
+        rows=(
+            log(431,"event=PUSH_INIT_HOOK;origin=PUSH_LEGACY;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_INIT;origin=PUSH_LEGACY;error=ENTER;thread=MAIN")
+            +log(431,"event=PUSH_INIT;origin=PUSH_LEGACY;error=RETURN;thread=MAIN")
+            +log(431,"event=METRICA_PUSH_THROW_CLASS;origin=METRICA_SDK;error=PUSH_IMPL;thread=OTHER")
+            +log(999,"event=PUSH_INIT;origin=PUSH_LEGACY;error=THROW;thread=MAIN"))
+        result=scoped_metrica_witness(EXIT,rows)
+        self.assertEqual(result["push_init_hook"]["PUSH_LEGACY"],["REGISTERED"])
+        self.assertEqual(result["push_init_callbacks"]["PUSH_LEGACY"],
+                         {"ENTER":1,"RETURN":1,"THROW":0})
+        self.assertEqual([x[0] for x in result["activation_push_order_bounded"]],
+                         ["PUSH_INIT","PUSH_INIT","METRICA_PUSH_THROW_CLASS"])
+        self.assertNotIn("999",str(result))
+
     def test_push_sdk_modules_predicate_and_activation_are_readonly(self):
         sample=(
             log(431,"event=MODULES_HOOK;origin=METRICA_MODERN;error=REGISTERED;thread=MAIN")

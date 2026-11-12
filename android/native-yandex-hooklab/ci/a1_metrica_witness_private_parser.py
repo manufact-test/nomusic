@@ -20,7 +20,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "METRICA_THROW_SITE","METRICA_THROW_EXEC","METRICA_THROW_LOADER",
          "METRICA_THROW_HINT","FATAL_THROW_SITE","FATAL_THROW_HINT",
          "SDK_CLASS","SDK_ACTIVATE_SIGNATURE","MODULES_HOOK",
-         "MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_ACTIVATE_HOOK",
+         "MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_ACTIVATE_HOOK","PUSH_INIT","PUSH_INIT_HOOK",
           "PUSH_HELPER_HOOK","PUSH_HELPER_BOOL",
           "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE","PUSH_GUARD_INPUT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
@@ -130,6 +130,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     module_checks=[x for x in seen if x[0]=="MODULES_IS_ACTIVATED"]
     module_hooks=[x for x in seen if x[0]=="MODULES_HOOK"]
     push_activations=[x for x in seen if x[0]=="PUSH_ACTIVATE"]
+    push_inits=[x for x in seen if x[0]=="PUSH_INIT"]
+    push_init_hooks=[x for x in seen if x[0]=="PUSH_INIT_HOOK"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
     private_helper=[x for x in seen if x[0]=="PUSH_HELPER_BOOL"]
     private_helper_hook=[x for x in seen if x[0]=="PUSH_HELPER_HOOK"]
@@ -140,7 +142,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     exact_fatal_hook=[x for x in seen if x[0]=="PUSH_FATAL_HOOK"]
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
     push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
-    focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE",
+    focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_INIT",
                   "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
                   "APP_LIFECYCLE"}
     sequence=[(event,origin,category) for event,origin,category,_thread
@@ -184,6 +186,13 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "modules_activation_predicate_hook": {
             family:sorted({x[2] for x in module_hooks if x[1]==family})
             for family in ("METRICA_MODERN","METRICA_LEGACY")},
+        "push_init_callbacks": {
+            family:{state:sum(x[1]==family and x[2]==state for x in push_inits)
+                    for state in ("ENTER","RETURN","THROW")}
+            for family in ("PUSH_MODERN","PUSH_LEGACY")},
+        "push_init_hook":{
+            family:sorted({x[2] for x in push_init_hooks if x[1]==family})
+            for family in ("PUSH_MODERN","PUSH_LEGACY")},
         "push_activation_callbacks": {
             family:{state:sum(x[1]==family and x[2]==state for x in push_activations)
                     for state in ("ENTER","RETURN","THROW")}

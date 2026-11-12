@@ -627,41 +627,54 @@ public final class ExitCallsiteWitness extends XposedModule {
 
     // Only observe actual public Push.activate calls if vendor class names
     // have survived minification. No fake/reordered initialization is added.
+
+    // Read-only observation of the actual legacy Push.init, not just activate.
+    // Original arguments, return values, and exception semantics are untouched.
+    private final java.util.concurrent.atomic.AtomicInteger pushInitCount =
+        new java.util.concurrent.atomic.AtomicInteger();
     private synchronized void installPushActivationObserver(ClassLoader loader) {
         if (pushActivationObserverReady || loader==null) return;
         int registered=0;
         for (String clsName : new String[]{
                 "io.appmetrica.analytics.push.AppMetricaPush",
+                "com.yandex.metrica.push.YandexMetricaPush",
                 "com.yandex.metrica.push.AppMetricaPush"}) {
             final String family=clsName.startsWith("io.")
                 ? "PUSH_MODERN" : "PUSH_LEGACY";
+            int initRegistered=0, activationRegistered=0;
             try {
                 Class<?> cls=Class.forName(clsName,false,loader);
                 for (Method method:cls.getDeclaredMethods()) {
-                    if (!"activate".equals(method.getName()) ||
+                    boolean init="init".equals(method.getName());
+                    boolean activate="activate".equals(method.getName());
+                    if ((!init && !activate) ||
                         !java.lang.reflect.Modifier.isStatic(method.getModifiers()))
                         continue;
+                    final String event=init ? "PUSH_INIT":"PUSH_ACTIVATE";
                     method.setAccessible(true);
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
-                            if (pushActivationCount.incrementAndGet()<=24)
-                                emit("PUSH_ACTIVATE",family,"ENTER");
+                            int hit=(init ? pushInitCount : pushActivationCount)
+                                .incrementAndGet();
+                            if (hit<=32)emit(event,family,"ENTER");
                             try {
                                 Object result=chain.proceed();
-                                if (pushActivationCount.get()<=24)
-                                    emit("PUSH_ACTIVATE",family,"RETURN");
+                                if (hit<=32)emit(event,family,"RETURN");
                                 return result;
                             } catch (Throwable fail) {
-                                if (pushActivationCount.get()<=24)
-                                    emit("PUSH_ACTIVATE",family,"THROW");
+                                if (hit<=32)emit(event,family,"THROW");
                                 throw fail;
                             }
                         });
                     registered++;
+                    if (init) initRegistered++; else activationRegistered++;
                 }
+                emit("PUSH_INIT_HOOK",family,
+                    initRegistered>0 ? "REGISTERED":"NO_HOOK");
                 emit("PUSH_ACTIVATE_HOOK",family,
-                    registered>0 ? "REGISTERED" : "NO_HOOK");
+                    activationRegistered>0 ? "REGISTERED":"NO_HOOK");
             } catch (Throwable ignored) {
+                emit("PUSH_INIT_HOOK",family,"NO_HOOK");
                 emit("PUSH_ACTIVATE_HOOK",family,"NO_HOOK");
             }
         }
