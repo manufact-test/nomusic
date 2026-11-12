@@ -70,6 +70,18 @@ public sealed class BridgeServer : IAsyncDisposable
     private DateTimeOffset _codeExpires;
     private int _failedPairs;
     private bool _enabled;
+    // High-frequency native state checks used to flood diagnostics every
+    // ~370 ms, rotating out the exact failure the owner was trying to report.
+    private long _lastNativeStateDiagUtcTicks;
+    private void RecordNativeStateSample()
+    {
+        var now = DateTime.UtcNow.Ticks;
+        var prior = Interlocked.Read(ref _lastNativeStateDiagUtcTicks);
+        if (now - prior < TimeSpan.FromSeconds(10).Ticks ||
+            Interlocked.CompareExchange(ref _lastNativeStateDiagUtcTicks, now, prior) != prior)
+            return;
+        DiagnosticLog.Record("NATIVE_STATE_RECEIVED");
+    }
     private string _lastSong = "";
     private string _lastTitle = "";
     private string _lastArtist = "";
@@ -205,7 +217,7 @@ public sealed class BridgeServer : IAsyncDisposable
         app.MapGet("/v1/state", (HttpContext ctx) =>
         {
             if (!Authorized(ctx)) return Results.Unauthorized();
-            if (IsNativeProtocolRequest(ctx)) DiagnosticLog.Record("NATIVE_STATE_RECEIVED");
+            if (IsNativeProtocolRequest(ctx)) RecordNativeStateSample();
             return Results.Json(new { enabled = CanResolve,
                 signedIn = _api.IsLoggedIn, apiOrigin = _api.IsLoggedIn ? _api.Origin : "", transport = "paired" });
         });
