@@ -38,13 +38,13 @@ function actualPhpResponse(start, end, size, etag) {
   return { status: 206, headers: {
     "content-range": `bytes ${php.start}-${php.end}/${size}`,
     "content-length": String(php.end - php.start + 1),
-    etag
+    "content-type": "audio/mpeg", etag
   }};
 }
 
 test("real unchanged PHP ByteRange exact interval and EOF clipping match Android contract", () => {
   const size = 16384;
-  const witness = {size, etag: '"sha256-v3"'};
+  const witness = {size, etag: '"sha256-v3"', mimeType:"audio/mpeg"};
   const scenarios = [
     [0, 0], [0, 1023], [1024, 2047], [8192, 12287],
     [16000, 20000], [16383, null], [10000, null]
@@ -66,7 +66,7 @@ test("real unchanged PHP ByteRange exact interval and EOF clipping match Android
 });
 
 test("real PHP metadata boundary catches a short-but-plausible 206 intermediary", () => {
-  const witness = {size: 16384, etag: '"sha256-v3"'};
+  const witness = {size: 16384, etag: '"sha256-v3"', mimeType:"audio/mpeg"};
   const good = actualPhpResponse(1024, 8191, witness.size, witness.etag);
   assert.equal(validateRangeResponse(good, 1024, 8191, witness).ok, true);
   const shortBodyClaim = { ...good, headers: {
