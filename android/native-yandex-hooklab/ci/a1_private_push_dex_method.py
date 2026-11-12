@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
-from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,decode_instructions,FlowDecodeError,INVOKE_METHOD
+from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,private_direct_guard_branch_roles,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
 EXPECTED_LEN=45961661
 EXPECTED_SHA="8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
@@ -334,6 +334,8 @@ def inspect_xapk(path):
             t for x in guard_insights for t in x["parameter_families"]}),
         "exact_guard_input_possible_source_families":sorted({
             t for x in guard_insights for t in x["input_sources"]}),
+        "exact_guard_branch_skip_polarities":sorted({
+            t for x in guard_insights for t in x["branch_polarities"]}),
         "exact_string_supplier_methods_bounded":min(sum(
             x["supplier_methods"] for x in guard_insights),16),
         "exact_string_supplier_direct_dependency_families":sorted({
@@ -482,11 +484,12 @@ def private_guard_dependency_info(binary):
     if not targets:return {"guard_targets":0,"return_kinds":[],
                             "parameter_families":[],"input_sources":[],
                             "supplier_methods":0,"supplier_body_called_categories":[],
-                            "supplier_reads_field":False,"body_found":0,
+                            "supplier_reads_field":False,"branch_polarities":[],"body_found":0,
                             "called_categories":[],"reads_fields":False}
     source={}
     refs=set()
     possible_input_sources=set()
+    branch_polarities=set()
     supplier_refs=set()
     for mid,code in dex.code_methods():
         owner,name=dex.method(mid)
@@ -498,6 +501,8 @@ def private_guard_dependency_info(binary):
                 refs.update(private_direct_guard_invokes(code,targets,dex,group_call))
                 possible_input_sources.update(
                     private_guard_input_sources(code,targets,dex,group_call))
+                branch_polarities.update(
+                    private_direct_guard_branch_roles(code,targets,dex,group_call))
                 supplier_refs.update(
                     private_push_utils_supplier_refs(code,targets,dex,group_call))
     kinds=set()
@@ -561,6 +566,7 @@ def private_guard_dependency_info(binary):
             "return_kinds":sorted(kinds),
             "parameter_families":sorted(param_families),
             "input_sources":sorted(possible_input_sources),
+            "branch_polarities":sorted(branch_polarities),
             "supplier_methods":min(len(supplier_refs),16),
             "supplier_body_called_categories":sorted(supplier_body_call_categories),
             "supplier_reads_field":supplier_reads_field,
