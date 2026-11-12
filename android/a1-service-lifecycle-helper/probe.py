@@ -209,6 +209,7 @@ def main() -> int:
     parser.add_argument("--xapk", type=Path, required=True)
     args = parser.parse_args()
     sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(ROOT / "ci"))  # standalone A runner normally supplies this path
     import ci.owner_2025_lspatch2_namespaced_clone_arm13 as lead
 
     # The ONLY altered runtime guard is B's isolated branch identity.
