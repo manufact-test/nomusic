@@ -34,3 +34,12 @@ jobs:
               Write-Host "YANDEX_FEED $name UNAVAILABLE"
             }
           }
+          foreach($version in @('5.126.1','5.121.2','5.102.0','5.86.0')) {
+            try {
+              $u=$base+"Yandex_Music_x64_"+$version+".exe"
+              $r=Invoke-WebRequest -Uri $u -Method Head -TimeoutSec 15 -MaximumRedirection 0
+              Write-Host "YANDEX_2026_ARCHIVE $version STATUS=$([int]$r.StatusCode) LENGTH=$($r.Headers['Content-Length'])"
+            } catch {
+              Write-Host "YANDEX_2026_ARCHIVE $version UNAVAILABLE"
+            }
+          }
