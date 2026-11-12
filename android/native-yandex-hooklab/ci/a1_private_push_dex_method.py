@@ -1033,6 +1033,22 @@ def private_site_methods(binary):
             suppliers.add((cl.strip("L;").replace("/","."),name))
     return guards,fatals,suppliers,near_guards
 
+def private_exact_fatal_object_methods(binary):
+    """Exact throwable-producing Push.a overload, retained only in ephemeral CI."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    found=set()
+    if not targets:return found
+    for mid,code in dex.code_methods():
+        owner,method=dex.method(mid)
+        if group_class(owner)!="PUSH_IMPL" or method!="a":continue
+        cfg=exact_fatal_cfg(code,targets,dex,group_call)
+        if not cfg["decoded"] or not cfg["fatal_throw_candidates"]:continue
+        found.add((owner.strip("L;").replace("/","."),method,
+                   private_java_parameter_signature(dex,mid)))
+    return found
+
+
 def generate_private_targets(source, output_path):
     """Write transient proprietary method symbols only inside ephemeral CI."""
     import re
@@ -1043,7 +1059,7 @@ def generate_private_targets(source, output_path):
         not (str(target).startswith(str(workspace)+os.sep) or
              str(target).startswith(str(temp)+os.sep))):
         raise DexError("PRIVATE_TARGET_PATH")
-    found=set(); guards=set(); fatals=set(); suppliers=set(); near_guards=set(); all_exact=set()
+    found=set(); guards=set(); fatals=set(); suppliers=set(); near_guards=set(); all_exact=set(); fatal_exact=set()
     with zipfile.ZipFile(source) as outer:
         for item in outer.infolist():
             if not item.filename.endswith(".apk") or item.file_size>60000000:continue
@@ -1057,6 +1073,7 @@ def generate_private_targets(source, output_path):
                             guards.update(g);fatals.update(f);suppliers.update(sup)
                             near_guards.update(near)
                             all_exact.update(private_all_exact_guard_methods(payload))
+                            fatal_exact.update(private_exact_fatal_object_methods(payload))
     # Verify source-derived class/method tokens before use as Java literals.
     valid=re.compile("^[A-Za-z_$][A-Za-z0-9_$]*(?:[.][A-Za-z_$][A-Za-z0-9_$]*)*$")
     simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -1075,6 +1092,10 @@ def generate_private_targets(source, output_path):
                         for cls,method,signature in all_exact
                         if valid.fullmatch(cls) and simple.fullmatch(method)
                         and len(signature)<512 and all(32<=ord(c)<127 for c in signature))[:12]
+    fatal_exact_names=sorted((cls,method,signature) for cls,method,signature
+                             in fatal_exact if valid.fullmatch(cls)
+                             and simple.fullmatch(method) and len(signature)<512
+                             and all(32<=ord(c)<127 for c in signature))[:4]
     target.parent.mkdir(parents=True,exist_ok=True)
     def java_rows(rows):
         return (","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
@@ -1096,6 +1117,11 @@ def generate_private_targets(source, output_path):
                               json.dumps(signature)+"}"
                               for cls,method,signature in exact_guard_names)+chr(10)+
                "  }; }"+chr(10)+
+               "  public static String[][] getFatalExactObjectTargets() { return new String[][] {"+chr(10)+
+               (","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+","+
+                              json.dumps(signature)+"}"
+                              for cls,method,signature in fatal_exact_names)+chr(10)+
+               "  }; }"+chr(10)+
                "}"+chr(10))
     target.write_text(generated,encoding="utf-8")
     target.chmod(0o600)
@@ -1104,7 +1130,8 @@ def generate_private_targets(source, output_path):
             "private_transient_fatal_targets_bounded":len(fatal_names),
             "private_transient_supplier_targets_bounded":len(supplier_names),
             "private_transient_near_fatal_guard_targets_bounded":len(near_guard_names),
-            "private_transient_all_fatal_guard_exact_targets_bounded":len(exact_guard_names)}
+            "private_transient_all_fatal_guard_exact_targets_bounded":len(exact_guard_names),
+            "private_transient_fatal_exact_object_targets_bounded":len(fatal_exact_names)}
 
 
 def main():
