@@ -1,3 +1,11 @@
+# LATEST — W76 Windows track-specific replacement failures: 12.11.2026
+
+**Owner observations:** 0.24.21 / native 0.24.20 falsely says CELIKOM works while «ты» — тринадцать карат and «Биг сити лайф» — Триагрутрика play original/censored audio. Production catalog has active approved replacement #56 for Yandex 106040459 and #37 for Yandex 40371622. First song had local 1 s bridge timeout and grant miss. Second song log proves expired previously approved signed media URL, genuine 403, then fresh 206 and SOURCE_MAPPED; 206 does NOT prove audible replacement. Existing UI confuses global enabled status with audible track success.
+
+**W76 implemented + green CI:** 0.24.23 branch `experiment/windows-w76-track-parity-audit-20261112`, source, bounded background re-resolve for transient misses, exact-current-only Yandex source refresh for expired signed native 403 (one cycle/min per ID), truthful recovering/error/unverified UI statuses. [Final successful Windows build CI 43209453291](https://github.com/manufact-test/nomusic/actions/runs/43209453291), artifact `CELIKOM-W76-TRACK-RECOVERY-UNSIGNED`; installer is an in-place upgrade, not yet owner-audibly-tested. **Do not claim the music fixed until owner plays both songs on W76.** Full report: `docs/windows/W76-TRACK-PARITY-RECOVERY-20261112.md`. Unmodified input backup `backup/windows-w76-pre-track-specific-audit-20261112` (94a743d); do not push these changes into W75/stable without owner acceptance. No server, library, production DB, Android or browser extension modifications.
+
+---
+
 # FIRST READ — W75 0.24.22 FIXED DISAPPEARING DIAGNOSTICS (11.11.2026)
 
 **Latest owner complaint:** CELIKOM Windows disconnected during listening, automatically resumed only after ~60–90 sec, then owner-only diagnostics button vanished on click. Physical disconnect's root cause **NOT YET KNOWN**; must obtain current local log files from the owner before touching network/audio/reconnection timing.
