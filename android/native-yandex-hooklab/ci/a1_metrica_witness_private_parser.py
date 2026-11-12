@@ -75,7 +75,7 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "PUSH_METHOD_ACTIVATE","PUSH_METHOD_OBFUSCATED_A",
          "PUSH_METHOD_OBFUSCATED_L","PUSH_METHOD_OTHER",
          "BEFORE_ONCREATE","DURING_ONCREATE","AFTER_ONCREATE"}
-MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_]+);"
+MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_0-9]+);"
                   r"error=([A-Z_0-9]+);thread=(MAIN|OTHER)$")
 
 
