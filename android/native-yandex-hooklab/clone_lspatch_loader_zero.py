@@ -95,7 +95,8 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
         intended_level = causal_signature_level()
         if (type(cfg.get("sigBypassLevel")) is not int or
                 cfg["sigBypassLevel"] != intended_level):
-            raise arsc.TrialError("UNEXPECTED_EXPERIMENT_SIGNATURE_LEVEL")
+            raise arsc.TrialError("NONZERO_SIGNATURE_BYPASS_PROHIBITED" if intended_level == 0
+                                  else "UNEXPECTED_EXPERIMENT_SIGNATURE_LEVEL")
         if cfg.get("useManager") is not False:
             raise arsc.TrialError("METALOADER_EXTERNAL_MANAGER_NOT_ALLOWED")
         # Compare original code and native libs inside the embedded host, not
