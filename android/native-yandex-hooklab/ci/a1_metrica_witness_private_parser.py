@@ -22,7 +22,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "SDK_CLASS","SDK_ACTIVATE_SIGNATURE","MODULES_HOOK",
          "MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_ACTIVATE_HOOK",
           "PUSH_HELPER_HOOK","PUSH_HELPER_BOOL",
-          "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE",
+          "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE","PUSH_GUARD_INPUT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
@@ -54,7 +54,8 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "CASE_3","CASE_4","CASE_5","CASE_6","CASE_7","CASE_OTHER",
         "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE",
          "ENTER","RETURN","THROW","TRUE","FALSE","NON_BOOLEAN",
-         "OTHER_THROW","CLONE","ORIGINAL","MISSING","OTHER",
+         "OTHER_THROW","EMPTY","NONEMPTY","NULL","OTHER_INPUT",
+         "CLONE","ORIGINAL","MISSING","OTHER",
          "LOADER_MATCH","LOADER_DIFFERENT","LOADER_NULL","LOADER_UNKNOWN",
          "SDK_LEGACY","SDK_LEGACY_PUBLIC","SDK_LEGACY_IMPL","SDK_LEGACY_OTHER",
          "SDK_COMMON_UTILS","SDK_COMMON_API","SDK_IDENTIFIERS","SDK_PUSH",
@@ -133,6 +134,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     private_helper=[x for x in seen if x[0]=="PUSH_HELPER_BOOL"]
     private_helper_hook=[x for x in seen if x[0]=="PUSH_HELPER_HOOK"]
     exact_guard=[x for x in seen if x[0]=="PUSH_GUARD_VALUE"]
+    exact_input=[x for x in seen if x[0]=="PUSH_GUARD_INPUT"]
     exact_guard_hook=[x for x in seen if x[0]=="PUSH_GUARD_HOOK"]
     exact_fatal=[x for x in seen if x[0]=="PUSH_FATAL_CALL"]
     exact_fatal_hook=[x for x in seen if x[0]=="PUSH_FATAL_HOOK"]
@@ -157,6 +159,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "push_throw_method_categories":sorted({x[2] for x in push_throw_methods}),
         "activation_push_order_bounded":sequence,
         "private_push_guard_hook_registered":any(x[2]=="REGISTERED" for x in exact_guard_hook),
+        "private_push_guard_input_states":{
+            state:sum(x[2]==state for x in exact_input)
+            for state in ("NULL","EMPTY","NONEMPTY","OTHER_INPUT")},
+        "private_push_guard_input_timeline":[x[2] for x in exact_input[:48]],
         "private_push_guard_result_states":{state:sum(x[2]==state for x in exact_guard)
             for state in ("ENTER","TRUE","FALSE","NON_BOOLEAN","OTHER_THROW")},
         "private_push_guard_timeline":[x[2] for x in exact_guard[:48]],

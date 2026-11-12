@@ -753,6 +753,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                         for (Method method:cls.getDeclaredMethods()) {
                             if (!pair[1].equals(method.getName())
                                 || !unique.add(method)) continue;
+                            if (!fatal && (method.getReturnType()!=boolean.class
+                                    || method.getParameterTypes().length!=1
+                                    || method.getParameterTypes()[0]!=String.class))
+                                continue;
                             method.setAccessible(true);
                             hook(method).setExceptionMode(
                                 XposedInterface.ExceptionMode.PROTECTIVE)
@@ -760,7 +764,21 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     int hit=privatePushSiteHits.incrementAndGet();
                                     String event=fatal ? "PUSH_FATAL_CALL":"PUSH_GUARD_VALUE";
                                     String source=fatal ? "PUSH_FATAL":"PUSH_GUARD";
-                                    if (hit<=72) emit(event,source,"ENTER");
+                                    if (hit<=72) {
+                                        emit(event,source,"ENTER");
+                                        if (!fatal) {
+                                            String state="OTHER_INPUT";
+                                            try {
+                                                Object input=chain.getArg(0);
+                                                state=input==null ? "NULL"
+                                                    : input instanceof String
+                                                    ? (((String)input).isEmpty()
+                                                        ? "EMPTY":"NONEMPTY")
+                                                    : "OTHER_INPUT";
+                                            } catch (Throwable ignored) { }
+                                            emit("PUSH_GUARD_INPUT","PUSH_GUARD",state);
+                                        }
+                                    }
                                     try {
                                         Object value=chain.proceed();
                                         if (hit<=72) emit(event,source,
