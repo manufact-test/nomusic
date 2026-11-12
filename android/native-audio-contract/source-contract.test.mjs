@@ -283,7 +283,7 @@ test("PHP HEAD and Range reject noncanonical Content-Length from wrong intermedi
 });
 
 test("416 returns honest unsatisfiable, 200 range fallback not falsely accepted", () => {
-  const expected = { size: 4_500_000, etag: '"abc-3"' };
+  const expected = { size: 4_500_000, etag: '"abc-3"', mimeType: "audio/mpeg" };
   assert.equal(validateRangeResponse({
     status: 416, headers: {"content-range": "bytes */4500000"}
   }, 4_500_000, null, expected).code, "RANGE_UNSATISFIABLE");
