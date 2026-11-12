@@ -250,7 +250,7 @@ def _manifest(xml):
     for line in xml.splitlines()[:30000]:
         stripped=line.lstrip()
         indent=len(line)-len(stripped)
-        if re.match(r"E: (application|activity)\s",stripped):
+        if re.match(r"E: (application|activity)(?:\s|$)",stripped):
             section="application" if stripped.startswith("E: application") else "activity"
             depth=indent
         elif section and stripped.startswith("E: ") and indent<=depth:
