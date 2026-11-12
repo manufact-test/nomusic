@@ -61,6 +61,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactFatalObjectReady;
     private static final class ExactPushFrame {
         int yes, no, other, failed;
+        // In-memory throwable identity only; never expose or stringify object.
+        final java.util.IdentityHashMap<Throwable,String> constructed =
+            new java.util.IdentityHashMap<>();
     }
     private final ThreadLocal<ExactPushFrame> scopedPushCall=new ThreadLocal<>();
     private static String frameCategory(ExactPushFrame f) {
@@ -205,6 +208,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     constructed instanceof Throwable) {
                                 Throwable object = (Throwable) constructed;
                                 metricaConstructed.put(object, Boolean.TRUE);
+                                // Exact same-call constructor order versus the
+                                // already-proven TRUE guard. Observe, never alter.
+                                ExactPushFrame frame=scopedPushCall.get();
+                                if (frame!=null && frame.constructed.size()<8)
+                                    frame.constructed.put(object,
+                                        frame.yes>0 ? "CTOR_AFTER_TRUE"
+                                                   : "CTOR_BEFORE_TRUE");
                                 metricaDetailByThrowable.put(object, detail);
                                 sdkThrowSourceByObject.put(object, sdkThrowSource);
                                 sdkMessageHintByObject.put(object, sdkMessageHint);
@@ -1029,6 +1039,12 @@ public final class ExitCallsiteWitness extends XposedModule {
                                         if (hit<=8) {
                                             emit("PUSH_FATAL_GUARD_THROW","PUSH_ARG",
                                                  frameCategory(frame));
+                                            String constructorOrder=frame.constructed.get(failure);
+                                            emit("PUSH_FATAL_CONSTRUCTOR_ORDER","PUSH_ARG",
+                                                 constructorOrder!=null ? constructorOrder
+                                                 : frame.constructed.isEmpty()
+                                                 ? "CTOR_NOT_IN_SCOPE"
+                                                 : "CTOR_OTHER_IDENTITY");
                                             emit("PUSH_FATAL_OBJECT","ARG_THROW",
                                                  directReferenceReadiness(chain.getArg(0)));
                                             emit("PUSH_FATAL_OBJECT","RECEIVER_THROW",

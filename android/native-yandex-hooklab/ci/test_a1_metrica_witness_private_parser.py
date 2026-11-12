@@ -449,6 +449,18 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
             ("PUSH_FATAL_GUARD_RETURN","GUARD_NOT_IN_CALL")])
         self.assertNotIn("VENDOR_PRIVATE",str(result))
 
+    def test_exact_push_constructor_phase_is_identity_only_and_main_scoped(self):
+        events=(
+            log(431,"event=PUSH_FATAL_CONSTRUCTOR_ORDER;origin=PUSH_ARG;error=CTOR_AFTER_TRUE;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_CONSTRUCTOR_ORDER;origin=PUSH_ARG;error=CTOR_OTHER_IDENTITY;thread=OTHER")
+            +log(432,"event=PUSH_FATAL_CONSTRUCTOR_ORDER;origin=PUSH_ARG;error=CTOR_BEFORE_TRUE;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_CONSTRUCTOR_ORDER;origin=PUSH_ARG;error=secret_private_throw;thread=OTHER")
+        )
+        result=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(result["exact_push_same_call_constructor_order"],
+                         ["CTOR_AFTER_TRUE","CTOR_OTHER_IDENTITY"])
+        self.assertNotIn("secret_private_throw",str(result))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
