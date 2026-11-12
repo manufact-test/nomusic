@@ -39,6 +39,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
     private boolean privatePushBoolWitnessReady;
+    private boolean privatePushSitesReady;
+    private final java.util.concurrent.atomic.AtomicInteger privatePushSiteHits =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger privatePushBoolHits =
         new java.util.concurrent.atomic.AtomicInteger();
 
@@ -727,6 +730,64 @@ public final class ExitCallsiteWitness extends XposedModule {
             registered>0 ? "REGISTERED":"NO_HOOK");
     }
 
+
+    // Exact privately generated callsites. Lab-only, forwards every result/throw.
+    private synchronized void installPrivatePushSiteWitness(ClassLoader loader) {
+        if (privatePushSitesReady || loader == null) return;
+        int guardCount=0, fatalCount=0;
+        try {
+            Class<?> targets=Class.forName("pro.celikom.a1exitwitness.PrivatePushTargets",
+                false,ExitCallsiteWitness.class.getClassLoader());
+            for (String accessor:new String[]{"getGuardTargets","getFatalTargets"}) {
+                final boolean fatal="getFatalTargets".equals(accessor);
+                Object returned=targets.getDeclaredMethod(accessor).invoke(null);
+                if (!(returned instanceof String[][])) continue;
+                java.util.Set<Method> unique=new java.util.HashSet<>();
+                String[][] pairs=(String[][])returned;
+                for (int i=0;i<pairs.length && i<16;i++) {
+                    String[] pair=pairs[i];
+                    if (pair==null || pair.length!=2 || pair[0]==null
+                        || pair[1]==null) continue;
+                    try {
+                        Class<?> cls=Class.forName(pair[0],false,loader);
+                        for (Method method:cls.getDeclaredMethods()) {
+                            if (!pair[1].equals(method.getName())
+                                || !unique.add(method)) continue;
+                            method.setAccessible(true);
+                            hook(method).setExceptionMode(
+                                XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    int hit=privatePushSiteHits.incrementAndGet();
+                                    String event=fatal ? "PUSH_FATAL_CALL":"PUSH_GUARD_VALUE";
+                                    String source=fatal ? "PUSH_FATAL":"PUSH_GUARD";
+                                    if (hit<=72) emit(event,source,"ENTER");
+                                    try {
+                                        Object value=chain.proceed();
+                                        if (hit<=72) emit(event,source,
+                                            fatal ? "RETURN"
+                                            : Boolean.TRUE.equals(value) ? "TRUE"
+                                            : Boolean.FALSE.equals(value) ? "FALSE"
+                                            : "NON_BOOLEAN");
+                                        return value;
+                                    } catch (Throwable failure) {
+                                        if (hit<=72) emit(event,source,
+                                            fatal && "DIRECT_METRICA".equals(
+                                                throwableIdentityCategory(failure))
+                                                ? "DIRECT_METRICA":"OTHER_THROW");
+                                        throw failure;
+                                    }
+                                });
+                            if (fatal) fatalCount++; else guardCount++;
+                        }
+                    } catch (Throwable ignored) { }
+                }
+            }
+        } catch (Throwable ignored) { }
+        privatePushSitesReady=guardCount>0 || fatalCount>0;
+        emit("PUSH_GUARD_HOOK","PUSH_GUARD",guardCount>0?"REGISTERED":"NO_HOOK");
+        emit("PUSH_FATAL_HOOK","PUSH_FATAL",fatalCount>0?"REGISTERED":"NO_HOOK");
+    }
+
     // SDK internal markers might be renamed by R8; NO_HOOK is inconclusive.
     // Read-only hooks: only fixed enums, no internal object/config inspection.
     private synchronized void installMetricaStateProbe(ClassLoader loader) {
@@ -931,6 +992,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installModulesActivationObserver(loader);
                                 installPushActivationObserver(loader);
                                 installPrivatePushBoolWitness(loader);
+                                installPrivatePushSiteWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }

@@ -75,6 +75,25 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertFalse(result["private_push_target_names_disclosed"])
         self.assertNotIn("999",str(result))
 
+
+    def test_private_exact_push_guard_and_crash_enums_only(self):
+        rows=(
+            log(431,"event=PUSH_GUARD_HOOK;origin=PUSH_GUARD;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_FATAL_HOOK;origin=PUSH_FATAL;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_GUARD_VALUE;origin=PUSH_GUARD;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_GUARD_VALUE;origin=PUSH_GUARD;error=FALSE;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_CALL;origin=PUSH_FATAL;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_CALL;origin=PUSH_FATAL;error=DIRECT_METRICA;thread=OTHER")
+            +log(432,"event=PUSH_GUARD_VALUE;origin=PUSH_GUARD;error=TRUE;thread=OTHER")
+            +log(431,"event=PUSH_GUARD_VALUE;origin=private.sdk;error=FALSE;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,rows)
+        self.assertTrue(result["private_push_guard_hook_registered"])
+        self.assertEqual(result["private_push_guard_result_states"]["FALSE"],1)
+        self.assertTrue(result["private_push_fatal_hook_registered"])
+        self.assertEqual(result["private_push_fatal_result_states"]["DIRECT_METRICA"],1)
+        self.assertNotIn("private.sdk",str(result))
+        self.assertNotIn("432",str(result))
+
     def test_push_sdk_modules_predicate_and_activation_are_readonly(self):
         sample=(
             log(431,"event=MODULES_HOOK;origin=METRICA_MODERN;error=REGISTERED;thread=MAIN")
