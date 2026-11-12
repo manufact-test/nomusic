@@ -54,7 +54,8 @@ public sealed partial class MainWindow
         {
             _resumeAfterNetworkFailure = false;
             ++_compactAccessGeneration;
-            _compactAccess.Text = "Войдите в аккаунт, чтобы начать";
+            ClearCompactAccessConfirmation();
+            SetCompactAccessText("Войдите в аккаунт, чтобы начать");
             return;
         }
         if (_compactAccessBusy) return;
@@ -67,7 +68,12 @@ public sealed partial class MainWindow
             _api.Settings.InstallationId == account.InstallationId &&
             string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase);
         _compactAccessBusy = true;
-        _compactAccess.Text = "Проверяем доступ…";
+        // Previously we replaced "Промокод · доступ навсегда" with "Проверяем
+        // доступ…" on EVERY 15-second poll. That was the visible blinking.
+        // Keep the confirmed label stable; server check and revoke still run.
+        SetCompactAccessText(CompactAccessRefresh.WhileChecking(_compactAccess.Text,
+            _compactAccessConfirmedInstallation, _compactAccessConfirmedEmail,
+            account.InstallationId, account.Email));
         try
         {
             JsonElement response;
@@ -83,7 +89,9 @@ public sealed partial class MainWindow
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RETRY_OK");
             }
             if (!StillSameUser()) return;
-            _compactAccess.Text = AccessLabel(response);
+            _compactAccessConfirmedInstallation = account.InstallationId;
+            _compactAccessConfirmedEmail = account.Email;
+            SetCompactAccessText(AccessLabel(response));
             _compactAccessChecked = DateTimeOffset.UtcNow;
             var allowed = PlaybackEntitlement.Allowed(response, DateTimeOffset.UtcNow);
             if (!allowed)
@@ -132,9 +140,9 @@ public sealed partial class MainWindow
                 _resumeAfterNetworkFailure = false;
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERY_DENIED");
             }
-            _compactAccess.Text = _resumeAfterNetworkFailure
+            SetCompactAccessText(_resumeAfterNetworkFailure
                 ? "Нет связи. Подмена приостановлена; повторим проверку автоматически."
-                : "Доступ не подтверждён. Подмена выключена.";
+                : "Доступ не подтверждён. Подмена выключена.");
         }
         finally
         {
@@ -341,6 +349,7 @@ public sealed partial class MainWindow
                 _compactStarting = false;
                 _resumeAfterNetworkFailure = false;
                 ++_compactAccessGeneration;
+                ClearCompactAccessConfirmation();
                 _bridge.SetEnabled(false);
                 await _api.LoginAsync(_origin.Text.Trim(), email, password);
                 ResetCompactBenefits();
