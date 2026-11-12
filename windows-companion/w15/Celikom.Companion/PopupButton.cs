@@ -42,9 +42,6 @@ public sealed class PopupButton : Button
                 Rectangle.Inflate(ClientRectangle, -6, 0), color,
                 align | TextFormatFlags.VerticalCenter |
                 TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-            if (Focused && ShowFocusCues)
-                ControlPaint.DrawFocusRectangle(e.Graphics,
-                    Rectangle.Inflate(ClientRectangle, -4, -4));
             return;
         }
         using var path = new GraphicsPath();
@@ -70,8 +67,5 @@ public sealed class PopupButton : Button
             Rectangle.Inflate(ClientRectangle, -8, 0), foreground,
             alignment | TextFormatFlags.VerticalCenter |
             TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-        if (Focused && ShowFocusCues)
-            ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -5, -5),
-                ColorTranslator.FromHtml("#66E0BF"), background);
     }
 }
