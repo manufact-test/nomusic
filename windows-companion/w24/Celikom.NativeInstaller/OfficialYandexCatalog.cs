@@ -18,7 +18,7 @@ namespace Celikom.NativeInstaller;
 public static class OfficialYandexCatalog
 {
     public const string FeedUrl =
-        "https://raw.githubusercontent.com/manufact-test/nomusic/support/windows-yandex-compatibility/windows-companion/w24/compatibility/official-yandex-builds-v1.json";
+        "https://raw.githubusercontent.com/manufact-test/nomusic/support/windows-yandex-compatibility/windows-companion/w24/compatibility/official-yandex-builds-v2.json";
 
     public sealed record Build(string Version, string ExeSha256, string AsarSha256);
     private sealed record Document(int Schema, string? Purpose, Entry[]? Builds);
