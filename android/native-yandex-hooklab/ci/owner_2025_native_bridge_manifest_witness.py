@@ -23,8 +23,8 @@ MEDIA_SERVICE_ACTIONS = frozenset({
     "androidx.media3.session.MediaLibraryService",
 })
 COMPONENTS = {"application", "activity", "activity-alias", "service"}
-ENTRY = re.compile(r"^( *)E: ([A-Za-z][A-Za-z0-9_.-]*)\\b")
-ATTRIBUTE = re.compile(r"^ *A: android:([A-Za-z][A-Za-z0-9_]*)\\b")
+ENTRY = re.compile(r"^( *)E: ([A-Za-z][A-Za-z0-9_.-]*)\b")
+ATTRIBUTE = re.compile(r"^ *A: android:([A-Za-z][A-Za-z0-9_]*)\b")
 QUOTED = re.compile(r'="([^"]*)"')
 
 
@@ -57,7 +57,7 @@ def inspect_tree(xmltree: str) -> dict:
             if tag in COMPONENTS:
                 record = {
                     "exported": None, "enabled": True,
-                    "untrusted": False, "known": False, "actions": set(),
+                    "untrusted": None, "known": False, "actions": set(),
                 }
                 if tag == "application":
                     if app is not None:
@@ -80,7 +80,7 @@ def inspect_tree(xmltree: str) -> dict:
             elif key == "enabled":
                 record["enabled"] = boolean_attribute(line) is not False
             elif key == "allowUntrustedActivityEmbedding":
-                record["untrusted"] = boolean_attribute(line) is True
+                record["untrusted"] = boolean_attribute(line)
             elif key == "knownActivityEmbeddingCerts":
                 # A resource/string reference is an allowlist, NOT CELIKOM's cert.
                 record["known"] = True
@@ -94,7 +94,7 @@ def inspect_tree(xmltree: str) -> dict:
     if app is None or not activities:
         raise ValueError("APPLICATION_OR_ACTIVITY_NOT_OBSERVED")
     def effective_approval(record: dict, attr: str) -> bool:
-        return bool(record[attr] or app[attr])
+        return bool(record[attr] if record[attr] is not None else app[attr])
     public_activities = [
         x for x in activities if x["enabled"] and app["enabled"]
         and x["exported"] is True
@@ -172,9 +172,9 @@ def parser_selftest() -> None:
     assert out["cross_uid_known_signer_cert_allowlisted_exported_activity_count"] == 1
     assert out["public_media_browser_service_count"] == 1
     allowed = simple.replace(
-        "A: android:allowUntrustedActivityEmbedding=(type 0x12)0x0\\n    E: activity",
-        "A: android:allowUntrustedActivityEmbedding=(type 0x12)0xffffffff\\n    E: activity", 1)
-    assert inspect_tree(allowed)["cross_uid_untrusted_embeddable_exported_activity_count"] == 2
+        "A: android:allowUntrustedActivityEmbedding=(type 0x12)0x0\n    E: activity",
+        "A: android:allowUntrustedActivityEmbedding=(type 0x12)0xffffffff\n    E: activity", 1)
+    assert inspect_tree(allowed)["cross_uid_untrusted_embeddable_exported_activity_count"] == 1
     print('{"parser_safety_check":"PASS_NOT_PRODUCT_EVIDENCE"}')
 
 
