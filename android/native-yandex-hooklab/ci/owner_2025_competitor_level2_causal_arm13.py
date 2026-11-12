@@ -19,6 +19,9 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+# CI entrypoint lives in ci/, but the vetted upstream patcher helper lives
+# one directory above. Import only our own pinned/hash-checked implementation.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from clone_lspatch_loader_zero import download_pinned_patcher
 from owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     guest, install_clones, verified_orig_paths, apk_name, ORIGINAL, SPLITS,
