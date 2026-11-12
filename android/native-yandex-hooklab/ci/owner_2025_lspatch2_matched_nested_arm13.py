@@ -108,7 +108,15 @@ def replace_embedded(wrapper,inner,work,key):
         if out.read(CFG)!=oldconfig:
             stop("MATCHED_WRAPPER_ISSUER_SIGNATURE_METADATA_CHANGED")
         for member in before.namelist():
-            if member!=EMBEDDED and out.read(member)!=before.read(member):
+            # An OWN re-sign necessarily rewrites/omits legacy JAR v1 signature
+            # records. Never claim signing metadata are an immutable payload.
+            signed_meta=(member=="stamp-cert-sha256" or
+                member.startswith("META-INF/") and
+                (member.upper().endswith((".SF",".RSA",".DSA",".EC")) or
+                 member.upper()=="META-INF/MANIFEST.MF"))
+            if member==EMBEDDED or signed_meta:
+                continue
+            if member not in out.namelist() or out.read(member)!=before.read(member):
                 stop("MATCHED_WRAPPER_UNRELATED_PAYLOAD_DRIFT")
     return aligned
 
