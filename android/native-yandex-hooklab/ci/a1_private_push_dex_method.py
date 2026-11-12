@@ -16,7 +16,7 @@ import zipfile
 from a1_private_dex_fatal_cfg import exact_fatal_cfg,private_exclusive_fatal_guard_refs
 from a1_private_push_init import inspect_legacy_push_init
 from a1_private_dex_callers import bounded_fatal_callers
-from a1_private_dex_supply_chain import classify_private_supplier_chain
+from a1_private_dex_supply_chain import classify_private_supplier_chain,inspect_source_chain
 from a1_private_dex_predicate import code_items_with_meta,rule_from_synthetic_lengths
 from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,private_direct_guard_branch_roles,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
@@ -316,7 +316,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[];fatal_signatures=[];push_public_routes=[];legacy_init_reports=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];push_public_routes=[];legacy_init_reports=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -336,6 +336,9 @@ def inspect_xapk(path):
                         chain=classify_private_supplier_chain(
                             payload,Dex,group_class,group_call,exact_error_guard_report)
                         if chain is not None:supplier_chains.append(chain)
+                        near_guard_chain=private_near_guard_dependencies(payload)
+                        if near_guard_chain is not None:
+                            near_guard_chains.append(near_guard_chain)
                         graph=bounded_fatal_callers(
                             Dex(payload),group_class,group_call,
                             code_candidates,exact_error_guard_report)
@@ -343,6 +346,18 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "near_fatal_guard_dependency_calls_by_depth":[
+            sorted({x for chain in near_guard_chains
+                    for x in chain[depth]["calls"]})
+            for depth in range(3)],
+        "near_fatal_guard_dependency_fields_by_depth":[
+            sorted({x for chain in near_guard_chains
+                    for x in chain[depth]["fields"]})
+            for depth in range(3)],
+        "near_fatal_guard_dependency_method_counts_by_depth":[
+            min(sum(chain[depth]["methods_with_body_bounded"]
+                    for chain in near_guard_chains),32)
+            for depth in range(3)],
         "legacy_push_init_overloads_bounded":min(sum(
             item["overloads"] for item in legacy_init_reports),12),
         "legacy_push_init_body_count_bounded":min(sum(
@@ -547,6 +562,26 @@ def private_boolean_helpers(binary):
 
 
 
+
+
+def private_near_guard_dependencies(binary):
+    """Read only finite dependency categories for verified near-fatal predicates."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    if not targets:return None
+    codes={}
+    roots=set()
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
+            codes[mid]=code
+        if group_class(owner)=="PUSH_IMPL" and name=="a":
+            report=exact_error_guard_report(code,targets,dex,group_call)
+            if report["decoded"] and report["target_strings"]:
+                roots.update(private_exclusive_fatal_guard_refs(
+                    code,targets,dex,group_call))
+    if not roots:return None
+    return inspect_source_chain(dex,codes,roots,group_call)
 
 def private_public_push_entrypoints(binary):
     """Only well-known public SDK API labels, never obfuscated vendor symbols."""
