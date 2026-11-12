@@ -124,6 +124,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
   };
   const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
   let expiredSourceTrack = null, expiredSourceFailedTrack = null;
+  let lastExpiredAttemptTrack = null, lastExpiredAttemptAt = 0;
   sourceRecovery = createTransientSourceRecovery({
     prime: id => adapter.prime(id),
     reload: () => playerSourceRefresh.request(),
@@ -148,10 +149,18 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     if (typeof trackId !== "string" || !/^[1-9][0-9]{0,23}$/.test(trackId) ||
         playerSourceRefresh.currentTrackId() !== trackId ||
         !adapter.enabled || !attached || stopped) return false;
+    // Yandex may retry the same stale URL in multiple range requests. Never
+    // spawn unlimited recovery loops or repeatedly disturb a loaded player.
+    const now = Date.now();
+    if (lastExpiredAttemptTrack === trackId &&
+        now - lastExpiredAttemptAt < 60000) return false;
+    if (!sourceRecovery.schedule(trackId)) return false;
+    lastExpiredAttemptTrack = trackId;
+    lastExpiredAttemptAt = now;
     expiredSourceTrack = trackId;
     expiredSourceFailedTrack = null;
     report("SOURCE_EXPIRED_NATIVE_403", trackId);
-    return sourceRecovery.schedule(trackId);
+    return true;
   };
   // Only the actual current player entity, never a prefetched song.
   // No player controls or media source are changed by this UI-only observer.
@@ -172,6 +181,8 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
       sourceRecovery.cancel();
       expiredSourceTrack = null;
       expiredSourceFailedTrack = null;
+      lastExpiredAttemptTrack = null;
+      lastExpiredAttemptAt = 0;
       apiOrigin = origin;
       adapter.disable();
     }
@@ -181,6 +192,8 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
       sourceRecovery.cancel();
       expiredSourceTrack = null;
       expiredSourceFailedTrack = null;
+      lastExpiredAttemptTrack = null;
+      lastExpiredAttemptAt = 0;
       adapter.disable();
     }
     // AFTER switching CELIKOM's grant hook, ask the signed native player to
