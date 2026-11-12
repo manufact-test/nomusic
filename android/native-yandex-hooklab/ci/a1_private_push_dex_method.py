@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
-from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes
+from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
 EXPECTED_LEN=45961661
 EXPECTED_SHA="8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
@@ -310,7 +310,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[]
+    seen=0;matches=[];guard_insights=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -322,9 +322,19 @@ def inspect_xapk(path):
                     payload=apk.read(name);seen+=1
                     if payload.startswith(b"dex\n"):
                         matches.extend(inspect_dex(payload))
+                        guard_insights.append(private_guard_dependency_info(payload))
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "exact_guard_method_candidates_bounded":min(sum(
+            x["guard_targets"] for x in guard_insights),16),
+        "exact_guard_return_type_families":sorted({
+            t for x in guard_insights for t in x["return_kinds"]}),
+        "exact_guard_implementation_count_bounded":min(sum(
+            x["body_found"] for x in guard_insights),16),
+        "exact_guard_direct_dependency_families":sorted({
+            t for x in guard_insights for t in x["called_categories"]}),
+        "exact_guard_reads_local_field":any(x["reads_fields"] for x in guard_insights),
         "push_impl_a_exact_flow_decoded":all(
             m["exact_guard_flow"]["decoded"] for m in fatal_a),
         "push_impl_a_exact_error_string_candidates_bounded":min(
@@ -435,6 +445,55 @@ def private_boolean_helpers(binary):
         frontier=following
     return output
 
+
+
+def private_guard_dependency_info(binary):
+    """Only fixed classes of references directly inside source-derived guards."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    if not targets:return {"guard_targets":0,"return_kinds":[],"body_found":0,
+                            "called_categories":[],"reads_fields":False}
+    source={}
+    refs=set()
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
+            source[mid]=code
+        if group_class(owner)=="PUSH_IMPL" and name=="a":
+            report=exact_error_guard_report(code,targets,dex,group_call)
+            if report["decoded"] and report["target_strings"]:
+                refs.update(private_direct_guard_invokes(code,targets,dex,group_call))
+    kinds=set()
+    categories=set()
+    reads_field=False
+    body_found=0
+    for mid in refs:
+        ci,proto,si=struct.unpack_from("<HHI",dex.data,dex.method_off+mid*8)
+        count,off=struct.unpack_from("<II",dex.data,72)
+        if proto>=count or off+count*12>len(dex.data):raise DexError("PROTO_BOUND")
+        ret=struct.unpack_from("<I",dex.data,off+proto*12+4)[0]
+        descriptor=dex.type(ret)
+        kinds.add("BOOLEAN" if descriptor=="Z"
+                  else "VOID" if descriptor=="V"
+                  else "PRIMITIVE" if descriptor in "IJSCBFD"
+                  else "OBJECT" if descriptor.startswith(("L","["))
+                  else "UNKNOWN")
+        if mid not in source:continue
+        body_found+=1
+        try:instructions=decode_instructions(source[mid])
+        except FlowDecodeError:continue
+        for pc,op,_ in instructions:
+            if 0x52<=op<=0x58 or 0x60<=op<=0x66:
+                reads_field=True
+            if op not in INVOKE_METHOD:continue
+            call=struct.unpack_from("<H",source[mid],pc+2)[0]
+            if call<dex.method_count:
+                categories.add(group_call(*dex.method(call)))
+    return {"guard_targets":min(len(refs),16),
+            "return_kinds":sorted(kinds),
+            "body_found":min(body_found,16),
+            "called_categories":sorted(categories),
+            "reads_fields":reads_field}
 
 def private_site_methods(binary):
     """Precise throw-site classes and immediate guard call targets in memory."""
