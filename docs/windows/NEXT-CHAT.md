@@ -1,3 +1,18 @@
+# W82 — Windows 0.24.28 quietly restores compact popup, fixes false connection errors (2026-11-12)
+
+Owner tested 0.24.27 and saw **false red "Нет ответа..."** after 30s of a healthy unchanged song and **yellow "Фактический звук ещё не подтверждён"** on successful audio plus dotted focus buttons. Cause: W23 native `host.cjs` only sends `/v1/heartbeat` on native state/track **changes**; W81 incorrectly treated a silent 30s as disconnected. Mapping-accepted was also misclassified as a warning. Full docs: `docs/windows/W82-COMPACT-QUIET-STATUS-FALSE-ALARM-FIX-20261112.md`.
+
+- Branch: `experiment/windows-w82-compact-quiet-status-ui-20261112`.
+- Exact source before edits: `backup/windows-w82-pre-ui-quiet-exact-20261112` @ `7339dcb464bd942e27fac74c7f18a3008275d038`.
+- W82 removes dotted popup-button focus outlines, removes the W81 30-second false error, no yellow notices, restores green "Подмена активна · версия CELIKOM" under the song on an accepted approved version; only one small red error for actual reported source/host failure. The only large status is "Идёт загрузка Яндекс.Музыки…" during actual Start.
+- Live entitlement and native files/auth/audio scripts still unchanged from verified W81 and native 0.24.25; GUI candidate version 0.24.28.
+- False queued-start-error must not persist after `_bridge.Enabled=true`. Explicit host incompatibility remains actionable.
+- **Important limitation:** actual audible CELIKOM source vs original cannot yet be independently verified; [issue #52](https://github.com/manufact-test/nomusic/issues/52) tracks genuine media-source witness. Do NOT claim that accepted URL proves audible audio; but **do not show alarms to ordinary users on normal playback**.
+- Exact CI: `.github/workflows/windows-w82-compact-quiet-regression.yml`, `.github/workflows/windows-w82-quiet-ui-installer.yml`; verify newest green run and artifact before giving owner EXE.
+- Do not overwrite old W81 and W80 reserves; in-place installer preserves DPAPI and Yandex originals.
+
+---
+
 # W81 Windows release watcher + 2026 compatibility + visible audio errors — CI GREEN (2026-11-12)
 
 Source: `experiment/windows-w81-vendor-monitor-compat-visibility-20261112`; pre-W81 reserve `backup/windows-w81-pre-monitor-and-status-exact-20261112`. Full documentation `docs/windows/W81-YANDEX-AUTO-WATCH-2026-STATUS-20261112.md`. Owner Windows 0.24.25 seems to work; owner planned full music QA tomorrow — **do not ask to replace the owner working 0.24.25 tonight**.
