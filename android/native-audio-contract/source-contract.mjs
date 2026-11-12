@@ -64,6 +64,11 @@ function normalizedTrack(raw) {
  * Never rely on matching song title/artist/cover as identity.
  */
 export function validateGrant(raw, track, origin, nowMs, safetyMs = 30_000, durationToleranceMs = 2_000) {
+  // A track ID alone may refer to several editions in the native player.
+  // If the host cannot attest both exact album and edition, never turn a
+  // server track-level resolve into a purportedly selected native source.
+  if (!track?.albumId || !track?.editionId ||
+      !raw?.albumId || !raw?.editionId) return null;
   if (!raw || !track || raw.trackId !== track.trackId ||
       raw.approved !== true || raw.entitled !== true ||
       !Number.isSafeInteger(raw.version) || raw.version < 1 ||
@@ -263,7 +268,8 @@ export function createAudioSourceContract({
   }
   async function requestSource() {
     if (disposed) return choice("IGNORE", "DISPOSED");
-    if (!enabled || forcedOriginal || !track)
+    if (!enabled || forcedOriginal || !track ||
+        track.albumId === null || track.editionId === null)
       return original(!enabled ? "DISABLED_ORIGINAL" : "NO_IDENTITY_OR_ORIGINAL");
     // New request supersedes an older one even on the same track.
     requestSeq++;
