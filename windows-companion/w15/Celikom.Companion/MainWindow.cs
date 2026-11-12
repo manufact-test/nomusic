@@ -1133,7 +1133,7 @@ public sealed partial class MainWindow : Form
         _connectionState.ForeColor = switchAvailable && _bridge.Enabled ? Accent : Secondary;
         _switchHint.Text = !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
-            _bridge.Enabled ? "Подмена включена" :
+            _bridge.Enabled ? "Сервис подмены включён. Статус конкретной песни — ниже." :
             _resumeAfterNetworkFailure ? "Проверяем связь для возобновления подмены" :
             "Подмена выключена";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
@@ -1159,7 +1159,9 @@ public sealed partial class MainWindow : Form
         {
             "SDK_MAPPING_ACCEPTED" => "Подмена передана проигрывателю Яндекса.",
             "NATIVE_CONNECTED" => "Связь с Яндексом есть. Ожидаем композицию.",
-            "NATIVE_MAPPING_ACCEPTED" => "Версия CELIKOM передана Яндекс.Музыке.",
+            "NATIVE_MAPPING_ACCEPTED" => "Источник CELIKOM передан Яндексу. Звучание не подтверждено.",
+            "NATIVE_RECOVERING" => "Ссылка на подмену истекла. Восстанавливаем текущую песню…",
+            "NATIVE_SOURCE_FAILED" => "Ошибка загрузки подмены этой песни. Звучит оригинал или источник не проверен.",
             "RESOLVING" => "Ищем одобренную версию песни…",
             "ORIGINAL" => "Подмена недоступна — оригинальная версия.",
             "OFF" => "Подмена выключена. Текущий звук может быть в кеше Яндекса.",
@@ -1172,7 +1174,7 @@ public sealed partial class MainWindow : Form
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
             : !_bridge.Enabled ?
                 (_resumeAfterNetworkFailure ? "Нет связи. Ожидаем восстановления." : "Готов к работе")
-                : "CELIKOM работает";
+                : "CELIKOM включён (подмена каждой песни не подтверждена)";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
