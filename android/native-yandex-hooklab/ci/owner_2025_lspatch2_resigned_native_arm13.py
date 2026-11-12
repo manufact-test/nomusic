@@ -67,7 +67,7 @@ def code_parity(apk_a: zipfile.ZipFile, apk_b: zipfile.ZipFile) -> bool:
     def hashes(z):
         return {i.filename: hashlib.sha256(z.read(i)).digest()
                 for i in z.infolist()
-                if re.fullmatch(r"classes[0-9]*\\.dex", i.filename)
+                if re.fullmatch(r"classes[0-9]*\.dex", i.filename)
                 or (i.filename.startswith("lib/") and i.filename.endswith(".so"))}
     a,b=hashes(apk_a),hashes(apk_b)
     return bool(a) and "classes.dex" in a and a == b
@@ -100,7 +100,7 @@ def wrap_lab_base(base: Path, work: Path) -> Path:
                   "--min-sdk-version","24",str(wrapped)],timeout=100)
     if verified.returncode:
         stop("LSPATCH2_WRAPPED_BASE_APK_SIGNING_NOT_VALID")
-    cert=re.findall(r"Signer #1 certificate SHA-256 digest:\\s*([a-fA-F0-9:]+)",
+    cert=re.findall(r"Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9:]+)",
                     verified.stdout)
     if len(cert)!=1:
         stop("LSPATCH2_WRAPPED_BASE_SIGNER_ABSENT")
@@ -197,7 +197,9 @@ if __name__=="__main__":
     parser.add_argument("--xapk",type=Path,required=True)
     a=parser.parse_args()
     try:
-        print(json.dumps(run(a.xapk),sort_keys=True))
+        report=run(a.xapk)
+        print(json.dumps(report,sort_keys=True))
+        sys.exit(0 if report.get("verdict")=="2025_INDEPENDENT_LSPATCH2_MAIN_LIFECYCLE_PASS_NO_AUDIO" else 1)
     except Exception as error:
         code=str(error)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",code):
@@ -207,4 +209,3 @@ if __name__=="__main__":
                           "third_party_apk_uploaded":False,
                           "owner_phone_touched":False},sort_keys=True))
         sys.exit(2)
-    sys.exit(0 if run is None else 0)
