@@ -82,6 +82,29 @@ try
     Test(UserFacingPlaybackHealth.Track("OFF", false, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 explicitly stopped service is not a failure");
+    // W83: recurring entitlement checks must not flash the promo label.
+    const string lifetime = "Промокод · доступ навсегда";
+    Test(CompactAccessRefresh.WhileChecking(lifetime, "install-1",
+        "owner@example.test", "install-1", "OWNER@example.test") == lifetime,
+        "W83 15s repeated entitlement request keeps confirmed lifetime promo visible");
+    Test(CompactAccessRefresh.WhileChecking("Подписка до 1 января",
+        "install-1", "owner@example.test", "install-1", "owner@example.test") ==
+        "Подписка до 1 января",
+        "W83 subscription label stays steady through server revalidation");
+    Test(CompactAccessRefresh.WhileChecking(lifetime, "install-1",
+        "owner@example.test", "install-2", "owner@example.test") ==
+        CompactAccessRefresh.Checking,
+        "W83 different device never sees previous lifetime promo");
+    Test(CompactAccessRefresh.WhileChecking(lifetime, "install-1",
+        "owner@example.test", "install-1", "another@example.test") ==
+        CompactAccessRefresh.Checking,
+        "W83 account switch never sees old account's entitlement");
+    Test(CompactAccessRefresh.WhileChecking("Доступ не подтверждён", "",
+        "", "install-1", "owner@example.test") == CompactAccessRefresh.Checking,
+        "W83 unverified access always displays checking until server responds");
+    Test(!CompactAccessRefresh.NeedsLabelChange(lifetime, lifetime) &&
+        CompactAccessRefresh.NeedsLabelChange(lifetime, "Подписка завершена"),
+        "W83 no text repaint for identical label but real revocation must repaint");
     // W75: a temporary /auth/me failure must never hide an already
     // verified owner's diagnostics button, but never authorizes export.
     var temporaryError = new HttpRequestException("synthetic unreachable");
