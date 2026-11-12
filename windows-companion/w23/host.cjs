@@ -1,5 +1,5 @@
 "use strict";
-const CELIKOM_NATIVE_VERSION = "0.24.20";
+const CELIKOM_NATIVE_VERSION = "0.24.23";
 
 /**
  * CELIKOM main-process relay for genuine Yandex Music desktop.
@@ -26,7 +26,7 @@ const logged = new Set();
 const recent = [];
 const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT_MISS",
   "GRANT_DELIVERED", "GRANT_DELIVERY_FAILED", "LOCAL_RESOLVE_REPLY",
-  "RESOLVE_BRIDGE_FAILURE", "NATIVE_FILEINFO_REQUEST", "NATIVE_FILEINFO_OK",
+  "RESOLVE_BRIDGE_FAILURE", "RESOLVE_TRANSIENT", "NATIVE_FILEINFO_REQUEST", "NATIVE_FILEINFO_OK",
   "NATIVE_FILEINFO_ERROR", "SOURCE_ORIGINAL", "SOURCE_MAPPED",
   "SOURCE_SYNTHETIC_RESPONSE", "NATIVE_FILEINFO_SLOW", "NATIVE_FILEINFO_WAIT",
   "SOURCE_BATCH_ORIGINAL",
@@ -34,6 +34,9 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "NATIVE_TOGGLE_PLAYER_OBSERVER_READY", "NATIVE_TOGGLE_RELOAD_DEFERRED",
   "NATIVE_TOGGLE_RELOAD_REQUEST", "NATIVE_TOGGLE_RELOAD_OK",
   "NATIVE_TOGGLE_RELOAD_FAILED",
+  "SOURCE_RECOVERY_SCHEDULED", "SOURCE_RECOVERY_RETRY",
+  "SOURCE_RECOVERY_GRANTED", "SOURCE_RECOVERY_RELOAD_OK",
+  "SOURCE_RECOVERY_RELOAD_FAILED", "SOURCE_RECOVERY_EXHAUSTED",
   "SOURCE_BATCH_REQUEST", "SOURCE_BATCH_MAPPED", "CACHE_HIT",
   "MEDIA_PLAY", "MEDIA_PAUSE", "MEDIA_PLAYING", "MEDIA_ERROR",
   "MEDIA_WAITING", "MEDIA_STALLED", "MEDIA_SEEKING", "MEDIA_SEEKED",
@@ -145,14 +148,14 @@ function validView(view) {
   } catch {}
   return false;
 }
-function localRequest(token, route, method = "GET", payload = null) {
+function localRequest(token, route, method = "GET", payload = null, timeoutMs = 1000) {
   return new Promise(resolve => {
     const body = payload == null ? null : JSON.stringify(payload);
     if (!token || typeof route !== "string" || !route.startsWith("/v1/")) {
       resolve(null); return;
     }
     const request = http.request({
-      host: "127.0.0.1", port: 21471, path: route, method, timeout: 1000,
+      host: "127.0.0.1", port: 21471, path: route, method, timeout: timeoutMs,
       headers: {
         "Origin": "musicapplication://desktop",
         "X-Celikom-Bridge-Token": token,
@@ -239,12 +242,19 @@ async function relayGrant(view, token, request) {
       typeof request.trackId !== "string" ||
       !/^[1-9][0-9]{0,23}$/.test(request.trackId)) return;
   note("RESOLVE_REQUEST", request.trackId);
+  // The original request remains fast so Next is not blocked. Background
+  // current-track recovery is the ONLY call allowed a longer local deadline.
   const response = await localRequest(token,
-    "/v1/resolve?track_id=" + encodeURIComponent(request.trackId));
+    "/v1/resolve?track_id=" + encodeURIComponent(request.trackId),
+    "GET", null, request.recovery === true ? 2700 : 1000);
   if (response != null) note("LOCAL_RESOLVE_REPLY", request.trackId);
   else note("RESOLVE_BRIDGE_FAILURE", request.trackId);
-  const grant = response?.found === true ? response.grant ?? null : null;
-  note(grant ? "GRANT_FOUND" : "GRANT_MISS", request.trackId);
+  const transient = response == null || response.retryable === true;
+  // Marker is not a signed audio grant and never bypasses validation. The
+  // renderer must not cache a transient miss as "track unavailable".
+  const grant = transient ? {transient:true} :
+    response?.found === true ? response.grant ?? null : null;
+  note(!transient && grant ? "GRANT_FOUND" : "GRANT_MISS", request.trackId);
   // W52: keep the exact grant URL ONLY in process memory for comparison with
   // the native player request. Never log, hash, serialize, or persist it.
   rememberExpectedAudio(view, grant);
