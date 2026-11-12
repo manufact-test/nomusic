@@ -35,7 +35,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
-BRANCH="experiment/android-a1-2025-metrica-fatal-detail-arm13-20261112"
+BRANCH="experiment/android-a1-2025-metrica-activation-observer-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
