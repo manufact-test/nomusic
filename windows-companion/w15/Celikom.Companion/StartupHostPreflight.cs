@@ -15,7 +15,9 @@ public static class StartupHostPreflight
         if (state == NativeInstallState.Interrupted)
             return "Предыдущее подключение Яндекс.Музыки прервано. Требуется восстановление.";
         if (state == NativeInstallState.Changed)
-            return "Файлы Яндекс.Музыки изменились. Подключение заблокировано для безопасности.";
+            return report?.Status == YandexHostStatus.UnsupportedVersion
+                ? "Яндекс.Музыка обновилась. Новая версия пока проходит проверку CELIKOM. Вход и резервные копии сохранены."
+                : "Файлы Яндекс.Музыки изменились. Подключение заблокировано для безопасности.";
         return report?.Status switch
         {
             YandexHostStatus.OfficialBaselineVerified => null,
