@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated LSPatch metaloader A/B, zero signature bypass, NO modules.
+"""Isolated LSPatch metaloader A/B, zero by default; gated level-2 lab, NO modules.
 
 Only wraps a previously verified ONE-APK independent-signature clone under
 CI in disposable ephemeral emulator. The original issuer-signed Yandex APK
@@ -45,12 +45,15 @@ def download_pinned_patcher(path: Path) -> None:
 
 def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
                       witness_module_sha256: str | None = None,
-                      expected_siglevel: int = 0) -> dict:
+                      expected_siglevel: int = 0,
+                      expected_version: str = "24026531") -> dict:
     """Fail closed on signature bypass, package/version drift, lost code or modules."""
     p = source.apkmeta(apk)
     original_id = source.apkmeta(prior)
+    if expected_version not in ("24026531", "24025542"):
+        raise arsc.TrialError("METALOADER_UNSUPPORTED_HOST_VERSION")
     if (p.get("name") != source.DEST or
-            p.get("versionCode") != "24026531" or
+            p.get("versionCode") != expected_version or
             p.get("split", "") or original_id.get("name") != p.get("name")):
         raise arsc.TrialError("METALOADER_CLONE_IDENTITY_INVALID")
     if fingerprint(apk, arsc) != expected_signer:
@@ -248,7 +251,8 @@ def lab_sigcompat_level() -> int:
 
 
 def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
-                                 expected_signer: str, arsc) -> tuple[Path, dict]:
+                                 expected_signer: str, arsc,
+                                 expected_version: str = "24026531") -> tuple[Path, dict]:
     siglevel = lab_sigcompat_level()
     # Strictly after the successful 5->1 cloned-bundle merge and its verifier.
     if clone is None or not clone.is_file():
@@ -334,7 +338,8 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
         print(json.dumps({"lspatch_zero_phase": "EMBEDDED_ORIGIN_ZIP_LAYOUT_REBUILT_OWN_SIGNER"}))
     report = check_zero_loader(final_apk, clone, expected_signer, arsc,
                                witness_module_sha256=witness_digest,
-                               expected_siglevel=siglevel)
+                               expected_siglevel=siglevel,
+                                expected_version=expected_version)
     try:
         report["signed_lspatch_native_elf_layout"] = verify_native_loader_elf_offsets(final_apk)
     except (ValueError, zipfile.BadZipFile):
@@ -366,7 +371,8 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
         if fingerprint(aligned, arsc) != expected_signer:
             raise arsc.TrialError("BRIDGE_MIRROR_SIGNER_MISMATCH")
         check_zero_loader(aligned, clone, expected_signer, arsc,
-                          witness_module_sha256=witness_digest)
+                          witness_module_sha256=witness_digest,
+                           expected_version=expected_version)
         try:
             bridge_report["signed_mirrored_elf_layout"] = (
                 verify_native_loader_elf_offsets(aligned, expected_x86_machine=40))
