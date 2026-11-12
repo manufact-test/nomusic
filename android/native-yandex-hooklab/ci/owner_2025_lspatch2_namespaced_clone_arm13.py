@@ -22,6 +22,7 @@ ROOT=HERE.parent
 sys.path.insert(0,str(ROOT))
 import clone_native_splits_ephemeral as source
 from clone_native_splits_arsclib_ephemeral import download_editor
+from clone_main_crash_buffer import classify_main_exit_status, classify_main_crash_buffer
 from ci.owner_2025_lspatch2_resigned_native_arm13 import wrap_lab_base
 from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     guest,cmd,stop,verified_orig_paths,apk_name,install_clones,lab_sdk_tool,
@@ -78,10 +79,14 @@ def patch_manifest(data):
         auth=provider.attrib.get(ANDROID+"authorities","")
         if not auth: continue
         values=auth.split(";")
-        updated=[DEST+".thirdparty.appmetrica.provider"
-                 if value==GLOBAL_PROVIDER else value for value in values]
+        # ALL provider authorities must be globally unique for Android
+        # PackageManager to install the CELIKOM clone next to publisher Yandex.
+        # Original Yandex retained every authority; never mutate it.
+        updated=[value if value.startswith(DEST+".") else
+                 DEST+".provider."+hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+                 for value in values]
         if updated!=values:
-            providers_rewritten+=1
+            providers_rewritten+=sum(a!=b for a,b in zip(values,updated))
             provider.set(ANDROID+"authorities",";".join(updated))
     return ET.tostring(root,encoding="utf-8",xml_declaration=True),{
         "source_scoped_provider_rewrites":stats["provider_authorities"],
@@ -164,7 +169,25 @@ def observe_clone(seconds=75):
         resumed+=int(any(DEST+"/" in line and
             ("mResumedActivity" in line or "topResumedActivity" in line)
             for line in activities.stdout.splitlines()))
-    return accepted and all(pids) and len(set(pids))==1 and resumed==len(pids)
+    stable=bool(accepted and all(pids) and len(set(pids))==1 and resumed==len(pids))
+    summary={"stable":stable,"resumed_observations":resumed,
+             "observed_samples":len(pids)}
+    if not stable:
+        exit_info=guest("dumpsys","activity","exit-info",DEST,timeout=45)
+        if exit_info.returncode==0:
+            summary["exit"]=classify_main_exit_status(exit_info.stdout,target_package=DEST)
+            crash=guest("logcat","-d","-b","crash",timeout=50)
+            if crash.returncode==0:
+                raw=classify_main_crash_buffer(exit_info.stdout,crash.stdout,
+                                                target_package=DEST)
+                summary["crash"]={
+                    "fatal_category":raw["fatal_category"],
+                    "java_top_exception_enum":raw["java_top_exception_enum"],
+                    "java_exception_security_markers":raw["java_exception_security_markers"],
+                    "java_top_stack_family":raw["java_top_stack_family"],
+                    "application_component_factory_failure":raw["application_component_factory_failure"],
+                }
+    return summary
 
 
 def run(xapk):
@@ -183,6 +206,9 @@ def run(xapk):
         editor=work/"pinned-owned-manifest-editor.jar"
         download_editor(editor)
         renamed=[]
+        rewrite_summary={"total_source_scoped_providers":0,
+                         "total_global_provider_rewrites":0,
+                         "total_duplicate_permissions_removed":0}
         source_splits={name for name,_ in independent}
         if len(source_splits)!=16:
             stop("NAMESPACED_EXPECTED_SIXTEEN_SIGNED_SPLITS")
@@ -191,8 +217,12 @@ def run(xapk):
             signed,stats=name_one(input_apk,editor,work,index,
                                    work/"unique-own-key.jks")
             renamed.append((name,signed))
+            rewrite_summary["total_source_scoped_providers"]+=stats["source_scoped_provider_rewrites"]
+            rewrite_summary["total_global_provider_rewrites"]+=stats["global_appmetrica_provider_rewrites"]
+            rewrite_summary["total_duplicate_permissions_removed"]+=stats["duplicate_publisher_permission_declarations_removed"]
         report={
             "verified_publisher_source_splits":16,
+            "clone_provider_namespace_rewrites":rewrite_summary,
             "own_signed_cloned_splits":len(renamed),
             "LSPatch_level":2,
             "LSPatch_direct_input_publisher_verified":True,
@@ -215,7 +245,9 @@ def run(xapk):
             report["verdict"]="NAMESPACED_CLONE_SPLIT_COUNT_FAIL"
             return report
         guest("logcat","-c")
-        report["native_clone_main_75s"]=observe_clone()
+        observed=observe_clone()
+        report["native_clone_main_75s"]=observed["stable"]
+        report["clone_lifecycle"]=observed
         # Independently verified exact publisher originals installed without
         # modifying any original bytes or removing our cloned package.
         report["publisher_install"]=install_clones(
