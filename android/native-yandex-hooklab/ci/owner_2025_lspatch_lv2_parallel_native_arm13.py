@@ -28,6 +28,7 @@ from owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from clone_lspatch_loader_zero import (
     download_pinned_patcher, verify_native_loader_elf_offsets,
 )
+from recover_stored_origin_crc import rewrite_only_if_origin_crc_mismatch
 
 BRANCH="experiment/android-a1-2025-lv2-own-package-parallel-20261112"
 CONFIG="assets/lspatch/config.json"
@@ -204,6 +205,19 @@ def real_trial(xapk:Path)->dict:
         # existing own signer; only config's originalSignature is inherited
         # from the publisher reference. Never copy vendor module/secret.
         candidate=run_patcher(upstream,own_base,key,work,"owned-parallel-loader")
+        # Upstream LSPatch can write a stale CRC for embedded origin.apk.
+        # This is the SAME verified repair already used by our prior level-0
+        # implementation; never modify original publisher bytes or DEX.
+        repaired=work/"parallel-checked-origin-crc-unsigned.apk"
+        try:
+            repair=rewrite_only_if_origin_crc_mismatch(candidate,repaired)
+        except (ValueError,zipfile.BadZipFile):
+            stop("PUBLISHER_SOURCE_PARALLEL_LSPATCH_ORIGIN_CRC_UNREPAIRABLE")
+        print(json.dumps({"private_clone_stage":"LSPATCH_ORIGIN_CRC_VALIDATED",
+                          "origin_crc_repaired":repair["crc_repaired"],
+                          "zip_layout_repacked":repair["layout_repacked"]}))
+        if repair["layout_repacked"]:
+            candidate=repaired
         raw=work/"parallel-issuer-compat-unsigned.apk"
         replace_only_signature_metadata(candidate,raw,issuer_sig)
         outer=sign_and_verify(raw,key,work,own_cert,PKG,issuer_sig)
