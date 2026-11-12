@@ -31,6 +31,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     // PID, thread ID or token ever leaves the process or the map.
     private final Map<Throwable, Boolean> metricaConstructed =
         Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<Throwable, String> metricaDetailByThrowable =
+        Collections.synchronizedMap(new WeakHashMap<>());
 
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
@@ -120,9 +122,12 @@ public final class ExitCallsiteWitness extends XposedModule {
                     // constructor to run twice if an instrumentation API fails.
                     String metrica = "NO_METRICA_FRAME";
                     String category = "EXC_UNKNOWN";
+                    String detail = "DETAIL_UNKNOWN";
                     boolean exactHi2 = false;
                     try {
-                        category = redactedErrorCategory(chain.getArg(0));
+                        Object message = chain.getArg(0);
+                        category = redactedErrorCategory(message);
+                        detail = redactedMetricaDetail(message);
                         exactHi2 = callerIsExactHi2Coroutine();
                         metrica = callerMetricaFrameGroup();
                     } catch (Throwable ignored) { }
@@ -132,8 +137,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                             emit("HI2_EXCEPTION", "STATIC_COROUTINE", category);
                         if (!"NO_METRICA_FRAME".equals(metrica)) {
                             Object constructed = chain.getThisObject();
-                            if (constructed instanceof Throwable)
-                                metricaConstructed.put((Throwable) constructed, Boolean.TRUE);
+                            if ("METRICA_SDK".equals(metrica) &&
+                                    constructed instanceof Throwable) {
+                                Throwable object = (Throwable) constructed;
+                                metricaConstructed.put(object, Boolean.TRUE);
+                                metricaDetailByThrowable.put(object, detail);
+                                emit("METRICA_DETAIL", metrica, detail);
+                            }
                             emit("METRICA_EXCEPTION", metrica, category);
                         }
                     } catch (Throwable ignored) { }
@@ -185,10 +195,15 @@ public final class ExitCallsiteWitness extends XposedModule {
                 .intercept(chain -> {
                     try {
                         Object arg = chain.getArg(throwableIndex);
-                        if (arg instanceof Throwable)
-                            emit("FATAL_DISPATCH", origin,
-                                    throwableIdentityCategory((Throwable) arg));
-                        else emit("FATAL_DISPATCH", origin, "NON_THROWABLE");
+                        if (arg instanceof Throwable) {
+                            Throwable thrown=(Throwable) arg;
+                            String category=throwableIdentityCategory(thrown);
+                            emit("FATAL_DISPATCH", origin, category);
+                            if ("DIRECT_METRICA".equals(category) ||
+                                    "CAUSE_METRICA".equals(category))
+                                emit("FATAL_DETAIL", origin,
+                                    throwableDetailCategory(thrown));
+                        } else emit("FATAL_DISPATCH", origin, "NON_THROWABLE");
                     } catch (Throwable ignored) { }
                     return chain.proceed();
                 });
@@ -214,6 +229,54 @@ public final class ExitCallsiteWitness extends XposedModule {
             }
         } catch (Throwable ignored) { }
         return "NOT_METRICA";
+    }
+
+    /**
+     * Error detail can include credentials and identifiers: process it ONLY
+     * into these hard-coded categories. Never emit the actual input text.
+     */
+    private static String redactedMetricaDetail(Object value) {
+        if (!(value instanceof String)) return "DETAIL_UNKNOWN";
+        String s=((String)value).toLowerCase(java.util.Locale.ROOT);
+        if (s.contains("not initialized") || s.contains("not initialised") ||
+                s.contains("isn't initialized") || s.contains("not activated") ||
+                s.contains("not activate") || s.contains("not been activated") ||
+                s.contains("not been initialized"))
+            return "DETAIL_NOT_INITIALIZED";
+        if (s.contains("already initialized") || s.contains("already activated") ||
+                s.contains("already initialised"))
+            return "DETAIL_ALREADY_ACTIVE";
+        if (s.contains("api key") || s.contains("apikey") ||
+                s.contains("api_key") || s.contains("invalid key"))
+            return "DETAIL_API_KEY";
+        if (s.contains("package") || s.contains("application id") ||
+                s.contains("applicationid") || s.contains("context"))
+            return "DETAIL_PACKAGE_CONTEXT";
+        if (s.contains("service") || s.contains("provider") ||
+                s.contains("component") || s.contains("manifest"))
+            return "DETAIL_ANDROID_COMPONENT";
+        if (s.contains("configuration") || s.contains("config"))
+            return "DETAIL_CONFIG";
+        if (s.contains("permission") || s.contains("denied"))
+            return "DETAIL_PERMISSION";
+        if (s.contains("crash") || s.contains("handler") || s.contains("report"))
+            return "DETAIL_CRASH_HANDLER";
+        return "DETAIL_OTHER";
+    }
+
+    private String throwableDetailCategory(Throwable thrown) {
+        try {
+            String direct=metricaDetailByThrowable.get(thrown);
+            if (direct!=null) return direct;
+            Throwable next=thrown.getCause();
+            for (int i=0;next!=null&&i<8;i++) {
+                String category=metricaDetailByThrowable.get(next);
+                if (category!=null) return category;
+                if (next==next.getCause()) break;
+                next=next.getCause();
+            }
+        } catch (Throwable ignored) { }
+        return "DETAIL_UNOBSERVED";
     }
 
     /** Only fixed framework labels, no vendor class, method, thread or text. */
