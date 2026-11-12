@@ -46,6 +46,35 @@ try
             new YandexHostResult(YandexHostStatus.UntrustedExecutable, "5.128.0.r24000000"))!
             .Contains("заблокировано"),
         "W80 unknown tampered host remains blocked, never mistaken for verified update");
+    // W81: live GUI health must never confuse URL acceptance with audio.
+    Test(UserFacingPlaybackHealth.Host(Celikom.NativeInstaller.NativeInstallState.Active,
+        null, true).Level == UserFacingPlaybackHealth.Severity.Good,
+        "W81 verified integrated host has good connectivity only");
+    Test(UserFacingPlaybackHealth.Host(Celikom.NativeInstaller.NativeInstallState.Changed,
+        new YandexHostResult(YandexHostStatus.UnsupportedVersion, "5.128.0.r24000000"), false)
+        .Message.Contains("Дождись проверки"),
+        "W81 future unsupported Yandex shows visible compatibility error");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Error,
+        "W81 failed track replacement is red even when approved version exists");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_MAPPING_ACCEPTED", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Warning,
+        "W81 accepted replacement does not claim audible success");
+    Test(UserFacingPlaybackHealth.Track("HOST_ERROR", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Error,
+        "W81 disconnected native host is visible red");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_RECOVERING", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Warning,
+        "W81 transient source retry shows yellow");
+    Test(UserFacingPlaybackHealth.Track("ORIGINAL", true, "approved").Message
+        .Contains("оригинал"),
+        "W81 approved alternative but original currently playing explicitly explained");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_CONNECTED", true, "approved",
+        staleHeartbeat: true).Level == UserFacingPlaybackHealth.Severity.Error,
+        "W81 stale native heartbeat is red even though local service is enabled");
+    Test(UserFacingPlaybackHealth.Track("OFF", false, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W81 explicitly stopped user playback is neutral, not erroneous");
     // W75: a temporary /auth/me failure must never hide an already
     // verified owner's diagnostics button, but never authorizes export.
     var temporaryError = new HttpRequestException("synthetic unreachable");
