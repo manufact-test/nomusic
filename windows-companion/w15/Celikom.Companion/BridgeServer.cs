@@ -253,7 +253,8 @@ public sealed class BridgeServer : IAsyncDisposable
             { return Results.BadRequest(); }
             if (beat == null || beat.Status is not ("OFF" or "UNAVAILABLE" or "ORIGINAL" or
                   "RESOLVING" or "SDK_MAPPING_ACCEPTED" or "HOST_ERROR" or
-                  "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED"))
+                  "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
+                  "NATIVE_RECOVERING" or "NATIVE_SOURCE_FAILED"))
                 return Results.BadRequest();
             lock (_gate)
             {
