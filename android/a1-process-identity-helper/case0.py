@@ -144,6 +144,7 @@ def inspect(xapk:Path, generated:Path|None):
              "exact_predicate_branch_for_main":"UNKNOWN",
              "case0_direct_process_supplier":[],"case0_comparison_api":[],
              "case0_if_opcodes":[],"case0_return_instruction_count":0,
+             "case0_synthetic_string_length_rule":"INCONCLUSIVE",
              "case0_original_package_literal":False,
              "case0_clone_package_literal":False,
              "case0_one_hop_process_supplier":[],
@@ -159,10 +160,18 @@ def inspect(xapk:Path, generated:Path|None):
             index={}
             for mid in bodies:
                 o,n=dex.method(mid)
-                key=(o.strip("L;").replace("/","."),n,dexmod.private_java_parameter_signature(dex,mid))
-                if key==(cls,name,proto):index[mid]=bodies[mid]
+                if (o.strip("L;").replace("/","."),n)!=(cls,name):
+                    continue
+                if dexmod.private_java_parameter_signature(dex,mid)==proto:
+                    index[mid]=bodies[mid]
             for mid,code in index.items():
                 matched+=1
+                meta=next(((regs,inputs,is_static,body) for candidate,regs,inputs,is_static,body
+                           in dexmod.code_items_with_meta(dex) if candidate==mid),None)
+                if meta is not None:
+                    regs,inputs,is_static,body=meta
+                    outcome["case0_synthetic_string_length_rule"]=dexmod.rule_from_synthetic_lengths(
+                        body,regs,inputs,is_static,dex)
                 base,refs=_body(dex,mid,code)
                 outcome["case0_return_type_boolean"] |= dex.method_returns_boolean(mid)
                 outcome["case0_direct_process_supplier"]=base["direct_process_supply"]
