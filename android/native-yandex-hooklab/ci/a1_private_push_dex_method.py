@@ -73,6 +73,32 @@ class Dex:
             self.method_cache[index]=(self.type(ci),self.string(si))
         return self.method_cache[index]
 
+    def method_signature(self,index):
+        if index<0 or index>=self.method_count:raise DexError("METHOD_INDEX")
+        ci,proto,si=struct.unpack_from("<HHI",self.data,self.method_off+index*8)
+        return self.type(ci),self.string(si),proto
+
+    def push_interface_implementors(self):
+        result={}
+        for index in range(self.class_count):
+            base=self.class_off+index*32
+            cls_index=struct.unpack_from("<I",self.data,base)[0]
+            iface_off=struct.unpack_from("<I",self.data,base+12)[0]
+            if not iface_off:continue
+            owner=self.type(cls_index)
+            if group_class(owner) not in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
+                continue
+            if iface_off+4>len(self.data):raise DexError("INTERFACE_HEADER_BOUND")
+            count=struct.unpack_from("<I",self.data,iface_off)[0]
+            if count>1024 or iface_off+4+count*2>len(self.data):
+                raise DexError("INTERFACE_ARRAY_BOUND")
+            for i in range(count):
+                tidx=struct.unpack_from("<H",self.data,iface_off+4+2*i)[0]
+                interface=self.type(tidx)
+                if group_class(interface) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
+                    result.setdefault(interface,set()).add(owner)
+        return result
+
     def possible_error_strings(self):
         found=set()
         for i in range(self.string_count):
@@ -137,14 +163,29 @@ def code_candidates(code,targets):
     return strings,invokes
 
 
-def helper_chain(dex, source_codes, seeds):
+def helper_chain(dex, source_codes, seeds, interface_impls=None, method_impls=None):
     """Follow up to three direct Push helper invocations using fixed enums."""
     chain=[]
     visited=set()
     frontier=set(seeds)
+    interface_impls=interface_impls or {}
+    method_impls=method_impls or {}
     for _ in range(3):
-        ids={idx for idx in frontier if idx in source_codes and idx not in visited}
-        ids=set(sorted(ids)[:128])
+        ids=set()
+        dispatch=False
+        for idx in sorted(frontier)[:128]:
+            if idx in source_codes:
+                ids.add(idx)
+                continue
+            # A method-id may refer to an abstract Push interface method.
+            # Resolve known concrete implementors in the SAME DEX only.
+            owner,name,proto=dex.method_signature(idx)
+            for impl_class in sorted(interface_impls.get(owner,()))[:64]:
+                target=method_impls.get((impl_class,name,proto))
+                if target is not None and target in source_codes:
+                    ids.add(target)
+                    dispatch=True
+        ids=set(sorted(ids - visited)[:128])
         visited.update(ids)
         modern=False
         legacy=False
@@ -159,6 +200,7 @@ def helper_chain(dex, source_codes, seeds):
                 if cat=="LEGACY_PREDICATE":legacy=True
                 if cat=="PUSH_IMPL_HELPER":nested.add(ref)
         chain.append({"methods_found":min(len(ids),32),
+                      "interface_dispatch_resolved":dispatch,
                       "modern_predicate":modern,
                       "legacy_predicate":legacy,
                       "helper_continuation":bool(nested)})
@@ -171,10 +213,14 @@ def inspect_dex(binary):
     if not targets:return []
     matches=[]
     source_codes={}
+    impl_signatures={}
+    interface_implementors=dex.push_interface_implementors()
     for mid,code in dex.code_methods():
         owner,method=dex.method(mid)
         if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
-            if len(source_codes)<25000:source_codes[mid]=code
+            if len(source_codes)<25000:
+                source_codes[mid]=code
+                impl_signatures[dex.method_signature(mid)]=mid
         where,calls=code_candidates(code,targets)
         if not where:continue
         grouped=[]
@@ -196,9 +242,15 @@ def inspect_dex(binary):
                 "legacy_check":any(x[1]=="LEGACY_PREDICATE" for x in grouped),
                 "helper":any(x[1]=="PUSH_IMPL_HELPER" for x in grouped),
                 "recent_invoke":earlier[-1] if earlier else "NO_NEARBY_INVOKE",
-                "helper_chain":helper_chain(dex,source_codes,helpers)
-                    if group_class(owner)=="PUSH_IMPL" else [],
+                "helper_refs":helpers,
             })
+    # Resolve helper implementations after all declarations have been indexed.
+    for entry in matches:
+        entry["helper_chain"]=(
+            helper_chain(dex,source_codes,entry["helper_refs"],
+                         interface_implementors,impl_signatures)
+            if entry["owner"]=="PUSH_IMPL" else [])
+        del entry["helper_refs"]
     return matches
 
 def inspect_xapk(path):
@@ -222,6 +274,10 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     return {
         "dex_private_push_insight":True,
+        "push_helper_interface_dispatch_by_depth":[
+            any(m["helper_chain"][depth]["interface_dispatch_resolved"]
+                for m in exact if len(m["helper_chain"])>depth)
+            for depth in range(3)],
         "push_helper_methods_by_depth_bounded":[
             min(sum(m["helper_chain"][depth]["methods_found"]
                     for m in exact if len(m["helper_chain"])>depth),64)
@@ -267,7 +323,8 @@ def main():
         safe={"ULEB_BAD","ULEB_TOO_LONG","DEX_MAGIC","DEX_TABLE_BOUND",
               "STR_INDEX","STR_END","TYPE_INDEX","METHOD_INDEX",
               "EXCESSIVE_METHODS","CODE_HEADER_BOUND","CODE_BOUND",
-              "OWNER_INPUT_LENGTH","OWNER_INPUT_SHA"}
+              "OWNER_INPUT_LENGTH","OWNER_INPUT_SHA",
+              "INTERFACE_HEADER_BOUND","INTERFACE_ARRAY_BOUND"}
         reason=(str(error) if isinstance(error,DexError)
                 and str(error) in safe else
                 "ZIP_READ" if isinstance(error,zipfile.BadZipFile) else

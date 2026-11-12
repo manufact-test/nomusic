@@ -44,6 +44,25 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         self.assertEqual(result[1]["methods_found"],0)
         self.assertNotIn("TEST",str(result))
 
+    def test_abstract_interface_dispatch_to_concrete_predicate(self):
+        class Fake:
+            method_count=5
+            def method_signature(self,ref):
+                return ("Lcom/yandex/metrica/push/impl/ITest;","d",1)
+            def method(self,ref):
+                return {2:("Lio/appmetrica/analytics/ModulesFacade;","isActivatedForApp")
+                        }.get(ref,("Lcom/yandex/metrica/push/impl/ITest;","d"))
+        interface={"Lcom/yandex/metrica/push/impl/ITest;":
+                   {"Lcom/yandex/metrica/push/impl/Impl;"}}
+        methods={("Lcom/yandex/metrica/push/impl/Impl;","d",1):4}
+        result=helper_chain(Fake(),{4:bytes((0x71,0,2,0,0,0))},
+                            {1},interface,methods)
+        self.assertTrue(result[0]["interface_dispatch_resolved"])
+        self.assertTrue(result[0]["modern_predicate"])
+        self.assertEqual(result[0]["methods_found"],1)
+        self.assertEqual(result[1]["methods_found"],0)
+        self.assertNotIn("Impl",str(result))
+
     def test_bad_dex_rejected_without_data(self):
         with self.assertRaises(DexError):Dex(b"PK\x03\x04")
 
