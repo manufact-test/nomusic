@@ -90,7 +90,8 @@ public static class OfficialYandexCatalog
             or IOException or JsonException or InvalidDataException)
         {
             // Offline/VPN/invalid registry must not affect existing music.
-            // Caller uses only previously verified entries.
+            // Retry an unavailable feed soon, but never hammer it every tick.
+            _nextCheck = DateTimeOffset.UtcNow.AddMinutes(1);
         }
         finally { Gate.Release(); }
     }
