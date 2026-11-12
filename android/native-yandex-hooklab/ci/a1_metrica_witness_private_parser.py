@@ -24,6 +24,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "PUSH_HELPER_HOOK","PUSH_HELPER_BOOL",
           "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE","PUSH_GUARD_INPUT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
+          "PUSH_NEAR_GUARD_HOOK","PUSH_NEAR_GUARD_VALUE",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
@@ -33,7 +34,7 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "THREAD_DISPATCH","THREAD_GROUP","RUNTIME_KILL_HANDLER",
          "RUNTIME_LOG_HANDLER","RUNTIME_LOOKUP",
          "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN",
-         "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL",
+         "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL","PUSH_NEAR_GUARD",
           "STATE_MARK_ACTIVATED","STATE_MARK_FULL","STATE_KILL",
           "STATE_CHECK_ACTIVATED","STATE_CHECK_FULL","STATE_CHECK_APP",
           "API_GET_REPORTER","API_ACTIVATE_REPORTER","API_REPORT_EVENT",
@@ -135,6 +136,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
     private_helper=[x for x in seen if x[0]=="PUSH_HELPER_BOOL"]
     private_helper_hook=[x for x in seen if x[0]=="PUSH_HELPER_HOOK"]
+    near_guard=[x for x in seen if x[0]=="PUSH_NEAR_GUARD_VALUE"]
+    near_guard_hook=[x for x in seen if x[0]=="PUSH_NEAR_GUARD_HOOK"]
     exact_guard=[x for x in seen if x[0]=="PUSH_GUARD_VALUE"]
     exact_input=[x for x in seen if x[0]=="PUSH_GUARD_INPUT"]
     exact_guard_hook=[x for x in seen if x[0]=="PUSH_GUARD_HOOK"]
@@ -143,6 +146,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
     push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
     focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_INIT",
+                  "PUSH_NEAR_GUARD_VALUE",
                   "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
                   "APP_LIFECYCLE"}
     sequence=[(event,origin,category) for event,origin,category,_thread
@@ -160,6 +164,12 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "push_throw_subpackage_categories":sorted({x[2] for x in push_throw_classes}),
         "push_throw_method_categories":sorted({x[2] for x in push_throw_methods}),
         "activation_push_order_bounded":sequence,
+        "private_push_near_fatal_guard_hook_registered":any(
+            x[2]=="REGISTERED" for x in near_guard_hook),
+        "private_push_near_fatal_guard_states":{
+            state:sum(x[2]==state for x in near_guard)
+            for state in ("ENTER","TRUE","FALSE","NON_BOOLEAN","OTHER_THROW")},
+        "private_push_near_fatal_guard_timeline":[x[2] for x in near_guard[:48]],
         "private_push_guard_hook_registered":any(x[2]=="REGISTERED" for x in exact_guard_hook),
         "private_push_guard_input_states":{
             state:sum(x[2]==state for x in exact_input)

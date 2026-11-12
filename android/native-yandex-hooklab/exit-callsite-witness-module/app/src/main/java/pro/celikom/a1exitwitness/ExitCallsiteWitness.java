@@ -747,12 +747,13 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Exact privately generated callsites. Lab-only, forwards every result/throw.
     private synchronized void installPrivatePushSiteWitness(ClassLoader loader) {
         if (privatePushSitesReady || loader == null) return;
-        int guardCount=0, fatalCount=0;
+        int guardCount=0, fatalCount=0, nearCount=0;
         try {
             Class<?> targets=Class.forName("pro.celikom.a1exitwitness.PrivatePushTargets",
                 false,ExitCallsiteWitness.class.getClassLoader());
-            for (String accessor:new String[]{"getGuardTargets","getFatalTargets"}) {
+            for (String accessor:new String[]{"getGuardTargets","getFatalTargets","getNearFatalGuardTargets"}) {
                 final boolean fatal="getFatalTargets".equals(accessor);
+                final boolean near="getNearFatalGuardTargets".equals(accessor);
                 Object returned=targets.getDeclaredMethod(accessor).invoke(null);
                 if (!(returned instanceof String[][])) continue;
                 java.util.Set<Method> unique=new java.util.HashSet<>();
@@ -766,20 +767,24 @@ public final class ExitCallsiteWitness extends XposedModule {
                         for (Method method:cls.getDeclaredMethods()) {
                             if (!pair[1].equals(method.getName())
                                 || !unique.add(method)) continue;
-                            if (!fatal && (method.getReturnType()!=boolean.class
+                            if (!fatal && !near && (method.getReturnType()!=boolean.class
                                     || method.getParameterTypes().length!=1
                                     || method.getParameterTypes()[0]!=String.class))
+                                continue;
+                            if (near && method.getReturnType()!=boolean.class)
                                 continue;
                             method.setAccessible(true);
                             hook(method).setExceptionMode(
                                 XposedInterface.ExceptionMode.PROTECTIVE)
                                 .intercept(chain -> {
                                     int hit=privatePushSiteHits.incrementAndGet();
-                                    String event=fatal ? "PUSH_FATAL_CALL":"PUSH_GUARD_VALUE";
-                                    String source=fatal ? "PUSH_FATAL":"PUSH_GUARD";
+                                    String event=fatal ? "PUSH_FATAL_CALL"
+                                        : near ? "PUSH_NEAR_GUARD_VALUE" : "PUSH_GUARD_VALUE";
+                                    String source=fatal ? "PUSH_FATAL"
+                                        : near ? "PUSH_NEAR_GUARD" : "PUSH_GUARD";
                                     if (hit<=72) {
                                         emit(event,source,"ENTER");
-                                        if (!fatal) {
+                                        if (!fatal && !near) {
                                             String state="OTHER_INPUT";
                                             try {
                                                 Object input=chain.getArg(0);
@@ -808,15 +813,19 @@ public final class ExitCallsiteWitness extends XposedModule {
                                         throw failure;
                                     }
                                 });
-                            if (fatal) fatalCount++; else guardCount++;
+                            if (fatal) fatalCount++;
+                            else if (near) nearCount++;
+                            else guardCount++;
                         }
                     } catch (Throwable ignored) { }
                 }
             }
         } catch (Throwable ignored) { }
-        privatePushSitesReady=guardCount>0 || fatalCount>0;
+        privatePushSitesReady=guardCount>0 || fatalCount>0 || nearCount>0;
         emit("PUSH_GUARD_HOOK","PUSH_GUARD",guardCount>0?"REGISTERED":"NO_HOOK");
         emit("PUSH_FATAL_HOOK","PUSH_FATAL",fatalCount>0?"REGISTERED":"NO_HOOK");
+        emit("PUSH_NEAR_GUARD_HOOK","PUSH_NEAR_GUARD",
+            nearCount>0?"REGISTERED":"NO_HOOK");
     }
 
     // SDK internal markers might be renamed by R8; NO_HOOK is inconclusive.

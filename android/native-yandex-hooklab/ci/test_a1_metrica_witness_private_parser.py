@@ -97,6 +97,25 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertNotIn("432",str(result))
 
 
+
+    def test_near_fatal_boolean_guard_is_pid_scoped_no_argv(self):
+        sample=(
+            log(431,"event=PUSH_INIT;origin=PUSH_LEGACY;error=ENTER;thread=MAIN")
+            +log(431,"event=PUSH_NEAR_GUARD_HOOK;origin=PUSH_NEAR_GUARD;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_NEAR_GUARD_VALUE;origin=PUSH_NEAR_GUARD;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_NEAR_GUARD_VALUE;origin=PUSH_NEAR_GUARD;error=FALSE;thread=OTHER")
+            +log(431,"event=METRICA_PUSH_THROW_CLASS;origin=METRICA_SDK;error=PUSH_IMPL;thread=OTHER")
+            +log(999,"event=PUSH_NEAR_GUARD_VALUE;origin=PUSH_NEAR_GUARD;error=TRUE;thread=OTHER")
+            +log(431,"event=PUSH_NEAR_GUARD_VALUE;origin=SECRET;error=TRUE;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,sample)
+        self.assertTrue(result["private_push_near_fatal_guard_hook_registered"])
+        self.assertEqual(result["private_push_near_fatal_guard_states"]["FALSE"],1)
+        self.assertEqual(result["private_push_near_fatal_guard_states"]["TRUE"],0)
+        self.assertIn(("PUSH_NEAR_GUARD_VALUE","PUSH_NEAR_GUARD","FALSE"),
+                      result["activation_push_order_bounded"])
+        self.assertNotIn("999",str(result))
+        self.assertNotIn("SECRET",str(result))
+
     def test_actual_legacy_push_init_is_observed_without_any_mutation(self):
         rows=(
             log(431,"event=PUSH_INIT_HOOK;origin=PUSH_LEGACY;error=REGISTERED;thread=MAIN")
