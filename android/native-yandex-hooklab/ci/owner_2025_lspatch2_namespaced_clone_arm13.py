@@ -34,7 +34,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
-BRANCH="experiment/android-a1-2025-singleapk-original-first-arm13-20261112"
+BRANCH="experiment/android-a1-2025-clone-java-rootcause-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
@@ -260,6 +260,13 @@ def observe_clone(seconds=75):
                     "java_exception_security_markers":raw["java_exception_security_markers"],
                     "java_top_stack_family":raw["java_top_stack_family"],
                     "application_component_factory_failure":raw["application_component_factory_failure"],
+                    "java_fatal_background_role":raw["java_fatal_background_role"],
+                    "java_top_frame_subsystem":raw["java_top_frame_subsystem"],
+                    "java_startup_message_shape":raw["java_startup_message_shape"],
+                    "java_startup_message_finite_hint":raw["java_startup_message_finite_hint"],
+                    "java_exception_message_hint_enum":raw["java_exception_message_hint_enum"],
+                    "java_startup_lifecycle_enum":raw["java_startup_lifecycle_enum"],
+                    "java_stack_frame_count_bounded":raw["java_stack_frame_count_bounded"],
                 }
     return summary
 
