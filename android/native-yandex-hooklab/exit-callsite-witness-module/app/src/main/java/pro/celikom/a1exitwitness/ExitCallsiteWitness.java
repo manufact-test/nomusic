@@ -116,27 +116,28 @@ public final class ExitCallsiteWitness extends XposedModule {
             ctor.setAccessible(true);
             hook(ctor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
+                    // Exactly ONE original execution. Observers cannot cause a
+                    // constructor to run twice if an instrumentation API fails.
+                    String metrica = "NO_METRICA_FRAME";
+                    String category = "EXC_UNKNOWN";
+                    boolean exactHi2 = false;
                     try {
-                        Object value = chain.getArg(0);
-                        if (callerIsExactHi2Coroutine()) {
-                            emit("HI2_EXCEPTION", "STATIC_COROUTINE",
-                                 redactedErrorCategory(value));
-                        }
-                        String metrica = callerMetricaFrameGroup();
+                        category = redactedErrorCategory(chain.getArg(0));
+                        exactHi2 = callerIsExactHi2Coroutine();
+                        metrica = callerMetricaFrameGroup();
+                    } catch (Throwable ignored) { }
+                    Object result = chain.proceed();
+                    try {
+                        if (exactHi2)
+                            emit("HI2_EXCEPTION", "STATIC_COROUTINE", category);
                         if (!"NO_METRICA_FRAME".equals(metrica)) {
-                            // Mark THIS precise Throwable object, not merely
-                            // a timestamp or exception class. A caught SDK
-                            // exception must never be called a fatal cause.
-                            Object result = chain.proceed();
                             Object constructed = chain.getThisObject();
                             if (constructed instanceof Throwable)
                                 metricaConstructed.put((Throwable) constructed, Boolean.TRUE);
-                            emit("METRICA_EXCEPTION", metrica,
-                                 redactedErrorCategory(value));
-                            return result;
+                            emit("METRICA_EXCEPTION", metrica, category);
                         }
                     } catch (Throwable ignored) { }
-                    return chain.proceed();
+                    return result;
                 });
             return true;
         } catch (Throwable ignored) {
