@@ -104,3 +104,10 @@ After public `getReporter()` returned successfully 14 times in native #432243442
 - [CI #43243546438](https://github.com/manufact-test/nomusic/actions/runs/43243546438): private DEX classification failed **before** native work; the error was in the diagnostic parser, not Android product.
 - [CI #43244032782](https://github.com/manufact-test/nomusic/actions/runs/43244032782): fixed safe-enum failure reporting identified `STR_END`: a vendor DEX string longer than the parser's 4KiB cap. This is normal for large embedded strings, not evidence of malformed APK.
 - Updated parser to ignore non-target overlong strings, preserving a strict bounds cap and sanitized outputs. Added a synthetic regression case, then rerun original exact XAPK analysis.
+
+## Tenth experiment — ephemeral exact Push boolean helpers (pending native ARM13)
+- Fast static [#43249305119](https://github.com/manufact-test/nomusic/actions/runs/43249305119) succeeded: generated **3 narrowly scoped BOOLEAN helper targets** inside ephemeral CI from the exact verified publisher XAPK, without publishing names, APK, DEX or any generated Java source. The previous workflow strictly cleaned the generated file.
+- ARM13 experiment now generates the same `PrivatePushTargets.java` transiently into the **own observer module during CI**, recompiles own diagnostic APK in-run, and registers only read-only boolean return hooks on the private helper method targets in **independent CELIKOM clone MAIN**. No target names are committed or logged.
+- Every helper invocation proceeds the unmodified method once and returns exact value/exception. Bounded results `ENTER / TRUE / FALSE / THROW` are scoped to MAIN PID. Android original fatal handler never suppressed.
+- A `NO_HOOK` result may indicate classloader mismatch or method mismatch and is not proof that no private SDK helper exists.
+- Product Stage A remains NO-GO until original+clone same native ARM13 75s/25 without suppression; no audio/login/controls validated.

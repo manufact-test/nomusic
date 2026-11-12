@@ -61,6 +61,20 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertNotIn("private_api",str(got))
         self.assertNotIn("432",str(got))
 
+    def test_ephemeral_private_push_bool_results_are_bounded_readonly(self):
+        rows=(
+            log(431,"event=PUSH_HELPER_HOOK;origin=PUSH_HELPER;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_HELPER_BOOL;origin=PUSH_HELPER;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_HELPER_BOOL;origin=PUSH_HELPER;error=FALSE;thread=OTHER")
+            +log(431,"event=PUSH_HELPER_BOOL;origin=PUSH_HELPER;error=TRUE;thread=OTHER")
+            +log(999,"event=PUSH_HELPER_BOOL;origin=PUSH_HELPER;error=TRUE;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,rows)
+        self.assertTrue(result["private_push_helper_bool_hook_registered"])
+        self.assertEqual(result["private_push_helper_bool_call_states"],
+                         {"ENTER":1,"TRUE":1,"FALSE":1,"THROW":0})
+        self.assertFalse(result["private_push_target_names_disclosed"])
+        self.assertNotIn("999",str(result))
+
     def test_push_sdk_modules_predicate_and_activation_are_readonly(self):
         sample=(
             log(431,"event=MODULES_HOOK;origin=METRICA_MODERN;error=REGISTERED;thread=MAIN")

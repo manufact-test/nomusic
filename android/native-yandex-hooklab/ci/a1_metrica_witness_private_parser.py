@@ -21,6 +21,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "METRICA_THROW_HINT","FATAL_THROW_SITE","FATAL_THROW_HINT",
          "SDK_CLASS","SDK_ACTIVATE_SIGNATURE","MODULES_HOOK",
          "MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_ACTIVATE_HOOK",
+          "PUSH_HELPER_HOOK","PUSH_HELPER_BOOL",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
@@ -30,7 +31,7 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "THREAD_DISPATCH","THREAD_GROUP","RUNTIME_KILL_HANDLER",
          "RUNTIME_LOG_HANDLER","RUNTIME_LOOKUP",
          "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN",
-         "PUSH_MODERN","PUSH_LEGACY",
+         "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER",
           "STATE_MARK_ACTIVATED","STATE_MARK_FULL","STATE_KILL",
           "STATE_CHECK_ACTIVATED","STATE_CHECK_FULL","STATE_CHECK_APP",
           "API_GET_REPORTER","API_ACTIVATE_REPORTER","API_REPORT_EVENT",
@@ -126,6 +127,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     module_hooks=[x for x in seen if x[0]=="MODULES_HOOK"]
     push_activations=[x for x in seen if x[0]=="PUSH_ACTIVATE"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
+    private_helper=[x for x in seen if x[0]=="PUSH_HELPER_BOOL"]
+    private_helper_hook=[x for x in seen if x[0]=="PUSH_HELPER_HOOK"]
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
     push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
     focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE",
@@ -146,6 +149,13 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "push_throw_subpackage_categories":sorted({x[2] for x in push_throw_classes}),
         "push_throw_method_categories":sorted({x[2] for x in push_throw_methods}),
         "activation_push_order_bounded":sequence,
+        "private_push_helper_bool_hook_registered":any(
+            x[2]=="REGISTERED" for x in private_helper_hook),
+        "private_push_helper_bool_call_states":{
+            state:sum(x[2]==state for x in private_helper)
+            for state in ("ENTER","TRUE","FALSE","THROW")},
+        "private_push_helper_bool_timeline": [x[2] for x in private_helper[:48]],
+        "private_push_target_names_disclosed":False,
         "modules_activation_predicate_checks": {
             family:{state:sum(x[1]==family and x[2]==state for x in module_checks)
                     for state in ("TRUE","FALSE","THROW")}

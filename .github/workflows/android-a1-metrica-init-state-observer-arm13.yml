@@ -100,6 +100,16 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Generate exact private Push targets and rebuild own read-only observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java"
+          test ! -e "$target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" --private-java "$target"
+          test -s "$target"
+          gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
+          cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
       - name: Prepare exact separate own signature and test-only native tooling
         shell: bash
         run: |
@@ -133,4 +143,5 @@ jobs:
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
           sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
           rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-2025-lspatch2-sdk" "$RUNNER_TEMP/celikom-own-metrica-module" "$RUNNER_TEMP/celikom-native-aapt2"
+          rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java
           echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'

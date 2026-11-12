@@ -38,6 +38,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private final Map<Throwable, String> sdkMessageHintByObject =
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
+    private boolean privatePushBoolWitnessReady;
+    private final java.util.concurrent.atomic.AtomicInteger privatePushBoolHits =
+        new java.util.concurrent.atomic.AtomicInteger();
 
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
@@ -662,6 +665,68 @@ public final class ExitCallsiteWitness extends XposedModule {
         pushActivationObserverReady=registered>0;
     }
 
+
+    // Ephemeral-only read-only hooks. PrivatePushTargets.java is generated
+    // inside CI from the exact verified publisher XAPK and NEVER committed,
+    // logged, uploaded or shipped. This module builds without that class.
+    private synchronized void installPrivatePushBoolWitness(ClassLoader loader) {
+        if (privatePushBoolWitnessReady || loader == null) return;
+        int registered=0;
+        try {
+            Class<?> targets=Class.forName(
+                "pro.celikom.a1exitwitness.PrivatePushTargets",false,
+                ExitCallsiteWitness.class.getClassLoader());
+            Method get=targets.getDeclaredMethod("getTargets");
+            Object result=get.invoke(null);
+            if (!(result instanceof String[][])) {
+                emit("PUSH_HELPER_HOOK","PUSH_HELPER","NO_HOOK");
+                return;
+            }
+            String[][] pairs=(String[][])result;
+            java.util.Set<Method> unique=new java.util.HashSet<>();
+            for (int i=0; i<pairs.length && i<24; i++) {
+                String[] pair=pairs[i];
+                if (pair==null || pair.length!=2 || pair[0]==null ||
+                        pair[1]==null) continue;
+                try {
+                    Class<?> cls=Class.forName(pair[0],false,loader);
+                    for (Method m:cls.getDeclaredMethods()) {
+                        if (!pair[1].equals(m.getName()) ||
+                                m.getReturnType()!=boolean.class ||
+                                !unique.add(m)) continue;
+                        m.setAccessible(true);
+                        hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                int hit=privatePushBoolHits.incrementAndGet();
+                                if (hit<=24)
+                                    emit("PUSH_HELPER_BOOL","PUSH_HELPER","ENTER");
+                                try {
+                                    Object value=chain.proceed();
+                                    if (hit<=24)
+                                        emit("PUSH_HELPER_BOOL","PUSH_HELPER",
+                                            Boolean.TRUE.equals(value)
+                                                ? "TRUE":"FALSE");
+                                    return value;
+                                } catch (Throwable failure) {
+                                    if (hit<=24)
+                                        emit("PUSH_HELPER_BOOL","PUSH_HELPER","THROW");
+                                    throw failure;
+                                }
+                            });
+                        registered++;
+                    }
+                } catch (Throwable ignored) {
+                    // One unavailable class does not disable other exact targets.
+                }
+            }
+        } catch (Throwable ignored) {
+            // Public source intentionally does not include private Java targets.
+        }
+        privatePushBoolWitnessReady=registered>0;
+        emit("PUSH_HELPER_HOOK","PUSH_HELPER",
+            registered>0 ? "REGISTERED":"NO_HOOK");
+    }
+
     // SDK internal markers might be renamed by R8; NO_HOOK is inconclusive.
     // Read-only hooks: only fixed enums, no internal object/config inspection.
     private synchronized void installMetricaStateProbe(ClassLoader loader) {
@@ -865,6 +930,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installMetricaActivationWitness(loader);
                                 installModulesActivationObserver(loader);
                                 installPushActivationObserver(loader);
+                                installPrivatePushBoolWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
