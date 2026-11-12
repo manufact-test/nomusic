@@ -461,6 +461,20 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                          ["CTOR_AFTER_TRUE","CTOR_OTHER_IDENTITY"])
         self.assertNotIn("secret_private_throw",str(result))
 
+    def test_scoped_pre_fatal_throwable_categories_only(self):
+        events=(
+            log(431,"event=PUSH_THROWABLE_HOOK;origin=PUSH_ARG;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_PRE_FATAL_THROWABLE;origin=PUSH_ARG;error=PRE_CLASS_MISSING;thread=OTHER")
+            +log(431,"event=PUSH_PRE_FATAL_THROWABLE;origin=PUSH_ARG;error=PRE_NONE;thread=OTHER")
+            +log(431,"event=PUSH_PRE_FATAL_THROWABLE;origin=PUSH_ARG;error=secret_value;thread=OTHER")
+            +log(432,"event=PUSH_PRE_FATAL_THROWABLE;origin=PUSH_ARG;error=PRE_SECURITY;thread=OTHER")
+        )
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertTrue(x["exact_push_scoped_throwable_hook_registered"])
+        self.assertEqual(x["exact_push_nonfatal_throwable_categories_after_true"],
+                         ["PRE_CLASS_MISSING","PRE_NONE"])
+        self.assertNotIn("secret_value",str(x))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
