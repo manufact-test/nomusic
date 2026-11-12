@@ -38,3 +38,20 @@
 Следующий строго доказуемый диагностический ход — **сравнить фактически предоставленные Android PackageManager permission grants** оригинальной и independently signed копии с тем же именем в одном госте. Для этого уже добавлены read-only `owner_2025_signature_permission_comparison.py`, синтетические фикстуры и опрос только штатного `dumpsys package`, без смены permission/сертификатов/UID, с фиксацией только счётчиков и публичного `com.yandex.permission.READ_CREDENTIALS`. Даже обнаруженное расхождение предоставленных прав **не означает**, что оно единственное вызывает `IllegalStateException`.
 
 Главная A1 остаётся заморожена: `experiment/android-native-a1-lspatch-clone-loader0-20261111` @ `cc4cb0f93489168db21502f3ef195855ae9fb743`. Не изменены Android Test.50, Windows/extension/backend/production, HONOR, штатный Яндекс и оригинальный черновик Release. #41 OPEN.
+
+## Закрытая новая гипотеза: Android PackageManager signature-grant differential (реальный ARM13 12.11)
+
+[CI 43174180541](https://github.com/manufact-test/nomusic/actions/runs/43174180541) дополнил тот же изолированный A/B **read-only OS permission snapshot** с точно тем же исходным package name и без изменения OS permissions.
+
+Синтетические проверки: 4+3+4+7+23 = **41/41 PASS**. Оригинальные issuer-signed 16/16 APK снова проверены, installed, 75s native MAIN **PASS**. Наши 16/16 независимо подписанных APK с **новым собственным действительным SourceStamp**: native install PASS, 8 661 nonstamp entry payload SHA256 одинаковы, 75s native MAIN **FAIL**, `MAIN_UI / ILLEGAL_STATE / YANDEX_APP / SIGNATURE`.
+
+**Точное AOSP PackageManager grant сравнение из RAM, без публикации dumpsys:**
+
+- `requested_permissions_exactly_equal=true`: **30** запрошенных имен в обоих вариантах.
+- `issuer_granted_count_bounded=15`, `own_granted_count_bounded=15`. **0** granted permission только у issuer, **0** только у own.
+- Публично известное `com.yandex.permission.READ_CREDENTIALS` в этом эксперименте **GRANTED** и в исходной, и в собственной separately signed установке (проверять значение в контексте данного чистого гостя, не переносить автоматически на пользовательский телефон).
+- `grant_mutation_attempted=false`, `signature_permission_bypass_attempted=false`. Только стандартная сводка операционной системы, без вызовов секретных методов приложения или принудительной выдачи прав.
+
+Следовательно, **наблюдаемый Java SIGNATURE crash не сопровождается разницей в фактически представленных PackageManager-granted permissions** в этом одноразовом A/B. Это позволяет отклонить как объяснение простую гипотезу «не хватает любого из 15 показанных разрешений». Достоверную внутреннюю логику Яндекса это **не раскрывает**: одинаковые численные grants не исключают другие механизмы доверия к сертификату, политику сервера или скрытые проверки.
+
+**Важный engineering stop:** теперь обычная переподпись 16/16, сохранение всех 8 661 файлов, подстановка корректного **собственного** SourceStamp и OS-grant parity проверены, но launcher продолжает падать. Стандартной операцией `apksigner` этот blocker **не решён**. Нет доказанного допустимого технического исправления, не нужно повторять эти же эксперименты. Готового CELIKOM user APK нет и Stage A нельзя объявлять PASS.
