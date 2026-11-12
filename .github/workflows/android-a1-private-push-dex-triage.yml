@@ -41,10 +41,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-owner-private/yandex-music-2025-10-4-120-1gpr.xapk"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-owner-private/yandex-music-2025-10-4-120-1gpr.xapk" --private-java "$RUNNER_TEMP/PrivatePushTargets.java"
+          test -s "$RUNNER_TEMP/PrivatePushTargets.java"
       - name: Erase private publisher original
         if: always()
         shell: bash
         run: |
           rm -rf -- "$RUNNER_TEMP/celikom-owner-private"
+          rm -f -- "$RUNNER_TEMP/PrivatePushTargets.java"
           echo '{"apk_uploaded":false,"dex_uploaded":false,"raw_vendor_symbols_disclosed":false,"handset_touched":false,"native_runtime_claimed":false}'

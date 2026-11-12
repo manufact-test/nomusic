@@ -73,6 +73,15 @@ class Dex:
             self.method_cache[index]=(self.type(ci),self.string(si))
         return self.method_cache[index]
 
+    def method_returns_boolean(self,index):
+        if index<0 or index>=self.method_count:raise DexError("METHOD_INDEX")
+        _,proto,_=struct.unpack_from("<HHI",self.data,self.method_off+index*8)
+        count,off=struct.unpack_from("<II",self.data,72)
+        if proto>=count or off+count*12>len(self.data):
+            raise DexError("PROTO_BOUND")
+        result=struct.unpack_from("<I",self.data,off+proto*12+4)[0]
+        return self.type(result)=="Z"
+
     def method_signature(self,index):
         if index<0 or index>=self.method_count:raise DexError("METHOD_INDEX")
         ci,proto,si=struct.unpack_from("<HHI",self.data,self.method_off+index*8)
@@ -362,23 +371,118 @@ def inspect_xapk(path):
         "credentials_published":False,
     }
 
+
+def private_boolean_helpers(binary):
+    """Private in-process class+method targets, never put into public logs."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    if not targets:return set()
+    source_codes={}
+    declarations={}
+    roots=set()
+    for mid,code in dex.code_methods():
+        owner,method=dex.method(mid)
+        if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER"):
+            if len(source_codes)<25000:
+                source_codes[mid]=code
+                declarations[dex.method_signature(mid)]=mid
+        if group_class(owner)=="PUSH_IMPL" and method=="a":
+            where,calls=code_candidates(code,targets)
+            if where:
+                for _,ref in calls:
+                    if ref<dex.method_count:
+                        callee,name=dex.method(ref)
+                        if group_call(callee,name)=="PUSH_IMPL_HELPER":
+                            roots.add(ref)
+    interfaces=dex.push_interface_implementors()
+    frontier=roots
+    visited=set()
+    output=set()
+    for _ in range(4):
+        following=set()
+        for ref in sorted(frontier)[:128]:
+            if ref in visited:continue
+            visited.add(ref)
+            owner,name,proto=dex.method_signature(ref)
+            implementations=[ref] if ref in source_codes else [
+                declarations.get((cls,name,proto))
+                for cls in sorted(interfaces.get(owner,()))[:64]]
+            for actual in implementations:
+                if actual is None or actual not in source_codes:continue
+                cl,method=dex.method(actual)
+                if group_class(cl)=="PUSH_IMPL" and dex.method_returns_boolean(actual):
+                    java_name=cl.strip("L;").replace("/",".")
+                    output.add((java_name,method))
+                _,calls=code_candidates(source_codes[actual],set())
+                for _,next_ref in calls:
+                    if next_ref<dex.method_count:
+                        called,name=dex.method(next_ref)
+                        if group_call(called,name)=="PUSH_IMPL_HELPER":
+                            following.add(next_ref)
+        frontier=following
+    return output
+
+def generate_private_targets(source, output_path):
+    """Write transient proprietary method symbols only inside ephemeral CI."""
+    import re
+    target=Path(output_path).resolve()
+    workspace=Path(os.environ.get("GITHUB_WORKSPACE","/nonexistent")).resolve()
+    temp=Path(os.environ.get("RUNNER_TEMP","/nonexistent")).resolve()
+    if (target.name!="PrivatePushTargets.java" or
+        not (str(target).startswith(str(workspace)+os.sep) or
+             str(target).startswith(str(temp)+os.sep))):
+        raise DexError("PRIVATE_TARGET_PATH")
+    found=set()
+    with zipfile.ZipFile(source) as outer:
+        for item in outer.infolist():
+            if not item.filename.endswith(".apk") or item.file_size>60000000:continue
+            with zipfile.ZipFile(io.BytesIO(outer.read(item))) as part:
+                for name in part.namelist():
+                    if name.startswith("classes") and name.endswith(".dex"):
+                        payload=part.read(name)
+                        if payload.startswith(b"dex\\n".replace(b"\\\\",b"\\")):
+                            found.update(private_boolean_helpers(payload))
+    # Verify source-derived class/method tokens before use as Java literals.
+    valid=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$")
+    simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
+    names=sorted((cls,method) for cls,method in found
+                 if valid.fullmatch(cls) and simple.fullmatch(method))[:24]
+    if not names:raise DexError("PRIVATE_TARGETS_EMPTY")
+    target.parent.mkdir(parents=True,exist_ok=True)
+    pairs=",\\n".join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
+                     for cls,method in names)
+    generated=("package pro.celikom.a1exitwitness;\\n"+
+               "public final class PrivatePushTargets {\\n"+
+               "  public static String[][] getTargets() { return new String[][] {\\n"+
+               pairs+"\\n  }; }\\n}\\n")
+    target.write_text(generated,encoding="utf-8")
+    target.chmod(0o600)
+    return min(len(names),24)
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--xapk",type=Path,required=True)
+    parser.add_argument("--private-java",type=Path)
     args=parser.parse_args()
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
         os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-metrica-init-state-observer-arm13-20261112"):
         raise DexError("PRIVATE_CI_ONLY")
     try:
-        print(json.dumps(inspect_xapk(args.xapk),sort_keys=True))
+        result=inspect_xapk(args.xapk)
+        if args.private_java is not None:
+            result["private_transient_boolean_targets_bounded"]=generate_private_targets(
+                args.xapk,args.private_java)
+            result["raw_target_names_logged"]=False
+        print(json.dumps(result,sort_keys=True))
     except (DexError,zipfile.BadZipFile,ValueError,OSError) as error:
         # Never print caught exception contents unless it is an own fixed enum.
         safe={"ULEB_BAD","ULEB_TOO_LONG","DEX_MAGIC","DEX_TABLE_BOUND",
               "STR_INDEX","STR_END","TYPE_INDEX","METHOD_INDEX",
               "EXCESSIVE_METHODS","CODE_HEADER_BOUND","CODE_BOUND",
               "OWNER_INPUT_LENGTH","OWNER_INPUT_SHA",
-              "INTERFACE_HEADER_BOUND","INTERFACE_ARRAY_BOUND"}
+              "INTERFACE_HEADER_BOUND","INTERFACE_ARRAY_BOUND","PROTO_BOUND",
+              "PRIVATE_TARGET_PATH","PRIVATE_TARGETS_EMPTY"}
         reason=(str(error) if isinstance(error,DexError)
                 and str(error) in safe else
                 "ZIP_READ" if isinstance(error,zipfile.BadZipFile) else
