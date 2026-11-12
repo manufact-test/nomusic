@@ -1,6 +1,7 @@
 import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs";
 import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
 import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
+import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
 
 // Runs inside Yandex's already running renderer. The Electron main process
 // handles the localhost connection; this view never fetches localhost itself.
@@ -82,12 +83,14 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     } catch {}
   }
 
-  let sourceRecovery = null;
+  let sourceRecovery = null, deferredRecovery = null;
   const adapter = createNativeResourceAdapter({
     onEvent: (code, id) => {
       report(code, id);
-      if (code === "RESOLVE_TRANSIENT" || code === "RESOLVE_TIMEOUT")
-        sourceRecovery?.schedule(id);
+      if (code === "RESOLVE_TRANSIENT" || code === "RESOLVE_TIMEOUT") {
+        deferredRecovery?.record(id);
+        deferredRecovery?.check();
+      }
     },
     allowedOrigin: () => apiOrigin,
     resolve: (trackId, signal, opts = {}) => new Promise(resolve => {
@@ -124,24 +127,51 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
   };
   const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
   let expiredSourceTrack = null, expiredSourceFailedTrack = null;
+  let deferredSourceTrack = null, deferredSourceFailedTrack = null;
   let lastExpiredAttemptTrack = null, lastExpiredAttemptAt = 0;
   sourceRecovery = createTransientSourceRecovery({
     prime: id => adapter.prime(id),
-    reload: () => playerSourceRefresh.request(),
+    reload: id => playerSourceRefresh.request(id),
     currentTrackId: () => playerSourceRefresh.currentTrackId(),
     active: () => !stopped && attached && adapter.enabled && playerSourceRefresh.attached,
     onEvent: (code, id) => {
       report(code, id);
-      if (code === "SOURCE_RECOVERY_RELOAD_OK" && expiredSourceTrack === id) {
-        expiredSourceTrack = null;
-        expiredSourceFailedTrack = null;
+      if (code === "SOURCE_RECOVERY_RELOAD_OK") {
+        if (expiredSourceTrack === id) {
+          expiredSourceTrack = null;
+          expiredSourceFailedTrack = null;
+        }
+        if (deferredSourceTrack === id) {
+          deferredSourceTrack = null;
+          deferredSourceFailedTrack = null;
+        }
       }
-      if (code === "SOURCE_RECOVERY_EXHAUSTED" && expiredSourceTrack === id) {
-        expiredSourceFailedTrack = id;
-        expiredSourceTrack = null;
+      if (code === "SOURCE_RECOVERY_EXHAUSTED") {
+        if (expiredSourceTrack === id) {
+          expiredSourceFailedTrack = id;
+          expiredSourceTrack = null;
+        }
+        if (deferredSourceTrack === id) {
+          deferredSourceFailedTrack = id;
+          deferredSourceTrack = null;
+        }
       }
     }
   });
+  deferredRecovery = createDeferredTrackRecovery({
+    currentTrackId: () => playerSourceRefresh.currentTrackId(),
+    active: () => !stopped && attached && adapter.enabled &&
+      playerSourceRefresh.attached,
+    schedule: id => sourceRecovery.schedule(id),
+    onEvent: (code, id) => {
+      report(code, id);
+      if (code === "SOURCE_DEFERRED_PROMOTED") {
+        deferredSourceTrack = id;
+        deferredSourceFailedTrack = null;
+      }
+    }
+  });
+  window.__celikomBridgeNativeCheckDeferred = () => deferredRecovery.check();
   // On native media GET 403 for a previously valid but expired grant, allow
   // the main-process witness to request recovery of EXACT current track only.
   // Never touch another track, queue, pause button or URLs from CDP.
@@ -179,6 +209,9 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     } catch {}
     if (origin !== apiOrigin) {
       sourceRecovery.cancel();
+      deferredRecovery.cancel();
+      deferredSourceTrack = null;
+      deferredSourceFailedTrack = null;
       expiredSourceTrack = null;
       expiredSourceFailedTrack = null;
       lastExpiredAttemptTrack = null;
@@ -190,6 +223,9 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
       adapter.enable();
     else {
       sourceRecovery.cancel();
+      deferredRecovery.cancel();
+      deferredSourceTrack = null;
+      deferredSourceFailedTrack = null;
       expiredSourceTrack = null;
       expiredSourceFailedTrack = null;
       lastExpiredAttemptTrack = null;
@@ -211,11 +247,12 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
   };
   window.__celikomBridgeNativeStatus = () => {
     if (stopped || !attached || !adapter.enabled) return "ORIGINAL";
-    if (expiredSourceTrack &&
-        expiredSourceTrack === playerSourceRefresh.currentTrackId())
+    const currentId = playerSourceRefresh.currentTrackId();
+    if ((expiredSourceTrack && expiredSourceTrack === currentId) ||
+        (deferredSourceTrack && deferredSourceTrack === currentId))
       return "NATIVE_RECOVERING";
-    if (expiredSourceFailedTrack &&
-        expiredSourceFailedTrack === playerSourceRefresh.currentTrackId())
+    if ((expiredSourceFailedTrack && expiredSourceFailedTrack === currentId) ||
+        (deferredSourceFailedTrack && deferredSourceFailedTrack === currentId))
       return "NATIVE_SOURCE_FAILED";
     return adapter.status === "SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED"
       ? "NATIVE_MAPPING_ACCEPTED" : "NATIVE_CONNECTED";
@@ -272,6 +309,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
   window.addEventListener("beforeunload", () => {
     stopped = true;
     sourceRecovery.cancel();
+    deferredRecovery.cancel();
     clearInterval(finder);
     clearInterval(deadline);
     for (const job of pending.values()) job.finish(null);
@@ -285,6 +323,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     delete window.__celikomBridgeNativeCurrentTrackId;
     delete window.__celikomBridgeNativeCurrentTrack;
     delete window.__celikomBridgeNativeRecoverExpired;
+    delete window.__celikomBridgeNativeCheckDeferred;
     delete window.__celikomBridgeNativeDrainDiagnostics;
   }, { once: true });
 })();
