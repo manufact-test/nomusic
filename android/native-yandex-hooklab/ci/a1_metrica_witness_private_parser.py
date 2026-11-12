@@ -17,6 +17,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
          "ACTIVATION_HOOK","METRICA_STATE_HOOK","METRICA_API_HOOK",
          "METRICA_STATE","METRICA_API","REPORTER_HOOK","REPORTER_CALL",
+         "METRICA_THROW_SITE","METRICA_THROW_EXEC","METRICA_THROW_LOADER",
+         "FATAL_THROW_SITE",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -45,7 +47,10 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "CASE_3","CASE_4","CASE_5","CASE_6","CASE_7","CASE_OTHER",
         "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE",
          "ENTER","RETURN","THROW","TRUE","FALSE","CLONE","ORIGINAL","MISSING","OTHER",
-         "LOADER_MATCH","LOADER_DIFFERENT",
+         "LOADER_MATCH","LOADER_DIFFERENT","LOADER_NULL","LOADER_UNKNOWN",
+         "SDK_LEGACY","SDK_CRASH","SDK_SERVICE","SDK_STARTUP","SDK_PROXY",
+         "SDK_REPORTER","SDK_INTERNAL","SDK_PUBLIC","SDK_NO_FRAME",
+         "EXEC_COROUTINE","EXEC_EXECUTOR","EXEC_HANDLER","EXEC_OTHER",
          "BEFORE_ONCREATE","DURING_ONCREATE","AFTER_ONCREATE"}
 MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_]+);"
                   r"error=([A-Z_0-9]+);thread=(MAIN|OTHER)$")
@@ -96,10 +101,19 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     sdk_state=[x for x in seen if x[0]=="METRICA_STATE"]
     sdk_api=[x for x in seen if x[0]=="METRICA_API"]
     reporter_calls=[x for x in seen if x[0]=="REPORTER_CALL"]
+    throw_sites=[x for x in seen if x[0]=="METRICA_THROW_SITE"]
+    throw_execution=[x for x in seen if x[0]=="METRICA_THROW_EXEC"]
+    throw_loaders=[x for x in seen if x[0]=="METRICA_THROW_LOADER"]
+    exact_fatal_sites=[x for x in seen if x[0]=="FATAL_THROW_SITE"]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
         "stable_live_main_pid_admitted_without_disclosure":admitted,
+        "sdk_exception_throw_sites":sorted({x[2] for x in throw_sites}),
+        "sdk_exception_exec_contexts":sorted({x[2] for x in throw_execution}),
+        "sdk_exception_thread_loader_categories":sorted({x[2] for x in throw_loaders}),
+        "exact_fatal_sdk_throw_sites":sorted({x[2] for x in exact_fatal_sites}),
+        "fatal_throw_site_observed":bool(exact_fatal_sites),
         "reporter_hook_registered":any(
             x[0]=="REPORTER_HOOK" and x[2]=="REGISTERED" for x in seen),
         "reporter_calls_bounded":len(reporter_calls),

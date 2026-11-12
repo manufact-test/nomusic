@@ -33,6 +33,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<Throwable, String> metricaDetailByThrowable =
         Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<Throwable, String> sdkThrowSourceByObject =
+        Collections.synchronizedMap(new WeakHashMap<>());
+    private volatile ClassLoader cloneAppClassLoader;
 
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
@@ -124,6 +127,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                     String metrica = "NO_METRICA_FRAME";
                     String category = "EXC_UNKNOWN";
                     String detail = "DETAIL_UNKNOWN";
+                    String sdkThrowSource = "SDK_NO_FRAME";
+                    String sdkExecution = "EXEC_OTHER";
+                    String sdkThreadLoader = "LOADER_UNKNOWN";
                     boolean exactHi2 = false;
                     try {
                         Object message = chain.getArg(0);
@@ -131,6 +137,14 @@ public final class ExitCallsiteWitness extends XposedModule {
                         detail = redactedMetricaDetail(message);
                         exactHi2 = callerIsExactHi2Coroutine();
                         metrica = callerMetricaFrameGroup();
+                        sdkThrowSource = sdkThrowSourceCategory();
+                        sdkExecution = sdkThrowExecutionCategory();
+                        ClassLoader mainLoader = cloneAppClassLoader;
+                        if (mainLoader != null) {
+                            ClassLoader threadLoader = Thread.currentThread().getContextClassLoader();
+                            sdkThreadLoader = threadLoader == null ? "LOADER_NULL"
+                                : threadLoader == mainLoader ? "LOADER_MATCH" : "LOADER_DIFFERENT";
+                        }
                     } catch (Throwable ignored) { }
                     Object result = chain.proceed();
                     try {
@@ -143,7 +157,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 Throwable object = (Throwable) constructed;
                                 metricaConstructed.put(object, Boolean.TRUE);
                                 metricaDetailByThrowable.put(object, detail);
+                                sdkThrowSourceByObject.put(object, sdkThrowSource);
                                 emit("METRICA_DETAIL", metrica, detail);
+                                emit("METRICA_THROW_SITE", "METRICA_SDK", sdkThrowSource);
+                                emit("METRICA_THROW_EXEC", "METRICA_SDK", sdkExecution);
+                                emit("METRICA_THROW_LOADER", "METRICA_SDK", sdkThreadLoader);
                             }
                             emit("METRICA_EXCEPTION", metrica, category);
                         }
@@ -204,6 +222,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     "CAUSE_METRICA".equals(category))
                                 emit("FATAL_DETAIL", origin,
                                     throwableDetailCategory(thrown));
+                            if ("DIRECT_METRICA".equals(category)) {
+                                String source = sdkThrowSourceByObject.get(thrown);
+                                emit("FATAL_THROW_SITE", origin,
+                                    source == null ? "SDK_NO_FRAME" : source);
+                            }
                         } else emit("FATAL_DISPATCH", origin, "NON_THROWABLE");
                     } catch (Throwable ignored) { }
                     return chain.proceed();
@@ -278,6 +301,41 @@ public final class ExitCallsiteWitness extends XposedModule {
             }
         } catch (Throwable ignored) { }
         return "DETAIL_UNOBSERVED";
+    }
+
+    // The first SDK frame closest to an IllegalStateException constructor.
+    // Never transmit raw class/method names or an actual stack trace.
+    private static String sdkThrowSourceCategory() {
+        try {
+            for (StackTraceElement frame:Thread.currentThread().getStackTrace()) {
+                String cls=frame.getClassName();
+                if (cls.startsWith("com.yandex.metrica.")) return "SDK_LEGACY";
+                if (!cls.startsWith("io.appmetrica.analytics.")) continue;
+                if (cls.startsWith("io.appmetrica.analytics.impl.crash.")) return "SDK_CRASH";
+                if (cls.startsWith("io.appmetrica.analytics.impl.service.")) return "SDK_SERVICE";
+                if (cls.startsWith("io.appmetrica.analytics.impl.startup.")) return "SDK_STARTUP";
+                if (cls.startsWith("io.appmetrica.analytics.impl.proxy.")) return "SDK_PROXY";
+                if (cls.startsWith("io.appmetrica.analytics.impl.reporter.")) return "SDK_REPORTER";
+                if (cls.startsWith("io.appmetrica.analytics.impl.")) return "SDK_INTERNAL";
+                return "SDK_PUBLIC";
+            }
+        } catch (Throwable ignored) { }
+        return "SDK_NO_FRAME";
+    }
+
+    private static String sdkThrowExecutionCategory() {
+        try {
+            boolean coroutine=false, executor=false, handler=false;
+            for (StackTraceElement frame:Thread.currentThread().getStackTrace()) {
+                String cls=frame.getClassName();
+                if (cls.startsWith("kotlinx.coroutines.")) coroutine=true;
+                if (cls.startsWith("java.util.concurrent.")) executor=true;
+                if (cls.startsWith("android.os.Handler")
+                    || cls.startsWith("android.os.Looper")) handler=true;
+            }
+            return coroutine ? "EXEC_COROUTINE" : executor ? "EXEC_EXECUTOR"
+                : handler ? "EXEC_HANDLER" : "EXEC_OTHER";
+        } catch (Throwable ignored) { return "EXEC_OTHER"; }
     }
 
     /** Only fixed framework labels, no vendor class, method, thread or text. */
@@ -622,6 +680,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                      packageIdentityCategory(caller.getPackageName()),
                                      "APPINFO_" + packageIdentityCategory(rawInfo));
                                 ClassLoader loader = caller.getClassLoader();
+                                cloneAppClassLoader = loader;
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
                                 installMetricaActivationWitness(loader);

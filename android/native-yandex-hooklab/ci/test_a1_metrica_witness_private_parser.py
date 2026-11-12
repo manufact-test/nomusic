@@ -42,6 +42,23 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_exact_sdk_throw_site_exec_loader_and_pid_privacy(self):
+        sample=(
+            log(431,"event=METRICA_THROW_SITE;origin=METRICA_SDK;error=SDK_LEGACY;thread=OTHER")
+            +log(431,"event=METRICA_THROW_EXEC;origin=METRICA_SDK;error=EXEC_COROUTINE;thread=OTHER")
+            +log(431,"event=METRICA_THROW_LOADER;origin=METRICA_SDK;error=LOADER_DIFFERENT;thread=OTHER")
+            +log(431,"event=FATAL_THROW_SITE;origin=RUNTIME_KILL_HANDLER;error=SDK_LEGACY;thread=OTHER")
+            +log(432,"event=FATAL_THROW_SITE;origin=RUNTIME_KILL_HANDLER;error=SDK_INTERNAL;thread=OTHER")
+            +log(431,"event=METRICA_THROW_SITE;origin=METRICA_SDK;error=private.vendor.Class;thread=OTHER"))
+        out=scoped_metrica_witness(EXIT,sample)
+        self.assertEqual(out["sdk_exception_throw_sites"],["SDK_LEGACY"])
+        self.assertEqual(out["sdk_exception_exec_contexts"],["EXEC_COROUTINE"])
+        self.assertEqual(out["sdk_exception_thread_loader_categories"],["LOADER_DIFFERENT"])
+        self.assertEqual(out["exact_fatal_sdk_throw_sites"],["SDK_LEGACY"])
+        self.assertTrue(out["fatal_throw_site_observed"])
+        for secret in ("private.vendor.Class","431","432"):
+            self.assertNotIn(secret,str(out))
+
     def test_actual_reporter_calls_must_be_scoped_enum_only(self):
         events=(
             log(431,"event=REPORTER_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")

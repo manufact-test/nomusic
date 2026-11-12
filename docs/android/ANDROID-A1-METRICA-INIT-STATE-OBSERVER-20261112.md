@@ -43,3 +43,9 @@ After public `getReporter()` returned successfully 14 times in native #432243442
 - Public SDK `activate` 3 ENTER/3 RETURN, `getReporter` and other public calls also RETURN. The exact exception remains AppMetrica `DETAIL_NOT_INITIALIZED` with direct fatal Throwable identity and **zero suppression**.
 - Therefore the error does **not** arise synchronously in the instrumented reporter methods. Investigate SDK asynchronous worker/internal lifecycle or service/provider initialization, not another activate call. Internal class state probe was NO_HOOK (obfuscation/unknown), no conclusion about state.
 - No other app/audio/account touched, original XAPK/owned clone/artifact/key never uploaded. Product Stage A **NO-GO**, B **LOCKED**.
+
+## Fourth no-suppression causal probe (pending)
+- The constructor observer classifies the first AppMetrica SDK stack frame into a fixed family: modern/public/internal/crash/service/startup/proxy/reporter or legacy SDK.
+- Also classifies coroutine vs executor/handler and thread context-classloader compared to the clone Application loader.
+- The source family is stored in-process and matched by identity to the exact fatal Throwable (FATAL_THROW_SITE); no raw stack, vendor symbols or credentials in logs.
+- Hypothesis under test: 3 successful modern SDK activations may precede a failure in a distinct legacy SDK path, alternate classloader, or asynchronous worker. Test it before making any behavioral fix.
