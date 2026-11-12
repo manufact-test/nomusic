@@ -34,5 +34,12 @@ jobs:
         run: |
           node --check android/native-audio-contract/source-contract.mjs
           node --check android/native-audio-contract/source-contract.test.mjs
-      - name: Deterministic state and HTTP contract tests
-        run: node --test android/native-audio-contract/source-contract.test.mjs
+      - name: PHP CLI for cross-language exact production ByteRange compatibility
+        run: |
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq php-cli
+      - name: Deterministic source state and ACTUAL PHP ByteRange interoperability tests
+        run: |
+          php -v | head -n 2
+          node --check android/native-audio-contract/server-byte-range-compat.test.mjs
+          node --test android/native-audio-contract/source-contract.test.mjs android/native-audio-contract/server-byte-range-compat.test.mjs
