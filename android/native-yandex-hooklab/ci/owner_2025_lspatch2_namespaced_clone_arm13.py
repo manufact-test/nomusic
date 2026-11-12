@@ -279,6 +279,11 @@ def observe_clone(seconds=75):
                     "java_exception_security_markers":raw["java_exception_security_markers"],
                     "java_top_stack_family":raw["java_top_stack_family"],
                     "application_component_factory_failure":raw["application_component_factory_failure"],
+                    "java_fatal_background_role":raw["java_fatal_background_role"],
+                    "java_top_frame_subsystem":raw["java_top_frame_subsystem"],
+                    "java_startup_message_shape":raw["java_startup_message_shape"],
+                    "java_startup_message_finite_hint":raw["java_startup_message_finite_hint"],
+                    "java_exception_message_hint_enum":raw["java_exception_message_hint_enum"],
                 }
     return summary
 
