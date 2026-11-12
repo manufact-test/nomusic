@@ -367,6 +367,8 @@ test("W76: expired signed media 403 callback checks current ID and honestly repo
   assert.equal(r.window.__celikomBridgeNativeRecoverExpired("456"),false,
     "stale prefetched previous song must not force player reload");
   assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),true);
+  assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),false,
+    "repeated expired range requests must not start another recovery cycle");
   assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_RECOVERING");
   await new Promise(resolve=>setTimeout(resolve,720));
   const req=r.window.__celikomBridgeNativeDrain();
