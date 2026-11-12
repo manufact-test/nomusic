@@ -33,7 +33,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 )
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 
-BRANCH="experiment/android-a1-2025-singleapk-publisher-base-lspatch2-20261112"
+BRANCH="experiment/android-a1-2025-singleapk-provider-identity-ab-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
@@ -65,6 +65,12 @@ def digest_bytes(data):
 
 
 def patch_manifest(data):
+    # Differential arm: keep each ORIGINAL authority string, while changing
+    # only the outer package identity and existing permission declarations.
+    # No original publisher app may be installed in this arm because its global
+    # provider authorities would conflict. Source signed APKs are untouched.
+    original_root = ET.fromstring(data.decode("utf-8"))
+    original_providers = list(original_root.iter("provider"))
     raw,stats=source.rewrite_manifest(data.decode("utf-8"))
     root=ET.fromstring(raw)
     permissions_removed=0
@@ -78,19 +84,24 @@ def patch_manifest(data):
                     stop("NAMESPACED_CLONE_PERMISSION_PROTECTION_DRIFT")
                 root.remove(entry)
                 permissions_removed+=1
-    for provider in root.iter("provider"):
-        auth=provider.attrib.get(ANDROID+"authorities","")
-        if not auth: continue
-        values=auth.split(";")
-        # ALL provider authorities must be globally unique for Android
-        # PackageManager to install the CELIKOM clone next to publisher Yandex.
-        # Original Yandex retained every authority; never mutate it.
-        updated=[value if value.startswith(DEST+".") else
-                 DEST+".provider."+hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
-                 for value in values]
-        if updated!=values:
-            providers_rewritten+=sum(a!=b for a,b in zip(values,updated))
-            provider.set(ANDROID+"authorities",";".join(updated))
+    rewritten_providers=list(root.iter("provider"))
+    if len(rewritten_providers)!=len(original_providers):
+        stop("PROVIDER_AB_STRUCTURE_PROVIDER_COUNT_DRIFT")
+    preserved=0
+    for before, after in zip(original_providers,rewritten_providers):
+        if before.attrib.get(ANDROID+"name")!=after.attrib.get(ANDROID+"name"):
+            stop("PROVIDER_AB_COMPONENT_CLASS_IDENTITY_CHANGED")
+        original_authority=before.attrib.get(ANDROID+"authorities","")
+        if original_authority:
+            after.set(ANDROID+"authorities",original_authority)
+            preserved+=1
+        elif ANDROID+"authorities" in after.attrib:
+            stop("PROVIDER_AB_NEW_GLOBAL_AUTHORITY_FORBIDDEN")
+    if any(
+        original.attrib.get(ANDROID+"authorities","")!=updated.attrib.get(ANDROID+"authorities","")
+        for original,updated in zip(original_providers,rewritten_providers)):
+        stop("PROVIDER_AB_ORIGINAL_AUTHORITY_DRIFT")
+    providers_rewritten=0
     return ET.tostring(root,encoding="utf-8",xml_declaration=True),{
         "source_scoped_provider_rewrites":stats["provider_authorities"],
         "global_appmetrica_provider_rewrites":providers_rewritten,
@@ -303,6 +314,8 @@ def run(xapk):
             "LSPatch_direct_input_publisher_verified":True,
             "signed_clone_package":DEST,
             "single_apk_achieved":True,
+            "source_provider_authorities_preserved":True,
+            "intentional_official_original_absent":True,
             "publisher_app_and_clone_can_be_concurrently_installed":False,
             "native_clone_main_75s":False,
             "audio_or_account_tested":False,
@@ -323,17 +336,17 @@ def run(xapk):
         observed=observe_clone()
         report["native_clone_main_75s"]=observed["stable"]
         report["clone_lifecycle"]=observed
-        # Independently verified exact publisher originals installed without
-        # modifying any original bytes or removing our cloned package.
-        report["publisher_install"]=install_clones(
-            [(apk_name(p).get("split","") or "base",p) for p in originals])
-        report["publisher_app_and_clone_can_be_concurrently_installed"]=(
-            report["publisher_install"]=="INSTALLED")
+        # This differential intentionally excludes concurrent stock Yandex:
+        # clone owns original authorities, to isolate runtime authority
+        # expectations from the namespace changes already proven to crash.
+        report["publisher_original_absent_after_test"] = not bool(
+            guest("pm","path",ORIGINAL).stdout.strip())
+        report["publisher_app_and_clone_can_be_concurrently_installed"]=False
         report["verdict"]=(
-            "NAMESPACED_LSPATCH2_NATIVE_AND_COEXIST_PASS_NOT_AUDIO"
+            "PROVIDER_AB_LEGACY_AUTHORITY_CLONE_MAIN_75S_PASS_NO_COEXIST"
             if report["native_clone_main_75s"] and
-               report["publisher_app_and_clone_can_be_concurrently_installed"]
-            else "NAMESPACED_LSPATCH2_NATIVE_OR_COEXIST_NO_GO")
+               report["publisher_original_absent_after_test"]
+            else "PROVIDER_AB_LEGACY_AUTHORITY_CLONE_MAIN_NO_GO")
         return report
 
 
@@ -345,7 +358,7 @@ if __name__=="__main__":
     try:
         result=run(args.xapk)
         print(json.dumps(result,sort_keys=True))
-        sys.exit(0 if result["verdict"]=="NAMESPACED_LSPATCH2_NATIVE_AND_COEXIST_PASS_NOT_AUDIO" else 1)
+        sys.exit(0 if result["verdict"]=="PROVIDER_AB_LEGACY_AUTHORITY_CLONE_MAIN_75S_PASS_NO_COEXIST" else 1)
     except Exception as e:
         code=str(e)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",code):
