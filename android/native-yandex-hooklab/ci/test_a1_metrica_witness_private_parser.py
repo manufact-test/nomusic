@@ -42,6 +42,50 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_exact_exception_object_observed_at_android_fatal_dispatch(self):
+        events=(
+            log(431,"event=FATAL_HOOK;origin=THREAD_DISPATCH;error=REGISTERED;thread=MAIN")
+            +log(431,"event=FATAL_HOOK;origin=RUNTIME_KILL_HANDLER;error=REGISTERED;thread=MAIN")
+            +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER")
+            +log(431,"event=FATAL_DISPATCH;origin=RUNTIME_KILL_HANDLER;error=DIRECT_METRICA;thread=OTHER")
+            +log(432,"event=FATAL_DISPATCH;origin=RUNTIME_KILL_HANDLER;error=NOT_METRICA;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(x["fatal_throwable_link_verdict"],"DIRECT_IDENTITY")
+        self.assertTrue(x["fatal_throwable_metrica_direct_identity_seen"])
+        self.assertFalse(x["fatal_throwable_metrica_cause_identity_seen"])
+        self.assertEqual(x["fatal_dispatch_paths"],["RUNTIME_KILL_HANDLER"])
+        self.assertEqual(x["fatal_dispatch_event_count_bounded"],1)
+        self.assertEqual(x["fatal_handler_hook_registration"],
+                         ["RUNTIME_KILL_HANDLER","THREAD_DISPATCH"])
+        self.assertNotIn("432",str(x))
+
+    def test_exact_cause_not_constructor_time_nearby(self):
+        events=(
+            log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER")
+            +log(431,"event=FATAL_DISPATCH;origin=THREAD_GROUP;error=CAUSE_METRICA;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(x["fatal_throwable_link_verdict"],"CAUSE_IDENTITY")
+        self.assertTrue(x["fatal_throwable_metrica_cause_identity_seen"])
+
+    def test_no_equality_claim_when_no_dispatch_hook_fires(self):
+        events=(
+            log(431,"event=FATAL_HOOK;origin=THREAD_DISPATCH;error=NO_HOOK;thread=MAIN")
+            +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(x["fatal_throwable_link_verdict"],"FATAL_DISPATCH_NOT_OBSERVED")
+        self.assertFalse(x["fatal_dispatch_observed"])
+        self.assertEqual(x["fatal_handler_hook_missing"],["THREAD_DISPATCH"])
+
+    def test_not_matched_is_inconclusive_not_exonerating(self):
+        events=(
+            log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER")
+            +log(431,"event=FATAL_DISPATCH;origin=THREAD_GROUP;error=NOT_METRICA;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(x["fatal_throwable_link_verdict"],
+                         "FATAL_SEEN_NO_CONSTRUCTOR_IDENTITY")
+        self.assertFalse(x["fatal_throwable_metrica_direct_identity_seen"])
+        self.assertFalse(x["fatal_throwable_metrica_cause_identity_seen"])
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
