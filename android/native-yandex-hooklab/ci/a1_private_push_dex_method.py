@@ -396,13 +396,29 @@ def private_exact_near_guard_invoke_site_multiplicity(binary):
     return result
 
 
+def private_exact_fatal_try_presence(binary):
+    """Does the exact fatal method have DEX catch regions? Never expose code."""
+    dex=Dex(binary)
+    strings=dex.possible_error_strings()
+    result=[]
+    if not strings:return result
+    for mid,_regs,_ins,_static,code,try_size in code_items_with_meta(
+            dex,include_try_size=True):
+        owner,name=dex.method(mid)
+        if group_class(owner)!="PUSH_IMPL" or name!="a":continue
+        cfg=exact_fatal_cfg(code,strings,dex,group_call)
+        if cfg["decoded"] and cfg["fatal_throw_candidates"]:
+            result.append("HAS_TRY_ITEMS" if try_size else "NO_TRY_ITEMS")
+    return result
+
+
 def inspect_xapk(path):
     if not path.is_file() or path.is_symlink() or path.stat().st_size!=EXPECTED_LEN:
         raise DexError("OWNER_INPUT_LENGTH")
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_original_literals=[];push_public_routes=[];legacy_init_reports=[];near_multiplicity=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_original_literals=[];push_public_routes=[];legacy_init_reports=[];near_multiplicity=[];fatal_try_presence=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -416,6 +432,8 @@ def inspect_xapk(path):
                         matches.extend(inspect_dex(payload))
                         near_multiplicity.extend(
                             private_exact_near_guard_invoke_site_multiplicity(payload))
+                        fatal_try_presence.extend(
+                            private_exact_fatal_try_presence(payload))
                         guard_insights.append(private_guard_dependency_info(payload))
                         guard_rules.extend(private_guard_synthetic_rule(payload))
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
@@ -446,6 +464,7 @@ def inspect_xapk(path):
             sum(x["near_refs_bounded"] for x in near_multiplicity),16),
         "exact_fatal_near_guard_invoke_sites_bounded":min(
             sum(x["near_invoke_sites_bounded"] or 0 for x in near_multiplicity),32),
+        "exact_fatal_a_catch_regions":sorted(set(fatal_try_presence)),
         "exact_fatal_near_true_direct_cfg_paths":sorted(set(
             x["near_true_path"] for x in near_multiplicity)),
         "exact_fatal_near_guard_callsite_multiplicity":(

@@ -16,7 +16,7 @@ def uleb(data,pos):
         if not byte&128:return value,pos
     raise ValueError("ULEB_BOUND")
 
-def code_items_with_meta(dex):
+def code_items_with_meta(dex, include_try_size=False):
     data=dex.data
     for class_index in range(dex.class_count):
         at=struct.unpack_from("<I",data,dex.class_off+class_index*32+24)[0]
@@ -38,8 +38,12 @@ def code_items_with_meta(dex):
                 size=struct.unpack_from("<I",data,offset+12)[0]
                 if size>200000 or offset+16+size*2>len(data):
                     raise ValueError("CODE_BOUND")
-                yield (mid,reg_count,input_count,bool(flags&8),
-                       data[offset+16:offset+16+size*2])
+                item=(mid,reg_count,input_count,bool(flags&8),
+                      data[offset+16:offset+16+size*2])
+                # Code item tries_size is a bounded structural property only.
+                # Keep prior 5-tuple ABI unless explicitly requested by caller.
+                yield item+(struct.unpack_from("<H",data,offset+6)[0],) \
+                    if include_try_size else item
 
 def _signed4(x):
     return x-16 if x>=8 else x

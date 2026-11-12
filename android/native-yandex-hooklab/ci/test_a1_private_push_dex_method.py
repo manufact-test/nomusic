@@ -5,6 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
+from a1_private_dex_predicate import code_items_with_meta
 from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category,generate_private_targets,private_site_methods,count_exact_invoke_sites,private_near_true_exact_throw_path
 
 class PrivateDexAnalysisUnitTest(unittest.TestCase):
@@ -116,6 +117,23 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
             code,{1,2},{5}),"NEAR_CALLSITE_NOT_UNIQUE")
         self.assertEqual(private_near_true_exact_throw_path(
             code,{9},{5}),"NEAR_CALLSITE_NOT_UNIQUE")
+
+    def test_dex_try_region_header_is_explicit_and_default_abi_unchanged(self):
+        data=bytearray(130)
+        # Synthetic one class_data item and one method code item; no vendor bytes.
+        struct.pack_into("<I",data,24,64)
+        data[64:71]=bytes((0,0,1,0,0,1,96))
+        struct.pack_into("<HHHHII",data,96,2,1,0,2,0,1)
+        data[112:114]=bytes((0x0e,0))
+        class Fake:
+            class_count=1
+            class_off=0
+            data=bytes(data)
+        short=list(code_items_with_meta(Fake()))
+        expanded=list(code_items_with_meta(Fake(),include_try_size=True))
+        self.assertEqual(len(short),1)
+        self.assertEqual(len(short[0]),5)
+        self.assertEqual(expanded[0][5],2)
 
     def test_private_generator_rejects_outside_runner_without_disclosing_path(self):
         with self.assertRaises(DexError):
