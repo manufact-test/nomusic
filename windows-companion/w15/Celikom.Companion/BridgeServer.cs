@@ -229,8 +229,19 @@ public sealed class BridgeServer : IAsyncDisposable
                 return Results.Json(new { found = true, grant });
             }
             catch (OperationCanceledException) { DiagnosticLog.Record("RESOLVE_CANCELLED", id); return Results.StatusCode(499); }
-            catch (ApiFailure) { DiagnosticLog.Record("RESOLVE_API_FAILURE", id); return Results.Json(new { found = false }); }
-            catch (HttpRequestException) { DiagnosticLog.Record("RESOLVE_NETWORK_FAILURE", id); return Results.Json(new { found = false }); }
+            catch (ApiFailure failure)
+            {
+                DiagnosticLog.Record("RESOLVE_API_FAILURE", id);
+                // Denied/no-version are authoritative. Retry ONLY temporary
+                // API failures; client still validates entitlements each time.
+                return Results.Json(new { found = false,
+                    retryable = failure.HttpStatus is 408 or >= 500 and <= 599 });
+            }
+            catch (HttpRequestException)
+            {
+                DiagnosticLog.Record("RESOLVE_NETWORK_FAILURE", id);
+                return Results.Json(new { found = false, retryable = true });
+            }
         });
 
         app.MapPost("/v1/heartbeat", async (HttpContext ctx) =>
