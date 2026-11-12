@@ -216,6 +216,25 @@ def branch_guard_near_target(code,invoke_positions,target_pos):
               for pos in range(start+2,target_pos,2) if pos<len(code))
     return {"near_helper":True,"if_guard":guard}
 
+def forward_skip_guard_category(code, const_pos, invokes, dex):
+    """Sanitized approximate IF branch crossing the exact exception string."""
+    candidates=[]
+    for pos in range(max(0,const_pos-1024),const_pos,2):
+        if pos+3>=len(code):continue
+        opcode=code[pos]
+        if not 0x32<=opcode<=0x3d:continue
+        offset=struct.unpack_from("<h",code,pos+2)[0]
+        destination=pos+2*offset
+        if not (pos<const_pos<destination<=len(code)):continue
+        prior=[(p,ref) for p,ref in invokes
+               if pos-120<=p<pos and ref<dex.method_count]
+        if not prior:
+            candidates.append("GUARD_WITHOUT_NEAR_CALL")
+        else:
+            owner,name=dex.method(prior[-1][1])
+            candidates.append(group_call(owner,name))
+    return candidates[-1] if candidates else "NO_FORWARD_GUARD"
+
 def inspect_dex(binary):
     dex=Dex(binary)
     targets=dex.possible_error_strings()
@@ -255,6 +274,7 @@ def inspect_dex(binary):
                 "helper":any(x[1]=="PUSH_IMPL_HELPER" for x in grouped),
                 "recent_invoke":earlier[-1] if earlier else "NO_NEARBY_INVOKE",
                 "guard":branch_guard_near_target(code,helper_call_positions,pos),
+                "forward_guard_category":forward_skip_guard_category(code,pos,calls,dex),
                 "helper_refs":helpers,
             })
     # Resolve helper implementations after all declarations have been indexed.
@@ -290,6 +310,8 @@ def inspect_xapk(path):
         "push_impl_crash_a_candidates_bounded":min(len(fatal_a),16),
         "push_impl_a_has_nearby_helper":any(m["guard"]["near_helper"] for m in fatal_a),
         "push_impl_a_has_guard_after_helper_approx":any(m["guard"]["if_guard"] for m in fatal_a),
+        "push_impl_a_skip_throw_guard_call_categories":
+            sorted({m["forward_guard_category"] for m in fatal_a}),
         "push_impl_a_modern_predicate_by_depth":[
             any(m["helper_chain"][level]["modern_predicate"]
                 for m in fatal_a if len(m["helper_chain"])>level)

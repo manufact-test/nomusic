@@ -5,7 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target
+from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category
 
 class PrivateDexAnalysisUnitTest(unittest.TestCase):
     def test_uleb_bounds(self):
@@ -69,6 +69,19 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
                          {"near_helper":True,"if_guard":True})
         self.assertEqual(branch_guard_near_target(code,[],10),
                          {"near_helper":False,"if_guard":False})
+
+    def test_forward_skip_guard_classifies_nearest_helper_not_raw_name(self):
+        # invoke at 0, move-result at 6, if-nez at 8 jumps to return.
+        binary=bytes((0x71,0,1,0,0,0,0x0a,0,0x39,0,7,0,
+                      0x22,0,1,0,0x1a,0,5,0,0x27,0,0x0e,0))
+        class Fake:
+            method_count=3
+            def method(self,ref):
+                return ("Lcom/yandex/metrica/push/impl/X;","c")
+        cat=forward_skip_guard_category(binary,16,[(0,1)],Fake())
+        self.assertEqual(cat,"PUSH_IMPL_HELPER")
+        self.assertEqual(forward_skip_guard_category(binary,16,[],Fake()),
+                         "GUARD_WITHOUT_NEAR_CALL")
 
     def test_bad_dex_rejected_without_data(self):
         with self.assertRaises(DexError):Dex(b"PK\x03\x04")
