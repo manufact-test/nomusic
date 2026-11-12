@@ -87,6 +87,7 @@ public sealed class BridgeServer : IAsyncDisposable
     private string _lastArtist = "";
     private long _lastDurationMs;
     private string _lastStatus = "NOT_CONNECTED";
+    private DateTimeOffset _lastHeartbeatAt = DateTimeOffset.MinValue;
     public event Action? Changed;
 
     public BridgeServer(CelikomApi api, SessionStore store)
@@ -102,6 +103,7 @@ public sealed class BridgeServer : IAsyncDisposable
     public string LastTrackArtist { get { lock (_gate) return _lastArtist; } }
     public long LastTrackDurationMs { get { lock (_gate) return _lastDurationMs; } }
     public string LastStatus { get { lock (_gate) return _lastStatus; } }
+    public DateTimeOffset LastHeartbeatAt { get { lock (_gate) return _lastHeartbeatAt; } }
     public DateTimeOffset CodeExpires { get { lock (_gate) return _codeExpires; } }
     public bool CanResolve => Enabled && _api.IsLoggedIn;
 
@@ -112,6 +114,7 @@ public sealed class BridgeServer : IAsyncDisposable
             if (_enabled == enabled) return;
             _enabled = enabled;
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
+            _lastHeartbeatAt = DateTimeOffset.MinValue;
             _lastSong = "";
             _lastTitle = "";
             _lastArtist = "";
@@ -278,6 +281,7 @@ public sealed class BridgeServer : IAsyncDisposable
                 _lastDurationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
                     ? beat.DurationMs.Value : 0;
                 _lastStatus = beat.Status;
+                _lastHeartbeatAt = DateTimeOffset.UtcNow;
             }
             DiagnosticLog.Record("HEARTBEAT_" + beat.Status);
             Changed?.Invoke();
