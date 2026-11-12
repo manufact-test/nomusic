@@ -35,6 +35,17 @@ try
     Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
             new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.126.1.0")) != null,
         "W74 changed patched host never bypasses backup safety gate");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
+            new YandexHostResult(YandexHostStatus.UnsupportedVersion, "5.128.0.r24000000"))!
+            .Contains("Новая версия пока проходит проверку"),
+        "W80 newly updated unsupported Yandex reports calm pending compatibility without changing files");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate,
+            new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.127.0.r22015925")) == null,
+        "W80 fully reviewed new vendor pair is startable even with previous snapshot");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
+            new YandexHostResult(YandexHostStatus.UntrustedExecutable, "5.128.0.r24000000"))!
+            .Contains("заблокировано"),
+        "W80 unknown tampered host remains blocked, never mistaken for verified update");
     // W75: a temporary /auth/me failure must never hide an already
     // verified owner's diagnostics button, but never authorizes export.
     var temporaryError = new HttpRequestException("synthetic unreachable");
