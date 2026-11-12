@@ -6,6 +6,9 @@ on:
       - experiment/windows-w79-upgrade-transaction-recovery-20261112
     paths:
       - .github/workflows/windows-w79-official-51270-readonly.yml
+      - windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj
+      - windows-companion/w23/host.cjs
+      - windows-companion/w24/**
   workflow_dispatch:
 
 permissions:
