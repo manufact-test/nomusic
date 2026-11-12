@@ -586,6 +586,32 @@ public sealed partial class MainWindow
         }));
     }
 
+    private UserFacingPlaybackHealth.Health CurrentCompactHealth()
+    {
+        var host = UserFacingPlaybackHealth.Host(
+            _nativeInstallState, _hostReport, _installedModule.MatchesApplication);
+        if (host.Level == UserFacingPlaybackHealth.Severity.Error ||
+            host.Level == UserFacingPlaybackHealth.Severity.Warning)
+            return host;
+
+        // A native heartbeat can disappear while CELIKOM's local bridge
+        // stays enabled. A green header must not hide a dead media bridge.
+        var heartbeat = _bridge.LastHeartbeatAt;
+        var stale = _bridge.Enabled && heartbeat != DateTimeOffset.MinValue &&
+            DateTimeOffset.UtcNow - heartbeat > TimeSpan.FromSeconds(30);
+        return UserFacingPlaybackHealth.Track(_bridge.LastStatus,
+            _bridge.Enabled, _compactPresenceStatus, stale);
+    }
+
+    private static Color CompactHealthColor(UserFacingPlaybackHealth.Severity level) =>
+        level switch
+        {
+            UserFacingPlaybackHealth.Severity.Error => Danger,
+            UserFacingPlaybackHealth.Severity.Warning => ColorTranslator.FromHtml("#FFE1A1"),
+            UserFacingPlaybackHealth.Severity.Good => Accent,
+            _ => Secondary
+        };
+
     private void RenderCompact()
     {
         if (!_compactReady) return;
@@ -610,7 +636,18 @@ public sealed partial class MainWindow
             _compactStartupText = "";
             if (IsHandleCreated) BeginInvoke(new Action(LayoutCompact));
         }
-        _compactStartup.Text = _compactStartupText;
+        var health = CurrentCompactHealth();
+        _compactStartup.Text = !string.IsNullOrWhiteSpace(_compactStartupText)
+            ? _compactStartupText
+            : health.Level is UserFacingPlaybackHealth.Severity.Error or
+                UserFacingPlaybackHealth.Severity.Warning
+                ? health.Message : "";
+        _compactStartup.ForeColor = string.IsNullOrWhiteSpace(_compactStartupText)
+            ? CompactHealthColor(health.Level)
+            : _compactStartupText.Contains("не ", StringComparison.OrdinalIgnoreCase) ||
+              _compactStartupText.Contains("ошибка", StringComparison.OrdinalIgnoreCase) ||
+              _compactStartupText.Contains("заблокировано", StringComparison.OrdinalIgnoreCase)
+                ? Danger : Accent;
 
         var id = _bridge.LastSong;
         var valid = GrantValidator.IsTrackId(id);
@@ -655,10 +692,17 @@ public sealed partial class MainWindow
             if (valid && _api.IsLoggedIn && IsHandleCreated)
                 _ = RefreshCompactPresenceAsync(id);
         }
+        var trackHealth = UserFacingPlaybackHealth.Track(_bridge.LastStatus,
+            _bridge.Enabled, _compactPresenceStatus);
+        // The renderer accepted a replacement URL, not proof of sound.
+        // Never report audible replacement as confirmed by the app.
         var activelyReplacing = _bridge.Enabled && _bridge.LastStatus ==
             "NATIVE_MAPPING_ACCEPTED" && _compactPresenceStatus == "approved";
-        _compactVersionStatus.Text = activelyReplacing ?
-            "Подмена активна · версия CELIKOM" :
+        _compactVersionStatus.Text = trackHealth.Level is
+                UserFacingPlaybackHealth.Severity.Error or UserFacingPlaybackHealth.Severity.Warning
+                && _bridge.Enabled
+            ? trackHealth.Message :
+            activelyReplacing ? "Подмена передана Яндексу · звук не подтверждён" :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
             _compactPresenceStatus switch
             {
@@ -668,8 +712,12 @@ public sealed partial class MainWindow
                 "error" => "Не удалось проверить версию песни CELIKOM",
                 _ => "Проверяем версию песни CELIKOM…"
             };
-        _compactVersionStatus.ForeColor =
-            activelyReplacing || _compactPresenceStatus == "approved" ? Accent :
+        _compactVersionStatus.ForeColor = trackHealth.Level is
+                UserFacingPlaybackHealth.Severity.Error or UserFacingPlaybackHealth.Severity.Warning
+                && _bridge.Enabled
+            ? CompactHealthColor(trackHealth.Level) :
+            activelyReplacing ? CompactHealthColor(UserFacingPlaybackHealth.Severity.Warning) :
+            _compactPresenceStatus == "approved" ? Accent :
             _compactPresenceStatus == "pending" ? ColorTranslator.FromHtml("#FFE1A1") : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
@@ -695,7 +743,7 @@ public sealed partial class MainWindow
             {
                 (_compactHeader, 34, 7, true),
                 (_compactActions, 40, 8, true),
-                (_compactStartup, 45, 8, !string.IsNullOrWhiteSpace(_compactStartupText)),
+                (_compactStartup, 45, 8, !string.IsNullOrWhiteSpace(_compactStartup.Text)),
                 (_compactUploadButton, 40, 8, true),
                 (_compactUploadBody, _compactUploadView == "form" ?
                     CompactUploadFormHeight() : 130, 8, _compactUploadOpen),
