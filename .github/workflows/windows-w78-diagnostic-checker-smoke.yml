@@ -1,0 +1,20 @@
+name: CELIKOM W78 Windows PowerShell diagnostic checker read only smoke
+on:
+  push:
+    branches: [experiment/windows-w78-readonly-checker-validation-20261112]
+    paths:
+      - .github/scripts/windows-w78/**
+      - .github/workflows/windows-w78-diagnostic-checker-smoke.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-2022
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Execute exact Library V2 checker under Windows PowerShell 5.1 with synthetic Yandex install
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .github\scripts\windows-w78\verify-checker.ps1
