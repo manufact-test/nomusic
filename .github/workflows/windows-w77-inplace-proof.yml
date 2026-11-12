@@ -33,7 +33,7 @@ jobs:
           $ErrorActionPreference='Stop'
           $old=(Resolve-Path 'w76/CELIKOM-W76-TRACK-RECOVERY-UNSIGNED.exe').Path
           $new=(Resolve-Path 'w77/CELIKOM-W77-KISHLAK-PREFETCH-RECOVERY-UNSIGNED.exe').Path
-          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne 'A562802A5A8384DFC6A5F97834CF5A0DC66022550025094C8B722EB7B8EEF2F8') {throw 'W77_W76_SHA_MISMATCH'}
+          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne 'CC3711E3A2D7933838D429A2FF5F18C961E5C673115ED1989DC9B4FFCC453175') {throw 'W77_W76_SHA_MISMATCH'}
           if ((Get-FileHash $new -Algorithm SHA256).Hash -ne 'E0E3A7BC3ED8D0C194471A2BCAECD88187A5A53567F76CD777346E2AD5AF4068') {throw 'W77_W77_SHA_MISMATCH'}
           $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
           $exe=Join-Path $app 'CELIKOM.Companion.exe'
