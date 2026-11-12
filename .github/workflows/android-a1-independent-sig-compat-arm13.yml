@@ -1,20 +1,7 @@
 name: CELIKOM A1 isolated original vs own level-2 signature-compat ARM13 lifecycle
 on:
-  push:
-    branches:
-      - experiment/android-a1-independent-sig-compat-arm13-20261112
-    paths:
-      - 'android/native-yandex-hooklab/clone_lspatch_loader_zero.py'
-      - 'android/native-yandex-hooklab/tests/test_clone_lspatch_loader_zero.py'
-      - 'android/native-yandex-hooklab/clone_native_arm13_redroid_gate.py'
-      - 'android/native-yandex-hooklab/native_arm13_startup_observer.py'
-      - 'android/native-yandex-hooklab/native_arm13_timeline_origin.py'
-      - 'android/native-yandex-hooklab/native_arm13_platform_contract.py'
-      - 'android/native-yandex-hooklab/tests/test_native_arm13_platform_contract.py'
-      - 'android/native-yandex-hooklab/tests/test_native_arm13_startup_observer.py'
-      - 'android/native-yandex-hooklab/tests/test_native_arm13_timeline_origin.py'
-      - 'android/native-yandex-hooklab/clone_native_identity_phase2_ephemeral.py'
-      - '.github/workflows/android-a1-independent-sig-compat-arm13.yml'
+  # Exact 2026 archive is no longer returned by version=latest; keep manual-only
+  # until a byte-identical pinned verified source is recovered. Never loosen SHA.
   workflow_dispatch:
 permissions:
   contents: read
