@@ -1,3 +1,5 @@
+> **FOLLOW-UP 12.11.2026:** Issuer vs own same-guest native ARM13 A/B proves 75s publisher original PASS, independently own-signed 16/16 install + launcher accepted yet MAIN `ILLEGAL_STATE/SIGNATURE` FAIL. A new **own**, not issuer-impersonating, valid SourceStamp 16/16 with all 8,661 nonstamp entries byte-identical FAILS exactly the same; OS grants 15/15 equal. See [paired/stamp report](ANDROID-A1-2025-PAIRED-OWN-STAMP-AND-SIGNATURE-ROOT-20261112.md), [native own stamp CI 43173312016](https://github.com/manufact-test/nomusic/actions/runs/43173312016), [OS grants CI 43174180541](https://github.com/manufact-test/nomusic/actions/runs/43174180541). Ordinary re-signing or own source-stamping isn't a working native fix; no user APK. Stage A NO-GO, Stage B LOCKED.
+
 # CELIKOM Android A1 — уточнение реального Java startup blocker: MAIN IllegalStateException содержит SIGNATURE
 
 **12.11.2026.** Текущая единственная реальная приёмка: **Stage A NO-GO / Stage B LOCKED**. Подписывание, установка и начало запуска доказаны; работа родного UI, авторизация и подмена звука не доказаны.
