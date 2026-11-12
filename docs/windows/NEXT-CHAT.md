@@ -4,7 +4,7 @@ Owner asked to upload **the latest Windows installer to ChatGPT Library → CELI
 
 **Not included:** W84 experimental source witness changes to host.cjs, which require real-device validation; keep `experiment/windows-w84-readonly-player-source-evidence-20261113` and issue #52 open. No user-facing new alarms or player protocol changes. Don't claim audio tested by owner yet. Install over 0.24.28, do not uninstall.
 
-CI run in progress `43318116147`; must see exact green job, W85 SHA, store candidate in Library; fill release note and save exact post-build rollback branch. After owner tests, fix only actual reports. Other issues #44 (physical audio QA), #48 (migration), #52 (source witness) remain open.
+W85 installer **CI SUCCESS**: https://github.com/manufact-test/nomusic/actions/runs/43318116147, native W79 0.24.25 byte-identical and DPAPI login preserved during **0.24.28→0.24.29** real disposable Windows in-place test. Artifact `13988863326`; SHA256 `B70B67517A81A0329A197BF65DCFB52660123CDA216CD5881DED8CD20B3173A0`, size 43,551,571 bytes. Uploaded and verified personal Library `/CELIKOM/Windows/CELIKOM-Windows-0.24.29-PROMO-FIX.exe` (`libfile_46919b560cec8191b55102c4cb53586e`); user plans to install and QA in morning. Must not claim actual music playback verified on owner yet. Next concrete task only after owner reports results; W84 research separate. After owner tests, fix only actual reports. Other issues #44 (physical audio QA), #48 (migration), #52 (source witness) remain open.
 
 ---
 
