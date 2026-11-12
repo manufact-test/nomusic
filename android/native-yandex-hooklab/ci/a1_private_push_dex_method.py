@@ -320,7 +320,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_public_routes=[];legacy_init_reports=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_original_literals=[];push_public_routes=[];legacy_init_reports=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -341,6 +341,7 @@ def inspect_xapk(path):
                         contains_cases.extend(inspect_push_contains(payload,Dex,group_class,
                                             group_call,exact_fatal_cfg))
                         authority_refs.append(inspect_authority_refs(payload,Dex,group_class))
+                        push_original_literals.append(private_push_original_package_literals(payload))
                         push_public_routes.append(private_public_push_entrypoints(payload))
                         legacy_init_reports.append(inspect_legacy_push_init(payload,Dex,group_call))
                         chain=classify_private_supplier_chain(
@@ -357,6 +358,10 @@ def inspect_xapk(path):
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     private_cases=sorted(case_categories.items())[:8]
     return {
+        "push_sdk_methods_with_stock_package_literals_bounded":min(sum(
+            x["push_methods"] for x in push_original_literals),32),
+        "push_fatal_a_with_stock_package_literal_bounded":min(sum(
+            x["fatal_methods"] for x in push_original_literals),8),
         "private_global_metrica_authority_literal_in_dex":any(
             item["literal_found"] for item in authority_refs),
         "private_global_metrica_authority_literal_callsite_groups":sorted({
@@ -714,6 +719,35 @@ def private_exact_guard_case_categories(binary):
                 calls.add(group_call(*dex.method(ref)))
         result[key]={"group":group_call(owner,name),"calls":sorted(calls)}
     return result
+
+
+def private_push_original_package_literals(binary):
+    """Check only literal stock package references in Push SDK, never output it."""
+    dex=Dex(binary)
+    fixed={i for i in range(dex.string_count)
+           if dex.string(i)=="ru.yandex.music"
+           or dex.string(i).startswith("ru.yandex.music:")}
+    if not fixed:return {"push_methods":0,"fatal_methods":0}
+    push=set();fatal=set()
+    error_targets=dex.possible_error_strings()
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner) not in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
+            continue
+        try:instr=decode_instructions(code)
+        except FlowDecodeError:continue
+        hit=False
+        for pc,op,_ in instr:
+            if op==0x1a and struct.unpack_from("<H",code,pc+2)[0] in fixed:
+                hit=True
+            if op==0x1b and struct.unpack_from("<I",code,pc+2)[0] in fixed:
+                hit=True
+        if hit:
+            push.add(mid)
+            if (group_class(owner)=="PUSH_IMPL" and name=="a"
+                  and exact_fatal_cfg(code,error_targets,dex,group_call)["fatal_throw_candidates"]):
+                fatal.add(mid)
+    return {"push_methods":min(len(push),32),"fatal_methods":min(len(fatal),8)}
 
 def private_near_guard_overload_count(binary):
     """Count Boolean overload ambiguity of exact near-fatal method references."""
