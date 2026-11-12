@@ -31,15 +31,14 @@ public static class NativeIntegrationManager
     {
         "5.126.1" or "5.126.1.0" or
             "5.126.1.56270518164a6ebd4b974971490df41224a69d68" => SupportedAsarSha256,
-        Official51270Version => Official51270AsarSha256,
-        _ => null
+        _ => OfficialYandexCatalog.TryGet(version, out var remote)
+            ? remote.AsarSha256 : null
     };
 
-    private static bool IsExactOfficial51270(string exe, string exeHash, string asarHash) =>
-        exeHash == Official51270ExeSha256 &&
-        asarHash == Official51270AsarSha256 &&
-        FileVersionInfo.GetVersionInfo(exe).FileVersion == Official51270Version &&
-        NativeHostSignature.IsValid(exe);
+    private static bool IsPinnedOfficialPair(string root, string exeHash, string asarHash) =>
+        OfficialYandexCatalog.IsExactTrustedVendorPair(
+            Path.Combine(root, PairRecovery.ExeName),
+            Path.Combine(root, PairRecovery.AsarName), exeHash, asarHash);
 
 
     public static string DefaultYandexDirectory => Path.Combine(
@@ -68,13 +67,19 @@ public static class NativeIntegrationManager
                 // W78 owner state: original 5.126 snapshot still verified, but
                 // Windows Yandex updated both files to signed official 5.127.
                 // No blind adoption: exact independent signed package pins.
-                if (IsExactOfficial51270(
-                    Path.Combine(root, PairRecovery.ExeName), exeHash, asarHash))
+                if (IsPinnedOfficialPair(root, exeHash, asarHash))
                     return NativeInstallState.VerifiedVendorUpdate;
             }
-            if (info.State == "ACTIVE" &&
-                info.AppliedExe == exeHash && info.AppliedAsar == asarHash)
-                return NativeInstallState.Active;
+            if (info.State == "ACTIVE")
+            {
+                if (info.AppliedExe == exeHash && info.AppliedAsar == asarHash)
+                    return NativeInstallState.Active;
+                // Yandex's own updater can replace BOTH of our patched files.
+                // Only a fully official reviewed pair is adoptable; any mixed
+                // EXE/ASAR remains Changed and cannot be overwritten.
+                if (IsPinnedOfficialPair(root, exeHash, asarHash))
+                    return NativeInstallState.VerifiedVendorUpdate;
+            }
             if (info.State == "PREPARED" &&
                 info.OriginalExe == exeHash && info.OriginalAsar == asarHash)
                 return NativeInstallState.Prepared;
@@ -109,8 +114,8 @@ public static class NativeIntegrationManager
             throw new IOException("OFFICIAL_YANDEX_EXE_NOT_TRUSTED");
         if (PairRecovery.Hash(asar) != expectedAsar)
             throw new IOException("UNSUPPORTED_ASAR_VERSION");
-        if (expectedAsar == Official51270AsarSha256 &&
-            PairRecovery.Hash(exe) != Official51270ExeSha256)
+        if (OfficialYandexCatalog.TryGet(actualVersion, out _) &&
+            !OfficialYandexCatalog.IsExactTrustedVendorPair(exe, asar))
             throw new IOException("UNSUPPORTED_YANDEX_BUILD");
         var host = Path.Combine(assets, "host.cjs");
         var renderer = Path.Combine(assets, "renderer.js");
@@ -122,8 +127,8 @@ public static class NativeIntegrationManager
         if (!NativeHostSignature.IsValid(exe) ||
             PairRecovery.Hash(asar) != expectedAsar ||
             FileVersionInfo.GetVersionInfo(exe).FileVersion != actualVersion ||
-            (expectedAsar == Official51270AsarSha256 &&
-             PairRecovery.Hash(exe) != Official51270ExeSha256))
+            (OfficialYandexCatalog.TryGet(actualVersion, out _) &&
+             !OfficialYandexCatalog.IsExactTrustedVendorPair(exe, asar)))
             throw new IOException("YANDEX_CHANGED_DURING_PREFLIGHT");
         var originalExe = File.ReadAllBytes(exe);
         var originalAsar = File.ReadAllBytes(asar);
@@ -209,8 +214,8 @@ public static class NativeIntegrationManager
         if (record.OriginalAsar != expectedAsar ||
             PairRecovery.Hash(originalAsarPath) != expectedAsar)
             throw new IOException("UNSUPPORTED_ASAR_VERSION");
-        if (version == Official51270Version &&
-            PairRecovery.Hash(originalExePath) != Official51270ExeSha256)
+        if (OfficialYandexCatalog.TryGet(version, out _) &&
+            !OfficialYandexCatalog.IsExactTrustedVendorPair(originalExePath, originalAsarPath))
             throw new IOException("UNSUPPORTED_YANDEX_BUILD");
 
         var hostPath = Path.Combine(assets, "host.cjs");
