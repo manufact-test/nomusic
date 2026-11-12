@@ -13,7 +13,8 @@ class AuthorityTest(unittest.TestCase):
         x=inspect_authority_refs("secret",lambda _:FakeDex("PRIVATE_TOKEN"),
                                  lambda _: "OTHER")
         self.assertEqual(x,{"literal_found":False,"method_groups":[],
-                            "methods_referencing_bounded":0})
+                            "methods_referencing_bounded":0,
+                            "call_api_cooccurrences":[]})
         self.assertNotIn("PRIVATE_TOKEN",str(x))
     def test_public_literal_without_callsite_not_assumed_used(self):
         x=inspect_authority_refs(None,lambda _:FakeDex(
