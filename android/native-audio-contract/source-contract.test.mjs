@@ -188,6 +188,48 @@ test("GET 206 matching range / length / ETag is accepted", () => {
   assert.equal(validateRangeResponse(response, 2048, 4095, {size: 4_500_000, etag: '"old"'}).ok, false);
 });
 
+
+test("PHP ByteRange must deliver the exact requested inclusive end, never a shortened 206", () => {
+  const witnessed = { size: 10_000, etag: '"exact-v1"' };
+  function partial(first, last, total = witnessed.size, length = last - first + 1) {
+    return { status: 206, headers: {
+      "content-range": `bytes ${first}-${last}/${total}`,
+      "content-length": String(length), etag: witnessed.etag
+    }};
+  }
+  // PHP ByteRange::parse(start-end) always caps end to EOF.
+  assert.deepEqual(validateRangeResponse(partial(1024, 2047), 1024, 2047, witnessed),
+    { ok: true, start: 1024, end: 2047, total: 10_000 });
+  assert.deepEqual(validateRangeResponse(partial(9000, 9999), 9000, 12000, witnessed),
+    { ok: true, start: 9000, end: 9999, total: 10_000 });
+  // Open end means all the remaining bytes of the verified object.
+  assert.deepEqual(validateRangeResponse(partial(9000, 9999), 9000, null, witnessed),
+    { ok: true, start: 9000, end: 9999, total: 10_000 });
+  // These were previously incorrectly accepted because only <= was checked.
+  assert.equal(validateRangeResponse(partial(1024, 1500), 1024, 2047, witnessed).code,
+    "RANGE_MISMATCH");
+  assert.equal(validateRangeResponse(partial(9000, 9500), 9000, null, witnessed).code,
+    "RANGE_MISMATCH");
+});
+
+test("PHP HEAD and Range reject noncanonical Content-Length from wrong intermediaries", () => {
+  const expected = { size: 4_500_000, etag: '"abc-3"' };
+  const partial = { status: 206, headers: {
+    "content-range": "bytes 2048-4095/4500000",
+    "content-length": "2048", etag: expected.etag
+  }};
+  assert.equal(validateRangeResponse(partial, 2048, 4095, expected).ok, true);
+  for (const malformed of ["2.048e3", "0x800", " 2048", "2048 ", "002048", "+2048"]) {
+    assert.equal(validateRangeResponse({
+      ...partial, headers: { ...partial.headers, "content-length": malformed }
+    }, 2048, 4095, expected).ok, false, malformed);
+  }
+  for (const malformed of ["4.5e6", "0x44aa20", " 4500000", "04500000", "+4500000"]) {
+    assert.equal(validateHeadResponse(head({"content-length":malformed}), "audio/mpeg"),
+      null, malformed);
+  }
+});
+
 test("416 returns honest unsatisfiable, 200 range fallback not falsely accepted", () => {
   const expected = { size: 4_500_000, etag: '"abc-3"' };
   assert.equal(validateRangeResponse({
