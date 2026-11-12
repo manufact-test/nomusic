@@ -314,13 +314,49 @@ def inspect_dex(binary):
         del entry["helper_refs"]
     return matches
 
+def count_exact_invoke_sites(code,refs):
+    """Count only decoded direct invoke sites targeting exact, already-known refs.
+
+    No method names or offsets leave this helper; repeated invoke sites can
+    invalidate a per-method runtime return/value -> branch assumption.
+    """
+    try:
+        return sum(
+            op in INVOKE_METHOD and
+            struct.unpack_from("<H",code,pc+2)[0] in refs
+            for pc,op,_ in decode_instructions(code)
+        )
+    except FlowDecodeError:
+        return None
+
+
+def private_exact_near_guard_invoke_site_multiplicity(binary):
+    """One bounded hypothesis: near-guard TRUE may come from another callsite."""
+    dex=Dex(binary)
+    target_strings=dex.possible_error_strings()
+    result=[]
+    if not target_strings:return result
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner)!="PUSH_IMPL" or name!="a":continue
+        cfg=exact_fatal_cfg(code,target_strings,dex,group_call)
+        if not cfg["decoded"] or not cfg["fatal_throw_candidates"]:continue
+        near=private_exclusive_fatal_guard_refs(
+            code,target_strings,dex,group_call,max_distance=256)
+        count=count_exact_invoke_sites(code,near)
+        result.append({"near_refs_bounded":min(len(near),8),
+                       "near_invoke_sites_bounded":None if count is None
+                       else min(count,16)})
+    return result
+
+
 def inspect_xapk(path):
     if not path.is_file() or path.is_symlink() or path.stat().st_size!=EXPECTED_LEN:
         raise DexError("OWNER_INPUT_LENGTH")
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_original_literals=[];push_public_routes=[];legacy_init_reports=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_original_literals=[];push_public_routes=[];legacy_init_reports=[];near_multiplicity=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -332,6 +368,8 @@ def inspect_xapk(path):
                     payload=apk.read(name);seen+=1
                     if payload.startswith(b"dex\n"):
                         matches.extend(inspect_dex(payload))
+                        near_multiplicity.extend(
+                            private_exact_near_guard_invoke_site_multiplicity(payload))
                         guard_insights.append(private_guard_dependency_info(payload))
                         guard_rules.extend(private_guard_synthetic_rule(payload))
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
@@ -358,6 +396,18 @@ def inspect_xapk(path):
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     private_cases=sorted(case_categories.items())[:8]
     return {
+        "exact_fatal_near_guard_method_refs_bounded":min(
+            sum(x["near_refs_bounded"] for x in near_multiplicity),16),
+        "exact_fatal_near_guard_invoke_sites_bounded":min(
+            sum(x["near_invoke_sites_bounded"] or 0 for x in near_multiplicity),32),
+        "exact_fatal_near_guard_callsite_multiplicity":(
+            "UNKNOWN" if any(x["near_invoke_sites_bounded"] is None
+                            for x in near_multiplicity)
+            else "MULTIPLE" if any((x["near_invoke_sites_bounded"] or 0)>1
+                                   for x in near_multiplicity)
+            else "ONE" if any(x["near_invoke_sites_bounded"]==1
+                              for x in near_multiplicity)
+            else "ZERO"),
         "push_sdk_methods_with_stock_package_literals_bounded":min(sum(
             x["push_methods"] for x in push_original_literals),32),
         "push_fatal_a_with_stock_package_literal_bounded":min(sum(
