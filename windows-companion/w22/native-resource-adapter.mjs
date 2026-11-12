@@ -8,7 +8,7 @@ import { exactTrackId, validateCelikomGrant } from '../w15/source-controller.mjs
 
 const DEFAULT_DEADLINE_MS = 1250;
 // Only background recovery can take longer; foreground Next never stalls.
-const RECOVERY_DEADLINE_MS = 3400;
+const RECOVERY_DEADLINE_MS = 4500;
 const NEGATIVE_TTL_MS = 3000;
 const POSITIVE_SAFETY_MS = 12000;
 const MAX_CACHE = 24;
