@@ -380,9 +380,17 @@ def run(xapk):
         observed = observe_clone()
         report["native_clone_main_75s"] = observed["stable"]
         report["clone_lifecycle"] = observed
+        # A stable foreground MAIN has *no* exit-info record. Only admit its
+        # current exact native pidof if the prior 25/25 lifecycle gate passed.
+        stable_pid=None
+        if observed["stable"] and report["single_clone_installed_after_original"]:
+            live=guest("pidof",DEST,timeout=30).stdout.strip()
+            if re.fullmatch(r"[1-9][0-9]{0,8}",live):
+                stable_pid=live
         report["scoped_own_readonly_witness"]=scoped_metrica_witness(
             guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
-            guest("logcat","-v","threadtime","-d",timeout=55).stdout)
+            guest("logcat","-v","threadtime","-d",timeout=55).stdout,
+            stable_live_main_pid=stable_pid)
         report["publisher_still_installed_after_clone_start"] = sum(
             row.startswith("package:") for row in
             guest("pm","path",ORIGINAL).stdout.splitlines()) == 16
