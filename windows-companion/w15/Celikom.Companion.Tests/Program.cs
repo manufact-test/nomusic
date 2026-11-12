@@ -46,35 +46,42 @@ try
             new YandexHostResult(YandexHostStatus.UntrustedExecutable, "5.128.0.r24000000"))!
             .Contains("заблокировано"),
         "W80 unknown tampered host remains blocked, never mistaken for verified update");
-    // W81: live GUI health must never confuse URL acceptance with audio.
+    // W82: transition-only native heartbeats cannot prove an outage.
+    // Successful handoff is normal, not a yellow warning; true explicit
+    // source failures are the only per-track red error.
     Test(UserFacingPlaybackHealth.Host(Celikom.NativeInstaller.NativeInstallState.Active,
         null, true).Level == UserFacingPlaybackHealth.Severity.Good,
-        "W81 verified integrated host has good connectivity only");
+        "W82 verified integrated host has good connectivity only");
     Test(UserFacingPlaybackHealth.Host(Celikom.NativeInstaller.NativeInstallState.Changed,
         new YandexHostResult(YandexHostStatus.UnsupportedVersion, "5.128.0.r24000000"), false)
-        .Message.Contains("Дождись проверки"),
-        "W81 future unsupported Yandex shows visible compatibility error");
+        .Level == UserFacingPlaybackHealth.Severity.Error,
+        "W82 genuinely unsupported official Yandex build remains actionable");
     Test(UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Error,
-        "W81 failed track replacement is red even when approved version exists");
+        "W82 explicit failed track replacement remains red");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Message
+        .Contains("оригинал"),
+        "W82 explicit song error correctly distinguishes working original playback");
     Test(UserFacingPlaybackHealth.Track("NATIVE_MAPPING_ACCEPTED", true, "approved").Level ==
-        UserFacingPlaybackHealth.Severity.Warning,
-        "W81 accepted replacement does not claim audible success");
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 normal audio source accepted has no false warning");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_CONNECTED", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 steady track and transition-only heartbeat must not report connection loss");
     Test(UserFacingPlaybackHealth.Track("HOST_ERROR", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Error,
-        "W81 disconnected native host is visible red");
+        "W82 explicitly reported host failure remains visible");
     Test(UserFacingPlaybackHealth.Track("NATIVE_RECOVERING", true, "approved").Level ==
-        UserFacingPlaybackHealth.Severity.Warning,
-        "W81 transient source retry shows yellow");
-    Test(UserFacingPlaybackHealth.Track("ORIGINAL", true, "approved").Message
-        .Contains("оригинал"),
-        "W81 approved alternative but original currently playing explicitly explained");
-    Test(UserFacingPlaybackHealth.Track("NATIVE_CONNECTED", true, "approved",
-        staleHeartbeat: true).Level == UserFacingPlaybackHealth.Severity.Error,
-        "W81 stale native heartbeat is red even though local service is enabled");
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 normal transient source recovery is not a customer warning");
+    Test(UserFacingPlaybackHealth.Track("RESOLVING", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 normal resolving status is not a customer warning");
+    Test(UserFacingPlaybackHealth.Track("ORIGINAL", true, "approved").Message.Contains("оригинал"),
+        "W82 known original source is surfaced quietly, not alarm");
     Test(UserFacingPlaybackHealth.Track("OFF", false, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
-        "W81 explicitly stopped user playback is neutral, not erroneous");
+        "W82 explicitly stopped service is not a failure");
     // W75: a temporary /auth/me failure must never hide an already
     // verified owner's diagnostics button, but never authorizes export.
     var temporaryError = new HttpRequestException("synthetic unreachable");
