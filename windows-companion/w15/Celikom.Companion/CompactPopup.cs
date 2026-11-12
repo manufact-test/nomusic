@@ -685,13 +685,13 @@ public sealed partial class MainWindow
             trackProblem ? trackHealth.Message :
             actionProblem ? _compactStartupText : "";
         var activelyReplacing = _bridge.Enabled &&
-            _bridge.LastStatus is "NATIVE_MAPPING_ACCEPTED" or "SDK_MAPPING_ACCEPTED" &&
+            (_bridge.LastStatus is "NATIVE_MAPPING_ACCEPTED" or "SDK_MAPPING_ACCEPTED") &&
             _compactPresenceStatus == "approved";
+        var originalPlaying = _bridge.Enabled &&
+            _bridge.LastStatus == "ORIGINAL" && _compactPresenceStatus == "approved";
         _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
-            _bridge.Enabled && _bridge.LastStatus == "ORIGINAL" &&
-                _compactPresenceStatus == "approved"
-                ? "Играет оригинал. Версия CELIKOM доступна." :
+            originalPlaying ? "Играет оригинал. Версия CELIKOM доступна." :
             activelyReplacing ? "Подмена активна · версия CELIKOM" :
             _compactPresenceStatus switch
             {
@@ -702,6 +702,7 @@ public sealed partial class MainWindow
                 _ => "Проверяем версию песни CELIKOM…"
             };
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
+            originalPlaying ? Secondary :
             activelyReplacing || _compactPresenceStatus == "approved" ? Accent :
             Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
