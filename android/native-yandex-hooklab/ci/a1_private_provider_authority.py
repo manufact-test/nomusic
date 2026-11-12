@@ -45,24 +45,32 @@ def inspect_authority_refs(binary,Dex,group_class):
             candidates.add(idx)
     if not candidates:return {"literal_found":False,"method_groups":[],
                                "methods_referencing_bounded":0,
-                               "call_api_cooccurrences":[]}
+                               "call_api_cooccurrences":[],
+                               "literal_followed_by_uri_parse_bounded":0,
+                               "literal_followed_by_resolver_query_bounded":0}
     methods=set()
     calls=set()
+    parse_after=0
+    query_after=0
     for mid,code in dex.code_methods():
         try:ins=decode_instructions(code)
         except FlowDecodeError:continue
         refs=[]
         call_refs=[]
+        instructions=[]
         for pc,op,_ in ins:
             if op in INVOKE_METHOD:
                 ref=struct.unpack_from("<H",code,pc+2)[0]
-                if ref<dex.method_count:call_refs.append(ref)
+                if ref<dex.method_count:
+                    call_refs.append(ref)
+                    callee,name=dex.method(ref)
+                    instructions.append((pc,_sdk_call_category(callee,name)))
             if op==0x1a:
                 idx=struct.unpack_from("<H",code,pc+2)[0]
             elif op==0x1b:
                 idx=struct.unpack_from("<I",code,pc+2)[0]
             else:continue
-            if idx in candidates:refs.append(idx)
+            if idx in candidates:refs.append(pc)
         if refs:
             owner,name=dex.method(mid)
             if owner.startswith("Lio/appmetrica/analytics/"):
@@ -72,10 +80,18 @@ def inspect_authority_refs(binary,Dex,group_class):
             else:
                 cat=group_class(owner)
             methods.add((mid,cat))
+            if any(kind=="URI_PARSE" and 0<callpc-litpc<=1024
+                   for litpc in refs for callpc,kind in instructions):
+                parse_after+=1
+            if any(kind=="RESOLVER_QUERY" and 0<callpc-litpc<=2048
+                   for litpc in refs for callpc,kind in instructions):
+                query_after+=1
             for ref in call_refs:
                 callee,method=dex.method(ref)
                 calls.add(_sdk_call_category(callee,method))
     return {"literal_found":True,
             "method_groups":sorted({cat for _,cat in methods}),
             "methods_referencing_bounded":min(len(methods),32),
-            "call_api_cooccurrences":sorted(calls)[:24]}
+            "call_api_cooccurrences":sorted(calls)[:24],
+            "literal_followed_by_uri_parse_bounded":min(parse_after,16),
+            "literal_followed_by_resolver_query_bounded":min(query_after,16)}
