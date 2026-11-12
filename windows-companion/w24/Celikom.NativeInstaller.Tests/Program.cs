@@ -1,4 +1,5 @@
 using Celikom.NativeInstaller;
+using Celikom.WindowsRecovery;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
@@ -96,4 +97,95 @@ var noHeader=Encoding.ASCII.GetBytes("MZ_NO_ASAR_HASH");
 Reject(()=>NativeAsarImageBuilder.Build(noHeader,asar,host,renderer,
   Hash(noHeader),originalAsarHash),"missing embedded header blocked");
 Check(changed.OriginalExeSha256==originalExeHash,"original exe fingerprint recorded");
+
+// W79 optional real-vendor test. CI extracts the independently signed official
+// 5.127.0 installer into a disposable runner; nothing touches a user install.
+var officialExe = Environment.GetEnvironmentVariable("CELIKOM_W79_OFFICIAL_51270_EXE");
+var officialAsar = Environment.GetEnvironmentVariable("CELIKOM_W79_OFFICIAL_51270_ASAR");
+var officialAssets = Environment.GetEnvironmentVariable("CELIKOM_W79_NATIVE_ASSETS");
+if (!string.IsNullOrEmpty(officialExe) && !string.IsNullOrEmpty(officialAsar) &&
+    !string.IsNullOrEmpty(officialAssets))
+{
+  Check(OperatingSystem.IsWindows(), "W79 authentic vendor test is Windows only");
+  Check(PairRecovery.Hash(officialExe) == NativeIntegrationManager.Official51270ExeSha256 &&
+        PairRecovery.Hash(officialAsar) == NativeIntegrationManager.Official51270AsarSha256,
+        "W79 signed 5.127.0 official exact baseline hashes");
+  Check(NativeHostSignature.IsValid(officialExe) &&
+        System.Diagnostics.FileVersionInfo.GetVersionInfo(officialExe).FileVersion ==
+        NativeIntegrationManager.Official51270Version, "W79 signed official version identity");
+  var lab = Path.Combine(Path.GetTempPath(),"celikom-w79-recovery-"+Guid.NewGuid().ToString("N"));
+  var installRoot = Path.Combine(lab,"YandexMusic");
+  var snapshot = Path.Combine(lab,"NativeHost","snapshot");
+  var labExe = Path.Combine(installRoot,PairRecovery.ExeName);
+  var labAsar = Path.Combine(installRoot,"resources","app.asar");
+  Directory.CreateDirectory(Path.Combine(installRoot,"resources"));
+  try
+  {
+    // Reproduce manifest RESTORED from legacy 5.126.1 snapshot, then Yandex
+    // 5.127.0 overwriting both current files (the actual owner handoff state).
+    File.WriteAllText(labExe,"old-5.126-exe-byte-fixture");
+    File.WriteAllText(labAsar,"old-5.126-asar-byte-fixture");
+    var legacyExe = PairRecovery.Hash(labExe);
+    var legacyAsar = PairRecovery.Hash(labAsar);
+    PairRecovery.Capture(installRoot,snapshot,legacyExe,legacyAsar);
+    File.WriteAllText(labExe,"old-0.24.23-integrated-exe");
+    File.WriteAllText(labAsar,"old-0.24.23-integrated-asar");
+    PairRecovery.RegisterApplied(installRoot,snapshot,PairRecovery.Hash(labExe),
+      PairRecovery.Hash(labAsar));
+    PairRecovery.Restore(installRoot,snapshot);
+    File.Copy(officialExe,labExe,overwrite:true);
+    File.Copy(officialAsar,labAsar,overwrite:true);
+    Check(NativeIntegrationManager.Inspect(installRoot,snapshot) ==
+        NativeInstallState.VerifiedVendorUpdate,
+        "W79 exact owner RESTORED+changed pair recognized as signed official 5.127");
+    Check(NativeIntegrationManager.Install(installRoot,officialAssets,snapshot) ==
+        NativeInstallState.Active, "W79 reinstalls native bridge on actual 5.127 without downgrade");
+    Check(NativeModuleIdentity.Inspect(NativeInstallState.Active,installRoot,officialAssets)
+        .MatchesApplication, "W79 5.127 native module embedded and matches installed bundle");
+    var archivedLegacy = Directory.GetDirectories(Path.Combine(lab,"NativeHost"),"previous-*");
+    Check(archivedLegacy.Length==1 &&
+        PairRecovery.Hash(Path.Combine(archivedLegacy[0],"original.exe"))==legacyExe &&
+        PairRecovery.Hash(Path.Combine(archivedLegacy[0],"original.asar"))==legacyAsar,
+        "W79 old 5.126.1 original snapshot kept intact in separate archived directory");
+    Check(PairRecovery.Hash(Path.Combine(snapshot,"original.exe")) ==
+        NativeIntegrationManager.Official51270ExeSha256 &&
+        PairRecovery.Hash(Path.Combine(snapshot,"original.asar")) ==
+        NativeIntegrationManager.Official51270AsarSha256,
+        "W79 new 5.127 originals captured and verified separately");
+
+    // Refresh module in-place without ever restoring the old 5.127 original
+    // between two known active patch versions.
+    var assets2=Path.Combine(lab,"new-module");
+    Directory.CreateDirectory(assets2);
+    File.Copy(Path.Combine(officialAssets,"host.cjs"),Path.Combine(assets2,"host.cjs"));
+    File.Copy(Path.Combine(officialAssets,"renderer.js"),Path.Combine(assets2,"renderer.js"));
+    File.AppendAllText(Path.Combine(assets2,"host.cjs"),"\n/* W79 module refresh test */");
+    File.AppendAllText(Path.Combine(assets2,"renderer.js"),"\n/* W79 module refresh test */");
+    Check(NativeIntegrationManager.Upgrade(installRoot,assets2,snapshot) ==
+        NativeInstallState.Active, "W79 active native pair upgraded safely on signed 5.127");
+    Check(NativeModuleIdentity.Inspect(NativeInstallState.Active,installRoot,assets2)
+        .MatchesApplication, "W79 refreshed 5.127 modules matched");
+    Check(Directory.GetDirectories(Path.Combine(snapshot,"upgrades")).Length==1,
+        "W79 old 5.127 applied pair preserved separately for interrupted upgrade rollback");
+
+    Check(NativeIntegrationManager.Restore(installRoot,snapshot) ==
+        NativeInstallState.Restored &&
+        PairRecovery.Hash(labExe)==NativeIntegrationManager.Official51270ExeSha256 &&
+        PairRecovery.Hash(labAsar)==NativeIntegrationManager.Official51270AsarSha256,
+        "W79 exact signed 5.127 originals restored after active upgrade");
+    File.WriteAllText(labAsar,"unrecognized-vendor-update-after-5.127");
+    var unknownAsar=PairRecovery.Hash(labAsar);
+    Check(NativeIntegrationManager.Inspect(installRoot,snapshot)==NativeInstallState.Changed,
+        "W79 unrecognized future update remains blocked");
+    Reject(()=>NativeIntegrationManager.Install(installRoot,officialAssets,snapshot),
+        "W79 unknown ASAR never allowed through signed 5.127 recovery");
+    Check(PairRecovery.Hash(labAsar)==unknownAsar &&
+        PairRecovery.Hash(Path.Combine(snapshot,"original.asar"))==
+        NativeIntegrationManager.Official51270AsarSha256,
+        "W79 rejected update leaves host and both vendor backups intact");
+    Console.WriteLine("W79_OWNER_STATE_51270_REAL_INSTALL_RECOVERY_PASS");
+  }
+  finally { if (Directory.Exists(lab)) Directory.Delete(lab,true); }
+}
+
 Console.WriteLine("W24_NATIVE_IMAGE_BUILDER_PASS "+pass);
