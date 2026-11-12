@@ -361,6 +361,8 @@ def inspect_xapk(path):
             item["literal_found"] for item in authority_refs),
         "private_global_metrica_authority_literal_callsite_groups":sorted({
             grp for item in authority_refs for grp in item["method_groups"]}),
+        "private_global_metrica_authority_sdk_api_cooccurrence":sorted({
+            grp for item in authority_refs for grp in item["call_api_cooccurrences"]}),
         "private_global_metrica_authority_direct_methods_bounded":min(sum(
             item["methods_referencing_bounded"] for item in authority_refs),32),
         "push_impl_exact_string_contains_guard_cases":[
