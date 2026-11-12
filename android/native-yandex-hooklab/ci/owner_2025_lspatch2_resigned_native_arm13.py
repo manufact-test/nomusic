@@ -74,7 +74,8 @@ def code_parity(apk_a: zipfile.ZipFile, apk_b: zipfile.ZipFile) -> bool:
     return bool(a) and "classes.dex" in a and a == b
 
 
-def wrap_lab_base(base: Path, work: Path, own_signed_base: Path) -> Path:
+def wrap_lab_base(base: Path, work: Path, own_signed_base: Path,
+                  witness_module: Path | None = None) -> Path:
     key=work/"unique-own-key.jks"
     if not key.is_file():
         stop("LSPATCH2_OWN_EPHEMERAL_SIGNER_NOT_FOUND")
@@ -84,8 +85,22 @@ def wrap_lab_base(base: Path, work: Path, own_signed_base: Path) -> Path:
     directory.mkdir()
     command=[
         "java","-jar",str(patcher),"-k",str(key),"ephemeral-lab-only",
-        "own-key","ephemeral-lab-only","-o",str(directory),"-l","2",str(base)
+        "own-key","ephemeral-lab-only","-o",str(directory),"-l","2"
     ]
+    if witness_module is not None:
+        if (not witness_module.is_file() or witness_module.is_symlink()
+                or witness_module.stat().st_size>8*1024*1024):
+            stop("METRICA_WITNESS_OWN_MODULE_NOT_VERIFIED")
+        with zipfile.ZipFile(witness_module) as mz:
+            if (mz.read("META-INF/xposed/scope.list").decode().split()
+                    != ["pro.celikom.yandex.nativeclonelab"] or
+                    mz.read("META-INF/xposed/java_init.list").decode().strip()
+                    != "pro.celikom.a1exitwitness.ExitCallsiteWitness" or
+                    "minApiVersion=102" not in
+                    mz.read("META-INF/xposed/module.prop").decode()):
+                stop("METRICA_WITNESS_SCOPE_OR_BOOTSTRAP_DRIFT")
+        command.extend(["-m",str(witness_module)])
+    command.append(str(base))
     done=cmd(command,timeout=400)
     if done.returncode:
         stop("LSPATCH2_PINNED_PATCHER_COULD_NOT_WRAP_2025_BASE")
@@ -147,8 +162,12 @@ def wrap_lab_base(base: Path, work: Path, own_signed_base: Path) -> Path:
                 cfg["sigBypassLevel"]!=2 or
                 cfg.get("useManager") is not False):
             stop("LSPATCH2_CONFIG_LEVEL_OR_MANAGER_DRIFT")
-        if any(n.startswith("assets/lspatch/modules/") for n in names):
+        modules=[n for n in names if n.startswith("assets/lspatch/modules/") and n.endswith(".apk")]
+        if witness_module is None and modules:
             stop("LSPATCH2_NO_EXTERNAL_MODULES_IN_CAUSAL_CONTROL")
+        if witness_module is not None:
+            if len(modules)!=1 or archive.read(modules[0])!=witness_module.read_bytes():
+                stop("METRICA_WITNESS_EMBEDDED_BYTE_PARITY_DRIFT")
         from io import BytesIO
         nested=archive.read("assets/lspatch/origin.apk")
         with zipfile.ZipFile(BytesIO(nested)) as origin:
