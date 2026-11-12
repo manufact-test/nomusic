@@ -106,7 +106,26 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
                       "config_splits_inherit_base_sdk_for_verification":True,
                       "original_verified_publisher_splits":len(originals)},sort_keys=True))
     jar=work/"APKEditor-1.4.9-verified.jar"
-    arsc.download_editor(jar)
+    # Owner-approved 2025 native lab may use the SAME independently verified
+    # public APKEditor jar preloaded via GitHub CLI when urllib asset redirect
+    # fails on ARM runners. Never accept an unpinned or arbitrary local binary.
+    pinned=os.getenv("CELIKOM_A1_PINNED_APKEDITOR_JAR","")
+    if pinned:
+        if (os.getenv("GITHUB_ACTIONS")!="true" or
+            os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
+            os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-2025-lv2-own-package-parallel-20261112"):
+            stop("OWN_CLONE_PRELOADED_TOOL_WRONG_BRANCH")
+        pre=Path(pinned).resolve()
+        runner=Path(os.getenv("RUNNER_TEMP","/nonexistent")).resolve()
+        if (not pre.is_file() or pre.is_symlink() or runner not in pre.parents or
+            pre.stat().st_size!=arsc.EDITOR_BYTES):
+            stop("OWN_CLONE_PINNED_TOOL_NOT_VERIFIED")
+        digest=hashlib.sha256(pre.read_bytes()).hexdigest()
+        if digest!=arsc.EDITOR_SHA256:
+            stop("OWN_CLONE_PINNED_TOOL_HASH_DRIFT")
+        __import__("shutil").copyfile(pre,jar)
+    else:
+        arsc.download_editor(jar)
     lab_key=work/"unique-ephemeral-signer.jks"
     source.action(["keytool","-genkeypair","-noprompt","-storetype","JKS",
         "-keystore",str(lab_key),"-storepass","ephemeral-lab-only",
