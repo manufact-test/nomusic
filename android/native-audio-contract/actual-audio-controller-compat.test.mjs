@@ -33,7 +33,7 @@ test("real PHP AudioController emits exactly the expected HEAD 200 witness", () 
   assert.equal(w.head.headers["Cache-Control"], "private, no-store");
   assert.equal(w.etag, `"${sha(body)}-3"`);
   const verified = validateHeadResponse({ status: w.head.status, headers: w.head.headers }, "audio/mpeg");
-  assert.deepEqual(verified, { size: w.size, etag: w.etag });
+  assert.deepEqual(verified, { size: w.size, etag: w.etag, mimeType: "audio/mpeg" });
 });
 
 test("actual authenticated-by-HMAC PHP controller full/partial/EOF bytes validate exactly", () => {
