@@ -21,6 +21,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "METRICA_THROW_HINT","FATAL_THROW_SITE","FATAL_THROW_HINT",
          "SDK_CLASS","SDK_ACTIVATE_SIGNATURE","MODULES_HOOK",
          "MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_ACTIVATE_HOOK",
+         "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -60,6 +61,10 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "EXEC_COROUTINE","EXEC_EXECUTOR","EXEC_HANDLER","EXEC_OTHER",
          "HINT_LEGACY_API","HINT_MODERN_API","HINT_METRICA_GENERAL","HINT_NONE",
          "CLASS_PRESENT","CLASS_MISSING","ACTIVATE_PRESENT","ACTIVATE_ABSENT",
+         "PUSH_NONE","PUSH_IMPL","PUSH_COMMON","PUSH_SERVICE","PUSH_FIREBASE",
+         "PUSH_CORE","PUSH_OTHER","PUSH_METHOD_NONE","PUSH_METHOD_INIT",
+         "PUSH_METHOD_ACTIVATE","PUSH_METHOD_OBFUSCATED_A",
+         "PUSH_METHOD_OBFUSCATED_L","PUSH_METHOD_OTHER",
          "BEFORE_ONCREATE","DURING_ONCREATE","AFTER_ONCREATE"}
 MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_]+);"
                   r"error=([A-Z_0-9]+);thread=(MAIN|OTHER)$")
@@ -121,6 +126,13 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     module_hooks=[x for x in seen if x[0]=="MODULES_HOOK"]
     push_activations=[x for x in seen if x[0]=="PUSH_ACTIVATE"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
+    push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
+    push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
+    focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE",
+                  "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
+                  "APP_LIFECYCLE"}
+    sequence=[(event,origin,category) for event,origin,category,_thread
+              in seen if event in focus_events][:65]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
@@ -131,6 +143,9 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "exact_fatal_sdk_throw_sites":sorted({x[2] for x in exact_fatal_sites}),
         "fatal_throw_site_observed":bool(exact_fatal_sites),
         "fatal_sdk_init_message_hints":sorted({x[2] for x in exact_fatal_hints}),
+        "push_throw_subpackage_categories":sorted({x[2] for x in push_throw_classes}),
+        "push_throw_method_categories":sorted({x[2] for x in push_throw_methods}),
+        "activation_push_order_bounded":sequence,
         "modules_activation_predicate_checks": {
             family:{state:sum(x[1]==family and x[2]==state for x in module_checks)
                     for state in ("TRUE","FALSE","THROW")}

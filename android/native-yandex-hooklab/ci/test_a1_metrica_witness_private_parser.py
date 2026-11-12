@@ -42,6 +42,25 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_push_origin_and_order_bounded_privacy(self):
+        sample=(
+            log(431,"event=APP_LIFECYCLE;origin=APPLICATION;error=ENTER;thread=MAIN")
+            +log(431,"event=MODULES_IS_ACTIVATED;origin=METRICA_MODERN;error=FALSE;thread=OTHER")
+            +log(431,"event=METRICA_ACTIVATE;origin=METRICA_MODERN;error=RETURN;thread=MAIN")
+            +log(431,"event=METRICA_PUSH_THROW_CLASS;origin=METRICA_SDK;error=PUSH_IMPL;thread=OTHER")
+            +log(431,"event=METRICA_PUSH_THROW_METHOD;origin=METRICA_SDK;error=PUSH_METHOD_OBFUSCATED_A;thread=OTHER")
+            +log(432,"event=METRICA_PUSH_THROW_CLASS;origin=METRICA_SDK;error=PUSH_CORE;thread=OTHER")
+            +log(431,"event=METRICA_PUSH_THROW_CLASS;origin=METRICA_SDK;error=private_api;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,sample)
+        self.assertEqual(got["push_throw_subpackage_categories"],["PUSH_IMPL"])
+        self.assertEqual(got["push_throw_method_categories"],["PUSH_METHOD_OBFUSCATED_A"])
+        self.assertEqual([x[0] for x in got["activation_push_order_bounded"]],
+                         ["APP_LIFECYCLE","MODULES_IS_ACTIVATED",
+                          "METRICA_ACTIVATE","METRICA_PUSH_THROW_CLASS",
+                          "METRICA_PUSH_THROW_METHOD"])
+        self.assertNotIn("private_api",str(got))
+        self.assertNotIn("432",str(got))
+
     def test_push_sdk_modules_predicate_and_activation_are_readonly(self):
         sample=(
             log(431,"event=MODULES_HOOK;origin=METRICA_MODERN;error=REGISTERED;thread=MAIN")

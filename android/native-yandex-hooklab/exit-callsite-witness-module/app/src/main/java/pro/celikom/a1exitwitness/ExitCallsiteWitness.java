@@ -133,6 +133,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                     String sdkMessageHint = "HINT_NONE";
                     String sdkExecution = "EXEC_OTHER";
                     String sdkThreadLoader = "LOADER_UNKNOWN";
+                    String pushClassGroup = "PUSH_NONE";
+                    String pushMethodGroup = "PUSH_METHOD_NONE";
                     boolean exactHi2 = false;
                     try {
                         Object message = chain.getArg(0);
@@ -143,6 +145,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                         metrica = callerMetricaFrameGroup();
                         sdkThrowSource = sdkThrowSourceCategory();
                         sdkExecution = sdkThrowExecutionCategory();
+                        pushClassGroup = pushThrowableClassGroup();
+                        pushMethodGroup = pushThrowableMethodGroup();
                         ClassLoader mainLoader = cloneAppClassLoader;
                         if (mainLoader != null) {
                             ClassLoader threadLoader = Thread.currentThread().getContextClassLoader();
@@ -168,6 +172,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 emit("METRICA_THROW_SITE", "METRICA_SDK", sdkThrowSource);
                                 emit("METRICA_THROW_EXEC", "METRICA_SDK", sdkExecution);
                                 emit("METRICA_THROW_LOADER", "METRICA_SDK", sdkThreadLoader);
+                                emit("METRICA_PUSH_THROW_CLASS", "METRICA_SDK", pushClassGroup);
+                                emit("METRICA_PUSH_THROW_METHOD", "METRICA_SDK", pushMethodGroup);
                             }
                             emit("METRICA_EXCEPTION", metrica, category);
                         }
@@ -366,6 +372,40 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (s.contains("appmetrica")) return "HINT_MODERN_API";
         if (s.contains("metrica")) return "HINT_METRICA_GENERAL";
         return "HINT_NONE";
+    }
+
+
+    // Classify only the nearest push frame. No class/method name is logged.
+    private static String pushThrowableClassGroup() {
+        try {
+            for (StackTraceElement f : Thread.currentThread().getStackTrace()) {
+                String name=f.getClassName();
+                if (!name.startsWith("com.yandex.metrica.push.")) continue;
+                if (name.startsWith("com.yandex.metrica.push.impl.")) return "PUSH_IMPL";
+                if (name.startsWith("com.yandex.metrica.push.common.")) return "PUSH_COMMON";
+                if (name.startsWith("com.yandex.metrica.push.service.")) return "PUSH_SERVICE";
+                if (name.startsWith("com.yandex.metrica.push.firebase.")) return "PUSH_FIREBASE";
+                if (name.startsWith("com.yandex.metrica.push.core.")) return "PUSH_CORE";
+                return "PUSH_OTHER";
+            }
+        } catch (Throwable ignored) { }
+        return "PUSH_NONE";
+    }
+
+    private static String pushThrowableMethodGroup() {
+        try {
+            for (StackTraceElement f : Thread.currentThread().getStackTrace()) {
+                if (!f.getClassName().startsWith("com.yandex.metrica.push."))
+                    continue;
+                String name=f.getMethodName();
+                if ("init".equals(name)) return "PUSH_METHOD_INIT";
+                if ("activate".equals(name)) return "PUSH_METHOD_ACTIVATE";
+                if ("a".equals(name)) return "PUSH_METHOD_OBFUSCATED_A";
+                if ("l".equals(name)) return "PUSH_METHOD_OBFUSCATED_L";
+                return "PUSH_METHOD_OTHER";
+            }
+        } catch (Throwable ignored) { }
+        return "PUSH_METHOD_NONE";
     }
 
     private static String sdkThrowExecutionCategory() {
