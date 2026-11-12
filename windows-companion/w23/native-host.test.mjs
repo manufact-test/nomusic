@@ -532,6 +532,12 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
     playerId:"player-a",properties:[{name:"kIsPlaying",value:"true"}]
   });
   assert.equal(evidence().length,1, "identical event cannot spam diagnostics");
+  debug.emit("message",{},"Media.playerErrorsRaised",{
+    playerId:"player-a",errors:[{message:"secret signed url"}]
+  });
+  assert.ok(r.diagnostics.some(x =>
+    x.endsWith("|PLAYER_DECODER_CELIKOM_PIPELINE_ERROR|track=123")),
+    "only a known current CELIKOM decoder may get a source-specific pipeline error");
   debug.emit("message",{},"Media.playerDestroyed",{playerId:"player-a"});
   assert.equal(evidence().length,1);
   const dumped=JSON.stringify(r.diagnostics);
@@ -557,4 +563,9 @@ test("W84 prefetched player for a different Yandex track is NOT counted as curre
   });
   assert.ok(!r.diagnostics.some(x => x.includes("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED")),
     "prefetched next track must never be shown as current source");
+  debug.emit("message",{},"Media.playerErrorsRaised",{
+    playerId:"player-b",errors:[{message:"unrelated stream error"}]
+  });
+  assert.ok(!r.diagnostics.some(x => x.includes("PLAYER_DECODER_CELIKOM_PIPELINE_ERROR")),
+    "unrelated original or prefetched track failures must not blame CELIKOM");
 });
