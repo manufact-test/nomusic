@@ -1,0 +1,89 @@
+name: CELIKOM A1 pinned 2025 GPR LSPatch level 0 vs 2 native ARM13 A/B
+on:
+  push:
+    branches:
+      - experiment/android-a1-independent-sig-compat-arm13-20261112
+    paths:
+      - 'android/native-yandex-hooklab/ci/owner_2025_lspatch_sigcompat_arm13.py'
+      - 'android/native-yandex-hooklab/clone_lspatch_loader_zero.py'
+      - 'android/native-yandex-hooklab/tests/test_clone_lspatch_loader_zero.py'
+      - '.github/workflows/android-a1-2025-lspatch-sigcompat-arm13.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-2025-signed-original-vs-lspatch-zero-vs-two:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 70
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+      CELIKOM_NATIVE_ARM13_REDDROID_CLONE: '1'
+      CELIKOM_CLONE_LSPATCH_LOADER_ZERO: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Syntax and offline regression gates before binary access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_lspatch_sigcompat_arm13.py android/native-yandex-hooklab/clone_lspatch_loader_zero.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lspatch_loader_zero.py -v
+      - name: Acquire EXACT previously uploaded publisher-signed 2025 XAPK from draft; never re-download changing latest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = manufact-test/nomusic ]
+          [ "$GITHUB_REF_NAME" = experiment/android-a1-independent-sig-compat-arm13-20261112 ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx 736739728
+          mkdir -p "$RUNNER_TEMP/celikom-a1-2025-pinned"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern 'yandex-music-2025-10-4-120-1gpr.xapk' --dir "$RUNNER_TEMP/celikom-a1-2025-pinned" --clobber >/dev/null
+          f="$RUNNER_TEMP/celikom-a1-2025-pinned/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$f")" = 45961661 ]
+          [ "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053 ]
+          echo "EXACT_2025_PUBLISHER_SIGNED_SOURCE_GATE_PASS"
+      - name: Install only disposable APK build tools
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          sudo timeout 150 apt-get update -qq
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          sdk="$RUNNER_TEMP/celikom-2025-sigcompat-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for name in aapt apksigner zipalign; do
+            ln -sf "$(command -v "$name")" "$sdk/build-tools/35.0.0/$name"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+      - name: Boot one pristine ARM64 plus ARMv7 Android13 device
+        shell: bash
+        timeout-minutes: 16
+        run: |
+          set -euo pipefail
+          bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+          [ "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1 ]
+          [ "$(docker exec celikom-native-arm-android13 getprop ro.build.version.sdk)" = 33 ]
+      - name: One-device issuer 75s vs independent LSPatch level 0 75s vs level 2 75s
+        shell: bash
+        timeout-minutes: 43
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch_sigcompat_arm13.py --xapk "$RUNNER_TEMP/celikom-a1-2025-pinned/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Always erase source, independent signer, lab APK, and Android guest
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/celikom-a1-2025-pinned" "$RUNNER_TEMP/celikom-2025-sigcompat-sdk"
+          test ! -d android/native-yandex-hooklab/release
+          echo '{"publisher_apk_uploaded":false,"lab_apk_published":false,"owner_phone_touched":false,"consumer_ready":false}'
