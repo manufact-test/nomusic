@@ -275,3 +275,38 @@ def private_push_utils_supplier_refs(code:bytes, target_strings:set[int],
             if opcode in (0x1a,0x1b,0x62) and code[p+1]==reg:break
             if opcode==0x54 and (code[p+1]&15)==reg:break
     return found
+
+def private_direct_guard_branch_roles(code:bytes,target_strings:set[int],dex,group_call):
+    """Only exact IF-EQZ / IF-NEZ whose preceding move-result is the Push guard.
+
+    Category states which Boolean value makes the direct branch skip local throw.
+    Does NOT claim the whole method's CFG is resolved.
+    """
+    try:ins=decode_instructions(code)
+    except FlowDecodeError:return {"DECODE_UNAVAILABLE"}
+    guarded=private_direct_guard_invokes(code,target_strings,dex,group_call)
+    if not guarded:return set()
+    pcs={p for p,_,_ in ins}
+    strings=[p for p,op,_ in ins
+             if (op==0x1a and struct.unpack_from("<H",code,p+2)[0] in target_strings)
+             or (op==0x1b and struct.unpack_from("<I",code,p+2)[0] in target_strings)]
+    states=set()
+    for string_pc in strings:
+        throw_pc=next((p for p,op,_ in ins if op==0x27
+                       and string_pc<p<=string_pc+256),None)
+        if throw_pc is None:continue
+        for i,(p,op,_) in enumerate(ins):
+            if op not in (0x38,0x39) or i<2 or not (
+                    string_pc-384<=p<string_pc):continue
+            dest=p+struct.unpack_from("<h",code,p+2)[0]*2
+            if dest<=throw_pc or dest not in pcs:continue
+            result_pc,result_op,_=ins[i-1]
+            call_pc,call_op,_=ins[i-2]
+            if (result_op not in RESULT_OPS or
+                    code[result_pc+1]!=code[p+1] or
+                    call_op not in INVOKE_METHOD):continue
+            ref=struct.unpack_from("<H",code,call_pc+2)[0]
+            if ref not in guarded:continue
+            states.add("BRANCH_SKIPS_THROW_ON_FALSE" if op==0x38
+                       else "BRANCH_SKIPS_THROW_ON_TRUE")
+    return states
