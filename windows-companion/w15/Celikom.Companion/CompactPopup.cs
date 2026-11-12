@@ -748,7 +748,7 @@ public sealed partial class MainWindow
                             _nativeInstallState, _hostReport, _installedModule.MatchesApplication)
                             .Level is UserFacingPlaybackHealth.Severity.Error or
                                 UserFacingPlaybackHealth.Severity.Warning ||
-                         IsCompactActionError(_compactStartupText))),
+                         !_bridge.Enabled && IsCompactActionError(_compactStartupText))),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?
                     54 + CompactSupportBodyHeight() : 35, 8, true),
