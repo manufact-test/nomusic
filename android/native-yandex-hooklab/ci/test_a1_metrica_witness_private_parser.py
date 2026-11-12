@@ -42,6 +42,23 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_legacy_namespace_subfamily_public_api_presence_and_message_hint(self):
+        sample=(
+            log(431,"event=FATAL_THROW_SITE;origin=RUNTIME_KILL_HANDLER;error=SDK_LEGACY_IMPL;thread=OTHER")
+            +log(431,"event=FATAL_THROW_HINT;origin=RUNTIME_KILL_HANDLER;error=HINT_LEGACY_API;thread=OTHER")
+            +log(431,"event=SDK_CLASS;origin=METRICA_MODERN;error=CLASS_PRESENT;thread=MAIN")
+            +log(431,"event=SDK_CLASS;origin=METRICA_LEGACY;error=CLASS_MISSING;thread=MAIN")
+            +log(431,"event=SDK_ACTIVATE_SIGNATURE;origin=METRICA_MODERN;error=ACTIVATE_PRESENT;thread=MAIN")
+            +log(432,"event=SDK_CLASS;origin=METRICA_LEGACY;error=CLASS_PRESENT;thread=MAIN")
+            +log(431,"event=FATAL_THROW_HINT;origin=RUNTIME_KILL_HANDLER;error=API_KEY_PRIVATE;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,sample)
+        self.assertEqual(x["exact_fatal_sdk_throw_sites"],["SDK_LEGACY_IMPL"])
+        self.assertEqual(x["fatal_sdk_init_message_hints"],["HINT_LEGACY_API"])
+        self.assertEqual(x["sdk_public_class_probe"]["METRICA_LEGACY"],["CLASS_MISSING"])
+        self.assertEqual(x["sdk_public_class_probe"]["METRICA_MODERN"],["CLASS_PRESENT"])
+        self.assertEqual(x["sdk_activate_method_probe"]["METRICA_MODERN"],["ACTIVATE_PRESENT"])
+        self.assertNotIn("PRIVATE",str(x))
+
     def test_exact_sdk_throw_site_exec_loader_and_pid_privacy(self):
         sample=(
             log(431,"event=METRICA_THROW_SITE;origin=METRICA_SDK;error=SDK_LEGACY;thread=OTHER")

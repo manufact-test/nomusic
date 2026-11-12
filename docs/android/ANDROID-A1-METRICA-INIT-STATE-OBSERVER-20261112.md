@@ -49,3 +49,10 @@ After public `getReporter()` returned successfully 14 times in native #432243442
 - Also classifies coroutine vs executor/handler and thread context-classloader compared to the clone Application loader.
 - The source family is stored in-process and matched by identity to the exact fatal Throwable (FATAL_THROW_SITE); no raw stack, vendor symbols or credentials in logs.
 - Hypothesis under test: 3 successful modern SDK activations may precede a failure in a distinct legacy SDK path, alternate classloader, or asynchronous worker. Test it before making any behavioral fix.
+
+## Fourth actual no-suppression native ARM13: #43228744229
+- Exact tested source: affbbf7a45e54ee6d9bf21302b7e4588af11451f; immutable pretrial backup: backup/android-a1-metrica-fatal-legacy-namespace-proven-20261112.
+- Publisher original remains 75s/25 PASS; clone ONE APK still co-installs but native 1/25 JAVA_CRASH. No suppressed exceptions.
+- Crucial identity-matched observation: the exact `IllegalStateException` is constructed with nearest stack family `com.yandex.metrica.*` (SDK_LEGACY), NOT `io.appmetrica.analytics.*`. Context thread classloader matches clone app classloader. The text class remains DETAIL_NOT_INITIALIZED. Three modern AppMetrica activate enter/return, zero throws; zero legacy activate observed.
+- Important ambiguity: `com.yandex.metrica.*` might be an **internal implementation package** called by the modern SDK, not a second public API needing its own activate. This result is a namespace differential, not proof of a missing legacy activate call.
+- Next no-suppression probe distinguishes legacy public vs internal stack frame, checks existence of the legacy public class/activate signature without invoking it, and classifies error text mention into fixed enum. No blind activate or modification of Android fatal handling.

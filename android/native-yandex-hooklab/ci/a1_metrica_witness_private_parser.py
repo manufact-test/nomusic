@@ -18,7 +18,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "ACTIVATION_HOOK","METRICA_STATE_HOOK","METRICA_API_HOOK",
          "METRICA_STATE","METRICA_API","REPORTER_HOOK","REPORTER_CALL",
          "METRICA_THROW_SITE","METRICA_THROW_EXEC","METRICA_THROW_LOADER",
-         "FATAL_THROW_SITE",
+         "METRICA_THROW_HINT","FATAL_THROW_SITE","FATAL_THROW_HINT",
+         "SDK_CLASS","SDK_ACTIVATE_SIGNATURE",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -48,9 +49,12 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE",
          "ENTER","RETURN","THROW","TRUE","FALSE","CLONE","ORIGINAL","MISSING","OTHER",
          "LOADER_MATCH","LOADER_DIFFERENT","LOADER_NULL","LOADER_UNKNOWN",
-         "SDK_LEGACY","SDK_CRASH","SDK_SERVICE","SDK_STARTUP","SDK_PROXY",
+         "SDK_LEGACY","SDK_LEGACY_PUBLIC","SDK_LEGACY_IMPL","SDK_LEGACY_OTHER",
+         "SDK_CRASH","SDK_SERVICE","SDK_STARTUP","SDK_PROXY",
          "SDK_REPORTER","SDK_INTERNAL","SDK_PUBLIC","SDK_NO_FRAME",
          "EXEC_COROUTINE","EXEC_EXECUTOR","EXEC_HANDLER","EXEC_OTHER",
+         "HINT_LEGACY_API","HINT_MODERN_API","HINT_METRICA_GENERAL","HINT_NONE",
+         "CLASS_PRESENT","CLASS_MISSING","ACTIVATE_PRESENT","ACTIVATE_ABSENT",
          "BEFORE_ONCREATE","DURING_ONCREATE","AFTER_ONCREATE"}
 MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_]+);"
                   r"error=([A-Z_0-9]+);thread=(MAIN|OTHER)$")
@@ -105,6 +109,9 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     throw_execution=[x for x in seen if x[0]=="METRICA_THROW_EXEC"]
     throw_loaders=[x for x in seen if x[0]=="METRICA_THROW_LOADER"]
     exact_fatal_sites=[x for x in seen if x[0]=="FATAL_THROW_SITE"]
+    exact_fatal_hints=[x for x in seen if x[0]=="FATAL_THROW_HINT"]
+    sdk_class=[x for x in seen if x[0]=="SDK_CLASS"]
+    sdk_activate_signature=[x for x in seen if x[0]=="SDK_ACTIVATE_SIGNATURE"]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
@@ -114,6 +121,13 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "sdk_exception_thread_loader_categories":sorted({x[2] for x in throw_loaders}),
         "exact_fatal_sdk_throw_sites":sorted({x[2] for x in exact_fatal_sites}),
         "fatal_throw_site_observed":bool(exact_fatal_sites),
+        "fatal_sdk_init_message_hints":sorted({x[2] for x in exact_fatal_hints}),
+        "sdk_public_class_probe": {
+            family:sorted({x[2] for x in sdk_class if x[1]==family})
+            for family in ("METRICA_LEGACY","METRICA_MODERN")},
+        "sdk_activate_method_probe": {
+            family:sorted({x[2] for x in sdk_activate_signature if x[1]==family})
+            for family in ("METRICA_LEGACY","METRICA_MODERN")},
         "reporter_hook_registered":any(
             x[0]=="REPORTER_HOOK" and x[2]=="REGISTERED" for x in seen),
         "reporter_calls_bounded":len(reporter_calls),

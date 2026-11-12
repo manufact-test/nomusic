@@ -35,6 +35,8 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<Throwable, String> sdkThrowSourceByObject =
         Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<Throwable, String> sdkMessageHintByObject =
+        Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
 
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
@@ -128,6 +130,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                     String category = "EXC_UNKNOWN";
                     String detail = "DETAIL_UNKNOWN";
                     String sdkThrowSource = "SDK_NO_FRAME";
+                    String sdkMessageHint = "HINT_NONE";
                     String sdkExecution = "EXEC_OTHER";
                     String sdkThreadLoader = "LOADER_UNKNOWN";
                     boolean exactHi2 = false;
@@ -135,6 +138,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                         Object message = chain.getArg(0);
                         category = redactedErrorCategory(message);
                         detail = redactedMetricaDetail(message);
+                        sdkMessageHint = sdkInitializationHint(message);
                         exactHi2 = callerIsExactHi2Coroutine();
                         metrica = callerMetricaFrameGroup();
                         sdkThrowSource = sdkThrowSourceCategory();
@@ -158,7 +162,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 metricaConstructed.put(object, Boolean.TRUE);
                                 metricaDetailByThrowable.put(object, detail);
                                 sdkThrowSourceByObject.put(object, sdkThrowSource);
+                                sdkMessageHintByObject.put(object, sdkMessageHint);
                                 emit("METRICA_DETAIL", metrica, detail);
+                                emit("METRICA_THROW_HINT", "METRICA_SDK", sdkMessageHint);
                                 emit("METRICA_THROW_SITE", "METRICA_SDK", sdkThrowSource);
                                 emit("METRICA_THROW_EXEC", "METRICA_SDK", sdkExecution);
                                 emit("METRICA_THROW_LOADER", "METRICA_SDK", sdkThreadLoader);
@@ -226,6 +232,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 String source = sdkThrowSourceByObject.get(thrown);
                                 emit("FATAL_THROW_SITE", origin,
                                     source == null ? "SDK_NO_FRAME" : source);
+                                String hint = sdkMessageHintByObject.get(thrown);
+                                emit("FATAL_THROW_HINT", origin,
+                                    hint == null ? "HINT_NONE" : hint);
                             }
                         } else emit("FATAL_DISPATCH", origin, "NON_THROWABLE");
                     } catch (Throwable ignored) { }
@@ -309,7 +318,12 @@ public final class ExitCallsiteWitness extends XposedModule {
         try {
             for (StackTraceElement frame:Thread.currentThread().getStackTrace()) {
                 String cls=frame.getClassName();
-                if (cls.startsWith("com.yandex.metrica.")) return "SDK_LEGACY";
+                if (cls.equals("com.yandex.metrica.YandexMetrica"))
+                    return "SDK_LEGACY_PUBLIC";
+                if (cls.startsWith("com.yandex.metrica.impl."))
+                    return "SDK_LEGACY_IMPL";
+                if (cls.startsWith("com.yandex.metrica."))
+                    return "SDK_LEGACY_OTHER";
                 if (!cls.startsWith("io.appmetrica.analytics.")) continue;
                 if (cls.startsWith("io.appmetrica.analytics.impl.crash.")) return "SDK_CRASH";
                 if (cls.startsWith("io.appmetrica.analytics.impl.service.")) return "SDK_SERVICE";
@@ -321,6 +335,16 @@ public final class ExitCallsiteWitness extends XposedModule {
             }
         } catch (Throwable ignored) { }
         return "SDK_NO_FRAME";
+    }
+
+    // The exception message is never persisted, only one fixed category.
+    private static String sdkInitializationHint(Object value) {
+        if (!(value instanceof String)) return "HINT_NONE";
+        String s=((String)value).toLowerCase(java.util.Locale.ROOT);
+        if (s.contains("yandexmetrica")) return "HINT_LEGACY_API";
+        if (s.contains("appmetrica")) return "HINT_MODERN_API";
+        if (s.contains("metrica")) return "HINT_METRICA_GENERAL";
+        return "HINT_NONE";
     }
 
     private static String sdkThrowExecutionCategory() {
@@ -433,7 +457,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                 ? "METRICA_LEGACY" : "METRICA_MODERN";
             try {
                 Class<?> sdk=Class.forName(className, false, appLoader);
+                emit("SDK_CLASS",family,"CLASS_PRESENT");
                 final ClassLoader sdkLoader=sdk.getClassLoader();
+                int activationSignatures=0;
                 for (Method method : sdk.getDeclaredMethods()) {
                     if (!"activate".equals(method.getName()) ||
                             !java.lang.reflect.Modifier.isStatic(method.getModifiers()))
@@ -442,6 +468,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                     if (parameters.length<1 ||
                             !Context.class.isAssignableFrom(parameters[0]))
                         continue;
+                    activationSignatures++;
                     method.setAccessible(true);
                     hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
@@ -475,7 +502,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                         });
                     registered++;
                 }
-            } catch (Throwable ignored) { }
+                emit("SDK_ACTIVATE_SIGNATURE",family,
+                    activationSignatures>0 ? "ACTIVATE_PRESENT" : "ACTIVATE_ABSENT");
+            } catch (Throwable ignored) {
+                emit("SDK_CLASS",family,"CLASS_MISSING");
+            }
         }
         metricaActivationHookReady=registered>0;
         emit("ACTIVATION_HOOK","METRICA_SDK",
