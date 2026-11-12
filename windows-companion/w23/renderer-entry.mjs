@@ -123,13 +123,29 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     job?.finish(grant ?? null);
   };
   const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
+  let expiredSourceTrack = null;
   sourceRecovery = createTransientSourceRecovery({
     prime: id => adapter.prime(id),
     reload: () => playerSourceRefresh.request(),
     currentTrackId: () => playerSourceRefresh.currentTrackId(),
     active: () => !stopped && attached && adapter.enabled && playerSourceRefresh.attached,
-    onEvent: report
+    onEvent: (code, id) => {
+      report(code, id);
+      if (code === "SOURCE_RECOVERY_RELOAD_OK" && expiredSourceTrack === id)
+        expiredSourceTrack = null;
+    }
   });
+  // On native media GET 403 for a previously valid but expired grant, allow
+  // the main-process witness to request recovery of EXACT current track only.
+  // Never touch another track, queue, pause button or URLs from CDP.
+  window.__celikomBridgeNativeRecoverExpired = trackId => {
+    if (typeof trackId !== "string" || !/^[1-9][0-9]{0,23}$/.test(trackId) ||
+        playerSourceRefresh.currentTrackId() !== trackId ||
+        !adapter.enabled || !attached || stopped) return false;
+    expiredSourceTrack = trackId;
+    report("SOURCE_EXPIRED_NATIVE_403", trackId);
+    return sourceRecovery.schedule(trackId);
+  };
   // Only the actual current player entity, never a prefetched song.
   // No player controls or media source are changed by this UI-only observer.
   window.__celikomBridgeNativeCurrentTrackId = () => playerSourceRefresh.currentTrackId();
@@ -147,6 +163,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     } catch {}
     if (origin !== apiOrigin) {
       sourceRecovery.cancel();
+      expiredSourceTrack = null;
       apiOrigin = origin;
       adapter.disable();
     }
@@ -154,6 +171,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
       adapter.enable();
     else {
       sourceRecovery.cancel();
+      expiredSourceTrack = null;
       adapter.disable();
     }
     // AFTER switching CELIKOM's grant hook, ask the signed native player to
@@ -171,6 +189,9 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
   };
   window.__celikomBridgeNativeStatus = () => {
     if (stopped || !attached || !adapter.enabled) return "ORIGINAL";
+    if (expiredSourceTrack &&
+        expiredSourceTrack === playerSourceRefresh.currentTrackId())
+      return "NATIVE_RECOVERING";
     return adapter.status === "SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED"
       ? "NATIVE_MAPPING_ACCEPTED" : "NATIVE_CONNECTED";
   };
@@ -238,6 +259,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     delete window.__celikomBridgeNativeStatus;
     delete window.__celikomBridgeNativeCurrentTrackId;
     delete window.__celikomBridgeNativeCurrentTrack;
+    delete window.__celikomBridgeNativeRecoverExpired;
     delete window.__celikomBridgeNativeDrainDiagnostics;
   }, { once: true });
 })();
