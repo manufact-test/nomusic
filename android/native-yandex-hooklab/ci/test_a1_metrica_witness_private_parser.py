@@ -42,6 +42,26 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_readonly_metrica_internal_state_and_public_failure_categories(self):
+        sample=(
+            log(431,"event=METRICA_STATE_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")
+            +log(431,"event=METRICA_API_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")
+            +log(431,"event=METRICA_STATE;origin=STATE_MARK_FULL;error=ENTER;thread=MAIN")
+            +log(431,"event=METRICA_STATE;origin=STATE_MARK_FULL;error=RETURN;thread=MAIN")
+            +log(431,"event=METRICA_STATE;origin=STATE_CHECK_APP;error=FALSE;thread=OTHER")
+            +log(431,"event=METRICA_API;origin=API_GET_REPORTER;error=ENTER;thread=OTHER")
+            +log(431,"event=METRICA_API;origin=API_GET_REPORTER;error=THROW;thread=OTHER")
+            +log(431,"event=METRICA_STATE;origin=STATE_KILL;error=RETURN;thread=OTHER")
+            +log(777,"event=METRICA_STATE;origin=STATE_CHECK_APP;error=TRUE;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,sample)
+        self.assertTrue(x["sdk_internal_hook_registered"])
+        self.assertTrue(x["sdk_public_hook_registered"])
+        self.assertTrue(x["sdk_internal_mark_full_returned"])
+        self.assertTrue(x["sdk_internal_kill_returned"])
+        self.assertEqual(x["sdk_public_throw_categories"],["API_GET_REPORTER"])
+        self.assertEqual(x["sdk_internal_state_timeline"][-1],("STATE_KILL","RETURN"))
+        self.assertNotIn("777",str(x))
+
     def test_sdk_activation_order_loader_context_and_pid_sanitization(self):
         sample=(
             log(431,"event=APP_LIFECYCLE;origin=APPLICATION;error=ENTER;thread=MAIN")

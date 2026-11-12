@@ -351,6 +351,12 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Observe SDK activation on our own clone ONLY. No config/API keys are
     // logged, SDK results/exception behavior are never changed.
     private boolean metricaActivationHookReady;
+    private boolean metricaStateProbeReady;
+    private boolean metricaPublicProbeReady;
+    private final java.util.concurrent.atomic.AtomicInteger stateHits =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger publicHits =
+        new java.util.concurrent.atomic.AtomicInteger();
     private volatile boolean appOnCreateEntered;
     private volatile boolean appOnCreateReturned;
 
@@ -413,6 +419,99 @@ public final class ExitCallsiteWitness extends XposedModule {
             registered>0 ? "REGISTERED":"NO_HOOK");
     }
 
+
+    // SDK internal markers might be renamed by R8; NO_HOOK is inconclusive.
+    // Read-only hooks: only fixed enums, no internal object/config inspection.
+    private synchronized void installMetricaStateProbe(ClassLoader loader) {
+        if (metricaStateProbeReady || loader==null) return;
+        int registered=0;
+        try {
+            Class<?> cls=Class.forName(
+                "io.appmetrica.analytics.impl.AppMetricaFacade", false, loader);
+            for (Method method : cls.getDeclaredMethods()) {
+                if (!java.lang.reflect.Modifier.isStatic(method.getModifiers()) ||
+                    method.getParameterTypes().length!=0) continue;
+                final String label;
+                switch (method.getName()) {
+                    case "markActivated": label="STATE_MARK_ACTIVATED"; break;
+                    case "markFullyInitialized": label="STATE_MARK_FULL"; break;
+                    case "killInstance": label="STATE_KILL"; break;
+                    case "isActivated": label="STATE_CHECK_ACTIVATED"; break;
+                    case "isFullyInitialized": label="STATE_CHECK_FULL"; break;
+                    case "isInitializedForApp": label="STATE_CHECK_APP"; break;
+                    default: continue;
+                }
+                method.setAccessible(true);
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        if (stateHits.incrementAndGet()<=55)
+                            emit("METRICA_STATE",label,"ENTER");
+                        try {
+                            Object result=chain.proceed();
+                            if (stateHits.get()<=55)
+                                emit("METRICA_STATE",label,
+                                    result instanceof Boolean
+                                        ? (Boolean.TRUE.equals(result)?"TRUE":"FALSE")
+                                        : "RETURN");
+                            return result;
+                        } catch (Throwable failure) {
+                            if (stateHits.get()<=55)
+                                emit("METRICA_STATE",label,"THROW");
+                            throw failure;
+                        }
+                    });
+                registered++;
+            }
+        } catch (Throwable ignored) { }
+        metricaStateProbeReady=registered>0;
+        emit("METRICA_STATE_HOOK","METRICA_SDK",
+            registered>0 ? "REGISTERED" : "NO_HOOK");
+    }
+
+    // Identify the public SDK call producing the failed initialization
+    // without inspecting any method argument, return value or exception.
+    private synchronized void installMetricaPublicProbe(ClassLoader loader) {
+        if (metricaPublicProbeReady || loader==null) return;
+        int registered=0;
+        try {
+            Class<?> cls=Class.forName("io.appmetrica.analytics.AppMetrica", false, loader);
+            for (Method method : cls.getDeclaredMethods()) {
+                if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+                final String label;
+                switch (method.getName()) {
+                    case "getReporter": label="API_GET_REPORTER"; break;
+                    case "activateReporter": label="API_ACTIVATE_REPORTER"; break;
+                    case "reportEvent": label="API_REPORT_EVENT"; break;
+                    case "reportError": label="API_REPORT_ERROR"; break;
+                    case "reportUnhandledException": label="API_REPORT_FATAL"; break;
+                    case "enableActivityAutoTracking": label="API_ACTIVITY_TRACK"; break;
+                    case "getDeviceId": label="API_DEVICE_ID"; break;
+                    default: continue;
+                }
+                method.setAccessible(true);
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        if (publicHits.incrementAndGet()<=55)
+                            emit("METRICA_API",label,"ENTER");
+                        try {
+                            Object result=chain.proceed();
+                            if (publicHits.get()<=55)
+                                emit("METRICA_API",label,"RETURN");
+                            return result;
+                        } catch (Throwable failure) {
+                            if (publicHits.get()<=55)
+                                emit("METRICA_API",label,"THROW");
+                            throw failure;
+                        }
+                    });
+                registered++;
+            }
+        } catch (Throwable ignored) { }
+        metricaPublicProbeReady=registered>0;
+        emit("METRICA_API_HOOK","METRICA_SDK",
+            registered>0 ? "REGISTERED" : "NO_HOOK");
+    }
+
     // Android callback observation ONLY. Calls original implementation once.
     private boolean observeApplicationOnCreate() {
         try {
@@ -463,6 +562,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
                                 installMetricaActivationWitness(loader);
+                                installMetricaStateProbe(loader);
+                                installMetricaPublicProbe(loader);
                             }
                         }
                     } catch (Throwable ignored) { }

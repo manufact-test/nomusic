@@ -15,7 +15,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
         "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
         "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
-         "ACTIVATION_HOOK",
+         "ACTIVATION_HOOK","METRICA_STATE_HOOK","METRICA_API_HOOK",
+         "METRICA_STATE","METRICA_API",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -23,7 +24,11 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "STATIC_RUN_B","OWN_MAIN","OWN_AUX","ORIGINAL_MAIN","ORIGINAL_AUX",
          "THREAD_DISPATCH","THREAD_GROUP","RUNTIME_KILL_HANDLER",
          "RUNTIME_LOG_HANDLER","RUNTIME_LOOKUP",
-         "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN"}
+         "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN",
+          "STATE_MARK_ACTIVATED","STATE_MARK_FULL","STATE_KILL",
+          "STATE_CHECK_ACTIVATED","STATE_CHECK_FULL","STATE_CHECK_APP",
+          "API_GET_REPORTER","API_ACTIVATE_REPORTER","API_REPORT_EVENT",
+          "API_REPORT_ERROR","API_REPORT_FATAL","API_ACTIVITY_TRACK","API_DEVICE_ID"}
 ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "EXC_SDK_INIT","EXC_CONFIG","EXC_ASYNC",
         "APPINFO_CLONE","APPINFO_ORIGINAL","APPINFO_MISSING","APPINFO_OTHER",
@@ -37,7 +42,7 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "REGISTERED","NO_HOOK","NONE","CASE_0","CASE_1","CASE_2",
         "CASE_3","CASE_4","CASE_5","CASE_6","CASE_7","CASE_OTHER",
         "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE",
-         "ENTER","RETURN","THROW","CLONE","ORIGINAL","MISSING","OTHER",
+         "ENTER","RETURN","THROW","TRUE","FALSE","CLONE","ORIGINAL","MISSING","OTHER",
          "LOADER_MATCH","LOADER_DIFFERENT",
          "BEFORE_ONCREATE","DURING_ONCREATE","AFTER_ONCREATE"}
 MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_]+);"
@@ -86,10 +91,24 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     loaders=[x for x in seen if x[0]=="METRICA_LOADER"]
     sdk_context=[x for x in seen if x[0]=="METRICA_CONTEXT"]
     lifecycle=[x for x in seen if x[0]=="APP_LIFECYCLE"]
+    sdk_state=[x for x in seen if x[0]=="METRICA_STATE"]
+    sdk_api=[x for x in seen if x[0]=="METRICA_API"]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
         "stable_live_main_pid_admitted_without_disclosure":admitted,
+        "sdk_internal_hook_registered":any(
+            x[0]=="METRICA_STATE_HOOK" and x[2]=="REGISTERED" for x in seen),
+        "sdk_public_hook_registered":any(
+            x[0]=="METRICA_API_HOOK" and x[2]=="REGISTERED" for x in seen),
+        "sdk_internal_state_timeline": [(x[1],x[2]) for x in sdk_state[:55]],
+        "sdk_public_api_timeline": [(x[1],x[2]) for x in sdk_api[:55]],
+        "sdk_internal_mark_full_returned":any(
+            x[1]=="STATE_MARK_FULL" and x[2]=="RETURN" for x in sdk_state),
+        "sdk_internal_kill_returned":any(
+            x[1]=="STATE_KILL" and x[2]=="RETURN" for x in sdk_state),
+        "sdk_public_throw_categories":sorted({
+            x[1] for x in sdk_api if x[2]=="THROW"}),
         "metrica_activation_by_sdk": {
             family:{state:sum(x[1]==family and x[2]==state for x in activation)
                     for state in ("ENTER","RETURN","THROW")}
