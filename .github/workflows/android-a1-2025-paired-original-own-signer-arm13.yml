@@ -6,6 +6,8 @@ on:
       - '.github/workflows/android-a1-2025-paired-original-own-signer-arm13.yml'
       - 'android/native-yandex-hooklab/ci/owner_2025_paired_issuer_vs_own_signer_arm13.py'
       - 'android/native-yandex-hooklab/ci/test_owner_2025_paired_signing_verdict.py'
+      - 'android/native-yandex-hooklab/ci/own_key_full_payload_identity_gate.py'
+      - 'android/native-yandex-hooklab/ci/test_own_key_full_payload_identity_gate.py'
       - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
       - 'android/native-yandex-hooklab/ci/owner_2025_same_name_own_key_arm13_control.py'
 permissions:
@@ -29,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_2025_paired_signing_verdict.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_own_key_full_payload_identity_gate.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_paired_issuer_vs_own_signer_arm13.py
       - name: Re-acquire existing original 2025 XAPK from unpublished draft, hash gate
