@@ -114,7 +114,7 @@ def patch_exact_original_base(original_base: Path, key: Path,
             if (type(cfg.get("sigBypassLevel")) is not int
                 or cfg["sigBypassLevel"]!=level
                 or cfg.get("useManager") is not False
-                or not cfg.get("originalSignature")
+                or (level == 2 and not cfg.get("originalSignature"))
                 or any(x.startswith("assets/lspatch/modules/")
                        for x in outer.namelist())):
                 stop("PUBLISHERBASE_LEVEL_AB_CONFIG_INVALID")
