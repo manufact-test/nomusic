@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
-from a1_private_dex_flow import exact_error_guard_report
+from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes
 
 EXPECTED_LEN=45961661
 EXPECTED_SHA="8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
@@ -435,6 +435,25 @@ def private_boolean_helpers(binary):
         frontier=following
     return output
 
+
+def private_site_methods(binary):
+    """Precise throw-site classes and immediate guard call targets in memory."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    if not targets:return set(),set()
+    guards=set()
+    fatals=set()
+    for mid,code in dex.code_methods():
+        owner,method=dex.method(mid)
+        if group_class(owner)!="PUSH_IMPL" or method!="a":continue
+        report=exact_error_guard_report(code,targets,dex,group_call)
+        if not report["decoded"] or not report["target_strings"]:continue
+        fatals.add((owner.strip("L;").replace("/","."),method))
+        for ref in private_direct_guard_invokes(code,targets,dex,group_call):
+            cl,name=dex.method(ref)
+            guards.add((cl.strip("L;").replace("/","."),name))
+    return guards,fatals
+
 def generate_private_targets(source, output_path):
     """Write transient proprietary method symbols only inside ephemeral CI."""
     import re
@@ -445,7 +464,7 @@ def generate_private_targets(source, output_path):
         not (str(target).startswith(str(workspace)+os.sep) or
              str(target).startswith(str(temp)+os.sep))):
         raise DexError("PRIVATE_TARGET_PATH")
-    found=set()
+    found=set(); guards=set(); fatals=set()
     with zipfile.ZipFile(source) as outer:
         for item in outer.infolist():
             if not item.filename.endswith(".apk") or item.file_size>60000000:continue
@@ -455,22 +474,37 @@ def generate_private_targets(source, output_path):
                         payload=part.read(name)
                         if payload.startswith(bytes((100,101,120,10))):
                             found.update(private_boolean_helpers(payload))
+                            g,f=private_site_methods(payload)
+                            guards.update(g);fatals.update(f)
     # Verify source-derived class/method tokens before use as Java literals.
     valid=re.compile("^[A-Za-z_$][A-Za-z0-9_$]*(?:[.][A-Za-z_$][A-Za-z0-9_$]*)*$")
     simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
     names=sorted((cls,method) for cls,method in found
                  if valid.fullmatch(cls) and simple.fullmatch(method))[:24]
     if not names:raise DexError("PRIVATE_TARGETS_EMPTY")
+    guard_names=sorted((cls,method) for cls,method in guards
+                       if valid.fullmatch(cls) and simple.fullmatch(method))[:24]
+    fatal_names=sorted((cls,method) for cls,method in fatals
+                       if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
     target.parent.mkdir(parents=True,exist_ok=True)
-    pairs=(","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
-                     for cls,method in names)
+    def java_rows(rows):
+        return (","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
+                             for cls,method in rows)
     generated=("package pro.celikom.a1exitwitness;"+chr(10)+
                "public final class PrivatePushTargets {"+chr(10)+
                "  public static String[][] getTargets() { return new String[][] {"+chr(10)+
-               pairs+chr(10)+"  }; }"+chr(10)+"}"+chr(10))
+               java_rows(names)+chr(10)+"  }; }"+chr(10)+
+               "  public static String[][] getGuardTargets() { return new String[][] {"+chr(10)+
+               java_rows(guard_names)+chr(10)+"  }; }"+chr(10)+
+               "  public static String[][] getFatalTargets() { return new String[][] {"+chr(10)+
+               java_rows(fatal_names)+chr(10)+"  }; }"+chr(10)+
+               "}"+chr(10))
     target.write_text(generated,encoding="utf-8")
     target.chmod(0o600)
-    return min(len(names),24)
+    return {"private_transient_boolean_targets_bounded":len(names),
+            "private_transient_guard_targets_bounded":len(guard_names),
+            "private_transient_fatal_targets_bounded":len(fatal_names)}
+
 
 def main():
     parser=argparse.ArgumentParser()
@@ -484,8 +518,8 @@ def main():
     try:
         result=inspect_xapk(args.xapk)
         if args.private_java is not None:
-            result["private_transient_boolean_targets_bounded"]=generate_private_targets(
-                args.xapk,args.private_java)
+            result.update(generate_private_targets(
+                args.xapk,args.private_java))
             result["raw_target_names_logged"]=False
         print(json.dumps(result,sort_keys=True))
     except (DexError,zipfile.BadZipFile,ValueError,OSError) as error:
