@@ -27,6 +27,21 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         for secret in ("PRIVATESECRET","432","431","access_token"):
             self.assertNotIn(secret,str(result))
 
+    def test_bounded_context_identity_and_metrica_before_uncaught(self):
+        events=(
+            log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")
+            +log(431,"event=APP_CONTEXT;origin=CLONE;error=APPINFO_CLONE;thread=MAIN")
+            +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER")
+            +log(431,"event=UNCAUGHT;origin=VENDOR;error=ILLEGAL_STATE;thread=OTHER")
+            +log(433,"event=APP_CONTEXT;origin=ORIGINAL;error=APPINFO_ORIGINAL;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(x["read_only_attach_context_identity_categories"],["CLONE"])
+        self.assertEqual(x["read_only_attach_appinfo_identity_categories"],["APPINFO_CLONE"])
+        self.assertTrue(x["metrica_exception_precedes_uncaught"])
+        self.assertTrue(x["uncaught_illegal_state_observed"])
+        self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
+        self.assertNotIn("433",str(x))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
