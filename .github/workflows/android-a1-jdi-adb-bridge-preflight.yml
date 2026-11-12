@@ -1,0 +1,65 @@
+name: CELIKOM Android A1 isolated ARM13 ADB transport preflight
+on:
+  push:
+    branches:
+      - experiment/android-a1-jdi-adb-bridge-preflight-20261113
+    paths:
+      - '.github/workflows/android-a1-jdi-adb-bridge-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  redroid-adb-transport-only:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 17
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Boot disposable ARM Android13 without installing any APK
+        timeout-minutes: 15
+        run: bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+      - name: Inspect ADB reachability and adbd service only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,subprocess,shutil
+          def probe(argv,seconds=20):
+              try:
+                  result=subprocess.run(argv,check=False,timeout=seconds,
+                      stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                  return "PASS" if result.returncode==0 else "NONZERO"
+              except subprocess.TimeoutExpired:
+                  return "TIMEOUT"
+              except (OSError,ValueError):
+                  return "MISSING_OR_OS_ERROR"
+          out={"status":"ADB_TRANSPORT_ONLY",
+               "apk_installed":False,"vendor_source_read":False,
+               "owner_device_touched":False}
+          out["host_adb_binary"]="PRESENT" if shutil.which("adb") else "MISSING"
+          android=subprocess.run(["docker","exec","celikom-native-arm-android13",
+              "getprop","init.svc.adbd"],capture_output=True,text=True,timeout=15)
+          out["guest_adbd_service"]=(android.stdout.strip()
+              if android.returncode==0 and android.stdout.strip() in ("running","stopped","restarting")
+              else "UNKNOWN")
+          out["adb_start"]=probe(["adb","start-server"])
+          out["adb_connect"]=probe(["adb","connect","127.0.0.1:5555"])
+          out["adb_devices"]=probe(["adb","devices"])
+          if out["adb_connect"]!="PASS":
+              out["adb_kill"]=probe(["adb","kill-server"],10)
+              out["adb_start_retry"]=probe(["adb","start-server"])
+              out["adb_connect_retry"]=probe(["adb","connect","127.0.0.1:5555"])
+          print("A1_ADB_PREFLIGHT "+json.dumps(out,sort_keys=True))
+          PY
+      - name: Remove disposable guest
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          echo '{"third_party_apk_published":false,"private_app_processed":false}'
