@@ -1,0 +1,52 @@
+name: CELIKOM A1 2025 original native cross-app bridge manifest witness (NO-GO research)
+on:
+  push:
+    branches: [experiment/android-a1-2025-native-bridge-manifest-witness-20261112]
+    paths:
+      - '.github/workflows/android-a1-2025-native-bridge-manifest-witness.yml'
+      - 'android/native-yandex-hooklab/ci/owner_2025_native_bridge_manifest_witness.py'
+permissions:
+  contents: write
+jobs:
+  signed-original-android13-api-compat:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Android manifest parser and publisher cryptographic tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner unzip
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_native_bridge_manifest_witness.py
+          python3 -B android/native-yandex-hooklab/ci/owner_2025_native_bridge_manifest_witness.py --parser-selftest
+      - name: Fetch previously uploaded private DRAFT and verify exact pinned XAPK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REPOSITORY" = manufact-test/nomusic ]
+          [ "$GITHUB_REF_NAME" = experiment/android-a1-2025-native-bridge-manifest-witness-20261112 ]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464/assets?per_page=100" --jq '.[] | select(.id == 736739728 and .name == "yandex-music-2025-10-4-120-1gpr.xapk" and .size == 45961661 and .digest == "sha256:8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053") | .id' | grep -qx 736739728
+          mkdir -p "$RUNNER_TEMP/celikom-2025-native-bridge"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/celikom-2025-native-bridge" --clobber >/dev/null
+          f="$RUNNER_TEMP/celikom-2025-native-bridge/yandex-music-2025-10-4-120-1gpr.xapk"
+          [ "$(stat -c %s "$f")" = 45961661 ]
+          [ "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053 ]
+          echo '{"exact_unpublished_source_verified":true,"user_reupload_needed":false}'
+      - name: Examine actual publisher-signed 16 split Android native integration metadata read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/owner_2025_native_bridge_manifest_witness.py --xapk "$RUNNER_TEMP/celikom-2025-native-bridge/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Erase third-party APK bytes and don't publish any artifacts
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/celikom-2025-native-bridge"
+          echo '{"third_party_binary_published":false,"apk_signed_or_modified":false,"owner_phone_touched":false,"stage_a":"NO_GO"}'
