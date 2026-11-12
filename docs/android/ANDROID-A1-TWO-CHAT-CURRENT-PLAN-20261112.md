@@ -1,3 +1,5 @@
+**Обновление ведущего A после передачи (12.11):** фактический ARM13 [#43285496199](https://github.com/manufact-test/nomusic/actions/runs/43285496199): stock 75s/25 PASS, clone 1/25 FAIL, direct Push NOT_INITIALIZED, 0 suppression. У точного `Push.impl.a` есть незаполненная ссылочная зависимость в receiver (в обеих fatal-попытках), тогда как argument не содержит reference fields; **причинность конкретного поля не доказана, запуск НЕ исправлен**. Свидетельство и next causal check: [ANDROID-A1-METRICA-INIT-STATE-OBSERVER-20261112.md](ANDROID-A1-METRICA-INIT-STATE-OBSERVER-20261112.md). Текущий экспериментальный код `501aee16f0f433b839778f9642ce0ba0978a657f`, сохранённый pretrial backup `backup/android-a1-push-exact-object-state-pretrial-20261112`. Помощник B работает независимо в draft PR #46, не merge до реального завершения проверки. Stage A NO-GO, B LOCKED.
+
 # CELIKOM Android A1 — единый актуальный план двух чатов, 12.11.2026
 
 **Это актуальная точка передачи.** Старые handoff и протокол 11 ноября — исторические, не использовать их ветки как текущие. Репозиторий: manufact-test/nomusic.
