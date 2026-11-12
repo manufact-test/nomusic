@@ -174,12 +174,16 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--preflight-xapk",type=Path,required=True)
     args=parser.parse_args()
+    stage="TARGET"
     try:
         target=exact_target()
+        stage="DEX"
         pcs=candidate_pcs(args.preflight_xapk,target)
         print(json.dumps({"jdi_preflight":"EXACT_TARGET_VERIFIED",
                           "catch_covered_invokes_bounded":min(len(pcs),99),
                           "private_symbols_exposed":False},sort_keys=True))
     except Exception:
-        print('{"jdi_preflight":"INCONCLUSIVE","private_symbols_exposed":false}')
+        print(json.dumps({"jdi_preflight":"INCONCLUSIVE",
+                          "safe_failure_phase":stage,
+                          "private_symbols_exposed":False},sort_keys=True))
         raise SystemExit(2)
