@@ -78,6 +78,34 @@ class ExactDexFlowUnitTests(unittest.TestCase):
         self.assertEqual(rule_from_synthetic_lengths(code,3,1,True,Fake()),
                          "INCONCLUSIVE")
 
+
+    def test_exact_cfg_only_reports_discriminating_guard(self):
+        from a1_private_dex_fatal_cfg import exact_fatal_cfg
+        # Direct helper result controls a branch that skips the concrete throw.
+        # No APK symbols, exception text or production data in this fixture.
+        code=bytes((
+            0x1a,1,4,0,
+            0x71,0x10,1,0,0,0,
+            0x0a,0,
+            0x39,0,10,0,
+            0x22,2,3,0,
+            0x1a,3,5,0,
+            0x70,0,2,0,0,0,
+            0x27,2,
+            0x0e,0))
+        class Fake:
+            method_count=3
+            def method(self,mid):
+                return ("Lcom/yandex/metrica/push/impl/Fake;","a")
+        def category(owner,name):return "PUSH_IMPL_HELPER"
+        v=exact_fatal_cfg(code,{5},Fake(),category)
+        self.assertTrue(v["decoded"])
+        self.assertEqual(v["exclusive_fatal_guards"],1)
+        self.assertEqual(v["guard_source_categories"],["PUSH_IMPL_HELPER"])
+        self.assertEqual(v["fatal_guard_polarities"],["FALLTHROUGH_FATAL"])
+        self.assertFalse(v["runtime_causality_proven"])
+        self.assertNotIn("Fake",str(v))
+
     def test_absent_throw_fails_closed(self):
         code=bytes((0x1a,0,5,0,0x0e,0))
         report=exact_error_guard_report(code,{5},FakeDex(),fixed_category)
