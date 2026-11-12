@@ -48,7 +48,7 @@ public static class NativeIntegrationManager
             if (info.State == "PREPARED" &&
                 info.OriginalExe == exeHash && info.OriginalAsar == asarHash)
                 return NativeInstallState.Prepared;
-            if (info.State is "APPLYING" or "RESTORING") return NativeInstallState.Interrupted;
+            if (info.State is "APPLYING" or "RESTORING" or "UPGRADING") return NativeInstallState.Interrupted;
             return NativeInstallState.Changed;
         }
         catch { return NativeInstallState.Changed; }
@@ -122,6 +122,73 @@ public static class NativeIntegrationManager
             PairRecovery.ApplyStaged(root, backup, stagedExe, stagedAsar);
             if (Inspect(root, backup) != NativeInstallState.Active)
                 throw new IOException("INSTALLED_FILES_FAIL_VERIFICATION");
+            return NativeInstallState.Active;
+        }
+        finally
+        {
+            if (Directory.Exists(staging))
+                Directory.Delete(staging, recursive: true);
+        }
+    }
+
+
+    /// <summary>
+    /// Fully stage and verify new integration images BEFORE replacing an active
+    /// installation. Never restore old vendor bytes as an intermediate step.
+    /// If Yandex auto-updated outside our recorded pair, refuse without writes.
+    /// </summary>
+    public static NativeInstallState Upgrade(string? root = null, string? assets = null,
+        string? backup = null)
+    {
+        if (!OperatingSystem.IsWindows()) throw new IOException("WINDOWS_ONLY");
+        root ??= DefaultYandexDirectory;
+        assets ??= DefaultIntegrationAssets;
+        backup ??= DefaultBackupDirectory;
+        if (Inspect(root, backup) != NativeInstallState.Active)
+            throw new IOException("UPGRADE_REQUIRES_ACTIVE_PATCH");
+
+        var record = PairRecovery.Inspect(root, backup);
+        var originalExePath = Path.Combine(backup, "original.exe");
+        var originalAsarPath = Path.Combine(backup, "original.asar");
+        var version = FileVersionInfo.GetVersionInfo(originalExePath).FileVersion;
+        if (version is not ("5.126.1" or "5.126.1.0" or "5.126.1.56270518164a6ebd4b974971490df41224a69d68"))
+            throw new IOException("UNSUPPORTED_YANDEX_VERSION");
+        if (!NativeHostSignature.IsValid(originalExePath))
+            throw new IOException("OFFICIAL_YANDEX_EXE_NOT_TRUSTED");
+        if (record.OriginalAsar != SupportedAsarSha256 ||
+            PairRecovery.Hash(originalAsarPath) != SupportedAsarSha256)
+            throw new IOException("UNSUPPORTED_ASAR_VERSION");
+
+        var hostPath = Path.Combine(assets, "host.cjs");
+        var rendererPath = Path.Combine(assets, "renderer.js");
+        if (!File.Exists(hostPath) || !File.Exists(rendererPath))
+            throw new IOException("CELIKOM_NATIVE_MODULE_NOT_INSTALLED");
+
+        // The original snapshot is immutable; build the next pair from it,
+        // not from already-patched host files or unsupported 5.127 bytes.
+        var images = NativeAsarImageBuilder.Build(
+            File.ReadAllBytes(originalExePath), File.ReadAllBytes(originalAsarPath),
+            File.ReadAllBytes(hostPath), File.ReadAllBytes(rendererPath),
+            record.OriginalExe, record.OriginalAsar);
+        var parent = Path.GetDirectoryName(Path.GetFullPath(backup))!;
+        Directory.CreateDirectory(parent);
+        var staging = Path.Combine(parent, ".upgrade-stage-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staging);
+        try
+        {
+            var stagedExe = Path.Combine(staging, "patch.exe");
+            var stagedAsar = Path.Combine(staging, "patch.asar");
+            File.WriteAllBytes(stagedExe, images.Executable);
+            File.WriteAllBytes(stagedAsar, images.Asar);
+            if (PairRecovery.Hash(stagedExe) != images.NewExeSha256 ||
+                PairRecovery.Hash(stagedAsar) != images.NewAsarSha256)
+                throw new IOException("STAGED_FILES_NOT_VERIFIED");
+            CloseYandexGracefully();
+            if (Inspect(root, backup) != NativeInstallState.Active)
+                throw new IOException("YANDEX_CHANGED_DURING_UPGRADE_PREFLIGHT");
+            PairRecovery.ApplyUpgradeStaged(root, backup, stagedExe, stagedAsar);
+            if (Inspect(root, backup) != NativeInstallState.Active)
+                throw new IOException("UPGRADED_FILES_FAIL_VERIFICATION");
             return NativeInstallState.Active;
         }
         finally
