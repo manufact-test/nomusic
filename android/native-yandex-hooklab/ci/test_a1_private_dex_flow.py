@@ -42,8 +42,8 @@ class ExactDexFlowUnitTests(unittest.TestCase):
         self.assertEqual(report["target_strings"],0)
 
     def test_dex_switch_payload_is_single_instruction(self):
-        payload=bytes((0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0))
-        self.assertEqual([v[2] for v in decode_instructions(payload)],[8])
+        payload=bytes((0,1,1,0,0,0,0,0,0,0,0,0))
+        self.assertEqual([v[2] for v in decode_instructions(payload)],[6])
 
     def test_unsupported_opcode_does_not_claim_guard(self):
         code=bytes((0x79,0,0x1a,0,5,0,0x27,0))
