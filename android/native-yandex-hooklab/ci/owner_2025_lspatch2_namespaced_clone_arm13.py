@@ -94,12 +94,6 @@ def patch_manifest(data):
         if updated!=values:
             providers_rewritten+=sum(a!=b for a,b in zip(values,updated))
             provider.set(ANDROID+"authorities",";".join(updated))
-    # Strictly temporary JDI trial: only own disposable clone manifest.
-    # NEVER enabled in regular A1 or release and never applied to stock.
-    if os.getenv("CELIKOM_A1_JDI_CATCH_DIAG")=="1":
-        app=root.find("application")
-        if app is not None:
-            app.set(ANDROID+"debuggable","true")
     return ET.tostring(root,encoding="utf-8",xml_declaration=True),{
         "source_scoped_provider_rewrites":stats["provider_authorities"],
         "global_appmetrica_provider_rewrites":providers_rewritten,
@@ -393,11 +387,6 @@ def run(xapk):
             report["verdict"] = "ORIGINAL_FIRST_SIDE_BY_SIDE_INSTALL_NO_GO"
             return report
         guest("logcat","-c")
-        if os.getenv("CELIKOM_A1_JDI_CATCH_DIAG")=="1":
-            # A single exact DEX catcher, NOT a broad method-hook sweep.
-            from jdi.one_shot import one_shot
-            report["exact_caught_exception_jdi_lab"]=one_shot(guest,cmd,DEST,xapk)
-            guest("logcat","-c")
         observed = observe_clone()
         report["native_clone_main_75s"] = observed["stable"]
         report["clone_lifecycle"] = observed
