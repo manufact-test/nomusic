@@ -4,6 +4,7 @@ on:
     branches: [experiment/android-a1-2025-lv2-own-package-parallel-20261112]
     paths:
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch_lv2_parallel_native_arm13.py'
+      - 'android/native-yandex-hooklab/ci/owner_2025_gpr_lab_clone_no_bypass_arm13.py'
       - '.github/workflows/android-a1-2025-lv2-own-package-parallel-arm13.yml'
   workflow_dispatch:
 permissions:
@@ -43,6 +44,18 @@ jobs:
           f="$RUNNER_TEMP/celikom-publisherbase-2025-only/yandex-music-2025-10-4-120-1gpr.xapk"
           [ "$(stat -c %s "$f")" = 45961661 ]
           [ "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053 ]
+      - name: Download and pin independent public APKEditor 1.4.9 from GitHub release via CLI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/celikom-apkeditor-pinned"
+          gh release download V1.4.9 --repo REAndroid/APKEditor --pattern APKEditor-1.4.9.jar --dir "$RUNNER_TEMP/celikom-apkeditor-pinned" --clobber >/dev/null
+          jar="$RUNNER_TEMP/celikom-apkeditor-pinned/APKEditor-1.4.9.jar"
+          [ "$(stat -c %s "$jar")" = 7733037 ]
+          [ "$(sha256sum "$jar" | cut -d' ' -f1)" = a9cd40df818845456be6d696de6110c89edf4b0a0580cb83438ed6b25a366e67 ]
+          echo "CELIKOM_A1_PINNED_APKEDITOR_JAR=$jar" >> "$GITHUB_ENV"
       - name: Set up build tools in sealed disposable ARM runner
         shell: bash
         run: |
@@ -76,5 +89,5 @@ jobs:
           sudo umount /dev/binderfs >/dev/null 2>&1 || true
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
           sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
-          rm -rf -- "$RUNNER_TEMP/celikom-publisherbase-2025-only" "$RUNNER_TEMP/celikom-publisherbase-sdk"
+          rm -rf -- "$RUNNER_TEMP/celikom-publisherbase-2025-only" "$RUNNER_TEMP/celikom-publisherbase-sdk" "$RUNNER_TEMP/celikom-apkeditor-pinned"
           echo '{"publisher_binary_redistributed":false,"private_signer_exported":false,"owner_phone_touched":false,"stage_a":"NO_GO"}'
