@@ -424,6 +424,18 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertFalse(got["exact_push_object_raw_fields_or_values_disclosed"])
         self.assertNotIn("secret_field_value",str(got))
 
+    def test_exact_fatal_direct_receiver_field_read_is_enum_only(self):
+        events=(
+            log(431,"event=PUSH_FATAL_READ_FIELD_ENTER;origin=CASE_0;error=FIELD_NULL;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_READ_FIELD_THROW;origin=CASE_0;error=FIELD_SET;thread=OTHER")
+            +log(432,"event=PUSH_FATAL_READ_FIELD_THROW;origin=CASE_0;error=FIELD_NULL;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_READ_FIELD_THROW;origin=CASE_0;error=private_field;thread=OTHER"))
+        out=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(out["exact_push_direct_receiver_field_states"],[
+            ("PUSH_FATAL_READ_FIELD_ENTER","CASE_0","FIELD_NULL"),
+            ("PUSH_FATAL_READ_FIELD_THROW","CASE_0","FIELD_SET")])
+        self.assertNotIn("private_field",str(out))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))

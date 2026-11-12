@@ -939,6 +939,18 @@ public final class ExitCallsiteWitness extends XposedModule {
         } catch (Throwable ignored) { return "OBJECT_FIELDS_UNREADABLE"; }
     }
 
+    private static String exactReceiverFieldState(Object receiver, String[] ref) {
+        if (receiver==null) return "FIELD_UNREADABLE";
+        try {
+            Class<?> owner=Class.forName(ref[0],false,receiver.getClass().getClassLoader());
+            Field field=owner.getDeclaredField(ref[1]);
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                    || field.getType().isPrimitive()) return "FIELD_UNREADABLE";
+            field.setAccessible(true);
+            return field.get(receiver)==null ? "FIELD_NULL":"FIELD_SET";
+        } catch (Throwable ignored) { return "FIELD_UNREADABLE"; }
+    }
+
     private synchronized void installExactFatalObjectWitness(ClassLoader loader) {
         if (exactFatalObjectReady || loader==null) return;
         int registered=0;
@@ -946,6 +958,9 @@ public final class ExitCallsiteWitness extends XposedModule {
             Class<?> source=Class.forName("pro.celikom.a1exitwitness.PrivatePushTargets",
                 false,ExitCallsiteWitness.class.getClassLoader());
             Object target=source.getDeclaredMethod("getFatalExactObjectTargets").invoke(null);
+            Object fieldRefs=source.getDeclaredMethod("getFatalReceiverFieldTargets").invoke(null);
+            final String[][] directFields=fieldRefs instanceof String[][]
+                ? (String[][])fieldRefs:new String[0][];
             if (target instanceof String[][]) {
                 for (String[] row:(String[][])target) {
                     if (row==null || row.length!=3) continue;
@@ -970,6 +985,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             arg==null ? "LOADER_UNKNOWN"
                                             : arg.getClass().getClassLoader()==cloneAppClassLoader
                                             ? "LOADER_MATCH":"LOADER_DIFFERENT");
+                                        for (int i=0;i<directFields.length && i<8;i++)
+                                            emit("PUSH_FATAL_READ_FIELD_ENTER","CASE_"+i,
+                                                exactReceiverFieldState(chain.getThisObject(),
+                                                    directFields[i]));
                                     }
                                     try {
                                         Object result=chain.proceed();
@@ -982,6 +1001,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                                  directReferenceReadiness(chain.getArg(0)));
                                             emit("PUSH_FATAL_OBJECT","RECEIVER_THROW",
                                                  directReferenceReadiness(chain.getThisObject()));
+                                            for (int i=0;i<directFields.length && i<8;i++)
+                                                emit("PUSH_FATAL_READ_FIELD_THROW","CASE_"+i,
+                                                    exactReceiverFieldState(chain.getThisObject(),
+                                                        directFields[i]));
                                             emit("PUSH_FATAL_OBJECT_OUTCOME","PUSH_ARG",
                                                  "DIRECT_METRICA".equals(
                                                      throwableIdentityCategory(failure))

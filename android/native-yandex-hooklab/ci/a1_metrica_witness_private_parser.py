@@ -25,7 +25,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE","PUSH_GUARD_INPUT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
           "PUSH_FATAL_OBJECT_HOOK","PUSH_FATAL_OBJECT","PUSH_FATAL_OBJECT_LOADER",
-          "PUSH_FATAL_OBJECT_OUTCOME",
+          "PUSH_FATAL_OBJECT_OUTCOME","PUSH_FATAL_READ_FIELD_ENTER",
+          "PUSH_FATAL_READ_FIELD_THROW",
           "PUSH_NEAR_GUARD_HOOK","PUSH_NEAR_GUARD_VALUE",
           "PUSH_ALL_FATAL_GUARD_HOOK","PUSH_ALL_FATAL_GUARD_VALUE",
           "METRICA_PROVIDER_RESOLVE","METRICA_PROVIDER_QUERY_HOOK",
@@ -70,6 +71,7 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "OTHER_THROW","EMPTY","NONEMPTY","NULL","OTHER_INPUT",
          "OBJECT_NULL","OBJECT_NULL_DEPENDENCY","OBJECT_NO_REFERENCE_FIELDS",
          "OBJECT_ALL_REFERENCES_SET","OBJECT_TOO_MANY_FIELDS","OBJECT_FIELDS_UNREADABLE",
+         "FIELD_NULL","FIELD_SET","FIELD_UNREADABLE",
          "ABSENT","STOCK_OWNER","CLONE_OWNER","OTHER_OWNER","PROBE_ERROR",
          "NULL_RESULT","NONNULL_RESULT","FALSE_RESULT","SUCCESS_RESULT",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -170,6 +172,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     obj_state=[x for x in seen if x[0]=="PUSH_FATAL_OBJECT"]
     obj_loader=[x for x in seen if x[0]=="PUSH_FATAL_OBJECT_LOADER"]
     obj_outcome=[x for x in seen if x[0]=="PUSH_FATAL_OBJECT_OUTCOME"]
+    direct_field=[x for x in seen if x[0] in ("PUSH_FATAL_READ_FIELD_ENTER",
+                                             "PUSH_FATAL_READ_FIELD_THROW")]
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
     push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
     focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_INIT",
@@ -240,6 +244,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "exact_push_object_state_timeline":[(x[1],x[2]) for x in obj_state[:32]],
         "exact_push_object_loader_categories":sorted({x[2] for x in obj_loader}),
         "exact_push_object_outcome_timeline":[x[2] for x in obj_outcome[:16]],
+        "exact_push_direct_receiver_field_states":[(x[0],x[1],x[2]) for x in direct_field[:64]],
         "exact_push_object_raw_fields_or_values_disclosed":False,
         "private_push_helper_bool_hook_registered":any(
             x[2]=="REGISTERED" for x in private_helper_hook),

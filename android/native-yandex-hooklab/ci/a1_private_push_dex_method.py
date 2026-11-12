@@ -1049,6 +1049,59 @@ def private_exact_fatal_object_methods(binary):
     return found
 
 
+def private_exact_fatal_receiver_fields(binary):
+    """Direct iget-object fields of the actual fatal Push.a receiver only.
+
+    Keep private field/class names transient in CI; no third-party symbols
+    are returned through the public classifier or runner log.
+    """
+    dex=Dex(binary)
+    target=dex.possible_error_strings()
+    if not target:return set()
+    field_size,field_off=struct.unpack_from("<II",dex.data,80)
+    if field_size>500000 or field_off+field_size*8>len(dex.data):
+        raise DexError("DEX_TABLE_BOUND")
+    selected=set()
+    for mid,registers,inputs,is_static,code in code_items_with_meta(dex):
+        owner,name=dex.method(mid)
+        if is_static or group_class(owner)!="PUSH_IMPL" or name!="a":
+            continue
+        cfg=exact_fatal_cfg(code,target,dex,group_call)
+        if not cfg["decoded"] or not cfg["fatal_throw_candidates"]:
+            continue
+        if not (0<inputs<=registers<=65535):
+            continue
+        try:instructions=decode_instructions(code)
+        except FlowDecodeError:continue
+        receiver=registers-inputs
+        aliases={receiver}
+        for pc,op,_ in instructions:
+            b=code[pc+1]
+            if op==0x07:
+                dst=b&15;src=b>>4
+                if src in aliases:aliases.add(dst)
+                else:aliases.discard(dst)
+            elif op==0x08:
+                dst=b;src=struct.unpack_from("<H",code,pc+2)[0]
+                if src in aliases:aliases.add(dst)
+                else:aliases.discard(dst)
+            elif op==0x09:
+                dst,src=struct.unpack_from("<HH",code,pc+2)
+                if src in aliases:aliases.add(dst)
+                else:aliases.discard(dst)
+            if op!=0x54 or (b>>4) not in aliases:continue
+            field_index=struct.unpack_from("<H",code,pc+2)[0]
+            if field_index>=field_size:continue
+            cls_index,type_index,name_index=struct.unpack_from(
+                "<HHI",dex.data,field_off+field_index*8)
+            typ=dex.type(type_index)
+            if not typ.startswith(("L","[")):continue
+            cls=dex.type(cls_index)
+            field_name=dex.string(name_index)
+            selected.add((cls.strip("L;").replace("/","."),field_name))
+    return selected
+
+
 def generate_private_targets(source, output_path):
     """Write transient proprietary method symbols only inside ephemeral CI."""
     import re
@@ -1059,7 +1112,7 @@ def generate_private_targets(source, output_path):
         not (str(target).startswith(str(workspace)+os.sep) or
              str(target).startswith(str(temp)+os.sep))):
         raise DexError("PRIVATE_TARGET_PATH")
-    found=set(); guards=set(); fatals=set(); suppliers=set(); near_guards=set(); all_exact=set(); fatal_exact=set()
+    found=set(); guards=set(); fatals=set(); suppliers=set(); near_guards=set(); all_exact=set(); fatal_exact=set(); receiver_fields=set()
     with zipfile.ZipFile(source) as outer:
         for item in outer.infolist():
             if not item.filename.endswith(".apk") or item.file_size>60000000:continue
@@ -1074,6 +1127,7 @@ def generate_private_targets(source, output_path):
                             near_guards.update(near)
                             all_exact.update(private_all_exact_guard_methods(payload))
                             fatal_exact.update(private_exact_fatal_object_methods(payload))
+                            receiver_fields.update(private_exact_fatal_receiver_fields(payload))
     # Verify source-derived class/method tokens before use as Java literals.
     valid=re.compile("^[A-Za-z_$][A-Za-z0-9_$]*(?:[.][A-Za-z_$][A-Za-z0-9_$]*)*$")
     simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -1096,6 +1150,8 @@ def generate_private_targets(source, output_path):
                              in fatal_exact if valid.fullmatch(cls)
                              and simple.fullmatch(method) and len(signature)<512
                              and all(32<=ord(c)<127 for c in signature))[:4]
+    receiver_field_names=sorted((cls,name) for cls,name in receiver_fields
+                                if valid.fullmatch(cls) and simple.fullmatch(name))[:8]
     target.parent.mkdir(parents=True,exist_ok=True)
     def java_rows(rows):
         return (","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
@@ -1122,6 +1178,8 @@ def generate_private_targets(source, output_path):
                               json.dumps(signature)+"}"
                               for cls,method,signature in fatal_exact_names)+chr(10)+
                "  }; }"+chr(10)+
+               "  public static String[][] getFatalReceiverFieldTargets() { return new String[][] {"+chr(10)+
+               java_rows(receiver_field_names)+chr(10)+"  }; }"+chr(10)+
                "}"+chr(10))
     target.write_text(generated,encoding="utf-8")
     target.chmod(0o600)
@@ -1131,7 +1189,8 @@ def generate_private_targets(source, output_path):
             "private_transient_supplier_targets_bounded":len(supplier_names),
             "private_transient_near_fatal_guard_targets_bounded":len(near_guard_names),
             "private_transient_all_fatal_guard_exact_targets_bounded":len(exact_guard_names),
-            "private_transient_fatal_exact_object_targets_bounded":len(fatal_exact_names)}
+            "private_transient_fatal_exact_object_targets_bounded":len(fatal_exact_names),
+            "private_transient_fatal_receiver_fields_bounded":len(receiver_field_names)}
 
 
 def main():
