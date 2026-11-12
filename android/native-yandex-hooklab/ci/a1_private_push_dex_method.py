@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
+from a1_private_dex_supply_chain import classify_private_supplier_chain
 from a1_private_dex_predicate import code_items_with_meta,rule_from_synthetic_lengths
 from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,private_direct_guard_branch_roles,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
@@ -311,7 +312,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -325,9 +326,24 @@ def inspect_xapk(path):
                         matches.extend(inspect_dex(payload))
                         guard_insights.append(private_guard_dependency_info(payload))
                         guard_rules.extend(private_guard_synthetic_rule(payload))
+                        chain=classify_private_supplier_chain(
+                            payload,Dex,group_class,group_call,exact_error_guard_report)
+                        if chain is not None:supplier_chains.append(chain)
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "exact_string_supplier_call_families_by_depth":[
+            sorted({v for chain in supplier_chains
+                    for v in chain[depth]["calls"]})
+            for depth in range(3)],
+        "exact_string_supplier_field_families_by_depth":[
+            sorted({v for chain in supplier_chains
+                    for v in chain[depth]["fields"]})
+            for depth in range(3)],
+        "exact_string_supplier_body_methods_by_depth_bounded":[
+            min(sum(chain[depth]["methods_with_body_bounded"]
+                    for chain in supplier_chains),16)
+            for depth in range(3)],
         "exact_guard_synthetic_length_rules":sorted(set(guard_rules)),
         "synthetic_length_evaluation_not_runtime_proof":True,
         "exact_guard_method_candidates_bounded":min(sum(
