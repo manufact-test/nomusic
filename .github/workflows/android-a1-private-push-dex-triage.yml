@@ -9,6 +9,7 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_private_dex_supply_chain.py'
       - 'android/native-yandex-hooklab/ci/a1_private_dex_callers.py'
       - 'android/native-yandex-hooklab/ci/a1_private_push_init.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_dex_fatal_cfg.py'
       - 'android/native-yandex-hooklab/ci/test_a1_private_push_init.py'
       - 'android/native-yandex-hooklab/ci/test_a1_private_dex_flow.py'
       - 'android/native-yandex-hooklab/ci/test_a1_private_push_dex_method.py'
@@ -33,7 +34,7 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_dex_flow.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_init.py -v
-          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_dex_flow.py android/native-yandex-hooklab/ci/a1_private_dex_predicate.py android/native-yandex-hooklab/ci/a1_private_dex_supply_chain.py android/native-yandex-hooklab/ci/a1_private_dex_callers.py android/native-yandex-hooklab/ci/a1_private_push_init.py android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_dex_flow.py android/native-yandex-hooklab/ci/a1_private_dex_predicate.py android/native-yandex-hooklab/ci/a1_private_dex_supply_chain.py android/native-yandex-hooklab/ci/a1_private_dex_callers.py android/native-yandex-hooklab/ci/a1_private_push_init.py android/native-yandex-hooklab/ci/a1_private_dex_fatal_cfg.py android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
       - name: Verify original exact publisher XAPK in private draft only
         shell: bash
         env:
