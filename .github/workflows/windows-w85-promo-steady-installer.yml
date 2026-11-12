@@ -1,0 +1,137 @@
+name: CELIKOM Windows W85 0.24.29 stable promo no-blink installer
+
+on:
+  push:
+    branches:
+      - experiment/windows-w85-02429-promo-steady-owner-candidate-20261113
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w20/installer/CELIKOM.iss
+      - windows-companion/w21/**
+      - windows-companion/w24/**
+      - windows-companion/w81/**
+      - .github/workflows/windows-w85-promo-steady-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  candidate-only:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build unchanged W79 native 0.24.25 audio module (no audio changes)
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W85_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W85_NATIVE_BUILD_FAILED' }
+          if ((Get-Content dist/host.cjs -Raw) -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.25"') {
+            throw 'W85_AUDIO_MODULE_WAS_CHANGED'
+          }
+      - name: Preserve known native audio playback and local source tests
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W85_AUDIO_REGRESSION' }
+      - name: W21 crash rollback and unknown updater refusal
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+      - name: W24 reviewed catalog/ASAR builder
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: W15 entitlement/login/updated vendor-state tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Compile GUI warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Verify installer only replaces CELIKOM files
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W85_STAGE_GATE_FAILED' }
+      - name: Publish GUI 0.24.29
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W85_PUBLISH_FAILED' }
+      - name: Build W85 candidate setup; NEVER install on owner automatically
+        shell: pwsh
+        run: |
+          $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W85_INNO_SETUP_UNAVAILABLE' }
+          }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W85_INNO_BUILD_FAILED' }
+          $setup='windows-companion/w20/output/CELIKOM-W85-PROMO-STEADY-UNSIGNED.exe'
+          if (!(Test-Path $setup)) { throw 'W85_CANDIDATE_MISSING' }
+          $info=[Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $setup).Path)
+          if ($info.FileVersion.Trim() -ne '0.24.29.0' -or $info.ProductName.Trim() -ne 'CELIKOM') { throw 'W85_VERSION_MISMATCH' }
+          Write-Host "W85_INSTALLER_SHA256=$((Get-FileHash $setup -Algorithm SHA256).Hash)"
+      - name: One-click candidate ZIP valid
+        shell: pwsh
+        run: |
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-W85-update.zip'
+          Compress-Archive -Path 'windows-companion/w20/output/CELIKOM-W85-PROMO-STEADY-UNSIGNED.exe' -DestinationPath $zip
+          $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W85_ZIP_UPDATE_FAILED' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W82-QUIET-STATUS-UI-UNSIGNED
+          run-id: 43308400132
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: previous-W82
+      - name: In-place W82 0.24.28 to W85 0.24.29; preserve DPAPI and unchanged native assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=(Resolve-Path 'previous-W82/CELIKOM-W82-QUIET-STATUS-UI-UNSIGNED.exe').Path
+          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W85-PROMO-STEADY-UNSIGNED.exe').Path
+          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne '74E385DEEAA3FE94FF330CEB5B20D6EF60A8779F4CAA9517C888C9D10DFC5EE3') { throw 'W85_PREVIOUS_EXE_HASH_UNTRUSTED' }
+          $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe=Join-Path $app 'CELIKOM.Companion.exe'
+          $native=Join-Path $app 'integration'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          $vendor=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $app) -or (Test-Path $vendor)) { throw 'W85_DIRTY_RUNNER' }
+          $p=Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W85_PREVIOUS_SETUP_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.28.0') { throw 'W85_PREVIOUS_VERSION_MISMATCH' }
+          $hostBefore=(Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash
+          $rendererBefore=(Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash
+          New-Item -ItemType Directory -Force -Path $state | Out-Null
+          $sealed=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('W85_SAVED_LOGIN_PRESERVED'),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+          [IO.File]::WriteAllBytes($session,$sealed)
+          $sessionBefore=(Get-FileHash $session -Algorithm SHA256).Hash
+          $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W85_INPLACE_SETUP_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.29.0') { throw 'W85_NEW_VERSION_MISMATCH' }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $sessionBefore) { throw 'W85_DPAPI_CHANGED' }
+          $plain=[Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($session),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))
+          if ($plain -ne 'W85_SAVED_LOGIN_PRESERVED') { throw 'W85_DPAPI_UNDECRYPTABLE' }
+          if ((Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash -ne $hostBefore -or
+              (Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash -ne $rendererBefore) { throw 'W85_NATIVE_AUDIO_MODULE_CHANGED' }
+          if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W85_VENDOR_OR_APPID_CHANGED' }
+          Write-Host 'W85_02428_TO_02429_INPLACE_DPAPI_AND_NATIVE_UNCHANGED_PASS'
+      - name: Store candidate for owner-approved future test only
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W85-PROMO-STEADY-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W85-PROMO-STEADY-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 10
