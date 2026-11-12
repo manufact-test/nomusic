@@ -25,6 +25,12 @@ $record = @{
   State = 'ACTIVE'
 }
 $record | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'recovery.json') -Encoding UTF8
+$parsedFixture = Get-Content -LiteralPath (Join-Path $backup 'recovery.json') -Raw | ConvertFrom-Json
+$expected = [IO.Path]::GetFullPath($root).TrimEnd('\')
+Write-Output ('W78_SYNTHETIC_ROOT_NORM_LENGTHS '+$expected.Length+' '+$parsedFixture.InstallRoot.Length)
+Write-Output ('W78_SYNTHETIC_ROOT_A='+$expected)
+Write-Output ('W78_SYNTHETIC_ROOT_B='+$parsedFixture.InstallRoot)
+Write-Output ('W78_SYNTHETIC_ROOT_EQ='+[string]::Equals($expected,[string]$parsedFixture.InstallRoot,[StringComparison]::OrdinalIgnoreCase))
 $eventsDir = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
 [IO.File]::WriteAllText((Join-Path $eventsDir 'companion-events.log'),
   ((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') + '|NATIVE_INSTALL_OK' + [Environment]::NewLine))
