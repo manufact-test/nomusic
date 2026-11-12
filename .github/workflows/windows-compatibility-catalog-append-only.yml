@@ -1,0 +1,71 @@
+name: CELIKOM reviewed Yandex compatibility catalog append-only guard
+
+on:
+  push:
+    branches:
+      - support/windows-yandex-compatibility
+    paths:
+      - windows-companion/w24/compatibility/official-yandex-builds-v1.json
+      - windows-companion/w24/compatibility/official-yandex-builds-v2.json
+      - .github/workflows/windows-compatibility-catalog-append-only.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  catalog-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: No published version disappears and no SHA is ever replaced
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $prefix='windows-companion/w24/compatibility/'
+          foreach($suffix in @('v1','v2')) {
+            $path="$prefix/official-yandex-builds-$suffix.json"
+            if (!(Test-Path $path)) {
+              if ($suffix -eq 'v1') { throw 'V1_CATALOG_MUST_REMAIN_AVAILABLE' }
+              continue
+            }
+            $now=Get-Content $path -Raw | ConvertFrom-Json
+            if ($now.schema -ne 1 -or
+                $now.purpose -ne 'celikom-windows-yandex-official-baselines' -or
+                @($now.builds).Count -gt 128) { throw 'CATALOG_INVALID_SCHEMA' }
+            $seen=@{}
+            foreach($b in @($now.builds)) {
+              $ver=[string]$b.version
+              $rx=if($suffix -eq 'v1') {
+                '^5\.[0-9]{3,4}\.[0-9]{1,3}\.r[0-9]{5,12}$'
+              } else {
+                '^5\.[0-9]{1,4}\.[0-9]{1,3}\.(?:r[0-9]{5,12}|[0-9a-f]{20,64})$'
+              }
+              if ($ver -notmatch $rx -or
+                  $b.exeSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+                  $b.asarSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+                  $b.status -ne 'verified' -or
+                  $b.proof -notmatch '^https://github\.com/manufact-test/nomusic/actions/runs/[0-9]+$' -or
+                  $seen.ContainsKey($ver)) { throw "INVALID_$suffix_ENTRY" }
+              $seen[$ver]="$($b.exeSha256)|$($b.asarSha256)"
+            }
+            # Guard all previously published original SHA pins.
+            $previous=git show "HEAD^:$path" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $previous) {
+              $old=$previous -join "`n" | ConvertFrom-Json
+              foreach($b in @($old.builds)) {
+                if (!$seen.ContainsKey($b.version) -or
+                    $seen[$b.version] -cne "$($b.exeSha256)|$($b.asarSha256)") {
+                  throw "OLD_VERIFIED_$suffix_PIN_REMOVED_OR_CHANGED"
+                }
+              }
+            }
+            if (!$seen.ContainsKey('5.127.0.r22015925')) {
+              throw "W79_KNOWN_GOOD_MISSING_FROM_$suffix"
+            }
+            Write-Host "CELIKOM_$suffix_APPEND_ONLY_VERIFIED $($seen.Count)"
+          }
