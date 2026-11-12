@@ -3,6 +3,34 @@
   "purpose": "celikom-windows-yandex-official-baselines",
   "builds": [
     {
+      "version": "5.86.0.r18727399",
+      "exeSha256": "daed6ed88335e47f554b15053f8e9a18e0d03bbffbc7f98075d05abe0982cfa9",
+      "asarSha256": "f625fa9b9dc23eeadea3a601320f0997cab8f4247eb635f4d323ef6e3729f22d",
+      "status": "verified",
+      "proof": "https://github.com/manufact-test/nomusic/actions/runs/43300824253"
+    },
+    {
+      "version": "5.102.0.r19615975",
+      "exeSha256": "69fea666ee5b84c009a812135e23ed13b0b57ab51fde16db1508fd406c",
+      "asarSha256": "70eac5bc098fe37cb870fedf421906fc8e38d6fc70f1a0d060abc774a748fdfb",
+      "status": "verified",
+      "proof": "https://github.com/manufact-test/nomusic/actions/runs/43300824253"
+    },
+    {
+      "version": "5.121.2.e45430462d786ebc235511f243ef24745909c790",
+      "exeSha256": "7d14b31cba80923f896b1cab97d7300cca241d6734266c7fccfe841ae672cda3",
+      "asarSha256": "90546e261281d3d9ec32478a910f3876ade4f657a34e16ae28bcac807dfe9fc1",
+      "status": "verified",
+      "proof": "https://github.com/manufact-test/nomusic/actions/runs/43300824253"
+    },
+    {
+      "version": "5.126.1.56270518164a6ebd4b974971490df41224a69d68",
+      "exeSha256": "f5fb2817e331aa0b2dd0a6c7b0a360c89b5ae96afc535ca085abe514f8de4ae4",
+      "asarSha256": "5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215",
+      "status": "verified",
+      "proof": "https://github.com/manufact-test/nomusic/actions/runs/43300824253"
+    },
+    {
       "version": "5.127.0.r22015925",
       "exeSha256": "de2849a1378daff16500fd5c8499634aab8d994c1ffb1b1d8a6bc264edd9aada",
       "asarSha256": "c176ff3cecdddfab76b2d0d90bf527bbed226919fab37f5723b46913084620cb",
