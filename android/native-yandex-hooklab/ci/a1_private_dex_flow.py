@@ -57,7 +57,7 @@ def decode_instructions(code:bytes):
         pc+=2*units
     return result
 
-def _guard_source(code,instructions,guard_index,dex):
+def _guard_source(code,instructions,guard_index,dex,group_call):
     """Describe the register written immediately upstream of a guard.
     No alias/dataflow claim beyond direct local move-result is made.
     """
@@ -74,7 +74,7 @@ def _guard_source(code,instructions,guard_index,dex):
                 if method_idx>=dex.method_count:return "BAD_METHOD_REF"
                 # The caller supplies a fixed-category group function.
                 owner,name=dex.method(method_idx)
-                return dex.category(owner,name)
+                return group_call(owner,name)
             if callop in (0xfc,0xfd):return "CUSTOM_CALL"
             return "RESULT_WITHOUT_INVOKE"
         if (opcode in FIELD_OPS and code[p+1]==reg):
@@ -87,7 +87,7 @@ def _guard_source(code,instructions,guard_index,dex):
             return "ALIAS_UNRESOLVED"
     return "SOURCE_UNRESOLVED"
 
-def exact_error_guard_report(code:bytes, target_strings:set[int], dex):
+def exact_error_guard_report(code:bytes, target_strings:set[int], dex, group_call):
     """Correlate real DEX IF destinations with error-string and throw opcodes.
 
     Only direct local forward IF that skips the eventual throw is reported.
@@ -106,6 +106,7 @@ def exact_error_guard_report(code:bytes, target_strings:set[int], dex):
             string_pcs.append(pc)
     sources=set()
     guards=0
+    instruction_pcs={p for p,_,_ in ins}
     for string_pc in string_pcs:
         throw_pc=next((pc for pc,op,_ in ins
                        if op==0x27 and string_pc<pc<=string_pc+256),None)
@@ -116,10 +117,10 @@ def exact_error_guard_report(code:bytes, target_strings:set[int], dex):
             offset=struct.unpack_from("<h",code,pc+2)[0]
             destination=pc+offset*2
             # Only an actually decoded instruction boundary can be a branch target.
-            if destination<=throw_pc or destination not in {p for p,_,_ in ins}:
+            if destination<=throw_pc or destination not in instruction_pcs:
                 continue
             guards+=1
-            sources.add(_guard_source(code,ins,gi,dex))
+            sources.add(_guard_source(code,ins,gi,dex,group_call))
     # Verified control-flow edge is not the same as a proven runtime predicate.
     return {"decoded":True,"target_strings":len(string_pcs),
             "verified_guard_sources":sorted(sources),
