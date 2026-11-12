@@ -3,7 +3,7 @@
 # publishes untested compatibility entries. Outputs a small JSON report.
 [CmdletBinding()]
 param(
-    [string]$CatalogPath = 'windows-companion/w24/compatibility/official-yandex-builds-v1.json',
+    [string]$CatalogPath = 'windows-companion/w24/compatibility/official-yandex-builds-v2.json',
     [string]$ReportPath = 'windows-w81-vendor-watch-report.json',
     [string]$ForceVersion = '',
     [switch]$ValidateCandidate
