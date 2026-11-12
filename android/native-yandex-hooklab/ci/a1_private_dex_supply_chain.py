@@ -30,6 +30,20 @@ def _family(owner, name, group_call):
                 "concat":"STRING_CONCAT",
                 "isEmpty":"STRING_ISEMPTY",
                 "toString":"STRING_TOSTRING",
+                "equalsIgnoreCase":"STRING_EQUALS_IGNORE_CASE",
+                "startsWith":"STRING_STARTS_WITH",
+                "endsWith":"STRING_ENDS_WITH",
+                "contains":"STRING_CONTAINS",
+                "substring":"STRING_SUBSTRING",
+                "indexOf":"STRING_INDEX_OF",
+                "trim":"STRING_TRIM",
+                "hashCode":"STRING_HASH_CODE",
+                "compareTo":"STRING_COMPARE_TO",
+                "matches":"STRING_MATCHES",
+                "toLowerCase":"STRING_LOWERCASE",
+                "toUpperCase":"STRING_UPPERCASE",
+                "intern":"STRING_INTERN",
+                "getBytes":"STRING_BYTES",
             }.get(name,"STRING_OTHER")
         if owner=="Ljava/lang/StringBuilder;":
             return {
