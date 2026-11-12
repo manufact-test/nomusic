@@ -313,7 +313,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[];fatal_signatures=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -327,6 +327,7 @@ def inspect_xapk(path):
                         matches.extend(inspect_dex(payload))
                         guard_insights.append(private_guard_dependency_info(payload))
                         guard_rules.extend(private_guard_synthetic_rule(payload))
+                        fatal_signatures.extend(private_fatal_a_signature_families(payload))
                         chain=classify_private_supplier_chain(
                             payload,Dex,group_class,group_call,exact_error_guard_report)
                         if chain is not None:supplier_chains.append(chain)
@@ -337,6 +338,7 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "exact_push_fatal_a_signature_categories":sorted(set(fatal_signatures)),
         "exact_fatal_caller_families_by_depth":[
             sorted({v for graph in fatal_callers
                     for v in graph["caller_depth"][depth]["caller_families"]})
@@ -501,6 +503,32 @@ def private_boolean_helpers(binary):
 
 
 
+
+
+def private_fatal_a_signature_families(binary):
+    """Only finite safe DEX prototype categories, never actual method symbols."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    if not targets:return set()
+    result=set()
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner)!="PUSH_IMPL" or name!="a":continue
+        report=exact_error_guard_report(code,targets,dex,group_call)
+        if not report["decoded"] or not report["target_strings"]:continue
+        _,proto,_=struct.unpack_from("<HHI",dex.data,dex.method_off+mid*8)
+        count,off=struct.unpack_from("<II",dex.data,72)
+        if proto>=count or off+count*12>len(dex.data):raise DexError("PROTO_BOUND")
+        ret,params=struct.unpack_from("<II",dex.data,off+proto*12+4)
+        if params:
+            if params+4>len(dex.data):raise DexError("PROTO_BOUND")
+            n=struct.unpack_from("<I",dex.data,params)[0]
+            if n>32 or params+4+2*n>len(dex.data):raise DexError("PROTO_BOUND")
+        else:n=0
+        return_desc=dex.type(ret)
+        kind="VOID" if return_desc=="V" else "BOOLEAN" if return_desc=="Z" else "STRING" if return_desc=="Ljava/lang/String;" else "OBJECT_OR_PRIMITIVE"
+        result.add(kind+"_PARAMS_"+str(min(n,8)))
+    return result
 
 def private_guard_synthetic_rule(binary):
     """Never read a private string; evaluate bounded synthetic lengths only."""
