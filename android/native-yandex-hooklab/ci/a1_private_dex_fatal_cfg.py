@@ -37,6 +37,7 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
             "exclusive_fatal_guards":0,"guard_source_categories":[],
             "fatal_guard_polarities":[],"near_fatal_sources":[],
             "near_fatal_polarities":[],
+            "near_fatal_boolean_result_polarities":[],
             "has_switch_or_unknown_layout":False,
             "runtime_causality_proven":False}
     try:
@@ -75,6 +76,7 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
     polarities=set()
     near=set()
     near_polarities=set()
+    near_result_polarities=set()
     count=0
     for target in candidate_throws:
         for i,(pc,op,_) in enumerate(ins):
@@ -96,11 +98,22 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
                 near.add(src)
                 near_polarities.add(src + "__" + (
                     "BRANCH_ON_TRUE_FATAL" if truth else "FALLTHROUGH_FATAL"))
+                if op in (0x38,0x39):
+                    # Distinguish Dalvik IF opcode's branch success from the
+                    # *Boolean value* returned by the preceding method.
+                    returns_true_fatal = (op==0x39 and truth) or (
+                        op==0x38 and not truth)
+                    near_result_polarities.add(src + "__" + (
+                        "RESULT_TRUE_FATAL" if returns_true_fatal
+                        else "RESULT_FALSE_FATAL"))
+                else:
+                    near_result_polarities.add(src+"__RESULT_POLARITY_UNPROVEN")
     result["exclusive_fatal_guards"]=min(count,32)
     result["guard_source_categories"]=sorted(sources)
     result["fatal_guard_polarities"]=sorted(polarities)
     result["near_fatal_sources"]=sorted(near)
     result["near_fatal_polarities"]=sorted(near_polarities)
+    result["near_fatal_boolean_result_polarities"]=sorted(near_result_polarities)
     return result
 
 def private_exclusive_fatal_guard_refs(code:bytes,target_strings:set[int],dex,group_call):
