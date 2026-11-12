@@ -1,0 +1,25 @@
+name: CELIKOM A1 privacy-safe Java crash cause triage synthetic regression
+on:
+  push:
+    branches: [experiment/android-a1-2025-clone-java-rootcause-arm13-20261112]
+    paths:
+      - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
+      - 'android/native-yandex-hooklab/ci/test_native_clone_java_rootcause_triage.py'
+      - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py'
+      - '.github/workflows/android-a1-2025-clone-java-rootcause-synthetic.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  privacy-safe-clone-crash-regressions-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and MAIN-only redaction regression; no Android, APK or keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile android/native-yandex-hooklab/clone_main_crash_buffer.py android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_native_clone_java_rootcause_triage.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
