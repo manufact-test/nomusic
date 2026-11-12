@@ -1,0 +1,50 @@
+name: CELIKOM A1 private exact-source Push DEX static triage
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - 'android/native-yandex-hooklab/ci/a1_private_push_dex_method.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_private_push_dex_method.py'
+      - '.github/workflows/android-a1-private-push-dex-triage.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  private-source-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact project and own synthetic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
+      - name: Verify original exact publisher XAPK in private draft only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          mkdir -p "$RUNNER_TEMP/celikom-owner-private"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/celikom-owner-private" --clobber >/dev/null
+          f="$RUNNER_TEMP/celikom-owner-private/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Exact publisher DEX Push helper chain bounded static inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-owner-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Erase private publisher original
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/celikom-owner-private"
+          echo '{"apk_uploaded":false,"dex_uploaded":false,"raw_vendor_symbols_disclosed":false,"handset_touched":false,"native_runtime_claimed":false}'

@@ -8,8 +8,6 @@ on:
       - 'android/native-yandex-hooklab/ci/test_metrica_manifest_preserved_detail_control.py'
       - 'android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py'
       - 'android/native-yandex-hooklab/ci/a1_metrica_service_snapshot.py'
-      - 'android/native-yandex-hooklab/ci/a1_private_push_dex_method.py'
-      - 'android/native-yandex-hooklab/ci/test_a1_private_push_dex_method.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_witness_private_parser.py'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'

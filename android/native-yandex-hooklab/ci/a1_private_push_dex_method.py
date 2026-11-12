@@ -136,20 +136,57 @@ def code_candidates(code,targets):
             invokes.append((pos,struct.unpack_from("<H",code,pos+2)[0]))
     return strings,invokes
 
+
+def helper_chain(dex, source_codes, seeds):
+    """Follow up to three direct Push helper invocations using fixed enums."""
+    chain=[]
+    visited=set()
+    frontier=set(seeds)
+    for _ in range(3):
+        ids={idx for idx in frontier if idx in source_codes and idx not in visited}
+        ids=set(sorted(ids)[:128])
+        visited.update(ids)
+        modern=False
+        legacy=False
+        nested=set()
+        for idx in ids:
+            _,calls=code_candidates(source_codes[idx],set())
+            for _,ref in calls:
+                if ref>=dex.method_count:continue
+                owner,name=dex.method(ref)
+                cat=group_call(owner,name)
+                if cat=="MODERN_PREDICATE":modern=True
+                if cat=="LEGACY_PREDICATE":legacy=True
+                if cat=="PUSH_IMPL_HELPER":nested.add(ref)
+        chain.append({"methods_found":min(len(ids),32),
+                      "modern_predicate":modern,
+                      "legacy_predicate":legacy,
+                      "helper_continuation":bool(nested)})
+        frontier=nested
+    return chain
+
 def inspect_dex(binary):
     dex=Dex(binary)
     targets=dex.possible_error_strings()
     if not targets:return []
     matches=[]
+    source_codes={}
     for mid,code in dex.code_methods():
+        owner,method=dex.method(mid)
+        if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
+            if len(source_codes)<25000:source_codes[mid]=code
         where,calls=code_candidates(code,targets)
         if not where:continue
-        owner,method=dex.method(mid)
         grouped=[]
         for pos,ref in calls:
             if ref<dex.method_count:
                 callee,name=dex.method(ref)
                 grouped.append((pos,group_call(callee,name)))
+        helpers=set()
+        for _,ref in calls:
+            if ref<dex.method_count:
+                callee,name=dex.method(ref)
+                if group_call(callee,name)=="PUSH_IMPL_HELPER":helpers.add(ref)
         for pos in where:
             earlier=[x[1] for x in grouped if pos-120<=x[0]<pos]
             matches.append({
@@ -159,6 +196,8 @@ def inspect_dex(binary):
                 "legacy_check":any(x[1]=="LEGACY_PREDICATE" for x in grouped),
                 "helper":any(x[1]=="PUSH_IMPL_HELPER" for x in grouped),
                 "recent_invoke":earlier[-1] if earlier else "NO_NEARBY_INVOKE",
+                "helper_chain":helper_chain(dex,source_codes,helpers)
+                    if group_class(owner)=="PUSH_IMPL" else [],
             })
     return matches
 
@@ -183,6 +222,22 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     return {
         "dex_private_push_insight":True,
+        "push_helper_methods_by_depth_bounded":[
+            min(sum(m["helper_chain"][depth]["methods_found"]
+                    for m in exact if len(m["helper_chain"])>depth),64)
+            for depth in range(3)],
+        "push_helper_modern_predicate_by_depth":[
+            any(m["helper_chain"][depth]["modern_predicate"]
+                for m in exact if len(m["helper_chain"])>depth)
+            for depth in range(3)],
+        "push_helper_legacy_predicate_by_depth":[
+            any(m["helper_chain"][depth]["legacy_predicate"]
+                for m in exact if len(m["helper_chain"])>depth)
+            for depth in range(3)],
+        "push_helper_continuation_by_depth":[
+            any(m["helper_chain"][depth]["helper_continuation"]
+                for m in exact if len(m["helper_chain"])>depth)
+            for depth in range(3)],
         "dex_scanned_bounded":min(seen,99),
         "error_text_methods_bounded":min(len(matches),99),
         "push_impl_error_methods_bounded":min(len(exact),32),
