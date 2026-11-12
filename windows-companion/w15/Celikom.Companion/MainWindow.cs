@@ -157,6 +157,11 @@ public sealed partial class MainWindow : Form
         {
             if (!_closing && (_bridge.Enabled || _resumeAfterNetworkFailure) && _api.IsLoggedIn)
                 _ = RefreshCompactAccessAsync(force: true);
+            // Yandex's own updater can replace an ACTIVE native pair while
+            // CELIKOM stays in the tray. Detect it without touching vendor files.
+            if (!_closing && !_integrationBusy && !_hostProbeBusy &&
+                DateTimeOffset.UtcNow - _lastHostProbe > TimeSpan.FromMinutes(2))
+                _ = RefreshHostAsync();
         };
         FormClosing += ClosingAsync;
         Shown += async (_, _) =>
@@ -707,6 +712,10 @@ public sealed partial class MainWindow : Form
         _hostProbeBusy = true;
         try
         {
+            // A reviewed build can become supported without a CELIKOM EXE
+            // update; offline failure leaves the shipped 5.127 pins intact.
+            await OfficialYandexCatalog.RefreshAsync();
+            var wasPlaying = _bridge.Enabled;
             var inspected = await Task.Run(() =>
             {
                 var nativeState = NativeIntegrationManager.Inspect();
@@ -716,6 +725,12 @@ public sealed partial class MainWindow : Form
             _hostReport = inspected.Item1;
             _nativeInstallState = inspected.Item2;
             _installedModule = inspected.Item3;
+            if (wasPlaying && inspected.Item2 != NativeInstallState.Active)
+            {
+                // Never claim connected when Yandex replaced the native host.
+                _bridge.SetEnabled(false);
+                DiagnosticLog.Record("YANDEX_VENDOR_UPDATE_DETECTED");
+            }
         }
         catch
         {
@@ -748,13 +763,22 @@ public sealed partial class MainWindow : Form
             DiagnosticLog.Record("START_HOST_PREFLIGHT_BLOCKED");
             return;
         }
-        var answer = MessageBox.Show(this,
-            upgrading
-                ? "Чтобы CELIKOM работал, нужно обновить подключение к Яндекс.Музыке. Яндекс перезапустится. Продолжить?"
-                : "Подключить CELIKOM к Яндекс.Музыке? Оригинальные файлы будут сохранены, Яндекс перезапустится.",
-            "Подключение CELIKOM",
-            MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (answer != DialogResult.Yes) return;
+        // Start is the explicit user action. Previously ACTIVE native users
+        // can rejoin a newly reviewed official vendor build without being
+        // forced through a second modal. RESTORED users still consent once.
+        var previouslyApproved = _nativeInstallState == NativeInstallState.VerifiedVendorUpdate &&
+            NativeIntegrationManager.IsPreviouslyApprovedVendorUpdate();
+        if (!previouslyApproved)
+        {
+            var answer = MessageBox.Show(this,
+                upgrading
+                    ? "Чтобы CELIKOM работал, нужно обновить подключение к Яндекс.Музыке. Яндекс перезапустится. Продолжить?"
+                    : "Подключить CELIKOM к Яндекс.Музыке? Оригинальные файлы будут сохранены, Яндекс перезапустится.",
+                "Подключение CELIKOM",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (answer != DialogResult.Yes) return;
+        }
+        else DiagnosticLog.Record("YANDEX_UPDATE_RECONNECT_PRIOR_CONSENT");
         _integrationBusy = true;
         var generation = ++_compactStartEpoch;
         var account = _api.Settings;
@@ -1215,7 +1239,7 @@ public sealed partial class MainWindow : Form
         else if (_nativeInstallState == NativeInstallState.Interrupted)
             _hostStatus.Text = "Подключение прервалось. Доступно восстановление оригинала.";
         else if (_nativeInstallState == NativeInstallState.VerifiedVendorUpdate)
-            _hostStatus.Text = "Яндекс 5.127.0 проверен. Можно подключить CELIKOM; старый резерв останется.";
+            _hostStatus.Text = "Обновление Яндекса проверено. Нажми «Старт» — CELIKOM переподключится без переустановки.";
         else if (_nativeInstallState == NativeInstallState.Changed)
             _hostStatus.Text = "Яндекс обновился или изменён. Автоматических изменений не будет.";
         _versionFooter.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
