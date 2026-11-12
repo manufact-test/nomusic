@@ -9,7 +9,7 @@ namespace Celikom.WindowsRecovery;
 /// This engine is not wired to the consumer installer. Caller must first
 /// establish trusted official Yandex identity, explicit consent and a legal adapter.
 /// </summary>
-public static class PairRecovery
+public static partial class PairRecovery
 {
     public const string ExeName = "Яндекс Музыка.exe";
     public const string AsarName = "resources/app.asar";
@@ -17,7 +17,9 @@ public static class PairRecovery
 
     public sealed record Manifest(
         int Schema, string InstallRoot, string OriginalExe, string OriginalAsar,
-        string? AppliedExe, string? AppliedAsar, string State);
+        string? AppliedExe, string? AppliedAsar, string State,
+        string? PreviousAppliedExe = null, string? PreviousAppliedAsar = null,
+        string? PreviousArchive = null);
 
     public static Manifest Capture(string installDirectory, string backupDirectory,
         string expectedOriginalExeSha256, string expectedOriginalAsarSha256)
@@ -186,6 +188,11 @@ public static class PairRecovery
         var root = Full(installDirectory);
         var backup = Full(backupDirectory);
         var record = ReadVerified(root, backup);
+        if (record.State == "UPGRADING")
+        {
+            RollbackUpgrade(root, backup);
+            record = ReadVerified(root, backup);
+        }
         if (record.State == "RESTORED")
         {
             AssertHostMatches(root, record.OriginalExe, record.OriginalAsar);
@@ -260,7 +267,7 @@ public static class PairRecovery
             ?? throw new IOException("INVALID_BACKUP_MANIFEST");
         if (manifest.Schema != 1 ||
             !string.Equals(manifest.InstallRoot, root, StringComparison.OrdinalIgnoreCase) ||
-            manifest.State is not ("PREPARED" or "APPLYING" or "ACTIVE" or "RESTORING" or "RESTORED"))
+            manifest.State is not ("PREPARED" or "APPLYING" or "ACTIVE" or "RESTORING" or "RESTORED" or "UPGRADING"))
             throw new IOException("BACKUP_PROVENANCE_MISMATCH");
         RequireHash(manifest.OriginalExe);
         RequireHash(manifest.OriginalAsar);
@@ -270,6 +277,7 @@ public static class PairRecovery
             RequireHash(manifest.AppliedAsar);
         }
         VerifyBackupFiles(backup, manifest.OriginalExe, manifest.OriginalAsar);
+        if (manifest.State == "UPGRADING") VerifyUpgradeArchive(backup, manifest);
         return manifest;
     }
 
