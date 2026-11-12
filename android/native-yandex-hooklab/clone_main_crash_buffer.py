@@ -339,6 +339,80 @@ def _java_fatal_thread_enum(lines: list[str]) -> str:
     return "NOT_OBSERVED"
 
 
+# Strict fixed-vocabulary refinements for a crashing independent native MAIN.
+# Never output the Java message, thread name, stack symbol, package path or hash.
+JAVA_STARTUP_MESSAGE_PATTERNS = (
+    ("CHECK_FAILED", r"\\b(?:check failed|assertion failed|requirement failed)\\b"),
+    ("REQUIRED_VALUE_NULL", r"\\b(?:required value was null|must not be null|non-null.*null)\\b"),
+    ("NOT_READY", r"\\b(?:not initialized|uninitialized|not ready|before init)\\b"),
+    ("MISSING_DEPENDENCY", r"\\b(?:missing|required|not found|absent|does not exist)\\b"),
+    ("CONFLICT_OR_DUPLICATE", r"\\b(?:duplicate|already registered|conflict|already exists)\\b"),
+    ("INVALID_STATE", r"\\b(?:invalid|unexpected|incorrect|wrong|illegal state)\\b"),
+    ("ACCESS_DENIED", r"\\b(?:denied|not allowed|not permitted|forbidden)\\b"),
+    ("TYPE_MISMATCH", r"\\b(?:type mismatch|class cast|cannot cast|expected type)\\b"),
+)
+JAVA_STARTUP_MESSAGE_LABELS = frozenset(
+    name for name, _ in JAVA_STARTUP_MESSAGE_PATTERNS) | {
+        "NO_MESSAGE", "OTHER_NONEMPTY", "NOT_OBSERVED"}
+
+
+def _java_startup_message_shape(lines: list[str]) -> dict:
+    if not any(re.search(r"\\bFATAL EXCEPTION:", ln) for ln in lines):
+        return {"java_startup_message_shape": "NOT_OBSERVED",
+                "java_startup_message_finite_hint": "NOT_OBSERVED"}
+    message = _first_exception_message_text(lines)
+    if not message.strip():
+        return {"java_startup_message_shape": "NO_MESSAGE",
+                "java_startup_message_finite_hint": "NO_MESSAGE"}
+    for label, pattern in JAVA_STARTUP_MESSAGE_PATTERNS:
+        if re.search(pattern, message, re.I):
+            return {"java_startup_message_shape": "PRESENT",
+                    "java_startup_message_finite_hint": label}
+    return {"java_startup_message_shape": "PRESENT",
+            "java_startup_message_finite_hint": "OTHER_NONEMPTY"}
+
+
+def _java_fatal_background_role(lines: list[str]) -> str:
+    for ln in lines:
+        match = re.search(r"\\bFATAL EXCEPTION:\\s*([^\\r\\n]{1,120})", ln)
+        if not match:
+            continue
+        name = match.group(1).strip()
+        if name == "main":
+            return "MAIN_UI"
+        low = name.lower()
+        if "defaultdispatcher" in low or "coroutine" in low:
+            return "KOTLIN_COROUTINE"
+        if "rx" in low or "scheduler" in low:
+            return "RX_BACKGROUND"
+        if "okhttp" in low or "network" in low:
+            return "NETWORK_BACKGROUND"
+        if "pool-" in low or "executor" in low:
+            return "THREAD_POOL"
+        return "OTHER_BACKGROUND"
+    return "NOT_OBSERVED"
+
+
+def _java_scoped_vendor_frame_subsystem(lines: list[str]) -> str:
+    if not any(re.search(r"\\bFATAL EXCEPTION:", ln) for ln in lines):
+        return "NOT_OBSERVED"
+    for ln in lines:
+        m = re.match(r"^\\s*at\\s+([A-Za-z_$][A-Za-z0-9_.$-]*)\\(", ln)
+        if not m:
+            continue
+        first = m.group(1).lower()
+        if first.startswith("com.yandex.passport."):
+            return "YANDEX_PASSPORT"
+        if first.startswith("com.yandex.metrica.") or first.startswith("com.yandex.appmetrica."):
+            return "YANDEX_METRICA"
+        if first.startswith("ru.yandex.music."):
+            return "YANDEX_MUSIC"
+        if first.startswith(("com.yandex.", "ru.yandex.")):
+            return "YANDEX_OTHER"
+        return "OTHER_FRAME"
+    return "NOT_OBSERVED"
+
+
 def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
     """Summarize AndroidRuntime MAIN stack without ever exporting stack names.
 
@@ -395,7 +469,20 @@ def _scoped_android_runtime_java_origin(lines: list[str]) -> dict:
     assert last_cause_first_frame in JAVA_ALLOWED_FRAME_FAMILIES
     assert top_exception in JAVA_ALLOWED_THROWABLES
     assert root_exception in JAVA_ALLOWED_THROWABLES
+    refined = _java_startup_message_shape(body)
+    assert refined["java_startup_message_finite_hint"] in JAVA_STARTUP_MESSAGE_LABELS
+    assert refined["java_startup_message_shape"] in {"NOT_OBSERVED", "NO_MESSAGE", "PRESENT"}
+    role = _java_fatal_background_role(body)
+    subsystem = _java_scoped_vendor_frame_subsystem(body)
+    assert role in {"NOT_OBSERVED", "MAIN_UI", "KOTLIN_COROUTINE",
+                    "RX_BACKGROUND", "NETWORK_BACKGROUND", "THREAD_POOL",
+                    "OTHER_BACKGROUND"}
+    assert subsystem in {"NOT_OBSERVED", "YANDEX_PASSPORT", "YANDEX_METRICA",
+                         "YANDEX_MUSIC", "YANDEX_OTHER", "OTHER_FRAME"}
     return {
+        **refined,
+        "java_fatal_background_role": role,
+        "java_top_frame_subsystem": subsystem,
         "java_fatal_seen_scoped": fatal_seen,
         "java_startup_lifecycle_enum": startup_lifecycle,
         "java_exception_message_hint_enum": message_hint,
