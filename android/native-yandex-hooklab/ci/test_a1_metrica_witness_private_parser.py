@@ -73,6 +73,15 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertTrue(x["fatal_metrica_detail_observed"])
         self.assertNotIn("433",str(x))
 
+    def test_only_direct_metrica_crash_suppression_is_counted(self):
+        events=(
+            log(431,"event=LAB_METRICA_FAILOPEN;origin=RUNTIME_KILL_HANDLER;error=DIRECT_METRICA;thread=OTHER")
+            +log(432,"event=LAB_METRICA_FAILOPEN;origin=RUNTIME_KILL_HANDLER;error=DIRECT_METRICA;thread=OTHER")
+            +log(431,"event=LAB_METRICA_FAILOPEN;origin=RUNTIME_LOG_HANDLER;error=UNRELATED;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,events)
+        self.assertTrue(result["lab_only_metrica_fatal_suppression_observed"])
+        self.assertEqual(result["lab_only_metrica_fatal_suppression_count_bounded"],1)
+
     def test_arbitrary_sensitive_fatal_message_category_is_rejected(self):
         events=(log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=API_KEY_SECRET;thread=OTHER")
                 +log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=DETAIL_CONFIG;thread=OTHER path=/private"))
