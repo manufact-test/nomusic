@@ -59,6 +59,18 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean privatePushSitesReady;
     private boolean allFatalGuardsReady;
     private boolean exactFatalObjectReady;
+    private static final class ExactPushFrame {
+        int yes, no, other, failed;
+    }
+    private final ThreadLocal<ExactPushFrame> scopedPushCall=new ThreadLocal<>();
+    private static String frameCategory(ExactPushFrame f) {
+        if (f.failed>0) return "GUARD_THROW";
+        if (f.yes>0 && f.no>0) return "GUARD_MIXED";
+        if (f.yes>0) return "GUARD_TRUE_ONLY";
+        if (f.no>0) return "GUARD_FALSE_ONLY";
+        if (f.other>0) return "GUARD_NONBOOLEAN";
+        return "GUARD_NOT_IN_CALL";
+    }
     private final java.util.concurrent.atomic.AtomicInteger exactFatalObjectHits =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger allFatalGuardHitCount =
@@ -822,6 +834,14 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     }
                                     try {
                                         Object value=chain.proceed();
+                                        if (near) {
+                                            ExactPushFrame frame=scopedPushCall.get();
+                                            if (frame!=null) {
+                                                if (Boolean.TRUE.equals(value)) frame.yes++;
+                                                else if (Boolean.FALSE.equals(value)) frame.no++;
+                                                else frame.other++;
+                                            }
+                                        }
                                         if (hit<=72) emit(event,source,
                                             fatal ? "RETURN"
                                             : Boolean.TRUE.equals(value) ? "TRUE"
@@ -829,6 +849,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             : "NON_BOOLEAN");
                                         return value;
                                     } catch (Throwable failure) {
+                                        if (near) {
+                                            ExactPushFrame frame=scopedPushCall.get();
+                                            if (frame!=null) frame.failed++;
+                                        }
                                         if (hit<=72) emit(event,source,
                                             fatal && "DIRECT_METRICA".equals(
                                                 throwableIdentityCategory(failure))
@@ -990,13 +1014,21 @@ public final class ExitCallsiteWitness extends XposedModule {
                                                 exactReceiverFieldState(chain.getThisObject(),
                                                     directFields[i]));
                                     }
+                                    ExactPushFrame previous=scopedPushCall.get();
+                                    ExactPushFrame frame=new ExactPushFrame();
+                                    scopedPushCall.set(frame);
                                     try {
                                         Object result=chain.proceed();
-                                        if (hit<=8)
+                                        if (hit<=8) {
+                                            emit("PUSH_FATAL_GUARD_RETURN","PUSH_ARG",
+                                                 frameCategory(frame));
                                             emit("PUSH_FATAL_OBJECT_OUTCOME","PUSH_ARG","RETURN");
+                                        }
                                         return result;
                                     } catch (Throwable failure) {
                                         if (hit<=8) {
+                                            emit("PUSH_FATAL_GUARD_THROW","PUSH_ARG",
+                                                 frameCategory(frame));
                                             emit("PUSH_FATAL_OBJECT","ARG_THROW",
                                                  directReferenceReadiness(chain.getArg(0)));
                                             emit("PUSH_FATAL_OBJECT","RECEIVER_THROW",
@@ -1011,6 +1043,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                                      ? "DIRECT_METRICA":"OTHER_THROW");
                                         }
                                         throw failure;
+                                    } finally {
+                                        if (previous==null) scopedPushCall.remove();
+                                        else scopedPushCall.set(previous);
                                     }
                                 });
                             registered++;

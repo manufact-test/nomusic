@@ -436,6 +436,19 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
             ("PUSH_FATAL_READ_FIELD_THROW","CASE_0","FIELD_SET")])
         self.assertNotIn("private_field",str(out))
 
+    def test_exact_push_guard_correlation_is_scoped_and_private(self):
+        events=(
+            log(431,"event=PUSH_FATAL_GUARD_THROW;origin=PUSH_ARG;error=GUARD_TRUE_ONLY;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_GUARD_RETURN;origin=PUSH_ARG;error=GUARD_NOT_IN_CALL;thread=OTHER")
+            +log(432,"event=PUSH_FATAL_GUARD_THROW;origin=PUSH_ARG;error=GUARD_FALSE_ONLY;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_GUARD_THROW;origin=PUSH_ARG;error=VENDOR_PRIVATE;thread=OTHER")
+        )
+        result=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(result["exact_push_same_call_guard_states"],[
+            ("PUSH_FATAL_GUARD_THROW","GUARD_TRUE_ONLY"),
+            ("PUSH_FATAL_GUARD_RETURN","GUARD_NOT_IN_CALL")])
+        self.assertNotIn("VENDOR_PRIVATE",str(result))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
