@@ -16,7 +16,7 @@ import zipfile
 from a1_private_dex_fatal_cfg import exact_fatal_cfg,private_exclusive_fatal_guard_refs
 from a1_private_push_init import inspect_legacy_push_init
 from a1_private_dex_callers import bounded_fatal_callers
-from a1_private_dex_supply_chain import classify_private_supplier_chain,inspect_source_chain
+from a1_private_dex_supply_chain import classify_private_supplier_chain,inspect_source_chain,_family
 from a1_private_dex_predicate import code_items_with_meta,rule_from_synthetic_lengths
 from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,private_direct_guard_branch_roles,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
@@ -300,6 +300,8 @@ def inspect_dex(binary):
                 "helper_refs":helpers,
                 "exact_guard_flow": exact_error_guard_report(code,targets,dex,group_call),
                 "exact_fatal_cfg": exact_fatal_cfg(code,targets,dex,group_call),
+                "exact_fatal_cfg_refined": exact_fatal_cfg(
+                    code,targets,dex,lambda owner,name:_family(owner,name,group_call)),
             })
     # Resolve helper implementations after all declarations have been indexed.
     for entry in matches:
@@ -458,6 +460,10 @@ def inspect_xapk(path):
         "exact_guard_direct_dependency_families":sorted({
             t for x in guard_insights for t in x["called_categories"]}),
         "exact_guard_reads_local_field":any(x["reads_fields"] for x in guard_insights),
+        "push_impl_a_refined_guard_sources":sorted({
+            x for m in fatal_a for x in m["exact_fatal_cfg_refined"]["guard_source_categories"]}),
+        "push_impl_a_refined_near_guard_sources":sorted({
+            x for m in fatal_a for x in m["exact_fatal_cfg_refined"]["near_fatal_sources"]}),
         "push_impl_a_fatal_cfg_decoded":all(
             m["exact_fatal_cfg"]["decoded"] for m in fatal_a),
         "push_impl_a_exclusive_fatal_guards_bounded":min(sum(
