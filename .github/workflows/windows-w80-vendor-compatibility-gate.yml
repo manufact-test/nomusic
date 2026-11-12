@@ -1,0 +1,47 @@
+name: Windows W80 reviewed-vendor automatic reconnection (NO INSTALLER)
+
+on:
+  push:
+    branches:
+      - experiment/windows-w80-vendor-update-auto-reconnect-20261112
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w21/**
+      - windows-companion/w24/**
+      - .github/workflows/windows-w80-vendor-compatibility-gate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vendor-compatibility:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Strict reviewed-only compatibility registry and image tests
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Verify W21 snapshots, foreign-update refusal and interruption recovery
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+      - name: W15 saved DPAPI login, entitlements and host Start states
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Compile GUI with all warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Guard active Windows update from destructive Restore-Install
+        shell: pwsh
+        run: |
+          $source = Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
+          if ($source -notmatch 'NativeIntegrationManager\.Upgrade\(\)') { throw 'W80_MISSING_SAFE_NATIVE_UPGRADE' }
+          if ($source -match 'NativeIntegrationManager\.Restore\(\);\s*NativeIntegrationManager\.Install\(\);') { throw 'W80_DESTRUCTIVE_UPDATE_REINTRODUCED' }
+          $feed = Get-Content windows-companion/w24/compatibility/official-yandex-builds-v1.json -Raw | ConvertFrom-Json
+          if ($feed.schema -ne 1 -or $feed.builds.Count -ne 1 -or $feed.builds[0].status -ne 'verified') { throw 'W80_UNREVIEWED_FEED' }
+          Write-Host 'W80_SAFE_AUTO_RECONNECT_STATIC_GUARD_PASS'
