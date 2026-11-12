@@ -21,7 +21,7 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
     def test_large_non_target_dex_string_is_skipped_not_fatal(self):
         # Real APK DEX can contain thousands of bytes in one data string.
         blob=bytearray(112+4+2+5000+1)
-        blob[:8]=b"dex\\n035\\0".replace(b"\\\\",b"\\")
+        blob[:8]=bytes((100,101,120,10,48,51,53,0))
         struct.pack_into("<II",blob,56,1,112)
         struct.pack_into("<I",blob,112,116)
         blob[116:118]=bytes((0x88,0x27))
