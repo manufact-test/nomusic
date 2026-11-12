@@ -54,5 +54,20 @@
     "Only pure read-only observational crash groups exposed; no raw private stack.",
     "Original and independently signed clone can be installed separately in lab, but no owner-ready CELIKOM app exists."
   ],
-  "communication_decision": "OWNER_REJECTED_REPEATING_YANDEX_CONTACT_REQUEST"
+  "communication_decision": "OWNER_REJECTED_REPEATING_YANDEX_CONTACT_REQUEST",
+  "source_only_audio_contract": {
+    "status": "PASS_TESTED_MODEL_ONLY",
+    "node22_test_count": 34,
+    "ci_url": "https://github.com/manufact-test/nomusic/actions/runs/43176180946",
+    "new_guards": [
+      "editionId_must_be_exact_opaque_string_no_toString",
+      "invalid_zero_or_negative_alternate_duration_forbidden"
+    ],
+    "publisher_native_decoder_integration_verified": false,
+    "backend_album_and_edition_attestation_verified": false,
+    "stage_a_acceptance": false,
+    "no_product_audio_verdict_inferred": true
+  },
+  "latest_document": "docs/android/ANDROID-A1-FINAL-20261112-SIGNATURE-TRUST-AND-B42-BOUNDARY.md",
+  "latest_handoff": "docs/android/NEXT-CHAT-ANDROID-A1-FINAL-20261112.md"
 }
