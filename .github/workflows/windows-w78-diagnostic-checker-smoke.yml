@@ -16,5 +16,5 @@ jobs:
         with:
           persist-credentials: false
       - name: Execute exact Library V2 checker under Windows PowerShell 5.1 with synthetic Yandex install
-        shell: cmd
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .github\scripts\windows-w78\verify-checker.ps1
+        shell: pwsh
+        run: pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .github/scripts/windows-w78/verify-checker.ps1
