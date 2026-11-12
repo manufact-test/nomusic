@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
+from a1_private_dex_predicate import code_items_with_meta,rule_from_synthetic_lengths
 from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,private_direct_guard_branch_roles,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
 EXPECTED_LEN=45961661
@@ -310,7 +311,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -323,9 +324,12 @@ def inspect_xapk(path):
                     if payload.startswith(b"dex\n"):
                         matches.extend(inspect_dex(payload))
                         guard_insights.append(private_guard_dependency_info(payload))
+                        guard_rules.extend(private_guard_synthetic_rule(payload))
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "exact_guard_synthetic_length_rules":sorted(set(guard_rules)),
+        "synthetic_length_evaluation_not_runtime_proof":True,
         "exact_guard_method_candidates_bounded":min(sum(
             x["guard_targets"] for x in guard_insights),16),
         "exact_guard_return_type_families":sorted({
@@ -458,6 +462,26 @@ def private_boolean_helpers(binary):
     return output
 
 
+
+
+def private_guard_synthetic_rule(binary):
+    """Never read a private string; evaluate bounded synthetic lengths only."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    if not targets:return set()
+    refs=set()
+    for mid,code in dex.code_methods():
+        cls,name=dex.method(mid)
+        if group_class(cls)!="PUSH_IMPL" or name!="a":continue
+        report=exact_error_guard_report(code,targets,dex,group_call)
+        if report["decoded"] and report["target_strings"]:
+            refs.update(private_direct_guard_invokes(code,targets,dex,group_call))
+    rules=set()
+    for mid,regs,ins,static,code in code_items_with_meta(dex):
+        if mid in refs:
+            rules.add(rule_from_synthetic_lengths(code,regs,ins,static,dex))
+    if refs and not rules:rules.add("TARGET_METHOD_BODY_MISSING")
+    return rules
 
 def private_java_dependency_family(owner,method):
     # Whitelisted framework families only: no proprietary symbols leave CI.
