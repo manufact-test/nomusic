@@ -34,7 +34,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
-BRANCH="experiment/android-a1-2025-singleapk-original-first-arm13-20261112"
+BRANCH="experiment/android-a1-2025-optional-metrica-startup-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
@@ -79,6 +79,24 @@ def patch_manifest(data):
                     stop("NAMESPACED_CLONE_PERMISSION_PROTECTION_DRIFT")
                 root.remove(entry)
                 permissions_removed+=1
+    # Only disable optional AppMetrica auto-start manifest components in the
+    # INDEPENDENT lab clone, never publisher original. No media/auth/signature
+    # logic, API code, OS permission or LSPatch mechanism is patched.
+    excluded=0
+    for parent in root.iter():
+        for component in list(parent):
+            if component.tag not in ("provider","receiver","service"):
+                continue
+            name=component.attrib.get(ANDROID+"name","").lower()
+            authority=component.attrib.get(ANDROID+"authorities","").lower()
+            is_metrica=(name.startswith("com.yandex.metrica.") or
+                        name.startswith("com.yandex.appmetrica.") or
+                        "appmetrica" in authority)
+            if is_metrica:
+                parent.remove(component)
+                excluded+=1
+    if excluded>20:
+        stop("METRICA_AB_OPTIONAL_COMPONENT_COUNT_TOO_HIGH")
     for provider in root.iter("provider"):
         auth=provider.attrib.get(ANDROID+"authorities","")
         if not auth: continue
@@ -96,6 +114,7 @@ def patch_manifest(data):
         "source_scoped_provider_rewrites":stats["provider_authorities"],
         "global_appmetrica_provider_rewrites":providers_rewritten,
         "duplicate_publisher_permission_declarations_removed":permissions_removed,
+        "optional_metrica_components_excluded":excluded,
     }
 
 
@@ -282,7 +301,8 @@ def run(xapk):
         renamed=[]
         rewrite_summary={"total_source_scoped_providers":0,
                          "total_global_provider_rewrites":0,
-                         "total_duplicate_permissions_removed":0}
+                         "total_duplicate_permissions_removed":0,
+                         "total_optional_metrica_components_excluded":0}
         source_splits={name for name,_ in independent}
         if len(source_splits)!=16:
             stop("NAMESPACED_EXPECTED_SIXTEEN_SIGNED_SPLITS")
@@ -294,6 +314,9 @@ def run(xapk):
             rewrite_summary["total_source_scoped_providers"]+=stats["source_scoped_provider_rewrites"]
             rewrite_summary["total_global_provider_rewrites"]+=stats["global_appmetrica_provider_rewrites"]
             rewrite_summary["total_duplicate_permissions_removed"]+=stats["duplicate_publisher_permission_declarations_removed"]
+            rewrite_summary["total_optional_metrica_components_excluded"]+=stats["optional_metrica_components_excluded"]
+        if not 1 <= rewrite_summary["total_optional_metrica_components_excluded"] <= 20:
+            stop("METRICA_AB_NO_BOUNDED_OPTIONAL_COMPONENT_DELTA")
         single=merge_publisher_input_lspatch_clone_splits(
             renamed,editor,work,work/"unique-own-key.jks")
         report={
@@ -304,6 +327,7 @@ def run(xapk):
             "LSPatch_direct_input_publisher_verified":True,
             "signed_clone_package":DEST,
             "single_apk_achieved":True,
+            "optional_metrica_autostart_lab_experiment":True,
             "test_order":"PUBLISHER_FIRST_CLONE_SECOND",
             "publisher_app_and_clone_can_be_concurrently_installed":False,
             "native_clone_main_75s":False,
