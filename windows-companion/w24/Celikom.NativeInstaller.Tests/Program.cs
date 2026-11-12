@@ -100,7 +100,7 @@ Check(changed.OriginalExeSha256==originalExeHash,"original exe fingerprint recor
 
 // W80: only a reviewed, canonical, data-only compatibility feed may extend
 // host identities. Unsupported, conflicting or malformed entries fail closed.
-var verifiedFeedFile=Path.Combine("windows-companion","w24","compatibility","official-yandex-builds-v1.json");
+var verifiedFeedFile=Path.Combine("windows-companion","w24","compatibility","official-yandex-builds-v2.json");
 if (File.Exists(verifiedFeedFile))
 {
   var feedBytes=File.ReadAllBytes(verifiedFeedFile);
