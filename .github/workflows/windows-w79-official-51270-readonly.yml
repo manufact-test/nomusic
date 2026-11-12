@@ -19,6 +19,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
       - name: Fetch official Yandex 5.127.0 package into disposable runner (never install)
         shell: pwsh
         run: |
@@ -58,3 +64,20 @@ jobs:
           Write-Host "ORIGINAL_51270_EXE_SHA256=$((Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash)"
           Write-Host "ORIGINAL_51270_ASAR_SHA256=$((Get-FileHash $asars[0].FullName -Algorithm SHA256).Hash)"
           Write-Host 'W79_OFFICIAL_51270_READONLY_PROVENANCE_PASS'
+          # Actual 5.127.0 compatibility test: stage candidate bytes ONLY in runner temp.
+          # Never execute or install Yandex or publish altered vendor binaries.
+          npm install --no-audit --no-fund --prefix windows-companion/w23
+          if ($LASTEXITCODE -ne 0) { throw 'W23_NATIVE_BUILD_DEPENDENCIES_FAILED' }
+          node windows-companion/w23/build.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W23_NATIVE_BUNDLE_FAILED' }
+          $hostModule = (Resolve-Path windows-companion/w23/dist/host.cjs).Path
+          $renderer = (Resolve-Path windows-companion/w23/dist/renderer.js).Path
+          $stage = Join-Path $env:RUNNER_TEMP 'candidate-51270-images'
+          $exeSha = (Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $asarSha = (Get-FileHash $asars[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Cli/Celikom.NativeInstaller.Cli.csproj -c Release -- $exes[0].FullName $asars[0].FullName $hostModule $renderer $exeSha $asarSha $stage
+          if ($LASTEXITCODE -ne 0) { throw 'W79_REAL_51270_ASAR_IMAGE_BUILDER_FAILED' }
+          $imageReport = Get-Content (Join-Path $stage 'W24-image-hashes.json') -Raw | ConvertFrom-Json
+          if ($imageReport.integrityOccurrences -lt 1) { throw 'W79_IMAGE_EMBEDDED_HASH_NOT_FOUND' }
+          Write-Host "W79_REAL_51270_IMAGE_BUILD_PASS replacedHashes=$($imageReport.integrityOccurrences)"
+
