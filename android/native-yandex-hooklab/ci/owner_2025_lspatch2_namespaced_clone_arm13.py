@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import platform
 import re
@@ -23,6 +24,8 @@ sys.path.insert(0,str(ROOT))
 import clone_native_splits_ephemeral as source
 from clone_native_splits_arsclib_ephemeral import download_editor
 from clone_main_crash_buffer import classify_main_exit_status, classify_main_crash_buffer
+from merge_lab_splits_ephemeral import verify_merged_payloads
+from clone_lspatch_loader_zero import verify_native_loader_elf_offsets
 from ci.owner_2025_lspatch2_resigned_native_arm13 import wrap_lab_base
 from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     guest,cmd,stop,verified_orig_paths,apk_name,install_clones,lab_sdk_tool,
@@ -30,7 +33,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 )
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 
-BRANCH="experiment/android-a1-2025-native-lspatch2-clone-namespace-20261112"
+BRANCH="experiment/android-a1-2025-singleapk-publisher-base-lspatch2-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
@@ -153,6 +156,76 @@ def name_one(apk,editor,root,index,keystore):
     return aligned,stats
 
 
+def merge_publisher_input_lspatch_clone_splits(renamed, editor, work, key):
+    """One APK: genuine signed publisher BASE -> LSPatch2 -> clone name -> merge.
+
+    The inner signed issuer-derived origin is preserved byte-for-byte as a
+    LSPatch asset. Never modify the genuine publisher original or its signer.
+    """
+    if len(renamed)!=16 or len({name for name,_ in renamed})!=16:
+        stop("SINGLEAPK_2025_EXACT_16_CLONED_SPLITS_REQUIRED")
+    merge_dir=work/"single-verified-2025-split-input"
+    merge_dir.mkdir()
+    base=None
+    source_files=[]
+    for name,part in renamed:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+",name):
+            stop("SINGLEAPK_2025_UNSAFE_SPLIT_NAME")
+        meta=apk_name(part)
+        split="" if name=="base" else name
+        if (meta.get("name")!=DEST or meta.get("versionCode")!=VERSION or
+                meta.get("split","")!=split):
+            stop("SINGLEAPK_2025_INPUT_METADATA_DRIFT")
+        if name=="base":
+            base=part
+        shutil.copyfile(part,merge_dir/("base.apk" if name=="base" else "split_"+name+".apk"))
+        source_files.append(part)
+    if base is None:
+        stop("SINGLEAPK_2025_CLONE_BASE_ABSENT")
+    unsigned=work/"lspatch-2025-single-unsigned.apk"
+    built=cmd(["java","-Xmx3g","-jar",str(editor),"m",
+               "-i",str(merge_dir),"-o",str(unsigned)],timeout=600)
+    if built.returncode or not unsigned.is_file():
+        stop("SINGLEAPK_2025_MERGE_FAILED")
+    aligned=work/"lspatch-2025-single-owned.apk"
+    done=cmd([lab_sdk_tool("zipalign"),"-f","-p","4",
+              str(unsigned),str(aligned)],timeout=120)
+    if done.returncode:
+        stop("SINGLEAPK_2025_ZIPALIGN_FAILED")
+    resign_own(aligned,key)
+    meta=apk_name(aligned)
+    if (meta.get("name")!=DEST or meta.get("versionCode")!=VERSION
+            or meta.get("split","")):
+        stop("SINGLEAPK_2025_SIGNED_METADATA_DRIFT")
+    try:
+        parity=verify_merged_payloads(source_files,aligned)
+        with zipfile.ZipFile(base) as src,zipfile.ZipFile(aligned) as dst:
+            protected=("assets/lspatch/config.json","assets/lspatch/origin.apk",
+                       "assets/lspatch/loader.dex")
+            if any(member not in dst.namelist() for member in protected):
+                stop("SINGLEAPK_2025_LSPATCH_BOOTSTRAP_LOST")
+            if any(digest_bytes(src.read(member))!=digest_bytes(dst.read(member))
+                   for member in protected):
+                stop("SINGLEAPK_2025_NESTED_PUBLISHER_INPUT_DRIFT")
+            if dst.testzip() is not None:
+                stop("SINGLEAPK_2025_OUTPUT_CRC_INVALID")
+        elf=verify_native_loader_elf_offsets(aligned)
+        if not all(x["page_aligned_4096"] for x in elf.values()):
+            stop("SINGLEAPK_2025_SIGNED_LOADER_ALIGNMENT_INVALID")
+    except (ValueError,KeyError,zipfile.BadZipFile,OSError):
+        stop("SINGLEAPK_2025_VERIFIED_ASSET_OR_PAYLOAD_DRIFT")
+    if not parity["payload_byte_hashes_match"]:
+        stop("SINGLEAPK_2025_DEX_NATIVE_PAYLOAD_MISMATCH")
+    print(json.dumps({"single_apk_structural":True,
+                      "publisher_input_nested_origin_preserved":True,
+                      "source_split_count":16,"output_count":1,
+                      "dex_count":parity["single_apk_payload_dex_count"],
+                      "native_lib_count":parity["single_apk_payload_native_library_count"],
+                      "all_signed_loader_abis_page_aligned":True,
+                      "consumer_release":False},sort_keys=True))
+    return aligned
+
+
 def observe_clone(seconds=75):
     component=DEST+"/ru.yandex.music.main.MainScreenActivity"
     launched=guest("am","start","--user","0","-n",component,timeout=65)
@@ -220,6 +293,8 @@ def run(xapk):
             rewrite_summary["total_source_scoped_providers"]+=stats["source_scoped_provider_rewrites"]
             rewrite_summary["total_global_provider_rewrites"]+=stats["global_appmetrica_provider_rewrites"]
             rewrite_summary["total_duplicate_permissions_removed"]+=stats["duplicate_publisher_permission_declarations_removed"]
+        single=merge_publisher_input_lspatch_clone_splits(
+            renamed,editor,work,work/"unique-own-key.jks")
         report={
             "verified_publisher_source_splits":16,
             "clone_provider_namespace_rewrites":rewrite_summary,
@@ -227,7 +302,7 @@ def run(xapk):
             "LSPatch_level":2,
             "LSPatch_direct_input_publisher_verified":True,
             "signed_clone_package":DEST,
-            "single_apk_achieved":False,
+            "single_apk_achieved":True,
             "publisher_app_and_clone_can_be_concurrently_installed":False,
             "native_clone_main_75s":False,
             "audio_or_account_tested":False,
@@ -235,13 +310,13 @@ def run(xapk):
             "binary_published":False,
             "stage_a":"NO_GO",
         }
-        report["clone_install"]=install_clones(renamed)
+        report["clone_install"]=install_clones([("base",single)])
         if report["clone_install"]!="INSTALLED":
             report["verdict"]="NAMESPACED_CLONE_INSTALL_FAIL"
             return report
         count=sum(line.startswith("package:") for line in
                   guest("pm","path",DEST).stdout.splitlines())
-        if count!=16:
+        if count!=1:
             report["verdict"]="NAMESPACED_CLONE_SPLIT_COUNT_FAIL"
             return report
         guest("logcat","-c")
