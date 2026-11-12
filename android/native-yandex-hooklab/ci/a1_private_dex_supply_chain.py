@@ -17,11 +17,39 @@ def _family(owner, name, group_call):
     if owner.startswith("Landroid/") and family=="ANDROID_FRAMEWORK":
         return "ANDROID_OTHER"
     if family=="JAVA_RUNTIME":
-        if owner=="Ljava/lang/String;" and name=="length":
-            return "STRING_LENGTH"
-        if owner=="Ljava/lang/String;" and name=="equals":
-            return "STRING_EQUALS"
-        return "JAVA_RUNTIME"
+        if owner=="Ljava/lang/String;":
+            return {
+                "length":"STRING_LENGTH",
+                "equals":"STRING_EQUALS",
+                "valueOf":"STRING_VALUEOF",
+                "concat":"STRING_CONCAT",
+                "isEmpty":"STRING_ISEMPTY",
+                "toString":"STRING_TOSTRING",
+            }.get(name,"STRING_OTHER")
+        if owner=="Ljava/lang/StringBuilder;":
+            return {
+                "<init>":"STRINGBUILDER_CTOR",
+                "append":"STRINGBUILDER_APPEND",
+                "toString":"STRINGBUILDER_FINISH",
+            }.get(name,"STRINGBUILDER_OTHER")
+        if owner=="Ljava/lang/System;":
+            return {
+                "getProperty":"SYSTEM_PROPERTY",
+                "getenv":"SYSTEM_ENVIRONMENT",
+                "currentTimeMillis":"SYSTEM_CLOCK",
+            }.get(name,"SYSTEM_OTHER")
+        if owner=="Ljava/lang/Class;":
+            return {
+                "getName":"REFLECT_CLASS_NAME",
+                "forName":"REFLECT_CLASS_FORNAME",
+                "getSimpleName":"REFLECT_SIMPLE_NAME",
+            }.get(name,"REFLECT_CLASS_OTHER")
+        if owner=="Ljava/lang/Throwable;":
+            return {
+                "getMessage":"THROWABLE_MESSAGE",
+                "toString":"THROWABLE_TOSTRING",
+            }.get(name,"THROWABLE_OTHER")
+        return "JAVA_RUNTIME_OTHER"
     return family
 
 def _field_category(dex, field_id, group_call):
