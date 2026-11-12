@@ -1,0 +1,33 @@
+name: Windows W81 monitor and visible failure regression
+
+on:
+  push:
+    branches:
+      - experiment/windows-w81-vendor-monitor-compat-visibility-20261112
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w24/**
+      - windows-companion/w81/**
+      - .github/workflows/windows-w81-monitor-status-checks.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health-and-compatibility:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: W81 live host and playback error UI cases
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Native and accumulated compatibility checks
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Compile Windows GUI with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
