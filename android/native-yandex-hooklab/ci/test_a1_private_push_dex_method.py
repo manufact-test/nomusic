@@ -18,6 +18,17 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         self.assertEqual(group_call("Lcom/secret/vendor;","secret"),"OTHER")
         self.assertEqual(code_candidates(b"\x1a\x00\x05\x00", {5})[0],[0])
         self.assertEqual(code_candidates(b"\x1b\x00\x05\x00\x00\x00", {5})[0],[0])
+    def test_large_non_target_dex_string_is_skipped_not_fatal(self):
+        # Real APK DEX can contain thousands of bytes in one data string.
+        blob=bytearray(112+4+2+5000+1)
+        blob[:8]=b"dex\\n035\\0".replace(b"\\\\",b"\\")
+        struct.pack_into("<II",blob,56,1,112)
+        struct.pack_into("<I",blob,112,116)
+        blob[116:118]=bytes((0x88,0x27))
+        blob[118:5118]=b"x"*5000
+        blob[5118]=0
+        self.assertEqual(Dex(bytes(blob)).string(0),"")
+
     def test_bad_dex_rejected_without_data(self):
         with self.assertRaises(DexError):Dex(b"PK\x03\x04")
 

@@ -50,7 +50,12 @@ class Dex:
             off=struct.unpack_from("<I",self.data,self.string_off+index*4)[0]
             _,start=uleb(self.data,off)
             end=self.data.find(b"\0",start,min(len(self.data),start+4096))
-            if end<0: raise DexError("STR_END")
+            # Large vendor strings (e.g. embedded JSON) are irrelevant to the
+            # short AppMetrica exception and Dex method/class descriptors.
+            # Skip without reading or disclosing them, not a malformed DEX.
+            if end<0:
+                self.str_cache[index]=""
+                return ""
             self.str_cache[index]=self.data[start:end].decode("utf-8","replace")
         return self.str_cache[index]
 

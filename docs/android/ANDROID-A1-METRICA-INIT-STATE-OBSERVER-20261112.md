@@ -99,3 +99,8 @@ After public `getReporter()` returned successfully 14 times in native #432243442
 - Pure-Python offline read-only XAPK/Dex parser was added in `android/native-yandex-hooklab/ci/a1_private_push_dex_method.py`; it verifies exact publisher-uploaded SHA256/size, scans DEX string IDs, class_data/code_item, and produces **only fixed structural categories** for AppMetrica-not-initialized strings in Push implementation methods. No vendor code, paths, stack, keys, raw class/method names, APK, or DEX leave runner; no artifacts uploaded.
 - The code-unit scan for calls is intentionally approximate (not a full instruction-flow disassembler). It cannot establish causality alone. Use results to decide a *narrow follow-up*, never silently force activation true or suppress the fatal.
 - Workflow runs this before the real unsuppressed native ARM13 gate, retaining publisher-first installation and strict 75s 25/25 acceptance.
+
+## Ninth exact-XAPK parser infrastructure fixes
+- [CI #43243546438](https://github.com/manufact-test/nomusic/actions/runs/43243546438): private DEX classification failed **before** native work; the error was in the diagnostic parser, not Android product.
+- [CI #43244032782](https://github.com/manufact-test/nomusic/actions/runs/43244032782): fixed safe-enum failure reporting identified `STR_END`: a vendor DEX string longer than the parser's 4KiB cap. This is normal for large embedded strings, not evidence of malformed APK.
+- Updated parser to ignore non-target overlong strings, preserving a strict bounds cap and sanitized outputs. Added a synthetic regression case, then rerun original exact XAPK analysis.
