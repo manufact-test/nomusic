@@ -255,7 +255,13 @@ if __name__=="__main__":
         reason=getattr(exc,"stage",None) or str(exc)
         if not isinstance(reason,str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",reason):
             reason="PUBLISHER_SOURCE_PARALLEL_PRIVATE_FAILURE"
+        error_class=type(exc).__name__
+        if error_class not in {"HTTPError","URLError","RuntimeError","ValueError",
+                              "FileNotFoundError","OSError","TrialError","AttributeError",
+                              "NameError","KeyError","TypeError","BadZipFile",
+                              "SubprocessError","ImportError"}:
+            error_class="OTHER"
         print(json.dumps({"verdict":"OWN_PACKAGE_PARALLEL_A1_INCOMPLETE",
-            "reason":reason,"owner_phone_touched":False,
+            "reason":reason,"safe_error_type":error_class,"owner_phone_touched":False,
             "binary_published":False,"stage_a":"NO_GO"},sort_keys=True))
         sys.exit(2)
