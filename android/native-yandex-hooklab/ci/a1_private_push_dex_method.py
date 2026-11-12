@@ -365,6 +365,10 @@ def inspect_xapk(path):
             grp for item in authority_refs for grp in item["call_api_cooccurrences"]}),
         "private_global_metrica_authority_direct_methods_bounded":min(sum(
             item["methods_referencing_bounded"] for item in authority_refs),32),
+        "private_authority_literal_then_uri_parse_methods_bounded":min(sum(
+            item["literal_followed_by_uri_parse_bounded"] for item in authority_refs),16),
+        "private_authority_literal_then_resolver_query_methods_bounded":min(sum(
+            item["literal_followed_by_resolver_query_bounded"] for item in authority_refs),16),
         "push_impl_exact_string_contains_guard_cases":[
             {"argument":c["argument"],"receiver":c["receiver"],
              "direct_guard":c["direct_guard"]}
