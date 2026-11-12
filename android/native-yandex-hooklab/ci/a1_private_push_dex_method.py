@@ -420,6 +420,17 @@ def inspect_xapk(path):
         "exact_guard_direct_dependency_families":sorted({
             t for x in guard_insights for t in x["called_categories"]}),
         "exact_guard_reads_local_field":any(x["reads_fields"] for x in guard_insights),
+        "push_impl_a_fatal_cfg_decoded":all(
+            m["exact_fatal_cfg"]["decoded"] for m in fatal_a),
+        "push_impl_a_exclusive_fatal_guards_bounded":min(sum(
+            m["exact_fatal_cfg"]["exclusive_fatal_guards"] for m in fatal_a),32),
+        "push_impl_a_exclusive_guard_sources":sorted({
+            x for m in fatal_a for x in m["exact_fatal_cfg"]["guard_source_categories"]}),
+        "push_impl_a_near_fatal_guard_sources":sorted({
+            x for m in fatal_a for x in m["exact_fatal_cfg"]["near_fatal_sources"]}),
+        "push_impl_a_exclusive_guard_direction":sorted({
+            x for m in fatal_a for x in m["exact_fatal_cfg"]["fatal_guard_polarities"]}),
+        "push_impl_a_fatal_cfg_is_not_runtime_proof":True,
         "push_impl_a_exact_flow_decoded":all(
             m["exact_guard_flow"]["decoded"] for m in fatal_a),
         "push_impl_a_exact_error_string_candidates_bounded":min(
