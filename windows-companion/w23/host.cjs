@@ -315,7 +315,8 @@ async function tick(view) {
       const previous = lastStatus.get(view);
       lastStatus.set(view, { value: status, trackId, title, artist, durationMs, at: now });
       if ((status === "NATIVE_CONNECTED" || status === "NATIVE_MAPPING_ACCEPTED" ||
-           status === "NATIVE_RECOVERING" || status === "ORIGINAL") &&
+           status === "NATIVE_RECOVERING" || status === "NATIVE_SOURCE_FAILED" ||
+           status === "ORIGINAL") &&
           (!previous || status !== previous.value || trackId !== previous.trackId ||
            title !== previous.title || artist !== previous.artist ||
            durationMs !== previous.durationMs)) {
