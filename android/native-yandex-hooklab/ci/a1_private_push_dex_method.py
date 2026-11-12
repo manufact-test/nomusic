@@ -572,7 +572,7 @@ def private_site_methods(binary):
     """Precise throw-site classes and immediate guard call targets in memory."""
     dex=Dex(binary)
     targets=dex.possible_error_strings()
-    if not targets:return set(),set()
+    if not targets:return set(),set(),set()
     guards=set()
     fatals=set()
     suppliers=set()
