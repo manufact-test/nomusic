@@ -89,6 +89,18 @@ public static class NativeIntegrationManager
         catch { return NativeInstallState.Changed; }
     }
 
+    // An original user-approved ACTIVE patch was replaced by Yandex itself.
+    // On the user's next explicit Start, no second intrusive consent dialog is
+    // needed for an *independently reviewed* official new pair.
+    public static bool IsPreviouslyApprovedVendorUpdate(string? root = null, string? backup = null)
+    {
+        root ??= DefaultYandexDirectory;
+        backup ??= DefaultBackupDirectory;
+        if (Inspect(root, backup) != NativeInstallState.VerifiedVendorUpdate) return false;
+        try { return PairRecovery.Inspect(root, backup).State == "ACTIVE"; }
+        catch { return false; }
+    }
+
     public static NativeInstallState Install(string? root = null, string? assets = null,
         string? backup = null)
     {
