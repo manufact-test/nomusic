@@ -128,7 +128,7 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         class Fake:
             class_count=1
             class_off=0
-            data=bytes(data)
+        Fake.data=bytes(data)
         short=list(code_items_with_meta(Fake()))
         expanded=list(code_items_with_meta(Fake(),include_try_size=True))
         self.assertEqual(len(short),1)
