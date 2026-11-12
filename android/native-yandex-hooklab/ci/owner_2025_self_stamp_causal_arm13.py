@@ -33,6 +33,7 @@ from owner_2025_same_name_own_key_arm13_control import (
 from owner_2025_paired_issuer_vs_own_signer_arm13 import strict_75s_stable
 from lab_signer_signal_gate import probe_apk_zip
 from own_key_full_payload_identity_gate import _non_signing_entry_hashes
+from owner_2025_signature_permission_comparison import compare_issuer_own_signer_package_grants
 
 BRANCH="experiment/android-a1-2025-self-stamp-causal-arm13-20261112"
 STAMP_ENTRY="stamp-cert-sha256"
@@ -208,6 +209,7 @@ def run(xapk: Path) -> dict:
         if not pub_installed:
             result["verdict"]="ISSUER_CONTROL_INSTALL_FAILED"
             return result
+        issuer_permission_raw=guest("dumpsys","package",ORIGINAL,timeout=80).stdout
         guest("logcat","-c")
         pub=observe_main_75_seconds()
         result["original_75s_stable"]=strict_75s_stable(pub)
@@ -228,6 +230,8 @@ def run(xapk: Path) -> dict:
         if not stamped_installed:
             result["verdict"]="OWN_SOURCE_STAMP_INSTALL_FAILED"
             return result
+        own_permission_raw=guest("dumpsys","package",ORIGINAL,timeout=80).stdout
+        result["same_package_issuer_vs_own_signer_platform_grants"]=compare_issuer_own_signer_package_grants(issuer_permission_raw,own_permission_raw)
         guest("logcat","-c")
         own=observe_main_75_seconds()
         result["own_stamp_main_75s"]=own

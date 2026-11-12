@@ -6,6 +6,8 @@ on:
       - '.github/workflows/android-a1-2025-honest-own-source-stamp-arm13.yml'
       - 'android/native-yandex-hooklab/ci/owner_2025_self_stamp_causal_arm13.py'
       - 'android/native-yandex-hooklab/ci/test_owner_2025_self_stamp_causal.py'
+      - 'android/native-yandex-hooklab/ci/owner_2025_signature_permission_comparison.py'
+      - 'android/native-yandex-hooklab/ci/test_owner_2025_signature_permission_comparison.py'
       - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
 permissions:
   contents: write
@@ -28,6 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p 'test_owner_2025_self_stamp_causal.py' -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p 'test_owner_2025_signature_permission_comparison.py' -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p 'test_owner_2025_paired_signing_verdict.py' -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p 'test_own_key_full_payload_identity_gate.py' -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p 'test_clone_main_crash_buffer.py' -v
