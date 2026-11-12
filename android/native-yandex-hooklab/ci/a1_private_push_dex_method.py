@@ -668,10 +668,12 @@ def private_exact_guard_case_categories(binary):
     if not targets:return {}
     dex=Dex(binary)
     result={}
+    target_names={(cls,method) for cls,method,_ in targets}
     for mid,code in dex.code_methods():
         owner,name=dex.method(mid)
-        key=(owner.strip("L;").replace("/","."),name,
-             private_java_parameter_signature(dex,mid))
+        cls=owner.strip("L;").replace("/",".")
+        if (cls,name) not in target_names:continue
+        key=(cls,name,private_java_parameter_signature(dex,mid))
         if key not in targets:continue
         try:ins=decode_instructions(code)
         except FlowDecodeError:
