@@ -1,5 +1,5 @@
 "use strict";
-const CELIKOM_NATIVE_VERSION = "0.24.23";
+const CELIKOM_NATIVE_VERSION = "0.24.24";
 
 /**
  * CELIKOM main-process relay for genuine Yandex Music desktop.
@@ -37,6 +37,11 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "SOURCE_RECOVERY_SCHEDULED", "SOURCE_RECOVERY_RETRY",
   "SOURCE_RECOVERY_GRANTED", "SOURCE_RECOVERY_RELOAD_OK",
   "SOURCE_RECOVERY_RELOAD_FAILED", "SOURCE_RECOVERY_EXHAUSTED",
+  "SOURCE_RECOVERY_NO_LONGER_CURRENT", "RESOLVE_BACKGROUND_TIMEOUT",
+  "RESOLVE_BACKGROUND_TRANSIENT",
+  "SOURCE_DEFERRED_WAITING", "SOURCE_DEFERRED_PROMOTED",
+  "SOURCE_DEFERRED_EXPIRED", "SOURCE_DEFERRED_SKIPPED",
+  "NATIVE_TOGGLE_RELOAD_DIFFERENT_TRACK",
   "SOURCE_EXPIRED_NATIVE_403",
   "SOURCE_BATCH_REQUEST", "SOURCE_BATCH_MAPPED", "CACHE_HIT",
   "MEDIA_PLAY", "MEDIA_PAUSE", "MEDIA_PLAYING", "MEDIA_ERROR",
@@ -296,6 +301,10 @@ async function tick(view) {
       await Promise.all(queue.slice(0, 6).map(item => relayGrant(view, token, item)));
     }
     if (now - (lastStatus.get(view)?.at || 0) > 2200) {
+      // A failed *prefetched* file-info may be played long afterwards.
+      // Check the observed current Yandex queue entity before assuming the
+      // old source is still good. Recovery may reload that entity only.
+      await execute(view, ";window.__celikomBridgeNativeCheckDeferred?.()||false");
       const status = await execute(view, ";window.__celikomBridgeNativeStatus?.()||'ORIGINAL'");
       const observed = await execute(view,
         ";window.__celikomBridgeNativeCurrentTrack?.()||null");
