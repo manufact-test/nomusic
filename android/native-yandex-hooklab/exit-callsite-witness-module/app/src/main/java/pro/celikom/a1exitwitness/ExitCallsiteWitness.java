@@ -161,6 +161,13 @@ public final class ExitCallsiteWitness extends XposedModule {
         return false;
     }
 
+    private static String packageIdentityCategory(String value) {
+        if (PACKAGE.equals(value)) return "CLONE";
+        if ("ru.yandex.music".equals(value)) return "ORIGINAL";
+        if (value == null || value.isEmpty()) return "MISSING";
+        return "OTHER";
+    }
+
     private static String redactedErrorCategory(Object value) {
         if (!(value instanceof String)) return "EXC_UNKNOWN";
         String s = ((String) value).toLowerCase(java.util.Locale.ROOT);
@@ -180,6 +187,15 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (s.contains("process") || s.contains("package")
                 || s.contains("component") || s.contains("restart"))
             return "EXC_LIFECYCLE";
+        if (s.contains("appmetrica") || s.contains("metrica")
+                || s.contains("sdk") || s.contains("activate"))
+            return "EXC_SDK_INIT";
+        if (s.contains("invalid") || s.contains("unsupported")
+                || s.contains("configuration") || s.contains("api key"))
+            return "EXC_CONFIG";
+        if (s.contains("coroutine") || s.contains("dispatcher")
+                || s.contains("concurrent"))
+            return "EXC_ASYNC";
         return "EXC_OTHER";
     }
 
@@ -196,7 +212,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                         if (PACKAGE.equals(Application.getProcessName())) {
                             Object context = chain.getArg(0);
                             if (context instanceof Context) {
-                                ClassLoader loader = ((Context) context).getClassLoader();
+                                Context caller = (Context) context;
+                                String rawInfo = caller.getApplicationInfo() == null
+                                    ? null : caller.getApplicationInfo().packageName;
+                                emit("APP_CONTEXT",
+                                     packageIdentityCategory(caller.getPackageName()),
+                                     "APPINFO_" + packageIdentityCategory(rawInfo));
+                                ClassLoader loader = caller.getClassLoader();
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
                             }
