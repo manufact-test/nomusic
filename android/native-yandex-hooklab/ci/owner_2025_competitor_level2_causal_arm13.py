@@ -23,6 +23,7 @@ from pathlib import Path
 # one directory above. Import only our own pinned/hash-checked implementation.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from clone_lspatch_loader_zero import download_pinned_patcher
+from recover_stored_origin_crc import rewrite_only_if_origin_crc_mismatch
 from owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     guest, install_clones, verified_orig_paths, apk_name, ORIGINAL, SPLITS,
     stop, lab_sdk_tool, source, cmd
@@ -73,6 +74,24 @@ def patch_base(owned: list[tuple[str,Path]], work: Path) -> list[tuple[str,Path]
     if len(candidates)!=1:
         stop("LEVEL2_2025_ONE_WRAPPED_BASE_REQUIRED")
     wrapped=candidates[0]
+    # Repair only known upstream nested STORED ZIP central directory anomaly;
+    # preserve all original DEX/native bytes and sign with the EXISTING own lab key.
+    scratch=work/"level2-crc-unsigned.apk"
+    integrity=rewrite_only_if_origin_crc_mismatch(wrapped,scratch)
+    phase("LOADER_ZIP_INTEGRITY_CHECKED")
+    if integrity["layout_repacked"]:
+        aligned=work/"level2-crc-aligned.apk"
+        source.action([lab_sdk_tool("zipalign"),"-f","-p","4",
+                       str(scratch),str(aligned)],
+                      "LEVEL2_2025_ZIPALIGN_FAILED",90)
+        source.action([lab_sdk_tool("apksigner"),"sign",
+                       "--ks",str(key),"--ks-pass","pass:ephemeral-lab-only",
+                       "--ks-key-alias","own-key","--key-pass","pass:ephemeral-lab-only",
+                       "--min-sdk-version","24",
+                       "--v4-signing-enabled","false",str(aligned)],
+                      "LEVEL2_2025_LAB_RESIGN_FAILED",90)
+        wrapped=aligned
+        phase("OWN_WRAPPER_ZIP_REBUILT_AND_RESIGNED")
     with zipfile.ZipFile(wrapped) as z, zipfile.ZipFile(base[0]) as reference:
         if "assets/lspatch/config.json" not in z.namelist() or \
             "assets/lspatch/origin.apk" not in z.namelist():
