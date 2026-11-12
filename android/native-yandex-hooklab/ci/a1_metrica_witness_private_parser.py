@@ -26,7 +26,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
           "PUSH_FATAL_OBJECT_HOOK","PUSH_FATAL_OBJECT","PUSH_FATAL_OBJECT_LOADER",
           "PUSH_FATAL_OBJECT_OUTCOME","PUSH_THROWABLE_HOOK",
-          "PUSH_PRE_FATAL_THROWABLE","PUSH_FATAL_GUARD_RETURN",
+          "PUSH_PRE_FATAL_THROWABLE","PUSH_PRE_FATAL_ORIGIN",
+          "PUSH_FATAL_CAUSE_LINK","PUSH_FATAL_GUARD_RETURN",
           "PUSH_FATAL_GUARD_THROW","PUSH_FATAL_CONSTRUCTOR_ORDER",
           "PUSH_FATAL_READ_FIELD_ENTER",
           "PUSH_FATAL_READ_FIELD_THROW",
@@ -81,6 +82,11 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "PRE_LINKAGE","PRE_ILLEGAL_STATE","PRE_ILLEGAL_ARGUMENT",
          "PRE_OTHER_RUNTIME","PRE_OTHER_ERROR","PRE_OTHER_CHECKED",
          "PRE_NONE","PRE_OVERFLOW",
+         "ORIGIN_PUSH_IMPL","ORIGIN_PUSH_OTHER","ORIGIN_METRICA",
+         "ORIGIN_MUSIC","ORIGIN_GOOGLE","ORIGIN_ANDROID",
+         "ORIGIN_KOTLIN","ORIGIN_JAVA","ORIGIN_REFLECTION",
+         "ORIGIN_OTHER","ORIGIN_UNOBSERVED",
+         "CAUSE_NONE","CAUSE_OTHER","CAUSE_MATCH",
          "CTOR_AFTER_TRUE","CTOR_BEFORE_TRUE","CTOR_NOT_IN_SCOPE",
          "CTOR_OTHER_IDENTITY",
          "ABSENT","STOCK_OWNER","CLONE_OWNER","OTHER_OWNER","PROBE_ERROR",
@@ -187,6 +193,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "PUSH_FATAL_GUARD_RETURN","PUSH_FATAL_GUARD_THROW")]
     constructor_correlated=[x for x in seen if x[0]=="PUSH_FATAL_CONSTRUCTOR_ORDER"]
     pre_throwables=[x for x in seen if x[0]=="PUSH_PRE_FATAL_THROWABLE"]
+    pre_origins=[x for x in seen if x[0]=="PUSH_PRE_FATAL_ORIGIN"]
+    cause_links=[x for x in seen if x[0]=="PUSH_FATAL_CAUSE_LINK"]
     pre_throwable_hooks=[x for x in seen if x[0]=="PUSH_THROWABLE_HOOK"]
     direct_field=[x for x in seen if x[0] in ("PUSH_FATAL_READ_FIELD_ENTER",
                                              "PUSH_FATAL_READ_FIELD_THROW")]
@@ -268,6 +276,9 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             x[2]=="REGISTERED" for x in pre_throwable_hooks),
         "exact_push_nonfatal_throwable_categories_after_true":[
             x[2] for x in pre_throwables[:20]],
+        "exact_push_nonfatal_throwable_origins_after_true":[
+            x[2] for x in pre_origins[:20]],
+        "exact_push_fatal_cause_relation":[x[2] for x in cause_links[:8]],
         "exact_push_direct_receiver_field_states":[(x[0],x[1],x[2]) for x in direct_field[:64]],
         "exact_push_object_raw_fields_or_values_disclosed":False,
         "private_push_helper_bool_hook_registered":any(

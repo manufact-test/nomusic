@@ -68,6 +68,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             new java.util.IdentityHashMap<>();
         final ArrayList<Throwable> capturedAfterTrue = new ArrayList<>();
         final ArrayList<String> categoriesAfterTrue = new ArrayList<>();
+        final ArrayList<String> originAfterTrue = new ArrayList<>();
     }
     private final ThreadLocal<ExactPushFrame> scopedPushCall=new ThreadLocal<>();
     private static String frameCategory(ExactPushFrame f) {
@@ -1009,6 +1010,46 @@ public final class ExitCallsiteWitness extends XposedModule {
         return "PRE_OTHER_CHECKED";
     }
 
+    // Identify only the nearest broad origin family of a new Throwable.
+    // No frame, method, vendor class, source path or thread identity is emitted.
+    private static String safeThrowableOrigin() {
+        try {
+            for (StackTraceElement f : Thread.currentThread().getStackTrace()) {
+                String cls=f.getClassName();
+                if (cls.startsWith("pro.celikom.a1exitwitness.")
+                        || cls.equals("java.lang.Throwable")
+                        || cls.equals("java.lang.Thread")
+                        || cls.startsWith("io.github.libxposed."))
+                    continue;
+                if (cls.startsWith("java.lang.")
+                        && "<init>".equals(f.getMethodName()))
+                    continue;
+                if (cls.startsWith("java.lang.reflect.")
+                        || cls.startsWith("jdk.internal.reflect."))
+                    return "ORIGIN_REFLECTION";
+                if (cls.startsWith("com.yandex.metrica.push.impl."))
+                    return "ORIGIN_PUSH_IMPL";
+                if (cls.startsWith("com.yandex.metrica.push."))
+                    return "ORIGIN_PUSH_OTHER";
+                if (cls.startsWith("com.yandex.metrica.")
+                        || cls.startsWith("io.appmetrica.analytics."))
+                    return "ORIGIN_METRICA";
+                if (cls.startsWith("ru.yandex.music."))
+                    return "ORIGIN_MUSIC";
+                if (cls.startsWith("com.google."))
+                    return "ORIGIN_GOOGLE";
+                if (cls.startsWith("android."))
+                    return "ORIGIN_ANDROID";
+                if (cls.startsWith("kotlin.") || cls.startsWith("kotlinx."))
+                    return "ORIGIN_KOTLIN";
+                if (cls.startsWith("java."))
+                    return "ORIGIN_JAVA";
+                return "ORIGIN_OTHER";
+            }
+        } catch (Throwable ignored) { }
+        return "ORIGIN_UNOBSERVED";
+    }
+
     private synchronized void installScopedThrowableWitness() {
         if (scopedThrowableReady) return;
         try {
@@ -1028,6 +1069,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                         if (!existing) {
                             frame.capturedAfterTrue.add(object);
                             frame.categoriesAfterTrue.add(safeThrowableKind(object));
+                            frame.originAfterTrue.add(safeThrowableOrigin());
                         }
                     }
                     return result;
@@ -1097,12 +1139,28 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             for (int n=0;n<frame.capturedAfterTrue.size();n++) {
                                                 if (frame.capturedAfterTrue.get(n)==failure) continue;
                                                 otherCaptured++;
-                                                if (otherCaptured<=4)
+                                                if (otherCaptured<=4) {
                                                     emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG",
                                                          frame.categoriesAfterTrue.get(n));
+                                                    emit("PUSH_PRE_FATAL_ORIGIN","PUSH_ARG",
+                                                         frame.originAfterTrue.get(n));
+                                                }
                                             }
-                                            if (otherCaptured==0)
+                                            if (otherCaptured==0) {
                                                 emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG","PRE_NONE");
+                                                emit("PUSH_PRE_FATAL_ORIGIN","PUSH_ARG","ORIGIN_UNOBSERVED");
+                                            }
+                                            Throwable originalCause=failure.getCause();
+                                            String causeRelation=originalCause==null
+                                                ? "CAUSE_NONE":"CAUSE_OTHER";
+                                            if (originalCause!=null) {
+                                                for (Throwable earlier:frame.capturedAfterTrue) {
+                                                    if (earlier==originalCause) {
+                                                        causeRelation="CAUSE_MATCH";break;
+                                                    }
+                                                }
+                                            }
+                                            emit("PUSH_FATAL_CAUSE_LINK","PUSH_ARG",causeRelation);
                                             else if (otherCaptured>4)
                                                 emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG","PRE_OVERFLOW");
                                             String constructorOrder=frame.constructed.get(failure);
