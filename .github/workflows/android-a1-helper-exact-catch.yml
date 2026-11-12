@@ -1,0 +1,53 @@
+name: CELIKOM A1 helper B exact DEX try-handler static only
+on:
+  push:
+    branches:
+      - experiment/android-a1-helper-exact-try-handler-arm13-20261112
+    paths:
+      - 'android/a1-exact-catch-helper/**'
+      - '.github/workflows/android-a1-helper-exact-catch.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  exact-fatal-try-edges-static:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: B-only branch guard, unit and A-parser regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-helper-exact-try-handler-arm13-20261112
+          python3 -B -m py_compile android/a1-exact-catch-helper/exact_catch.py
+          python3 -B -m unittest discover -s android/a1-exact-catch-helper -p test_exact_catch.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
+      - name: Verify the exact sealed publisher 2025 XAPK from temporary draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          mkdir -p "$RUNNER_TEMP/b-exact-catch"
+          chmod 700 "$RUNNER_TEMP/b-exact-catch"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/b-exact-catch" --clobber >/dev/null
+          f="$RUNNER_TEMP/b-exact-catch/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Static-only exact method try-item and encoded catch-handler proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/a1-exact-catch-helper/exact_catch.py --xapk "$RUNNER_TEMP/b-exact-catch/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Delete all third-party binaries and transient CI source
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/b-exact-catch"
+          echo '{"binary_uploaded":false,"vendor_symbols_logged":false,"android_native_executed":false,"sdk_patched":false,"product_accepted":false}'
