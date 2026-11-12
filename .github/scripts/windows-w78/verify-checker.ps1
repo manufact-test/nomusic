@@ -40,7 +40,13 @@ $index = $cmd.LastIndexOf($marker)
 if ($index -lt 0) { throw 'W78_NO_EMBEDDED_SCRIPT' }
 $ps = $cmd.Substring($index + $marker.Length)
 [ScriptBlock]::Create($ps) | Out-Null
-Invoke-Expression $ps
+# The fixture harness runs in PowerShell 7 (native UTF-8), while the exact
+# embedded diagnostic runs in the Windows PowerShell 5.1 executable used by
+# the user's double-click CMD launcher. Encode as UTF-16LE to prevent the
+# legacy host from misreading the Cyrillic Yandex exe file name.
+$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($ps))
+& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $encoded
+if ($LASTEXITCODE -ne 0) { throw 'W78_CHECKER_5_1_RUNTIME_ERROR' }
 if (!(Test-Path -LiteralPath $report)) { throw 'W78_REPORT_NOT_CREATED' }
 $out = [IO.File]::ReadAllText($report)
 Write-Output 'W78_SYNTHETIC_REPORT_START'
