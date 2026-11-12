@@ -1,7 +1,7 @@
-name: CELIKOM A1 public MediaBrowserService live native Android13 IPC witness (NO source swap)
+name: CELIKOM A1 foreground-preserving publisher MediaBrowser ARM13 causal witness
 on:
   push:
-    branches: [experiment/android-a1-2025-native-bridge-manifest-witness-20261112]
+    branches: [experiment/android-a1-public-browser-foreground-causal-20261112]
     paths:
       - '.github/workflows/android-a1-2025-real-public-browser-native-arm13.yml'
       - 'android/native-yandex-hooklab/owned-public-browser-probe/**'
@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           [ "$GITHUB_REPOSITORY" = manufact-test/nomusic ]
-          [ "$GITHUB_REF_NAME" = experiment/android-a1-2025-native-bridge-manifest-witness-20261112 ]
+          [ "$GITHUB_REF_NAME" = experiment/android-a1-public-browser-foreground-causal-20261112 ]
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
           mkdir -p "$RUNNER_TEMP/celikom-owned-public-browser-apk/source"
           gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/celikom-owned-public-browser-apk/source" --clobber >/dev/null
