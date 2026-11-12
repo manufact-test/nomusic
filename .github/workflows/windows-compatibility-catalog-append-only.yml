@@ -55,7 +55,9 @@ jobs:
             }
             # Guard all previously published original SHA pins.
             $previous=git show "HEAD^:$path" 2>$null
-            if ($LASTEXITCODE -eq 0 -and $previous) {
+            $previousExists=$LASTEXITCODE -eq 0
+            $global:LASTEXITCODE=0  # new v2 legitimately has no parent file
+            if ($previousExists -and $previous) {
               $old=$previous -join "`n" | ConvertFrom-Json
               foreach($b in @($old.builds)) {
                 if (!$seen.ContainsKey($b.version) -or
@@ -67,5 +69,6 @@ jobs:
             if (!$seen.ContainsKey('5.127.0.r22015925')) {
               throw "W79_KNOWN_GOOD_MISSING_FROM_$suffix"
             }
-            Write-Host "CELIKOM_$suffix_APPEND_ONLY_VERIFIED $($seen.Count)"
+            Write-Host "CELIKOM_${suffix}_APPEND_ONLY_VERIFIED $($seen.Count)"
           }
+          exit 0
