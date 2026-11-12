@@ -27,3 +27,11 @@
 - CI `windows-w82-compact-quiet-regression.yml`: без ложной тревоги при длинной песне, статусы, реальная ошибка, каталог.
 - CI `windows-w82-quiet-ui-installer.yml`: Inno 0.24.27→0.24.28 поверх, тот же AppId, сохранение DPAPI входа, абсолютно тот же native audio bundle; пользовательский ПК не затрагивается до установки.
 - **Приёмка:** реальная музыка/перемотка/переключение/оригинал после установки владельцем; CI не заменяет реального теста.
+
+## Проверено в GitHub Actions
+
+- Точный код GUI / setup: `07fbb5af3686cda901c2e84e23d31bb8cabf7384`, последняя версия интерфейса 0.24.28.
+- **GUI/status + native tests: SUCCESS**, https://github.com/manufact-test/nomusic/actions/runs/43308399922.
+- **Installer + реальная тестовая установка 0.24.27→0.24.28 с сохранением DPAPI входа и native 0.24.25: SUCCESS**, https://github.com/manufact-test/nomusic/actions/runs/43308400132. Лог `W82_02427_TO_02428_INPLACE_DPAPI_AND_NATIVE_UNCHANGED_PASS`.
+- Артефакт: https://github.com/manufact-test/nomusic/actions/runs/43308400132/artifacts/13984233778. Прямой установщик был получен из этого ZIP и проверен по SHA256 `74E385DEEAA3FE94FF330CEB5B20D6EF60A8779F4CAA9517C888C9D10DFC5EE3`, 43,545,102 байта.
+- Полевая проверка владельца 0.24.28 **ещё не выполнена**. Уточнить, что при нормально играющей песне нет ни красного ложного статуса, ни жёлтого текста, а кнопки не имеют пунктирного выделения. Проверить старую известную подмену и оригинал.
