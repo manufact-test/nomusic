@@ -116,7 +116,8 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
     result["near_fatal_boolean_result_polarities"]=sorted(near_result_polarities)
     return result
 
-def private_exclusive_fatal_guard_refs(code:bytes,target_strings:set[int],dex,group_call):
+def private_exclusive_fatal_guard_refs(code:bytes,target_strings:set[int],dex,group_call,
+                                       max_distance=256):
     """Transient DEX method IDs of nearby Boolean guards, never serialized.
 
     Only a move-result directly preceded by an invoke and verified via exact
@@ -146,7 +147,7 @@ def private_exclusive_fatal_guard_refs(code:bytes,target_strings:set[int],dex,gr
     for target in candidates:
         for i,(pc,op,_) in enumerate(ins):
             if op not in range(0x38,0x3e) or i<2:continue
-            if not (0<target-pc<=256):continue
+            if not (0<target-pc<=max_distance):continue
             if can_reach(graph[pc][0],target)==can_reach(graph[pc][1],target):
                 continue
             result_pc,result_op,_=ins[i-1]
