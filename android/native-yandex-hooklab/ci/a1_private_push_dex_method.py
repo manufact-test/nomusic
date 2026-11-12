@@ -574,17 +574,20 @@ def private_near_guard_dependencies(binary):
     if not targets:return None
     codes={}
     roots=set()
+    declarations={}
     for mid,code in dex.code_methods():
         owner,name=dex.method(mid)
         if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
             codes[mid]=code
+            declarations[dex.method_signature(mid)]=mid
         if group_class(owner)=="PUSH_IMPL" and name=="a":
             report=exact_error_guard_report(code,targets,dex,group_call)
             if report["decoded"] and report["target_strings"]:
                 roots.update(private_exclusive_fatal_guard_refs(
                     code,targets,dex,group_call))
     if not roots:return None
-    return inspect_source_chain(dex,codes,roots,group_call)
+    return inspect_source_chain(dex,codes,roots,group_call,
+                                dex.push_interface_implementors(),declarations)
 
 def private_public_push_entrypoints(binary):
     """Only well-known public SDK API labels, never obfuscated vendor symbols."""
