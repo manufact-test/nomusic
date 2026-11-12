@@ -6,6 +6,7 @@ on:
       - experiment/android-native-a1-lspatch-clone-loader0-20261111
       - experiment/android-a1-final-native-source-hardening-handoff-20261112
       - experiment/android-a1-source-range-exactness-20261112
+      - experiment/android-a1-b42-audio-controller-wire-20261112
     paths:
       - 'android/native-audio-contract/**'
       - 'docs/android/ANDROID-A1-PARALLEL-AUDIO-CONTRACT-20261111.md'
@@ -42,4 +43,6 @@ jobs:
         run: |
           php -v | head -n 2
           node --check android/native-audio-contract/server-byte-range-compat.test.mjs
-          node --test android/native-audio-contract/source-contract.test.mjs android/native-audio-contract/server-byte-range-compat.test.mjs
+          node --check android/native-audio-contract/actual-audio-controller-compat.test.mjs
+          php -l android/native-audio-contract/actual-audio-controller-fixture.php
+          node --test android/native-audio-contract/source-contract.test.mjs android/native-audio-contract/server-byte-range-compat.test.mjs android/native-audio-contract/actual-audio-controller-compat.test.mjs
