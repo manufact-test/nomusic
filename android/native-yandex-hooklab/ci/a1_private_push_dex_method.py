@@ -607,6 +607,53 @@ def private_near_guard_dependencies(binary):
 
 
 
+
+def private_java_parameter_signature(dex,mid):
+    """Only for transient private Java targeting; never returned in public JSON."""
+    _,proto,_=struct.unpack_from("<HHI",dex.data,dex.method_off+mid*8)
+    count,off=struct.unpack_from("<II",dex.data,72)
+    if proto>=count or off+count*12>len(dex.data):raise DexError("PROTO_BOUND")
+    _,params=struct.unpack_from("<II",dex.data,off+proto*12+4)
+    if not params:return ""
+    if params+4>len(dex.data):raise DexError("PROTO_BOUND")
+    n=struct.unpack_from("<I",dex.data,params)[0]
+    if n>16 or params+4+n*2>len(dex.data):raise DexError("PROTO_BOUND")
+    java={"V":"void","Z":"boolean","B":"byte","C":"char","S":"short",
+          "I":"int","J":"long","F":"float","D":"double"}
+    result=[]
+    for i in range(n):
+        desc=dex.type(struct.unpack_from("<H",dex.data,params+4+i*2)[0])
+        if desc in java:result.append(java[desc])
+        elif desc.startswith("L") and desc.endswith(";"):
+            result.append(desc[1:-1].replace("/","."))
+        elif desc.startswith("["):
+            result.append(desc.replace("/","."))
+        else:raise DexError("PROTO_BOUND")
+    return ",".join(result)
+
+
+def private_all_exact_guard_methods(binary):
+    """Exact class/name/arg-signature tuples held exclusively inside private CI."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    refs=set()
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner)!="PUSH_IMPL" or name!="a":continue
+        cfg=exact_fatal_cfg(code,targets,dex,group_call)
+        if not cfg["decoded"] or not cfg["fatal_throw_candidates"]:continue
+        refs.update(private_exclusive_fatal_guard_refs(
+            code,targets,dex,group_call,max_distance=len(code)))
+    result=set()
+    for ref in refs:
+        owner,name=dex.method(ref)
+        if group_call(owner,name) not in (
+                "PUSH_IMPL_HELPER","PUSH_COMMON","PUSH_OTHER_HELPER","PUSH_UTILS"):
+            continue
+        result.add((owner.strip("L;").replace("/","."),name,
+                    private_java_parameter_signature(dex,ref)))
+    return result
+
 def private_near_guard_overload_count(binary):
     """Count Boolean overload ambiguity of exact near-fatal method references."""
     dex=Dex(binary)
@@ -890,7 +937,7 @@ def generate_private_targets(source, output_path):
         not (str(target).startswith(str(workspace)+os.sep) or
              str(target).startswith(str(temp)+os.sep))):
         raise DexError("PRIVATE_TARGET_PATH")
-    found=set(); guards=set(); fatals=set(); suppliers=set(); near_guards=set()
+    found=set(); guards=set(); fatals=set(); suppliers=set(); near_guards=set(); all_exact=set()
     with zipfile.ZipFile(source) as outer:
         for item in outer.infolist():
             if not item.filename.endswith(".apk") or item.file_size>60000000:continue
@@ -903,6 +950,7 @@ def generate_private_targets(source, output_path):
                             g,f,sup,near=private_site_methods(payload)
                             guards.update(g);fatals.update(f);suppliers.update(sup)
                             near_guards.update(near)
+                            all_exact.update(private_all_exact_guard_methods(payload))
     # Verify source-derived class/method tokens before use as Java literals.
     valid=re.compile("^[A-Za-z_$][A-Za-z0-9_$]*(?:[.][A-Za-z_$][A-Za-z0-9_$]*)*$")
     simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -917,6 +965,10 @@ def generate_private_targets(source, output_path):
                        if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
     near_guard_names=sorted((cls,method) for cls,method in near_guards
                        if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
+    exact_guard_names=sorted((cls,method,signature)
+                        for cls,method,signature in all_exact
+                        if valid.fullmatch(cls) and simple.fullmatch(method)
+                        and len(signature)<512 and all(32<=ord(c)<127 for c in signature))[:12]
     target.parent.mkdir(parents=True,exist_ok=True)
     def java_rows(rows):
         return (","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
@@ -933,6 +985,11 @@ def generate_private_targets(source, output_path):
                java_rows(supplier_names)+chr(10)+"  }; }"+chr(10)+
                "  public static String[][] getNearFatalGuardTargets() { return new String[][] {"+chr(10)+
                java_rows(near_guard_names)+chr(10)+"  }; }"+chr(10)+
+               "  public static String[][] getAllFatalGuardExactTargets() { return new String[][] {"+chr(10)+
+               (","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+","+
+                              json.dumps(signature)+"}"
+                              for cls,method,signature in exact_guard_names)+chr(10)+
+               "  }; }"+chr(10)+
                "}"+chr(10))
     target.write_text(generated,encoding="utf-8")
     target.chmod(0o600)
@@ -940,7 +997,8 @@ def generate_private_targets(source, output_path):
             "private_transient_guard_targets_bounded":len(guard_names),
             "private_transient_fatal_targets_bounded":len(fatal_names),
             "private_transient_supplier_targets_bounded":len(supplier_names),
-            "private_transient_near_fatal_guard_targets_bounded":len(near_guard_names)}
+            "private_transient_near_fatal_guard_targets_bounded":len(near_guard_names),
+            "private_transient_all_fatal_guard_exact_targets_bounded":len(exact_guard_names)}
 
 
 def main():
