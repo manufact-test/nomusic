@@ -313,7 +313,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[];fatal_signatures=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[];fatal_signatures=[];push_public_routes=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -328,6 +328,7 @@ def inspect_xapk(path):
                         guard_insights.append(private_guard_dependency_info(payload))
                         guard_rules.extend(private_guard_synthetic_rule(payload))
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
+                        push_public_routes.append(private_public_push_entrypoints(payload))
                         chain=classify_private_supplier_chain(
                             payload,Dex,group_class,group_call,exact_error_guard_report)
                         if chain is not None:supplier_chains.append(chain)
@@ -338,6 +339,13 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "public_push_entrypoint_methods_known":sorted({
+            x for r in push_public_routes for x in r["public_push_methods"]}),
+        "public_push_entrypoint_invoked_candidates":sorted({
+            x for r in push_public_routes for x in r["public_push_invoke_candidates"]}),
+        "public_push_entrypoint_music_host_candidates":sorted({
+            x for r in push_public_routes for x in r["music_host_push_invoke_candidates"]}),
+        "public_push_entrypoint_call_scan_approximate":True,
         "exact_push_fatal_a_signature_categories":sorted(set(fatal_signatures)),
         "exact_fatal_caller_families_by_depth":[
             sorted({v for graph in fatal_callers
@@ -504,6 +512,39 @@ def private_boolean_helpers(binary):
 
 
 
+
+
+def private_public_push_entrypoints(binary):
+    """Only well-known public SDK API labels, never obfuscated vendor symbols."""
+    dex=Dex(binary)
+    known={
+        ("Lcom/yandex/metrica/push/YandexMetricaPush;","init"):"LEGACY_INIT",
+        ("Lcom/yandex/metrica/push/YandexMetricaPush;","activate"):"LEGACY_ACTIVATE",
+        ("Lio/appmetrica/analytics/push/AppMetricaPush;","activate"):"MODERN_ACTIVATE",
+        ("Lio/appmetrica/analytics/push/AppMetricaPush;","init"):"MODERN_INIT",
+    }
+    ids=set()
+    types=set()
+    for mid in range(dex.method_count):
+        key=dex.method(mid)
+        if key in known:
+            ids.add(mid)
+            types.add(known[key])
+    invoked=set()
+    app_invoke=set()
+    for caller,code in dex.code_methods():
+        where,calls=code_candidates(code,set())
+        owner,name=dex.method(caller)
+        for _,ref in calls:
+            if ref in ids:
+                # A conservative byte-level scan may include operand false positives,
+                # so this is a candidate count rather than a proven call graph.
+                invoked.add(known[dex.method(ref)])
+                if owner.startswith("Lru/yandex/music/"):
+                    app_invoke.add(known[dex.method(ref)])
+    return {"public_push_methods":types,
+            "public_push_invoke_candidates":invoked,
+            "music_host_push_invoke_candidates":app_invoke}
 
 def private_fatal_a_signature_families(binary):
     """Only finite safe DEX prototype categories, never actual method symbols."""
