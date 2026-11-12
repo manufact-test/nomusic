@@ -1,3 +1,15 @@
+# W83 promo steady / W84 current-decoder source evidence — 2026-11-13
+
+Current owner version **0.24.28** (W82 CI green, user said «вроде всё хорошо», plans live music QA tomorrow). **Do not ask owner to replace 0.24.28 before that QA.**
+
+**W83 PROMO FLICKER FIX READY (not released):** `experiment/windows-w83-promo-steady-entitlement-20261113` / safe backup `backup/windows-w83-promo-steady-windows-ci-green-20261113`. The 15s entitlement poll was changing label from **«Промокод · доступ навсегда» → «Проверяем доступ…» → back**. Fixed display-only, preserving live authenticated revocation and account switching; tests Windows CI SUCCESS [43310069470](https://github.com/manufact-test/nomusic/actions/runs/43310069470). Read `docs/windows/W83-PROMO-ENTITLEMENT-NO-BLINK-20261113.md`. No installer/version bump yet; carry into next release after owner QA.
+
+**W84 PASSIVE CURRENT PLAYER SOURCE RESEARCH (experimental, not released):** `experiment/windows-w84-readonly-player-source-evidence-20261113`, exact backup `backup/windows-w84-pre-evidence-w83-green-20261113`. CDP reports `PLAYER_DECODER_CELIKOM_SOURCE_MATCHED` only when observed current decoder kUrl equals valid unexpired signed CELIKOM grant and `kIsPlaying` true, Yandex current track matches; correlated player errors `PLAYER_DECODER_CELIKOM_PIPELINE_ERROR`. Not user-facing and **not proof of audible speaker playback**. Native test CI [43311056109](https://github.com/manufact-test/nomusic/actions/runs/43311056109) SUCCESS. See `docs/windows/W84-PASSIVE-NATIVE-DECODER-WITNESS-20261113.md`. Issue [#52](https://github.com/manufact-test/nomusic/issues/52) stays OPEN for real-player verification.
+
+**Other outstanding Windows tasks:** issue #44 remains open pending owner live playback and actual error reports; issue #48 only actionable at future GitHub→private host migration. Neither may be closed based on CI alone. W82 owner's current 0.24.28 was not changed remotely.
+
+---
+
 # W82 — Windows 0.24.28 quietly restores compact popup, fixes false connection errors (2026-11-12)
 
 Owner tested 0.24.27 and saw **false red "Нет ответа..."** after 30s of a healthy unchanged song and **yellow "Фактический звук ещё не подтверждён"** on successful audio plus dotted focus buttons. Cause: W23 native `host.cjs` only sends `/v1/heartbeat` on native state/track **changes**; W81 incorrectly treated a silent 30s as disconnected. Mapping-accepted was also misclassified as a warning. Full docs: `docs/windows/W82-COMPACT-QUIET-STATUS-FALSE-ALARM-FIX-20261112.md`.
