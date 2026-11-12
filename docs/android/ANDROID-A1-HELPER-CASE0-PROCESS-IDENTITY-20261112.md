@@ -20,4 +20,39 @@
 
 ## Настоящий ARM13
 
-**Заполнить после завершения native CI**, до этого `NO_GO`. Test.50, frozen A1, vendor SDK/exceptions, ключи, авторизация, production, Windows и handset не изменяются.
+## Проверенное точное ARM13 — #43300683112 (закрытие единственной гипотезы)
+
+**Actual CI**: https://github.com/manufact-test/nomusic/actions/runs/43300683112  
+**Точный TESTED source**: `87d1feda69fcfeb078bb421e0a73bbeb3fa20ccd`  
+**Точный резерв executable source**: `backup/android-a1-helper-case0-exact-tested-20261112` @ `87d1feda69fcfeb078bb421e0a73bbeb3fa20ccd`. Отчётный коммит после фактического прогона исполняемый код не меняет.
+
+**Успешные технические стадии:** все пять B-only synthetic regressions PASS; точный оригинальный XAPK 2025.10.4 верифицирован SHA256/размером, прочитаны 6 DEX, приватные target names сгенерированы только во временной копии read-only модуля, модуль собран, настоящий ARM Android13 (ARM64+ARMv7) загружен. Установка оригинала издателя (16 splits) **первой**, отдельный CELIKOM ONE-APK рядом. Весь тест **без exception suppression/SDK changes**.
+
+**Точное статическое исследование CASE_0**:
+- Тот же метод, что в предыдущем `PrivatePushTargets.getAllFatalGuardExactTargets()` после сортировки и с учётом точной Java-сигнатуры; соответствующий исходный метод с телом найден ровно один раз, Boolean return.
+- Локальный DEX контролируется: нет `ru.yandex.music` / CELIKOM package literal; нет прямого Android `getProcessName`/ `getPackageName` / `myPid` или `String.equals` в теле CASE_0, нет их прямых вызовов на 1 hop; локальные IF_EQZ и IF_NEZ; 2 return instructions.
+- Существующий консервативный DEX evaluator при синтетических длинах `[0,1,2,4,8,16,32,64,128]` дал **`TRUE_FOR_ZERO_ONLY`**. Значит на покрытом подмножестве инструкций CASE_0 соответствует **проверке на пустую строку**, а **FALSE при непустом имени процесса — ожидаемое значение**, не свидетельство ошибки MAIN. Этот эксперимент не доказывает, что конкретный runtime аргумент был именем процесса; actual argument/private symbols не записывались.
+- **Stock CASE_0 внутри JVM не измерен**, остаётся `UNKNOWN`. Нельзя утверждать, что он там TRUE.
+
+**Живой ARM13 оригинал vs клон:**
+
+| Критерий | Stock publisher | CELIKOM one-APK |
+|---|---|---|
+| Application `android:process` | DEFAULT | DEFAULT |
+| Native MainScreenActivity `android:process` | DEFAULT | DEFAULT |
+| Собственный MAIN PID присутствует в `ps -A` | YES | YES |
+| Собственный AUX/Metrica PID виден | YES | YES |
+| ActivityManager `am_proc_start` MAIN | 1 | 3 |
+| ActivityManager `am_proc_bound` MAIN | 1 | 3 |
+| ActivityManager `am_proc_died` MAIN | 0 | 3 |
+| 75s/25 foreground MAIN acceptance | **25/25** | **1/25** |
+| CASE_0 B-only read-only clone hook | **UNKNOWN** | **2 ENTER, 2 FALSE, 0 TRUE, 0 THROW** |
+| Original `SDK_PUSH DETAIL_NOT_INITIALIZED` | не возникает в baseline | снова возникает |
+| Suppressed original exceptions | 0 | 0 |
+
+**Вердикт — NEGATIVE / CLOSED FOR THIS SPECIFIC HYPOTHESIS.** Система Android правильно называет собственный главный процесс CELIKOM; в манифесте оригинала и клона одинаково default process. Точный CASE_0 **не выглядит отдельным сравнением MAIN с именем исходного пакета**, возвращает FALSE на проверке непустого String (для синтетических входов). Таким образом **ошибка process namespace или CASE_0 FALSE как причина фатального Push не доказана**. Нельзя добавлять override TRUE, переименовывать Android process или патчить SDK.
+
+**Ограничения:** Android host не даёт значение Java аргумента CASE_0, stock in-JVM CASE_0 нет; DEX evaluator покрывает только поддержанные инструкции и тестовые длины, не весь runtime. Отрицательный вывод не означает, что внутреннее состояние Push исправно. Последующее исследование другой вложенной зависимости — у A; B его не повторяет.
+
+**Факт CI:** итог native job **FAIL по продуктовому критерию**, так и должно быть при текущем clone 1/25. Это не unit/static PASS на весь продукт. Stage A **NO-GO** / Stage B **LOCKED**. Никакого собственного исправления не предложено без доказанного дефекта. Всё только в 4 файлах B, A и frozen/Test.50/production не тронуты, бинарники/ключи/private symbols не публиковались.
+ Test.50, frozen A1, vendor SDK/exceptions, ключи, авторизация, production, Windows и handset не изменяются.
