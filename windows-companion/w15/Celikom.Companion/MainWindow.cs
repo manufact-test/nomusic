@@ -1212,7 +1212,7 @@ public sealed partial class MainWindow : Form
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
             : !_bridge.Enabled ?
                 (_resumeAfterNetworkFailure ? "Нет связи. Ожидаем восстановления." : "Готов к работе")
-                : "CELIKOM включён (подмена каждой песни не подтверждена)";
+                : "CELIKOM включён";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
