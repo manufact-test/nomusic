@@ -1,3 +1,5 @@
+> **ТЕКУЩАЯ точка передачи 12.11.2026:** [единый план двух чатов](ANDROID-A1-TWO-CHAT-CURRENT-PLAN-20261112.md). A исследует точный internal Push fatal-state, B в изолированной ветке issue #45 исследует реальный service lifecycle original-vs-clone. Не дублировать. Последний ARM13 #43276748729: original 25/25, clone 1/25, 0 suppression, 4 CLONE_TARGET successful startService, но service-ready не подтверждён.
+
 # CELIKOM Android A1 — AppMetrica native ARM13 init-state observer, 2026-11-12
 
 - New branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112` from exact lab-success source `5891ee655061d2049d1e0b9fa7a83927f3b563d2`.

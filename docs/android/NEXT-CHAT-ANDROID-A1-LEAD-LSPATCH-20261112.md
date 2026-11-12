@@ -1,0 +1,18 @@
+# Первое сообщение новому главному разработчику CELIKOM Android A1 — 12.11.2026
+
+Привет! Ты **главный разработчик A и единственный интегратор** CELIKOM Android A1. Продолжай существующую разработку, ничего не начинай с нуля. Не переделывай продукт и не отказывайся от LSPatch: нам нужна установленная рядом с официальной Яндекс.Музыкой самостоятельная APK с тем же интерфейсом и функциями; меняется только аудио из CELIKOM.
+
+**GitHub:** manufact-test/nomusic
+**Твоя рабочая ветка:** experiment/android-a1-metrica-init-state-observer-arm13-20261112
+**Резерв текущей ветки до передачи:** backup/android-a1-two-chat-handoff-predocs-20261112 @ b30ee9bfe8727861c96767b3ec8b3883ddd8b946.
+**Прочитай сначала:** docs/android/ANDROID-A1-TWO-CHAT-CURRENT-PLAN-20261112.md, docs/android/ANDROID-A1-METRICA-INIT-STATE-OBSERVER-20261112.md, docs/android/NEXT-CHAT-ANDROID-A1-METRICA-NOSUPPRESSION-ARM13-20261112.md, docs/android/CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md, issue #41 и helper issue #45.
+
+**Проверенные факты.** ARM13 [#43276748729](https://github.com/manufact-test/nomusic/actions/runs/43276748729) @ 39a6ff7e8ab7eea1ae722fbe6a59745d88918b52: оригинал **25/25 PASS**, клон ONE-APK рядом **1/25 FAIL**, Java Push/AppMetrica NOT_INITIALIZED без подавления исключения. Modern AppMetrica.activate возвращает успешно, classloader match; public legacy YandexMetricaPush.init выбрасывает исходное исключение, у private guard для process name FALSE и ModulesFacade guard TRUE, их менять нельзя. ContextImpl witness видел 4 service request **на CLONE**, 4 успешных возврата, 0 на STOCK. Это не доказывает реальную service-ready. ContentResolver.query witness перед fatal — ноль наблюдённых SDK query, значит provider-URI гипотеза не подтверждена. [#43278388022](https://github.com/manufact-test/nomusic/actions/runs/43278388022) — последний static PASS, только source. История и точные файлы — в указанном документе.
+
+**Твоя единственная техническая задача сейчас:** узнать **внутреннее состояние/аргумент/зависимость конкретного Push SDK вызова, заканчивающегося fatal**, и сравнить с нормальной инициализацией. Не гадать по одному Boolean. Доказав расхождение, предложить **минимальное причинное исправление в разрешённой собственными изменениями области** и проверить в реальном original-first side-by-side ARM13 75 сек/25 наблюдений без suppression. Не строить новые универсальные исследовательские библиотеки, если уже существующих достаточно.
+
+**Важно о параллельном помощнике.** Чат B ведёт отдельную независимую ветку experiment/android-a1-helper-service-lifecycle-arm13-20261112 и issue #45: **сравнение жизненного цикла и готовности реального AppMetrica-сервисного процесса оригинала и клона**. Не дублируй его работу; когда владелец принесёт PR/коммит — проверь и сам интегрируй. B никогда не пушит в твою ветку. Старый #42 был source-only audio, не запуск native.
+
+**Статус:** Stage A NO-GO / Stage B LOCKED. Никакого работающего пользовательского Android или слухового PASS нет. Точный ARM13-tested backup: backup/android-a1-service-clone-target-success-native-nogo-20261112. Полный source backup: backup/android-a1-metrica-service-provider-static-safe-full-20261112. Frozen Test.50 и A1/продакшен не трогать. Издательские бинарники, DEX, ключи не публиковать; не делать SDK patch-by-guess, force TRUE, crash suppression, обход подписи/DRM/Play Protect.
+
+**Стиль работы:** большие автономные заходы, короткие отчёты, backups перед риском, один конкретный причинный тест вместо бесконечной диагностики. Законченный документ и зелёный unit CI не равны рабочему приложению. Иди сразу к реальной ошибке; информируй только о настоящем результате/запросе ручной проверки.

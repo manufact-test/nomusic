@@ -1,0 +1,41 @@
+# CELIKOM Android A1 — единый актуальный план двух чатов, 12.11.2026
+
+**Это актуальная точка передачи.** Старые handoff и протокол 11 ноября — исторические, не использовать их ветки как текущие. Репозиторий: manufact-test/nomusic.
+
+## Продукт неизменен
+Одна независимая APK CELIKOM рядом с неизменённой официальной Яндекс.Музыкой: исходные интерфейс, аккаунт, плейлисты, радио, рекомендации, управление; заменяется только разрешённый аудиоисточник через существующий CELIKOM API. **LSPatch остаётся лабораторной основой A1.** Не переходить на отдельный плеер, WebView, ручное переключение приложений или переписывание UI.
+
+## Точная проверенная ситуация
+- Главная экспериментальная ветка A: experiment/android-a1-metrica-init-state-observer-arm13-20261112.
+- Резерв исходной текущей ветки **до обновления документов**: backup/android-a1-two-chat-handoff-predocs-20261112 @ b30ee9bfe8727861c96767b3ec8b3883ddd8b946.
+- Точный source последний испытанный на ARM13: 39a6ff7e8ab7eea1ae722fbe6a59745d88918b52, резерв backup/android-a1-service-clone-target-success-native-nogo-20261112.
+- Полный сохранённый код после статического исследования: c8005b6b04a2b0f6525567b2b46c263fe13aaab4, резерв backup/android-a1-metrica-service-provider-static-safe-full-20261112.
+- [ARM13 native #43276748729](https://github.com/manufact-test/nomusic/actions/runs/43276748729): оригинал publisher-signed 75 с, **25/25 PASS**; самостоятельно установленный ONE-APK CELIKOM рядом — **1/25 FAIL**, прямой Push SDK NOT_INITIALIZED, **0 перехватов/подавлений исключения**.
+- Modern AppMetrica.activate возвращает результат, classloader совпадает, ModulesFacade predicate TRUE. Legacy YandexMetricaPush.init бросает исключение. Собственный witness увидел 4 сервисных вызова в CLONE_TARGET, все вернули успешный результат, 0 в STOCK_TARGET. **Но вызов startService не доказывает реальную готовность процесса/сервиса**; snapshot выявил кандидата service record оригинала, но не клона.
+- Native [#43275018598](https://github.com/manufact-test/nomusic/actions/runs/43275018598): зарегистрированный ContentResolver.query witness не заметил SDK query перед fatal. Нельзя объявлять provider URI доказанной причиной.
+- Private static [#43278388022](https://github.com/manufact-test/nomusic/actions/runs/43278388022) PASS — **только статические проверки**, не исправленный запуск.
+- Stage A **NO-GO**, Stage B **LOCKED**. Телефон, аудио, пауза, перемотка, Next/Моя волна ещё не принимались. B42 — существующий source-only аудиоконтракт, не живая подмена.
+- Не менять accepted Test.50: backup/android-test50-exact-source-owner-accepted-20261108; замороженную A1 @ cc4cb0f93489168db21502f3ef195855ae9fb743; production/Windows/extension/backend.
+
+## НОВОЕ жёсткое правило: работа по одной причинной гипотезе
+1. Назвать **конкретное проверяемое расхождение** и каким образом оно могло породить данный fatal.
+2. Использовать уже имеющиеся hooks, parser, runner, приватный XAPK; добавлять только минимальный узкий witness. **Не создавать новые универсальные сканеры/фреймворки ради исследования.**
+3. Получить одно A/B на реальном ARM13: publisher original vs clone, точные lifecycle события или отрицательный результат. Прямой fatal никогда не скрывать.
+4. Если гипотеза опровергнута, **закрыть её и не повторять прежние проверки**. Если подтверждена — минимальная правка именно источника дефекта, повторить native 75 секунд 25/25 обоим приложениям без suppression.
+5. Никаких «ГОТОВО» от зелёного static/unit CI. Никаких ложных обещаний по срокам. Пользователь видит только реальный результат, что проверять дальше.
+
+## Разделение обязанностей
+**A — главный / sole integrator.** Его ветка: experiment/android-a1-metrica-init-state-observer-arm13-20261112. Ему принадлежит существующий android/native-yandex-hooklab/**, текущая native CI и полный продуктовый статус. Единственный приоритет: **внутренний object/state/dependency в точке падения legacy Push.init**; сравнение со stock, возможное минимальное причинное исправление и 75s/25 ARM13. Он не повторяет B-расследование реальной готовности сервисного процесса, пока B ведёт его.
+
+**B — полноценный независимый помощник.** Ветка: experiment/android-a1-helper-service-lifecycle-arm13-20261112. **Issue [#45](https://github.com/manufact-test/nomusic/issues/45).** Отдельная крупная задача: доказать первое расхождение в manifest/ProcessManager/Service lifecycle и readiness оригинала и клона после четырёх successful CLONE_TARGET service requests; при наличии причинной misconfig — минимальная правка и настоящий no-suppression A/B. B принадлежит только новая папка android/a1-service-lifecycle-helper/**, собственный CI .github/workflows/android-a1-helper-service-lifecycle.yml и свой docs/android/ANDROID-A1-HELPER-SERVICE-LIFECYCLE-20261112.md. **Файлы A и общие документы B не правит**. Если нужен shared runner hook — точная предлагаемая правка отдельным PR, которую реализует A после ревью.
+
+**Никаких конфликтов:** B не пишет в ветку A и не merge, не переносит результаты в production. B делает изолированный backup, тесты, CI, PR на ветку A с SHA и ясным verdict. A проверяет, переносит, обновляет статус. **Чаты сами друг друга не вызывают** — владелец приносит PR/ссылку главному.
+
+## Где начинать
+- Главному: [NEXT-CHAT-ANDROID-A1-LEAD-LSPATCH-20261112.md](NEXT-CHAT-ANDROID-A1-LEAD-LSPATCH-20261112.md).
+- Помощнику: [NEXT-CHAT-ANDROID-A1-HELPER-SERVICE-LIFECYCLE-20261112.md](NEXT-CHAT-ANDROID-A1-HELPER-SERVICE-LIFECYCLE-20261112.md).
+- Полный протокол доказательств: [ANDROID-A1-METRICA-INIT-STATE-OBSERVER-20261112.md](ANDROID-A1-METRICA-INIT-STATE-OBSERVER-20261112.md).
+- Базовое ТЗ: [CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md](CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md).
+- Старый issue [#41](https://github.com/manufact-test/nomusic/issues/41) содержит исторический signer blocker, **не заменяет текущие 12 ноября native данные**. [#42](https://github.com/manufact-test/nomusic/issues/42) — завершённая/подготовленная source-only ветка аудио, **не новая задача B**.
+
+**Ограничения:** только собственные лабораторные файлы и санкционированные действия. Не публиковать оригинальные APK/XAPK/DEX, секреты, ключи и private-generated Java. Не подменять подпись/Play Protect, не править DRM/Passport, не глушить fatal, не делать случайный force-TRUE/extra activate, не выдавать пользователю APK без реального acceptance.

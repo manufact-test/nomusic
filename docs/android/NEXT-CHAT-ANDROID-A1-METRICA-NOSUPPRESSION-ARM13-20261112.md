@@ -1,3 +1,5 @@
+> **АКТУАЛЬНОЕ СООБЩЕНИЕ НОВОМУ ГЛАВНОМУ:** [NEXT-CHAT-ANDROID-A1-LEAD-LSPATCH-20261112.md](NEXT-CHAT-ANDROID-A1-LEAD-LSPATCH-20261112.md). Полное разделение A/B и issue #45: [единый план](ANDROID-A1-TWO-CHAT-CURRENT-PLAN-20261112.md). Дальше в этом файле — подробная история, начальные HEAD устарели; результаты native #43276748729 в конце.
+
 # CELIKOM Android A1 — new lead handoff after AppMetrica read-only native ARM13 controls, 12.11.2026
 
 ## Read first
