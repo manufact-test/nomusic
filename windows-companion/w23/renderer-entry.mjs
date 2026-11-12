@@ -123,7 +123,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     job?.finish(grant ?? null);
   };
   const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
-  let expiredSourceTrack = null;
+  let expiredSourceTrack = null, expiredSourceFailedTrack = null;
   sourceRecovery = createTransientSourceRecovery({
     prime: id => adapter.prime(id),
     reload: () => playerSourceRefresh.request(),
@@ -131,8 +131,14 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     active: () => !stopped && attached && adapter.enabled && playerSourceRefresh.attached,
     onEvent: (code, id) => {
       report(code, id);
-      if (code === "SOURCE_RECOVERY_RELOAD_OK" && expiredSourceTrack === id)
+      if (code === "SOURCE_RECOVERY_RELOAD_OK" && expiredSourceTrack === id) {
         expiredSourceTrack = null;
+        expiredSourceFailedTrack = null;
+      }
+      if (code === "SOURCE_RECOVERY_EXHAUSTED" && expiredSourceTrack === id) {
+        expiredSourceFailedTrack = id;
+        expiredSourceTrack = null;
+      }
     }
   });
   // On native media GET 403 for a previously valid but expired grant, allow
@@ -143,6 +149,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
         playerSourceRefresh.currentTrackId() !== trackId ||
         !adapter.enabled || !attached || stopped) return false;
     expiredSourceTrack = trackId;
+    expiredSourceFailedTrack = null;
     report("SOURCE_EXPIRED_NATIVE_403", trackId);
     return sourceRecovery.schedule(trackId);
   };
@@ -164,6 +171,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     if (origin !== apiOrigin) {
       sourceRecovery.cancel();
       expiredSourceTrack = null;
+      expiredSourceFailedTrack = null;
       apiOrigin = origin;
       adapter.disable();
     }
@@ -172,6 +180,7 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     else {
       sourceRecovery.cancel();
       expiredSourceTrack = null;
+      expiredSourceFailedTrack = null;
       adapter.disable();
     }
     // AFTER switching CELIKOM's grant hook, ask the signed native player to
@@ -192,6 +201,9 @@ import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
     if (expiredSourceTrack &&
         expiredSourceTrack === playerSourceRefresh.currentTrackId())
       return "NATIVE_RECOVERING";
+    if (expiredSourceFailedTrack &&
+        expiredSourceFailedTrack === playerSourceRefresh.currentTrackId())
+      return "NATIVE_SOURCE_FAILED";
     return adapter.status === "SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED"
       ? "NATIVE_MAPPING_ACCEPTED" : "NATIVE_CONNECTED";
   };
