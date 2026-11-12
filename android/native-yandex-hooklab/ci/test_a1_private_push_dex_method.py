@@ -113,7 +113,7 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         self.assertEqual(private_near_true_exact_throw_path(
             false_branch,{1},{5}),"TRUE_CFG_CAN_REACH_THROW")
         self.assertEqual(private_near_true_exact_throw_path(
-            code,{1,2},{5}),"TRUE_CFG_BLOCKS_THROW")
+            code,{1,2},{5}),"NEAR_CALLSITE_NOT_UNIQUE")
         self.assertEqual(private_near_true_exact_throw_path(
             code,{9},{5}),"NEAR_CALLSITE_NOT_UNIQUE")
 
