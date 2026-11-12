@@ -128,6 +128,19 @@ try {
         $image = Get-Content (Join-Path $stage 'W24-image-hashes.json') -Raw | ConvertFrom-Json
         if ($image.integrityOccurrences -lt 1) { throw 'W81_NO_INTEGRITY_CHECK_REPLACED' }
         $report.checks += 'native-image-builder-staged'
+        $env:CELIKOM_W81_OFFICIAL_EXE = $exe
+        $env:CELIKOM_W81_OFFICIAL_ASAR = $asar
+        $env:CELIKOM_W81_NATIVE_ASSETS = (Resolve-Path $assets).Path
+        try {
+            dotnet run --project 'windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj' -c Release
+            if ($LASTEXITCODE -ne 0) { throw 'W81_NATIVE_INSTALL_RESTORE_SANDBOX_FAILED' }
+        }
+        finally {
+            Remove-Item Env:CELIKOM_W81_OFFICIAL_EXE -ErrorAction SilentlyContinue
+            Remove-Item Env:CELIKOM_W81_OFFICIAL_ASAR -ErrorAction SilentlyContinue
+            Remove-Item Env:CELIKOM_W81_NATIVE_ASSETS -ErrorAction SilentlyContinue
+        }
+        $report.checks += 'native-install-and-byte-exact-restore-sandbox'
         $report.status = 'candidate_requires_runtime_review'
         $report.candidateRequiresReview = $true
         Write-Host "W81_OFFICIAL_YANDEX_CANDIDATE_STAGED $version exactEXE=$($report.exeSha256)"
