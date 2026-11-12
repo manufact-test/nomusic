@@ -36,6 +36,7 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
     result={"decoded":False,"fatal_throw_candidates":0,
             "exclusive_fatal_guards":0,"guard_source_categories":[],
             "fatal_guard_polarities":[],"near_fatal_sources":[],
+            "near_fatal_polarities":[],
             "has_switch_or_unknown_layout":False,
             "runtime_causality_proven":False}
     try:
@@ -73,6 +74,7 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
     sources=set()
     polarities=set()
     near=set()
+    near_polarities=set()
     count=0
     for target in candidate_throws:
         for i,(pc,op,_) in enumerate(ins):
@@ -92,10 +94,13 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
                            else "FALLTHROUGH_FATAL")
             if abs(pc-target)<=256:
                 near.add(src)
+                near_polarities.add(src + "__" + (
+                    "BRANCH_ON_TRUE_FATAL" if truth else "FALLTHROUGH_FATAL"))
     result["exclusive_fatal_guards"]=min(count,32)
     result["guard_source_categories"]=sorted(sources)
     result["fatal_guard_polarities"]=sorted(polarities)
     result["near_fatal_sources"]=sorted(near)
+    result["near_fatal_polarities"]=sorted(near_polarities)
     return result
 
 def private_exclusive_fatal_guard_refs(code:bytes,target_strings:set[int],dex,group_call):
