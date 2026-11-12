@@ -34,3 +34,12 @@
 
 ## Third read-only causal control preparation
 After public `getReporter()` returned successfully 14 times in native #43224344294 and internal AppMetricaFacade state hooks did not register, the next bounded observation hooks only concrete reporter methods returned by public SDK, with finite event labels and no args/results/Throwable text. Android kill handler remains fully original. Any result **must** be checked on real ARM13, never extrapolated from unit tests.
+
+## Third actual ARM13 no-suppression run — #43226144866
+- Exact tested source `15b1c10338b25fdf0f41b7667cf67e160abc3fe0`; source-only immutable backup `backup/android-a1-metrica-readonly-reporter-native-nogo-source-20261112`.
+- Public module builds with pinned AAPT2, static tests pass, source verified privately, native Android13 boots.
+- Stock issuer app **75s 25/25 PASS**; clone ONE-APK installed beside original, native MAIN **1/25 resumed**, fatal Android Java crash; CI **NO-GO**, not technical infrastructure issue.
+- Own dynamic observer successfully attached to **actual SDK reporter instances returned by `getReporter`**; concrete `reporter.resumeSession/pauseSession` 8 ENTER/8 RETURN, `reporter.reportEvent` 2 ENTER/2 RETURN, **no reporter THROW**.
+- Public SDK `activate` 3 ENTER/3 RETURN, `getReporter` and other public calls also RETURN. The exact exception remains AppMetrica `DETAIL_NOT_INITIALIZED` with direct fatal Throwable identity and **zero suppression**.
+- Therefore the error does **not** arise synchronously in the instrumented reporter methods. Investigate SDK asynchronous worker/internal lifecycle or service/provider initialization, not another activate call. Internal class state probe was NO_HOOK (obfuscation/unknown), no conclusion about state.
+- No other app/audio/account touched, original XAPK/owned clone/artifact/key never uploaded. Product Stage A **NO-GO**, B **LOCKED**.

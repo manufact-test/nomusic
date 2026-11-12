@@ -26,3 +26,8 @@ Do NOT simply call activate again, delete AppMetrica manifest components, suppre
 - Keep publisher-signed XAPK and own lab APK/signing keys in ephemeral GitHub runner only, **no uploaded artifacts**. Existing CI uses pinned SHA-256 ARM64 aapt2 and exact publisher private input verification.
 - Preserve original signed publisher install FIRST then clone ONE-APK second in same genuine native ARM13 guest.
 - Before edits create exact backup; save docs and issue #41 with accurate failure status. Do not merge into frozen A1, release or Test.50.
+
+## Third experimental result — required update
+Actual [ARM13 #43226144866](https://github.com/manufact-test/nomusic/actions/runs/43226144866), source `15b1c10338b25fdf0f41b7667cf67e160abc3fe0`: native original 25/25 PASS, independent clone 1/25 and direct SDK `NOT_INITIALIZED` fatal, suppression zero. Real reporter implementation hooks **registered** and saw 8 session operations + 2 reportEvent all RETURN and zero THROW. Public activation 3/3 returns. Error is therefore outside these synchronous APIs, likely downstream async SDK process (not yet proved). **Do not** infer Android native ready. Backups: `backup/android-a1-metrica-readonly-reporter-native-nogo-source-20261112`.
+
+**Current follow-up:** classify actual SDK async work lifecycle/fatal callsite and service/provider/process identity safely on disposable ARM13, then make only a causal fix and rerun unsuppressed original+clone 75s/25. Do not merge or ship until PASS.
