@@ -449,17 +449,6 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
             ("PUSH_FATAL_GUARD_RETURN","GUARD_NOT_IN_CALL")])
         self.assertNotIn("VENDOR_PRIVATE",str(result))
 
-    def test_timing_control_is_finite_and_clone_main_only(self):
-        events=(
-            log(431,"event=PUSH_INIT_TIMING;origin=PUSH_LEGACY;error=DELAY_APPLIED;thread=OTHER")
-            +log(432,"event=PUSH_INIT_TIMING;origin=PUSH_LEGACY;error=DELAY_APPLIED;thread=OTHER")
-            +log(431,"event=PUSH_INIT_TIMING;origin=PUSH_LEGACY;error=secret;thread=OTHER")
-        )
-        x=scoped_metrica_witness(EXIT,events)
-        self.assertEqual(x["push_init_timing_control"],
-                         {"DELAY_APPLIED":1,"DELAY_INTERRUPTED":0})
-        self.assertNotIn("secret",str(x))
-
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))

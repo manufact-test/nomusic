@@ -692,18 +692,6 @@ public final class ExitCallsiteWitness extends XposedModule {
                             int hit=(init ? pushInitCount : pushActivationCount)
                                 .incrementAndGet();
                             if (hit<=32)emit(event,family,"ENTER");
-                            // ONE bounded lab-only causal timing test. Do not
-                            // modify SDK results, skip calls, catch its fatal,
-                            // or ship this observer to a user device.
-                            if (init && "PUSH_LEGACY".equals(family) && hit==1) {
-                                try {
-                                    Thread.sleep(1500L);
-                                    emit("PUSH_INIT_TIMING","PUSH_LEGACY","DELAY_APPLIED");
-                                } catch (InterruptedException interrupted) {
-                                    Thread.currentThread().interrupt();
-                                    emit("PUSH_INIT_TIMING","PUSH_LEGACY","DELAY_INTERRUPTED");
-                                }
-                            }
                             try {
                                 Object result=chain.proceed();
                                 if (hit<=32)emit(event,family,"RETURN");
