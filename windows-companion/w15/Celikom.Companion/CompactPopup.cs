@@ -680,7 +680,10 @@ public sealed partial class MainWindow
         var trackProblem = trackHealth.Level == UserFacingPlaybackHealth.Severity.Error;
         // Exactly one small actionable message. No yellow, no duplicated
         // "not confirmed" banner while music is playing normally.
-        var actionProblem = !_compactStarting && IsCompactActionError(_compactStartupText);
+        // A message left over from an earlier failed Start must never
+        // override a currently enabled and playing native bridge.
+        var actionProblem = !_bridge.Enabled && !_compactStarting &&
+            IsCompactActionError(_compactStartupText);
         var problemText = hostProblem ? hostHealth.Message :
             trackProblem ? trackHealth.Message :
             actionProblem ? _compactStartupText : "";
