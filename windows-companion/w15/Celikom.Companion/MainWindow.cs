@@ -729,6 +729,12 @@ public sealed partial class MainWindow : Form
             {
                 // Never claim connected when Yandex replaced the native host.
                 _bridge.SetEnabled(false);
+                _compactStarting = false;
+                _resumeAfterNetworkFailure = false;
+                ++_compactStartEpoch; // invalidate any old pending Start
+                _compactStartupText = inspected.Item2 == NativeInstallState.VerifiedVendorUpdate
+                    ? "Яндекс обновился. Нажми «Старт» для безопасного переподключения."
+                    : "Яндекс изменился. Подключение остановлено, оригиналы сохранены.";
                 DiagnosticLog.Record("YANDEX_VENDOR_UPDATE_DETECTED");
             }
         }
