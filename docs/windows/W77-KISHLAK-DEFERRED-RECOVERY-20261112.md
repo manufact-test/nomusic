@@ -1,3 +1,5 @@
+> **W77 0.24.24 CI SUCCESS**: [Actions #43241899043](https://github.com/manufact-test/nomusic/actions/runs/43241899043). 87 native Node checks, .NET UI/support/installer checks, stage gate, publish and Inno Setup, installer SHA256 `E0E3A7BC3ED8D0C194471A2BCAECD88187A5A53567F76CD777346E2AD5AF4068`. Original approved W76 installed source was 0.24.23. Explicit independent W76→W77 inplace upgrade: [Actions #43242681592](https://github.com/manufact-test/nomusic/actions/runs/43242681592) (check final status separately). **No real-owner audible check yet.**
+
 # CELIKOM Windows W77 — Kishlak «Самый лучший день» lost prefetch replacement (2026-11-12)
 
 ## Report from installed W76 0.24.23
