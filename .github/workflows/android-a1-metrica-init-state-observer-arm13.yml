@@ -8,6 +8,8 @@ on:
       - 'android/native-yandex-hooklab/ci/test_metrica_manifest_preserved_detail_control.py'
       - 'android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py'
       - 'android/native-yandex-hooklab/ci/a1_metrica_service_snapshot.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_push_dex_method.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_private_push_dex_method.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_witness_private_parser.py'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
@@ -76,6 +78,8 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_metrica_manifest_preserved_detail_control.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py
           test -s "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_native_clone_java_rootcause_triage.py -v
@@ -93,6 +97,11 @@ jobs:
           f="$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
           test "$(stat -c %s "$f")" = 45961661
           test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Private offline exact 2025 XAPK DEX method classifier (no code disclosure)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Prepare exact separate own signature and test-only native tooling
         shell: bash
         run: |
