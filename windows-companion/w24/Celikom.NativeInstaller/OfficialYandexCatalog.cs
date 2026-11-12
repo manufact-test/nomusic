@@ -39,7 +39,7 @@ public static class OfficialYandexCatalog
             "daed6ed88335e47f554b15053f8e9a18e0d03bbffbc7f98075d05abe0982cfa9",
             "f625fa9b9dc23eeadea3a601320f0997cab8f4247eb635f4d323ef6e3729f22d"),
         new("5.102.0.r19615975",
-            "69fea666ee5b84c009a812135e23ed13b0b57ab51fde16db1508fd406c",
+            "69fea666ee5b84c009a812135e23ed13b0b57ab51fde16db1508fd42edfd406c",
             "70eac5bc098fe37cb870fedf421906fc8e38d6fc70f1a0d060abc774a748fdfb"),
         new("5.121.2.e45430462d786ebc235511f243ef24745909c790",
             "7d14b31cba80923f896b1cab97d7300cca241d6734266c7fccfe841ae672cda3",
