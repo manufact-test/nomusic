@@ -44,7 +44,8 @@ def download_pinned_patcher(path: Path) -> None:
 
 
 def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
-                      witness_module_sha256: str | None = None) -> dict:
+                      witness_module_sha256: str | None = None,
+                      expected_siglevel: int = 0) -> dict:
     """Fail closed on signature bypass, package/version drift, lost code or modules."""
     p = source.apkmeta(apk)
     original_id = source.apkmeta(prior)
@@ -77,8 +78,9 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
             raise arsc.TrialError("METALOADER_CONFIG_MEMBER_BAD_CRC") from None
         except (ValueError, UnicodeError):
             raise arsc.TrialError("METALOADER_CONFIG_INVALID") from None
-        if (type(cfg.get("sigBypassLevel")) is not int or
-                cfg["sigBypassLevel"] != 0):
+        if (type(expected_siglevel) is not int or expected_siglevel not in (0, 2) or
+                type(cfg.get("sigBypassLevel")) is not int or
+                cfg["sigBypassLevel"] != expected_siglevel):
             raise arsc.TrialError("NONZERO_SIGNATURE_BYPASS_PROHIBITED")
         if cfg.get("useManager") is not False:
             raise arsc.TrialError("METALOADER_EXTERNAL_MANAGER_NOT_ALLOWED")
@@ -114,7 +116,7 @@ def check_zero_loader(apk: Path, prior: Path, expected_signer: str, arsc,
         "rootless_one_apk": True,
         "clone_package": source.DEST,
         "issuer_signed_original_touched": False,
-        "signature_bypass_level": 0,
+        "signature_bypass_level": expected_siglevel,
         "separate_module_embedded": witness_module_sha256 is not None,
         "embedded_origin_dex_count": sum(x.startswith("classes") and x.endswith(".dex") for x in actual),
         "embedded_origin_native_lib_count": sum(x.startswith("lib/") for x in actual),
@@ -224,8 +226,30 @@ def mirror_x86_loader_resource_for_arm_bridge(source_apk: Path, output_apk: Path
             "redistributable": False}
 
 
+SIG_COMPAT_ISOLATED_BRANCH = "experiment/android-a1-independent-sig-compat-arm13-20261112"
+
+def lab_sigcompat_level() -> int:
+    """Owner-authorized differential ONLY in a disposable native ARM13 CI guest.
+
+    Default and every other branch remain level zero. Never ship a modified
+    third-party APK, read account/Passport/DRM or install on owner's HONOR.
+    """
+    level = os.getenv("CELIKOM_A1_EVAL_SIGBYPASS_LEVEL", "")
+    if not level:
+        return 0
+    if (level != "2" or os.getenv("GITHUB_ACTIONS") != "true"
+            or os.getenv("GITHUB_REPOSITORY") != "manufact-test/nomusic"
+            or os.getenv("GITHUB_REF_NAME") != SIG_COMPAT_ISOLATED_BRANCH
+            or os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID") != "1"
+            or os.getenv("CELIKOM_NATIVE_ARM13_REDDROID_CLONE") != "1"
+            or os.uname().machine != "aarch64"):
+        raise ValueError("SIGCOMPAT2_REQUIRES_ISOLATED_ARM13_EXPERIMENT_ONLY")
+    return 2
+
+
 def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
                                  expected_signer: str, arsc) -> tuple[Path, dict]:
+    siglevel = lab_sigcompat_level()
     # Strictly after the successful 5->1 cloned-bundle merge and its verifier.
     if clone is None or not clone.is_file():
         raise arsc.TrialError("VERIFIED_CLONE_SINGLE_APK_REQUIRED")
@@ -281,7 +305,7 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
                      "ephemeral-lab-only", "research", "ephemeral-lab-only"]
     if signed_witness is not None:
         patch_command.extend(["-m", str(signed_witness)])
-    patch_command.extend(["-o", str(stage), "-l", "0", str(clone)])
+    patch_command.extend(["-o", str(stage), "-l", str(siglevel), str(clone)])
     arsc.run(patch_command, "LSPATCH_CLONE_BOOTSTRAP_ZERO_BYPASS", 500)
     print(json.dumps({"lspatch_zero_phase": "PATCH_COMMAND_COMPLETED"}))
     results = list(stage.glob("*.apk"))
@@ -309,7 +333,8 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
         final_apk = aligned
         print(json.dumps({"lspatch_zero_phase": "EMBEDDED_ORIGIN_ZIP_LAYOUT_REBUILT_OWN_SIGNER"}))
     report = check_zero_loader(final_apk, clone, expected_signer, arsc,
-                               witness_module_sha256=witness_digest)
+                               witness_module_sha256=witness_digest,
+                               expected_siglevel=siglevel)
     try:
         report["signed_lspatch_native_elf_layout"] = verify_native_loader_elf_offsets(final_apk)
     except (ValueError, zipfile.BadZipFile):
@@ -319,6 +344,8 @@ def wrap_clone_with_lspatch_zero(clone: Path, work: Path, key: Path,
     if crc_report["layout_repacked"]:
         report["nested_origin_zip_layout_issue"] = crc_report["repacked_reason"]
     if os.getenv("CELIKOM_BRIDGE_X86_RESOURCE_ARMV7") == "1":
+        if siglevel != 0:
+            raise arsc.TrialError("SIGCOMPAT2_ARM_TRANSLATION_NOT_ALLOWED")
         if not (os.getenv("GITHUB_ACTIONS") == "true"
                 and os.getenv("CELIKOM_CLEAN_ANDROID_ARMV7_TRANSLATION") == "1"
                 and os.getenv("CELIKOM_CLONE_LSPATCH_LOADER_ZERO") == "1"):
