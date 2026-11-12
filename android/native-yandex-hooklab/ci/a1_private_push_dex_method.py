@@ -428,6 +428,8 @@ def inspect_xapk(path):
             x for m in fatal_a for x in m["exact_fatal_cfg"]["guard_source_categories"]}),
         "push_impl_a_near_fatal_guard_sources":sorted({
             x for m in fatal_a for x in m["exact_fatal_cfg"]["near_fatal_sources"]}),
+        "push_impl_a_near_fatal_guard_polarities":sorted({
+            x for m in fatal_a for x in m["exact_fatal_cfg"]["near_fatal_polarities"]}),
         "push_impl_a_exclusive_guard_direction":sorted({
             x for m in fatal_a for x in m["exact_fatal_cfg"]["fatal_guard_polarities"]}),
         "push_impl_a_fatal_cfg_is_not_runtime_proof":True,
