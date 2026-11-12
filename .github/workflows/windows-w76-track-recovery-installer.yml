@@ -1,0 +1,134 @@
+name: CELIKOM W76 0.24.23 Ty and Big City Life native track recovery
+on:
+  push:
+    branches:
+      - experiment/windows-w76-track-parity-audit-20261112
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w22/**
+      - windows-companion/w23/**
+      - windows-companion/w60/**
+      - windows-companion/w20/installer/CELIKOM.iss
+      - .github/workflows/windows-w76-track-recovery-installer.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bundle real approved-source hook with recovery
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W76_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W76_NATIVE_BUNDLE_FAILED' }
+      - name: Run W76 recovery, exact-track source bridge, native reload and original guard tests
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W76_NATIVE_RECOVERY_REGRESSION' }
+      - name: Build same CELIKOM 0.24.23 GUI warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Keep earlier Windows support and update regressions
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Keep original-vendor native image restoration tests
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Check release gate
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W76_RELEASE_GATE' }
+      - name: Publish Windows single EXE with same installed AppId
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W76_PUBLISH_FAILED' }
+      - name: Package W76 Inno installer and check version
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W76_INNO_INSTALL_FAILED' }
+          }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W76_INNO_BUILD_FAILED' }
+          $installer='windows-companion/w20/output/CELIKOM-W76-TRACK-RECOVERY-UNSIGNED.exe'
+          if (-not (Test-Path $installer)) { throw 'W76_INSTALLER_MISSING' }
+          $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer).Path)
+          if ($meta.FileVersion.Trim() -ne '0.24.23.0' -or $meta.ProductName.Trim() -ne 'CELIKOM') {
+            throw 'W76_BAD_VERSION'
+          }
+          Write-Output "W76_INSTALLER_SHA256=$((Get-FileHash $installer -Algorithm SHA256).Hash)"
+      - name: Confirm one-click ZIP update stage accepts this exact installer
+        shell: pwsh
+        run: |
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-W76-stage-test.zip'
+          Compress-Archive -Path 'windows-companion/w20/output/CELIKOM-W76-TRACK-RECOVERY-UNSIGNED.exe' -DestinationPath $zip
+          $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W76_ZIP_STAGE_FAILED' }
+      - name: Ensure new installer preserves DPAPI saved login and one AppId while updating native assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $setup=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W76-TRACK-RECOVERY-UNSIGNED.exe').Path
+          $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          $yandex=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $app) -or (Test-Path $yandex)) { throw 'W76_DIRTY_RUNNER' }
+          New-Item -ItemType Directory -Force -Path $state | Out-Null
+          $seal=[Security.Cryptography.ProtectedData]::Protect(
+            [Text.Encoding]::UTF8.GetBytes('W76_DPAPI_RETAINED'),$null,
+            [Security.Cryptography.DataProtectionScope]::CurrentUser)
+          [IO.File]::WriteAllBytes($session,$seal)
+          $hash=(Get-FileHash $session -Algorithm SHA256).Hash
+          $proc=Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw 'W76_INSTALL_FAILED' }
+          $exe=Join-Path $app 'CELIKOM.Companion.exe'
+          if (-not (Test-Path $exe)) { throw 'W76_EXE_MISSING' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.23.0') {
+            throw 'W76_INSTALLED_VERSION_MISMATCH'
+          }
+          foreach($name in 'host.cjs','renderer.js') {
+            $actual=Join-Path (Join-Path $app 'integration') $name
+            $expected=Join-Path 'windows-companion/w23/dist' $name
+            if((Get-FileHash $actual -Algorithm SHA256).Hash -ne (Get-FileHash $expected -Algorithm SHA256).Hash) {
+              throw 'W76_NATIVE_MODULE_NOT_UPGRADED'
+            }
+          }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $hash -or
+              (Test-Path (Join-Path $app 'unins001.exe')) -or
+              !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $yandex)) {
+            throw 'W76_ACCOUNT_APPID_OR_YANDEX_MUTATED'
+          }
+          Write-Output 'W76_DPAPI_PRESERVED_NATIVE_02423_ASSETS_MATCH_APPID_SINGLE_YANDEX_UNTOUCHED'
+          $u=Start-Process (Join-Path $app 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($u.ExitCode -ne 0 -or (Test-Path $exe) -or (Test-Path $yandex)) {
+            throw 'W76_UNINSTALL_FAILED'
+          }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $hash) {
+            throw 'W76_UNINSTALL_DID_NOT_PRESERVE_SAVED_LOGIN'
+          }
+      - name: Retain single W76 installer as protected CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W76-TRACK-RECOVERY-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W76-TRACK-RECOVERY-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 10
