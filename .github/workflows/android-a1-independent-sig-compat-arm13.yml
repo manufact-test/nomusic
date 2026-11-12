@@ -51,6 +51,31 @@ jobs:
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lspatch_loader_zero.py -v
           python3 -m unittest discover -s android/native-yandex-hooklab/tests -p test_merge_lab_splits_ephemeral.py -v
+      - name: Check exact 2026 original source before expensive native guest boot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/celikom-a1-source"
+          python3 -B - <<'PY'
+          import os,sys
+          from pathlib import Path
+          sys.path.insert(0, "android/native-yandex-hooklab")
+          import clone_native_splits_ephemeral as src
+          target=Path(os.environ["RUNNER_TEMP"])/"celikom-a1-source"/"source-2026-gpr.xapk"
+          try:
+              size,sha=src.gpr.download(target)
+              good=size==60433885 and sha==src.ARCHIVE_SHA
+              if not good:
+                  print("PINNED_2026_SOURCE_UNAVAILABLE: mirror latest has changed; 2025 original is stored in a private draft and needs separate 16-split pipeline")
+                  target.unlink(missing_ok=True)
+                  sys.exit(2)
+              print("PINNED_2026_SOURCE_VERIFIED_PREBOOT")
+          except Exception as exc:
+              target.unlink(missing_ok=True)
+              print("PINNED_2026_SOURCE_DOWNLOAD_FAILED_"+type(exc).__name__.upper())
+              sys.exit(2)
+          PY
+          echo "CELIKOM_A1_VERIFIED_SOURCE_XAPK=$RUNNER_TEMP/celikom-a1-source/source-2026-gpr.xapk" >> "$GITHUB_ENV"
       - name: Boot genuine native ARM64+ARMv7 Android13 guest, empty and ephemeral
         timeout-minutes: 16
         shell: bash
@@ -78,6 +103,7 @@ jobs:
           sudo umount /dev/binderfs >/dev/null 2>&1 || true
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
           sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data" "$RUNNER_TEMP/celikom-native-arm13-sdk"
+          rm -rf -- "$RUNNER_TEMP/celikom-a1-source"
           test ! -d android/native-yandex-hooklab/release
           test ! -d android/native-yandex-hooklab/patched
           echo '{"proprietary_apk_artifact_uploaded":false,"owner_device_touched":false,"play_protect_bypassed":false,"publisher_signature_spoofed":false}'
