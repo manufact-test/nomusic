@@ -631,7 +631,8 @@ def run():
                 raise arsc.TrialError("CI_PREFLIGHT_SOURCE_PATH_INVALID")
             shutil.copyfile(candidate, archive)
             size = archive.stat().st_size
-            sha = hashlib.file_digest(archive.open("rb"), "sha256").hexdigest()
+            with archive.open("rb") as handle:
+                sha = hashlib.file_digest(handle, "sha256").hexdigest()
         else:
             size, sha = source.gpr.download(archive)
         if size != 60433885 or sha != source.ARCHIVE_SHA:
