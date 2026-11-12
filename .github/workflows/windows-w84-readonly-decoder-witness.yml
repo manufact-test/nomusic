@@ -21,6 +21,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Native build integrity
+        run: |
+          npm install --no-audit --no-fund --prefix windows-companion/w23
+          node windows-companion/w23/build.mjs
       - name: Test read-only current source, prevent false prefetch / URL leaks
         run: node --test windows-companion/w23/native-host.test.mjs
       - name: Test renderer source-only / recovery unchanged
@@ -28,7 +32,3 @@ jobs:
           node --test windows-companion/w23/renderer-relay.test.mjs
           node --test windows-companion/w23/transient-source-recovery.test.mjs
           node --test windows-companion/w23/deferred-track-recovery.test.mjs
-      - name: Native build integrity
-        run: |
-          npm install --no-audit --no-fund --prefix windows-companion/w23
-          node windows-companion/w23/build.mjs
