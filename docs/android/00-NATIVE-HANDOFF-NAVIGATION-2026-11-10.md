@@ -1,3 +1,5 @@
+> **ПЕРЕДАЧА ПО СОСТОЯНИЮ НА 12.11.2026 — читать первой:** [NEXT-CHAT-ANDROID-A1-FINAL-20261112.md](NEXT-CHAT-ANDROID-A1-FINAL-20261112.md), затем [финальный отчёт](ANDROID-A1-FINAL-20261112-SIGNATURE-TRUST-AND-B42-BOUNDARY.md) и [утверждённое основное ТЗ](CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md). Основная A1 frozen, Stage A NO-GO из-за native own-signer MAIN Java signature crash. Новая source-only B42 проверка 34/34 PASS, не является реальным звуком.
+
 > **ВАЖНО — АКТУАЛЬНОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА (10.11.2026).** Архитектура согласована окончательно: **один APK CELIKOM с нативной Яндекс.Музыкой и одним её аудиодвижком; LSPatch только для закрытого прототипа, после принятия эталона — напомнить владельцу и начать собственный независимый механизм внедрения по согласованию.** WebView/собственный музыкальный UI не выбирать.
 >
 > **[ПОЛНОЕ АКТУАЛЬНОЕ ТЗ](CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md)** · **[НОВЫЙ ТЕКСТ ПЕРВОГО СООБЩЕНИЯ](NEXT-CHAT-NATIVE-CLONE-20261110.md)** · **[РЕШЕНИЯ ВЛАДЕЛЬЦА](ANDROID-PLAN-A-OWNER-DECISIONS-CHECKPOINT-20261110.md)**.
