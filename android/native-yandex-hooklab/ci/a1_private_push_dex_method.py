@@ -316,7 +316,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];push_public_routes=[];legacy_init_reports=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};push_public_routes=[];legacy_init_reports=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -333,6 +333,7 @@ def inspect_xapk(path):
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
                         fatal_overloads.extend(private_fatal_overload_shapes(payload))
                         near_overload_counts.append(private_near_guard_overload_count(payload))
+                        case_categories.update(private_exact_guard_case_categories(payload))
                         push_public_routes.append(private_public_push_entrypoints(payload))
                         legacy_init_reports.append(inspect_legacy_push_init(payload,Dex,group_call))
                         chain=classify_private_supplier_chain(
@@ -347,7 +348,13 @@ def inspect_xapk(path):
                         if graph is not None:fatal_callers.append(graph)
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
+    private_cases=sorted(case_categories.items())[:8]
     return {
+        "private_exact_guard_case_categories":[
+            {"case":"CASE_"+str(i),
+             "owner":data["group"],
+             "callee_categories":data["calls"]}
+            for i,(_,data) in enumerate(private_cases)],
         "near_fatal_guard_actual_methods_bounded":min(sum(
             x["target_methods"] for x in near_overload_counts),16),
         "near_fatal_guard_same_name_boolean_overloads_bounded":min(sum(
@@ -652,6 +659,31 @@ def private_all_exact_guard_methods(binary):
             continue
         result.add((owner.strip("L;").replace("/","."),name,
                     private_java_parameter_signature(dex,ref)))
+    return result
+
+
+def private_exact_guard_case_categories(binary):
+    """Keyed privately, outputs only fixed owner/callee categories to caller."""
+    targets=private_all_exact_guard_methods(binary)
+    if not targets:return {}
+    dex=Dex(binary)
+    result={}
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        key=(owner.strip("L;").replace("/","."),name,
+             private_java_parameter_signature(dex,mid))
+        if key not in targets:continue
+        try:ins=decode_instructions(code)
+        except FlowDecodeError:
+            result[key]={"group":"UNKNOWN","calls":["UNKNOWN"]}
+            continue
+        calls=set()
+        for pc,op,_ in ins:
+            if op not in INVOKE_METHOD:continue
+            ref=struct.unpack_from("<H",code,pc+2)[0]
+            if ref<dex.method_count:
+                calls.add(group_call(*dex.method(ref)))
+        result[key]={"group":group_call(owner,name),"calls":sorted(calls)}
     return result
 
 def private_near_guard_overload_count(binary):
