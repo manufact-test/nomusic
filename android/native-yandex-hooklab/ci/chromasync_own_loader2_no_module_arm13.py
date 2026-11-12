@@ -65,7 +65,7 @@ def require_runner(guest: DockerGuest, outer: Path) -> None:
             package_installed(guest.shell("pm","list","packages"),CLONE_PACKAGE):
         raise RuntimeError("COMPETITOR_NATIVE_FRESH_GUEST_REQUIRED")
 
-def make_owned_wrapper(source: Path, work: Path) -> Path:
+def make_owned_wrapper(source: Path, work: Path, own_module: Path | None = None) -> Path:
     key=work/"independent-celikom-research.jks"
     checked(["keytool","-genkeypair","-noprompt","-storetype","JKS",
              "-keystore",str(key),"-storepass","ephemeral-lab-only",
@@ -79,10 +79,12 @@ def make_owned_wrapper(source: Path, work: Path) -> Path:
     phase("PINNED_PATCHER_READY")
     output=work/"level2-output"
     output.mkdir()
-    checked(["java","-jar",str(jar),
-             "-k",str(key),"ephemeral-lab-only","research","ephemeral-lab-only",
-             "-o",str(output),"-l","2",str(source)],
-            "OWN_LSPATCH_L2_UPSTREAM_PATCH_FAILED",600)
+    args=["java","-jar",str(jar),
+          "-k",str(key),"ephemeral-lab-only","research","ephemeral-lab-only"]
+    if own_module is not None:
+        args.extend(["-m",str(own_module)])
+    args.extend(["-o",str(output),"-l","2",str(source)])
+    checked(args,"OWN_LSPATCH_L2_UPSTREAM_PATCH_FAILED",600)
     phase("PATCHER_RETURNED")
     candidates=list(output.glob("*.apk"))
     if len(candidates)!=1:
@@ -113,8 +115,11 @@ def make_owned_wrapper(source: Path, work: Path) -> Path:
         cfg=json.loads(z.read("assets/lspatch/config.json"))
         if cfg.get("sigBypassLevel")!=2 or cfg.get("useManager") is not False:
             raise RuntimeError("OWN_LSPATCH_L2_CONFIGURATION_DIFFERENT")
-        if [n for n in names if n.startswith("assets/lspatch/modules/") and n.endswith(".apk")]:
-            raise RuntimeError("OWN_LSPATCH_L2_MODULE_NOT_EMPTY")
+        modules=[n for n in names if n.startswith("assets/lspatch/modules/") and n.endswith(".apk")]
+        if len(modules)!=(1 if own_module is not None else 0):
+            raise RuntimeError("OWN_LSPATCH_L2_MODULE_COUNT_UNEXPECTED")
+        if own_module is not None and hashlib.sha256(z.read(modules[0])).digest()!=hashlib.sha256(own_module.read_bytes()).digest():
+            raise RuntimeError("OWN_LSPATCH_L2_MODULE_BYTES_DIFFER")
         nested=z.read("assets/lspatch/origin.apk")
         # Upstream must not silently substitute any foreign proprietary host.
         # If it repacks the nested container, fail closed rather than claim
@@ -141,7 +146,22 @@ def run(outer: Path) -> dict:
         phase("NESTED_ORIGIN_EXTRACTED")
         if metadata["original_nested_sha256"]!=NESTED_SHA256:
             raise RuntimeError("COMPETITOR_NESTED_BYTE_IDENTITY_DRIFT")
-        wrapped=make_owned_wrapper(nested,work)
+        own_module_path=os.getenv("CELIKOM_A1_OWN_NOOP_MODULE_APK")
+        own_module=Path(own_module_path) if own_module_path else None
+        if own_module is not None:
+            if (not own_module.is_file() or own_module.stat().st_size>4_000_000):
+                raise RuntimeError("OWN_NOOP_MODULE_NOT_AVAILABLE")
+            with zipfile.ZipFile(own_module) as mod:
+                if mod.read("META-INF/xposed/scope.list").decode().strip()!=CLONE_PACKAGE:
+                    raise RuntimeError("OWN_NOOP_MODULE_SCOPE_NOT_CLONE")
+                if mod.read("META-INF/xposed/java_init.list").decode().strip()!=(
+                    "pro.celikom.a1clonecontrol.NoopModule"):
+                    raise RuntimeError("OWN_NOOP_MODULE_ENTRY_UNEXPECTED")
+            inspect=command(["aapt","dump","xmltree",str(own_module),"AndroidManifest.xml"],60)
+            if inspect.returncode or "E: uses-permission" in inspect.stdout:
+                raise RuntimeError("OWN_NOOP_MODULE_PERMISSION_INVALID")
+            phase("OWN_NOOP_MODULE_VERIFIED")
+        wrapped=make_owned_wrapper(nested,work,own_module)
         phase("OWN_WRAPPER_READY")
         installed=guest.install([wrapped])
         phase("PM_INSTALL_RETURNED")
@@ -152,10 +172,11 @@ def run(outer: Path) -> dict:
           "independent_own_app_signing":True,
           "upstream_lspatch_pinned_sha256":True,
           "one_integrated_apk":True,
-          "module_count":0,
+          "module_count":1 if own_module is not None else 0,
           "sigBypassLevel":2,
           "original_chromasync_outer_binary_used":False,
           "original_competitor_module_used":False,
+          "own_inert_noop_module_used":own_module is not None,
           "owner_phone_touched":False,
           "account_login_or_audio_tested":False,
           "no_binary_exported":True,
