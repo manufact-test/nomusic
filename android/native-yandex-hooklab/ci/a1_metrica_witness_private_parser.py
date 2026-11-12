@@ -12,7 +12,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from clone_main_crash_buffer import main_exit_pids, LOG
 
 EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
-        "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL","PREFIX_HOOK",
+        "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
+        "LAB_METRICA_FAILOPEN","PREFIX_HOOK",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -64,6 +65,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str)->dict:
     same=[x for x in dispatch if x[2] in ("DIRECT_METRICA","CAUSE_METRICA")]
     constructor_details=[x for x in seen if x[0]=="METRICA_DETAIL"]
     fatal_details=[x for x in seen if x[0]=="FATAL_DETAIL"]
+    failopen=[x for x in seen if x[0]=="LAB_METRICA_FAILOPEN"]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
@@ -82,6 +84,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str)->dict:
         "bounded_fatal_metrica_detail_categories":sorted({
             x[2] for x in fatal_details}),
         "fatal_metrica_detail_observed":bool(fatal_details),
+        "lab_only_metrica_fatal_suppression_observed":bool(failopen),
+        "lab_only_metrica_fatal_suppression_count_bounded":len(failopen),
         "fatal_dispatch_event_count_bounded":len(dispatch),
         "fatal_throwable_metrica_direct_identity_seen":any(
             x[2]=="DIRECT_METRICA" for x in dispatch),
