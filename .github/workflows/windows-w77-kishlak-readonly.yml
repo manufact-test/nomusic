@@ -1,10 +1,10 @@
 name: CELIKOM W77 Kishlak playback gap exact incident ids production metadata READ ONLY
 on:
   push:
-    branches: [experiment/windows-w77-track-parity-audit-20261112]
+    branches: [experiment/windows-w77-kishlak-audio-path-20261112]
     paths:
       - .github/workflows/windows-w77-kishlak-readonly.yml
-      - .github/scripts/windows-w77/live-track-parity-readonly.php
+      - .github/scripts/windows-w77/live-kishlak-readonly.php
 permissions:
   contents: read
 concurrency:
@@ -22,8 +22,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l .github/scripts/windows-w77/live-track-parity-readonly.php
-          grep -q 'SET TRANSACTION READ ONLY' .github/scripts/windows-w77/live-track-parity-readonly.php
+          php -l .github/scripts/windows-w77/live-kishlak-readonly.php
+          grep -q 'SET TRANSACTION READ ONLY' .github/scripts/windows-w77/live-kishlak-readonly.php
       - name: Verify production catalog variant and four local-log ids through protected SSH
         shell: bash
         env:
@@ -39,5 +39,5 @@ jobs:
           test "$(ssh-keygen -lf "$work/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
           printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
           opts=(-i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
-          ssh -T -p 65002 "${opts[@]}" 'u235811320@92.113.19.189' '/opt/alt/php83/usr/bin/php /dev/stdin' < .github/scripts/windows-w77/live-track-parity-readonly.php
+          ssh -T -p 65002 "${opts[@]}" 'u235811320@92.113.19.189' '/opt/alt/php83/usr/bin/php /dev/stdin' < .github/scripts/windows-w77/live-kishlak-readonly.php
           echo 'W77_LIVE_CATALOG_NOT_MUTATED'
