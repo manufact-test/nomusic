@@ -286,3 +286,74 @@ test("W50 renderer bundle cannot generate the old false-positive 32-byte audio p
   assert.ok(bundle.includes("PLAYER_AUDIO_RESOURCE_TIMING_SEEN"),
     "resource timing is attributed to native media or preloading only");
 });
+
+
+test("W76: local bridge timeout recovers already-playing Yandex source without restarting player",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const nativePlayer=new r.NativeYandexPlayer({trackId:"123",position:67.4});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void nativePlayer.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const initial=r.window.__celikomBridgeNativeDrain();
+  assert.equal(initial.length,1);
+  assert.equal(initial[0].trackId,"123");
+  r.window.__celikomBridgeNativeReceive(initial[0].requestId,{transient:true});
+  assert.equal((await first).downloadInfo.url,"https://official.yandex.example/stream",
+    "first failure must play original, not stall playback");
+  await new Promise(resolve=>setTimeout(resolve,760));
+  const retries=r.window.__celikomBridgeNativeDrain();
+  assert.equal(retries.length,1);
+  assert.equal(retries[0].trackId,"123");
+  assert.equal(retries[0].recovery,true,
+    "only recovery is authorized a longer transport deadline");
+  r.window.__celikomBridgeNativeReceive(retries[0].requestId,makeGrant("123"));
+  await new Promise(resolve=>setTimeout(resolve,45));
+  assert.deepEqual(nativePlayer.reloadReasons,["QUALITY_CHANGE"],
+    "native Yandex already-playing entity reloads only its existing source");
+  assert.equal(nativePlayer.mediaSources[0],
+    makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
+  assert.equal(nativePlayer.state.playerState.progress.value.position,67.4);
+  assert.equal(nativePlayer.state.playerState.status.value,"playing");
+  const codes=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(codes.includes("RESOLVE_TRANSIENT"));
+  assert.ok(codes.includes("SOURCE_RECOVERY_RELOAD_OK"));
+  r.handlers.beforeunload();
+});
+
+test("W76: real missing song never schedules background reload",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"456"});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"456"});
+  await tick();
+  const req=r.window.__celikomBridgeNativeDrain();
+  assert.equal(req.length,1);
+  r.window.__celikomBridgeNativeReceive(req[0].requestId,null);
+  assert.equal((await first).downloadInfo.url,"https://official.yandex.example/stream");
+  await new Promise(resolve=>setTimeout(resolve,720));
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0,
+    "not found remains valid original and does not add recovery load");
+  assert.equal(player.reloadReasons.length,0);
+  r.handlers.beforeunload();
+});
+
+test("W76: Stop after temporary failure cancels pending current-track recovery",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer();
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const req=r.window.__celikomBridgeNativeDrain();
+  r.window.__celikomBridgeNativeReceive(req[0].requestId,{transient:true});
+  await first;
+  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  await new Promise(resolve=>setTimeout(resolve,730));
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"],
+    "only explicit STOP may reload original, not pending recovery");
+  assert.deepEqual(player.mediaSources,["https://official.yandex.example/stream"]);
+  r.handlers.beforeunload();
+});
