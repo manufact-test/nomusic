@@ -21,7 +21,7 @@ function Tag([string]$hash,[string]$o,[string]$a) {
  if($hash -eq $a -and $a.Length -eq 64){return 'CELIKOM_APPLIED'}
  return 'CHANGED_OR_UNKNOWN'
 }
-Add 'CHECK' 'CELIKOM_NATIVE_READ_ONLY_V2'
+Add 'CHECK' 'CELIKOM_NATIVE_READ_ONLY_V3'
 Add 'UTC' ([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))
 Add 'COMPUTER_PATHS_INCLUDED' 'NO'
 Add 'SESSION_AND_ACCOUNTS_READ' 'NO'
@@ -56,7 +56,7 @@ else {
   Add 'MANIFEST' 'READABLE'
   Add 'MANIFEST_SCHEMA' $m.Schema
   Add 'MANIFEST_STATE' $m.State
-  Add 'MANIFEST_ROOT_MATCH' ([string]::Equals([IO.Path]::GetFullPath($root).TrimEnd('\'),[string]$m.InstallRoot,[StringComparison]::OrdinalIgnoreCase))
+  Add 'MANIFEST_ROOT_MATCH' ([string]::Equals([IO.Path]::GetFullPath($root).TrimEnd('\'),[IO.Path]::GetFullPath([string]$m.InstallRoot).TrimEnd('\'),[StringComparison]::OrdinalIgnoreCase))
   Add 'ORIGINAL_EXE_BACKUP_HASH_OK' ((Hash (Join-Path $backup 'original.exe')) -eq $m.OriginalExe)
   Add 'ORIGINAL_ASAR_BACKUP_HASH_OK' ((Hash (Join-Path $backup 'original.asar')) -eq $m.OriginalAsar)
   Add 'CURRENT_EXE' (Tag $eh ([string]$m.OriginalExe) ([string]$m.AppliedExe))
