@@ -440,21 +440,21 @@ def generate_private_targets(source, output_path):
                 for name in part.namelist():
                     if name.startswith("classes") and name.endswith(".dex"):
                         payload=part.read(name)
-                        if payload.startswith(b"dex\\n".replace(b"\\\\",b"\\")):
+                        if payload.startswith(bytes((100,101,120,10))):
                             found.update(private_boolean_helpers(payload))
     # Verify source-derived class/method tokens before use as Java literals.
-    valid=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$")
+    valid=re.compile("^[A-Za-z_$][A-Za-z0-9_$]*(?:[.][A-Za-z_$][A-Za-z0-9_$]*)*$")
     simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
     names=sorted((cls,method) for cls,method in found
                  if valid.fullmatch(cls) and simple.fullmatch(method))[:24]
     if not names:raise DexError("PRIVATE_TARGETS_EMPTY")
     target.parent.mkdir(parents=True,exist_ok=True)
-    pairs=",\\n".join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
+    pairs=(","+chr(10)).join("        {"+json.dumps(cls)+","+json.dumps(method)+"}"
                      for cls,method in names)
-    generated=("package pro.celikom.a1exitwitness;\\n"+
-               "public final class PrivatePushTargets {\\n"+
-               "  public static String[][] getTargets() { return new String[][] {\\n"+
-               pairs+"\\n  }; }\\n}\\n")
+    generated=("package pro.celikom.a1exitwitness;"+chr(10)+
+               "public final class PrivatePushTargets {"+chr(10)+
+               "  public static String[][] getTargets() { return new String[][] {"+chr(10)+
+               pairs+chr(10)+"  }; }"+chr(10)+"}"+chr(10))
     target.write_text(generated,encoding="utf-8")
     target.chmod(0o600)
     return min(len(names),24)
