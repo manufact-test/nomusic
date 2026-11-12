@@ -48,9 +48,14 @@ def candidate_pcs(xapk, target):
     """Only exact class/name/argument signature from verified private original."""
     import hashlib
     file=Path(xapk)
-    if file.stat().st_size != EXPECTED_LEN or hashlib.file_digest(file.open("rb"),"sha256").hexdigest()!=EXPECTED_SHA:
-        raise RuntimeError("JDI_PRIVATE_SOURCE_INVALID")
+    if file.stat().st_size != EXPECTED_LEN:
+        raise RuntimeError("JDI_SOURCE_LENGTH")
+    with file.open("rb") as stream:
+        if hashlib.file_digest(stream,"sha256").hexdigest()!=EXPECTED_SHA:
+            raise RuntimeError("JDI_SOURCE_HASH")
     candidates=[]
+    class_name_count=0
+    signature_match_count=0
     with zipfile.ZipFile(file) as archive:
         for info in archive.infolist():
             if not info.filename.endswith(".apk") or info.file_size>60000000:continue
@@ -63,15 +68,24 @@ def candidate_pcs(xapk, target):
                     for mid,code in dex.code_methods():
                         owner,method=dex.method(mid)
                         owner=owner.strip("L;").replace("/",".")
-                        if (owner,method,private_java_parameter_signature(dex,mid))!=tuple(target):
+                        if (owner,method)!=tuple(target[:2]):
                             continue
+                        class_name_count+=1
+                        if private_java_parameter_signature(dex,mid)!=target[2]:
+                            continue
+                        signature_match_count+=1
                         off=_locate_code_item(dex,mid)
-                        checked,ranges=read_catches(dex.data,off,dex)
+                        try:
+                            checked,ranges=read_catches(dex.data,off,dex)
+                        except Exception:
+                            raise RuntimeError("JDI_CATCH_DECODE") from None
                         if checked!=code:raise RuntimeError("JDI_CODE_ITEM_DRIFT")
                         pcs=sorted({pc for pc,op,_ in decode_instructions(code)
                             if op in INVOKE_METHOD and _inside(pc,ranges)})
                         candidates.append(pcs)
-    if len(candidates)!=1:raise RuntimeError("JDI_METHOD_MATCH_NOT_UNIQUE")
+    if not class_name_count:raise RuntimeError("JDI_CLASS_METHOD_ABSENT")
+    if not signature_match_count:raise RuntimeError("JDI_SIGNATURE_ABSENT")
+    if len(candidates)!=1:raise RuntimeError("JDI_METHOD_NOT_UNIQUE")
     return candidates[0]
 
 def safe_map(raw, pcs):
@@ -182,8 +196,14 @@ if __name__=="__main__":
         print(json.dumps({"jdi_preflight":"EXACT_TARGET_VERIFIED",
                           "catch_covered_invokes_bounded":min(len(pcs),99),
                           "private_symbols_exposed":False},sort_keys=True))
-    except Exception:
+    except Exception as exc:
+        # Strict finite diagnostic codes only, never exception/string/vendor data.
+        allowed={"JDI_SOURCE_LENGTH","JDI_SOURCE_HASH","JDI_CLASS_METHOD_ABSENT",
+                 "JDI_SIGNATURE_ABSENT","JDI_CATCH_DECODE","JDI_CODE_ITEM_DRIFT",
+                 "JDI_METHOD_NOT_UNIQUE"}
+        reason=str(exc) if str(exc) in allowed else "OTHER"
         print(json.dumps({"jdi_preflight":"INCONCLUSIVE",
+                          "safe_failure_reason":reason,
                           "safe_failure_phase":stage,
                           "private_symbols_exposed":False},sort_keys=True))
         raise SystemExit(2)
