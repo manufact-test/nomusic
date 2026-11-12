@@ -34,3 +34,26 @@
 - До появления доказанной штатной поверхности source selection и отдельного нативного UI **пользовательскую APK НЕ выдавать**. Владелец не должен проходить ручной тест без фактически работающей сборки. GitHub issue #41 остаётся OPEN.
 
 **Вывод:** две принципиально новые поверхности исследованы на оригинале: встраивание Activity статически недоступно, browser IPC в чистом ARM13 реально отвергнут. Это новые закрытые/ограниченные условия, НЕ исправление главного блокера.
+
+## Контроль 3 — убедились, что отказ не вызван потерей фокуса Яндексом
+
+**12 ноября 2026, настоящий ARM64+ARMv7 Android 13, CI [43179463992](https://github.com/manufact-test/nomusic/actions/runs/43179463992), два задания SUCCESS.** Это отдельная новая ветка `experiment/android-a1-public-browser-foreground-causal-20261112`.
+
+В первом Android-эксперименте независимая CELIKOM Activity могла переместить оригинальный Яндекс в background, поэтому отказ `MediaBrowser.connect()` не позволял отделить foreground policy от других причин. Теперь изменили **только свой** минимальный диагностический клиент: собственная Activity сразу запускает краткоживущий, неэкспортируемый Service и закрывается; после 3,5-секундной паузы Service делает только документированный public `MediaBrowser.connect()`. Наш guest наблюдал, что оригинальный Яндекс **resumed до попытки связи**. Оба APK остаются отдельно установленными; 16/16 оригинальных APK не модифицируются; никакой подмены сигнатур и запросов пользовательских данных.
+
+### Точный фактический результат
+
+- `original_16_apks_issuer_verified_installed=true`, `publisher_signed_original_native_running=true`;
+- `publisher_native_activity_resumed_before_ipc=true`, `probe_uses_service_not_foreground_activity=true`;
+- `public_browser_matches=1`, но `status=CONNECTION_REJECTED`;
+- `public_browser_root_available=false`, `public_browser_session_token_available=false`;
+- `transport_or_custom_commands_sent=false`, `before_decoder_source_replacement_proven=false`, `stage_a=NO_GO`.
+
+**Причинный вывод:** в **проверенном чистом Android 13 госте без авторизации/медиасессии** предыдущий отказ браузера **не объясняется** тем, что собственная CELIKOM Activity забрала foreground у нативного Яндекса. Повторять тот же public browser без нового условия бессмысленно. По официальному Android API `MediaBrowserService.onGetRoot()` сервис вправе вернуть null для клиента, которому не разрешено подключение; один exported intent не гарантирует доступ (https://developer.android.com/media/legacy/audio/mediabrowserservice). Из этого **нельзя** выводить, что любой авторизованный пользовательский клиент всегда будет отвергнут. Даже если он подключится, стандартная browser-сессия не является доступом к приватному source-before-prepare штатного декодера.
+
+**Реальный функциональный результат CELIKOM не изменился:** нет собственного separately signed host с полным native Yandex UI, нет проверенной подмены в единственном декодере, нет пользовательского APK; **Stage A NO-GO / B LOCKED**. Этот тест **закрывает ещё одну ложную надежду на browser foreground**, не меняет продуктов и не обходит ограничения.
+
+### Затронутые только наши CI-файлы
+
+`android/native-yandex-hooklab/owned-public-browser-probe/app/src/main/java/pro/celikom/a1publicbrowserprobe/ProbeActivity.java`; новый `PublicBrowserProbeService.java`; тот же `AndroidManifest.xml` (сервис `exported=false`); `android/native-yandex-hooklab/ci/owner_2025_real_public_browser_ipc_arm13.py`; workflow `android-a1-2025-real-public-browser-native-arm13.yml`. Никакие Android Test.50, frozen A1, официальный HONOR Yandex, Windows, extension, backend, production или draft-release не затрагивались.
+
