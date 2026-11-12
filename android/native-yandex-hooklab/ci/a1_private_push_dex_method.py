@@ -316,7 +316,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];push_public_routes=[];legacy_init_reports=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];push_public_routes=[];legacy_init_reports=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -332,6 +332,7 @@ def inspect_xapk(path):
                         guard_rules.extend(private_guard_synthetic_rule(payload))
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
                         fatal_overloads.extend(private_fatal_overload_shapes(payload))
+                        near_overload_counts.append(private_near_guard_overload_count(payload))
                         push_public_routes.append(private_public_push_entrypoints(payload))
                         legacy_init_reports.append(inspect_legacy_push_init(payload,Dex,group_call))
                         chain=classify_private_supplier_chain(
@@ -347,6 +348,11 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "near_fatal_guard_actual_methods_bounded":min(sum(
+            x["target_methods"] for x in near_overload_counts),16),
+        "near_fatal_guard_same_name_boolean_overloads_bounded":min(sum(
+            x["bool_overloads_in_matching_classes"]
+            for x in near_overload_counts),32),
         "private_exact_fatal_a_overload_shapes_bounded":sorted({
             item["params"] for item in fatal_overloads}),
         "private_exact_fatal_a_overload_count_bounded":min(len(fatal_overloads),16),
@@ -599,6 +605,26 @@ def private_near_guard_dependencies(binary):
     return inspect_source_chain(dex,codes,roots,group_call,
                                 dex.push_interface_implementors(),declarations)
 
+
+
+def private_near_guard_overload_count(binary):
+    """Count Boolean overload ambiguity of exact near-fatal method references."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    refs=set()
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner)=="PUSH_IMPL" and name=="a":
+            cfg=exact_fatal_cfg(code,targets,dex,group_call)
+            if cfg["decoded"] and cfg["fatal_throw_candidates"]:
+                refs.update(private_exclusive_fatal_guard_refs(
+                    code,targets,dex,group_call))
+    if not refs:return {"target_methods":0,"bool_overloads_in_matching_classes":0}
+    pairs={dex.method(ref) for ref in refs}
+    count=sum(1 for mid in range(dex.method_count)
+              if dex.method(mid) in pairs and dex.method_returns_boolean(mid))
+    return {"target_methods":min(len(refs),16),
+            "bool_overloads_in_matching_classes":min(count,32)}
 
 def private_fatal_overload_shapes(binary):
     """Differentiate same-name obfuscated overloads using fixed type families."""
