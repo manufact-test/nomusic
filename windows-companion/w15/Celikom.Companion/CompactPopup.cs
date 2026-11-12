@@ -586,31 +586,17 @@ public sealed partial class MainWindow
         }));
     }
 
-    private UserFacingPlaybackHealth.Health CurrentCompactHealth()
-    {
-        var host = UserFacingPlaybackHealth.Host(
-            _nativeInstallState, _hostReport, _installedModule.MatchesApplication);
-        if (host.Level == UserFacingPlaybackHealth.Severity.Error ||
-            host.Level == UserFacingPlaybackHealth.Severity.Warning)
-            return host;
-
-        // A native heartbeat can disappear while CELIKOM's local bridge
-        // stays enabled. A green header must not hide a dead media bridge.
-        var heartbeat = _bridge.LastHeartbeatAt;
-        var stale = _bridge.Enabled && heartbeat != DateTimeOffset.MinValue &&
-            DateTimeOffset.UtcNow - heartbeat > TimeSpan.FromSeconds(30);
-        return UserFacingPlaybackHealth.Track(_bridge.LastStatus,
-            _bridge.Enabled, _compactPresenceStatus, stale);
-    }
-
-    private static Color CompactHealthColor(UserFacingPlaybackHealth.Severity level) =>
-        level switch
-        {
-            UserFacingPlaybackHealth.Severity.Error => Danger,
-            UserFacingPlaybackHealth.Severity.Warning => ColorTranslator.FromHtml("#FFE1A1"),
-            UserFacingPlaybackHealth.Severity.Good => Accent,
-            _ => Secondary
-        };
+    // Keep normal playback silent. Error/status text belongs in the small
+    // per-song line, never in the large startup area.
+    private static bool IsCompactActionError(string message) =>
+        message.StartsWith("Не удалось", StringComparison.Ordinal) ||
+        message.StartsWith("Доступ завершён", StringComparison.Ordinal) ||
+        message.StartsWith("Нет действующей", StringComparison.Ordinal) ||
+        message.StartsWith("Сервер не разрешил", StringComparison.Ordinal) ||
+        message.StartsWith("Сессия устарела", StringComparison.Ordinal) ||
+        message.StartsWith("Слишком много запросов", StringComparison.Ordinal) ||
+        message.StartsWith("Яндекс запускается дольше", StringComparison.Ordinal) ||
+        message.StartsWith("Доступ не подтверждён", StringComparison.Ordinal);
 
     private void RenderCompact()
     {
@@ -636,18 +622,11 @@ public sealed partial class MainWindow
             _compactStartupText = "";
             if (IsHandleCreated) BeginInvoke(new Action(LayoutCompact));
         }
-        var health = CurrentCompactHealth();
-        _compactStartup.Text = !string.IsNullOrWhiteSpace(_compactStartupText)
-            ? _compactStartupText
-            : health.Level is UserFacingPlaybackHealth.Severity.Error or
-                UserFacingPlaybackHealth.Severity.Warning
-                ? health.Message : "";
-        _compactStartup.ForeColor = string.IsNullOrWhiteSpace(_compactStartupText)
-            ? CompactHealthColor(health.Level)
-            : _compactStartupText.Contains("не ", StringComparison.OrdinalIgnoreCase) ||
-              _compactStartupText.Contains("ошибка", StringComparison.OrdinalIgnoreCase) ||
-              _compactStartupText.Contains("заблокировано", StringComparison.OrdinalIgnoreCase)
-                ? Danger : Accent;
+        // The only large-text message in the compact UI is actual startup.
+        // Checking accounts, host preflight and warnings are internal states.
+        _compactStartup.Text = _compactStarting && _bridge.Enabled
+            ? "Идёт загрузка Яндекс.Музыки…" : "";
+        _compactStartup.ForeColor = Accent;
 
         var id = _bridge.LastSong;
         var valid = GrantValidator.IsTrackId(id);
@@ -692,18 +671,28 @@ public sealed partial class MainWindow
             if (valid && _api.IsLoggedIn && IsHandleCreated)
                 _ = RefreshCompactPresenceAsync(id);
         }
+        var hostHealth = UserFacingPlaybackHealth.Host(
+            _nativeInstallState, _hostReport, _installedModule.MatchesApplication);
         var trackHealth = UserFacingPlaybackHealth.Track(_bridge.LastStatus,
             _bridge.Enabled, _compactPresenceStatus);
-        // The renderer accepted a replacement URL, not proof of sound.
-        // Never report audible replacement as confirmed by the app.
-        var activelyReplacing = _bridge.Enabled && _bridge.LastStatus ==
-            "NATIVE_MAPPING_ACCEPTED" && _compactPresenceStatus == "approved";
-        _compactVersionStatus.Text = trackHealth.Level is
-                UserFacingPlaybackHealth.Severity.Error or UserFacingPlaybackHealth.Severity.Warning
-                && _bridge.Enabled
-            ? trackHealth.Message :
-            activelyReplacing ? "Подмена передана Яндексу · звук не подтверждён" :
+        var hostProblem = hostHealth.Level is UserFacingPlaybackHealth.Severity.Error or
+            UserFacingPlaybackHealth.Severity.Warning;
+        var trackProblem = trackHealth.Level == UserFacingPlaybackHealth.Severity.Error;
+        // Exactly one small actionable message. No yellow, no duplicated
+        // "not confirmed" banner while music is playing normally.
+        var actionProblem = !_compactStarting && IsCompactActionError(_compactStartupText);
+        var problemText = hostProblem ? hostHealth.Message :
+            trackProblem ? trackHealth.Message :
+            actionProblem ? _compactStartupText : "";
+        var activelyReplacing = _bridge.Enabled &&
+            _bridge.LastStatus is "NATIVE_MAPPING_ACCEPTED" or "SDK_MAPPING_ACCEPTED" &&
+            _compactPresenceStatus == "approved";
+        _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
+            _bridge.Enabled && _bridge.LastStatus == "ORIGINAL" &&
+                _compactPresenceStatus == "approved"
+                ? "Играет оригинал. Версия CELIKOM доступна." :
+            activelyReplacing ? "Подмена активна · версия CELIKOM" :
             _compactPresenceStatus switch
             {
                 "approved" => "Версия песни CELIKOM доступна для подмены",
@@ -712,13 +701,9 @@ public sealed partial class MainWindow
                 "error" => "Не удалось проверить версию песни CELIKOM",
                 _ => "Проверяем версию песни CELIKOM…"
             };
-        _compactVersionStatus.ForeColor = trackHealth.Level is
-                UserFacingPlaybackHealth.Severity.Error or UserFacingPlaybackHealth.Severity.Warning
-                && _bridge.Enabled
-            ? CompactHealthColor(trackHealth.Level) :
-            activelyReplacing ? CompactHealthColor(UserFacingPlaybackHealth.Severity.Warning) :
-            _compactPresenceStatus == "approved" ? Accent :
-            _compactPresenceStatus == "pending" ? ColorTranslator.FromHtml("#FFE1A1") : Secondary;
+        _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
+            activelyReplacing || _compactPresenceStatus == "approved" ? Accent :
+            Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
@@ -753,7 +738,13 @@ public sealed partial class MainWindow
                 (_compactAccess, 35, 8, true),
                 (_compactTrack, 32, 0, true),
                 (_compactTrackArtist, 25, 3, !string.IsNullOrWhiteSpace(_compactTrackArtist.Text)),
-                (_compactVersionStatus, 40, 8, hasTrack),
+                (_compactVersionStatus, 40, 8,
+                    hasTrack || !string.IsNullOrWhiteSpace(_compactVersionStatus.Text) &&
+                        (UserFacingPlaybackHealth.Host(
+                            _nativeInstallState, _hostReport, _installedModule.MatchesApplication)
+                            .Level is UserFacingPlaybackHealth.Severity.Error or
+                                UserFacingPlaybackHealth.Severity.Warning ||
+                         IsCompactActionError(_compactStartupText))),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?
                     54 + CompactSupportBodyHeight() : 35, 8, true),
