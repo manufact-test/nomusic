@@ -80,9 +80,10 @@ def patch_manifest(data):
     before=ET.tostring(original,encoding="utf-8",xml_declaration=True)
     original.set("package",DEST)
     updated=ET.tostring(original,encoding="utf-8",xml_declaration=True)
-    for identical in list(original):
-        pass  # XML subtree is unchanged, only the manifest root package.
-    if not updated or not before or original.attrib.get("package")!=DEST:
+    # Reversing the one allowed root attribute change must recover the
+    # original parsed XML exactly, including providers, process and rights.
+    original.set("package",ORIGINAL)
+    if not updated or ET.tostring(original,encoding="utf-8",xml_declaration=True)!=before:
         stop("PACKAGE_ONLY_MANIFEST_REWRITE_FAILED")
     return updated,{
         "source_scoped_provider_rewrites":0,
