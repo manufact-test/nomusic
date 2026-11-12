@@ -32,7 +32,7 @@ class ExactDexFlowUnitTests(unittest.TestCase):
 
 
     def test_direct_string_guard_register_origin_only_enum(self):
-        from a1_private_dex_flow import private_guard_input_sources
+        from a1_private_dex_flow import private_guard_input_sources,private_direct_guard_branch_roles
         code=bytes((
             0x1a,0,5,0,
             0x71,0x10,1,0,0,0,
@@ -50,6 +50,8 @@ class ExactDexFlowUnitTests(unittest.TestCase):
         def categorize(owner,name):
             return "PUSH_COMMON" if "push/common" in owner else "JAVA_RUNTIME"
         self.assertEqual(private_guard_input_sources(code,{9},Fake(),categorize),{"STRING_LITERAL"})
+        self.assertEqual(private_direct_guard_branch_roles(
+            code,{9},Fake(),categorize),{"BRANCH_SKIPS_THROW_ON_TRUE"})
 
     def test_absent_throw_fails_closed(self):
         code=bytes((0x1a,0,5,0,0x0e,0))
