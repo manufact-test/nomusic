@@ -4,6 +4,8 @@
 
 # CELIKOM Android A1 — единый актуальный план двух чатов, 12.11.2026
 
+**Актуализация главного A, 12.11.2026 (после helper PR #46):** помощник B завершил issue #45 и PR #46 уже влит в ветку A (`18c6030c`). Наличие AppMetrica aux-процесса и ServiceRecord у клона подтверждено, гипотеза отсутствия регистрации/запуска опровергнута (callback Java onCreate и internal readiness не доказаны). Главное нативное наблюдение A [#43291123849](https://github.com/manufact-test/nomusic/actions/runs/43291123849): publisher 25/25 PASS, clone 1/25 FAIL, прямо внутри **того же** падающего Push.impl.a near Boolean guard возвращает TRUE, все три прямо считываемые ссылки receiver SET; никакого подавления exception. Узкий control [#43293493897](https://github.com/manufact-test/nomusic/actions/runs/43293493897) подтвердил применение первой задержки Push.init 1,5 с, но clone всё равно 2/25 FAIL; гипотеза простой задержки отклонена, **вся задержка удалена** в коммите `e6207d3790a3a423336cdd9d2e8a44294678807a`. Подробный протокол в ANDROID-A1-METRICA-INIT-STATE-OBSERVER-20261112.md. До causal root-fix по другому exact guard/state и нового 25/25 native нельзя объявлять запуск. Stage A NO-GO / B LOCKED. Test.50/основа/production/extension/Windows untouched.
+
 **Это актуальная точка передачи.** Старые handoff и протокол 11 ноября — исторические, не использовать их ветки как текущие. Репозиторий: manufact-test/nomusic.
 
 ## Продукт неизменен
