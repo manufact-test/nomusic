@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
-from a1_private_dex_fatal_cfg import exact_fatal_cfg
+from a1_private_dex_fatal_cfg import exact_fatal_cfg,private_exclusive_fatal_guard_refs
 from a1_private_push_init import inspect_legacy_push_init
 from a1_private_dex_callers import bounded_fatal_callers
 from a1_private_dex_supply_chain import classify_private_supplier_chain
@@ -741,10 +741,11 @@ def private_site_methods(binary):
     """Precise throw-site classes and immediate guard call targets in memory."""
     dex=Dex(binary)
     targets=dex.possible_error_strings()
-    if not targets:return set(),set(),set()
+    if not targets:return set(),set(),set(),set()
     guards=set()
     fatals=set()
     suppliers=set()
+    near_guards=set()
     for mid,code in dex.code_methods():
         owner,method=dex.method(mid)
         if group_class(owner)!="PUSH_IMPL" or method!="a":continue
@@ -754,10 +755,13 @@ def private_site_methods(binary):
         for ref in private_direct_guard_invokes(code,targets,dex,group_call):
             cl,name=dex.method(ref)
             guards.add((cl.strip("L;").replace("/","."),name))
+        for ref in private_exclusive_fatal_guard_refs(code,targets,dex,group_call):
+            cl,name=dex.method(ref)
+            near_guards.add((cl.strip("L;").replace("/","."),name))
         for ref in private_push_utils_supplier_refs(code,targets,dex,group_call):
             cl,name=dex.method(ref)
             suppliers.add((cl.strip("L;").replace("/","."),name))
-    return guards,fatals,suppliers
+    return guards,fatals,suppliers,near_guards
 
 def generate_private_targets(source, output_path):
     """Write transient proprietary method symbols only inside ephemeral CI."""
@@ -769,7 +773,7 @@ def generate_private_targets(source, output_path):
         not (str(target).startswith(str(workspace)+os.sep) or
              str(target).startswith(str(temp)+os.sep))):
         raise DexError("PRIVATE_TARGET_PATH")
-    found=set(); guards=set(); fatals=set(); suppliers=set()
+    found=set(); guards=set(); fatals=set(); suppliers=set(); near_guards=set()
     with zipfile.ZipFile(source) as outer:
         for item in outer.infolist():
             if not item.filename.endswith(".apk") or item.file_size>60000000:continue
@@ -779,8 +783,9 @@ def generate_private_targets(source, output_path):
                         payload=part.read(name)
                         if payload.startswith(bytes((100,101,120,10))):
                             found.update(private_boolean_helpers(payload))
-                            g,f,sup=private_site_methods(payload)
+                            g,f,sup,near=private_site_methods(payload)
                             guards.update(g);fatals.update(f);suppliers.update(sup)
+                            near_guards.update(near)
     # Verify source-derived class/method tokens before use as Java literals.
     valid=re.compile("^[A-Za-z_$][A-Za-z0-9_$]*(?:[.][A-Za-z_$][A-Za-z0-9_$]*)*$")
     simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -792,6 +797,8 @@ def generate_private_targets(source, output_path):
     fatal_names=sorted((cls,method) for cls,method in fatals
                        if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
     supplier_names=sorted((cls,method) for cls,method in suppliers
+                       if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
+    near_guard_names=sorted((cls,method) for cls,method in near_guards
                        if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
     target.parent.mkdir(parents=True,exist_ok=True)
     def java_rows(rows):
@@ -807,13 +814,16 @@ def generate_private_targets(source, output_path):
                java_rows(fatal_names)+chr(10)+"  }; }"+chr(10)+
                "  public static String[][] getSupplierTargets() { return new String[][] {"+chr(10)+
                java_rows(supplier_names)+chr(10)+"  }; }"+chr(10)+
+               "  public static String[][] getNearFatalGuardTargets() { return new String[][] {"+chr(10)+
+               java_rows(near_guard_names)+chr(10)+"  }; }"+chr(10)+
                "}"+chr(10))
     target.write_text(generated,encoding="utf-8")
     target.chmod(0o600)
     return {"private_transient_boolean_targets_bounded":len(names),
             "private_transient_guard_targets_bounded":len(guard_names),
             "private_transient_fatal_targets_bounded":len(fatal_names),
-            "private_transient_supplier_targets_bounded":len(supplier_names)}
+            "private_transient_supplier_targets_bounded":len(supplier_names),
+            "private_transient_near_fatal_guard_targets_bounded":len(near_guard_names)}
 
 
 def main():
