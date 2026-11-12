@@ -1,0 +1,11 @@
+id=pro.celikom.a1clonecontrol
+name=CELIKOM A1 Empty Control Module
+version=v1.0.0
+versionCode=1
+author=CELIKOM
+description=Transient no-op control to separate module existence from implementation; no hooks or user data.
+minApiVersion=102
+targetApiVersion=102
+staticScope=true
+autoHotReload=false
+exceptionMode=protective
