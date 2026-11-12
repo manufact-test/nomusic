@@ -26,9 +26,9 @@ EVENTS = (
     "am_destroy_service", "am_bind_service", "am_service_bound",
     "am_service_args", "am_schedule_service_restart", "am_service_crashed_too_much",
 )
-EVENT_RE = re.compile(r"\\b(" + "|".join(EVENTS) + r")\\b")
-RECORD_RE = re.compile(r"ServiceRecord\\{[^\\n]{0,300}", re.I)
-ATTR_RE = re.compile(r'^\\s*A:\\s*android:(name|process|exported|enabled)[^=]*=\\s*(?:"([^"]*)"|\\(type[^)]*\\)([^\\n]*))')
+EVENT_RE = re.compile(r"\b(" + "|".join(EVENTS) + r")\b")
+RECORD_RE = re.compile(r"ServiceRecord\{[^\n]{0,300}", re.I)
+ATTR_RE = re.compile(r'^\s*A:\s*android:(name|process|exported|enabled)[^=]*=\s*(?:"([^"]*)"|\(type[^)]*\)([^\n]*))')
 MAX_RAW = 1_500_000
 
 
@@ -49,7 +49,7 @@ def manifest_components(xmltree: str, package: str) -> dict:
     for line in xmltree.splitlines()[:30_000]:
         indent = len(line) - len(line.lstrip())
         stripped = line.lstrip()
-        if re.match(r"E: service(?:\\s|$)", stripped):
+        if re.match(r"E: service(?:\s|$)", stripped):
             if active is not None:
                 services.append(active)
             active = {"indent": indent, "name": "", "process": "", "exported": "UNKNOWN", "enabled": "UNKNOWN"}
@@ -114,8 +114,8 @@ def service_snapshot(dump: str, package: str) -> tuple[int, int, int]:
         records += 1
         end = dump.find("ServiceRecord{", match.end(), min(len(dump), match.end() + 5000))
         segment = dump[match.end(): end if end >= 0 else min(len(dump), match.end() + 5000)]
-        running += int(bool(re.search(r"\\bapp=ProcessRecord\\{", segment)))
-        bound += int(bool(re.search(r"\\b(?:Connections:|Bindings:|connectionCount=)", segment)))
+        running += int(bool(re.search(r"\bapp=ProcessRecord\{", segment)))
+        bound += int(bool(re.search(r"\b(?:Connections:|Bindings:|connectionCount=)", segment)))
     return min(records, 16), min(running, 16), min(bound, 16)
 
 
