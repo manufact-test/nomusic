@@ -14,7 +14,9 @@ class AuthorityTest(unittest.TestCase):
                                  lambda _: "OTHER")
         self.assertEqual(x,{"literal_found":False,"method_groups":[],
                             "methods_referencing_bounded":0,
-                            "call_api_cooccurrences":[]})
+                            "call_api_cooccurrences":[],
+                            "literal_followed_by_uri_parse_bounded":0,
+                            "literal_followed_by_resolver_query_bounded":0})
         self.assertNotIn("PRIVATE_TOKEN",str(x))
     def test_public_literal_without_callsite_not_assumed_used(self):
         x=inspect_authority_refs(None,lambda _:FakeDex(
