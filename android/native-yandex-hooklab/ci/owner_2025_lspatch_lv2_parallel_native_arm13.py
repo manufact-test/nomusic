@@ -29,6 +29,7 @@ from clone_lspatch_loader_zero import (
     download_pinned_patcher, verify_native_loader_elf_offsets,
 )
 from recover_stored_origin_crc import rewrite_only_if_origin_crc_mismatch
+from clone_main_crash_buffer import classify_main_exit_status, classify_main_crash_buffer
 
 BRANCH="experiment/android-a1-2025-lv2-own-package-parallel-20261112"
 CONFIG="assets/lspatch/config.json"
@@ -175,9 +176,20 @@ def start(package:str) -> dict:
              or "ResumedActivity:" in line)
             for line in activity.splitlines()))
     okay=all(x is not None for x in pid_samples) and len(set(pid_samples))==1
-    return {"started":True,"same_pid_75s":okay,"resumed_75s":resumed==25,
+    result={"started":True,"same_pid_75s":okay,"resumed_75s":resumed==25,
+            "main_alive_samples_bounded":sum(x is not None for x in pid_samples),
+            "native_activity_resumed_samples_bounded":resumed,
             "same_exact_package_pid_count_bounded":int(okay),
             "raw_pid_or_trace_logged":False}
+    if not okay or resumed!=25:
+        exit_dump=guest("dumpsys","activity","exit-info",package,timeout=55)
+        crash=guest("logcat","-b","crash","-d","-v","threadtime",timeout=50)
+        if exit_dump.returncode==0 and crash.returncode==0:
+            result["exact_main_exit_status"]=classify_main_exit_status(
+                exit_dump.stdout,target_package=package)
+            result["native_main_crash_category"]=classify_main_crash_buffer(
+                exit_dump.stdout,crash.stdout,target_package=package)
+    return result
 
 
 def real_trial(xapk:Path)->dict:
@@ -226,19 +238,26 @@ def real_trial(xapk:Path)->dict:
             stop("PUBLISHER_SOURCE_PARALLEL_CONFIG_SET_INCOMPLETE")
         clone_status=install_clones([("base",outer),*config_splits])
         clone_result=start(PKG) if clone_status=="INSTALLED" else {}
-        # Check coexistence only AFTER real clone MAIN survives all 25 samples.
-        if clone_result.get("same_pid_75s") and clone_result.get("resumed_75s"):
-            original_layout=[(apk_name(path).get("split","") or "base",path)
-                             for path in original]
-            stock_status=install_clones(original_layout)
-            stock_result=start(ORIGINAL) if stock_status=="INSTALLED" else {}
-            own_alive_after=bool(guest("pidof",PKG).stdout.strip())
+        # Distinct publisher/clone PackageManager co-installability is
+        # independently useful even if clone MAIN crashes. Only spend a second
+        # 75s lifecycle pass when OWN MAIN was actually stable.
+        clone_stable=bool(clone_result.get("same_pid_75s")
+                          and clone_result.get("resumed_75s"))
+        original_layout=[(apk_name(path).get("split","") or "base",path)
+                         for path in original]
+        stock_status=install_clones(original_layout)
+        stock_result=start(ORIGINAL) if clone_stable and stock_status=="INSTALLED" else {}
+        own_alive_after=bool(guest("pidof",PKG).stdout.strip())
+        if stock_status=="INSTALLED":
+            # Verify stock package installed all sixteen real publisher splits,
+            # not merely a mocked PackageManager success.
+            stock_paths=guest("pm","path",ORIGINAL,timeout=45)
+            stock_install_16=(stock_paths.returncode==0 and sum(
+                line.startswith("package:") for line in stock_paths.stdout.splitlines()
+            )==16)
         else:
-            stock_status="NOT_ATTEMPTED_UNTIL_OWN_MAIN_STABLE"
-            stock_result={}
-            own_alive_after=False
-        stable=bool(clone_result.get("same_pid_75s")
-                    and clone_result.get("resumed_75s"))
+            stock_install_16=False
+        stable=clone_stable
         parallel=stable and bool(stock_result.get("same_pid_75s")
                        and stock_result.get("resumed_75s") and own_alive_after)
         report={"verdict":("TWO_DISTINCT_NATIVE_YANDEX_PACKAGES_75S_COEXIST"
@@ -250,7 +269,9 @@ def real_trial(xapk:Path)->dict:
           "own_signed_clone_16_splits_prepared":True,
           "original_source_payload_not_published":True,
           "own_clone_status":clone_status,"own_clone_lifecycle":clone_result,
-          "publisher_original_status":stock_status,"publisher_lifecycle":stock_result,
+          "publisher_original_status":stock_status,
+          "publisher_splits_16_installed_side_by_side":stock_install_16,
+          "publisher_lifecycle":stock_result,
           "own_main_alive_after_original_foreground":own_alive_after,
           "native_arm13":True,"no_account_or_music_test":True,
           "owner_phone_touched":False,"no_binary_or_signing_key_artifact":True,
