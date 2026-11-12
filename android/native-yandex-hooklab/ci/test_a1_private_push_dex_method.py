@@ -16,6 +16,9 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         self.assertEqual(group_class("Lcom/yandex/metrica/push/impl/PRIVATE;"),"PUSH_IMPL")
         self.assertEqual(group_call("Lio/appmetrica/analytics/ModulesFacade;","isActivatedForApp"),"MODERN_PREDICATE")
         self.assertEqual(group_call("Lcom/secret/vendor;","secret"),"OTHER")
+        self.assertEqual(group_call("Lcom/yandex/metrica/push/utils/U;","s"),"PUSH_UTILS")
+        self.assertEqual(group_call("Lcom/yandex/metrica/push/common/U;","s"),"PUSH_COMMON")
+        self.assertEqual(group_call("Ljava/lang/IllegalStateException;","init"),"JAVA_RUNTIME")
         self.assertEqual(code_candidates(b"\x1a\x00\x05\x00", {5})[0],[0])
         self.assertEqual(code_candidates(b"\x1b\x00\x05\x00\x00\x00", {5})[0],[0])
     def test_large_non_target_dex_string_is_skipped_not_fatal(self):

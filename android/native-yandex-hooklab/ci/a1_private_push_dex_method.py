@@ -146,7 +146,14 @@ def group_call(owner,name):
     if owner=="Lcom/yandex/metrica/ModulesFacade;" and name=="isActivatedForApp":
         return "LEGACY_PREDICATE"
     if owner.startswith("Lcom/yandex/metrica/push/impl/"):return "PUSH_IMPL_HELPER"
+    if owner.startswith("Lcom/yandex/metrica/push/utils/"):return "PUSH_UTILS"
+    if owner.startswith("Lcom/yandex/metrica/push/common/"):return "PUSH_COMMON"
+    if owner.startswith("Lcom/yandex/metrica/push/"):return "PUSH_OTHER_HELPER"
     if owner.startswith("Lio/appmetrica/analytics/"):return "MODERN_OTHER"
+    if owner.startswith("Ljava/") or owner.startswith("Ljavax/"):return "JAVA_RUNTIME"
+    if owner.startswith("Landroid/"):return "ANDROID_FRAMEWORK"
+    if owner.startswith("Lkotlin/") or owner.startswith("Lkotlinx/"):return "KOTLIN_RUNTIME"
+    if owner.startswith("Lru/yandex/music/"):return "MUSIC_HOST"
     return "OTHER"
 
 def code_candidates(code,targets):
