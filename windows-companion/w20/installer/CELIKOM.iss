@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.22
-VersionInfoVersion=0.24.22.0
+AppVersion=0.24.23
+VersionInfoVersion=0.24.23.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED
+OutputBaseFilename=CELIKOM-W76-TRACK-RECOVERY-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
