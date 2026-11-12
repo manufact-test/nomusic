@@ -36,7 +36,13 @@ jobs:
           New-Item -ItemType Directory $out | Out-Null
           & 'C:\Program Files\7-Zip\7z.exe' x -y "-o$out" $dest | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'OFFICIAL_INSTALLER_EXTRACT_FAILED' }
-          $files = Get-ChildItem $out -Recurse -File
+          $nested = Get-ChildItem $out -Recurse -File -Filter 'app-64.7z' | Select-Object -First 1
+          if ($null -eq $nested) { throw 'OFFICIAL_INSTALLER_NESTED_ARCHIVE_MISSING' }
+          $inner = Join-Path $out 'unpacked-app'
+          New-Item -ItemType Directory $inner | Out-Null
+          & 'C:\Program Files\7-Zip\7z.exe' x -y "-o$inner" $nested.FullName | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'OFFICIAL_APP_EXTRACT_FAILED' }
+          $files = Get-ChildItem $inner -Recurse -File
           $exes = @($files | Where-Object { $_.Name -eq 'Яндекс Музыка.exe' })
           $asars = @($files | Where-Object { $_.Name -eq 'app.asar' })
           Write-Host "EXTRACTED_EXE_COUNT=$($exes.Count) EXTRACTED_ASAR_COUNT=$($asars.Count)"
