@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
-from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,decode_instructions,FlowDecodeError,INVOKE_METHOD
+from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
 EXPECTED_LEN=45961661
 EXPECTED_SHA="8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
@@ -334,6 +334,12 @@ def inspect_xapk(path):
             t for x in guard_insights for t in x["parameter_families"]}),
         "exact_guard_input_possible_source_families":sorted({
             t for x in guard_insights for t in x["input_sources"]}),
+        "exact_string_supplier_methods_bounded":min(sum(
+            x["supplier_methods"] for x in guard_insights),16),
+        "exact_string_supplier_direct_dependency_families":sorted({
+            t for x in guard_insights for t in x["supplier_body_called_categories"]}),
+        "exact_string_supplier_reads_local_field":any(
+            x["supplier_reads_field"] for x in guard_insights),
         "exact_guard_implementation_count_bounded":min(sum(
             x["body_found"] for x in guard_insights),16),
         "exact_guard_direct_dependency_families":sorted({
@@ -474,11 +480,14 @@ def private_guard_dependency_info(binary):
     dex=Dex(binary)
     targets=dex.possible_error_strings()
     if not targets:return {"guard_targets":0,"return_kinds":[],
-                            "parameter_families":[],"input_sources":[],"body_found":0,
+                            "parameter_families":[],"input_sources":[],
+                            "supplier_methods":0,"supplier_body_called_categories":[],
+                            "supplier_reads_field":False,"body_found":0,
                             "called_categories":[],"reads_fields":False}
     source={}
     refs=set()
     possible_input_sources=set()
+    supplier_refs=set()
     for mid,code in dex.code_methods():
         owner,name=dex.method(mid)
         if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
@@ -489,11 +498,30 @@ def private_guard_dependency_info(binary):
                 refs.update(private_direct_guard_invokes(code,targets,dex,group_call))
                 possible_input_sources.update(
                     private_guard_input_sources(code,targets,dex,group_call))
+                supplier_refs.update(
+                    private_push_utils_supplier_refs(code,targets,dex,group_call))
     kinds=set()
     param_families=set()
     categories=set()
     reads_field=False
     body_found=0
+    supplier_body_call_categories=set()
+    supplier_reads_field=False
+    for supplier in supplier_refs:
+        if supplier not in source:continue
+        try:instruct=decode_instructions(source[supplier])
+        except FlowDecodeError:continue
+        for pc,op,_ in instruct:
+            if 0x52<=op<=0x58 or 0x60<=op<=0x66:
+                supplier_reads_field=True
+            if op not in INVOKE_METHOD:continue
+            ref=struct.unpack_from("<H",source[supplier],pc+2)[0]
+            if ref<dex.method_count:
+                owner,name=dex.method(ref)
+                family=group_call(owner,name)
+                supplier_body_call_categories.add(
+                    private_java_dependency_family(owner,name)
+                    if family=="JAVA_RUNTIME" else family)
     for mid in refs:
         ci,proto,si=struct.unpack_from("<HHI",dex.data,dex.method_off+mid*8)
         count,off=struct.unpack_from("<II",dex.data,72)
@@ -533,6 +561,9 @@ def private_guard_dependency_info(binary):
             "return_kinds":sorted(kinds),
             "parameter_families":sorted(param_families),
             "input_sources":sorted(possible_input_sources),
+            "supplier_methods":min(len(supplier_refs),16),
+            "supplier_body_called_categories":sorted(supplier_body_call_categories),
+            "supplier_reads_field":supplier_reads_field,
             "body_found":min(body_found,16),
             "called_categories":sorted(categories),
             "reads_fields":reads_field}
@@ -544,6 +575,7 @@ def private_site_methods(binary):
     if not targets:return set(),set()
     guards=set()
     fatals=set()
+    suppliers=set()
     for mid,code in dex.code_methods():
         owner,method=dex.method(mid)
         if group_class(owner)!="PUSH_IMPL" or method!="a":continue
@@ -553,7 +585,10 @@ def private_site_methods(binary):
         for ref in private_direct_guard_invokes(code,targets,dex,group_call):
             cl,name=dex.method(ref)
             guards.add((cl.strip("L;").replace("/","."),name))
-    return guards,fatals
+        for ref in private_push_utils_supplier_refs(code,targets,dex,group_call):
+            cl,name=dex.method(ref)
+            suppliers.add((cl.strip("L;").replace("/","."),name))
+    return guards,fatals,suppliers
 
 def generate_private_targets(source, output_path):
     """Write transient proprietary method symbols only inside ephemeral CI."""
@@ -565,7 +600,7 @@ def generate_private_targets(source, output_path):
         not (str(target).startswith(str(workspace)+os.sep) or
              str(target).startswith(str(temp)+os.sep))):
         raise DexError("PRIVATE_TARGET_PATH")
-    found=set(); guards=set(); fatals=set()
+    found=set(); guards=set(); fatals=set(); suppliers=set()
     with zipfile.ZipFile(source) as outer:
         for item in outer.infolist():
             if not item.filename.endswith(".apk") or item.file_size>60000000:continue
@@ -575,8 +610,8 @@ def generate_private_targets(source, output_path):
                         payload=part.read(name)
                         if payload.startswith(bytes((100,101,120,10))):
                             found.update(private_boolean_helpers(payload))
-                            g,f=private_site_methods(payload)
-                            guards.update(g);fatals.update(f)
+                            g,f,sup=private_site_methods(payload)
+                            guards.update(g);fatals.update(f);suppliers.update(sup)
     # Verify source-derived class/method tokens before use as Java literals.
     valid=re.compile("^[A-Za-z_$][A-Za-z0-9_$]*(?:[.][A-Za-z_$][A-Za-z0-9_$]*)*$")
     simple=re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
@@ -586,6 +621,8 @@ def generate_private_targets(source, output_path):
     guard_names=sorted((cls,method) for cls,method in guards
                        if valid.fullmatch(cls) and simple.fullmatch(method))[:24]
     fatal_names=sorted((cls,method) for cls,method in fatals
+                       if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
+    supplier_names=sorted((cls,method) for cls,method in suppliers
                        if valid.fullmatch(cls) and simple.fullmatch(method))[:16]
     target.parent.mkdir(parents=True,exist_ok=True)
     def java_rows(rows):
@@ -599,12 +636,15 @@ def generate_private_targets(source, output_path):
                java_rows(guard_names)+chr(10)+"  }; }"+chr(10)+
                "  public static String[][] getFatalTargets() { return new String[][] {"+chr(10)+
                java_rows(fatal_names)+chr(10)+"  }; }"+chr(10)+
+               "  public static String[][] getSupplierTargets() { return new String[][] {"+chr(10)+
+               java_rows(supplier_names)+chr(10)+"  }; }"+chr(10)+
                "}"+chr(10))
     target.write_text(generated,encoding="utf-8")
     target.chmod(0o600)
     return {"private_transient_boolean_targets_bounded":len(names),
             "private_transient_guard_targets_bounded":len(guard_names),
-            "private_transient_fatal_targets_bounded":len(fatal_names)}
+            "private_transient_fatal_targets_bounded":len(fatal_names),
+            "private_transient_supplier_targets_bounded":len(supplier_names)}
 
 
 def main():
