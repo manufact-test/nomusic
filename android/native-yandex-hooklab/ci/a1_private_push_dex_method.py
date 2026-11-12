@@ -330,6 +330,8 @@ def inspect_xapk(path):
             x["guard_targets"] for x in guard_insights),16),
         "exact_guard_return_type_families":sorted({
             t for x in guard_insights for t in x["return_kinds"]}),
+        "exact_guard_parameter_type_families":sorted({
+            t for x in guard_insights for t in x["parameter_families"]}),
         "exact_guard_implementation_count_bounded":min(sum(
             x["body_found"] for x in guard_insights),16),
         "exact_guard_direct_dependency_families":sorted({
@@ -469,7 +471,8 @@ def private_guard_dependency_info(binary):
     """Only fixed classes of references directly inside source-derived guards."""
     dex=Dex(binary)
     targets=dex.possible_error_strings()
-    if not targets:return {"guard_targets":0,"return_kinds":[],"body_found":0,
+    if not targets:return {"guard_targets":0,"return_kinds":[],
+                            "parameter_families":[],"body_found":0,
                             "called_categories":[],"reads_fields":False}
     source={}
     refs=set()
@@ -482,6 +485,7 @@ def private_guard_dependency_info(binary):
             if report["decoded"] and report["target_strings"]:
                 refs.update(private_direct_guard_invokes(code,targets,dex,group_call))
     kinds=set()
+    param_families=set()
     categories=set()
     reads_field=False
     body_found=0
@@ -489,7 +493,17 @@ def private_guard_dependency_info(binary):
         ci,proto,si=struct.unpack_from("<HHI",dex.data,dex.method_off+mid*8)
         count,off=struct.unpack_from("<II",dex.data,72)
         if proto>=count or off+count*12>len(dex.data):raise DexError("PROTO_BOUND")
-        ret=struct.unpack_from("<I",dex.data,off+proto*12+4)[0]
+        ret,params=struct.unpack_from("<II",dex.data,off+proto*12+4)
+        if params:
+            if params+4>len(dex.data):raise DexError("PROTO_BOUND")
+            n=struct.unpack_from("<I",dex.data,params)[0]
+            if n>32 or params+4+2*n>len(dex.data):raise DexError("PROTO_BOUND")
+            for x in range(n):
+                desc=dex.type(struct.unpack_from("<H",dex.data,params+4+2*x)[0])
+                param_families.add("STRING" if desc=="Ljava/lang/String;"
+                                   else "CONTEXT" if desc=="Landroid/content/Context;"
+                                   else "PRIMITIVE" if len(desc)==1
+                                   else "OBJECT")
         descriptor=dex.type(ret)
         kinds.add("BOOLEAN" if descriptor=="Z"
                   else "VOID" if descriptor=="V"
@@ -512,6 +526,7 @@ def private_guard_dependency_info(binary):
                                if family=="JAVA_RUNTIME" else family)
     return {"guard_targets":min(len(refs),16),
             "return_kinds":sorted(kinds),
+            "parameter_families":sorted(param_families),
             "body_found":min(body_found,16),
             "called_categories":sorted(categories),
             "reads_fields":reads_field}
