@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 from owner_2025_gpr_arm13_signed_control import (
-    prepare, install_original, launch_main, verify_guest, CONTAINER
+    prepare, install_original, launch_main, CONTAINER
 )
 
 BRANCH="experiment/android-a1-2025-native-bridge-manifest-witness-20261112"
@@ -42,7 +42,14 @@ def run(xapk: Path, own: Path) -> dict:
         or os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID")!="1"
         or platform.machine()!="aarch64"):
         raise ValueError("DISPOSABLE_NATIVE_ARM13_CI_REQUIRED")
-    verify_guest()
+    prop=command(["docker","exec",CONTAINER,"getprop","ro.build.version.sdk"],40)
+    ready=command(["docker","exec",CONTAINER,"getprop","sys.boot_completed"],40)
+    abi=command(["docker","exec",CONTAINER,"getprop","ro.product.cpu.abilist"],40)
+    installed_pre=command(["docker","exec",CONTAINER,"pm","path","ru.yandex.music"],40)
+    if (prop.stdout.strip()!="33" or ready.stdout.strip()!="1"
+        or not {"arm64-v8a","armeabi-v7a"} <= set(abi.stdout.strip().split(","))
+        or installed_pre.stdout.strip()):
+        raise ValueError("FRESH_NATIVE_ANDROID13_GUEST_REQUIRED")
     if not own.is_file() or own.is_symlink() or own.stat().st_size > 10_000_000:
         raise ValueError("OWN_PROBE_APK_MISSING_OR_TOO_LARGE")
     local=command(["aapt","dump","badging",str(own)],50)
@@ -77,7 +84,7 @@ def run(xapk: Path, own: Path) -> dict:
                       TAG+":I","*:S"],60)
         if logs.returncode or len(logs.stdout)>2_000_000:
             raise ValueError("PRIVATE_ANDROID_LOG_CAPTURE_INVALID")
-        records=re.findall(r"RESULT (\\{[^\\r\\n]{5,900}\\})",logs.stdout)
+        records=re.findall(r"RESULT (\{[^\r\n]{5,900}\})",logs.stdout)
         if len(records)!=1:
             return {"verdict":"PUBLIC_IPC_NO_SINGLE_SAFE_CALLBACK",
                     "own_activity_launched":True, "callback_count_bounded":min(len(records),10),
