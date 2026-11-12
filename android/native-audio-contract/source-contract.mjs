@@ -29,9 +29,15 @@ function normalizedTrack(raw) {
   if (!trackId || !Number.isSafeInteger(raw?.durationMs) || raw.durationMs <= 0)
     return null;
   const albumId = raw.albumId == null ? null : positiveId(raw.albumId);
-  const editionId = raw.editionId == null ? null : String(raw.editionId);
+  // Host identity is an *opaque exact string*. Never coerce an object, a
+  // number or a custom toString() value into a trusted native edition ID.
+  // Control characters are not a valid edition identity and are not safe
+  // across an Android/JS host boundary.
+  const editionId = raw.editionId == null ? null : raw.editionId;
   if ((raw.albumId != null && !albumId) ||
-      (editionId !== null && (editionId.length < 1 || editionId.length > 128)))
+      (editionId !== null &&
+        (typeof editionId !== "string" || editionId.length < 1 ||
+         editionId.length > 128 || /[\x00-\x1f\x7f]/.test(editionId))))
     return null;
   const replacementVersion = raw.replacementVersion == null ? null : raw.replacementVersion;
   if (replacementVersion !== null && (!Number.isSafeInteger(replacementVersion) || replacementVersion < 1))
@@ -55,7 +61,7 @@ export function validateGrant(raw, track, origin, nowMs, safetyMs = 30_000, dura
       raw.approved !== true || raw.entitled !== true ||
       !Number.isSafeInteger(raw.version) || raw.version < 1 ||
       (track.replacementVersion != null && raw.version !== track.replacementVersion) ||
-      !Number.isSafeInteger(raw.durationMs) ||
+      !Number.isSafeInteger(raw.durationMs) || raw.durationMs <= 0 ||
       Math.abs(raw.durationMs - track.durationMs) > durationToleranceMs ||
       !MIME.has(raw.mimeType) || typeof raw.audioUrl !== "string" ||
       !Number.isSafeInteger(raw.expiresAt) ||
