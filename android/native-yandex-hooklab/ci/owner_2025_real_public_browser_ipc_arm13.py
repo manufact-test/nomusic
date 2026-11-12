@@ -20,7 +20,7 @@ from owner_2025_gpr_arm13_signed_control import (
     prepare, install_original, launch_main, CONTAINER
 )
 
-BRANCH="experiment/android-a1-2025-native-bridge-manifest-witness-20261112"
+BRANCH="experiment/android-a1-public-browser-foreground-causal-20261112"
 OWN_PACKAGE="pro.celikom.a1publicbrowserprobe"
 OWN_COMPONENT=OWN_PACKAGE+"/.ProbeActivity"
 TAG="CELIKOM_NATIVE_IPC"
@@ -79,7 +79,16 @@ def run(xapk: Path, own: Path) -> dict:
                        "-n",OWN_COMPONENT],60)
         if start.returncode or "Error:" in (start.stdout+start.stderr):
             raise ValueError("OWN_PUBLIC_BROWSER_ACTIVITY_START_FAILED")
-        time.sleep(16)
+        # Check that the publisher's native Activity has regained foreground
+        # BEFORE our own Service's delayed browser connection starts (3.5s).
+        time.sleep(2)
+        activity=command(["docker","exec",CONTAINER,"dumpsys","activity","activities"],50)
+        pub_resumed=(activity.returncode==0 and any(
+            "ru.yandex.music/" in line and
+            ("mResumedActivity" in line or "topResumedActivity" in line
+             or "ResumedActivity:" in line)
+            for line in activity.stdout.splitlines()))
+        time.sleep(15)
         logs=command(["docker","exec",CONTAINER,"logcat","-d","-s",
                       TAG+":I","*:S"],60)
         if logs.returncode or len(logs.stdout)>2_000_000:
@@ -94,15 +103,19 @@ def run(xapk: Path, own: Path) -> dict:
             or event.get("native_android_browser_client_executed") is not True
             or type(event.get("public_browser_matches")) is not int
             or not 0 <= event["public_browser_matches"] <= 5
+            or event.get("probe_uses_service_not_foreground_activity") is not True
             or event.get("transport_or_custom_commands_sent") is not False
             or event.get("private_media_or_account_read") is not False
             or event.get("before_decoder_source_replacement_proven") is not False):
             raise ValueError("PRIVATE_PROBE_RESULT_SCHEMA_REJECTED")
         return {
-            "verdict":("GENUINE_PUBLIC_MEDIA_BROWSER_CONNECTED_NO_SOURCE_SWAP_PROOF"
+            "verdict":("NATIVE_FOREGROUND_NOT_CONFIRMED_INCONCLUSIVE"
+                       if not pub_resumed else
+                       "GENUINE_PUBLIC_MEDIA_BROWSER_CONNECTED_NO_SOURCE_SWAP_PROOF"
                        if event["status"]=="CONNECTED"
                        else "PUBLIC_MEDIA_BROWSER_NATIVE_CONNECTION_NOT_ESTABLISHED"),
             "publisher_signed_original_native_running":True,
+            "publisher_native_activity_resumed_before_ipc":pub_resumed,
             "original_16_apks_issuer_verified_installed":True,
             "own_app_independently_installed":True,
             "native_guest_android_api33":True,
