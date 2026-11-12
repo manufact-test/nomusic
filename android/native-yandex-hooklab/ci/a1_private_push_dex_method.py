@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
+from a1_private_dex_fatal_cfg import exact_fatal_cfg
 from a1_private_push_init import inspect_legacy_push_init
 from a1_private_dex_callers import bounded_fatal_callers
 from a1_private_dex_supply_chain import classify_private_supplier_chain
@@ -298,6 +299,7 @@ def inspect_dex(binary):
                 "forward_guard_category":forward_skip_guard_category(code,pos,calls,dex),
                 "helper_refs":helpers,
                 "exact_guard_flow": exact_error_guard_report(code,targets,dex,group_call),
+                "exact_fatal_cfg": exact_fatal_cfg(code,targets,dex,group_call),
             })
     # Resolve helper implementations after all declarations have been indexed.
     for entry in matches:
