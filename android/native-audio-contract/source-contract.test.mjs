@@ -85,6 +85,40 @@ test("actual backend without album/edition attestation must not silently claim a
   assert.equal((await gate.requestSource()).action, "ORIGINAL");
 });
 
+
+test("unknown native album/edition never sends a source request and cannot match a generic grant", async () => {
+  let resolved = 0;
+  let headed = 0;
+  const { gate } = harness({
+    resolve: async () => { resolved++; return grant(); },
+    probeHead: async () => { headed++; return head(); }
+  });
+  gate.enable();
+  for (const extras of [
+    { albumId: null, editionId: null },
+    { albumId: null, editionId: "studio-v1" },
+    { albumId: "77", editionId: null },
+    { albumId: undefined, editionId: undefined }
+  ]) {
+    assert.equal(gate.observeTrack(originalTrack("123", extras)), true);
+    const decision = await gate.requestSource();
+    assert.equal(decision.action, "ORIGINAL");
+    assert.equal(gate.isCurrent(decision), true);
+  }
+  assert.equal(resolved, 0, "Native identity absent: never try network resolve");
+  assert.equal(headed, 0, "Native identity absent: never consume signed audio URL");
+});
+
+test("grant validation fails closed if either host identity or server attestation is absent", () => {
+  for (const field of ["albumId", "editionId"]) {
+    assert.equal(validateGrant(grant(), originalTrack("123", { [field]: null }),
+      ORIGIN, NOW), null);
+    assert.equal(validateGrant(grant("123", { [field]: null }), originalTrack(),
+      ORIGIN, NOW), null);
+  }
+  assert.ok(validateGrant(grant(), originalTrack(), ORIGIN, NOW));
+});
+
 test("mismatched replacement duration is rejected", async () => {
   const { gate } = await prepared({ resolve: async () => grant("123", { durationMs: 210_000 }) });
   assert.equal((await gate.requestSource()).action, "ORIGINAL");
