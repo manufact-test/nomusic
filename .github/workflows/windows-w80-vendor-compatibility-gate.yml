@@ -28,6 +28,17 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Verify online compatibility feed is available and matches reviewed source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = 'https://raw.githubusercontent.com/manufact-test/nomusic/support/windows-yandex-compatibility/windows-companion/w24/compatibility/official-yandex-builds-v1.json'
+          $dest = Join-Path $env:RUNNER_TEMP 'celikom-reviewed-vendor-feed.json'
+          Invoke-WebRequest -Uri $source -OutFile $dest -MaximumRedirection 0 -TimeoutSec 15
+          $local = Get-FileHash windows-companion/w24/compatibility/official-yandex-builds-v1.json -Algorithm SHA256
+          $remote = Get-FileHash $dest -Algorithm SHA256
+          if ($remote.Hash -ne $local.Hash) { throw 'W80_FEED_DIFFERS_FROM_REVIEWED_BUILD' }
+          Write-Host 'W80_REMOTE_FEED_REVIEWED_ONLY_PASS'
       - name: Strict reviewed-only compatibility registry and image tests
         run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
       - name: Verify W21 snapshots, foreign-update refusal and interruption recovery
