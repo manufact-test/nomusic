@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import struct
 import sys
 import tempfile
@@ -618,7 +619,21 @@ def run():
     with tempfile.TemporaryDirectory(prefix="celikom-five-split-identity-") as td:
         work = Path(td)
         archive = work / "signed-pinned.xapk"
-        size, sha = source.gpr.download(archive)
+        preflight = os.getenv("CELIKOM_A1_VERIFIED_SOURCE_XAPK", "")
+        if preflight:
+            # Reuse the exact preflight-verified artifact in this CI runner.
+            # Never fall back silently to a changing "latest" download.
+            candidate = Path(preflight).resolve()
+            runner = Path(os.environ.get("RUNNER_TEMP", "/nonexistent")).resolve()
+            if (os.getenv("GITHUB_ACTIONS") != "true" or
+                    candidate == runner or runner not in candidate.parents or
+                    not candidate.is_file() or candidate.is_symlink()):
+                raise arsc.TrialError("CI_PREFLIGHT_SOURCE_PATH_INVALID")
+            shutil.copyfile(candidate, archive)
+            size = archive.stat().st_size
+            sha = hashlib.file_digest(archive.open("rb"), "sha256").hexdigest()
+        else:
+            size, sha = source.gpr.download(archive)
         if size != 60433885 or sha != source.ARCHIVE_SHA:
             raise arsc.TrialError("PINNED_ARCHIVE_CHANGED")
         apks = source.gpr.split_apks(archive, work)
