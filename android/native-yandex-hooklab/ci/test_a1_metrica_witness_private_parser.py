@@ -402,6 +402,28 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertFalse(x["fatal_throwable_metrica_direct_identity_seen"])
         self.assertFalse(x["fatal_throwable_metrica_cause_identity_seen"])
 
+    def test_exact_push_object_state_only_bounded_enums(self):
+        events=(
+            log(431,"event=PUSH_FATAL_OBJECT_HOOK;origin=PUSH_ARG;error=REGISTERED;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_OBJECT;origin=ARG_ENTER;error=OBJECT_NULL_DEPENDENCY;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_OBJECT;origin=RECEIVER_ENTER;error=OBJECT_ALL_REFERENCES_SET;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_OBJECT_LOADER;origin=PUSH_ARG;error=LOADER_MATCH;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_OBJECT_OUTCOME;origin=PUSH_ARG;error=DIRECT_METRICA;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_OBJECT;origin=ARG_THROW;error=OBJECT_NULL_DEPENDENCY;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_OBJECT;origin=ARG_THROW;error=secret_field_value;thread=OTHER")
+            +log(432,"event=PUSH_FATAL_OBJECT;origin=ARG_THROW;error=OBJECT_ALL_REFERENCES_SET;thread=OTHER")
+        )
+        got=scoped_metrica_witness(EXIT,events)
+        self.assertTrue(got["exact_push_object_hook_registered"])
+        self.assertEqual(got["exact_push_object_state_timeline"],[
+            ("ARG_ENTER","OBJECT_NULL_DEPENDENCY"),
+            ("RECEIVER_ENTER","OBJECT_ALL_REFERENCES_SET"),
+            ("ARG_THROW","OBJECT_NULL_DEPENDENCY")])
+        self.assertEqual(got["exact_push_object_loader_categories"],["LOADER_MATCH"])
+        self.assertEqual(got["exact_push_object_outcome_timeline"],["DIRECT_METRICA"])
+        self.assertFalse(got["exact_push_object_raw_fields_or_values_disclosed"])
+        self.assertNotIn("secret_field_value",str(got))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
