@@ -2,8 +2,9 @@
 """Private true ARM Android13 A/B for a separately signed native Yandex clone.
 
 The original publisher-signed 5 APKs remain byte-identical. The one-APK clone
-uses own disposable lab signer and upstream LSPatch sigbypass=0, module_count=0.
-No Passport/DRM/signature circumvention, credentials, audio, device, release APK,
+uses own disposable lab signer; source-controlled LSPatch level 0 normally,
+and level 2 ONLY in a separate one-time CI branch, module_count=0.
+No Passport/DRM/account access, credentials, audio, user device or release APK,
 or persistent third-party artifact. NEVER use the owner's HONOR.
 """
 from __future__ import annotations
@@ -17,6 +18,7 @@ import zipfile
 from pathlib import Path
 
 import clone_native_splits_ephemeral as source
+from clone_lspatch_loader_zero import causal_signature_level
 from clone_main_crash_buffer import classify_main_crash_buffer, classify_main_exit_status
 from native_arm13_startup_observer import (
     classify_startup_events, only_new_main_exit_info,
@@ -93,7 +95,7 @@ def verify_lab_clone(apk: Path, signer: str, loader_zero: bool) -> None:
                 fail("NATIVE_ARM13_CLONE_NO_LSPATCH_CONFIG")
             config = json.loads(z.read(lspatch_config))
             if type(config.get("sigBypassLevel")) is not int or \
-                    config["sigBypassLevel"] != 0:
+                    config["sigBypassLevel"] != causal_signature_level():
                 fail("NATIVE_ARM13_CLONE_SIGBYPASS_PROHIBITED")
             modules = [x for x in names
                        if x.startswith("assets/lspatch/modules/") and x.endswith(".apk")]
@@ -322,7 +324,7 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
     direct_alone, direct_exit = start(CLONE)
     uninstall_own_clone_only()
 
-    # C: same ONE APK with upstream LSPatch loader level0, no modules.
+    # C: same ONE APK with pinned upstream LSPatch; exact causal level recorded.
     install_own_one_apk(clone)
     zero_clone_permission_dump = _public_permission_dump(CLONE)
     clone_alone, clone_crash = start(CLONE)
@@ -376,7 +378,7 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
                           original_permission_dump),
               },
               "one_independent_lab_clone_apk": True,
-              "sigBypassLevel": 0,
+              "sigBypassLevel": causal_signature_level(),
               "lspatch_modules_embedded": int(os.getenv("CELIKOM_A1_EXIT_WITNESS") == "1"),
               "vendor_original_bytes_modified": False,
               "login_or_passport_tested": False,
