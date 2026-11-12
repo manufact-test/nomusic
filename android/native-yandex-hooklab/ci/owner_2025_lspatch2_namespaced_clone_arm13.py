@@ -24,6 +24,7 @@ sys.path.insert(0,str(ROOT))
 import clone_native_splits_ephemeral as source
 from clone_native_splits_arsclib_ephemeral import download_editor
 from clone_main_crash_buffer import classify_main_exit_status, classify_main_crash_buffer
+from ci.a1_metrica_witness_private_parser import scoped_metrica_witness
 from merge_lab_splits_ephemeral import verify_merged_payloads
 from clone_lspatch_loader_zero import verify_native_loader_elf_offsets
 from ci.owner_2025_lspatch2_resigned_native_arm13 import wrap_lab_base
@@ -34,7 +35,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
-BRANCH="experiment/android-a1-2025-optional-metrica-startup-arm13-20261112"
+BRANCH="experiment/android-a1-2025-metrica-exception-witness-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
@@ -300,7 +301,13 @@ def run(xapk):
             stop("NAMESPACED_2025_BASE_SPLIT_SET_INCOMPLETE")
         # The key causal result: keep actual publisher-signed source as input,
         # never feed already own-signed original to the LSPatch compatibility loader.
-        loader=wrap_lab_base(publisher_base[0],work,own_base[0])
+        own_witness=Path(os.getenv("CELIKOM_A1_METRICA_OWN_MODULE_PATH","")).resolve()
+        runner=Path(os.getenv("RUNNER_TEMP","/nonexistent")).resolve()
+        if (not own_witness.is_file() or own_witness.is_symlink() or
+                runner not in own_witness.parents):
+            stop("METRICA_WITNESS_EPHEMERAL_OWN_MODULE_REQUIRED")
+        loader=wrap_lab_base(publisher_base[0],work,own_base[0],
+                             witness_module=own_witness)
         editor=work/"pinned-owned-manifest-editor.jar"
         download_editor(editor)
         renamed=[]
@@ -324,6 +331,11 @@ def run(xapk):
             stop("METRICA_AB_NO_BOUNDED_OPTIONAL_COMPONENT_DELTA")
         single=merge_publisher_input_lspatch_clone_splits(
             renamed,editor,work,work/"unique-own-key.jks")
+        with zipfile.ZipFile(single) as packaged:
+            own_modules=[name for name in packaged.namelist()
+                         if name.startswith("assets/lspatch/modules/") and name.endswith(".apk")]
+            if len(own_modules)!=1 or packaged.read(own_modules[0])!=own_witness.read_bytes():
+                stop("METRICA_WITNESS_SINGLE_APK_MODULE_LOST")
         report={
             "verified_publisher_source_splits":16,
             "clone_provider_namespace_rewrites":rewrite_summary,
@@ -333,6 +345,7 @@ def run(xapk):
             "signed_clone_package":DEST,
             "single_apk_achieved":True,
             "optional_metrica_autostart_lab_experiment":True,
+            "own_readonly_witness_module_embedded":True,
             "test_order":"PUBLISHER_FIRST_CLONE_SECOND",
             "publisher_app_and_clone_can_be_concurrently_installed":False,
             "native_clone_main_75s":False,
@@ -383,6 +396,9 @@ def run(xapk):
         observed = observe_clone()
         report["native_clone_main_75s"] = observed["stable"]
         report["clone_lifecycle"] = observed
+        report["scoped_own_readonly_witness"]=scoped_metrica_witness(
+            guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
+            guest("logcat","-v","threadtime","-d",timeout=55).stdout)
         report["publisher_still_installed_after_clone_start"] = sum(
             row.startswith("package:") for row in
             guest("pm","path",ORIGINAL).stdout.splitlines()) == 16
