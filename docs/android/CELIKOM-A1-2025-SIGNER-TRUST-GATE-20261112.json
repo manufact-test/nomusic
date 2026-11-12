@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "date": "2026-11-12",
+  "project": "CELIKOM Android native A1",
+  "status": "STAGE_A_NO_GO",
+  "stage_b_allowed": false,
+  "consumer_apk_available": false,
+  "data_source": "verified_real_arm13_issuer_vs_own_signer_and_own_source_stamp",
+  "source_sha256": "8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053",
+  "original_publisher_signed_splits": 16,
+  "own_key_signed_splits": 16,
+  "publisher_original_native_main_75s": "PASS",
+  "own_key_same_name_native_main_75s": "FAIL_JAVA_CRASH",
+  "own_key_with_independent_source_stamp_native_main_75s": "FAIL_JAVA_CRASH",
+  "own_source_stamp_verified_splits": 16,
+  "signed_ordinary_entries_byte_preserved": 8661,
+  "first_java_exception": "ILLEGAL_STATE",
+  "java_first_exception_context": "MAIN_UI_YANDEX_APP",
+  "java_first_exception_security_marker": [
+    "SIGNATURE"
+  ],
+  "root_cause": "NOT_FULLY_PROVEN",
+  "issuer_app_signer_identity_differs_from_own_signer": true,
+  "android_grant_diff_in_test_guest": false,
+  "issuer_requested_permissions": 30,
+  "own_requested_permissions": 30,
+  "issuer_granted_permissions": 15,
+  "own_granted_permissions": 15,
+  "issuer_only_permission_grants": 0,
+  "own_only_permission_grants": 0,
+  "issuer_focus_credential_grant": "GRANTED",
+  "own_focus_credential_grant": "GRANTED",
+  "no_signature_or_drm_bypass": true,
+  "no_user_phone_touched": true,
+  "no_publisher_bin_distributed": true,
+  "selected_github_runs": {
+    "paired_original_own_key": "https://github.com/manufact-test/nomusic/actions/runs/43171090649",
+    "payload_stamp_find": "https://github.com/manufact-test/nomusic/actions/runs/43172112962",
+    "own_verified_source_stamp": "https://github.com/manufact-test/nomusic/actions/runs/43173312016",
+    "native_os_permission_compare": "https://github.com/manufact-test/nomusic/actions/runs/43174180541"
+  },
+  "release_gates": {
+    "installer_crypto": "PASS",
+    "native_main_75s": "BLOCKED",
+    "native_original_ui_in_independent_apk": "NOT_VERIFIED",
+    "native_yandex_login": "NOT_TESTED",
+    "single_decoder_alternative_source": "NOT_TESTED",
+    "owner_audible_acceptance": "NOT_TESTED",
+    "play_protect_enabled_device": "NOT_TESTED"
+  },
+  "limits": [
+    "Absence of OS-grant difference in one disposable guest does not prove no other signature-dependent checks.",
+    "Signing identity and APK cryptographic/ZIP metadata differ from original.",
+    "Only pure read-only observational crash groups exposed; no raw private stack.",
+    "Original and independently signed clone can be installed separately in lab, but no owner-ready CELIKOM app exists."
+  ],
+  "communication_decision": "OWNER_REJECTED_REPEATING_YANDEX_CONTACT_REQUEST"
+}
