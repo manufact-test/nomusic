@@ -1,3 +1,13 @@
+# W80 Windows vendor-update auto-reconnect candidate 0.24.26 — CI GREEN, OWNER BASELINE QA FIRST (12 NOV 2026)
+
+Owner reported Windows **0.24.25 "вроде бы работает"**, and intends to check real music tomorrow. **Do not disturb that working installation.** For future Yandex updates W80 isolated branch `experiment/windows-w80-vendor-update-auto-reconnect-20261112` has a complete data-only reviewed compatibility feed, exact Authenticode+YANDEX LLC publisher+EXE/ASAR hashes, previously ACTIVE→official vendor overwrite detection and one-click next Start auto-reconnect, immutable old originals, and safe refusal of unsupported/partial updates. It does NOT bypass unknown future versions.
+
+Exact doc: [W80-VENDOR-UPDATE-RECONNECT-20261112.md](./W80-VENDOR-UPDATE-RECONNECT-20261112.md). Remote reviewed compatibility feed: branch `support/windows-yandex-compatibility`, `windows-companion/w24/compatibility/official-yandex-builds-v1.json` (only signed proven Yandex 5.127.0 initially). **New builds require independent proof before feed update, not a new CELIKOM EXE.**
+
+W80 Windows CI genuine official 5.127.0 lab PASS [43293978441](https://github.com/manufact-test/nomusic/actions/runs/43293978441), full W80 Inno GUI-only 0.24.26 over 0.24.25 **PASS** [43294151762](https://github.com/manufact-test/nomusic/actions/runs/43294151762). Official installer artifact [13977289582](https://github.com/manufact-test/nomusic/actions/runs/43294151762/artifacts/13977289582), SHA256 `1AE9698109AAAA01A65D3409CD8CD95186274277AE5A76C925AA455E0C1FC849`. Same native host/renderer byte-for-byte as W79 stable. Owner install is **not** required until audio baseline 0.24.25 has been listened to, and W80 physical QA remains pending. Old issue #44 should stay OPEN until owner confirms real native Active/audio.
+
+---
+
 # W79 emergency recovery 0.24.25 — CI GREEN, OWNER QA STILL PENDING (12 NOV 2026)
 
 **FIRST PRIORITY ONLY:** fix broken CELIKOM Windows 0.24.24 on owner's signed Yandex 5.127.0; no new release planning. Surgical recovery code in `experiment/windows-w79-upgrade-transaction-recovery-20261112`; authoritative evidence + safety restrictions + owner steps in [W79-SIGNED-YANDEX-51270-OWNER-RECOVERY-20261112.md](./W79-SIGNED-YANDEX-51270-OWNER-RECOVERY-20261112.md). The initial issue is [#44](https://github.com/manufact-test/nomusic/issues/44), **KEEP OPEN UNTIL OWNER TESTS**.
