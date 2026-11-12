@@ -20,11 +20,14 @@ const actualPhp = [
   '}'
 ].join("\n");
 
-function realPhpRange(start, end, length) {
-  const range = buildByteRangeHeaders(start, end).Range;
+function invokeRealPhp(range, length) {
   const raw = execFileSync("php", ["-r", actualPhp, phpByteRange, range, String(length)],
     { encoding: "utf8", timeout: 5000, maxBuffer: 4096 });
   return JSON.parse(raw);
+}
+
+function realPhpRange(start, end, length) {
+  return invokeRealPhp(buildByteRangeHeaders(start, end).Range, length);
 }
 
 function actualPhpResponse(start, end, size, etag) {
@@ -58,8 +61,8 @@ test("real unchanged PHP ByteRange exact interval and EOF clipping match Android
   assert.equal(invalid.status, 416);
   assert.equal(validateRangeResponse(invalid, 16384, null, witness).code,
     "RANGE_UNSATISFIABLE");
-  const reversed = actualPhpResponse(2048, 1024, size, witness.etag);
-  assert.equal(reversed.status, 416);
+  assert.throws(() => buildByteRangeHeaders(2048, 1024), /INVALID_BYTE_RANGE/);
+  assert.equal(invokeRealPhp("bytes=2048-1024", size).status, 416);
 });
 
 test("real PHP metadata boundary catches a short-but-plausible 206 intermediary", () => {
