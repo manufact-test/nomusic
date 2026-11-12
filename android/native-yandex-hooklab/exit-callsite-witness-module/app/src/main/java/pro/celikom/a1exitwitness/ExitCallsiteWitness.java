@@ -40,6 +40,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private volatile ClassLoader cloneAppClassLoader;
     private boolean privatePushBoolWitnessReady;
     private boolean privatePushSitesReady;
+    private boolean allFatalGuardsReady;
+    private final java.util.concurrent.atomic.AtomicInteger allFatalGuardHitCount =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger privatePushSiteHits =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger privatePushBoolHits =
@@ -828,6 +831,72 @@ public final class ExitCallsiteWitness extends XposedModule {
             nearCount>0?"REGISTERED":"NO_HOOK");
     }
 
+
+    // Two exact private DEX-derived Boolean targets (or fewer/more up to 8).
+    // Only generated in disposable CI. No method names/argument values logged.
+    private static String privateMethodParameterSignature(Method method) {
+        StringBuilder key=new StringBuilder();
+        Class<?>[] parameters=method.getParameterTypes();
+        for (int i=0;i<parameters.length;i++) {
+            if (i>0) key.append(',');
+            key.append(parameters[i].getName());
+        }
+        return key.toString();
+    }
+
+    private synchronized void installAllFatalGuardWitness(ClassLoader loader) {
+        if (allFatalGuardsReady || loader==null) return;
+        int registered=0;
+        try {
+            Class<?> source=Class.forName(
+                "pro.celikom.a1exitwitness.PrivatePushTargets",
+                false, ExitCallsiteWitness.class.getClassLoader());
+            Object targets=source.getDeclaredMethod(
+                "getAllFatalGuardExactTargets").invoke(null);
+            if (targets instanceof String[][]) {
+                String[][] methods=(String[][])targets;
+                for (int i=0;i<methods.length && i<8;i++) {
+                    String[] row=methods[i];
+                    if (row==null || row.length!=3 || row[0]==null
+                        || row[1]==null || row[2]==null) continue;
+                    final String caseLabel="CASE_"+i;
+                    try {
+                        Class<?> type=Class.forName(row[0],false,loader);
+                        for (Method method:type.getDeclaredMethods()) {
+                            if (!method.getName().equals(row[1])
+                                || method.getReturnType()!=boolean.class
+                                || !privateMethodParameterSignature(method).equals(row[2]))
+                                continue;
+                            method.setAccessible(true);
+                            hook(method).setExceptionMode(
+                                XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    int hit=allFatalGuardHitCount.incrementAndGet();
+                                    if (hit<=64)
+                                        emit("PUSH_ALL_FATAL_GUARD_VALUE",caseLabel,"ENTER");
+                                    try {
+                                        Object result=chain.proceed();
+                                        if (hit<=64)
+                                            emit("PUSH_ALL_FATAL_GUARD_VALUE",caseLabel,
+                                                Boolean.TRUE.equals(result) ? "TRUE":"FALSE");
+                                        return result;
+                                    } catch (Throwable failure) {
+                                        if (hit<=64)
+                                            emit("PUSH_ALL_FATAL_GUARD_VALUE",caseLabel,"THROW");
+                                        throw failure;
+                                    }
+                                });
+                            registered++;
+                        }
+                    } catch (Throwable ignored) { }
+                }
+            }
+        } catch (Throwable ignored) { }
+        allFatalGuardsReady=registered>0;
+        emit("PUSH_ALL_FATAL_GUARD_HOOK","PUSH_GUARD",
+            registered>0 ? "REGISTERED":"NO_HOOK");
+    }
+
     // SDK internal markers might be renamed by R8; NO_HOOK is inconclusive.
     // Read-only hooks: only fixed enums, no internal object/config inspection.
     private synchronized void installMetricaStateProbe(ClassLoader loader) {
@@ -1033,6 +1102,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installPushActivationObserver(loader);
                                 installPrivatePushBoolWitness(loader);
                                 installPrivatePushSiteWitness(loader);
+                                installAllFatalGuardWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }

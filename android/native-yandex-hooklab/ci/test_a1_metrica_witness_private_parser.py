@@ -98,6 +98,24 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
 
 
 
+
+    def test_all_exact_fatal_guard_boolean_cases_and_pid_privacy(self):
+        sample=(
+            log(431,"event=PUSH_ALL_FATAL_GUARD_HOOK;origin=PUSH_GUARD;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_ALL_FATAL_GUARD_VALUE;origin=CASE_0;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_ALL_FATAL_GUARD_VALUE;origin=CASE_0;error=FALSE;thread=OTHER")
+            +log(431,"event=PUSH_ALL_FATAL_GUARD_VALUE;origin=CASE_1;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_ALL_FATAL_GUARD_VALUE;origin=CASE_1;error=TRUE;thread=OTHER")
+            +log(999,"event=PUSH_ALL_FATAL_GUARD_VALUE;origin=CASE_1;error=THROW;thread=OTHER")
+            +log(431,"event=PUSH_ALL_FATAL_GUARD_VALUE;origin=PRIVATE_CLASS;error=FALSE;thread=OTHER"))
+        report=scoped_metrica_witness(EXIT,sample)
+        self.assertTrue(report["private_all_exact_guard_hook_registered"])
+        self.assertEqual(report["private_all_exact_guard_case_states"]["CASE_0"]["FALSE"],1)
+        self.assertEqual(report["private_all_exact_guard_case_states"]["CASE_1"]["TRUE"],1)
+        self.assertEqual(report["private_all_exact_guard_case_states"]["CASE_1"]["THROW"],0)
+        self.assertNotIn("PRIVATE_CLASS",str(report))
+        self.assertNotIn("999",str(report))
+
     def test_near_fatal_boolean_guard_is_pid_scoped_no_argv(self):
         sample=(
             log(431,"event=PUSH_INIT;origin=PUSH_LEGACY;error=ENTER;thread=MAIN")
