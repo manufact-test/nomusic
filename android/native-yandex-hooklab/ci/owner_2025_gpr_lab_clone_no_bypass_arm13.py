@@ -92,7 +92,7 @@ def lab_manifest_min_sdk(apk: Path) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,Path]],dict]:
+def ephemeral_clone(originals: list[Path], work: Path, manifest_rewriter=None) -> tuple[list[tuple[str,Path]],dict]:
     # Named configuration split manifests may omit uses-sdk entirely.
     # Android installs them with the verified base, which defines the
     # minimum supported API for the whole package; API 1 is not applicable.
@@ -137,7 +137,7 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
         raw=manifest.read_bytes()
         if not raw.lstrip().startswith(b"<"):
             stop("DECODED_MANIFEST_UNEXPECTED_FORMAT")
-        rewritten,stats=source.rewrite_manifest(raw.decode("utf-8"))
+        rewritten,stats=(manifest_rewriter or source.rewrite_manifest)(raw.decode("utf-8"))
         provider_rewrites+=stats["provider_authorities"]
         manifest.write_bytes(rewritten)
         raw_clone=work/f"unsigned-{i}.apk"
