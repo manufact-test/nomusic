@@ -24,6 +24,13 @@ function header(headers, key) {
   return hit ? String(hit[1]) : null;
 }
 function isStrongEtag(value) { return /^"[^"\r\n]+"$/.test(value || ""); }
+function canonicalPositiveLength(value) {
+  // PHP AudioController sends base-10 Content-Length. Avoid interpreting
+  // exponent/hex/whitespace/leading-zero text that the real server never emits.
+  if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) return null;
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : null;
+}
 function normalizedTrack(raw) {
   const trackId = positiveId(raw?.trackId);
   if (!trackId || !Number.isSafeInteger(raw?.durationMs) || raw.durationMs <= 0)
@@ -100,12 +107,12 @@ export function validateGrant(raw, track, origin, nowMs, safetyMs = 30_000, dura
 /** PHP AudioController returns HEAD 200, accepts only single GET byte ranges. */
 export function validateHeadResponse(response, expectedMime) {
   const h = response?.headers;
-  const size = Number(header(h, "content-length"));
+  const size = canonicalPositiveLength(header(h, "content-length"));
   const etag = header(h, "etag");
   if (response?.status !== 200 || !MIME.has(expectedMime) ||
       header(h, "content-type") !== expectedMime ||
       header(h, "accept-ranges")?.toLowerCase() !== "bytes" ||
-      !Number.isSafeInteger(size) || size <= 0 || !isStrongEtag(etag))
+      size === null || !isStrongEtag(etag))
     return null;
   return Object.freeze({ size, etag });
 }
@@ -141,11 +148,16 @@ export function validateRangeResponse(response, start, requestedEnd = null, expe
   const parts = /^bytes ([0-9]+)-([0-9]+)\/([1-9][0-9]*)$/.exec(range || "");
   if (!parts) return Object.freeze({ ok: false, code: "INVALID_CONTENT_RANGE" });
   const begin = Number(parts[1]), end = Number(parts[2]), total = Number(parts[3]);
-  const length = Number(header(h, "content-length"));
+  const length = canonicalPositiveLength(header(h, "content-length"));
   const etag = header(h, "etag");
-  if (![begin, end, total, length].every(Number.isSafeInteger) ||
+  // ByteRange::parse on CELIKOM PHP returns the full requested inclusive
+  // end (capped to EOF), never an arbitrarily truncated 206. Detect short
+  // responses now, before handing them to the single native decoder.
+  const expectedEnd = requestedEnd === null ? expected.size - 1
+    : Math.min(requestedEnd, expected.size - 1);
+  if (![begin, end, total].every(Number.isSafeInteger) ||
       begin !== start || end < begin || end >= total ||
-      (requestedEnd !== null && end > requestedEnd) ||
+      end !== expectedEnd ||
       length !== end - begin + 1 ||
       total !== expected.size || etag !== expected.etag)
     return Object.freeze({ ok: false, code: "RANGE_MISMATCH" });
