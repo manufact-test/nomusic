@@ -116,6 +116,7 @@ jobs:
           test -s "$target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
+          python3 -B android/native-yandex-hooklab/ci/jdi/one_shot.py --preflight-xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Prepare exact separate own signature and test-only native tooling
         shell: bash
         run: |
