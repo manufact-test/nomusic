@@ -73,6 +73,28 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertTrue(x["fatal_metrica_detail_observed"])
         self.assertNotIn("433",str(x))
 
+    def test_activation_hook_and_callbacks_with_context_and_no_private_keys(self):
+        events=(
+            log(431,"event=ACTIVATION_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")
+            +log(431,"event=METRICA_ACTIVATE;origin=CLONE;error=ENTER;thread=MAIN")
+            +log(431,"event=METRICA_ACTIVATE;origin=CLONE;error=THROW;thread=MAIN")
+            +log(432,"event=METRICA_ACTIVATE;origin=ORIGINAL;error=RETURN;thread=MAIN"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertTrue(x["sdk_activate_hook_registered"])
+        self.assertFalse(x["sdk_activate_hook_missing"])
+        self.assertEqual(x["sdk_activate_enter_count_bounded"],1)
+        self.assertEqual(x["sdk_activate_throw_count_bounded"],1)
+        self.assertEqual(x["sdk_activate_return_count_bounded"],0)
+        self.assertEqual(x["sdk_activate_context_categories"],["CLONE"])
+        self.assertNotIn("432",str(x))
+
+    def test_sdk_hook_missing_does_not_imply_never_initialized(self):
+        events=log(431,"event=ACTIVATION_HOOK;origin=METRICA_SDK;error=NO_HOOK;thread=MAIN")
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertTrue(x["sdk_activate_hook_missing"])
+        self.assertFalse(x["sdk_activate_hook_registered"])
+        self.assertEqual(x["sdk_activate_enter_count_bounded"],0)
+
     def test_arbitrary_sensitive_fatal_message_category_is_rejected(self):
         events=(log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=API_KEY_SECRET;thread=OTHER")
                 +log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=DETAIL_CONFIG;thread=OTHER path=/private"))
