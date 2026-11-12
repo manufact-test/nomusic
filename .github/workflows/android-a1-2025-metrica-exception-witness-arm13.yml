@@ -1,0 +1,126 @@
+name: CELIKOM A1 isolated own LibXposed Metrica constructor witness on ARM13
+on:
+  push:
+    branches: [experiment/android-a1-2025-metrica-exception-witness-arm13-20261112]
+    paths:
+      - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py'
+      - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
+      - 'android/native-yandex-hooklab/ci/test_optional_metrica_autostart_isolation.py'
+      - 'android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_metrica_witness_private_parser.py'
+      - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/**'
+      - 'android/native-yandex-hooklab/ci/test_native_clone_java_rootcause_triage.py'
+      - '.github/workflows/android-a1-2025-metrica-exception-witness-arm13.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  compile-own-readonly-metrica-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile only independently owned scope-limited passive LibXposed module
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = experiment/android-a1-2025-metrica-exception-witness-arm13-20261112
+          test "$(cat android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/resources/META-INF/xposed/scope.list)" = pro.celikom.yandex.nativeclonelab
+          gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
+          test -s android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-a1-owned-metrica-witness-only
+          path: android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 1
+          if-no-files-found: error
+  actual-2025-own-lspatch2-disposable-native-arm13:
+    needs: compile-own-readonly-metrica-witness
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 69
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: celikom-a1-owned-metrica-witness-only
+          path: ${{ runner.temp }}/celikom-own-metrica-module
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check exact isolated CI and own research code before any vendor input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-2025-metrica-exception-witness-arm13-20261112
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py
+          python3 -B -m py_compile android/native-yandex-hooklab/clone_lspatch_loader_zero.py android/native-yandex-hooklab/merge_lab_splits_ephemeral.py android/native-yandex-hooklab/clone_main_crash_buffer.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_optional_metrica_autostart_isolation.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py
+          test -s "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_native_clone_java_rootcause_triage.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lspatch_loader_zero.py -v
+      - name: Verify and privately reuse user-uploaded issuer signed 2025 XAPK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          mkdir -p "$RUNNER_TEMP/celikom-lspatch2-private"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/celikom-lspatch2-private" --clobber >/dev/null
+          f="$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Prepare exact separate own signature and test-only native tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          sdk="$RUNNER_TEMP/celikom-2025-lspatch2-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for tool in aapt apksigner zipalign; do
+            ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+      - name: Boot fresh native ARM64 plus ARMv7 Android13 guest
+        timeout-minutes: 16
+        shell: bash
+        run: bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+      - name: Embed only own passive LibXposed witness; original then clone; classify live Metrica exception MAIN PID
+        timeout-minutes: 42
+        shell: bash
+        env:
+          CELIKOM_A1_METRICA_OWN_MODULE_PATH: ${{ runner.temp }}/celikom-own-metrica-module/app-debug.apk
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Remove all original/clone private files, signing keys and native guest
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-2025-lspatch2-sdk" "$RUNNER_TEMP/celikom-own-metrica-module"
+          echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'
