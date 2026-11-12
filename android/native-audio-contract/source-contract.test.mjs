@@ -90,6 +90,26 @@ test("mismatched replacement duration is rejected", async () => {
   assert.equal((await gate.requestSource()).action, "ORIGINAL");
 });
 
+test("short native track cannot accept zero or negative replacement audio duration", () => {
+  const shortTrack = originalTrack("123", { durationMs: 1000 });
+  assert.equal(validateGrant(grant("123", { durationMs: 0 }), shortTrack, ORIGIN, NOW), null);
+  assert.equal(validateGrant(grant("123", { durationMs: -1 }), shortTrack, ORIGIN, NOW), null);
+  assert.ok(validateGrant(grant("123", { durationMs: 1 }), shortTrack, ORIGIN, NOW));
+});
+
+test("unknown edition IDs must be exact strings, never implicit object or number coercion", async () => {
+  let coercionCalls = 0;
+  const coercible = { toString() { coercionCalls++; return "studio-v1"; } };
+  const { gate } = await prepared();
+  for (const bad of [1, false, coercible, "\u0000studio", "studio\n", "x".repeat(129)]) {
+    assert.equal(gate.observeTrack(originalTrack("123", { editionId: bad })), false);
+    assert.equal((await gate.requestSource()).action, "ORIGINAL");
+  }
+  assert.equal(coercionCalls, 0, "Do not execute attacker-provided toString()");
+  assert.equal(gate.observeTrack(originalTrack("123", { editionId: "альбом:студия" })), true);
+  assert.equal((await gate.requestSource()).action, "ORIGINAL", "Unknown edition must not be fabricated as a valid grant");
+});
+
 test("duration tolerance exact boundary accepted", () => {
   assert.ok(validateGrant(grant("123", { durationMs: 182_000 }), originalTrack(), ORIGIN, NOW));
   assert.equal(validateGrant(grant("123", { durationMs: 182_001 }), originalTrack(), ORIGIN, NOW), null);
