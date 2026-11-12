@@ -5,7 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category,generate_private_targets,private_site_methods,count_exact_invoke_sites
+from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category,generate_private_targets,private_site_methods,count_exact_invoke_sites,private_near_true_exact_throw_path
 
 class PrivateDexAnalysisUnitTest(unittest.TestCase):
     def test_uleb_bounds(self):
@@ -96,6 +96,26 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         self.assertEqual(count_exact_invoke_sites(code,{2}),1)
         self.assertEqual(count_exact_invoke_sites(code,{3}),0)
         self.assertIsNone(count_exact_invoke_sites(bytes((0xff,0)),{1}))
+
+    def test_exact_near_true_branch_is_static_only(self):
+        # One direct invoke, move-result, if-nez jumps over exact target throw.
+        code=bytes((0x71,0,1,0,0,0,
+                    0x0a,0,
+                    0x39,0,10,0,
+                    0x22,1,3,0,
+                    0x1a,2,5,0,
+                    0x70,0,2,0,0,0,
+                    0x27,1,
+                    0x0e,0))
+        self.assertEqual(private_near_true_exact_throw_path(
+            code,{1},{5}),"TRUE_CFG_BLOCKS_THROW")
+        false_branch=code[:8]+bytes((0x38,))+code[9:]
+        self.assertEqual(private_near_true_exact_throw_path(
+            false_branch,{1},{5}),"TRUE_CFG_CAN_REACH_THROW")
+        self.assertEqual(private_near_true_exact_throw_path(
+            code,{1,2},{5}),"TRUE_CFG_BLOCKS_THROW")
+        self.assertEqual(private_near_true_exact_throw_path(
+            code,{9},{5}),"NEAR_CALLSITE_NOT_UNIQUE")
 
     def test_private_generator_rejects_outside_runner_without_disclosing_path(self):
         with self.assertRaises(DexError):

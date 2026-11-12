@@ -15,7 +15,7 @@ import struct
 import zipfile
 from a1_private_provider_authority import inspect_authority_refs
 from a1_private_push_contains import inspect_push_contains
-from a1_private_dex_fatal_cfg import exact_fatal_cfg,private_exclusive_fatal_guard_refs
+from a1_private_dex_fatal_cfg import exact_fatal_cfg,private_exclusive_fatal_guard_refs,_nexts
 from a1_private_push_init import inspect_legacy_push_init
 from a1_private_dex_callers import bounded_fatal_callers
 from a1_private_dex_supply_chain import classify_private_supplier_chain,inspect_source_chain,_family
@@ -330,6 +330,50 @@ def count_exact_invoke_sites(code,refs):
         return None
 
 
+def private_near_true_exact_throw_path(code,near_refs,target_strings):
+    """Only the direct, unique invoke/move-result/if result-TRUE CFG edge.
+
+    This is static reachability, NOT runtime proof, and ignores catch edges.
+    Output is a fixed category; no DEX code, registers, offsets, symbols.
+    """
+    try:
+        ins=decode_instructions(code)
+        pcs={pc for pc,_,_ in ins}
+        graph={pc:_nexts(code,(pc,op,size),pcs) for pc,op,size in ins}
+    except FlowDecodeError:
+        return "CFG_UNSUPPORTED"
+    relevant=[i for i,(pc,op,_) in enumerate(ins)
+              if op in INVOKE_METHOD
+              and struct.unpack_from("<H",code,pc+2)[0] in near_refs]
+    if len(relevant)!=1:return "NEAR_CALLSITE_NOT_UNIQUE"
+    i=relevant[0]
+    if i+2>=len(ins):return "NEAR_RESULT_NOT_DIRECT"
+    mr,ro,_=ins[i+1]
+    gp,bo,_=ins[i+2]
+    if ro!=0x0a or bo not in (0x38,0x39):
+        return "NEAR_RESULT_NOT_DIRECT"
+    if code[mr+1]!=code[gp+1]:
+        return "NEAR_RESULT_NOT_DIRECT"
+    strings=[pc for pc,op,_ in ins if
+             (op==0x1a and struct.unpack_from("<H",code,pc+2)[0] in target_strings)
+             or (op==0x1b and struct.unpack_from("<I",code,pc+2)[0] in target_strings)]
+    throws={pc for pc,op,_ in ins if op==0x27}
+    target={min((pc for pc in throws if st<pc<=st+256),default=-1)
+            for st in strings}-{-1}
+    if not target:return "EXACT_THROW_NOT_FOUND"
+    # IF_NEZ true jumps; IF_EQZ true falls through.
+    true_next=graph[gp][1] if bo==0x39 else graph[gp][0]
+    seen=set()
+    pending=[true_next]
+    while pending:
+        pc=pending.pop()
+        if pc in target:return "TRUE_CFG_CAN_REACH_THROW"
+        if pc in seen:continue
+        seen.add(pc)
+        pending.extend(q for q in graph.get(pc,[]) if q not in seen)
+    return "TRUE_CFG_BLOCKS_THROW"
+
+
 def private_exact_near_guard_invoke_site_multiplicity(binary):
     """One bounded hypothesis: near-guard TRUE may come from another callsite."""
     dex=Dex(binary)
@@ -346,7 +390,9 @@ def private_exact_near_guard_invoke_site_multiplicity(binary):
         count=count_exact_invoke_sites(code,near)
         result.append({"near_refs_bounded":min(len(near),8),
                        "near_invoke_sites_bounded":None if count is None
-                       else min(count,16)})
+                       else min(count,16),
+                       "near_true_path":private_near_true_exact_throw_path(
+                           code,near,targets)})
     return result
 
 
@@ -400,6 +446,8 @@ def inspect_xapk(path):
             sum(x["near_refs_bounded"] for x in near_multiplicity),16),
         "exact_fatal_near_guard_invoke_sites_bounded":min(
             sum(x["near_invoke_sites_bounded"] or 0 for x in near_multiplicity),32),
+        "exact_fatal_near_true_direct_cfg_paths":sorted(set(
+            x["near_true_path"] for x in near_multiplicity)),
         "exact_fatal_near_guard_callsite_multiplicity":(
             "UNKNOWN" if any(x["near_invoke_sites_bounded"] is None
                             for x in near_multiplicity)
