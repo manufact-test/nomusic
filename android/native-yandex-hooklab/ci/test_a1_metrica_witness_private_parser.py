@@ -99,6 +99,26 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
 
 
 
+
+    def test_provider_authority_metadata_and_sdk_query_are_bounded_enums(self):
+        sample=(
+            log(431,"event=METRICA_PROVIDER_RESOLVE;origin=STOCK_AUTH;error=STOCK_OWNER;thread=MAIN")
+            +log(431,"event=METRICA_PROVIDER_RESOLVE;origin=CLONE_AUTH;error=CLONE_OWNER;thread=MAIN")
+            +log(431,"event=METRICA_PROVIDER_QUERY_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")
+            +log(431,"event=METRICA_PROVIDER_QUERY;origin=STOCK_AUTH;error=ENTER;thread=OTHER")
+            +log(431,"event=METRICA_PROVIDER_QUERY;origin=STOCK_AUTH;error=NULL_RESULT;thread=OTHER")
+            +log(999,"event=METRICA_PROVIDER_QUERY;origin=STOCK_AUTH;error=THROW;thread=OTHER")
+            +log(431,"event=METRICA_PROVIDER_QUERY;origin=PRIVATE_DATA;error=NONNULL_RESULT;thread=OTHER"))
+        report=scoped_metrica_witness(EXIT,sample)
+        self.assertEqual(report["provider_metadata_owners"],
+                         {"STOCK_AUTH":["STOCK_OWNER"],"CLONE_AUTH":["CLONE_OWNER"]})
+        self.assertTrue(report["provider_query_hook_registered"])
+        self.assertEqual(report["provider_query_sdk_states"]["STOCK_AUTH"]["ENTER"],1)
+        self.assertEqual(report["provider_query_sdk_states"]["STOCK_AUTH"]["NULL_RESULT"],1)
+        self.assertEqual(report["provider_query_sdk_states"]["STOCK_AUTH"]["THROW"],0)
+        self.assertNotIn("PRIVATE_DATA",str(report))
+        self.assertNotIn("999",str(report))
+
     def test_all_exact_fatal_guard_boolean_cases_and_pid_privacy(self):
         sample=(
             log(431,"event=PUSH_ALL_FATAL_GUARD_HOOK;origin=PUSH_GUARD;error=REGISTERED;thread=MAIN")

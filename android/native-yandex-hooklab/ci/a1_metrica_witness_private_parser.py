@@ -26,6 +26,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
           "PUSH_NEAR_GUARD_HOOK","PUSH_NEAR_GUARD_VALUE",
           "PUSH_ALL_FATAL_GUARD_HOOK","PUSH_ALL_FATAL_GUARD_VALUE",
+          "METRICA_PROVIDER_RESOLVE","METRICA_PROVIDER_QUERY_HOOK",
+          "METRICA_PROVIDER_QUERY",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
@@ -35,7 +37,8 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "THREAD_DISPATCH","THREAD_GROUP","RUNTIME_KILL_HANDLER",
          "RUNTIME_LOG_HANDLER","RUNTIME_LOOKUP",
          "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN",
-         "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL","PUSH_NEAR_GUARD",
+         "STOCK_AUTH","CLONE_AUTH","OTHER_AUTH","UNKNOWN_AUTH",
+          "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL","PUSH_NEAR_GUARD",
           "CASE_0","CASE_1","CASE_2","CASE_3",
           "CASE_4","CASE_5","CASE_6","CASE_7",
           "STATE_MARK_ACTIVATED","STATE_MARK_FULL","STATE_KILL",
@@ -59,6 +62,8 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE",
          "ENTER","RETURN","THROW","TRUE","FALSE","NON_BOOLEAN",
          "OTHER_THROW","EMPTY","NONEMPTY","NULL","OTHER_INPUT",
+         "ABSENT","STOCK_OWNER","CLONE_OWNER","OTHER_OWNER","PROBE_ERROR",
+         "NULL_RESULT","NONNULL_RESULT",
          "CLONE","ORIGINAL","MISSING","OTHER",
          "LOADER_MATCH","LOADER_DIFFERENT","LOADER_NULL","LOADER_UNKNOWN",
          "SDK_LEGACY","SDK_LEGACY_PUBLIC","SDK_LEGACY_IMPL","SDK_LEGACY_OTHER",
@@ -137,6 +142,9 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_inits=[x for x in seen if x[0]=="PUSH_INIT"]
     push_init_hooks=[x for x in seen if x[0]=="PUSH_INIT_HOOK"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
+    provider_resolve=[x for x in seen if x[0]=="METRICA_PROVIDER_RESOLVE"]
+    provider_query=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY"]
+    provider_query_hook=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY_HOOK"]
     private_helper=[x for x in seen if x[0]=="PUSH_HELPER_BOOL"]
     private_helper_hook=[x for x in seen if x[0]=="PUSH_HELPER_HOOK"]
     all_guard=[x for x in seen if x[0]=="PUSH_ALL_FATAL_GUARD_VALUE"]
@@ -151,6 +159,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
     push_throw_methods=[x for x in seen if x[0]=="METRICA_PUSH_THROW_METHOD"]
     focus_events={"METRICA_ACTIVATE","MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_INIT",
+                  "METRICA_PROVIDER_QUERY",
                   "PUSH_NEAR_GUARD_VALUE","PUSH_ALL_FATAL_GUARD_VALUE",
                   "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
                   "APP_LIFECYCLE"}
@@ -169,6 +178,16 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "push_throw_subpackage_categories":sorted({x[2] for x in push_throw_classes}),
         "push_throw_method_categories":sorted({x[2] for x in push_throw_methods}),
         "activation_push_order_bounded":sequence,
+        "provider_metadata_owners":{
+            name:sorted({x[2] for x in provider_resolve if x[1]==name})
+            for name in ("STOCK_AUTH","CLONE_AUTH")},
+        "provider_query_hook_registered":any(
+            x[2]=="REGISTERED" for x in provider_query_hook),
+        "provider_query_sdk_states":{
+            name:{state:sum(x[1]==name and x[2]==state for x in provider_query)
+                  for state in ("ENTER","NULL_RESULT","NONNULL_RESULT","THROW")}
+            for name in ("STOCK_AUTH","CLONE_AUTH","OTHER_AUTH","UNKNOWN_AUTH")},
+        "provider_query_sdk_timeline":[(x[1],x[2]) for x in provider_query[:48]],
         "private_all_exact_guard_hook_registered":any(
             x[2]=="REGISTERED" for x in all_guard_hook),
         "private_all_exact_guard_case_states":{

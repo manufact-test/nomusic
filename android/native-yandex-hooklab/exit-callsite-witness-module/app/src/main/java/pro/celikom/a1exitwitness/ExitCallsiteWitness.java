@@ -2,6 +2,9 @@ package pro.celikom.a1exitwitness;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.ContentResolver;
+import android.content.pm.ProviderInfo;
+import android.net.Uri;
 import android.os.Looper;
 import android.util.Log;
 import io.github.libxposed.api.XposedInterface;
@@ -22,6 +25,11 @@ import java.util.WeakHashMap;
 public final class ExitCallsiteWitness extends XposedModule {
     private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";
     private static final String TAG = "CELIKOM_A1_EXIT_WITNESS";
+    // Manifest source is rewritten only on the disposable own clone, never stock.
+    private static final String STOCK_AUTHORITY =
+        "com.yandex.preinstallsatellite.appmetrica.provider";
+    private static final String CLONE_AUTHORITY =
+        PACKAGE + ".provider.7e1ef82da0d52923";
     private boolean armed;
     private boolean exitCtorHooked;
     private boolean exitRunHooked;
@@ -39,6 +47,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
     private boolean privatePushBoolWitnessReady;
+    private boolean metricaProviderQueryHookReady;
+    private final java.util.concurrent.atomic.AtomicInteger metricaProviderQueryHits =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean privatePushSitesReady;
     private boolean allFatalGuardsReady;
     private final java.util.concurrent.atomic.AtomicInteger allFatalGuardHitCount =
@@ -1076,6 +1087,100 @@ public final class ExitCallsiteWitness extends XposedModule {
 
     private boolean prefixHookInstalled;
 
+
+    // Read-only provider metadata and actual SDK URI access. Never query any
+    // provider ourselves, inspect cursor data, print authorities, or alter args.
+    private static String privateProviderOwner(ProviderInfo provider) {
+        if (provider == null) return "ABSENT";
+        return PACKAGE.equals(provider.packageName) ? "CLONE_OWNER"
+            : "ru.yandex.music".equals(provider.packageName) ? "STOCK_OWNER"
+            : "OTHER_OWNER";
+    }
+
+    private static String privateAuthorityFamily(Uri uri) {
+        if (uri == null) return "UNKNOWN_AUTH";
+        String name;
+        try { name=uri.getAuthority(); }
+        catch (Throwable ignored) { return "UNKNOWN_AUTH"; }
+        if (STOCK_AUTHORITY.equals(name)) return "STOCK_AUTH";
+        if (CLONE_AUTHORITY.equals(name)) return "CLONE_AUTH";
+        return "OTHER_AUTH";
+    }
+
+    private static boolean privateMetricaSdkCaller() {
+        try {
+            for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+                String name=frame.getClassName();
+                if (name.startsWith("io.appmetrica.analytics.")
+                        || name.startsWith("com.yandex.metrica."))
+                    return true;
+            }
+        } catch (Throwable ignored) { }
+        return false;
+    }
+
+    private void observeProviderRegistration(Context context) {
+        try {
+            ProviderInfo stock=context.getPackageManager()
+                .resolveContentProvider(STOCK_AUTHORITY,0);
+            emit("METRICA_PROVIDER_RESOLVE","STOCK_AUTH",
+                privateProviderOwner(stock));
+        } catch (Throwable ignored) {
+            emit("METRICA_PROVIDER_RESOLVE","STOCK_AUTH","PROBE_ERROR");
+        }
+        try {
+            ProviderInfo clone=context.getPackageManager()
+                .resolveContentProvider(CLONE_AUTHORITY,0);
+            emit("METRICA_PROVIDER_RESOLVE","CLONE_AUTH",
+                privateProviderOwner(clone));
+        } catch (Throwable ignored) {
+            emit("METRICA_PROVIDER_RESOLVE","CLONE_AUTH","PROBE_ERROR");
+        }
+    }
+
+    private synchronized void installPrivateMetricaProviderQueryWitness() {
+        if (metricaProviderQueryHookReady) return;
+        int registered=0;
+        try {
+            for (Method method : ContentResolver.class.getDeclaredMethods()) {
+                if (!"query".equals(method.getName())) continue;
+                Class<?>[] params=method.getParameterTypes();
+                if (params.length<1 || params[0]!=Uri.class) continue;
+                method.setAccessible(true);
+                hook(method).setExceptionMode(
+                    XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        boolean sdk=privateMetricaSdkCaller();
+                        int hit=sdk ? metricaProviderQueryHits.incrementAndGet() : 1000;
+                        String family="UNKNOWN_AUTH";
+                        if (sdk && hit<=32) {
+                            try {
+                                Object arg=chain.getArg(0);
+                                if (arg instanceof Uri)
+                                    family=privateAuthorityFamily((Uri)arg);
+                            } catch (Throwable ignored) { }
+                            emit("METRICA_PROVIDER_QUERY",family,"ENTER");
+                        }
+                        try {
+                            Object result=chain.proceed();
+                            if (sdk && hit<=32)
+                                emit("METRICA_PROVIDER_QUERY",family,
+                                    result == null ? "NULL_RESULT":"NONNULL_RESULT");
+                            return result;
+                        } catch (Throwable error) {
+                            if (sdk && hit<=32)
+                                emit("METRICA_PROVIDER_QUERY",family,"THROW");
+                            throw error;
+                        }
+                    });
+                registered++;
+            }
+        } catch (Throwable ignored) { }
+        metricaProviderQueryHookReady=registered>0;
+        emit("METRICA_PROVIDER_QUERY_HOOK","METRICA_SDK",
+            registered>0 ? "REGISTERED":"NO_HOOK");
+    }
+
     private boolean hookApplicationAttach() {
         try {
             Method attach = Application.class.getDeclaredMethod("attach", Context.class);
@@ -1095,6 +1200,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                      "APPINFO_" + packageIdentityCategory(rawInfo));
                                 ClassLoader loader = caller.getClassLoader();
                                 cloneAppClassLoader = loader;
+                                observeProviderRegistration(caller);
+                                installPrivateMetricaProviderQueryWitness();
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
                                 installMetricaActivationWitness(loader);
