@@ -16,6 +16,11 @@ def _family(owner, name, group_call):
         return "ANDROID_CONTEXT"
     if owner.startswith("Landroid/") and family=="ANDROID_FRAMEWORK":
         return "ANDROID_OTHER"
+    if owner=="Ljava/lang/reflect/Method;":
+        return {"invoke":"REFLECTION_INVOKE",
+                "setAccessible":"REFLECTION_ACCESSIBILITY"}.get(name,"REFLECTION_METHOD_OTHER")
+    if owner=="Ljava/lang/reflect/AccessibleObject;":
+        return {"setAccessible":"REFLECTION_ACCESSIBILITY"}.get(name,"REFLECTION_ACCESSIBLE_OTHER")
     if family=="JAVA_RUNTIME":
         if owner=="Ljava/lang/String;":
             return {
@@ -97,8 +102,10 @@ def _literal_family(s):
     if s.startswith("java."):return "JAVA_CLASS"
     if s in ("get","getInt","getBoolean","getLong","set"):
         return "REFLECT_METHOD_PROPERTY"
-    if s in ("currentApplication","currentActivityThread","getInitialApplication"):
-        return "REFLECT_METHOD_APPLICATION"
+    if s=="currentApplication":return "REFLECT_METHOD_CURRENT_APPLICATION"
+    if s=="currentActivityThread":return "REFLECT_METHOD_CURRENT_THREAD"
+    if s=="getInitialApplication":return "REFLECT_METHOD_INITIAL_APPLICATION"
+    if s=="currentProcessName":return "REFLECT_METHOD_PROCESS_NAME"
     return "OTHER_LITERAL"
 
 
