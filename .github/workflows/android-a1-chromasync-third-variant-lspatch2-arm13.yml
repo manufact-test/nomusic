@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo timeout 130 apt-get update -qq
-          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
       - name: Boot genuine clean native ARM64 and ARMv7 Android13 guest
         timeout-minutes: 16
         shell: bash
