@@ -82,6 +82,26 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertTrue(result["lab_only_metrica_fatal_suppression_observed"])
         self.assertEqual(result["lab_only_metrica_fatal_suppression_count_bounded"],1)
 
+    def test_live_stable_main_events_without_any_exit_record(self):
+        logcat=(log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")
+                +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER")
+                +log(431,"event=LAB_METRICA_FAILOPEN;origin=RUNTIME_KILL_HANDLER;error=DIRECT_METRICA;thread=OTHER")
+                +log(432,"event=LAB_METRICA_FAILOPEN;origin=RUNTIME_KILL_HANDLER;error=DIRECT_METRICA;thread=OTHER"))
+        result=scoped_metrica_witness("",logcat,stable_live_main_pid="431")
+        self.assertTrue(result["stable_live_main_pid_admitted_without_disclosure"])
+        self.assertTrue(result["read_only_witness_arm_marker_seen"])
+        self.assertTrue(result["lab_only_metrica_fatal_suppression_observed"])
+        self.assertEqual(result["lab_only_metrica_fatal_suppression_count_bounded"],1)
+        self.assertNotIn("431",str(result))
+        self.assertNotIn("432",str(result))
+
+    def test_malformed_live_pid_never_joins_witness_scope(self):
+        text=log(431,"event=LAB_METRICA_FAILOPEN;origin=RUNTIME_KILL_HANDLER;error=DIRECT_METRICA;thread=OTHER")
+        for invalid in ("431 432","0","-1","abc","000431","123456789012345"):
+            out=scoped_metrica_witness("",text,stable_live_main_pid=invalid)
+            self.assertFalse(out["stable_live_main_pid_admitted_without_disclosure"])
+            self.assertFalse(out["lab_only_metrica_fatal_suppression_observed"])
+
     def test_arbitrary_sensitive_fatal_message_category_is_rejected(self):
         events=(log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=API_KEY_SECRET;thread=OTHER")
                 +log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=DETAIL_CONFIG;thread=OTHER path=/private"))
