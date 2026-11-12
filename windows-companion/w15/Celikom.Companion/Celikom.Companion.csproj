@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CELIKOM.Companion</AssemblyName>
-    <Version>0.24.27</Version>
+    <Version>0.24.28</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <!-- Same official CELIKOM extension C icon used in EXE, taskbar, tray and installer. -->
     <ApplicationIcon>../../w20/assets/CELIKOM.ico</ApplicationIcon>
