@@ -440,7 +440,9 @@ public sealed partial class MainWindow : Form
                 code => DiagnosticLog.Record(code));
             if (!StillSameStart()) return;
             ++_compactAccessGeneration; // invalidate an older read-only preview
-            _compactAccess.Text = AccessLabel(access);
+            _compactAccessConfirmedInstallation = account.InstallationId;
+            _compactAccessConfirmedEmail = account.Email;
+            SetCompactAccessText(AccessLabel(access));
             _compactAccessChecked = DateTimeOffset.UtcNow;
             if (!PlaybackEntitlement.Allowed(access, DateTimeOffset.UtcNow))
             {
@@ -1083,6 +1085,7 @@ public sealed partial class MainWindow : Form
         if (_loggingIn) return;
         _resumeAfterNetworkFailure = false;
         ++_compactAccessGeneration;
+        ClearCompactAccessConfirmation();
         _loggingIn = true;
         ++_compactStartEpoch;
         _compactStarting = false;
@@ -1130,7 +1133,8 @@ public sealed partial class MainWindow : Form
         finally
         {
             ++_compactAccessGeneration;
-            _compactAccess.Text = "Войдите в аккаунт, чтобы начать";
+            ClearCompactAccessConfirmation();
+            SetCompactAccessText("Войдите в аккаунт, чтобы начать");
             _compactPromoOpen = false;
             ResetCompactBenefits();
             _compactAccountMode = "login";
