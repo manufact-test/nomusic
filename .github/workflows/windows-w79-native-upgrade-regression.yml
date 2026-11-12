@@ -1,0 +1,45 @@
+name: Windows W79 native upgrade regression (NO INSTALLER)
+
+on:
+  push:
+    branches:
+      - experiment/windows-w79-upgrade-transaction-recovery-20261112
+    paths:
+      - windows-companion/w21/**
+      - windows-companion/w24/**
+      - windows-companion/w15/**
+      - .github/workflows/windows-w79-native-upgrade-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-upgrade-transaction:
+    runs-on: windows-2022
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Windows W21 durable backup, crash rollback and 5.127 unknown-file refusal
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+      - name: W24 ASAR image builder, module identity and integrity
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: W15 GUI Start and DPAPI login regression tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Compile entire Windows app with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Static guard against destructive active upgrade
+        shell: pwsh
+        run: |
+          $source = Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
+          if ($source -notmatch 'NativeIntegrationManager\.Upgrade\(\)') { throw 'W79 native upgrade path not wired' }
+          if ($source -match 'NativeIntegrationManager\.Restore\(\);\s*NativeIntegrationManager\.Install\(\);') { throw 'Unsafe restore-install sequence remains' }
+          Write-Host "W79_UPGRADE_PATH_STATIC_GUARD_PASS"
