@@ -42,6 +42,20 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_actual_reporter_calls_must_be_scoped_enum_only(self):
+        events=(
+            log(431,"event=REPORTER_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")
+            +log(431,"event=REPORTER_CALL;origin=REPORTER_EVENT;error=ENTER;thread=OTHER")
+            +log(431,"event=REPORTER_CALL;origin=REPORTER_EVENT;error=THROW;thread=OTHER")
+            +log(432,"event=REPORTER_CALL;origin=REPORTER_FATAL;error=THROW;thread=OTHER")
+            +log(431,"event=REPORTER_CALL;origin=SECRET_VENDOR;error=THROW;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,events)
+        self.assertTrue(result["reporter_hook_registered"])
+        self.assertEqual(result["reporter_throw_categories"],["REPORTER_EVENT"])
+        self.assertEqual(result["reporter_calls_bounded"],2)
+        self.assertNotIn("SECRET_VENDOR",str(result))
+        self.assertNotIn("432",str(result))
+
     def test_readonly_metrica_internal_state_and_public_failure_categories(self):
         sample=(
             log(431,"event=METRICA_STATE_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")

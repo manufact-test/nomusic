@@ -353,6 +353,11 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean metricaActivationHookReady;
     private boolean metricaStateProbeReady;
     private boolean metricaPublicProbeReady;
+    private final java.util.Set<Class<?>> reporterClasses =
+        Collections.synchronizedSet(Collections.newSetFromMap(
+            new WeakHashMap<Class<?>, Boolean>()));
+    private final java.util.concurrent.atomic.AtomicInteger reporterHitCount =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger stateHits =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger publicHits =
@@ -495,6 +500,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                             emit("METRICA_API",label,"ENTER");
                         try {
                             Object result=chain.proceed();
+                            // Only observe actual returned SDK reporter objects.
+                            if ("API_GET_REPORTER".equals(label)) {
+                                try { installReturnedReporterWitness(result); }
+                                catch (Throwable ignored) { }
+                            }
                             if (publicHits.get()<=55)
                                 emit("METRICA_API",label,"RETURN");
                             return result;
@@ -509,6 +519,59 @@ public final class ExitCallsiteWitness extends XposedModule {
         } catch (Throwable ignored) { }
         metricaPublicProbeReady=registered>0;
         emit("METRICA_API_HOOK","METRICA_SDK",
+            registered>0 ? "REGISTERED" : "NO_HOOK");
+    }
+
+
+    // Reporter interface returns successfully, but the later Kotlin coroutine
+    // may fail inside its implementation. Observe ONLY fixed method families
+    // of the concrete returned reporter, without calling it or reading args.
+    private void installReturnedReporterWitness(Object reporter) {
+        if (reporter==null) return;
+        Class<?> type=reporter.getClass();
+        synchronized (reporterClasses) {
+            if (!reporterClasses.add(type) || reporterClasses.size()>12) return;
+        }
+        int registered=0;
+        for (Class<?> scan=type;scan!=null && scan!=Object.class;
+                scan=scan.getSuperclass()) {
+            for (Method method : scan.getDeclaredMethods()) {
+                if (java.lang.reflect.Modifier.isAbstract(method.getModifiers()) ||
+                    java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+                final String kind;
+                switch (method.getName()) {
+                    case "reportEvent": kind="REPORTER_EVENT"; break;
+                    case "reportError": kind="REPORTER_ERROR"; break;
+                    case "reportUnhandledException": kind="REPORTER_FATAL"; break;
+                    case "resumeSession":
+                    case "pauseSession": kind="REPORTER_SESSION"; break;
+                    case "reportRevenue":
+                    case "reportECommerce": kind="REPORTER_REVENUE"; break;
+                    case "setDataSendingEnabled": kind="REPORTER_DATA"; break;
+                    default: continue;
+                }
+                try {
+                    method.setAccessible(true);
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (reporterHitCount.incrementAndGet()<=32)
+                                emit("REPORTER_CALL",kind,"ENTER");
+                            try {
+                                Object result=chain.proceed();
+                                if (reporterHitCount.get()<=32)
+                                    emit("REPORTER_CALL",kind,"RETURN");
+                                return result;
+                            } catch (Throwable failure) {
+                                if (reporterHitCount.get()<=32)
+                                    emit("REPORTER_CALL",kind,"THROW");
+                                throw failure;
+                            }
+                        });
+                    registered++;
+                } catch (Throwable ignored) { }
+            }
+        }
+        emit("REPORTER_HOOK","METRICA_SDK",
             registered>0 ? "REGISTERED" : "NO_HOOK");
     }
 

@@ -31,3 +31,6 @@
 - Two old green laboratory-only 75s runs: #43217132456, #43217178231; they relied on one exact fatal suppression.
 - First no-suppression: [#43222681617](https://github.com/manufact-test/nomusic/actions/runs/43222681617) @ `1a16d47701afcd2a1fd88b802e7fd5a9a3d924cf`; backup `backup/android-a1-metrica-nosuppression-native-fail-exact-20261112`.
 - Second no-suppression: [#43224344294](https://github.com/manufact-test/nomusic/actions/runs/43224344294) @ `66a36f2fa0f7fab718582f8c98efbc7bfb37f61c`; backup `backup/android-a1-metrica-readonly-v2-actual-arm13-nogo-source-20261112`.
+
+## Third read-only causal control preparation
+After public `getReporter()` returned successfully 14 times in native #43224344294 and internal AppMetricaFacade state hooks did not register, the next bounded observation hooks only concrete reporter methods returned by public SDK, with finite event labels and no args/results/Throwable text. Android kill handler remains fully original. Any result **must** be checked on real ARM13, never extrapolated from unit tests.

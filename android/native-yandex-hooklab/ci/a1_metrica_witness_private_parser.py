@@ -16,7 +16,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
         "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
          "ACTIVATION_HOOK","METRICA_STATE_HOOK","METRICA_API_HOOK",
-         "METRICA_STATE","METRICA_API",
+         "METRICA_STATE","METRICA_API","REPORTER_HOOK","REPORTER_CALL",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -28,7 +28,9 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
           "STATE_MARK_ACTIVATED","STATE_MARK_FULL","STATE_KILL",
           "STATE_CHECK_ACTIVATED","STATE_CHECK_FULL","STATE_CHECK_APP",
           "API_GET_REPORTER","API_ACTIVATE_REPORTER","API_REPORT_EVENT",
-          "API_REPORT_ERROR","API_REPORT_FATAL","API_ACTIVITY_TRACK","API_DEVICE_ID"}
+          "API_REPORT_ERROR","API_REPORT_FATAL","API_ACTIVITY_TRACK","API_DEVICE_ID",
+          "REPORTER_EVENT","REPORTER_ERROR","REPORTER_FATAL",
+          "REPORTER_SESSION","REPORTER_REVENUE","REPORTER_DATA"}
 ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "EXC_SDK_INIT","EXC_CONFIG","EXC_ASYNC",
         "APPINFO_CLONE","APPINFO_ORIGINAL","APPINFO_MISSING","APPINFO_OTHER",
@@ -93,10 +95,17 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     lifecycle=[x for x in seen if x[0]=="APP_LIFECYCLE"]
     sdk_state=[x for x in seen if x[0]=="METRICA_STATE"]
     sdk_api=[x for x in seen if x[0]=="METRICA_API"]
+    reporter_calls=[x for x in seen if x[0]=="REPORTER_CALL"]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
         "stable_live_main_pid_admitted_without_disclosure":admitted,
+        "reporter_hook_registered":any(
+            x[0]=="REPORTER_HOOK" and x[2]=="REGISTERED" for x in seen),
+        "reporter_calls_bounded":len(reporter_calls),
+        "reporter_call_timeline":[(x[1],x[2]) for x in reporter_calls[:70]],
+        "reporter_throw_categories":sorted({
+            x[1] for x in reporter_calls if x[2]=="THROW"}),
         "sdk_internal_hook_registered":any(
             x[0]=="METRICA_STATE_HOOK" and x[2]=="REGISTERED" for x in seen),
         "sdk_public_hook_registered":any(
