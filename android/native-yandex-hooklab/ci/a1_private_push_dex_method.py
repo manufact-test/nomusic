@@ -316,7 +316,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];push_public_routes=[];legacy_init_reports=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];push_public_routes=[];legacy_init_reports=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -331,6 +331,7 @@ def inspect_xapk(path):
                         guard_insights.append(private_guard_dependency_info(payload))
                         guard_rules.extend(private_guard_synthetic_rule(payload))
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
+                        fatal_overloads.extend(private_fatal_overload_shapes(payload))
                         push_public_routes.append(private_public_push_entrypoints(payload))
                         legacy_init_reports.append(inspect_legacy_push_init(payload,Dex,group_call))
                         chain=classify_private_supplier_chain(
@@ -346,6 +347,15 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "private_exact_fatal_a_overload_shapes_bounded":sorted({
+            item["params"] for item in fatal_overloads}),
+        "private_exact_fatal_a_overload_count_bounded":min(len(fatal_overloads),16),
+        "private_exact_fatal_a_overload_near_guard_families":sorted({
+            item["params"] + "__" + source for item in fatal_overloads
+            for source in item["guard_sources"]}),
+        "private_exact_fatal_a_overload_boolean_fatal_families":sorted({
+            item["params"] + "__" + source for item in fatal_overloads
+            for source in item["near_guard_bool_result"]}),
         "near_fatal_guard_dependency_calls_by_depth":[
             sorted({x for chain in near_guard_chains
                     for x in chain[depth]["calls"]})
@@ -588,6 +598,44 @@ def private_near_guard_dependencies(binary):
     if not roots:return None
     return inspect_source_chain(dex,codes,roots,group_call,
                                 dex.push_interface_implementors(),declarations)
+
+
+def private_fatal_overload_shapes(binary):
+    """Differentiate same-name obfuscated overloads using fixed type families."""
+    dex=Dex(binary)
+    targets=dex.possible_error_strings()
+    if not targets:return []
+    reports=[]
+    for mid,code in dex.code_methods():
+        owner,name=dex.method(mid)
+        if group_class(owner)!="PUSH_IMPL" or name!="a":continue
+        cfg=exact_fatal_cfg(code,targets,dex,group_call)
+        if not cfg["decoded"] or not cfg["fatal_throw_candidates"]:continue
+        ci,proto,si=struct.unpack_from("<HHI",dex.data,dex.method_off+mid*8)
+        size,off=struct.unpack_from("<II",dex.data,72)
+        if proto>=size or off+size*12>len(dex.data):raise DexError("PROTO_BOUND")
+        ret,params=struct.unpack_from("<II",dex.data,off+proto*12+4)
+        if not params:descriptors=[]
+        else:
+            if params+4>len(dex.data):raise DexError("PROTO_BOUND")
+            n=struct.unpack_from("<I",dex.data,params)[0]
+            if n>12 or params+4+2*n>len(dex.data):raise DexError("PROTO_BOUND")
+            descriptors=[dex.type(struct.unpack_from("<H",dex.data,params+4+2*i)[0])
+                         for i in range(n)]
+        types=[]
+        for desc in descriptors:
+            types.append("CONTEXT" if desc=="Landroid/content/Context;"
+                         else "APPLICATION" if desc=="Landroid/app/Application;"
+                         else "STRING" if desc=="Ljava/lang/String;"
+                         else group_class(desc)
+                         if group_class(desc)!="OTHER"
+                         else "OTHER_OBJECT" if desc.startswith(("L","["))
+                         else "PRIMITIVE")
+        reports.append({"params":",".join(types) or "NONE",
+                        "guard_sources":cfg["near_fatal_sources"],
+                        "near_guard_bool_result":cfg["near_fatal_boolean_result_polarities"],
+                        "fatal_thrown_candidates":cfg["fatal_throw_candidates"]})
+    return reports
 
 def private_public_push_entrypoints(binary):
     """Only well-known public SDK API labels, never obfuscated vendor symbols."""
