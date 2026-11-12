@@ -357,3 +357,35 @@ test("W76: Stop after temporary failure cancels pending current-track recovery",
   assert.deepEqual(player.mediaSources,["https://official.yandex.example/stream"]);
   r.handlers.beforeunload();
 });
+
+
+test("W76: expired signed media 403 callback checks current ID and honestly reports recovery",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const p=new r.NativeYandexPlayer({trackId:"123",position:24.5});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void p.state;
+  assert.equal(r.window.__celikomBridgeNativeRecoverExpired("456"),false,
+    "stale prefetched previous song must not force player reload");
+  assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),true);
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_RECOVERING");
+  await new Promise(resolve=>setTimeout(resolve,720));
+  const req=r.window.__celikomBridgeNativeDrain();
+  assert.equal(req.length,1);
+  assert.equal(req[0].trackId,"123");
+  assert.equal(req[0].recovery,true);
+  r.window.__celikomBridgeNativeReceive(req[0].requestId,makeGrant("123"));
+  await new Promise(resolve=>setTimeout(resolve,40));
+  assert.deepEqual(p.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(p.state.playerState.progress.value.position,24.5);
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_MAPPING_ACCEPTED");
+  r.handlers.beforeunload();
+});
+test("W76: expired callback cannot wake a stopped or unobserved player",async()=>{
+  const r=createRenderer({withPlayer:true});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),false,
+    "before Yandex state observer attaches it cannot identify current player");
+  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),false);
+  r.handlers.beforeunload();
+});
