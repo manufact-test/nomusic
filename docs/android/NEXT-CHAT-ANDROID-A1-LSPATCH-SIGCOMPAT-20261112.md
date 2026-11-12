@@ -1,0 +1,27 @@
+# ПЕРВОЕ СООБЩЕНИЕ СЛЕДУЮЩЕМУ ЧАТУ — CELIKOM Android A1 (12.11.2026)
+
+Привет. Ты — **ведущий разработчик CELIKOM Android A1**. Мы ничего не начинаем с нуля. GitHub `manufact-test/nomusic`.
+
+**Новое актуальное решение владельца:** прежнее ограничение **«LSPatch только sigBypassLevel=0» больше не является требованием владельца**. Владелец разрешил исследовать и вариант конкурента, чтобы получить качественно работающий **отдельно устанавливаемый нативный CELIKOM**. Не спорь с ним о старом запрете и не предлагай разрешение Яндекса. При этом **не объявляй рабочим непроверенный APK**; пользователь хочет настоящую работу и живой звук, а не отчёт о тестах.
+
+**Твоя рабочая ветка**: `experiment/android-a1-independent-sig-compat-arm13-20261112` — её актуальный HEAD и **точный backup** уточни перед изменениями (см. GitHub). Старт исходной ветки: `a6b9ee2108e4fb1e523ba9aa5e6332c938b4b407`. **Основную замороженную A1** `experiment/android-native-a1-lspatch-clone-loader0-20261111` @ `cc4cb0f93489168db21502f3ef195855ae9fb743` и accepted **Test.50** `backup/android-test50-exact-source-owner-accepted-20261108` не трогай.
+
+**Прочитай сначала**:
+1. `docs/android/ANDROID-A1-LSPATCH-SIGNATURE-COMPAT-HANDOFF-20261112.md` — последнее решение/эксперимент/точный blocker.
+2. `docs/android/CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md` — продуктовые требования (раздел о запрете sigBypassLevel=2 исторически **заменён** владельцем; см. пункт 1).
+3. `docs/android/ANDROID-A1-CHROMASYNC-FULL-VS-NESTED-75S-LIVE-20261111.md` и `docs/android/ANDROID-A1-CHROMASYNC-APK-OFFLINE-COMPARISON-20261111.md`.
+4. `docs/android/ANDROID-A1-2025-PAIRED-OWN-STAMP-AND-SIGNATURE-ROOT-20261112.md` и issue [#41](https://github.com/manufact-test/nomusic/issues/41).
+
+**Конкурент**: присланная `ChromaSync-Clone-3.0.1.apk` (в **уже существующем неопубликованном** GitHub draft `a1-chromasync-301-unpublished-test`), версия 2025.10.4 #120.1rur. Нативный Яндекс во вложенном `origin.apk`, оболочка LSPatch, модуль `app.mywave.injector`, `sigBypassLevel=2`. Готовый полный конкурент **запускается 25/25 кадров за 75 сек** на реальном ARM13 guest; без оболочки хост падает. **Не доказано, что флаг 2 — единственная причина** (также меняются версия/упаковка/модуль). Чужой код/сертификаты/секреты не копировать.
+
+**Наша реальная работа**: уже создана изолированная ветка, в которой LSPatch level2 разрешён **только** при специальном CI-флаге `CELIKOM_A1_EVAL_SIGBYPASS_LEVEL=2` в точной экспериментальной ветке на ephemeral Android13 ARM runner. Остальные ветки level0. Изменён `clone_lspatch_loader_zero.py`, `clone_native_arm13_redroid_gate.py`, тесты и workflow `.github/workflows/android-a1-independent-sig-compat-arm13.yml`. Наш native UI и музыка пока не заработали.
+
+**Важнейший конкретный факт, который НЕ перепутать:** первый новый [CI #43189751753](https://github.com/manufact-test/nomusic/actions/runs/43189751753) — **70/70 unit tests PASS, overall FAIL до построения APK**. Причина `PINNED_ARCHIVE_CHANGED` (точный pinned Yandex #170gpr 2026 downloader не дал ожидаемый файл). Поэтому **нет НИ положительного, НИ отрицательного Android LSPatch level2 runtime verdict**. Не повторяй «снова подпись не помогла» — её ещё не испытали. Не меняй хеш под чужой файл.
+
+**Наш уже загруженный подписанный оригинал 2025 GPR**: неопубликованный draft `a1-yandex-2025-gpr-private-test`, GitHub Release ID `442137464`, asset ID `736739728`, XAPK 45961661 bytes, SHA256 `8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053`, 16 APK, 2025.10.4 #120.1gpr. Ни за что не проси владельца загрузить ещё раз. Важно: 16-split 2025 не является drop-in replacement для 5-split 2026 и его существующего builder.
+
+**Дальше действуй самостоятельно крупными заходами:** восстанови строгий pinned источник 2026 (если его действительно можно достать) или подготовь обособленный 2025 GPR native-контроль из уже существующего приватного draft. Прогони реальный A/B на ARM13 для полной отдельно устанавливаемой LSPatch-копии, проверяй стабильный MAIN/RESUMED и сосуществование со штатным оригиналом. Только потом подключай свой source chooser B42 к штатному декодеру, проверяй авторизацию, pause/seek/Next/Мою волну и живое переключение разрешённых треков без второго плеера. Не выдавай green unit tests за готовую APK.
+
+**Нужен один рабочий CELIKOM APK**, полный родной Yandex UI, родной decoder, CELIKOM меняет только аудио-источник одобренных треков. Без WebView/собственного плеера. Одно устройство пользователя — HONOR 50 Android13; официальный Яндекс не удалять. Не публикуй proprietary APK и ключи в открытом репо, не меняй Play Protect и production. Не пиши постоянные статусы — работай до нужной ручной проверки. Создавай отдельные exact backups перед существенными изменениями.
+
+**Текущее состояние:** Stage A NO-GO; Stage B LOCKED. Если этап A реально принят владельцем, **сам напомни о следующем согласованном этапе B** (уход от LSPatch на собственный механизм). 
