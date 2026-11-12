@@ -13,6 +13,7 @@ import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Method;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -57,6 +58,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean privatePushSitesReady;
     private boolean allFatalGuardsReady;
+    private boolean exactFatalObjectReady;
+    private final java.util.concurrent.atomic.AtomicInteger exactFatalObjectHits =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger allFatalGuardHitCount =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger privatePushSiteHits =
@@ -913,6 +917,90 @@ public final class ExitCallsiteWitness extends XposedModule {
             registered>0 ? "REGISTERED":"NO_HOOK");
     }
 
+    // Targeted read-only test: is the exact failing Push.a argument/receiver
+    // missing a direct object reference? No field names, values or classes logged.
+    private static String directReferenceReadiness(Object object) {
+        if (object==null) return "OBJECT_NULL";
+        int checked=0;
+        try {
+            for (Class<?> cls=object.getClass(),depthClass=cls; depthClass!=null
+                    && depthClass!=Object.class && checked<=16;
+                 depthClass=depthClass.getSuperclass()) {
+                for (Field field:depthClass.getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                            || field.isSynthetic() || field.getType().isPrimitive())
+                        continue;
+                    if (++checked>16) return "OBJECT_TOO_MANY_FIELDS";
+                    field.setAccessible(true);
+                    if (field.get(object)==null) return "OBJECT_NULL_DEPENDENCY";
+                }
+            }
+            return checked==0 ? "OBJECT_NO_REFERENCE_FIELDS" : "OBJECT_ALL_REFERENCES_SET";
+        } catch (Throwable ignored) { return "OBJECT_FIELDS_UNREADABLE"; }
+    }
+
+    private synchronized void installExactFatalObjectWitness(ClassLoader loader) {
+        if (exactFatalObjectReady || loader==null) return;
+        int registered=0;
+        try {
+            Class<?> source=Class.forName("pro.celikom.a1exitwitness.PrivatePushTargets",
+                false,ExitCallsiteWitness.class.getClassLoader());
+            Object target=source.getDeclaredMethod("getFatalExactObjectTargets").invoke(null);
+            if (target instanceof String[][]) {
+                for (String[] row:(String[][])target) {
+                    if (row==null || row.length!=3) continue;
+                    try {
+                        Class<?> cls=Class.forName(row[0],false,loader);
+                        for (Method method:cls.getDeclaredMethods()) {
+                            if (!method.getName().equals(row[1])
+                                    || method.getParameterTypes().length!=1
+                                    || !privateMethodParameterSignature(method).equals(row[2]))
+                                continue;
+                            method.setAccessible(true);
+                            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                                .intercept(chain -> {
+                                    int hit=exactFatalObjectHits.incrementAndGet();
+                                    if (hit<=8) {
+                                        Object arg=chain.getArg(0);
+                                        emit("PUSH_FATAL_OBJECT","ARG_ENTER",
+                                             directReferenceReadiness(arg));
+                                        emit("PUSH_FATAL_OBJECT","RECEIVER_ENTER",
+                                             directReferenceReadiness(chain.getThisObject()));
+                                        emit("PUSH_FATAL_OBJECT_LOADER","PUSH_ARG",
+                                            arg==null ? "LOADER_UNKNOWN"
+                                            : arg.getClass().getClassLoader()==cloneAppClassLoader
+                                            ? "LOADER_MATCH":"LOADER_DIFFERENT");
+                                    }
+                                    try {
+                                        Object result=chain.proceed();
+                                        if (hit<=8)
+                                            emit("PUSH_FATAL_OBJECT_OUTCOME","PUSH_ARG","RETURN");
+                                        return result;
+                                    } catch (Throwable failure) {
+                                        if (hit<=8) {
+                                            emit("PUSH_FATAL_OBJECT","ARG_THROW",
+                                                 directReferenceReadiness(chain.getArg(0)));
+                                            emit("PUSH_FATAL_OBJECT","RECEIVER_THROW",
+                                                 directReferenceReadiness(chain.getThisObject()));
+                                            emit("PUSH_FATAL_OBJECT_OUTCOME","PUSH_ARG",
+                                                 "DIRECT_METRICA".equals(
+                                                     throwableIdentityCategory(failure))
+                                                     ? "DIRECT_METRICA":"OTHER_THROW");
+                                        }
+                                        throw failure;
+                                    }
+                                });
+                            registered++;
+                        }
+                    } catch (Throwable ignored) { }
+                }
+            }
+        } catch (Throwable ignored) { }
+        exactFatalObjectReady=registered>0;
+        emit("PUSH_FATAL_OBJECT_HOOK","PUSH_ARG",
+             registered>0 ? "REGISTERED":"NO_HOOK");
+    }
+
     // SDK internal markers might be renamed by R8; NO_HOOK is inconclusive.
     // Read-only hooks: only fixed enums, no internal object/config inspection.
     private synchronized void installMetricaStateProbe(ClassLoader loader) {
@@ -1284,6 +1372,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installPrivatePushBoolWitness(loader);
                                 installPrivatePushSiteWitness(loader);
                                 installAllFatalGuardWitness(loader);
+                                installExactFatalObjectWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
