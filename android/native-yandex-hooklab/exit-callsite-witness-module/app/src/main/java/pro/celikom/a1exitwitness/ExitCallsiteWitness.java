@@ -347,6 +347,55 @@ public final class ExitCallsiteWitness extends XposedModule {
         return "EXC_OTHER";
     }
 
+    // Observe SDK activation on our own clone ONLY. No config/API keys are
+    // logged, SDK results/exception behavior are never changed.
+    private boolean metricaActivationHookReady;
+
+    private synchronized void installMetricaActivationWitness(ClassLoader appLoader) {
+        if (metricaActivationHookReady || appLoader == null) return;
+        int registered=0;
+        for (String className : new String[]{
+                "com.yandex.metrica.YandexMetrica",
+                "io.appmetrica.analytics.AppMetrica"}) {
+            try {
+                Class<?> sdk=Class.forName(className, false, appLoader);
+                for (Method method : sdk.getDeclaredMethods()) {
+                    if (!"activate".equals(method.getName()) ||
+                            !java.lang.reflect.Modifier.isStatic(method.getModifiers()))
+                        continue;
+                    Class<?>[] parameters=method.getParameterTypes();
+                    if (parameters.length<1 ||
+                            !Context.class.isAssignableFrom(parameters[0]))
+                        continue;
+                    method.setAccessible(true);
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            String contextType="MISSING";
+                            try {
+                                Object context=chain.getArg(0);
+                                if (context instanceof Context)
+                                    contextType=packageIdentityCategory(
+                                        ((Context) context).getPackageName());
+                                emit("METRICA_ACTIVATE", contextType, "ENTER");
+                            } catch (Throwable ignored) { }
+                            try {
+                                Object result=chain.proceed();
+                                emit("METRICA_ACTIVATE", contextType, "RETURN");
+                                return result;
+                            } catch (Throwable problem) {
+                                emit("METRICA_ACTIVATE", contextType, "THROW");
+                                throw problem;
+                            }
+                        });
+                    registered++;
+                }
+            } catch (Throwable ignored) { }
+        }
+        metricaActivationHookReady=registered>0;
+        emit("ACTIVATION_HOOK","METRICA_SDK",
+            registered>0 ? "REGISTERED":"NO_HOOK");
+    }
+
     private boolean prefixHookInstalled;
 
     private boolean hookApplicationAttach() {
@@ -369,6 +418,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 ClassLoader loader = caller.getClassLoader();
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
+                                installMetricaActivationWitness(loader);
                             }
                         }
                     } catch (Throwable ignored) { }
