@@ -1,3 +1,13 @@
+# W81 Windows release watcher + 2026 compatibility + visible audio errors — CI GREEN (2026-11-12)
+
+Source: `experiment/windows-w81-vendor-monitor-compat-visibility-20261112`; pre-W81 reserve `backup/windows-w81-pre-monitor-and-status-exact-20261112`. Full documentation `docs/windows/W81-YANDEX-AUTO-WATCH-2026-STATUS-20261112.md`. Owner Windows 0.24.25 seems to work; owner planned full music QA tomorrow — **do not ask to replace the owner working 0.24.25 tonight**.
+
+**Four project decisions implemented:** portable official Yandex Windows `latest.yml` release watcher (hourly GitHub workflow installed on `main`, future private runner migration tracked by [issue #48](https://github.com/manufact-test/nomusic/issues/48)); additive signed pinned versions 5.86 / 5.102 / 5.121 / 5.126 / 5.127 and v2 catalogue while legacy v1 remains intact; visible red/yellow warning states for unsupported version, song source failure, disconnected/stale host; safe owner untouched until physical tests. No untested vendor build automatically published.
+
+Green final CI: `43302843768` (four real signed 2026 temporary native Install/Restore), `43303386737` (GUI tests and live catalog v1/v2), `43303122284` (old pin immutability), `43302843825` (W81 0.24.27 candidate Inno in-place from 0.24.26 preserving login/DPAPI and unchanged native 0.24.25 audio). Candidate artifact `13982362622`, SHA256 `87CDEBDF1C0B448ECE11C71525B4C2DDA6BCE40A662FC3768E495B485CA07D8D`. Still requires owner audible real-world QA; not a production sign-off. Hourly scheduling not yet observed in wild; confirm after first cron event.
+
+---
+
 # W80 Windows vendor-update auto-reconnect candidate 0.24.26 — CI GREEN, OWNER BASELINE QA FIRST (12 NOV 2026)
 
 Owner reported Windows **0.24.25 "вроде бы работает"**, and intends to check real music tomorrow. **Do not disturb that working installation.** For future Yandex updates W80 isolated branch `experiment/windows-w80-vendor-update-auto-reconnect-20261112` has a complete data-only reviewed compatibility feed, exact Authenticode+YANDEX LLC publisher+EXE/ASAR hashes, previously ACTIVE→official vendor overwrite detection and one-click next Start auto-reconnect, immutable old originals, and safe refusal of unsupported/partial updates. It does NOT bypass unknown future versions.
