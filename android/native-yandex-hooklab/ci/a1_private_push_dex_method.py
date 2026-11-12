@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
-from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,decode_instructions,FlowDecodeError,INVOKE_METHOD
+from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,decode_instructions,FlowDecodeError,INVOKE_METHOD
 
 EXPECTED_LEN=45961661
 EXPECTED_SHA="8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
@@ -332,6 +332,8 @@ def inspect_xapk(path):
             t for x in guard_insights for t in x["return_kinds"]}),
         "exact_guard_parameter_type_families":sorted({
             t for x in guard_insights for t in x["parameter_families"]}),
+        "exact_guard_input_possible_source_families":sorted({
+            t for x in guard_insights for t in x["input_sources"]}),
         "exact_guard_implementation_count_bounded":min(sum(
             x["body_found"] for x in guard_insights),16),
         "exact_guard_direct_dependency_families":sorted({
@@ -472,10 +474,11 @@ def private_guard_dependency_info(binary):
     dex=Dex(binary)
     targets=dex.possible_error_strings()
     if not targets:return {"guard_targets":0,"return_kinds":[],
-                            "parameter_families":[],"body_found":0,
+                            "parameter_families":[],"input_sources":[],"body_found":0,
                             "called_categories":[],"reads_fields":False}
     source={}
     refs=set()
+    possible_input_sources=set()
     for mid,code in dex.code_methods():
         owner,name=dex.method(mid)
         if group_class(owner) in ("PUSH_IMPL","PUSH_OTHER","PUSH_MODERN"):
@@ -484,6 +487,8 @@ def private_guard_dependency_info(binary):
             report=exact_error_guard_report(code,targets,dex,group_call)
             if report["decoded"] and report["target_strings"]:
                 refs.update(private_direct_guard_invokes(code,targets,dex,group_call))
+                possible_input_sources.update(
+                    private_guard_input_sources(code,targets,dex,group_call))
     kinds=set()
     param_families=set()
     categories=set()
@@ -527,6 +532,7 @@ def private_guard_dependency_info(binary):
     return {"guard_targets":min(len(refs),16),
             "return_kinds":sorted(kinds),
             "parameter_families":sorted(param_families),
+            "input_sources":sorted(possible_input_sources),
             "body_found":min(body_found,16),
             "called_categories":sorted(categories),
             "reads_fields":reads_field}
