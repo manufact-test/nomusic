@@ -5,7 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain
+from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target
 
 class PrivateDexAnalysisUnitTest(unittest.TestCase):
     def test_uleb_bounds(self):
@@ -62,6 +62,13 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         self.assertEqual(result[0]["methods_found"],1)
         self.assertEqual(result[1]["methods_found"],0)
         self.assertNotIn("Impl",str(result))
+
+    def test_guard_near_helper_requires_structural_branch(self):
+        code=bytes((0x71,0,1,0,0,0,0x38,0,1,0,0x1a,0,2,0))
+        self.assertEqual(branch_guard_near_target(code,[0],10),
+                         {"near_helper":True,"if_guard":True})
+        self.assertEqual(branch_guard_near_target(code,[],10),
+                         {"near_helper":False,"if_guard":False})
 
     def test_bad_dex_rejected_without_data(self):
         with self.assertRaises(DexError):Dex(b"PK\x03\x04")

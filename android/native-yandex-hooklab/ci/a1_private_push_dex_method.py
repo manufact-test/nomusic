@@ -207,6 +207,15 @@ def helper_chain(dex, source_codes, seeds, interface_impls=None, method_impls=No
         frontier=nested
     return chain
 
+def branch_guard_near_target(code,invoke_positions,target_pos):
+    """Approximate if-zero control-flow guard between helper call and error."""
+    previous=[p for p in invoke_positions if 0<=target_pos-p<=256]
+    if not previous:return {"near_helper":False,"if_guard":False}
+    start=max(previous)
+    guard=any(code[pos] in range(0x32,0x3e)
+              for pos in range(start+2,target_pos,2) if pos<len(code))
+    return {"near_helper":True,"if_guard":guard}
+
 def inspect_dex(binary):
     dex=Dex(binary)
     targets=dex.possible_error_strings()
@@ -229,10 +238,13 @@ def inspect_dex(binary):
                 callee,name=dex.method(ref)
                 grouped.append((pos,group_call(callee,name)))
         helpers=set()
-        for _,ref in calls:
+        helper_call_positions=[]
+        for call_pos,ref in calls:
             if ref<dex.method_count:
                 callee,name=dex.method(ref)
-                if group_call(callee,name)=="PUSH_IMPL_HELPER":helpers.add(ref)
+                if group_call(callee,name)=="PUSH_IMPL_HELPER":
+                    helpers.add(ref)
+                    helper_call_positions.append(call_pos)
         for pos in where:
             earlier=[x[1] for x in grouped if pos-120<=x[0]<pos]
             matches.append({
@@ -242,6 +254,7 @@ def inspect_dex(binary):
                 "legacy_check":any(x[1]=="LEGACY_PREDICATE" for x in grouped),
                 "helper":any(x[1]=="PUSH_IMPL_HELPER" for x in grouped),
                 "recent_invoke":earlier[-1] if earlier else "NO_NEARBY_INVOKE",
+                "guard":branch_guard_near_target(code,helper_call_positions,pos),
                 "helper_refs":helpers,
             })
     # Resolve helper implementations after all declarations have been indexed.
@@ -272,7 +285,19 @@ def inspect_xapk(path):
                     if payload.startswith(b"dex\n"):
                         matches.extend(inspect_dex(payload))
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
+    fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "push_impl_crash_a_candidates_bounded":min(len(fatal_a),16),
+        "push_impl_a_has_nearby_helper":any(m["guard"]["near_helper"] for m in fatal_a),
+        "push_impl_a_has_guard_after_helper_approx":any(m["guard"]["if_guard"] for m in fatal_a),
+        "push_impl_a_modern_predicate_by_depth":[
+            any(m["helper_chain"][level]["modern_predicate"]
+                for m in fatal_a if len(m["helper_chain"])>level)
+            for level in range(3)],
+        "push_impl_a_interface_dispatch_by_depth":[
+            any(m["helper_chain"][level]["interface_dispatch_resolved"]
+                for m in fatal_a if len(m["helper_chain"])>level)
+            for level in range(3)],
         "dex_private_push_insight":True,
         "push_helper_interface_dispatch_by_depth":[
             any(m["helper_chain"][depth]["interface_dispatch_resolved"]
