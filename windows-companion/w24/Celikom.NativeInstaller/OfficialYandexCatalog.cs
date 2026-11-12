@@ -147,7 +147,11 @@ public static class OfficialYandexCatalog
                 return false;
             if (!NativeHostSignature.IsValid(exe)) return false;
             // WinVerifyTrust validates the bytes; constrain the *publisher* too.
+            // X509CertificateLoader loads certificate containers, not signer
+            // certificates embedded in an Authenticode-signed PE image.
+#pragma warning disable SYSLIB0057
             using var signer = X509Certificate.CreateFromSignedFile(exe);
+#pragma warning restore SYSLIB0057
             var subject = signer.Subject;
             return subject.Contains("CN=YANDEX LLC", StringComparison.OrdinalIgnoreCase) &&
                 subject.Contains("O=YANDEX LLC", StringComparison.OrdinalIgnoreCase);
