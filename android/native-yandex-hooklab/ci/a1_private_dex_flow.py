@@ -126,3 +126,40 @@ def exact_error_guard_report(code:bytes, target_strings:set[int], dex, group_cal
             "verified_guard_sources":sorted(sources),
             "guards_skipping_throw":min(guards,16),
             "causal_branch_proven":False}
+
+def private_direct_guard_invokes(code:bytes, target_strings:set[int], dex, group_call):
+    """Find only method-result registers tested by a verified local IF edge.
+
+    Returns in-memory DEX method IDs; NEVER log/serialize them. A candidate
+    call is not proof the observed runtime took the false branch.
+    """
+    try:ins=decode_instructions(code)
+    except FlowDecodeError:return set()
+    pcs={p for p,_,_ in ins}
+    refs=set()
+    strings=[
+        p for p,op,_ in ins
+        if (op==0x1a and struct.unpack_from("<H",code,p+2)[0] in target_strings)
+        or (op==0x1b and struct.unpack_from("<I",code,p+2)[0] in target_strings)]
+    for string_pc in strings:
+        throw_pc=next((p for p,op,_ in ins
+                       if op==0x27 and string_pc<p<=string_pc+256),None)
+        if throw_pc is None:continue
+        for i,(p,op,_) in enumerate(ins):
+            if op not in range(0x38,0x3e) or i<2 or not (
+                    string_pc-384<=p<string_pc):continue
+            destination=p+2*struct.unpack_from("<h",code,p+2)[0]
+            if destination<=throw_pc or destination not in pcs:continue
+            result_pc,result_opcode,_=ins[i-1]
+            invoke_pc,invoke_opcode,_=ins[i-2]
+            if (result_opcode not in RESULT_OPS or
+                    code[result_pc+1]!=code[p+1] or
+                    invoke_opcode not in INVOKE_METHOD):continue
+            ref=struct.unpack_from("<H",code,invoke_pc+2)[0]
+            if ref>=dex.method_count:continue
+            owner,name=dex.method(ref)
+            if group_call(owner,name) in (
+                    "PUSH_COMMON","PUSH_UTILS","PUSH_IMPL_HELPER",
+                    "PUSH_OTHER_HELPER"):
+                refs.add(ref)
+    return refs
