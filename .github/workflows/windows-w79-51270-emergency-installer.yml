@@ -1,0 +1,139 @@
+name: CELIKOM Windows W79 0.24.25 emergency 5.127 repair installer
+
+on:
+  push:
+    branches:
+      - experiment/windows-w79-upgrade-transaction-recovery-20261112
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w20/installer/CELIKOM.iss
+      - windows-companion/w21/**
+      - windows-companion/w23/**
+      - windows-companion/w24/**
+      - .github/workflows/windows-w79-51270-emergency-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  windows-emergency-repair:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile actual 0.24.25 native module
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W79_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W79_NATIVE_BUNDLE_FAILED' }
+          $hostScript = Get-Content dist/host.cjs -Raw
+          if ($hostScript -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.25"') { throw 'W79_OLD_NATIVE_MODULE' }
+      - name: Keep original native audio, current-track, and recovery regressions
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W79_AUDIO_BRIDGE_REGRESSION' }
+      - name: Protect native snapshots and interrupt rollback
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+      - name: Protect native ASAR image builder
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Build GUI with all warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Protect GUI, entitlement, Start, diagnostics and session login
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Verify installer changes only CELIKOM app files
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W79_INSTALLER_SAFETY_GATE' }
+      - name: Publish self-contained Windows GUI
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W79_PUBLISH_FAILED' }
+      - name: Build one signed-vendor-safe recovery installer
+        shell: pwsh
+        run: |
+          $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W79_INNO_SETUP_DEPENDENCY_FAILED' }
+          }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W79_INNO_BUILD_FAILED' }
+          $file='windows-companion/w20/output/CELIKOM-W79-51270-EMERGENCY-RECOVERY-UNSIGNED.exe'
+          if (!(Test-Path $file)) { throw 'W79_INSTALLER_MISSING' }
+          $info=[Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $file).Path)
+          if ($info.FileVersion.Trim() -ne '0.24.25.0' -or $info.ProductName.Trim() -ne 'CELIKOM') { throw 'W79_INSTALLER_VERSION_BAD' }
+          Write-Host "W79_INSTALLER_SHA256=$((Get-FileHash $file -Algorithm SHA256).Hash)"
+      - name: One-click update accepts emergency repair (0.24.25)
+        shell: pwsh
+        run: |
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-W79-recovery-update.zip'
+          Compress-Archive -Path 'windows-companion/w20/output/CELIKOM-W79-51270-EMERGENCY-RECOVERY-UNSIGNED.exe' -DestinationPath $zip
+          $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W79_UPDATE_STAGE_FAILED' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W77-KISHLAK-PREFETCH-RECOVERY-UNSIGNED
+          run-id: 43241899043
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: previous-W77
+      - name: Real W77 0.24.24 to W79 0.24.25 inplace installer - preserve saved DPAPI login
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=(Resolve-Path 'previous-W77/CELIKOM-W77-KISHLAK-PREFETCH-RECOVERY-UNSIGNED.exe').Path
+          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W79-51270-EMERGENCY-RECOVERY-UNSIGNED.exe').Path
+          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne 'E0E3A7BC3ED8D0C194471A2BCAECD88187A5A53567F76CD777346E2AD5AF4068') { throw 'W79_OLD_W77_SHA_MISMATCH' }
+          $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe=Join-Path $app 'CELIKOM.Companion.exe'
+          $native=Join-Path $app 'integration'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          $vendor=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $app) -or (Test-Path $vendor)) { throw 'W79_DIRTY_RUNNER' }
+          $p=Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W79_OLD_W77_INSTALL_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.24.0') { throw 'W79_OLD_VERSION_BAD' }
+          $priorHost=(Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash
+          New-Item -ItemType Directory -Force -Path $state | Out-Null
+          $sealed=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('W79_SAVED_LOGIN_INTACT'),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+          [IO.File]::WriteAllBytes($session,$sealed)
+          $originalSessionHash=(Get-FileHash $session -Algorithm SHA256).Hash
+          $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W79_REPAIR_INPLACE_INSTALL_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.25.0') { throw 'W79_REPAIR_VERSION_BAD' }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $originalSessionHash) { throw 'W79_SESSION_MODIFIED' }
+          $plain=[Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($session),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))
+          if ($plain -ne 'W79_SAVED_LOGIN_INTACT') { throw 'W79_SESSION_UNDECRYPTABLE' }
+          foreach($file in 'host.cjs','renderer.js') {
+            $actual=(Get-FileHash (Join-Path $native $file) -Algorithm SHA256).Hash
+            $expected=(Get-FileHash (Join-Path 'windows-companion/w23/dist' $file) -Algorithm SHA256).Hash
+            if ($actual -ne $expected) { throw 'W79_NATIVE_ASSETS_NOT_UPDATED' }
+          }
+          if ((Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash -eq $priorHost) { throw 'W79_OLD_HOST_NOT_REPLACED' }
+          if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W79_DUPLICATE_APPID_OR_YANDEX_CHANGED' }
+          Write-Host 'W79_W77_TO_02425_INPLACE_DPAPI_NATIVE_APPID_YANDEX_UNTOUCHED_PASS'
+      - name: Store only one emergency installer, NOT vendor binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W79-51270-EMERGENCY-RECOVERY-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W79-51270-EMERGENCY-RECOVERY-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 10
