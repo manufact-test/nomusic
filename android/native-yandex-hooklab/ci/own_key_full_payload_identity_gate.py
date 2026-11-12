@@ -18,6 +18,51 @@ from lab_unsigned_archive_cleanroom import is_v1_signing_artifact
 MAX_ENTRIES = 16000
 MAX_DECOMPRESSED_BYTES = 900 * 1024 * 1024
 
+SAFE_ENTRY_FAMILY_LABELS = frozenset((
+    "MANIFEST", "DEX", "RESOURCES_TABLE", "NATIVE_LIBRARY",
+    "RESOURCE_ITEM", "ASSET", "META_INF_MISC", "SOURCE_STAMP",
+    "OTHER_FILE",
+))
+
+
+def _family_of_entry(name: str) -> str:
+    if name == "AndroidManifest.xml":
+        return "MANIFEST"
+    if __import__("re").fullmatch(r"classes(?:\d+)?[.]dex",name):
+        return "DEX"
+    if name == "resources.arsc":
+        return "RESOURCES_TABLE"
+    if name.startswith("lib/") and name.endswith(".so"):
+        return "NATIVE_LIBRARY"
+    if name.startswith("res/"):
+        return "RESOURCE_ITEM"
+    if name.startswith("assets/"):
+        return "ASSET"
+    if name.startswith("META-INF/"):
+        return "META_INF_MISC"
+    if name.lower().startswith("stamp-cert-sha256"):
+        return "SOURCE_STAMP"
+    return "OTHER_FILE"
+
+
+class PayloadEntrySetChange(ValueError):
+    """Only static family counts, never names/hashes/paths."""
+    def __init__(self, missing: set[str], added: set[str]):
+        def summarize(values: set[str]) -> dict[str,int]:
+            result={}
+            for value in values:
+                family=_family_of_entry(value)
+                assert family in SAFE_ENTRY_FAMILY_LABELS
+                result[family]=result.get(family,0)+1
+            return result
+        self.public_counts={
+            "original_only_families":summarize(missing),
+            "own_key_only_families":summarize(added),
+        }
+        super().__init__("PAYLOAD_CHECK_ENTRY_SET_CHANGED")
+
+
+
 
 def _non_signing_entry_hashes(apk: Path) -> dict[str, bytes]:
     if not apk.is_file() or apk.is_symlink():
@@ -40,6 +85,12 @@ def _non_signing_entry_hashes(apk: Path) -> dict[str, bytes]:
                 raise ValueError("PAYLOAD_CHECK_UNSAFE_ENTRY_NAME")
             if is_v1_signing_artifact(name):
                 continue
+            # Explicit directory entries are ZIP container metadata. Ignore
+            # an empty marker created/omitted by a signer, never a real file.
+            if item.is_dir():
+                if item.file_size != 0:
+                    raise ValueError("PAYLOAD_CHECK_NONEMPTY_DIRECTORY")
+                continue
             total+=item.file_size
             if total>MAX_DECOMPRESSED_BYTES:
                 raise ValueError("PAYLOAD_CHECK_SIZE_BOUND_EXCEEDED")
@@ -60,7 +111,8 @@ def verify_independent_signature_preserves_payload(
     if not original:
         raise ValueError("PAYLOAD_CHECK_NO_ENTRIES")
     if original.keys()!=independently_signed.keys():
-        raise ValueError("PAYLOAD_CHECK_ENTRY_SET_CHANGED")
+        raise PayloadEntrySetChange(set(original)-set(independently_signed),
+                                    set(independently_signed)-set(original))
     if any(fingerprint != independently_signed[name]
            for name, fingerprint in original.items()):
         raise ValueError("PAYLOAD_CHECK_ENTRY_CONTENT_CHANGED")

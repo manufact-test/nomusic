@@ -28,7 +28,9 @@ from owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from owner_2025_same_name_own_key_arm13_control import (
     sign_same_name, observe_main_75_seconds,
 )
-from own_key_full_payload_identity_gate import verify_independent_signature_preserves_payload
+from own_key_full_payload_identity_gate import (
+    verify_independent_signature_preserves_payload, PayloadEntrySetChange,
+)
 
 EXPECTED_BRANCH="experiment/android-a1-2025-paired-signer-native-arm13-20261112"
 
@@ -110,7 +112,17 @@ def paired_run(archive: Path) -> dict:
             # Crucial causal invariant: ZIP header/signature formats MAY differ,
             # but ALL ordinary entry contents must be exactly byte-identical,
             # not only native code, DEX and the manifest.
-            proof=verify_independent_signature_preserves_payload(original_apk,owned_apk)
+            try:
+                proof=verify_independent_signature_preserves_payload(original_apk,owned_apk)
+            except PayloadEntrySetChange as exc:
+                print(json.dumps({
+                    "control":"NON_SIGNING_PAYLOAD_SET_DRIFT",
+                    "safe_entry_family_counts_only":exc.public_counts,
+                    "original_modified":False,
+                    "raw_filenames_or_hashes_exposed":False,
+                    "stage_a":"NO_GO",
+                },sort_keys=True))
+                stop("PAIRED_CONTROL_NON_SIGNING_ENTRY_SET_CHANGED")
             total_entry_payloads+=proof["non_signature_zip_entries_checked"]
         result={
             "all_16_split_non_signing_entry_payloads_byte_identical":True,

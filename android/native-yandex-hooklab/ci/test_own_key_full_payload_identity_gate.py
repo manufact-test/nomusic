@@ -40,6 +40,26 @@ class NonSignaturePayloadEqualityTests(unittest.TestCase):
         for secret in ("track-license", "VENDOR", "DEX-SYNTHETIC","RESOURCE-TEST"):
             self.assertNotIn(secret,str(x))
 
+    def test_directory_marker_difference_is_zip_metadata_not_file_payload(self):
+        write_zip(self.original,{**self.contents,"META-INF/":b""})
+        write_zip(self.other,self.contents)
+        result=verify_independent_signature_preserves_payload(self.original,self.other)
+        self.assertTrue(result["non_signature_zip_entry_payloads_identical"])
+
+    def test_file_set_diff_reports_only_safe_families_not_private_names(self):
+        from own_key_full_payload_identity_gate import PayloadEntrySetChange
+        different=dict(self.contents)
+        del different["resources.arsc"]
+        different["assets/private_vendor_token.bin"]=b"NOOUTPUTSECRET"
+        write_zip(self.other,different)
+        with self.assertRaises(PayloadEntrySetChange) as caught:
+            verify_independent_signature_preserves_payload(self.original,self.other)
+        categories=caught.exception.public_counts
+        self.assertEqual(categories["original_only_families"],{"RESOURCES_TABLE":1})
+        self.assertEqual(categories["own_key_only_families"],{"ASSET":1})
+        self.assertNotIn("private_vendor_token",str(categories))
+        self.assertNotIn("NOOUTPUTSECRET",str(categories))
+
     def test_manifest_content_change_is_rejected(self):
         write_zip(self.other,{**self.contents,
                               "AndroidManifest.xml":b"DIFFERENT_MANIFEST"})
