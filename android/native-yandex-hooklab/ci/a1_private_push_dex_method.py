@@ -202,8 +202,19 @@ def main():
         raise DexError("PRIVATE_CI_ONLY")
     try:
         print(json.dumps(inspect_xapk(args.xapk),sort_keys=True))
-    except (DexError,zipfile.BadZipFile,ValueError,OSError):
-        print('{"dex_private_push_insight":false,"private_scan_failed_without_data_disclosure":true}')
+    except (DexError,zipfile.BadZipFile,ValueError,OSError) as error:
+        # Never print caught exception contents unless it is an own fixed enum.
+        safe={"ULEB_BAD","ULEB_TOO_LONG","DEX_MAGIC","DEX_TABLE_BOUND",
+              "STR_INDEX","STR_END","TYPE_INDEX","METHOD_INDEX",
+              "EXCESSIVE_METHODS","CODE_HEADER_BOUND","CODE_BOUND",
+              "OWNER_INPUT_LENGTH","OWNER_INPUT_SHA"}
+        reason=(str(error) if isinstance(error,DexError)
+                and str(error) in safe else
+                "ZIP_READ" if isinstance(error,zipfile.BadZipFile) else
+                "UNEXPECTED_STRUCTURE")
+        print(json.dumps({"dex_private_push_insight":False,
+                          "private_scan_failed_without_data_disclosure":True,
+                          "failure_family":reason},sort_keys=True))
         raise SystemExit(1)
 
 if __name__=="__main__":main()
