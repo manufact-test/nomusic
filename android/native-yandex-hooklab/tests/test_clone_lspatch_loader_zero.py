@@ -55,6 +55,26 @@ class LoaderZeroTest(unittest.TestCase):
         self.assertEqual(r["embedded_origin_dex_count"],1)
         self.assertTrue(r["embedded_origin_sha256_payload_parity"])
         self.assertFalse(r["audio_swap_tested"])
+    def test_exact_2025_host_version_is_separately_checked(self):
+        from unittest.mock import patch
+        import clone_lspatch_loader_zero as gate
+        original, patched = self.make(level=2)
+        expected = {"name": "pro.celikom.yandex.nativeclonelab",
+                    "versionCode": "24025542", "split": ""}
+        with patch.object(gate.source, "apkmeta", return_value=expected), \
+             patch.object(gate, "fingerprint", return_value="a" * 64):
+            accepted = check_zero_loader(patched, original, "a" * 64,
+                                         DummyArsc, expected_siglevel=2,
+                                         expected_version="24025542")
+            self.assertTrue(accepted["embedded_origin_sha256_payload_parity"])
+            self.assertEqual(accepted["signature_bypass_level"], 2)
+            with self.assertRaisesRegex(DummyError, "METALOADER_CLONE_IDENTITY_INVALID"):
+                check_zero_loader(patched, original, "a" * 64, DummyArsc,
+                                  expected_siglevel=2)
+            with self.assertRaisesRegex(DummyError, "METALOADER_UNSUPPORTED_HOST_VERSION"):
+                check_zero_loader(patched, original, "a" * 64, DummyArsc,
+                                  expected_siglevel=2, expected_version="fake")
+
     def test_verified_loader_requires_all_four_aligned_abis(self):
         import io
         import struct
