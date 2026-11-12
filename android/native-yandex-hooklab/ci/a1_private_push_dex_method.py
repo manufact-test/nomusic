@@ -447,6 +447,18 @@ def private_boolean_helpers(binary):
 
 
 
+def private_java_dependency_family(owner):
+    # Whitelisted framework families only: no proprietary symbols leave CI.
+    if owner.startswith("Ljava/util/concurrent/atomic/"):return "JAVA_ATOMIC"
+    if owner.startswith("Ljava/lang/reflect/") or owner=="Ljava/lang/Class;":
+        return "JAVA_REFLECTION"
+    if owner.startswith("Ljava/util/"):return "JAVA_COLLECTION"
+    if owner=="Ljava/lang/String;":return "JAVA_STRING"
+    if owner in ("Ljava/lang/Boolean;","Ljava/lang/Integer;"):return "JAVA_BOX"
+    if owner.startswith("Ljava/lang/"):return "JAVA_LANG_OTHER"
+    return "JAVA_OTHER"
+
+
 def private_guard_dependency_info(binary):
     """Only fixed classes of references directly inside source-derived guards."""
     dex=Dex(binary)
@@ -488,7 +500,10 @@ def private_guard_dependency_info(binary):
             if op not in INVOKE_METHOD:continue
             call=struct.unpack_from("<H",source[mid],pc+2)[0]
             if call<dex.method_count:
-                categories.add(group_call(*dex.method(call)))
+                owner,name=dex.method(call)
+                family=group_call(owner,name)
+                categories.add(private_java_dependency_family(owner)
+                               if family=="JAVA_RUNTIME" else family)
     return {"guard_targets":min(len(refs),16),
             "return_kinds":sorted(kinds),
             "body_found":min(body_found,16),
