@@ -59,6 +59,27 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                          ["RUNTIME_KILL_HANDLER","THREAD_DISPATCH"])
         self.assertNotIn("432",str(x))
 
+    def test_fatal_sdk_detail_only_whitelisted_error_category(self):
+        events=(
+            log(431,"event=METRICA_DETAIL;origin=METRICA_SDK;error=DETAIL_NOT_INITIALIZED;thread=OTHER")
+            +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER")
+            +log(431,"event=FATAL_DISPATCH;origin=RUNTIME_KILL_HANDLER;error=DIRECT_METRICA;thread=OTHER")
+            +log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=DETAIL_NOT_INITIALIZED;thread=OTHER")
+            +log(433,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=DETAIL_API_KEY;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(x["fatal_throwable_link_verdict"],"DIRECT_IDENTITY")
+        self.assertEqual(x["bounded_fatal_metrica_detail_categories"],["DETAIL_NOT_INITIALIZED"])
+        self.assertEqual(x["bounded_metrica_constructor_detail_categories"],["DETAIL_NOT_INITIALIZED"])
+        self.assertTrue(x["fatal_metrica_detail_observed"])
+        self.assertNotIn("433",str(x))
+
+    def test_arbitrary_sensitive_fatal_message_category_is_rejected(self):
+        events=(log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=API_KEY_SECRET;thread=OTHER")
+                +log(431,"event=FATAL_DETAIL;origin=RUNTIME_KILL_HANDLER;error=DETAIL_CONFIG;thread=OTHER path=/private"))
+        x=scoped_metrica_witness(EXIT,events)
+        self.assertFalse(x["fatal_metrica_detail_observed"])
+        self.assertEqual(x["bounded_fatal_metrica_detail_categories"],[])
+
     def test_exact_cause_not_constructor_time_nearby(self):
         events=(
             log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_SDK_INIT;thread=OTHER")
