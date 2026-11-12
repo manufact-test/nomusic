@@ -5,7 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category,generate_private_targets
+from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category,generate_private_targets,private_site_methods
 
 class PrivateDexAnalysisUnitTest(unittest.TestCase):
     def test_uleb_bounds(self):
@@ -90,6 +90,12 @@ class PrivateDexAnalysisUnitTest(unittest.TestCase):
         with self.assertRaises(DexError):
             generate_private_targets(Path("/nonexistent/source.xapk"),
                                      Path("/etc/PrivatePushTargets.java"))
+
+
+    def test_no_vendor_push_error_returns_empty_guard_fatal_supplier_triple(self):
+        blank=bytearray(112)
+        blank[:8]=bytes((100,101,120,10,48,51,53,0))
+        self.assertEqual(private_site_methods(bytes(blank)),(set(),set(),set()))
 
     def test_bad_dex_rejected_without_data(self):
         with self.assertRaises(DexError):Dex(b"PK\x03\x04")
