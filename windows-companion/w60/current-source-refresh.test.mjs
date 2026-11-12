@@ -173,3 +173,21 @@ test("W66 song and artist metadata keep uppercase D, digits and Unicode intact",
   assert.deepEqual(p.calls,[],"display-only observation never reloads media");
   r.dispose();
 });
+
+
+test("W77: exact current ID guard rejects async stale track before source reload",async()=>{
+  const h=harness({trackId:"102494056"}),r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  const p=new h.NativeYandexPlayback();
+  void p.state;
+  const queued=r.request("102494056");
+  p.snapshot.queueState.currentEntity.value.entity.data.meta.id="103624638";
+  assert.equal(await queued,false,"recovery ticket no longer matches playing Yandex song");
+  assert.deepEqual(p.calls,[],"must never reload unrelated track");
+  assert.equal(await r.request("102494056"),false);
+  assert.equal(await r.request("../nope"),false);
+  assert.deepEqual(p.calls,[]);
+  assert.equal(await r.request("103624638"),true);
+  assert.deepEqual(p.calls,["QUALITY_CHANGE"]);
+  r.dispose();
+});
