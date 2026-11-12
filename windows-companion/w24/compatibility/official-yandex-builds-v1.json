@@ -11,7 +11,7 @@
     },
     {
       "version": "5.102.0.r19615975",
-      "exeSha256": "69fea666ee5b84c009a812135e23ed13b0b57ab51fde16db1508fd406c",
+      "exeSha256": "69fea666ee5b84c009a812135e23ed13b0b57ab51fde16db1508fd42edfd406c",
       "asarSha256": "70eac5bc098fe37cb870fedf421906fc8e38d6fc70f1a0d060abc774a748fdfb",
       "status": "verified",
       "proof": "https://github.com/manufact-test/nomusic/actions/runs/43300824253"
