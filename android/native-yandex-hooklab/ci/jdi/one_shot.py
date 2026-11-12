@@ -91,23 +91,30 @@ def one_shot(guest,cmd,package,xapk):
     report={"status":"UNKNOWN","debuggable_lab_only":True,
             "observed_exact_catches":[],"vendor_data_published":False,
             "suppressed":False,"sdk_modified":False}
+    stage="BEGIN"
     try:
         if os.getenv("CELIKOM_A1_JDI_CATCH_DIAG")!="1":
             report["status"]="DISABLED";return report
         if not shutil.which("adb") or not shutil.which("javac") or not shutil.which("java"):
             report["status"]="HOST_JDI_TOOLS_ABSENT";return report
+        stage="TARGET"
         target=exact_target()
+        stage="DEX"
         pcs=candidate_pcs(xapk,target)
+        stage="ADB"
         conn=cmd(["adb","connect","127.0.0.1:5555"],timeout=20)
         if conn.returncode:report["status"]="ADB_CONNECT_FAILED";return report
+        stage="MANIFEST"
         g=guest("dumpsys","package",package,timeout=40)
         if g.returncode or "DEBUGGABLE" not in g.stdout:
             report["status"]="CLONE_NOT_DEBUGGABLE";return report
+        stage="JAVA_COMPILE"
         build=Path(os.environ["RUNNER_TEMP"])/"celikom-exact-jdi-classes"
         build.mkdir(mode=0o700,parents=True,exist_ok=True)
         compiled=cmd(["javac","--add-modules","jdk.jdi","-d",str(build),str(JDI_JAVA)],timeout=50)
         if compiled.returncode:
             report["status"]="JDI_COMPILE_FAILED";return report
+        stage="DEBUG_WAIT"
         waiting=guest("am","set-debug-app","-w",package)
         if waiting.returncode:
             report["status"]="SET_DEBUG_APP_FAILED";return report
@@ -115,6 +122,7 @@ def one_shot(guest,cmd,package,xapk):
         launched=guest("am","start","--user","0","-n",component,timeout=40)
         if launched.returncode:
             report["status"]="CLONE_DEBUG_LAUNCH_FAILED";return report
+        stage="JDWP_PID"
         pid=None
         for i in range(40):
             time.sleep(0.5)
@@ -126,9 +134,11 @@ def one_shot(guest,cmd,package,xapk):
                 pid=candidate;break
         if not pid:
             report["status"]="JDWP_PROCESS_ABSENT";return report
+        stage="JDWP_FORWARD"
         forward=cmd(["adb","-s","127.0.0.1:5555","forward","tcp:8707","jdwp:"+pid],timeout=20)
         if forward.returncode:
             report["status"]="JDWP_FORWARD_FAILED";return report
+        stage="CAPTURE"
         with tempfile.TemporaryDirectory(prefix="celikom-jdi-private-",dir=os.environ["RUNNER_TEMP"]) as temp:
             witness=Path(temp)/"catch-identity.txt"
             executable=["java","--add-modules","jdk.jdi","-cp",str(build),
@@ -146,7 +156,7 @@ def one_shot(guest,cmd,package,xapk):
                 report["observed_exact_catches"]=safe_map(witness.read_text(),pcs)
         return report
     except (Exception,TimeoutError):
-        report["status"]="JDI_INCONCLUSIVE"
+        report["status"]="JDI_"+stage+"_INCONCLUSIVE"
         return report
     finally:
         # Debug wait and local forward NEVER survive to ordinary 75s gate.
@@ -157,3 +167,19 @@ def one_shot(guest,cmd,package,xapk):
         if shutil.which("adb"):
             try:cmd(["adb","-s","127.0.0.1:5555","forward","--remove","tcp:8707"],timeout=10)
             except Exception:pass
+
+
+if __name__=="__main__":
+    import argparse
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--preflight-xapk",type=Path,required=True)
+    args=parser.parse_args()
+    try:
+        target=exact_target()
+        pcs=candidate_pcs(args.preflight_xapk,target)
+        print(json.dumps({"jdi_preflight":"EXACT_TARGET_VERIFIED",
+                          "catch_covered_invokes_bounded":min(len(pcs),99),
+                          "private_symbols_exposed":False},sort_keys=True))
+    except Exception:
+        print('{"jdi_preflight":"INCONCLUSIVE","private_symbols_exposed":false}')
+        raise SystemExit(2)
