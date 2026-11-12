@@ -1,0 +1,117 @@
+name: CELIKOM A1 helper CASE0 process-identity ARM13
+on:
+  push:
+    branches: [experiment/android-a1-helper-process-identity-case0-arm13-20261112]
+    paths:
+      - 'android/a1-process-identity-helper/**'
+      - '.github/workflows/android-a1-helper-process-identity.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  b-case0-original-vs-clone-native-arm13:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 80
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Validate B-only CASE0 code and native baseline without modifying it
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-helper-process-identity-case0-arm13-20261112
+          python3 -B -m py_compile android/a1-process-identity-helper/case0.py
+          python3 -B -m unittest discover -s android/a1-process-identity-helper -p test_case0.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
+          test "$(cat android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/resources/META-INF/xposed/scope.list)" = pro.celikom.yandex.nativeclonelab
+      - name: Prepare Android SDK 35 and isolated OWN read-only module COPY
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          mkdir -p "$RUNNER_TEMP/helper-aapt2"
+          curl --fail --silent --show-error --location --retry 2 --max-time 90 \
+            https://github.com/Commit451/android-arm-build-tools/releases/download/platform-tools-35.0.1/aapt2 \
+            --output "$RUNNER_TEMP/helper-aapt2/aapt2"
+          echo "c57d02d2986d7d68147d74525ad8a5fbb105f12723b33f1ce9eab12acd238cf0  $RUNNER_TEMP/helper-aapt2/aapt2" | sha256sum --check --status
+          chmod 700 "$RUNNER_TEMP/helper-aapt2/aapt2"
+          mkdir -p "$HOME/.gradle"
+          echo "android.aapt2FromMavenOverride=$RUNNER_TEMP/helper-aapt2/aapt2" >> "$HOME/.gradle/gradle.properties"
+          mkdir -p "$RUNNER_TEMP/helper-source"
+          cp -a android/native-yandex-hooklab/exit-callsite-witness-module "$RUNNER_TEMP/helper-source/module"
+          test ! -e "$RUNNER_TEMP/helper-source/module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Reverify exact user-uploaded 2025 issuer XAPK inside disposable runner
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          mkdir -p "$RUNNER_TEMP/helper-private"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/helper-private" --clobber >/dev/null
+          f="$RUNNER_TEMP/helper-private/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Exact CASE0 DEX check and transient private own module targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/helper-source/module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java"
+          test ! -e "$target"
+          python3 -B android/a1-process-identity-helper/case0.py --xapk "$RUNNER_TEMP/helper-private/yandex-music-2025-10-4-120-1gpr.xapk" --private-java "$target"
+          test -s "$target"
+          gradle -p "$RUNNER_TEMP/helper-source/module" :app:assembleDebug --no-daemon
+          mkdir -p "$RUNNER_TEMP/helper-module"
+          cp "$RUNNER_TEMP/helper-source/module/app/build/outputs/apk/debug/app-debug.apk" "$RUNNER_TEMP/helper-module/app-debug.apk"
+      - name: Prepare original-first native ARM13 tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
+          sdk="$RUNNER_TEMP/helper-sdk"
+          mkdir -p "$sdk/build-tools/35.0.0"
+          for tool in aapt apksigner zipalign; do
+            ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
+          done
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+      - name: Boot fresh real native ARM Android13 guest
+        timeout-minutes: 16
+        shell: bash
+        run: bash android/native-yandex-hooklab/ci/native_arm_redroid_boot_only.sh
+      - name: Real original-first stock vs clone 75s/25 CASE0 with ORIGINAL fatal
+        timeout-minutes: 42
+        shell: bash
+        env:
+          CELIKOM_A1_METRICA_OWN_MODULE_PATH: ${{ runner.temp }}/helper-module/app-debug.apk
+        run: |
+          set -euo pipefail
+          python3 -B android/a1-process-identity-helper/case0.py --run-native --xapk "$RUNNER_TEMP/helper-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Erase original/clone APKs, private Java, signing keys and guest
+        if: always()
+        shell: bash
+        run: |
+          docker stop celikom-native-arm-android13 >/dev/null 2>&1 || true
+          sudo umount /dev/binderfs >/dev/null 2>&1 || true
+          sudo modprobe -r binder_linux >/dev/null 2>&1 || true
+          sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
+          rm -rf -- "$RUNNER_TEMP/helper-private" "$RUNNER_TEMP/helper-sdk" "$RUNNER_TEMP/helper-module" "$RUNNER_TEMP/helper-aapt2" "$RUNNER_TEMP/helper-source"
+          echo '{"case0_vendor_binary_uploaded":false,"private_java_uploaded":false,"fatal_suppressed":false,"owner_phone_touched":false,"product_accepted":false}'
