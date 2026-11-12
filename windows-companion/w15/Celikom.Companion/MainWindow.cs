@@ -1010,8 +1010,9 @@ public sealed partial class MainWindow : Form
     private static string DescribeIntegrationFailure(Exception error) => error.Message switch
     {
         "CLOSE_YANDEX_AND_TRY_AGAIN" => "Закрой Яндекс.Музыку и повтори действие.",
-        "UNSUPPORTED_YANDEX_VERSION" or "UNSUPPORTED_ASAR_VERSION" =>
-            "Текущая версия Яндекс.Музыки ещё не поддерживается.",
+        "UNSUPPORTED_YANDEX_VERSION" or "UNSUPPORTED_ASAR_VERSION" or
+        "UNSUPPORTED_YANDEX_BUILD" =>
+            "Текущая сборка Яндекс.Музыки не совпадает с проверенной официальной версией.",
         "CELIKOM_NATIVE_MODULE_NOT_INSTALLED" =>
             "Модуль интеграции не найден. Установи полную сборку CELIKOM.",
         "YANDEX_UPDATED_OR_BACKUP_CHANGED" or "YANDEX_FILES_DIFFER_FROM_KNOWN_BACKUP" =>
@@ -1213,6 +1214,8 @@ public sealed partial class MainWindow : Form
                 : "В Яндексе старый модуль! Нажми «Обновить модуль».";
         else if (_nativeInstallState == NativeInstallState.Interrupted)
             _hostStatus.Text = "Подключение прервалось. Доступно восстановление оригинала.";
+        else if (_nativeInstallState == NativeInstallState.VerifiedVendorUpdate)
+            _hostStatus.Text = "Яндекс 5.127.0 проверен. Можно подключить CELIKOM; старый резерв останется.";
         else if (_nativeInstallState == NativeInstallState.Changed)
             _hostStatus.Text = "Яндекс обновился или изменён. Автоматических изменений не будет.";
         _versionFooter.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
