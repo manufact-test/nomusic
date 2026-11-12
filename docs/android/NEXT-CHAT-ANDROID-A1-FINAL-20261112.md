@@ -1,3 +1,5 @@
+> **НОВЫЙ ПОДТВЕРЖДЁННЫЙ ХОД 12.11.2026:** этот handoff остаётся исторической базой, но более свежая работа — [реальный Android13 native IPC отчёт](ANDROID-A1-2025-NATIVE-BRIDGE-REAL-IPC-20261112.md), [новый handoff](NEXT-CHAT-ANDROID-A1-NATIVE-IPC-20261112.md). 16 original publisher APKs unchanged; cross-app embedding 0, собственный MediaBrowser клиент на ARM13 получает `CONNECTION_REJECTED`. Никакого CELIKOM user APK. Stage A NO-GO, Stage B LOCKED.
+
 # Первое сообщение для нового ведущего разработчика CELIKOM Android A1 — 12.11.2026
 
 Привет! Продолжаем **CELIKOM Android A1**. Ты новый **ведущий разработчик**, ничего не начинай с нуля. Работай **большими самостоятельными заходами**, без промежуточных отчётов после каждого коммита и CI. Владелец придёт только на нужную ручную проверку.
