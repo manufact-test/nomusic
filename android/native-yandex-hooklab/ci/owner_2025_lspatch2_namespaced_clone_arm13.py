@@ -35,7 +35,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
-BRANCH="experiment/android-a1-2025-metrica-fatal-detail-arm13-20261112"
+BRANCH="experiment/android-a1-2025-metrica-optional-failopen-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
@@ -327,6 +327,8 @@ def run(xapk):
             "signed_clone_package":DEST,
             "single_apk_achieved":True,
             "preserves_publisher_metrica_manifest_components_in_clone":True,
+            "LAB_ONLY_optional_metrica_fatal_suppression":True,
+            "LAB_ONLY_not_product_or_releasable":True,
             "own_readonly_witness_module_embedded":True,
             "test_order":"PUBLISHER_FIRST_CLONE_SECOND",
             "publisher_app_and_clone_can_be_concurrently_installed":False,
@@ -385,10 +387,11 @@ def run(xapk):
             row.startswith("package:") for row in
             guest("pm","path",ORIGINAL).stdout.splitlines()) == 16
         report["verdict"] = (
-            "ORIGINAL_FIRST_NATIVE_SINGLE_APK_75S_PASS_NOT_AUDIO"
+            "LAB_ONLY_METRICA_FAILOPEN_NATIVE_MAIN_75S_PASS_NOT_AUDIO"
             if report["native_clone_main_75s"] and
-               report["publisher_still_installed_after_clone_start"]
-            else "ORIGINAL_FIRST_NATIVE_SINGLE_APK_MAIN_NO_GO")
+               report["publisher_still_installed_after_clone_start"] and
+               report["scoped_own_readonly_witness"]["lab_only_metrica_fatal_suppression_observed"]
+            else "LAB_ONLY_METRICA_FAILOPEN_NATIVE_MAIN_NO_GO")
         return report
 
 
@@ -400,7 +403,7 @@ if __name__=="__main__":
     try:
         result=run(args.xapk)
         print(json.dumps(result,sort_keys=True))
-        sys.exit(0 if result["verdict"]=="ORIGINAL_FIRST_NATIVE_SINGLE_APK_75S_PASS_NOT_AUDIO" else 1)
+        sys.exit(0 if result["verdict"]=="LAB_ONLY_METRICA_FAILOPEN_NATIVE_MAIN_75S_PASS_NOT_AUDIO" else 1)
     except Exception as e:
         code=str(e)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",code):
