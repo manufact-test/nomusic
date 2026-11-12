@@ -97,3 +97,52 @@ def exact_fatal_cfg(code:bytes,target_strings:set[int],dex,group_call):
     result["fatal_guard_polarities"]=sorted(polarities)
     result["near_fatal_sources"]=sorted(near)
     return result
+
+def private_exclusive_fatal_guard_refs(code:bytes,target_strings:set[int],dex,group_call):
+    """Transient DEX method IDs of nearby Boolean guards, never serialized.
+
+    Only a move-result directly preceded by an invoke and verified via exact
+    CFG reachability is considered. No vendor symbols or code leave the runner.
+    """
+    try:
+        ins=decode_instructions(code)
+        pcs={p for p,_,_ in ins}
+        graph={p:_nexts(code,(p,op,size),pcs) for p,op,size in ins}
+    except FlowDecodeError:return set()
+    strings=[p for p,op,_ in ins if
+             (op==0x1a and struct.unpack_from("<H",code,p+2)[0] in target_strings)
+             or (op==0x1b and struct.unpack_from("<I",code,p+2)[0] in target_strings)]
+    throws={p for p,op,_ in ins if op==0x27}
+    candidates={min((p for p in throws if st<p<=st+256),default=-1)
+                for st in strings}-{-1}
+    refs=set()
+    def can_reach(a,target):
+        stack=[a];seen=set()
+        while stack:
+            p=stack.pop()
+            if p==target:return True
+            if p in seen:continue
+            seen.add(p)
+            stack.extend(q for q in graph.get(p,[]) if q not in seen)
+        return False
+    for target in candidates:
+        for i,(pc,op,_) in enumerate(ins):
+            if op not in range(0x38,0x3e) or i<2:continue
+            if not (0<target-pc<=256):continue
+            if can_reach(graph[pc][0],target)==can_reach(graph[pc][1],target):
+                continue
+            result_pc,result_op,_=ins[i-1]
+            call_pc,call_op,_=ins[i-2]
+            if result_op not in (0x0a,0x0b,0x0c) or call_op not in (
+                    *range(0x6e,0x73),*range(0x74,0x79),0xfa,0xfb):
+                continue
+            if code[result_pc+1]!=code[pc+1]:continue
+            ref=struct.unpack_from("<H",code,call_pc+2)[0]
+            if ref>=dex.method_count or not dex.method_returns_boolean(ref):
+                continue
+            owner,name=dex.method(ref)
+            if group_call(owner,name) in (
+                    "PUSH_IMPL_HELPER","PUSH_COMMON",
+                    "PUSH_OTHER_HELPER","PUSH_UTILS"):
+                refs.add(ref)
+    return refs
