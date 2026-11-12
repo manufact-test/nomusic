@@ -185,7 +185,7 @@ test("expired, near-expired, overlong, stale token timestamp and version mismatc
 });
 
 test("HEAD must be 200 full metadata and valid immutable identity", () => {
-  assert.deepEqual(validateHeadResponse(head(), "audio/mpeg"), { size: 4_500_000, etag: '"abc-3"' });
+  assert.deepEqual(validateHeadResponse(head(), "audio/mpeg"), { size: 4_500_000, etag: '"abc-3"', mimeType: "audio/mpeg" });
   for (const invalid of [
     { ...head(), status: 206 }, head({ "accept-ranges": "none" }),
     head({ "content-length": "0" }), head({ etag: "weak" }),
@@ -212,10 +212,10 @@ test("Range headers represent bytes (never guess from playback milliseconds)", (
 test("GET 206 matching range / length / ETag is accepted", () => {
   const response = { status: 206, headers: {
     "content-range": "bytes 2048-4095/4500000",
-    "content-length": "2048", etag: '"abc-3"'
+    "content-length": "2048", etag: '"abc-3"', "content-type": "audio/mpeg"
   }};
   assert.deepEqual(validateRangeResponse(response, 2048, 4095, {
-    size: 4_500_000, etag: '"abc-3"'
+    size: 4_500_000, etag: '"abc-3"', mimeType: "audio/mpeg"
   }), { ok: true, start: 2048, end: 4095, total: 4_500_000 });
   assert.equal(validateRangeResponse(response, 1024).ok, false);
   assert.equal(validateRangeResponse(response, 2048, 3072).ok, false);
@@ -223,12 +223,30 @@ test("GET 206 matching range / length / ETag is accepted", () => {
 });
 
 
+
+test("206 MIME must match the publisher-agnostic trusted HEAD witness", () => {
+  const witness = validateHeadResponse(head(), "audio/mpeg");
+  assert.equal(witness.mimeType, "audio/mpeg");
+  const correct = {status:206,headers:{
+    "content-range":"bytes 0-9/4500000","content-length":"10",
+    "etag":witness.etag,"content-type":"audio/mpeg"
+  }};
+  assert.equal(validateRangeResponse(correct,0,9,witness).ok,true);
+  for (const mime of ["audio/mp4","application/json","text/plain",null]) {
+    const bad={...correct,headers:{...correct.headers,
+      ...(mime===null ? {} : {"content-type":mime})}};
+    if (mime===null) delete bad.headers["content-type"];
+    assert.equal(validateRangeResponse(bad,0,9,witness).code,"RANGE_MISMATCH");
+  }
+});
+
 test("PHP ByteRange must deliver the exact requested inclusive end, never a shortened 206", () => {
-  const witnessed = { size: 10_000, etag: '"exact-v1"' };
+  const witnessed = { size: 10_000, etag: '"exact-v1"', mimeType: "audio/mpeg" };
   function partial(first, last, total = witnessed.size, length = last - first + 1) {
     return { status: 206, headers: {
       "content-range": `bytes ${first}-${last}/${total}`,
-      "content-length": String(length), etag: witnessed.etag
+      "content-length": String(length), etag: witnessed.etag,
+      "content-type": witnessed.mimeType
     }};
   }
   // PHP ByteRange::parse(start-end) always caps end to EOF.
@@ -247,10 +265,10 @@ test("PHP ByteRange must deliver the exact requested inclusive end, never a shor
 });
 
 test("PHP HEAD and Range reject noncanonical Content-Length from wrong intermediaries", () => {
-  const expected = { size: 4_500_000, etag: '"abc-3"' };
+  const expected = { size: 4_500_000, etag: '"abc-3"', mimeType: "audio/mpeg" };
   const partial = { status: 206, headers: {
     "content-range": "bytes 2048-4095/4500000",
-    "content-length": "2048", etag: expected.etag
+    "content-length": "2048", etag: expected.etag, "content-type": expected.mimeType
   }};
   assert.equal(validateRangeResponse(partial, 2048, 4095, expected).ok, true);
   for (const malformed of ["2.048e3", "0x800", " 2048", "2048 ", "002048", "+2048"]) {
