@@ -8,6 +8,8 @@ Owner tested 0.24.27 and saw **false red "Нет ответа..."** after 30s of
 - Live entitlement and native files/auth/audio scripts still unchanged from verified W81 and native 0.24.25; GUI candidate version 0.24.28.
 - False queued-start-error must not persist after `_bridge.Enabled=true`. Explicit host incompatibility remains actionable.
 - **Important limitation:** actual audible CELIKOM source vs original cannot yet be independently verified; [issue #52](https://github.com/manufact-test/nomusic/issues/52) tracks genuine media-source witness. Do NOT claim that accepted URL proves audible audio; but **do not show alarms to ordinary users on normal playback**.
+W82 final CI **GREEN**: GUI/native health https://github.com/manufact-test/nomusic/actions/runs/43308399922; Windows EXE in-place W81 0.24.27→W82 0.24.28 https://github.com/manufact-test/nomusic/actions/runs/43308400132; EXE SHA256 `74E385DEEAA3FE94FF330CEB5B20D6EF60A8779F4CAA9517C888C9D10DFC5EE3`, 43,545,102 bytes; artifact 13984233778. Owner 0.24.28 physical QA pending.
+
 - Exact CI: `.github/workflows/windows-w82-compact-quiet-regression.yml`, `.github/workflows/windows-w82-quiet-ui-installer.yml`; verify newest green run and artifact before giving owner EXE.
 - Do not overwrite old W81 and W80 reserves; in-place installer preserves DPAPI and Yandex originals.
 
