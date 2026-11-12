@@ -20,7 +20,7 @@ HELPER_BRANCH = "experiment/android-a1-helper-service-lifecycle-arm13-20261112"
 STOCK = "ru.yandex.music"
 CLONE = "pro.celikom.yandex.nativeclonelab"
 CONTAINER = "celikom-native-arm-android13"
-ROOT = Path(__file__).resolve().parents[2] / "native-yandex-hooklab"
+ROOT = Path(__file__).resolve().parents[1] / "native-yandex-hooklab"
 EVENTS = (
     "am_proc_start", "am_proc_bound", "am_proc_died", "am_create_service",
     "am_destroy_service", "am_bind_service", "am_service_bound",
