@@ -78,7 +78,7 @@ def patch_base(owned: list[tuple[str,Path]], work: Path) -> list[tuple[str,Path]
         import io
         with zipfile.ZipFile(io.BytesIO(nested)) as packed:
             for name in reference.namelist():
-                if re.fullmatch(r"classes[0-9]*\\.dex",name) or name.startswith("lib/"):
+                if re.fullmatch(r"classes[0-9]*\.dex",name) or name.startswith("lib/"):
                     if packed.read(name)!=reference.read(name):
                         stop("LEVEL2_2025_EMBEDDED_DEX_NATIVE_PARITY_FAILED")
     meta=apk_name(wrapped)
@@ -88,7 +88,7 @@ def patch_base(owned: list[tuple[str,Path]], work: Path) -> list[tuple[str,Path]
     if check.returncode:
         stop("LEVEL2_2025_WRAPPED_BASE_SIGNATURE_VERIFY_FAILED")
     expected=cmd([lab_sdk_tool("apksigner"),"verify","--verbose","--print-certs",str(base[0])],120)
-    pat=r"Signer #1 certificate SHA-256 digest:\\s*([a-fA-F0-9:]+)"
+    pat=r"Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9:]+)"
     a=re.findall(pat,check.stdout)
     b=re.findall(pat,expected.stdout)
     if len(a)!=1 or len(b)!=1 or a[0].lower()!=b[0].lower():
