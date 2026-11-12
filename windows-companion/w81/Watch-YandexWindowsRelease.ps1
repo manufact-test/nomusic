@@ -75,7 +75,7 @@ try {
         $file = Join-Path $dir $setupName
         # HEAD checks avoid pulling unbounded third-party binaries.
         $head = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 20 -MaximumRedirection 0
-        $size = [long]$head.Headers['Content-Length']
+        $size = [long](@($head.Headers['Content-Length'])[0])
         if ($size -lt 50000000 -or $size -gt 220000000) {
             throw 'OFFICIAL_SETUP_SIZE_NOT_EXPECTED'
         }
