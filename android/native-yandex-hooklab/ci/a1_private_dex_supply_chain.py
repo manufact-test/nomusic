@@ -43,7 +43,20 @@ def _family(owner, name, group_call):
                 "getName":"REFLECT_CLASS_NAME",
                 "forName":"REFLECT_CLASS_FORNAME",
                 "getSimpleName":"REFLECT_SIMPLE_NAME",
+                "getMethod":"REFLECT_CLASS_GET_METHOD",
+                "getDeclaredMethod":"REFLECT_CLASS_DECLARED_METHOD",
+                "getField":"REFLECT_CLASS_GET_FIELD",
+                "getDeclaredField":"REFLECT_CLASS_DECLARED_FIELD",
+                "newInstance":"REFLECT_CLASS_NEW_INSTANCE",
+                "getClassLoader":"REFLECT_CLASS_LOADER",
+                "isAssignableFrom":"REFLECT_ASSIGNABLE",
+                "getDeclaredMethods":"REFLECT_DECLARED_METHODS",
             }.get(name,"REFLECT_CLASS_OTHER")
+        if owner=="Ljava/lang/Object;":
+            return {
+                "getClass":"OBJECT_GET_CLASS",
+                "toString":"OBJECT_TOSTRING",
+            }.get(name,"OBJECT_OTHER")
         if owner=="Ljava/lang/Throwable;":
             return {
                 "getMessage":"THROWABLE_MESSAGE",
