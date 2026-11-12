@@ -80,13 +80,27 @@ def _field_category(dex, field_id, group_call):
     else:typ="UNKNOWN"
     return group_call(owner,"field"),typ
 
+def _literal_family(s):
+    # Never emit input text or any raw constant from vendor bytecode.
+    if s.startswith("io.appmetrica.analytics."):return "APPMETRICA_CLASS"
+    if s.startswith("com.yandex.metrica.push."):return "PUSH_CLASS"
+    if s.startswith("com.yandex.metrica."):return "YANDEX_METRICA_CLASS"
+    if s.startswith("com.google.firebase."):return "FIREBASE_CLASS"
+    if s.startswith("com.google.android.gms."):return "GOOGLE_GMS_CLASS"
+    if s.startswith("ru.yandex.music."):return "MUSIC_CLASS"
+    if s.startswith("android."):return "ANDROID_CLASS"
+    if s.startswith("java."):return "JAVA_CLASS"
+    return "OTHER_LITERAL"
+
+
 def inspect_source_chain(dex, source_code, initial, group_call):
     """Follow just concrete declared method IDs at depths <=3."""
     visited=set()
     frontier=set(initial)
     depths=[]
     for _ in range(3):
-        found=set(); new_refs=set(); refs=set();fields=set()
+        found=set(); new_refs=set(); refs=set();fields=set(); literals=set()
+        catches=False
         for method_id in sorted(frontier)[:24]:
             if method_id in visited or method_id not in source_code:
                 continue
@@ -96,6 +110,13 @@ def inspect_source_chain(dex, source_code, initial, group_call):
             except FlowDecodeError:continue
             code=source_code[method_id]
             for pc,op,_ in ins:
+                if op==0x0d:catches=True
+                if op==0x1a:
+                    idx=struct.unpack_from("<H",code,pc+2)[0]
+                    if idx<dex.string_count:literals.add(_literal_family(dex.string(idx)))
+                elif op==0x1b:
+                    idx=struct.unpack_from("<I",code,pc+2)[0]
+                    if idx<dex.string_count:literals.add(_literal_family(dex.string(idx)))
                 if op in INVOKE_METHOD:
                     ref=struct.unpack_from("<H",code,pc+2)[0]
                     if ref>=dex.method_count:continue
@@ -114,6 +135,8 @@ def inspect_source_chain(dex, source_code, initial, group_call):
             "methods_with_body_bounded":min(len(found),16),
             "calls":sorted(refs),
             "fields":sorted(fields),
+            "literal_families":sorted(literals),
+            "catch_handler_instruction_seen":catches,
             "has_more_push_helpers":bool(new_refs),
         })
         frontier=new_refs-visited
