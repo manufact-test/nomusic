@@ -163,3 +163,71 @@ def private_direct_guard_invokes(code:bytes, target_strings:set[int], dex, group
                     "PUSH_OTHER_HELPER"):
                 refs.add(ref)
     return refs
+
+def private_guard_input_sources(code:bytes, target_strings:set[int], dex, group_call):
+    """Conservative register backslice of the private String->boolean call.
+
+    Only fixed enum families are returned. Never return DEX registers,
+    method/class identities, field values, string contents, or offsets.
+    """
+    try:ins=decode_instructions(code)
+    except FlowDecodeError:return {"DECODE_UNAVAILABLE"}
+    candidates=private_direct_guard_invokes(code,target_strings,dex,group_call)
+    if not candidates:return set()
+    found=set()
+    for idx,(pc,op,units) in enumerate(ins):
+        if op not in INVOKE_METHOD:continue
+        ref=struct.unpack_from("<H",code,pc+2)[0]
+        if ref not in candidates:continue
+        if op in (0xfa,0xfb):
+            found.add("INVOKE_SHAPE_UNSUPPORTED")
+            continue
+        static=op in (0x71,0x77)
+        if op>=0x74:  # invoke-*/range; each argument uses a sequential register
+            count=code[pc+1]
+            start=struct.unpack_from("<H",code,pc+4)[0]
+            at=0 if static else 1
+            if count<=at:
+                found.add("CALL_ARGUMENT_MISSING");continue
+            reg=start+at
+        else:  # invoke-kind (35c): C,D,E,F,G registers
+            count=code[pc+1]>>4
+            raw=code[pc+4:pc+6]
+            regs=[raw[0]&15,raw[0]>>4,raw[1]&15,raw[1]>>4,code[pc+1]&15]
+            at=0 if static else 1
+            if count<=at:
+                found.add("CALL_ARGUMENT_MISSING");continue
+            reg=regs[at]
+        category="PARAM_OR_CAPTURE"
+        for i in range(idx-1,max(-1,idx-65),-1):
+            p,opcode,_=ins[i]
+            if opcode in (0x07,0x04,0x01) and (code[p+1]&15)==reg:
+                reg=code[p+1]>>4
+                continue
+            if opcode in (0x08,0x05,0x02) and code[p+1]==reg:
+                reg=struct.unpack_from("<H",code,p+2)[0]
+                continue
+            if opcode in (0x09,0x06,0x03) and struct.unpack_from("<H",code,p+2)[0]==reg:
+                reg=struct.unpack_from("<H",code,p+4)[0]
+                continue
+            if opcode==0x0c and code[p+1]==reg:
+                if i and ins[i-1][1] in INVOKE_METHOD:
+                    prior=ins[i-1][0]
+                    call=struct.unpack_from("<H",code,prior+2)[0]
+                    if call<dex.method_count:
+                        category="RESULT_"+group_call(*dex.method(call))
+                    else:category="RESULT_UNKNOWN"
+                else:category="RESULT_UNLINKED"
+                break
+            if opcode in (0x1a,0x1b) and code[p+1]==reg:
+                category="STRING_LITERAL";break
+            if opcode in (0x62,0x60,0x61,0x63,0x64,0x65,0x66) and code[p+1]==reg:
+                category="STATIC_FIELD";break
+            if opcode in range(0x52,0x59) and (code[p+1]&15)==reg:
+                category="INSTANCE_FIELD";break
+            if opcode==0x46 and code[p+1]==reg:
+                category="ARRAY_ELEMENT";break
+            if opcode==0x12 and (code[p+1]&15)==reg:
+                category="NULL_OR_NUMERIC_LITERAL";break
+        found.add(category)
+    return found
