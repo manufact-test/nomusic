@@ -8,7 +8,7 @@ on:
       - '.github/workflows/android-a1-helper-service-lifecycle.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   b-isolated-lifecycle-original-clone:
     runs-on: ubuntu-24.04-arm
