@@ -127,7 +127,7 @@ jobs:
           if ((Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash -ne $hostBefore -or
               (Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash -ne $rendererBefore) { throw 'W81_NATIVE_AUDIO_MODULE_CHANGED' }
           if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W81_VENDOR_OR_APPID_CHANGED' }
-          Write-Host 'W81_02425_TO_02426_INPLACE_DPAPI_AND_NATIVE_UNCHANGED_PASS'
+          Write-Host 'W81_02426_TO_02427_INPLACE_DPAPI_AND_NATIVE_UNCHANGED_PASS'
       - name: Store candidate for owner-approved future test only
         uses: actions/upload-artifact@v4
         with:
