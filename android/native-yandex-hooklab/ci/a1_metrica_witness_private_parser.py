@@ -13,7 +13,9 @@ from clone_main_crash_buffer import main_exit_pids, LOG
 
 EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
         "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
-        "LAB_METRICA_FAILOPEN","PREFIX_HOOK",
+        "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
+         "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
+         "ACTIVATION_HOOK",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -21,7 +23,7 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "STATIC_RUN_B","OWN_MAIN","OWN_AUX","ORIGINAL_MAIN","ORIGINAL_AUX",
          "THREAD_DISPATCH","THREAD_GROUP","RUNTIME_KILL_HANDLER",
          "RUNTIME_LOG_HANDLER","RUNTIME_LOOKUP",
-         "UNKNOWN","NONE"}
+         "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN"}
 ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "EXC_SDK_INIT","EXC_CONFIG","EXC_ASYNC",
         "APPINFO_CLONE","APPINFO_ORIGINAL","APPINFO_MISSING","APPINFO_OTHER",
@@ -34,7 +36,10 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "EXC_PERMISSION","EXC_LOCALE","EXC_LIFECYCLE","EXC_OTHER",
         "REGISTERED","NO_HOOK","NONE","CASE_0","CASE_1","CASE_2",
         "CASE_3","CASE_4","CASE_5","CASE_6","CASE_7","CASE_OTHER",
-        "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE"}
+        "CASE_UNKNOWN","MATCH_TRUE","MATCH_FALSE",
+         "ENTER","RETURN","THROW","CLONE","ORIGINAL","MISSING","OTHER",
+         "LOADER_MATCH","LOADER_DIFFERENT",
+         "BEFORE_ONCREATE","DURING_ONCREATE","AFTER_ONCREATE"}
 MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_]+);"
                   r"error=([A-Z_0-9]+);thread=(MAIN|OTHER)$")
 
@@ -76,10 +81,26 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     constructor_details=[x for x in seen if x[0]=="METRICA_DETAIL"]
     fatal_details=[x for x in seen if x[0]=="FATAL_DETAIL"]
     failopen=[x for x in seen if x[0]=="LAB_METRICA_FAILOPEN"]
+    activation=[x for x in seen if x[0]=="METRICA_ACTIVATE"]
+    phases=[x for x in seen if x[0]=="METRICA_PHASE"]
+    loaders=[x for x in seen if x[0]=="METRICA_LOADER"]
+    sdk_context=[x for x in seen if x[0]=="METRICA_CONTEXT"]
+    lifecycle=[x for x in seen if x[0]=="APP_LIFECYCLE"]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
         "stable_live_main_pid_admitted_without_disclosure":admitted,
+        "metrica_activation_by_sdk": {
+            family:{state:sum(x[1]==family and x[2]==state for x in activation)
+                    for state in ("ENTER","RETURN","THROW")}
+            for family in ("METRICA_LEGACY","METRICA_MODERN")},
+        "metrica_activation_hook_registered":any(
+            x[0]=="ACTIVATION_HOOK" and x[2]=="REGISTERED" for x in seen),
+        "metrica_context_categories":sorted({x[2] for x in sdk_context}),
+        "metrica_loader_categories":sorted({x[2] for x in loaders}),
+        "metrica_activation_phases":sorted({x[2] for x in phases}),
+        "app_oncreate_enter_seen":any(x[2]=="ENTER" for x in lifecycle),
+        "app_oncreate_return_seen":any(x[2]=="RETURN" for x in lifecycle),
         "read_only_application_attach_context_seen":bool(contexts),
         "read_only_attach_context_identity_categories":sorted({x[1] for x in contexts}),
         "read_only_attach_appinfo_identity_categories":sorted({x[2] for x in contexts}),

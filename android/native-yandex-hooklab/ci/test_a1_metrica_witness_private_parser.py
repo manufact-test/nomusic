@@ -42,6 +42,30 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_sdk_activation_order_loader_context_and_pid_sanitization(self):
+        sample=(
+            log(431,"event=APP_LIFECYCLE;origin=APPLICATION;error=ENTER;thread=MAIN")
+            +log(431,"event=ACTIVATION_HOOK;origin=METRICA_SDK;error=REGISTERED;thread=MAIN")
+            +log(431,"event=METRICA_CONTEXT;origin=METRICA_MODERN;error=CLONE;thread=MAIN")
+            +log(431,"event=METRICA_LOADER;origin=METRICA_MODERN;error=LOADER_MATCH;thread=MAIN")
+            +log(431,"event=METRICA_PHASE;origin=METRICA_MODERN;error=DURING_ONCREATE;thread=MAIN")
+            +log(431,"event=METRICA_ACTIVATE;origin=METRICA_MODERN;error=ENTER;thread=MAIN")
+            +log(431,"event=METRICA_ACTIVATE;origin=METRICA_MODERN;error=RETURN;thread=MAIN")
+            +log(431,"event=APP_LIFECYCLE;origin=APPLICATION;error=RETURN;thread=MAIN")
+            +log(888,"event=METRICA_ACTIVATE;origin=METRICA_LEGACY;error=THROW;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,sample)
+        self.assertTrue(result["metrica_activation_hook_registered"])
+        self.assertEqual(result["metrica_activation_by_sdk"]["METRICA_MODERN"],
+                         {"ENTER":1,"RETURN":1,"THROW":0})
+        self.assertEqual(result["metrica_activation_by_sdk"]["METRICA_LEGACY"],
+                         {"ENTER":0,"RETURN":0,"THROW":0})
+        self.assertEqual(result["metrica_context_categories"],["CLONE"])
+        self.assertEqual(result["metrica_loader_categories"],["LOADER_MATCH"])
+        self.assertEqual(result["metrica_activation_phases"],["DURING_ONCREATE"])
+        self.assertTrue(result["app_oncreate_enter_seen"])
+        self.assertTrue(result["app_oncreate_return_seen"])
+        self.assertNotIn("888",str(result))
+
     def test_exact_exception_object_observed_at_android_fatal_dispatch(self):
         events=(
             log(431,"event=FATAL_HOOK;origin=THREAD_DISPATCH;error=REGISTERED;thread=MAIN")

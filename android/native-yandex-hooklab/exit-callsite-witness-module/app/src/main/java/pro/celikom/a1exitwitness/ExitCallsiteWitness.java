@@ -61,6 +61,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         count += observe(android.os.Process.class, "killProcess",
             new Class<?>[] {int.class}, "PROCESS_KILL") ? 1 : 0;
         count += hookApplicationAttach() ? 1 : 0;
+        count += observeApplicationOnCreate() ? 1 : 0;
         count += observeHi2IllegalStateConstructor() ? 1 : 0;
         count += observeFatalDispatches();
         // Arms only tell us that a hook was registered, not that it ran.
@@ -193,7 +194,6 @@ public final class ExitCallsiteWitness extends XposedModule {
             m.setAccessible(true);
             hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
-                    boolean optionalOnly = false;
                     try {
                         Object arg = chain.getArg(throwableIndex);
                         if (arg instanceof Throwable) {
@@ -204,22 +204,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     "CAUSE_METRICA".equals(category))
                                 emit("FATAL_DETAIL", origin,
                                     throwableDetailCategory(thrown));
-                            // Causal TEMPORARY LAB control ONLY. Suppress the
-                            // Android terminating handler exclusively for
-                            // the EXACT object constructed by AppMetrica.
-                            // Do not suppress other throwables, throw causes,
-                            // app security, login, DRM or any native code.
-                            optionalOnly="RUNTIME_KILL_HANDLER".equals(origin)
-                                && "DIRECT_METRICA".equals(category)
-                                && PACKAGE.equals(Application.getProcessName());
                         } else emit("FATAL_DISPATCH", origin, "NON_THROWABLE");
                     } catch (Throwable ignored) { }
-                    if (optionalOnly) {
-                        emit("LAB_METRICA_FAILOPEN", "RUNTIME_KILL_HANDLER", "DIRECT_METRICA");
-                        return null;
-                    }
-                    // Every unmatched/error case uses original Android crash
-                    // handling without modification.
                     return chain.proceed();
                 });
             emit("FATAL_HOOK", origin, "REGISTERED");
@@ -362,6 +348,98 @@ public final class ExitCallsiteWitness extends XposedModule {
         return "EXC_OTHER";
     }
 
+    // Observe SDK activation on our own clone ONLY. No config/API keys are
+    // logged, SDK results/exception behavior are never changed.
+    private boolean metricaActivationHookReady;
+    private volatile boolean appOnCreateEntered;
+    private volatile boolean appOnCreateReturned;
+
+    private synchronized void installMetricaActivationWitness(ClassLoader appLoader) {
+        if (metricaActivationHookReady || appLoader == null) return;
+        int registered=0;
+        for (String className : new String[]{
+                "com.yandex.metrica.YandexMetrica",
+                "io.appmetrica.analytics.AppMetrica"}) {
+            final String family=className.startsWith("com.yandex.")
+                ? "METRICA_LEGACY" : "METRICA_MODERN";
+            try {
+                Class<?> sdk=Class.forName(className, false, appLoader);
+                final ClassLoader sdkLoader=sdk.getClassLoader();
+                for (Method method : sdk.getDeclaredMethods()) {
+                    if (!"activate".equals(method.getName()) ||
+                            !java.lang.reflect.Modifier.isStatic(method.getModifiers()))
+                        continue;
+                    Class<?>[] parameters=method.getParameterTypes();
+                    if (parameters.length<1 ||
+                            !Context.class.isAssignableFrom(parameters[0]))
+                        continue;
+                    method.setAccessible(true);
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            String contextType="MISSING";
+                            try {
+                                Object context=chain.getArg(0);
+                                if (context instanceof Context)
+                                    contextType=packageIdentityCategory(
+                                        ((Context) context).getPackageName());
+                                emit("METRICA_CONTEXT",family,contextType);
+                                String loaderState="MISSING";
+                                Object ctx=chain.getArg(0);
+                                if (ctx instanceof Context)
+                                    loaderState=((Context)ctx).getClassLoader()==sdkLoader
+                                        ? "LOADER_MATCH" : "LOADER_DIFFERENT";
+                                emit("METRICA_LOADER",family,loaderState);
+                                emit("METRICA_PHASE",family,
+                                    !appOnCreateEntered ? "BEFORE_ONCREATE"
+                                    : appOnCreateReturned ? "AFTER_ONCREATE"
+                                    : "DURING_ONCREATE");
+                                emit("METRICA_ACTIVATE",family,"ENTER");
+                            } catch (Throwable ignored) { }
+                            try {
+                                Object result=chain.proceed();
+                                emit("METRICA_ACTIVATE", family, "RETURN");
+                                return result;
+                            } catch (Throwable problem) {
+                                emit("METRICA_ACTIVATE", family, "THROW");
+                                throw problem;
+                            }
+                        });
+                    registered++;
+                }
+            } catch (Throwable ignored) { }
+        }
+        metricaActivationHookReady=registered>0;
+        emit("ACTIVATION_HOOK","METRICA_SDK",
+            registered>0 ? "REGISTERED":"NO_HOOK");
+    }
+
+    // Android callback observation ONLY. Calls original implementation once.
+    private boolean observeApplicationOnCreate() {
+        try {
+            Method method=android.app.Instrumentation.class.getDeclaredMethod(
+                "callApplicationOnCreate", Application.class);
+            method.setAccessible(true);
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    appOnCreateEntered=true;
+                    emit("APP_LIFECYCLE","APPLICATION","ENTER");
+                    try {
+                        Object result=chain.proceed();
+                        appOnCreateReturned=true;
+                        emit("APP_LIFECYCLE","APPLICATION","RETURN");
+                        return result;
+                    } catch (Throwable failure) {
+                        emit("APP_LIFECYCLE","APPLICATION","THROW");
+                        throw failure;
+                    }
+                });
+            return true;
+        } catch (Throwable ignored) {
+            emit("APP_LIFECYCLE","APPLICATION","NO_HOOK");
+            return false;
+        }
+    }
+
     private boolean prefixHookInstalled;
 
     private boolean hookApplicationAttach() {
@@ -384,6 +462,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 ClassLoader loader = caller.getClassLoader();
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
+                                installMetricaActivationWitness(loader);
                             }
                         }
                     } catch (Throwable ignored) { }
