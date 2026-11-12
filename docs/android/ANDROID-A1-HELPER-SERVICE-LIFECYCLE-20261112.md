@@ -21,4 +21,36 @@
 
 ## Результаты реального ARM13
 
-*Заполняется строго по завершённому CI, не по статическим тестам.*
+## Подтверждённый ARM13 no-suppression результат — native #43286779150
+
+- **CI:** https://github.com/manufact-test/nomusic/actions/runs/43286779150
+- **Точный tested source:** `84b1418fee96050277aecd4d977438715923c23d` (документ перед этим native запуском не изменяет исполняемый код). Все 4 synthetic helper cases PASS, SDK 35 и собственный read-only LSPatch-модуль собраны, приватный issuer XAPK верифицирован, Android13 ARM64+ARMv7 реально загрузился; оригинал установлен первым, клон рядом.
+- **Итог job:** CI **FAIL по настоящему product gate** — CELIKOM MAIN не прошёл 25/25. Не выдавать диагностическое исследование за зелёный APK.
+
+| Факт | Publisher original | ONE-APK CELIKOM clone |
+|---|---|---|
+| Base manifest service | 32 | 32 |
+| AppMetrica-classified services | 3 | 3 |
+| AppMetrica service class names | совпадают с клоном (только in-memory) | совпадают с оригиналом |
+| Metrica process declaration | 2 DEFAULT, 1 PRIVATE | 2 DEFAULT, 1 PRIVATE |
+| service exported | 3 false | 3 false |
+| Metrica auxiliary process `am_proc_start` | 1 | 1 |
+| Metrica auxiliary process `am_proc_bound` | 1 | 1 |
+| sample: Metrica aux PID ever live | YES | YES |
+| sample: Metrica ServiceRecord present | YES | YES |
+| sample: ServiceRecord attached `app=ProcessRecord` | YES | YES |
+| sample: ServiceRecord binding entry | YES | YES |
+| foreground MAIN 75s/25 | **25/25 PASS** | **1/25 FAIL** |
+| after-window metrica service candidate | YES | NO |
+| after-window Metrica aux process | YES | YES |
+
+**Важная причинная поправка:** пропавшая после краша `ServiceRecord` у клона **не означает, что сервисный процесс не стартовал**. В live-сэмплах фиксируются его запуск/привязка, физический PID, запись сервиса и прикреплённый `ProcessRecord` у обоих приложений. Следовательно гипотеза **«клон вообще не регистрирует AppMetrica service / нет service process / startService ничего не создал»** опровергнута. Нельзя исправлять ошибку добавлением сервиса в manifest вслепую.
+
+**Первое достоверно измеренное расхождение:** после запуска Metrica auxiliary clone наблюдается серия `am_proc_died_APP_OTHER` (3), а у оригинала таких событий не было; нативный текущий отчет подтверждает **3 MAIN JAVA_CRASH** клона, прямой `Push.impl` `DETAIL_NOT_INITIALIZED`, `PUSH_LEGACY.init` 3 ENTER / 3 THROW, ноль suppressed. До смерти MAIN на host-уровне сервис/aux доступны у обоих. Это **последствие сбоя MAIN**, не доказанная исходная service-ошибка.
+
+**Ограничение:** Android eventlog на этом guest выдал `am_proc_start/bound/died`, но **не выдал `am_create_service/am_bind_service/am_service_args` ни для stock, ни для clone**. Записи `dumpsys` свидетельствуют о созданном системном ServiceRecord и привязанном процессe, но не являются прямыми callback-свидетелями `Service.onCreate`, `onStartCommand`, `onBind`, а также состояния *внутреннего* AppMetrica readiness. Раннюю race/reset внутри SDK нельзя объявить полностью исключённой. Узкий дальнейший путь для A — его независимая точка Push fatal-state; **повторять manifest/aux PID регистрацию и post-crash missing-service гипотезу не нужно**.
+
+**Минимальная причинная правка:** отсутствует, так как manifest/process registration нет доказанного дефекта. Не менять vendor SDK, порядок активации, SDK boolean predicates, service component или fatal handlers без нового доказательства. В PR только read-only B-owned instrumentation, tests, собственный CI и этот отчёт.
+
+**Безопасность:** оригинальные APK/XAPK/DEX, ключи и private generated Java не опубликованы, runner очистил файлы; владелец не тронут; Test.50 и frozen A1 неизменны. **Stage A NO-GO / Stage B LOCKED**.
+
