@@ -1,3 +1,13 @@
+# W85 0.24.29 owner-ready promo-flicker-only installer (2026-11-13)
+
+Owner asked to upload **the latest Windows installer to ChatGPT Library → CELIKOM / Windows** for morning music QA. W85 is a **stable GUI-only promo-label fix** built from W83 `61128d3010ae908692b6c0666a825e625c6a5352`; prior 0.24.28 W82 audio files remain byte-identical. Working branch `experiment/windows-w85-02429-promo-steady-owner-candidate-20261113`; exact pre-build rollback `backup/windows-w85-pre-02429-exact-20261113`. Fix described `docs/windows/W83-PROMO-ENTITLEMENT-NO-BLINK-20261113.md`, release `docs/windows/W85-02429-PROMO-STEADY-OWNER-CANDIDATE-20261113.md`.
+
+**Not included:** W84 experimental source witness changes to host.cjs, which require real-device validation; keep `experiment/windows-w84-readonly-player-source-evidence-20261113` and issue #52 open. No user-facing new alarms or player protocol changes. Don't claim audio tested by owner yet. Install over 0.24.28, do not uninstall.
+
+CI run in progress `43318116147`; must see exact green job, W85 SHA, store candidate in Library; fill release note and save exact post-build rollback branch. After owner tests, fix only actual reports. Other issues #44 (physical audio QA), #48 (migration), #52 (source witness) remain open.
+
+---
+
 # W82 — Windows 0.24.28 quietly restores compact popup, fixes false connection errors (2026-11-12)
 
 Owner tested 0.24.27 and saw **false red "Нет ответа..."** after 30s of a healthy unchanged song and **yellow "Фактический звук ещё не подтверждён"** on successful audio plus dotted focus buttons. Cause: W23 native `host.cjs` only sends `/v1/heartbeat` on native state/track **changes**; W81 incorrectly treated a silent 30s as disconnected. Mapping-accepted was also misclassified as a warning. Full docs: `docs/windows/W82-COMPACT-QUIET-STATUS-FALSE-ALARM-FIX-20261112.md`.
