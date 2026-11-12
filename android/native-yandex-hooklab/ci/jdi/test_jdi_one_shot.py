@@ -11,6 +11,9 @@ subject=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(subject)
 
 class JdiTrialTests(unittest.TestCase):
+    def test_native_arm_adb_executable_is_explicit(self):
+        self.assertEqual(subject.ADB,"/usr/bin/adb")
+
     def test_one_exact_private_target_never_logged(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/"PrivatePushTargets.java"

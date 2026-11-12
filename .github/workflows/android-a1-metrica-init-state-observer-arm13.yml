@@ -123,8 +123,8 @@ jobs:
           set -euo pipefail
           sudo timeout 120 apt-get update -qq
           sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign adb
-          command -v adb >/dev/null
-          adb version >/dev/null
+          test -x /usr/bin/adb
+          /usr/bin/adb version >/dev/null
           sdk="$RUNNER_TEMP/celikom-2025-lspatch2-sdk"
           mkdir -p "$sdk/build-tools/35.0.0"
           for tool in aapt apksigner zipalign; do

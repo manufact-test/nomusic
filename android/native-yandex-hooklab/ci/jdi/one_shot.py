@@ -31,6 +31,8 @@ from exact_catch import _locate_code_item,read_catches,_inside
 TARGET=CI.parent/"exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java"
 JDI_JAVA=HERE/"ExactCatchJdi.java"
 VALID_FAMILY={"SDK_LEGACY","SDK_MODERN","JAVA","ANDROID","OTHER"}
+# Host SDK manager installs x86-64 platform-tools on ARM64; use native apt binary.
+ADB="/usr/bin/adb"
 
 def exact_target():
     data=TARGET.read_text(encoding="utf-8")
@@ -109,14 +111,14 @@ def one_shot(guest,cmd,package,xapk):
     try:
         if os.getenv("CELIKOM_A1_JDI_CATCH_DIAG")!="1":
             report["status"]="DISABLED";return report
-        if not shutil.which("adb") or not shutil.which("javac") or not shutil.which("java"):
+        if not Path(ADB).is_file() or not os.access(ADB,os.X_OK) or not shutil.which("javac") or not shutil.which("java"):
             report["status"]="HOST_JDI_TOOLS_ABSENT";return report
         stage="TARGET"
         target=exact_target()
         stage="DEX"
         pcs=candidate_pcs(xapk,target)
         stage="ADB"
-        conn=cmd(["adb","connect","127.0.0.1:5555"],timeout=20)
+        conn=cmd([ADB,"connect","127.0.0.1:5555"],timeout=20)
         if conn.returncode:report["status"]="ADB_CONNECT_FAILED";return report
         stage="MANIFEST"
         g=guest("dumpsys","package",package,timeout=40)
@@ -143,13 +145,13 @@ def one_shot(guest,cmd,package,xapk):
             current=guest("pidof",package)
             if not re.fullmatch(r"[1-9][0-9]{0,8}",current.stdout.strip()):continue
             candidate=current.stdout.strip()
-            listing=cmd(["adb","-s","127.0.0.1:5555","jdwp"],timeout=15)
+            listing=cmd([ADB,"-s","127.0.0.1:5555","jdwp"],timeout=15)
             if listing.returncode==0 and candidate in listing.stdout.splitlines():
                 pid=candidate;break
         if not pid:
             report["status"]="JDWP_PROCESS_ABSENT";return report
         stage="JDWP_FORWARD"
-        forward=cmd(["adb","-s","127.0.0.1:5555","forward","tcp:8707","jdwp:"+pid],timeout=20)
+        forward=cmd([ADB,"-s","127.0.0.1:5555","forward","tcp:8707","jdwp:"+pid],timeout=20)
         if forward.returncode:
             report["status"]="JDWP_FORWARD_FAILED";return report
         stage="CAPTURE"
@@ -178,8 +180,8 @@ def one_shot(guest,cmd,package,xapk):
         except Exception:pass
         try:guest("am","force-stop",package)
         except Exception:pass
-        if shutil.which("adb"):
-            try:cmd(["adb","-s","127.0.0.1:5555","forward","--remove","tcp:8707"],timeout=10)
+        if Path(ADB).is_file():
+            try:cmd([ADB,"-s","127.0.0.1:5555","forward","--remove","tcp:8707"],timeout=10)
             except Exception:pass
 
 
