@@ -34,6 +34,12 @@ from chromasync_extended_lifecycle_arm13 import sample_guest
 BRANCH="experiment/android-a1-competitor-loader-level2-causal-20261112"
 NESTED_SHA256="d54e58c6b7720a2d161758f41ce8d3c08d7d5cc6e9587b3976383ee2f829905b"
 
+def phase(name: str) -> None:
+    """Public only predefined stage name; no sensitive process or APK details."""
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]{5,65}",name):
+        raise RuntimeError("INVALID_SAFE_STAGE")
+    print(json.dumps({"private_phase":name},sort_keys=True),flush=True)
+
 def command(args: list[str], timeout: int=120) -> subprocess.CompletedProcess:
     return subprocess.run(args, capture_output=True, text=True, errors="replace",
                           timeout=timeout, check=False)
@@ -66,14 +72,17 @@ def make_owned_wrapper(source: Path, work: Path) -> Path:
              "-keyalg","RSA","-keysize","2048","-validity","1",
              "-dname","CN=CELIKOM Ephemeral Loader Control, O=CELIKOM, C=XX"],
             "OWN_LSPATCH_L2_KEY_CREATE_FAILED",80)
+    phase("LAB_KEY_READY")
     jar=work/"upstream-pinned-lspatch-v1.2.jar"
     download_pinned_patcher(jar)
+    phase("PINNED_PATCHER_READY")
     output=work/"level2-output"
     output.mkdir()
     checked(["java","-jar",str(jar),
              "-k",str(key),"ephemeral-lab-only","research","ephemeral-lab-only",
              "-o",str(output),"-l","2",str(source)],
             "OWN_LSPATCH_L2_UPSTREAM_PATCH_FAILED",600)
+    phase("PATCHER_RETURNED")
     candidates=list(output.glob("*.apk"))
     if len(candidates)!=1:
         raise RuntimeError("OWN_LSPATCH_L2_OUTPUT_NOT_SINGLE_APK")
@@ -100,19 +109,24 @@ def make_owned_wrapper(source: Path, work: Path) -> Path:
     verified=command(["apksigner","verify","--verbose",str(target)],100)
     if verified.returncode:
         raise RuntimeError("OWN_LSPATCH_L2_SIGNATURE_VERIFY_FAILED")
+    phase("WRAPPER_VERIFIED")
     return target
 
 def run(outer: Path) -> dict:
     guest=DockerGuest()
     require_runner(guest,outer)
+    phase("ANDROID_GUEST_READY")
     with tempfile.TemporaryDirectory(prefix="celikom-third-arm13-variant-") as td:
         work=Path(td)
         nested=work/"exact-third-party-nested-origin.apk"
         metadata=extract_exact_nested_origin(outer,nested)
+        phase("NESTED_ORIGIN_EXTRACTED")
         if metadata["original_nested_sha256"]!=NESTED_SHA256:
             raise RuntimeError("COMPETITOR_NESTED_BYTE_IDENTITY_DRIFT")
         wrapped=make_owned_wrapper(nested,work)
+        phase("OWN_WRAPPER_READY")
         installed=guest.install([wrapped])
+        phase("PM_INSTALL_RETURNED")
         result={
           "experiment":"SAME_NESTED_ORIGIN_OWN_UPSTREAM_LSPATCH_L2_WITHOUT_MODULE",
           "exact_owner_full_apk_sha_verified":True,
@@ -160,7 +174,7 @@ if __name__=="__main__":
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{5,95}",reason):
             reason="THIRD_VARIANT_PRIVATE_LAB_ERROR"
         print(json.dumps({"verdict":"THIRD_VARIANT_NOT_COMPLETED",
-            "reason":reason,"stage_a":"NO_GO",
+            "reason":reason,"error_class":type(exc).__name__,"stage_a":"NO_GO",
             "competitor_or_source_apk_published":False,
             "owner_phone_touched":False},sort_keys=True))
         sys.exit(2)
