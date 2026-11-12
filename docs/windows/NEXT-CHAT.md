@@ -1,3 +1,13 @@
+# W79 emergency recovery 0.24.25 — CI GREEN, OWNER QA STILL PENDING (12 NOV 2026)
+
+**FIRST PRIORITY ONLY:** fix broken CELIKOM Windows 0.24.24 on owner's signed Yandex 5.127.0; no new release planning. Surgical recovery code in `experiment/windows-w79-upgrade-transaction-recovery-20261112`; authoritative evidence + safety restrictions + owner steps in [W79-SIGNED-YANDEX-51270-OWNER-RECOVERY-20261112.md](./W79-SIGNED-YANDEX-51270-OWNER-RECOVERY-20261112.md). The initial issue is [#44](https://github.com/manufact-test/nomusic/issues/44), **KEEP OPEN UNTIL OWNER TESTS**.
+
+**Important success**: exact signed YANDEX LLC 5.127.0.r22015925 vendor EXE and ASAR verified, native ASAR patch staged on real official bytes and full simulated owner `RESTORED + updated vendor 5.127` to CELIKOM Active, safe Upgrade, exact Restore tested on Windows CI [43289688797](https://github.com/manufact-test/nomusic/actions/runs/43289688797) PASS. Full 0.24.24→0.24.25 Inno inplace install, saved DPAPI and native module verification, original Yandex untouched CI [43289538835](https://github.com/manufact-test/nomusic/actions/runs/43289538835) PASS. Candidate EXE artifact [13976688090](https://github.com/manufact-test/nomusic/actions/runs/43289538835/artifacts/13976688090), SHA256 `6CF6A9BB3FCF82386C9E4E1E2A880C682854B6672B8BE167AD366846D08AE79C`.
+
+**Current physical owner status:** not yet confirmed. Owner should install candidate over existing 0.24.24, not uninstall Yandex, preserve snapshots/session, press Start/approve native integration, confirm Active 0.24.25 and real audio. If mismatch, fail closed; do not force unknown host files. Only afterwards investigate problem songs. Never claim CI proves physical owner music plays.
+
+---
+
 # URGENT FIRST READ — W78 OWNER WINDOWS 0.24.24 BROKEN AFTER UPDATE (12 NOV 2026)
 
 **TOP PRIORITY: repair previously-working Windows CELIKOM. DO NOT plan a new release, rewrite architecture, touch extension/server/Android, or ship W77. STATUS: NOT FIXED.**
