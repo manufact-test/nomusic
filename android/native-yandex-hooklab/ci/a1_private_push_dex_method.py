@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
+from a1_private_dex_callers import bounded_fatal_callers
 from a1_private_dex_supply_chain import classify_private_supplier_chain
 from a1_private_dex_predicate import code_items_with_meta,rule_from_synthetic_lengths
 from a1_private_dex_flow import exact_error_guard_report,private_direct_guard_invokes,private_guard_input_sources,private_push_utils_supplier_refs,private_direct_guard_branch_roles,decode_instructions,FlowDecodeError,INVOKE_METHOD
@@ -312,7 +313,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];fatal_callers=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -329,9 +330,22 @@ def inspect_xapk(path):
                         chain=classify_private_supplier_chain(
                             payload,Dex,group_class,group_call,exact_error_guard_report)
                         if chain is not None:supplier_chains.append(chain)
+                        graph=bounded_fatal_callers(
+                            Dex(payload),group_class,group_call,
+                            code_candidates,exact_error_guard_report)
+                        if graph is not None:fatal_callers.append(graph)
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "exact_fatal_caller_families_by_depth":[
+            sorted({v for graph in fatal_callers
+                    for v in graph["caller_depth"][depth]["caller_families"]})
+            for depth in range(3)],
+        "exact_fatal_caller_counts_by_depth_bounded":[
+            min(sum(graph["caller_depth"][depth]["caller_methods_bounded"]
+                    for graph in fatal_callers),64)
+            for depth in range(3)],
+        "exact_static_caller_graph_not_runtime_proof":True,
         "exact_string_supplier_literal_families_by_depth":[
             sorted({v for chain in supplier_chains
                     for v in chain[depth]["literal_families"]})
