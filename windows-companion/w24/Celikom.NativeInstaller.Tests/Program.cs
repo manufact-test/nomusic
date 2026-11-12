@@ -105,7 +105,7 @@ if (File.Exists(verifiedFeedFile))
 {
   var feedBytes=File.ReadAllBytes(verifiedFeedFile);
   var entries=OfficialYandexCatalog.ParseVerifiedFeed(feedBytes);
-  Check(entries.Count==1 &&
+  Check(entries.Count==5 &&
     entries.TryGetValue(NativeIntegrationManager.Official51270Version,out var knownBuild) &&
     knownBuild.ExeSha256==NativeIntegrationManager.Official51270ExeSha256,
     "W80 signed 5.127 catalog builtin immutable pin accepted");
@@ -230,6 +230,48 @@ if (!string.IsNullOrEmpty(officialExe) && !string.IsNullOrEmpty(officialAsar) &&
         NativeIntegrationManager.Official51270AsarSha256,
         "W79 rejected update leaves host and both vendor backups intact");
     Console.WriteLine("W79_OWNER_STATE_51270_REAL_INSTALL_RECOVERY_PASS");
+  }
+  finally { if (Directory.Exists(lab)) Directory.Delete(lab,true); }
+}
+
+// W81 optional real archived 2026 vendor tests. The pipeline must not mark a
+// build compatible merely because an archive is signed: exercise actual
+// snapshot→native install→exact restore on each extracted vendor pair.
+var archiveExe=Environment.GetEnvironmentVariable("CELIKOM_W81_OFFICIAL_EXE");
+var archiveAsar=Environment.GetEnvironmentVariable("CELIKOM_W81_OFFICIAL_ASAR");
+var archiveAssets=Environment.GetEnvironmentVariable("CELIKOM_W81_NATIVE_ASSETS");
+if (!string.IsNullOrEmpty(archiveExe) && !string.IsNullOrEmpty(archiveAsar) &&
+    !string.IsNullOrEmpty(archiveAssets))
+{
+  Check(OperatingSystem.IsWindows(), "W81 archived real Yandex sandbox requires Windows");
+  var version=System.Diagnostics.FileVersionInfo.GetVersionInfo(archiveExe).FileVersion!;
+  Check(OfficialYandexCatalog.TryGet(version,out var pin),
+      "W81 signed historic vendor version explicitly pinned, not inferred");
+  Check(pin.ExeSha256==PairRecovery.Hash(archiveExe) &&
+        pin.AsarSha256==PairRecovery.Hash(archiveAsar) &&
+        OfficialYandexCatalog.IsExactTrustedVendorPair(archiveExe,archiveAsar),
+      "W81 signed 2026 official EXE+ASAR exact trusted baseline");
+  var lab=Path.Combine(Path.GetTempPath(),"celikom-w81-archive-"+Guid.NewGuid().ToString("N"));
+  var root=Path.Combine(lab,"YandexMusic");
+  var backup=Path.Combine(lab,"NativeHost","snapshot");
+  var exePath=Path.Combine(root,PairRecovery.ExeName);
+  var asarPath=Path.Combine(root,"resources","app.asar");
+  Directory.CreateDirectory(Path.Combine(root,"resources"));
+  try
+  {
+    File.Copy(archiveExe,exePath);
+    File.Copy(archiveAsar,asarPath);
+    Check(NativeIntegrationManager.Inspect(root,backup)==NativeInstallState.NotInstalled,
+        "W81 old signed 2026 version first install recognized without existing snapshot");
+    Check(NativeIntegrationManager.Install(root,archiveAssets,backup)==NativeInstallState.Active,
+        "W81 actual old official 2026 host integrated on temp-only sandbox");
+    Check(NativeModuleIdentity.Inspect(NativeInstallState.Active,root,archiveAssets)
+        .MatchesApplication,"W81 installed module matches current native assets");
+    Check(NativeIntegrationManager.Restore(root,backup)==NativeInstallState.Restored &&
+        PairRecovery.Hash(exePath)==pin.ExeSha256 &&
+        PairRecovery.Hash(asarPath)==pin.AsarSha256,
+        "W81 old 2026 original EXE+ASAR exactly restored, login never touched");
+    Console.WriteLine("W81_2026_REAL_NATIVE_SANDBOX_PASS version="+version);
   }
   finally { if (Directory.Exists(lab)) Directory.Delete(lab,true); }
 }
