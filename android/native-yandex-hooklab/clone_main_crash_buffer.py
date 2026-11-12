@@ -342,14 +342,14 @@ def _java_fatal_thread_enum(lines: list[str]) -> str:
 # Strict fixed-vocabulary refinements for a crashing independent native MAIN.
 # Never output the Java message, thread name, stack symbol, package path or hash.
 JAVA_STARTUP_MESSAGE_PATTERNS = (
-    ("CHECK_FAILED", r"\\b(?:check failed|assertion failed|requirement failed)\\b"),
-    ("REQUIRED_VALUE_NULL", r"\\b(?:required value was null|must not be null|non-null.*null)\\b"),
-    ("NOT_READY", r"\\b(?:not initialized|uninitialized|not ready|before init)\\b"),
-    ("MISSING_DEPENDENCY", r"\\b(?:missing|required|not found|absent|does not exist)\\b"),
-    ("CONFLICT_OR_DUPLICATE", r"\\b(?:duplicate|already registered|conflict|already exists)\\b"),
-    ("INVALID_STATE", r"\\b(?:invalid|unexpected|incorrect|wrong|illegal state)\\b"),
-    ("ACCESS_DENIED", r"\\b(?:denied|not allowed|not permitted|forbidden)\\b"),
-    ("TYPE_MISMATCH", r"\\b(?:type mismatch|class cast|cannot cast|expected type)\\b"),
+    ("CHECK_FAILED", r"\b(?:check failed|assertion failed|requirement failed)\b"),
+    ("REQUIRED_VALUE_NULL", r"\b(?:required value was null|must not be null|non-null.*null)\b"),
+    ("NOT_READY", r"\b(?:not initialized|uninitialized|not ready|before init)\b"),
+    ("MISSING_DEPENDENCY", r"\b(?:missing|required|not found|absent|does not exist)\b"),
+    ("CONFLICT_OR_DUPLICATE", r"\b(?:duplicate|already registered|conflict|already exists)\b"),
+    ("INVALID_STATE", r"\b(?:invalid|unexpected|incorrect|wrong|illegal state)\b"),
+    ("ACCESS_DENIED", r"\b(?:denied|not allowed|not permitted|forbidden)\b"),
+    ("TYPE_MISMATCH", r"\b(?:type mismatch|class cast|cannot cast|expected type)\b"),
 )
 JAVA_STARTUP_MESSAGE_LABELS = frozenset(
     name for name, _ in JAVA_STARTUP_MESSAGE_PATTERNS) | {
@@ -357,7 +357,7 @@ JAVA_STARTUP_MESSAGE_LABELS = frozenset(
 
 
 def _java_startup_message_shape(lines: list[str]) -> dict:
-    if not any(re.search(r"\\bFATAL EXCEPTION:", ln) for ln in lines):
+    if not any(re.search(r"\bFATAL EXCEPTION:", ln) for ln in lines):
         return {"java_startup_message_shape": "NOT_OBSERVED",
                 "java_startup_message_finite_hint": "NOT_OBSERVED"}
     message = _first_exception_message_text(lines)
@@ -374,7 +374,7 @@ def _java_startup_message_shape(lines: list[str]) -> dict:
 
 def _java_fatal_background_role(lines: list[str]) -> str:
     for ln in lines:
-        match = re.search(r"\\bFATAL EXCEPTION:\\s*([^\\r\\n]{1,120})", ln)
+        match = re.search(r"\bFATAL EXCEPTION:\s*([^\r\n]{1,120})", ln)
         if not match:
             continue
         name = match.group(1).strip()
@@ -394,10 +394,10 @@ def _java_fatal_background_role(lines: list[str]) -> str:
 
 
 def _java_scoped_vendor_frame_subsystem(lines: list[str]) -> str:
-    if not any(re.search(r"\\bFATAL EXCEPTION:", ln) for ln in lines):
+    if not any(re.search(r"\bFATAL EXCEPTION:", ln) for ln in lines):
         return "NOT_OBSERVED"
     for ln in lines:
-        m = re.match(r"^\\s*at\\s+([A-Za-z_$][A-Za-z0-9_.$-]*)\\(", ln)
+        m = re.match(r"^\s*at\s+([A-Za-z_$][A-Za-z0-9_.$-]*)\(", ln)
         if not m:
             continue
         first = m.group(1).lower()
