@@ -6,6 +6,7 @@ on:
       - experiment/windows-w81-vendor-monitor-compat-visibility-20261112
     paths:
       - windows-companion/w81/Watch-YandexWindowsRelease.ps1
+      - windows-companion/w24/**
       - .github/workflows/windows-w81-watch-candidate-smoke.yml
   workflow_dispatch:
 
