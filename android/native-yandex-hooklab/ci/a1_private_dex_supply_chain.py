@@ -106,6 +106,10 @@ def _literal_family(s):
     if s=="currentActivityThread":return "REFLECT_METHOD_CURRENT_THREAD"
     if s=="getInitialApplication":return "REFLECT_METHOD_INITIAL_APPLICATION"
     if s=="currentProcessName":return "REFLECT_METHOD_PROCESS_NAME"
+    if s=="getProcessName":return "REFLECT_METHOD_GET_PROCESS_NAME"
+    if s=="getPackageName":return "REFLECT_METHOD_GET_PACKAGE_NAME"
+    if s=="getApplication":return "REFLECT_METHOD_GET_APPLICATION"
+    if s=="getApplicationContext":return "REFLECT_METHOD_GET_APP_CONTEXT"
     return "OTHER_LITERAL"
 
 
