@@ -44,8 +44,8 @@ public static class YandexHostProbe
                 return new(YandexHostStatus.IncompleteInstallation, "");
 
             var version = FileVersionInfo.GetVersionInfo(executable).FileVersion ?? "";
-            var official51270 = version == NativeIntegrationManager.Official51270Version;
-            if (!official51270 &&
+            var pinnedVendor = OfficialYandexCatalog.TryGet(version, out var approved);
+            if (!pinnedVendor &&
                 version is not ("5.126.1" or "5.126.1.0" or "5.126.1.56270518164a6ebd4b974971490df41224a69d68"))
                 return new(YandexHostStatus.UnsupportedVersion, version);
 
@@ -56,19 +56,16 @@ public static class YandexHostProbe
 
             // For 5.127 require the signed EXE's exact independent official
             // package hash as well as its ASAR, not merely a claimed version.
-            if (official51270)
+            if (pinnedVendor)
             {
-                using var exeStream = new FileStream(executable, FileMode.Open,
-                    FileAccess.Read, FileShare.Read);
-                var exeSha = Convert.ToHexString(SHA256.HashData(exeStream)).ToLowerInvariant();
-                if (exeSha != NativeIntegrationManager.Official51270ExeSha256)
+                // An approved feed entry never bypasses actual Windows signature
+                // and pinned Yandex publisher verification.
+                if (!OfficialYandexCatalog.IsExactTrustedVendorPair(executable, asar))
                     return new(YandexHostStatus.UntrustedExecutable, version);
             }
             using var stream = new FileStream(asar, FileMode.Open, FileAccess.Read, FileShare.Read);
             var sha = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-            var expectedSha = official51270
-                ? NativeIntegrationManager.Official51270AsarSha256
-                : VerifiedAsarSha256;
+            var expectedSha = pinnedVendor ? approved.AsarSha256 : VerifiedAsarSha256;
             if (sha != expectedSha)
                 return new(YandexHostStatus.UnknownAsar, version);
 
