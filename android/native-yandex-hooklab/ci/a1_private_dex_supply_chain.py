@@ -88,8 +88,17 @@ def _literal_family(s):
     if s.startswith("com.google.firebase."):return "FIREBASE_CLASS"
     if s.startswith("com.google.android.gms."):return "GOOGLE_GMS_CLASS"
     if s.startswith("ru.yandex.music."):return "MUSIC_CLASS"
-    if s.startswith("android."):return "ANDROID_CLASS"
+    if s=="android.os.SystemProperties":return "ANDROID_SYSTEM_PROPERTIES_CLASS"
+    if s=="android.app.ActivityThread":return "ANDROID_ACTIVITY_THREAD_CLASS"
+    if s=="android.app.AppGlobals":return "ANDROID_APP_GLOBALS_CLASS"
+    if s=="android.os.Build":return "ANDROID_BUILD_CLASS"
+    if s=="android.util.Log":return "ANDROID_LOG_CLASS"
+    if s.startswith("android."):return "ANDROID_OTHER_CLASS"
     if s.startswith("java."):return "JAVA_CLASS"
+    if s in ("get","getInt","getBoolean","getLong","set"):
+        return "REFLECT_METHOD_PROPERTY"
+    if s in ("currentApplication","currentActivityThread","getInitialApplication"):
+        return "REFLECT_METHOD_APPLICATION"
     return "OTHER_LITERAL"
 
 
