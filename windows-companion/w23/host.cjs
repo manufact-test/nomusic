@@ -72,6 +72,8 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_CDP_EVENT_START", "PLAYER_CDP_EVENT_PAUSE",
   "PLAYER_CDP_EVENT_PIPELINE_ERROR", "PLAYER_CDP_STATE_PLAYING",
   "PLAYER_CDP_STATE_NOT_PLAYING",
+  // Passive current-player evidence: never logs URL/tokens.
+  "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED",
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
   "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
   "PLAYER_URL_SIGNED_FIELDS_INTACT",
@@ -432,6 +434,50 @@ function observeNativePlayback(view) {
   // When DevTools are already open or another client owns the debugger,
   // fail open and leave the original player entirely untouched.
   const debug = view.debugger;
+  // Only matching *current* decoder URLs can corroborate a CELIKOM source.
+  // Prefetch GETs, grant delivery, HTTP 206 and renderer status do not count.
+  const decoderPlayers = new Map();
+  const capturePlayerProperties = params => {
+    const id = params?.playerId;
+    if (typeof id !== "string" || id.length < 1 || id.length > 128 ||
+        !/^[a-zA-Z0-9_-]+$/.test(id) || !Array.isArray(params?.properties)) return;
+    if (!decoderPlayers.has(id) && decoderPlayers.size >= 32)
+      decoderPlayers.delete(decoderPlayers.keys().next().value);
+    const prev = decoderPlayers.get(id) || {
+      playing:false, sourceTrackId:null, evidenceReportedFor:null
+    };
+    for (const prop of params.properties.slice(0, 30)) {
+      if (prop?.name === "kUrl") {
+        prev.sourceTrackId = null;
+        prev.evidenceReportedFor = null;
+        if (typeof prop.value !== "string" || prop.value.length > 4096) continue;
+        try {
+          const actual = new URL(prop.value);
+          const expectedOrigin = nativeAudioOrigins.get(view);
+          const resourceId = expectedOrigin && actual.origin === expectedOrigin &&
+            !actual.username && !actual.password &&
+            AUDIO_RESOURCE_PATH.exec(actual.pathname)?.[1];
+          const expected = resourceId && nativeExpectedAudio.get(view)?.get(resourceId);
+          const classification = resourceId && expected ?
+            classifyPlayerUrl(view, resourceId, actual) : "";
+          if (expected?.expiresAt > Date.now() &&
+              (classification === "PLAYER_URL_MATCH" ||
+               classification === "PLAYER_URL_SIGNED_FIELDS_INTACT"))
+            prev.sourceTrackId = expected.yandexTrackId;
+        } catch { /* Unknown native URL: no source evidence. */ }
+      } else if (prop?.name === "kIsPlaying") {
+        prev.playing = prop.value === "true";
+        if (!prev.playing) prev.evidenceReportedFor = null;
+      }
+    }
+    decoderPlayers.set(id, prev);
+    const current = lastStatus.get(view)?.trackId;
+    if (prev.playing && prev.sourceTrackId && current === prev.sourceTrackId &&
+        prev.evidenceReportedFor !== current) {
+      prev.evidenceReportedFor = current;
+      note("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", current);
+    }
+  };
   if (debug && typeof debug.attach === "function" &&
       typeof debug.sendCommand === "function" &&
       typeof debug.isAttached === "function" &&
@@ -541,6 +587,9 @@ function observeNativePlayback(view) {
           }
         }
 
+        if (method === "Media.playerDestroyed" &&
+            typeof params?.playerId === "string")
+          decoderPlayers.delete(params.playerId);
         if (method === "Media.playerErrorsRaised" &&
             Array.isArray(params?.errors) && params.errors.length > 0)
           note("PLAYER_CDP_PIPELINE_ERROR");
@@ -561,6 +610,7 @@ function observeNativePlayback(view) {
           }
         } else if (method === "Media.playerPropertiesChanged" &&
             Array.isArray(params?.properties)) {
+          capturePlayerProperties(params);
           for (const prop of params.properties.slice(0, 30)) {
             if (prop?.name !== "kIsPlaying") continue;
             if (prop.value === "true") note("PLAYER_CDP_STATE_PLAYING");
