@@ -59,7 +59,7 @@ def apk_cert_digest(path: Path) -> str:
            "--min-sdk-version","24",str(path)],90)
     if v.returncode:
         stop("PUBLISHERBASE_LEVEL_AB_SIGNED_APK_NOT_VERIFIED")
-    hits=re.findall(r"Signer #1 certificate SHA-256 digest:\\s*([a-fA-F0-9:]+)",
+    hits=re.findall(r"Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9:]+)",
                     v.stdout)
     if len(hits)!=1:
         stop("PUBLISHERBASE_LEVEL_AB_CERT_NOT_SINGLE")
@@ -119,10 +119,10 @@ def patch_exact_original_base(original_base: Path, key: Path,
                        for x in outer.namelist())):
                 stop("PUBLISHERBASE_LEVEL_AB_CONFIG_INVALID")
             with zipfile.ZipFile(__import__("io").BytesIO(
-                    outer.read("assets/lspatch/origin.apk"))) as nested, \\
+                    outer.read("assets/lspatch/origin.apk"))) as nested, \
                  zipfile.ZipFile(original_base) as original:
                 names=[n for n in original.namelist()
-                       if re.fullmatch(r"classes\\d*[.]dex",n)
+                       if re.fullmatch(r"classes\d*[.]dex",n)
                        or (n.startswith("lib/") and n.endswith(".so"))]
                 if not names:
                     stop("PUBLISHERBASE_LEVEL_AB_HOST_PAYLOAD_ABSENT")
@@ -192,7 +192,7 @@ def run(original_xapk: Path) -> dict:
                     "main_exit":observation.get("exit_status",{}),
                     "main_crash":observation.get("main_crash_category",{})}
             results[str(level)]=result
-            if level==0:
+            if level==0 and installed:
                 removed=guest("pm","uninstall","--user","0",ORIGINAL,timeout=90)
                 if removed.returncode or not removed.stdout.strip().startswith("Success"):
                     stop("PUBLISHERBASE_LEVEL_AB_BASELINE_UNINSTALL_FAILED")
