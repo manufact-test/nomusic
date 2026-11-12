@@ -150,8 +150,10 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       const abort = new AbortController();
       let timer;
       const timeout = new Promise(resolveTimeout => {
-        timer = setTimeout(() => { emit('RESOLVE_TIMEOUT', id); abort.abort(); resolveTimeout(null); },
-          background ? RECOVERY_DEADLINE_MS : deadlineMs);
+        timer = setTimeout(() => {
+          emit(background ? 'RESOLVE_BACKGROUND_TIMEOUT' : 'RESOLVE_TIMEOUT', id);
+          abort.abort(); resolveTimeout(null);
+        }, background ? RECOVERY_DEADLINE_MS : deadlineMs);
       });
       const request = Promise.resolve().then(() => resolve(id, abort.signal, { background }))
         .catch(() => null);
@@ -163,7 +165,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         // Never poison a negative cache with network failure. Schedule an
         // independently bounded current-track recovery, not a second player.
         if (!abort.signal.aborted && grant?.transient === true) {
-          emit('RESOLVE_TRANSIENT', id);
+          emit(background ? 'RESOLVE_BACKGROUND_TRANSIENT' : 'RESOLVE_TRANSIENT', id);
           return null;
         }
         const origin = typeof allowedOrigin === 'function' ? allowedOrigin() : allowedOrigin;
