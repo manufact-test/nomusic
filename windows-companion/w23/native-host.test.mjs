@@ -7,7 +7,8 @@ import { EventEmitter } from "node:events";
 const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
 async function runHost(url, { queue = [], token = "b".repeat(64),
-  debuggerDriver = null, stateOverride = null, grantOverride = null, clock = Date } = {}) {
+  debuggerDriver = null, stateOverride = null, grantOverride = null,
+  currentTrack = null, clock = Date } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   let drained = false;
   const viewEvents = new Map();
@@ -25,6 +26,8 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
         return queue;
       }
       if (script.includes("__celikomBridgeNativeStatus?.()")) return "ORIGINAL";
+      if (script.includes("__celikomBridgeNativeCurrentTrack?.()"))
+        return currentTrack;
       return true;
     }
   };
@@ -487,4 +490,71 @@ test("W66 host sanitizer cannot discard D or other letters, still rejects contro
   }
   assert.equal(invalid.test("\u0000"),true,"NUL still rejected");
   assert.equal(invalid.test("\n"),true,"line break still rejected");
+});
+
+test("W84 passive decoder witness requires current player URL + signed grant + playback", async () => {
+  const grant = w52Grant("139");
+  const {debug,commands} = w52Debugger();
+  const r = await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug, grantOverride:grant,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Track",artist:"Artist",durationMs:180000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  const evidence = () => r.diagnostics.filter(x =>
+    x.endsWith("|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=123"));
+  // A signed grant and a successful network GET are not playing evidence.
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"w84-a",request:{url:grant.audioUrl,method:"GET"},type:"Media"
+  });
+  assert.equal(evidence().length,0);
+  // A player using the original Yandex URL cannot be counted as CELIKOM.
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"player-a",properties:[
+      {name:"kUrl",value:"https://music.yandex.ru/original"},
+      {name:"kIsPlaying",value:"true"}]
+  });
+  assert.equal(evidence().length,0);
+  // A modified or missing HMAC is also not valid evidence.
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"player-a",properties:[
+      {name:"kUrl",value:grant.audioUrl.replace("sid=7","sid=8")},
+      {name:"kIsPlaying",value:"true"}]
+  });
+  assert.equal(evidence().length,0);
+  // Exact signed current media player URL + IsPlaying is corroborating
+  // source evidence, but not proof speakers are audible.
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"player-a",properties:[{name:"kUrl",value:grant.audioUrl}]
+  });
+  assert.equal(evidence().length,1);
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"player-a",properties:[{name:"kIsPlaying",value:"true"}]
+  });
+  assert.equal(evidence().length,1, "identical event cannot spam diagnostics");
+  debug.emit("message",{},"Media.playerDestroyed",{playerId:"player-a"});
+  assert.equal(evidence().length,1);
+  const dumped=JSON.stringify(r.diagnostics);
+  assert.ok(!dumped.includes(grant.audioUrl));
+  assert.ok(!dumped.includes("token="));
+  assert.ok(!dumped.includes("sid=7"));
+  assert.ok(commands.every(([name])=>name!=="Media.getResponseBody" && name!=="Runtime.evaluate"));
+});
+
+test("W84 prefetched player for a different Yandex track is NOT counted as current", async () => {
+  const grant = w52Grant("139","123");
+  const {debug} = w52Debugger();
+  const r = await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"999",title:"Other",artist:"Other",durationMs:120000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"player-b",properties:[
+      {name:"kUrl",value:grant.audioUrl},
+      {name:"kIsPlaying",value:"true"}]
+  });
+  assert.ok(!r.diagnostics.some(x => x.includes("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED")),
+    "prefetched next track must never be shown as current source");
 });
