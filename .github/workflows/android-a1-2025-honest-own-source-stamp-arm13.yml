@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo timeout 130 apt-get update -qq
-          sudo timeout 100 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt zipalign ca-certificates unzip
+          sudo timeout 100 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign ca-certificates unzip
           zip="$RUNNER_TEMP/official-build-tools-r35-linux.zip"
           curl --fail --location --retry 2 --connect-timeout 20 --max-time 160 --silent --show-error \
             https://dl.google.com/android/repository/build-tools_r35_linux.zip -o "$zip"
