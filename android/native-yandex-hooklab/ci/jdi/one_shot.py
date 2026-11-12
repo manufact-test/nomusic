@@ -40,7 +40,7 @@ def exact_target():
     if not match:raise RuntimeError("JDI_EXACT_TARGET_MISSING")
     rows=re.findall(r'\{\s*"[^"\\]*(?:\\.[^"\\]*)*"\s*,\s*"[^"\\]*"\s*,\s*"[^"\\]*(?:\\.[^"\\]*)*"\s*\}',match.group(1))
     if len(rows)!=1:raise RuntimeError("JDI_EXACT_TARGET_NOT_UNIQUE")
-    item=json.loads("["+rows[0].replace("{","[",1).rsplit("}",1)[0]+"]]")
+    item=json.loads(rows[0].replace("{","[",1).replace("}","]",1))
     if len(item)!=3 or item[1]!="a":raise RuntimeError("JDI_EXACT_TARGET_INVALID")
     return item
 
