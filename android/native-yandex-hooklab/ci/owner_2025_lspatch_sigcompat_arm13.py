@@ -8,6 +8,8 @@ runner and are removed. A green result means MAIN/RESUMED, NOT usable music.
 from __future__ import annotations
 
 import json
+import hashlib
+import xml.etree.ElementTree as ET
 import os
 import platform
 import re
@@ -35,6 +37,54 @@ BRANCH = "experiment/android-a1-independent-sig-compat-arm13-20261112"
 VERSION = "24025542"
 SOURCE_BYTES = 45961661
 SOURCE_SHA256 = "8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
+ANDROID = "{http://schemas.android.com/apk/res/android}"
+OWNED_CLONE_PERMISSIONS_TO_OMIT = {
+    "com.yandex.permission.READ_CREDENTIALS",
+    "com.yandex.music.RELAY_PERMISSION",
+}
+
+
+def coexist_manifest_2025(source_text: str) -> tuple[bytes, dict]:
+    """Rewrite *only* independent lab clone manifests to avoid global duplicates.
+
+    Original 16 publisher-signed APKs are never modified. Mirrors the proven
+    16+16 coexistence namespace rules, now BEFORE the one-APK merger.
+    """
+    rewritten, earlier = source.rewrite_manifest(source_text)
+    tree = ET.fromstring(rewritten)
+    if tree.tag != "manifest":
+        stop("SIGCOMPAT_2025_MANIFEST_ROOT_INVALID")
+    removed = 0
+    provider_rewrites = 0
+    for child in list(tree):
+        if child.tag != "permission":
+            continue
+        name = child.attrib.get(ANDROID + "name", "")
+        if name not in OWNED_CLONE_PERMISSIONS_TO_OMIT:
+            continue
+        if child.attrib.get(ANDROID + "protectionLevel") != "signature":
+            stop("SIGCOMPAT_2025_PERMISSION_PROTECTION_CHANGED")
+        tree.remove(child)
+        removed += 1
+    for provider in tree.iter("provider"):
+        authority = provider.attrib.get(ANDROID + "authorities", "")
+        if not authority:
+            continue
+        old = authority.split(";")
+        new = [value if value.startswith(PKG + ".") else
+               PKG + ".provider." + hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+               for value in old]
+        if any(not value for value in old):
+            stop("SIGCOMPAT_2025_EMPTY_PROVIDER_AUTHORITY")
+        provider_rewrites += sum(a != b for a, b in zip(old, new))
+        provider.set(ANDROID + "authorities", ";".join(new))
+    stats = {
+        "provider_authorities": earlier["provider_authorities"] + provider_rewrites,
+        "global_provider_authorities_renamed": provider_rewrites,
+        "publisher_signature_permission_declarations_removed": removed,
+    }
+    return ET.tostring(tree, encoding="utf-8", xml_declaration=True), stats
+
 
 
 def require_guest() -> None:
@@ -206,7 +256,8 @@ def run(xapk: Path) -> dict:
             result["verdict"] = "ORIGINAL_2025_NATIVE_75S_NO_GO"
             return result
 
-        clones, meta = ephemeral_clone(originals, work)
+        clones, meta = ephemeral_clone(originals, work,
+                                       manifest_rewriter=coexist_manifest_2025)
         result["own_2025_verified_splits"] = meta["lab_cloned_2025_splits"]
         key = work / "unique-ephemeral-signer.jks"
         arsc.run(["keytool", "-changealias", "-keystore", str(key),
