@@ -332,6 +332,14 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "exact_string_supplier_literal_families_by_depth":[
+            sorted({v for chain in supplier_chains
+                    for v in chain[depth]["literal_families"]})
+            for depth in range(3)],
+        "exact_string_supplier_catch_instruction_by_depth":[
+            any(chain[depth]["catch_handler_instruction_seen"]
+                for chain in supplier_chains)
+            for depth in range(3)],
         "exact_string_supplier_call_families_by_depth":[
             sorted({v for chain in supplier_chains
                     for v in chain[depth]["calls"]})
