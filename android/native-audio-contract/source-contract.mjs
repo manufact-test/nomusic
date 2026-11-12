@@ -119,7 +119,7 @@ export function validateHeadResponse(response, expectedMime) {
       header(h, "accept-ranges")?.toLowerCase() !== "bytes" ||
       size === null || !isStrongEtag(etag))
     return null;
-  return Object.freeze({ size, etag });
+  return Object.freeze({ size, etag, mimeType: expectedMime });
 }
 
 /** Only a native host may convert a seek position into a known byte offset. */
@@ -137,7 +137,8 @@ export function validateRangeResponse(response, start, requestedEnd = null, expe
   // Seek/range is only valid against a previously verified immutable HEAD.
   // Without it, a valid-looking 206 from another version must fail closed.
   if (!expected || !Number.isSafeInteger(expected.size) || expected.size <= 0 ||
-      !isStrongEtag(expected.etag))
+      !isStrongEtag(expected.etag) ||
+      !MIME.has(expected.mimeType))
     return Object.freeze({ ok: false, code: "HEAD_WITNESS_REQUIRED" });
   const h = response?.headers;
   const range = header(h, "content-range");
@@ -155,6 +156,10 @@ export function validateRangeResponse(response, start, requestedEnd = null, expe
   const begin = Number(parts[1]), end = Number(parts[2]), total = Number(parts[3]);
   const length = canonicalPositiveLength(header(h, "content-length"));
   const etag = header(h, "etag");
+  const mime = header(h, "content-type");
+  // A valid Range may still be a content-negotiation/redirect mistake.
+  // The same decoder must not receive a different MIME than verified HEAD.
+  // Match the actual unchanged PHP AudioController's Content-Type exactly.
   // ByteRange::parse on CELIKOM PHP returns the full requested inclusive
   // end (capped to EOF), never an arbitrarily truncated 206. Detect short
   // responses now, before handing them to the single native decoder.
@@ -164,7 +169,8 @@ export function validateRangeResponse(response, start, requestedEnd = null, expe
       begin !== start || end < begin || end >= total ||
       end !== expectedEnd ||
       length !== end - begin + 1 ||
-      total !== expected.size || etag !== expected.etag)
+      total !== expected.size || etag !== expected.etag ||
+      mime !== expected.mimeType)
     return Object.freeze({ ok: false, code: "RANGE_MISMATCH" });
   return Object.freeze({ ok: true, start: begin, end, total });
 }
