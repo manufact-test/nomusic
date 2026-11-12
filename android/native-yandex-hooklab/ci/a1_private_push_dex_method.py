@@ -392,7 +392,7 @@ def private_exact_near_guard_invoke_site_multiplicity(binary):
                        "near_invoke_sites_bounded":None if count is None
                        else min(count,16),
                        "near_true_path":private_near_true_exact_throw_path(
-                           code,near,targets)})
+                           code,near,target_strings)})
     return result
 
 
