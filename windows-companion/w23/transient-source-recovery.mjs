@@ -29,7 +29,11 @@ export function createTransientSourceRecovery({
     const delay = delays[job.attempt++];
     job.timer = timer(async () => {
       job.timer = null;
-      if (!current(id, job)) { finish(id, job); return; }
+      if (!current(id, job)) {
+        emit("SOURCE_RECOVERY_NO_LONGER_CURRENT", id);
+        finish(id, job);
+        return;
+      }
       emit("SOURCE_RECOVERY_RETRY", id);
       let found = false;
       try { found = await prime(id) === true; } catch {}
@@ -37,7 +41,7 @@ export function createTransientSourceRecovery({
       if (found) {
         emit("SOURCE_RECOVERY_GRANTED", id);
         let reloaded = false;
-        try { reloaded = await reload() === true; } catch {}
+        try { reloaded = await reload(id) === true; } catch {}
         if (!current(id, job)) { finish(id, job); return; }
         if (reloaded) { emit("SOURCE_RECOVERY_RELOAD_OK", id); finish(id, job); return; }
         emit("SOURCE_RECOVERY_RELOAD_FAILED", id);
