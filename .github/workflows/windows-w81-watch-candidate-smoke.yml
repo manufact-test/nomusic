@@ -1,0 +1,70 @@
+name: Windows W81 official 2026 version backlog image smoke
+
+on:
+  push:
+    branches:
+      - experiment/windows-w81-vendor-monitor-compat-visibility-20261112
+    paths:
+      - windows-companion/w81/Watch-YandexWindowsRelease.ps1
+      - .github/workflows/windows-w81-watch-candidate-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  known-latest:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: Official Windows updater manifest and existing approved build
+        shell: pwsh
+        run: |
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ReportPath $env:RUNNER_TEMP/w81-watch-latest.json
+          $report = Get-Content "$env:RUNNER_TEMP/w81-watch-latest.json" -Raw | ConvertFrom-Json
+          if ($report.vendorVersion -notmatch '^5\.' -or $report.status -notin @('already_supported','new_release_detected')) {
+            throw 'W81_OFFICIAL_FEED_WATCH_FAILED'
+          }
+          Write-Host "W81_OFFICIAL_WINDOWS_MANIFEST_VERIFIED $($report.vendorVersion)"
+  official-2026-archives:
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['5.126.1', '5.121.2', '5.102.0', '5.86.0']
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - name: Compile unchanged native music bundle for staged original image
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund --prefix windows-companion/w23
+          if ($LASTEXITCODE -ne 0) { throw 'W81_NPM_FAILED' }
+          node windows-companion/w23/build.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W81_NATIVE_BUNDLE_FAILED' }
+      - name: Download signed archived Yandex original, stage safe native candidate
+        shell: pwsh
+        env:
+          VERSION: ${{ matrix.version }}
+        run: |
+          $report=Join-Path $env:RUNNER_TEMP "w81-archive-report.json"
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion $env:VERSION -ValidateCandidate -ReportPath $report
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W81_ARCHIVE_PROCESS_FAILED' }
+          $data=Get-Content $report -Raw | ConvertFrom-Json
+          if ($data.status -ne 'candidate_requires_runtime_review' -or
+              $data.exeSha256.Length -ne 64 -or $data.asarSha256.Length -ne 64) {
+            throw 'W81_2026_ARCHIVE_NOT_VERIFIED'
+          }
+          Write-Host "W81_2026_ARCHIVE_IMAGE_BUILD_PASS version=$($data.exeVersion) exeSha256=$($data.exeSha256) asarSha256=$($data.asarSha256)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: w81-2026-verified-image-${{ matrix.version }}
+          path: ${{ runner.temp }}/w81-archive-report.json
+          retention-days: 7
