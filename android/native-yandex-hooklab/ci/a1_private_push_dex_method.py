@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
+from a1_private_dex_flow import exact_error_guard_report
 
 EXPECTED_LEN=45961661
 EXPECTED_SHA="8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
@@ -292,6 +293,7 @@ def inspect_dex(binary):
                 "guard":branch_guard_near_target(code,helper_call_positions,pos),
                 "forward_guard_category":forward_skip_guard_category(code,pos,calls,dex),
                 "helper_refs":helpers,
+                "exact_guard_flow": exact_error_guard_report(code,targets,dex,group_call),
             })
     # Resolve helper implementations after all declarations have been indexed.
     for entry in matches:
@@ -323,6 +325,17 @@ def inspect_xapk(path):
     exact=[m for m in matches if m["owner"]=="PUSH_IMPL"]
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     return {
+        "push_impl_a_exact_flow_decoded":all(
+            m["exact_guard_flow"]["decoded"] for m in fatal_a),
+        "push_impl_a_exact_error_string_candidates_bounded":min(
+            sum(m["exact_guard_flow"]["target_strings"] for m in fatal_a),16),
+        "push_impl_a_exact_guards_skipping_throw_bounded":min(
+            sum(m["exact_guard_flow"]["guards_skipping_throw"]
+                for m in fatal_a),16),
+        "push_impl_a_exact_guard_source_categories":sorted({
+            category for m in fatal_a
+            for category in m["exact_guard_flow"]["verified_guard_sources"]}),
+        "exact_flow_proves_runtime_predicate":False,
         "push_impl_crash_a_candidates_bounded":min(len(fatal_a),16),
         "push_impl_a_has_nearby_helper":any(m["guard"]["near_helper"] for m in fatal_a),
         "push_impl_a_has_guard_after_helper_approx":any(m["guard"]["if_guard"] for m in fatal_a),
