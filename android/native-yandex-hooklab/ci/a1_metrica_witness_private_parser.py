@@ -19,7 +19,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "METRICA_STATE","METRICA_API","REPORTER_HOOK","REPORTER_CALL",
          "METRICA_THROW_SITE","METRICA_THROW_EXEC","METRICA_THROW_LOADER",
          "METRICA_THROW_HINT","FATAL_THROW_SITE","FATAL_THROW_HINT",
-         "SDK_CLASS","SDK_ACTIVATE_SIGNATURE",
+         "SDK_CLASS","SDK_ACTIVATE_SIGNATURE","MODULES_HOOK",
+         "MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_ACTIVATE_HOOK",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -28,6 +29,7 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
          "THREAD_DISPATCH","THREAD_GROUP","RUNTIME_KILL_HANDLER",
          "RUNTIME_LOG_HANDLER","RUNTIME_LOOKUP",
          "UNKNOWN","NONE","APPLICATION","METRICA_LEGACY","METRICA_MODERN",
+         "PUSH_MODERN","PUSH_LEGACY",
           "STATE_MARK_ACTIVATED","STATE_MARK_FULL","STATE_KILL",
           "STATE_CHECK_ACTIVATED","STATE_CHECK_FULL","STATE_CHECK_APP",
           "API_GET_REPORTER","API_ACTIVATE_REPORTER","API_REPORT_EVENT",
@@ -115,6 +117,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     exact_fatal_hints=[x for x in seen if x[0]=="FATAL_THROW_HINT"]
     sdk_class=[x for x in seen if x[0]=="SDK_CLASS"]
     sdk_activate_signature=[x for x in seen if x[0]=="SDK_ACTIVATE_SIGNATURE"]
+    module_checks=[x for x in seen if x[0]=="MODULES_IS_ACTIVATED"]
+    module_hooks=[x for x in seen if x[0]=="MODULES_HOOK"]
+    push_activations=[x for x in seen if x[0]=="PUSH_ACTIVATE"]
+    push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
@@ -125,6 +131,20 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "exact_fatal_sdk_throw_sites":sorted({x[2] for x in exact_fatal_sites}),
         "fatal_throw_site_observed":bool(exact_fatal_sites),
         "fatal_sdk_init_message_hints":sorted({x[2] for x in exact_fatal_hints}),
+        "modules_activation_predicate_checks": {
+            family:{state:sum(x[1]==family and x[2]==state for x in module_checks)
+                    for state in ("TRUE","FALSE","THROW")}
+            for family in ("METRICA_MODERN","METRICA_LEGACY")},
+        "modules_activation_predicate_hook": {
+            family:sorted({x[2] for x in module_hooks if x[1]==family})
+            for family in ("METRICA_MODERN","METRICA_LEGACY")},
+        "push_activation_callbacks": {
+            family:{state:sum(x[1]==family and x[2]==state for x in push_activations)
+                    for state in ("ENTER","RETURN","THROW")}
+            for family in ("PUSH_MODERN","PUSH_LEGACY")},
+        "push_activation_hook": {
+            family:sorted({x[2] for x in push_hooks if x[1]==family})
+            for family in ("PUSH_MODERN","PUSH_LEGACY")},
         "sdk_public_class_probe": {
             family:sorted({x[2] for x in sdk_class if x[1]==family})
             for family in ("METRICA_LEGACY","METRICA_MODERN")},

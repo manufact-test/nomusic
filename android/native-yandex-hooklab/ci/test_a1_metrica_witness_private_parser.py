@@ -42,6 +42,26 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_push_sdk_modules_predicate_and_activation_are_readonly(self):
+        sample=(
+            log(431,"event=MODULES_HOOK;origin=METRICA_MODERN;error=REGISTERED;thread=MAIN")
+            +log(431,"event=MODULES_IS_ACTIVATED;origin=METRICA_MODERN;error=FALSE;thread=OTHER")
+            +log(431,"event=MODULES_IS_ACTIVATED;origin=METRICA_MODERN;error=TRUE;thread=OTHER")
+            +log(431,"event=PUSH_ACTIVATE_HOOK;origin=PUSH_MODERN;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_ACTIVATE;origin=PUSH_MODERN;error=ENTER;thread=MAIN")
+            +log(431,"event=PUSH_ACTIVATE;origin=PUSH_MODERN;error=THROW;thread=MAIN")
+            +log(999,"event=MODULES_IS_ACTIVATED;origin=METRICA_LEGACY;error=TRUE;thread=OTHER")
+            +log(431,"event=PUSH_ACTIVATE;origin=BAD_EXTERNAL_TOKEN;error=THROW;thread=MAIN"))
+        got=scoped_metrica_witness(EXIT,sample)
+        self.assertEqual(got["modules_activation_predicate_checks"]["METRICA_MODERN"],
+                         {"TRUE":1,"FALSE":1,"THROW":0})
+        self.assertEqual(got["modules_activation_predicate_checks"]["METRICA_LEGACY"],
+                         {"TRUE":0,"FALSE":0,"THROW":0})
+        self.assertEqual(got["push_activation_callbacks"]["PUSH_MODERN"],
+                         {"ENTER":1,"RETURN":0,"THROW":1})
+        self.assertEqual(got["push_activation_hook"]["PUSH_MODERN"],["REGISTERED"])
+        self.assertNotIn("BAD_EXTERNAL_TOKEN",str(got))
+
     def test_metrica_sdk_component_families_only_bounded_enums(self):
         sample=(
             log(431,"event=METRICA_THROW_SITE;origin=METRICA_SDK;error=SDK_COMMON_API;thread=OTHER")

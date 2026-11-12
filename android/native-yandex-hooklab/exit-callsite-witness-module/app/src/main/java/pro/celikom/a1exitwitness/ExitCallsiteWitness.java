@@ -454,6 +454,12 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Observe SDK activation on our own clone ONLY. No config/API keys are
     // logged, SDK results/exception behavior are never changed.
     private boolean metricaActivationHookReady;
+    private boolean modulesActivationObserverReady;
+    private boolean pushActivationObserverReady;
+    private final java.util.concurrent.atomic.AtomicInteger modulesObservationCount =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger pushActivationCount =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean metricaStateProbeReady;
     private boolean metricaPublicProbeReady;
     private final java.util.Set<Class<?>> reporterClasses =
@@ -534,6 +540,87 @@ public final class ExitCallsiteWitness extends XposedModule {
             registered>0 ? "REGISTERED":"NO_HOOK");
     }
 
+
+
+    // Read-only observation of exactly the predicate used by AppMetrica Push
+    // before throwing "isn't initialized"; does NOT call the predicate itself.
+    private synchronized void installModulesActivationObserver(ClassLoader loader) {
+        if (modulesActivationObserverReady || loader==null) return;
+        int registered=0;
+        for (String clsName : new String[]{
+                "io.appmetrica.analytics.ModulesFacade",
+                "com.yandex.metrica.ModulesFacade"}) {
+            final String family=clsName.startsWith("io.")
+                ? "METRICA_MODERN" : "METRICA_LEGACY";
+            try {
+                Class<?> cls=Class.forName(clsName,false,loader);
+                Method method=cls.getDeclaredMethod("isActivatedForApp");
+                method.setAccessible(true);
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            Object result=chain.proceed();
+                            if (modulesObservationCount.incrementAndGet()<=48)
+                                emit("MODULES_IS_ACTIVATED",family,
+                                    Boolean.TRUE.equals(result) ? "TRUE":"FALSE");
+                            return result;
+                        } catch (Throwable fail) {
+                            if (modulesObservationCount.incrementAndGet()<=48)
+                                emit("MODULES_IS_ACTIVATED",family,"THROW");
+                            throw fail;
+                        }
+                    });
+                registered++;
+                emit("MODULES_HOOK",family,"REGISTERED");
+            } catch (Throwable ignored) {
+                emit("MODULES_HOOK",family,"NO_HOOK");
+            }
+        }
+        modulesActivationObserverReady=registered>0;
+    }
+
+    // Only observe actual public Push.activate calls if vendor class names
+    // have survived minification. No fake/reordered initialization is added.
+    private synchronized void installPushActivationObserver(ClassLoader loader) {
+        if (pushActivationObserverReady || loader==null) return;
+        int registered=0;
+        for (String clsName : new String[]{
+                "io.appmetrica.analytics.push.AppMetricaPush",
+                "com.yandex.metrica.push.AppMetricaPush"}) {
+            final String family=clsName.startsWith("io.")
+                ? "PUSH_MODERN" : "PUSH_LEGACY";
+            try {
+                Class<?> cls=Class.forName(clsName,false,loader);
+                for (Method method:cls.getDeclaredMethods()) {
+                    if (!"activate".equals(method.getName()) ||
+                        !java.lang.reflect.Modifier.isStatic(method.getModifiers()))
+                        continue;
+                    method.setAccessible(true);
+                    hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            if (pushActivationCount.incrementAndGet()<=24)
+                                emit("PUSH_ACTIVATE",family,"ENTER");
+                            try {
+                                Object result=chain.proceed();
+                                if (pushActivationCount.get()<=24)
+                                    emit("PUSH_ACTIVATE",family,"RETURN");
+                                return result;
+                            } catch (Throwable fail) {
+                                if (pushActivationCount.get()<=24)
+                                    emit("PUSH_ACTIVATE",family,"THROW");
+                                throw fail;
+                            }
+                        });
+                    registered++;
+                }
+                emit("PUSH_ACTIVATE_HOOK",family,
+                    registered>0 ? "REGISTERED" : "NO_HOOK");
+            } catch (Throwable ignored) {
+                emit("PUSH_ACTIVATE_HOOK",family,"NO_HOOK");
+            }
+        }
+        pushActivationObserverReady=registered>0;
+    }
 
     // SDK internal markers might be renamed by R8; NO_HOOK is inconclusive.
     // Read-only hooks: only fixed enums, no internal object/config inspection.
@@ -736,6 +823,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installExactPrefixWitness(loader);
                                 installExactRunModeWitness(loader);
                                 installMetricaActivationWitness(loader);
+                                installModulesActivationObserver(loader);
+                                installPushActivationObserver(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
