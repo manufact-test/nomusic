@@ -32,8 +32,9 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     ORIGINAL,SPLITS
 )
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
+import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
-BRANCH="experiment/android-a1-2025-singleapk-publisher-base-lspatch2-20261112"
+BRANCH="experiment/android-a1-2025-singleapk-original-first-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
 ANDROID="{http://schemas.android.com/apk/res/android}"
@@ -303,6 +304,7 @@ def run(xapk):
             "LSPatch_direct_input_publisher_verified":True,
             "signed_clone_package":DEST,
             "single_apk_achieved":True,
+            "test_order":"PUBLISHER_FIRST_CLONE_SECOND",
             "publisher_app_and_clone_can_be_concurrently_installed":False,
             "native_clone_main_75s":False,
             "audio_or_account_tested":False,
@@ -310,30 +312,56 @@ def run(xapk):
             "binary_published":False,
             "stage_a":"NO_GO",
         }
-        report["clone_install"]=install_clones([("base",single)])
-        if report["clone_install"]!="INSTALLED":
-            report["verdict"]="NAMESPACED_CLONE_INSTALL_FAIL"
+        # Actual owner condition: original publisher app already installed
+        # BEFORE CELIKOM is installed. Earlier native test did the reverse.
+        publisher_parts = [(apk_name(p).get("split","") or "base", p)
+                           for p in originals]
+        report["publisher_install"] = install_clones(publisher_parts)
+        report["original_splits_installed_before_clone"] = sum(
+            row.startswith("package:") for row in
+            guest("pm","path",ORIGINAL).stdout.splitlines())
+        if (report["publisher_install"] != "INSTALLED" or
+                report["original_splits_installed_before_clone"] != 16):
+            report["verdict"] = "ORIGINAL_FIRST_PUBLISHER_INSTALL_NO_GO"
             return report
-        count=sum(line.startswith("package:") for line in
-                  guest("pm","path",DEST).stdout.splitlines())
-        if count!=1:
-            report["verdict"]="NAMESPACED_CLONE_SPLIT_COUNT_FAIL"
+        source_launch = publisher_control.launch_main()
+        report["publisher_launch_status"] = source_launch["launch_status"]
+        if report["publisher_launch_status"] != "NATIVE_MAIN_ACTIVITY_ACCEPTED":
+            report["verdict"] = "ORIGINAL_FIRST_PUBLISHER_START_NO_GO"
+            return report
+        source_seen = publisher_control.observe()
+        report["publisher_stable_75s_before_clone"] = bool(
+            source_seen["same_exact_main_pid_all_samples"] and
+            source_seen["resumed_activity_samples"] == 25 and
+            source_seen["sample_count"] == 25)
+        if not report["publisher_stable_75s_before_clone"]:
+            report["verdict"] = "ORIGINAL_FIRST_PUBLISHER_NATIVE_GATE_NO_GO"
+            return report
+        # Never uninstall or change the real publisher package.
+        report["clone_install"] = install_clones([("base", single)])
+        report["single_clone_installed_after_original"] = sum(
+            row.startswith("package:") for row in
+            guest("pm","path",DEST).stdout.splitlines()) == 1
+        report["publisher_app_and_clone_can_be_concurrently_installed"] = bool(
+            report["clone_install"] == "INSTALLED" and
+            report["single_clone_installed_after_original"] and
+            sum(row.startswith("package:") for row in
+                guest("pm","path",ORIGINAL).stdout.splitlines()) == 16)
+        if not report["publisher_app_and_clone_can_be_concurrently_installed"]:
+            report["verdict"] = "ORIGINAL_FIRST_SIDE_BY_SIDE_INSTALL_NO_GO"
             return report
         guest("logcat","-c")
-        observed=observe_clone()
-        report["native_clone_main_75s"]=observed["stable"]
-        report["clone_lifecycle"]=observed
-        # Independently verified exact publisher originals installed without
-        # modifying any original bytes or removing our cloned package.
-        report["publisher_install"]=install_clones(
-            [(apk_name(p).get("split","") or "base",p) for p in originals])
-        report["publisher_app_and_clone_can_be_concurrently_installed"]=(
-            report["publisher_install"]=="INSTALLED")
-        report["verdict"]=(
-            "NAMESPACED_LSPATCH2_NATIVE_AND_COEXIST_PASS_NOT_AUDIO"
+        observed = observe_clone()
+        report["native_clone_main_75s"] = observed["stable"]
+        report["clone_lifecycle"] = observed
+        report["publisher_still_installed_after_clone_start"] = sum(
+            row.startswith("package:") for row in
+            guest("pm","path",ORIGINAL).stdout.splitlines()) == 16
+        report["verdict"] = (
+            "ORIGINAL_FIRST_NATIVE_SINGLE_APK_75S_PASS_NOT_AUDIO"
             if report["native_clone_main_75s"] and
-               report["publisher_app_and_clone_can_be_concurrently_installed"]
-            else "NAMESPACED_LSPATCH2_NATIVE_OR_COEXIST_NO_GO")
+               report["publisher_still_installed_after_clone_start"]
+            else "ORIGINAL_FIRST_NATIVE_SINGLE_APK_MAIN_NO_GO")
         return report
 
 
@@ -345,7 +373,7 @@ if __name__=="__main__":
     try:
         result=run(args.xapk)
         print(json.dumps(result,sort_keys=True))
-        sys.exit(0 if result["verdict"]=="NAMESPACED_LSPATCH2_NATIVE_AND_COEXIST_PASS_NOT_AUDIO" else 1)
+        sys.exit(0 if result["verdict"]=="ORIGINAL_FIRST_NATIVE_SINGLE_APK_75S_PASS_NOT_AUDIO" else 1)
     except Exception as e:
         code=str(e)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",code):
