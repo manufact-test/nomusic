@@ -768,6 +768,23 @@ def private_near_guard_overload_count(binary):
     return {"target_methods":min(len(refs),16),
             "bool_overloads_in_matching_classes":min(count,32)}
 
+
+def private_fatal_argument_family(desc):
+    # Only fixed SDK/framework groups. Do not emit exact type names.
+    if desc=="Landroid/content/Context;":return "CONTEXT"
+    if desc=="Landroid/app/Application;":return "APPLICATION"
+    if desc=="Ljava/lang/String;":return "STRING"
+    if desc.startswith("Lcom/yandex/metrica/") and "/push/" not in desc:
+        return "METRICA_SDK_LEGACY_OTHER"
+    if desc.startswith("Lio/appmetrica/analytics/"):return "METRICA_SDK_MODERN"
+    if desc.startswith("Landroid/"):return "ANDROID_OBJECT"
+    if desc.startswith("Ljava/"):return "JAVA_OBJECT"
+    if desc.startswith("Lkotlin/"):return "KOTLIN_OBJECT"
+    if desc.startswith("Lru/yandex/music/"):return "MUSIC_OBJECT"
+    group=group_class(desc)
+    if group!="OTHER":return group
+    return "OTHER_OBJECT" if desc.startswith(("L","[")) else "PRIMITIVE"
+
 def private_fatal_overload_shapes(binary):
     """Differentiate same-name obfuscated overloads using fixed type families."""
     dex=Dex(binary)
@@ -792,13 +809,7 @@ def private_fatal_overload_shapes(binary):
                          for i in range(n)]
         types=[]
         for desc in descriptors:
-            types.append("CONTEXT" if desc=="Landroid/content/Context;"
-                         else "APPLICATION" if desc=="Landroid/app/Application;"
-                         else "STRING" if desc=="Ljava/lang/String;"
-                         else group_class(desc)
-                         if group_class(desc)!="OTHER"
-                         else "OTHER_OBJECT" if desc.startswith(("L","["))
-                         else "PRIMITIVE")
+            types.append(private_fatal_argument_family(desc))
         reports.append({"params":",".join(types) or "NONE",
                         "guard_sources":cfg["near_fatal_sources"],
                         "near_guard_bool_result":cfg["near_fatal_boolean_result_polarities"],
