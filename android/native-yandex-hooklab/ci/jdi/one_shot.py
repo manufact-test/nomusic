@@ -144,10 +144,11 @@ def one_shot(guest,cmd,package,xapk):
             time.sleep(0.5)
             current=guest("pidof",package)
             if not re.fullmatch(r"[1-9][0-9]{0,8}",current.stdout.strip()):continue
-            candidate=current.stdout.strip()
-            listing=cmd([ADB,"-s","127.0.0.1:5555","jdwp"],timeout=15)
-            if listing.returncode==0 and candidate in listing.stdout.splitlines():
-                pid=candidate;break
+            # adb jdwp streams updates indefinitely; never block on its output.
+            # PID belongs solely to this disposable clone, and JDI attach is the
+            # authoritative check that an active JDWP endpoint exists.
+            pid=current.stdout.strip()
+            break
         if not pid:
             report["status"]="JDWP_PROCESS_ABSENT";return report
         stage="JDWP_FORWARD"
