@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import struct
 import zipfile
+from a1_private_push_contains import inspect_push_contains
 from a1_private_dex_fatal_cfg import exact_fatal_cfg,private_exclusive_fatal_guard_refs
 from a1_private_push_init import inspect_legacy_push_init
 from a1_private_dex_callers import bounded_fatal_callers
@@ -318,7 +319,7 @@ def inspect_xapk(path):
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};push_public_routes=[];legacy_init_reports=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];push_public_routes=[];legacy_init_reports=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -336,6 +337,8 @@ def inspect_xapk(path):
                         fatal_overloads.extend(private_fatal_overload_shapes(payload))
                         near_overload_counts.append(private_near_guard_overload_count(payload))
                         case_categories.update(private_exact_guard_case_categories(payload))
+                        contains_cases.extend(inspect_push_contains(payload,Dex,group_class,
+                                            group_call,exact_fatal_cfg))
                         push_public_routes.append(private_public_push_entrypoints(payload))
                         legacy_init_reports.append(inspect_legacy_push_init(payload,Dex,group_call))
                         chain=classify_private_supplier_chain(
@@ -352,6 +355,10 @@ def inspect_xapk(path):
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     private_cases=sorted(case_categories.items())[:8]
     return {
+        "push_impl_exact_string_contains_guard_cases":[
+            {"argument":c["argument"],"receiver":c["receiver"],
+             "direct_guard":c["direct_guard"]}
+            for c in contains_cases[:12]],
         "private_exact_guard_case_categories":[
             {"case":"CASE_"+str(i),
              "owner":data["group"],
