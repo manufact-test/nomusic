@@ -34,6 +34,12 @@ from owner_2025_paired_issuer_vs_own_signer_arm13 import strict_75s_stable
 
 BRANCH="experiment/android-a1-competitor-loader-level2-causal-20261112"
 
+def phase(name: str) -> None:
+    """Public only predefined stage name; no sensitive process or APK details."""
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]{5,65}",name):
+        raise RuntimeError("INVALID_SAFE_STAGE")
+    print(json.dumps({"private_phase":name},sort_keys=True),flush=True)
+
 def guard() -> None:
     if (os.getenv("GITHUB_ACTIONS")!="true"
         or os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic"
@@ -53,13 +59,16 @@ def patch_base(owned: list[tuple[str,Path]], work: Path) -> list[tuple[str,Path]
         stop("LEVEL2_2025_BASE_OR_SPLITS_MISSING")
     key=work/"unique-own-key.jks"
     jar=work/"pinned-upstream-lspatch.jar"
+    phase("OWN_16_SPLITS_READY")
     download_pinned_patcher(jar)
+    phase("PINNED_PATCHER_READY")
     destination=work/"own-lspatch-level2"
     destination.mkdir()
     source.action(["java","-jar",str(jar),
        "-k",str(key),"ephemeral-lab-only","own-key","ephemeral-lab-only",
        "-o",str(destination),"-l","2",str(base[0])],
        "LEVEL2_2025_UPSTREAM_LOADER_FAILED",600)
+    phase("PATCHER_RETURNED")
     candidates=list(destination.glob("*.apk"))
     if len(candidates)!=1:
         stop("LEVEL2_2025_ONE_WRAPPED_BASE_REQUIRED")
@@ -96,16 +105,22 @@ def patch_base(owned: list[tuple[str,Path]], work: Path) -> list[tuple[str,Path]
     b=re.findall(pat,expected.stdout)
     if len(a)!=1 or len(b)!=1 or a[0].lower()!=b[0].lower():
         stop("LEVEL2_2025_WRAPPED_BASE_NOT_SAME_OWN_SIGNER")
+    phase("WRAPPED_BASE_VERIFIED")
     return [(name,wrapped if name=="base" else apk) for name,apk in owned]
 
 def run(xapk: Path) -> dict:
     guard()
+    phase("ANDROID_GUEST_READY")
     with tempfile.TemporaryDirectory(prefix="celikom-2025-own-lspatch2-") as tmp:
         work=Path(tmp)
         originals=verified_orig_paths(xapk,work)
+        phase("PUBLISHER_SPLITS_VERIFIED")
         owned,_=sign_same_name(originals,work)
+        phase("OWN_SPLITS_SIGNED")
         wrapped=patch_base(owned,work)
+        phase("OWN_WRAPPER_READY")
         installed=install_clones(wrapped)
+        phase("PM_INSTALL_RETURNED")
         report={
            "experiment":"COMPETITOR_LEVEL2_CONFIG_OWN_SIGNER_UPSTREAM_LOADER",
            "publisher_original_splits_issuer_verified":len(originals)==16,
@@ -150,6 +165,6 @@ if __name__=="__main__":
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{5,95}",err):
             err="COMPETITOR_LEVEL2_2025_PRIVATE_LAB_FAILURE"
         print(json.dumps({"verdict":"COMPETITOR_LEVEL2_2025_ABORTED",
-            "reason":err,"owner_phone_touched":False,
+            "reason":err,"error_class":type(exc).__name__,"owner_phone_touched":False,
             "publisher_apk_published":False,"stage_a":"NO_GO"},sort_keys=True))
         sys.exit(2)
