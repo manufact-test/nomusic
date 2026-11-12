@@ -37,6 +37,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "SOURCE_RECOVERY_SCHEDULED", "SOURCE_RECOVERY_RETRY",
   "SOURCE_RECOVERY_GRANTED", "SOURCE_RECOVERY_RELOAD_OK",
   "SOURCE_RECOVERY_RELOAD_FAILED", "SOURCE_RECOVERY_EXHAUSTED",
+  "SOURCE_EXPIRED_NATIVE_403",
   "SOURCE_BATCH_REQUEST", "SOURCE_BATCH_MAPPED", "CACHE_HIT",
   "MEDIA_PLAY", "MEDIA_PAUSE", "MEDIA_PLAYING", "MEDIA_ERROR",
   "MEDIA_WAITING", "MEDIA_STALLED", "MEDIA_SEEKING", "MEDIA_SEEKED",
@@ -314,7 +315,7 @@ async function tick(view) {
       const previous = lastStatus.get(view);
       lastStatus.set(view, { value: status, trackId, title, artist, durationMs, at: now });
       if ((status === "NATIVE_CONNECTED" || status === "NATIVE_MAPPING_ACCEPTED" ||
-           status === "ORIGINAL") &&
+           status === "NATIVE_RECOVERING" || status === "ORIGINAL") &&
           (!previous || status !== previous.value || trackId !== previous.trackId ||
            title !== previous.title || artist !== previous.artist ||
            durationMs !== previous.durationMs)) {
@@ -451,9 +452,14 @@ function observeNativePlayback(view) {
           if (mediaRequests.size >= 64)
             mediaRequests.delete(mediaRequests.keys().next().value);
           const m = params?.request?.method;
-          mediaRequests.set(requestId, { id, method: m, forbiddenJson: false, forbiddenJsonLength: null });
+          const classify = classifyPlayerUrl(view, id, url);
+          const expected = nativeExpectedAudio.get(view)?.get(id);
+          mediaRequests.set(requestId, { id, method: m, forbiddenJson: false,
+            forbiddenJsonLength: null, expiredAtRequest:
+              classify === "PLAYER_URL_EXPIRED_AT_REQUEST",
+            trackId: expected?.yandexTrackId || null });
           note("PLAYER_NET_REQUEST", id, "resource_id");
-          note(classifyPlayerUrl(view, id, url), id, "resource_id");
+          note(classify, id, "resource_id");
           note(m === "GET" ? "PLAYER_NET_GET" :
             m === "HEAD" ? "PLAYER_NET_HEAD" : "PLAYER_NET_METHOD_OTHER", id, "resource_id");
           note(params?.type === "Media" ? "PLAYER_NET_MEDIA" :
@@ -471,6 +477,14 @@ function observeNativePlayback(view) {
               status === 401 ? "PLAYER_NET_HTTP_UNAUTHORIZED" :
               "PLAYER_NET_HTTP_OTHER", id, "resource_id");
             if (status === 403) {
+              // W76: a confirmed expired, previously signed media GET can
+              // mean Yandex is playing its censored fallback. Recheck only
+              // the current track: the renderer validates identity itself.
+              if (entry.method === "GET" && entry.expiredAtRequest &&
+                  /^[1-9][0-9]{0,23}$/.test(entry.trackId || "")) {
+                void execute(view, ";window.__celikomBridgeNativeRecoverExpired?.(" +
+                  JSON.stringify(entry.trackId) + ")");
+              }
               const headers = params?.response?.headers || {};
               const contentType = Object.entries(headers).find(([k]) =>
                 k.toLowerCase() === "content-type")?.[1];
