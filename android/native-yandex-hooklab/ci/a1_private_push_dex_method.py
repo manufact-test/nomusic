@@ -412,78 +412,13 @@ def private_exact_fatal_try_presence(binary):
     return result
 
 
-def private_exact_true_catch_successor_invokes(binary):
-    """One source-grounded question: which after-TRUE invokes have a
-    universal catch route to the exact modeled throw? Fixed families/counts
-    only; vendor code, names and invocation indices stay in ephemeral CI.
-    """
-    import sys
-    helper=str(Path(__file__).resolve().parents[2]/"a1-exact-catch-helper")
-    if helper not in sys.path:sys.path.insert(0,helper)
-    import exact_catch as catch
-    dex=Dex(binary)
-    strings=dex.possible_error_strings()
-    results=[]
-    if not strings:return results
-    for mid,code in dex.code_methods():
-        owner,name=dex.method(mid)
-        if group_class(owner)!="PUSH_IMPL" or name!="a":continue
-        cfg=exact_fatal_cfg(code,strings,dex,group_call)
-        if not cfg["decoded"] or not cfg["fatal_throw_candidates"]:continue
-        refs=private_exclusive_fatal_guard_refs(
-            code,strings,dex,group_call,max_distance=256)
-        if private_near_true_exact_throw_path(code,refs,strings)!="TRUE_CFG_BLOCKS_THROW":
-            continue
-        try:
-            offset=catch._locate_code_item(dex,mid)
-            raw,ranges=catch.read_catches(dex.data,offset,dex)
-            if raw!=code:raise ValueError("TARGET_BODY_DRIFT")
-            ins=decode_instructions(code)
-            pcs={pc for pc,_,_ in ins}
-            graph={pc:catch._nexts(code,(pc,op,size),pcs)
-                   for pc,op,size in ins}
-            near=[i for i,(pc,op,_) in enumerate(ins)
-                  if op in INVOKE_METHOD
-                  and struct.unpack_from("<H",code,pc+2)[0] in refs]
-            if len(near)!=1:raise ValueError("NEAR_AMBIGUOUS")
-            idx=near[0]+2
-            guard_pc,guard_op,_=ins[idx]
-            if guard_op not in (0x38,0x39):raise ValueError("NOT_A_GUARD")
-            true_pc=graph[guard_pc][1 if guard_op==0x39 else 0]
-            true_reachable=catch._reached_nodes(true_pc,graph)
-            modeled_throws={pc for _,pc in catch._targets(code,ins,strings)}
-            protected=[]
-            for pc,op,_ in ins:
-                if op not in INVOKE_METHOD or pc not in true_reachable:continue
-                if catch._route(pc,ranges,modeled_throws,graph)!="REACH_DEFINITE_TYPE":
-                    continue
-                ref=struct.unpack_from("<H",code,pc+2)[0]
-                if ref>=dex.method_count:raise ValueError("METHOD_BOUND")
-                callee,method=dex.method(ref)
-                protected.append((pc,ref,group_call(callee,method),op))
-            results.append({"status":"FOUND",
-                            "after_true_catch_invoke_sites_bounded":min(len(protected),16),
-                            "after_true_catch_distinct_methods_bounded":min(
-                                len({ref for _,ref,_,_ in protected}),16),
-                            "after_true_catch_call_families":sorted({
-                                family for _,_,family,_ in protected}),
-                            "after_true_catch_invoke_types":sorted({
-                                "STATIC" if op in (0x71,0x77)
-                                else "VIRTUAL_OR_DIRECT" if op in (0x6e,0x70,0x74,0x76)
-                                else "INTERFACE_OR_SUPER_OR_OTHER"
-                                for _,_,_,op in protected})})
-        except (catch.Closed,FlowDecodeError,ValueError,IndexError,struct.error):
-            results.append({"status":"UNKNOWN"})
-    return results
-
-
 def inspect_xapk(path):
     if not path.is_file() or path.is_symlink() or path.stat().st_size!=EXPECTED_LEN:
         raise DexError("OWNER_INPUT_LENGTH")
     with path.open("rb") as file:
         if hashlib.file_digest(file,"sha256").hexdigest()!=EXPECTED_SHA:
             raise DexError("OWNER_INPUT_SHA")
-    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_original_literals=[];push_public_routes=[];legacy_init_reports=[];near_multiplicity=[];fatal_try_presence=[];post_true_invokes=[]
+    seen=0;matches=[];guard_insights=[];guard_rules=[];supplier_chains=[];near_guard_chains=[];fatal_callers=[];fatal_signatures=[];fatal_overloads=[];near_overload_counts=[];case_categories={};contains_cases=[];authority_refs=[];push_original_literals=[];push_public_routes=[];legacy_init_reports=[];near_multiplicity=[];fatal_try_presence=[]
     with zipfile.ZipFile(path) as outer:
         for part in outer.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:
@@ -499,8 +434,6 @@ def inspect_xapk(path):
                             private_exact_near_guard_invoke_site_multiplicity(payload))
                         fatal_try_presence.extend(
                             private_exact_fatal_try_presence(payload))
-                        post_true_invokes.extend(
-                            private_exact_true_catch_successor_invokes(payload))
                         guard_insights.append(private_guard_dependency_info(payload))
                         guard_rules.extend(private_guard_synthetic_rule(payload))
                         fatal_signatures.extend(private_fatal_a_signature_families(payload))
@@ -527,23 +460,6 @@ def inspect_xapk(path):
     fatal_a=[m for m in exact if m["obfuscated_a"]]
     private_cases=sorted(case_categories.items())[:8]
     return {
-        "exact_true_catch_invoke_candidate_counts":[
-            x.get("after_true_catch_invoke_sites_bounded",0)
-            for x in post_true_invokes if x["status"]=="FOUND"][:4],
-        "exact_true_catch_distinct_callee_counts":[
-            x.get("after_true_catch_distinct_methods_bounded",0)
-            for x in post_true_invokes if x["status"]=="FOUND"][:4],
-        "exact_true_catch_callee_families":sorted({
-            c for x in post_true_invokes for c in
-            x.get("after_true_catch_call_families",[])}),
-        "exact_true_catch_call_types":sorted({
-            c for x in post_true_invokes for c in
-            x.get("after_true_catch_invoke_types",[])}),
-        "exact_true_catch_state":(
-            "UNKNOWN" if not post_true_invokes or
-                any(x["status"]=="UNKNOWN" for x in post_true_invokes)
-            else "ONE_METHOD" if len(post_true_invokes)==1
-            else "MULTIPLE_METHODS"),
         "exact_fatal_near_guard_method_refs_bounded":min(
             sum(x["near_refs_bounded"] for x in near_multiplicity),16),
         "exact_fatal_near_guard_invoke_sites_bounded":min(

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from a1_private_dex_predicate import code_items_with_meta
-from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category,generate_private_targets,private_site_methods,count_exact_invoke_sites,private_near_true_exact_throw_path,private_exact_true_catch_successor_invokes
+from a1_private_push_dex_method import Dex,DexError,uleb,group_class,group_call,code_candidates,helper_chain,branch_guard_near_target,forward_skip_guard_category,generate_private_targets,private_site_methods,count_exact_invoke_sites,private_near_true_exact_throw_path
 
 class PrivateDexAnalysisUnitTest(unittest.TestCase):
     def test_uleb_bounds(self):
