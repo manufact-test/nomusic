@@ -25,9 +25,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE","PUSH_GUARD_INPUT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
           "PUSH_FATAL_OBJECT_HOOK","PUSH_FATAL_OBJECT","PUSH_FATAL_OBJECT_LOADER",
-          "PUSH_FATAL_OBJECT_OUTCOME","PUSH_THROWABLE_HOOK",
-          "PUSH_PRE_FATAL_THROWABLE","PUSH_PRE_FATAL_ORIGIN",
-          "PUSH_FATAL_CAUSE_LINK","PUSH_FATAL_GUARD_RETURN",
+          "PUSH_FATAL_OBJECT_OUTCOME","PUSH_FATAL_GUARD_RETURN",
           "PUSH_FATAL_GUARD_THROW","PUSH_FATAL_CONSTRUCTOR_ORDER",
           "PUSH_FATAL_READ_FIELD_ENTER",
           "PUSH_FATAL_READ_FIELD_THROW",
@@ -78,15 +76,6 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "FIELD_NULL","FIELD_SET","FIELD_UNREADABLE",
          "GUARD_THROW","GUARD_MIXED","GUARD_TRUE_ONLY","GUARD_FALSE_ONLY",
          "GUARD_NONBOOLEAN","GUARD_NOT_IN_CALL",
-         "PRE_NULL_POINTER","PRE_CLASS_MISSING","PRE_REFLECTION","PRE_SECURITY",
-         "PRE_LINKAGE","PRE_ILLEGAL_STATE","PRE_ILLEGAL_ARGUMENT",
-         "PRE_OTHER_RUNTIME","PRE_OTHER_ERROR","PRE_OTHER_CHECKED",
-         "PRE_NONE","PRE_OVERFLOW",
-         "ORIGIN_PUSH_IMPL","ORIGIN_PUSH_OTHER","ORIGIN_METRICA",
-         "ORIGIN_MUSIC","ORIGIN_GOOGLE","ORIGIN_ANDROID",
-         "ORIGIN_KOTLIN","ORIGIN_JAVA","ORIGIN_REFLECTION",
-         "ORIGIN_OTHER","ORIGIN_UNOBSERVED",
-         "CAUSE_NONE","CAUSE_OTHER","CAUSE_MATCH",
          "CTOR_AFTER_TRUE","CTOR_BEFORE_TRUE","CTOR_NOT_IN_SCOPE",
          "CTOR_OTHER_IDENTITY",
          "ABSENT","STOCK_OWNER","CLONE_OWNER","OTHER_OWNER","PROBE_ERROR",
@@ -192,10 +181,6 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     guard_correlated=[x for x in seen if x[0] in (
         "PUSH_FATAL_GUARD_RETURN","PUSH_FATAL_GUARD_THROW")]
     constructor_correlated=[x for x in seen if x[0]=="PUSH_FATAL_CONSTRUCTOR_ORDER"]
-    pre_throwables=[x for x in seen if x[0]=="PUSH_PRE_FATAL_THROWABLE"]
-    pre_origins=[x for x in seen if x[0]=="PUSH_PRE_FATAL_ORIGIN"]
-    cause_links=[x for x in seen if x[0]=="PUSH_FATAL_CAUSE_LINK"]
-    pre_throwable_hooks=[x for x in seen if x[0]=="PUSH_THROWABLE_HOOK"]
     direct_field=[x for x in seen if x[0] in ("PUSH_FATAL_READ_FIELD_ENTER",
                                              "PUSH_FATAL_READ_FIELD_THROW")]
     push_throw_classes=[x for x in seen if x[0]=="METRICA_PUSH_THROW_CLASS"]
@@ -272,13 +257,6 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
                                              for x in guard_correlated[:16]],
         "exact_push_same_call_constructor_order":[x[2]
                                                   for x in constructor_correlated[:16]],
-        "exact_push_scoped_throwable_hook_registered":any(
-            x[2]=="REGISTERED" for x in pre_throwable_hooks),
-        "exact_push_nonfatal_throwable_categories_after_true":[
-            x[2] for x in pre_throwables[:20]],
-        "exact_push_nonfatal_throwable_origins_after_true":[
-            x[2] for x in pre_origins[:20]],
-        "exact_push_fatal_cause_relation":[x[2] for x in cause_links[:8]],
         "exact_push_direct_receiver_field_states":[(x[0],x[1],x[2]) for x in direct_field[:64]],
         "exact_push_object_raw_fields_or_values_disclosed":False,
         "private_push_helper_bool_hook_registered":any(

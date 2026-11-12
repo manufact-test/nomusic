@@ -14,7 +14,6 @@ import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Method;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -60,15 +59,11 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean privatePushSitesReady;
     private boolean allFatalGuardsReady;
     private boolean exactFatalObjectReady;
-    private boolean scopedThrowableReady;
     private static final class ExactPushFrame {
         int yes, no, other, failed;
         // In-memory throwable identity only; never expose or stringify object.
         final java.util.IdentityHashMap<Throwable,String> constructed =
             new java.util.IdentityHashMap<>();
-        final ArrayList<Throwable> capturedAfterTrue = new ArrayList<>();
-        final ArrayList<String> categoriesAfterTrue = new ArrayList<>();
-        final ArrayList<String> originAfterTrue = new ArrayList<>();
     }
     private final ThreadLocal<ExactPushFrame> scopedPushCall=new ThreadLocal<>();
     private static String frameCategory(ExactPushFrame f) {
@@ -990,97 +985,6 @@ public final class ExitCallsiteWitness extends XposedModule {
         } catch (Throwable ignored) { return "FIELD_UNREADABLE"; }
     }
 
-    // One targeted falsifiable hypothesis: a separate Throwable is created
-    // after exact same-call guard TRUE but before the fatal NOT_INITIALIZED.
-    // Only a MAIN-clone scoped ThreadLocal stores up to 8 identities; never
-    // log classes, messages, stacks, details, field contents, or objects.
-    private static String safeThrowableKind(Throwable thrown) {
-        if (thrown instanceof NullPointerException) return "PRE_NULL_POINTER";
-        if (thrown instanceof ClassNotFoundException
-                || thrown instanceof NoClassDefFoundError)
-            return "PRE_CLASS_MISSING";
-        if (thrown instanceof java.lang.reflect.InvocationTargetException)
-            return "PRE_REFLECTION";
-        if (thrown instanceof SecurityException) return "PRE_SECURITY";
-        if (thrown instanceof LinkageError) return "PRE_LINKAGE";
-        if (thrown instanceof IllegalStateException) return "PRE_ILLEGAL_STATE";
-        if (thrown instanceof IllegalArgumentException) return "PRE_ILLEGAL_ARGUMENT";
-        if (thrown instanceof RuntimeException) return "PRE_OTHER_RUNTIME";
-        if (thrown instanceof Error) return "PRE_OTHER_ERROR";
-        return "PRE_OTHER_CHECKED";
-    }
-
-    // Identify only the nearest broad origin family of a new Throwable.
-    // No frame, method, vendor class, source path or thread identity is emitted.
-    private static String safeThrowableOrigin() {
-        try {
-            for (StackTraceElement f : Thread.currentThread().getStackTrace()) {
-                String cls=f.getClassName();
-                if (cls.startsWith("pro.celikom.a1exitwitness.")
-                        || cls.equals("java.lang.Throwable")
-                        || cls.equals("java.lang.Thread")
-                        || cls.startsWith("io.github.libxposed."))
-                    continue;
-                if (cls.startsWith("java.lang.")
-                        && "<init>".equals(f.getMethodName()))
-                    continue;
-                if (cls.startsWith("java.lang.reflect.")
-                        || cls.startsWith("jdk.internal.reflect."))
-                    return "ORIGIN_REFLECTION";
-                if (cls.startsWith("com.yandex.metrica.push.impl."))
-                    return "ORIGIN_PUSH_IMPL";
-                if (cls.startsWith("com.yandex.metrica.push."))
-                    return "ORIGIN_PUSH_OTHER";
-                if (cls.startsWith("com.yandex.metrica.")
-                        || cls.startsWith("io.appmetrica.analytics."))
-                    return "ORIGIN_METRICA";
-                if (cls.startsWith("ru.yandex.music."))
-                    return "ORIGIN_MUSIC";
-                if (cls.startsWith("com.google."))
-                    return "ORIGIN_GOOGLE";
-                if (cls.startsWith("android."))
-                    return "ORIGIN_ANDROID";
-                if (cls.startsWith("kotlin.") || cls.startsWith("kotlinx."))
-                    return "ORIGIN_KOTLIN";
-                if (cls.startsWith("java."))
-                    return "ORIGIN_JAVA";
-                return "ORIGIN_OTHER";
-            }
-        } catch (Throwable ignored) { }
-        return "ORIGIN_UNOBSERVED";
-    }
-
-    private synchronized void installScopedThrowableWitness() {
-        if (scopedThrowableReady) return;
-        try {
-            Method fill=Throwable.class.getDeclaredMethod("fillInStackTrace");
-            fill.setAccessible(true);
-            hook(fill).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                .intercept(chain -> {
-                    Object result=chain.proceed();
-                    ExactPushFrame frame=scopedPushCall.get();
-                    if (frame!=null && frame.yes>0
-                            && frame.capturedAfterTrue.size()<8
-                            && chain.getThisObject() instanceof Throwable) {
-                        Throwable object=(Throwable)chain.getThisObject();
-                        boolean existing=false;
-                        for (Throwable known:frame.capturedAfterTrue)
-                            if (known==object) { existing=true;break; }
-                        if (!existing) {
-                            frame.capturedAfterTrue.add(object);
-                            frame.categoriesAfterTrue.add(safeThrowableKind(object));
-                            frame.originAfterTrue.add(safeThrowableOrigin());
-                        }
-                    }
-                    return result;
-                });
-            scopedThrowableReady=true;
-            emit("PUSH_THROWABLE_HOOK","PUSH_ARG","REGISTERED");
-        } catch (Throwable ignored) {
-            emit("PUSH_THROWABLE_HOOK","PUSH_ARG","NO_HOOK");
-        }
-    }
-
     private synchronized void installExactFatalObjectWitness(ClassLoader loader) {
         if (exactFatalObjectReady || loader==null) return;
         int registered=0;
@@ -1135,34 +1039,6 @@ public final class ExitCallsiteWitness extends XposedModule {
                                         if (hit<=8) {
                                             emit("PUSH_FATAL_GUARD_THROW","PUSH_ARG",
                                                  frameCategory(frame));
-                                            int otherCaptured=0;
-                                            for (int n=0;n<frame.capturedAfterTrue.size();n++) {
-                                                if (frame.capturedAfterTrue.get(n)==failure) continue;
-                                                otherCaptured++;
-                                                if (otherCaptured<=4) {
-                                                    emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG",
-                                                         frame.categoriesAfterTrue.get(n));
-                                                    emit("PUSH_PRE_FATAL_ORIGIN","PUSH_ARG",
-                                                         frame.originAfterTrue.get(n));
-                                                }
-                                            }
-                                            if (otherCaptured==0) {
-                                                emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG","PRE_NONE");
-                                                emit("PUSH_PRE_FATAL_ORIGIN","PUSH_ARG","ORIGIN_UNOBSERVED");
-                                            } else if (otherCaptured>4) {
-                                                emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG","PRE_OVERFLOW");
-                                            }
-                                            Throwable originalCause=failure.getCause();
-                                            String causeRelation=originalCause==null
-                                                ? "CAUSE_NONE":"CAUSE_OTHER";
-                                            if (originalCause!=null) {
-                                                for (Throwable earlier:frame.capturedAfterTrue) {
-                                                    if (earlier==originalCause) {
-                                                        causeRelation="CAUSE_MATCH";break;
-                                                    }
-                                                }
-                                            }
-                                            emit("PUSH_FATAL_CAUSE_LINK","PUSH_ARG",causeRelation);
                                             String constructorOrder=frame.constructed.get(failure);
                                             emit("PUSH_FATAL_CONSTRUCTOR_ORDER","PUSH_ARG",
                                                  constructorOrder!=null ? constructorOrder
@@ -1570,7 +1446,6 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installPrivatePushBoolWitness(loader);
                                 installPrivatePushSiteWitness(loader);
                                 installAllFatalGuardWitness(loader);
-                                installScopedThrowableWitness();
                                 installExactFatalObjectWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);

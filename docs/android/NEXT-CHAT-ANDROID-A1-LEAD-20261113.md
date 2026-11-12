@@ -1,0 +1,25 @@
+# CELIKOM Android A1 — точная передача ведущего, 13.11.2026
+
+## Цель, не менять
+Самостоятельное co-installable приложение CELIKOM: нативная копия Яндекс.Музыки рядом с оригиналом, привычный интерфейс и функции, наша замена аудио, **LSPatch остаётся**. Не делать альтернативный плеер, не менять архитектуру; не трогать production, Windows, расширение, backend, эталон Test.50 и frozen A1. Испытания только disposable ARM Android 13, исходный publisher 2025 XAPK устанавливается ПЕРВЫМ, рядом тестовый own-signed single-APK CELIKOM. Нельзя подавлять исключение или форсировать SDK boolean, нельзя подменять подпись оригинала.
+
+## Текущая ветка и резерв
+- GitHub: `manufact-test/nomusic`.
+- Рабочая ветка A: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Читать её HEAD на входе, не начинать с нуля.
+- Точный исходник ранее проверенного clean read-only A observer: `5123c56a979fe71c2696f182a0d8fac6534bd5b5`, native [#43305021601](https://github.com/manufact-test/nomusic/actions/runs/43305021601). Его **три файла** Java witness + CI parser/test восстановлены без изменений после диагностических экспериментов. Все merged B PR #46,#49,#51 остаются в ветке.
+- Архив временного экспериментального post-TRUE Throwable наблюдателя: `backup/android-a1-throwable-origin-native-no-go-20261113` @ `8e42c04814cbf6e62a4d4407fd080da077fd484e` (не новый baseline).
+- Финальный документированный резерв после передачи: `backup/android-a1-lead-20261113-complete`. Проверить его SHA и текущий HEAD.
+- Свежая подробная хронология: `docs/android/ANDROID-A1-METRICA-INIT-STATE-OBSERVER-20261112.md`; текущий рабочий план: `docs/android/ANDROID-A1-TWO-CHAT-CURRENT-PLAN-20261112.md`; базовый ТЗ: `docs/android/CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md`.
+
+## Что подтверждено, ничего не домысливать
+- Оригинал **25/25 PASS** в полноценном disposable ARM13. CELIKOM **1/25 FAIL**; original direct `SDK_PUSH DETAIL_NOT_INITIALIZED`, никаких suppress. Это не зеленый релиз; Stage A **NO-GO**, B **LOCKED**.
+- Внутри одной точной падающей перегрузки `Push.impl.a`: near Boolean guard `TRUE` 2/2; метод всё же кидает Metrica Throwable, тот же объект в fatal-dispatch (`DIRECT_IDENTITY`). Native [#43305021601](https://github.com/manufact-test/nomusic/actions/runs/43305021601) показал `CTOR_AFTER_TRUE` 2/2.
+- Источник B [PR #51](https://github.com/manufact-test/nomusic/pull/51) / [static #43305541822](https://github.com/manufact-test/nomusic/actions/runs/43305541822): 5 точных DEX try regions; после TRUE существует возможный путь через subsequent invoke → catch-all → modeled error throw. **Возможность ≠ фактический runtime путь.** Сканирование [#43306990097](https://github.com/manufact-test/nomusic/actions/runs/43306990097) нашло >=16 потенциально покрытых catch invoke sites — не выбирает виновный вызов.
+- Главный A провёл [ARM13 #43308680778](https://github.com/manufact-test/nomusic/actions/runs/43308680778): после TRUE наблюдались выделения объектов `IllegalArgumentException` и других `RuntimeException`. Но **объект создан ≠ выброшен/пойман**.
+- Второй [ARM13 #43310641248](https://github.com/manufact-test/nomusic/actions/runs/43310641248): все 8 ограниченных origin labels `ORIGIN_OTHER` (классификатор не определил реальное происхождение) и финальный `getCause()==null` 2/2. НЕТ доказанной причинной связи выделенных объектов с fatal; исходный Android no-go не изменился. После эксперимента 3 файла A source/parser/test возвращены к clean baseline; резерв содержит полный код диагностики.
+- Закрыты/опровергнуты как самостоятельные причины: отсутствие Metrica aux процесса (#45, PR46), legacy CASE_0 FALSE process-name (#47, PR49), перестановка activation, дополнительное sleep(1.5s), пустые три прямые receiver refs, версия о другом TRUE callsite. Не повторять.
+
+## Одна следующая задача
+Найти **конкретный реально выбрасывающий Throwable вызов ПОСЛЕ TRUE** в `Push.impl.a`, который ведёт к catch → `NOT_INITIALIZED`. Утверждение «значит виноват IllegalArgumentException» **пока ошибочно**: только факт создания объектов, не throw; `getCause` отсутствует. Сначала точечно выбрать *один* post-TRUE invoke по exact DEX catch handler, класс/тип ловимой ошибки и source invariants, без широкого перехвата 16 методов. Удобный источник для offline анализа: `android/a1-exact-catch-helper/exact_catch.py` из объединённого PR51. Если статическая однозначность невозможна, признать UNKNOWN и предложить минимальный способ получить throw-site identity; не создавать очередные универсальные анализаторы. Потом **одна гипотеза → один ARM13 original-first no-suppression test**. Только при causal root-difference — минимальная config/runtime правка и полный 25/25 для обоих, дальше audio/controls.
+
+Работать крупными блоками, кратко сообщать лишь реальные выводы. Сохранять точные резервы перед изменениями. Проект не принимать по unit/static PASS. Никакой пользовательский HONOR или реальный аккаунт не задействован.
