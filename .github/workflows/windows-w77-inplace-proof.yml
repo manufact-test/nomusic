@@ -1,0 +1,77 @@
+name: CELIKOM W77 real W76 to W77 installer inplace proof
+on:
+  push:
+    branches:
+      - experiment/windows-w77-kishlak-audio-path-20261112
+    paths:
+      - .github/workflows/windows-w77-inplace-proof.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inplace:
+    runs-on: windows-2022
+    timeout-minutes: 14
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W76-TRACK-RECOVERY-UNSIGNED
+          run-id: 43209453291
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: w76
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W77-KISHLAK-PREFETCH-RECOVERY-UNSIGNED
+          run-id: 43241899043
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: w77
+      - name: Install W76 then update in place to W77; native and login proof
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=(Resolve-Path 'w76/CELIKOM-W76-TRACK-RECOVERY-UNSIGNED.exe').Path
+          $new=(Resolve-Path 'w77/CELIKOM-W77-KISHLAK-PREFETCH-RECOVERY-UNSIGNED.exe').Path
+          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne 'A562802A5A8384DFC6A5F97834CF5A0DC66022550025094C8B722EB7B8EEF2F8') {throw 'W77_W76_SHA_MISMATCH'}
+          if ((Get-FileHash $new -Algorithm SHA256).Hash -ne 'E0E3A7BC3ED8D0C194471A2BCAECD88187A5A53567F76CD777346E2AD5AF4068') {throw 'W77_W77_SHA_MISMATCH'}
+          $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe=Join-Path $app 'CELIKOM.Companion.exe'
+          $native=Join-Path $app 'integration'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          $vendor=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $app) -or (Test-Path $vendor)) {throw 'W77_NOT_FRESH_TEST_RUNNER'}
+          $p=Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) {throw 'W77_PREVIOUS_SETUP_FAILED'}
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.23.0') {throw 'W77_PREVIOUS_VERSION_BAD'}
+          $before=@{}
+          foreach ($file in 'host.cjs','renderer.js') {
+            $before[$file]=(Get-FileHash (Join-Path $native $file) -Algorithm SHA256).Hash
+          }
+          New-Item -ItemType Directory -Force -Path $state | Out-Null
+          $sealed=[Security.Cryptography.ProtectedData]::Protect(
+            [Text.Encoding]::UTF8.GetBytes('W77_INPLACE_OWNER_SESSION_PRESERVED'),$null,
+            [Security.Cryptography.DataProtectionScope]::CurrentUser)
+          [IO.File]::WriteAllBytes($session,$sealed)
+          $hash=(Get-FileHash $session -Algorithm SHA256).Hash
+          $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) {throw 'W77_NEW_SETUP_FAILED'}
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.24.0') {throw 'W77_INPLACE_NEW_VERSION_BAD'}
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $hash) {throw 'W77_SAVED_LOGIN_HASH_CHANGED'}
+          $plain=[Text.Encoding]::UTF8.GetString(
+            [Security.Cryptography.ProtectedData]::Unprotect(
+              [IO.File]::ReadAllBytes($session),$null,
+              [Security.Cryptography.DataProtectionScope]::CurrentUser))
+          if ($plain -ne 'W77_INPLACE_OWNER_SESSION_PRESERVED') {throw 'W77_LOGIN_NOT_DECRYPTABLE'}
+          foreach ($file in 'host.cjs','renderer.js') {
+            $now=(Get-FileHash (Join-Path $native $file) -Algorithm SHA256).Hash
+            if ($now -eq $before[$file]) {throw 'W77_NATIVE_STILL_02423'}
+          }
+          if (Test-Path (Join-Path $app 'unins001.exe')) {throw 'W77_DUPLICATE_INSTALL'}
+          if (!(Test-Path (Join-Path $app 'unins000.exe'))) {throw 'W77_UNINSTALLER_MISSING'}
+          if (Test-Path $vendor) {throw 'W77_VENDOR_YANDEX_CHANGED'}
+          Write-Output 'W77_REAL_02423_TO_02424_INPLACE_DPAPI_NATIVE_APPID_YANDEX_SAFE_PASS'
+          $u=Start-Process (Join-Path $app 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($u.ExitCode -ne 0 -or (Test-Path $exe) -or (Test-Path $vendor)) {throw 'W77_UNINSTALL_FAILED'}
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $hash) {throw 'W77_UNINSTALL_REMOVED_LOGIN'}
