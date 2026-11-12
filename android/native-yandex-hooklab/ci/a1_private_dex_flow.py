@@ -231,3 +231,47 @@ def private_guard_input_sources(code:bytes, target_strings:set[int], dex, group_
                 category="NULL_OR_NUMERIC_LITERAL";break
         found.add(category)
     return found
+
+def private_push_utils_supplier_refs(code:bytes, target_strings:set[int],
+                                    dex, group_call):
+    """In-memory method IDs only, of PUSH_UTILS directly supplying guard input."""
+    try:ins=decode_instructions(code)
+    except FlowDecodeError:return set()
+    guarded=private_direct_guard_invokes(code,target_strings,dex,group_call)
+    found=set()
+    for idx,(pc,op,_) in enumerate(ins):
+        if op not in INVOKE_METHOD or op in (0xfa,0xfb):continue
+        mid=struct.unpack_from("<H",code,pc+2)[0]
+        if mid not in guarded:continue
+        static=op in (0x71,0x77)
+        at=0 if static else 1
+        if op>=0x74:
+            if code[pc+1]<=at:continue
+            reg=struct.unpack_from("<H",code,pc+4)[0]+at
+        else:
+            if code[pc+1]>>4<=at:continue
+            raw=code[pc+4:pc+6]
+            registers=(raw[0]&15,raw[0]>>4,raw[1]&15,raw[1]>>4,code[pc+1]&15)
+            reg=registers[at]
+        for i in range(idx-1,max(-1,idx-65),-1):
+            p,opcode,_=ins[i]
+            if opcode==0x07 and (code[p+1]&15)==reg:
+                reg=code[p+1]>>4
+                continue
+            if opcode==0x08 and code[p+1]==reg:
+                reg=struct.unpack_from("<H",code,p+2)[0]
+                continue
+            if opcode==0x09 and struct.unpack_from("<H",code,p+2)[0]==reg:
+                reg=struct.unpack_from("<H",code,p+4)[0]
+                continue
+            if opcode==0x0c and code[p+1]==reg and i>0:
+                prev,callop,_=ins[i-1]
+                if callop in INVOKE_METHOD:
+                    ref=struct.unpack_from("<H",code,prev+2)[0]
+                    if ref<dex.method_count and group_call(
+                            *dex.method(ref))=="PUSH_UTILS":
+                        found.add(ref)
+                break
+            if opcode in (0x1a,0x1b,0x62) and code[p+1]==reg:break
+            if opcode==0x54 and (code[p+1]&15)==reg:break
+    return found
