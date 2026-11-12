@@ -252,8 +252,8 @@ if __name__=="__main__":
     try:
         real_trial(options.xapk)
     except Exception as exc:
-        reason=str(exc)
-        if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",reason):
+        reason=getattr(exc,"stage",None) or str(exc)
+        if not isinstance(reason,str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",reason):
             reason="PUBLISHER_SOURCE_PARALLEL_PRIVATE_FAILURE"
         print(json.dumps({"verdict":"OWN_PACKAGE_PARALLEL_A1_INCOMPLETE",
             "reason":reason,"owner_phone_touched":False,
