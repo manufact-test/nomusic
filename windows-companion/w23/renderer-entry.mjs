@@ -1,5 +1,6 @@
 import { createNativeResourceAdapter } from "../w22/native-resource-adapter.mjs";
 import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
+import { createTransientSourceRecovery } from "./transient-source-recovery.mjs";
 
 // Runs inside Yandex's already running renderer. The Electron main process
 // handles the localhost connection; this view never fetches localhost itself.
@@ -81,10 +82,15 @@ import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
     } catch {}
   }
 
+  let sourceRecovery = null;
   const adapter = createNativeResourceAdapter({
-    onEvent: report,
+    onEvent: (code, id) => {
+      report(code, id);
+      if (code === "RESOLVE_TRANSIENT" || code === "RESOLVE_TIMEOUT")
+        sourceRecovery?.schedule(id);
+    },
     allowedOrigin: () => apiOrigin,
-    resolve: (trackId, signal) => new Promise(resolve => {
+    resolve: (trackId, signal, opts = {}) => new Promise(resolve => {
       if (stopped || signal.aborted || pending.size >= MAX_QUEUE) {
         resolve(null); return;
       }
@@ -98,7 +104,7 @@ import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
       const abort = () => { report("RESOLVE_ABORTED", trackId); finish(null); };
       pending.set(requestId, { finish, trackId });
       signal.addEventListener("abort", abort, { once: true });
-      queued.push({ requestId, trackId });
+      queued.push({ requestId, trackId, recovery: opts.background === true });
     })
   });
 
@@ -117,6 +123,13 @@ import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
     job?.finish(grant ?? null);
   };
   const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
+  sourceRecovery = createTransientSourceRecovery({
+    prime: id => adapter.prime(id),
+    reload: () => playerSourceRefresh.request(),
+    currentTrackId: () => playerSourceRefresh.currentTrackId(),
+    active: () => !stopped && attached && adapter.enabled && playerSourceRefresh.attached,
+    onEvent: report
+  });
   // Only the actual current player entity, never a prefetched song.
   // No player controls or media source are changed by this UI-only observer.
   window.__celikomBridgeNativeCurrentTrackId = () => playerSourceRefresh.currentTrackId();
@@ -132,10 +145,17 @@ import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
           !uri.username && !uri.password && !uri.search && !uri.hash &&
           uri.origin === next.apiOrigin) origin = uri.origin;
     } catch {}
-    if (origin !== apiOrigin) { apiOrigin = origin; adapter.disable(); }
+    if (origin !== apiOrigin) {
+      sourceRecovery.cancel();
+      apiOrigin = origin;
+      adapter.disable();
+    }
     if (next?.enabled === true && next?.signedIn === true && !!origin && attached)
       adapter.enable();
-    else adapter.disable();
+    else {
+      sourceRecovery.cancel();
+      adapter.disable();
+    }
     // AFTER switching CELIKOM's grant hook, ask the signed native player to
     // recreate its already-loaded source while preserving pause/position.
     // Initial app state receipt deliberately never triggers a second play.
@@ -205,6 +225,7 @@ import { createCurrentSourceRefresh } from "../w60/current-source-refresh.mjs";
   findResource();
   window.addEventListener("beforeunload", () => {
     stopped = true;
+    sourceRecovery.cancel();
     clearInterval(finder);
     clearInterval(deadline);
     for (const job of pending.values()) job.finish(null);
