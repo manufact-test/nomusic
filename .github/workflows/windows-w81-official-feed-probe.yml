@@ -25,6 +25,7 @@ jobs:
             try {
               $r=Invoke-WebRequest -Uri ($base+$name) -TimeoutSec 15 -MaximumRedirection 0
               Write-Host "YANDEX_FEED $name STATUS=$([int]$r.StatusCode) BYTES=$($r.RawContentLength)"
+              if($name -eq 'latest.yml') { Write-Host "YANDEX_WIN_MANIFEST_CONTENT $($r.Content)" }
               if($name.EndsWith('.yml')) {
                 $match=[regex]::Match($r.Content,'(?m)^version:\s*([^\s]+)')
                 if($match.Success){Write-Host "YANDEX_FEED_VERSION $name $($match.Groups[1].Value)"}
