@@ -64,8 +64,11 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
     return true;
   }
 
-  function request() {
+  function request(expectedTrackId = null) {
     if (disposed) return Promise.resolve(false);
+    if (expectedTrackId !== null &&
+        (typeof expectedTrackId !== "string" || !EXACT_ID.test(expectedTrackId)))
+      return Promise.resolve(false);
     const ticket = ++generation;
     const task = chain.then(async () => {
       if (disposed || ticket !== generation) return false;
@@ -78,6 +81,11 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
       try { state = player.state; } catch { /* state can vanish on navigation */ }
       if (!playable(state)) {
         note("NATIVE_TOGGLE_RELOAD_DEFERRED");
+        return false;
+      }
+      const observedId = state.queueState.currentEntity.value.entity.data.meta.id;
+      if (expectedTrackId !== null && String(observedId) !== expectedTrackId) {
+        note("NATIVE_TOGGLE_RELOAD_DIFFERENT_TRACK");
         return false;
       }
       note("NATIVE_TOGGLE_RELOAD_REQUEST");
