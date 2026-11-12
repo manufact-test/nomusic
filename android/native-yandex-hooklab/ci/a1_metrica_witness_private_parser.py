@@ -39,8 +39,18 @@ MARKER=re.compile(r"^event=([A-Z_]+);origin=([A-Z_]+);"
                   r"error=([A-Z_0-9]+);thread=(MAIN|OTHER)$")
 
 
-def scoped_metrica_witness(exit_info:str,logcat:str)->dict:
+def scoped_metrica_witness(exit_info:str,logcat:str,
+                           stable_live_main_pid:int|str|None=None)->dict:
     owned=main_exit_pids(exit_info,"pro.celikom.yandex.nativeclonelab")
+    # Successful 75-second MAIN has no ApplicationExitInfo. Accept only the
+    # separately verified CURRENT pidof MAIN, never helper/aux processes or
+    # arbitrary PIDs. This number remains private inside the runner.
+    admitted=False
+    if stable_live_main_pid is not None:
+        value=str(stable_live_main_pid)
+        if re.fullmatch(r"[1-9][0-9]{0,8}",value):
+            owned.add(int(value))
+            admitted=True
     seen=[]
     for line in logcat.splitlines()[-25000:]:
         parsed=LOG.match(line)
@@ -69,6 +79,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str)->dict:
     first_metrica=next((i for i,x in enumerate(seen) if x[0]=="METRICA_EXCEPTION"),None)
     first_uncaught=next((i for i,x in enumerate(seen) if x[0]=="UNCAUGHT"),None)
     return {
+        "stable_live_main_pid_admitted_without_disclosure":admitted,
         "read_only_application_attach_context_seen":bool(contexts),
         "read_only_attach_context_identity_categories":sorted({x[1] for x in contexts}),
         "read_only_attach_appinfo_identity_categories":sorted({x[2] for x in contexts}),
