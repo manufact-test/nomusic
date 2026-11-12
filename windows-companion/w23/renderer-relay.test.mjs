@@ -391,3 +391,72 @@ test("W76: expired callback cannot wake a stopped or unobserved player",async()=
   assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),false);
   r.handlers.beforeunload();
 });
+
+
+test("W77: Kishlak-style transient batch prefetch remains pending until song actually plays",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:55.8});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const batch=new r.Resource().getFileInfoBatch({trackIds:["123","456"]});
+  await tick();
+  const first=r.window.__celikomBridgeNativeDrain();
+  assert.equal(first.length,2);
+  for(const req of first) r.window.__celikomBridgeNativeReceive(
+    req.requestId,req.trackId==="456"?{transient:true}:makeGrant("123"));
+  const result=await batch;
+  assert.equal(result.downloadInfos[1].url,"https://official.yandex.example/next",
+    "Yandex uses original while next track is merely prefetched");
+  assert.equal(r.window.__celikomBridgeNativeCheckDeferred(),false);
+  await new Promise(resolve=>setTimeout(resolve,720));
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0,
+    "a prefetched next track must never reload while another song plays");
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  player.snapshot.playerState.progress.value.position=18.3;
+  void player.state;
+  assert.equal(r.window.__celikomBridgeNativeCheckDeferred(),true,
+    "observed Yandex current song activates the deferred retry");
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_RECOVERING");
+  assert.equal(r.window.__celikomBridgeNativeCheckDeferred(),false,
+    "one retry cycle only even under frequent status polls");
+  await new Promise(resolve=>setTimeout(resolve,710));
+  const recovery=r.window.__celikomBridgeNativeDrain();
+  assert.equal(recovery.length,1);
+  assert.equal(recovery[0].trackId,"456");
+  assert.equal(recovery[0].recovery,true);
+  r.window.__celikomBridgeNativeReceive(recovery[0].requestId,makeGrant("456"));
+  await new Promise(resolve=>setTimeout(resolve,80));
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.mediaSources[0],makeGrant("456").audioUrl+
+    "&celikom_native_query_guard=0");
+  assert.equal(player.state.playerState.progress.value.position,18.3);
+  assert.equal(player.state.playerState.status.value,"playing");
+  const codes=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(codes.includes("SOURCE_DEFERRED_WAITING"));
+  assert.ok(codes.includes("SOURCE_DEFERRED_PROMOTED"));
+  assert.ok(codes.includes("SOURCE_RECOVERY_RELOAD_OK"));
+  r.handlers.beforeunload();
+});
+
+test("W77: Stop clears old prefetch failure and forbids future reload",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123"});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const batch=new r.Resource().getFileInfoBatch({trackIds:["123","456"]});
+  await tick();
+  for(const req of r.window.__celikomBridgeNativeDrain())
+    r.window.__celikomBridgeNativeReceive(
+      req.requestId,req.trackId==="456"?{transient:true}:null);
+  await batch;
+  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  await tick();await tick();
+  const prior=player.reloadReasons.length;
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  void player.state;
+  assert.equal(r.window.__celikomBridgeNativeCheckDeferred(),false);
+  await new Promise(resolve=>setTimeout(resolve,720));
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
+  assert.equal(player.reloadReasons.length,prior);
+  r.handlers.beforeunload();
+});
