@@ -59,7 +59,7 @@ jobs:
     env:
       CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
       CELIKOM_A1_COMPETITOR_SIG_MIMIC: '1'
-      CELIKOM_A1_OWN_NOOP_MODULE_APK: ${{ runner.temp }}/celikom-a1-own-inert-module/app-debug.apk
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -109,6 +109,8 @@ jobs:
           test "$(docker exec celikom-native-arm-android13 getprop sys.boot_completed)" = 1
       - name: Build OWN native LSPatch2 shell plus OWN NOOP module and verify 75-second MAIN
         shell: bash
+        env:
+          CELIKOM_A1_OWN_NOOP_MODULE_APK: ${{ runner.temp }}/celikom-a1-own-inert-module/app-debug.apk
         timeout-minutes: 5
         run: |
           set -euo pipefail
