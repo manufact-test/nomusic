@@ -30,6 +30,27 @@ class ExactDexFlowUnitTests(unittest.TestCase):
         self.assertEqual(report["verified_guard_sources"],["PUSH_IMPL_HELPER"])
         self.assertFalse(report["causal_branch_proven"])
 
+
+    def test_direct_string_guard_register_origin_only_enum(self):
+        from a1_private_dex_flow import private_guard_input_sources
+        code=bytes((
+            0x1a,0,5,0,
+            0x71,0x10,1,0,0,0,
+            0x0a,1,
+            0x39,1,10,0,
+            0x22,3,3,0,
+            0x1a,2,9,0,
+            0x70,0,2,0,0,0,
+            0x27,3,
+            0x0e,0))
+        class Fake:
+            method_count=10
+            def method(self,idx):
+                return ("Lcom/yandex/metrica/push/common/Dummy;","check") if idx==1 else ("Ljava/lang/IllegalStateException;","init")
+        def categorize(owner,name):
+            return "PUSH_COMMON" if "push/common" in owner else "JAVA_RUNTIME"
+        self.assertEqual(private_guard_input_sources(code,{9},Fake(),categorize),{"STRING_LITERAL"})
+
     def test_absent_throw_fails_closed(self):
         code=bytes((0x1a,0,5,0,0x0e,0))
         report=exact_error_guard_report(code,{5},FakeDex(),fixed_category)
