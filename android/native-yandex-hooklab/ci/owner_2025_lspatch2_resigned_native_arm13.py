@@ -74,7 +74,7 @@ def code_parity(apk_a: zipfile.ZipFile, apk_b: zipfile.ZipFile) -> bool:
     return bool(a) and "classes.dex" in a and a == b
 
 
-def wrap_lab_base(base: Path, work: Path) -> Path:
+def wrap_lab_base(base: Path, work: Path, own_signed_base: Path) -> Path:
     key=work/"unique-own-key.jks"
     if not key.is_file():
         stop("LSPATCH2_OWN_EPHEMERAL_SIGNER_NOT_FOUND")
@@ -128,6 +128,13 @@ def wrap_lab_base(base: Path, work: Path) -> Path:
                     verified.stdout)
     if len(cert)!=1:
         stop("LSPATCH2_WRAPPED_BASE_SIGNER_ABSENT")
+    own_verified=cmd([lab_sdk_tool("apksigner"),"verify","--verbose","--print-certs",
+                      "--min-sdk-version","24",str(own_signed_base)],timeout=100)
+    own_certs=re.findall(r"Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9:]+)",
+                         own_verified.stdout)
+    if (own_verified.returncode or len(own_certs)!=1
+            or cert[0].replace(":","").lower()!=own_certs[0].replace(":","").lower()):
+        stop("LSPATCH2_WRAPPED_BASE_NOT_SIGNED_BY_INDEPENDENT_OWN_KEY")
     with zipfile.ZipFile(wrapped) as archive, zipfile.ZipFile(base) as original:
         if archive.testzip() is not None:
             stop("LSPATCH2_WRAPPED_BASE_ZIP_CRC_INVALID")
@@ -190,7 +197,16 @@ def run(xapk: Path) -> dict:
         if guest("pm","path",ORIGINAL).stdout.strip():
             stop("LSPATCH2_2025_PUBLISHER_STILL_INSTALLED")
         result["original_cleanly_uninstalled_in_disposable_guest"]=True
-        wrapped=wrap_lab_base(base[0][1],root)
+        # Unlike the previous own-key -> LSPatch2 negative A/B, feed the
+        # cryptographically VERIFIED PUBLISHER INPUT to upstream LSPatch:
+        # its embedded originalSigner metadata can then reflect the actual
+        # source rather than the disposable own-key signer. Output remains
+        # signed by OUR ephemeral key and only exists inside the CI guest.
+        publisher_base=[p for p in original if not apk_name(p).get("split","")]
+        if len(publisher_base)!=1:
+            stop("LSPATCH2_ISSUER_SIGNED_BASE_MISSING")
+        wrapped=wrap_lab_base(publisher_base[0],root,base[0][1])
+        result["lspatch2_input_is_verified_unmodified_publisher_base"]=True
         result["owned_lspatch2_base_verified"]=True
         lab=[(name,wrapped if name=="base" else p) for name,p in own]
         result["lab_install"]=install_clones(lab)
