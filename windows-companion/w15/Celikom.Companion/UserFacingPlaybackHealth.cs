@@ -39,32 +39,22 @@ public static class UserFacingPlaybackHealth
         return new(Severity.Neutral, "Яндекс ещё не подключён.");
     }
 
+    // Only explicitly observed failures may become customer-facing errors.
+    // An unchanged native status is NOT evidence of disconnection: the host
+    // sends heartbeats on transitions, not on every poll of a healthy track.
     public static Health Track(string? nativeStatus, bool serviceEnabled,
-        string? versionPresence, bool staleHeartbeat = false)
+        string? versionPresence)
     {
-        if (!serviceEnabled) return new(Severity.Neutral, "Подмена выключена.");
-        if (staleHeartbeat)
-            return new(Severity.Error, "Нет ответа от модуля Яндекса. Проверь соединение.");
+        if (!serviceEnabled) return new(Severity.Neutral, "");
         if (nativeStatus == "NATIVE_SOURCE_FAILED")
-            return new(Severity.Error,
-                "Не удалось загрузить подмену этой песни. Звучание не подтверждено.");
+            return new(Severity.Error, "Подмена не загрузилась. Играет оригинал.");
         if (nativeStatus == "HOST_ERROR")
-            return new(Severity.Error, "Ошибка подключения к модулю Яндекса.");
-        if (nativeStatus == "NATIVE_RECOVERING")
-            return new(Severity.Warning, "Восстанавливаем источник текущей песни…");
-        if (nativeStatus == "RESOLVING")
-            return new(Severity.Warning, "Ищем одобренную версию этой песни…");
-        if (nativeStatus == "NATIVE_MAPPING_ACCEPTED" || nativeStatus == "SDK_MAPPING_ACCEPTED")
-            return new(Severity.Warning,
-                "Подмена передана проигрывателю. Фактический звук ещё не подтверждён.");
-        if (nativeStatus == "ORIGINAL")
-            return versionPresence == "approved"
-                ? new(Severity.Warning, "Версия CELIKOM есть, но сейчас играет оригинал.")
-                : new(Severity.Neutral, "Для этой песни играет оригинал.");
-        if (nativeStatus == "NATIVE_CONNECTED")
-            return new(Severity.Neutral, "Подключено. Ожидаем композицию.");
-        if (nativeStatus == "UNAVAILABLE")
-            return new(Severity.Warning, "Нет данных о воспроизведении. Ждём Яндекс…");
-        return new(Severity.Neutral, "Ожидаем текущую песню Яндекса.");
+            return new(Severity.Error, "Не удалось подключить модуль Яндекса.");
+        if (nativeStatus == "ORIGINAL" && versionPresence == "approved")
+            return new(Severity.Neutral, "Сейчас играет оригинал. Версия CELIKOM доступна.");
+        // RESOLVING, NATIVE_RECOVERING, UNAVAILABLE, accepted mapping, and
+        // silence in a steady song are normal/transient. Keep the UI quiet;
+        // retain raw status in local diagnostics for investigation.
+        return new(Severity.Neutral, "");
     }
 }
