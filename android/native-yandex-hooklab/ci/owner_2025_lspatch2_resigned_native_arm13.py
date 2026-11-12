@@ -24,6 +24,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 from clone_lspatch_loader_zero import download_pinned_patcher
+from recover_stored_origin_crc import rewrite_only_if_origin_crc_mismatch
 from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     guest, cmd, stop, verified_orig_paths, apk_name, install_clones,
     lab_sdk_tool, ORIGINAL, SPLITS,
@@ -91,7 +92,30 @@ def wrap_lab_base(base: Path, work: Path) -> Path:
     outputs=list(directory.glob("*.apk"))
     if len(outputs)!=1 or outputs[0].stat().st_size > 160_000_000:
         stop("LSPATCH2_SINGLE_SIGNED_BASE_NOT_FOUND")
-    wrapped=outputs[0]
+    # Pinned upstream LSPatch occasionally writes an intact STORED nested
+    # origin with stale CRC/overlapping ZIP directory metadata. Reuse the
+    # strictly bounded own-key-only repair already proven for our 2026 lab.
+    patched=outputs[0]
+    unsigned_rebuilt=work/"own-lspatch2-crc-repaired-unsigned.apk"
+    try:
+        repair=rewrite_only_if_origin_crc_mismatch(patched,unsigned_rebuilt)
+    except (ValueError, zipfile.BadZipFile):
+        stop("LSPATCH2_NESTED_ORIGIN_CRC_REPAIR_FAILED")
+    wrapped=patched
+    if repair["layout_repacked"]:
+        aligned=work/"own-lspatch2-crc-repaired-aligned.apk"
+        aligned_run=cmd([lab_sdk_tool("zipalign"),"-f","-p","4",
+                         str(unsigned_rebuilt),str(aligned)],timeout=100)
+        if aligned_run.returncode:
+            stop("LSPATCH2_REPAIRED_ZIP_ALIGNMENT_FAILED")
+        sign_run=cmd([lab_sdk_tool("apksigner"),"sign",
+             "--ks",str(key),"--ks-pass","pass:ephemeral-lab-only",
+             "--ks-key-alias","own-key","--key-pass","pass:ephemeral-lab-only",
+             "--min-sdk-version","24","--v4-signing-enabled","false",
+             str(aligned)],timeout=130)
+        if sign_run.returncode:
+            stop("LSPATCH2_REPAIRED_OWN_APK_SIGNING_FAILED")
+        wrapped=aligned
     if (apk_name(wrapped).get("name")!=ORIGINAL
             or apk_name(wrapped).get("versionCode")!=SOURCE_VERSION_CODE
             or apk_name(wrapped).get("split")):
