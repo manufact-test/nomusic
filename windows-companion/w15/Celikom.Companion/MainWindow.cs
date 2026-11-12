@@ -780,14 +780,19 @@ public sealed partial class MainWindow : Form
             RenderCompact();
             LayoutCompact();
             DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_REQUEST" : "NATIVE_INSTALL_REQUEST");
+            _bridge.SetEnabled(false);
             if (upgrading)
             {
-                _bridge.SetEnabled(false);
-                await Task.Run(() => NativeIntegrationManager.Restore());
-                DiagnosticLog.Record("NATIVE_RESTORE_OK");
+                // Do not remove the still-working native pair before verifying
+                // the complete replacement and its recoverable previous image.
+                await Task.Run(() => NativeIntegrationManager.Upgrade());
+                DiagnosticLog.Record("NATIVE_UPGRADE_OK");
             }
-            await Task.Run(() => NativeIntegrationManager.Install());
-            DiagnosticLog.Record("NATIVE_INSTALL_OK");
+            else
+            {
+                await Task.Run(() => NativeIntegrationManager.Install());
+                DiagnosticLog.Record("NATIVE_INSTALL_OK");
+            }
             // Verify again after a long native install. Expiry, logout, Stop,
             // account switch or network failure must not enable playback.
             var allowedNow = false;
@@ -976,8 +981,7 @@ public sealed partial class MainWindow : Form
             _bridge.SetEnabled(false);
             await Task.Run(() =>
             {
-                NativeIntegrationManager.Restore();
-                NativeIntegrationManager.Install();
+                NativeIntegrationManager.Upgrade();
             });
             DiagnosticLog.Record("APP_UPDATE_NATIVE_REFRESH_OK");
             // An upgrade must not restart native playback from a locally
@@ -1014,6 +1018,9 @@ public sealed partial class MainWindow : Form
             "Файлы Яндекс.Музыки изменились. CELIKOM не будет перезаписывать их вслепую.",
         "PREVIOUS_INSTALL_INTERRUPTED_RESTORE_FIRST" =>
             "Предыдущая установка прервалась. Сначала восстанови оригинал.",
+        "UPGRADE_REQUIRES_ACTIVE_PATCH" or "YANDEX_CHANGED_DURING_UPGRADE_PREFLIGHT" or
+        "HOST_UPDATED_DURING_UPGRADE_NO_AUTOREPAIR" =>
+            "Яндекс обновился или изменил файлы. Сохранённые копии не тронуты; автоматическое восстановление остановлено.",
         _ => "Подключение не завершено. Файлы Яндекса не следует менять вручную."
     };
 
