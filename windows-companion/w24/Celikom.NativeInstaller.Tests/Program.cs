@@ -98,6 +98,29 @@ Reject(()=>NativeAsarImageBuilder.Build(noHeader,asar,host,renderer,
   Hash(noHeader),originalAsarHash),"missing embedded header blocked");
 Check(changed.OriginalExeSha256==originalExeHash,"original exe fingerprint recorded");
 
+// W80: only a reviewed, canonical, data-only compatibility feed may extend
+// host identities. Unsupported, conflicting or malformed entries fail closed.
+var verifiedFeedFile=Path.Combine("windows-companion","w24","compatibility","official-yandex-builds-v1.json");
+if (File.Exists(verifiedFeedFile))
+{
+  var feedBytes=File.ReadAllBytes(verifiedFeedFile);
+  var entries=OfficialYandexCatalog.ParseVerifiedFeed(feedBytes);
+  Check(entries.Count==1 &&
+    entries.TryGetValue(NativeIntegrationManager.Official51270Version,out var knownBuild) &&
+    knownBuild.ExeSha256==NativeIntegrationManager.Official51270ExeSha256,
+    "W80 signed 5.127 catalog builtin immutable pin accepted");
+  var feedText=Encoding.UTF8.GetString(feedBytes);
+  Reject(()=>OfficialYandexCatalog.ParseVerifiedFeed(Encoding.UTF8.GetBytes(
+    feedText.Replace("\"verified\"","\"unverified\""))),
+    "W80 arbitrary unreviewed new version rejected");
+  Reject(()=>OfficialYandexCatalog.ParseVerifiedFeed(Encoding.UTF8.GetBytes(
+    feedText.Replace(NativeIntegrationManager.Official51270AsarSha256,new string('b',64)))),
+    "W80 known official hash cannot be silently redefined");
+  Reject(()=>OfficialYandexCatalog.ParseVerifiedFeed(Encoding.UTF8.GetBytes(
+    feedText.Replace("43289688797","43289688797\", \"extra\": \"foo"))),
+    "W80 broken compatibility document rejected");
+}
+
 // W79 optional real-vendor test. CI extracts the independently signed official
 // 5.127.0 installer into a disposable runner; nothing touches a user install.
 var officialExe = Environment.GetEnvironmentVariable("CELIKOM_W79_OFFICIAL_51270_EXE");
@@ -167,6 +190,29 @@ if (!string.IsNullOrEmpty(officialExe) && !string.IsNullOrEmpty(officialAsar) &&
         .MatchesApplication, "W79 refreshed 5.127 modules matched");
     Check(Directory.GetDirectories(Path.Combine(snapshot,"upgrades")).Length==1,
         "W79 old 5.127 applied pair preserved separately for interrupted upgrade rollback");
+
+    // W80: a genuine Yandex auto-update can overwrite a *previously ACTIVE*
+    // patch. The old implementation treated this as Changed and permanently
+    // blocked Start; the new one recognizes only exact official reviewed bytes.
+    File.Copy(officialExe,labExe,overwrite:true);
+    var halfVendorExe=PairRecovery.Hash(labExe);
+    Check(NativeIntegrationManager.Inspect(installRoot,snapshot) == NativeInstallState.Changed,
+        "W80 halfway Yandex EXE update rejected while ASAR still patched");
+    Check(PairRecovery.Hash(labExe)==halfVendorExe,
+        "W80 partial vendor update not modified by inspection");
+    File.Copy(officialAsar,labAsar,overwrite:true);
+    Check(NativeIntegrationManager.Inspect(installRoot,snapshot) ==
+        NativeInstallState.VerifiedVendorUpdate &&
+        NativeIntegrationManager.IsPreviouslyApprovedVendorUpdate(installRoot,snapshot),
+        "W80 exact vendor update over ACTIVE accepted with existing consent");
+    Check(NativeIntegrationManager.Install(installRoot,officialAssets,snapshot) ==
+        NativeInstallState.Active,
+        "W80 next Start reattaches approved vendor update without CELIKOM EXE reinstall");
+    Check(NativeModuleIdentity.Inspect(NativeInstallState.Active,installRoot,officialAssets)
+        .MatchesApplication,
+        "W80 auto-reconnected module matches original CELIKOM bundle");
+    Check(Directory.GetDirectories(Path.Combine(lab,"NativeHost"),"previous-*").Length==2,
+        "W80 every superseded vendor snapshot archived without overwriting originals");
 
     Check(NativeIntegrationManager.Restore(installRoot,snapshot) ==
         NativeInstallState.Restored &&
