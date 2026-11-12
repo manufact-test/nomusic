@@ -23,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from clone_lspatch_loader_zero import download_pinned_patcher
+from recover_stored_origin_crc import rewrite_only_if_origin_crc_mismatch
 from chromasync_exact_arm13_probe import (
     CLONE_PACKAGE, EXPECTED_SHA256, DockerGuest, package_installed, sha256_file
 )
@@ -87,6 +88,23 @@ def make_owned_wrapper(source: Path, work: Path) -> Path:
     if len(candidates)!=1:
         raise RuntimeError("OWN_LSPATCH_L2_OUTPUT_NOT_SINGLE_APK")
     target=candidates[0]
+    # Upstream LSPatch v1.2 can emit a STORED embedded origin.apk with
+    # inconsistent ZIP CRC/central directory. Repair ZIP metadata only with
+    # the existing independently tested code, then re-sign OUR temporary shell.
+    scratch=work/"repaired-crc-unsigned.apk"
+    integrity=rewrite_only_if_origin_crc_mismatch(target,scratch)
+    phase("LOADER_ZIP_INTEGRITY_CHECKED")
+    if integrity["layout_repacked"]:
+        aligned=work/"repacked-crc-zipaligned.apk"
+        checked(["zipalign","-f","-p","4",str(scratch),str(aligned)],
+                "OWN_LSPATCH_L2_ZIPALIGN_FAILED",80)
+        checked(["apksigner","sign",
+                 "--ks",str(key),"--ks-pass","pass:ephemeral-lab-only",
+                 "--ks-key-alias","research","--key-pass","pass:ephemeral-lab-only",
+                 "--min-sdk-version","28","--v4-signing-enabled","false",
+                 str(aligned)],"OWN_LSPATCH_L2_RESIGN_FAILED",90)
+        target=aligned
+        phase("OWN_WRAPPER_ZIP_REBUILT_AND_RESIGNED")
     with zipfile.ZipFile(target) as z:
         names=z.namelist()
         if "assets/lspatch/config.json" not in names or \
