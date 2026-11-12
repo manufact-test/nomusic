@@ -312,3 +312,36 @@ test('W56 query guard only touches validated CELIKOM native mapped source',async
     'untrusted guard in grant must fail the normal signed URL validator');
   b.dispose();
 });
+
+test('W76: local failure for 13 KARAT Ты has no persistent negative cache', async () => {
+  let calls = 0;
+  const events = [];
+  const a = create(async id => {
+    assert.equal(id, '106040459');
+    calls++;
+    return calls === 1 ? { transient: true } : grant('106040459');
+  }, {onEvent:(code,id)=>events.push([code,id])});
+  const {proto}=resource();
+  a.attach(proto);a.enable();
+  const first=await proto.getFileInfo({trackId:'106040459'});
+  assert.equal(first.downloadInfo.url,'https://official.example/native');
+  assert.ok(events.some(([code,id])=>code==='RESOLVE_TRANSIENT'&&id==='106040459'));
+  assert.equal(await a.prime('106040459'),true,'immediate retry must query server, not cached miss');
+  const second=await proto.getFileInfo({trackId:'106040459'});
+  assert.equal(second.downloadInfo.url,nativeUrl);
+  assert.equal(calls,2,'prime cache prevents duplicate resolve');
+  a.dispose();
+});
+test('W76: authoritative catalog absence remains a cached original, no transient retry',async()=>{
+  let calls=0;
+  const events=[];
+  const a=create(async()=>{calls++;return null;},{onEvent:(code)=>events.push(code)});
+  const {proto}=resource();a.attach(proto);a.enable();
+  assert.equal((await proto.getFileInfo({trackId:'456'})).downloadInfo.url,
+    'https://official.example/native');
+  assert.equal((await proto.getFileInfo({trackId:'456'})).downloadInfo.url,
+    'https://official.example/native');
+  assert.equal(calls,1,'genuine no-replacement remains negative-cached');
+  assert.ok(!events.includes('RESOLVE_TRANSIENT'));
+  a.dispose();
+});
