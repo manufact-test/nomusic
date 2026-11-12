@@ -1195,11 +1195,11 @@ public sealed partial class MainWindow : Form
         var state = _bridge.LastStatus;
         _song.Text = state switch
         {
-            "SDK_MAPPING_ACCEPTED" => "Подмена передана проигрывателю Яндекса.",
-            "NATIVE_CONNECTED" => "Связь с Яндексом есть. Ожидаем композицию.",
-            "NATIVE_MAPPING_ACCEPTED" => "Источник CELIKOM передан Яндексу. Звучание не подтверждено.",
-            "NATIVE_RECOVERING" => "Ссылка на подмену истекла. Восстанавливаем текущую песню…",
-            "NATIVE_SOURCE_FAILED" => "Ошибка загрузки подмены этой песни. Звучит оригинал или источник не проверен.",
+            "SDK_MAPPING_ACCEPTED" => "Версия CELIKOM подключена.",
+            "NATIVE_CONNECTED" => "Связь с Яндексом установлена.",
+            "NATIVE_MAPPING_ACCEPTED" => "Версия CELIKOM подключена.",
+            "NATIVE_RECOVERING" => "Восстанавливаем подмену…",
+            "NATIVE_SOURCE_FAILED" => "Подмена этой песни не загрузилась.",
             "RESOLVING" => "Ищем одобренную версию песни…",
             "ORIGINAL" => "Подмена недоступна — оригинальная версия.",
             "OFF" => "Подмена выключена. Текущий звук может быть в кеше Яндекса.",
