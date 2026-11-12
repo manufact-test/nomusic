@@ -447,13 +447,19 @@ def private_boolean_helpers(binary):
 
 
 
-def private_java_dependency_family(owner):
+def private_java_dependency_family(owner,method):
     # Whitelisted framework families only: no proprietary symbols leave CI.
     if owner.startswith("Ljava/util/concurrent/atomic/"):return "JAVA_ATOMIC"
     if owner.startswith("Ljava/lang/reflect/") or owner=="Ljava/lang/Class;":
         return "JAVA_REFLECTION"
     if owner.startswith("Ljava/util/"):return "JAVA_COLLECTION"
-    if owner=="Ljava/lang/String;":return "JAVA_STRING"
+    if owner=="Ljava/lang/String;":
+        if method=="isEmpty":return "STRING_EMPTY"
+        if method=="equals":return "STRING_EQUALS"
+        if method=="length":return "STRING_LENGTH"
+        if method=="startsWith":return "STRING_PREFIX"
+        if method=="contains":return "STRING_CONTAINS"
+        return "STRING_OTHER"
     if owner in ("Ljava/lang/Boolean;","Ljava/lang/Integer;"):return "JAVA_BOX"
     if owner.startswith("Ljava/lang/"):return "JAVA_LANG_OTHER"
     return "JAVA_OTHER"
@@ -502,7 +508,7 @@ def private_guard_dependency_info(binary):
             if call<dex.method_count:
                 owner,name=dex.method(call)
                 family=group_call(owner,name)
-                categories.add(private_java_dependency_family(owner)
+                categories.add(private_java_dependency_family(owner,name)
                                if family=="JAVA_RUNTIME" else family)
     return {"guard_targets":min(len(refs),16),
             "return_kinds":sorted(kinds),
