@@ -9,7 +9,7 @@ int pass=0;
 void Check(bool v,string note) { if(!v) throw new Exception("W24_FAIL "+note); pass++; }
 void Reject(Action action,string note) {
   var rejected=false;
-  try {action();} catch(IOException) {rejected=true;}
+  try {action();} catch(IOException) {rejected=true;} catch(InvalidDataException) {rejected=true;}
   Check(rejected,note);
 }
 string Hash(byte[] value)=>NativeAsarImageBuilder.Hash(value);
