@@ -34,6 +34,7 @@ from native_arm13_signed_original_control import (
 )
 
 CONTAINER = "celikom-native-arm-android13"
+SIG_COMPAT_ISOLATED_BRANCH = "experiment/android-a1-independent-sig-compat-arm13-20261112"
 CLONE = source.DEST
 ORIGINAL = source.SOURCE
 MAIN_CLASS = "ru.yandex.music.main.MainScreenActivity"
@@ -43,6 +44,20 @@ def fail(name: str):
     if not re.fullmatch(r"[A-Z][A-Z0-9_]{6,96}", name):
         raise ValueError("NATIVE_ARM13_PRIVATE_GATE_FAILURE")
     raise ValueError(name)
+
+
+def lab_sigcompat_level() -> int:
+    requested = os.getenv("CELIKOM_A1_EVAL_SIGBYPASS_LEVEL", "")
+    if not requested:
+        return 0
+    if (requested != "2" or os.getenv("GITHUB_ACTIONS") != "true"
+            or os.getenv("GITHUB_REPOSITORY") != "manufact-test/nomusic"
+            or os.getenv("GITHUB_REF_NAME") != SIG_COMPAT_ISOLATED_BRANCH
+            or os.getenv("CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID") != "1"
+            or os.getenv("CELIKOM_NATIVE_ARM13_REDDROID_CLONE") != "1"
+            or os.uname().machine != "aarch64"):
+        fail("SIGCOMPAT2_CI_BRANCH_NATIVE_GUEST_REQUIRED")
+    return 2
 
 
 def require_native_arm() -> dict:
@@ -93,7 +108,7 @@ def verify_lab_clone(apk: Path, signer: str, loader_zero: bool) -> None:
                 fail("NATIVE_ARM13_CLONE_NO_LSPATCH_CONFIG")
             config = json.loads(z.read(lspatch_config))
             if type(config.get("sigBypassLevel")) is not int or \
-                    config["sigBypassLevel"] != 0:
+                    config["sigBypassLevel"] != lab_sigcompat_level():
                 fail("NATIVE_ARM13_CLONE_SIGBYPASS_PROHIBITED")
             modules = [x for x in names
                        if x.startswith("assets/lspatch/modules/") and x.endswith(".apk")]
@@ -299,6 +314,7 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
                                         direct_clone: Path | None = None,
                                         clone_splits: list[Path] | None = None) -> dict:
     env = require_native_arm()
+    siglevel = lab_sigcompat_level()
     if not loader_zero:
         fail("NATIVE_ARM13_CLONE_LSPATCH_ZERO_REQUIRED")
     verify_lab_clone(clone, signer, loader_zero)
@@ -352,7 +368,8 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
               "five_clone_splits_exit_category": clone_splits_exit,
               "direct_clone_before_original": direct_alone,
               "direct_clone_exit_category": direct_exit,
-              "lspatch_zero_clone_before_original": clone_alone,
+              "lspatch_zero_clone_before_original": clone_alone if siglevel == 0 else None,
+               "lspatch_sigcompat2_clone_before_original": clone_alone if siglevel == 2 else None,
               "clone_before_original": clone_alone,
               "clone_crash_category": clone_crash,
               "original_publisher_signed_five_splits": True,
@@ -363,11 +380,11 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
                       five_clone_permission_dump, CLONE),
                   "direct_one_apk_clone": classify_installed_permission_state(
                       direct_clone_permission_dump, CLONE),
-                  "zero_loader_clone_before_original":
+                  "loader_clone_before_original":
                       classify_installed_permission_state(zero_clone_permission_dump, CLONE),
                   "signed_original": classify_installed_permission_state(
                       original_permission_dump, ORIGINAL),
-                  "zero_loader_clone_after_original":
+                  "loader_clone_after_original":
                       classify_installed_permission_state(
                           clone_permission_dump_after_original, CLONE),
                   "shared_requested_permission_differential":
@@ -376,7 +393,7 @@ def test_independent_clone_and_original(clone: Path, original_splits: list[Path]
                           original_permission_dump),
               },
               "one_independent_lab_clone_apk": True,
-              "sigBypassLevel": 0,
+              "sigBypassLevel": siglevel,
               "lspatch_modules_embedded": int(os.getenv("CELIKOM_A1_EXIT_WITNESS") == "1"),
               "vendor_original_bytes_modified": False,
               "login_or_passport_tested": False,
