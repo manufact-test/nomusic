@@ -113,16 +113,29 @@ def _literal_family(s):
     return "OTHER_LITERAL"
 
 
-def inspect_source_chain(dex, source_code, initial, group_call):
+def inspect_source_chain(dex, source_code, initial, group_call,
+                         interface_implementors=None, method_declarations=None):
     """Follow just concrete declared method IDs at depths <=3."""
+    interface_implementors=interface_implementors or {}
+    method_declarations=method_declarations or {}
     visited=set()
     frontier=set(initial)
     depths=[]
     for _ in range(3):
         found=set(); new_refs=set(); refs=set();fields=set(); literals=set()
         catches=False
+        resolved=set()
         for method_id in sorted(frontier)[:24]:
-            if method_id in visited or method_id not in source_code:
+            if method_id in source_code:
+                resolved.add(method_id)
+            else:
+                owner,name,proto=dex.method_signature(method_id)
+                for cls in sorted(interface_implementors.get(owner,()))[:32]:
+                    impl=method_declarations.get((cls,name,proto))
+                    if impl is not None and impl in source_code:
+                        resolved.add(impl)
+        for method_id in sorted(resolved)[:24]:
+            if method_id in visited:
                 continue
             visited.add(method_id)
             found.add(method_id)
