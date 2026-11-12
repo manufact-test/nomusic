@@ -25,6 +25,7 @@ import clone_native_splits_ephemeral as source
 from clone_native_splits_arsclib_ephemeral import download_editor
 from clone_main_crash_buffer import classify_main_exit_status, classify_main_crash_buffer
 from ci.a1_metrica_witness_private_parser import scoped_metrica_witness
+from ci.a1_metrica_service_snapshot import classify_metrica_service_snapshot
 from merge_lab_splits_ephemeral import verify_merged_payloads
 from clone_lspatch_loader_zero import verify_native_loader_elf_offsets
 from ci.owner_2025_lspatch2_resigned_native_arm13 import wrap_lab_base
@@ -271,6 +272,14 @@ def observe_clone(seconds=75):
     return summary
 
 
+def _finite_service_snapshot(package):
+    ps=guest("ps","-A",timeout=35)
+    services=guest("dumpsys","activity","services",package,timeout=45)
+    return classify_metrica_service_snapshot(
+        ps.stdout,services.stdout,package,
+        ps_ok=ps.returncode==0,services_ok=services.returncode==0)
+
+
 def run(xapk):
     require_guest()
     with tempfile.TemporaryDirectory(prefix="celikom-2025-namespaced-lspatch2-") as tmp:
@@ -363,6 +372,7 @@ def run(xapk):
         if not report["publisher_stable_75s_before_clone"]:
             report["verdict"] = "ORIGINAL_FIRST_PUBLISHER_NATIVE_GATE_NO_GO"
             return report
+        report["publisher_metrica_service_snapshot"]=_finite_service_snapshot(ORIGINAL)
         # Never uninstall or change the real publisher package.
         report["clone_install"] = install_clones([("base", single)])
         report["single_clone_installed_after_original"] = sum(
@@ -380,6 +390,7 @@ def run(xapk):
         observed = observe_clone()
         report["native_clone_main_75s"] = observed["stable"]
         report["clone_lifecycle"] = observed
+        report["clone_metrica_service_snapshot"]=_finite_service_snapshot(DEST)
         # A stable foreground MAIN has *no* exit-info record. Only admit its
         # current exact native pidof if the prior 25/25 lifecycle gate passed.
         stable_pid=None

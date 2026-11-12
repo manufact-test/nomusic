@@ -42,6 +42,15 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(x["metrica_exception_message_categories"],["EXC_SDK_INIT"])
         self.assertNotIn("433",str(x))
 
+    def test_metrica_sdk_component_families_only_bounded_enums(self):
+        sample=(
+            log(431,"event=METRICA_THROW_SITE;origin=METRICA_SDK;error=SDK_COMMON_API;thread=OTHER")
+            +log(431,"event=FATAL_THROW_SITE;origin=RUNTIME_KILL_HANDLER;error=SDK_PUSH;thread=OTHER")
+            +log(432,"event=FATAL_THROW_SITE;origin=RUNTIME_KILL_HANDLER;error=SDK_IDENTIFIERS;thread=OTHER"))
+        out=scoped_metrica_witness(EXIT,sample)
+        self.assertEqual(out["sdk_exception_throw_sites"],["SDK_COMMON_API"])
+        self.assertEqual(out["exact_fatal_sdk_throw_sites"],["SDK_PUSH"])
+
     def test_legacy_namespace_subfamily_public_api_presence_and_message_hint(self):
         sample=(
             log(431,"event=FATAL_THROW_SITE;origin=RUNTIME_KILL_HANDLER;error=SDK_LEGACY_IMPL;thread=OTHER")

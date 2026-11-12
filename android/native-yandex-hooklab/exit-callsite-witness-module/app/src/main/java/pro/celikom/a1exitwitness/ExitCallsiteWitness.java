@@ -322,6 +322,27 @@ public final class ExitCallsiteWitness extends XposedModule {
                     return "SDK_LEGACY_PUBLIC";
                 if (cls.startsWith("com.yandex.metrica.impl."))
                     return "SDK_LEGACY_IMPL";
+                if (cls.startsWith("com.yandex.metrica.coreutils."))
+                    return "SDK_COMMON_UTILS";
+                if (cls.startsWith("com.yandex.metrica.coreapi."))
+                    return "SDK_COMMON_API";
+                if (cls.startsWith("com.yandex.metrica.identifiers."))
+                    return "SDK_IDENTIFIERS";
+                if (cls.startsWith("com.yandex.metrica.push."))
+                    return "SDK_PUSH";
+                if (cls.startsWith("com.yandex.metrica.network."))
+                    return "SDK_NETWORK";
+                if (cls.startsWith("com.yandex.metrica.plugins."))
+                    return "SDK_PLUGINS";
+                if (cls.startsWith("com.yandex.metrica.billing."))
+                    return "SDK_BILLING";
+                if (cls.startsWith("com.yandex.metrica.analytics."))
+                    return "SDK_ANALYTICS";
+                if (cls.startsWith("com.yandex.metrica.internal."))
+                    return "SDK_COMMON_INTERNAL";
+                if (cls.startsWith("com.yandex.metrica.utils.")
+                    || cls.startsWith("com.yandex.metrica.util."))
+                    return "SDK_UTILS";
                 if (cls.startsWith("com.yandex.metrica."))
                     return "SDK_LEGACY_OTHER";
                 if (!cls.startsWith("io.appmetrica.analytics.")) continue;
