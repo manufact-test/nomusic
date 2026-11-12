@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using Celikom.NativeInstaller;
 
 namespace Celikom.Companion;
 
@@ -43,7 +44,9 @@ public static class YandexHostProbe
                 return new(YandexHostStatus.IncompleteInstallation, "");
 
             var version = FileVersionInfo.GetVersionInfo(executable).FileVersion ?? "";
-            if (version is not ("5.126.1" or "5.126.1.0" or "5.126.1.56270518164a6ebd4b974971490df41224a69d68"))
+            var official51270 = version == NativeIntegrationManager.Official51270Version;
+            if (!official51270 &&
+                version is not ("5.126.1" or "5.126.1.0" or "5.126.1.56270518164a6ebd4b974971490df41224a69d68"))
                 return new(YandexHostStatus.UnsupportedVersion, version);
 
             // Check the executable itself, not merely whether it carries a certificate.
@@ -51,9 +54,22 @@ public static class YandexHostProbe
             if (!AuthenticodeVerifier.IsTrusted(executable))
                 return new(YandexHostStatus.UntrustedExecutable, version);
 
+            // For 5.127 require the signed EXE's exact independent official
+            // package hash as well as its ASAR, not merely a claimed version.
+            if (official51270)
+            {
+                using var exeStream = new FileStream(executable, FileMode.Open,
+                    FileAccess.Read, FileShare.Read);
+                var exeSha = Convert.ToHexString(SHA256.HashData(exeStream)).ToLowerInvariant();
+                if (exeSha != NativeIntegrationManager.Official51270ExeSha256)
+                    return new(YandexHostStatus.UntrustedExecutable, version);
+            }
             using var stream = new FileStream(asar, FileMode.Open, FileAccess.Read, FileShare.Read);
             var sha = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-            if (!string.Equals(sha, VerifiedAsarSha256, StringComparison.Ordinal))
+            var expectedSha = official51270
+                ? NativeIntegrationManager.Official51270AsarSha256
+                : VerifiedAsarSha256;
+            if (sha != expectedSha)
                 return new(YandexHostStatus.UnknownAsar, version);
 
             return new(YandexHostStatus.OfficialBaselineVerified, version);
