@@ -40,11 +40,15 @@ jobs:
         run: |
           set -euo pipefail
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0" >/dev/null
-          sudo timeout 120 apt-get update -qq
-          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt2
-          test -x "$(command -v aapt2)"
+          mkdir -p "$RUNNER_TEMP/celikom-native-aapt2"
+          curl --fail --silent --show-error --location --retry 2 --max-time 90 \
+            https://github.com/Commit451/android-arm-build-tools/releases/download/platform-tools-35.0.1/aapt2 \
+            --output "$RUNNER_TEMP/celikom-native-aapt2/aapt2"
+          echo "c57d02d2986d7d68147d74525ad8a5fbb105f12723b33f1ce9eab12acd238cf0  $RUNNER_TEMP/celikom-native-aapt2/aapt2" | sha256sum --check --status
+          chmod 700 "$RUNNER_TEMP/celikom-native-aapt2/aapt2"
+          "$RUNNER_TEMP/celikom-native-aapt2/aapt2" version
           mkdir -p "$HOME/.gradle"
-          echo "android.aapt2FromMavenOverride=$(command -v aapt2)" >> "$HOME/.gradle/gradle.properties"
+          echo "android.aapt2FromMavenOverride=$RUNNER_TEMP/celikom-native-aapt2/aapt2" >> "$HOME/.gradle/gradle.properties"
       - name: Build scoped module privately without uploading binary artifacts
         shell: bash
         run: |
@@ -118,5 +122,5 @@ jobs:
           sudo umount /dev/binderfs >/dev/null 2>&1 || true
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
           sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
-          rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-2025-lspatch2-sdk" "$RUNNER_TEMP/celikom-own-metrica-module"
+          rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-2025-lspatch2-sdk" "$RUNNER_TEMP/celikom-own-metrica-module" "$RUNNER_TEMP/celikom-native-aapt2"
           echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'
