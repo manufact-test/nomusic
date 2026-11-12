@@ -112,9 +112,14 @@ public final class ExitCallsiteWitness extends XposedModule {
             hook(ctor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     try {
+                        Object value = chain.getArg(0);
                         if (callerIsExactHi2Coroutine()) {
-                            Object value = chain.getArg(0);
                             emit("HI2_EXCEPTION", "STATIC_COROUTINE",
+                                 redactedErrorCategory(value));
+                        }
+                        String metrica = callerMetricaFrameGroup();
+                        if (!"NO_METRICA_FRAME".equals(metrica)) {
+                            emit("METRICA_EXCEPTION", metrica,
                                  redactedErrorCategory(value));
                         }
                     } catch (Throwable ignored) { }
@@ -123,6 +128,25 @@ public final class ExitCallsiteWitness extends XposedModule {
             return true;
         } catch (Throwable ignored) {
             return false;
+        }
+    }
+
+    /** Only fixed framework labels, no vendor class, method, thread or text. */
+    private static String callerMetricaFrameGroup() {
+        try {
+            boolean sdk = false;
+            boolean app = false;
+            for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+                String name = frame.getClassName();
+                if (name.startsWith("com.yandex.metrica.")
+                        || name.startsWith("io.appmetrica.analytics."))
+                    sdk = true;
+                if (name.startsWith("ru.yandex.music."))
+                    app = true;
+            }
+            return sdk ? "METRICA_SDK" : app ? "MUSIC_APP" : "NO_METRICA_FRAME";
+        } catch (Throwable ignored) {
+            return "NO_METRICA_FRAME";
         }
     }
 
