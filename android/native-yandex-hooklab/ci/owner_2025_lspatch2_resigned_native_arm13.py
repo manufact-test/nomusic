@@ -281,15 +281,17 @@ def run(xapk: Path) -> dict:
         result["lspatch2_input_is_verified_unmodified_publisher_base"]=True
         result["owned_lspatch2_base_verified"]=True
         lab=[(name,wrapped if name=="base" else p) for name,p in own]
-        result["lab_install"]=install_clones(lab)
+        one=merge_original_name_lab_one_apk(lab,root)
+        result["lab_merged_one_apk_structural_verified"]=True
+        result["lab_install"]=install_clones([("base",one)])
         if result["lab_install"]!="INSTALLED":
             result["verdict"]="2025_INDEPENDENT_LSPATCH2_SPLITS_INSTALL_FAILED"
             return result
-        result["independent_16_installed"]=sum(
+        result["independent_one_apk_installed"]=sum(
             1 for line in guest("pm","path",ORIGINAL).stdout.splitlines()
-            if line.startswith("package:"))==SPLITS
-        if not result["independent_16_installed"]:
-            result["verdict"]="2025_INDEPENDENT_LSPATCH2_SPLIT_SET_INVALID"
+            if line.startswith("package:"))==1
+        if not result["independent_one_apk_installed"]:
+            result["verdict"]="2025_SAME_NAME_ONEAPK_INSTALL_COUNT_INVALID"
             return result
         guest("logcat","-c",timeout=35)
         observed=observe_main_75_seconds()
@@ -298,9 +300,9 @@ def run(xapk: Path) -> dict:
             result["own_key_main_exit_category"]=observed.get("exit_status",{})
             result["own_key_main_crash_category"]=observed.get("main_crash_category",{})
         result["verdict"]=(
-            "2025_INDEPENDENT_LSPATCH2_MAIN_LIFECYCLE_PASS_NO_AUDIO"
+            "2025_SAME_NAME_ONEAPK_NATIVE_MAIN_75S_PASS_NO_AUDIO"
             if result["independent_native_75s"]
-            else "2025_INDEPENDENT_LSPATCH2_MAIN_STILL_NO_GO")
+            else "2025_SAME_NAME_ONEAPK_NATIVE_MAIN_NO_GO")
         return result
 
 
@@ -311,7 +313,7 @@ if __name__=="__main__":
     try:
         report=run(a.xapk)
         print(json.dumps(report,sort_keys=True))
-        sys.exit(0 if report.get("verdict")=="2025_INDEPENDENT_LSPATCH2_MAIN_LIFECYCLE_PASS_NO_AUDIO" else 1)
+        sys.exit(0 if report.get("verdict")=="2025_SAME_NAME_ONEAPK_NATIVE_MAIN_75S_PASS_NO_AUDIO" else 1)
     except Exception as error:
         code=str(error)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",code):
