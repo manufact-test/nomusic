@@ -1,3 +1,31 @@
+# URGENT FIRST READ — W78 OWNER WINDOWS 0.24.24 BROKEN AFTER UPDATE (12 NOV 2026)
+
+**TOP PRIORITY: repair previously-working Windows CELIKOM. DO NOT plan a new release, rewrite architecture, touch extension/server/Android, or ship W77. STATUS: NOT FIXED.**
+
+**Full authoritative handoff with REAL owner diagnostic:** [`docs/windows/W78-OWNER-YANDEX-51270-UPGRADE-BLOCKER-HANDOFF-20261112.md`](./W78-OWNER-YANDEX-51270-UPGRADE-BLOCKER-HANDOFF-20261112.md). Read it *before* coding. Current GitHub incident [#44](https://github.com/manufact-test/nomusic/issues/44).
+
+Owner's real `CELIKOM-YANDEX-CHECK.txt` confirms:
+```text
+APP_VERSION=0.24.24.0
+YANDEX_EXE_VERSION=5.127.0.r22015925
+INTEGRATION_ASSET_VERSION=0.24.24
+MANIFEST_STATE=RESTORED
+ORIGINAL_EXE_BACKUP_HASH_OK=True
+ORIGINAL_ASAR_BACKUP_HASH_OK=True
+CURRENT_EXE=CHANGED_OR_UNKNOWN
+CURRENT_ASAR=CHANGED_OR_UNKNOWN
+HOST_PAIR_RESULT=UNRECOGNIZED_CHANGE_NO_AUTOREPAIR
+2026-11-12T15:36:16.593Z|NATIVE_UPGRADE_REQUEST
+2026-11-12T15:36:22.622Z|NATIVE_RESTORE_OK
+2026-11-12T15:36:24.167Z|NATIVE_UPGRADE_FAILED
+2026-11-12T15:36:33.620Z|START_HOST_PREFLIGHT_BLOCKED
+```
+**Interpretation:** W77 EXE 0.24.24 over previously working W76 0.24.23 led Start to successfully remove prior native integration but fail installing new. The CURRENT Yandex is now **5.127.0**, while native installer accepts only 5.126.1 and its exact baseline SHA. Both current EXE/ASAR are changed relative to verified saved original and applied hashes. Backup ORIGINAL bytes verify; do not mistake RESTORED manifest for current original files, and **do not forcibly restore or overwrite changed/new-version files**. Exact time/cause of 5.127.0 update is not yet proven. Direct EXE install lacks the in-app `--complete-update` ticket path; old CI did not test active Yandex upgrade. Reinstalling CELIKOM 0.24.23 alone won't make Yandex 5.127 supported.
+
+**Immediate task:** based on these already obtained facts, inspect `NativeIntegrationManager.cs`, `PairRecovery.cs`, `MainWindow.cs`, `StartupHostPreflight.cs`, `CELIKOM.iss`. Make exact safe reproduction and transaction-like repair in a **new** isolated branch; preserve backup, DPAPI, no original Yandex deletion, no unsupported-version bypass. Owner must verify actual current Yandex connectivity before declaring resolution. No more diagnostic ZIP requests absent specific new need. Previous working baseline `backup/windows-w77-pre-kishlak-incident-20261112` / W76 0.24.23. Broken W77 **DO NOT INSTALL**.
+
+---
+
 > **W77 FINAL INPLACE CI PASS:** [43242885632](https://github.com/manufact-test/nomusic/actions/runs/43242885632): exact owner-installed W76 0.24.23 exe hash `CC3711E3...` → W77 0.24.24 exe hash `E0E3A7BC...`. Saved DPAPI session hash and decrypt unchanged, installed host.cjs/renderer.js both updated, only one AppId/uninstaller, vendor Yandex folder untouched. No actual owner's audible Kishlak proof yet.
 
 # LATEST — W77 KISHLAK «САМЫЙ ЛУЧШИЙ ДЕНЬ» PARTIAL ORIGINAL, 12.11.2026
