@@ -8,6 +8,7 @@
     </queries>
     <application android:label="CELIKOM read-only IPC research"
         android:allowBackup="false" android:usesCleartextTraffic="false">
+        <service android:name=".PublicBrowserProbeService" android:exported="false" />
         <activity android:name=".ProbeActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
