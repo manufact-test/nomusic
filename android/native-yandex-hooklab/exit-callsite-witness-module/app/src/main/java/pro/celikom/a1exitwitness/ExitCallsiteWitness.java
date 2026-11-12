@@ -1149,6 +1149,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             if (otherCaptured==0) {
                                                 emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG","PRE_NONE");
                                                 emit("PUSH_PRE_FATAL_ORIGIN","PUSH_ARG","ORIGIN_UNOBSERVED");
+                                            } else if (otherCaptured>4) {
+                                                emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG","PRE_OVERFLOW");
                                             }
                                             Throwable originalCause=failure.getCause();
                                             String causeRelation=originalCause==null
@@ -1161,8 +1163,6 @@ public final class ExitCallsiteWitness extends XposedModule {
                                                 }
                                             }
                                             emit("PUSH_FATAL_CAUSE_LINK","PUSH_ARG",causeRelation);
-                                            else if (otherCaptured>4)
-                                                emit("PUSH_PRE_FATAL_THROWABLE","PUSH_ARG","PRE_OVERFLOW");
                                             String constructorOrder=frame.constructed.get(failure);
                                             emit("PUSH_FATAL_CONSTRUCTOR_ORDER","PUSH_ARG",
                                                  constructorOrder!=null ? constructorOrder
