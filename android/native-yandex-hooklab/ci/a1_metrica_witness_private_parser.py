@@ -21,6 +21,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "METRICA_THROW_HINT","FATAL_THROW_SITE","FATAL_THROW_HINT",
          "SDK_CLASS","SDK_ACTIVATE_SIGNATURE","MODULES_HOOK",
          "MODULES_IS_ACTIVATED","PUSH_ACTIVATE","PUSH_ACTIVATE_HOOK","PUSH_INIT","PUSH_INIT_HOOK",
+          "PUSH_INIT_TIMING",
           "PUSH_HELPER_HOOK","PUSH_HELPER_BOOL",
           "PUSH_GUARD_HOOK","PUSH_GUARD_VALUE","PUSH_GUARD_INPUT",
           "PUSH_FATAL_HOOK","PUSH_FATAL_CALL",
@@ -75,6 +76,7 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "FIELD_NULL","FIELD_SET","FIELD_UNREADABLE",
          "GUARD_THROW","GUARD_MIXED","GUARD_TRUE_ONLY","GUARD_FALSE_ONLY",
          "GUARD_NONBOOLEAN","GUARD_NOT_IN_CALL",
+         "DELAY_APPLIED","DELAY_INTERRUPTED",
          "ABSENT","STOCK_OWNER","CLONE_OWNER","OTHER_OWNER","PROBE_ERROR",
          "NULL_RESULT","NONNULL_RESULT","FALSE_RESULT","SUCCESS_RESULT",
          "CLONE","ORIGINAL","MISSING","OTHER",
@@ -153,6 +155,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     module_hooks=[x for x in seen if x[0]=="MODULES_HOOK"]
     push_activations=[x for x in seen if x[0]=="PUSH_ACTIVATE"]
     push_inits=[x for x in seen if x[0]=="PUSH_INIT"]
+    timing_control=[x for x in seen if x[0]=="PUSH_INIT_TIMING"]
     push_init_hooks=[x for x in seen if x[0]=="PUSH_INIT_HOOK"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
     service_call=[x for x in seen if x[0]=="METRICA_SERVICE_CALL"]
@@ -267,6 +270,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "modules_activation_predicate_hook": {
             family:sorted({x[2] for x in module_hooks if x[1]==family})
             for family in ("METRICA_MODERN","METRICA_LEGACY")},
+        "push_init_timing_control":{state:sum(x[2]==state for x in timing_control)
+            for state in ("DELAY_APPLIED","DELAY_INTERRUPTED")},
         "push_init_callbacks": {
             family:{state:sum(x[1]==family and x[2]==state for x in push_inits)
                     for state in ("ENTER","RETURN","THROW")}
