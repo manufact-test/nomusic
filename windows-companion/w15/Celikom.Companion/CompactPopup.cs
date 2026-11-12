@@ -95,6 +95,21 @@ public sealed partial class MainWindow
     private int _compactAccessGeneration;
     private bool _compactAccessBusy;
     private DateTimeOffset _compactAccessChecked;
+    // A completed authenticated entitlement check belongs to one installation,
+    // never re-use its text when another account logs in on this machine.
+    private string _compactAccessConfirmedInstallation = "";
+    private string _compactAccessConfirmedEmail = "";
+    private void SetCompactAccessText(string next)
+    {
+        if (CompactAccessRefresh.NeedsLabelChange(_compactAccess.Text, next))
+            _compactAccess.Text = next;
+    }
+    private void ClearCompactAccessConfirmation()
+    {
+        _compactAccessConfirmedInstallation = "";
+        _compactAccessConfirmedEmail = "";
+        _compactAccessChecked = DateTimeOffset.MinValue;
+    }
     private bool _compactSupportBusy;
     private object? _compactSupportDiagnostics; // cached for idempotent retries
     private bool _compactPromoBusy;
