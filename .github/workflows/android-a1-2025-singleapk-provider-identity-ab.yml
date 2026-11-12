@@ -4,6 +4,7 @@ on:
     branches: [experiment/android-a1-2025-singleapk-provider-identity-ab-arm13-20261112]
     paths:
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py'
+      - 'android/native-yandex-hooklab/ci/test_provider_authority_differential.py'
       - '.github/workflows/android-a1-2025-singleapk-provider-identity-ab.yml'
   workflow_dispatch:
 permissions:
