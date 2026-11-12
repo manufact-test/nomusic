@@ -80,4 +80,11 @@ jobs:
           $imageReport = Get-Content (Join-Path $stage 'W24-image-hashes.json') -Raw | ConvertFrom-Json
           if ($imageReport.integrityOccurrences -lt 1) { throw 'W79_IMAGE_EMBEDDED_HASH_NOT_FOUND' }
           Write-Host "W79_REAL_51270_IMAGE_BUILD_PASS replacedHashes=$($imageReport.integrityOccurrences)"
+          # Create a separate temporary fake legacy snapshot and adopt the
+          # independently verified 5.127.0 pair. No actual host install.
+          $env:CELIKOM_W79_OFFICIAL_51270_EXE = $exes[0].FullName
+          $env:CELIKOM_W79_OFFICIAL_51270_ASAR = $asars[0].FullName
+          $env:CELIKOM_W79_NATIVE_ASSETS = (Resolve-Path windows-companion/w23/dist).Path
+          dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W79_OWNER_STATE_REAL_51270_REGRESSION_FAILED' }
 
