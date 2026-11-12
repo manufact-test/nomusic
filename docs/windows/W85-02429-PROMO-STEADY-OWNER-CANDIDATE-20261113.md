@@ -16,4 +16,13 @@ Requested 2026-11-13: make newest Windows installer available in the user's Libr
 
 ## Build evidence
 
-PENDING: record green W85 GitHub Actions run and exact SHA256 after build.
+
+**Final verified CI SUCCESS:** https://github.com/manufact-test/nomusic/actions/runs/43318116147
+
+- `W85_02428_TO_02429_INPLACE_DPAPI_AND_NATIVE_UNCHANGED_PASS` — successful fresh Windows runner, same AppId, DPAPI credentials still decryptable, byte-identical `host.cjs` and `renderer.js`; no Yandex files touched.
+- Signed EXE SHA256: `B70B67517A81A0329A197BF65DCFB52660123CDA216CD5881DED8CD20B3173A0`, byte length **43,551,571**. **CELIKOM EXE unsigned**; Yandex vendor signatures remain verified through W80/W81 baselines.
+- CI artifact 13988863326: https://github.com/manufact-test/nomusic/actions/runs/43318116147/artifacts/13988863326
+- SHA rechecked after GitHub artifact ZIP extraction; exact file at `/mnt/data/CELIKOM-Windows-0.24.29-PROMO-FIX.exe`.
+- **Uploaded successfully to persistent personal Library**: `/CELIKOM/Windows/CELIKOM-Windows-0.24.29-PROMO-FIX.exe` with library file ID `libfile_46919b560cec8191b55102c4cb53586e`.
+- Owner physical test of 0.24.29 **still pending**. W84 experimental native CDP witness remains excluded from shipped EXE.
+
