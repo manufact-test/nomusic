@@ -40,3 +40,13 @@ Working branch `experiment/windows-w79-upgrade-transaction-recovery-20261112`.
 - Post-bump official 5.127 rehearsal and 0.24.24→0.24.25 actual Inno installer/DPAPI same-AppId test: check `.github/workflows/windows-w79-official-51270-readonly.yml` and `.github/workflows/windows-w79-51270-emergency-installer.yml` latest runs before owner handoff.
 - Physical owner: **do not uninstall/reinstall Yandex or delete backups**. Once the signed-provenance recovery installer is fully CI-green, run it over existing CELIKOM 0.24.24, open CELIKOM, press Start and confirm native 0.24.25 Active and music playback. If still Changed, stop, retain all files, do not force fallback or resubmit generic diagnostics; compare exact official 5.127 hashes.
 - Real song-specific work (Kishlak 102494056, 13 КАРАТ 106040459, Big City Life 40371622) is paused until owner confirms **real audible** native playback.
+
+## 0.24.25 candidate: FINAL CI results (2026-11-12)
+
+**Both final CI workflows PASS; physical owner Start/audio confirmation remains PENDING.**
+
+- Signed real 5.127.0 owner-state staging/recovery lab for exact 0.24.25 native module: https://github.com/manufact-test/nomusic/actions/runs/43289688797 — PASS, log `W79_OWNER_STATE_51270_REAL_INSTALL_RECOVERY_PASS`, `W79_REAL_51270_IMAGE_BUILD_PASS replacedHashes=1`.
+- Windows packaged 0.24.25 end-to-end: https://github.com/manufact-test/nomusic/actions/runs/43289538835 — PASS. Includes Node player/source regressions, W21 W24 recovery, W15 GUI and entitlement/DPAPI, publish, Inno, ZIP staging, actual 0.24.24→0.24.25 installer run, unchanged DPAPI with successful decrypt and Yandex untouched, one AppId. Log `W79_W77_TO_02425_INPLACE_DPAPI_NATIVE_APPID_YANDEX_UNTOUCHED_PASS`.
+- Artifact: `CELIKOM-W79-51270-EMERGENCY-RECOVERY-UNSIGNED` (GitHub Actions artifact ID `13976688090`), download browser link https://github.com/manufact-test/nomusic/actions/runs/43289538835/artifacts/13976688090 . It contains `CELIKOM-W79-51270-EMERGENCY-RECOVERY-UNSIGNED.exe` (unsigned CELIKOM installer), SHA256 `6CF6A9BB3FCF82386C9E4E1E2A880C682854B6672B8BE167AD366846D08AE79C`.
+- Candidate is meant to be installed **over** existing 0.24.24 without uninstalling either CELIKOM or Yandex. Explicit Start consent then adopts only an exact signed 5.127.0 vendor pair; unexpected host hashes remain blocked. Preserve all original/old backups, login and reports.
+- **Issue #44 stays OPEN until owner physically verifies native Active, module version 0.24.25, Yandex launch, actual playback and audible replacement.** No song-specific release/QA claims yet.
