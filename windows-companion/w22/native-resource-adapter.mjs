@@ -7,6 +7,8 @@
 import { exactTrackId, validateCelikomGrant } from '../w15/source-controller.mjs';
 
 const DEFAULT_DEADLINE_MS = 1250;
+// Only background recovery can take longer; foreground Next never stalls.
+const RECOVERY_DEADLINE_MS = 3400;
 const NEGATIVE_TTL_MS = 3000;
 const POSITIVE_SAFETY_MS = 12000;
 const MAX_CACHE = 24;
@@ -138,7 +140,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       until: grant ? grant.expiresAt - POSITIVE_SAFETY_MS : now() + NEGATIVE_TTL_MS
     });
   }
-  async function lookup(id, revisionAtStart) {
+  async function lookup(id, revisionAtStart, background = false) {
     if (!enabled || disposed || revisionAtStart !== revision) return null;
     const cached = fromCache(id);
     if (cached !== undefined) { emit('CACHE_HIT', id); return cached; }
@@ -148,14 +150,22 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       const abort = new AbortController();
       let timer;
       const timeout = new Promise(resolveTimeout => {
-        timer = setTimeout(() => { emit('RESOLVE_TIMEOUT', id); abort.abort(); resolveTimeout(null); }, deadlineMs);
+        timer = setTimeout(() => { emit('RESOLVE_TIMEOUT', id); abort.abort(); resolveTimeout(null); },
+          background ? RECOVERY_DEADLINE_MS : deadlineMs);
       });
-      const request = Promise.resolve().then(() => resolve(id, abort.signal))
+      const request = Promise.resolve().then(() => resolve(id, abort.signal, { background }))
         .catch(() => null);
       const cancelled = new Promise(resolveCancelled => {
         abort.signal.addEventListener('abort', () => resolveCancelled(null), { once: true });
       });
       const promise = Promise.race([request, timeout, cancelled]).then(grant => {
+        // Temporary local timeout/502 differs from an authoritative "not found".
+        // Never poison a negative cache with network failure. Schedule an
+        // independently bounded current-track recovery, not a second player.
+        if (!abort.signal.aborted && grant?.transient === true) {
+          emit('RESOLVE_TRANSIENT', id);
+          return null;
+        }
         const origin = typeof allowedOrigin === 'function' ? allowedOrigin() : allowedOrigin;
         const validated = validateCelikomGrant(grant, id, origin, now());
         if (!abort.signal.aborted && enabled && !disposed && revision === revisionAtStart)
@@ -176,7 +186,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     const id = validId(rawTrackId);
     if (!id || !enabled || disposed) return false;
     const rev = revision;
-    const grant = await lookup(id, rev);
+    const grant = await lookup(id, rev, true);
     return !!(grant && enabled && !disposed && rev === revision);
   }
   function isLive(id, rev) {
