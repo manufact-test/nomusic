@@ -40,14 +40,15 @@ class LoaderZeroTest(unittest.TestCase):
         if modules: content["assets/lspatch/modules/module.apk"]=b"notallowed"
         out=apk(self.root/"patched.apk",content)
         return original,out
-    def runcheck(self,level=0,modules=False,changed=False):
+    def runcheck(self,level=0,modules=False,changed=False,expected_siglevel=0):
         orig,patched=self.make(level,modules,changed)
         import unittest.mock
         import clone_lspatch_loader_zero as gate
         with unittest.mock.patch.object(gate.source,"apkmeta",return_value={
             "name":"pro.celikom.yandex.nativeclonelab","versionCode":"24026531",
             "split":""}), unittest.mock.patch.object(gate,"fingerprint",return_value="a"*64):
-            return check_zero_loader(patched,orig,"a"*64,DummyArsc)
+            return check_zero_loader(patched,orig,"a"*64,DummyArsc,
+                                     expected_siglevel=expected_siglevel)
     def test_zero_loader_verifies_inner_host_not_stub(self):
         r=self.runcheck()
         self.assertEqual(r["signature_bypass_level"],0)
@@ -117,6 +118,33 @@ class LoaderZeroTest(unittest.TestCase):
         for level in (1,2,3,True,"0"):
             with self.assertRaisesRegex(DummyError,"NONZERO_SIGNATURE_BYPASS"):
                 self.runcheck(level=level)
+    def test_owner_authorized_signature_level2_structural_only_never_defaults_on(self):
+        # Explicit expected level is a TEST assertion, not a CI deployment
+        # switch; the executable wrapper checks exact ARM13 branch first.
+        report = self.runcheck(level=2, expected_siglevel=2)
+        self.assertEqual(report["signature_bypass_level"], 2)
+        self.assertTrue(report["embedded_origin_sha256_payload_parity"])
+        self.assertFalse(report["audio_swap_tested"])
+        for level in [0, 1, 3, True, "2"]:
+            with self.assertRaisesRegex(DummyError, "NONZERO_SIGNATURE_BYPASS"):
+                self.runcheck(level=level, expected_siglevel=2)
+
+    def test_eval_mode_requires_exact_disposable_branch_and_arm13(self):
+        from unittest.mock import patch
+        from clone_lspatch_loader_zero import lab_sigcompat_level
+        with patch.dict("os.environ", {"CELIKOM_A1_EVAL_SIGBYPASS_LEVEL": "2",
+                                     "GITHUB_ACTIONS": "true",
+                                     "GITHUB_REPOSITORY": "manufact-test/nomusic",
+                                     "GITHUB_REF_NAME": "main"}, clear=True):
+            with self.assertRaisesRegex(ValueError,
+                                        "SIGCOMPAT2_REQUIRES_ISOLATED_ARM13_EXPERIMENT_ONLY"):
+                lab_sigcompat_level()
+        with patch.dict("os.environ", {"CELIKOM_A1_EVAL_SIGBYPASS_LEVEL": "1"},
+                        clear=True):
+            with self.assertRaises(ValueError): lab_sigcompat_level()
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(lab_sigcompat_level(), 0)
+
     def test_fail_closed_on_unapproved_module(self):
         with self.assertRaisesRegex(DummyError,"EMBEDDED_MODULE"):
             self.runcheck(modules=True)
