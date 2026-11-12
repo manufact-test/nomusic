@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -23,7 +24,9 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
-from clone_lspatch_loader_zero import download_pinned_patcher
+from clone_lspatch_loader_zero import download_pinned_patcher, verify_native_loader_elf_offsets
+from clone_native_splits_arsclib_ephemeral import download_editor
+from merge_lab_splits_ephemeral import verify_merged_payloads
 from recover_stored_origin_crc import rewrite_only_if_origin_crc_mismatch
 from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     guest, cmd, stop, verified_orig_paths, apk_name, install_clones,
@@ -35,7 +38,7 @@ from ci.owner_2025_same_name_own_key_arm13_control import (
 from ci.owner_2025_paired_issuer_vs_own_signer_arm13 import strict_75s_stable
 import clone_native_splits_ephemeral as source
 
-BRANCH = "experiment/android-a1-2025-uploaded-lspatch2-native-arm13-20261112"
+BRANCH = "experiment/android-a1-2025-original-name-oneapk-arm13-20261112"
 CONTAINER = "celikom-native-arm-android13"
 SOURCE_VERSION_CODE = "24025542"
 
@@ -155,6 +158,75 @@ def wrap_lab_base(base: Path, work: Path, own_signed_base: Path) -> Path:
             if not code_parity(origin,original):
                 stop("LSPATCH2_NESTED_2025_HOST_CODE_DRIFT")
     return wrapped
+
+
+def merge_original_name_lab_one_apk(splits,root:Path)->Path:
+    """One APK from the already verified 16 own-signed LSPatch2 original-name
+    splits. This isolates merge from package-name changes on native ARM13."""
+    if len(splits)!=16 or len({name for name,_ in splits})!=16:
+        stop("SAME_NAME_MERGE_EXACT_16_REQUIRED")
+    folder=root/"same-name-merge-splits"
+    folder.mkdir()
+    base=None
+    payload=[]
+    for name,apk in splits:
+        split="" if name=="base" else name
+        meta=apk_name(apk)
+        if (not re.fullmatch(r"[A-Za-z0-9_.-]+",name)
+                or meta.get("name")!=ORIGINAL
+                or meta.get("versionCode")!=SOURCE_VERSION_CODE
+                or meta.get("split","")!=split):
+            stop("SAME_NAME_MERGE_INPUT_IDENTITY_DRIFT")
+        if name=="base":base=apk
+        shutil.copyfile(apk,folder/("base.apk" if name=="base" else "split_"+name+".apk"))
+        payload.append(apk)
+    if base is None:stop("SAME_NAME_MERGE_BASE_MISSING")
+    editor=root/"pinned-merge-editor.jar"
+    download_editor(editor)
+    unsigned=root/"same-name-merge-unsigned.apk"
+    merged=root/"same-name-merge-own-signed.apk"
+    if cmd(["java","-Xmx3g","-jar",str(editor),"m","-i",str(folder),
+            "-o",str(unsigned)],timeout=600).returncode:
+        stop("SAME_NAME_MERGE_APKEDITOR_FAILED")
+    if cmd([lab_sdk_tool("zipalign"),"-f","-p","4",str(unsigned),
+            str(merged)],timeout=120).returncode:
+        stop("SAME_NAME_MERGE_ALIGN_FAILED")
+    key=root/"unique-own-key.jks"
+    if cmd([lab_sdk_tool("apksigner"),"sign","--ks",str(key),
+            "--ks-pass","pass:ephemeral-lab-only",
+            "--ks-key-alias","own-key","--key-pass","pass:ephemeral-lab-only",
+            "--min-sdk-version","24","--v4-signing-enabled","false",
+            str(merged)],timeout=130).returncode:
+        stop("SAME_NAME_MERGE_SIGN_FAILED")
+    if cmd([lab_sdk_tool("apksigner"),"verify","--verbose",
+            "--min-sdk-version","24",str(merged)],timeout=100).returncode:
+        stop("SAME_NAME_MERGE_VERIFY_FAILED")
+    metadata=apk_name(merged)
+    if (metadata.get("name")!=ORIGINAL or
+            metadata.get("versionCode")!=SOURCE_VERSION_CODE or
+            metadata.get("split","")):
+        stop("SAME_NAME_MERGE_FINAL_PACKAGE_CHANGED")
+    try:
+        parity=verify_merged_payloads(payload,merged)
+        with zipfile.ZipFile(base) as before,zipfile.ZipFile(merged) as after:
+            protected=("assets/lspatch/config.json","assets/lspatch/origin.apk",
+                       "assets/lspatch/loader.dex")
+            if any(p not in after.namelist() or before.read(p)!=after.read(p)
+                   for p in protected):
+                stop("SAME_NAME_MERGE_LSPATCH_ASSET_DRIFT")
+            if after.testzip() is not None:stop("SAME_NAME_MERGE_CRC_INVALID")
+        elf=verify_native_loader_elf_offsets(merged)
+        if not parity["payload_byte_hashes_match"] or not all(
+                value["page_aligned_4096"] for value in elf.values()):
+            stop("SAME_NAME_MERGE_NATIVE_PARITY_INVALID")
+    except (ValueError,OSError,zipfile.BadZipFile,KeyError):
+        stop("SAME_NAME_MERGE_PROTECTED_PAYLOAD_INVALID")
+    print(json.dumps({"one_apk_structural_pass":True,"input_splits":16,
+                      "output_apk_count":1,"package_original_name":True,
+                      "original_publisher_source_input":True,
+                      "lspatch2_nested_assets_preserved":True,
+                      "consumer_release":False},sort_keys=True))
+    return merged
 
 
 def run(xapk: Path) -> dict:
