@@ -124,8 +124,10 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
         if digest!=arsc.EDITOR_SHA256:
             stop("OWN_CLONE_PINNED_TOOL_HASH_DRIFT")
         __import__("shutil").copyfile(pre,jar)
+        print(json.dumps({"private_clone_stage":"VERIFIED_PINNED_EDITOR_READY"}))
     else:
         arsc.download_editor(jar)
+        print(json.dumps({"private_clone_stage":"DOWNLOADED_VERIFIED_EDITOR_READY"}))
     lab_key=work/"unique-ephemeral-signer.jks"
     source.action(["keytool","-genkeypair","-noprompt","-storetype","JKS",
         "-keystore",str(lab_key),"-storepass","ephemeral-lab-only",
@@ -133,6 +135,7 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
         "-keyalg","RSA","-keysize","2048","-validity","1",
         "-dname","CN=CELIKOM Disposable Source Compatibility Lab, O=CELIKOM, C=XX"],
         "OWN_LAB_SIGNING_KEY_CREATION_FAILED",100)
+    print(json.dumps({"private_clone_stage":"OWN_EPHEMERAL_KEY_CREATED"}))
     output=[]
     expected_signer=None
     originals_seen=set()
@@ -146,6 +149,7 @@ def ephemeral_clone(originals: list[Path], work: Path) -> tuple[list[tuple[str,P
             or name in originals_seen):
             stop("ORIGINAL_META_DRIFT")
         originals_seen.add(name)
+        print(json.dumps({"private_clone_stage":"DECODE_SPLIT_BEGIN","bounded_split_index":i}))
         decoded=work/f"decoded-{i}"
         arsc.run(["java","-Xmx3g","-jar",str(jar),"d","-t","xml",
                   "-dex","-i",str(original),"-o",str(decoded)],
