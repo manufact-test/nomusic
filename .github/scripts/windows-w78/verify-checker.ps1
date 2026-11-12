@@ -43,6 +43,9 @@ $ps = $cmd.Substring($index + $marker.Length)
 Invoke-Expression $ps
 if (!(Test-Path -LiteralPath $report)) { throw 'W78_REPORT_NOT_CREATED' }
 $out = [IO.File]::ReadAllText($report)
+Write-Output 'W78_SYNTHETIC_REPORT_START'
+Write-Output $out
+Write-Output 'W78_SYNTHETIC_REPORT_END'
 foreach ($claim in @('CHECK=CELIKOM_NATIVE_READ_ONLY_V2',
    'CHECK_COMPLETED=YES', 'INTEGRATION_ASSET_VERSION=0.24.24',
    'CURRENT_EXE=CELIKOM_APPLIED', 'CURRENT_ASAR=CELIKOM_APPLIED',
