@@ -27,6 +27,7 @@ CLONE="pro.celikom.yandex.nativeclonelab"
 CONTAINER="celikom-native-arm-android13"
 NATIVE=Path(__file__).resolve().parents[1]/"native-yandex-hooklab"
 CI=NATIVE/"ci"
+STAGE="LOAD"
 for item in (str(NATIVE),str(CI)):
     if item not in sys.path:sys.path.insert(0,item)
 from ci import a1_private_push_dex_method as dexmod
@@ -125,11 +126,16 @@ def _body(dex,mid,code):
     },refs
 
 def inspect(xapk:Path, generated:Path|None):
+    global STAGE
+    STAGE="VERIFY_ENV"
     required_environment()
     cases=set()
+    STAGE="VERIFY_SOURCE"
     files=list(read_apks_exact(xapk))
+    STAGE="ENUMERATE_CASES"
     for payload in files:
         cases.update(dexmod.private_all_exact_guard_methods(payload))
+    STAGE="RESOLVE_CASE0"
     selected=sorted(cases)[:8]
     outcome={"verified_xapk":True, "dex_files_bounded":min(len(files),20),
              "case_count":min(len(selected),8), "case0_present":bool(selected),
@@ -146,6 +152,7 @@ def inspect(xapk:Path, generated:Path|None):
         cls,name,proto=selected[0]
         matched=0
         known_onehop=set()
+        STAGE="READ_CASE0_BODY"
         for payload in files:
             dex=dexmod.Dex(payload)
             bodies={mid:body for mid,body in dex.code_methods()}
@@ -170,6 +177,7 @@ def inspect(xapk:Path, generated:Path|None):
                         known_onehop.update(one["direct_process_supply"])
         outcome["case0_matching_bodies_bounded"]=min(matched,8)
         outcome["case0_one_hop_process_supplier"]=sorted(known_onehop)
+    STAGE="GENERATE_TEMP_TARGETS"
     if generated is not None:
         # Own isolated temp copy of A module. Source-derived Java stays PRIVATE.
         targets=dexmod.generate_private_targets(xapk,generated)
@@ -177,6 +185,7 @@ def inspect(xapk:Path, generated:Path|None):
             targets.get("private_transient_all_fatal_guard_exact_targets_bounded"))
         if not outcome["transient_targets_generated"]:
             raise ValueError("CASE0_PRIVATE_HOOK_TARGET_MISSING")
+    STAGE="DONE"
     print("CASE0_PRIVATE_DEX "+json.dumps(outcome,sort_keys=True),flush=True)
     return outcome
 
@@ -338,7 +347,7 @@ def main():
         safe={"HELPER_CI_BRANCH_ISOLATION","VERIFIED_XAPK_SIZE","VERIFIED_XAPK_SHA",
               "CASE0_PRIVATE_HOOK_TARGET_MISSING"}
         label=str(e) if str(e) in safe else "PRIVATE_ANALYSIS_FAILED"
-        print("CASE0_HELPER_ABORT "+json.dumps({"reason":label,"private_data_exposed":False}))
+        print("CASE0_HELPER_ABORT "+json.dumps({"reason":label,"stage":STAGE,"error_type":type(e).__name__ if type(e).__name__ in ("DexError","ValueError","KeyError","IndexError","TypeError","AttributeError","FileNotFoundError","OverflowError","RuntimeError","MemoryError","BadZipFile") else "OTHER","private_data_exposed":False}))
         return 2
 
 if __name__=="__main__":
