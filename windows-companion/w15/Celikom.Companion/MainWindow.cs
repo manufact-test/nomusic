@@ -49,6 +49,7 @@ public sealed partial class MainWindow : Form
     private YandexHostResult? _hostReport;
     private bool _hostProbeBusy;
     private Task? _hostProbeTask; // shared by startup and background inspection
+    private readonly YandexFailureRecheckGate _failureRecheckGate = new();
     private DateTimeOffset _lastHostProbe;
     private readonly Label _accountStatus = new();
     private readonly PopupButton _login = new();
@@ -123,7 +124,22 @@ public sealed partial class MainWindow : Form
         if (startBackground) ShowInTaskbar = false;
         _api = new CelikomApi(_store);
         _bridge = new BridgeServer(_api, _store);
-        _bridge.Changed += () => UpdateSafe();
+        _bridge.Changed += () =>
+        {
+            UpdateSafe();
+            // A native HOST_ERROR is explicit; track source failures are not
+            // evidence of a Yandex update. Never reload the player here.
+            if (!_bridge.Enabled ||
+                !YandexFailureRecheckGate.IsNativeHostFailure(_bridge.LastStatus) ||
+                !IsHandleCreated || IsDisposed) return;
+            try
+            {
+                BeginInvoke(new Action(() =>
+                    _ = RecheckYandexAfterNativeFailureAsync("YANDEX_NATIVE_HOST_ERROR")));
+            }
+            catch (InvalidOperationException) { /* Window is shutting down. */ }
+            catch (ObjectDisposedException) { /* Window is shutting down. */ }
+        };
         NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
 
         Text = "CELIKOM"; // version is shown in the compact popup footer, not clipped in titlebar
@@ -651,6 +667,10 @@ public sealed partial class MainWindow : Form
             !_bridge.Enabled || IsDisposed) return;
         _compactStarting = false;
         _compactStartupText = "Яндекс запускается дольше обычного. Проверь его окно.";
+        // Only a missing native handshake merits a forced Yandex version
+        // recheck. Normal original playback and per-track source errors do not.
+        if (YandexFailureRecheckGate.IsMissingStartupHandshake(_bridge.LastStatus))
+            _ = RecheckYandexAfterNativeFailureAsync("YANDEX_NATIVE_START_TIMEOUT");
         RenderCompact();
         LayoutCompact();
     }
@@ -817,6 +837,35 @@ public sealed partial class MainWindow : Form
         if (_hostProbeTask is { IsCompleted: false } active) return active;
         _hostProbeTask = RefreshHostCoreAsync();
         return _hostProbeTask;
+    }
+
+    private async Task RecheckYandexAfterNativeFailureAsync(string reason)
+    {
+        // One bounded, read-only compatibility lookup. HOST_ERROR and startup
+        // silence can have other causes; this does not authorize a new build,
+        // restart Yandex, re-enable playback or bypass server entitlement.
+        if (_closing || _integrationBusy ||
+            !_failureRecheckGate.TryStart(DateTimeOffset.UtcNow)) return;
+        DiagnosticLog.Record(reason);
+        try
+        {
+            // Do not let an earlier probe overwrite the result of this forced
+            // catalog refresh. The regular 15-minute feed cache is bypassed.
+            if (_hostProbeTask is { IsCompleted: false } current)
+                await current;
+            if (_closing || IsDisposed) return;
+            await OfficialYandexCatalog.RefreshAsync(force: true);
+            if (_closing || IsDisposed) return;
+            await RefreshHostAsync();
+            DiagnosticLog.Record("YANDEX_FAILURE_COMPATIBILITY_RECHECK_COMPLETE");
+        }
+        catch
+        {
+            // Offline or local inspection failure: keep last verified pins and
+            // existing fail-closed state; never turn a probe into an app crash.
+            DiagnosticLog.Record("YANDEX_FAILURE_COMPATIBILITY_RECHECK_UNAVAILABLE");
+        }
+        finally { _failureRecheckGate.Finish(); }
     }
 
     private void InitializeYandexInstallWatcher()

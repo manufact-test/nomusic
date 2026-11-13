@@ -13,6 +13,29 @@ void Test(bool condition, string message)
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
 try
 {
+    // W104: explicit bridge failure / missing startup handshake triggers a
+    // read-only compatibility refresh, never on a per-track 403 or originals.
+    Test(YandexFailureRecheckGate.IsNativeHostFailure("HOST_ERROR") &&
+         !YandexFailureRecheckGate.IsNativeHostFailure("NATIVE_SOURCE_FAILED") &&
+         !YandexFailureRecheckGate.IsNativeHostFailure("ORIGINAL"),
+        "W104 only native HOST_ERROR triggers immediate vendor recheck");
+    Test(YandexFailureRecheckGate.IsMissingStartupHandshake("UNAVAILABLE") &&
+         YandexFailureRecheckGate.IsMissingStartupHandshake("NOT_CONNECTED") &&
+         !YandexFailureRecheckGate.IsMissingStartupHandshake("NATIVE_CONNECTED") &&
+         !YandexFailureRecheckGate.IsMissingStartupHandshake("ORIGINAL") &&
+         !YandexFailureRecheckGate.IsMissingStartupHandshake("NATIVE_SOURCE_FAILED"),
+        "W104 do not interpret working native or audio source failure as bridge startup failure");
+    var failureGate = new YandexFailureRecheckGate();
+    var failureAt = new DateTimeOffset(2026, 11, 14, 0, 0, 0, TimeSpan.Zero);
+    Test(failureGate.TryStart(failureAt) &&
+         !failureGate.TryStart(failureAt.AddMinutes(3)),
+        "W104 concurrent bridge failures coalesce while check is running");
+    failureGate.Finish();
+    Test(!failureGate.TryStart(failureAt.AddSeconds(119)) &&
+         failureGate.TryStart(failureAt.AddSeconds(120)),
+        "W104 compatibility requests throttle for two minutes after start");
+    failureGate.Finish();
+
     // W74: first Start must not confuse an in-flight host scan with an
     // unsupported vendor version. Existing active native integration is valid
     // without checking the original ASAR hash of the modified host.
