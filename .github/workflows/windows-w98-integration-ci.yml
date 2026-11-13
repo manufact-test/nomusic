@@ -17,7 +17,25 @@ permissions:
   contents: read
 
 jobs:
+  portable-build-ci:
+    name: Linux extension and server package build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build browser extension and private server package on supported ZIP runner
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          npm run security
+
   windows-integration-ci:
+    needs: portable-build-ci
     runs-on: windows-2022
     timeout-minutes: 50
     steps:
@@ -50,8 +68,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W98_EXTENSION_TESTS_FAILED' }
           npm run validate
           if ($LASTEXITCODE -ne 0) { throw 'W98_REPOSITORY_VALIDATION_FAILED' }
-          npm run build
-          if ($LASTEXITCODE -ne 0) { throw 'W98_REPOSITORY_BUILD_FAILED' }
+          # ZIP packaging is exercised by portable-build-ci on Linux. Do not
+          # invoke the Unix-only zip command from the Windows runner.
           npm run security
           if ($LASTEXITCODE -ne 0) { throw 'W98_SECURITY_AUDIT_FAILED' }
       - name: Build W23 native bridge bundle
