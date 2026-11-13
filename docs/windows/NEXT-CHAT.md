@@ -4,8 +4,8 @@
 
 **Repository:** `manufact-test/nomusic`.
 **Active work branch:** `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
-**Current branch HEAD after W101 documentation commit:** `2859cad706dfef17be9c452f25e00432e9560db0` (re-fetch before work).
-**Code baseline in the branch:** `e48e05f75629becc7efd2198dc7459a1ac91b825` (GUI 0.24.36 / native 0.24.29 / W23 0.24.10); later commits in this handoff are documentation-only.
+**Current branch HEAD:** re-fetch from GitHub before work; documentation commits have advanced the branch beyond the code baseline below.
+**Code baseline in the branch:** `e48e05f75629becc7efd2198dc7459a1ac91b825` (GUI 0.24.36 / native 0.24.29 / W23 0.24.10); commits after this baseline in the current handoff are documentation-only.
 **Exact rollback before W101 documentation:** `backup/windows-w101-pre-update-policy-20261113` @ `39b763d6b94ce4ffb8660765da4eabeb3eeb9b48`.
 **Earlier exact code rollback:** `backup/windows-w100-handoff-pre-docs-20261113` @ `e48e05f75629becc7efd2198dc7459a1ac91b825`.
 
@@ -36,7 +36,7 @@ You are the lead developer for the existing CELIKOM Windows application. Continu
 
 Repository: `manufact-test/nomusic`.
 Work branch: `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
-Read first: `docs/windows/W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md`, then `docs/windows/W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md`, then this file.
+Read first: `docs/windows/W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md`, then the historical W100 snapshot (now corrected to mark run 43500415358 as failed), then this file.
 
 The current code baseline is GUI 0.24.36 / native 0.24.29 / W23 0.24.10 at `e48e05f75629becc7efd2198dc7459a1ac91b825`; re-fetch the current branch HEAD before editing. Exact rollback points are listed above.
 
