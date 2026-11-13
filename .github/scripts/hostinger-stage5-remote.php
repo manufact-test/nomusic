@@ -98,6 +98,12 @@ try {
         $freeBytes === false || $freeBytes < 128 * 1024 * 1024) {
         throw new RuntimeException('backup-capacity-limit');
     }
+    // Hashing the complete private audio inventory can outlast MariaDB's
+    // idle-connection timeout. Reopen the read-only DB connection before
+    // continuing with information_schema, audit and snapshot queries.
+    unset($pdo);
+    $pdo = Celikom\Database\Connection::open($config);
+    $pdo->query('SELECT 1')->fetchColumn();
     if ($operation === 'audit') {
         $prior = glob($backupRoot . '/snapshot-*', GLOB_ONLYDIR) ?: [];
         if (!$prior) throw new RuntimeException('no-snapshot');
