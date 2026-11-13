@@ -1,0 +1,41 @@
+name: CELIKOM Android A1 exact native identity Java models (isolated)
+
+on:
+  push:
+    branches:
+      - experiment/android-a1-metrica-init-state-observer-arm13-20261112
+    paths:
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java'
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeSourceGateTest.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeTrackIdentityGateTest.java'
+      - '.github/workflows/android-a1-native-identity-model-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pure-java-models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile and run exact triple-identity model tests (no Android runtime)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/native-identity-classes"
+          javac -d "$RUNNER_TEMP/native-identity-classes" \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
+            android/native-yandex-hooklab/tests/src/NativeSourceGateTest.java \
+            android/native-yandex-hooklab/tests/src/NativeTrackIdentityGateTest.java
+          java -cp "$RUNNER_TEMP/native-identity-classes" NativeSourceGateTest
+          java -cp "$RUNNER_TEMP/native-identity-classes" pro.celikom.yandex.nativehooklab.NativeTrackIdentityGateTest
