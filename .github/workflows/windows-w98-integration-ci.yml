@@ -11,6 +11,7 @@ on:
       - .github/scripts/**
       - .github/deploy/**
       - .github/workflows/windows-w98-integration-ci.yml
+      - .github/workflows/hostinger-deploy.yml
   workflow_dispatch:
 
 permissions:
