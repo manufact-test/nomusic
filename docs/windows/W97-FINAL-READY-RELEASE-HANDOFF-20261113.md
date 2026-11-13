@@ -11,7 +11,7 @@ The work continued on a separate branch from the exact W95 input, without changi
 - Issue #58 now has explicit original/unknown/actual-replacement classification and no reload for a confirmed original during VPN/entitlement transitions. W22/W23 regression tests pass; owner acoustic QA is still required.
 - W98 has prepared private offline gain rendering, source/version/gain-bound sidecar registration, signed Range verification, and an explicit rollback CLI. **Migration 020 and real sidecars have not been activated.**
 - Hostinger attempt [43454991506](https://github.com/manufact-test/nomusic/actions/runs/43454991506) stopped before deployment because its branch revision was stale. No deploy or media writes occurred.
-- Before live signed Range verification, require one explicit owner-approved test account. Do not scan or use an arbitrary customer's active session. Full detail: `docs/windows/W98-INTEGRATED-QA-AND-LIVE-GAIN-HANDOFF-20261113.md`.
+- Owner has explicitly authorized using his primary CELIKOM account by email. Live verification now resolves only that email and only its active session; no numeric user ID is needed and no other customer's session is scanned. The owner must add the one-time Actions secret `CELIKOM_W98_TEST_EMAIL` before any deployment/migration; the workflow preflight blocks if absent. Full detail: `docs/windows/W98-INTEGRATED-QA-AND-LIVE-GAIN-HANDOFF-20261113.md`.
 
 
 ## 0. Задача следующего ведущего
