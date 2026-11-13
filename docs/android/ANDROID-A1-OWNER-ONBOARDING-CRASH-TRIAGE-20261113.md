@@ -21,44 +21,35 @@ Thus:
 - Actual audio path and playback are **NOT TESTED**.
 - The APK is not ready for audio testing or release. No root cause is yet proven.
 
-## Existing diagnostic capture
+## Replacement on-device diagnostic APK — READY
 
-The module already emits privacy-limited finite events for hook registration and fatal/exit witnesses, including:
-- `ARMED`, `FATAL_HOOK`
-- `FATAL_DISPATCH` and finite throwable categories
-- `SYSTEM_EXIT`, `RUNTIME_EXIT`, `PROCESS_KILL`
-- existing AppMetrica and native audio hook registration events
+The replacement build is available after successful Android 13 ARM13 validation.
 
-The included `capture-diagnostics.bat` filters only the CELIKOM observer tag and lines containing `event=`. It is suitable for the immediate first pass; it does not collect full logcat, raw stack traces, audio, credentials, account tokens, or URLs.
+- Workflow [#43461955113](https://github.com/manufact-test/nomusic/actions/runs/43461955113) **SUCCESS**: original publisher installed first and remained stable 25/25 for 75 seconds; CELIKOM clone installed alongside it and remained stable 25/25; no Metrica fatal suppression observed.
+- Separate clone-only control [#43461955329](https://github.com/manufact-test/nomusic/actions/runs/43461955329) **SUCCESS**, clone 25/25.
+- Artifact ID `14057522148`, name `CELIKOM-A1-OnDevice-Diagnostic-20261113`, 7-day retention.
+- APK `CELIKOM-A1-Native-ReadOnly-Diagnostic.apk`, package `pro.celikom.yandex.nativeclonelab`, Yandex Music 2025.10.4, size 71,430,124 bytes, SHA-256 `9fe9c0139564ead9b499e059065006e4097e833db7c06e7d453fd45f1d75cfe4`.
+- The module stores finite CELIKOM diagnostic events in the clone's private files directory, reads Android 13 historical process-exit reason categories on next launch, and adds a small in-window `Сохранить диагностику` button. On tap, it copies the TXT to `Downloads/CELIKOM A1` using MediaStore. No storage permission, USB, PC, ADB or BAT is needed.
+- The build and paired startup gate passed. **The button's actual tap/export flow has not yet been exercised on the owner's handset**; owner confirmation is still required. No onboarding tap-through, authentication, playback, readAt calls, or audio substitution was tested. This APK remains diagnostic-only, not a release.
 
-### One requested owner action
+### One owner action
 
-1. Connect the same phone to the existing Windows PC by USB; enable USB debugging and authorize that PC if not already done.
-2. Extract the previously supplied diagnostic bundle and run `capture-diagnostics.bat` **before** opening the clone.
-3. Open the CELIKOM diagnostic clone and reproduce exactly the already-described intro sequence through the fourth indicator/page and next arrow until it returns to launcher.
-4. Wait about 5 seconds, then press Ctrl+C in the capture window.
-5. Send only `CELIKOM-A1-Audio-Diagnostics.txt`. No passwords, SMS codes, tokens, screenshots of account pages, or general logcat.
+1. Uninstall only the previous diagnostic clone installed from the earlier CELIKOM test APK. Its temporary signing key is different, so Android cannot update it in place. **Do not uninstall the original Yandex Music app** (`ru.yandex.music`).
+2. Install the new APK.
+3. Repeat the already-described four intro pages and final arrow until it returns to the Android launcher.
+4. Reopen the CELIKOM clone. Tap `Сохранить диагностику`.
+5. Attach the TXT from `Downloads/CELIKOM A1` to this ChatGPT conversation.
 
-Do not uninstall the clone, clear its data, disable Play Protect, or modify/remove original Yandex. Do not attempt music playback; it is currently unreachable.
+No extra Yandex account is needed; use the existing account only if/when the clone reaches sign-in. Do not send credentials, SMS codes, tokens, screenshots of account pages, or general logs.
+
+If the button is absent or saving fails, do not reinstall or clear data. Tell us exactly what happened and send a screenshot of the app screen without personal information.
 
 ## Engineering next steps
 
-1. Inspect the finite observer events: confirm module armed/fatal hooks registered; determine whether a Java fatal dispatch, explicit exit/kill, or no process-level event was observed.
-2. If events are insufficient, add a narrow privacy-safe Android 13 MAIN-process `ApplicationExitInfo` + crash-buffer classifier (fixed enums only; no raw message, stack, paths, IDs or tokens exported).
-3. Reproduce the same onboarding UI path in disposable ARM13 CI. Existing idle-only 75-second test is insufficient.
-4. Identify the actual root cause before changing code. Any fix must be clone-only and narrowly scoped, with a fresh backup and paired original-first tests.
-5. Re-run onboarding through the final arrow, then verify login and only then begin real audio source observation / B42 integration.
+1. Inspect the returned finite event report and Android exit reason category.
+2. If it proves a Java fatal, explicit exit/kill, native crash, or ANR, trace that exact cause and reproduce the same intro navigation in disposable ARM13 CI.
+3. If the app simply finishes an Activity without a process exit, add a narrowly scoped lifecycle witness.
+4. Fix only the CELIKOM clone; keep original Yandex, Test.50, Windows, production and the A1 architecture untouched.
+5. Re-run the four intro pages, then verify login. Only after that return to actual MediaDataSource/MediaExtractor playback observation and B42 integration.
 
-No second player. No architecture change. Do not touch Test.50, Windows, production, original Yandex or the proven Firebase startup baseline. Do not claim audio or full app acceptance based on the prior 25/25 idle test.
-
-
-## 13 Nov — on-device export build requested
-
-The owner correctly pointed out that the previously supplied bundle did not include the BAT file and that a USB cable/PC workflow was inappropriate. A new clone-only diagnostic build is being prepared with:
-- finite diagnostic events persisted in the clone's private files directory across process death/relaunch;
-- Android 13 `ApplicationExitInfo` mapped to fixed reason enums (no raw descriptions or traces);
-- a small in-window `Сохранить диагностику` button attached to resumed activities;
-- one-tap export to `Downloads/CELIKOM A1` through MediaStore, requiring no storage permission, cable, PC, ADB or BAT;
-- readAt hot-path events excluded from synchronous file writes to avoid affecting audio timing.
-
-Owner flow: reproduce the same onboarding exit; reopen the clone; tap the button; attach the TXT from Downloads in ChatGPT. Original Yandex remains untouched. Await build/ARM13 CI before sending APK. The prior APK/artifact is superseded and must not be used for this new capture.
+No second player. No architecture change. Do not claim audio or full app acceptance from idle 25/25 startup tests.
