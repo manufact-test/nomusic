@@ -56,6 +56,32 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean mediaExtractorSourceHookReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaExtractorSourceCalls =
         new java.util.concurrent.atomic.AtomicInteger();
+    // Max 8 weak references; identity (==) only. NEVER hashCode(), equals(),
+    // toString(), leak an identity hash, emit a vendor name or retain audio.
+    // A successful match proves only framework source-object continuity.
+    private final java.util.List<java.lang.ref.WeakReference<Object>>
+        mediaExtractorObservedSources = new java.util.ArrayList<>();
+    private final java.util.concurrent.atomic.AtomicInteger mediaReaderIdentityMatches =
+        new java.util.concurrent.atomic.AtomicInteger();
+
+    private void rememberMediaExtractorSource(Object obj) {
+        if (obj == null) return;
+        synchronized (mediaExtractorObservedSources) {
+            for (java.lang.ref.WeakReference<Object> link : mediaExtractorObservedSources)
+                if (link.get() == obj) return;
+            if (mediaExtractorObservedSources.size() < 8)
+                mediaExtractorObservedSources.add(new java.lang.ref.WeakReference<>(obj));
+        }
+    }
+
+    private boolean readerWasPassedToExtractor(Object obj) {
+        if (obj == null) return false;
+        synchronized (mediaExtractorObservedSources) {
+            for (java.lang.ref.WeakReference<Object> link : mediaExtractorObservedSources)
+                if (link.get() == obj) return true;
+        }
+        return false;
+    }
     private boolean ownRouteHooked;
     private final java.util.concurrent.atomic.AtomicInteger ownRouteEvents =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -1852,21 +1878,33 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(exact).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         int count=mediaDataReadCalls.incrementAndGet();
-                        if (count<=12) {
-                            emit("MEDIA_DS_SOURCE","MEDIA_DATA_SOURCE",privateReaderKind);
-                            emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","ENTER");
-                        }
+                        // Diagnostic code is isolated from the vendor call:
+                        // no observer exception may change playback behaviour.
+                        try {
+                            if (count<=12) {
+                                emit("MEDIA_DS_SOURCE","MEDIA_DATA_SOURCE",privateReaderKind);
+                                emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","ENTER");
+                            }
+                            if (readerWasPassedToExtractor(chain.getThisObject())
+                                    && mediaReaderIdentityMatches.incrementAndGet()<=8)
+                                emit("MEDIA_DS_EXTRACTOR_LINK","MEDIA_DATA_SOURCE",privateReaderKind);
+                        } catch (Throwable ignored) { }
+                        Object result;
                         try {
                             // Exactly one unmodified original call.
-                            Object result=chain.proceed();
-                            if (count<=12)
-                                emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","RETURN");
-                            return result;
+                            result=chain.proceed();
                         } catch (Throwable failure) {
-                            if (count<=12)
-                                emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","THROW");
+                            try {
+                                if (count<=12)
+                                    emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","THROW");
+                            } catch (Throwable ignored) { }
                             throw failure;
                         }
+                        try {
+                            if (count<=12)
+                                emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","RETURN");
+                        } catch (Throwable ignored) { }
+                        return result;
                     });
                 hooked++;
             }
@@ -1899,7 +1937,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     int count=mediaExtractorSourceCalls.incrementAndGet();
-                    if (count<=8) {
+                    try {
                         Object source=chain.getArg(0);
                         String category="OTHER_SOURCE";
                         if (source==null) category="NULL_SOURCE";
@@ -1907,19 +1945,28 @@ public final class ExitCallsiteWitness extends XposedModule {
                             category="CANDIDATE_0";
                         else if (expectedClasses[1].equals(source.getClass().getName()))
                             category="CANDIDATE_1";
-                        emit("MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR",category);
-                        emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","ENTER");
-                    }
+                        if ("CANDIDATE_0".equals(category) || "CANDIDATE_1".equals(category))
+                            rememberMediaExtractorSource(source);
+                        if (count<=8) {
+                            emit("MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR",category);
+                            emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","ENTER");
+                        }
+                    } catch (Throwable ignored) { }
+                    Object result;
                     try {
-                        Object result=chain.proceed(); // one unmodified original call
-                        if (count<=8)
-                            emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","RETURN");
-                        return result;
+                        result=chain.proceed(); // exactly one unmodified original call
                     } catch (Throwable problem) {
-                        if (count<=8)
-                            emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","THROW");
+                        try {
+                            if (count<=8)
+                                emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","THROW");
+                        } catch (Throwable ignored) { }
                         throw problem;
                     }
+                    try {
+                        if (count<=8)
+                            emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","RETURN");
+                    } catch (Throwable ignored) { }
+                    return result;
                 });
             registered=true;
         } catch (Throwable ignored) { }

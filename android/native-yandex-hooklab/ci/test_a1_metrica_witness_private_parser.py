@@ -677,6 +677,46 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         for secret in ("/private/track","431","432"):
             self.assertNotIn(secret,str(x))
 
+    def test_media_extractor_reader_identity_requires_dedicated_exact_marker(self):
+        data=(
+            log(431,"event=MEDIA_EXTRACTOR_HOOK;origin=MEDIA_EXTRACTOR;error=REGISTERED;thread=MAIN")
+            +log(431,"event=MEDIA_EXTRACTOR_SOURCE;origin=MEDIA_EXTRACTOR;error=CANDIDATE_0;thread=OTHER")
+            +log(431,"event=MEDIA_DS_SOURCE;origin=MEDIA_DATA_SOURCE;error=CANDIDATE_0;thread=OTHER")
+            +log(431,"event=MEDIA_DS_READ;origin=MEDIA_DATA_SOURCE;error=ENTER;thread=OTHER"))
+        before=scoped_metrica_witness(EXIT,data)
+        self.assertEqual(before["read_only_extractor_readat_same_object_candidates"],[])
+        self.assertEqual(before["read_only_extractor_readat_same_object_event_count_bounded"],0)
+        after=scoped_metrica_witness(
+            EXIT,data+log(431,
+                "event=MEDIA_DS_EXTRACTOR_LINK;origin=MEDIA_DATA_SOURCE;error=CANDIDATE_0;thread=OTHER"))
+        self.assertEqual(after["read_only_extractor_readat_same_object_candidates"],
+                         ["CANDIDATE_0"])
+        self.assertEqual(after["read_only_extractor_readat_same_object_event_count_bounded"],1)
+        self.assertFalse(after["read_only_extractor_readat_same_object_proves_music_playback"])
+        self.assertFalse(after["read_only_extractor_readat_same_object_proves_track_album_edition"])
+        self.assertTrue(after["read_only_mediadatasource_no_source_bytes_disclosed"])
+
+    def test_identity_link_is_pid_scoped_enum_only_and_survives_250_events(self):
+        old=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")*260
+        good=log(431,"event=MEDIA_DS_EXTRACTOR_LINK;origin=MEDIA_DATA_SOURCE;error=CANDIDATE_1;thread=OTHER")
+        bad=(log(431,"event=MEDIA_DS_EXTRACTOR_LINK;origin=MEDIA_DATA_SOURCE;error=/private/song;thread=OTHER")
+             +log(432,"event=MEDIA_DS_EXTRACTOR_LINK;origin=MEDIA_DATA_SOURCE;error=CANDIDATE_0;thread=OTHER")
+             +log(431,"event=MEDIA_DS_EXTRACTOR_LINK;origin=MEDIA_EXTRACTOR;error=CANDIDATE_0;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,old+good+bad)
+        self.assertEqual(got["all_witness_events_bounded"],250)
+        self.assertEqual(got["read_only_extractor_readat_same_object_candidates"],
+                         ["CANDIDATE_1"])
+        self.assertEqual(got["read_only_extractor_readat_same_object_event_count_bounded"],1)
+        for secret in ("/private/song","432"):
+            self.assertNotIn(secret,str(got))
+
+    def test_identity_link_events_have_independent_bounded_cap(self):
+        rows=log(431,"event=MEDIA_DS_EXTRACTOR_LINK;origin=MEDIA_DATA_SOURCE;error=CANDIDATE_0;thread=OTHER")*40
+        got=scoped_metrica_witness(EXIT,rows)
+        self.assertEqual(got["read_only_extractor_readat_same_object_event_count_bounded"],8)
+        self.assertEqual(got["read_only_extractor_readat_same_object_candidates"],
+                         ["CANDIDATE_0"])
+
     def test_mediaextractor_events_beyond_250_startup_records(self):
         old=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")*260
         new=(
