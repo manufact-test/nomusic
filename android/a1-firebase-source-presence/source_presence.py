@@ -36,7 +36,7 @@ def names_in_xml(text):
 
 def names_in_resources(text):
     # aapt resource name index, not the resource's string content.
-    return {name:bool(re.search(r'(?:^|\\s)string/'+re.escape(name)+r'(?=[:\\s])',
+    return {name:bool(re.search(r'(?:^|[\s:])string/'+re.escape(name)+r'(?=[:\s])',
                  text,re.MULTILINE))
             for name in RESOURCES}
 
