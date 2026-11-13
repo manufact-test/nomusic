@@ -282,6 +282,7 @@ try
     Test(grant!.ExpiresAt == unix * 1000, "server Unix seconds to JS milliseconds");
     Test(grant.MimeType == "audio/mpeg", "source mime survives bridge to native decoder");
     Test(grant.GainDb == 5.5, "W90 saved admin boost must survive typed Windows grant");
+    Test(grant.GainApplied == false, "W91 raw grant cannot claim DSP applied");
     var gainWire = JsonSerializer.Serialize(grant, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     Test(gainWire.Contains("gainDb"), "W90 native localhost grant includes camelCase gainDb");
     Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
@@ -304,6 +305,24 @@ try
         expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = 1.25 }),
         "123", origin, now) == null,
         "W90 rejects unapproved fractional precision");
+    var processedUrl = audio + "&variant=windows_gain_v1";
+    var processed = GrantValidator.FromResolve(Parse(new { found = true,
+        audio_url = processedUrl, expires_at = unix, duration_ms = 200000,
+        mime_type = "audio/mpeg", gain_db = 11.5, gain_applied = true }),
+        "123", origin, now);
+    Test(processed?.GainApplied == true && processed.GainDb == 11.5 &&
+         processed.AudioUrl.EndsWith("&variant=windows_gain_v1"),
+         "W91 scoped offline render accepted only with explicit gain_applied");
+    Test(GrantValidator.FromResolve(Parse(new { found = true,
+        audio_url = processedUrl, expires_at = unix, duration_ms = 200000,
+        mime_type = "audio/mpeg", gain_db = 11.5, gain_applied = false }),
+        "123", origin, now) == null,
+        "W91 raw and rendered source may never be confused");
+    Test(GrantValidator.FromResolve(Parse(new { found = true,
+        audio_url = audio, expires_at = unix, duration_ms = 200000,
+        mime_type = "audio/mpeg", gain_db = 11.5, gain_applied = true }),
+        "123", origin, now) == null,
+        "W91 an unprocessed source cannot claim gain already applied");
     Test(grant.AudioUrl == "https://api.celikom.example" + audio, "exact HTTPS signed URL");
     Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio.Replace("&sid=7", ""),
         expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" }), "123", origin, now) == null,

@@ -151,7 +151,7 @@ public sealed class CelikomApi : IDisposable
         try { origin = GrantValidator.NormalizeOrigin(session.Origin); }
         catch { return null; }
         var target = new Uri(origin,
-            "/api/v1/resolve?service=yandex&track_id=" + Uri.EscapeDataString(id) + "&audio_formats=mp3,m4a");
+            "/api/v1/resolve?service=yandex&track_id=" + Uri.EscapeDataString(id) + "&audio_formats=mp3,m4a&audio_profile=windows_gain_v1");
         JsonElement result;
         try
         {

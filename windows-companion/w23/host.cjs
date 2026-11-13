@@ -425,7 +425,10 @@ function rememberExpectedAudio(view, grant) {
         (url.searchParams.has("sid") &&
           !/^[1-9][0-9]{0,17}$/.test(url.searchParams.get("sid") || "")) ||
         new Set(url.searchParams.keys()).size !== [...url.searchParams.keys()].length ||
-        [...url.searchParams.keys()].some(k => !["token","expires","sid"].includes(k)))
+        [...url.searchParams.keys()].some(k => !["token","expires","sid","variant"].includes(k)) ||
+        url.searchParams.has("variant") !== (grant.gainApplied === true) ||
+        (url.searchParams.has("variant") &&
+          url.searchParams.get("variant") !== "windows_gain_v1"))
       return;
     let entries = nativeExpectedAudio.get(view);
     if (!entries) { entries = new Map(); nativeExpectedAudio.set(view, entries); }
@@ -445,7 +448,7 @@ function classifyPlayerUrl(view, resourceId, actualUrl) {
   if (!actualUrl.search) return "PLAYER_URL_QUERY_MISSING";
   try {
     const expected = new URL(entry.href);
-    const fields = ["token", "expires", "sid"];
+    const fields = ["token", "expires", "sid", "variant"];
     const parsed = actualUrl.searchParams;
     // PHP checks the signed fields, not their URL order. An unrelated extra
     // query field does not by itself break the HMAC. Be conservative about

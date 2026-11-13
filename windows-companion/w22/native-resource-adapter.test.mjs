@@ -71,6 +71,32 @@ test('W90 native positive/negative gain stays unapplied, all approved songs audi
   a.dispose();
 });
 
+test('W91 only server-prepared Windows variant keeps same native player and bounded URL',async()=>{
+  const variantUrl=url+'&variant=windows_gain_v1';
+  const events=[];
+  const a=create(async id=>grant(id,{audioUrl:variantUrl,gainDb:11.5,gainApplied:true}),
+    {onEvent:(code,id)=>events.push([code,id])});
+  const {proto}=resource();a.attach(proto);a.enable();
+  const single=await proto.getFileInfo({trackId:'123'});
+  assert.equal(single.downloadInfo.url,variantUrl+'&celikom_native_query_guard=0');
+  assert.equal(single.downloadInfo.gain,false);
+  assert.ok(events.some(([code])=>code==='GAIN_OFFLINE_VARIANT_MAPPED'));
+  assert.ok(!events.some(([code])=>code==='GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED'));
+  const batch=await proto.getFileInfoBatch({trackIds:['123']});
+  assert.equal(batch.downloadInfos[0].url,single.downloadInfo.url);
+  a.dispose();
+  for(const bad of [
+    {audioUrl:variantUrl,gainDb:11.5,gainApplied:false},
+    {audioUrl:url,gainDb:11.5,gainApplied:true},
+    {audioUrl:url+'&variant=malicious',gainDb:11.5,gainApplied:true},
+    {audioUrl:variantUrl,gainDb:0,gainApplied:true}]) {
+    const b=create(async id=>grant(id,bad));const x=resource();b.attach(x.proto);b.enable();
+    assert.equal((await x.proto.getFileInfo({trackId:'123'})).downloadInfo.url,
+      'https://official.example/native');
+    b.dispose();
+  }
+});
+
 test('approved MP4 uses AAC codec, not MP3',async()=>{
   const a=create(async id=>grant(id,{mimeType:'audio/mp4'}));const {proto}=resource();a.attach(proto);a.enable();
   assert.equal((await proto.getFileInfo({trackId:'123'})).downloadInfo.codec,'aac-mp4');a.dispose();

@@ -120,6 +120,30 @@ test("unrelated or spoofed desktop renderer never gets native bridge",async()=>{
     assert.equal(network.length,0,url);
   }
 });
+test("W91 native observer verifies variant signed fields without leaking media URL",async()=>{
+  const grant={
+    trackId:"123",approved:true,entitled:true,gainApplied:true,gainDb:11.5,
+    audioUrl:"https://api.celikom.example/api/v1/audio/139?token="+"e".repeat(64)+
+      "&expires="+Math.floor(Date.now()/1000+120)+"&sid=7&variant=windows_gain_v1",
+    expiresAt:Math.floor(Date.now()/1000+120)*1000,mimeType:"audio/mpeg"
+  };
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}], debuggerDriver:debug,
+    grantOverride:grant,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"variant-g",request:{url:grant.audioUrl,method:"GET"},type:"Media"
+  });
+  assert.ok(r.diagnostics.some(s=>s.includes("PLAYER_URL_MATCH")));
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"variant-b",request:{url:grant.audioUrl.replace("windows_gain_v1","other"),method:"GET"},type:"Media"
+  });
+  assert.ok(r.diagnostics.some(s=>s.includes("PLAYER_URL_QUERY_CHANGED")));
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+});
+
 test("approved exact-ID grant is relayed, not CELIKOM login tokens",async()=>{
   const {diagnostics,evaluated,network}=await runHost("musicapplication://desktop/",{
     queue:[{requestId:"1",trackId:"123"}]

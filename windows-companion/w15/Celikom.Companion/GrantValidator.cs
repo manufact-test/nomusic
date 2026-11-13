@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace Celikom.Companion;
 
 public sealed record SourceGrant(string TrackId, bool Approved, bool Entitled,
-    string AudioUrl, long ExpiresAt, string MimeType, double GainDb);
+    string AudioUrl, long ExpiresAt, string MimeType, double GainDb, bool GainApplied);
 
 /// <summary>
 /// Converts the actual server ResolveService contract into a narrow,
@@ -72,7 +72,7 @@ public static class GrantValidator
             var parts = segment.Split('=', 2);
             if (parts.Length != 2 || !args.TryAdd(parts[0], parts[1])) return null;
         }
-        if (args.Keys.Any(key => key is not ("expires" or "token" or "sid")) ||
+        if (args.Keys.Any(key => key is not ("expires" or "token" or "sid" or "variant")) ||
             !args.TryGetValue("expires", out var exp) || !UnixPattern.IsMatch(exp) ||
             !long.TryParse(exp, NumberStyles.None, CultureInfo.InvariantCulture, out var urlExp) ||
             urlExp != expiresSeconds ||
@@ -93,7 +93,18 @@ public static class GrantValidator
                 Math.Abs(gainDb * 10 - Math.Round(gainDb * 10)) > 0.00001)
                 return null;
         }
+        var applied = false;
+        if (response.TryGetProperty("gain_applied", out var appliedField))
+        {
+            if (appliedField.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                return null;
+            applied = appliedField.ValueKind == JsonValueKind.True;
+        }
+        var variant = args.TryGetValue("variant", out var variantName);
+        if (applied != variant || (variant && (variantName != "windows_gain_v1" ||
+            !double.IsFinite(gainDb) || gainDb == 0)))
+            return null;
         return new SourceGrant(trackId, true, true, link.AbsoluteUri, expiresSeconds * 1000,
-            mime.GetString()!, gainDb);
+            mime.GetString()!, gainDb, applied);
     }
 }

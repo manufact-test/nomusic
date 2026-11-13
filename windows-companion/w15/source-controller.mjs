@@ -41,7 +41,12 @@ export function validateCelikomGrant(grant, id, allowedOrigin, now = Date.now())
         Number(url.searchParams.get("expires")) * 1000 !== grant.expiresAt ||
         (url.searchParams.has("sid") && !/^[1-9][0-9]{0,17}$/.test(url.searchParams.get("sid") || "")) ||
         new Set([...url.searchParams.keys()]).size !== [...url.searchParams.keys()].length ||
-        [...url.searchParams.keys()].some(k => !["token", "expires", "sid"].includes(k))) return null;
+        [...url.searchParams.keys()].some(k => !["token", "expires", "sid", "variant"].includes(k)) ||
+        (url.searchParams.has("variant") !== (grant.gainApplied === true)) ||
+        (url.searchParams.has("variant") &&
+          (url.searchParams.get("variant") !== "windows_gain_v1" ||
+           !Number.isFinite(grant.gainDb) || grant.gainDb === 0 ||
+           grant.gainDb < -12 || grant.gainDb > 12))) return null;
     return url.href;
   } catch { return null; }
 }

@@ -242,11 +242,13 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       emit(field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' : 'FILEINFO_SHAPE_DOWNLOAD', id);
       observeOriginalFileInfo(value[field], emit, id);
       const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType, params?.quality);
-      // Code-only evidence: signed source is raw, Windows native Yandex does
-      // NOT yet apply the positive/negative admin dB of this grant.
+      // Preserve Yandex native player: same decoder, URL-only replacement.
+      // gainApplied reflects a verified offline server-render, NOT an in-process
+      // DSP claim. Never set native boolean 'gain' to numeric admin dB.
       if (Number.isFinite(grant.gainDb) && grant.gainDb >= -12 &&
           grant.gainDb <= 12 && grant.gainDb !== 0)
-        emit('GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
+        emit(grant.gainApplied === true ? 'GAIN_OFFLINE_VARIANT_MAPPED' :
+          'GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
       emit('SOURCE_MAPPED', id);
       status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
       return { ...value, [field]: replacement };
@@ -313,7 +315,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         for (const [id, grant] of hits) {
           if (Number.isFinite(grant.gainDb) && grant.gainDb >= -12 &&
               grant.gainDb <= 12 && grant.gainDb !== 0)
-            emit('GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
+            emit(grant.gainApplied === true ? 'GAIN_OFFLINE_VARIANT_MAPPED' :
+              'GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
         }
         emit('SOURCE_BATCH_MAPPED', hits[0]?.[0] || null);
         status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
