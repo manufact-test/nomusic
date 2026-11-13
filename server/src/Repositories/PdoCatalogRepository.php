@@ -7,8 +7,18 @@ namespace Celikom\Repositories;
 final class PdoCatalogRepository implements CatalogRepository
 {
     private const SELECT = "SELECT r.id AS replacement_id, r.version, r.gain_db, a.storage_driver, a.storage_key,
-        a.sha256, a.mime_type, a.size_bytes, a.duration_ms FROM track_replacements r
+        a.sha256, a.mime_type, a.size_bytes, a.duration_ms,
+        w.source_sha256 AS windows_variant_source_sha256,
+        w.source_version AS windows_variant_source_version,
+        w.gain_db AS windows_variant_gain_db,
+        w.storage_key AS windows_variant_storage_key,
+        w.sha256 AS windows_variant_sha256,
+        w.mime_type AS windows_variant_mime_type,
+        w.size_bytes AS windows_variant_size_bytes,
+        w.duration_ms AS windows_variant_duration_ms
+        FROM track_replacements r
         JOIN tracks t ON t.id = r.track_id JOIN audio_assets a ON a.id = r.audio_asset_id
+        LEFT JOIN windows_gain_variants w ON w.replacement_id = r.id
         WHERE r.status = 'approved' AND r.is_active = 1 AND r.disabled_at IS NULL";
 
     public function __construct(private readonly \PDO $pdo)

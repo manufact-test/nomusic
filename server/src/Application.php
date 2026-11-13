@@ -369,7 +369,9 @@ final class Application
                 }
                 return Response::json(200, (new ResolveService($this->catalog(), $this->storage(), $this->tokens(),
                     $this->config['resolve_cache_ttl_seconds'] ?? 120,
-                    $this->config['negative_cache_ttl_seconds'] ?? 15))->resolve($query['service'], $query['track_id'], $access, ($query['audio_formats'] ?? '') === 'mp3,m4a'));
+                    $this->config['negative_cache_ttl_seconds'] ?? 15))->resolve($query['service'], $query['track_id'], $access,
+                    ($query['audio_formats'] ?? '') === 'mp3,m4a',
+                    ($query['audio_profile'] ?? null) === \Celikom\Application\WindowsGainVariant::PROFILE));
             }
             if (!$this->config['analytics_enabled']) {
                 return Response::json(503, ['error' => 'analytics_disabled']);

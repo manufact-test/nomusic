@@ -32,12 +32,29 @@ final class AudioController
         if ($this->access !== null && $sessionId === null) {
             return Response::json(403, ['error' => 'invalid_audio_token']);
         }
-        if (!$this->tokens->valid($id, (int) $row['version'], is_string($query['expires'] ?? null) ? $query['expires'] : '', is_string($query['token'] ?? null) ? $query['token'] : '', sessionId: $sessionId)) {
+        $variantRequested = array_key_exists('variant', $query);
+        $variant = null;
+        if ($variantRequested) {
+            // No fallback to raw bytes on a signed sidecar URL; a variant that
+            // went stale must be re-resolved before any bytes can leave.
+            if ($query['variant'] !== \Celikom\Application\WindowsGainVariant::PROFILE ||
+                $sessionId === null || $sessionId < 1 ||
+                ($variant = \Celikom\Application\WindowsGainVariant::select($row, $this->storage)) === null ||
+                !$this->tokens->validWindowsGain($id, (int)$row['version'],
+                    is_string($query['expires'] ?? null) ? $query['expires'] : '',
+                    is_string($query['token'] ?? null) ? $query['token'] : '',
+                    $sessionId, $variant['sha256']))
+                return Response::json(403, ['error' => 'invalid_audio_token']);
+        } elseif (!$this->tokens->valid($id, (int) $row['version'],
+                is_string($query['expires'] ?? null) ? $query['expires'] : '',
+                is_string($query['token'] ?? null) ? $query['token'] : '',
+                sessionId: $sessionId)) {
             return Response::json(403, ['error' => 'invalid_audio_token']);
         }
         if ($sessionId !== null && !($this->access?->allowed($sessionId) ?? false)) {
             return Response::json(403, ['error' => 'access_denied']);
         }
+        if ($variant !== null) $row = array_replace($row, $variant);
         if ($row['storage_driver'] !== 'local' || !$this->storage->exists($row['storage_key'])) {
             return Response::json(404, ['error' => 'audio_not_found']);
         }

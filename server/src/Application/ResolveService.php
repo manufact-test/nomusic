@@ -18,7 +18,7 @@ final class ResolveService
     ) {
     }
 
-    public function resolve(string $service, string $trackId, ?array $access = null, bool $supportsM4a = false): array
+    public function resolve(string $service, string $trackId, ?array $access = null, bool $supportsM4a = false, bool $windowsGain = false): array
     {
         if ($service !== 'yandex' || !preg_match('/^[1-9]\d{0,23}$/D', $trackId)) {
             throw new \InvalidArgumentException('invalid_track');
@@ -42,14 +42,27 @@ final class ResolveService
             if ($expires <= time()) return ['found' => false, 'cache_ttl_seconds' => 0];
         }
         $sessionId = $access['session_id'] ?? null;
+        // The normal browser/API path continues serving the untouched original.
+        // An explicit Windows request gets an offline render only after complete
+        // source+version+gain+digest+duration+private storage verification.
+        $variant = $windowsGain && is_int($sessionId) && $sessionId > 0
+            ? WindowsGainVariant::select($row, $this->storage) : null;
+        $audioUrl = $variant !== null
+            ? '/api/v1/audio/' . $id . '?token=' .
+                $this->tokens->signWindowsGain($id, $version, $expires, $sessionId, $variant['sha256']) .
+                '&expires=' . $expires . '&sid=' . $sessionId . '&variant=' . WindowsGainVariant::PROFILE
+            : '/api/v1/audio/' . $id . '?token=' .
+                $this->tokens->sign($id, $version, $expires, $sessionId) . '&expires=' . $expires .
+                ($sessionId === null ? '' : '&sid=' . $sessionId);
         return [
             'found' => true,
             'replacement_id' => $id,
-            'audio_url' => '/api/v1/audio/' . $id . '?token=' . $this->tokens->sign($id, $version, $expires, $sessionId) . '&expires=' . $expires . ($sessionId === null ? '' : '&sid=' . $sessionId),
+            'audio_url' => $audioUrl,
             'duration_ms' => (int) $row['duration_ms'],
             'mime_type' => $row['mime_type'] ?? 'audio/mpeg',
             'version' => $version,
             'gain_db' => max(-12.0, min(12.0, (float) ($row['gain_db'] ?? 0))),
+            'gain_applied' => $variant !== null,
             'expires_at' => $expires,
             'cache_ttl_seconds' => min(ResolveCachePolicy::positive($this->positiveTtlSeconds, $this->tokens->ttl), max(0, $expires - time())),
         ];
