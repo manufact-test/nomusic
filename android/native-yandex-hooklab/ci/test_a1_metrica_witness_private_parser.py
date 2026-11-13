@@ -461,6 +461,24 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                          ["CTOR_AFTER_TRUE","CTOR_OTHER_IDENTITY"])
         self.assertNotIn("secret_private_throw",str(result))
 
+    def test_exact_post_true_push_service_witness_only_finite_main_events(self):
+        rows=(
+            log(431,"event=PUSH_SERVICE_HOOK;origin=PUSH_SERVICE;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_SERVICE_PHASE;origin=PUSH_SERVICE;error=AFTER_TRUE;thread=OTHER")
+            +log(431,"event=PUSH_SERVICE_CALL;origin=PUSH_SERVICE;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_SERVICE_CALL;origin=PUSH_SERVICE;error=THROW;thread=OTHER")
+            +log(431,"event=PUSH_SERVICE_ERROR;origin=PUSH_SERVICE;error=ILLEGAL_STATE;thread=OTHER")
+            +log(432,"event=PUSH_SERVICE_CALL;origin=PUSH_SERVICE;error=RETURN;thread=OTHER")
+            +log(431,"event=PUSH_SERVICE_ERROR;origin=PUSH_SERVICE;error=PRIVATE_THROWABLE_NAME;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,rows)
+        self.assertTrue(result["exact_post_true_push_service_hook_registered"])
+        self.assertEqual(result["exact_post_true_push_service_states"],
+                         {"ENTER":1,"RETURN":0,"THROW":1})
+        self.assertEqual(result["exact_post_true_push_service_phase"],["AFTER_TRUE"])
+        self.assertEqual(result["exact_post_true_push_service_error"],["ILLEGAL_STATE"])
+        self.assertNotIn("PRIVATE_THROWABLE_NAME",str(result))
+        self.assertNotIn("432",str(result))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
