@@ -7,7 +7,7 @@ namespace Celikom\Entitlement;
 use PDO;
 
 /** A signed URL is scoped to one independent session and rechecked on every Range. */
-final class AudioAccessService
+final class AudioAccessService implements AudioAuthorization
 {
     public function __construct(private readonly PDO $pdo, private readonly bool $billingEnabled = false) {}
 
