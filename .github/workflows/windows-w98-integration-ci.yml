@@ -1,0 +1,64 @@
+name: CELIKOM Windows W98 integrated QA CI (no installer)
+
+on:
+  push:
+    branches:
+      - experiment/windows-w98-integrated-gain-and-original-vpn-20261113
+    paths:
+      - windows-companion/**
+      - scripts/windows-gain-render.sh
+      - server/**
+      - .github/workflows/windows-w98-integration-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-integration-ci:
+    runs-on: windows-2022
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Full repository CI (server, extension, build and security)
+        shell: pwsh
+        run: |
+          npm ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'W98_NPM_CI_INSTALL_FAILED' }
+          npm run ci
+          if ($LASTEXITCODE -ne 0) { throw 'W98_REPOSITORY_CI_FAILED' }
+      - name: Build W23 native bridge bundle
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W98_W23_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W98_W23_BUILD_FAILED' }
+          $host=Get-Content dist/host.cjs -Raw
+          if ($host -notmatch 'maxTotalBufferSize: 2 \* 1024 \* 1024' -or
+              $host -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
+              $host -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.27"') {
+            throw 'W98_W23_INTEGRATION_GUARDS_MISSING'
+          }
+      - name: W22/W23/W60 original-source, VPN, 403 and audio regressions
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W98_AUDIO_REGRESSION' }
+      - name: W21 crash rollback and unknown updater refusal
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+      - name: W24 reviewed catalog and ASAR builder
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: W15 entitlement, login and native state tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Compile GUI with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
