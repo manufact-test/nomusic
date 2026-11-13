@@ -1484,7 +1484,62 @@ public final class ExitCallsiteWitness extends XposedModule {
         return "PAIR_NONE";
     }
 
+
+    // LSPatch v1.2 creates a second LoadedApk from the cached intact origin.
+    // Read ONLY the existing Application.attach ContextImpl.mPackageInfo.mResDir;
+    // compare it privately against the installed outer own APK and the
+    // existing LSPatch private cache. Never emit paths or resource values.
+    private void observeActualLoadedApkResourceOrigin() {
+        String category="UNKNOWN_PATH";
+        try {
+            Context c=exactCloneRuntimeContext;
+            if (c!=null && PACKAGE.equals(c.getPackageName())) {
+                android.content.pm.ApplicationInfo runtime=c.getApplicationInfo();
+                android.content.pm.ApplicationInfo installed=
+                    c.getPackageManager().getApplicationInfo(PACKAGE,0);
+                Class<?> type=c.getClass();
+                Field loadedField=null;
+                while (type!=null && loadedField==null) {
+                    try { loadedField=type.getDeclaredField("mPackageInfo"); }
+                    catch (NoSuchFieldException ignored) { type=type.getSuperclass(); }
+                }
+                if (loadedField!=null && installed!=null && runtime!=null) {
+                    loadedField.setAccessible(true);
+                    Object loaded=loadedField.get(c);
+                    if (loaded!=null) {
+                        Field resField=loaded.getClass().getDeclaredField("mResDir");
+                        resField.setAccessible(true);
+                        Object value=resField.get(loaded);
+                        if (value instanceof String && !((String)value).isEmpty()) {
+                            String dir=(String)value;
+                            // Independent PackageManager points to the owned outer
+                            // installation. A runtime INNER_CACHE verdict also
+                            // requires an exact match to the app's active code
+                            // source and a location inside this clone's own cache.
+                            if (installed.sourceDir!=null
+                                    && dir.equals(installed.sourceDir)) {
+                                category="OUTER_OWN";
+                            } else if (runtime.sourceDir!=null
+                                    && runtime.dataDir!=null
+                                    && dir.equals(runtime.sourceDir)
+                                    && !dir.equals(installed.sourceDir)
+                                    && new java.io.File(dir).getCanonicalFile().toPath()
+                                        .startsWith(new java.io.File(runtime.dataDir,
+                                            "cache/lspatch/origin").getCanonicalFile().toPath())) {
+                                category="INNER_CACHE";
+                            } else {
+                                category="OTHER_PATH";
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) { }
+        emit("LOADEDAPK_RESDIR","CLONE",category);
+    }
+
     private void observeExactProviderFirebasePresence() {
+        observeActualLoadedApkResourceOrigin();
         Context c=exactCloneRuntimeContext;
         if (c==null) {
             emit("PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER","PAIR_UNKNOWN");

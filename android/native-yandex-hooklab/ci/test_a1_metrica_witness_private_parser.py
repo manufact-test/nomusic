@@ -558,6 +558,28 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(got["PUBLISHER_NAMESPACE_VALUE"],["PAIR_BOTH"])
         self.assertNotIn("SECRET_VALUE",str(got))
 
+
+    def test_loadedapk_runtime_resource_route_is_pid_owned_and_enum_only(self):
+        rows=(
+            log(431,"event=LOADEDAPK_RESDIR;origin=CLONE;error=INNER_CACHE;thread=OTHER")
+            +log(431,"event=LOADEDAPK_RESDIR;origin=CLONE;error=OUTER_OWN;thread=MAIN")
+            +log(431,"event=LOADEDAPK_RESDIR;origin=CLONE;error=OTHER_PATH;thread=OTHER")
+            +log(432,"event=LOADEDAPK_RESDIR;origin=CLONE;error=INNER_CACHE;thread=OTHER")
+            +log(431,"event=LOADEDAPK_RESDIR;origin=CLONE;error=/private/cache.apk;thread=OTHER")
+            +log(431,"event=LOADEDAPK_RESDIR;origin=ORIGINAL;error=INNER_CACHE;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,rows)
+        self.assertEqual(got["read_only_loadedapk_runtime_resource_route_categories"],
+                         ["INNER_CACHE","OUTER_OWN","OTHER_PATH"])
+        self.assertNotIn("432",str(got))
+        self.assertNotIn("private/cache",str(got))
+
+    def test_loadedapk_route_survives_existing_250_event_limit(self):
+        old=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=OTHER")*260
+        extra=log(431,"event=LOADEDAPK_RESDIR;origin=CLONE;error=INNER_CACHE;thread=OTHER")
+        got=scoped_metrica_witness(EXIT,old+extra)
+        self.assertEqual(got["read_only_loadedapk_runtime_resource_route_categories"],["INNER_CACHE"])
+        self.assertEqual(got["all_witness_events_bounded"],250)
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
