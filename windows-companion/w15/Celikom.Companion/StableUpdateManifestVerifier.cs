@@ -61,7 +61,9 @@ public static class StableUpdateManifestVerifier
         }
         if (raw is null || raw.Schema != 1 || raw.Channel != "stable" ||
             raw.Publisher != "CELIKOM" || raw.Sequence <= lastAcceptedSequence ||
-            raw.Sequence <= 0 || raw.Rollback is { ValueKind: not JsonValueKind.Null })
+            raw.Sequence <= 0 ||
+            (raw.Rollback.HasValue && raw.Rollback.Value.ValueKind is not
+                (JsonValueKind.Null or JsonValueKind.Undefined)))
             throw new InvalidDataException("STABLE_MANIFEST_POLICY_INVALID");
         if (!TryVersion(raw.Version, out var target) ||
             target <= Normalize(runningVersion))
@@ -78,8 +80,8 @@ public static class StableUpdateManifestVerifier
             throw new InvalidDataException("STABLE_MANIFEST_EXPIRED");
 
         if (raw.PackageSize is < 10_000 or > 125_000_000 ||
-            raw.Sha256 is not { Length: 64 } hash ||
-            !Regex.IsMatch(hash, "^[a-f0-9]{64}$", RegexOptions.CultureInvariant) ||
+            raw.Sha256 is not { Length: 64 } ||
+            !Regex.IsMatch(raw.Sha256, "^[a-f0-9]{64}$", RegexOptions.CultureInvariant) ||
             !Uri.TryCreate(raw.PackageUrl, UriKind.Absolute, out var url) ||
             !officialOrigin.IsAbsoluteUri ||
             officialOrigin.Scheme != Uri.UriSchemeHttps ||
