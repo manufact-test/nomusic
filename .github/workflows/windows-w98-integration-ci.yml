@@ -30,6 +30,7 @@ jobs:
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/hostinger-deploy.yml"); puts "W98_HOSTINGER_WORKFLOW_YAML_PASS"'
           bash -n .github/scripts/hostinger-windows-gain-stage.sh
+          bash -n .github/scripts/hostinger-windows-qa-publish.sh
           php -l .github/scripts/hostinger-windows-gain-remote.php
           grep -F "explicit_owner_email_required" .github/scripts/hostinger-windows-gain-remote.php
           grep -F "WHERE u.email = ?" .github/scripts/hostinger-windows-gain-remote.php
