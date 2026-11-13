@@ -40,6 +40,8 @@ jobs:
           [[ -L "$base/current" ]] || { echo 'W90_LIVE_RELEASE_LINK_MISSING'; exit 2; }
           active="$(readlink -f "$base/current")"
           case "$active" in "$base"/releases/*) ;; *) echo 'W90_UNEXPECTED_RELEASE_PATH'; exit 2 ;; esac
+          command -v ffmpeg >/dev/null && echo 'W90_FFMPEG_AVAILABLE=1' || echo 'W90_FFMPEG_AVAILABLE=0'
+          command -v ffprobe >/dev/null && echo 'W90_FFPROBE_AVAILABLE=1' || echo 'W90_FFPROBE_AVAILABLE=0'
           /opt/alt/php83/usr/bin/php <<'PHP'
           <?php
           declare(strict_types=1);
