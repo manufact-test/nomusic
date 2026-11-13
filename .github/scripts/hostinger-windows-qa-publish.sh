@@ -14,7 +14,7 @@ package_dir="${1:-}"
   echo 'W99_BAD_GITHUB_RUN_ID'; exit 2;
 }
 
-exe='CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
+exe='CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe'
 zip='CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip'
 manifest='SHA256SUMS.txt'
 for file in "$exe" "$zip" "$manifest"; do
