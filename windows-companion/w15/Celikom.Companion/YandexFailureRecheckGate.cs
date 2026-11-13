@@ -6,6 +6,7 @@ namespace Celikom.Companion;
 /// </summary>
 public sealed class YandexFailureRecheckGate
 {
+    private readonly object _gate = new();
     private DateTimeOffset _nextAllowed = DateTimeOffset.MinValue;
     private bool _running;
     private int _consecutiveTriggers;
@@ -22,20 +23,29 @@ public sealed class YandexFailureRecheckGate
 
     public bool TryStart(DateTimeOffset now)
     {
-        if (_running || now < _nextAllowed) return false;
-        _running = true;
-        // Repeated native failures back off 2, 4, 8 then 15 minutes.
-        _consecutiveTriggers = Math.Min(4, _consecutiveTriggers + 1);
-        _nextAllowed = now.AddMinutes(Math.Min(15, 1 << _consecutiveTriggers));
-        return true;
+        lock (_gate)
+        {
+            if (_running || now < _nextAllowed) return false;
+            _running = true;
+            // Repeated native failures back off 2, 4, 8 then 15 minutes.
+            _consecutiveTriggers = Math.Min(4, _consecutiveTriggers + 1);
+            _nextAllowed = now.AddMinutes(Math.Min(15, 1 << _consecutiveTriggers));
+            return true;
+        }
     }
 
     public void ConfirmNativeHealthy()
     {
-        if (_running) return;
-        _consecutiveTriggers = 0;
-        _nextAllowed = DateTimeOffset.MinValue;
+        lock (_gate)
+        {
+            if (_running) return;
+            _consecutiveTriggers = 0;
+            _nextAllowed = DateTimeOffset.MinValue;
+        }
     }
 
-    public void Finish() => _running = false;
+    public void Finish()
+    {
+        lock (_gate) _running = false;
+    }
 }
