@@ -1,7 +1,7 @@
 """Only synthetic ARSC: no original binaries, values or IDs."""
 import struct
 import unittest
-from a1_resource_package_rename import InvalidResourceTable,package_names,rewrite_exact_namespace
+from a1_resource_package_rename import InvalidResourceTable,package_names,rewrite_exact_namespace,classify_outer_signing_change
 
 ORIG="ru.yandex.music"
 CLONE="pro.celikom.yandex.nativeclonelab"
@@ -31,6 +31,22 @@ class SyntheticTests(unittest.TestCase):
                      minimal_table("unrelated")):
             with self.assertRaises(InvalidResourceTable):
                 rewrite_exact_namespace(data,ORIG,CLONE)
+    def test_outer_signing_classification_private_bounded(self):
+        examples = {
+            "META-INF/MANIFEST.MF":"V1_MANIFEST",
+            "META-INF/OWN-KEY.SF":"V1_SIGNATURE_FILE",
+            "META-INF/OWN-KEY.RSA":"V1_SIGNATURE_BLOCK",
+            "META-INF/OWN-KEY.EC":"V1_SIGNATURE_BLOCK",
+            "META-INF/OWN-KEY.DSA":"V1_SIGNATURE_BLOCK",
+            "META-INF/subdir/OWN-KEY.RSA":"OTHER_META_INF",
+            "META-INF/other.txt":"OTHER_META_INF",
+            "assets/inner.apk":"NON_META_INF_APP_CONTENT",
+            "classes.dex":"NON_META_INF_APP_CONTENT",
+            "resources.arsc":"NON_META_INF_APP_CONTENT",
+        }
+        for name, expected in examples.items():
+            self.assertEqual(classify_outer_signing_change(name), expected)
+
     def test_no_double_patch(self):
         result=rewrite_exact_namespace(minimal_table(),ORIG,CLONE)
         with self.assertRaises(InvalidResourceTable):
