@@ -334,7 +334,11 @@ jobs:
           $rendererAfter=(Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash
           if ($hostAfter -eq $hostBefore -or $rendererAfter -eq $rendererBefore) { throw 'W98_NATIVE_PATCH_NOT_DELIVERED' }
           $rendererScript=Get-Content (Join-Path $native 'renderer.js') -Raw
-          if ($rendererScript -notmatch '__celikomBridgeNativeRefreshUnfetched') { throw 'W98_RENDERER_SOURCE_GUARD_MISSING' }
+          if ($rendererScript -notmatch '__celikomBridgeNativeRefreshUnfetched' -or
+              $rendererScript -notmatch '__celikomBridgeNativeRecoverSourceLeft' -or
+              $rendererScript -notmatch 'SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED') {
+            throw 'W99_RENDERER_SOURCE_GUARD_MISSING'
+          }
           $hostScript=Get-Content (Join-Path $native 'host.cjs') -Raw
           if ($hostScript -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
               $hostScript -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
