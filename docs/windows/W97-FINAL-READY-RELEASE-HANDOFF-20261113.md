@@ -1,5 +1,19 @@
 # W97 — FINAL INTEGRATED WINDOWS TEST BUILD / OWNER HANDOFF (2026-11-13)
 
+## W98 update — 2026-11-13 (latest active work)
+
+The work continued on a separate branch from the exact W95 input, without changing W95 or the browser extension:
+
+- Current W98 branch: `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
+- Exact W98 pre-change backup: `backup/windows-w98-pre-integrated-gain-and-original-vpn-20261113` @ `5ce1ec127009ba4a86a8e5ee1d129ec86623fd54`.
+- Prepared candidate: GUI 0.24.35 / native 0.24.28.
+- Full W98 CI [43457943838](https://github.com/manufact-test/nomusic/actions/runs/43457943838) passed on `65c2aba287183c655cbb89deed05f3029addca15`. Exact-current-head run [43458387990](https://github.com/manufact-test/nomusic/actions/runs/43458387990) must also pass before the final installer.
+- Issue #58 now has explicit original/unknown/actual-replacement classification and no reload for a confirmed original during VPN/entitlement transitions. W22/W23 regression tests pass; owner acoustic QA is still required.
+- W98 has prepared private offline gain rendering, source/version/gain-bound sidecar registration, signed Range verification, and an explicit rollback CLI. **Migration 020 and real sidecars have not been activated.**
+- Hostinger attempt [43454991506](https://github.com/manufact-test/nomusic/actions/runs/43454991506) stopped before deployment because its branch revision was stale. No deploy or media writes occurred.
+- Before live signed Range verification, require one explicit owner-approved test account. Do not scan or use an arbitrary customer's active session. Full detail: `docs/windows/W98-INTEGRATED-QA-AND-LIVE-GAIN-HANDOFF-20261113.md`.
+
+
 ## 0. Задача следующего ведущего
 
 Владелец попросил не присылать очередной частичный установщик. Следующий ведущий должен **закончить интеграцию всех Windows-исправлений и выдать одну полноценную CELIKOM Windows TEST-сборку**, в которой уже подключены и серверное усиление из админки, и все согласованные исправления воспроизведения/VPN. Только после этого владелец будет проводить общий реальный тест на ПК.
