@@ -61,12 +61,27 @@ jobs:
                 WHERE r.status = 'approved' AND r.is_active = 1 AND r.disabled_at IS NULL";
             $data = $pdo->query($sql)->fetch(PDO::FETCH_ASSOC);
             if (!is_array($data)) throw new RuntimeException('W90_EMPTY_AUDIT');
+            $historic = $pdo->query("SELECT COUNT(*) total,
+               COALESCE(SUM(gain_db > 0),0) positive,
+               COALESCE(SUM(gain_db < 0),0) negative
+               FROM track_replacements")->fetch(PDO::FETCH_ASSOC);
+            $history = $pdo->query("SELECT COUNT(*) edits,
+               COUNT(DISTINCT entity_id) distinct_replacements
+               FROM audit_log WHERE action='replacement_gain_update'")->fetch(PDO::FETCH_ASSOC);
+            $nonzero = $pdo->query("SELECT t.service_track_id, t.title, t.artist, r.gain_db
+              FROM track_replacements r JOIN tracks t ON t.id=r.track_id
+              WHERE r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL
+                AND r.gain_db <> 0 LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+
             $pdo->rollBack();
             $summary = array_map(static fn($v) => (int)$v, $data);
             if ($summary['active_versions'] !==
                 $summary['boosted_versions'] + $summary['attenuated_versions'] + $summary['unchanged_versions'] ||
                 $summary['invalid_versions'] !== 0) throw new RuntimeException('W90_INVALID_GAIN_DATA');
             echo 'W90_LIVE_GAIN_AUDIT_READ_ONLY ' . json_encode($summary, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W90_HISTORY_COUNTS ' . json_encode($historic, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W90_GAIN_EDITS ' . json_encode($history, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W90_ACTIVE_NONZERO ' . json_encode($nonzero, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
             echo 'W90_NO_MEDIA_DATA_EXPORTED_NO_DB_WRITE\n';
           } catch (Throwable $error) {
             fwrite(STDERR, 'W90_READONLY_AUDIT_FAILURE ' . get_class($error) . "\n");
