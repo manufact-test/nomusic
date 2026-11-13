@@ -46,10 +46,63 @@ if [[ "$operation" == "restore-drill" ]]; then
     exit 1
   }
   MYSQL_PWD='ci-disposable-mysql' mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -N -B celikom_restore \
-    -e "SELECT CASE WHEN (SELECT COUNT(*) FROM tracks WHERE service='yandex' AND service_track_id='144530503')=1 AND (SELECT COUNT(*) FROM audio_assets WHERE size_bytes=4345176 AND duration_ms=180872)=1 AND (SELECT COUNT(*) FROM track_replacements WHERE id=1 AND status='approved' AND is_active=1)=1 AND (SELECT COUNT(*) FROM schema_migrations)>=1 AND
-      (SELECT COUNT(*) FROM windows_gain_variants)=0 THEN 'recovered' ELSE 'invalid' END;" > "$work/result"
+    -e "SELECT CASE WHEN
+      (SELECT COUNT(*) FROM tracks WHERE service='yandex' AND service_track_id='144530503')=1
+      AND (SELECT COUNT(*) FROM audio_assets WHERE size_bytes=4345176 AND duration_ms=180872)=1
+      AND (SELECT COUNT(*) FROM track_replacements WHERE id=1 AND status='approved' AND is_active=1)=1
+      AND (SELECT COUNT(*) FROM schema_migrations)>=1
+      AND EXISTS (
+        SELECT 1
+        FROM windows_gain_variants w
+        JOIN track_replacements r ON r.id = w.replacement_id
+        JOIN tracks t ON t.id = r.track_id
+        JOIN audio_assets a ON a.id = r.audio_asset_id
+        WHERE w.replacement_id = 37
+          AND t.service = 'yandex'
+          AND t.service_track_id = '40371622'
+          AND r.status = 'approved'
+          AND r.is_active = 1
+          AND r.disabled_at IS NULL
+          AND r.gain_db = 11.5
+          AND w.gain_db = 11.5
+          AND w.source_sha256 = a.sha256
+          AND w.source_version = r.version
+          AND w.duration_ms = a.duration_ms
+          AND w.mime_type = 'audio/mpeg'
+          AND w.size_bytes BETWEEN 1024 AND 31457280
+          AND w.sha256 REGEXP '^[a-f0-9]{64}
+fi
+ssh -T -p 65002 "${options[@]}" "$target" "rm -f '$incoming/hostinger-stage5-remote.php' '$incoming/hostinger-stage5-request.json' && rmdir '$incoming'"
+node --input-type=module <<'EXTERNAL'
+import assert from 'node:assert/strict';
+const base = 'https://darkred-camel-588676.hostingersite.com';
+const health = await fetch(base+'/api/v1/health', {signal: AbortSignal.timeout(20000), cache:'no-store'});
+const config = await fetch(base+'/api/v1/config', {signal: AbortSignal.timeout(20000), cache:'no-store'});
+if (health.status === 403 && config.status === 403) {
+  // Hostinger's edge may reject GitHub runner IPs. The restricted SSH on-host
+  // preflight above already verified database, protected audio and migration.
+  // Never disable the edge firewall solely to make runner-side probes pass.
+  console.log('GitHub runner blocked by Hostinger edge (403); protected on-host audit PASSED.');
+  process.exit(0);
+}
+assert.equal(health.status, 200);
+assert.equal(config.status, 200);
+const healthData = await health.json(), configData = await config.json();
+assert.equal(healthData.service, 'celikom-api');
+assert.equal(configData.features.replacements, true);
+assert.equal(configData.features.analytics, false);
+const r=await fetch(base+'/api/v1/resolve?service=yandex&track_id=144530503', {
+  signal: AbortSignal.timeout(20000),cache:'no-store'
+});
+assert.equal(r.status,401);
+console.log('Stage 5 external HTTPS monitoring PASS: health/config up, replacements enabled, anonymous access denied.');
+EXTERNAL
+
+          AND w.storage_key <> ''
+      )
+      THEN 'recovered' ELSE 'invalid' END;" > "$work/result"
   [[ "$(cat "$work/result")" == 'recovered' ]] || { echo 'Isolated MySQL data verification failed.' >&2; exit 1; }
-  echo 'Stage 5 isolated MySQL database restore PASS: schema and approved track mapping recovered; live MySQL untouched.'
+  echo 'Stage 5 isolated MySQL database restore PASS: schema, approved mapping and Big City Life Windows gain sidecar recovered; live MySQL untouched.'
 fi
 ssh -T -p 65002 "${options[@]}" "$target" "rm -f '$incoming/hostinger-stage5-remote.php' '$incoming/hostinger-stage5-request.json' && rmdir '$incoming'"
 node --input-type=module <<'EXTERNAL'

@@ -3,8 +3,9 @@ name: CELIKOM Stage 5 private recovery and monitoring
 on:
   workflow_dispatch:
   push:
-    branches: [feature/api-range]
+    branches: [main]
     paths:
+      - .github/scripts/hostinger-stage5.sh
       - .github/deploy/hostinger-stage5-request.json
 
 permissions:
