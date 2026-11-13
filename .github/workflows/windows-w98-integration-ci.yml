@@ -80,10 +80,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W98_W23_NPM_FAILED' }
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'W98_W23_BUILD_FAILED' }
-          $host=Get-Content dist/host.cjs -Raw
-          if ($host -notmatch 'maxTotalBufferSize: 2 \* 1024 \* 1024' -or
-              $host -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
-              $host -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.28"') {
+          $nativeHostText=Get-Content dist/host.cjs -Raw
+          if ($nativeHostText -notmatch 'maxTotalBufferSize: 2 \* 1024 \* 1024' -or
+              $nativeHostText -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
+              $nativeHostText -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.28"') {
             throw 'W98_W23_INTEGRATION_GUARDS_MISSING'
           }
       - name: W22/W23/W60 original-source, VPN, 403 and audio regressions
