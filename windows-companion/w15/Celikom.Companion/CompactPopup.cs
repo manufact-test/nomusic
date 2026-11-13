@@ -630,7 +630,7 @@ public sealed partial class MainWindow
         var nativeStatus = _bridge.LastStatus;
         if (_compactStarting && _bridge.Enabled &&
             nativeStatus is "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
-                "ORIGINAL" or "RESOLVING")
+                "NATIVE_SOURCE_VERIFIED" or "ORIGINAL" or "RESOLVING")
         {
             ++_compactStartEpoch;
             _compactStarting = false;
@@ -707,7 +707,12 @@ public sealed partial class MainWindow
         var problemText = hostProblem ? hostHealth.Message :
             trackProblem ? trackHealth.Message :
             actionProblem ? _compactStartupText : "";
+        // An accepted file-info mapping is not proof of sound. Only a CDP
+        // decoder kUrl match for the CURRENT playing track may use green.
         var activelyReplacing = _bridge.Enabled &&
+            _bridge.LastStatus == "NATIVE_SOURCE_VERIFIED" &&
+            _compactPresenceStatus == "approved";
+        var mappingOnly = _bridge.Enabled &&
             (_bridge.LastStatus is "NATIVE_MAPPING_ACCEPTED" or "SDK_MAPPING_ACCEPTED") &&
             _compactPresenceStatus == "approved";
         var originalPlaying = _bridge.Enabled &&
@@ -717,6 +722,7 @@ public sealed partial class MainWindow
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
             originalPlaying ? "Играет оригинал. Версия CELIKOM доступна." :
             activelyReplacing ? "Подмена активна · версия CELIKOM" :
+            mappingOnly ? "Версия CELIKOM передана Яндексу" :
             _compactPresenceStatus switch
             {
                 "approved" => "Версия песни CELIKOM доступна для подмены",
@@ -728,7 +734,9 @@ public sealed partial class MainWindow
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
             hostHint.Length > 0 ? Secondary :
             originalPlaying ? Secondary :
-            activelyReplacing || _compactPresenceStatus == "approved" ? Accent :
+            activelyReplacing ? Accent :
+            mappingOnly ? Secondary :
+            _compactPresenceStatus == "approved" ? Accent :
             Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
