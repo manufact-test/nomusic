@@ -76,7 +76,19 @@ try {
 
     // Access service intentionally omitted only in synthetic isolated unit
     // test. Production AudioController still enforces each real Range session.
-    $http=new AudioController($catalog,$store,$tokens);
+    // Production authorization is still required for every Range. The
+    // synthetic unit test supplies a strict in-memory authorizer rather than
+    // bypassing the signed session gate.
+    $authorizer=new class implements \Celikom\Entitlement\AudioAuthorization {
+        public function allowed(int $sessionId): bool { return $sessionId===26; }
+    };
+    $http=new AudioController($catalog,$store,$tokens,$authorizer);
+    $denied=new AudioController($catalog,$store,$tokens,
+        new class implements \Celikom\Entitlement\AudioAuthorization {
+            public function allowed(int $sessionId): bool { return false; }
+        });
+    check($denied->handle('GET',71,$params,[])->status===403,
+        'a valid signed token is never sufficient without server entitlement');
     $range=$http->handle('GET',71,$params,['range'=>'bytes=7-30']);
     $rangeBytes = body($range);
     if (!($range->status===206 && $rangeBytes===substr($derived,7,24)
