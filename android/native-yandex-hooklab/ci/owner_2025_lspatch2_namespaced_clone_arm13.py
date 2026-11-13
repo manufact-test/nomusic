@@ -38,6 +38,7 @@ from ci.a1_resource_package_rename import (
     rewrite_exact_namespace,package_names,InvalidResourceTable,
     classify_outer_signing_change,only_expected_own_v1_signing_changes
 )
+from ci.a1_passport_sync_exact import rewrite_exact_sync_authority, PassportResourceMismatch
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 from owner_phone_diagnostic_artifact import export_after_native_acceptance
 
@@ -197,6 +198,56 @@ def _rename_only_owned_outer_resource_package(single, work, key):
     return aligned, min(own_signing_entries_updated,16)
 
 
+
+def _repair_only_owned_passport_sync(single, work, key):
+    """One verified clone-only resource-string fix; no Passport code or auth bypass."""
+    unsigned=work/"passport-sync-own-unsigned.apk"
+    aligned=work/"passport-sync-own-aligned.apk"
+    try:
+        with zipfile.ZipFile(single) as old:
+            entries=old.infolist()
+            if len(entries)!=len({info.filename for info in entries}):
+                stop("PASSPORT_PATCH_DUPLICATE_ZIP_ENTRIES")
+            before=old.read("resources.arsc")
+            after=rewrite_exact_sync_authority(before,ORIGINAL,DEST)
+            with zipfile.ZipFile(unsigned,"w",allowZip64=True) as out:
+                out.comment=old.comment
+                for info in entries:
+                    out.writestr(info,after if info.filename=="resources.arsc"
+                                 else old.read(info.filename))
+        if cmd([lab_sdk_tool("zipalign"),"-f","-p","4",
+                str(unsigned),str(aligned)],timeout=120).returncode:
+            stop("PASSPORT_PATCH_ZIPALIGN_FAILED")
+        resign_own(aligned,key)
+        changed=[]
+        with zipfile.ZipFile(single) as old,zipfile.ZipFile(aligned) as new:
+            if old.namelist()!=new.namelist() or new.testzip() is not None:
+                stop("PASSPORT_PATCH_ZIP_STRUCTURE_DRIFT")
+            for name in old.namelist():
+                if name=="resources.arsc":
+                    if new.read(name)!=after:
+                        stop("PASSPORT_PATCH_RESOURCE_DRIFT")
+                elif digest_bytes(old.read(name))!=digest_bytes(new.read(name)):
+                    changed.append(name)
+        if not only_expected_own_v1_signing_changes(changed):
+            stop("PASSPORT_PATCH_NON_RESOURCE_PAYLOAD_CHANGED")
+        if _outer_signer_cert_sha256(single)!=_outer_signer_cert_sha256(aligned):
+            stop("PASSPORT_PATCH_OWN_CERT_CHANGED")
+        if apk_name(aligned).get("name")!=DEST:
+            stop("PASSPORT_PATCH_APP_ID_CHANGED")
+        elf=verify_native_loader_elf_offsets(aligned)
+        if not all(x["page_aligned_4096"] for x in elf.values()):
+            stop("PASSPORT_PATCH_NATIVE_ALIGNMENT_CHANGED")
+        # The signed embedded publisher input is preserved byte-for-byte.
+        with zipfile.ZipFile(single) as old,zipfile.ZipFile(aligned) as new:
+            if old.read("assets/lspatch/origin.apk")!=new.read("assets/lspatch/origin.apk"):
+                stop("PASSPORT_PATCH_INNER_ORIGIN_CHANGED")
+    except (OSError,ValueError,PassportResourceMismatch,zipfile.BadZipFile):
+        stop("PASSPORT_PATCH_VERIFICATION_FAILED")
+    print("PASSPORT_SYNC_OWN_RESOURCE_PARITY_OK",flush=True)
+    return aligned
+
+
 def patch_manifest(data):
     raw,stats=source.rewrite_manifest(data.decode("utf-8"))
     root=ET.fromstring(raw)
@@ -214,6 +265,13 @@ def patch_manifest(data):
     for provider in root.iter("provider"):
         auth=provider.attrib.get(ANDROID+"authorities","")
         if not auth: continue
+        # This provider's authority is a resource reference, not an independent
+        # literal. Keep the reference; the own-outer clone string is updated
+        # separately and must equal the Android SyncAdapter authority.
+        if provider.attrib.get(ANDROID+"name","").endswith(".core.sync.SyncProvider"):
+            if not auth.startswith("@"):
+                stop("PASSPORT_SYNC_PROVIDER_RESOURCE_REFERENCE_REQUIRED")
+            continue
         values=auth.split(";")
         # ALL provider authorities must be globally unique for Android
         # PackageManager to install the CELIKOM clone next to publisher Yandex.
@@ -458,6 +516,9 @@ def run(xapk):
         if namespace_trial:
             single,own_signing_entries_updated=_rename_only_owned_outer_resource_package(
                 single,work,work/"unique-own-key.jks")
+        passport_trial=os.getenv("CELIKOM_A1_PASSPORT_SYNC_TRIAL")=="1"
+        if passport_trial:
+            single=_repair_only_owned_passport_sync(single,work,work/"unique-own-key.jks")
         firebase_resource_after=_firebase_resource_table_parity(publisher_base[0],single)
         with zipfile.ZipFile(single) as packaged:
             own_modules=[name for name in packaged.namelist()
@@ -469,6 +530,7 @@ def run(xapk):
             "firebase_resource_table_parity":firebase_resource_parity,
             "firebase_resource_table_after":firebase_resource_after,
             "resource_namespace_trial_only":namespace_trial,
+            "passport_sync_config_trial_only":passport_trial,
             "own_signature_metadata_entries_regenerated_bounded":own_signing_entries_updated,
             "clone_provider_namespace_rewrites":rewrite_summary,
             "own_signed_cloned_splits":len(renamed),
