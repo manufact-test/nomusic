@@ -1,0 +1,23 @@
+# CELIKOM Android A1 — native startup verification, 13 Nov 2026
+
+## Confirmed tests
+
+Android 13 ARM native CI, original Yandex installed first and CELIKOM alongside it:
+- Standalone #43412506017 and paired #43412506076: CELIKOM 25/25, original 25/25 in paired test.
+- Standalone #43413689898 and paired #43413689837: repeat 25/25 and direct runtime resource lookup verification.
+- CELIKOM active resource location: OUTER_OWN. Both expected Firebase resource identifiers resolve in CELIKOM namespace (PAIR_BOTH); original namespace returns PAIR_NONE in clone.
+- Controller: ENTER 1, RETURN 1, THROW 0.
+- The original application remained installed and stable. No real account, audio or controls test was performed.
+
+## Exact code and backups
+
+Verified code: 0b8591329aae1e8b4c7f8f71815a12ee4dcc8e01.
+Backup: backup/android-a1-firebase-namespace-success-witness-20261113.
+Earlier successful backup: backup/android-a1-first-paired-25x25-resource-route-native-pass-20261113.
+Earlier read-only negative/causal baseline: backup/android-a1-loadedapk-inner-cache-native-proof-20261113.
+
+## Interpretation
+
+The native MAIN startup blocker is resolved in disposable tests. This is **not** a consumer release: audio replacement, authorization, pause, seek, next and radio have not been accepted. The native resource-route experiment is opt-in in CI and disabled by default in other builds. Keep all existing project boundaries and do not change Test.50, original Yandex, Windows or production.
+
+Next: review the existing B42 audio contract, identify the native source integration point, then test actual audio and controls before preparing a user APK. Do not repeat the closed startup and Firebase investigations.
