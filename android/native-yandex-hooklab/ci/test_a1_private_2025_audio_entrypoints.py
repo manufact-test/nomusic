@@ -1,6 +1,6 @@
 """Only synthetic public API descriptors; no publisher APK required."""
 import unittest
-from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods, count_direct_public_invocations
+from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods, count_direct_public_invocations,public_extractor_shape,extractor_argument_shape
 
 class AudioEntryPointSafetyTests(unittest.TestCase):
     def test_public_media3_and_legacy_methods_classified(self):
@@ -30,6 +30,35 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertFalse(got["active_current_track_or_decoder_binding_proven"])
         for value in ("Secret","random","Lcq7","Lga4"):
             self.assertNotIn(value,str(got))
+
+
+    def test_exact_public_extractor_argument_shapes_never_export_paths(self):
+        self.assertEqual(public_extractor_shape(["Landroid/content/Context;","Landroid/net/Uri;"]),
+                         "CONTEXT_URI")
+        self.assertEqual(public_extractor_shape(["Ljava/io/FileDescriptor;","J","J"]),
+                         "FD_OFFSET_LENGTH")
+        self.assertEqual(public_extractor_shape(["Ljava/lang/String;"]),
+                         "STRING_UNKNOWN_URI_OR_FILE")
+        self.assertEqual(public_extractor_shape(["Landroid/media/MediaDataSource;"]),
+                         "MEDIA_DATA_SOURCE")
+        self.assertEqual(public_extractor_shape(["Lvendor/private/Stream;"]), "OTHER_PUBLIC_SHAPE")
+
+    def test_bounded_dex_public_proto_decoder(self):
+        import struct
+        raw=bytearray(140)
+        # proto_ids_size=1, proto_ids_off=100, parameters_off=120.
+        struct.pack_into("<II",raw,72,1,100)
+        struct.pack_into("<I",raw,108,120)
+        struct.pack_into("<I",raw,120,2)
+        struct.pack_into("<HH",raw,124,4,5)
+        class Fake:
+            data=bytes(raw)
+            def method_signature(self,index):
+                return ("Landroid/media/MediaExtractor;","setDataSource",0)
+            def type(self,index):
+                return {4:"Landroid/content/Context;",5:"Landroid/net/Uri;"}[index]
+        self.assertEqual(extractor_argument_shape(Fake(),0),"CONTEXT_URI")
+        self.assertEqual(extractor_argument_shape(Fake(),1),"CONTEXT_URI")
 
     def test_exact_dex_invoke_instructions_not_just_method_references(self):
         class MockDex:

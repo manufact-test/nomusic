@@ -88,6 +88,47 @@ def summarize_methods(methods, defined_indices=()):
         "actual_audio_or_account_observed":False,
     }
 
+# Classify standard framework setDataSource overloads only. Never print
+# private Java signatures, path strings, content URIs or network endpoints.
+EXTRACTOR_SHAPES=(
+    "STRING_UNKNOWN_URI_OR_FILE", "FILE_DESCRIPTOR",
+    "FD_OFFSET_LENGTH", "MEDIA_DATA_SOURCE", "CONTEXT_URI",
+    "CONTEXT_URI_HEADERS", "OTHER_PUBLIC_SHAPE", "UNREADABLE_SHAPE"
+)
+
+def public_extractor_shape(parameters):
+    names=tuple(parameters)
+    fixed={
+        ("Ljava/lang/String;",):"STRING_UNKNOWN_URI_OR_FILE",
+        ("Ljava/io/FileDescriptor;",):"FILE_DESCRIPTOR",
+        ("Ljava/io/FileDescriptor;","J","J"):"FD_OFFSET_LENGTH",
+        ("Landroid/media/MediaDataSource;",):"MEDIA_DATA_SOURCE",
+        ("Landroid/content/Context;","Landroid/net/Uri;"):"CONTEXT_URI",
+        ("Landroid/content/Context;","Landroid/net/Uri;","Ljava/util/Map;"):"CONTEXT_URI_HEADERS",
+    }
+    return fixed.get(names,"OTHER_PUBLIC_SHAPE")
+
+def extractor_argument_shape(dex, method_index):
+    """Read the DEX proto list; return a fixed public overload enum only."""
+    try:
+        _owner,_name,proto=dex.method_signature(method_index)
+        count,offset=struct.unpack_from("<II",dex.data,72)
+        if proto>=count or offset+count*12>len(dex.data):
+            return "UNREADABLE_SHAPE"
+        params_off=struct.unpack_from("<I",dex.data,offset+proto*12+8)[0]
+        if params_off==0:
+            return public_extractor_shape(())
+        if params_off+4>len(dex.data):
+            return "UNREADABLE_SHAPE"
+        n=struct.unpack_from("<I",dex.data,params_off)[0]
+        if n>8 or params_off+4+n*2>len(dex.data):
+            return "UNREADABLE_SHAPE"
+        arg_types=[dex.type(struct.unpack_from("<H",dex.data,params_off+4+i*2)[0])
+                   for i in range(n)]
+        return public_extractor_shape(arg_types)
+    except (AttributeError,IndexError,struct.error,DexError,ValueError):
+        return "UNREADABLE_SHAPE"
+
 def count_direct_public_invocations(dex):
     """Actual DEX invoke instructions; never logs direct caller identities.
 
@@ -95,9 +136,12 @@ def count_direct_public_invocations(dex):
     Unsupported instruction decoding remains explicit, not a false zero.
     """
     counts=Counter()
+    overloads=Counter()
     complete=0
     undecoded=0
+    same_body=0
     for _index, code in dex.code_methods():
+        body_roles=set()
         try:
             instructions=decode_instructions(code)
         except FlowDecodeError:
@@ -113,8 +157,18 @@ def count_direct_public_invocations(dex):
             role=classify(*dex.method(method_index))
             if role:
                 counts[role]+=1
+                body_roles.add(role)
+                if role=="ANDROID_MEDIA_EXTRACTOR_SOURCE":
+                    overloads[extractor_argument_shape(dex,method_index)]+=1
+        if "ANDROID_MEDIA_EXTRACTOR_SOURCE" in body_roles and (
+            "ANDROID_AUDIO_TRACK_OUTPUT" in body_roles or
+            "ANDROID_MEDIA_CODEC_INPUT" in body_roles):
+            same_body+=1
     return {
         "direct_public_invocation_counts":{k:min(counts[k],9999) for k in PUBLIC_METHODS},
+        "android_extractor_callsite_overload_categories":{
+            k:min(overloads[k],9999) for k in EXTRACTOR_SHAPES},
+        "extractor_and_renderer_invoked_same_method_bodies_bounded":min(same_body,9999),
         "decoded_code_bodies_bounded":min(complete,999999),
         "undecoded_code_bodies_bounded":min(undecoded,999999),
         "executed_on_real_player_proven":False,
@@ -149,6 +203,7 @@ def scan_publisher(xapk: Path) -> dict:
         dex_count=0
         total_decoded=0
         total_undecoded=0
+        shared_bodies=0
         for apk in parts:
             with zipfile.ZipFile(apk) as archive:
                 if archive.testzip() is not None:
@@ -171,6 +226,9 @@ def scan_publisher(xapk: Path) -> dict:
                     direct=count_direct_public_invocations(d)
                     total_decoded+=direct["decoded_code_bodies_bounded"]
                     total_undecoded+=direct["undecoded_code_bodies_bounded"]
+                    shared_bodies+=direct["extractor_and_renderer_invoked_same_method_bodies_bounded"]
+                    for shape,n in direct["android_extractor_callsite_overload_categories"].items():
+                        combined["SHAPE_"+shape]+=n
                     for role,n in direct["direct_public_invocation_counts"].items():
                         combined["CALL_"+role]+=n
         if dex_count==0:
@@ -186,6 +244,9 @@ def scan_publisher(xapk: Path) -> dict:
             k:min(combined["CALL_"+k],9999) for k in PUBLIC_METHODS},
         "decoded_code_bodies_bounded":min(total_decoded,999999),
         "undecoded_code_bodies_bounded":min(total_undecoded,999999),
+        "android_extractor_callsite_overload_categories":{
+            k:min(combined["SHAPE_"+k],9999) for k in EXTRACTOR_SHAPES},
+        "extractor_and_renderer_invoked_same_method_bodies_bounded":min(shared_bodies,9999),
         "actual_current_track_binding_proven":False,
         "source_before_decoder_execution_proven":False,
         "native_audio_playback_proven":False,
