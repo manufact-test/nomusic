@@ -267,7 +267,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             for family,event in (
                 ("CUSTOM_META","PUSH_PROVIDER_CONFIG_CUSTOM"),
                 ("DEFAULT_META","PUSH_PROVIDER_CONFIG_DEFAULT"),
-                ("GOOGLE_RESOURCE","PUSH_PROVIDER_CONFIG_RESOURCE"),
+                ("GOOGLE_RESOURCE","PUSH_PROVIDER_CONFIG_RESOURCE"))},
+        "exact_post_true_provider_namespace_lookup":{
+            family:[x[2] for x in exact_push_provider_config if x[0]==event][:12]
+            for family,event in (
                 ("CLONE_RESOURCE_ID","PUSH_PROVIDER_CONFIG_CLONE_ID"),
                 ("PUBLISHER_NAMESPACE_ID","PUSH_PROVIDER_CONFIG_STOCK_ID"),
                 ("PUBLISHER_NAMESPACE_VALUE","PUSH_PROVIDER_CONFIG_STOCK_VALUE"))},

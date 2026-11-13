@@ -552,7 +552,7 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
               +log(431,"event=PUSH_PROVIDER_CONFIG_STOCK_VALUE;origin=PUSH_PROVIDER;error=PAIR_BOTH;thread=OTHER")
               +log(432,"event=PUSH_PROVIDER_CONFIG_STOCK_VALUE;origin=PUSH_PROVIDER;error=PAIR_UNKNOWN;thread=OTHER")
               +log(431,"event=PUSH_PROVIDER_CONFIG_STOCK_VALUE;origin=PUSH_PROVIDER;error=SECRET_VALUE;thread=OTHER"))
-        got=scoped_metrica_witness(EXIT,rows)["exact_post_true_provider_config_presence"]
+        got=scoped_metrica_witness(EXIT,rows)["exact_post_true_provider_namespace_lookup"]
         self.assertEqual(got["CLONE_RESOURCE_ID"],["PAIR_NONE"])
         self.assertEqual(got["PUBLISHER_NAMESPACE_ID"],["PAIR_BOTH"])
         self.assertEqual(got["PUBLISHER_NAMESPACE_VALUE"],["PAIR_BOTH"])
