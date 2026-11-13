@@ -39,6 +39,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "PUSH_PROVIDER_REASON","PUSH_FATAL_PROVIDER_LINK",
          "PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER_CONFIG_DEFAULT",
          "PUSH_PROVIDER_CONFIG_RESOURCE",
+         "PUSH_PROVIDER_CONFIG_CLONE_ID","PUSH_PROVIDER_CONFIG_STOCK_ID",
+         "PUSH_PROVIDER_CONFIG_STOCK_VALUE",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
@@ -144,7 +146,9 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
                      "PUSH_PROVIDER_HOOK","PUSH_PROVIDER_CALL","PUSH_PROVIDER_PHASE","PUSH_PROVIDER_ERROR",
                      "PUSH_PROVIDER_REASON","PUSH_FATAL_PROVIDER_LINK",
                      "PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER_CONFIG_DEFAULT",
-                     "PUSH_PROVIDER_CONFIG_RESOURCE") and len(exact_service_events)<80:
+                     "PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER_CONFIG_CLONE_ID",
+                     "PUSH_PROVIDER_CONFIG_STOCK_ID",
+                     "PUSH_PROVIDER_CONFIG_STOCK_VALUE") and len(exact_service_events)<96:
             exact_service_events.append((event,origin,error,thread))
         if len(seen)<250:
             seen.append((event,origin,error,thread))
@@ -263,7 +267,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             for family,event in (
                 ("CUSTOM_META","PUSH_PROVIDER_CONFIG_CUSTOM"),
                 ("DEFAULT_META","PUSH_PROVIDER_CONFIG_DEFAULT"),
-                ("GOOGLE_RESOURCE","PUSH_PROVIDER_CONFIG_RESOURCE"))},
+                ("GOOGLE_RESOURCE","PUSH_PROVIDER_CONFIG_RESOURCE"),
+                ("CLONE_RESOURCE_ID","PUSH_PROVIDER_CONFIG_CLONE_ID"),
+                ("PUBLISHER_NAMESPACE_ID","PUSH_PROVIDER_CONFIG_STOCK_ID"),
+                ("PUBLISHER_NAMESPACE_VALUE","PUSH_PROVIDER_CONFIG_STOCK_VALUE"))},
         "service_hook_registered":any(x[2]=="REGISTERED" for x in service_hook),
         "service_sdk_target_states":{
             name:{state:sum(x[1]==name and x[2]==state for x in service_call)

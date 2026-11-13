@@ -546,6 +546,18 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertNotIn("SECRET_SENDER",str(got))
         self.assertNotIn("432",str(got))
 
+    def test_firebase_namespace_resource_probe_only_enums(self):
+        rows=(log(431,"event=PUSH_PROVIDER_CONFIG_CLONE_ID;origin=PUSH_PROVIDER;error=PAIR_NONE;thread=OTHER")
+              +log(431,"event=PUSH_PROVIDER_CONFIG_STOCK_ID;origin=PUSH_PROVIDER;error=PAIR_BOTH;thread=OTHER")
+              +log(431,"event=PUSH_PROVIDER_CONFIG_STOCK_VALUE;origin=PUSH_PROVIDER;error=PAIR_BOTH;thread=OTHER")
+              +log(432,"event=PUSH_PROVIDER_CONFIG_STOCK_VALUE;origin=PUSH_PROVIDER;error=PAIR_UNKNOWN;thread=OTHER")
+              +log(431,"event=PUSH_PROVIDER_CONFIG_STOCK_VALUE;origin=PUSH_PROVIDER;error=SECRET_VALUE;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,rows)["exact_post_true_provider_config_presence"]
+        self.assertEqual(got["CLONE_RESOURCE_ID"],["PAIR_NONE"])
+        self.assertEqual(got["PUBLISHER_NAMESPACE_ID"],["PAIR_BOTH"])
+        self.assertEqual(got["PUBLISHER_NAMESPACE_VALUE"],["PAIR_BOTH"])
+        self.assertNotIn("SECRET_VALUE",str(got))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))

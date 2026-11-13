@@ -1490,6 +1490,9 @@ public final class ExitCallsiteWitness extends XposedModule {
             emit("PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER","PAIR_UNKNOWN");
             emit("PUSH_PROVIDER_CONFIG_DEFAULT","PUSH_PROVIDER","PAIR_UNKNOWN");
             emit("PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_CLONE_ID","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_STOCK_ID","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_STOCK_VALUE","PUSH_PROVIDER","PAIR_UNKNOWN");
             return;
         }
         try {
@@ -1514,12 +1517,23 @@ public final class ExitCallsiteWitness extends XposedModule {
             String pkg=c.getPackageName();
             int app=res.getIdentifier("google_app_id","string",pkg);
             int sender=res.getIdentifier("gcm_defaultSenderId","string",pkg);
+            emit("PUSH_PROVIDER_CONFIG_CLONE_ID","PUSH_PROVIDER",exactPairCategory(app>0,sender>0));
+            int stockApp=res.getIdentifier("google_app_id","string","ru.yandex.music");
+            int stockSender=res.getIdentifier("gcm_defaultSenderId","string","ru.yandex.music");
+            emit("PUSH_PROVIDER_CONFIG_STOCK_ID","PUSH_PROVIDER",exactPairCategory(stockApp>0,stockSender>0));
+            emit("PUSH_PROVIDER_CONFIG_STOCK_VALUE","PUSH_PROVIDER",
+                exactPairCategory(
+                    stockApp>0 && exactIdentifierPresent(c,Integer.valueOf(stockApp)),
+                    stockSender>0 && exactIdentifierPresent(c,Integer.valueOf(stockSender))));
             emit("PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER",
                 exactPairCategory(
                     app>0 && exactIdentifierPresent(c,Integer.valueOf(app)),
                     sender>0 && exactIdentifierPresent(c,Integer.valueOf(sender))));
         } catch (Throwable ignored) {
             emit("PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_CLONE_ID","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_STOCK_ID","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_STOCK_VALUE","PUSH_PROVIDER","PAIR_UNKNOWN");
         }
     }
 
