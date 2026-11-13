@@ -709,12 +709,10 @@ public sealed partial class MainWindow
             actionProblem ? _compactStartupText : "";
         // An accepted file-info mapping is not proof of sound. Only a CDP
         // decoder kUrl match for the CURRENT playing track may use green.
-        var activelyReplacing = _bridge.Enabled &&
-            _bridge.LastStatus == "NATIVE_SOURCE_VERIFIED" &&
-            _compactPresenceStatus == "approved";
-        var mappingOnly = _bridge.Enabled &&
-            (_bridge.LastStatus is "NATIVE_MAPPING_ACCEPTED" or "SDK_MAPPING_ACCEPTED") &&
-            _compactPresenceStatus == "approved";
+        var activelyReplacing = PlaybackSourceEvidence.Verified(
+            _bridge.Enabled, _bridge.LastStatus, _compactPresenceStatus);
+        var mappingOnly = PlaybackSourceEvidence.MappedButUnverified(
+            _bridge.Enabled, _bridge.LastStatus, _compactPresenceStatus);
         var originalPlaying = _bridge.Enabled &&
             _bridge.LastStatus == "ORIGINAL" && _compactPresenceStatus == "approved";
         _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
