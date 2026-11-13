@@ -539,7 +539,7 @@ function observeNativePlayback(view) {
         const currentId = lastStatus.get(view)?.trackId;
         const value = prop.value;
         const volume = typeof value === "string" &&
-          /^(?:0(?:\\.\\d{1,6})?|1(?:\\.0{1,6})?)$/.test(value)
+          /^(?:0(?:\.\d{1,6})?|1(?:\.0{1,6})?)$/.test(value)
           ? Number(value) : null;
         if (volume !== null && currentId && prev.playing &&
             prev.sourceTrackId === currentId) {
