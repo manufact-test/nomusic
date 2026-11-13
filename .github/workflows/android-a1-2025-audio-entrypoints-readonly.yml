@@ -8,7 +8,7 @@ on:
       - '.github/workflows/android-a1-2025-audio-entrypoints-readonly.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   publisher-2025-audio-public-apis-readonly:
     runs-on: ubuntu-24.04-arm
