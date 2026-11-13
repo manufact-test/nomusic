@@ -50,8 +50,8 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
     private boolean privatePushBoolWitnessReady;
-    private boolean exactPushServiceInitReady;
-    private final java.util.concurrent.atomic.AtomicInteger exactPushServiceInitHits =
+    private boolean exactPushProviderReady;
+    private final java.util.concurrent.atomic.AtomicInteger exactPushProviderHits =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean metricaProviderQueryHookReady;
     private boolean metricaServiceHookReady;
@@ -1425,60 +1425,58 @@ public final class ExitCallsiteWitness extends XposedModule {
      * Read-only source-grounded probe: original method runs exactly once.
      * No app/SDK values, config, exceptions, args or results ever changed.
      */
-    private synchronized void installExactPostTruePushServiceInit(ClassLoader loader) {
-        if (exactPushServiceInitReady || loader == null) return;
+    private synchronized void installExactPostTruePushProvider(ClassLoader loader) {
+        if (exactPushProviderReady || loader == null) return;
         try {
             Class<?> privateClass=Class.forName(
-                "pro.celikom.a1exitwitness.PrivatePostTrueServiceTarget",false,
+                "pro.celikom.a1exitwitness.PrivatePostTrueProviderTarget",false,
                 ExitCallsiteWitness.class.getClassLoader());
             Object privateRow=privateClass.getDeclaredMethod("exact").invoke(null);
             if (!(privateRow instanceof String[])) {
-                emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+                emit("PUSH_PROVIDER_HOOK","PUSH_PROVIDER","NO_HOOK");
                 return;
             }
             String[] target=(String[])privateRow;
-            if (target.length!=3 ||
-                !"initPushService".equals(target[1]) ||
-                !"android.content.Context".equals(target[2])) {
-                emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+            if (target.length!=2 ||
+                !"getPushServiceController".equals(target[1])) {
+                emit("PUSH_PROVIDER_HOOK","PUSH_PROVIDER","NO_HOOK");
                 return;
             }
-            Class<?> service=Class.forName(target[0],false,loader);
+            Class<?> provider=Class.forName(target[0],false,loader);
             Method exact=null;
-            for (Method m:service.getDeclaredMethods()) {
-                if (!"initPushService".equals(m.getName()) ||
-                        m.getParameterCount()!=1 ||
-                        m.getParameterTypes()[0]!=Context.class) continue;
+            for (Method m:provider.getDeclaredMethods()) {
+                if (!"getPushServiceController".equals(m.getName()) ||
+                        m.getParameterCount()!=0) continue;
                 if (exact!=null) {
-                    emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+                    emit("PUSH_PROVIDER_HOOK","PUSH_PROVIDER","NO_HOOK");
                     return; // cannot pick a fuzzy overload
                 }
                 exact=m;
             }
             if (exact==null) {
-                emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+                emit("PUSH_PROVIDER_HOOK","PUSH_PROVIDER","NO_HOOK");
                 return;
             }
             exact.setAccessible(true);
             hook(exact).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
-                    int hit=exactPushServiceInitHits.incrementAndGet();
+                    int hit=exactPushProviderHits.incrementAndGet();
                     if (hit<=12) {
                         ExactPushFrame f=scopedPushCall.get();
-                        emit("PUSH_SERVICE_PHASE","PUSH_SERVICE",
+                        emit("PUSH_PROVIDER_PHASE","PUSH_PROVIDER",
                             f==null ? "OUTSIDE_FATAL_CALL" :
                               f.yes>0 ? "AFTER_TRUE" : "BEFORE_TRUE");
-                        emit("PUSH_SERVICE_CALL","PUSH_SERVICE","ENTER");
+                        emit("PUSH_PROVIDER_CALL","PUSH_PROVIDER","ENTER");
                     }
                     try {
                         Object result=chain.proceed();
                         if (hit<=12)
-                            emit("PUSH_SERVICE_CALL","PUSH_SERVICE","RETURN");
+                            emit("PUSH_PROVIDER_CALL","PUSH_PROVIDER","RETURN");
                         return result;
                     } catch (Throwable failure) {
                         if (hit<=12) {
-                            emit("PUSH_SERVICE_CALL","PUSH_SERVICE","THROW");
-                            emit("PUSH_SERVICE_ERROR","PUSH_SERVICE",
+                            emit("PUSH_PROVIDER_CALL","PUSH_PROVIDER","THROW");
+                            emit("PUSH_PROVIDER_ERROR","PUSH_PROVIDER",
                                 failure instanceof IllegalStateException ?
                                     "ILLEGAL_STATE" :
                                 failure instanceof SecurityException ?
@@ -1487,10 +1485,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                         throw failure;
                     }
                 });
-            exactPushServiceInitReady=true;
-            emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","REGISTERED");
+            exactPushProviderReady=true;
+            emit("PUSH_PROVIDER_HOOK","PUSH_PROVIDER","REGISTERED");
         } catch (Throwable ignored) {
-            emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+            emit("PUSH_PROVIDER_HOOK","PUSH_PROVIDER","NO_HOOK");
         }
     }
 
@@ -1525,7 +1523,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installPrivatePushSiteWitness(loader);
                                 installAllFatalGuardWitness(loader);
                                 installExactFatalObjectWitness(loader);
-                                installExactPostTruePushServiceInit(loader);
+                                installExactPostTruePushProvider(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }

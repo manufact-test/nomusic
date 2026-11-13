@@ -490,6 +490,33 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(result["exact_post_true_push_service_phase"],["AFTER_TRUE"])
         self.assertEqual(result["all_witness_events_bounded"],250)
 
+    def test_exact_provider_return_throw_and_main_pid(self):
+        sample=(
+            log(431,"event=PUSH_PROVIDER_HOOK;origin=PUSH_PROVIDER;error=REGISTERED;thread=MAIN")
+            +log(431,"event=PUSH_PROVIDER_PHASE;origin=PUSH_PROVIDER;error=AFTER_TRUE;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CALL;origin=PUSH_PROVIDER;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CALL;origin=PUSH_PROVIDER;error=THROW;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_ERROR;origin=PUSH_PROVIDER;error=ILLEGAL_STATE;thread=OTHER")
+            +log(432,"event=PUSH_PROVIDER_CALL;origin=PUSH_PROVIDER;error=RETURN;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_ERROR;origin=PUSH_PROVIDER;error=SECRET;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,sample)
+        self.assertTrue(got["exact_post_true_push_provider_hook_registered"])
+        self.assertEqual(got["exact_post_true_push_provider_states"],
+                         {"ENTER":1,"RETURN":0,"THROW":1})
+        self.assertEqual(got["exact_post_true_push_provider_phase"],["AFTER_TRUE"])
+        self.assertEqual(got["exact_post_true_push_provider_error"],["ILLEGAL_STATE"])
+        self.assertNotIn("SECRET",str(got))
+        self.assertNotIn("432",str(got))
+
+    def test_provider_events_survive_legacy_cap(self):
+        old=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=OTHER")*260
+        nxt=(log(431,"event=PUSH_PROVIDER_HOOK;origin=PUSH_PROVIDER;error=REGISTERED;thread=OTHER")
+             +log(431,"event=PUSH_PROVIDER_CALL;origin=PUSH_PROVIDER;error=RETURN;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,old+nxt)
+        self.assertTrue(got["exact_post_true_push_provider_hook_registered"])
+        self.assertEqual(got["exact_post_true_push_provider_states"]["RETURN"],1)
+        self.assertEqual(got["all_witness_events_bounded"],250)
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
