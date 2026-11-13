@@ -115,6 +115,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             owned.add(int(value))
             admitted=True
     seen=[]
+    exact_service_events=[] # bounded separate capture; original 250-event gate unchanged
     for line in logcat.splitlines()[-25000:]:
         parsed=LOG.match(line)
         if parsed is None or int(parsed.group(1)) not in owned:
@@ -128,8 +129,12 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         event,origin,error,thread=match.groups()
         if event not in EVENTS or origin not in ORIGINS or error not in ERRORS:
             continue
-        seen.append((event,origin,error,thread))
-        if len(seen)>=250:break
+        if event in ("PUSH_SERVICE_HOOK","PUSH_SERVICE_CALL","PUSH_SERVICE_PHASE","PUSH_SERVICE_ERROR") and len(exact_service_events)<32:
+            exact_service_events.append((event,origin,error,thread))
+        if len(seen)<250:
+            seen.append((event,origin,error,thread))
+        # Keep scanning finite 25k log lines solely for this exact source
+        # witness, even if existing diagnostics consumed their 250 slots.
     metrica=[x for x in seen if x[0]=="METRICA_EXCEPTION"]
     contexts=[x for x in seen if x[0]=="APP_CONTEXT"]
     uncaught=[x for x in seen if x[0]=="UNCAUGHT"]
@@ -161,10 +166,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_init_hooks=[x for x in seen if x[0]=="PUSH_INIT_HOOK"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
     service_call=[x for x in seen if x[0]=="METRICA_SERVICE_CALL"]
-    exact_push_service_hook=[x for x in seen if x[0]=="PUSH_SERVICE_HOOK"]
-    exact_push_service_call=[x for x in seen if x[0]=="PUSH_SERVICE_CALL"]
-    exact_push_service_phase=[x for x in seen if x[0]=="PUSH_SERVICE_PHASE"]
-    exact_push_service_error=[x for x in seen if x[0]=="PUSH_SERVICE_ERROR"]
+    exact_push_service_hook=[x for x in exact_service_events if x[0]=="PUSH_SERVICE_HOOK"]
+    exact_push_service_call=[x for x in exact_service_events if x[0]=="PUSH_SERVICE_CALL"]
+    exact_push_service_phase=[x for x in exact_service_events if x[0]=="PUSH_SERVICE_PHASE"]
+    exact_push_service_error=[x for x in exact_service_events if x[0]=="PUSH_SERVICE_ERROR"]
     service_hook=[x for x in seen if x[0]=="METRICA_SERVICE_HOOK"]
     provider_resolve=[x for x in seen if x[0]=="METRICA_PROVIDER_RESOLVE"]
     provider_query=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY"]
