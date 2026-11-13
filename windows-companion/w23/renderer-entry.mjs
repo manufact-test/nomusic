@@ -129,6 +129,27 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   let expiredSourceTrack = null, expiredSourceFailedTrack = null;
   let deferredSourceTrack = null, deferredSourceFailedTrack = null;
   let lastExpiredAttemptTrack = null, lastExpiredAttemptAt = 0;
+  let lastUnfetchedAttemptTrack = null, lastUnfetchedAttemptAt = 0;
+  // Only an approved, CURRENT song may request one bounded source refresh
+  // when main-process CDP saw mapping but no GET to CELIKOM's media URL.
+  // This is NOT used as proof that the new audio actually became audible.
+  window.__celikomBridgeNativeRefreshUnfetched = trackId => {
+    if (typeof trackId !== "string" || !/^[1-9][0-9]{0,23}$/.test(trackId) ||
+        playerSourceRefresh.currentTrackId() !== trackId ||
+        !adapter.enabled || !attached || stopped ||
+        !playerSourceRefresh.attached) return false;
+    const now = Date.now();
+    if (lastUnfetchedAttemptTrack === trackId &&
+        now - lastUnfetchedAttemptAt < 120000) return false;
+    lastUnfetchedAttemptTrack = trackId;
+    lastUnfetchedAttemptAt = now;
+    report("SOURCE_UNFETCHED_CURRENT_REFRESH", trackId);
+    void playerSourceRefresh.request(trackId).then(
+      ok => report(ok ? "SOURCE_UNFETCHED_CURRENT_REFRESH_OK" :
+        "SOURCE_UNFETCHED_CURRENT_REFRESH_DEFERRED", trackId),
+      () => report("SOURCE_UNFETCHED_CURRENT_REFRESH_DEFERRED", trackId));
+    return true;
+  };
   sourceRecovery = createTransientSourceRecovery({
     prime: id => adapter.prime(id),
     reload: id => playerSourceRefresh.request(id),
@@ -323,6 +344,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     delete window.__celikomBridgeNativeCurrentTrackId;
     delete window.__celikomBridgeNativeCurrentTrack;
     delete window.__celikomBridgeNativeRecoverExpired;
+    delete window.__celikomBridgeNativeRefreshUnfetched;
     delete window.__celikomBridgeNativeCheckDeferred;
     delete window.__celikomBridgeNativeDrainDiagnostics;
   }, { once: true });
