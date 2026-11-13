@@ -88,11 +88,14 @@ jobs:
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'W98_W23_BUILD_FAILED' }
           $nativeHostText=Get-Content dist/host.cjs -Raw
+          $rendererText=Get-Content dist/renderer.js -Raw
           if ($nativeHostText -notmatch 'maxTotalBufferSize: 2 \* 1024 \* 1024' -or
               $nativeHostText -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
               $nativeHostText -notmatch 'PLAYER_CURRENT_NATIVE_VOLUME_DROP' -or
               $nativeHostText -notmatch 'setInterval\(\(\) => \{' -or
-              $nativeHostText -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.29"') {
+              $nativeHostText -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.29"' -or
+              $rendererText -notmatch '__celikomBridgeNativeRecoverSourceLeft' -or
+              $rendererText -notmatch 'SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED') {
             throw 'W99_W23_INTEGRATION_GUARDS_MISSING'
           }
       - name: W22/W23/W60 original-source, VPN, 403 and audio regressions
