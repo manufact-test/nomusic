@@ -69,6 +69,13 @@ remote "set -eu
       old=\$(sha256sum '$destination/'\"\$f\" | awk '{print \$1}')
       new=\$(sha256sum '$stage/'\"\$f\" | awk '{print \$1}')
       test \"\$old\" = \"\$new\" || { echo 'W99_EXISTING_FILE_HASH_CONFLICT'; exit 3; }
+    fi
+  done
+  for f in '$exe' '$zip' '$manifest'; do
+    if test -e '$destination/'\"\$f\"; then
+      old=\$(sha256sum '$destination/'\"\$f\" | awk '{print \$1}')
+      new=\$(sha256sum '$stage/'\"\$f\" | awk '{print \$1}')
+      test \"\$old\" = \"\$new\" || { echo 'W99_EXISTING_FILE_HASH_CONFLICT'; exit 3; }
       rm -f '$stage/'\"\$f\"
     else
       mv '$stage/'\"\$f\" '$destination/'\"\$f\"
@@ -76,8 +83,8 @@ remote "set -eu
   done
   cd '$destination'
   sha256sum -c '$manifest'
-  chmod 755 '$root/CELIKOM' '$root/CELIKOM/Windows' '$destination'
-  chmod 644 '$destination/'* 
+  chmod 755 '$destination'
+  chmod 644 '$destination/$exe' '$destination/$zip' '$destination/$manifest'
   rmdir '$stage'"
 
 for file in "$exe" "$zip" "$manifest"; do
