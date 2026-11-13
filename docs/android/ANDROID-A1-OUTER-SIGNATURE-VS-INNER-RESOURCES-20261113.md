@@ -1,3 +1,5 @@
+> **ПОСЛЕДНИЕ ДАННЫЕ 13.11:** прежняя гипотеза подтверждена и исправлена. Настоящие ARM13: оригинал 25/25, CELIKOM 25/25, успешный Firebase lookup по CELIKOM, Push provider RETURN без THROW. Подробный результат: [ANDROID-A1-NATIVE-STARTUP-25X25-20261113.md](ANDROID-A1-NATIVE-STARTUP-25X25-20261113.md). Ранее зафиксированный здесь NO-GO исторический; аудио/аккаунт ещё не приняты.
+
 # CELIKOM Android A1 — 13 Nov 2026: exact outer APK signer metadata proven; runtime resource origin remains inner
 
 ## Verified bounded CI evidence
