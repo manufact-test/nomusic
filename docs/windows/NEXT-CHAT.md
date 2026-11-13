@@ -1,3 +1,11 @@
+# W88 0.24.32 — AUTORUN DEFAULT ON, PERSISTENT OPT-OUT (2026-11-13)
+
+User revised Windows startup UX: CELIKOM **must enable autostart automatically on first application launch** after installation. If undesired, right-click CELIKOM tray and choose **«Отключить запуск с Windows»**; keep user's opt-out across future restarts/upgrades. Former W87 0.24.31 asked the user to opt IN; W88 fixes that. Uses HKCU Run with `--background`, sticky user preference marker `HKCU\Software\CELIKOM\Windows\AutoRunConfigured`. Existing fresh-entitlement and manual last Stop guard remain unchanged: startup does NOT auto-open Yandex nor authorize music without server. Full docs `docs/windows/W88-DEFAULT-WINDOWS-AUTORUN-OPT-OUT-20261113.md`.
+
+Work branch `experiment/windows-w88-default-autorun-optout-20261113`; pre-W88 exact backup `backup/windows-w88-pre-default-autorun-exact-20261113` @ `9acee0c2ca33c7d3ca2ed940abacc57a037ca1d3`. W87 0.24.31 working TEST remains available Library `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.31-AUTORUN-TEST.exe`. W88 candidate CI workflow `windows-w88-default-autorun-installer.yml`, run `43404108350` in progress at creation of this note. MUST verify job conclusion and exact installer SHA before calling finished. No changes to host.cjs or renderer.js native audio. Reboot/Windows field QA still pending. Source witness issue #52 open, #48 future migration.
+
+---
+
 # W87 0.24.31 WINDOWS AUTORUN + QUIET REPAIR — CI GREEN, LIBRARY DELIVERED (2026-11-13)
 
 Source: `experiment/windows-w87-autostart-quiet-repair-20261113`; **pre-work immutable backup** `backup/windows-w87-before-autostart-qa-owner-20261113` @ `77cd940ea9bb4bb20b70341e33957ee757e45d41`. Full detailed owner QA, code/test changes, remaining physical tests: `docs/windows/W87-OWNER-QA-20261113-STARTUP-AUTORUN-REPAIR-HANDOFF.md` (read first).
