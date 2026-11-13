@@ -56,19 +56,37 @@ test("W96: wrong or stale decoder proof cannot stop actual recovery",async()=>{
   await pause(30);
   assert.equal(calls,0,"do not fetch or reload for switched-away tracks");
 });
-test("W96: verified source cannot interrupt a retry already resolving",async()=>{
-  let started, finish;
+test("W99: verified source cancels a retry while its fresh grant is resolving",async()=>{
+  let started, finish, reloads=0;
   const entered=new Promise(resolve=>started=resolve);
   const recovery=createTransientSourceRecovery({
     active:()=>true,currentTrackId:()=>"40371622",
     prime:()=>{started();return new Promise(resolve=>{finish=resolve})},
-    reload:async()=>true,delays:[1]
+    reload:async()=>{reloads++;return true;},delays:[1]
+  });
+  recovery.schedule("40371622");
+  await entered;
+  assert.equal(recovery.confirmedCurrentSource("40371622"),true);
+  finish(true);
+  await pause(10);
+  assert.equal(reloads,0,"confirmed current decoder must not be reloaded a second time");
+  assert.equal(recovery.pendingCount,0);
+});
+test("W99: verified source cannot interrupt a reload that already started",async()=>{
+  let started, finish, reloads=0;
+  const entered=new Promise(resolve=>started=resolve);
+  const recovery=createTransientSourceRecovery({
+    active:()=>true,currentTrackId:()=>"40371622",
+    prime:async()=>true,
+    reload:()=>{reloads++;started();return new Promise(resolve=>{finish=resolve})},
+    delays:[1]
   });
   recovery.schedule("40371622");
   await entered;
   assert.equal(recovery.confirmedCurrentSource("40371622"),false);
-  recovery.cancel();finish(false);
+  finish(true);
   await pause(10);
+  assert.equal(reloads,1);
   assert.equal(recovery.pendingCount,0);
 });
 

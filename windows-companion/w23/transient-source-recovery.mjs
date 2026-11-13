@@ -27,6 +27,7 @@ export function createTransientSourceRecovery({
       emit("SOURCE_RECOVERY_EXHAUSTED", id); finish(id, job); return;
     }
     const delay = delays[job.attempt++];
+    job.phase = "waiting";
     job.timer = timer(async () => {
       job.timer = null;
       if (!current(id, job)) {
@@ -34,12 +35,14 @@ export function createTransientSourceRecovery({
         finish(id, job);
         return;
       }
+      job.phase = "prime";
       emit("SOURCE_RECOVERY_RETRY", id);
       let found = false;
       try { found = await prime(id) === true; } catch {}
       if (!current(id, job)) { finish(id, job); return; }
       if (found) {
         emit("SOURCE_RECOVERY_GRANTED", id);
+        job.phase = "reload";
         let reloaded = false;
         try { reloaded = await reload(id) === true; } catch {}
         if (!current(id, job)) { finish(id, job); return; }
@@ -58,13 +61,13 @@ export function createTransientSourceRecovery({
     attempt(id, job);
     return true;
   }
-  // W96: a strong CURRENT decoder kUrl + playing witness proves Yandex has
-  // already chosen a fresh CELIKOM stream. Suppress only an as-yet-unfired
-  // 403 retry timer; do not touch a running retry, unrelated song or player.
+  // W99: a strong CURRENT decoder kUrl + playing witness proves Yandex has
+  // already chosen a fresh CELIKOM stream. Cancel a waiting or in-flight
+  // prime, but never interrupt a reload that has already started.
   function confirmedCurrentSource(id) {
     const job = pending.get(id);
-    if (!job || job.timer === null || !current(id,job)) return false;
-    clearTimer(job.timer);
+    if (!job || job.phase === "reload" || !current(id,job)) return false;
+    if (job.timer !== null) clearTimer(job.timer);
     job.timer = null;
     finish(id,job);
     emit("SOURCE_RECOVERY_DECODER_ALREADY_PLAYING",id);
