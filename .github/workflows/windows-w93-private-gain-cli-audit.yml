@@ -1,0 +1,31 @@
+name: CELIKOM W93 gain private staging CLI syntax and dry-run gate (NO DEPLOY)
+on:
+  push:
+    branches:
+      - experiment/windows-w93-private-gain-stage-cli-20261113
+    paths:
+      - server/bin/windows-gain-stage.php
+      - docs/windows/W93-PRIVATE-GAIN-STAGING-AND-ROLLBACK-20261113.md
+      - .github/workflows/windows-w93-private-gain-cli-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-live-write:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Private gain CLI is safe without parameters, never connects to prod
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l server/bin/windows-gain-stage.php
+          php server/bin/windows-gain-stage.php --help | grep -F 'Default dry-run'
+          if php server/bin/windows-gain-stage.php --commit 2>/dev/null; then
+            echo W93_UNAUTHORIZED_COMMIT_NOT_BLOCKED
+            exit 2
+          fi
+          echo W93_NO_AUTH_NO_STAGING_NO_PRODUCTION_MUTATION_PASS
