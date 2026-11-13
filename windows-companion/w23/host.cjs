@@ -43,6 +43,10 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "SOURCE_DEFERRED_EXPIRED", "SOURCE_DEFERRED_SKIPPED",
   "NATIVE_TOGGLE_RELOAD_DIFFERENT_TRACK",
   "SOURCE_EXPIRED_NATIVE_403",
+  "SOURCE_UNFETCHED_CURRENT_REFRESH",
+  "SOURCE_UNFETCHED_CURRENT_REFRESH_OK",
+  "SOURCE_UNFETCHED_CURRENT_REFRESH_DEFERRED",
+  "PLAYER_CURRENT_SOURCE_UNFETCHED_RECOVERY",
   "SOURCE_BATCH_REQUEST", "SOURCE_BATCH_MAPPED", "CACHE_HIT",
   "MEDIA_PLAY", "MEDIA_PAUSE", "MEDIA_PLAYING", "MEDIA_ERROR",
   "MEDIA_WAITING", "MEDIA_STALLED", "MEDIA_SEEKING", "MEDIA_SEEKED",
@@ -346,6 +350,10 @@ async function tick(view) {
 const playbackWitnesses = new WeakSet();
 const nativeAudioOrigins = new WeakMap();
 const nativeExpectedAudio = new WeakMap();
+const nativeMediaHttpSuccess = new WeakMap();
+const nativeNetworkObserversReady = new WeakSet();
+const nativeUnfetchedReloadAttempt = new WeakMap();
+const verifiedDecoderSource = new WeakMap();
 const AUDIO_RESOURCE_PATH = /^\/api\/v1\/audio\/([1-9][0-9]{0,17})$/;
 function rememberExpectedAudio(view, grant) {
   if (!validView(view) || grant?.approved !== true ||
@@ -377,7 +385,7 @@ function rememberExpectedAudio(view, grant) {
     if (entries.size >= 32) entries.delete(entries.keys().next().value);
     // Yandex track ID remains private metadata and is never used as an audio path ID.
     entries.set(resourceId, { href: url.origin + url.pathname + url.search,
-      expiresAt, yandexTrackId: grant.trackId });
+      expiresAt, yandexTrackId: grant.trackId, recordedAt: now });
   } catch { /* Invalid grant is handled by the existing renderer validator. */ }
 }
 function classifyPlayerUrl(view, resourceId, actualUrl) {
@@ -451,6 +459,7 @@ function observeNativePlayback(view) {
       if (prop?.name === "kUrl") {
         prev.sourceTrackId = null;
         prev.evidenceReportedFor = null;
+        verifiedDecoderSource.delete(view);
         if (typeof prop.value !== "string" || prop.value.length > 4096) continue;
         try {
           const actual = new URL(prop.value);
@@ -468,7 +477,10 @@ function observeNativePlayback(view) {
         } catch { /* Unknown native URL: no source evidence. */ }
       } else if (prop?.name === "kIsPlaying") {
         prev.playing = prop.value === "true";
-        if (!prev.playing) prev.evidenceReportedFor = null;
+        if (!prev.playing) {
+          prev.evidenceReportedFor = null;
+          verifiedDecoderSource.delete(view);
+        }
       }
     }
     decoderPlayers.set(id, prev);
@@ -476,6 +488,7 @@ function observeNativePlayback(view) {
     if (prev.playing && prev.sourceTrackId && current === prev.sourceTrackId &&
         prev.evidenceReportedFor !== current) {
       prev.evidenceReportedFor = current;
+      verifiedDecoderSource.set(view, {trackId: current, at: Date.now()});
       note("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", current);
     }
   };
@@ -514,7 +527,8 @@ function observeNativePlayback(view) {
           mediaRequests.set(requestId, { id, method: m, forbiddenJson: false,
             forbiddenJsonLength: null, expiredAtRequest:
               classify === "PLAYER_URL_EXPIRED_AT_REQUEST",
-            trackId: expected?.yandexTrackId || null });
+            trackId: expected?.yandexTrackId || null,
+            requestType: params?.type || "" });
           note("PLAYER_NET_REQUEST", id, "resource_id");
           note(classify, id, "resource_id");
           note(m === "GET" ? "PLAYER_NET_GET" :
@@ -528,6 +542,18 @@ function observeNativePlayback(view) {
           const entry = mediaRequests.get(requestId), id = entry.id;
           if (method === "Network.responseReceived") {
             const status = Number(params?.response?.status);
+            if ((status === 206 || status === 200) &&
+                entry.method === "GET" && entry.requestType === "Media" &&
+                typeof entry.trackId === "string") {
+              let successes = nativeMediaHttpSuccess.get(view);
+              if (!successes) {
+                successes = new Map();
+                nativeMediaHttpSuccess.set(view, successes);
+              }
+              if (successes.size >= 32)
+                successes.delete(successes.keys().next().value);
+              successes.set(entry.trackId, Date.now());
+            }
             note(status === 206 ? "PLAYER_NET_HTTP_PARTIAL" :
               status === 200 ? "PLAYER_NET_HTTP_FULL" :
               status === 403 ? "PLAYER_NET_HTTP_FORBIDDEN" :
@@ -589,8 +615,12 @@ function observeNativePlayback(view) {
         }
 
         if (method === "Media.playerDestroyed" &&
-            typeof params?.playerId === "string")
+            typeof params?.playerId === "string") {
+          const lost = decoderPlayers.get(params.playerId);
+          if (lost?.sourceTrackId === verifiedDecoderSource.get(view)?.trackId)
+            verifiedDecoderSource.delete(view);
           decoderPlayers.delete(params.playerId);
+        }
         if (method === "Media.playerErrorsRaised" &&
             Array.isArray(params?.errors) && params.errors.length > 0) {
           note("PLAYER_CDP_PIPELINE_ERROR");
@@ -637,7 +667,12 @@ function observeNativePlayback(view) {
       // Passive read-only recording of status and request destination class;
       // Network is NOT intercepted, requests are never modified or retried.
       Promise.resolve(debug.sendCommand("Network.enable")).then(
-        () => { if (validView(view)) note("PLAYER_NET_READY"); },
+        () => {
+          if (validView(view)) {
+            nativeNetworkObserversReady.add(view);
+            note("PLAYER_NET_READY");
+          }
+        },
         () => { if (validView(view)) note("PLAYER_NET_UNAVAILABLE"); });
     } catch {
       note("PLAYER_CDP_UNAVAILABLE");
