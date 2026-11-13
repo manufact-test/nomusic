@@ -8,9 +8,9 @@ const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
 async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null, grantOverride = null,
-  currentTrack = null, clock = Date } = {}) {
+  currentTrack = null, clock = Date, rendererStatus = "ORIGINAL" } = {}) {
   const diagnostics = [], evaluated = [], network = [];
-  let drained = false;
+  let drained = false, pump = () => {};
   const viewEvents = new Map();
   const view = {
     isDestroyed: () => false,
@@ -25,7 +25,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
         drained = true;
         return queue;
       }
-      if (script.includes("__celikomBridgeNativeStatus?.()")) return "ORIGINAL";
+      if (script.includes("__celikomBridgeNativeStatus?.()")) return rendererStatus;
       if (script.includes("__celikomBridgeNativeCurrentTrack?.()"))
         return currentTrack;
       return true;
@@ -40,9 +40,10 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   };
   const fakeHttp = {
     request: (options, callback) => {
-      network.push({ ...options });
+      const captured = { ...options };
+      network.push(captured);
       const req = new EventEmitter();
-      req.write = () => {};
+      req.write = data => { captured.body = String(data); };
       req.end = () => {
         queueMicrotask(() => {
           const resp = new EventEmitter();
@@ -79,11 +80,11 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
       CELIKOM_W23_DEV_DIAG:"diagnostics.log"
     }},
     URL,WeakMap,WeakSet,Set,JSON,Buffer,Date:clock,Promise,console,encodeURIComponent,
-    setInterval:callback=>{callback();return{unref(){}}}
+    setInterval:callback=>{pump=callback;callback();return{unref(){}}}
   };
   vm.runInNewContext(source,context,{timeout:1200});
   await new Promise(resolve=>setTimeout(resolve,35));
-  return {diagnostics,evaluated,network,
+  return {diagnostics,evaluated,network,pulse:() => pump(),
     emitView: (name,...args) => {
       for(const handler of viewEvents.get(name) || []) handler({},...args);
     },
