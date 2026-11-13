@@ -185,6 +185,8 @@ jobs:
       - name: Validate private staging scripts
         run: |
           bash -n .github/scripts/hostinger-windows-gain-stage.sh
+          grep -F 'W98_COPY_TARGET_ALREADY_PREFIXED' .github/scripts/hostinger-windows-gain-stage.sh
+          grep -F 'copy_to_remote "$work/manifest.json" "$manifest_remote"' .github/scripts/hostinger-windows-gain-stage.sh
           php -l .github/scripts/hostinger-windows-gain-remote.php
           php -l server/bin/windows-gain-stage.php
           php -l server/bin/windows-gain-rollback.php
