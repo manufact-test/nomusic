@@ -2275,33 +2275,29 @@ public final class ExitCallsiteWitness extends XposedModule {
     }
 
     // Emit no identifiers, URLs, extras or argument values from navigation.
-    private static String ownActivityTargetStatus(Activity activity, Intent intent) {
-        if (activity == null || intent == null) return "NO_TARGET";
+    private static String ownActivityTargetShape(Intent intent) {
+        // Only Intent's already-in-memory fields: no PackageManager IPC,
+        // no package resolution, no Activity launch, no URL/extras.
+        if (intent == null) return "NULL_INTENT";
         try {
             ComponentName component = intent.getComponent();
-            if (component == null) {
-                // A package-scoped implicit intent may resolve to no Activity
-                // at all. Check resolution without launching or modifying it.
-                try {
-                    android.content.pm.ResolveInfo result =
-                        activity.getPackageManager().resolveActivity(intent, 0);
-                    if (result == null || result.activityInfo == null)
-                        return "IMPLICIT_UNRESOLVED";
-                    return PACKAGE.equals(result.activityInfo.packageName)
-                        ? "IMPLICIT_OWN_RESOLVED" : "IMPLICIT_EXTERNAL_RESOLVED";
-                } catch (Throwable ignored) {
-                    return "IMPLICIT_CHECK_UNAVAILABLE";
-                }
+            if (component != null) {
+                if (!PACKAGE.equals(component.getPackageName()))
+                    return "EXPLICIT_OTHER_PACKAGE";
+                String cls = component.getClassName();
+                if ("ru.yandex.music.main.MainScreenActivity".equals(cls))
+                    return "EXPLICIT_OWN_MAIN";
+                if (cls.startsWith("ru.yandex.") || cls.startsWith("com.yandex."))
+                    return "EXPLICIT_OWN_VENDOR";
+                return "EXPLICIT_OWN_OTHER";
             }
-            if (!PACKAGE.equals(component.getPackageName())) return "NOT_OWN_PACKAGE";
-            try {
-                activity.getPackageManager().getActivityInfo(component, 0);
-                return "OWN_ACTIVITY_DECLARED";
-            } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
-                return "OWN_ACTIVITY_MISSING";
-            }
+            String target = intent.getPackage();
+            if (PACKAGE.equals(target)) return "IMPLICIT_OWN_PACKAGE";
+            if ("ru.yandex.music".equals(target)) return "IMPLICIT_PUBLISHER_PACKAGE";
+            if (target != null) return "IMPLICIT_OTHER_PACKAGE";
+            return "IMPLICIT_UNSCOPED";
         } catch (Throwable ignored) {
-            return "TARGET_CHECK_UNAVAILABLE";
+            return "INTENT_SHAPE_UNAVAILABLE";
         }
     }
 
@@ -2376,7 +2372,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                             // Minimal unconditional marker before any PackageManager
                             // call; exposes whether this exact new hook is running.
                             emit("NAV_V3_START", "CLONE_ACTIVITY", "SEEN");
-                            emit("ACTIVITY_TARGET", ownActivityTargetStatus(activity,intent),
+                            emit("ACTIVITY_TARGET", ownActivityTargetShape(intent),
                                 ownActivityFlagsCategory(intent));
                         }
                     } catch (Throwable ignored) { }
