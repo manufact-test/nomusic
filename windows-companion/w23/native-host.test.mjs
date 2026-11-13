@@ -601,6 +601,57 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
   assert.ok(commands.every(([name])=>name!=="Media.getResponseBody" && name!=="Runtime.evaluate"));
 });
 
+test("W99 only a verified playing CELIKOM decoder source loss requests bounded recovery",async()=>{
+  const grant=w52Grant("139","123");
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],
+    debuggerDriver:debug,grantOverride:grant,
+    currentTrack:{id:"123",title:"Big City synthetic",artist:"Artist",durationMs:190000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"source-left",properties:[
+      {name:"kUrl",value:grant.audioUrl},
+      {name:"kIsPlaying",value:"true"}
+    ]
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"source-left",properties:[
+      {name:"kUrl",value:"https://official.yandex.example/stream"}
+    ]
+  });
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123")));
+  assert.ok(r.evaluated.some(x=>x.includes("__celikomBridgeNativeRecoverSourceLeft?.(\\"123\\")")),
+    "only a formerly verified current CELIKOM source loss requests renderer recovery");
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+});
+
+test("W99 paused decoder source loss does not request recovery",async()=>{
+  const grant=w52Grant("139","123");
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],
+    debuggerDriver:debug,grantOverride:grant,
+    currentTrack:{id:"123",title:"Big City synthetic",artist:"Artist",durationMs:190000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"paused-left",properties:[
+      {name:"kUrl",value:grant.audioUrl},
+      {name:"kIsPlaying",value:"true"}
+    ]
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"paused-left",properties:[
+      {name:"kUrl",value:"https://official.yandex.example/stream"},
+      {name:"kIsPlaying",value:"false"}
+    ]
+  });
+  assert.ok(!r.evaluated.some(x=>x.includes("__celikomBridgeNativeRecoverSourceLeft")),
+    "paused decoder loss never triggers an automatic source reload");
+});
+
 test("W99 volume witness is independent of CDP property array order",async()=>{
   const grant=w52Grant("139","123");
   const {debug}=w52Debugger();

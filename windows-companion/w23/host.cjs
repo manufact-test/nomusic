@@ -563,8 +563,17 @@ function observeNativePlayback(view) {
                classification === "PLAYER_URL_SIGNED_FIELDS_INTACT"))
             prev.sourceTrackId = expected.yandexTrackId;
         } catch { /* Unknown native URL: no source evidence. */ }
-        if (wasCurrentCelikom && !prev.sourceTrackId)
-          note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", lastStatus.get(view)?.trackId);
+        if (wasCurrentCelikom && !prev.sourceTrackId) {
+          const currentTrackId = lastStatus.get(view)?.trackId;
+          note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
+          if (prev.playing && currentTrackId) {
+            // Source-left recovery is renderer-gated: exact current entity,
+            // active adapter and fresh entitlement are checked again there.
+            void execute(view,
+              ";window.__celikomBridgeNativeRecoverSourceLeft?.(" +
+              JSON.stringify(currentTrackId) + ")").catch(() => null);
+          }
+        }
       } else if (prop?.name === "kIsPlaying") {
         prev.playing = prop.value === "true";
         if (!prev.playing) {

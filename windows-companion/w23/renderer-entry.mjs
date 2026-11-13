@@ -131,6 +131,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   let deferredSourceTrack = null, deferredSourceFailedTrack = null;
   let lastExpiredAttemptTrack = null, lastExpiredAttemptAt = 0;
   let lastUnfetchedAttemptTrack = null, lastUnfetchedAttemptAt = 0;
+  let lastSourceLeftAttemptTrack = null, lastSourceLeftAttemptAt = 0;
   // Only an approved, CURRENT song may request one bounded source refresh
   // when main-process CDP saw mapping but no GET to CELIKOM's media URL.
   // This is NOT used as proof that the new audio actually became audible.
@@ -181,6 +182,24 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       }
     }
   });
+  // W99: if a previously verified current CELIKOM decoder unexpectedly
+  // switches to Yandex's original source while still playing, reuse the
+  // existing bounded recovery path. Exact current-track + live entitlement
+  // are rechecked; original songs that were never mapped are never touched.
+  window.__celikomBridgeNativeRecoverSourceLeft = trackId => {
+    if (typeof trackId !== "string" || !/^[1-9][0-9]{0,23}$/.test(trackId) ||
+        playerSourceRefresh.currentTrackId() !== trackId ||
+        !adapter.enabled || !attached || stopped ||
+        !playerSourceRefresh.attached) return false;
+    const now = Date.now();
+    if (lastSourceLeftAttemptTrack === trackId &&
+        now - lastSourceLeftAttemptAt < 15000) return false;
+    if (!sourceRecovery.schedule(trackId)) return false;
+    lastSourceLeftAttemptTrack = trackId;
+    lastSourceLeftAttemptAt = now;
+    report("SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED", trackId);
+    return true;
+  };
   deferredRecovery = createDeferredTrackRecovery({
     currentTrackId: () => playerSourceRefresh.currentTrackId(),
     active: () => !stopped && attached && adapter.enabled &&
@@ -251,6 +270,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       expiredSourceFailedTrack = null;
       lastExpiredAttemptTrack = null;
       lastExpiredAttemptAt = 0;
+      lastSourceLeftAttemptTrack = null;
+      lastSourceLeftAttemptAt = 0;
       apiOrigin = origin;
       adapter.disable();
     }
@@ -266,6 +287,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       expiredSourceFailedTrack = null;
       lastExpiredAttemptTrack = null;
       lastExpiredAttemptAt = 0;
+      lastSourceLeftAttemptTrack = null;
+      lastSourceLeftAttemptAt = 0;
       adapter.disable();
     }
     const nextActive = adapter.enabled;
@@ -415,6 +438,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     delete window.__celikomBridgeNativeCurrentTrackId;
     delete window.__celikomBridgeNativeCurrentTrack;
     delete window.__celikomBridgeNativeRecoverExpired;
+    delete window.__celikomBridgeNativeRecoverSourceLeft;
     delete window.__celikomBridgeNativeConfirmedCurrentSource;
     delete window.__celikomBridgeNativeRefreshUnfetched;
     delete window.__celikomBridgeNativeCheckDeferred;

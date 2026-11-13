@@ -218,6 +218,34 @@ test("W60 START/STOP re-requests current source through real Yandex position-pre
   assert.notStrictEqual(initialGetter,undefined);
 });
 
+test("W99 verified CELIKOM source-left schedules one bounded current-track recovery",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const initial=r.window.__celikomBridgeNativeDrain();
+  assert.equal(initial.length,1);
+  r.window.__celikomBridgeNativeReceive(initial[0].requestId,makeGrant("123"));
+  assert.ok((await first).downloadInfo.url.includes("/api/v1/audio/123?"));
+  assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("456"),false,
+    "never recover an unrelated/prefetched track");
+  assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("123"),true);
+  assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("123"),false,
+    "one source-left transition cannot create duplicate recovery timers");
+  await new Promise(resolve=>setTimeout(resolve,720));
+  await tick();await tick();
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.mediaSources[1],
+    makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
+  assert.equal(player.state.playerState.progress.value.position,82.25);
+  assert.equal(player.state.playerState.status.value,"playing");
+  assert.ok(r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
+    x[0]==="SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED"&&x[1]==="123"));
+  r.handlers.beforeunload();
+});
+
 test("W89 unfetched signed source: exactly one current-track native reload, preserve queue, position and pause",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
