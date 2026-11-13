@@ -10,11 +10,20 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_witness_private_parser.py'
+      - 'android/native-yandex-hooklab/ci/owner_phone_diagnostic_artifact.py'
+      - 'android/native-yandex-hooklab/ci/test_owner_phone_diagnostic_artifact.py'
+      - 'android/native-yandex-hooklab/device-audio-trial/**'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/**'
       - 'android/native-yandex-hooklab/ci/test_native_clone_java_rootcause_triage.py'
       - '.github/workflows/android-a1-metrica-init-state-observer-arm13.yml'
   workflow_dispatch:
+    inputs:
+      export_diagnostic_apk:
+        description: Export a private one-time APK for the owner's phone after the full native gate passes
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
@@ -78,6 +87,7 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py
@@ -157,9 +167,28 @@ jobs:
         shell: bash
         env:
           CELIKOM_A1_METRICA_OWN_MODULE_PATH: ${{ runner.temp }}/celikom-own-metrica-module/app-debug.apk
+          CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ (github.event_name == 'push' || inputs.export_diagnostic_apk) && '1' || '0' }}
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Package Russian owner-phone test instructions
+        if: success() && (github.event_name == 'push' || inputs.export_diagnostic_apk)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
+          test -s "$bundle/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk"
+          cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
+          cp android/native-yandex-hooklab/device-audio-trial/capture-diagnostics.bat "$bundle/capture-diagnostics.bat"
+          sha256sum "$bundle/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk"
+      - name: Upload private one-time owner-phone diagnostic bundle
+        if: success() && (github.event_name == 'push' || inputs.export_diagnostic_apk)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-A1-Native-ReadOnly-Diagnostic-20261113
+          path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
+          if-no-files-found: error
+          retention-days: 7
       - name: Remove all original/clone private files, signing keys and native guest
         if: always()
         shell: bash
@@ -169,6 +198,7 @@ jobs:
           sudo modprobe -r binder_linux >/dev/null 2>&1 || true
           sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
           rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-2025-lspatch2-sdk" "$RUNNER_TEMP/celikom-own-metrica-module" "$RUNNER_TEMP/celikom-native-aapt2"
+          rm -rf -- "$RUNNER_TEMP/celikom-a1-owner-phone-test"
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePostTrueProviderTarget.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateMediaDataSourceTargets.java

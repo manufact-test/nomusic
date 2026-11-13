@@ -39,6 +39,7 @@ from ci.a1_resource_package_rename import (
     classify_outer_signing_change,only_expected_own_v1_signing_changes
 )
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
+from owner_phone_diagnostic_artifact import export_after_native_acceptance
 
 # Scoped native verification: exact signing helper is now restored, no payload allowlist broadened.
 BRANCH="experiment/android-a1-metrica-init-state-observer-arm13-20261112"
@@ -587,6 +588,9 @@ def run(xapk):
                report["scoped_own_readonly_witness"]["read_only_witness_arm_marker_seen"] and
                not report["scoped_own_readonly_witness"]["lab_only_metrica_fatal_suppression_observed"]
             else "METRICA_READONLY_NATIVE_MAIN_NO_GO")
+        if os.getenv("CELIKOM_A1_EXPORT_DIAGNOSTIC_APK") == "1":
+            report["owner_phone_diagnostic_artifact"] = export_after_native_acceptance(
+                single, report, os.environ["RUNNER_TEMP"])
         return report
 
 
