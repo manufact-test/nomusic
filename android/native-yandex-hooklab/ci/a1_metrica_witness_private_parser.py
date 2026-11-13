@@ -37,6 +37,8 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
          "PUSH_SERVICE_HOOK","PUSH_SERVICE_CALL","PUSH_SERVICE_PHASE","PUSH_SERVICE_ERROR",
          "PUSH_PROVIDER_HOOK","PUSH_PROVIDER_CALL","PUSH_PROVIDER_PHASE","PUSH_PROVIDER_ERROR",
          "PUSH_PROVIDER_REASON","PUSH_FATAL_PROVIDER_LINK",
+         "PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER_CONFIG_DEFAULT",
+         "PUSH_PROVIDER_CONFIG_RESOURCE",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
@@ -82,6 +84,8 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "PROVIDER_CUSTOM_META_PAIR","PROVIDER_GOOGLE_RESOURCE_PAIR",
          "PROVIDER_IDENTIFIERS_GENERIC","PROVIDER_FIREBASE_OTHER",
          "PROVIDER_REASON_OTHER","PROVIDER_REASON_UNKNOWN",
+         "PROVIDER_NO_VALID_CONTROLLER","PAIR_BOTH","PAIR_APP_ONLY",
+         "PAIR_SENDER_ONLY","PAIR_NONE","PAIR_UNKNOWN",
          "SAME_CALL_PROVIDER_THROW","NO_PROVIDER_THROW_OBSERVED",
          "GUARD_THROW","GUARD_MIXED","GUARD_TRUE_ONLY","GUARD_FALSE_ONLY",
          "GUARD_NONBOOLEAN","GUARD_NOT_IN_CALL",
@@ -138,7 +142,9 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             continue
         if event in ("PUSH_SERVICE_HOOK","PUSH_SERVICE_CALL","PUSH_SERVICE_PHASE","PUSH_SERVICE_ERROR",
                      "PUSH_PROVIDER_HOOK","PUSH_PROVIDER_CALL","PUSH_PROVIDER_PHASE","PUSH_PROVIDER_ERROR",
-                     "PUSH_PROVIDER_REASON","PUSH_FATAL_PROVIDER_LINK") and len(exact_service_events)<48:
+                     "PUSH_PROVIDER_REASON","PUSH_FATAL_PROVIDER_LINK",
+                     "PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER_CONFIG_DEFAULT",
+                     "PUSH_PROVIDER_CONFIG_RESOURCE") and len(exact_service_events)<80:
             exact_service_events.append((event,origin,error,thread))
         if len(seen)<250:
             seen.append((event,origin,error,thread))
@@ -185,6 +191,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     exact_push_provider_error=[x for x in exact_service_events if x[0]=="PUSH_PROVIDER_ERROR"]
     exact_push_provider_reason=[x for x in exact_service_events if x[0]=="PUSH_PROVIDER_REASON"]
     exact_push_provider_link=[x for x in exact_service_events if x[0]=="PUSH_FATAL_PROVIDER_LINK"]
+    exact_push_provider_config=[
+        x for x in exact_service_events if x[0] in (
+            "PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER_CONFIG_DEFAULT",
+            "PUSH_PROVIDER_CONFIG_RESOURCE")]
     service_hook=[x for x in seen if x[0]=="METRICA_SERVICE_HOOK"]
     provider_resolve=[x for x in seen if x[0]=="METRICA_PROVIDER_RESOLVE"]
     provider_query=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY"]
@@ -248,6 +258,12 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "exact_post_true_push_provider_error":[x[2] for x in exact_push_provider_error[:12]],
         "exact_post_true_push_provider_reason":[x[2] for x in exact_push_provider_reason[:12]],
         "exact_post_true_push_provider_same_fatal_call":[x[2] for x in exact_push_provider_link[:12]],
+        "exact_post_true_provider_config_presence":{
+            family:[x[2] for x in exact_push_provider_config if x[0]==event][:12]
+            for family,event in (
+                ("CUSTOM_META","PUSH_PROVIDER_CONFIG_CUSTOM"),
+                ("DEFAULT_META","PUSH_PROVIDER_CONFIG_DEFAULT"),
+                ("GOOGLE_RESOURCE","PUSH_PROVIDER_CONFIG_RESOURCE"))},
         "service_hook_registered":any(x[2]=="REGISTERED" for x in service_hook),
         "service_sdk_target_states":{
             name:{state:sum(x[1]==name and x[2]==state for x in service_call)

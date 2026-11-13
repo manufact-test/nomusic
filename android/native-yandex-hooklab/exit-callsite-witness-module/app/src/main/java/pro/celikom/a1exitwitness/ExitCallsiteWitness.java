@@ -49,6 +49,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private final Map<Throwable, String> sdkMessageHintByObject =
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
+    private volatile Context exactCloneRuntimeContext;
     private boolean privatePushBoolWitnessReady;
     private boolean exactPushProviderReady;
     private final java.util.concurrent.atomic.AtomicInteger exactPushProviderHits =
@@ -1448,6 +1449,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 return "PROVIDER_GOOGLE_RESOURCE_PAIR";
             if (s.contains("expected two identifiers"))
                 return "PROVIDER_IDENTIFIERS_GENERIC";
+            if (s.contains("push sdk") && s.contains("not activated correctly"))
+                return "PROVIDER_NO_VALID_CONTROLLER";
             if (s.contains("firebase") &&
                     (s.contains("missing") || s.contains("invalid") ||
                      s.contains("not initialized") || s.contains("not configured")))
@@ -1455,6 +1458,68 @@ public final class ExitCallsiteWitness extends XposedModule {
             return "PROVIDER_REASON_OTHER";
         } catch (Throwable ignored) {
             return "PROVIDER_REASON_UNKNOWN";
+        }
+    }
+
+    // The already failing provider is observed in a disposable clone only.
+    // Presence categories are finite, no Firebase identifiers/values exported.
+    private static boolean exactIdentifierPresent(Context context,Object raw) {
+        try {
+            if (raw instanceof String)
+                return !((String)raw).trim().isEmpty();
+            if (raw instanceof Integer) {
+                int id=((Integer)raw).intValue();
+                if (id<=0) return false;
+                String resolved=context.getResources().getString(id);
+                return resolved!=null && !resolved.trim().isEmpty();
+            }
+        } catch (Throwable ignored) { }
+        return false;
+    }
+
+    private static String exactPairCategory(boolean app,boolean sender) {
+        if (app && sender) return "PAIR_BOTH";
+        if (app) return "PAIR_APP_ONLY";
+        if (sender) return "PAIR_SENDER_ONLY";
+        return "PAIR_NONE";
+    }
+
+    private void observeExactProviderFirebasePresence() {
+        Context c=exactCloneRuntimeContext;
+        if (c==null) {
+            emit("PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_DEFAULT","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER","PAIR_UNKNOWN");
+            return;
+        }
+        try {
+            android.content.pm.ApplicationInfo info=c.getPackageManager()
+                .getApplicationInfo(c.getPackageName(),
+                    android.content.pm.PackageManager.GET_META_DATA);
+            android.os.Bundle m=info==null ? null : info.metaData;
+            emit("PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER",
+                exactPairCategory(
+                    m!=null && exactIdentifierPresent(c,m.get("ymp_firebase_app_id")),
+                    m!=null && exactIdentifierPresent(c,m.get("ymp_gcm_sender_id"))));
+            emit("PUSH_PROVIDER_CONFIG_DEFAULT","PUSH_PROVIDER",
+                exactPairCategory(
+                    m!=null && exactIdentifierPresent(c,m.get("ymp_firebase_default_app_id")),
+                    m!=null && exactIdentifierPresent(c,m.get("ymp_gcm_default_sender_id"))));
+        } catch (Throwable ignored) {
+            emit("PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER","PAIR_UNKNOWN");
+            emit("PUSH_PROVIDER_CONFIG_DEFAULT","PUSH_PROVIDER","PAIR_UNKNOWN");
+        }
+        try {
+            android.content.res.Resources res=c.getResources();
+            String pkg=c.getPackageName();
+            int app=res.getIdentifier("google_app_id","string",pkg);
+            int sender=res.getIdentifier("gcm_defaultSenderId","string",pkg);
+            emit("PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER",
+                exactPairCategory(
+                    app>0 && exactIdentifierPresent(c,Integer.valueOf(app)),
+                    sender>0 && exactIdentifierPresent(c,Integer.valueOf(sender))));
+        } catch (Throwable ignored) {
+            emit("PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER","PAIR_UNKNOWN");
         }
     }
 
@@ -1519,6 +1584,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     "SECURITY" : "OTHER_THROWABLE");
                             emit("PUSH_PROVIDER_REASON","PUSH_PROVIDER",
                                  exactProviderFailureReason(failure));
+                            if (failure instanceof IllegalStateException)
+                                observeExactProviderFirebasePresence();
                         }
                         throw failure;
                     }
@@ -1549,6 +1616,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                      "APPINFO_" + packageIdentityCategory(rawInfo));
                                 ClassLoader loader = caller.getClassLoader();
                                 cloneAppClassLoader = loader;
+                                exactCloneRuntimeContext = caller;
                                 observeProviderRegistration(caller);
                                 installPrivateMetricaProviderQueryWitness();
                                 installPrivateMetricaServiceWitness();

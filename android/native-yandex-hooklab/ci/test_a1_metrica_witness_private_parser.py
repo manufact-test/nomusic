@@ -529,6 +529,23 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                          ["SAME_CALL_PROVIDER_THROW"])
         self.assertNotIn("TOKEN_123",str(got))
 
+    def test_exact_provider_config_presence_finite_owned_pid_only(self):
+        events=(
+            log(431,"event=PUSH_PROVIDER_REASON;origin=PUSH_PROVIDER;error=PROVIDER_NO_VALID_CONTROLLER;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CONFIG_CUSTOM;origin=PUSH_PROVIDER;error=PAIR_NONE;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CONFIG_DEFAULT;origin=PUSH_PROVIDER;error=PAIR_SENDER_ONLY;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CONFIG_RESOURCE;origin=PUSH_PROVIDER;error=PAIR_BOTH;thread=OTHER")
+            +log(432,"event=PUSH_PROVIDER_CONFIG_CUSTOM;origin=PUSH_PROVIDER;error=PAIR_BOTH;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CONFIG_RESOURCE;origin=PUSH_PROVIDER;error=SECRET_SENDER;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,events)
+        self.assertEqual(got["exact_post_true_push_provider_reason"],
+                         ["PROVIDER_NO_VALID_CONTROLLER"])
+        self.assertEqual(got["exact_post_true_provider_config_presence"],
+            {"CUSTOM_META":["PAIR_NONE"],"DEFAULT_META":["PAIR_SENDER_ONLY"],
+             "GOOGLE_RESOURCE":["PAIR_BOTH"]})
+        self.assertNotIn("SECRET_SENDER",str(got))
+        self.assertNotIn("432",str(got))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
