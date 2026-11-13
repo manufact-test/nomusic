@@ -29,3 +29,8 @@ Next: review the existing B42 audio contract, identify the native source integra
 - Current B42 contract remains intentionally fail-closed unless an exact track+album+edition binding and authorized grant are verified; PHP resolve on its own does not attest exact album+edition.
 - The older static source-factory analysis does not prove a live source-before-decoder binding for the **current 2025 host**, and there is no authenticated in-process audio test yet. Do not substitute static method presence for playback evidence.
 - Next bounded technical task: establish one exact current-2025 native source selection point and its current track identity using isolated read-only checks, then integrate the existing fail-closed B42 contract at the same player/decoder. No second player, no modifications to Test.50, no release before a real authorized audio/controls test.
+
+
+### 13 Nov exact audio-observer extension (startup stability still passed)
+- Native standalone #43428891020 and paired original-first #43428891031: 25/25 CELIKOM in both, original installed in paired, provider returned without throw; snapshot `d425771accce3443d8edb159021c717a5470d80d` / `backup/android-a1-2025-extractor-arg-reader-labels-25x25-20261113`.
+- Both MediaDataSource readAt subclasses and the exact framework MediaExtractor source hook register; source classes now separately categorized but **0 live calls** because login/music not exercised. This does not extend the startup claim to audio, album edition, controls or release readiness. Prior proven Firebase backup unchanged.
