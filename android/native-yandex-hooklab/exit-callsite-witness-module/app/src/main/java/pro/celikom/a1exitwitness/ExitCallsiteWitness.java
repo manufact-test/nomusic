@@ -171,7 +171,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (!PACKAGE.equals(param.getPackageName())) return;
         if (isPassportProcess()) {
             armPassport();
-        } else if (PACKAGE.equals(Application.getProcessName())) {
+        } else {
+            // Preserve the exact previous main/other-process route behavior:
+            // this call precedes the main-process guard inside arm().
             installOwnedResourceRouteTrial();
             arm();
             try { installExactRunModeWitness(param.getDefaultClassLoader()); }
