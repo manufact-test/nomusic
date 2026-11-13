@@ -2,11 +2,11 @@
 
 ## Source / exact rollback
 - Repository: `manufact-test/nomusic`, **single active branch `main`**.
-- Last code commit here: `4722731378170fb7c6a761a0b0ec716c0fe0e7b8`.
+- Last code commit here: `9ac9a5ab485c3ce1bebc8aa6a2352b422c0ffa1c`, backed by `backup/windows-main-post-w104-w101-guards-ci-green-20261114` at this exact SHA.
 - Pre-W104 complete original rollback: `backup/windows-main-pre-native-failure-recheck-20261114` @ `f82dbe4448ff743945da4d4d26f159bfbaeb2766`.
 - First W104 CI-green exact backup: `backup/windows-main-post-native-failure-recheck-ci-green-20261114` @ `f4449475ff0298c82b52426ded28b73217ec2439`.
 - W101 verifier baseline: `backup/windows-main-pre-w101-signed-feed-contract-20261114` @ `3cc58b93a244d3711b7cda06010e550212731935`.
-- Latest full Windows W104 source `3cc58b93`: main CI [43528538262](https://github.com/manufact-test/nomusic/actions/runs/43528538262) SUCCESS; Windows integration [43528538351](https://github.com/manufact-test/nomusic/actions/runs/43528538351) SUCCESS. **Check newer `47227313` CI before claiming W101 verified.**
+- Latest full Windows W104 source `3cc58b93`: main CI [43528538262](https://github.com/manufact-test/nomusic/actions/runs/43528538262) SUCCESS; Windows integration [43528538351](https://github.com/manufact-test/nomusic/actions/runs/43528538351) SUCCESS. **Later final W101 verifier code passed both exact-commit gates:** Main CI [43529667031](https://github.com/manufact-test/nomusic/actions/runs/43529667031) SUCCESS; Windows integration [43529666957](https://github.com/manufact-test/nomusic/actions/runs/43529666957) SUCCESS (exact code commit).
 
 ## W104 implemented
 - `windows-companion/w15/Celikom.Companion/MainWindow.cs`: native HOST_ERROR heartbeat, missing native startup handshake after 22 seconds, and failed native module install/upgrade trigger read-only `OfficialYandexCatalog.RefreshAsync(force:true)` and subsequent local identity re-inspection.
