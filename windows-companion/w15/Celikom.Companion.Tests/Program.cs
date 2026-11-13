@@ -18,8 +18,8 @@ try
     // No unattended updater is enabled while signing/rollback gates are missing.
     using (var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
     {
-        var origin = new Uri("https://celikom.example.test");
-        var now = new DateTimeOffset(2026, 11, 14, 0, 0, 0, TimeSpan.Zero);
+        var signedFeedOrigin = new Uri("https://celikom.example.test");
+        var signedFeedNow = new DateTimeOffset(2026, 11, 14, 0, 0, 0, TimeSpan.Zero);
         var pub = releaseKey.ExportSubjectPublicKeyInfo();
         byte[] ManifestBytes(string channel = "stable",
             string version = "0.24.37", long sequence = 42,
@@ -38,12 +38,12 @@ try
             StableUpdateManifestVerifier.Verify(bytes,
                 signature ?? releaseKey.SignData(bytes, HashAlgorithmName.SHA256,
                     DSASignatureFormat.Rfc3279DerSequence),
-                pub, origin, new Version(0, 24, 36, 0), previousSequence, now);
+                pub, signedFeedOrigin, new Version(0, 24, 36, 0), previousSequence, signedFeedNow);
         var signedDocument = ManifestBytes();
         var signedRelease = VerifyManifest(signedDocument);
         Test(signedRelease.Sequence == 42 &&
              signedRelease.Version == new Version(0, 24, 37, 0) &&
-             signedRelease.PackageUri.Host == origin.Host,
+             signedRelease.PackageUri.Host == signedFeedOrigin.Host,
              "W101 pinned P256 stable manifest permits only newer exact-origin release");
         bool Reject(byte[] bytes, byte[]? signature = null, long lastSequence = 41)
         {
