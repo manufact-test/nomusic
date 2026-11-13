@@ -285,12 +285,14 @@ try {
         exit(0);
     }
 } catch (Throwable $e) {
-    // All intentional guard failures use short internal codes. Expose only
-    // those codes for CI diagnosis; never echo exception details, SQL, paths,
-    // credentials, email addresses or user data into public Actions logs.
+    // Expose only exception class, source line and short internal error codes.
+    // Never echo exception text, SQL, absolute paths, credentials, email
+    // addresses or user data into public Actions logs.
     $message = $e->getMessage();
     $safeCode = preg_match('/^[a-z0-9-]{1,64}$/D', $message)
-        ? $message : 'integrity-or-precondition-check';
-    fwrite(STDERR, "Stage 5 operation failed safely ($safeCode). No private data logged.\n");
+        ? $message : 'internal-exception';
+    $safeClass = preg_replace('/[^A-Za-z0-9_]/', '', get_class($e));
+    fwrite(STDERR, "Stage 5 operation failed safely (class=$safeClass line=" .
+        $e->getLine() . " code=$safeCode). No private data logged.\n");
     exit(1);
 }
