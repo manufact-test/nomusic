@@ -50,6 +50,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
     private boolean privatePushBoolWitnessReady;
+    private boolean exactPushServiceInitReady;
+    private final java.util.concurrent.atomic.AtomicInteger exactPushServiceInitHits =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean metricaProviderQueryHookReady;
     private boolean metricaServiceHookReady;
     private final java.util.concurrent.atomic.AtomicInteger metricaServiceHitCount =
@@ -1416,6 +1419,68 @@ public final class ExitCallsiteWitness extends XposedModule {
             installed>0 ? "REGISTERED":"NO_HOOK");
     }
 
+    /**
+     * Single publicly identified AppMetrica PushServiceFacade.initPushService
+     * invocation on the exact private TRUE-normal, catch-covered Push.a route.
+     * Read-only source-grounded probe: original method runs exactly once.
+     * No app/SDK values, config, exceptions, args or results ever changed.
+     */
+    private synchronized void installExactPostTruePushServiceInit(ClassLoader loader) {
+        if (exactPushServiceInitReady || loader == null) return;
+        try {
+            Class<?> service=Class.forName(
+                "io.appmetrica.analytics.push.coreutils.internal.PushServiceFacade",
+                false,loader);
+            Method exact=null;
+            for (Method m:service.getDeclaredMethods()) {
+                if (!"initPushService".equals(m.getName()) ||
+                        m.getParameterCount()!=1 ||
+                        m.getParameterTypes()[0]!=Context.class) continue;
+                if (exact!=null) {
+                    emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+                    return; // cannot pick a fuzzy overload
+                }
+                exact=m;
+            }
+            if (exact==null) {
+                emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+                return;
+            }
+            exact.setAccessible(true);
+            hook(exact).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    int hit=exactPushServiceInitHits.incrementAndGet();
+                    if (hit<=12) {
+                        ExactPushFrame f=scopedPushCall.get();
+                        emit("PUSH_SERVICE_PHASE","PUSH_SERVICE",
+                            f==null ? "OUTSIDE_FATAL_CALL" :
+                              f.yes>0 ? "AFTER_TRUE" : "BEFORE_TRUE");
+                        emit("PUSH_SERVICE_CALL","PUSH_SERVICE","ENTER");
+                    }
+                    try {
+                        Object result=chain.proceed();
+                        if (hit<=12)
+                            emit("PUSH_SERVICE_CALL","PUSH_SERVICE","RETURN");
+                        return result;
+                    } catch (Throwable failure) {
+                        if (hit<=12) {
+                            emit("PUSH_SERVICE_CALL","PUSH_SERVICE","THROW");
+                            emit("PUSH_SERVICE_ERROR","PUSH_SERVICE",
+                                failure instanceof IllegalStateException ?
+                                    "ILLEGAL_STATE" :
+                                failure instanceof SecurityException ?
+                                    "SECURITY" : "OTHER_THROWABLE");
+                        }
+                        throw failure;
+                    }
+                });
+            exactPushServiceInitReady=true;
+            emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","REGISTERED");
+        } catch (Throwable ignored) {
+            emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+        }
+    }
+
     private boolean hookApplicationAttach() {
         try {
             Method attach = Application.class.getDeclaredMethod("attach", Context.class);
@@ -1447,6 +1512,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installPrivatePushSiteWitness(loader);
                                 installAllFatalGuardWitness(loader);
                                 installExactFatalObjectWitness(loader);
+                                installExactPostTruePushServiceInit(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
