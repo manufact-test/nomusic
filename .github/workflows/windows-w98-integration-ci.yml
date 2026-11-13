@@ -37,13 +37,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W98_FFMPEG_INSTALL_FAILED' }
           Get-Command ffmpeg
           ffmpeg -version | Select-Object -First 1
-      - name: Full repository CI (server, extension, build and security; normalized baseline)
+      - name: Windows-compatible repository checks (Linux PHP smoke runs in server CI)
         shell: pwsh
         run: |
           npm ci --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { throw 'W98_NPM_CI_INSTALL_FAILED' }
-          npm run ci
-          if ($LASTEXITCODE -ne 0) { throw 'W98_REPOSITORY_CI_FAILED' }
+          npm run lint
+          if ($LASTEXITCODE -ne 0) { throw 'W98_REPOSITORY_LINT_FAILED' }
+          npm run test:poc
+          if ($LASTEXITCODE -ne 0) { throw 'W98_POC_TESTS_FAILED' }
+          npm run test:extension
+          if ($LASTEXITCODE -ne 0) { throw 'W98_EXTENSION_TESTS_FAILED' }
+          npm run validate
+          if ($LASTEXITCODE -ne 0) { throw 'W98_REPOSITORY_VALIDATION_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W98_REPOSITORY_BUILD_FAILED' }
+          npm run security
+          if ($LASTEXITCODE -ne 0) { throw 'W98_SECURITY_AUDIT_FAILED' }
       - name: Build W23 native bridge bundle
         shell: pwsh
         working-directory: windows-companion/w23
