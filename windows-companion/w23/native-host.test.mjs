@@ -11,7 +11,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   currentTrack = null, clock = Date, rendererStatus = "ORIGINAL" } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
-  let drained = false, pump = () => {};
+  let drained = false, pump = () => {}, timerIntervalMs = 0;
   const viewEvents = new Map();
   const view = {
     isDestroyed: () => false,
@@ -86,11 +86,11 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
       CELIKOM_W23_DEV_DIAG:"diagnostics.log"
     }},
     URL,WeakMap,WeakSet,Set,JSON,Buffer,Date:clock,Promise,console,encodeURIComponent,
-    setInterval:callback=>{pump=callback;callback();return{unref(){}}}
+    setInterval:(callback,intervalMs)=>{pump=callback;timerIntervalMs=intervalMs;callback();return{unref(){}}}
   };
   vm.runInNewContext(source,context,{timeout:1200});
   await new Promise(resolve=>setTimeout(resolve,35));
-  return {diagnostics,evaluated,network,tokenReads,pulse:() => pump(),
+  return {diagnostics,evaluated,network,tokenReads,timerIntervalMs,pulse:() => pump(),
     emitView: (name,...args) => {
       for(const handler of viewEvents.get(name) || []) handler({},...args);
     },
@@ -114,6 +114,11 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
     assert.ok(network.every(r=>r.host==="127.0.0.1" && r.port===21471),url);
     assert.ok(evaluated.every(js=>!js.includes("b".repeat(64))),"token never leaked to renderer");
   }
+});
+test("W99 host pulse is bounded to 300ms while CDP remains event-driven",async()=>{
+  const r=await runHost("musicapplication://desktop/");
+  assert.equal(r.timerIntervalMs,300,
+    "reduce main-process polling frequency without disabling passive CDP events");
 });
 test("W98 unchanged bridge capability key is not synchronously reread on every host pulse",async()=>{
   const r=await runHost("musicapplication://desktop/");
@@ -596,6 +601,28 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
   assert.ok(commands.every(([name])=>name!=="Media.getResponseBody" && name!=="Runtime.evaluate"));
 });
 
+test("W99 volume witness is independent of CDP property array order",async()=>{
+  const grant=w52Grant("139","123");
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,
+    currentTrack:{id:"123",title:"Big City synthetic",artist:"Artist",durationMs:190000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"current-order",properties:[
+      {name:"kVolume",value:"1.0"},
+      {name:"kIsPlaying",value:"true"},
+      {name:"kUrl",value:grant.audioUrl}
+    ]
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"current-order",properties:[{name:"kVolume",value:"0.5"}]
+  });
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123")),
+    "the first volume baseline must be captured even when kVolume arrives first");
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+});
 test("W92 passive same-current decoder source and volume change witness",async()=>{
   const grant=w52Grant("139","123");
   const {debug,commands}=w52Debugger();
