@@ -285,16 +285,21 @@ jobs:
           }
           & $compiler windows-companion/w20/installer/CELIKOM.iss
           if ($LASTEXITCODE -ne 0) { throw 'W98_INNO_BUILD_FAILED' }
-          $setup='windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
+          $setup='windows-companion/w20/output/CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe'
           if (!(Test-Path $setup)) { throw 'W98_INSTALLER_MISSING' }
           $info=[Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $setup).Path)
           if ($info.FileVersion.Trim() -ne '0.24.36.0' -or $info.ProductName.Trim() -ne 'CELIKOM') { throw 'W98_VERSION_MISMATCH' }
       - name: Update ZIP valid for the in-app updater
         shell: pwsh
         run: |
-          $setup='windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
+          $setup='windows-companion/w20/output/CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe'
           $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip'
-          Compress-Archive -Path $setup -DestinationPath $zip
+          $zipStage=Join-Path $env:RUNNER_TEMP 'CELIKOM-UPDATE-PACKAGE'
+          New-Item -ItemType Directory -Force -Path $zipStage | Out-Null
+          $packageExe='CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe'
+          Copy-Item -LiteralPath $setup -Destination (Join-Path $zipStage $packageExe)
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path (Join-Path $zipStage '*') -DestinationPath $zip
           $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
           dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw 'W98_UPDATE_ZIP_TEST_FAILED' }
@@ -310,7 +315,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $old=(Resolve-Path 'previous-W89/CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED.exe').Path
-          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe').Path
+          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe').Path
           if ((Get-FileHash $old -Algorithm SHA256).Hash -ne '414EDBA856A12B25CB3EDE26D136C7F263CFC02FC3448730C7F7D02D60791879') { throw 'W98_PREVIOUS_EXE_HASH_UNTRUSTED' }
           $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
           $exe=Join-Path $app 'CELIKOM.Companion.exe'
@@ -354,11 +359,11 @@ jobs:
       - name: Create final EXE, update ZIP and SHA256 manifest
         shell: pwsh
         run: |
-          $exe='windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
+          $exe='windows-companion/w20/output/CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe'
           $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip'
           $check=Join-Path $env:RUNNER_TEMP 'W98-ZIP-CHECK'
           Expand-Archive -Path $zip -DestinationPath $check -Force
-          $inside=Join-Path $check 'CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
+          $inside=Join-Path $check 'CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe'
           if (!(Test-Path $inside)) { throw 'W98_ZIP_CONTENT_MISSING' }
           $exeHash=(Get-FileHash $exe -Algorithm SHA256).Hash
           $insideHash=(Get-FileHash $inside -Algorithm SHA256).Hash
@@ -368,13 +373,13 @@ jobs:
           $out='dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST'
           Copy-Item $exe $out
           Copy-Item $zip $out
-          @("$exeHash  CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe","$zipHash  CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip") | Set-Content -Path "$out/SHA256SUMS.txt" -Encoding ascii
+          @("$exeHash  CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED.exe","$zipHash  CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip") | Set-Content -Path "$out/SHA256SUMS.txt" -Encoding ascii
           Write-Host "W98_EXE_SHA256=$exeHash"
           Write-Host "W98_ZIP_SHA256=$zipHash"
       - name: Upload the single final QA package
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Windows-W98-0.24.36-INTEGRATED-QA-TEST
+          name: CELIKOM-Windows-W100-0.24.36-INTEGRATED-QA-TEST
           path: dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST/*
           if-no-files-found: error
           retention-days: 30
