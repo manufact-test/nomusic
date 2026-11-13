@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - experiment/windows-w91-gain-variant-sidecar-20261113
+      - experiment/windows-w98-integrated-gain-and-original-vpn-20261113
     paths:
       - server/**
       - scripts/windows-gain-render.sh
