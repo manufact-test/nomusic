@@ -137,6 +137,7 @@ def _rename_only_owned_outer_resource_package(single, work, key):
         resign_own(aligned,key)
         if apk_name(aligned).get("name")!=DEST:
             stop("NAMESPACE_PATCH_APK_IDENTITY_DRIFT")
+        own_signing_entries_updated=0
         with zipfile.ZipFile(single) as old,zipfile.ZipFile(aligned) as new:
             if old.namelist()!=new.namelist() or new.testzip() is not None:
                 stop("NAMESPACE_PATCH_ZIP_STRUCTURE_DRIFT")
@@ -145,13 +146,22 @@ def _rename_only_owned_outer_resource_package(single, work, key):
                     if new.read(name)!=after:
                         stop("NAMESPACE_PATCH_ARSCTABLE_DRIFT")
                 elif digest_bytes(old.read(name))!=digest_bytes(new.read(name)):
-                    stop("NAMESPACE_PATCH_NON_RESOURCE_PAYLOAD_CHANGED")
+                    # The own APK is necessarily re-signed after a table edit.
+                    # ONLY existing top-level META-INF signer metadata files
+                    # may change. All vendor code, nested signed origin,
+                    # assets, manifest, DEX and libs remain strictly identical.
+                    own_signer_metadata=bool(re.fullmatch(
+                        r"META-INF/[A-Za-z0-9_-]+\\.(?:MF|SF|RSA|DSA|EC)",
+                        name,re.IGNORECASE))
+                    if not own_signer_metadata:
+                        stop("NAMESPACE_PATCH_NON_RESOURCE_PAYLOAD_CHANGED")
+                    own_signing_entries_updated+=1
         aligned_elf=verify_native_loader_elf_offsets(aligned)
         if not all(row["page_aligned_4096"] for row in aligned_elf.values()):
             stop("NAMESPACE_PATCH_NATIVE_LOADER_ALIGNMENT_INVALID")
     except (OSError,ValueError,InvalidResourceTable,zipfile.BadZipFile):
         stop("NAMESPACE_PATCH_VERIFIED_RESOURCE_FAILED")
-    return aligned
+    return aligned, min(own_signing_entries_updated,16)
 
 
 def patch_manifest(data):
@@ -411,8 +421,9 @@ def run(xapk):
             renamed,editor,work,work/"unique-own-key.jks")
         firebase_resource_parity=_firebase_resource_table_parity(publisher_base[0],single)
         namespace_trial=os.getenv("CELIKOM_A1_RESOURCE_NAMESPACE_TRIAL")=="1"
+        own_signing_entries_updated=0
         if namespace_trial:
-            single=_rename_only_owned_outer_resource_package(
+            single,own_signing_entries_updated=_rename_only_owned_outer_resource_package(
                 single,work,work/"unique-own-key.jks")
         firebase_resource_after=_firebase_resource_table_parity(publisher_base[0],single)
         with zipfile.ZipFile(single) as packaged:
@@ -425,6 +436,7 @@ def run(xapk):
             "firebase_resource_table_parity":firebase_resource_parity,
             "firebase_resource_table_after":firebase_resource_after,
             "resource_namespace_trial_only":namespace_trial,
+            "own_signature_metadata_entries_regenerated_bounded":own_signing_entries_updated,
             "clone_provider_namespace_rewrites":rewrite_summary,
             "own_signed_cloned_splits":len(renamed),
             "LSPatch_level":2,
