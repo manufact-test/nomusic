@@ -67,6 +67,35 @@ def digest_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def _firebase_resource_table_parity(original_apk,clone_apk):
+    """Name/package only from aapt resource table; no values leave CI."""
+    def scan(apk):
+        result=cmd(["aapt","dump","resources",str(apk)],timeout=120)
+        if result.returncode!=0 or not result.stdout:
+            return {"pair":"UNKNOWN","namespace":"UNKNOWN"}
+        raw=result.stdout
+        names=("google_app_id","gcm_defaultSenderId")
+        has=[bool(re.search(r"(?:^|[\\s:])string/"+re.escape(name)+
+                             r"(?=[:\\s])",raw,re.MULTILINE))
+             for name in names]
+        pair="BOTH" if all(has) else "PARTIAL" if any(has) else "NONE"
+        packages=set(re.findall(r"(?m)^\\s*Package(?: Group)?\\s+\\d+[^\\n]*?\\bname=([^\\s]+)",raw))
+        own=DEST in packages
+        stock=ORIGINAL in packages
+        namespace=("BOTH_NAMES" if own and stock else "CLONE_ONLY"
+                   if own else "ORIGINAL_ONLY" if stock else
+                   "UNKNOWN" if not packages else "OTHER")
+        return {"pair":pair,"namespace":namespace}
+    stock=scan(original_apk)
+    clone=scan(clone_apk)
+    return {"publisher_resource_names":stock["pair"],
+            "clone_resource_names":clone["pair"],
+            "publisher_table_namespace":stock["namespace"],
+            "clone_table_namespace":clone["namespace"],
+            "source_strings_or_values_logged":False,
+            "original_or_clone_apk_modified_by_audit":False}
+
+
 def patch_manifest(data):
     raw,stats=source.rewrite_manifest(data.decode("utf-8"))
     root=ET.fromstring(raw)
@@ -322,6 +351,7 @@ def run(xapk):
             stop("METRICA_DETAIL_ORIGINAL_COMPONENTS_NOT_PRESERVED")
         single=merge_publisher_input_lspatch_clone_splits(
             renamed,editor,work,work/"unique-own-key.jks")
+        firebase_resource_parity=_firebase_resource_table_parity(publisher_base[0],single)
         with zipfile.ZipFile(single) as packaged:
             own_modules=[name for name in packaged.namelist()
                          if name.startswith("assets/lspatch/modules/") and name.endswith(".apk")]
@@ -329,6 +359,7 @@ def run(xapk):
                 stop("METRICA_WITNESS_SINGLE_APK_MODULE_LOST")
         report={
             "verified_publisher_source_splits":16,
+            "firebase_resource_table_parity":firebase_resource_parity,
             "clone_provider_namespace_rewrites":rewrite_summary,
             "own_signed_cloned_splits":len(renamed),
             "LSPatch_level":2,
