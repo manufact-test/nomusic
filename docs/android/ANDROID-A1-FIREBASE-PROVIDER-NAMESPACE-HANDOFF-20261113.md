@@ -1,3 +1,6 @@
+> **CURRENT BOUNDARY — 13 Nov:** Firebase/provider namespace and native MAIN startup are separate from the owner-observed `:passport` fatal crash. NAV4 proved four `JAVA_CRASH` exits in `:passport` with uncaught `IllegalStateException` and `FATAL_DISPATCH / NOT_METRICA`; NAV5 is the bounded next observer. Do not roll back the known-good Firebase/native MAIN route to chase Passport. See `ANDROID-A1-OWNER-ONBOARDING-CRASH-TRIAGE-20261113.md` and `NEXT-CHAT-ANDROID-A1-LEAD-20261113.md`.
+
+---
 > **АКТУАЛЬНЫЙ РЕЗУЛЬТАТ 13.11:** Firebase-ресурсы CELIKOM теперь разрешаются в пространстве имени клона. Настоящие native ARM13 тесты дважды подтвердили 25/25 для оригинала и CELIKOM. [Результат и безопасные резервы](ANDROID-A1-NATIVE-STARTUP-25X25-20261113.md). Состояние NO-GO ниже относится к старым попыткам; проверка аудио и аккаунта впереди.
 
 # CELIKOM Android A1 — confirmed Push/Firebase failure and resource-namespace handoff (13 Nov 2026)
