@@ -40,6 +40,15 @@ class PermissionCheckTests(unittest.TestCase):
         self.assertEqual(p._explicit_iae_throw(direct,Types()),"IAE_DIRECT_THROW")
         self.assertEqual(p._explicit_iae_throw(just_new,Types()),"IAE_CONSTRUCT_ONLY")
 
+    def test_ise_candidate_only_direct_same_register_throw(self):
+        class Types:
+            type_count=1
+            def type(self,idx):return "Ljava/lang/IllegalStateException;"
+        self.assertTrue(p._explicit_sdk_illegal_state(bytes((
+            0x22,2,0,0,0x27,2,0x0e,0)),Types()))
+        self.assertFalse(p._explicit_sdk_illegal_state(bytes((
+            0x22,2,0,0,0x27,1,0x0e,0)),Types()))
+
     def test_runtime_causality_default_not_claimed(self):
         self.assertNotIn("runtime_throw_site_proven\":True",SUBJECT.read_text())
 if __name__=="__main__":
