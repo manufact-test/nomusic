@@ -29,3 +29,10 @@
 
 ## Guardrails
 - Do not touch Test.50, frozen A1, Windows, production or the owner's HONOR 50. No false SDK answers or suppressed exceptions; no second player; keep source decision before existing decoder and exact B42 identity/grant protection. Do not leak draft XAPK, media bytes, session tokens or private account details.
+
+
+## Final handoff addendum — second CI ordering correction (13 Nov)
+- After commit `491330ccb36d387fc4537b8219ad72638e8ebcde`, both #43421567614 (standalone) and #43421567342 (paired) reached the temporary `MediaDataSource` generator but stopped there **before Android boot** with `PUBLISHER_AUDIO_API_INVENTORY_INCOMPLETE` / `GateError`. Causal ordering issue: moving the scanner before the isolated signing SDK removed the previous SDK conflict, but also placed the issuer-verification scan before OS `aapt` and `apksigner` tools were installed. No new native stability regression was observed or proven.
+- Current fix `6717d601c6fb5528c7cfdcd98025a131c794cb32` moves only the three apt verification tools (aapt, apksigner, zipalign) into a separate step **before** generating exact private `readAt` targets, keeps the temporary own Gradle rebuild under the original canonical Android SDK, and sets the isolated signing-only SDK *afterward*. It does not alter APK payloads, vendor code, B42, publisher signatures, resource route or Java module.
+- Fresh follow-up runs: [paired #43422107821](https://github.com/manufact-test/nomusic/actions/runs/43422107821), [standalone #43422107768](https://github.com/manufact-test/nomusic/actions/runs/43422107768). They were queued/in progress when this addendum was authored: **their final outcome must be fetched by the next developer**.
+- This handoff's earlier «check #434215...» instruction is superseded by these two new runs. Keep exact fallback `backup/android-a1-firebase-namespace-success-witness-20261113`, do not call pending CI PASS.
