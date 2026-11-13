@@ -17,7 +17,7 @@ CATCH=Path(__file__).resolve().parents[1]/"a1-exact-catch-helper"
 sys.path.insert(0,str(CI))
 sys.path.insert(0,str(CATCH))
 from a1_private_push_dex_method import (
-    Dex, group_class, group_call, private_exclusive_fatal_guard_refs,
+    Dex, group_class, group_call, private_java_parameter_signature, private_exclusive_fatal_guard_refs,
     private_near_true_exact_throw_path,
 )
 from a1_private_dex_fatal_cfg import exact_fatal_cfg, _nexts
@@ -195,6 +195,14 @@ def inspect(xapk):
                 "direct_permission_or_signature_api_bounded":min(direct_auth,16),
                 "one_hop_permission_or_signature_api_bounded":min(onehop_auth,16),
                 "one_hop_known_permission_literal_bounded":min(onehop_literal,16),
+                "service_class_matches_public_modern":(len(service_direct)==1 and
+                    dex.method(service_direct[0])[0]==
+                    "Lio/appmetrica/analytics/push/coreutils/internal/PushServiceFacade;"),
+                "service_proto_exact_context":(len(service_direct)==1 and
+                    private_java_parameter_signature(dex,service_direct[0])==
+                    "android.content.Context"),
+                "service_declared_same_dex":(len(service_direct)==1 and
+                    dex.method_signature(service_direct[0]) in defined),
                 "push_service_init_direct_on_true_catch_bounded":min(len(service_direct),8),
                 "push_service_init_onehop_on_true_catch_bounded":min(len(service_onehop),8),
                 "push_service_hypothesis":("DIRECT" if len(service_direct)==1 else
