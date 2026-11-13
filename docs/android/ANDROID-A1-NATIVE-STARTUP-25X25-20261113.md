@@ -38,3 +38,9 @@ Next: review the existing B42 audio contract, identify the native source integra
 
 ### 13 Nov latest exact object-identity witness — native restart regression verified
 - Read-only Java source object == reference correlation `a18ee8d705dd08154c4cb904ffcec9aacd2ed475`, backup `backup/android-a1-2025-extractor-readat-same-object-25x25-20261113`; pair [#43436009883](https://github.com/manufact-test/nomusic/actions/runs/43436009883) original installed and clone 25/25, standalone [#43436009850](https://github.com/manufact-test/nomusic/actions/runs/43436009850) clone 25/25, both SUCCESS. Expected 0 MediaExtractor/readAt/same-object match calls in startup-only tests, not an audio/product pass. No Firebase/architecture changes.
+
+
+### 13 Nov — owner-phone diagnostic APK artifact
+- Fresh ARM13 publisher-first workflow [#43450303301](https://github.com/manufact-test/nomusic/actions/runs/43450303301) SUCCESS. Original publisher 25/25, CELIKOM clone 25/25, both installed concurrently; clone-only resource route applied, no Metrica fatal suppression.
+- Exported one-time diagnostic APK artifact #14050162270 (71,426,028 bytes), SHA-256 `2d043de0fdabcd9ee4109d01c376d764d4e640b4a4dd07df1bffb6a0264f7e63`, package `pro.celikom.yandex.nativeclonelab`, based on Yandex Music 2025.10.4. Owner phone not touched.
+- Two MediaDataSource readAt hooks and exact MediaExtractor source hook registered. No music playback was run in CI: actual readAt/extractor/same-object event counts remain 0. Owner test on existing phone/account is next; this is not audio acceptance.

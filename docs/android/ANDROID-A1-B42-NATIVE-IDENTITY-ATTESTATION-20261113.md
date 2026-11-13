@@ -38,7 +38,7 @@ The workflow has no secrets and no deployment step. It does not connect to Hosti
 
 ## Still blocked
 
-- No separate authorized test account or permitted Yandex test track/album/edition values have been recorded.
+- No real playback or exact track/album/edition values have been recorded yet. The owner confirmed the existing Yandex account on the existing phone is available; no separate account is required. The one-time read-only clone diagnostic APK is now prepared (workflow #43450303301, artifact #14050162270); owner playback capture is pending.
 - Do not populate IDs from a title, cover, display album label, guess or static DEX clue.
 - Do not deploy migration or PHP changes to Hostinger yet.
 - No live music, exact native source identity, pause/seek/radio or audible substitution is proven.
@@ -63,3 +63,8 @@ This is still a pure JS helper; it has not been connected to a live Android adap
 ## Java model identity parity
 
 The older pure-Java NativeSourceGate and NativeTrackIdentityGate models were aligned from track+edition to exact track+album+edition. They now reject wrong track, album or edition before a source can be admitted or sealed. Isolated javac workflow [#43442318127](https://github.com/manufact-test/nomusic/actions/runs/43442318127) passed: NativeSourceGate 10,038 assertions and NativeTrackIdentityGate 10,015 assertions. These classes are MODEL ONLY and are not wired to the Yandex player or active hooks; no Android runtime or audio result is implied.
+
+
+## Owner-phone diagnostic build update — 13 Nov
+
+A one-time read-only Yandex 2025.10.4 clone was exported after fresh Android 13 ARM13 original-first side-by-side validation. Workflow [#43450303301](https://github.com/manufact-test/nomusic/actions/runs/43450303301) SUCCESS: original 25/25 and clone 25/25, concurrent install preserved. Artifact #14050162270; package `pro.celikom.yandex.nativeclonelab`; SHA-256 `2d043de0fdabcd9ee4109d01c376d764d4e640b4a4dd07df1bffb6a0264f7e63`. This is a diagnostic clone only, not a release, and it does not substitute audio. Both readAt hooks and the exact MediaExtractor hook register, but no live music was played in CI and all readAt/extractor call counts remain zero. The owner will use the existing Yandex account on the existing phone; a separate account is not required. Await sanitized one-track log capture before identity integration.
