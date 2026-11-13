@@ -115,7 +115,7 @@ jobs:
           if ((Test-Path $app) -or (Test-Path $vendor)) { throw 'W89_DIRTY_RUNNER' }
           $p=Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W89_PREVIOUS_SETUP_FAILED' }
-          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.32.0') { throw 'W89_PREVIOUS_VERSION_MISMATCH'' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.32.0') { throw 'W89_PREVIOUS_VERSION_MISMATCH' }
           $hostBefore=(Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash
           $rendererBefore=(Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash
           New-Item -ItemType Directory -Force -Path $state | Out-Null
