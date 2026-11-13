@@ -1,6 +1,10 @@
+## W99 update — 2026-11-13 (current integrated QA state)
+
+Current lead status and the exact remaining owner action are documented in [W99-0.24.36-INTEGRATED-QA-STATUS-20261113.md](W99-0.24.36-INTEGRATED-QA-STATUS-20261113.md). Current branch `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`, HEAD `b1f9064edfc33b83e08abe22e7d38a0a87298e59`; exact rollback `backup/windows-w99-0.24.36-green-hostinger-blocked-20261113`. GUI 0.24.36 / native 0.24.29 / W23 0.24.10. Full Windows CI [43470332842](https://github.com/manufact-test/nomusic/actions/runs/43470332842) SUCCESS; W91 sidecar CI [43469841569](https://github.com/manufact-test/nomusic/actions/runs/43469841569) SUCCESS. Hostinger verify/package passed, but deploy safely stopped before writes because repository Actions secret `CELIKOM_W98_TEST_EMAIL` is empty. Add that secret using the owner's primary CELIKOM account email (do not send it in chat), then advance the request JSON and rerun the guarded deployment. No final installer has been published yet.
+
 # W97 — FINAL INTEGRATED WINDOWS TEST BUILD / OWNER HANDOFF (2026-11-13)
 
-## W98 update — 2026-11-13 (latest active work)
+## W98 historical update — 2026-11-13 (superseded by W99)
 
 The work continued on a separate branch from the exact W95 input, without changing W95 or the browser extension:
 

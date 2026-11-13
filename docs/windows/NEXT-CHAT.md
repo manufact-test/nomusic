@@ -1,4 +1,16 @@
-# 2026-11-13 W98 — CURRENT LEAD HANDOFF (READ FIRST)
+# 2026-11-13 W99 — CURRENT LEAD HANDOFF (READ FIRST)
+
+**Current branch:** `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
+**Current HEAD:** `b1f9064edfc33b83e08abe22e7d38a0a87298e59`.
+**Exact rollback:** `backup/windows-w99-0.24.36-green-hostinger-blocked-20261113` @ `b1f9064edfc33b83e08abe22e7d38a0a87298e59`.
+**Main status:** GUI 0.24.36 / native 0.24.29 / W23 0.24.10; exact Windows CI [43470332842](https://github.com/manufact-test/nomusic/actions/runs/43470332842) SUCCESS. W91 sidecar CI [43469841569](https://github.com/manufact-test/nomusic/actions/runs/43469841569) SUCCESS.
+**Read first:** `docs/windows/W99-0.24.36-INTEGRATED-QA-STATUS-20261113.md`, then `docs/windows/W97-FINAL-READY-RELEASE-HANDOFF-20261113.md`, W90 and W93.
+**Only current blocker:** Hostinger deploy [43470332960](https://github.com/manufact-test/nomusic/actions/runs/43470332960) stopped before snapshot/deploy/migration/media writes because Actions secret `CELIKOM_W98_TEST_EMAIL` is empty. Owner must add that repository secret with the primary CELIKOM account email in Settings → Secrets and variables → Actions; do not ask the owner to post the email in chat. After the owner confirms it is added, advance `.github/deploy/hostinger-request.json` to request 022 and rerun the guarded workflow. Do not bypass the gate or send a partial installer.
+**No installer has been published yet.** After the guarded deployment, sidecar verification and final in-place/DPAPI checks pass, publish one EXE + ZIP to `/CELIKOM/Windows/Test/`. Owner acoustic QA remains required for #52/#53/#54/#57/#58.
+
+---
+
+# 2026-11-13 W98 — HISTORICAL LEAD HANDOFF (superseded by W99)
 
 **Latest integrated work branch:** `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
 **W98 pre-change exact backup:** `backup/windows-w98-pre-integrated-gain-and-original-vpn-20261113` @ `5ce1ec127009ba4a86a8e5ee1d129ec86623fd54`.
