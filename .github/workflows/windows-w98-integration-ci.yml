@@ -34,8 +34,9 @@ jobs:
           php-version: '8.3'
           extensions: pdo_mysql, fileinfo
           coverage: none
-      - name: Validate owner-scoped private gain staging scripts
+      - name: Validate Hostinger workflow YAML and owner-scoped private gain staging scripts
         run: |
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/hostinger-deploy.yml"); puts "W98_HOSTINGER_WORKFLOW_YAML_PASS"'
           bash -n .github/scripts/hostinger-windows-gain-stage.sh
           php -l .github/scripts/hostinger-windows-gain-remote.php
           grep -F "explicit_owner_email_required" .github/scripts/hostinger-windows-gain-remote.php
