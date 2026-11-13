@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Read-only exact 2025.10.4 publisher DEX audio API inventory.
+
+No user playback, decoder hook, original modification, account, URL or
+unredacted third-party class/method names in the report. API references
+are not proof of executing source-before-decoder for a current track.
+"""
+from __future__ import annotations
+from collections import Counter
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import tempfile
+import zipfile
+
+from a1_private_push_dex_method import Dex, DexError, EXPECTED_LEN, EXPECTED_SHA
+from uptodown_2025_gpr_ephemeral_verify import unbundle_candidate, verify_split_set
+
+# Exact, publicly documented Android/ExoPlayer APIs only.
+PUBLIC_METHODS = {
+    "MEDIA3_DATA_SOURCE_OPEN": {
+        ("Landroidx/media3/datasource/DataSource;", "open"),
+        ("Landroidx/media3/datasource/DefaultDataSource;", "open"),
+        ("Landroidx/media3/datasource/DefaultHttpDataSource;", "open")},
+    "MEDIA3_DATA_SOURCE_FACTORY": {
+        ("Landroidx/media3/datasource/DataSource$Factory;", "createDataSource"),
+        ("Landroidx/media3/datasource/DefaultDataSource$Factory;", "createDataSource"),
+        ("Landroidx/media3/datasource/DefaultHttpDataSource$Factory;", "createDataSource")},
+    "MEDIA3_MEDIA_SOURCE_FACTORY": {
+        ("Landroidx/media3/exoplayer/source/MediaSource$Factory;", "createMediaSource"),
+        ("Landroidx/media3/exoplayer/source/ProgressiveMediaSource$Factory;", "createMediaSource")},
+    "MEDIA3_PLAYER_PREPARE": {
+        ("Landroidx/media3/exoplayer/ExoPlayer;", "prepare"),
+        ("Landroidx/media3/common/Player;", "prepare")},
+    "LEGACY_EXOPLAYER_DATA_SOURCE": {
+        ("Lcom/google/android/exoplayer2/upstream/DataSource;", "open"),
+        ("Lcom/google/android/exoplayer2/upstream/DataSource$Factory;", "createDataSource"),
+        ("Lcom/google/android/exoplayer2/upstream/DefaultDataSource$Factory;", "createDataSource")},
+    "LEGACY_EXOPLAYER_PLAYER": {
+        ("Lcom/google/android/exoplayer2/ExoPlayer;", "prepare"),
+        ("Lcom/google/android/exoplayer2/Player;", "prepare")},
+    "ANDROID_PLATFORM_MEDIA": {
+        ("Landroid/media/MediaPlayer;", "prepare"),
+        ("Landroid/media/MediaPlayer;", "prepareAsync"),
+        ("Landroid/media/MediaExtractor;", "setDataSource")}
+}
+# Historical 2026.10.3 #170gpr obfuscated classes are only a comparison
+# against current 2025.10.4. Never assume these are the native source.
+HISTORICAL = {
+    ("Lcq7;", "i0"), ("Lga4;", "d"), ("Lha4;", "read"),
+}
+
+def classify(owner: str, name: str) -> str | None:
+    return next((role for role, methods in PUBLIC_METHODS.items()
+                 if (owner, name) in methods), None)
+
+def summarize_methods(methods, defined_indices=()):
+    counts=Counter()
+    present=set()
+    for index, (owner, name) in enumerate(methods):
+        role=classify(owner,name)
+        if role:
+            counts[role]+=1
+            if index in defined_indices:
+                counts["DEFINED_"+role]+=1
+        if (owner,name) in HISTORICAL:
+            present.add((owner,name))
+    return {
+        "public_api_references": {k:min(counts[k], 9999) for k in PUBLIC_METHODS},
+        "public_api_defined_bodies": {
+            k:min(counts["DEFINED_"+k],9999) for k in PUBLIC_METHODS},
+        "historical_2026_candidate_symbols_present_bounded":len(present),
+        "active_current_track_or_decoder_binding_proven":False,
+        "actual_audio_or_account_observed":False,
+    }
+
+def scan_publisher(xapk: Path) -> dict:
+    if (os.getenv("GITHUB_ACTIONS")!="true"
+        or os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic"
+        or os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-metrica-init-state-observer-arm13-20261112"
+        or not xapk.is_file() or xapk.is_symlink()
+        or xapk.stat().st_size!=EXPECTED_LEN):
+        raise RuntimeError("EXACT_EPHEMERAL_2025_XAPK_ONLY")
+    h=hashlib.sha256()
+    with xapk.open("rb") as fp:
+        for block in iter(lambda:fp.read(1024*1024), b""):
+            h.update(block)
+    if h.hexdigest()!=EXPECTED_SHA:
+        raise RuntimeError("EXACT_2025_XAPK_SHA_MISMATCH")
+    with tempfile.TemporaryDirectory(prefix="a1-2025-verified-audio-inventory-") as dirname:
+        parts=unbundle_candidate(xapk,Path(dirname))
+        if len(parts)!=16:
+            raise RuntimeError("EXACT_2025_SPLIT_COUNT_INVALID")
+        attestation=verify_split_set(parts)
+        if not (
+            attestation.get("verified_issuer_signed_splits")==16 and
+            attestation.get("all_apks_cryptographically_signed") is True and
+            attestation.get("exactly_one_2025_gpr_base_manifest") is True
+        ):
+            raise RuntimeError("EXACT_PUBLISHER_ATTESTATION_FAILED")
+        combined=Counter()
+        historical=set()
+        dex_count=0
+        for apk in parts:
+            with zipfile.ZipFile(apk) as archive:
+                if archive.testzip() is not None:
+                    raise RuntimeError("PUBLISHER_ZIP_BAD_CRC")
+                for info in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\.dex",info.filename):
+                        continue
+                    if not 100<=info.file_size<=120*1024*1024:
+                        raise RuntimeError("PUBLISHER_DEX_BOUND")
+                    d=Dex(archive.read(info))
+                    dex_count+=1
+                    if dex_count>32:
+                        raise RuntimeError("PUBLISHER_DEX_COUNT_EXCEEDED")
+                    methods=[d.method(i) for i in range(d.method_count)]
+                    defined={index for index,_code in d.code_methods()}
+                    row=summarize_methods(methods,defined)
+                    for key,value in row["public_api_references"].items(): combined[key]+=value
+                    for key,value in row["public_api_defined_bodies"].items(): combined["DEFINED_"+key]+=value
+                    historical.update((o,n) for o,n in methods if (o,n) in HISTORICAL)
+        if dex_count==0:
+            raise RuntimeError("PUBLISHER_DEX_MISSING")
+    return {
+        "verdict":"VERIFIED_2025_PUBLISHER_AUDIO_API_INVENTORY_ONLY",
+        "publisher_issuer_verified_splits":16,
+        "publisher_dex_count_bounded":dex_count,
+        "public_api_references":{k:min(combined[k],9999) for k in PUBLIC_METHODS},
+        "public_api_defined_bodies":{k:min(combined["DEFINED_"+k],9999) for k in PUBLIC_METHODS},
+        "historical_2026_candidate_symbols_present_bounded":len(historical),
+        "actual_current_track_binding_proven":False,
+        "source_before_decoder_execution_proven":False,
+        "native_audio_playback_proven":False,
+        "vendor_binary_modified_or_published":False,
+    }
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--xapk",type=Path,required=True)
+    args=parser.parse_args()
+    try:
+        print(json.dumps(scan_publisher(args.xapk),sort_keys=True))
+    except Exception as err:
+        # Deliberately do not disclose private exception text or paths.
+        print(json.dumps({"verdict":"PUBLISHER_AUDIO_API_INVENTORY_INCOMPLETE",
+                          "reason_class":type(err).__name__,
+                          "native_audio_playback_proven":False},sort_keys=True))
+        return 2
+    return 0
+
+if __name__=="__main__":
+    sys.exit(main())
