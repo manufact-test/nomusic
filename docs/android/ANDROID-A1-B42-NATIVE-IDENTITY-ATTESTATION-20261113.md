@@ -24,7 +24,7 @@ The previous server could not satisfy that contract:
    - entitled=true only when the request passed authenticated user access and entitlement.
    - album_id and edition_id: exact stored values or NULL.
 4. Private test API-token requests deliberately receive entitled=false. A test token must never masquerade as a real user entitlement.
-5. The native adapter must map API snake_case fields to the normalized B42 contract: track_id to trackId, album_id to albumId, edition_id to editionId. This adapter mapping is not yet implemented or runtime-tested.
+5. Pure contract helper normalizeResolveGrant(response, requestedTrackId, origin) now maps API snake_case to normalized B42 fields, converts expires_at seconds to milliseconds, and resolves only same-origin HTTPS audio URLs. It rejects mismatched track IDs, missing/partial identity, cross-origin URLs and malformed response fields. This is not yet wired to an Android native adapter or a live Resolve request.
 
 ## Validation
 
@@ -51,3 +51,10 @@ The workflow has no secrets and no deployment step. It does not connect to Hosti
 2. During actual playback capture exact native trackId + albumId + editionId and sanitized MediaExtractor/readAt/same-object witness markers.
 3. Only then populate the owner-only exact identity fields for that reviewed test mapping, verify authenticated Resolve returns matching fields and entitled=true, and map the response into B42.
 4. Integrate before the existing decoder only after same-object/source path and grant identity are independently established. Test actual sound and controls; no second player.
+
+
+## Resolve response normalization CI update
+
+The pure source-contract normalizer was added and verified by isolated B42 workflow [#43441677339](https://github.com/manufact-test/nomusic/actions/runs/43441677339), **49/49 PASS**. Tests cover actual PHP ResolveService snake_case response mapping, epoch-seconds conversion, same-origin HTTPS URL resolution, private test-token entitlement denial, old track-only backend rejection, partial identity, mismatched track and URL expiry mismatch. The first attempt #43441514979 failed on an over-escaped control-character regex; it was corrected and the full rerun passed. No source-selection guard was weakened.
+
+This is still a pure JS helper; it has not been connected to a live Android adapter or live Resolve request. No actual Yandex test account or permitted track values are available. No production deployment.
