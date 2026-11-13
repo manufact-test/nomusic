@@ -25,6 +25,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Build native renderer before integration tests
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W92_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W92_NATIVE_BUILD_FAILED' }
       - name: Source and volume witness, original audio, 403, pause, seek regression
         run: node --test windows-companion/w23/native-host.test.mjs windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w60/current-source-refresh.test.mjs
       - name: Account entitlement and Windows native API regression
