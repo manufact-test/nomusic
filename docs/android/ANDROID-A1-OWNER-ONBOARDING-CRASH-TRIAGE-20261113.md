@@ -212,3 +212,25 @@ The exact already-built NAV5 owned-outer `resources.arsc` has the Passport sync 
 - Separate tests run in paired original-first ARM13 and standalone clone-only workflows on this commit. **No native result or owner login success is claimed until the exact workflows finish and the owner tests the new APK.** Do not create or offer an unverified APK.
 
 Saved protective exact pre-fix snapshot: `backup/android-a1-nav5-owner-passport-crash-proof-pre-fix-20261113` @ `ab8537253fdd9e361c630a92caeee78472d3fea9`. Previous owner handoff backup also remains untouched. Stage A still NO-GO; Stage B LOCKED. Test.50, Windows, production, backend and official Yandex untouched.
+
+## NAV5 Passport sync repair — native Android 13 results (13 Nov 2026)
+
+Trial commit: `f05122cf01fbbfb1156d858053127a88ac7e2a74`.
+Post-result backup: `backup/android-a1-nav5-passport-native75s-pass-20261113` @ `f13fbcaa3b2f3617a0db282d749c5a4ace3b6b8f`.
+
+Both exact commit workflows completed SUCCESS:
+- Clone-alone fresh Android 13: `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; clone installed; native MAIN resumed in 25/25 samples (75 s); no uncaught exception / IllegalState; no fatal dispatch observed. Publisher intentionally absent in this differential.
+- Publisher-first paired test: original issuer-verified Yandex 2025.10.4 installed first with all 16 splits and observed stable for 75 s; clone installed second alongside it; both remained installed; clone MAIN resumed in 25/25 samples (75 s). Verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. No uncaught exception / IllegalState and no fatal dispatch observed; no Metrica fatal suppression occurred.
+- The clone-only trial and paired trial both ran with `CELIKOM_A1_PASSPORT_SYNC_TRIAL=1`, `CELIKOM_A1_RESOURCE_NAMESPACE_TRIAL=1`. Build output confirms `PASSPORT_SYNC_OWN_RESOURCE_PARITY_OK`; clone APK remained structurally single-APK, embedded original publisher APK byte-identical, original DEX/native payload unchanged, own signer unchanged, and only the three expected outer v1 signing metadata entries regenerated.
+- This is strong evidence that the original NAV5 Passport fatal was configuration-related and the exact own-clone sync-authority alignment removed the observed startup crash in this 2025.10.4 / Android 13 test. It is **not** proof of account login, live audio routing, CELIKOM replacement, Play Protect behavior, or production readiness. No account or audio was tested; owner phone was not touched. Stage A remains NO-GO; Stage B remains LOCKED.
+- Read-only witness also recorded a nonempty Push fatal guard input, but Push init returned normally; no uncaught fatal dispatch was observed. Do not mislabel this as a Passport crash.
+
+### Private one-time owner-phone diagnostic bundle
+- GitHub Actions run: `43496737566`; artifact `14072202508`, `CELIKOM-A1-OnDevice-Diagnostic-20261113` (7-day retention, expires 20 Nov 2026).
+- Contains `CELIKOM-A1-Native-ReadOnly-Diagnostic.apk` (71,438,316 bytes) and `README-RU.txt`.
+- APK SHA-256: `420aaa31c8a70f6acd8944ab25d693c16dab43caa136092325fef18297b94b07`.
+- This is a **temporary diagnostic clone**, not a product/release APK. It contains the issuer-signed Yandex 2025.10.4 source clone plus the scoped read-only diagnostic module; it does not replace audio, create a second player, or perform song substitution.
+- Owner test instructions are in the bundled `README-RU.txt`: install alongside the original Yandex (do not remove original), reproduce the four-screen startup path, relaunch after any return to launcher, tap “Сохранить диагностику”, and send the generated TXT. No cable, PC, ADB or USB debugging is required. Remove the previous diagnostic clone before installing this new APK because the test signing key changed. If Play Protect warns, do not disable protection or bypass it; report the warning.
+- APK is locally downloaded and verified against the CI SHA-256 at `/mnt/data/celikom-a1-nav5-owner-test/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk`; local README at `/mnt/data/celikom-a1-nav5-owner-test/README-RU.txt`.
+
+Next: owner-phone reproduction and diagnostic TXT. If startup now passes, report that too; do not infer login/audio acceptance from the 75-second CI test. After owner confirmation, proceed to account/login check, then a separately gated audio test; keep Test.50 and production untouched.
