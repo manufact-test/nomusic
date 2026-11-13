@@ -7,6 +7,7 @@ outside one fixed 256-byte UTF-16LE package-name field.
 """
 from __future__ import annotations
 import struct
+import re
 
 TABLE_TYPE=0x0002
 PACKAGE_TYPE=0x0200
@@ -83,3 +84,39 @@ def _offsets(data,off):
         yield off
         _,_,size=_chunk(data,off,len(data))
         off+=size
+
+
+def classify_outer_signing_change(name):
+    """Only classify a ZIP member name; NEVER log private member names or bytes.
+
+    This is a *diagnostic* classification, not authorization to mutate content.
+    """
+    if name == "META-INF/MANIFEST.MF":
+        return "V1_MANIFEST"
+    if re.fullmatch(r"META-INF/[A-Za-z0-9_-]+\.SF", name, re.IGNORECASE):
+        return "V1_SIGNATURE_FILE"
+    if re.fullmatch(r"META-INF/[A-Za-z0-9_-]+\.(?:RSA|DSA|EC)", name, re.IGNORECASE):
+        return "V1_SIGNATURE_BLOCK"
+    if name.startswith("META-INF/"):
+        return "OTHER_META_INF"
+    return "NON_META_INF_APP_CONTENT"
+
+def only_expected_own_v1_signing_changes(names):
+    """Exactly three existing, matching top-level V1 signature entries.
+
+    The full ZIP-member parity check and independent signer certificate
+    equality are separate mandatory checks. This never exempts arbitrary
+    META-INF files, vendor data, nested APKs, DEX, native libs or assets.
+    """
+    if len(names)!=3 or len(set(names))!=3:
+        return False
+    categories={}
+    for name in names:
+        category=classify_outer_signing_change(name)
+        categories.setdefault(category,[]).append(name)
+    if {key:len(value) for key,value in categories.items()} != {
+        "V1_MANIFEST":1,"V1_SIGNATURE_FILE":1,"V1_SIGNATURE_BLOCK":1}:
+        return False
+    signer_sf=categories["V1_SIGNATURE_FILE"][0]
+    signer_block=categories["V1_SIGNATURE_BLOCK"][0]
+    return signer_sf.rsplit(".",1)[0]==signer_block.rsplit(".",1)[0]
