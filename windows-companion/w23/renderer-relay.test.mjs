@@ -232,6 +232,10 @@ test("W99 verified CELIKOM source-left schedules one bounded current-track recov
   assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("456"),false,
     "never recover an unrelated/prefetched track");
   assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("123"),true);
+  const scheduledDiagnostics=r.window.__celikomBridgeNativeDrainDiagnostics();
+  assert.ok(scheduledDiagnostics.some(x=>
+    x[0]==="SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED"&&x[1]==="123"),
+    "the recovery schedule must be visible before its asynchronous retry");
   assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("123"),false,
     "one source-left transition cannot create duplicate recovery timers");
   await new Promise(resolve=>setTimeout(resolve,720));
@@ -253,8 +257,6 @@ test("W99 verified CELIKOM source-left schedules one bounded current-track recov
     makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
   assert.equal(player.state.playerState.progress.value.position,82.25);
   assert.equal(player.state.playerState.status.value,"playing");
-  assert.ok(r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
-    x[0]==="SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED"&&x[1]==="123"));
   r.handlers.beforeunload();
 });
 
