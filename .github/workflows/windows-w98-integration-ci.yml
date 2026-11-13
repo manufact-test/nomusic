@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Full repository CI (server, extension, build and security)
+      - name: Full repository CI (server, extension, build and security; normalized baseline)
         shell: pwsh
         run: |
           npm ci --no-audit --no-fund
