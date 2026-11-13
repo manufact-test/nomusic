@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.33
-VersionInfoVersion=0.24.33.0
+AppVersion=0.24.34
+VersionInfoVersion=0.24.34.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED
+OutputBaseFilename=CELIKOM-W95-02434-WINDOWS-AUDIO-VPN-TRACK-TEST-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
