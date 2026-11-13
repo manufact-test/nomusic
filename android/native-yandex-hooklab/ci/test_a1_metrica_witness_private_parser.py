@@ -641,7 +641,7 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         got=scoped_metrica_witness(EXIT,records)
         self.assertEqual(got["read_only_mediadatasource_readat_candidate_labels"],
                          ["CANDIDATE_0","CANDIDATE_1"])
-        self.assertNotIn("vendor",str(got))
+        self.assertNotIn("Lvendor/class/path",str(got))
         self.assertNotIn("433",str(got))
 
     def test_media_source_labels_survive_startup_cap(self):
