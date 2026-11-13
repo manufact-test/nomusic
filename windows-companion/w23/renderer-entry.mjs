@@ -157,7 +157,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     active: () => !stopped && attached && adapter.enabled && playerSourceRefresh.attached,
     onEvent: (code, id) => {
       report(code, id);
-      if (code === "SOURCE_RECOVERY_RELOAD_OK") {
+      if (code === "SOURCE_RECOVERY_RELOAD_OK" ||
+          code === "SOURCE_RECOVERY_DECODER_ALREADY_PLAYING") {
         if (expiredSourceTrack === id) {
           expiredSourceTrack = null;
           expiredSourceFailedTrack = null;
@@ -193,6 +194,15 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     }
   });
   window.__celikomBridgeNativeCheckDeferred = () => deferredRecovery.check();
+  // Only CDP-verified current decoder source may suppress an unfired 403
+  // refresh. HTTP206 alone/prefetch/mapping never qualify. No player calls.
+  window.__celikomBridgeNativeConfirmedCurrentSource = trackId => {
+    if (typeof trackId !== "string" || !/^[1-9][0-9]{0,23}$/.test(trackId) ||
+        stopped || !attached || !adapter.enabled ||
+        playerSourceRefresh.currentTrackId() !== trackId)
+      return false;
+    return sourceRecovery.confirmedCurrentSource(trackId);
+  };
   // On native media GET 403 for a previously valid but expired grant, allow
   // the main-process witness to request recovery of EXACT current track only.
   // Never touch another track, queue, pause button or URLs from CDP.
@@ -344,6 +354,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     delete window.__celikomBridgeNativeCurrentTrackId;
     delete window.__celikomBridgeNativeCurrentTrack;
     delete window.__celikomBridgeNativeRecoverExpired;
+    delete window.__celikomBridgeNativeConfirmedCurrentSource;
     delete window.__celikomBridgeNativeRefreshUnfetched;
     delete window.__celikomBridgeNativeCheckDeferred;
     delete window.__celikomBridgeNativeDrainDiagnostics;

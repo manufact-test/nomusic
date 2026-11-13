@@ -58,11 +58,23 @@ export function createTransientSourceRecovery({
     attempt(id, job);
     return true;
   }
+  // W96: a strong CURRENT decoder kUrl + playing witness proves Yandex has
+  // already chosen a fresh CELIKOM stream. Suppress only an as-yet-unfired
+  // 403 retry timer; do not touch a running retry, unrelated song or player.
+  function confirmedCurrentSource(id) {
+    const job = pending.get(id);
+    if (!job || job.timer === null || !current(id,job)) return false;
+    clearTimer(job.timer);
+    job.timer = null;
+    finish(id,job);
+    emit("SOURCE_RECOVERY_DECODER_ALREADY_PLAYING",id);
+    return true;
+  }
   function cancel() {
     epoch++;
     for (const job of pending.values()) if (job.timer !== null) clearTimer(job.timer);
     pending.clear();
   }
-  return Object.freeze({schedule, cancel,
+  return Object.freeze({schedule, cancel, confirmedCurrentSource,
     get pendingCount() {return pending.size;}});
 }

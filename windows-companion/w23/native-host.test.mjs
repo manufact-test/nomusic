@@ -553,6 +553,9 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
     playerId:"player-a",properties:[{name:"kUrl",value:grant.audioUrl}]
   });
   assert.equal(evidence().length,1);
+  assert.ok(r.evaluated.some(s=>s.includes("__celikomBridgeNativeConfirmedCurrentSource?.") &&
+    s.includes("123")),
+    "W96 only verified current decoder may suppress redundant scheduled retry");
   debug.emit("message",{},"Media.playerPropertiesChanged",{
     playerId:"player-a",properties:[{name:"kIsPlaying",value:"true"}]
   });
