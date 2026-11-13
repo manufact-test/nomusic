@@ -1,3 +1,17 @@
+# 2026-11-13 W97 — OWNER REQUEST: ONE COMPLETE WINDOWS TEST BUILD (READ FIRST)
+
+**Главный handoff и готовое первое сообщение следующему чату:** [W97-FINAL-READY-RELEASE-HANDOFF-20261113.md](W97-FINAL-READY-RELEASE-HANDOFF-20261113.md).
+
+Владелец просит **не присылать очередной частичный установщик**. Следующий ведущий должен закончить серверную + Windows интеграцию и отдать один единый TEST-релиз, чтобы владелец проверил все проблемы за один проход. **0.24.34 не является сборкой для полного теста:** клиент просит `audio_profile=windows_gain_v1`, но production migration 020 и реальные sidecar MP3 с усилением не установлены/не зарегистрированы. Не просить владельца тестировать gain на 0.24.34.
+
+**Новая задача #58:** на «Моей волне» / оригинальных треках без активной CELIKOM-замены при VPN switch музыка прервалась и прозвучал «пшик». Это отдельно от #57 (403→206 hiss), #54 (падение громкости Big City Life) и #56 (gain parity). При ORIGINAL CELIKOM должен быть прозрачен для текущего decoder; проследить W15 route/entitlement → bridge state → W23 host → W22 adapter → Yandex decoder. Не обходить серверный entitlement.
+
+Открытые задачи: #52 «Ты» / реальный decoder proof; #53 Brave/Windows лаг; #54 Big City Life mid-track drop; #56 реальное применение gain_db ко всем активным ненулевым настройкам; #57 hiss после 403→206; #58 оригинальный трек pop при VPN; плюс реальное ускорение VPN reconnect 40–50s. См. критерии и полный план в W97.
+
+**Baseline:** branch `experiment/windows-w95-02434-qa-candidate-20261113`; code `4f8b3a72687577c5447d157be156365ab42a86fa`; W95 exact backups и W89/W88 rollback перечислены в W97. До любых правок fetch current HEAD и создать новый exact backup. Владелец не разрешал установку на его ПК; только отдать installer после готовой сборки.
+
+---
+
 # 2026-11-13 — WINDOWS 0.24.34 W95 QA INSTALLER GREEN + LIBRARY (READ FIRST)
 
 **LATEST Windows test candidate:** source branch `experiment/windows-w95-02434-qa-candidate-20261113`; exact installer/audio code `4f8b3a72687577c5447d157be156365ab42a86fa` (subsequent commits may be docs-only). **Full owner handoff:** `docs/windows/W95-02434-OWNER-QA-DELIVERY-20261113.md`.
