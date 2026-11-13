@@ -4,14 +4,6 @@ on:
   push:
     branches:
       - experiment/windows-w98-integrated-gain-and-original-vpn-20261113
-    paths:
-      - windows-companion/**
-      - scripts/windows-gain-render.sh
-      - server/**
-      - .github/scripts/**
-      - .github/deploy/**
-      - .github/workflows/windows-w98-integration-ci.yml
-      - .github/workflows/hostinger-deploy.yml
   workflow_dispatch:
 
 permissions:
