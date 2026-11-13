@@ -568,6 +568,28 @@ final class AdminPanel
             ? (int) $value : 25;
     }
 
+    /** Bounded UTF-8 search text; arrays and malformed input are ignored. */
+    private static function songSearch(array $query): string
+    {
+        $value = $query['q'] ?? '';
+        if (!is_string($value) || strlen($value) > 2048 || !preg_match('//u', $value)) return '';
+        $value = trim(preg_replace('/[\s\x00-\x1F\x7F]+/u', ' ', $value) ?? '');
+        preg_match('/^.{0,160}/us', $value, $match);
+        return trim($match[0] ?? '');
+    }
+
+    /** Every word must match; SQL wildcards are treated as literal characters. */
+    private static function songSearchWhere(string $search, string $alias, array &$params): string
+    {
+        if ($search === '') return '';
+        $parts = [];
+        foreach (preg_split('/\s+/u', $search, 12, PREG_SPLIT_NO_EMPTY) as $word) {
+            $parts[] = "CONCAT_WS(' ', $alias.artist, $alias.title, $alias.service_track_id) COLLATE utf8mb4_unicode_ci LIKE ? ESCAPE '!'";
+            $params[] = '%' . strtr($word, ['!'=>'!!', '%'=>'!%', '_'=>'!_']) . '%';
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
+
     /** User-supplied values never become free-form SQL predicates or LIMITs. */
     private function queueOptions(string $tab, array $query, array $statuses): array
     {
@@ -586,6 +608,17 @@ final class AdminPanel
                 . self::e($tab === 'requests' && $value === 'pending' ? 'Ожидают загрузки' : self::statusLabel($value)) . '</option>';
         }
         $form .= '</select></label>';
+        if (in_array($tab, ['uploads','requests'], true)) {
+            $search = self::songSearch($query);
+            $form .= '<label class="form-field">Поиск песни'
+                . '<input type="search" name="q" maxlength="160" value="' . self::e($search)
+                . '" placeholder="Название, исполнитель или Track ID"></label>';
+            if ($search !== '') {
+                $clear = ['tab'=>$tab, 'status'=>$status, 'per_page'=>(string)$perPage];
+                if ($tab === 'uploads') $clear['duration'] = self::durationFilter($query);
+                $form .= '<a class="btn" href="' . self::e('/admin?' . http_build_query($clear)) . '">Сбросить поиск</a>';
+            }
+        }
         if ($tab === 'uploads') {
             $duration = self::durationFilter($query);
             $form .= '<label class="form-field">Длительность<select name="duration">';
@@ -603,11 +636,12 @@ final class AdminPanel
         return [$status, $page, $offset, $form, $perPage];
     }
 
-    private function queuePages(string $tab, string $status, int $page, int $perPage, int $total, string $duration = ''): string
+    private function queuePages(string $tab, string $status, int $page, int $perPage, int $total, string $duration = '', string $search = ''): string
     {
         $totalPages = max(1, (int) ceil($total / $perPage));
         $base = '/admin?tab=' . rawurlencode($tab) . '&status=' . rawurlencode($status)
-            . '&per_page=' . $perPage . ($duration !== '' ? '&duration=' . rawurlencode($duration) : '') . '&page=';
+            . '&per_page=' . $perPage . ($duration !== '' ? '&duration=' . rawurlencode($duration) : '')
+            . ($search !== '' ? '&q=' . rawurlencode($search) : '') . '&page=';
         $view = '<nav class="pagination" aria-label="Страницы списка"><span>Всего: '
             . $total . ' · Страница ' . $page . ' из ' . $totalPages . '</span><div class="pages">';
         $link = static fn(int $i): string => $base . $i;
@@ -641,6 +675,9 @@ final class AdminPanel
         $params = $status !== '' ? [$status] : [];
         if ($duration === 'mismatch' && $status === '') $conditions[] = "(r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))";
         if ($duration !== '') $conditions[] = $difference . ($duration === 'mismatch' ? ' > 1500' : ' <= 1500');
+        $search = self::songSearch($query);
+        $searchWhere = self::songSearchWhere($search, 't', $params);
+        if ($searchWhere !== '') $conditions[] = $searchWhere;
         $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';
         $joins = ' FROM track_replacements r JOIN tracks t ON t.id=r.track_id JOIN audio_assets a ON a.id=r.audio_asset_id ';
         $mismatchCount = (int) $this->pdo->query('SELECT COUNT(*)' . $joins . ' WHERE ' . $difference . " > 1500 AND (r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))")->fetchColumn();
@@ -805,9 +842,10 @@ final class AdminPanel
             }
             $html .= '</article>';
         }
-        if (!$rows) $html .= '<section class="empty"><strong>Записей пока нет</strong>'
-            . 'Попробуйте изменить фильтры статуса и длительности.</section>';
-        return $html . '</div>' . $this->queuePages('uploads', $status, $page, $perPage, $total, $duration);
+        if (!$rows) $html .= '<section class="empty"><strong>'
+            . ($search !== '' ? 'Песни не найдены' : 'Записей пока нет') . '</strong>'
+            . 'Попробуйте изменить поиск или фильтры статуса и длительности.</section>';
+        return $html . '</div>' . $this->queuePages('uploads', $status, $page, $perPage, $total, $duration, $search);
     }
 
     private function requests(array $admin, string $csrf, array $query): string
@@ -817,8 +855,12 @@ final class AdminPanel
         [$status,$page,$offset,$filter,$perPage] = $this->queueOptions('requests', $query,
             ['pending','uploaded','fulfilled','reviewed','rejected']);
         $progress = \Celikom\Application\TrackRequestProgress::sql();
-        $where = $status !== '' ? ' WHERE ' . $progress . ' = ? ' : ' ';
+        $conditions = $status !== '' ? [$progress . ' = ?'] : [];
         $params = $status !== '' ? [$status] : [];
+        $search = self::songSearch($query);
+        $searchWhere = self::songSearchWhere($search, 'r', $params);
+        if ($searchWhere !== '') $conditions[] = $searchWhere;
+        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';
         $grouped="SELECT MAX(r.id) AS id FROM track_requests r $where GROUP BY r.service,r.service_track_id";
         $count=$this->pdo->prepare("SELECT COUNT(*) FROM ($grouped) grouped_requests");
         $count->execute($params);
@@ -862,7 +904,7 @@ final class AdminPanel
         }
         if (!$rows) $html .= '<section class="empty"><strong>Нет предложений с выбранным статусом</strong>'
             . 'Загруженные и выполненные предложения доступны через фильтр статуса.</section>';
-        return $html . '</div>' . $this->queuePages('requests', $status, $page, $perPage, $total);
+        return $html . '</div>' . $this->queuePages('requests', $status, $page, $perPage, $total, '', $search);
     }
 
     private function reports(array $admin, string $csrf, array $query): string
