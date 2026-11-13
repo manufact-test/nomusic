@@ -1,3 +1,7 @@
+> **OPERATIONAL STATUS SUPERSEDED BY W100 — 2026-11-13.** This file is retained for W98 design history and implementation details. Its opening W99 note saying the owner secret is missing is obsolete: `CELIKOM_W98_TEST_EMAIL` is now present and the owner-only preflight passed in run [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358). Do not ask the owner to add or disclose it again. GUI 0.24.35 details below are historical; current candidate is GUI 0.24.36 / native 0.24.29. Read [W100 final release handoff](W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md) first.
+
+---
+
 ## W99 current status — 2026-11-13
 
 This document records the W98 design and is now superseded operationally by [W99-0.24.36-INTEGRATED-QA-STATUS-20261113.md](W99-0.24.36-INTEGRATED-QA-STATUS-20261113.md). Current branch HEAD is `b1f9064edfc33b83e08abe22e7d38a0a87298e59`; GUI 0.24.36 / native 0.24.29 / W23 0.24.10. Exact Windows CI [43470332842](https://github.com/manufact-test/nomusic/actions/runs/43470332842) and W91 sidecar CI [43469841569](https://github.com/manufact-test/nomusic/actions/runs/43469841569) passed. Hostinger verify/package passed, but deploy stopped at the owner-account preflight because `CELIKOM_W98_TEST_EMAIL` is not configured. No snapshot, deploy, migration 020, sidecar registration or audio write occurred. Owner must add the repository Actions secret with the primary CELIKOM account email before the guarded deployment can continue. No final installer has been published.
