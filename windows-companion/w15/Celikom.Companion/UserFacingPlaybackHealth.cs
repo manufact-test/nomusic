@@ -17,7 +17,7 @@ public static class UserFacingPlaybackHealth
         if (native == NativeInstallState.Active)
             return moduleMatches
                 ? new(Severity.Good, "Яндекс.Музыка подключена.")
-                : new(Severity.Error, "Модуль CELIKOM устарел. Нажми «Обновить модуль».");
+                : new(Severity.Neutral, "Нажми «Старт», чтобы обновить модуль CELIKOM.");
         if (native == NativeInstallState.VerifiedVendorUpdate)
             return new(Severity.Warning,
                 "Яндекс обновился. Нажми «Старт», чтобы безопасно переподключиться.");
