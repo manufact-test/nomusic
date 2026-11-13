@@ -30,6 +30,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Install FFmpeg for repository MP3/AAC fixture tests
+        shell: pwsh
+        run: |
+          choco install ffmpeg -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'W98_FFMPEG_INSTALL_FAILED' }
+          Get-Command ffmpeg
+          ffmpeg -version | Select-Object -First 1
       - name: Full repository CI (server, extension, build and security; normalized baseline)
         shell: pwsh
         run: |
