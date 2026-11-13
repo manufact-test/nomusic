@@ -1,0 +1,22 @@
+name: Admin song search isolated verification
+on:
+  push:
+    branches: [feature/admin-song-search-20261113]
+    paths: [.github/workflows/admin-song-search-20261113.yml, '.github/scripts/admin-search/**']
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect current admin source without changing production
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/admin-search/inspect.sh
