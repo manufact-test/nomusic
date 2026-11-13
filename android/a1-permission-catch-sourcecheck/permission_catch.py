@@ -299,11 +299,11 @@ def inspect(xapk,private_java=None,provider_java=None):
             raise Closed("PRIVATE_PROVIDER_TOKEN_INVALID")
         dest.parent.mkdir(parents=True,exist_ok=True)
         dest.write_text(
-            "package pro.celikom.a1exitwitness;\\n"
-            "public final class PrivatePostTrueProviderTarget {\\n"
+            "package pro.celikom.a1exitwitness;\n"
+            "public final class PrivatePostTrueProviderTarget {\n"
             "  public static String[] exact() { return new String[] {"
-            +json.dumps(class_name)+","+json.dumps(method)+"}; }\\n"
-            "}\\n",encoding="utf-8")
+            +json.dumps(class_name)+","+json.dumps(method)+"}; }\n"
+            "}\n",encoding="utf-8")
     return targets[0]
 
 def main():
