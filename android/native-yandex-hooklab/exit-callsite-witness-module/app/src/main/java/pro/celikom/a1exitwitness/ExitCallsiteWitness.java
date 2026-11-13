@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V7_PASSPORT_ACCOUNT_PREFIX";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V8_ACCOUNT_COMMIT_LOOP_WITNESS";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -90,6 +90,13 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean passportArmed;
     private boolean accountCtorHooked;
     private boolean accountQueryHooked;
+    private boolean accountAddHooked;
+    private boolean authenticatorTypesHooked;
+    private boolean activityResultHooked;
+    private final java.util.concurrent.atomic.AtomicInteger accountSnapshots =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger accountObservations =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger ownAccountCtorRemaps =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger ownAccountQueryRemaps =
@@ -218,6 +225,50 @@ public final class ExitCallsiteWitness extends XposedModule {
      * any signed issuer bytecode. No credentials, cookies, names or tokens are
      * observed. Do not simulate AccountManager success or handle exceptions.
      */
+    private static String ownAccountTypeCategory(String value) {
+        if (OWN_ACCOUNT_TYPE.equals(value)) return "CLONE_OWN";
+        if (STOCK_ACCOUNT_TYPE.equals(value)) return "PUBLISHER_TYPE";
+        if (value != null && value.startsWith(STOCK_ACCOUNT_TYPE + "."))
+            return "PASSPORT_OTHER";
+        return "OTHER_TYPE";
+    }
+
+    private static String ownAccountCountCategory(Object value) {
+        if (!(value instanceof Account[])) return "NON_ARRAY";
+        int n=((Account[])value).length;
+        return n == 0 ? "ZERO" : n == 1 ? "ONE" : "MULTIPLE";
+    }
+
+    /** Diagnostic account-ownership snapshot only. Never reads account names,
+     * tokens, numbers, account extras, cookies or passwords. */
+    private void observeAccountSnapshot(Activity activity) {
+        if (activity == null || accountSnapshots.incrementAndGet() > 16) return;
+        try {
+            AccountManager am=AccountManager.get(activity);
+            if (am == null) {
+                emit("ACCOUNT_STATE", "ANDROID", "NO_MANAGER");
+                return;
+            }
+            android.accounts.AuthenticatorDescription[] all=am.getAuthenticatorTypes();
+            boolean owned=false, stock=false;
+            if (all != null) {
+                for (android.accounts.AuthenticatorDescription a : all) {
+                    if (a != null && OWN_ACCOUNT_TYPE.equals(a.type)
+                            && PACKAGE.equals(a.packageName)) owned=true;
+                    if (a != null && STOCK_ACCOUNT_TYPE.equals(a.type)) stock=true;
+                }
+            }
+            emit("ACCOUNT_OWNER", owned ? "OWN_PRESENT" : "OWN_ABSENT",
+                stock ? "PUBLISHER_PRESENT" : "PUBLISHER_ABSENT");
+            emit("ACCOUNT_STATE", "CLONE_OWN",
+                ownAccountCountCategory(am.getAccountsByType(OWN_ACCOUNT_TYPE)));
+        } catch (SecurityException e) {
+            emit("ACCOUNT_STATE", "CLONE_OWN", "DENIED");
+        } catch (Throwable ignored) {
+            emit("ACCOUNT_STATE", "CLONE_OWN", "UNAVAILABLE");
+        }
+    }
+
     private synchronized void installCloneAccountTypeBridge() {
         String process;
         try { process=Application.getProcessName(); }
@@ -236,10 +287,15 @@ public final class ExitCallsiteWitness extends XposedModule {
                             Object value=chain.proceed(new Object[]{
                                 chain.getArg(0), OWN_ACCOUNT_TYPE});
                             if (ownAccountCtorRemaps.getAndIncrement()<8)
-                                emit("ACCOUNT_BRIDGE", "CONSTRUCTOR", "OWN_TYPE");
+                                emit("ACCOUNT_BRIDGE", "CONSTRUCTOR", "STOCK_TO_OWN");
                             return value;
                         }
-                        return chain.proceed();
+                        Object value=chain.proceed();
+                        if (accountObservations.incrementAndGet()<=24)
+                            emit("ACCOUNT_CTOR", ownAccountTypeCategory(
+                                chain.getArg(1) instanceof String
+                                    ? (String)chain.getArg(1) : null), "REAL_RETURN");
+                        return value;
                     });
                 accountCtorHooked=true;
             } catch (Throwable ignored) { }
@@ -251,22 +307,86 @@ public final class ExitCallsiteWitness extends XposedModule {
                     "getAccountsByType", String.class);
                 hook(query).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
-                        if (STOCK_ACCOUNT_TYPE.equals(chain.getArg(0))) {
-                            // Never query the genuine publisher's accounts:
-                            // request only accounts owned by the clone.
-                            Object value=chain.proceed(new Object[]{OWN_ACCOUNT_TYPE});
-                            if (ownAccountQueryRemaps.getAndIncrement()<8)
-                                emit("ACCOUNT_BRIDGE", "QUERY", "OWN_TYPE");
+                        boolean remap=STOCK_ACCOUNT_TYPE.equals(chain.getArg(0));
+                        String type=chain.getArg(0) instanceof String
+                            ? (String)chain.getArg(0) : null;
+                        try {
+                            // Preserve the original NAV7 scoped remap; observe
+                            // only the returned array length (never its content).
+                            Object value=remap
+                                ? chain.proceed(new Object[]{OWN_ACCOUNT_TYPE})
+                                : chain.proceed();
+                            if (remap && ownAccountQueryRemaps.getAndIncrement()<8)
+                                emit("ACCOUNT_BRIDGE", "QUERY", "STOCK_TO_OWN");
+                            if (accountObservations.incrementAndGet()<=24)
+                                emit("ACCOUNT_QUERY",
+                                    ownAccountTypeCategory(type),
+                                    ownAccountCountCategory(value));
                             return value;
+                        } catch (Throwable failure) {
+                            if (accountObservations.incrementAndGet()<=24)
+                                emit("ACCOUNT_QUERY",
+                                    ownAccountTypeCategory(type),
+                                    failure instanceof SecurityException
+                                        ? "DENIED" : "THREW");
+                            throw failure;
                         }
-                        return chain.proceed();
                     });
                 accountQueryHooked=true;
             } catch (Throwable ignored) { }
         }
 
+        // Exactly the system API that reported the owner's original
+        // authorizeByCookie denial. Always forward the REAL operation
+        // and boolean, without reading any password or Bundle value.
+        if (!accountAddHooked) {
+            try {
+                Method add=AccountManager.class.getDeclaredMethod("addAccountExplicitly",
+                    Account.class,String.class,Bundle.class);
+                hook(add).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object raw=chain.getArg(0);
+                        String type=raw instanceof Account ? ((Account)raw).type : null;
+                        String family=ownAccountTypeCategory(type);
+                        try {
+                            Object result=chain.proceed();
+                            if (accountObservations.incrementAndGet()<=24)
+                                emit("ACCOUNT_ADD", family,
+                                    Boolean.TRUE.equals(result) ? "ADDED"
+                                        : "NOT_ADDED");
+                            return result;
+                        } catch (Throwable failure) {
+                            if (accountObservations.incrementAndGet()<=24)
+                                emit("ACCOUNT_ADD", family,
+                                    failure instanceof SecurityException
+                                        ? "DENIED" : "THREW");
+                            throw failure;
+                        }
+                    });
+                accountAddHooked=true;
+            } catch (Throwable ignored) { }
+        }
+        if (!authenticatorTypesHooked) {
+            try {
+                Method types=AccountManager.class.getDeclaredMethod(
+                    "getAuthenticatorTypes");
+                hook(types).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed();
+                        // Account types only: snapshot above performs the
+                        // explicit unique owned-vs-stock registry checks.
+                        if (accountObservations.incrementAndGet()<=24)
+                            emit("ACCOUNT_REGISTRY", "ANDROID",
+                                result instanceof android.accounts.AuthenticatorDescription[]
+                                    ? "RETURN" : "UNAVAILABLE");
+                        return result;
+                    });
+                authenticatorTypesHooked=true;
+            } catch (Throwable ignored) { }
+        }
         emit("ACCOUNT_BRIDGE", "REGISTERED",
-            accountCtorHooked && accountQueryHooked
+            accountCtorHooked && accountQueryHooked && accountAddHooked
+                ? "BOTH_PLUS_ADD_OBS" : accountCtorHooked && accountQueryHooked
                 ? "BOTH" : accountCtorHooked ? "CTOR_ONLY"
                 : accountQueryHooked ? "QUERY_ONLY" : "NO_HOOK");
     }
@@ -285,6 +405,12 @@ public final class ExitCallsiteWitness extends XposedModule {
         // Attach runs before content providers and Passport UI; ensure the
         // clone-owned account bridge is armed before SDK initialization.
         count += hookApplicationAttach() ? 1 : 0;
+        count += observeOwnActivityFinish("finish") ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivity",
+            new Class<?>[]{Intent.class}) ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivityForResult",
+            new Class<?>[]{Intent.class,int.class}) ? 1 : 0;
+        count += observePassportResultDelivery() ? 1 : 0;
         count += observe(Thread.class, "dispatchUncaughtException",
             new Class<?>[]{Throwable.class}, "UNCAUGHT") ? 1 : 0;
         count += observe(System.class, "exit",
@@ -323,6 +449,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             new Class<?>[]{Intent.class,int.class}) ? 1 : 0;
         count += observeOwnActivityLaunch("startActivityForResult",
             new Class<?>[]{Intent.class,int.class,Bundle.class}) ? 1 : 0;
+        count += observePassportResultDelivery() ? 1 : 0;
         count += observeHi2IllegalStateConstructor() ? 1 : 0;
         count += observeFatalDispatches();
         // Arms only tell us that a hook was registered, not that it ran.
@@ -2453,6 +2580,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 }
                 @Override public void onActivityResumed(Activity a) {
                     logActivityPhase(a,"RESUMED");
+                    observeAccountSnapshot(a);
                 }
                 @Override public void onActivityPaused(Activity a) {
                     logActivityPhase(a,"PAUSED");
@@ -2494,6 +2622,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 }
                 @Override public void onActivityResumed(Activity activity) {
                     logActivityPhase(activity,"RESUMED");
+                    observeAccountSnapshot(activity);
                     attachDiagnosticExportButton(activity);
                 }
                 @Override public void onActivityPaused(Activity activity) {
@@ -2631,6 +2760,36 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (failure instanceof SecurityException) return "SECURITY_EXCEPTION";
         if (failure instanceof IllegalArgumentException) return "ILLEGAL_ARGUMENT";
         return "OTHER_THROW";
+    }
+
+    /** Only coarse RESULT_OK/CANCELED categories. Never inspect Intent,
+     * extras, tokens, names or authorization data. */
+    private synchronized boolean observePassportResultDelivery() {
+        if (activityResultHooked) return true;
+        try {
+            Method method=Activity.class.getDeclaredMethod("setResult",
+                int.class, Intent.class);
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        Object receiver=chain.getThisObject();
+                        if (receiver instanceof Activity
+                                && PACKAGE.equals(((Activity)receiver).getPackageName())
+                                && activityFinishesLogged.incrementAndGet()<=24) {
+                            Object result=chain.getArg(0);
+                            String category=!(result instanceof Integer)
+                                ? "UNKNOWN" : ((Integer)result)==Activity.RESULT_OK
+                                ? "OK" : ((Integer)result)==Activity.RESULT_CANCELED
+                                ? "CANCELED" : "OTHER";
+                            emit("ACTIVITY_RESULT",activityFamily((Activity)receiver),
+                                category);
+                        }
+                    } catch (Throwable ignored) { }
+                    return chain.proceed();
+                });
+            activityResultHooked=true;
+            return true;
+        } catch (Throwable ignored) { return false; }
     }
 
     private boolean observeOwnActivityFinish(String methodName) {
@@ -2782,7 +2941,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
-            button.setText("Диагностика NAV7");
+            button.setText("Диагностика NAV8");
             button.setTextColor(Color.WHITE);
             button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
