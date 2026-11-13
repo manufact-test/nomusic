@@ -42,7 +42,11 @@ CI regression is not owner acoustic QA. The owner must still verify #58 on «М�
 
 **Important: production migration 020 and real sidecars have NOT been activated yet.** The first Hostinger attempt, run [43454991506](https://github.com/manufact-test/nomusic/actions/runs/43454991506), stopped at the pre-deploy snapshot with “Stale workflow revision” because the branch advanced while that run was starting. The deploy step and gain-staging job were skipped. No production migration or media rows were changed by that run. Re-trigger only from a fresh exact branch HEAD after all gates are satisfied.
 
-**Live session safety gate:** the live Range check must use one explicit owner-approved CELIKOM test account with an active authenticated session. Do not scan/select an arbitrary customer's active session. Before running the live stage, change the helper/workflow to accept an explicit test user ID via a protected Actions secret and query only that user, then require a valid active session and current server entitlement. If no dedicated test account exists, ask the owner which account is explicitly authorized. Do not run the current broad session-selection code.
+**Owner account explicitly authorized:** the owner approved using his own primary CELIKOM account identified by email. The exact address is intentionally not committed to the repository or written to logs. The remote helper reads it from SSH stdin, resolves only the matching `users.email`, selects only that user's non-revoked, unexpired session, and then checks the current server entitlement. It never enumerates or borrows another customer's session.
+
+- GitHub Actions requires the repository secret `CELIKOM_W98_TEST_EMAIL` containing the owner's CELIKOM email address. The GitHub connection used for this work cannot create repository secrets; the owner must add it once in **Settings → Secrets and variables → Actions → New repository secret**.
+- The Hostinger deploy job checks that the secret is present before snapshot/deploy/migration. The private staging job passes the value over SSH stdin, not as a command-line argument. The remote helper validates the email and queries `users.email = ?`.
+- No numeric user ID is needed. If the account has no current active session or server entitlement, the live check fails closed. No migration or media staging should run until the secret is configured and the preflight passes.
 
 ## CI evidence
 
@@ -68,7 +72,7 @@ CI regression is not owner acoustic QA. The owner must still verify #58 on «М�
 ## Next actions
 
 1. Verify exact current W98 CI run [43458387990](https://github.com/manufact-test/nomusic/actions/runs/43458387990) is SUCCESS.
-2. Obtain explicit owner approval and exact test account ID; modify live verification to query only that account and fail closed if it has no active session/current entitlement.
+2. Owner approval is already given for his primary account by email. Ask the owner to add the one-time Actions secret `CELIKOM_W98_TEST_EMAIL`; confirm the preflight passes. The helper now resolves that email to only the owner's active session and checks entitlement.
 3. Add PHP/Bash syntax checks for all W98 remote helpers to the no-deploy CI, then run the deployment verify job.
 4. Update `.github/deploy/hostinger-request.json` to a fresh one-shot request only after the account gate is in place; trigger the private Hostinger deployment from the exact current branch SHA.
 5. Confirm Stage 5 snapshot/restore checks, migration 020 checksum, all active nonzero-gain sidecars, offline audio measurements, and real signed HTTPS Range 206 for each row. Confirm rollback path remains usable.
