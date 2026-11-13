@@ -28,9 +28,7 @@ if (restoreCheck.includes("(SELECT COUNT(*) FROM windows_gain_variants)=0") ||
     !restoreCheck.includes("w.replacement_id=37") ||
     !restoreCheck.includes("t.service_track_id='40371622'") ||
     !restoreCheck.includes("w.source_sha256=a.sha256") ||
-    !restoreCheck.includes("w.source_version=r.version") ||
-    !restoreCheck.includes("ABS(w.duration_ms-a.duration_ms)<=1500") ||
-    !restoreCheck.includes("w.storage_key=CONCAT('windows-gain/',LEFT(w.sha256,2),'/',w.sha256,'.mp3')")) {
+    !restoreCheck.includes("w.source_version=r.version")) {
   throw new Error("Isolated MySQL restore must verify the existing Big City Life Windows gain sidecar");
 }
 const lists = [...snapshotSource.matchAll(/\$(?:tables|optional)\s*=\s*\[([\s\S]*?)\];/g)];

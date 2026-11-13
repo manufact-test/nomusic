@@ -70,8 +70,9 @@ try
         "W82 steady track and transition-only heartbeat must not report connection loss");
     Test(!PlaybackSourceEvidence.Verified(true, "NATIVE_MAPPING_ACCEPTED", "approved") &&
          PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_MAPPING_ACCEPTED", "approved") &&
-         !PlaybackSourceEvidence.Verified(true, "SDK_MAPPING_ACCEPTED", "approved"),
-         "W89 approved mapping and HTTP grant are not proof of audible CELIKOM source");
+         !PlaybackSourceEvidence.Verified(true, "SDK_MAPPING_ACCEPTED", "approved") &&
+         !PlaybackSourceEvidence.Verified(true, "NATIVE_CONNECTED", "approved"),
+         "W89 mapping or Yandex connection alone must never paint the current track green");
     Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(false, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
@@ -928,3 +929,4 @@ sealed class AsyncFakeHandler(
         HttpRequestMessage request, CancellationToken cancellationToken) =>
         reply(request, cancellationToken);
 }
+
