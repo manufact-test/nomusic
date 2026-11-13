@@ -1,3 +1,26 @@
+# 2026-11-13 — WINDOWS OWNER HANDOFF / STOP CODING (ALL ISSUES INCLUDING BIG CITY LIFE)
+
+**Owner instructed current developer to STOP and hand all remaining work to the NEXT chat.** Preserve and continue existing repo, no rewrite. **Read first** `docs/windows/W89-02433-VPN-RECOVERY-AND-FALSE-GREEN-TRACK-20261113.md`, especially the newest **STOP-WORK / OWNER HANDOFF ADDENDUM** at its end.
+
+**Repo:** `manufact-test/nomusic`.
+**Working Windows branch:** `experiment/windows-w89-vpn-fast-recovery-audio-proof-20261113`.
+**Exact W89 CI-green code/source backup:** `backup/windows-w89-02433-ci-green-owner-handoff-before-volume-20261113` @ **`6916c0229861aaa6f2486224f3e62092b343698e`**. Older W88 0.24.32 rollback `backup/windows-w89-before-vpn-recovery-audio-proof-20261113` @ `3ebded59b4bf596d54b1b5b29edfe16683ad45a0`.
+**Last CI-green TEST installer:** 0.24.33 (native 0.24.26), run https://github.com/manufact-test/nomusic/actions/runs/43429303326, artifact `14039475715`, EXE SHA256 `414EDBA856A12B25CB3EDE26D136C7F263CFC02FC3448730C7F7D02D60791879`. Library `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.33-VPN-TRACK-TEST.exe` and same basename `.zip`. CI green, **NOT user-playback tested**. Never claim field verification or deploy automatically.
+
+**ALL outstanding defects, priority:**
+1. **40–50s VPN switch loss**. Older owner 0.24.32 `диагна.txt` and second snapshot `Вставленный текст(20261113-123416).txt`: at 12:26:29 UTC LOCAL_HTTP_TIMEOUT, 12:26:44 NETWORK_SUSPENDED, later VPN route changed, repeated GET timeouts until around 12:27:29; W89 0.24.33 short bounded cancellation/rechecks implemented and CI passed, **owner still must validate speed on actual VPNs**. NEVER bypass signed-in fresh server authorization.
+2. **«Ты» — тринадцать карат**: owner screenshot shows green «Подмена активна» while original music actually plays; mapped current `track=89285816` but no matching CELIKOM Media GET in the following ~34s. W89 marks mapping neutral instead of false green and adds bounded one-shot source refresh on exact current track; **audible replacement still unverified**.
+3. **NEW: Big City Life (artist as user called it «трио Гутрика»)**: alternative CELIKOM version **suddenly becomes ~2× quieter while still playing**, remains quiet; **admin volume boost and loud preview remain intact**. Do not invent gain measurements or assert admin lost gain. Trace server-side boosted file/metadata vs delivered signed resource, client source switches, Yandex normalization, crossfade/volume. **Issue #54 https://github.com/manufact-test/nomusic/issues/54**. No incident-specific diagnostics yet.
+4. **Loud hiss/pop after fast 403 recovery**: initial drop had expired audio URL, 403, fresh HTTP206 within ~0.5s; audible hiss cause unknown. Avoid blanket gain or sudden cut fixes.
+5. **Global Brave/system freeze with Yandex + CELIKOM**: owner reported temporary slowdown, extra-rights prompt source unknown; issue #53. Needs actual process loads / prompt identity, no malware conclusions or random permission changes.
+6. **Native decoder evidence**: grant/206/file-info is NOT playback proof; CDP kUrl may be absent; #52 remains open.
+
+**What's already done:** W89 GUI 0.24.33 + native 0.24.26 code has short verified VPN refresh and current-source-guard tests; Windows CI `W89_02432_TO_02433_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS`. Installer and separate ZIP uploaded to Library. Owner currently showed 0.24.32 diagnostics and screenshot; don't assume they installed 0.24.33. No new code changes requested in current chat.
+
+**Next developer instruction:** read W89 handoff and backup, continue on NEW dedicated child branch if making risky improvements, work in independent sizable blocks with tests, retain both old installers; first focus true audio for «Ты» and volume dip for Big City Life without breaking stable 0.24.32 playback, independently validate VPN recovery. Do not write reassuring success statements without real owner listening tests. Keep docs/next-chat current, produce a new tested installer only after CI-green and explicit QA path. Any code changes must have their own rollback.
+
+---
+
 # W89 — WINDOWS 0.24.33 TEST: VPN FAST RECOVERY + «ТЫ» FALSE GREEN (2026-11-13, FIRST PRIORITY)
 
 Owner's 0.24.32 actual diagnostics `диагна.txt` and `Вставленный текст(20261113-123416).txt` show two music drops, including VPN switch which held CELIKOM disabled for ~49 seconds after initial failed access check; first transient expired signed URL HTTP403 recovered with HTTP206 in ~0.5s but audible hiss unexplained. Owner screenshot: **«Ты» / тринадцать карат** plays censored original yet CELIKOM wrongly claims green `Подмена активна · версия CELIKOM`. Latest screenshot/log current `track=89285816`, source batch mapped but **no corresponding CELIKOM Media GET in next ~34sec**. File-info mapping/HTTP206 is not proof audio source was used. Actual audible version not independently observable yet.
