@@ -1,21 +1,20 @@
-name: CELIKOM Windows official Yandex release watch (hourly)
+name: CELIKOM Windows official Yandex release watch (15-minute)
 
 on:
   schedule:
     # Deliberately not at minute 0: GitHub can delay/drop top-of-hour jobs.
-    - cron: '19 * * * *'
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
   issues: write
 
-concurrency:
-  group: celikom-yandex-release-hourly-watch
-  cancel-in-progress: false
-
 jobs:
   discover:
+    concurrency:
+      group: celikom-yandex-discovery
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -26,7 +25,7 @@ jobs:
         with:
           # Portable implementation is kept separate from workflow scheduler
           # so future private-server cron can invoke the same script.
-          ref: experiment/windows-w81-vendor-monitor-compat-visibility-20261112
+          ref: main
           persist-credentials: false
       - name: Official Yandex Windows updater feed, bounded read-only request
         shell: pwsh
@@ -41,22 +40,25 @@ jobs:
               $report.vendorVersion -notmatch '^5\.[0-9]{1,4}\.[0-9]{1,3}$') { throw 'YANDEX_WATCH_UNEXPECTED_STATE' }
           "status=$($report.status)" >> $env:GITHUB_OUTPUT
           "version=$($report.vendorVersion)" >> $env:GITHUB_OUTPUT
-          Write-Host "W81_HOURLY_RELEASE_WATCH $($report.status) $($report.vendorVersion)"
+          Write-Host "W102_15MIN_RELEASE_WATCH $($report.status) $($report.vendorVersion)"
       - uses: actions/upload-artifact@v4
         with:
-          name: yandex-windows-hourly-discovery
+          name: yandex-windows-15min-discovery
           path: ${{ runner.temp }}/yandex-watch.json
           retention-days: 3
 
   verify-new:
     needs: discover
     if: needs.discover.outputs.status == 'new_release_detected'
+    concurrency:
+      group: celikom-yandex-verify-${{ needs.discover.outputs.version }}
+      cancel-in-progress: false
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: experiment/windows-w81-vendor-monitor-compat-visibility-20261112
+          ref: main
           persist-credentials: false
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
@@ -85,8 +87,8 @@ jobs:
           retention-days: 14
 
   report-new:
-    needs: [discover, verify-new]
-    if: always() && needs.discover.outputs.status == 'new_release_detected'
+    needs: discover
+    if: needs.discover.outputs.status == 'new_release_detected'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -95,7 +97,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VENDOR_VERSION: ${{ needs.discover.outputs.version }}
-          CHECK_RESULT: ${{ needs.verify-new.result }}
           REPO: ${{ github.repository }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -104,22 +105,21 @@ jobs:
           $title="[CELIKOM Windows] Проверить новую версию Яндекс.Музыки $($env:VENDOR_VERSION)"
           $listed=gh issue list -R $env:REPO --state all --search "in:title $($env:VENDOR_VERSION)" --json title,number --limit 100 | ConvertFrom-Json
           if (@($listed | Where-Object title -eq $title).Count -gt 0) {
-            Write-Host "W81_REVIEW_ISSUE_ALREADY_EXISTS $($env:VENDOR_VERSION)"
+            Write-Host "W102_REVIEW_ISSUE_ALREADY_EXISTS $($env:VENDOR_VERSION)"
             exit 0
           }
-          $result=$env:CHECK_RESULT
           $notes=@(
             "Новая версия Яндекс.Музыки: $($env:VENDOR_VERSION)."
-            "Автоматические проверки подписи/образа: $result."
+            "Автоматическая проверка подписи/EXE/ASAR запускается параллельно; итог смотри в Actions run."
             "Протокол CI: $env:RUN_URL"
             ""
             "- [ ] Проверить результаты автоматической Windows-проверки EXE/ASAR, файл отчёта Actions."
             "- [ ] Проверить совместимость с аудио/Start на временной среде и не сломать предыдущие версии."
-            "- [ ] Только после подтверждения добавить отдельную запись в НАКОПИТЕЛЬНЫЙ каталог support/windows-yandex-compatibility."
+            "- [ ] Только после подтверждения добавить отдельную запись в основной каталог windows-companion/w24/compatibility/official-yandex-builds-v2.json на main."
             "- [ ] Проверить переподключение с клиентом CELIKOM и сохранение прежних оригиналов."
             ""
             "Никогда не публиковать неподтверждённый SHA автоматически. Старые версии не удалять."
           ) -join [Environment]::NewLine
           gh issue create -R $env:REPO --title $title --body $notes
           if ($LASTEXITCODE -ne 0) { throw 'W81_REVIEW_ISSUE_CREATE_FAILED' }
-          Write-Host "W81_NEW_YANDEX_UPDATE_REVIEW_ALERT_CREATED $($env:VENDOR_VERSION)"
+          Write-Host "W102_NEW_YANDEX_UPDATE_REVIEW_ALERT_CREATED $($env:VENDOR_VERSION)"

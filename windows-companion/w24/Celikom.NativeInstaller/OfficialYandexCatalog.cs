@@ -18,7 +18,7 @@ namespace Celikom.NativeInstaller;
 public static class OfficialYandexCatalog
 {
     public const string FeedUrl =
-        "https://raw.githubusercontent.com/manufact-test/nomusic/support/windows-yandex-compatibility/windows-companion/w24/compatibility/official-yandex-builds-v2.json";
+        "https://raw.githubusercontent.com/manufact-test/nomusic/main/windows-companion/w24/compatibility/official-yandex-builds-v2.json";
 
     public sealed record Build(string Version, string ExeSha256, string AsarSha256);
     private sealed record Document(int Schema, string? Purpose, Entry[]? Builds);
@@ -67,13 +67,13 @@ public static class OfficialYandexCatalog
     }
 
     /// <summary>Read-only bounded network refresh; failures retain known pins.</summary>
-    public static async Task RefreshAsync(CancellationToken cancellationToken = default)
+    public static async Task RefreshAsync(CancellationToken cancellationToken = default, bool force = false)
     {
-        if (DateTimeOffset.UtcNow < _nextCheck) return;
+        if (!force && DateTimeOffset.UtcNow < _nextCheck) return;
         await Gate.WaitAsync(cancellationToken);
         try
         {
-            if (DateTimeOffset.UtcNow < _nextCheck) return;
+            if (!force && DateTimeOffset.UtcNow < _nextCheck) return;
             _nextCheck = DateTimeOffset.UtcNow.AddMinutes(15);
             using var handler = new HttpClientHandler { AllowAutoRedirect = false };
             using var client = new HttpClient(handler)

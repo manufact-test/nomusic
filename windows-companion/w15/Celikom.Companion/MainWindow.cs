@@ -109,6 +109,9 @@ public sealed partial class MainWindow : Form
     // after a subscription expires or the network becomes unavailable.
     private readonly System.Windows.Forms.Timer _entitlementPulse = new()
         { Interval = 15000 };
+    private readonly System.Windows.Forms.Timer _yandexVersionDebounce = new()
+        { Interval = 1500 };
+    private FileSystemWatcher? _yandexInstallWatcher;
 
     public MainWindow(bool finishApplicationUpdate = false, bool startBackground = false)
     {
@@ -213,11 +216,18 @@ public sealed partial class MainWindow : Form
                 WindowsLaunchSettings.MayResume(_api.Settings, Application.ExecutablePath))
                 _ = ResumeSavedPlaybackAsync();
         };
+        _yandexVersionDebounce.Tick += async (_, _) =>
+        {
+            _yandexVersionDebounce.Stop();
+            if (!_closing && !_integrationBusy)
+                await RefreshHostAsync();
+        };
         FormClosing += ClosingAsync;
         Shown += async (_, _) =>
         {
             RenderCompact();
             LayoutCompact();
+            InitializeYandexInstallWatcher();
             if (_backgroundStartup)
             {
                 // Zero visible loading window on OS sign-in; the tray still
@@ -809,11 +819,64 @@ public sealed partial class MainWindow : Form
         return _hostProbeTask;
     }
 
+    private void InitializeYandexInstallWatcher()
+    {
+        var root = YandexHostProbe.DefaultInstallationRoot;
+        if (!Directory.Exists(root)) return;
+        try
+        {
+            var watcher = new FileSystemWatcher(root)
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                Filter = "*",
+                EnableRaisingEvents = false
+            };
+            FileSystemEventHandler changed = (_, e) => QueueYandexVersionProbe(e.FullPath);
+            RenamedEventHandler renamed = (_, e) => QueueYandexVersionProbe(e.FullPath);
+            watcher.Changed += changed;
+            watcher.Created += changed;
+            watcher.Deleted += changed;
+            watcher.Renamed += renamed;
+            watcher.EnableRaisingEvents = true;
+            _yandexInstallWatcher = watcher;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // The existing two-minute host probe remains the safe fallback.
+        }
+    }
+
+    private void QueueYandexVersionProbe(string changedPath)
+    {
+        try
+        {
+            var path = Path.GetFullPath(changedPath);
+            var root = YandexHostProbe.DefaultInstallationRoot;
+            var executable = Path.Combine(root, "Яндекс Музыка.exe");
+            var asar = Path.Combine(root, "resources", "app.asar");
+            if (!string.Equals(path, executable, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(path, asar, StringComparison.OrdinalIgnoreCase))
+                return;
+            if (IsDisposed || !IsHandleCreated) return;
+            BeginInvoke(new Action(() =>
+            {
+                if (_closing || _integrationBusy) return;
+                _yandexVersionDebounce.Stop();
+                _yandexVersionDebounce.Start();
+            }));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException)
+        {
+        }
+    }
+
     private async Task RefreshHostCoreAsync()
     {
         _hostProbeBusy = true;
         try
         {
+            var previousVersion = _hostReport?.Version ?? "";
             // A reviewed build can become supported without a CELIKOM EXE
             // update; offline failure leaves the shipped 5.127 pins intact.
             await OfficialYandexCatalog.RefreshAsync();
@@ -824,6 +887,16 @@ public sealed partial class MainWindow : Form
                 return (YandexHostProbe.Inspect(), nativeState,
                     NativeModuleIdentity.Inspect(nativeState));
             });
+            if (!string.IsNullOrWhiteSpace(previousVersion) &&
+                !string.IsNullOrWhiteSpace(inspected.Item1.Version) &&
+                !string.Equals(previousVersion, inspected.Item1.Version, StringComparison.Ordinal))
+            {
+                // The normal feed cache is 15 minutes; a detected vendor update
+                // bypasses it immediately so the exact new EXE/ASAR pair is checked.
+                await OfficialYandexCatalog.RefreshAsync(force: true);
+                var refreshedHost = await Task.Run(() => YandexHostProbe.Inspect());
+                inspected = (refreshedHost, inspected.Item2, inspected.Item3);
+            }
             _hostReport = inspected.Item1;
             _nativeInstallState = inspected.Item2;
             _installedModule = inspected.Item3;
@@ -1392,6 +1465,10 @@ public sealed partial class MainWindow : Form
         _closing = true;
         _resumeAfterNetworkFailure = false;
         NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+        _yandexInstallWatcher?.Dispose();
+        _yandexInstallWatcher = null;
+        _yandexVersionDebounce.Stop();
+        _yandexVersionDebounce.Dispose();
         _entitlementPulse.Stop();
         _entitlementPulse.Dispose();
         _tray.Visible = false;

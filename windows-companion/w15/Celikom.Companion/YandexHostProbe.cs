@@ -29,13 +29,15 @@ public static class YandexHostProbe
     public const string VerifiedAsarSha256 =
         "5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215";
 
+    public static string DefaultInstallationRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Programs", "YandexMusic");
+
     public static YandexHostResult Inspect(string? installationRoot = null)
     {
         try
         {
-            var root = installationRoot ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Programs", "YandexMusic");
+            var root = installationRoot ?? DefaultInstallationRoot;
             var executable = Path.Combine(root, "Яндекс Музыка.exe");
             var asar = Path.Combine(root, "resources", "app.asar");
             if (!File.Exists(executable))
