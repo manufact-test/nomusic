@@ -100,3 +100,23 @@ def classify_outer_signing_change(name):
     if name.startswith("META-INF/"):
         return "OTHER_META_INF"
     return "NON_META_INF_APP_CONTENT"
+
+def only_expected_own_v1_signing_changes(names):
+    """Exactly three existing, matching top-level V1 signature entries.
+
+    The full ZIP-member parity check and independent signer certificate
+    equality are separate mandatory checks. This never exempts arbitrary
+    META-INF files, vendor data, nested APKs, DEX, native libs or assets.
+    """
+    if len(names)!=3 or len(set(names))!=3:
+        return False
+    categories={}
+    for name in names:
+        category=classify_outer_signing_change(name)
+        categories.setdefault(category,[]).append(name)
+    if {key:len(value) for key,value in categories.items()} != {
+        "V1_MANIFEST":1,"V1_SIGNATURE_FILE":1,"V1_SIGNATURE_BLOCK":1}:
+        return False
+    signer_sf=categories["V1_SIGNATURE_FILE"][0]
+    signer_block=categories["V1_SIGNATURE_BLOCK"][0]
+    return signer_sf.rsplit(".",1)[0]==signer_block.rsplit(".",1)[0]

@@ -1,7 +1,7 @@
 """Only synthetic ARSC: no original binaries, values or IDs."""
 import struct
 import unittest
-from a1_resource_package_rename import InvalidResourceTable,package_names,rewrite_exact_namespace,classify_outer_signing_change
+from a1_resource_package_rename import InvalidResourceTable,package_names,rewrite_exact_namespace,classify_outer_signing_change,only_expected_own_v1_signing_changes
 
 ORIG="ru.yandex.music"
 CLONE="pro.celikom.yandex.nativeclonelab"
@@ -46,6 +46,25 @@ class SyntheticTests(unittest.TestCase):
         }
         for name, expected in examples.items():
             self.assertEqual(classify_outer_signing_change(name), expected)
+
+    def test_only_three_exact_own_signature_members_are_exempt(self):
+        own=["META-INF/MANIFEST.MF","META-INF/OWN-KEY.SF",
+             "META-INF/OWN-KEY.RSA"]
+        self.assertTrue(only_expected_own_v1_signing_changes(own))
+        self.assertTrue(only_expected_own_v1_signing_changes(list(reversed(own))))
+        invalid=[
+            own[:2],
+            own+["assets/inner.apk"],
+            own[:2]+["assets/classes.dex"],
+            ["META-INF/MANIFEST.MF","META-INF/OWN-KEY.SF",
+             "META-INF/OTHER.RSA"],
+            ["META-INF/MANIFEST.MF","META-INF/OWN-KEY.SF",
+             "META-INF/OWN-KEY.SF"],
+            ["META-INF/other.MF","META-INF/OWN-KEY.SF",
+             "META-INF/OWN-KEY.RSA"]
+        ]
+        for names in invalid:
+            self.assertFalse(only_expected_own_v1_signing_changes(names))
 
     def test_no_double_patch(self):
         result=rewrite_exact_namespace(minimal_table(),ORIG,CLONE)

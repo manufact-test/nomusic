@@ -36,7 +36,7 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
 from ci.a1_resource_package_rename import (
     rewrite_exact_namespace,package_names,InvalidResourceTable,
-    classify_outer_signing_change
+    classify_outer_signing_change,only_expected_own_v1_signing_changes
 )
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
@@ -69,6 +69,21 @@ def require_guest():
 
 def digest_bytes(data):
     return hashlib.sha256(data).hexdigest()
+
+
+
+def _outer_signer_cert_sha256(apk):
+    """Verify exactly one APK signer and return its SHA-256, without logging."""
+    result=cmd([lab_sdk_tool("apksigner"),"verify","--verbose",
+                "--print-certs","--min-sdk-version","24",str(apk)],timeout=100)
+    if result.returncode:
+        stop("NAMESPACE_OWN_SIGNING_CERT_VERIFY_FAILED")
+    fingerprints=re.findall(
+        r"(?im)^\s*Signer #1 certificate SHA-256 digest:\s*([0-9a-f]{64})\s*$",
+        result.stdout or "")
+    if len(fingerprints)!=1:
+        stop("NAMESPACE_OWN_SIGNING_CERT_UNIQUE_FAILED")
+    return fingerprints[0].lower()
 
 
 def _firebase_resource_table_parity(original_apk,clone_apk):
@@ -138,12 +153,13 @@ def _rename_only_owned_outer_resource_package(single, work, key):
         resign_own(aligned,key)
         if apk_name(aligned).get("name")!=DEST:
             stop("NAMESPACE_PATCH_APK_IDENTITY_DRIFT")
-        own_signing_entries_updated=0
-        # Read-only classification of post-signing differences. NO changes
-        # to the content safety gate and NO APK installation in this trial.
+        changed_names=[]
         diff_counts={label:0 for label in (
             "V1_MANIFEST","V1_SIGNATURE_FILE","V1_SIGNATURE_BLOCK",
             "OTHER_META_INF","NON_META_INF_APP_CONTENT")}
+        # Both independently signed ZIPs must have an identical member set,
+        # order and contents, except exact ARSC bytes and *three* outer
+        # signing metadata members determined by the prior A/B native audit.
         with zipfile.ZipFile(single) as old,zipfile.ZipFile(aligned) as new:
             if old.namelist()!=new.namelist() or new.testzip() is not None:
                 stop("NAMESPACE_PATCH_ZIP_STRUCTURE_DRIFT")
@@ -152,16 +168,25 @@ def _rename_only_owned_outer_resource_package(single, work, key):
                     if new.read(name)!=after:
                         stop("NAMESPACE_PATCH_ARSCTABLE_DRIFT")
                 elif digest_bytes(old.read(name))!=digest_bytes(new.read(name)):
+                    changed_names.append(name)
                     diff_counts[classify_outer_signing_change(name)]+=1
-        print("NAMESPACE_OUTER_DIFF_AUDIT "+json.dumps({
-            "changed_member_types":diff_counts,
-            "modified_count_bounded":min(sum(diff_counts.values()),99),
-            "member_names_or_payloads_logged":False,
-            "original_nested_content_not_exempted":True,
-            "apk_installed":False},sort_keys=True),flush=True)
-        # Intentional fail-closed gate. This run determines actual changed
-        # member categories before any allowlist is considered or approved.
-        stop("NAMESPACE_DIFF_AUDIT_ONLY_NO_NATIVE_INSTALL")
+        if not only_expected_own_v1_signing_changes(changed_names):
+            print("NAMESPACE_OUTER_DIFF_REJECTED "+json.dumps({
+                "changed_member_types":diff_counts,
+                "member_names_or_payloads_logged":False,
+                "vendor_content_exempted":False},sort_keys=True),flush=True)
+            stop("NAMESPACE_PATCH_NON_RESOURCE_PAYLOAD_CHANGED")
+        # The prepatch and postpatch outer APK must BOTH cryptographically
+        # verify with the EXACT SAME independently generated CELIKOM signer.
+        # This is never the embedded publisher signature or signing key.
+        if _outer_signer_cert_sha256(single)!=_outer_signer_cert_sha256(aligned):
+            stop("NAMESPACE_PATCH_OWN_SIGNING_CERT_CHANGED")
+        own_signing_entries_updated=len(changed_names)
+        print("NAMESPACE_SIGNER_DIFF_CONFIRMED "+json.dumps({
+            "modified_signer_members":own_signing_entries_updated,
+            "modified_app_members":0,
+            "same_own_signing_certificate":True,
+            "member_names_or_payloads_logged":False},sort_keys=True),flush=True)
         aligned_elf=verify_native_loader_elf_offsets(aligned)
         if not all(row["page_aligned_4096"] for row in aligned_elf.values()):
             stop("NAMESPACE_PATCH_NATIVE_LOADER_ALIGNMENT_INVALID")
