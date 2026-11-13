@@ -192,8 +192,13 @@ public final class ExitCallsiteWitness extends XposedModule {
         count += observeOwnActivityFinish("finish") ? 1 : 0;
         count += observeOwnActivityFinish("finishAffinity") ? 1 : 0;
         count += observeOwnActivityFinish("finishAfterTransition") ? 1 : 0;
+        count += observeOwnActivityFinish("finishAndRemoveTask") ? 1 : 0;
         count += observeOwnActivityLaunch("startActivity",
             new Class<?>[]{Intent.class}) ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivity",
+            new Class<?>[]{Intent.class,Bundle.class}) ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivityForResult",
+            new Class<?>[]{Intent.class,int.class}) ? 1 : 0;
         count += observeOwnActivityLaunch("startActivityForResult",
             new Class<?>[]{Intent.class,int.class,Bundle.class}) ? 1 : 0;
         count += observeHi2IllegalStateConstructor() ? 1 : 0;
@@ -2267,6 +2272,46 @@ public final class ExitCallsiteWitness extends XposedModule {
         } catch (Throwable ignored) { }
     }
 
+    // Emit no identifiers, URLs, extras or argument values from navigation.
+    private static String ownActivityTargetStatus(Activity activity, Intent intent) {
+        if (activity == null || intent == null) return "NO_TARGET";
+        try {
+            ComponentName component = intent.getComponent();
+            if (component == null) return "IMPLICIT_TARGET";
+            if (!PACKAGE.equals(component.getPackageName())) return "NOT_OWN_PACKAGE";
+            try {
+                activity.getPackageManager().getActivityInfo(component, 0);
+                return "OWN_ACTIVITY_DECLARED";
+            } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
+                return "OWN_ACTIVITY_MISSING";
+            }
+        } catch (Throwable ignored) {
+            return "TARGET_CHECK_UNAVAILABLE";
+        }
+    }
+
+    private static String ownActivityFlagsCategory(Intent intent) {
+        if (intent == null) return "NO_INTENT";
+        try {
+            int flags = intent.getFlags();
+            if ((flags & Intent.FLAG_ACTIVITY_CLEAR_TASK) != 0) return "CLEAR_TASK";
+            if ((flags & Intent.FLAG_ACTIVITY_CLEAR_TOP) != 0) return "CLEAR_TOP";
+            if ((flags & Intent.FLAG_ACTIVITY_NEW_TASK) != 0) return "NEW_TASK";
+            if ((flags & Intent.FLAG_ACTIVITY_SINGLE_TOP) != 0) return "SINGLE_TOP";
+            return "OTHER_OR_NONE";
+        } catch (Throwable ignored) {
+            return "FLAGS_UNAVAILABLE";
+        }
+    }
+
+    private static String ownActivityStartErrorCategory(Throwable failure) {
+        if (failure instanceof android.content.ActivityNotFoundException)
+            return "ACTIVITY_NOT_FOUND";
+        if (failure instanceof SecurityException) return "SECURITY_EXCEPTION";
+        if (failure instanceof IllegalArgumentException) return "ILLEGAL_ARGUMENT";
+        return "OTHER_THROW";
+    }
+
     private boolean observeOwnActivityFinish(String methodName) {
         try {
             Method method = Activity.class.getDeclaredMethod(methodName);
@@ -2280,6 +2325,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 activityFinishesLogged.incrementAndGet() <= 24) {
                             String action = "finish".equals(methodName) ? "FINISH"
                                 : "finishAffinity".equals(methodName) ? "FINISH_AFFINITY"
+                                : "finishAndRemoveTask".equals(methodName) ? "FINISH_REMOVE_TASK"
                                 : "FINISH_AFTER_TRANSITION";
                             emit("ACTIVITY_FINISH", activityFamily((Activity) receiver), action);
                         }
@@ -2300,18 +2346,38 @@ public final class ExitCallsiteWitness extends XposedModule {
             method.setAccessible(true);
             hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
+                    boolean record = false;
                     try {
                         Object receiver = chain.getThisObject();
                         if (receiver instanceof Activity &&
                                 PACKAGE.equals(((Activity) receiver).getPackageName()) &&
                                 activityStartsLogged.incrementAndGet() <= 48) {
+                            record = true;
+                            Activity activity = (Activity) receiver;
                             Object raw = chain.getArg(0);
                             Intent intent = raw instanceof Intent ? (Intent) raw : null;
                             emit("ACTIVITY_START", intentActionCategory(intent),
                                 intentDestinationCategory(intent));
+                            emit("ACTIVITY_TARGET", ownActivityTargetStatus(activity,intent),
+                                ownActivityFlagsCategory(intent));
                         }
                     } catch (Throwable ignored) { }
-                    return chain.proceed();
+                    // The former observer only logged that a start was attempted.
+                    // Preserve the result/exception, and distinguish a failed
+                    // start from a resolved transition without modifying Intents.
+                    try {
+                        Object result = chain.proceed();
+                        try {
+                            if (record) emit("ACTIVITY_START_RESULT","ANDROID","RETURN");
+                        } catch (Throwable ignored) { }
+                        return result;
+                    } catch (Throwable failure) {
+                        try {
+                            if (record) emit("ACTIVITY_START_RESULT","ANDROID",
+                                ownActivityStartErrorCategory(failure));
+                        } catch (Throwable ignored) { }
+                        throw failure;
+                    }
                 });
             emit("ACTIVITY_START_HOOK","ANDROID","REGISTERED");
             return true;
