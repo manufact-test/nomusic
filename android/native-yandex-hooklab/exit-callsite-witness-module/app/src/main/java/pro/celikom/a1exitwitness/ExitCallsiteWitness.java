@@ -1838,7 +1838,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                 emit("MEDIA_DS_HOOK","MEDIA_DATA_SOURCE","NO_HOOK");
                 return;
             }
-            for (String className:candidates) {
+            for (int i=0;i<candidates.length;i++) {
+                String className=candidates[i];
+                // Candidate index is stable: exact sorted signed-2025 class table.
+                // Never emit the real class name, object identity, or media data.
+                final String privateReaderKind=i==0 ? "CANDIDATE_0":"CANDIDATE_1";
                 if (!className.matches("[A-Za-z0-9_$.]{2,180}")) break;
                 Class<?> impl=Class.forName(className,false,appLoader);
                 if (!android.media.MediaDataSource.class.isAssignableFrom(impl)) break;
@@ -1848,8 +1852,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(exact).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         int count=mediaDataReadCalls.incrementAndGet();
-                        if (count<=12)
+                        if (count<=12) {
+                            emit("MEDIA_DS_SOURCE","MEDIA_DATA_SOURCE",privateReaderKind);
                             emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","ENTER");
+                        }
                         try {
                             // Exactly one unmodified original call.
                             Object result=chain.proceed();

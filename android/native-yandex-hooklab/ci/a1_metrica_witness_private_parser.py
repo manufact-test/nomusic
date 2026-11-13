@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from clone_main_crash_buffer import main_exit_pids, LOG
 
-EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","OWN_RES_ROUTE","MEDIA_DS_HOOK","MEDIA_DS_READ","MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL","UNCAUGHT",
+EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","OWN_RES_ROUTE","MEDIA_DS_HOOK","MEDIA_DS_READ","MEDIA_DS_SOURCE","MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL","UNCAUGHT",
         "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
         "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
@@ -136,6 +136,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     resource_route_events=[] # one exact runtime witness, independent 250-event gate
     own_route_trial_events=[] # strictly finite opt-in own loader experiment
     media_read_events=[] # separately capped exact 2025 MediaDataSource readAt
+    media_reader_candidates=[] # separately capped first 12 source-class labels
     extractor_events=[] # one bounded source-to-Android-extractor observation
     for line in logcat.splitlines()[-25000:]:
         parsed=LOG.match(line)
@@ -164,6 +165,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             own_route_trial_events.append(error)
         if event in ("MEDIA_DS_HOOK","MEDIA_DS_READ") and origin=="MEDIA_DATA_SOURCE" and len(media_read_events)<32:
             media_read_events.append((event,error))
+        if event=="MEDIA_DS_SOURCE" and origin=="MEDIA_DATA_SOURCE" and error in ("CANDIDATE_0","CANDIDATE_1") and len(media_reader_candidates)<12:
+            media_reader_candidates.append(error)
         if event in ("MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL") and origin=="MEDIA_EXTRACTOR" and len(extractor_events)<32:
             extractor_events.append((event,error))
         if len(seen)<250:
@@ -261,6 +264,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             state:sum(event=="MEDIA_DS_READ" and value==state
                       for event,value in media_read_events)
             for state in ("ENTER","RETURN","THROW")},
+        "read_only_mediadatasource_readat_candidate_labels":sorted(set(media_reader_candidates)),
         "read_only_mediadatasource_no_source_bytes_disclosed":True,
         "read_only_extractor_source_hook_registered":(
             ("MEDIA_EXTRACTOR_HOOK","REGISTERED") in extractor_events),
