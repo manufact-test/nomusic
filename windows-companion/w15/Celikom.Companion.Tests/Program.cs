@@ -105,6 +105,44 @@ try
     Test(!CompactAccessRefresh.NeedsLabelChange(lifetime, lifetime) &&
         CompactAccessRefresh.NeedsLabelChange(lifetime, "Подписка завершена"),
         "W83 no text repaint for identical label but real revocation must repaint");
+    // W87: Windows login persistence is only a remembered user preference.
+    // It can never replace server entitlement or grant access by itself.
+    const string loginInstallation = "94e77e24-9abc-4c68-b3c0-a3e7aa1bb516";
+    const string loginEmail = "owner@example.test";
+    var loginFingerprint = WindowsLaunchSettings.FingerprintForTest(
+        loginInstallation, loginEmail);
+    Test(WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
+        loginInstallation, "OWNER@example.test"),
+        "W87 explicit autostart and same signed-in account can request a server check");
+    Test(!WindowsLaunchSettings.ShouldResume(false, true, loginFingerprint,
+        loginInstallation, loginEmail),
+        "W87 disabling autostart prevents all automatic playback attempts");
+    Test(!WindowsLaunchSettings.ShouldResume(true, false, loginFingerprint,
+        loginInstallation, loginEmail),
+        "W87 last user Stop prevents silent resume across reboot");
+    Test(!WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
+        "c6e77e24-9abc-4c68-b3c0-a3e7aa1bb516", loginEmail),
+        "W87 new installation never inherits another installation's Start");
+    Test(!WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
+        loginInstallation, "other@example.test"),
+        "W87 another account never inherits previous user's Start");
+    Test(!WindowsLaunchSettings.ShouldResume(true, true, null,
+        loginInstallation, loginEmail),
+        "W87 missing saved intent cannot enable background");
+    var runCmd = WindowsLaunchSettings.BuildRunCommand(
+        @"C:\Program Files\CELIKOM\CELIKOM.Companion.exe");
+    Test(runCmd.StartsWith('"') && runCmd.EndsWith(" --background") &&
+        runCmd.Contains(@"C:\Program Files\CELIKOM\CELIKOM.Companion.exe"),
+        "W87 HKCU Run command quotes paths with spaces and starts quietly");
+    Test(UserFacingPlaybackHealth.Host(
+        Celikom.NativeInstaller.NativeInstallState.Active, null,
+        moduleMatches:false).Level == UserFacingPlaybackHealth.Severity.Neutral,
+        "W87 normal new-app module refresh is a neutral Start hint, not red alarm");
+    Test(UserFacingPlaybackHealth.Host(
+        Celikom.NativeInstaller.NativeInstallState.Active, null,
+        moduleMatches:false).Message.Contains("Старт"),
+        "W87 repair instruction references the real Start button");
+
     // W75: a temporary /auth/me failure must never hide an already
     // verified owner's diagnostics button, but never authorizes export.
     var temporaryError = new HttpRequestException("synthetic unreachable");
