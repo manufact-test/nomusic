@@ -18,3 +18,7 @@ Live read-only [43438999212](https://github.com/manufact-test/nomusic/actions/ru
 ## Tests and what remains
 W91 [43437638500](https://github.com/manufact-test/nomusic/actions/runs/43437638500) SUCCESS: PHP signed Range/HMAC/variant stale+no-double-gain contract, independent synthetic ffmpeg, W15 .NET, W22/W23 Node and Windows compile. W92 [43438578606](https://github.com/manufact-test/nomusic/actions/runs/43438578606) SUCCESS: passive CDP native source lost/volume decrease, electron stall evidence, + all W89 source/403 regressions; no app installer built or deployed. W93 CLI syntax/guard must pass CI before any operations.
 Remaining: production-representative MySQL migration/CLI dry-run in disposable DB; full host HTTPS/proxy Range test, real audio metering/provenance before/after Big City Life dip, owner 0.24.33/0.24.34 real VPN and "Ты" QA, no hiss, Brave profile before declaring stable.
+
+
+## Full disposable MariaDB and private stager integration CI
+[W93 run 43440173979](https://github.com/manufact-test/nomusic/actions/runs/43440173979): SUCCESS on both jobs. Linux ephemeral MariaDB 11.4, real migrations 001/018/020, synthetic sine MP3 original+offline boost, PHP Mp3Inspector, private staging CLI dry-run, explicit authorization deny/commit, idempotent retry, persistent variant row exactly one, original audio SHA unchanged, no production credentials or music read. This validates staging mechanics, not the acoustic quality of Big City Life and not live Hostinger compatibility. No production migration or SQL write.
