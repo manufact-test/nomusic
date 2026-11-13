@@ -99,7 +99,7 @@ public static class StableUpdateManifestVerifier
         if (raw.Notes is { Length: > 240 })
             throw new InvalidDataException("STABLE_MANIFEST_NOTES_INVALID");
         return new VerifiedRelease(target, raw.Sequence, url, raw.PackageSize,
-            hash, expires, raw.Mandatory, raw.Notes ?? "");
+            raw.Sha256!, expires, raw.Mandatory, raw.Notes ?? "");
     }
 
     private static bool TryVersion(string? text, out Version result)
