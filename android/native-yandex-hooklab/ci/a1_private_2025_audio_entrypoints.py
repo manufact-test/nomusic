@@ -16,6 +16,8 @@ import re
 import sys
 import tempfile
 import zipfile
+import struct
+from a1_private_dex_flow import decode_instructions, FlowDecodeError, INVOKE_METHOD
 
 from a1_private_push_dex_method import Dex, DexError, EXPECTED_LEN, EXPECTED_SHA
 from uptodown_2025_gpr_ephemeral_verify import unbundle_candidate, verify_split_set
@@ -43,10 +45,18 @@ PUBLIC_METHODS = {
     "LEGACY_EXOPLAYER_PLAYER": {
         ("Lcom/google/android/exoplayer2/ExoPlayer;", "prepare"),
         ("Lcom/google/android/exoplayer2/Player;", "prepare")},
-    "ANDROID_PLATFORM_MEDIA": {
+    "ANDROID_MEDIA_PLAYER_PREPARE": {
         ("Landroid/media/MediaPlayer;", "prepare"),
-        ("Landroid/media/MediaPlayer;", "prepareAsync"),
-        ("Landroid/media/MediaExtractor;", "setDataSource")}
+        ("Landroid/media/MediaPlayer;", "prepareAsync")},
+    "ANDROID_MEDIA_EXTRACTOR_SOURCE": {
+        ("Landroid/media/MediaExtractor;", "setDataSource")},
+    "ANDROID_AUDIO_TRACK_OUTPUT": {
+        ("Landroid/media/AudioTrack;", "write"),
+        ("Landroid/media/AudioTrack;", "play")},
+    "ANDROID_MEDIA_CODEC_INPUT": {
+        ("Landroid/media/MediaCodec;", "configure"),
+        ("Landroid/media/MediaCodec;", "queueInputBuffer"),
+        ("Landroid/media/MediaCodec;", "dequeueOutputBuffer")}
 }
 # Historical 2026.10.3 #170gpr obfuscated classes are only a comparison
 # against current 2025.10.4. Never assume these are the native source.
@@ -78,6 +88,38 @@ def summarize_methods(methods, defined_indices=()):
         "actual_audio_or_account_observed":False,
     }
 
+def count_direct_public_invocations(dex):
+    """Actual DEX invoke instructions; never logs direct caller identities.
+
+    A code path present in DEX is NOT proof that Android executed it.
+    Unsupported instruction decoding remains explicit, not a false zero.
+    """
+    counts=Counter()
+    complete=0
+    undecoded=0
+    for _index, code in dex.code_methods():
+        try:
+            instructions=decode_instructions(code)
+        except FlowDecodeError:
+            undecoded+=1
+            continue
+        complete+=1
+        for pc,op,_ in instructions:
+            if op not in INVOKE_METHOD:
+                continue
+            method_index=struct.unpack_from("<H",code,pc+2)[0]
+            if method_index>=dex.method_count:
+                raise DexError("AUDIO_CALLSITE_REF_BOUND")
+            role=classify(*dex.method(method_index))
+            if role:
+                counts[role]+=1
+    return {
+        "direct_public_invocation_counts":{k:min(counts[k],9999) for k in PUBLIC_METHODS},
+        "decoded_code_bodies_bounded":min(complete,999999),
+        "undecoded_code_bodies_bounded":min(undecoded,999999),
+        "executed_on_real_player_proven":False,
+    }
+
 def scan_publisher(xapk: Path) -> dict:
     if (os.getenv("GITHUB_ACTIONS")!="true"
         or os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic"
@@ -105,6 +147,8 @@ def scan_publisher(xapk: Path) -> dict:
         combined=Counter()
         historical=set()
         dex_count=0
+        total_decoded=0
+        total_undecoded=0
         for apk in parts:
             with zipfile.ZipFile(apk) as archive:
                 if archive.testzip() is not None:
@@ -124,6 +168,11 @@ def scan_publisher(xapk: Path) -> dict:
                     for key,value in row["public_api_references"].items(): combined[key]+=value
                     for key,value in row["public_api_defined_bodies"].items(): combined["DEFINED_"+key]+=value
                     historical.update((o,n) for o,n in methods if (o,n) in HISTORICAL)
+                    direct=count_direct_public_invocations(d)
+                    total_decoded+=direct["decoded_code_bodies_bounded"]
+                    total_undecoded+=direct["undecoded_code_bodies_bounded"]
+                    for role,n in direct["direct_public_invocation_counts"].items():
+                        combined["CALL_"+role]+=n
         if dex_count==0:
             raise RuntimeError("PUBLISHER_DEX_MISSING")
     return {
@@ -133,6 +182,10 @@ def scan_publisher(xapk: Path) -> dict:
         "public_api_references":{k:min(combined[k],9999) for k in PUBLIC_METHODS},
         "public_api_defined_bodies":{k:min(combined["DEFINED_"+k],9999) for k in PUBLIC_METHODS},
         "historical_2026_candidate_symbols_present_bounded":len(historical),
+        "direct_public_invocation_counts": {
+            k:min(combined["CALL_"+k],9999) for k in PUBLIC_METHODS},
+        "decoded_code_bodies_bounded":min(total_decoded,999999),
+        "undecoded_code_bodies_bounded":min(total_undecoded,999999),
         "actual_current_track_binding_proven":False,
         "source_before_decoder_execution_proven":False,
         "native_audio_playback_proven":False,

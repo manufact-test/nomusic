@@ -1,6 +1,6 @@
 """Only synthetic public API descriptors; no publisher APK required."""
 import unittest
-from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods
+from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods, count_direct_public_invocations
 
 class AudioEntryPointSafetyTests(unittest.TestCase):
     def test_public_media3_and_legacy_methods_classified(self):
@@ -30,6 +30,32 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertFalse(got["active_current_track_or_decoder_binding_proven"])
         for value in ("Secret","random","Lcq7","Lga4"):
             self.assertNotIn(value,str(got))
+
+    def test_exact_dex_invoke_instructions_not_just_method_references(self):
+        class MockDex:
+            method_count=4
+            def method(self,index):
+                return [
+                    ("Landroid/media/MediaExtractor;","setDataSource"),
+                    ("Landroid/media/MediaPlayer;","prepare"),
+                    ("Landroid/media/AudioTrack;","write"),
+                    ("Lprivate/secrets/Raw;","open"),
+                ][index]
+            def code_methods(self):
+                # invoke-virtual {v0}, method @0 ; return-void
+                yield 7,bytes([0x6e,0x10,0x00,0x00,0x00,0x00,0x0e,0x00])
+                # invoke-virtual {v0}, method @2 ; return-void
+                yield 9,bytes([0x6e,0x10,0x02,0x00,0x00,0x00,0x0e,0x00])
+                # Unsupported opcode must not be read as an invoke.
+                yield 11,bytes([0x79,0x00])
+        x=count_direct_public_invocations(MockDex())
+        self.assertEqual(x["direct_public_invocation_counts"]["ANDROID_MEDIA_EXTRACTOR_SOURCE"],1)
+        self.assertEqual(x["direct_public_invocation_counts"]["ANDROID_AUDIO_TRACK_OUTPUT"],1)
+        self.assertEqual(x["direct_public_invocation_counts"]["ANDROID_MEDIA_PLAYER_PREPARE"],0)
+        self.assertEqual(x["decoded_code_bodies_bounded"],2)
+        self.assertEqual(x["undecoded_code_bodies_bounded"],1)
+        self.assertFalse(x["executed_on_real_player_proven"])
+        self.assertNotIn("Raw",str(x))
 
     def test_empty_and_duplicate_pure_invokes_no_execution_claim(self):
         empty=summarize_methods([])
