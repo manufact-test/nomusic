@@ -1,3 +1,20 @@
+# 2026-11-13 — WINDOWS 0.24.34 W95 QA INSTALLER GREEN + LIBRARY (READ FIRST)
+
+**LATEST Windows test candidate:** source branch `experiment/windows-w95-02434-qa-candidate-20261113`; exact installer/audio code `4f8b3a72687577c5447d157be156365ab42a86fa` (subsequent commits may be docs-only). **Full owner handoff:** `docs/windows/W95-02434-OWNER-QA-DELIVERY-20261113.md`.
+
+**0.24.34 GUI / native 0.24.27:** final Windows CI SUCCESS [43442749658](https://github.com/manufact-test/nomusic/actions/runs/43442749658); W89 0.24.33→W95 in-place DPAPI + two updated native files pass, AppId/pinned vendor safety pass. Installer SHA256 **83CF52CE7808CF03E33FBE461FDFE73C40080545642B29B5F9ED81015DEB1FFE**, 43,551,775 bytes. Both EXE and ZIP extracted/CRC verified and persistently uploaded to Library:
+- `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.34-AUDIO-VPN-QA-TEST.exe` (`libfile_a4d924edf8f48191a6fa183b41097408`).
+- `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.34-AUDIO-VPN-QA-TEST.zip` (`libfile_e690d182c16c8191a1c851854ccbebaf`).
+- Previous W89 0.24.33 and W88 0.24.32 installers and **exact rollback** `backup/windows-w95-pre-02434-qa-candidate-20261113` @ `80113ff54e0479c0412e51263cd81078b39082e1`, and pre-403 W95 backup `backup/windows-w95-02434-pre-w96-403-guard-20261113` @ `cc35d1fff1e6b60dd98eb1de6ce2b4ab61f67ecb`.
+
+**What changed:** W94 last VPN route event always revalidates fresh entitlement (no 1.4s dropped final signal); W89 prevents mapped-only false green and does one bounded current source refresh on «Ты»; W92 passive decoder source-loss/current volume-drop and event-loop stall signals; W96 verified-current signed decoder suppresses only pending redundant 403 reload (possible hiss mitigation). All offline native tests green. **No owner real playback or VPN QA yet; never mark issues solved.**
+
+**Gain:** real read-only production: 1493 active songs, one **«Биг сити лайф» Триагрутрика 40371622 +11.5 dB**, disabled **«Папиросы» Зануда 1944599 +12 dB**, 4 historical edits, no mass reset. W90–W93 isolated Windows-only pre-render signed sidecar pipeline tests green with disposable MariaDB/FFmpeg. **Production server migration 020 and boosted Big City Life file NOT deployed**: Windows 0.24.34 test **still does NOT actually add +11.5 dB** until explicit verified media processing/sidecar activation, and cannot by itself prove the sudden mid-track drop. Hostinger has no ffmpeg. Browser original remains unchanged.
+
+**Next priority:** owner installs 0.24.34 TEST and listens to «Ты», Big City Life, natural 403 recovery, VPN A→B, Brave performance; gather authorized diagnostics. Then fix remaining **actual** audio source/volume without second player or blanket gain, and stage Windows-only media variant under controlled rollback. Follow issues #52 decoder, #53 performance, #54 Big City Life dip, #56 boost parity, #57 hiss. Do not change production/Yandex or owner PC automatically.
+
+---
+
 # W94 CHECKPOINT 2026-11-13 — SAFE PRIVATE BOOST PATH + VPN ROUTE BURST (EXPERIMENT, NO INSTALLER)
 
 **Latest work branch** `experiment/windows-w94-vpn-route-burst-recheck-20261113`; exact pre-W94 frozen `backup/windows-w94-pre-vpn-route-burst-20261113` @ `5f339d2f77b57eb8da5df7705a6e6235cd66d7c7`. W94 source `e4100eb9e83fae2e954ce4819178485ad54e2427`: network address signals within 1.4s now each update route epoch and cancel stale rechecks; coalescing limits only log. Last VPN signal wins after quiet 750ms. Entitlement still MUST come from fresh authenticated server; no offline grant. W94 Windows CI: https://github.com/manufact-test/nomusic/actions/runs/43440706956 (verify final state). Real 40-50s owner VPN test NOT yet performed.
