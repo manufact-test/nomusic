@@ -49,3 +49,12 @@ Next: review the existing B42 audio contract, identify the native source integra
 ## 13 Nov — owner-device onboarding crash supersedes audio test
 
 Owner successfully installed the private diagnostic APK with Play Protect passed and saw Yandex My Wave/recommendation intro UI after a 15–20 second first-start wait. At the fourth intro indicator/page, pressing the next arrow starts loading and then closes the app to the Android home screen. Owner cannot reach login, music or playback. This is now the active blocker. Prior workflow #43450303301 only verified an idle foreground MainScreenActivity for 75 seconds and did not automate onboarding taps; 25/25 is not full-app acceptance. No cause inferred yet. Use the existing `capture-diagnostics.bat` BEFORE launching the clone, reproduce the same intro/next action, wait 5 seconds after exit, Ctrl+C and send `CELIKOM-A1-Audio-Diagnostics.txt`. The finite event stream includes FATAL_DISPATCH and explicit process-exit/kill witnesses. No uninstall, data clear, Play Protect bypass, or B42 integration until this failure is diagnosed and fixed.
+
+## NAV5 diagnostic source — startup regression gates, not Passport acceptance
+
+Exact NAV5 source `0851e384101e2bc21a16043350e1cfed24b0d97d` was subsequently checked on native Android13:
+- Publisher-first paired run [#43488933870](https://github.com/manufact-test/nomusic/actions/runs/43488933870): SUCCESS, publisher 25/25 and CELIKOM 25/25.
+- Standalone clone run [#43488933817](https://github.com/manufact-test/nomusic/actions/runs/43488933817): SUCCESS, CELIKOM 25/25.
+- These are idle startup and coexistence regression checks only. They do not exercise the onboarding arrow, Passport login, Yandex account, My Wave playback, source replacement or controls.
+
+The exact owner APK and hash are recorded in `ANDROID-A1-OWNER-ONBOARDING-CRASH-TRIAGE-20261113.md`. NAV4 proved the separate `:passport` process crash; NAV5 is only a diagnostic observer for its next occurrence. Keep the product Stage A/release gate NO-GO until the owner demonstrates successful native sign-in and a separate real audio/controls acceptance.
