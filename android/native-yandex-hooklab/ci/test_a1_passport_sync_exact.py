@@ -39,7 +39,10 @@ class Tests(unittest.TestCase):
         sync=rewrite_exact_sync_authority(before,OLD,OWN)
         after=rewrite_exact_owned_account_type(sync,OLD,OWN)
         actual=[x[0] for x in _strings(after)[0]]
-        self.assertEqual(actual,[OWN+'.passport',PREFIX+OWN,'unrelated'])
+        self.assertEqual(actual,['com.yandex.passport.'+OWN,PREFIX+OWN,'unrelated'])
+        self.assertNotEqual(actual[0],'com.yandex.passport')
+        self.assertTrue(actual[0].startswith('com.yandex.passport'))
+        self.assertFalse(actual[0].startswith('com.yandex.passport.wl'))
         self.assertEqual(after[-8:],before[-8:])
         with self.assertRaises(PassportResourceMismatch):
             rewrite_exact_owned_account_type(after,OLD,OWN)

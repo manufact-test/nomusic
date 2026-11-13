@@ -61,7 +61,11 @@ def rewrite_exact_owned_account_type(d, original_package, clone_package):
     """
     if original_package!='ru.yandex.music' or clone_package!='pro.celikom.yandex.nativeclonelab':
         raise PassportResourceMismatch('RESOURCE_UNEXPECTED_ACCOUNT_IDENTITIES')
-    return _rewrite_exact_string(d,'com.yandex.passport',clone_package+'.passport')
+    # Exact 2025 Passport validator requires startsWith("com.yandex.passport").
+    # A distinct suffix preserves Android account ownership while satisfying
+    # the issuer SDK's actual contract. Never claim exact stock account type.
+    return _rewrite_exact_string(d,'com.yandex.passport',
+                                 'com.yandex.passport.'+clone_package)
 
 def _rewrite_exact_string(d,old,new):
     """Rewrite one unique UTF8 pool value; untouched strings and chunks are identical."""

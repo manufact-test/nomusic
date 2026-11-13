@@ -69,9 +69,13 @@ public final class ExitCallsiteWitness extends XposedModule {
     // The matching resource in authenticator.xml and sync-adapter XML is
     // exclusively rewritten on the own clone; never claim stock's account type.
     private static final String STOCK_ACCOUNT_TYPE = "com.yandex.passport";
-    private static final String OWN_ACCOUNT_TYPE = PACKAGE + ".passport";
+    // Own distinct type must follow the verified 2025 Passport SDK's
+    // startsWith("com.yandex.passport") accountType validator contract.
+    // Never equal the publisher's authenticator type itself.
+    private static final String OWN_ACCOUNT_TYPE =
+        STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V6_OWN_ACCOUNT_TYPE";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V7_PASSPORT_ACCOUNT_PREFIX";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -278,6 +282,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         passportArmed = true;
         int count = 0;
         count += observeApplicationOnCreate() ? 1 : 0;
+        // Attach runs before content providers and Passport UI; ensure the
+        // clone-owned account bridge is armed before SDK initialization.
+        count += hookApplicationAttach() ? 1 : 0;
         count += observe(Thread.class, "dispatchUncaughtException",
             new Class<?>[]{Throwable.class}, "UNCAUGHT") ? 1 : 0;
         count += observe(System.class, "exit",
@@ -1577,6 +1584,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 prepareOwnerDiagnostics((Application) candidate);
                         }
                     } catch (Throwable ignored) { }
+                    // Diagnostics Context now exists in this process. Make
+                    // hook-registration status observable and retry if
+                    // package initialization happened before process naming.
+                    try { installCloneAccountTypeBridge(); }
+                    catch (Throwable ignored) { }
                     appOnCreateEntered=true;
                     emit("APP_LIFECYCLE","APPLICATION","ENTER");
                     try {
@@ -2098,7 +2110,13 @@ public final class ExitCallsiteWitness extends XposedModule {
             attach.setAccessible(true);
             hook(attach).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
+                    // The app may create Account objects in attachBaseContext.
+                    // Install our scoped type mapping before that code runs.
+                    try { installCloneAccountTypeBridge(); }
+                    catch (Throwable ignored) { }
                     Object result = chain.proceed();
+                    try { installCloneAccountTypeBridge(); }
+                    catch (Throwable ignored) { }
                     try {
                         if (PACKAGE.equals(Application.getProcessName())) {
                             Object context = chain.getArg(0);
@@ -2764,7 +2782,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
-            button.setText("Диагностика NAV6");
+            button.setText("Диагностика NAV7");
             button.setTextColor(Color.WHITE);
             button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
