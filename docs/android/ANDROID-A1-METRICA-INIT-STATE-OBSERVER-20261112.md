@@ -1,3 +1,6 @@
+> **ВАЖНОЕ ОБНОВЛЕНИЕ 13.11:** Этот документ описывает историческую AppMetrica/Push проблему MAIN-процесса. Новый подтверждённый owner-visible вылет относится к отдельному процессу `:passport`: четыре `JAVA_CRASH`, uncaught `IllegalStateException`, `FATAL_DISPATCH / NOT_METRICA`. Не считать Passport crash следствием старой Push-гипотезы и не возвращаться к закрытым общим hooks. Текущая диагностика — NAV5; подробности и действия: `ANDROID-A1-OWNER-ONBOARDING-CRASH-TRIAGE-20261113.md` и `NEXT-CHAT-ANDROID-A1-LEAD-20261113.md`.
+
+---
 > **ТЕКУЩАЯ точка передачи 12.11.2026:** [единый план двух чатов](ANDROID-A1-TWO-CHAT-CURRENT-PLAN-20261112.md). A исследует точный internal Push fatal-state, B в изолированной ветке issue #45 исследует реальный service lifecycle original-vs-clone. Не дублировать. Последний ARM13 #43276748729: original 25/25, clone 1/25, 0 suppression, 4 CLONE_TARGET successful startService, но service-ready не подтверждён.
 
 # CELIKOM Android A1 — AppMetrica native ARM13 init-state observer, 2026-11-12
