@@ -42,3 +42,16 @@ Repo `manufact-test/nomusic`. Work branch `experiment/windows-w89-vpn-fast-recov
 
 - Workflow `.github/workflows/windows-w89-vpn-fast-recovery-track-fix-installer.yml`.
 - Latest started workflow https://github.com/manufact-test/nomusic/actions/runs/43428796923; **verify outcome** before asserting success.
+
+## Final tested W89 candidate — 2026-11-13
+
+- Latest **Windows CI SUCCESS**: https://github.com/manufact-test/nomusic/actions/runs/43429303326, final uploaded installer artifact `14039475715` https://github.com/manufact-test/nomusic/actions/runs/43429303326/artifacts/14039475715.
+- W15 native contract and added fast-route/decoder-proof tests: `W15_NATIVE_CONTRACT_PASS 188` and staged update check `PASS 192`. W23 existing renderer/native/Yandex player integration tests plus new W89 **unfetched-current one-shot 120s**, no reload after signed Media HTTP206, decoder-only verified heartbeat, preserve pause/position all passed. W21/W24 and warnings-as-errors GUI compiler passed.
+- Actual EXE filename `CELIKOM-Windows-0.24.33-VPN-TRACK-TEST.exe`, size **43,550,095 bytes**, independently extracted and SHA256 checked **`414EDBA856A12B25CB3EDE26D136C7F263CFC02FC3448730C7F7D02D60791879`**, matches GitHub CI.
+- Verified second deliverable ZIP `CELIKOM-Windows-0.24.33-VPN-TRACK-TEST.zip` size **43,049,480 bytes**, SHA256 `FEEEC0E1086D69D2318966F2E893F3C2F99B37BA2E9190F8B234F08C9E23F9A4`. ZIP internal CRC test and extracted EXE SHA256 verified.
+- **Persistent Library successfully uploaded**:
+  - `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.33-VPN-TRACK-TEST.exe` (Library ID `libfile_00ff6ff7f3a48191b77f343dd6bcc81d`)
+  - `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.33-VPN-TRACK-TEST.zip` (Library ID `libfile_0180ed7336d0819199ada0ea3b57fff1`)
+- Windows in-place CI **`W89_02432_TO_02433_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS`**: old verified W88 installer SHA checked, session.dpapi preserved, encrypted sign-in decrypts; installer replaces host.cjs and renderer.js with W89 assets (as expected), original vendor Yandex file tree NOT touched by installer itself, AppId unchanged.
+- No remote deployment. **Owner Windows field QA not yet performed**. Reboot/autostart remains inherited; on first 0.24.33 Start may safely refresh native module 0.24.25→0.24.26. Do not assert audible source or <N-second VPN reconnect from CI alone. User still needs real playback of «Ты» and VPN changes.
+- Existing W88 0.24.32 rollback preserved in Library / backup.
