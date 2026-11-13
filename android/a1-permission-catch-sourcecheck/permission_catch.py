@@ -86,6 +86,23 @@ def _explicit_iae_throw(code,dex):
                 return "IAE_DIRECT_THROW"
     return "IAE_CONSTRUCT_ONLY" if created else "NO_IAE_CONSTRUCTION"
 
+def _explicit_sdk_illegal_state(code,dex):
+    """Conservatively match one callee's own IllegalStateException construction
+    and direct same-register throw. Never infer that the live method executed.
+    """
+    ins=decode_instructions(code)
+    for i,(pc,op,_) in enumerate(ins):
+        if op!=0x22:continue
+        tid=struct.unpack_from("<H",code,pc+2)[0]
+        if tid>=dex.type_count or dex.type(tid)!="Ljava/lang/IllegalStateException;":
+            continue
+        reg=code[pc+1]
+        for later_pc,later_op,_ in ins[i+1:]:
+            if later_pc>pc+200:break
+            if later_op==0x27 and code[later_pc+1]==reg:
+                return True
+    return False
+
 def inspect(xapk):
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
@@ -154,6 +171,9 @@ def inspect(xapk):
                 if dex.method_signature(callee) in defined
                 and _explicit_iae_throw(
                     defined[dex.method_signature(callee)],dex)=="IAE_CONSTRUCT_ONLY"]
+            ise_direct_methods=[callee for callee in candidates
+                if dex.method_signature(callee) in defined and _explicit_sdk_illegal_state(
+                    defined[dex.method_signature(callee)],dex)]
             onehop_auth=sum(_direct_auth(method,dex) for method in candidates_codes)
             onehop_literal=sum(_direct_literal(method,dex) for method in candidates_codes)
             targets.append({
@@ -163,7 +183,13 @@ def inspect(xapk):
                 "direct_permission_or_signature_api_bounded":min(direct_auth,16),
                 "one_hop_permission_or_signature_api_bounded":min(onehop_auth,16),
                 "one_hop_known_permission_literal_bounded":min(onehop_literal,16),
-                "exact_candidate_callees_with_IAE_direct_throw_bounded":min(len(iae_direct_methods),16),
+                "exact_candidate_callees_with_ISE_direct_throw_bounded":min(len(ise_direct_methods),16),
+                "ISE_source_candidate":("ONE" if len(ise_direct_methods)==1 else
+                                        "NONE" if not ise_direct_methods else "MULTIPLE"),
+                "ISE_source_candidate_group":(
+                    group_class(dex.method(ise_direct_methods[0])[0])
+                    if len(ise_direct_methods)==1 else "UNKNOWN"),
+                                "exact_candidate_callees_with_IAE_direct_throw_bounded":min(len(iae_direct_methods),16),
                 "exact_candidate_callees_with_IAE_construct_only_bounded":min(len(iae_construct_methods),16),
                 "single_source_IAE_callee":(
                     "ONE" if len(iae_direct_methods)==1 else
