@@ -36,6 +36,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
           command -v ffmpeg && command -v ffprobe
           ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i 'sine=frequency=440:duration=4:sample_rate=44100' -c:a libmp3lame -b:a 192k "$RUNNER_TEMP/original.mp3"
           bash scripts/windows-gain-render.sh "$RUNNER_TEMP/original.mp3" "$RUNNER_TEMP/processed.mp3" 6.0
