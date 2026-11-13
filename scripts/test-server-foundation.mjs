@@ -23,6 +23,14 @@ if (composer.require?.php !== ">=8.3") throw new Error("composer.json does not e
 // Every schema introduced by migrations must be exportable by the restore path.
 // This guards future additions as well as Stage11/12 journals.
 const snapshotSource = await readFile(path.join(root, ".github/scripts/hostinger-stage5-remote.php"), "utf8");
+const restoreCheck = await readFile(path.join(root, ".github/scripts/hostinger-stage5.sh"), "utf8");
+if (restoreCheck.includes("(SELECT COUNT(*) FROM windows_gain_variants)=0") ||
+    !restoreCheck.includes("w.replacement_id=37") ||
+    !restoreCheck.includes("t.service_track_id='40371622'") ||
+    !restoreCheck.includes("w.source_sha256=a.sha256") ||
+    !restoreCheck.includes("w.source_version=r.version")) {
+  throw new Error("Isolated MySQL restore must verify the existing Big City Life Windows gain sidecar");
+}
 const lists = [...snapshotSource.matchAll(/\$(?:tables|optional)\s*=\s*\[([\s\S]*?)\];/g)];
 const snapshotTables = new Set(lists.flatMap((match) => [...match[1].matchAll(/'([a-z_]+)'/g)].map((name) => name[1])));
 for (const name of await readdir(path.join(serverRoot, "migrations"))) {
