@@ -59,8 +59,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String CLONE_AUTHORITY =
         PACKAGE + ".provider.7e1ef82da0d52923";
     private static final String DIAGNOSTIC_FILE = "celikom-a1-diagnostics.txt";
+    private static final String PASSPORT_DIAGNOSTIC_FILE = "celikom-a1-passport-diagnostics.txt";
+    private static final String PASSPORT_PROCESS = PACKAGE + ":passport";
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V3_OWNER_PHONE";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V4_PASSPORT_WITNESS";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -72,6 +74,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private final java.util.concurrent.atomic.AtomicInteger activityStartsLogged =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean armed;
+    private boolean passportArmed;
+    private boolean passportDiagnosticCallbacksReady;
     private boolean exitCtorHooked;
     private boolean exitRunHooked;
     private final Map<Object, Integer> constructorModes =
@@ -164,7 +168,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     @Override public void onModuleLoaded(ModuleLoadedParam param) { }
 
     @Override public void onPackageLoaded(PackageLoadedParam param) {
-        if (PACKAGE.equals(param.getPackageName())) {
+        if (!PACKAGE.equals(param.getPackageName())) return;
+        if (isPassportProcess()) {
+            armPassport();
+        } else if (PACKAGE.equals(Application.getProcessName())) {
             installOwnedResourceRouteTrial();
             arm();
             try { installExactRunModeWitness(param.getDefaultClassLoader()); }
@@ -173,7 +180,32 @@ public final class ExitCallsiteWitness extends XposedModule {
     }
 
     @Override public void onPackageReady(PackageReadyParam param) {
-        if (PACKAGE.equals(param.getPackageName())) arm();
+        if (!PACKAGE.equals(param.getPackageName())) return;
+        if (isPassportProcess()) armPassport();
+        else if (PACKAGE.equals(Application.getProcessName())) arm();
+    }
+
+    private static boolean isPassportProcess() {
+        try { return PASSPORT_PROCESS.equals(Application.getProcessName()); }
+        catch (Throwable ignored) { return false; }
+    }
+
+    /** Minimal clone-only auxiliary process observation; never modify Passport. */
+    private synchronized void armPassport() {
+        if (passportArmed || !isPassportProcess()) return;
+        passportArmed = true;
+        int count = 0;
+        count += observeApplicationOnCreate() ? 1 : 0;
+        count += observe(Thread.class, "dispatchUncaughtException",
+            new Class<?>[]{Throwable.class}, "UNCAUGHT") ? 1 : 0;
+        count += observe(System.class, "exit",
+            new Class<?>[]{int.class}, "SYSTEM_EXIT") ? 1 : 0;
+        count += observe(Runtime.class, "exit",
+            new Class<?>[]{int.class}, "RUNTIME_EXIT") ? 1 : 0;
+        count += observe(android.os.Process.class, "killProcess",
+            new Class<?>[]{int.class}, "PROCESS_KILL") ? 1 : 0;
+        count += observeFatalDispatches();
+        emit("PASSPORT_OBSERVER", "CLONE_PASSPORT", count > 0 ? "REGISTERED" : "NO_HOOK");
     }
 
     private synchronized void arm() {
@@ -1330,8 +1362,12 @@ public final class ExitCallsiteWitness extends XposedModule {
                 .intercept(chain -> {
                     try {
                         Object candidate = chain.getArg(0);
-                        if (candidate instanceof Application)
-                            prepareOwnerDiagnostics((Application) candidate);
+                        if (candidate instanceof Application) {
+                            if (isPassportProcess())
+                                preparePassportDiagnostics((Application) candidate);
+                            else
+                                prepareOwnerDiagnostics((Application) candidate);
+                        }
                     } catch (Throwable ignored) { }
                     appOnCreateEntered=true;
                     emit("APP_LIFECYCLE","APPLICATION","ENTER");
@@ -2175,6 +2211,43 @@ public final class ExitCallsiteWitness extends XposedModule {
      * permission is requested. The report is copied to MediaStore Downloads
      * only after the owner taps the button.
      */
+    private synchronized void preparePassportDiagnostics(Application app) {
+        if (passportDiagnosticCallbacksReady || app == null || !isPassportProcess() ||
+                !PACKAGE.equals(app.getPackageName())) return;
+        try {
+            Context c = app.getApplicationContext();
+            diagnosticContext = c == null ? app : c;
+            emit("PASSPORT_PROCESS", "CLONE_PASSPORT", "APPLICATION_READY");
+            app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+                @Override public void onActivityCreated(Activity a, Bundle state) {
+                    logActivityPhase(a,"CREATED");
+                }
+                @Override public void onActivityStarted(Activity a) {
+                    logActivityPhase(a,"STARTED");
+                }
+                @Override public void onActivityResumed(Activity a) {
+                    logActivityPhase(a,"RESUMED");
+                }
+                @Override public void onActivityPaused(Activity a) {
+                    logActivityPhase(a,"PAUSED");
+                }
+                @Override public void onActivityStopped(Activity a) {
+                    logActivityPhase(a,"STOPPED");
+                }
+                @Override public void onActivitySaveInstanceState(Activity a, Bundle state) {
+                    logActivityPhase(a,"SAVE_STATE");
+                }
+                @Override public void onActivityDestroyed(Activity a) {
+                    logActivityPhase(a, a != null && a.isFinishing()
+                        ? "DESTROYED_FINISHING" : "DESTROYED_OTHER");
+                }
+            });
+            passportDiagnosticCallbacksReady = true;
+        } catch (Throwable ignored) {
+            emit("PASSPORT_PROCESS", "CLONE_PASSPORT", "CALLBACKS_FAILED");
+        }
+    }
+
     private synchronized void prepareOwnerDiagnostics(Application app) {
         if (app == null || !PACKAGE.equals(app.getPackageName())) return;
         try {
@@ -2182,7 +2255,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             diagnosticContext = appContext == null ? app : appContext;
             capturePreviousProcessExits(diagnosticContext);
             emit("DIAGNOSTIC_CAPTURE", "LOCAL_FILE", "READY");
-            emit("DIAGNOSTIC_BUILD", "NAV_V3_OWNER_PHONE", "ACTIVE");
+            emit("DIAGNOSTIC_BUILD", DIAGNOSTIC_BUILD, "ACTIVE");
         } catch (Throwable ignored) { }
         if (diagnosticUiReady) return;
         try {
@@ -2287,8 +2360,19 @@ public final class ExitCallsiteWitness extends XposedModule {
                 String cls = component.getClassName();
                 if ("ru.yandex.music.main.MainScreenActivity".equals(cls))
                     return "EXPLICIT_OWN_MAIN";
+                if ("ru.yandex.music.entry.EntryScreenActivity".equals(cls))
+                    return "EXPLICIT_OWN_ENTRY";
+                if ("ru.yandex.music.wizard.WizardActivityOld".equals(cls) ||
+                        "ru.yandex.music.wizard3.WizardActivity".equals(cls))
+                    return "EXPLICIT_OWN_WIZARD";
+                if (cls.startsWith("com.yandex.passport."))
+                    return "EXPLICIT_OWN_PASSPORT";
+                if (cls.startsWith("ru.yandex.music."))
+                    return "EXPLICIT_OWN_MUSIC_OTHER";
+                if (cls.startsWith("com.yandex.plus."))
+                    return "EXPLICIT_OWN_PLUS";
                 if (cls.startsWith("ru.yandex.") || cls.startsWith("com.yandex."))
-                    return "EXPLICIT_OWN_VENDOR";
+                    return "EXPLICIT_OWN_VENDOR_OTHER";
                 return "EXPLICIT_OWN_OTHER";
             }
             String target = intent.getPackage();
@@ -2423,8 +2507,15 @@ public final class ExitCallsiteWitness extends XposedModule {
             int count = 0;
             for (ApplicationExitInfo info : exits) {
                 if (info == null || count++ >= 4) continue;
-                emit("PREVIOUS_PROCESS_EXIT", "ANDROID_EXIT_INFO",
-                    exitReasonCategory(info.getReason()));
+                String process = info.getProcessName();
+                String family = PASSPORT_PROCESS.equals(process) ? "PASSPORT"
+                    : PACKAGE.equals(process) ? "MAIN" : "OTHER_CLONE";
+                String reason = exitReasonCategory(info.getReason());
+                emit("PREVIOUS_PROCESS_EXIT", "ANDROID_EXIT_INFO", reason);
+                emit("EXIT_PROCESS_FAMILY", family, reason);
+                long age = System.currentTimeMillis() - info.getTimestamp();
+                emit("EXIT_RECENCY", family,
+                    age >= 0 && age <= 300000L ? "WITHIN_FIVE_MINUTES" : "OLDER");
             }
         } catch (Throwable ignored) {
             emit("PREVIOUS_EXIT_INFO", "ANDROID", "UNAVAILABLE");
@@ -2465,7 +2556,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
-            button.setText("Диагностика NAV3");
+            button.setText("Диагностика NAV4");
             button.setTextColor(Color.WHITE);
             button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -2483,6 +2574,9 @@ public final class ExitCallsiteWitness extends XposedModule {
             button.setOnClickListener(view -> {
                 try {
                     emit("DIAGNOSTIC_EXPORT", "DOWNLOADS", "REQUESTED");
+                    // Query Android exit reasons only when owner taps, not on navigation.
+                    emit("DIAGNOSTIC_EXIT_SNAPSHOT", "ANDROID", "ON_EXPORT");
+                    capturePreviousProcessExits(activity);
                     Uri saved = saveDiagnosticReportToDownloads(activity);
                     if (saved != null) {
                         Toast.makeText(activity,
@@ -2538,6 +2632,17 @@ public final class ExitCallsiteWitness extends XposedModule {
                 byte[] buffer = new byte[8192];
                 int read;
                 while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                // The :passport process has its own private bounded log: no
+                // cross-process file writes/locks and no account data collected.
+                File passport = new File(context.getFilesDir(), PASSPORT_DIAGNOSTIC_FILE);
+                if (passport.isFile() && passport.length() > 0) {
+                    output.write(("\nevent=PASSPORT_LOG_SECTION;origin=CLONE_PASSPORT;"
+                        + "error=START;thread=MAIN\n").getBytes(StandardCharsets.UTF_8));
+                    try (InputStream second = new FileInputStream(passport)) {
+                        while ((read = second.read(buffer)) != -1)
+                            output.write(buffer, 0, read);
+                    }
+                }
                 output.flush();
             }
             ContentValues ready = new ContentValues();
@@ -2565,7 +2670,8 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (context == null || line == null) return;
         try {
             synchronized (DIAGNOSTIC_FILE_LOCK) {
-                File file = new File(context.getFilesDir(), DIAGNOSTIC_FILE);
+                String name = isPassportProcess() ? PASSPORT_DIAGNOSTIC_FILE : DIAGNOSTIC_FILE;
+                File file = new File(context.getFilesDir(), name);
                 if (file.exists() && file.length() > MAX_DIAGNOSTIC_FILE_BYTES) {
                     byte[] old = new byte[(int) Math.min(file.length(), 128L * 1024L)];
                     try (FileInputStream input = new FileInputStream(file)) {
@@ -2594,7 +2700,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     }
 
     private static void emit(String event, String origin, String error) {
-        if (!PACKAGE.equals(Application.getProcessName())) return;
+        String process = Application.getProcessName();
+        if (!PACKAGE.equals(process) && !PASSPORT_PROCESS.equals(process)) return;
         String thread = "OTHER";
         try {
             if (Looper.getMainLooper() != null &&
