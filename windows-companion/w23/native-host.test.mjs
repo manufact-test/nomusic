@@ -622,7 +622,7 @@ test("W99 only a verified playing CELIKOM decoder source loss requests bounded r
     ]
   });
   assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123")));
-  assert.ok(r.evaluated.some(x=>x.includes("__celikomBridgeNativeRecoverSourceLeft?.(\\"123\\")")),
+  assert.ok(r.evaluated.some(x=>x.includes('__celikomBridgeNativeRecoverSourceLeft?.("123")')),
     "only a formerly verified current CELIKOM source loss requests renderer recovery");
   assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
 });
