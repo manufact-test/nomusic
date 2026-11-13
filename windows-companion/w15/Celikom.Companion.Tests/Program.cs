@@ -68,6 +68,15 @@ try
     Test(UserFacingPlaybackHealth.Track("NATIVE_CONNECTED", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 steady track and transition-only heartbeat must not report connection loss");
+    Test(!PlaybackSourceEvidence.Verified(true, "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         !PlaybackSourceEvidence.Verified(true, "SDK_MAPPING_ACCEPTED", "approved"),
+         "W89 approved mapping and HTTP grant are not proof of audible CELIKOM source");
+    Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !PlaybackSourceEvidence.Verified(false, "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
+         !PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_SOURCE_VERIFIED", "approved"),
+         "W89 only exact current decoder proof while enabled with approved version may paint green");
     Test(UserFacingPlaybackHealth.Track("HOST_ERROR", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Error,
         "W82 explicitly reported host failure remains visible");
@@ -483,8 +492,14 @@ try
              "ACTIVE_ENTITLEMENT_TIMEOUT",
          "W72 captive-portal HTML, VPN redirect and timeout are classified safely");
     Test(EntitlementCheckRecovery.PollIntervalMs(false) == 15_000 &&
-         EntitlementCheckRecovery.PollIntervalMs(true) == 5_000,
-         "W72 extension-style recovery polling never increases normal live API traffic");
+         EntitlementCheckRecovery.PollIntervalMs(true) == 3_000,
+         "W89 suspended VPN recovery checks bounded to three seconds, healthy 15s unchanged");
+    Test(EntitlementCheckRecovery.FastRouteCheck(true, now, DateTimeOffset.MinValue) &&
+         EntitlementCheckRecovery.FastRouteCheck(false, now, now.AddSeconds(-4)) &&
+         !EntitlementCheckRecovery.FastRouteCheck(false, now, now.AddMinutes(-2)) &&
+         !EntitlementCheckRecovery.FastRouteCheck(false, now, DateTimeOffset.MinValue) &&
+         EntitlementCheckRecovery.QuickRecheckTimeout == TimeSpan.FromSeconds(3),
+         "W89 short request deadline applies only after a network route change or suspension");
     Test(!EntitlementCheckRecovery.IsTransient(new ApiFailure(401, "INVALID_SESSION")) &&
          !EntitlementCheckRecovery.IsTransient(new ApiFailure(403, "ACCESS_DENIED")) &&
          !EntitlementCheckRecovery.IsTransient(new InvalidOperationException()),
