@@ -40,6 +40,7 @@ from ci.a1_resource_package_rename import (
 )
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
+# Scoped native verification: exact signing helper is now restored, no payload allowlist broadened.
 BRANCH="experiment/android-a1-metrica-init-state-observer-arm13-20261112"
 DEST=source.DEST
 VERSION="24025542"
