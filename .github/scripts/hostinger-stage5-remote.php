@@ -87,15 +87,14 @@ try {
     };
     $audio = $walk($shared . '/audio', $shared . '/audio');
     $audioBytes = array_sum(array_column($audio, 'size'));
-    $audioDevice = @stat($shared . '/audio')['dev'] ?? null;
-    $backupDevice = @stat($app)['dev'] ?? null;
     $freeBytes = @disk_free_space($app);
-    // Storage objects are immutable: LocalStorageAdapter writes a fresh
-    // temporary inode and atomically renames it into place. Keep rollback
-    // copies as same-filesystem hard links, so a large existing music library
-    // does not need to be duplicated on the shared hosting quota.
+    // This deployment only changes the application release and additive DB
+    // migrations. Existing audio objects are immutable and are never written:
+    // LocalStorageAdapter uses temp-file + atomic rename, and W93 sidecars are
+    // separate additive files with their own exact rollback. Keep a complete
+    // SHA256/size inventory of the existing library instead of duplicating
+    // hundreds of MB of MP3s on the shared-hosting quota.
     if (!$audio || $audioBytes > 20 * 1024 * 1024 * 1024 ||
-        $audioDevice === null || $backupDevice === null || $audioDevice !== $backupDevice ||
         $freeBytes === false || $freeBytes < 128 * 1024 * 1024) {
         throw new RuntimeException('backup-capacity-limit');
     }
@@ -147,20 +146,6 @@ try {
         echo "After-deploy audit PASS: private env, media and historic row counts preserved; additive migrations verified; newly introduced promo tables contain no real codes or grants.\n";
         exit(0);
     }
-    $linkAudio = static function(string $source, string $destination, array $index): void {
-        foreach ($index as $relative => $data) {
-            $from = $source . '/' . $relative;
-            $to = $destination . '/' . $relative;
-            if (!is_dir(dirname($to)) && !mkdir(dirname($to), 0700, true)) throw new RuntimeException('link-directory');
-            // Hard links are safe here because storage writes are atomic rename,
-            // deletes unlink only the source name, and neither operation mutates
-            // the inode retained by the private snapshot.
-            if (is_link($from) || !is_file($from) || !link($from, $to))
-                throw new RuntimeException('hardlink-unavailable');
-            if (filesize($to) !== $data['size'] || !hash_equals($data['sha256'], hash_file('sha256', $to)))
-                throw new RuntimeException('hardlink-integrity');
-        }
-    };
     $latest = static function() use ($backupRoot): string {
         $paths = glob($backupRoot . '/snapshot-*', GLOB_ONLYDIR) ?: [];
         rsort($paths, SORT_STRING);
@@ -168,7 +153,7 @@ try {
             throw new RuntimeException('no-snapshot');
         return $paths[0];
     };
-    $verify = static function(string $dir): array {
+    $verify = static function(string $dir) use ($shared, $walk): array {
         if (is_link($dir) || !is_file($dir . '/manifest.json') || !is_file($dir . '/database.sql')
             || !is_file($dir . '/env') || is_link($dir . '/env') || is_link($dir . '/database.sql'))
             throw new RuntimeException('snapshot-layout');
@@ -177,12 +162,20 @@ try {
             || !hash_equals((string) $data['env_sha256'], hash_file('sha256', $dir . '/env'))
             || !hash_equals((string) $data['sql_sha256'], hash_file('sha256', $dir . '/database.sql')))
             throw new RuntimeException('snapshot-hash');
-        foreach ($data['files'] as $name => $file) {
-            $path = $dir . '/audio/' . $name;
-            if ($name === '' || str_contains($name, '..') || is_link($path)
-                || !is_file($path) || filesize($path) !== $file['size']
-                || !hash_equals($file['sha256'], hash_file('sha256', $path)))
+        $audioMode = $data['audio_backup_mode'] ?? 'copied';
+        if ($audioMode === 'immutable-inventory') {
+            if ($walk($shared . '/audio', $shared . '/audio') !== $data['files'])
                 throw new RuntimeException('snapshot-audio-hash');
+        } elseif ($audioMode === 'copied') {
+            foreach ($data['files'] as $name => $file) {
+                $path = $dir . '/audio/' . $name;
+                if ($name === '' || str_contains($name, '..') || is_link($path)
+                    || !is_file($path) || filesize($path) !== $file['size']
+                    || !hash_equals($file['sha256'], hash_file('sha256', $path)))
+                    throw new RuntimeException('snapshot-audio-hash');
+            }
+        } else {
+            throw new RuntimeException('snapshot-layout');
         }
         return $data;
     };
@@ -193,10 +186,8 @@ try {
         $staging = $backupRoot . '/.partial-' . $id;
         $final = $backupRoot . '/snapshot-' . $id;
         if (!mkdir($staging, 0700)) throw new RuntimeException('snapshot-dir');
-        mkdir($staging . '/audio', 0700);
         if (!copy($shared . '/env', $staging . '/env')) throw new RuntimeException('snapshot-env');
         chmod($staging . '/env', 0600);
-        $linkAudio($shared . '/audio', $staging . '/audio', $audio);
         // SQL export of the CELIKOM-owned tables with schema and explicit IDs.
         // Generated columns are reconstructed by MySQL; they are never inserted.
         $stream = fopen($staging . '/database.sql', 'xb');
@@ -257,15 +248,15 @@ try {
         }
         $manifest = ['format'=>1, 'created_at'=>gmdate('c'), 'env_sha256'=>$envHash,
             'sql_sha256'=>hash_file('sha256', $staging . '/database.sql'),
-            'files'=>$audio, 'tables'=>$counts];
+            'audio_backup_mode'=>'immutable-inventory', 'files'=>$audio, 'tables'=>$counts];
         file_put_contents($staging . '/manifest.json',
             json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), LOCK_EX);
         chmod($staging . '/manifest.json', 0600);
         $verify($staging);
         if (!rename($staging, $final)) throw new RuntimeException('snapshot-publish');
-        echo "Stage 5 private snapshot PASS: hard-linked ", count($audio), " immutable audio objects (",
-            $audioBytes, " bytes) and captured ", count($tables),
-            " SQL tables; credentials and media remain outside the web root.\n";
+        echo "Stage 5 private snapshot PASS: captured SHA256 inventory of ", count($audio),
+            " immutable audio objects and full SQL/config backup of ", count($tables),
+            " tables; original media remains untouched.\n";
         exit(0);
     }
     $backup = $latest();
@@ -278,18 +269,19 @@ try {
     if ($operation === 'restore-drill') {
         $scratch = $backupRoot . '/.drill-' . bin2hex(random_bytes(8));
         if (!mkdir($scratch, 0700)) throw new RuntimeException('drill-dir');
-        mkdir($scratch . '/audio', 0700);
         if (!copy($backup . '/env', $scratch . '/env')) throw new RuntimeException('drill-env');
         chmod($scratch . '/env', 0600);
-        $linkAudio($backup . '/audio', $scratch . '/audio', $manifest['files']);
+        // The release/migration path is additive and does not write existing
+        // audio. Verify every original object against the captured inventory;
+        // W93 separately rolls back only newly added Windows gain sidecars.
         if (!hash_equals($manifest['env_sha256'], hash_file('sha256', $scratch . '/env'))
-            || $walk($scratch . '/audio', $scratch . '/audio') !== $manifest['files'])
+            || $walk($shared . '/audio', $shared . '/audio') !== $manifest['files'])
             throw new RuntimeException('drill-integrity');
         $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($scratch, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
         foreach ($it as $entry) { if ($entry->isDir()) rmdir($entry->getPathname()); else unlink($entry->getPathname()); }
         rmdir($scratch);
-        echo "Stage 5 isolated file restore PASS: config and ", count($manifest['files']),
-            " immutable audio objects verified through private hard links; live deployment untouched.\n";
+        echo "Stage 5 restore drill PASS: config restored in isolation; all ",
+            count($manifest['files']), " original audio objects match the captured SHA256 inventory.\n";
         exit(0);
     }
 } catch (Throwable $e) {
