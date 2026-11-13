@@ -285,8 +285,12 @@ try {
         exit(0);
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, "Stage 5 operation failed safely (" .
-        (in_array($e->getMessage(), ['no-snapshot', 'backup-capacity-limit', 'flags', 'layout'], true)
-            ? $e->getMessage() : 'integrity-or-precondition-check') . "). No private data logged.\n");
+    // All intentional guard failures use short internal codes. Expose only
+    // those codes for CI diagnosis; never echo exception details, SQL, paths,
+    // credentials, email addresses or user data into public Actions logs.
+    $message = $e->getMessage();
+    $safeCode = preg_match('/^[a-z0-9-]{1,64}$/D', $message)
+        ? $message : 'integrity-or-precondition-check';
+    fwrite(STDERR, "Stage 5 operation failed safely ($safeCode). No private data logged.\n");
     exit(1);
 }
