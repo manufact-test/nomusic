@@ -57,6 +57,8 @@ jobs:
           php -l .github/scripts/hostinger-stage7-owner-remote.php
           bash -n .github/scripts/hostinger-user-feedback-audit.sh
           php -l .github/scripts/hostinger-user-feedback-audit.php
+          php -l .github/scripts/hostinger-stage5-remote.php
+          php .github/scripts/tests/hostinger-stage5-hardlink.test.php
           bash -n .github/scripts/hostinger-admin-gain-ux-audit.sh
           php -l .github/scripts/hostinger-admin-gain-ux-audit.php
           php server/tests/deployment-env.php
