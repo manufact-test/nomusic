@@ -1,0 +1,41 @@
+name: CELIKOM Windows W96 403 verified source suppresses redundant reload (NO RELEASE)
+on:
+  push:
+    branches:
+      - experiment/windows-w96-403-decoder-proof-reload-guard-20261113
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w22/**
+      - windows-companion/w23/**
+      - .github/workflows/windows-w96-403-decoder-confirmed-guard.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-playback-regression:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build original Yandex renderer
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W94_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W94_BUILD_FAILED' }
+      - name: Verified-decoder source suppresses redundant 403 reload, original fallback, pause, seek
+        run: node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+      - name: Entitlement, Stop, last-route VPN debounce, gain contract tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Windows compiler warning-free
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
