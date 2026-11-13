@@ -55,3 +55,37 @@ Repo `manufact-test/nomusic`. Work branch `experiment/windows-w89-vpn-fast-recov
 - Windows in-place CI **`W89_02432_TO_02433_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS`**: old verified W88 installer SHA checked, session.dpapi preserved, encrypted sign-in decrypts; installer replaces host.cjs and renderer.js with W89 assets (as expected), original vendor Yandex file tree NOT touched by installer itself, AppId unchanged.
 - No remote deployment. **Owner Windows field QA not yet performed**. Reboot/autostart remains inherited; on first 0.24.33 Start may safely refresh native module 0.24.25→0.24.26. Do not assert audible source or <N-second VPN reconnect from CI alone. User still needs real playback of «Ты» and VPN changes.
 - Existing W88 0.24.32 rollback preserved in Library / backup.
+
+
+## STOP-WORK / OWNER HANDOFF ADDENDUM — 2026-11-13: NEW Big City Life VOLUME DROP
+
+**Owner explicitly asked to stop development in this chat, save everything, and transfer all unfinished issues to the next leading developer.** This addendum is documentation-only. No further code edits, release changes, or installation on the owner's machine are authorized by this handoff.
+
+### Third separately reproducible user-reported audio defect — Big City Life
+
+- User's song name: **Big City Life**, performer as named by user **«трио Гутрика»** (preserve wording; check exact track ID later, do not invent an artist identity).
+- While playing the **CELIKOM alternative version**, sound **suddenly becomes roughly half as loud**, without user intervention or a visible track failure. According to owner the **alternative keeps playing**, but its output stays low and **does not recover**.
+- The CELIKOM **admin panel still shows track-specific volume amplification**, and the **admin preview plays correctly, at the intended louder volume**. On Windows/Yandex playback, the volume drops and stays low.
+- **Not proven** whether the server's gain value changed, an encoded/alternate stream switched, normalization/gain got applied differently in the Yandex player, or Windows audio session changed. No timestamp/diagnostic associated with this volume incident has yet been provided, so do not invent one. Do not automatically equate a half-volume perception with a -6 dB technical measurement. Preserve server-side amp, cached audio/gain metadata, range streaming and Yandex original gain/normalization for inspection.
+- **Issue #54** https://github.com/manufact-test/nomusic/issues/54 created with full evidence and next checks.
+- Reconcile admin preview and actual served signed stream byte provenance / gain pipeline before touching live media. A client-side playback-time gain fix could conflict with Yandex normalization, clipping, crossfade, and route-change. Do not blanket amplify all songs.
+
+### ALL unfinished issues — explicit priority order for next chat
+
+1. **VPN switch: 40–50s reauthorization/outage**. 0.24.32 owner diagnostics show first `LOCAL_HTTP_TIMEOUT` at 12:26:29 UTC, entitlement suspends 12:26:44, route changed signal 12:26:58, repeated GET timeouts until 12:27:28, connection recovered about 12:27:29. W89 0.24.33 implements route-aware cancellation, short fresh authenticated GET and 3s retry cadence; Windows CI green, **real VPN test on owner's PC not yet done**. Never bypass entitlement on offline/VPN.
+2. **«Ты» by тринадцать карат: false CELIKOM green, actual original audio**. Owner screenshot & diagnostics (current `track=89285816`) show mapping `SOURCE_BATCH_MAPPED`, but no confirming CELIKOM player Media GET in ~34 s. W89 changes UI green only for independent current CDP decoder `kUrl` source evidence; mapped state neutral. W89 includes bounded one-shot current-source reload when signed CELIKOM media was never fetched. **Still unverified audibly**; do not call fixed until owner hears alternative. Issue #52 proof remains open.
+3. **Big City Life (user: «трио Гутрика»): CELIKOM alternative becomes ~2× quieter suddenly; admin configured enhancement and admin preview still normal**. **New/uninvestigated, #54**. Find exact audio/normalization/gain divergence and why it persists, preserve clip/headroom, compare served files and playback normalization.
+4. **Abrupt hiss/pop on the first drop**. Older 0.24.32 diagnostics show an expired signed URL→HTTP403, fresh signed HTTP206 within ~0.5 s, but sound may have popped loudly. No direct noise waveform diagnosis or safe fix yet. Preserve no-hard-cut/crossfade behavior; don't assert root cause from 403 alone.
+5. **Brave/Windows global freezes or lag while CELIKOM + Yandex active**; fine when both closed. Owner earlier reported a vague extra-rights prompt in Yandex. Issue #53. Exact prompt not captured. Don't declare malware, don't request admin, and no unverified resource optimizations. Native observer CDP pre-exists W88; no more blind rewrites.
+6. **Decoder source evidence remains not comprehensive**. #52 open: `PlayerAudibleEventObserved=false`, `NativeMediaUrlExactMatchObserved=false` in older diagnostics; signed HTTP 206 and mapping do not prove audible replacement.
+
+### Build, release and branch state at handoff
+
+- Latest built/tested **Windows TEST 0.24.33**, native 0.24.26. Windows CI **SUCCESS**, run https://github.com/manufact-test/nomusic/actions/runs/43429303326, artifact `14039475715`.
+- Installer exe SHA256 `414EDBA856A12B25CB3EDE26D136C7F263CFC02FC3448730C7F7D02D60791879`, **43,550,095 bytes**. ZIP SHA256 `FEEEC0E1086D69D2318966F2E893F3C2F99B37BA2E9190F8B234F08C9E23F9A4`.
+- Already stored both files in Library:
+  `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.33-VPN-TRACK-TEST.exe`
+  `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.33-VPN-TRACK-TEST.zip`
+- **Important:** 0.24.33 is CI-tested but **has not passed the owner's real playback/VPN/volume test**, and should not be presented as stable production. The owner is on/testing **0.24.32**, based on latest supplied logs. Do not assert 0.24.33 has been installed.
+- Current branch `experiment/windows-w89-vpn-fast-recovery-audio-proof-20261113`; exact pre-handoff code commit **`6916c0229861aaa6f2486224f3e62092b343698e`**. Code backup `backup/windows-w89-02433-ci-green-owner-handoff-before-volume-20261113` pinned to same SHA. Previous **0.24.32 W88** rollback `backup/windows-w89-before-vpn-recovery-audio-proof-20261113` @ `3ebded59b4bf596d54b1b5b29edfe16683ad45a0`.
+- No code changed during this addendum; docs and issue #54 only. Next chat should start from GitHub branch and these documents, work in large independently validated blocks, preserve old exact versions, and deliver a new installer only when tested. Do not automatically modify production/Yandex or owner's PC.
