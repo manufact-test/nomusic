@@ -104,15 +104,24 @@ def _explicit_sdk_illegal_state(code,dex):
                 return True
     return False
 
-def inspect(xapk,private_java=None):
+def inspect(xapk,private_java=None,provider_java=None):
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
         os.getenv("GITHUB_REF_NAME")!=BRANCH):
         raise Closed("CI_ISOLATION")
     targets=[]
     service_private=[]
+    provider_impl_private=[]
     for blob in _verified_xapk(xapk):
         dex=Dex(blob)
+        # Concrete implementation of exactly one already source-confirmed
+        # getPushServiceController() interface dispatch. Private methods only.
+        for mid,code in dex.code_methods():
+            owner,name=dex.method(mid)
+            if (owner.endswith("/FirebasePushServiceControllerProvider;") and
+                name=="getPushServiceController" and
+                private_java_parameter_signature(dex,mid)==""):
+                provider_impl_private.append((owner,name))
         strings=dex.possible_error_strings()
         if not strings:continue
         # Per-DEX method declaration lookup, not a global scan of dependencies.
@@ -254,6 +263,8 @@ def inspect(xapk,private_java=None):
         return {"exact_method":"AMBIGUOUS_OR_ABSENT",
                 "source_permission_link":"UNKNOWN",
                 "runtime_throw_site_proven":False}
+    targets[0]["provider_concrete_source_decl_count_bounded"]=min(len(provider_impl_private),8)
+    targets[0]["provider_concrete_source_class_unique"]=len(provider_impl_private)==1
     if private_java is not None:
         root=Path(os.environ.get("GITHUB_WORKSPACE","/unavailable")).resolve()
         dest=Path(private_java).resolve()
@@ -275,15 +286,34 @@ def inspect(xapk,private_java=None):
             +json.dumps(class_name)+","+json.dumps(method)+","
             +json.dumps("android.content.Context")+"}; }\n"
             "}\n",encoding="utf-8")
+    if provider_java is not None:
+        root=Path(os.environ.get("GITHUB_WORKSPACE","/unavailable")).resolve()
+        dest=Path(provider_java).resolve()
+        if (dest.name!="PrivatePostTrueProviderTarget.java" or
+            root not in dest.parents or len(provider_impl_private)!=1):
+            raise Closed("PRIVATE_PROVIDER_SOURCE_BOUND")
+        owner,method=provider_impl_private[0]
+        class_name=owner[1:-1].replace("/",".") if owner.startswith("L") and owner.endswith(";") else ""
+        if (not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$.]*",class_name) or
+            method!="getPushServiceController"):
+            raise Closed("PRIVATE_PROVIDER_TOKEN_INVALID")
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        dest.write_text(
+            "package pro.celikom.a1exitwitness;\\n"
+            "public final class PrivatePostTrueProviderTarget {\\n"
+            "  public static String[] exact() { return new String[] {"
+            +json.dumps(class_name)+","+json.dumps(method)+"}; }\\n"
+            "}\\n",encoding="utf-8")
     return targets[0]
 
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--xapk",required=True,type=Path)
     ap.add_argument("--private-java",type=Path)
+    ap.add_argument("--provider-java",type=Path)
     args=ap.parse_args()
     try:
-        out=inspect(args.xapk,args.private_java)
+        out=inspect(args.xapk,args.private_java,args.provider_java)
         print("PERMISSION_CATCH_CHECK "+json.dumps(out,sort_keys=True))
         return 0 if out["exact_method"]=="ONE" else 2
     except (Closed,FlowDecodeError,ValueError,IndexError,struct.error,OSError):
