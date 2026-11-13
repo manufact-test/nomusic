@@ -572,6 +572,61 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
   assert.ok(commands.every(([name])=>name!=="Media.getResponseBody" && name!=="Runtime.evaluate"));
 });
 
+test("W92 passive same-current decoder source and volume change witness",async()=>{
+  const grant=w52Grant("139","123");
+  const {debug,commands}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Big City synthetic",artist:"Artist",durationMs:190000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"current-a",properties:[
+      {name:"kUrl",value:grant.audioUrl},{name:"kIsPlaying",value:"true"},
+      {name:"kVolume",value:"1.0"}]
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"current-a",properties:[{name:"kVolume",value:"0.5"}]
+  });
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123")));
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"current-a",properties:[{name:"kUrl",value:"https://music.yandex.ru/original"}]
+  });
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123")));
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+  assert.ok(commands.every(([name])=>name!=="Runtime.evaluate"&&name!=="Media.getResponseBody"),
+    "passive observations cannot control native Yandex playback");
+});
+
+test("W92 avoids prefetched and paused volume false positives and sleep stalls",async()=>{
+  let now=Date.now();
+  class SampleClock extends Date { static now(){return now;} }
+  const grant=w52Grant("139","123");
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,clock:SampleClock,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"999",title:"Other",artist:"Artist",durationMs:190000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"foreign",properties:[{name:"kUrl",value:grant.audioUrl},
+      {name:"kIsPlaying",value:"true"},{name:"kVolume",value:"1"}]
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"foreign",properties:[{name:"kVolume",value:"0.1"}]
+  });
+  assert.ok(!r.diagnostics.some(x=>x.includes("PLAYER_CURRENT_NATIVE_VOLUME_DROP")));
+  now+=6000;
+  r.pulse();
+  assert.ok(r.diagnostics.some(x=>x.includes("NATIVE_ELECTRON_EVENT_LOOP_STALL")));
+  const before=r.diagnostics.filter(x=>x.includes("NATIVE_ELECTRON_EVENT_LOOP_STALL")).length;
+  now+=7200000; // PC sleep should not look like an event-loop stall
+  r.pulse();
+  assert.equal(r.diagnostics.filter(x=>x.includes("NATIVE_ELECTRON_EVENT_LOOP_STALL")).length,before);
+});
+
 test("W84 prefetched player for a different Yandex track is NOT counted as current", async () => {
   const grant = w52Grant("139","123");
   const {debug} = w52Debugger();

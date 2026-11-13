@@ -79,6 +79,8 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   // Passive current-player evidence: never logs URL/tokens.
   "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED",
   "PLAYER_DECODER_CELIKOM_PIPELINE_ERROR",
+  "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", "PLAYER_CURRENT_NATIVE_VOLUME_DROP",
+  "NATIVE_ELECTRON_EVENT_LOOP_STALL", "NATIVE_ELECTRON_MEMORY_HIGH",
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
   "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
   "PLAYER_URL_SIGNED_FIELDS_INTACT",
@@ -504,10 +506,13 @@ function observeNativePlayback(view) {
     if (!decoderPlayers.has(id) && decoderPlayers.size >= 32)
       decoderPlayers.delete(decoderPlayers.keys().next().value);
     const prev = decoderPlayers.get(id) || {
-      playing:false, sourceTrackId:null, evidenceReportedFor:null
+      playing:false, sourceTrackId:null, evidenceReportedFor:null,
+      lastVolume:null, volumeTrackId:null
     };
     for (const prop of params.properties.slice(0, 30)) {
       if (prop?.name === "kUrl") {
+        const wasCurrentCelikom = prev.playing && !!prev.sourceTrackId &&
+          prev.sourceTrackId === lastStatus.get(view)?.trackId;
         prev.sourceTrackId = null;
         prev.evidenceReportedFor = null;
         verifiedDecoderSource.delete(view);
@@ -526,10 +531,31 @@ function observeNativePlayback(view) {
                classification === "PLAYER_URL_SIGNED_FIELDS_INTACT"))
             prev.sourceTrackId = expected.yandexTrackId;
         } catch { /* Unknown native URL: no source evidence. */ }
+        if (wasCurrentCelikom && !prev.sourceTrackId)
+          note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", lastStatus.get(view)?.trackId);
+      } else if (prop?.name === "kVolume") {
+        // Optional CDP property, not all Electron builds expose it. Only
+        // track a real signed-current decoder, never log values or URLs.
+        const currentId = lastStatus.get(view)?.trackId;
+        const value = prop.value;
+        const volume = typeof value === "string" &&
+          /^(?:0(?:\\.\\d{1,6})?|1(?:\\.0{1,6})?)$/.test(value)
+          ? Number(value) : null;
+        if (volume !== null && currentId && prev.playing &&
+            prev.sourceTrackId === currentId) {
+          if (prev.volumeTrackId === currentId &&
+              Number.isFinite(prev.lastVolume) &&
+              volume < prev.lastVolume - 0.15)
+            note("PLAYER_CURRENT_NATIVE_VOLUME_DROP", currentId);
+          prev.volumeTrackId = currentId;
+          prev.lastVolume = volume;
+        }
       } else if (prop?.name === "kIsPlaying") {
         prev.playing = prop.value === "true";
         if (!prev.playing) {
           prev.evidenceReportedFor = null;
+          prev.lastVolume = null;
+          prev.volumeTrackId = null;
           verifiedDecoderSource.delete(view);
         }
       }
@@ -757,7 +783,27 @@ app.on("web-contents-created", (_event, view) => {
     if (msg === "[CELIKOM] Native bridge state received") note("RENDERER_BRIDGE_STATE_SEEN");
   });
 });
+let lastHostPulseAt = Date.now();
+let lastResourceSampleAt = Date.now();
 const timer = setInterval(() => {
+  const now = Date.now();
+  const elapsed = now - lastHostPulseAt;
+  // A small, read-only heartbeat for #53. No process names, stats,
+  // account identifiers, privileged APIs or raw values enter diagnostics.
+  // Ignore sleep/resume gaps; this is NOT proof of a whole-PC slowdown.
+  if (elapsed > 4000 && elapsed < 60000)
+    note("NATIVE_ELECTRON_EVENT_LOOP_STALL");
+  lastHostPulseAt = now;
+  if (now - lastResourceSampleAt >= 30000) {
+    lastResourceSampleAt = now;
+    try {
+      const memory = typeof process.memoryUsage === "function"
+        ? process.memoryUsage() : null;
+      if (memory && Number.isFinite(memory.rss) &&
+          memory.rss > 700 * 1024 * 1024)
+        note("NATIVE_ELECTRON_MEMORY_HIGH");
+    } catch {}
+  }
   const views = webContents.getAllWebContents();
   if (views.length) note("WEB_CONTENTS_PRESENT");
   for (const view of views) void tick(view);
