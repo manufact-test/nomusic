@@ -64,6 +64,12 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
     private boolean diagnosticUiReady;
+    private final java.util.concurrent.atomic.AtomicInteger activityPhasesLogged =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger activityFinishesLogged =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger activityStartsLogged =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean armed;
     private boolean exitCtorHooked;
     private boolean exitRunHooked;
@@ -183,6 +189,13 @@ public final class ExitCallsiteWitness extends XposedModule {
             new Class<?>[] {int.class}, "PROCESS_KILL") ? 1 : 0;
         count += hookApplicationAttach() ? 1 : 0;
         count += observeApplicationOnCreate() ? 1 : 0;
+        count += observeOwnActivityFinish("finish") ? 1 : 0;
+        count += observeOwnActivityFinish("finishAffinity") ? 1 : 0;
+        count += observeOwnActivityFinish("finishAfterTransition") ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivity",
+            new Class<?>[]{Intent.class}) ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivityForResult",
+            new Class<?>[]{Intent.class,int.class,Bundle.class}) ? 1 : 0;
         count += observeHi2IllegalStateConstructor() ? 1 : 0;
         count += observeFatalDispatches();
         // Arms only tell us that a hook was registered, not that it ran.
@@ -2167,19 +2180,144 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (diagnosticUiReady) return;
         try {
             app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-                @Override public void onActivityCreated(Activity activity, Bundle state) { }
-                @Override public void onActivityStarted(Activity activity) { }
+                @Override public void onActivityCreated(Activity activity, Bundle state) {
+                    logActivityPhase(activity,"CREATED");
+                }
+                @Override public void onActivityStarted(Activity activity) {
+                    logActivityPhase(activity,"STARTED");
+                }
                 @Override public void onActivityResumed(Activity activity) {
+                    logActivityPhase(activity,"RESUMED");
                     attachDiagnosticExportButton(activity);
                 }
-                @Override public void onActivityPaused(Activity activity) { }
-                @Override public void onActivityStopped(Activity activity) { }
-                @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) { }
-                @Override public void onActivityDestroyed(Activity activity) { }
+                @Override public void onActivityPaused(Activity activity) {
+                    logActivityPhase(activity,"PAUSED");
+                }
+                @Override public void onActivityStopped(Activity activity) {
+                    logActivityPhase(activity,"STOPPED");
+                }
+                @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {
+                    logActivityPhase(activity,"SAVE_STATE");
+                }
+                @Override public void onActivityDestroyed(Activity activity) {
+                    try {
+                        logActivityPhase(activity,
+                            activity != null && activity.isFinishing()
+                                ? "DESTROYED_FINISHING":"DESTROYED_OTHER");
+                    } catch (Throwable ignored) { }
+                }
             });
             diagnosticUiReady = true;
         } catch (Throwable ignored) {
             emit("DIAGNOSTIC_UI", "ACTIVITY_CALLBACKS", "NO_HOOK");
+        }
+    }
+
+    /**
+     * Narrow, clone-only navigation witness, enabled by owner-device evidence
+     * showing a single process session and no fatal dispatch. We observe
+     * framework navigation and activity lifecycle phases without changing
+     * intents, URLs, authentication, results or the app's exit behavior.
+     */
+    private static String activityFamily(Activity activity) {
+        if (activity == null) return "UNKNOWN_ACTIVITY";
+        try {
+            String name = activity.getClass().getName();
+            if ("ru.yandex.music.main.MainScreenActivity".equals(name))
+                return "MAIN_ACTIVITY";
+            if (name.startsWith("ru.yandex.") || name.startsWith("com.yandex."))
+                return "VENDOR_ACTIVITY";
+            return "OTHER_ACTIVITY";
+        } catch (Throwable ignored) {
+            return "UNKNOWN_ACTIVITY";
+        }
+    }
+
+    private static String intentActionCategory(Intent intent) {
+        if (intent == null) return "NULL";
+        try {
+            String action = intent.getAction();
+            if (action == null) return "NONE";
+            if (Intent.ACTION_VIEW.equals(action)) return "VIEW";
+            if (Intent.ACTION_MAIN.equals(action)) return "MAIN";
+            if (Intent.ACTION_SEND.equals(action)) return "SEND";
+            if (Intent.ACTION_GET_CONTENT.equals(action)) return "GET_CONTENT";
+            if (Intent.ACTION_CHOOSER.equals(action)) return "CHOOSER";
+            return "OTHER";
+        } catch (Throwable ignored) { return "UNKNOWN"; }
+    }
+
+    private static String intentDestinationCategory(Intent intent) {
+        if (intent == null) return "NULL";
+        try {
+            ComponentName component = intent.getComponent();
+            String target = component != null ? component.getPackageName() : intent.getPackage();
+            if (target == null) return "IMPLICIT";
+            if (PACKAGE.equals(target)) return "OWN";
+            if ("ru.yandex.music".equals(target)) return "PUBLISHER";
+            return "EXTERNAL";
+        } catch (Throwable ignored) { return "UNKNOWN"; }
+    }
+
+    private void logActivityPhase(Activity activity, String phase) {
+        try {
+            if (activity == null || !PACKAGE.equals(activity.getPackageName())) return;
+            if (activityPhasesLogged.incrementAndGet() <= 96)
+                emit("ACTIVITY_PHASE", activityFamily(activity), phase);
+        } catch (Throwable ignored) { }
+    }
+
+    private boolean observeOwnActivityFinish(String methodName) {
+        try {
+            Method method = Activity.class.getDeclaredMethod(methodName);
+            method.setAccessible(true);
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        Object receiver = chain.getThisObject();
+                        if (receiver instanceof Activity &&
+                                PACKAGE.equals(((Activity) receiver).getPackageName()) &&
+                                activityFinishesLogged.incrementAndGet() <= 24) {
+                            String action = "finish".equals(methodName) ? "FINISH"
+                                : "finishAffinity".equals(methodName) ? "FINISH_AFFINITY"
+                                : "FINISH_AFTER_TRANSITION";
+                            emit("ACTIVITY_FINISH", activityFamily((Activity) receiver), action);
+                        }
+                    } catch (Throwable ignored) { }
+                    return chain.proceed();
+                });
+            emit("ACTIVITY_FINISH_HOOK","ANDROID", "REGISTERED");
+            return true;
+        } catch (Throwable ignored) {
+            emit("ACTIVITY_FINISH_HOOK","ANDROID", "NO_HOOK");
+            return false;
+        }
+    }
+
+    private boolean observeOwnActivityLaunch(String methodName, Class<?>[] args) {
+        try {
+            Method method = Activity.class.getDeclaredMethod(methodName,args);
+            method.setAccessible(true);
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        Object receiver = chain.getThisObject();
+                        if (receiver instanceof Activity &&
+                                PACKAGE.equals(((Activity) receiver).getPackageName()) &&
+                                activityStartsLogged.incrementAndGet() <= 48) {
+                            Object raw = chain.getArg(0);
+                            Intent intent = raw instanceof Intent ? (Intent) raw : null;
+                            emit("ACTIVITY_START", intentActionCategory(intent),
+                                intentDestinationCategory(intent));
+                        }
+                    } catch (Throwable ignored) { }
+                    return chain.proceed();
+                });
+            emit("ACTIVITY_START_HOOK","ANDROID","REGISTERED");
+            return true;
+        } catch (Throwable ignored) {
+            emit("ACTIVITY_START_HOOK","ANDROID","NO_HOOK");
+            return false;
         }
     }
 

@@ -53,3 +53,10 @@ If the button is absent or saving fails, do not reinstall or clear data. Tell us
 5. Re-run the four intro pages, then verify login. Only after that return to actual MediaDataSource/MediaExtractor playback observation and B42 integration.
 
 No second player. No architecture change. Do not claim audio or full app acceptance from idle 25/25 startup tests.
+
+
+## Owner on-device TXT received — targeted navigation follow-up
+
+The owner uploaded `CELIKOM-A1-Diagnostics-1794587810900.txt` (300 lines). It includes exactly one `PREVIOUS_EXIT_INFO=NONE` and one `APP_LIFECYCLE APPLICATION ENTER/RETURN`; successful AppMetrica activate, service, Push provider return and resource path OUTER_OWN; no `FATAL_DISPATCH`, `UNCAUGHT`, `SYSTEM_EXIT`, `RUNTIME_EXIT` or `PROCESS_KILL`. Last line is `DIAGNOSTIC_EXPORT DOWNLOADS REQUESTED`. This establishes the private on-device file export path works and provides **no observed Java/process fatal**. It does not prove that the onboarding action was captured or successful; no Activity navigation witness existed in this build. The single app init is consistent with an Activity/task finish while process survives, but is NOT conclusive.
+
+Implementation follow-up: narrowed diagnostic instrumentation to log bounded clone-only `ACTIVITY_PHASE` (CREATED/STARTED/RESUMED/PAUSED/STOPPED/DESTROYED_FINISHING/DESTROYED_OTHER), exact framework `ACTIVITY_FINISH` categories, and `ACTIVITY_START` with finite Intent action/destination categories. Never record screen names (except general MAIN vs VENDOR vs OTHER), URLs, arguments, auth data or raw class names. All original method calls proceed unchanged. No B42/audio changes. Run paired native ARM13 and standalone validation again before offering another diagnostic APK.
