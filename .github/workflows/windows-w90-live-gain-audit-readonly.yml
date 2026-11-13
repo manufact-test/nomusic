@@ -75,6 +75,11 @@ jobs:
               WHERE r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL
                 AND r.gain_db <> 0 LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
 
+            $allEdits = $pdo->query("SELECT entity_id, before_json, after_json
+              FROM audit_log WHERE action = 'replacement_gain_update' ORDER BY id ASC LIMIT 30")->fetchAll(PDO::FETCH_ASSOC);
+            $nonzeroVersions = $pdo->query("SELECT t.service_track_id, t.title, t.artist, r.status, r.is_active, r.gain_db
+              FROM track_replacements r JOIN tracks t ON t.id = r.track_id
+              WHERE r.gain_db <> 0 ORDER BY r.id LIMIT 20")->fetchAll(PDO::FETCH_ASSOC);
             $pdo->rollBack();
             $summary = array_map(static fn($v) => (int)$v, $data);
             if ($summary['active_versions'] !==
@@ -84,6 +89,8 @@ jobs:
             echo 'W90_HISTORY_COUNTS ' . json_encode($historic, JSON_THROW_ON_ERROR) . "\n";
             echo 'W90_GAIN_EDITS ' . json_encode($history, JSON_THROW_ON_ERROR) . "\n";
             echo 'W90_ACTIVE_NONZERO ' . json_encode($nonzero, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+            echo 'W92_GAIN_EDIT_HISTORY ' . json_encode($allEdits, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W92_ALL_NONZERO_VERSIONS ' . json_encode($nonzeroVersions, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
             echo 'W90_NO_MEDIA_DATA_EXPORTED_NO_DB_WRITE\n';
           } catch (Throwable $error) {
             fwrite(STDERR, 'W90_READONLY_AUDIT_FAILURE ' . get_class($error) . "\n");
