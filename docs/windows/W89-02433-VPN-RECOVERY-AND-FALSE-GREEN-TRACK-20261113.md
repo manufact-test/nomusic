@@ -89,3 +89,14 @@ Repo `manufact-test/nomusic`. Work branch `experiment/windows-w89-vpn-fast-recov
 - **Important:** 0.24.33 is CI-tested but **has not passed the owner's real playback/VPN/volume test**, and should not be presented as stable production. The owner is on/testing **0.24.32**, based on latest supplied logs. Do not assert 0.24.33 has been installed.
 - Current branch `experiment/windows-w89-vpn-fast-recovery-audio-proof-20261113`; exact pre-handoff code commit **`6916c0229861aaa6f2486224f3e62092b343698e`**. Code backup `backup/windows-w89-02433-ci-green-owner-handoff-before-volume-20261113` pinned to same SHA. Previous **0.24.32 W88** rollback `backup/windows-w89-before-vpn-recovery-audio-proof-20261113` @ `3ebded59b4bf596d54b1b5b29edfe16683ad45a0`.
 - No code changed during this addendum; docs and issue #54 only. Next chat should start from GitHub branch and these documents, work in large independently validated blocks, preserve old exact versions, and deliver a new installer only when tested. Do not automatically modify production/Yandex or owner's PC.
+
+
+## W97 STOP-WORK / OWNER HANDOFF ADDENDUM — 2026-11-13 (LATEST OWNER INSTRUCTION)
+
+This later owner instruction supersedes the earlier W89 STOP-WORK scope: the current chat must stop after saving documentation, and the **next leading chat is explicitly asked to continue development** and finish a single complete integrated TEST installer. The owner does not want another intermediate build or a request to test 0.24.34 for admin gain; the gain sidecar is not live on production yet.
+
+New distinct issue **#58**: while «Моя волна» / original songs with no active replacement were playing, VPN switch caused interruption and audible «пшик». CELIKOM must be transparent to an original decoder; inspect route/entitlement → bridge state → W23 host → W22 adapter → Yandex decoder. This is separate from #57 403 recovery hiss, #54 Big City Life sudden mid-track volume drop, and #56 missing admin gain parity. Full evidence and acceptance: https://github.com/manufact-test/nomusic/issues/58.
+
+**Required final outcome:** one complete TEST build with real Windows gain_db sidecars active for all eligible active nonzero-gain tracks, safe production migration/rollback and signed Range proof; fix/test #58; retain VPN fast server recheck, «Ты» source proof, Big City Life dip, 403 hiss, Brave diagnostics and all playback/install/session safety. Do not send partial installers. Full instructions and first message are in `docs/windows/W97-FINAL-READY-RELEASE-HANDOFF-20261113.md`.
+
+Current W95 0.24.34 is CI-green but not owner-field-tested and cannot validate gain. Existing exact W95/W89/W88 rollback branches remain untouched. No installation on owner's PC. This addendum changes documentation only.
