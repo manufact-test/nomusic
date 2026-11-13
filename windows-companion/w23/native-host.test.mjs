@@ -225,7 +225,7 @@ test("W48 passive Media CDP reports player error and fixed events without sensit
   assert.ok(sent.some(x=>x.name==="Media.enable"));
   const networkEnable=sent.find(x=>x.name==="Network.enable");
   assert.ok(networkEnable);
-  assert.deepEqual(networkEnable.params,{
+  assert.deepEqual(JSON.parse(JSON.stringify(networkEnable.params)),{
     maxTotalBufferSize:2*1024*1024,
     maxResourceBufferSize:128*1024,
     maxPostDataSize:0

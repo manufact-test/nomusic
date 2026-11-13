@@ -8,6 +8,8 @@ on:
       - windows-companion/**
       - scripts/windows-gain-render.sh
       - server/**
+      - .github/scripts/**
+      - .github/deploy/**
       - .github/workflows/windows-w98-integration-ci.yml
   workflow_dispatch:
 
