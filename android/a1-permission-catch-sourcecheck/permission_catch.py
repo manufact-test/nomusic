@@ -163,6 +163,18 @@ def inspect(xapk):
                     candidates_codes.append(defined[signature])
             direct_auth=sum((lambda o,n:n in AUTH_NAMES and o in AUTH_OWNERS)(
                     *dex.method(callee)) for callee in candidates)
+            # ONE hypothesis tied to AppMetrica's published PushCore.init:
+            # does PushServiceFacade.initPushService occur on the exact live
+            # TRUE-normal + catch-covered DEX path? Exact source only.
+            def push_service_target(mid):
+                owner,name=dex.method(mid)
+                return owner.endswith("/PushServiceFacade;") and name=="initPushService"
+            service_direct=[mid for mid in candidates if push_service_target(mid)]
+            service_onehop=[mid for mid in candidates
+                if dex.method_signature(mid) in defined
+                and any(push_service_target(other)
+                    for _,other in _method_refs(
+                      defined[dex.method_signature(mid)],dex))]
             iae_direct_methods=[callee for callee in candidates
                 if dex.method_signature(callee) in defined
                 and _explicit_iae_throw(
@@ -183,7 +195,11 @@ def inspect(xapk):
                 "direct_permission_or_signature_api_bounded":min(direct_auth,16),
                 "one_hop_permission_or_signature_api_bounded":min(onehop_auth,16),
                 "one_hop_known_permission_literal_bounded":min(onehop_literal,16),
-                "exact_candidate_callees_with_ISE_direct_throw_bounded":min(len(ise_direct_methods),16),
+                "push_service_init_direct_on_true_catch_bounded":min(len(service_direct),8),
+                "push_service_init_onehop_on_true_catch_bounded":min(len(service_onehop),8),
+                "push_service_hypothesis":("DIRECT" if len(service_direct)==1 else
+                    "ONE_HOP" if len(service_onehop)==1 else "NOT_ESTABLISHED"),
+                                "exact_candidate_callees_with_ISE_direct_throw_bounded":min(len(ise_direct_methods),16),
                 "ISE_source_candidate":("ONE" if len(ise_direct_methods)==1 else
                                         "NONE" if not ise_direct_methods else "MULTIPLE"),
                 "ISE_source_candidate_group":(
