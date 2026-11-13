@@ -36,3 +36,8 @@ Work only in repo `manufact-test/nomusic`, branch `experiment/android-a1-metrica
 - NAV9 code `8f8e898a5934e53844bb7e383f4e74efce14753e` (NAV8 logic intact). Standalone Android13 workflow `43518864566` **SUCCESS 25/25**, paired publisher-first `43518864593` **SUCCESS 25/25** — startup/co-install only.
 - Exact NAV9 owner APK in Library: `/CELIKOM/CELIKOM-A1-NAV9-PostLogin-Route-Diagnostics-20261114.apk` (71,442,412 bytes, SHA256 `78f110eeadac9d313e2f9f2212dd0432a4dce0eac828b4defa3c9a6f2dfb8158`); owner diagnostic TXT `CELIKOM-A1-Diagnostics-1794611832074.txt`.
 - Backups: `backup/android-a1-nav8-owner-account-created-result-ok-20261114` (pre-NAV9), `backup/android-a1-nav9-postlogin-route-native-pass-library-20261114` (NAV9 before latest owner log), plus original Test.50 reference `backup/android-test50-exact-source-owner-accepted-20261108`.
+
+## Persistent owner diagnostic
+
+**RAW OWNER NAV9 TXT SAVED IN USER LIBRARY (persistent):** `/CELIKOM/CELIKOM-A1-NAV9-Owner-Diagnostics-1794611832074.txt` (library ID `libfile_87c3bf25ef808191a584f651f2875564`). This is the exact 508-line owner diagnostic underlying this handoff, no account secrets. The next developer can retrieve it from Library without asking the owner to upload it again.
+
