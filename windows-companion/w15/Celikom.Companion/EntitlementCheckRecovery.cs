@@ -34,10 +34,22 @@ public static class EntitlementCheckRecovery
         _ => "ACTIVE_ENTITLEMENT_UNKNOWN_FAILURE"
     };
 
-    // 5 seconds only while suspended for network recovery (same as extension
-    // access retry cadence); ordinary authorized playback stays at 15 seconds.
+    // On a fresh network route, don't make the listener wait for the old
+    // VPN's 9-second timeout before attempting a new signed-in GET.
+    // Calls are single-flight and read-only; never grant access offline.
+    public static readonly TimeSpan RouteWindow = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan QuickRecheckTimeout = TimeSpan.FromSeconds(3);
+
+    public static bool FastRouteCheck(bool suspendedForNetwork, DateTimeOffset now,
+        DateTimeOffset lastRouteChanged) =>
+        suspendedForNetwork ||
+        (lastRouteChanged != DateTimeOffset.MinValue &&
+         now >= lastRouteChanged && now - lastRouteChanged <= RouteWindow);
+
+    // While suspended each 3-second read-only check has a 3-second deadline;
+    // healthy playback stays on the original 15-second cadence.
     public static int PollIntervalMs(bool suspendedForNetwork) =>
-        suspendedForNetwork ? 5_000 : 15_000;
+        suspendedForNetwork ? 3_000 : 15_000;
 
     public static bool MayResume(bool pendingRecovery, bool loggedIn,
         bool nativeModuleActive, bool nativeModuleMatchesApplication,
