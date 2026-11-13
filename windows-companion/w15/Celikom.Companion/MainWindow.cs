@@ -99,6 +99,9 @@ public sealed partial class MainWindow : Form
     // positive authenticated entitlement and the user's original Start intent.
     private bool _resumeAfterNetworkFailure;
     private DateTimeOffset _lastNetworkRecheckHint;
+    private CancellationTokenSource? _compactAccessRequestCancellation;
+    private bool _networkRouteRecheckPending;
+    private int _networkRouteEpoch;
     private bool _closing;
     private bool _loggingIn;
     // Server is the authority; this periodic check only updates UI/state
@@ -427,21 +430,46 @@ public sealed partial class MainWindow : Form
         {
             BeginInvoke(new Action(() =>
             {
-                if (_closing || IsDisposed || !_resumeAfterNetworkFailure ||
-                    !_api.IsLoggedIn || _compactAccessBusy) return;
+                // Detect route changes while CELIKOM is still playing, not
+                // only AFTER the old VPN's 9s timeout suspended the bridge.
+                if (_closing || IsDisposed || !_api.IsLoggedIn ||
+                    !(_bridge.Enabled || _resumeAfterNetworkFailure)) return;
                 var now = DateTimeOffset.UtcNow;
-                if (now - _lastNetworkRecheckHint < TimeSpan.FromSeconds(3)) return;
+                if (now - _lastNetworkRecheckHint < TimeSpan.FromMilliseconds(1400)) return;
                 _lastNetworkRecheckHint = now;
+                _networkRouteRecheckPending = true;
+                var routeEpoch = ++_networkRouteEpoch;
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_ROUTE_CHANGED");
-                _ = RefreshCompactAccessAsync(force: true);
+                // Abandon a GET attached to the old VPN; a fresh server
+                // response on the new route is still mandatory.
+                _compactAccessRequestCancellation?.Cancel();
+                _ = RecheckAfterRouteSettledAsync(routeEpoch);
             }));
         }
         catch (InvalidOperationException) { } // includes disposed handle
     }
 
+    private async Task RecheckAfterRouteSettledAsync(int epoch)
+    {
+        await Task.Delay(750);
+        if (epoch != _networkRouteEpoch || _closing || IsDisposed) return;
+        if (!_api.IsLoggedIn || !(_bridge.Enabled || _resumeAfterNetworkFailure))
+        {
+            _networkRouteRecheckPending = false;
+            return;
+        }
+        if (_compactAccessBusy) return; // in-flight finally will retry
+        if (!_networkRouteRecheckPending) return;
+        _networkRouteRecheckPending = false;
+        await RefreshCompactAccessAsync(force: true);
+    }
+
     private void StopPlaybackExplicitly()
     {
         // User Stop ALWAYS overrides any automatic reconnect intent.
+        _networkRouteRecheckPending = false;
+        ++_networkRouteEpoch;
+        _compactAccessRequestCancellation?.Cancel();
         _resumeAfterNetworkFailure = false;
         ++_compactAccessGeneration; // discard a just-finished stale pulse
         ++_compactStartEpoch;
