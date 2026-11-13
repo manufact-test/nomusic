@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createAudioSourceContract, validateGrant, validateHeadResponse,
+  createAudioSourceContract, normalizeResolveGrant, validateGrant, validateHeadResponse,
   buildByteRangeHeaders, validateRangeResponse
 } from "./source-contract.mjs";
 
@@ -22,6 +22,19 @@ function grant(trackId = "123", extras = {}) {
       "&expires=" + (expiresAt / 1000) + "&sid=17", ...extras
   };
 }
+function phpResolve(trackId = "123", extras = {}) {
+  const expiresAt = NOW + 600_000;
+  return {
+    found: true, track_id: trackId, approved: true, entitled: true,
+    album_id: "77", edition_id: "studio-v1", version: 3,
+    duration_ms: 180_000, mime_type: "audio/mpeg",
+    expires_at: expiresAt / 1000,
+    audio_url: "/api/v1/audio/42?token=" + TOKEN +
+      "&expires=" + (expiresAt / 1000) + "&sid=17",
+    ...extras
+  };
+}
+
 function head(extras = {}) {
   return {
     status: 200,
@@ -47,6 +60,53 @@ async function prepared(overrides = {}) {
   result.gate.enable();
   return result;
 }
+
+test("actual PHP ResolveService snake_case response maps exactly into B42 grant", () => {
+  const normalized = normalizeResolveGrant(phpResolve(), "123", ORIGIN);
+  assert.ok(normalized);
+  assert.equal(normalized.trackId, "123");
+  assert.equal(normalized.albumId, "77");
+  assert.equal(normalized.editionId, "studio-v1");
+  assert.equal(normalized.approved, true);
+  assert.equal(normalized.entitled, true);
+  assert.equal(normalized.expiresAt, NOW + 600_000);
+  assert.equal(normalized.audioUrl, ORIGIN + "api/v1/audio/42?token=" + TOKEN +
+    "&expires=" + ((NOW + 600_000) / 1000) + "&sid=17");
+  assert.ok(validateGrant(normalized, originalTrack(), ORIGIN, NOW));
+});
+
+test("private API token is normalized as not entitled and can never select replacement", () => {
+  const normalized = normalizeResolveGrant(phpResolve("123", { entitled: false }), "123", ORIGIN);
+  assert.ok(normalized);
+  assert.equal(normalized.entitled, false);
+  assert.equal(validateGrant(normalized, originalTrack(), ORIGIN, NOW), null);
+});
+
+test("old track-only backend, partial identity and mismatched track fail closed", () => {
+  assert.equal(normalizeResolveGrant(phpResolve("123", { album_id: undefined, edition_id: undefined }),
+    "123", ORIGIN), null);
+  assert.equal(normalizeResolveGrant(phpResolve("123", { album_id: null, edition_id: "studio-v1" }),
+    "123", ORIGIN), null);
+  assert.equal(normalizeResolveGrant(phpResolve("999"), "123", ORIGIN), null);
+  const noIdentity = normalizeResolveGrant(phpResolve("123", { album_id: null, edition_id: null }),
+    "123", ORIGIN);
+  assert.ok(noIdentity);
+  assert.equal(validateGrant(noIdentity, originalTrack(), ORIGIN, NOW), null);
+});
+
+test("Resolve URL must remain on trusted HTTPS origin and use exact epoch seconds", () => {
+  assert.equal(normalizeResolveGrant(phpResolve("123", {
+    audio_url: "https://attacker.example/api/v1/audio/42?token=" + TOKEN +
+      "&expires=" + ((NOW + 600_000) / 1000) + "&sid=17"
+  }), "123", ORIGIN), null);
+  const wrongExpiry = normalizeResolveGrant(phpResolve("123", {
+    audio_url: "/api/v1/audio/42?token=" + TOKEN +
+      "&expires=" + ((NOW + 300_000) / 1000) + "&sid=17"
+  }), "123", ORIGIN);
+  assert.ok(wrongExpiry);
+  assert.equal(validateGrant(wrongExpiry, originalTrack(), ORIGIN, NOW), null);
+  assert.equal(normalizeResolveGrant(phpResolve("123"), "123", "http://api.example.test/"), null);
+});
 
 test("valid exact track/album/edition grant + HEAD selects only a source ticket", async () => {
   const { gate } = await prepared();

@@ -58,9 +58,55 @@ function normalizedTrack(raw) {
 }
 
 /**
- * Caller MUST supply an authenticated, server-entitlement-checked normalized
- * grant. Actual PHP ResolveService returns found/audio_url/duration_ms/
- * mime_type/version/expires_at; see task doc for trusted adapter mapping.
+ * Normalize the real PHP ResolveService snake_case response into the strict
+ * source contract. Relative audio URLs are resolved only against the trusted
+ * HTTPS API origin. No display metadata or inferred identity is accepted.
+ */
+export function normalizeResolveGrant(response, requestedTrackId, origin) {
+  const trackId = positiveId(requestedTrackId);
+  if (!trackId || response?.found !== true ||
+      typeof response.track_id !== "string" || response.track_id !== trackId ||
+      typeof response.approved !== "boolean" || typeof response.entitled !== "boolean" ||
+      !Number.isSafeInteger(response.version) || response.version < 1 ||
+      !Number.isSafeInteger(response.duration_ms) || response.duration_ms <= 0 ||
+      !MIME.has(response.mime_type) ||
+      !Number.isSafeInteger(response.expires_at) || response.expires_at <= 0 ||
+      typeof response.audio_url !== "string")
+    return null;
+
+  const albumId = response.album_id === null ? null
+    : typeof response.album_id === "string" && positiveId(response.album_id) === response.album_id
+      ? response.album_id : undefined;
+  const editionId = response.edition_id === null ? null
+    : typeof response.edition_id === "string" && response.edition_id.length >= 1 &&
+      response.edition_id.length <= 128 && !/[\\x00-\\x1f\\x7f]/.test(response.edition_id)
+      ? response.edition_id : undefined;
+  if (albumId === undefined || editionId === undefined ||
+      ((albumId === null) !== (editionId === null)))
+    return null;
+
+  try {
+    const base = new URL(origin);
+    if (base.protocol !== "https:" || base.pathname !== "/" || base.search ||
+        base.hash || base.username || base.password)
+      return null;
+    const url = new URL(response.audio_url, base);
+    const expiresAt = response.expires_at * 1000;
+    if (url.protocol !== "https:" || url.origin !== base.origin ||
+        url.username || url.password || url.hash || !Number.isSafeInteger(expiresAt))
+      return null;
+    return Object.freeze({
+      trackId, approved: response.approved, entitled: response.entitled,
+      albumId, editionId, version: response.version,
+      durationMs: response.duration_ms, mimeType: response.mime_type,
+      expiresAt, audioUrl: url.href
+    });
+  } catch { return null; }
+}
+
+/**
+ * The normalized grant must originate from normalizeResolveGrant (or an
+ * equivalent trusted adapter) and carry explicit server approval/entitlement.
  * Never rely on matching song title/artist/cover as identity.
  */
 export function validateGrant(raw, track, origin, nowMs, safetyMs = 30_000, durationToleranceMs = 2_000) {
