@@ -5,6 +5,7 @@ on:
       - experiment/windows-w93-private-gain-stage-cli-20261113
     paths:
       - server/bin/windows-gain-stage.php
+      - server/tests/windows-gain-stage-fixture.php
       - docs/windows/W93-PRIVATE-GAIN-STAGING-AND-ROLLBACK-20261113.md
       - .github/workflows/windows-w93-private-gain-cli-audit.yml
   workflow_dispatch:
@@ -29,3 +30,72 @@ jobs:
             exit 2
           fi
           echo W93_NO_AUTH_NO_STAGING_NO_PRODUCTION_MUTATION_PASS
+
+  disposable-mariadb:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: disposable_test_only
+          MARIADB_DATABASE: w93_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: w93_ci
+      DB_USER: root
+      DB_PASSWORD: disposable_test_only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install test-only MariaDB client PHP driver and offline audio tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mariadb-client php8.3-mysql ffmpeg
+          php -m | grep -i '^pdo_mysql$'
+          command -v ffmpeg && command -v ffprobe
+      - name: Create disposable tables with actual schema and one synthetic MP3
+        shell: bash
+        run: |
+          set -euo pipefail
+          export STORAGE_PATH="$RUNNER_TEMP/private"
+          mkdir -p "$STORAGE_PATH/incoming/windows-gain"
+          mariadb --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" < server/migrations/001_catalog_and_analytics.sql
+          mariadb --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" < server/migrations/018_replacement_gain.sql
+          mariadb --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" < server/migrations/020_windows_gain_variants.sql
+          ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i 'sine=frequency=440:duration=4:sample_rate=44100' -c:a libmp3lame -b:a 192k "$RUNNER_TEMP/original.mp3"
+          bash scripts/windows-gain-render.sh "$RUNNER_TEMP/original.mp3" "$RUNNER_TEMP/processed.mp3" 11.5
+          cp "$RUNNER_TEMP/processed.mp3" "$STORAGE_PATH/incoming/windows-gain/processed.mp3"
+          original_digest="$(sha256sum "$RUNNER_TEMP/original.mp3" | cut -d' ' -f1)"
+          metadata="$(php server/tests/windows-gain-stage-fixture.php "$RUNNER_TEMP/original.mp3" "$RUNNER_TEMP/processed.mp3")"
+          read -r id source_sha version gain_db render_sha <<< "$metadata"
+          [[ "$original_digest" == "$source_sha" && "$gain_db" == "11.5" ]]
+          args=(--replacement="$id" --source-sha="$source_sha" --source-version="$version" --gain-db="$gain_db" --render-sha="$render_sha" --file="$STORAGE_PATH/incoming/windows-gain/processed.mp3")
+          php server/bin/windows-gain-stage.php "${args[@]}" | grep -F 'W93_PRIVATE_WINDOWS_GAIN_DRY_RUN_PASS_NO_WRITE'
+          before="$(mariadb -N -B --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" -e 'SELECT COUNT(*) FROM windows_gain_variants')"
+          [[ "$before" == 0 ]] || { echo W93_DRY_RUN_WROTE; exit 2; }
+          if php server/bin/windows-gain-stage.php "${args[@]}" --commit 2>/dev/null; then
+            echo W93_UNAUTHORIZED_WRITE_ALLOWED
+            exit 3
+          fi
+          CELIKOM_W93_ENABLE_STAGE=YES_EXPLICIT_PRIVATE_STAGE php server/bin/windows-gain-stage.php "${args[@]}" --commit | grep -F 'W93_PRIVATE_WINDOWS_GAIN_STAGED'
+          after="$(mariadb -N -B --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" -e 'SELECT COUNT(*) FROM windows_gain_variants')"
+          [[ "$after" == 1 ]] || { echo W93_TEST_COMMIT_COUNT_MISMATCH; exit 4; }
+          CELIKOM_W93_ENABLE_STAGE=YES_EXPLICIT_PRIVATE_STAGE php server/bin/windows-gain-stage.php "${args[@]}" --commit | grep -F 'W93_PRIVATE_WINDOWS_GAIN_STAGED'
+          after_retry="$(mariadb -N -B --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" -e 'SELECT COUNT(*) FROM windows_gain_variants')"
+          [[ "$after_retry" == 1 ]] || { echo W93_IDEMPOTENCY_FAILED; exit 5; }
+          current_original="$(find "$STORAGE_PATH/audio" -name '*.mp3' -type f -exec sha256sum {} \; | awk '{print $1}')"
+          [[ "$current_original" == "$original_digest" ]] || { echo W93_ORIGINAL_MUTATED; exit 6; }
+          echo W93_DISPOSABLE_DB_COMMIT_DRY_RUN_HMAC_ORIGINAL_PASS
