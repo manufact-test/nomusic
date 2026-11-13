@@ -542,6 +542,22 @@ try
          !EntitlementCheckRecovery.FastRouteCheck(false, now, DateTimeOffset.MinValue) &&
          EntitlementCheckRecovery.QuickRecheckTimeout == TimeSpan.FromSeconds(3),
          "W89 short request deadline applies only after a network route change or suspension");
+    // W94: multiple network-address events during VPN switch are NOT skipped.
+    // The last event owns the only new revalidation after the quiet period.
+    var firstRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(0);
+    var secondRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(firstRouteEpoch);
+    var lastRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(secondRouteEpoch);
+    Test(firstRouteEpoch == 1 && secondRouteEpoch == 2 && lastRouteEpoch == 3 &&
+         !NetworkRouteBurstPolicy.Latest(firstRouteEpoch, lastRouteEpoch) &&
+         !NetworkRouteBurstPolicy.Latest(secondRouteEpoch, lastRouteEpoch) &&
+         NetworkRouteBurstPolicy.Latest(lastRouteEpoch, lastRouteEpoch),
+         "W94 VPN bursts invalidate stale scheduled route checks, last signal wins");
+    Test(NetworkRouteBurstPolicy.LogDue(now, DateTimeOffset.MinValue) &&
+         !NetworkRouteBurstPolicy.LogDue(now.AddMilliseconds(100),
+             now) &&
+         NetworkRouteBurstPolicy.LogDue(now.AddMilliseconds(1400), now) &&
+         NetworkRouteBurstPolicy.NextEpoch(int.MaxValue) == 1,
+         "W94 1.4s coalescing suppresses only diagnostics, not actual route checks");
     Test(!EntitlementCheckRecovery.IsTransient(new ApiFailure(401, "INVALID_SESSION")) &&
          !EntitlementCheckRecovery.IsTransient(new ApiFailure(403, "ACCESS_DENIED")) &&
          !EntitlementCheckRecovery.IsTransient(new InvalidOperationException()),

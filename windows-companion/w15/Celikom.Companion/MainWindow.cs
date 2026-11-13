@@ -99,6 +99,7 @@ public sealed partial class MainWindow : Form
     // positive authenticated entitlement and the user's original Start intent.
     private bool _resumeAfterNetworkFailure;
     private DateTimeOffset _lastNetworkRecheckHint;
+    private DateTimeOffset _lastNetworkRouteLoggedAt;
     private CancellationTokenSource? _compactAccessRequestCancellation;
     private bool _networkRouteRecheckPending;
     private int _networkRouteEpoch;
@@ -435,11 +436,18 @@ public sealed partial class MainWindow : Form
                 if (_closing || IsDisposed || !_api.IsLoggedIn ||
                     !(_bridge.Enabled || _resumeAfterNetworkFailure)) return;
                 var now = DateTimeOffset.UtcNow;
-                if (now - _lastNetworkRecheckHint < TimeSpan.FromMilliseconds(1400)) return;
+                // A VPN switch emits multiple addresses within milliseconds.
+                // Never DROP the last signal; only throttle the log line.
+                var shouldLog = NetworkRouteBurstPolicy.LogDue(now, _lastNetworkRouteLoggedAt);
                 _lastNetworkRecheckHint = now;
                 _networkRouteRecheckPending = true;
-                var routeEpoch = ++_networkRouteEpoch;
-                DiagnosticLog.Record("ACTIVE_ENTITLEMENT_ROUTE_CHANGED");
+                var routeEpoch = _networkRouteEpoch =
+                    NetworkRouteBurstPolicy.NextEpoch(_networkRouteEpoch);
+                if (shouldLog)
+                {
+                    _lastNetworkRouteLoggedAt = now;
+                    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_ROUTE_CHANGED");
+                }
                 // Abandon a GET attached to the old VPN; a fresh server
                 // response on the new route is still mandatory.
                 _compactAccessRequestCancellation?.Cancel();
@@ -452,7 +460,8 @@ public sealed partial class MainWindow : Form
     private async Task RecheckAfterRouteSettledAsync(int epoch)
     {
         await Task.Delay(750);
-        if (epoch != _networkRouteEpoch || _closing || IsDisposed) return;
+        if (!NetworkRouteBurstPolicy.Latest(epoch, _networkRouteEpoch) ||
+            _closing || IsDisposed) return;
         if (!_api.IsLoggedIn || !(_bridge.Enabled || _resumeAfterNetworkFailure))
         {
             _networkRouteRecheckPending = false;
@@ -468,7 +477,7 @@ public sealed partial class MainWindow : Form
     {
         // User Stop ALWAYS overrides any automatic reconnect intent.
         _networkRouteRecheckPending = false;
-        ++_networkRouteEpoch;
+        _networkRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(_networkRouteEpoch);
         _compactAccessRequestCancellation?.Cancel();
         _resumeAfterNetworkFailure = false;
         ++_compactAccessGeneration; // discard a just-finished stale pulse
