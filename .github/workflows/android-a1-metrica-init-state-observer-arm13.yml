@@ -7,7 +7,6 @@ on:
       - 'android/native-yandex-hooklab/clone_main_crash_buffer.py'
       - 'android/native-yandex-hooklab/ci/test_metrica_manifest_preserved_detail_control.py'
       - 'android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py'
-      - 'android/native-yandex-hooklab/ci/jdi/**'
       - 'android/native-yandex-hooklab/ci/a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_witness_private_parser.py'
@@ -24,7 +23,6 @@ jobs:
     timeout-minutes: 80
     env:
       CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
-      CELIKOM_A1_JDI_CATCH_DIAG: '1' # diagnostic-only; never release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,10 +79,6 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py
-          python3 -B -m py_compile android/native-yandex-hooklab/ci/jdi/one_shot.py
-          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci/jdi -p test_jdi_one_shot.py -v
-          mkdir -p "$RUNNER_TEMP/celikom-jdi-compile-check"
-          javac --add-modules jdk.jdi -d "$RUNNER_TEMP/celikom-jdi-compile-check" android/native-yandex-hooklab/ci/jdi/ExactCatchJdi.java
           test -s "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_native_clone_java_rootcause_triage.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
@@ -116,15 +110,12 @@ jobs:
           test -s "$target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
-          python3 -B android/native-yandex-hooklab/ci/jdi/one_shot.py --preflight-xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Prepare exact separate own signature and test-only native tooling
         shell: bash
         run: |
           set -euo pipefail
           sudo timeout 120 apt-get update -qq
-          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign adb
-          test -x /usr/bin/adb
-          /usr/bin/adb version >/dev/null
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
           sdk="$RUNNER_TEMP/celikom-2025-lspatch2-sdk"
           mkdir -p "$sdk/build-tools/35.0.0"
           for tool in aapt apksigner zipalign; do
@@ -153,5 +144,4 @@ jobs:
           sudo rm -rf -- "$RUNNER_TEMP/celikom-redroid-data"
           rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-2025-lspatch2-sdk" "$RUNNER_TEMP/celikom-own-metrica-module" "$RUNNER_TEMP/celikom-native-aapt2"
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java
-          rm -rf -- "$RUNNER_TEMP/celikom-jdi-compile-check" "$RUNNER_TEMP/celikom-exact-jdi-classes"
           echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'
