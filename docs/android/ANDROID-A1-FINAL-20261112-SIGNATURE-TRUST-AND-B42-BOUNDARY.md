@@ -1,3 +1,6 @@
+> **LATEST OWNER-DEVICE STATUS 13.11:** This older signature/B42 boundary report remains historical and does not describe the current NAV4/NAV5 owner onboarding failure. NAV4 proved four crashes in the separate cloned `:passport` process (`IllegalStateException`, `NOT_METRICA`); NAV5 is the bounded diagnostic observer. See `ANDROID-A1-OWNER-ONBOARDING-CRASH-TRIAGE-20261113.md` and `NEXT-CHAT-ANDROID-A1-LEAD-20261113.md`. Do not infer a signature bypass requirement or change auth checks from the Passport crash. Stage A NO-GO; Stage B LOCKED.
+
+---
 # CELIKOM Android A1 — финальный инженерный заход, 12 ноября 2026
 
 **Статус продукта: Stage A NO-GO. Stage B LOCKED. Пользовательского CELIKOM Android APK с работающим Яндексом пока нет.**
