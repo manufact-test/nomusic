@@ -1,0 +1,52 @@
+name: CELIKOM A1 exact Firebase IDs original 16 split names only
+on:
+  workflow_dispatch:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - '.github/workflows/android-a1-firebase-source-presence.yml'
+      - 'android/a1-firebase-source-presence/**'
+permissions:
+  contents: write
+jobs:
+  publisher-source-firebase-name-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test parser and install read-only aapt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile android/a1-firebase-source-presence/source_presence.py
+          python3 -B android/a1-firebase-source-presence/source_presence.py --self-test
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt
+      - name: Acquire pinned private publisher original
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          mkdir -p "$RUNNER_TEMP/a1-source-firebase-private"
+          chmod 700 "$RUNNER_TEMP/a1-source-firebase-private"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/a1-source-firebase-private" --clobber >/dev/null
+          f="$RUNNER_TEMP/a1-source-firebase-private/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Exact 16 original split metadata and string names only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/a1-firebase-source-presence/source_presence.py --xapk "$RUNNER_TEMP/a1-source-firebase-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Destroy source input without publishing
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/a1-source-firebase-private"
+          echo '{"publisher_original_modified":false,"third_party_assets_uploaded":false,"stage_a":"NO_GO"}'
