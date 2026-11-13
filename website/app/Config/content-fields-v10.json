@@ -1,0 +1,966 @@
+{
+  "version": 1,
+  "source": "CELIKOM_SITE_CLEAN_v10.html",
+  "template_git_blob_sha": "ece0795ff0a007fd41f361af1838837b7efd2d71",
+  "description": "Canonical v10 text/link editing schema; preserve HTML markup and trusted CSS; FAQ separate",
+  "text_fields": [
+    {
+      "key": "seo.title",
+      "section": "head",
+      "ordinal": 1,
+      "default": "CELIKOM — то самое звучание",
+      "tag": "title",
+      "label": "CELIKOM — то самое звучание",
+      "max_chars": 70
+    },
+    {
+      "key": "header.text.01",
+      "section": "header",
+      "ordinal": 2,
+      "default": "CELIKOM",
+      "tag": "span",
+      "label": "CELIKOM",
+      "max_chars": 70
+    },
+    {
+      "key": "header.text.02",
+      "section": "header",
+      "ordinal": 3,
+      "default": "Идея",
+      "tag": "a",
+      "label": "Идея",
+      "max_chars": 70
+    },
+    {
+      "key": "header.text.03",
+      "section": "header",
+      "ordinal": 4,
+      "default": "Возможности",
+      "tag": "a",
+      "label": "Возможности",
+      "max_chars": 70
+    },
+    {
+      "key": "header.text.04",
+      "section": "header",
+      "ordinal": 5,
+      "default": "Как работает",
+      "tag": "a",
+      "label": "Как работает",
+      "max_chars": 70
+    },
+    {
+      "key": "header.text.05",
+      "section": "header",
+      "ordinal": 6,
+      "default": "Как работает →",
+      "tag": "a",
+      "label": "Как работает →",
+      "max_chars": 70
+    },
+    {
+      "key": "hero.eyebrow",
+      "section": "top",
+      "ordinal": 7,
+      "default": "CELIKOM · знакомая музыка",
+      "tag": "div",
+      "label": "CELIKOM · знакомая музыка",
+      "max_chars": 70
+    },
+    {
+      "key": "hero.title.first",
+      "section": "top",
+      "ordinal": 8,
+      "default": "Те самые песни.",
+      "tag": "h1",
+      "label": "Те самые песни.",
+      "max_chars": 70
+    },
+    {
+      "key": "hero.title.accent",
+      "section": "top",
+      "ordinal": 9,
+      "default": "То самое звучание.",
+      "tag": "span",
+      "label": "То самое звучание.",
+      "max_chars": 70
+    },
+    {
+      "key": "hero.lead",
+      "section": "top",
+      "ordinal": 10,
+      "default": "Когда любимая песня звучит не так, как ты её помнишь, CELIKOM помогает вернуть знакомую версию — если она есть в проверенном каталоге. Всё в привычном веб‑плеере.",
+      "tag": "p",
+      "label": "Когда любимая песня звучит не так, как ты её помнишь, CELIKOM помогает верн",
+      "max_chars": 324
+    },
+    {
+      "key": "hero.primary.label",
+      "section": "top",
+      "ordinal": 11,
+      "default": "Как это работает ",
+      "tag": "a",
+      "label": "Как это работает",
+      "max_chars": 70
+    },
+    {
+      "key": "hero.secondary.label",
+      "section": "top",
+      "ordinal": 13,
+      "default": "Что умеет CELIKOM ",
+      "tag": "a",
+      "label": "Что умеет CELIKOM",
+      "max_chars": 70
+    },
+    {
+      "key": "features.text.01",
+      "section": "features",
+      "ordinal": 15,
+      "default": "Привычное звучание",
+      "tag": "h3",
+      "label": "Привычное звучание",
+      "max_chars": 70
+    },
+    {
+      "key": "features.text.02",
+      "section": "features",
+      "ordinal": 16,
+      "default": "Для знакомых песен можно использовать доступную проверенную версию, которую ты помнишь.",
+      "tag": "p",
+      "label": "Для знакомых песен можно использовать доступную проверенную версию, которую",
+      "max_chars": 174
+    },
+    {
+      "key": "features.text.03",
+      "section": "features",
+      "ordinal": 17,
+      "default": "Тот же плеер",
+      "tag": "h3",
+      "label": "Тот же плеер",
+      "max_chars": 70
+    },
+    {
+      "key": "features.text.04",
+      "section": "features",
+      "ordinal": 18,
+      "default": "Слушай музыку в привычном веб‑интерфейсе. Не нужно переезжать на новую музыкальную платформу.",
+      "tag": "p",
+      "label": "Слушай музыку в привычном веб‑интерфейсе. Не нужно переезжать на новую музы",
+      "max_chars": 186
+    },
+    {
+      "key": "features.text.05",
+      "section": "features",
+      "ordinal": 19,
+      "default": "Всё под контролем",
+      "tag": "h3",
+      "label": "Всё под контролем",
+      "max_chars": 70
+    },
+    {
+      "key": "features.text.06",
+      "section": "features",
+      "ordinal": 20,
+      "default": "CELIKOM позволяет управлять заменой звука и возвращаться к оригинальному воспроизведению.",
+      "tag": "p",
+      "label": "CELIKOM позволяет управлять заменой звука и возвращаться к оригинальному во",
+      "max_chars": 178
+    },
+    {
+      "key": "how.text.01",
+      "section": "how",
+      "ordinal": 21,
+      "default": "Просто и понятно",
+      "tag": "div",
+      "label": "Просто и понятно",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.02",
+      "section": "how",
+      "ordinal": 22,
+      "default": "Как это работает",
+      "tag": "h2",
+      "label": "Как это работает",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.03",
+      "section": "how",
+      "ordinal": 23,
+      "default": "01",
+      "tag": "div",
+      "label": "01",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.04",
+      "section": "how",
+      "ordinal": 24,
+      "default": "Подключи расширение",
+      "tag": "h3",
+      "label": "Подключи расширение",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.05",
+      "section": "how",
+      "ordinal": 25,
+      "default": "Сейчас CELIKOM проходит тестирование. После запуска установить расширение можно будет с этой страницы.",
+      "tag": "p",
+      "label": "Сейчас CELIKOM проходит тестирование. После запуска установить расширение м",
+      "max_chars": 204
+    },
+    {
+      "key": "how.text.06",
+      "section": "how",
+      "ordinal": 26,
+      "default": "02",
+      "tag": "div",
+      "label": "02",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.07",
+      "section": "how",
+      "ordinal": 27,
+      "default": "Открой музыкальный веб‑плеер",
+      "tag": "h3",
+      "label": "Открой музыкальный веб‑плеер",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.08",
+      "section": "how",
+      "ordinal": 28,
+      "default": "Продолжай пользоваться привычной очередью, плейлистами и управлением.",
+      "tag": "p",
+      "label": "Продолжай пользоваться привычной очередью, плейлистами и управлением.",
+      "max_chars": 138
+    },
+    {
+      "key": "how.text.09",
+      "section": "how",
+      "ordinal": 29,
+      "default": "03",
+      "tag": "div",
+      "label": "03",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.10",
+      "section": "how",
+      "ordinal": 30,
+      "default": "Слушай знакомую версию",
+      "tag": "h3",
+      "label": "Слушай знакомую версию",
+      "max_chars": 70
+    },
+    {
+      "key": "how.text.11",
+      "section": "how",
+      "ordinal": 31,
+      "default": "Если нужная проверенная версия доступна, CELIKOM может заменить звучание трека. Исходное воспроизведение можно вернуть.",
+      "tag": "p",
+      "label": "Если нужная проверенная версия доступна, CELIKOM может заменить звучание тр",
+      "max_chars": 238
+    },
+    {
+      "key": "sound.text.01",
+      "section": "sound",
+      "ordinal": 32,
+      "default": "Как это устроено",
+      "tag": "div",
+      "label": "Как это устроено",
+      "max_chars": 70
+    },
+    {
+      "key": "sound.text.02",
+      "section": "sound",
+      "ordinal": 33,
+      "default": "Тот же трек. Знакомый звук.",
+      "tag": "h2",
+      "label": "Тот же трек. Знакомый звук.",
+      "max_chars": 70
+    },
+    {
+      "key": "sound.text.03",
+      "section": "sound",
+      "ordinal": 34,
+      "default": "Плеер остаётся прежним. Когда для выбранной песни есть проверенная версия, CELIKOM может заменить её звучание. А оригинальное воспроизведение всегда можно вернуть.",
+      "tag": "p",
+      "label": "Плеер остаётся прежним. Когда для выбранной песни есть проверенная версия, ",
+      "max_chars": 326
+    },
+    {
+      "key": "sound.text.04",
+      "section": "sound",
+      "ordinal": 35,
+      "default": "Без CELIKOM",
+      "tag": "button",
+      "label": "Без CELIKOM",
+      "max_chars": 70
+    },
+    {
+      "key": "sound.text.05",
+      "section": "sound",
+      "ordinal": 36,
+      "default": "С CELIKOM",
+      "tag": "button",
+      "label": "С CELIKOM",
+      "max_chars": 70
+    },
+    {
+      "key": "sound.text.06",
+      "section": "sound",
+      "ordinal": 37,
+      "default": "Схема звучания",
+      "tag": "div",
+      "label": "Схема звучания",
+      "max_chars": 70
+    },
+    {
+      "key": "sound.text.07",
+      "section": "sound",
+      "ordinal": 38,
+      "default": "Звучит версия из плеера",
+      "tag": "div",
+      "label": "Звучит версия из плеера",
+      "max_chars": 70
+    },
+    {
+      "key": "sound.text.08",
+      "section": "sound",
+      "ordinal": 39,
+      "default": "Песни и плейлисты остаются в привычном сервисе.",
+      "tag": "p",
+      "label": "Песни и плейлисты остаются в привычном сервисе.",
+      "max_chars": 94
+    },
+    {
+      "key": "player.text.01",
+      "section": "player",
+      "ordinal": 40,
+      "default": "Ничего лишнего",
+      "tag": "div",
+      "label": "Ничего лишнего",
+      "max_chars": 70
+    },
+    {
+      "key": "player.text.02",
+      "section": "player",
+      "ordinal": 41,
+      "default": "Меняется звук.",
+      "tag": "h2",
+      "label": "Меняется звук.",
+      "max_chars": 70
+    },
+    {
+      "key": "player.text.03",
+      "section": "player",
+      "ordinal": 42,
+      "default": "Не твои привычки.",
+      "tag": "h2",
+      "label": "Не твои привычки.",
+      "max_chars": 70
+    },
+    {
+      "key": "player.text.04",
+      "section": "player",
+      "ordinal": 43,
+      "default": "Не нужно переезжать в другой музыкальный сервис. Пользуйся привычным веб‑плеером: сохраняй очередь, переключай песни и управляй воспроизведением как обычно.",
+      "tag": "p",
+      "label": "Не нужно переезжать в другой музыкальный сервис. Пользуйся привычным веб‑пл",
+      "max_chars": 312
+    },
+    {
+      "key": "player.text.05",
+      "section": "player",
+      "ordinal": 44,
+      "default": " Плейлисты",
+      "tag": "div",
+      "label": "Плейлисты",
+      "max_chars": 70
+    },
+    {
+      "key": "player.text.06",
+      "section": "player",
+      "ordinal": 45,
+      "default": " Очередь",
+      "tag": "div",
+      "label": "Очередь",
+      "max_chars": 70
+    },
+    {
+      "key": "player.text.07",
+      "section": "player",
+      "ordinal": 46,
+      "default": " Пауза",
+      "tag": "div",
+      "label": "Пауза",
+      "max_chars": 70
+    },
+    {
+      "key": "player.text.08",
+      "section": "player",
+      "ordinal": 47,
+      "default": " Перемотка",
+      "tag": "div",
+      "label": "Перемотка",
+      "max_chars": 70
+    },
+    {
+      "key": "contribute.text.01",
+      "section": "contribute",
+      "ordinal": 50,
+      "default": "Вместе вернём больше",
+      "tag": "div",
+      "label": "Вместе вернём больше",
+      "max_chars": 70
+    },
+    {
+      "key": "contribute.text.02",
+      "section": "contribute",
+      "ordinal": 51,
+      "default": "Нет нужной песни?",
+      "tag": "h2",
+      "label": "Нет нужной песни?",
+      "max_chars": 70
+    },
+    {
+      "key": "contribute.text.03",
+      "section": "contribute",
+      "ordinal": 52,
+      "default": "Ты можешь помочь.",
+      "tag": "h2",
+      "label": "Ты можешь помочь.",
+      "max_chars": 70
+    },
+    {
+      "key": "contribute.text.04",
+      "section": "contribute",
+      "ordinal": 53,
+      "default": "Если нужной версии пока нет, есть два способа поучаствовать. Так сообщество помогает пополнять каталог проверенных записей.",
+      "tag": "p",
+      "label": "Если нужной версии пока нет, есть два способа поучаствовать. Так сообщество",
+      "max_chars": 246
+    },
+    {
+      "key": "contribute.text.05",
+      "section": "contribute",
+      "ordinal": 54,
+      "default": "Предложить песню",
+      "tag": "h3",
+      "label": "Предложить песню",
+      "max_chars": 70
+    },
+    {
+      "key": "contribute.text.06",
+      "section": "contribute",
+      "ordinal": 55,
+      "default": "Сообщи, какую песню хочется снова услышать в привычной версии. Предложение можно отправить прямо из расширения.",
+      "tag": "p",
+      "label": "Сообщи, какую песню хочется снова услышать в привычной версии. Предложение ",
+      "max_chars": 222
+    },
+    {
+      "key": "contribute.text.07",
+      "section": "contribute",
+      "ordinal": 56,
+      "default": "Загрузить версию",
+      "tag": "h3",
+      "label": "Загрузить версию",
+      "max_chars": 70
+    },
+    {
+      "key": "contribute.text.08",
+      "section": "contribute",
+      "ordinal": 57,
+      "default": "Есть подходящая запись и необходимые права на её использование? Предложи файл на проверку. В каталог он попадёт только после одобрения.",
+      "tag": "p",
+      "label": "Есть подходящая запись и необходимые права на её использование? Предложи фа",
+      "max_chars": 270
+    },
+    {
+      "key": "transparency.text.01",
+      "section": "transparency",
+      "ordinal": 58,
+      "default": "Без лишних обещаний",
+      "tag": "div",
+      "label": "Без лишних обещаний",
+      "max_chars": 70
+    },
+    {
+      "key": "transparency.text.02",
+      "section": "transparency",
+      "ordinal": 59,
+      "default": "Понятно, как всё работает.",
+      "tag": "h2",
+      "label": "Понятно, как всё работает.",
+      "max_chars": 70
+    },
+    {
+      "key": "transparency.text.03",
+      "section": "transparency",
+      "ordinal": 60,
+      "default": "CELIKOM не заменяет музыкальный сервис. Он помогает вернуть знакомое звучание выбранной композиции, когда для неё доступна проверенная версия.",
+      "tag": "p",
+      "label": "CELIKOM не заменяет музыкальный сервис. Он помогает вернуть знакомое звучан",
+      "max_chars": 284
+    },
+    {
+      "key": "transparency.text.04",
+      "section": "transparency",
+      "ordinal": 62,
+      "default": "Знакомый плеер и привычное управление остаются.",
+      "tag": "span",
+      "label": "Знакомый плеер и привычное управление остаются.",
+      "max_chars": 94
+    },
+    {
+      "key": "transparency.text.05",
+      "section": "transparency",
+      "ordinal": 64,
+      "default": "Для каждой песни необходима доступная проверенная версия.",
+      "tag": "span",
+      "label": "Для каждой песни необходима доступная проверенная версия.",
+      "max_chars": 114
+    },
+    {
+      "key": "transparency.text.06",
+      "section": "transparency",
+      "ordinal": 66,
+      "default": "Ты можешь вернуться к оригинальному воспроизведению.",
+      "tag": "span",
+      "label": "Ты можешь вернуться к оригинальному воспроизведению.",
+      "max_chars": 104
+    },
+    {
+      "key": "transparency.text.07",
+      "section": "transparency",
+      "ordinal": 67,
+      "default": "Что важно учитывать",
+      "tag": "h3",
+      "label": "Что важно учитывать",
+      "max_chars": 70
+    },
+    {
+      "key": "transparency.text.08",
+      "section": "transparency",
+      "ordinal": 68,
+      "default": "Мы делаем полезный инструмент, а не обещаем восстановить вообще любую запись.",
+      "tag": "p",
+      "label": "Мы делаем полезный инструмент, а не обещаем восстановить вообще любую запис",
+      "max_chars": 154
+    },
+    {
+      "key": "transparency.text.09",
+      "section": "transparency",
+      "ordinal": 69,
+      "default": "01",
+      "tag": "b",
+      "label": "01",
+      "max_chars": 70
+    },
+    {
+      "key": "transparency.text.10",
+      "section": "transparency",
+      "ordinal": 70,
+      "default": "Если нужной версии нет, CELIKOM не будет подменять её произвольной записью.",
+      "tag": "span",
+      "label": "Если нужной версии нет, CELIKOM не будет подменять её произвольной записью.",
+      "max_chars": 150
+    },
+    {
+      "key": "transparency.text.11",
+      "section": "transparency",
+      "ordinal": 71,
+      "default": "02",
+      "tag": "b",
+      "label": "02",
+      "max_chars": 70
+    },
+    {
+      "key": "transparency.text.12",
+      "section": "transparency",
+      "ordinal": 72,
+      "default": "Мобильная версия — отдельная разработка, а не готовый продукт.",
+      "tag": "span",
+      "label": "Мобильная версия — отдельная разработка, а не готовый продукт.",
+      "max_chars": 124
+    },
+    {
+      "key": "transparency.text.13",
+      "section": "transparency",
+      "ordinal": 73,
+      "default": "03",
+      "tag": "b",
+      "label": "03",
+      "max_chars": 70
+    },
+    {
+      "key": "transparency.text.14",
+      "section": "transparency",
+      "ordinal": 74,
+      "default": "Мы независимы от музыкальных платформ и не гарантируем неизменность их правил выплат.",
+      "tag": "span",
+      "label": "Мы независимы от музыкальных платформ и не гарантируем неизменность их прав",
+      "max_chars": 170
+    },
+    {
+      "key": "faq.text.01",
+      "section": "faq",
+      "ordinal": 75,
+      "default": "Разбираемся вместе",
+      "tag": "div",
+      "label": "Разбираемся вместе",
+      "max_chars": 70
+    },
+    {
+      "key": "faq.text.02",
+      "section": "faq",
+      "ordinal": 76,
+      "default": "Вопросы и ответы.",
+      "tag": "h2",
+      "label": "Вопросы и ответы.",
+      "max_chars": 70
+    },
+    {
+      "key": "faq.text.03",
+      "section": "faq",
+      "ordinal": 77,
+      "default": "Самое важное о запуске, пробных днях, бонусах за песни и промокодах. Без сложных терминов.",
+      "tag": "p",
+      "label": "Самое важное о запуске, пробных днях, бонусах за песни и промокодах. Без сл",
+      "max_chars": 180
+    },
+    {
+      "key": "faq.text.04",
+      "section": "faq",
+      "ordinal": 139,
+      "default": "В этой теме пока нет вопросов.",
+      "tag": "div",
+      "label": "В этой теме пока нет вопросов.",
+      "max_chars": 70
+    },
+    {
+      "key": "rewards.text.01",
+      "section": "rewards",
+      "ordinal": 140,
+      "default": "Сообщество помогает",
+      "tag": "div",
+      "label": "Сообщество помогает",
+      "max_chars": 70
+    },
+    {
+      "key": "rewards.text.02",
+      "section": "rewards",
+      "ordinal": 141,
+      "default": "Помогаешь с музыкой — получаешь бонус.",
+      "tag": "h2",
+      "label": "Помогаешь с музыкой — получаешь бонус.",
+      "max_chars": 76
+    },
+    {
+      "key": "rewards.text.03",
+      "section": "rewards",
+      "ordinal": 142,
+      "default": "За каждую новую уникальную версию песни, которую администратор одобрит, на твой аккаунт начисляется 2% скидки. За месяц можно использовать максимум 20% — это 10 песен. Сверхлимитные бонусы не исчезают: они переходят на следующие месяцы.",
+      "tag": "p",
+      "label": "За каждую новую уникальную версию песни, которую администратор одобрит, на ",
+      "max_chars": 472
+    },
+    {
+      "key": "rewards.text.04",
+      "section": "rewards",
+      "ordinal": 143,
+      "default": "Накопленные проценты сохраняются до запуска оплаты. Скидку можно будет применить к подписке, когда платежи заработают.",
+      "tag": "span",
+      "label": "Накопленные проценты сохраняются до запуска оплаты. Скидку можно будет прим",
+      "max_chars": 236
+    },
+    {
+      "key": "install.text.01",
+      "section": "install",
+      "ordinal": 145,
+      "default": "Скоро на твоём компьютере",
+      "tag": "div",
+      "label": "Скоро на твоём компьютере",
+      "max_chars": 70
+    },
+    {
+      "key": "install.text.02",
+      "section": "install",
+      "ordinal": 146,
+      "default": "Знакомая музыка ближе, чем кажется.",
+      "tag": "h2",
+      "label": "Знакомая музыка ближе, чем кажется.",
+      "max_chars": 70
+    },
+    {
+      "key": "install.text.03",
+      "section": "install",
+      "ordinal": 147,
+      "default": "CELIKOM проходит тестирование. Когда мы откроем установку, ты сможешь подключить расширение с этой страницы.",
+      "tag": "p",
+      "label": "CELIKOM проходит тестирование. Когда мы откроем установку, ты сможешь подкл",
+      "max_chars": 216
+    },
+    {
+      "key": "install.status",
+      "section": "install",
+      "ordinal": 148,
+      "default": "Идёт тестирование",
+      "tag": "div",
+      "label": "Идёт тестирование",
+      "max_chars": 70
+    },
+    {
+      "key": "install.text.05",
+      "section": "install",
+      "ordinal": 149,
+      "default": "Установка после запуска",
+      "tag": "h3",
+      "label": "Установка после запуска",
+      "max_chars": 70
+    },
+    {
+      "key": "install.text.06",
+      "section": "install",
+      "ordinal": 150,
+      "default": "Как только расширение будет готово для всех, ты найдёшь здесь проверенный источник и простую инструкцию по подключению.",
+      "tag": "p",
+      "label": "Как только расширение будет готово для всех, ты найдёшь здесь проверенный и",
+      "max_chars": 238
+    },
+    {
+      "key": "install.text.07",
+      "section": "install",
+      "ordinal": 151,
+      "default": "Пока установка закрыта",
+      "tag": "span",
+      "label": "Пока установка закрыта",
+      "max_chars": 70
+    },
+    {
+      "key": "closing.text.01",
+      "section": "closing",
+      "ordinal": 152,
+      "default": "CELIKOM",
+      "tag": "div",
+      "label": "CELIKOM",
+      "max_chars": 70
+    },
+    {
+      "key": "closing.text.02",
+      "section": "closing",
+      "ordinal": 153,
+      "default": "Пусть любимые песни звучат знакомо.",
+      "tag": "h2",
+      "label": "Пусть любимые песни звучат знакомо.",
+      "max_chars": 70
+    },
+    {
+      "key": "closing.text.03",
+      "section": "closing",
+      "ordinal": 154,
+      "default": "Мы создаём CELIKOM, чтобы слушать музыку в привычном плеере и снова находить те самые версии песен.",
+      "tag": "p",
+      "label": "Мы создаём CELIKOM, чтобы слушать музыку в привычном плеере и снова находит",
+      "max_chars": 198
+    },
+    {
+      "key": "closing.text.04",
+      "section": "closing",
+      "ordinal": 155,
+      "default": "Наверх страницы ",
+      "tag": "a",
+      "label": "Наверх страницы",
+      "max_chars": 70
+    },
+    {
+      "key": "footer.text.01",
+      "section": "footer",
+      "ordinal": 157,
+      "default": "CELIKOM",
+      "tag": "a",
+      "label": "CELIKOM",
+      "max_chars": 70
+    },
+    {
+      "key": "footer.text.02",
+      "section": "footer",
+      "ordinal": 158,
+      "default": "Как работает",
+      "tag": "a",
+      "label": "Как работает",
+      "max_chars": 70
+    },
+    {
+      "key": "footer.text.03",
+      "section": "footer",
+      "ordinal": 159,
+      "default": "Участие",
+      "tag": "a",
+      "label": "Участие",
+      "max_chars": 70
+    },
+    {
+      "key": "footer.text.04",
+      "section": "footer",
+      "ordinal": 160,
+      "default": "Вопросы",
+      "tag": "a",
+      "label": "Вопросы",
+      "max_chars": 70
+    },
+    {
+      "key": "footer.text.05",
+      "section": "footer",
+      "ordinal": 161,
+      "default": "Установка",
+      "tag": "a",
+      "label": "Установка",
+      "max_chars": 70
+    }
+  ],
+  "link_fields": [
+    {
+      "key": "header.link.01",
+      "section": "header",
+      "element_ordinal": 1,
+      "attribute": "href",
+      "default": "#top",
+      "label": "CELIKOM — на главную"
+    },
+    {
+      "key": "header.link.02",
+      "section": "header",
+      "element_ordinal": 2,
+      "attribute": "href",
+      "default": "#idea",
+      "label": "Ссылка 2"
+    },
+    {
+      "key": "header.link.03",
+      "section": "header",
+      "element_ordinal": 3,
+      "attribute": "href",
+      "default": "#features",
+      "label": "Ссылка 3"
+    },
+    {
+      "key": "header.link.04",
+      "section": "header",
+      "element_ordinal": 4,
+      "attribute": "href",
+      "default": "#how",
+      "label": "Ссылка 4"
+    },
+    {
+      "key": "header.link.05",
+      "section": "header",
+      "element_ordinal": 5,
+      "attribute": "href",
+      "default": "#how",
+      "label": "Ссылка 5"
+    },
+    {
+      "key": "hero.primary.href",
+      "section": "top",
+      "element_ordinal": 6,
+      "attribute": "href",
+      "default": "#how",
+      "label": "Основная кнопка первого экрана"
+    },
+    {
+      "key": "hero.secondary.href",
+      "section": "top",
+      "element_ordinal": 7,
+      "attribute": "href",
+      "default": "#features",
+      "label": "Дополнительная кнопка первого экрана"
+    },
+    {
+      "key": "closing.cta.href",
+      "section": "closing",
+      "element_ordinal": 8,
+      "attribute": "href",
+      "default": "#top",
+      "label": "Ссылка финального призыва"
+    },
+    {
+      "key": "footer.link.01",
+      "section": "footer",
+      "element_ordinal": 9,
+      "attribute": "href",
+      "default": "#top",
+      "label": "CELIKOM — наверх"
+    },
+    {
+      "key": "footer.link.02",
+      "section": "footer",
+      "element_ordinal": 10,
+      "attribute": "href",
+      "default": "#how",
+      "label": "Ссылка 2"
+    },
+    {
+      "key": "footer.link.03",
+      "section": "footer",
+      "element_ordinal": 11,
+      "attribute": "href",
+      "default": "#contribute",
+      "label": "Ссылка 3"
+    },
+    {
+      "key": "footer.link.04",
+      "section": "footer",
+      "element_ordinal": 12,
+      "attribute": "href",
+      "default": "#faq",
+      "label": "Ссылка 4"
+    },
+    {
+      "key": "footer.link.05",
+      "section": "footer",
+      "element_ordinal": 13,
+      "attribute": "href",
+      "default": "#install",
+      "label": "Ссылка 5"
+    }
+  ],
+  "media_fields": [
+    {
+      "key": "media.popup.approved",
+      "section": "top",
+      "element_ordinal": 3,
+      "attribute": "src",
+      "default": "/media/celikom-popup-approved.png",
+      "editable": false,
+      "reason": "Verified CMS media reference only; separate permission/format checks in Stage 9"
+    }
+  ],
+  "attribute_fields": [
+    {
+      "key": "seo.description",
+      "section": "head",
+      "tag": "meta",
+      "element_ordinal": 4,
+      "attribute": "content",
+      "default": "CELIKOM помогает вновь услышать знакомое звучание любимых песен, если нужная проверенная версия доступна.",
+      "label": "SEO — описание страницы",
+      "max_chars": 320
+    },
+    {
+      "key": "media.popup.alt",
+      "section": "top",
+      "tag": "img",
+      "element_ordinal": 3,
+      "attribute": "alt",
+      "default": "Фрагмент настоящего интерфейса расширения: Повторить, Стоп, Вернуть оригинал, Загрузить версию, Предложить песню, статус аккаунта и поддержка",
+      "label": "Доступное описание настоящего интерфейса расширения",
+      "max_chars": 300
+    }
+  ]
+}

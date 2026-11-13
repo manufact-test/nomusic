@@ -1,0 +1,156 @@
+name: CELIKOM W75 0.24.22 owner diagnostics control and persisted incident history
+
+on:
+  push:
+    branches:
+      - experiment/windows-w75-diagnostics-resilience-20261111
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w20/installer/CELIKOM.iss
+      - .github/workflows/windows-w75-diagnostics-resilience-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  w74-windows:
+    runs-on: windows-2022
+    timeout-minutes: 32
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Rebuild exactly existing native assets, no native source modifications
+        working-directory: windows-companion/w23
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W75_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W75_NATIVE_BUNDLE_FAILED' }
+      - name: Verify native reload regression and original Yandex not changed
+        shell: pwsh
+        run: |
+          node --test windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W75_NATIVE_RELOAD_REGRESSION' }
+          node --test windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W75_NATIVE_HOST_REGRESSION' }
+      - name: Compile CELIKOM GUI 0.24.22 warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Run support, startup, permission-retention and durable-incident tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Run unchanged native installer image recovery tests
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Confirm distribution stage gate
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W75_RELEASE_GATE' }
+      - name: Publish GUI-only repair with existing native assets
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W75_PUBLISH_FAILED' }
+      - name: Build existing-AppId Inno Setup installer
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W75_INNO_INSTALL_FAILED' }
+          }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W75_INNO_COMPILE_FAILED' }
+      - name: Confirm packaged version, metadata and one-click ZIP staging
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path 'windows-companion/w20/output/CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED.exe').Path
+          $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo($installer)
+          if ($meta.FileVersion.Trim() -ne '0.24.22.0' -or
+              $meta.ProductName.Trim() -ne 'CELIKOM') { throw 'W75_BAD_PE_VERSION' }
+          $zip = Join-Path $env:RUNNER_TEMP 'CELIKOM-W75-stage-test.zip'
+          Compress-Archive -Path $installer -DestinationPath $zip
+          $env:CELIKOM_UPDATE_TEST_PACKAGE = $zip
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W75_ZIP_STAGE_TEST_FAILED' }
+          if (-not (Test-Path $installer)) { throw 'W75_INSTALLER_MISSING_AFTER_ZIP' }
+          Write-Output "W75_SETUP_SHA256=$((Get-FileHash $installer -Algorithm SHA256).Hash)"
+      - name: Fetch exact proven W74 0.24.21 installer for real inplace test
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W74-START-PREFLIGHT-RETRY-UNSIGNED
+          run-id: 43085966611
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: old-approved
+      - name: Preserve DPAPI, native 0.24.21 assets, AppId and untouched Yandex on 0.24.21 to 0.24.22
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $old=(Resolve-Path 'old-approved/CELIKOM-W74-START-PREFLIGHT-RETRY-UNSIGNED.exe').Path
+          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED.exe').Path
+          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne '2AB54A9B51D7C2E908EE4DBE537FDD4E58840907D1D6A1D5F2AE07FD4AB1CCA2') {
+            throw 'W75_W74_ORIGINAL_HASH_MISMATCH'
+          }
+          $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe=Join-Path $app 'CELIKOM.Companion.exe'
+          $native=Join-Path $app 'integration'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          $yandex=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $app) -or (Test-Path $yandex)) { throw 'W75_DIRTY_RUNNER' }
+          $p=Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W75_OLD_INSTALL_FAILED' }
+          $nativeBefore=@{}
+          foreach ($file in 'host.cjs','renderer.js') {
+            $nativeBefore[$file]=(Get-FileHash (Join-Path $native $file) -Algorithm SHA256).Hash
+          }
+          New-Item -ItemType Directory -Force -Path $state | Out-Null
+          $seal=[Security.Cryptography.ProtectedData]::Protect(
+            [Text.Encoding]::UTF8.GetBytes('W75_DPAPI_PRESERVATION_FIXTURE'),$null,
+            [Security.Cryptography.DataProtectionScope]::CurrentUser)
+          [IO.File]::WriteAllBytes($session,$seal)
+          $hash=(Get-FileHash $session -Algorithm SHA256).Hash
+          $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W75_INPLACE_INSTALL_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.22.0') {
+            throw 'W75_WRONG_INSTALLED_VERSION'
+          }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $hash) {
+            throw 'W75_DPAPI_ACCOUNT_CHANGED'
+          }
+          $text=[Text.Encoding]::UTF8.GetString(
+            [Security.Cryptography.ProtectedData]::Unprotect(
+              [IO.File]::ReadAllBytes($session),$null,
+              [Security.Cryptography.DataProtectionScope]::CurrentUser))
+          if ($text -ne 'W75_DPAPI_PRESERVATION_FIXTURE') { throw 'W75_DPAPI_DECRYPT_FAILED' }
+          foreach ($file in 'host.cjs','renderer.js') {
+            if ((Get-FileHash (Join-Path $native $file) -Algorithm SHA256).Hash -ne $nativeBefore[$file]) {
+              throw 'W75_NATIVE_ASSET_CHANGED'
+            }
+          }
+          if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe'))) {
+            throw 'W75_SECOND_APP_OR_BAD_UNINSTALLER'
+          }
+          if (Test-Path $yandex) { throw 'W75_TOUCHED_YANDEX' }
+          Write-Output 'W75_OWNER_DIAGNOSTICS_AND_02421_TO_02422_INPLACE_UPGRADE_PASS'
+          Write-Output 'W75_DPAPI_SAVED_LOGIN_AND_NATIVE_02421_ASSETS_IDENTICAL_PASS'
+          Write-Output 'W75_NATIVE_YANDEX_VENDOR_FILES_UNTOUCHED_PASS'
+          $u=Start-Process (Join-Path $app 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($u.ExitCode -ne 0 -or (Test-Path $exe) -or (Test-Path $yandex)) { throw 'W75_UNINSTALL_FAILED' }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $hash) { throw 'W75_UNINSTALL_REMOVED_LOGIN' }
+      - name: Retain internal 0.24.22 incident-history fix installer as CI artifact (not public deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 10

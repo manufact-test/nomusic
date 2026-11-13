@@ -1,0 +1,14 @@
+{
+  "name": "celikom-w14-pulsesync-addon-candidate",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {"build": "vite build"},
+  "dependencies": {
+    "@pulsesync/addon-sdk": "0.18.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.4",
+    "typescript": "7.0.2"
+  }
+}

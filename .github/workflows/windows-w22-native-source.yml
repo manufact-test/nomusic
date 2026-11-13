@@ -1,0 +1,42 @@
+name: CELIKOM W22 independent source adapter contracts
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w22/**
+      - windows-companion/w15/source-controller.mjs
+      - windows-companion/w15/Celikom.Companion/GrantValidator.cs
+      - windows-companion/w15/Celikom.Companion.Tests/Program.cs
+      - .github/workflows/windows-w22-native-source.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Independent file-info source contract tests (NO mod and NO Yandex login)
+        run: node --test windows-companion/w22/native-resource-adapter.test.mjs
+      - name: Existing W15 source bridge regression checks
+        run: node --test windows-companion/w15/w15-contract.test.mjs
+      - name: W15 native CELIKOM bridge and MIME integration contract
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: No distributable installer from unverified W22
+        shell: pwsh
+        run: |
+          if (Test-Path 'windows-companion/w22/installer') { throw 'W22_PREMATURE_INSTALLER_FORBIDDEN' }
+          Write-Output 'W22_SOURCE_ONLY_NO_YANDEX_PATCH_NO_AUDIO_TEST'

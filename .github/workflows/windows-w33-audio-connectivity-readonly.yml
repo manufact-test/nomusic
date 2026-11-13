@@ -1,0 +1,91 @@
+name: CELIKOM W33 read-only native signed audio CORS and CSP investigation
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w33-audio-connectivity-readonly.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audio-network-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Audio backend CORS status with invalid token (no credentials)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='https://darkred-camel-588676.hostingersite.com/api/v1/audio/7'
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          for case in opaque native desktop browser; do
+            case "$case" in
+              opaque) origin='null';;
+              native) origin='musicapplication://desktop';;
+              desktop) origin='https://desktop.app.music.yandex.net';;
+              browser) origin='https://music.yandex.ru';;
+            esac
+            status="$(curl --silent --show-error --connect-timeout 10 --max-time 20               -D "$scratch/$case.headers" -o /dev/null -X OPTIONS               -H "Origin: $origin" -H 'Access-Control-Request-Method: GET'               -H 'Access-Control-Request-Headers: range'               "$root" -w '%{http_code}')"
+            allow="$(awk 'BEGIN{IGNORECASE=1} tolower($1)=="access-control-allow-origin:"{gsub(/\r/,"",$2);print $2}' "$scratch/$case.headers" | tail -1)"
+            allowHeaders="$(awk 'BEGIN{IGNORECASE=1} tolower($1)=="access-control-allow-headers:"{print tolower($0)}' "$scratch/$case.headers" | tail -1)"
+            echo "W33_AUDIO_PREFLIGHT_${case^^}_STATUS=$status ALLOWED=$allow RANGE_ALLOWED=$(echo "$allowHeaders" | grep -q range && echo true || echo false)"
+            if [[ "$status" != 204 || "$allow" != "$origin" ]]; then exit 2; fi
+          done
+          # Deliberately INVALID signature; must return 403 (not a redirect)
+          # with visible ACAO, proving denied HTTP requests can be read by renderer.
+          status="$(curl --silent --show-error --connect-timeout 10 --max-time 20             -D "$scratch/invalid.headers" -o /dev/null             -H 'Origin: null' -H 'Range: bytes=0-31'             "$root?token=0000000000000000000000000000000000000000000000000000000000000000&expires=1800000180&sid=1"             -w '%{http_code}')"
+          allow="$(awk 'tolower($1)=="access-control-allow-origin:"{gsub(/\r/,"",$2);print $2}' "$scratch/invalid.headers" | tail -1)"
+          echo "W33_AUDIO_INVALID_TOKEN_STATUS=$status ALLOWED=$allow"
+          if [[ "$status" != 403 || "$allow" != 'null' ]]; then exit 2; fi
+          echo "W33_PUBLIC_AUDIO_CORS_CONTRACT_PASS"
+
+      - name: Public Yandex desktop CSP headers (no login, read-only, never dump whole headers)
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          for case in desktop music next; do
+            case "$case" in
+              desktop) host='desktop.app.music.yandex.net';;
+              music) host='music.yandex.ru';;
+              next) host='next.music.yandex.ru';;
+            esac
+            status="$(curl --silent --show-error --connect-timeout 8 --max-time 20               -D "$scratch/$case.headers" -o /dev/null --location --max-redirs 5               "https://$host/" -w '%{http_code}' || true)"
+            echo "W33_YANDEX_${case^^}_STATUS=$status"
+            python3 - "$scratch/$case.headers" "$case" <<'PY'
+          import sys
+          path,label = sys.argv[1:]
+          values = []
+          try:
+              with open(path, encoding="utf-8", errors="replace") as stream:
+                  lines = list(stream)
+                  marker = max((i for i, line in enumerate(lines) if line.startswith("HTTP/")), default=0)
+                  for line in lines[marker:]:
+                      if line.lower().startswith("content-security-policy:"):
+                          values.append(line.split(":",1)[1].strip())
+          except OSError:
+              pass
+          if not values:
+              print("W33_YANDEX_"+label.upper()+"_CSP=NOT_OBSERVABLE")
+          else:
+              policy = " ".join(values)
+              directives = {}
+              for part in policy.split(";"):
+                  words = part.split()
+                  if words: directives[words[0].lower()] = words[1:]
+              for name in ("connect-src","media-src","default-src"):
+                  sources = directives.get(name)
+                  if not sources:
+                      print("W33_YANDEX_"+label.upper()+"_"+name.upper().replace("-","_")+"=NOT_EXPLICIT")
+                  else:
+                      allow = any("darkred-camel-588676.hostingersite.com" in word for word in sources)
+                      wildcard = any(word in ("*","https:") or word.startswith("https://*.hostingersite.com") for word in sources)
+                      print("W33_YANDEX_"+label.upper()+"_"+name.upper().replace("-","_")+"=EXPLICIT_API:"+str(allow).lower()+",BROAD_HTTPS:"+str(wildcard).lower())
+          PY
+          done

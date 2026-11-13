@@ -1,0 +1,93 @@
+name: Windows W79 read-only official Yandex 5.127.0 compatibility lab
+
+on:
+  push:
+    branches:
+      - experiment/windows-w79-upgrade-transaction-recovery-20261112
+    paths:
+      - .github/workflows/windows-w79-official-51270-readonly.yml
+      - windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj
+      - windows-companion/w23/host.cjs
+      - windows-companion/w24/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  official-51270-provenance:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Fetch official Yandex 5.127.0 package into disposable runner (never install)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://music-desktop-application.s3.yandex.net/stable/Yandex_Music_x64_5.127.0.exe'
+          $dest = Join-Path $env:RUNNER_TEMP 'Yandex_Music_x64_5.127.0.exe'
+          Write-Host 'Downloading only from the known Yandex distribution host; no execution.'
+          Invoke-WebRequest -Uri $url -OutFile $dest -TimeoutSec 180 -MaximumRedirection 3
+          if ((Get-Item $dest).Length -lt 50000000) { throw 'YANDEX_PACKAGE_TOO_SMALL' }
+          $sig = Get-AuthenticodeSignature $dest
+          if ($sig.Status -ne 'Valid') { throw "OFFICIAL_INSTALLER_SIGNATURE_$($sig.Status)" }
+          Write-Host "INSTALLER_SIGNER=$($sig.SignerCertificate.Subject)"
+          Write-Host "INSTALLER_SHA256=$((Get-FileHash $dest -Algorithm SHA256).Hash)"
+          $out = Join-Path $env:RUNNER_TEMP 'extracted-official-yandex'
+          New-Item -ItemType Directory $out | Out-Null
+          & 'C:\Program Files\7-Zip\7z.exe' x -y "-o$out" $dest | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'OFFICIAL_INSTALLER_EXTRACT_FAILED' }
+          $nested = Get-ChildItem $out -Recurse -File -Filter 'app-64.7z' | Select-Object -First 1
+          if ($null -eq $nested) { throw 'OFFICIAL_INSTALLER_NESTED_ARCHIVE_MISSING' }
+          $inner = Join-Path $out 'unpacked-app'
+          New-Item -ItemType Directory $inner | Out-Null
+          & 'C:\Program Files\7-Zip\7z.exe' x -y "-o$inner" $nested.FullName | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'OFFICIAL_APP_EXTRACT_FAILED' }
+          $files = Get-ChildItem $inner -Recurse -File
+          $exes = @($files | Where-Object { $_.Name -eq 'Яндекс Музыка.exe' })
+          $asars = @($files | Where-Object { $_.Name -eq 'app.asar' })
+          Write-Host "EXTRACTED_EXE_COUNT=$($exes.Count) EXTRACTED_ASAR_COUNT=$($asars.Count)"
+          if ($exes.Count -ne 1 -or $asars.Count -ne 1) {
+            $files | Where-Object { $_.Name -match 'asar|yandex|музыка|app-' } |
+              Select-Object -First 35 -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
+            throw 'OFFICIAL_PACKAGE_LAYOUT_REQUIRES_REVIEW'
+          }
+          $exeSig = Get-AuthenticodeSignature $exes[0].FullName
+          Write-Host "EXE_VERSION=$([System.Diagnostics.FileVersionInfo]::GetVersionInfo($exes[0].FullName).FileVersion)"
+          Write-Host "EXE_SIGNATURE=$($exeSig.Status) SIGNER=$($exeSig.SignerCertificate.Subject)"
+          if ($exeSig.Status -ne 'Valid') { throw 'OFFICIAL_EXE_NOT_TRUSTED' }
+          Write-Host "ORIGINAL_51270_EXE_SHA256=$((Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash)"
+          Write-Host "ORIGINAL_51270_ASAR_SHA256=$((Get-FileHash $asars[0].FullName -Algorithm SHA256).Hash)"
+          Write-Host 'W79_OFFICIAL_51270_READONLY_PROVENANCE_PASS'
+          # Actual 5.127.0 compatibility test: stage candidate bytes ONLY in runner temp.
+          # Never execute or install Yandex or publish altered vendor binaries.
+          npm install --no-audit --no-fund --prefix windows-companion/w23
+          if ($LASTEXITCODE -ne 0) { throw 'W23_NATIVE_BUILD_DEPENDENCIES_FAILED' }
+          node windows-companion/w23/build.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W23_NATIVE_BUNDLE_FAILED' }
+          $hostModule = (Resolve-Path windows-companion/w23/dist/host.cjs).Path
+          $renderer = (Resolve-Path windows-companion/w23/dist/renderer.js).Path
+          $stage = Join-Path $env:RUNNER_TEMP 'candidate-51270-images'
+          $exeSha = (Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $asarSha = (Get-FileHash $asars[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Cli/Celikom.NativeInstaller.Cli.csproj -c Release -- $exes[0].FullName $asars[0].FullName $hostModule $renderer $exeSha $asarSha $stage
+          if ($LASTEXITCODE -ne 0) { throw 'W79_REAL_51270_ASAR_IMAGE_BUILDER_FAILED' }
+          $imageReport = Get-Content (Join-Path $stage 'W24-image-hashes.json') -Raw | ConvertFrom-Json
+          if ($imageReport.integrityOccurrences -lt 1) { throw 'W79_IMAGE_EMBEDDED_HASH_NOT_FOUND' }
+          Write-Host "W79_REAL_51270_IMAGE_BUILD_PASS replacedHashes=$($imageReport.integrityOccurrences)"
+          # Create a separate temporary fake legacy snapshot and adopt the
+          # independently verified 5.127.0 pair. No actual host install.
+          $env:CELIKOM_W79_OFFICIAL_51270_EXE = $exes[0].FullName
+          $env:CELIKOM_W79_OFFICIAL_51270_ASAR = $asars[0].FullName
+          $env:CELIKOM_W79_NATIVE_ASSETS = (Resolve-Path windows-companion/w23/dist).Path
+          dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W79_OWNER_STATE_REAL_51270_REGRESSION_FAILED' }
+

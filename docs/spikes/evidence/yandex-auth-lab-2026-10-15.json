@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "date": "2026-10-15",
+  "source": {
+    "version": "2026.09.5 #167gpr",
+    "version_code": 24026501,
+    "base_sha256": "a3e4d3aedd24ea0370ead4f25c4f0085a1f43b94e458ee949da86797df27fc61"
+  },
+  "runs": [
+    {
+      "id": 38765567080,
+      "result": "offered_google_provider_opens_system_login",
+      "artifacts": [
+        11988052672,
+        11989215949,
+        11989546570,
+        11988278301
+      ]
+    },
+    {
+      "id": 38766841332,
+      "result": "google_owner_verification_blocked_before_password",
+      "artifacts": [
+        11989477395,
+        11990462469,
+        11988179559
+      ],
+      "captcha_solved": false,
+      "password_entered": false,
+      "ordinary_catalogue_id_verified": false
+    }
+  ],
+  "authenticated_runtime_trace_completed": false,
+  "new_customer_apk": false,
+  "next_gate": "normal_yandex_id_login_or_owner_completed_google_verification"
+}

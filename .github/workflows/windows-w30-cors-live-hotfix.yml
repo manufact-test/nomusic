@@ -1,0 +1,160 @@
+name: CELIKOM W30 guarded one-file audio CORS activation
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w30-cors-live-hotfix.yml
+      - server/deploy/w30-native-audio-cors-hotfix.php
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: |
+          php -l server/deploy/w30-native-audio-cors-hotfix.php
+          php -l server/src/Application.php
+          php server/tests/smoke.php
+
+  activate:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fingerprinted SSH, immutable clone, one-file patch, HTTPS check and rollback
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HOSTINGER_SSH_KEY"
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          test "$(ssh-keygen -lf "$work/public" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          id="w30-audio-cors-$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          root=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 u235811320@92.113.19.189 \
+            "umask 077; mkdir -p '$root/incoming/$id'"
+          scp -P 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 server/deploy/w30-native-audio-cors-hotfix.php \
+            "u235811320@92.113.19.189:$root/incoming/$id/patch.php"
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 u235811320@92.113.19.189 "bash -s -- '$id'" <<'REMOTE'
+          set -euo pipefail
+          id="$1"
+          root=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom
+          site=https://darkred-camel-588676.hostingersite.com
+          php=/opt/alt/php83/usr/bin/php
+          [[ "$id" =~ ^w30-audio-cors-[a-f0-9]{12}$ ]]
+          test -L "$root/current" && test -f "$root/incoming/$id/patch.php"
+          old="$(readlink -f "$root/current")"
+          [[ "$old" == "$root/releases/"* ]]
+          sha="$(sha256sum "$old/src/Application.php" | awk '{print $1}')"
+          test "$sha" = "111624874417252fc84a8554a34abe8bcc9eb424973964c8f9d1e3c946288454" || { echo 'W30_LIVE_SOURCE_CHANGED_NO_DEPLOY'; exit 3; }
+          candidate="$root/releases/$id"
+          backup="$root/backups/$id"
+          test ! -e "$candidate" && test ! -e "$backup"
+          mkdir -p "$candidate" "$backup"
+          cp -a "$old/." "$candidate/"
+          cp -p "$old/src/Application.php" "$backup/Original-Application.php"
+          printf '%s\n' "$old" > "$backup/previous-release"
+          "$php" "$root/incoming/$id/patch.php" "$candidate/src/Application.php"
+          "$php" -l "$candidate/src/Application.php"
+          "$php" -r '
+            require $argv[1] . "/bootstrap.php";
+            $config = require $argv[1] . "/config/app.php";
+            $app = new Celikom\Application($config);
+            foreach (["null","musicapplication://desktop","https://desktop.app.music.yandex.net","https://music.yandex.ru"] as $origin) {
+                $r = $app->handle("OPTIONS","/api/v1/audio/7",[],["Origin"=>$origin]);
+                if ($r->status !== 204 || ($r->headers["Access-Control-Allow-Origin"]??null) !== $origin) exit(12);
+            }
+            $r = $app->handle("OPTIONS","/api/v1/auth/login",[],["Origin"=>"null"]);
+            if (isset($r->headers["Access-Control-Allow-Origin"])) exit(13);
+            echo "W30_CANDIDATE_CORS_CONTRACT_PASS",PHP_EOL;
+          ' "$candidate"
+          test "$(readlink -f "$root/current")" = "$old"
+          switched=0
+          cache_probe=''
+          rollback() {
+            status=$?
+            trap - EXIT
+            if [[ -n "$cache_probe" ]]; then rm -f "$cache_probe"; fi
+            if [[ "$status" != 0 && "$switched" = 1 && "$(readlink -f "$root/current")" = "$candidate" ]]; then
+              ln -s "$old" "$root/w30-rollback-$$"
+              mv -Tf "$root/w30-rollback-$$" "$root/current"
+              echo 'W30_AUTOMATIC_ROLLBACK_COMPLETED' >&2
+            fi
+            exit "$status"
+          }
+          trap rollback EXIT
+          ln -s "$candidate" "$root/w30-next-$$"
+          mv -Tf "$root/w30-next-$$" "$root/current"
+          switched=1
+          # LiteSpeed PHP may retain a compiled class across the current symlink
+          # switch. A one-use random, POST-only same-site probe expires immediately.
+          public=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/public_html
+          test -d "$public" && test ! -L "$public"
+          cache_probe="$public/w30-cors-$(openssl rand -hex 20).php"
+          cat > "$cache_probe" <<'PHP_CACHE'
+          <?php
+          declare(strict_types=1);
+          if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || ($_SERVER['HTTP_X_W30_AUDIO'] ?? '') !== '1') {
+              http_response_code(404); exit;
+          }
+          header('Cache-Control: no-store');
+          $f = dirname(__DIR__) . '/celikom/current/src/Application.php';
+          if (!is_file($f)) {http_response_code(503);exit;}
+          if (function_exists('opcache_invalidate')) {
+              opcache_invalidate($f, true);
+              opcache_invalidate((string) realpath($f), true);
+          }
+          if (function_exists('opcache_reset')) opcache_reset();
+          echo 'W30_CACHE_CLEARED';
+          PHP_CACHE
+          chmod 0644 "$cache_probe"
+          cache_response="$(curl -sS --connect-timeout 10 --max-time 20 -X POST -H 'X-W30-Audio: 1' "$site/$(basename "$cache_probe")")"
+          rm -f "$cache_probe"
+          cache_probe=''
+          test "$cache_response" = W30_CACHE_CLEARED || { echo 'W30_WEB_PHP_CACHE_INVALIDATE_FAILED'; exit 4; }
+          opaque="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-opaque-headers" -o /dev/null -X OPTIONS -H 'Origin: null' "$site/api/v1/audio/7" -w '%{http_code}')"
+          if [[ "$opaque" != 204 ]]; then echo "W30_LIVE_NATIVE_HTTP=$opaque"; exit 5; fi
+          grep -qi '^access-control-allow-origin: null' "$backup/audio-opaque-headers"
+          browser="$(curl -sS --connect-timeout 10 --max-time 20 -D "$backup/audio-browser-headers" -o /dev/null -X OPTIONS -H 'Origin: https://music.yandex.ru' "$site/api/v1/audio/7" -w '%{http_code}')"
+          test "$browser" = 204
+          grep -qi '^access-control-allow-origin: https://music.yandex.ru' "$backup/audio-browser-headers"
+          health="$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null "$site/api/v1/health" -w '%{http_code}')"
+          test "$health" = 200
+          curl -sS --connect-timeout 10 --max-time 20 -D "$backup/auth-null-headers" -o /dev/null -X OPTIONS -H 'Origin: null' "$site/api/v1/auth/login"
+          ! grep -qi '^access-control-allow-origin:' "$backup/auth-null-headers"
+          echo 'W30_LIVE_AUDIO_CORS_204_PASS'
+          echo 'W30_LIVE_BROWSER_CORS_PASS'
+          echo 'W30_LIVE_HEALTH_PASS'
+          echo 'W30_ORIGINAL_RELEASE_PRESERVED'
+          REMOTE
+          echo 'W30_ONE_FILE_HOTFIX_ACTIVATED'

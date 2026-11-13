@@ -1,0 +1,28 @@
+name: CELIKOM W70 compare active W45 support file baselines without deployment
+on:
+  push:
+    branches: [experiment/windows-w70-auto-support-diagnostics-20261111]
+    paths:
+      - .github/workflows/windows-w70-support-source-compare.yml
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Output expected live versus inherited W69 and W70 file hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          old=908b6fa65d0a67fb313ada7be7ad73edd36225f9
+          for file in src/Support/SupportService.php src/Support/SongReport.php src/Support/SupportAdminView.php src/Admin/AdminPanel.php src/Application.php; do
+            base="server/$file"
+            current="$(sha256sum "$base" | awk '{print $1}')"
+            inherited="$(git show "$old:$base" | sha256sum | awk '{print $1}')"
+            echo "SUPPORT_SOURCE_COMPARE $file inherited=$inherited staged=$current"
+          done
+          echo 'SUPPORT_SOURCE_COMPARE_COMPLETE_READ_ONLY'

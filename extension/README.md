@@ -1,10 +1,59 @@
-# CELIKOM extension
+# CELIKOM — единый Chrome-клиент
 
-Production-oriented Manifest V3 foundation. Stage 1 establishes packaging, message contracts and fail-open control surfaces only. The accepted playback implementation remains in `../spikes/player-poc` until its contracts are migrated under the Stage 2–3 test gates.
+## Актуально на 20.10.2026 — клиент 0.4.58
+
+Исправлена попытка автоматического возврата после переключения VPN без браузерного события `online`: после временного сбоя последующая проверка сбрасывает устаревший GET-транспорт и возобновляет интеграцию только после новой успешной проверки прав сервером. Оригинал сохраняется при отказе сети; явные Stop и «Вернуть оригинал» не обходятся.
+
+Пакет `celikom-extension-0.4.58.zip` собран в [private Chrome workflow (PASS)](https://github.com/manufact-test/nomusic/actions/runs/39405617786), [полный CI PASS](https://github.com/manufact-test/nomusic/actions/runs/39405622654). Владелец получил ZIP и **пока тестирует** переключения VPN — реальная приёмка не закрыта. Подробности: [VPN recovery 0.4.58](../docs/decisions/VPN-NO-ONLINE-RECOVERY-0.4.58-2026-10-20.md).
+
+
+Одна Manifest V3 сборка содержит подмену музыки, аккаунт, доступ, загрузку MP3 и M4A (AAC),
+отдельное предложение песни и награды. Общий API:
+https://darkred-camel-588676.hostingersite.com.
+Обычному пользователю не нужен отдельный API_TEST_TOKEN.
+
+## Обновление существующей установки
+
+1. Сохранить резервную 0.4.4. Распаковать полный `celikom-extension-0.4.58.zip`.
+2. Закрыть popup и заменить файлы в прежней папке распакованного расширения.
+   Не удалять установленное расширение: это сохраняет его идентичность и локальную сессию.
+3. В `chrome://extensions` нажать «Обновить» (Reload) у существующего CELIKOM.
+4. Один раз обновить открытую вкладку Яндекс Музыки, чтобы убрать старый MAIN bundle.
+
+Новая установка: включить режим разработчика в `chrome://extensions`, выбрать
+«Загрузить распакованное» и папку с `manifest.json`. Войти в свой подтверждённый
+CELIKOM аккаунт. Trial — три дня на аккаунт с первой активации, без сброса при
+переустановке; refresh-сессии устройств независимы. Наличие сессии не продлевает доступ.
+Не создавать дополнительные временные копии ради проверки прежних принятых этапов.
+
+## Поведение и ограничения
+
+«Стоп» сохраняет выключение; «Вернуть оригинал» оставляет bypass текущего Track ID
+до смены трека или нового явного «Старт». Задержанный ответ на прежний Start не
+отменяет последующий Stop, Original или logout. Ошибки сети/плеера возвращают
+оригинальный звук, а временные сбои допускают восстановление при сохранённом intent.
+При объявленном владельцем incident музыкальные кнопки скрыты, аккаунт доступен;
+время действующего доступа компенсируется сервером. Потеря сети не объявляет incident.
+
+Зелёная C означает работающую связь с Яндексом, включая треки без approved версии.
+Подмена доступна только для точной одобренной активной версии и разрешённого доступа.
+Upload остаётся pending до ручной модерации; предложение песни не загружает аудиофайл.
+Платёжный провайдер и owner-промокоды этим security-пакетом не подключены.
+Issue #7 остаётся открытым; исходная причина Yandex stall/RangeError не доказана.
+
+## Сборка и проверки
+
+Node 24+, из корня монорепозитория:
 
 ```bash
-npm run build
-npm test
+npm ci
+npm run ci
+CELIKOM_API_BASE_URL=https://darkred-camel-588676.hostingersite.com npm run build:extension
+npm run security
 ```
 
-Load `dist/unpacked` through `chrome://extensions` for foundation smoke testing. The popup intentionally exposes only local start/stop/original controls; account, upload, subscription and production replacement behavior are not part of this stage.
+Полный ZIP и SHA-256: `extension/dist/`. Общий CI проверяет PHP/MySQL и native
+Chromium; отдельный MariaDB job — совместимость backend. VM-тесты сами по себе
+не являются приёмкой реального музыкального сервиса или Android.
+Отчёт security: `docs/test-plans/security.md`; recovery: `docs/runbooks/stage14-hardening.md`.
+Этап 15 исключён. Android 16/17 требует отдельного PoC; APK не создан этим пакетом.

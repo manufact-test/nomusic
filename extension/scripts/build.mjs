@@ -4,6 +4,11 @@ import { cp, mkdir, readFile, readdir, rm, stat, utimes, writeFile } from "node:
 import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { contentScriptGroups } from "./content-script-groups.mjs";
+import { apiBuildConfig } from "./api-build-config.mjs";
+import { buildIcons } from "./build-icons.mjs";
+
+await buildIcons();
 
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = path.join(extensionRoot, "src");
@@ -47,13 +52,30 @@ async function normalizeTree(directory) {
 await rm(unpackedRoot, { recursive: true, force: true });
 await mkdir(unpackedRoot, { recursive: true });
 await compileSources();
-await cp(path.join(extensionRoot, "manifest", "manifest.json"), path.join(unpackedRoot, "manifest.json"));
+for (const group of contentScriptGroups) {
+  const parts = await Promise.all(group.modules.map(async (file) => `// ${file}\n${await readFile(path.join(unpackedRoot, file), "utf8")}`));
+  await writeFile(path.join(unpackedRoot, group.file), `// CELIKOM ${packageJson.version} ${group.world} dependency bundle\n${parts.join("\n;\n")}\n`, "utf8");
+}
+const apiConfig = apiBuildConfig(process.env.CELIKOM_API_BASE_URL);
+const supportEmail = (process.env.CELIKOM_SUPPORT_EMAIL || "").trim();
+if (supportEmail && !/^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,63}$/.test(supportEmail)) throw new Error("Invalid CELIKOM_SUPPORT_EMAIL");
+apiConfig.supportEmail = supportEmail;
+await mkdir(path.join(unpackedRoot, "api"), { recursive: true });
+await writeFile(path.join(unpackedRoot, "api", "config.json"), JSON.stringify(apiConfig, null, 2) + "\n");
+const sourceManifest = JSON.parse(await readFile(path.join(extensionRoot, "manifest", "manifest.json"), "utf8"));
+if (apiConfig.baseUrl && apiConfig.baseUrl !== "https://music.yandex.ru") sourceManifest.host_permissions.push(`${apiConfig.baseUrl}/*`);
+await writeFile(path.join(unpackedRoot, "manifest.json"), JSON.stringify(sourceManifest, null, 2) + "\n");
 await cp(path.join(extensionRoot, "popup"), path.join(unpackedRoot, "popup"), { recursive: true });
 await cp(path.join(extensionRoot, "_locales"), path.join(unpackedRoot, "_locales"), { recursive: true });
+await cp(path.join(extensionRoot, "assets"), path.join(unpackedRoot, "assets"), { recursive: true });
 
 const manifest = JSON.parse(await readFile(path.join(unpackedRoot, "manifest.json"), "utf8"));
 if (manifest.version !== packageJson.version) {
   throw new Error(`Manifest ${manifest.version} and package ${packageJson.version} versions differ`);
+}
+for (const group of contentScriptGroups) {
+  const entry = manifest.content_scripts.find((script) => script.world === group.world);
+  if (JSON.stringify(entry?.js) !== JSON.stringify([group.file])) throw new Error(`Invalid ${group.world} bundle entry`);
 }
 
 await normalizeTree(unpackedRoot);
@@ -64,7 +86,8 @@ if (!unpackedOnly) {
   const files = (await walk(unpackedRoot)).map((file) => path.relative(unpackedRoot, file));
   const zipped = spawnSync("zip", ["-X", "-9", "-q", archivePath, ...files], {
     cwd: unpackedRoot,
-    stdio: "inherit"
+    stdio: "inherit",
+    env: { ...process.env, TZ: "UTC" }
   });
   if (zipped.status !== 0) throw new Error("zip failed while building the extension artifact");
 

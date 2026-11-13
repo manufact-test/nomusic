@@ -1,0 +1,52 @@
+name: CELIKOM W68 live public config READ-ONLY no credentials
+on:
+  push:
+    branches:
+      - experiment/windows-commercial-entitlement-audit-20261110
+    paths:
+      - .github/workflows/windows-w68-public-api-readonly-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readonly-public-config:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read only anonymous public config and health; never send credentials
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const origin = 'https://darkred-camel-588676.hostingersite.com';
+          for (const path of ['/api/v1/health','/api/v1/config']) {
+            const r = await fetch(origin+path,{redirect:'error',cache:'no-store',
+              signal:AbortSignal.timeout(12000)});
+            if (r.status!==200) throw new Error('PUBLIC_API_NOT_200_'+path.slice(-6)+'_'+r.status);
+            if (!r.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
+              throw new Error('PUBLIC_API_NOT_JSON');
+            const raw=await r.text();
+            if(raw.length>30000)throw new Error('PUBLIC_API_RESPONSE_TOO_LARGE');
+            const obj=JSON.parse(raw);
+            if (path.endsWith('health')) {
+              if(obj.status!=='ok')throw new Error('PUBLIC_API_NOT_HEALTHY');
+              console.log('W68_LIVE_PUBLIC_HEALTH_OK');
+            } else {
+              for(const key of ['auth','entitlement','replacements']) {
+                const value=obj.features?.[key];
+                if(typeof value!=='boolean')throw new Error('PUBLIC_FLAG_MISSING_'+key);
+                console.log('W68_LIVE_PUBLIC_FEATURE_'+key.toUpperCase()+'='+(value?'ON':'OFF'));
+              }
+              if (obj.features.auth!==true || obj.features.entitlement!==true ||
+                  obj.features.replacements!==true)
+                throw new Error('W68_COMMERCIAL_API_FEATURES_NOT_READY');
+            }
+          }
+          JS
+      - name: Read-only check cannot approve billing, payment provider, or signed Windows app
+        run: echo W68_NO_PRODUCTION_MUTATION_PAYMENT_VERIFICATION_STILL_REQUIRED

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "purpose": "celikom-windows-yandex-official-baselines",
+  "builds": [
+    {
+      "version": "5.127.0.r22015925",
+      "exeSha256": "de2849a1378daff16500fd5c8499634aab8d994c1ffb1b1d8a6bc264edd9aada",
+      "asarSha256": "c176ff3cecdddfab76b2d0d90bf527bbed226919fab37f5723b46913084620cb",
+      "status": "verified",
+      "proof": "https://github.com/manufact-test/nomusic/actions/runs/43289688797"
+    }
+  ]
+}

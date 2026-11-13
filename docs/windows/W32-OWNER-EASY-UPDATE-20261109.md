@@ -1,0 +1,34 @@
+# W32 Windows CELIKOM — visible version and owner-friendly single-app upgrades (2026-11-09)
+
+## Owner diagnosis
+Latest owner-uploaded \`2.txt\`, GeneratedUTC 2026-11-09T18:22:36Z, proves **AppVersion=0.24.2.0** and export format "W28" with stale CodeBaseline 099d71... . The intended W31 browser-context audio probe is **0.24.3**. Owner's repeated clicking «Обновить модуль» in app 0.24.2 refreshed old Yandex host with old renderer, not Windows application itself, explaining why audio probe events never appeared. Owner did nothing deceitful or misreporting. This is a UX/release path defect, not proof of why mapped audio stops. NativeIntegration=ACTIVE, Enabled=true, SignedIn=true, approved song IDs mapped, normal RESOLVE_MISS, but no audio proof. Real Yandex play/pause remains UNVERIFIED.
+
+## New UX in 0.24.4
+- The window now has a **persistent bottom strip** on both «Главная» and «Аккаунт»: \`CELIKOM 0.24.4 | Модуль Яндекса: 0.24.4 ✓\` or \`Модуль Яндекса: старая версия — не совпадает\`. Version shows the **actual running assembly**, not a promised latest version.
+- \`NativeModuleIdentity\` reads ONLY embedded \`celikom/host.cjs\` and \`renderer.js\` from the currently installed original Yandex app.asar as a read-only bounded operation, retrieves an explicit W32 version marker from embedded host, hashes actual script bytes and compares to the current app's \`integration\` assets. If old/unreadable/missing, display honestly "unknown"/"old"; never fabricate a matching status.
+- Native replacement cannot be enabled while its installed files mismatch the running app. «Обновить модуль» remains an explicit, safe restore/install option. AppVersion and NativeModuleVersion/Matches are in owner diagnostic header.
+- Add **«Обновить CELIKOM из ZIP или EXE»**: owner selects a single GitHub Actions artifact ZIP or its contained EXE, validates one exact named CELIKOM installer, reads PE product/company/version, rejects older or equal version, stages to a per-user temp path, shows 0.24.3 → 0.24.4 confirmation, and launches Inno Setup as an in-place same-AppId, same-directory upgrade without Windows uninstall. Account DPAPI secrets remain in place.
+- Approved in-app update writes a one-use 20-minute version ticket. Inno after completed installation automatically launches **new app** using \`--complete-update\`. Only if the ticket matches the actual new EXE version does new app attempt a *verified* restore/reinstall of the older Yandex native module, then restart Yandex. If native refresh fails, original restore is preserved, app clearly shows mismatch and retains manual refresh. No Yandex account credentials touched.
+- Inno installer has explicit \`VersionInfoVersion=0.24.4.0\`, \`VersionInfoCompany/ProductName=CELIKOM\`; the old \`AppId\`/directory are untouched. Silent upgrade does NOT invoke uninstall. The initial launch for normal installer remains, and the in-app selected ZIP triggers only one combined app+module updater thereafter.
+- Security: internal GitHub builds are UNSIGNED and are not cryptographically publisher authenticated. Owner must download packages from same verified project. The update button only accepts CELIKOM PE metadata and expected package format, not arbitrary scripts/URLs. No generic updater arbitrary execution or externally hosted unapproved origin.
+
+## One-time migration from owner's 0.24.2
+0.24.2 *does not have* the new update button; UI cannot be retrofitted into a running old binary. Owner needs **ONE** initial action: download ZIP with 0.24.4 EXE, extract it and **run that EXE** over installed CELIKOM (do NOT manually uninstall). When new app opens, footer must say 0.24.4. If module shows mismatch, click «Обновить модуль» once to refresh Yandex. From 0.24.4 onward: ZIP → button «Обновить CELIKOM из ZIP или EXE» → choose ZIP → confirm; update & module handled together.
+
+## Verification gates
+- Backup immutable prechange: \`backup/windows-w32-before-one-click-updater-20261109\` at \`837f9984f1864a76c35c187680deb7d35a2ada60\`.
+- Compile .NET 10 WinForms and Native Module Identity. W24 test with real generated ASAR verifies recognized host marker, compare assets and tampered mismatch. W15 test diagnostics header and in-app updater ZIP acceptance. Inno CI reads actual PE version+company/product, zipped installer Stage, rejects non-new, performs two installs in same AppId before uninstall (no duplicate). W23 genuine Yandex smoke confirms exact native restore.
+- Testing installer and file identity in disposable CI does NOT prove audible native Yandex replacement, currently still owner FAIL. W31 AUDIO_PROBE_* events require owner to actually open W32 app with module successfully refreshed and send fresh TXT.
+- Do not deploy server or touch Android, browser extension, Yandex native internals beyond existing opt-in module refresh.
+
+
+## Final verified CI and owner package (2026-11-09)
+
+- Functional packaged SHA: 13cce0fa8020e75e9199c0d31df684057e2eee03.
+- W20 one-installer Windows CI https://github.com/manufact-test/nomusic/actions/runs/42677316909 SUCCESS. ZIP selection, PE publisher/version, anti-downgrade, repeated same-AppId install, uninstall and native assets.
+- W23 genuine Yandex disposable install/restore CI https://github.com/manufact-test/nomusic/actions/runs/42677316959 SUCCESS. Real account/audible playback NOT TESTED.
+- Companion Preview https://github.com/manufact-test/nomusic/actions/runs/42677317102 SUCCESS.
+- Direct previous-owner upgrade https://github.com/manufact-test/nomusic/actions/runs/42677949767 SUCCESS. Downloaded original 0.24.2 installer from run 42638433588 and new 0.24.4 installer from run 42677316909. Installed old, then new over same AppId. New running executable version verified 0.24.4.0; only one uninstaller; local session.dpapi sentinel preserved; installed native host asset marker 0.24.4; no Yandex installation touched; uninstall leaves owner profile intact.
+- Download one internal unsigned full installer ZIP https://github.com/manufact-test/nomusic/actions/runs/42677316909/artifacts/13699829659, artifact name CELIKOM-W32-EASY-UPDATE-UNSIGNED.
+- For existing 0.24.2, one-time run new setup EXE OVER old (DO NOT manually uninstall). Existing 0.24.2 has no in-app updater button. In new UI footer verify CELIKOM 0.24.4 and module version. If old module mismatch, click Обновить модуль once; subsequent ZIPs through in-app Обновить CELIKOM из ZIP или EXE.
+- Owner audio mapping/pause STILL UNVERIFIED; after matched module, obtain new TXT including AUDIO_PROBE_* codes before further player changes.

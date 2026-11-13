@@ -1,0 +1,126 @@
+name: CELIKOM W41 native Yandex Origin exact scheme classification
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w23/w33-runtime-probe.cjs
+      - windows-companion/w23/w33-runtime-probe.test.cjs
+      - windows-companion/w23/w23-host-smoke.ps1
+      - windows-companion/w15/Celikom.Companion.Tests/**
+      - .github/workflows/windows-w33-genuine-renderer-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  genuine-renderer-boundary:
+    runs-on: windows-2022
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build original CELIKOM native main/renderer for disposable Yandex only
+        working-directory: windows-companion/w23
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W33_NPM_FAIL' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W33_BUNDLE_FAIL' }
+      - name: Verify source-only adapter/renderer and bounded audio diagnostic tests
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs windows-companion/w23/w33-runtime-probe.test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'W33_NATIVE_TESTS_FAIL' }
+      - name: Build temporary Windows companion without owner account
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained false -o windows-companion/w23/companion
+          if ($LASTEXITCODE -ne 0) { throw 'W33_COMPANION_PUBLISH_FAIL' }
+      - name: Signed genuine Yandex 5.126.1 disposable renderer HTTP/CSP probe; restore vendor bytes
+        shell: pwsh
+        env:
+          CELIKOM_W33_RUNTIME_PROBE: '1'
+          CELIKOM_W37_CDP_PROBE: '1'
+          CELIKOM_W39_CORS_HEADERS: '1'
+          CELIKOM_W41_SCHEME_ONLY: '1'
+        run: |
+          ./windows-companion/w23/w23-host-smoke.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'W33_DISPOSABLE_NATIVE_PROBE_FAIL' }
+          $report = Get-Content 'windows-companion/w23/W23-report.json' -Raw | ConvertFrom-Json
+          if (-not $report.originalBytesRestored -or -not $report.originalSignatureRestored) {
+            throw 'W33_ORIGINAL_VENDOR_BYTES_NOT_RESTORED'
+          }
+          $probe = @($report.w33RuntimeProbe)
+          $probe | ForEach-Object { Write-Output "W33_RUNTIME_RESULT: $_" }
+          if ($probe.Count -eq 0) { throw 'W33_NO_NATIVE_RENDERER_OBSERVATION' }
+          if (@($probe | Where-Object { $_ -match '^W33_RT_MAIN_(HTTP_|REDIRECT|NETWORK_ERROR|TIMEOUT)' }).Count -eq 0) {
+            throw 'W36_NO_TRUSTED_MAIN_NETWORK_CONTROL'
+          }
+          if (@($probe | Where-Object { $_ -match '^W33_RT_(NATIVE|MUSIC_WEB|NEXT_WEB|DESKTOP_WEB|MUSIC_COM)_(HTTP_|FETCH_|TIMEOUT)' }).Count -eq 0) {
+            throw 'W36_NO_APPROVED_RENDERER_FETCH_RESULT'
+          }
+          if ('W33_RT_CDP_ALREADY_ATTACHED' -in $probe) {
+            # W50+ host.cjs owns the sole CDP debugger for the trusted view.
+            # The old independent W41 probe cannot also attach. Verify that
+            # CDP Media+Network was enabled by CELIKOM itself, not by W41.
+            $ownerNativeLog = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows\native-events.log'
+            if (-not (Test-Path $ownerNativeLog)) { throw 'W53_HOST_CDP_OWNER_LOG_MISSING' }
+            $nativeEvents = @(Get-Content $ownerNativeLog -TotalCount 3000)
+            if (@($nativeEvents | Where-Object { $_ -match '\|PLAYER_CDP_READY$' }).Count -eq 0) {
+              throw 'W53_HOST_CDP_MEDIA_NOT_READY'
+            }
+            if (@($nativeEvents | Where-Object { $_ -match '\|PLAYER_NET_READY$' }).Count -eq 0) {
+              throw 'W53_HOST_CDP_NETWORK_NOT_READY'
+            }
+            Write-Output 'W53_HOST_OWNED_MEDIA_AND_NETWORK_CDP_VERIFIED'
+            Write-Output 'W41_LEGACY_CDP_WIRE_CLASSIFICATION_NOT_REMEASURED_DUE_TO_OWNERSHIP'
+          } else {
+            if ('W33_RT_CDP_NETWORK_ENABLED' -notin $probe) {
+              throw 'W37_PASSIVE_CDP_NOT_ENABLED'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_(LOAD_FAILED_|HTTP_|CSP_CONSOLE)' }).Count -eq 0) {
+              throw 'W37_CDP_HAS_NO_CLASSIFIED_NETWORK_OUTCOME'
+            }
+            if ('W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
+              throw 'W38_EXPECTED_NATIVE_CORS_EVENT_NOT_OBSERVED'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_CORS_ENUM_' }).Count -eq 0) {
+              throw 'W38_CORS_ERROR_ENUM_MISSING'
+            }
+            if ('W33_RT_CDP_REQUEST_SEEN' -notin $probe -or
+                'W33_RT_CDP_LOAD_FAILED_CORS' -notin $probe) {
+              throw 'W39_NATIVE_CORS_REQUEST_MISSING'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_REQUEST_ORIGIN_' }).Count -eq 0) {
+              throw 'W39_REQUEST_ORIGIN_CATEGORY_MISSING'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_REQUEST_ORIGIN_' }).Count -eq 0) {
+              throw 'W40_WIRE_ORIGIN_SCHEME_NOT_OBSERVED'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_SCHEME_' }).Count -eq 0) {
+              throw 'W41_WIRE_ORIGIN_SCHEME_UNKNOWN'
+            }
+            if (@($probe | Where-Object { $_ -match '^W33_RT_CDP_WIRE_HOST_' }).Count -eq 0) {
+              throw 'W41_WIRE_HOST_CATEGORY_MISSING'
+            }
+            Write-Output 'W41_NATIVE_WIRE_SCHEME_CLASSIFIED'
+          }
+      - name: Retain only sanitized CI report (never patched Yandex binaries or credentials)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W33-DISPOSABLE-RENDERER-REPORT
+          path: windows-companion/w23/W23-report.json
+          retention-days: 7
+          if-no-files-found: warn

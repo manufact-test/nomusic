@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CELIKOM.Companion</AssemblyName>
+    <Version>0.24.36</Version>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- Same official CELIKOM extension C icon used in EXE, taskbar, tray and installer. -->
+    <ApplicationIcon>../../w20/assets/CELIKOM.ico</ApplicationIcon>
+  </PropertyGroup>
+  <Target Name="BuildCelikomOfficialIcon" BeforeTargets="PrepareForBuild">
+    <Exec Command="node &quot;../../w20/scripts/build-app-icon.cjs&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../w24/Celikom.NativeInstaller/Celikom.NativeInstaller.csproj" />
+  </ItemGroup>
+</Project>

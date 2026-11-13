@@ -1,0 +1,689 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+await import("../dist/unpacked/player/core.js");
+await import("../dist/unpacked/player/original-audio-guard.js");
+await import("../dist/unpacked/player/sync-engine.js");
+await import("../dist/unpacked/player/replacement-player.js");
+await import("../dist/unpacked/player/fail-open-controller.js");
+await import("../dist/unpacked/player/replacement-controller.js");
+const { OriginalAudioGuard } = globalThis.__CELIKOM_ORIGINAL_GUARD_V1__;
+const { SyncEngine, targetTime, projectTime, driftAt } = globalThis.__CELIKOM_SYNC_ENGINE_V1__;
+const { ReplacementController } = globalThis.__CELIKOM_REPLACEMENT_CONTROLLER_V1__;
+const { ReplacementPlayer } = globalThis.__CELIKOM_REPLACEMENT_PLAYER_V1__;
+const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
+
+class Media extends EventTarget {
+  constructor() { super(); this.physicalVolume = 0.5; this.physicalMuted = false; this.currentTime = 0; this.duration = 4; this.paused = true; this.readyState = 4; this.dataset = {}; }
+  get volume() { return this.physicalVolume; }
+  set volume(value) { if (value < 0 || value > 1) throw new RangeError("volume"); this.physicalVolume = Number(value); queueMicrotask(() => this.dispatchEvent(new Event("volumechange"))); }
+  get muted() { return this.physicalMuted; }
+  set muted(value) { if (this.physicalMuted === Boolean(value)) return; this.physicalMuted = Boolean(value); queueMicrotask(() => this.dispatchEvent(new Event("volumechange"))); }
+  play() { this.paused = false; return Promise.resolve(); }
+  pause() { this.paused = true; }
+  load() {}
+  remove() { this.removed = true; }
+  removeAttribute(name) { if (name === "src") this.src = ""; }
+}
+
+test("guard preserves logical volume/mute while silencing physical original", async () => {
+  const media = new Media(); const guard = new OriginalAudioGuard();
+  guard.engage(media, "m1", "s:1");
+  assert.equal(media.physicalMuted, true);
+  assert.equal(media.muted, false, "site sees user intent, not forced mute");
+  media.volume = 0.012; media.muted = true;
+  await settle();
+  assert.equal(guard.state().volume, 0.012);
+  assert.equal(guard.state().muted, true);
+  media.muted = false;
+  assert.equal(media.physicalMuted, true, "site cannot unmute original while guarded");
+  guard.release("s:1"); await settle();
+  assert.equal(media.volume, 0.012); assert.equal(media.muted, false);
+  assert.equal(Object.hasOwn(media, "muted"), false);
+});
+test("guard restores initially muted media and rejects stale release leases", () => {
+  const media = new Media(); media.muted = true;
+  const guard = new OriginalAudioGuard();
+  guard.engage(media, "m1", "s:2"); guard.engage(media, "m1", "s:2");
+  assert.equal(guard.release("s:1").released, false);
+  assert.throws(() => guard.engage(media, "m1", "s:3"), /leased/);
+  guard.release("s:2"); assert.equal(media.muted, true);
+});
+test("guard tracks native prototype volume writes without mistaking own mute for user intent", async () => {
+  const media = new Media(); const guard = new OriginalAudioGuard();
+  guard.engage(media, "m", "t"); await settle();
+  Object.getOwnPropertyDescriptor(Media.prototype, "volume").set.call(media, 0.2);
+  Object.getOwnPropertyDescriptor(Media.prototype, "muted").set.call(media, false);
+  await settle();
+  assert.equal(media.physicalMuted, true); assert.equal(media.volume, 0.2); assert.equal(media.muted, false);
+  guard.release(); assert.equal(media.physicalMuted, false);
+});
+test("uninterceptable original properties fail before any mute mutation", () => {
+  const media = new Media(); Object.defineProperty(media, "muted", { value: false, configurable: false });
+  const guard = new OriginalAudioGuard();
+  assert.throws(() => guard.engage(media, "m", "t"), /guarded safely/);
+  assert.equal(media.physicalMuted, false); assert.equal(guard.state().active, false);
+});
+test("sync projects only a running ready clock and wraps only explicit synthetic assets", () => {
+  const state = { currentTime: 5, playbackRate: 2, duration: 20, readyState: 4 };
+  assert.equal(projectTime(state, 1000, 1500), 6);
+  for (const extra of [{ paused: true }, { seeking: true }, { ended: true }, { readyState: 2 }]) assert.equal(projectTime({ ...state, ...extra }, 1000, 1500), 5);
+  assert.equal(projectTime(state, 1000, 9000), 8, "projection is bounded");
+  assert.equal(targetTime(19, 4, true), 3);
+  assert.throws(() => targetTime(19, 4, false), /ended/);
+  assert.equal(driftAt(0.02, 3.98, 4, true), 40);
+});
+
+function snapshot(id = "2", extra = {}) {
+  return { observedAt: Date.now(), track: { id, confidence: 260, ambiguous: false, metadata: { durationMs: 200000 } }, player: { mediaId: "master", paused: false, ended: false, seeking: false, readyState: 4, currentTime: 7, duration: 200, volume: 0.012, muted: false, playbackRate: 1 }, ...extra };
+}
+function fixture({ loadGate, guardGate, rejectGuard = false, playerThrows = false, resolveAsset } = {}) {
+  const players = []; const requests = []; let current = snapshot(); let healthy = true;
+  const bridge = {
+    sessionId: "session-123", isHealthy: () => healthy, getSnapshot: async () => current,
+    request: async (type, payload) => {
+      requests.push({ type, ...payload });
+      if (type === "GUARD_ENGAGE") {
+        if (guardGate) await guardGate.promise;
+        if (rejectGuard) throw new Error("guard rejected");
+        return { snapshot: current };
+      }
+      return { released: true };
+    },
+    post: (type, payload) => requests.push({ type, ...payload })
+  };
+  const environment = { chrome: { runtime: { getURL: (name) => `chrome-extension://test/${name}` } }, document: { hidden: false } };
+  const engine = new ReplacementController(bridge, environment, { resolveAsset, createPlayer: (fatal) => {
+    if (playerThrows) throw new Error("constructor failed");
+    const player = {
+      audio: new Media(), demoLoop: true, fatal, destroyed: false,
+      prepare: async (asset) => { if (!asset.demoLoop) { player.audio.duration = 200; player.demoLoop = false; } if (loadGate) await loadGate.promise; },
+      applyState: (state) => { player.audio.volume = state.volume; player.audio.muted = state.muted; player.audio.playbackRate = state.playbackRate; },
+      play: () => { player.audio.paused = false; }, pause: () => { player.audio.paused = true; },
+      destroy: () => { player.destroyed = true; player.audio.paused = true; }
+    };
+    players.push(player); return player;
+  } });
+  engine.configure(true, "2");
+  const update = (next, event) => { current = next; engine.update(next, event); };
+  return { engine, bridge, players, requests, update, unhealthy: () => { healthy = false; } };
+}
+test('temporary master failure recovers same track from fresh healthy state without overriding manual original',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.update(snapshot(),'ERROR');await settle();
+ assert.equal(f.engine.blockedTrackId,'2');assert.equal(f.players[0].destroyed,true);
+ f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.equal(f.engine.activationCount,2);
+ f.engine.manualRestore();await settle();
+ f.engine.suspendAccess(true,'access_reconnecting');f.engine.suspendAccess(false);f.update(snapshot());await settle();
+ assert.equal(f.engine.operation,null);assert.equal(f.engine.manualBypass.trackId,'2');
+});
+test('transient access suspension releases audio but keeps desired enable and restarts on authorization',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ f.engine.suspendAccess(true,'access_reconnecting');await settle();
+ assert.equal(f.engine.enabled,true);assert.equal(f.engine.operation,null);assert.equal(f.players[0].destroyed,true);
+ f.update(snapshot());await settle();assert.equal(f.engine.operation,null);
+ f.engine.suspendAccess(true,'service_incident');f.engine.configure(true,'2',true);
+ assert.equal(f.engine.lastError,'service_incident');assert.equal(f.engine.suspended,true);
+ f.engine.suspendAccess(false);await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+});
+test('stalled master fails open and only recovers after its clock advances; Stop stays stopped',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ f.engine.masterClock.advancedAt=Date.now()-5000;f.engine.tick();await settle();
+ assert.equal(f.engine.lastError,'master-clock-stalled');assert.equal(f.engine.operation,null);
+ f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(f.engine.operation,null,'fresh snapshot alone does not mean playback resumed');
+ const next=snapshot();next.player.currentTime=8;f.update(next);await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.configure(false,'2');await settle();
+ f.engine.suspendAccess(true,'service_incident');f.engine.suspendAccess(false);f.update(snapshot());await settle();
+ assert.equal(f.engine.operation,null);assert.equal(f.engine.enabled,false);
+});
+test("A(original) → B(replacement) → C(original) uses exact ID and one player", async () => {
+  const f = fixture(); f.update(snapshot("1")); await settle(); assert.equal(f.players.length, 0);
+  f.update(snapshot("2")); await settle(); assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(f.players[0].audio.volume, 0.012);
+  f.update(snapshot("3")); assert.equal(f.players[0].destroyed, true); await settle();
+  assert.equal(f.engine.phase, "IDLE"); assert.equal(f.players.length, 1);
+});
+test("manual original stays bypassed on same track; unrelated settings do not rearm", async () => {
+  const f = fixture(); f.update(snapshot()); await settle(); f.engine.manualRestore(); await settle();
+  for (let i = 0; i < 10; i++) { f.update(snapshot()); f.engine.configure(true, "2"); f.engine.tick(); }
+  await settle(); assert.equal(f.players.length, 1); assert.equal(f.engine.manualBypass.trackId, "2");
+  f.engine.configure(true, "2", true); await settle(); assert.equal(f.players.length, 2);
+  f.engine.manualRestore(); await settle(); f.update(snapshot("3")); assert.equal(f.engine.manualBypass, null);
+});
+test("unknown track never clears manual bypass; next exact track does", async () => {
+  const f = fixture(); f.update(snapshot()); await settle(); f.engine.manualRestore(); await settle();
+  f.update(snapshot(null)); f.update(snapshot()); await settle(); assert.equal(f.players.length, 1);
+  f.update(snapshot("3")); f.update(snapshot()); await settle(); assert.equal(f.players.length, 2);
+});
+test("rapid next → next → previous invalidates old loads and never guards a stale track", async () => {
+  const gate = deferred(); const f = fixture({ loadGate: gate });
+  f.update(snapshot()); f.update(snapshot("3")); await settle(); f.update(snapshot("4")); f.update(snapshot());
+  gate.resolve(); await settle();
+  assert.equal(f.players.length, 2); assert.equal(f.players[0].destroyed, true);
+  assert.equal(f.requests.filter((r) => r.type === "GUARD_ENGAGE").length, 1);
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+});
+test("disable while loading cancels replacement before acquiring any guard", async () => {
+  const gate = deferred(); const f = fixture({ loadGate: gate }); f.update(snapshot());
+  f.engine.configure(false, "2"); gate.resolve(); await settle();
+  assert.equal(f.engine.phase, "IDLE"); assert.equal(f.players[0].destroyed, true);
+  assert.equal(f.requests.some((r) => r.type === "GUARD_ENGAGE"), false);
+});
+test("late guard acknowledgement after manual restore is released by its own lease", async () => {
+  const gate = deferred(); const f = fixture({ guardGate: gate }); f.update(snapshot()); await settle();
+  f.engine.manualRestore(); await settle(); gate.resolve(); await settle();
+  assert.equal(f.engine.phase, "IDLE"); assert.equal(f.players[0].audio.paused, true);
+  assert.equal(f.requests.at(-1).type, "RELEASE_NOW");
+  assert.equal(f.requests.at(-1).token, "session-123:1");
+});
+test("stale error from disposed replacement cannot affect a later generation", async () => {
+  const f = fixture(); f.update(snapshot()); await settle(); const old = f.players[0];
+  f.update(snapshot("3")); await settle(); f.update(snapshot()); await settle(); old.fatal("old media error");
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE"); assert.equal(f.players[1].destroyed, false);
+});
+test("seek + pause immediately positions and pauses replacement, then resume follows master", async () => {
+  const f = fixture(); f.update(snapshot()); await settle();
+  const paused = snapshot(); paused.player.currentTime = 18; paused.player.paused = true;
+  f.update(paused, "SEEK"); assert.equal(f.players[0].audio.currentTime, 2); assert.equal(f.players[0].audio.paused, true);
+  paused.player.paused = false; f.update(paused, "PLAY"); assert.equal(f.players[0].audio.paused, false);
+});
+
+test("native seek with HAVE_METADATA keeps one guarded operation and pauses while buffering", async () => {
+  const f = fixture(); f.update(snapshot()); await settle(); const generation = f.engine.operation.generation;
+  const seeking = snapshot(); seeking.player.readyState = 1; seeking.player.seeking = true; seeking.player.currentTime = 80;
+  f.update(seeking, "SEEK"); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(f.engine.operation.generation, generation);
+  assert.equal(f.players[0].audio.paused, true);
+  seeking.player.seeking = false; f.update(seeking, "SEEK"); await settle();
+  assert.equal(f.players.length, 1); assert.equal(f.engine.operation.generation, generation);
+  seeking.player.readyState = 4; f.update(seeking, "PLAY");
+  assert.equal(f.players[0].audio.paused, false);
+  assert.equal(f.engine.activationCount, 1); assert.equal(f.engine.restoreCount, 0);
+});
+test("metadata-only buffering keeps a lease only while track, media and duration remain bound", async () => {
+  for (const mutate of [s => { s.player.readyState = 0; }, s => { s.player.mediaId = "other"; }, s => { s.track.ambiguous = true; }, s => { s.player.duration = 15; }]) {
+    const f = fixture(); f.update(snapshot()); await settle();
+    const changed = snapshot(); changed.player.readyState = 1; mutate(changed);
+    f.update(changed); await settle();
+    assert.equal(f.players[0].destroyed, true);
+    assert.equal(f.engine.phase, "IDLE"); assert.equal(f.engine.restoreCount, 1);
+  }
+  const f = fixture(); const initial = snapshot(); initial.player.readyState = 1;
+  f.update(initial); await settle(); assert.equal(f.players.length, 0, "new admission needs playable data");
+  f.update(snapshot()); await settle();
+  const buffering = snapshot(); buffering.player.readyState = 1; buffering.observedAt -= 10000;
+  f.engine.snapshot = buffering; f.engine.tick();
+  assert.equal(f.engine.restoreCount, 0); assert.equal(f.players[0].audio.paused, true);
+});
+test("guard denial and player construction errors fail open without automatic retry storms", async () => {
+  for (const options of [{ rejectGuard: true }, { playerThrows: true }]) {
+    const f = fixture(options); f.update(snapshot()); await settle();
+    assert.equal(f.engine.phase, "IDLE"); assert.ok(f.engine.lastError);
+    const count = f.players.length; f.update(snapshot()); f.engine.tick(); await settle(); assert.equal(f.players.length, count);
+  }
+});
+test("ambiguity, mismatched media duration and unhealthy bridge cannot engage a guard", async () => {
+  for (const mutate of [s => { s.track.ambiguous = true; }, s => { s.player.duration = 15; }, s => { s.track.confidence = 20; }]) {
+    const f = fixture(); const s = snapshot(); mutate(s); f.update(s); await settle(); assert.equal(f.players.length, 0);
+  }
+  const f = fixture(); f.update(snapshot()); await settle(); f.unhealthy(); f.engine.tick();
+  assert.equal(f.players[0].destroyed, true); await settle(); assert.equal(f.engine.phase, "IDLE");
+});
+test("sync cooldown prevents correction ping-pong; force seek bypasses cooldown", () => {
+  const f = fixture(); const s = snapshot(); s.observedAt = 1000;
+  const p = { audio: new Media(), demoLoop: true, applyState() {}, play() {}, pause() {} };
+  const sync = new SyncEngine(); sync.sync(p, s, true, 1000); assert.equal(p.audio.currentTime, 3);
+  p.audio.currentTime = 1; sync.sync(p, s, false, 1100); assert.equal(p.audio.currentTime, 1);
+  s.player.paused = true; s.player.currentTime = 10; sync.sync(p, s, true, 1200); assert.equal(p.audio.currentTime, 2);
+});
+test("native ReplacementPlayer cancels loads, rejects blocked play and stays paused after late play", async () => {
+  const media = new Media(); const fatal = [];
+  const env = { document: { createElement: () => media, documentElement: { append() {} } }, setTimeout, clearTimeout, AbortController, URL, fetch: async () => ({ ok: true, blob: async () => new Blob(["synthetic fixture"]) }) };
+  const player = new ReplacementPlayer(env, (reason) => fatal.push(reason));
+  await player.prepare({ url: "chrome-extension://test/assets/test-audio.mp3", demoLoop: true });
+  assert.equal(media.loop, true); assert.equal(media.muted, true);
+  media.play = () => Promise.reject(new Error("NotAllowedError")); player.play(); await settle();
+  assert.deepEqual(fatal, ["replacement-play-blocked"]);
+  const gate = deferred(); media.play = () => gate.promise;
+  player.play(); player.pause(); gate.resolve(); await settle(); assert.equal(media.paused, true);
+  player.destroy(); assert.equal(media.removed, true); assert.equal(media.muted, true);
+  const loading = new Media(); loading.readyState = 0;
+  const p2 = new ReplacementPlayer({ ...env, document: { ...env.document, createElement: () => loading } }, () => {});
+  const ready = p2.prepare({ url: "local", demoLoop: true }); p2.destroy(); await assert.rejects(ready, /cancelled/);
+});
+
+test("long native pause keeps the guard and replacement available for resume", async () => {
+  const f = fixture(); const s = snapshot(); s.player.paused = true; s.observedAt = Date.now() - 20000;
+  f.update(s); await settle(); f.engine.tick();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE"); assert.equal(f.players[0].audio.paused, true);
+});
+test("failed restore acknowledgement sends a token-scoped emergency signal", async () => {
+  const f = fixture(); f.update(snapshot()); await settle();
+  f.bridge.request = async () => { throw new Error("connection lost"); };
+  f.engine.manualRestore(); assert.equal(f.players[0].destroyed, true); await settle();
+  assert.equal(f.requests.at(-1).type, "RELEASE_NOW"); assert.equal(f.engine.phase, "IDLE");
+});
+test("destroy while demo fetch resolves does not leak or attach a playable asset", async () => {
+  const gate = deferred(); const media = new Media(); let created = 0;
+  const env = { document: { createElement: () => media, documentElement: { append() {} } }, setTimeout, clearTimeout, AbortController, fetch: () => gate.promise,
+    URL: { createObjectURL: () => { created++; return "blob:test"; }, revokeObjectURL() {} } };
+  const player = new ReplacementPlayer(env, () => {});
+  const ready = player.prepare({ url: "packaged", demoLoop: true }); player.destroy();
+  gate.resolve({ ok: true, blob: async () => new Blob(["fixture"]) });
+  await assert.rejects(ready, /cancelled/); assert.equal(created, 0); assert.equal(media.paused, true);
+});
+
+const remoteAsset = () => ({ found: true, url: "https://celikom.example/api/v1/audio/7?token=fixture", durationMs: 200000, replacementId: 7, version: 1, expiresAt: Date.now() + 600000, demoLoop: false });
+
+test("remote resolve keeps original unguarded until a validated real file is ready", async () => {
+  const gate = deferred(); const f = fixture({ resolveAsset: () => gate.promise });
+  f.engine.configure(true, ""); f.update(snapshot()); await settle();
+  assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false); assert.equal(f.players.length, 0);
+  gate.resolve(remoteAsset()); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE"); assert.equal(f.players[0].demoLoop, false);
+  assert.equal(f.players[0].audio.currentTime >= 7, true, "real file position is never modulo-wrapped");
+  f.engine.manualRestore(); await settle(); f.update(snapshot());
+  assert.equal(f.players.length, 1, "remote mode preserves manual bypass");
+});
+test("negative resolve is cached without acquiring a guard or counting a restoration", async () => {
+  let calls = 0; const f = fixture({ resolveAsset: async () => { calls++; return { found: false, retryAfterMs: 15000 }; } });
+  f.engine.configure(true, ""); f.update(snapshot()); await settle();
+  for (let i = 0; i < 20; i++) { f.update(snapshot()); f.engine.tick(); }
+  await settle(); assert.equal(calls, 1); assert.equal(f.players.length, 0); assert.equal(f.engine.restoreCount, 0);
+});
+test("remote errors, mismatched duration and expired tokens fail open and hold automatic retry", async () => {
+  for (const resolver of [async () => { throw new Error("api_unavailable"); }, async () => ({ ...remoteAsset(), durationMs: 15000 }), async () => ({ ...remoteAsset(), expiresAt: Date.now() - 1 })]) {
+    const f = fixture({ resolveAsset: resolver }); f.engine.configure(true, ""); f.update(snapshot()); await settle();
+    assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
+    assert.equal(f.engine.phase, "IDLE"); assert.ok(f.engine.lastError);
+    f.update(snapshot()); await settle(); assert.equal(f.players.length, 0);
+  }
+});
+test("track change during API resolve discards a late asset without muting the new track", async () => {
+  const gate = deferred(); let calls = 0;
+  const f = fixture({ resolveAsset: () => ++calls === 1 ? gate.promise : Promise.resolve({ found: false }) });
+  f.engine.configure(true, ""); f.update(snapshot()); await settle(); f.update(snapshot("3"));
+  await settle(); gate.resolve(remoteAsset()); await settle();
+  assert.equal(f.players.length, 0); assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
+});
+
+async function remoteStreamFixture(statuses = [], onRetry = null) {
+  const media = new Media(); media.readyState = 0;
+  let source; let revoked = false; let cancelledBodies = 0; const calls = []; const chunks = []; const fatals = [];
+  class FakeSourceBuffer extends EventTarget {
+    constructor() { super(); this.buffered = { length: 0 }; }
+    appendBuffer(bytes) {
+      chunks.push(bytes.byteLength);
+      queueMicrotask(() => {
+        media.readyState = 4;
+        media.duration = source.duration;
+        media.dispatchEvent(new Event("canplay"));
+        this.dispatchEvent(new Event("updateend"));
+      });
+    }
+  }
+  class FakeMediaSource extends EventTarget {
+    static isTypeSupported(type) { return type === "audio/mpeg"; }
+    constructor() { super(); source = this; this.readyState = "closed"; }
+    addSourceBuffer(type) { assert.equal(type, "audio/mpeg"); return new FakeSourceBuffer(); }
+    endOfStream() { this.readyState = "ended"; }
+  }
+  media.load = () => {
+    if (source && source.readyState === "closed") queueMicrotask(() => {
+      source.readyState = "open"; source.dispatchEvent(new Event("sourceopen"));
+    });
+  };
+  const signed = "https://private.example/api/v1/audio/1?token=private-must-not-appear";
+  const bytesTotal = 600000;
+  const env = {
+    document: { createElement: () => media, documentElement: { append() {} } },
+    setTimeout: (fn, delay) => {
+      if(delay===15000&&statuses.includes("stall"))return setTimeout(fn,0);
+      if (delay === 500 || delay === 1000) {
+        onRetry?.();
+        return setTimeout(fn, 0);
+      }
+      return setTimeout(fn, delay);
+    }, clearTimeout, AbortController, MediaSource: FakeMediaSource,
+    URL: {
+      createObjectURL(value) {
+        assert.equal(value, source);
+        return "blob:https://music.yandex.ru/media-source";
+      },
+      revokeObjectURL(value) { assert.equal(value, "blob:https://music.yandex.ru/media-source"); revoked = true; }
+    },
+    fetch: async (_url, options) => {
+      assert.equal(_url, signed);
+      assert.equal(options.redirect, "error");
+      const requested = /^bytes=(\d+)-(\d+)$/.exec(options.headers.Range);
+      assert(requested, "every request is a bounded HTTP Range");
+      const from = Number(requested[1]), to = Math.min(Number(requested[2]), bytesTotal - 1);
+      calls.push([from, to]);
+      const entry = statuses[calls.length - 1] ?? 206;
+      if(entry==="stall")return new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(Object.assign(new Error("aborted"),{name:"AbortError"})),{once:true}));
+      const status = typeof entry === "object" ? entry.status : entry;
+      if (status !== 206) return { status, headers: new Headers(typeof entry === "object" ? {"content-type":entry.contentType} : {}), body: { cancel: async () => { cancelledBodies++; } } };
+      const bytes = new Uint8Array(to - from + 1);
+      return {
+        status: 206,
+        headers: new Headers({ "Content-Type": "audio/mpeg", "Content-Range": "bytes " + from + "-" + to + "/" + bytesTotal }),
+        arrayBuffer: async () => bytes.buffer
+      };
+    }
+  };
+  const player = new ReplacementPlayer(env, (reason, detail) => fatals.push({ reason, detail }));
+  await player.prepare({ url: signed, demoLoop: false, durationMs: 180872 });
+  return { player, calls, chunks, fatals, source, get revoked() { return revoked; }, get cancelledBodies() { return cancelledBodies; } };
+}
+
+test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte ranges", async () => {
+  const f = await remoteStreamFixture();
+  const { player, calls, chunks, fatals, source } = f;
+  assert.equal(player.audio.src, "blob:https://music.yandex.ru/media-source");
+  assert.equal(player.audio.duration, 180.872);
+  await new Promise(resolve => setTimeout(resolve, 15));
+  assert.deepEqual(calls, [[0, 65535], [65536, 589823], [589824, 599999]]);
+  assert.deepEqual(chunks, [65536, 524288, 10176]);
+  assert.equal(source.readyState, "ended");
+  assert.deepEqual(fatals, []);
+  player.destroy();
+  assert.equal(f.revoked, true);
+  assert.equal(player.audio.removed, true);
+  assert.equal(JSON.stringify(calls).includes("private-must-not-appear"), false);
+});
+
+
+test("transient 503 retries the SAME next range without discarding buffered audio", async () => {
+  const f = await remoteStreamFixture([206, 503, 503, 206]);
+  await f.player.streamTask;
+  assert.deepEqual(f.calls, [[0,65535], [65536,589823], [65536,589823], [65536,589823], [589824,599999]]);
+  assert.deepEqual(f.chunks, [65536,524288,10176]);
+  assert.equal(f.cancelledBodies, 2);
+  assert.deepEqual(f.fatals, []);
+  assert.equal(f.source.readyState, "ended");
+  f.player.destroy();
+});
+
+test("persistent 503 exhausts bounded retries with sanitized status and offset", async () => {
+  const f = await remoteStreamFixture([206,503,503,503]);
+  await f.player.streamTask;
+  assert.equal(f.calls.length,4);
+  assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:503,offset:65536,attempts:3}}]);
+  assert.deepEqual(f.chunks,[65536]);
+  f.player.destroy();
+});
+
+test("revoked 403 and unexpected 200 fail open immediately without retry", async () => {
+  for (const status of [403,200]) {
+    const f = await remoteStreamFixture([206,status]);
+    await f.player.streamTask;
+    assert.equal(f.calls.length,2);
+    assert.deepEqual(f.fatals,[{reason:'remote-stream-http',detail:{httpStatus:status,offset:65536,attempts:1}}]);
+    f.player.destroy();
+  }
+});
+
+test("destroy during retry cancels the delayed request and reports no late fatal", async () => {
+  let player;
+  const f = await remoteStreamFixture([206,503],()=>player.destroy());
+  player=f.player;
+  await f.player.streamTask;
+  assert.equal(f.calls.length,2);
+  assert.deepEqual(f.fatals,[]);
+  assert.equal(f.revoked,true);
+});
+
+test('stream network loss retries same exact track with a newly resolved asset after restoration',async()=>{
+ let resolves=0;const requests=[];const f=fixture({resolveAsset:async(id,options)=>{resolves++;requests.push(options);return remoteAsset();}});
+ f.engine.configure(true,'');f.update(snapshot());await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.abort('remote-stream-network',true);await settle();assert.equal(f.players[0].destroyed,true);assert.equal(f.engine.operation,null);
+ const first=f.engine.retryBlock.at-Date.now();assert.ok(first>4000&&first<=5000);
+ f.update(snapshot());await settle();assert.equal(resolves,1,'no immediate retry storm');
+ f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(resolves,2);assert.equal(requests.at(-1).fresh,true);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.abort('remote-stream-network',true);await settle();assert.ok(f.engine.retryBlock.at-Date.now()>9000,'backoff increases');
+ f.engine.manualRestore();f.engine.retryBlock.at=Date.now()-1;f.engine.retryBlock.observedAt=Date.now()-1;
+ f.update(snapshot());await settle();assert.equal(resolves,2,'manual original remains authoritative');
+});
+test('network retry never includes forbidden HTTP or malformed audio',async()=>{
+ for(const [reason,detail] of [['remote-stream-http',{httpStatus:403}],['remote-stream-format',null],['replacement-media-error',{mediaErrorCode:3}]]){
+  const f=fixture();f.update(snapshot());await settle();f.engine.abort(reason,true,detail);await settle();
+  assert.equal(f.engine.retryBlock,null);assert.equal(f.engine.blockedTrackId,'2');
+ }
+});
+
+test('HTML route block releases stream and is distinguished from revoked JSON access',async()=>{
+ const f=await remoteStreamFixture([206,{status:403,contentType:'text/html'}]);await f.player.streamTask;
+ assert.equal(f.calls.length,2);assert.equal(f.fatals[0].reason,'remote-stream-route-blocked');assert.equal(f.fatals[0].detail.httpStatus,403);f.player.destroy();
+});
+
+test('late ENDED for a reused master cannot block the newly selected track',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ f.update(snapshot('48592437'));await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.abort('guard-lost:master-binding-changed',false,{reason:'master-ended'});await settle();
+ f.update(snapshot('48591588'),'ENDED');await settle();
+ f.update(snapshot('48591588'),'PLAY');await settle();
+ assert.equal(f.engine.lastError,null);
+ assert.equal(f.engine.blockedTrackId,null);
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.equal(f.engine.operation.trackId,'48591588');
+});
+
+test('six natural track endings advance automatically with no sticky master-ended error',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ for(const id of ['61','62','63','64','65','66']) {
+  const playing=snapshot(id);f.update(playing,'PLAY');await settle();
+  assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE',id);
+  const ended=snapshot(id);ended.player.ended=true;ended.player.currentTime=200;
+  f.update(ended,'ENDED');await settle();
+  assert.equal(f.engine.operation,null);assert.equal(f.engine.lastError,null,'natural ending is not an error');
+  assert.equal(f.engine.blockedTrackId,null);
+ }
+});
+
+test("cancelled native play and an old rejection after pause/resume do not block replacement", async () => {
+  const media = new Media(), fatal = [];
+  const env = {document:{createElement:()=>media,documentElement:{append(){}}},setTimeout,clearTimeout,AbortController,URL,fetch:async()=>({ok:true,blob:async()=>new Blob(["fixture"])})};
+  const player = new ReplacementPlayer(env,reason=>fatal.push(reason));
+  await player.prepare({url:"local",demoLoop:true});
+  try {
+    // MAIN can pause before the corresponding isolated snapshot arrives.
+    media.play = () => Promise.reject(new DOMException("interrupted by pause", "AbortError"));
+    player.play(); await settle();
+    assert.deepEqual(fatal, []);
+    const pending = deferred(); media.play = () => pending.promise;
+    player.play(); await settle();
+    player.pause(); player.play();
+    pending.reject(new DOMException("old attempt", "NotAllowedError")); await settle();
+    assert.deepEqual(fatal, [], "a previous play attempt cannot fail the resumed intent");
+    media.play = Media.prototype.play;
+    player.play(); await settle(); assert.equal(media.paused,false);
+    player.pause();
+    media.play = () => Promise.reject(new DOMException("real autoplay denial", "NotAllowedError"));
+    player.play(); await settle();
+    assert.deepEqual(fatal,["replacement-play-blocked"], "actual current autoplay failures still fail open");
+  } finally { player.destroy(); }
+});
+
+test("guard lease handoff never unmutes native audio and preserves latest user intent", () => {
+  const media=new Media(),guard=new OriginalAudioGuard();guard.engage(media,"m","s:1");media.volume=.2;
+  guard.transfer(media,"m","s:1","s:3");assert.equal(media.physicalMuted,true);assert.equal(media.muted,false);
+  assert.equal(guard.release("s:1").released,false);assert.equal(media.physicalMuted,true);
+  guard.release("s:3");assert.equal(media.physicalMuted,false);assert.equal(media.volume,.2);
+});
+
+test('Explicit retry cancels loading immediately and fences a late previous resolution',async()=>{
+ const old=deferred();let count=0;
+ const f=fixture({resolveAsset:()=>++count===1?old.promise:Promise.resolve({found:true,durationMs:200000,expiresAt:Date.now()+60000})});
+ f.engine.configure(false,'');f.update(snapshot());f.engine.configure(true,'');await settle();
+ assert.equal(f.engine.phase,'PREPARING');const first=f.engine.operation;
+ f.engine.configure(true,'',true);await settle();
+ assert.notEqual(f.engine.operation,first);assert.equal(f.engine.activationCount,1);
+ const current=f.engine.operation;old.resolve({found:true,durationMs:200000,expiresAt:Date.now()+60000});await settle();
+ assert.equal(f.engine.operation,current);assert.equal(f.engine.activationCount,1);f.engine.destroy();await settle();
+});
+
+test('Manual retry disposes the pending decoder; late readiness cannot reactivate it',async()=>{
+ const gate=deferred(),f=fixture({loadGate:gate});f.update(snapshot());await settle();
+ assert.equal(f.engine.phase,'PREPARING');const previous=f.players[0];
+ f.engine.configure(true,'2',true);assert.equal(previous.destroyed,true);await settle();
+ gate.resolve();await settle();assert.equal(f.engine.activationCount,1);assert.equal(f.players.length,2);assert.notEqual(f.engine.operation.player,previous);
+ f.engine.destroy();await settle();
+});
+test('A stalled later MP3 range is bounded and fails open with network progress',async()=>{
+ const f=await remoteStreamFixture([206,'stall']);await new Promise(resolve=>setTimeout(resolve,25));
+ assert.equal(f.fatals[0]?.reason,'remote-stream-timeout');assert.equal(f.fatals[0].detail.offset,65536);
+ assert.equal(f.fatals[0].detail.receivedBytes,65536);assert.equal(f.fatals[0].detail.phase,'timeout');f.player.destroy();
+});
+
+test('verified transition reserves existing silence while loading; Stop cancels the reservation and late completion',async()=>{
+ const gate=deferred(),f=fixture({loadGate:gate,resolveAsset:async()=>remoteAsset()});
+ f.engine.configure(true,'');f.update(snapshot('2',{guard:{transitioning:true}}));await settle();
+ assert.equal(f.engine.phase,'PREPARING');assert.equal(f.requests.find(r=>r.preparing)?.type,'GUARD_ENGAGE');
+ assert.equal(f.players[0].audio.paused,true);
+ f.engine.configure(false,'');await settle();
+ assert.equal(f.requests.at(-1).type,'GUARD_RELEASE');assert.equal(f.players[0].destroyed,true);
+ gate.resolve();await settle();assert.equal(f.engine.operation,null);assert.equal(f.players[0].audio.paused,true);
+});
+test('negative transition verdict releases the temporary native mute without loading or acquiring a lease',async()=>{
+ const f=fixture({resolveAsset:async()=>({found:false})});f.engine.configure(true,'');
+ f.update(snapshot('2',{guard:{transitioning:true}}));await settle();
+ assert.equal(f.requests.at(-1).type,'GUARD_TRANSITION_END');assert.equal(f.players.length,0);assert.equal(f.engine.phase,'IDLE');
+});
+
+test('fresh verified connection clears transient network backoff immediately while preserving manual bypass and Stop',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');f.update(snapshot());await settle();
+ f.engine.abort('api_network_error',true);await settle();assert.ok(f.engine.retryBlock.at>Date.now());
+ f.engine.recoverConnection();await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.engine.activationCount,2);
+ f.engine.manualRestore();await settle();const count=f.players.length;f.engine.recoverConnection();await settle();assert.equal(f.players.length,count);assert.equal(f.engine.manualBypass.trackId,'2');
+ f.engine.configure(false,'');await settle();f.engine.recoverConnection();assert.equal(f.engine.operation,null);assert.equal(f.engine.enabled,false);
+});
+test('connection hints cannot bypass duration or signed access failure blocks',async()=>{
+ for(const reason of ['replacement_duration_or_token_invalid','remote-stream-http','api_forbidden']){
+  const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');f.update(snapshot());await settle();
+  f.engine.abort(reason,true);await settle();const count=f.players.length;f.engine.recoverConnection();await settle();assert.equal(f.players.length,count,reason);assert.equal(f.engine.blockedTrackId,'2');
+ }
+});
+
+test('incident: seeks during loading retain one download and activate at the final position', async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1793731938000});
+ const gate=deferred();const f=fixture({loadGate:gate});f.update(snapshot());await settle();
+ const first=f.engine.operation;
+ for(const time of [20,38]){const seeking=snapshot();Object.assign(seeking.player,{currentTime:time,seeking:true,readyState:1});f.update(seeking,'SEEK');assert.equal(f.engine.operation,first);}
+ gate.resolve();await settle();assert.equal(f.engine.phase,'PREPARING');assert.equal(f.players.length,1);assert.equal(f.engine.activationCount,0);
+ const ready=snapshot();ready.player.currentTime=38;f.update(ready,'SEEK');await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.players.length,1);assert.equal(f.engine.restoreCount,0);assert.equal(f.engine.activationCount,1);
+ assert.equal(f.players[0].audio.currentTime,2);
+});
+test('incident: seeking finishes before loading without restarting preparation',async()=>{
+ const gate=deferred();const f=fixture({loadGate:gate});f.update(snapshot());await settle();const op=f.engine.operation;
+ const seeking=snapshot();Object.assign(seeking.player,{currentTime:20,seeking:true,readyState:1});f.update(seeking,'SEEK');
+ const ready=snapshot();ready.player.currentTime=20;f.update(ready,'SEEK');assert.equal(f.engine.operation,op);
+ gate.resolve();await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.players.length,1);assert.equal(f.engine.restoreCount,0);
+});
+test('incident: Stop or new track while prepared master is seeking prevents late activation',async()=>{
+ for(const stop of [true,false]){
+ const gate=deferred();const f=fixture({loadGate:gate});f.update(snapshot());await settle();
+ const seeking=snapshot();Object.assign(seeking.player,{currentTime:20,seeking:true,readyState:1});f.update(seeking,'SEEK');gate.resolve();await settle();
+ if(stop)f.engine.configure(false,'2');else f.update(snapshot('3'));await settle();
+ if(stop)f.update(snapshot());await settle();assert.equal(f.players[0].destroyed,true);assert.equal(f.engine.activationCount,0);
+ assert.equal(f.requests.filter(x=>x.type==='GUARD_ENGAGE').length,0);
+ }
+});
+
+test('verified metadata warms audio before native readiness without engaging the guard early',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ const metadata=snapshot('2',{guard:{transitioning:false}});Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});
+ f.update(metadata);await settle();
+ assert.equal(f.players.length,1);assert.equal(f.engine.operation.loaded,true);
+ assert.equal(f.engine.activationCount,0);assert.equal(f.players[0].audio.paused,true);
+ assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false,'metadata loading cannot seize an original lease');
+ const ready=snapshot();Object.assign(ready.player,{currentTime:0.1,paused:true});f.update(ready);await settle();
+ assert.equal(f.players.length,1,'activation reuses the prepared decoder');assert.equal(f.engine.activationCount,1);
+ assert.equal(f.players[0].audio.paused,true,'native pause is retained');
+ ready.player.paused=false;f.update(ready,'PLAY');await settle();assert.equal(f.players[0].audio.paused,false);
+ f.engine.destroy();await settle();
+});
+
+test('Stop during metadata warmup disposes audio and fences late decoder completion',async()=>{
+ const gate=deferred(),f=fixture({loadGate:gate,resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ const metadata=snapshot();Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});f.update(metadata);await settle();
+ const previous=f.players[0];assert(previous);f.engine.configure(false,'');await settle();
+ assert.equal(previous.destroyed,true);gate.resolve();await settle();assert.equal(f.engine.activationCount,0);
+ assert.equal(f.engine.operation,null);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
+ f.engine.destroy();await settle();
+});
+
+test('ambiguous and duration-mismatched metadata never starts a warmup request',async()=>{
+ let resolves=0;const f=fixture({resolveAsset:async()=>{resolves++;return remoteAsset();}});f.engine.configure(true,'');
+ const metadata=snapshot();Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});metadata.track.ambiguous=true;
+ f.update(metadata);await settle();metadata.track.ambiguous=false;metadata.player.duration=198;
+ f.update(metadata);await settle();assert.equal(resolves,0);assert.equal(f.players.length,0);
+ f.engine.destroy();await settle();
+});
+
+test('join timing history retains twelve recent activations without URLs or credentials',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ for(let i=1;i<=14;i++){f.update(snapshot(String(i)));await settle();}
+ assert.equal(f.engine.startupHistory.length,12);assert.equal(f.engine.startupHistory[0].trackId,'3');
+ assert.equal(f.engine.startupHistory.at(-1).trackId,'14');
+ for(const row of f.engine.startupHistory){assert(row.prepareMs>=0);assert(row.resolveMs>=0);assert(row.loadMs>=0);assert.equal(row.masterTimeMs,7000);}
+ assert(!JSON.stringify(f.engine.startupHistory).includes('https:'));
+ f.engine.destroy();await settle();
+});
+
+
+test('metadata-only existing handoff keeps its prior admission and reservation rules',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
+ const metadata=snapshot('2',{guard:{transitioning:true}});Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});
+ f.update(metadata);await settle();assert.equal(f.players.length,0);
+ metadata.player.readyState=4;f.update(metadata);await settle();
+ assert.equal(f.engine.activationCount,1);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'&&r.preparing),true);
+ f.engine.destroy();await settle();
+});
+
+test('intro timeout renews a released lease while retaining one in-flight decoder',async()=>{
+ const loadGate=deferred(),f=fixture({loadGate});f.update(snapshot());await settle();
+ const operation=f.engine.operation,token=operation.token;
+ assert.equal(f.engine.releaseIntroWait('stale'),false);
+ assert.equal(f.engine.releaseIntroWait(token),true);
+ assert.equal(f.engine.operation,operation);assert.notEqual(operation.token,token);
+ loadGate.resolve();await settle();
+ assert.equal(f.players.length,1);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.equal(f.requests.filter(r=>r.type==='GUARD_ENGAGE').at(-1).token,operation.token);
+ assert.equal(f.engine.releaseIntroWait(operation.token),false);
+ f.engine.destroy();
+});
+test('live adoption uses legacy guard and sync without the rejected prepareJoin path',async()=>{
+ const f=fixture(),create=f.engine.createPlayer;
+ f.engine.createPlayer=fatal=>{const p=create(fatal);p.prepareJoin=()=>{throw Error('rejected live-join path invoked');};return p;};
+ f.update(snapshot());await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.equal(f.requests.filter(r=>r.type==='GUARD_ENGAGE').length,1);
+ assert.equal(typeof ReplacementPlayer.prototype.prepareJoin,'undefined');
+ assert.equal(f.players.length,1);f.engine.destroy();
+});
+
+test('newly approved mid-song MP3 uses complete-file preparation and fresh alignment before original guard',async()=>{
+ const f=fixture(),create=f.engine.createPlayer,gate=deferred();let complete=false,aligns=0;
+ f.engine.resolveAsset=async()=>({...remoteAsset(),mimeType:'audio/mpeg'});
+ f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.prepare=async(asset,options)=>{complete=options.completeMp3;await prepare(asset);};p.prepareCompleteJoin=async(_snapshot,refresh)=>{aligns++;await gate.promise;const s=await refresh();p.audio.currentTime=s.player.currentTime;};return p;};
+ f.engine.configure(true,'');f.engine.negativeResolution={trackId:'2',until:Date.now()-1};f.update(snapshot());await settle();
+ assert.equal(complete,true);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
+ const moved=snapshot();moved.player.currentTime=25;f.update(moved);gate.resolve();await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.players.length,1);assert.equal(aligns,1);
+ assert.ok(Math.abs(f.players[0].audio.currentTime-25)<.1);f.engine.destroy();
+});
+test('complete-file mode cannot alter accepted guarded intro preparation',async()=>{
+ const f=fixture(),create=f.engine.createPlayer;let complete;
+ f.engine.resolveAsset=async()=>({...remoteAsset(),mimeType:'audio/mpeg'});
+ f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.prepare=async(asset,options)=>{complete=options.completeMp3;await prepare(asset);};p.prepareCompleteJoin=()=>{throw Error('intro must never use complete join');};return p;};
+ f.engine.configure(true,'');const s=snapshot();s.player.currentTime=.1;s.guard={active:true};f.update(s);await settle();
+ assert.equal(complete,false);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');f.engine.destroy();
+});

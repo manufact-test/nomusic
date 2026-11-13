@@ -1,0 +1,61 @@
+name: CELIKOM W73 compare real tickets against Gmail inbox (read only)
+on:
+  push:
+    branches: [experiment/windows-w72-extension-anti-drop-guards-20261111]
+    paths:
+      - .github/workflows/windows-w73-live-mailbox-match.yml
+      - .github/scripts/windows-w73/live-ticket-mailbox-ids.php
+      - .github/scripts/windows-w73/check-existing-ticket-subjects.py
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Lint scripts
+        run: |
+          php -l .github/scripts/windows-w73/live-ticket-mailbox-ids.php
+          python3 -m py_compile .github/scripts/windows-w73/check-existing-ticket-subjects.py
+      - name: Compare live mail identities privately; match only real ticket IDs to Gmail subject index
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          CELIKOM_SMTP_HOST: ${{ secrets.CELIKOM_SMTP_HOST }}
+          CELIKOM_SMTP_USER: ${{ secrets.CELIKOM_SMTP_USER }}
+          CELIKOM_SMTP_PASSWORD: ${{ secrets.CELIKOM_SMTP_PASSWORD }}
+          CELIKOM_MAIL_FROM: ${{ secrets.CELIKOM_MAIL_FROM }}
+        run: |
+          set -euo pipefail
+          for var in HOSTINGER_SSH_KEY CELIKOM_SMTP_HOST CELIKOM_SMTP_USER CELIKOM_SMTP_PASSWORD CELIKOM_MAIL_FROM; do
+            test -n "${!var:-}"
+          done
+          umask 077
+          work="$(mktemp -d)"
+          target='u235811320@92.113.19.189'
+          base='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          remote="$base/incoming/w73-mail-index-${GITHUB_SHA}"
+          opts=()
+          clean() {
+            if [[ "${#opts[@]}" -gt 0 ]]; then
+              ssh -T -p 65002 "${opts[@]}" "$target" "rm -f '$remote/live-ticket-mailbox-ids.php'; rmdir '$remote'" >/dev/null 2>&1 || true
+            fi
+            rm -rf "$work"
+          }
+          trap clean EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/pub"
+          test "$(ssh-keygen -lf "$work/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          opts=(-i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh -T -p 65002 "${opts[@]}" "$target" "umask 077; test -L '$base/current'; mkdir '$remote'; chmod 0700 '$remote'"
+          scp -P 65002 "${opts[@]}" .github/scripts/windows-w73/live-ticket-mailbox-ids.php "$target:$remote/live-ticket-mailbox-ids.php"
+          python3 -c 'import os,json; print(json.dumps({k:os.environ[e] for k,e in [("host","CELIKOM_SMTP_HOST"),("from","CELIKOM_MAIL_FROM"),("user","CELIKOM_SMTP_USER")]}))' | ssh -T -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote/live-ticket-mailbox-ids.php'" > "$work/result.json"
+          W73_LIVE_RESULT="$work/result.json" python3 .github/scripts/windows-w73/check-existing-ticket-subjects.py
+          echo 'W73_GMAIL_READONLY_SEARCH_NO_MAIL_BODY_READ_NO_DB_WRITES'

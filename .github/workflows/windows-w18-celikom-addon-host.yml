@@ -1,0 +1,317 @@
+name: CELIKOM W18 real modified host + CELIKOM addon probe
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w18-celikom-addon-host.yml
+permissions:
+  contents: read
+jobs:
+  isolated-host:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Checkout CELIKOM addon sources without credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Node 22 to compile own CELIKOM addon
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned addon SDK and build script
+        shell: pwsh
+        working-directory: windows-companion/w15/addon
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if($LASTEXITCODE -ne 0){ throw 'W18_ADDON_SDK_INSTALL_FAILED' }
+          npm run build
+          if($LASTEXITCODE -ne 0){ throw 'W18_ADDON_BUILD_FAILED' }
+      - name: Package validated PulseSync .pext inside disposable runner
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'celikom-w18-disposable'
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          $dirs = @(Get-ChildItem 'windows-companion/w15/addon/dist' -Directory)
+          if($dirs.Count -ne 1) { throw 'W18_ONE_ADDON_DIRECTORY_REQUIRED' }
+          $meta = Get-Content -Raw (Join-Path $dirs[0].FullName 'metadata.json') | ConvertFrom-Json
+          if($meta.type -ne 'web-addon' -or $meta.script -ne 'script.js' -or
+             $meta.allowedUrls.Count -ne 1 -or $meta.allowedUrls[0] -ne 'http://127.0.0.1:21471/') {
+            throw 'W18_ADDON_METADATA_UNSAFE'
+          }
+          $zip = Join-Path $root 'CELIKOM-Addon.zip'
+          Compress-Archive -Path (Join-Path $dirs[0].FullName '*') -DestinationPath $zip -CompressionLevel Optimal -Force
+          Move-Item -Path $zip -Destination (Join-Path $root 'CELIKOM-Addon.pext') -Force
+      - name: Pre-fetch pinned PulseSync vendor releases with read-only CI token
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'celikom-w18-disposable'
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          $items = @(
+            @{ id = 673621306; filename = 'PulseSync-3.0.3-beta-x64.exe'; sha256 = '9e153743cc023998bc050b21f8c3432f06ff5dfb6a3995eb2eeb8a064d5847ae'; repo = 'PulseSync-client' },
+            @{ id = 713319817; filename = 'PulseSync-v2.1.5-app.asar.gz'; sha256 = '73e4a67d9a66b68971a692dd98104f5da66a4994e92ae057f3309a88af0f1b13'; repo = 'PulseSync-mod' }
+          )
+          foreach($item in $items){
+            $dest = Join-Path $root $item.filename
+            $endpoint = "https://api.github.com/repos/PulseSync-LLC/$($item.repo)/releases/assets/$($item.id)"
+            Invoke-WebRequest -Uri $endpoint -Headers @{ 'Accept'='application/octet-stream'; 'Authorization'="Bearer $env:GH_TOKEN"; 'X-GitHub-Api-Version'='2022-11-28'; 'User-Agent'='CELIKOM-W17-Isolated' } -OutFile $dest -UseBasicParsing -MaximumRedirection 6 -TimeoutSec 240
+            if(!(Test-Path $dest) -or (Get-Item $dest).Length -lt 100000){throw "W17_ASSET_NOT_BINARY"}
+            if((Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant() -ne $item.sha256){throw "W17_RELEASE_DIGEST_MISMATCH"}
+            Write-Output "W17_VERIFIED_PUBLIC_ASSET $($item.filename)"
+          }
+      - name: Check native host and PulseSync mod with rollback in disposable Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $root = Join-Path $env:RUNNER_TEMP 'celikom-w18-disposable'
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          $report = [ordered]@{
+            label = 'W18_WINDOWS_SERVER_2022_MOD_AND_ADDON_TRIAL'
+            notes = 'No user account, no playback. CI cannot evaluate SmartScreen GUI reputation.'
+            os = [Environment]::OSVersion.VersionString
+            defender = 'UNKNOWN'
+            officialInstaller = 'NOT_RUN'
+            officialSignature = 'NOT_RUN'
+            officialAsar = 'NOT_RUN'
+            clientRelease = 'NOT_RUN'
+            modRelease = 'NOT_RUN'
+            yandexInstall = 'NOT_RUN'
+            clientInstall = 'NOT_RUN'
+            audio = 'NOT_TESTED'
+          }
+          $reportPath = Join-Path $root 'W18-result.json'
+          function Save-Status { $report | ConvertTo-Json -Depth 8 | Set-Content -Path $reportPath -Encoding utf8 }
+          function Download-Pinned([string]$url,[string]$name,[string]$sha) {
+            $file = Join-Path $root $name
+            if((Test-Path $file) -and $sha) {
+              $cached = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+              if($cached -eq $sha) {
+                return [pscustomobject]@{path=$file;sha=$cached;bytes=(Get-Item $file).Length}
+              }
+            }
+            for($i=0;$i -lt 3;$i++){
+              try {
+                if($url.StartsWith('https://api.github.com/')) {
+                  $headers = @{ Accept = 'application/octet-stream'; 'X-GitHub-Api-Version' = '2022-11-28'; 'User-Agent' = 'CELIKOM-W16-Disposable' }
+                  Invoke-WebRequest -Uri $url -Headers $headers -OutFile $file -UseBasicParsing -TimeoutSec 240 -MaximumRedirection 6
+                } else {
+                  Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing -TimeoutSec 240 -MaximumRedirection 6
+                }
+                break
+              } catch {
+                if($i -eq 2){throw}
+                Start-Sleep -Seconds 6
+              }
+            }
+            if(!(Test-Path $file) -or (Get-Item $file).Length -lt 100000){throw "EMPTY_DOWNLOAD_$name"}
+            $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($sha -and $actual -ne $sha){throw "UNEXPECTED_DIGEST_$name"}
+            return [pscustomobject]@{path=$file;sha=$actual;bytes=(Get-Item $file).Length}
+          }
+          try {
+            try {
+              $mp = Get-MpComputerStatus -ErrorAction Stop
+              $protected = $mp.AntivirusEnabled -eq $true -and $mp.RealTimeProtectionEnabled -eq $true
+              if($mp.AntivirusEnabled -eq $true -and !$protected) {
+                # The hosted runner comes with Defender realtime OFF. Turn it ON,
+                # not off. If policy blocks activation, refuse all installers.
+                try {
+                  Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction Stop
+                  Start-Sleep -Seconds 7
+                  $mp = Get-MpComputerStatus -ErrorAction Stop
+                } catch { $report.notes = 'Cannot enable Defender realtime on disposable runner' }
+                $protected = $mp.AntivirusEnabled -eq $true -and $mp.RealTimeProtectionEnabled -eq $true
+              }
+              $report.defender = "antivirus=$($mp.AntivirusEnabled);realtime=$($mp.RealTimeProtectionEnabled)"
+            } catch {
+              $protected = $false
+              $report.defender = "UNAVAILABLE"
+            }
+            Save-Status
+            if(!$protected){
+              $report.yandexInstall = 'SAFE_STOP_HOSTED_DEFENDER_STILL_OFF'
+              Save-Status
+              exit 0
+            }
+            $original = Download-Pinned 'https://desktop.app.music.yandex.net/stable/Yandex_Music_x64_5.126.1.exe' 'Yandex_Music_x64_5.126.1.exe' ''
+            $sig = Get-AuthenticodeSignature -FilePath $original.path
+            $report.officialInstaller = "sha256=$($original.sha);bytes=$($original.bytes)"
+            $report.officialSignature = "$($sig.Status);subject=$($sig.SignerCertificate.Subject)"
+            Save-Status
+            if($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch '(?i)Yandex|Яндекс'){throw 'OFFICIAL_INSTALLER_UNSIGNED_OR_NOT_YANDEX'}
+            $client = Download-Pinned 'https://api.github.com/repos/PulseSync-LLC/PulseSync-client/releases/assets/673621306' 'PulseSync-3.0.3-beta-x64.exe' '9e153743cc023998bc050b21f8c3432f06ff5dfb6a3995eb2eeb8a064d5847ae'
+            $report.clientRelease = "sha256=MATCH;size=$($client.bytes);signature=$((Get-AuthenticodeSignature -FilePath $client.path).Status)"
+            Save-Status
+            $mod = Download-Pinned 'https://api.github.com/repos/PulseSync-LLC/PulseSync-mod/releases/assets/713319817' 'PulseSync-v2.1.5-app.asar.gz' '73e4a67d9a66b68971a692dd98104f5da66a4994e92ae057f3309a88af0f1b13'
+            $report.modRelease = "sha256=MATCH;size=$($mod.bytes)"
+            Save-Status
+            if(!$protected){
+              $report.yandexInstall = 'SAFE_STOP_DEFENDER_DISABLED_OR_UNAVAILABLE'
+              Save-Status
+              exit 0
+            }
+            # Try vendor's unattended installer on temporary Windows Server only.
+            $proc = Start-Process -FilePath $original.path -ArgumentList '/S' -PassThru
+            if(!$proc.WaitForExit(130000)){
+              try{$proc.Kill()}catch{}
+              $report.yandexInstall = 'SAFE_STOP_INSTALL_TIMEOUT'
+              Save-Status
+              exit 0
+            }
+            $exe = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic\Яндекс Музыка.exe'
+            $asar = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic\resources\app.asar'
+            if(!(Test-Path $exe) -or !(Test-Path $asar)){
+              $report.yandexInstall = "SAFE_STOP_INSTALL_MISSING;exit=$($proc.ExitCode)"
+              Save-Status
+              exit 0
+            }
+            $appSig = (Get-AuthenticodeSignature -FilePath $exe).Status
+            $asarSha = (Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant()
+            $same = $asarSha -eq '5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215'
+            $report.yandexInstall = "exists;signature=$appSig;asarMatchesOwner=$same"
+            $report.officialAsar = "sha256=$asarSha"
+            Save-Status
+            if(!$same -or $appSig -ne 'Valid'){
+              $report.clientInstall = 'SAFE_STOP_YANDEX_BUILD_DIFFERS_OR_SIGNATURE_INVALID'
+              Save-Status
+              exit 0
+            }
+            # Official app still unmodified. Install third-party client but do NOT
+            # automate mod patching, debugger, login or security bypass.
+            $install = Start-Process -FilePath $client.path -ArgumentList '/S' -PassThru
+            if(!$install.WaitForExit(130000)){
+              try{$install.Kill()}catch{}
+              $report.clientInstall = 'SAFE_STOP_TIMEOUT'
+            } else {
+              $after = (Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant()
+              $afterSig = (Get-AuthenticodeSignature -FilePath $exe).Status
+              $report.clientInstall = "exit=$($install.ExitCode);originalUnmodified=$($after -eq $asarSha);originalSignature=$afterSig"
+            }
+            Save-Status
+            $report.modInstall = 'NOT_RUN'
+            $report.rollback = 'NOT_RUN'
+            if(!$report.clientInstall.StartsWith('exit=0')){
+              $report.modInstall = 'SAFE_STOP_CLIENT_NOT_INSTALLED'
+              Save-Status
+              exit 0
+            }
+            $health = Get-MpComputerStatus
+            if(!$health.RealTimeProtectionEnabled -or !$health.AntivirusEnabled){
+              $report.modInstall = 'SAFE_STOP_DEFENDER_NOT_ACTIVE'
+              Save-Status
+              exit 0
+            }
+            # Verify uncompressed official PulseSync release before any mod launch.
+            $archive = Join-Path $root 'pulsesync-v2.1.5.asar'
+            $inputStream = [System.IO.File]::OpenRead($mod.path)
+            $outputStream = [System.IO.File]::Create($archive)
+            $gunzip = [System.IO.Compression.GZipStream]::new($inputStream,[System.IO.Compression.CompressionMode]::Decompress)
+            try{$gunzip.CopyTo($outputStream)}
+            finally{$gunzip.Dispose();$outputStream.Dispose();$inputStream.Dispose()}
+            $modSha = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($modSha -ne '5c291616c0edd20f2d61a90956aea11c139d6748b1506fc9d7c2698b7b248912'){
+              $report.modInstall = 'SAFE_STOP_MOD_RELEASE_HASH_MISMATCH'
+              Save-Status
+              exit 0
+            }
+            $candidates = @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Programs') -Filter 'PulseSync.exe' -File -Recurse -ErrorAction SilentlyContinue)
+            if($candidates.Count -ne 1){
+              $report.modInstall = "SAFE_STOP_PULSESYNC_APP_MISSING_OR_AMBIGUOUS;count=$($candidates.Count)"
+              Save-Status
+              exit 0
+            }
+            # Real signed official files remain untouched before invoking the
+            # vendor's own PulseSync mod-install deeplink in the disposable VM.
+            $bakExe = Join-Path $root 'original-yandex.exe'
+            $bakAsar = Join-Path $root 'original-yandex.asar'
+            Copy-Item $exe $bakExe -ErrorAction Stop
+            Copy-Item $asar $bakAsar -ErrorAction Stop
+            $beforeExe = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            $beforeAsar = (Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant()
+            $deeplink = 'pulsesync://patch/from_mod/' + [Uri]::EscapeDataString($archive)
+            try {
+              Start-Process -FilePath $candidates[0].FullName -ArgumentList $deeplink -ErrorAction Stop
+            } catch {
+              $report.modInstall = 'SAFE_STOP_PULSESYNC_GUI_HOST_CANNOT_START'
+              Save-Status
+              exit 0
+            }
+            $changed = $false
+            for($i=0;$i -lt 20;$i++){
+              Start-Sleep -Seconds 3
+              if(!(Test-Path $asar) -or !(Test-Path $exe)){break}
+              if((Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -ne $beforeAsar){$changed = $true;break}
+            }
+            $postAsar = if(Test-Path $asar){(Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant()}else{'MISSING'}
+            $postExeSignature = if(Test-Path $exe){(Get-AuthenticodeSignature -FilePath $exe).Status}else{'MISSING'}
+            $report.modInstall = "changed=$changed;actualPublishedMod=$($postAsar -eq $modSha);exeSignature=$postExeSignature"
+            Save-Status
+            $report.addonImport = 'NOT_TESTED'
+            $report.moddedYandexLaunch = 'NOT_TESTED'
+            if($changed -and $postAsar -eq $modSha) {
+              $pext = Join-Path $root 'CELIKOM-Addon.pext'
+              if(Test-Path $pext) {
+                try {
+                  Start-Process -FilePath $candidates[0].FullName -ArgumentList ('"' + $pext + '"') -ErrorAction Stop
+                  $addonRoot = Join-Path $env:APPDATA 'PulseSync\addons'
+                  $found = $false
+                  for($k=0; $k -lt 14; $k++){
+                    Start-Sleep -Seconds 3
+                    $matches = @(Get-ChildItem -Path $addonRoot -Filter 'metadata.json' -File -Recurse -ErrorAction SilentlyContinue |
+                      Where-Object {
+                        try {
+                          $m = Get-Content -Raw $_.FullName | ConvertFrom-Json
+                          $m.id -eq '42e9c370f7aa4c17a905f185'
+                        }catch{$false}
+                      })
+                    if($matches.Count -gt 0){$found=$true;break}
+                  }
+                  $report.addonImport = "importedIntoPulseSync=$found"
+                } catch { $report.addonImport = 'ADDON_IMPORT_LAUNCH_FAILED' }
+              } else { $report.addonImport = 'PEXT_MISSING' }
+              # This is an anonymous launch probe, never music playback.
+              try {
+                $yandex = Start-Process -FilePath $exe -PassThru -ErrorAction Stop
+                Start-Sleep -Seconds 9
+                $live = @(Get-Process -Id $yandex.Id -ErrorAction SilentlyContinue).Count -gt 0
+                $report.moddedYandexLaunch = "processStillRunning=$live;noAccount=true"
+              }catch{$report.moddedYandexLaunch='FAILED_OR_GUI_UNAVAILABLE'}
+              Save-Status
+            }
+            # Always attempt original byte-verified restoration in this VM.
+            try{
+              Get-Process -Name 'PulseSync','Яндекс Музыка' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 3
+              Copy-Item $bakExe $exe -Force -ErrorAction Stop
+              Copy-Item $bakAsar $asar -Force -ErrorAction Stop
+              $exOk = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -eq $beforeExe
+              $asOk = (Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant() -eq $beforeAsar
+              $sgOk = (Get-AuthenticodeSignature -FilePath $exe).Status -eq 'Valid'
+              $report.rollback = "exeByteIdentical=$exOk;asarByteIdentical=$asOk;signatureValid=$sgOk"
+            }catch{$report.rollback = 'ROLLBACK_FAILED_ON_DISPOSABLE_VM'}
+            $afterProtection=Get-MpComputerStatus
+            $report.defender="antivirus=$($afterProtection.AntivirusEnabled);realtime=$($afterProtection.RealTimeProtectionEnabled)"
+            Save-Status
+          } catch {
+            $report.notes = "SAFE_STOP: $($_.Exception.Message)"
+            Save-Status
+            Write-Output $report.notes
+          } finally {
+            Save-Status
+            $report | ConvertTo-Json -Depth 8 | Write-Output
+          }
+      - name: Upload only redacted JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W18-mod-addon-host-report
+          path: ${{ runner.temp }}/celikom-w18-disposable/W18-result.json
+          if-no-files-found: warn
+          retention-days: 14

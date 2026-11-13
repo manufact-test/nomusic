@@ -1,0 +1,79 @@
+name: CELIKOM W56 native signed URL guard STAGING ONLY
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w22/native-resource-adapter.mjs
+      - windows-companion/w22/native-resource-adapter.test.mjs
+      - windows-companion/w23/renderer-relay.test.mjs
+      - windows-companion/w49/w52-original-url-flow-audit.mjs
+      - server/tests/smoke.php
+      - server/tests/entitlement.php
+      - .github/workflows/windows-w56-signed-query-guard-staging.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-audio-session-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test_w56
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test_w56
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-w56-ci-private-audio
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Lint all signed media and entitlement boundary code
+        run: |
+          php -l server/src/Application/AudioTokenService.php
+          php -l server/src/Http/AudioController.php
+          php -l server/tests/smoke.php
+          php -l server/tests/entitlement.php
+      - name: Fake catalog/HMAC, real Range, malformed metadata/expiry security
+        run: php server/tests/smoke.php
+      - name: Disposable MySQL migrations and signed source fixture
+        run: php server/tests/database.php
+      - name: Session-bound SID, active entitlement, version and revocation regressions
+        run: php server/tests/entitlement.php
+      - name: No live hosting or database access used
+        run: echo W56_DISPOSABLE_DB_AND_SOURCE_ONLY_NO_PRODUCTION
+
+  native-guard:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Native source, signed URL and original-selection contracts
+        run: node --test windows-companion/w22/native-resource-adapter.test.mjs
+      - name: Keep owner app 0.24.6 unmodified, no installer
+        run: echo W56_NATIVE_SOURCE_ONLY_NO_OWNER_EXE

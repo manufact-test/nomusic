@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><title>CELIKOM Visual Lab — synthetic fixture only</title>
+<style>
+  body { font: 16px system-ui; margin: 24px; background: #101218; color: #e9f0fc; }
+  #fixture { max-width: 740px; border: 1px solid #596579; padding: 16px; border-radius: 12px; }
+  .TopAdvertBanner_root { padding: 20px; background: #846e29; margin: 10px 0; }
+  .SideAdvertBanner_root { padding: 12px; background: #846e29; margin: 10px 0; }
+  [data-test-protected] { border: 1px solid #527b7c; padding: 12px; margin: 10px 0; }
+  button { padding: 8px; margin: 5px 5px 5px 0; }
+</style>
+</head>
+<body>
+<h1>CELIKOM — синтетический визуальный тест</h1>
+<p>Не подключено к Яндекс Музыке. Никаких запросов к сервису.</p>
+<div id="fixture" data-celikom-fixture="1">
+  <div id="fake-player" data-test-protected="1">Плеер (защищённый элемент)<audio controls></audio></div>
+  <div id="banner" class="TopAdvertBanner_root">Тестовый баннер</div>
+  <div id="side" class="SideAdvertBanner_root" style="display: block">Боковой тестовый баннер</div>
+  <div id="fake-login" data-test-protected="1"><div class="TopAdvertBanner_root">Защищённый вход с подозрительным CSS-маркером</div></div>
+  <div id="subscription" role="dialog" aria-label="Subscription">Служебное диалоговое окно</div>
+</div>
+<div>
+<button id="enable">Скрыть только тестовые баннеры</button>
+<button id="disable">Восстановить</button>
+<button id="add">Добавить тестовый баннер</button>
+<button id="removeClass">Изменить CSS-класс баннера</button>
+</div>
+<pre id="status"></pre>
+<script src="fixture-controller.js"></script>
+<script>
+  const root = document.querySelector('#fixture');
+  const controller = CELIKOM_VISUAL_FIXTURE.createController(root);
+  const status = document.querySelector('#status');
+  const update = () => { status.textContent = JSON.stringify(controller.snapshot(), null, 2); };
+  document.querySelector('#enable').addEventListener('click',()=>{controller.enable();update()});
+  document.querySelector('#disable').addEventListener('click',()=>{controller.disable();update()});
+  document.querySelector('#add').addEventListener('click',()=>{
+    const next = document.createElement('div'); next.className='TopAdvertBanner_dynamic';
+    next.id='dynamic-banner'; next.textContent='Динамический тестовый баннер';root.append(next);
+    setTimeout(update, 40);
+  });
+  document.querySelector('#removeClass').addEventListener('click',()=>{
+    document.querySelector('#banner').className='OrdinaryContent_root';setTimeout(update,40);
+  });
+  update();
+</script>
+</body>
+</html>

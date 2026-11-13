@@ -1,0 +1,32 @@
+name: CELIKOM Windows W90 gain contract (non-release)
+on:
+  push:
+    branches:
+      - experiment/windows-w90-boosted-tracks-gain-parity-20261113
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w22/**
+      - .github/workflows/windows-w90-gain-contract-guard.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: W22 native safe-gain contract and source recovery tests
+        run: node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+      - name: W15 entitlement, account, signed grants and gain contract tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: W15 compile with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror

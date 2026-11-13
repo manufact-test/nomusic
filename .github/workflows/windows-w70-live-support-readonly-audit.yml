@@ -1,0 +1,59 @@
+name: CELIKOM W70 live support receipt READ ONLY fingerprint audit
+
+on:
+  push:
+    branches:
+      - experiment/windows-w70-auto-support-diagnostics-20261111
+    paths:
+      - .github/workflows/windows-w70-live-support-readonly-audit.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-w70-live-support-audit-readonly
+  cancel-in-progress: false
+
+jobs:
+  live-support-readonly:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect live PHP support source fingerprints and anonymous endpoint without writes
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "${HOSTINGER_SSH_KEY:-}" ]] || { echo 'LIVE_AUDIT_NO_SSH_CREDENTIAL'; exit 2; }
+          umask 077
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/pub"
+          [[ "$(ssh-keygen -lf "$dir/pub" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] || { echo 'LIVE_AUDIT_BAD_KEY_IDENTITY'; exit 2; }
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh -T -p 65002 "${opts[@]}" 'u235811320@92.113.19.189' 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          base='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          link="$base/current"
+          [[ -L "$link" ]] || { echo 'LIVE_AUDIT_CURRENT_NOT_SYMLINK'; exit 2; }
+          active="$(readlink -f "$link")"
+          case "$active" in "$base"/releases/*) ;; *) echo 'LIVE_AUDIT_OUTSIDE_RELEASE'; exit 2 ;; esac
+          echo "LIVE_RELEASE_NAME=$(basename "$active")"
+          for path in src/Support/SupportService.php src/Support/SongReport.php src/Support/SupportAdminView.php src/Admin/AdminPanel.php src/Application.php src/Support/WindowsSupportDiagnostics.php; do
+            if [[ -f "$active/$path" ]]; then
+              echo "LIVE_FILE_SHA $path $(sha256sum "$active/$path" | awk '{print $1}')"
+              /opt/alt/php83/usr/bin/php -l "$active/$path" >/dev/null
+            else
+              echo "LIVE_FILE_MISSING $path"
+            fi
+          done
+          echo 'LIVE_READONLY_SOURCE_FINGERPRINT_PASS'
+          REMOTE
+          curl -sS --connect-timeout 10 --max-time 20 -o "$dir/support.txt" -w "LIVE_SUPPORT_ANON_HTTP=%{http_code}\n" 'https://darkred-camel-588676.hostingersite.com/api/v1/support'
+          echo 'LIVE_AUDIT_COMPLETE_NO_FILES_OR_DATABASE_CHANGED'

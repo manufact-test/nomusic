@@ -1,0 +1,125 @@
+name: CELIKOM W30 native audio origin contract (stage only)
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - server/src/Application.php
+      - server/tests/smoke.php
+      - .github/workflows/windows-w30-audio-cors.yml
+
+permissions:
+  contents: read
+
+jobs:
+  native-audio-cors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Syntax-check narrow audio-origin fix
+        run: |
+          php -l server/src/Application.php
+          php -l server/tests/smoke.php
+      - name: Audio stream, HEAD, Range, security and native CORS contracts
+        run: php server/tests/smoke.php
+      - name: Confirm no server deployment, original app remains untouched
+        run: echo 'W30_SERVER_STAGED_ONLY_NO_PRODUCTION_MUTATION'
+
+  live-audio-preflight:
+    needs: native-audio-cors
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read deployed audio CORS (NO WRITES; no secrets in logs)
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$HOSTINGER_SSH_KEY" ]]; then
+            echo 'W30_LIVE_PREFLIGHT_NO_SSH_KEY'
+            exit 0
+          fi
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          if [[ "$(ssh-keygen -lf "$work/public" | awk '{print $2}')" != 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]]; then
+            echo 'W30_LIVE_PREFLIGHT_WRONG_OWNER_KEY'
+            exit 1
+          fi
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 u235811320@92.113.19.189 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          root=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom
+          test -L "$root/current"
+          test -f "$root/current/src/Application.php"
+          echo "LIVE_APPLICATION_SHA256=$(sha256sum "$root/current/src/Application.php" | awk '{print $1}')"
+          /opt/alt/php83/usr/bin/php -r '
+            require $argv[1] . "/bootstrap.php";
+            $config = require $argv[1] . "/config/app.php";
+            $app = new Celikom\Application($config);
+            foreach (["null","musicapplication://desktop","https://music.yandex.ru"] as $origin) {
+                $r = $app->handle("OPTIONS","/api/v1/audio/7",[],["Origin"=>$origin]);
+                $label = $origin === "null" ? "OPAQUE" : ($origin === "musicapplication://desktop" ? "NATIVE" : "BROWSER");
+                echo "LIVE_AUDIO_CORS_", $label, "_STATUS=", $r->status,
+                     " ALLOWED=", $r->headers["Access-Control-Allow-Origin"] ?? "NONE", PHP_EOL;
+            }
+            $r=$app->handle("OPTIONS","/api/v1/auth/login",[],["Origin"=>"null"]);
+            echo "LIVE_AUTH_NULL_CORS=", $r->headers["Access-Control-Allow-Origin"] ?? "NONE", PHP_EOL;
+          ' "$root/current"
+          echo 'W30_HTTP_DIAGNOSTICS_FROM_ABORTED_DEPLOY:'
+          saved="$root/backups/w30-audio-cors-b1c25855ac44/audio-opaque-headers"
+          if [[ -f "$saved" ]]; then
+            awk 'BEGIN{IGNORECASE=1} /^HTTP\// {print "W30_SAVED_STATUS_LINE="$2} tolower($1)=="access-control-allow-origin:" {print "W30_SAVED_ACAO="$2}' "$saved"
+          else
+            echo 'W30_SAVED_HEADERS_ABSENT'
+          fi
+          for method in OPTIONS GET HEAD; do
+            case "$method" in
+              OPTIONS) code="$(curl -sS --connect-timeout 10 --max-time 15 -X OPTIONS -H 'Origin: null' -o /dev/null -w '%{http_code}' https://darkred-camel-588676.hostingersite.com/api/v1/audio/7)";;
+              GET) code="$(curl -sS --connect-timeout 10 --max-time 15 -H 'Origin: null' -o /dev/null -w '%{http_code}' https://darkred-camel-588676.hostingersite.com/api/v1/audio/7)";;
+              HEAD) code="$(curl -sS --connect-timeout 10 --max-time 15 -I -H 'Origin: null' -o /dev/null -w '%{http_code}' https://darkred-camel-588676.hostingersite.com/api/v1/audio/7)";;
+            esac
+            echo "W30_LIVE_HTTP_METHOD_$method=$code"
+          done
+          for origin in 'https://music.yandex.ru' 'null' 'musicapplication://desktop'; do
+            case "$origin" in
+              'https://music.yandex.ru') label=BROWSER;;
+              'null') label=OPAQUE;;
+              *) label=NATIVE;;
+            esac
+            code="$(curl -sS --connect-timeout 10 --max-time 15 -D "/tmp/w30-live-$label-headers" -o /dev/null \
+              -X OPTIONS -H "Origin: $origin" https://darkred-camel-588676.hostingersite.com/api/v1/audio/7 -w '%{http_code}')"
+            allow="$(awk 'tolower($1)=="access-control-allow-origin:"{print $2}' "/tmp/w30-live-$label-headers" | tr -d '\r' | head -1)"
+            rm -f "/tmp/w30-live-$label-headers"
+            echo "W30_LIVE_OPTIONS_$label=$code CORS=$allow"
+          done
+          echo "W30_LIVE_HEALTH=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://darkred-camel-588676.hostingersite.com/api/v1/health)"
+          /opt/alt/php83/usr/bin/php -r '
+            require $argv[1] . "/bootstrap.php";
+            $config = require $argv[1] . "/config/app.php";
+            $app = new Celikom\Application($config);
+            foreach (["null","musicapplication://desktop","https://desktop.app.music.yandex.net","https://music.yandex.ru"] as $origin) {
+              $r=$app->handle("OPTIONS","/api/v1/audio/7",[],["Origin"=>$origin]);
+              if ($r->status !== 204 || ($r->headers["Access-Control-Allow-Origin"]??null) !== $origin) exit(9);
+            }
+            $r=$app->handle("OPTIONS","/api/v1/auth/login",[],["Origin"=>"null"]);
+            if (isset($r->headers["Access-Control-Allow-Origin"])) exit(10);
+            echo "W30_INDEPENDENT_LIVE_PHP_CORS_VERIFY_PASS",PHP_EOL;
+          ' "$root/current"
+          REMOTE

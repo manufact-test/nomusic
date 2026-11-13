@@ -1,0 +1,90 @@
+name: CELIKOM W59 Windows extension-theme + live-state source contract (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - experiment/windows-stop-lifecycle-20261110
+    paths:
+      - windows-companion/w15/Celikom.Companion/MainWindow.cs
+      - windows-companion/w15/Celikom.Companion/CompactPopup.cs
+      - windows-companion/w15/Celikom.Companion/CompactPopupActions.cs
+      - windows-companion/w15/Celikom.Companion/PopupButton.cs
+      - windows-companion/w15/Celikom.Companion.Tests/**
+      - windows-companion/w22/native-resource-adapter.test.mjs
+      - windows-companion/w23/renderer-relay.test.mjs
+      - windows-companion/w59/**
+      - .github/workflows/windows-w59-popup-theme-compile-stage.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-popup-contract:
+    runs-on: windows-2022
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve exact extension visual palette and separate Start Stop commands
+        shell: pwsh
+        run: |
+          $extension=Get-Content extension/popup/popup.css -Raw
+          $html=Get-Content extension/popup/popup.html -Raw
+          $window=(Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw) +
+            (Get-Content windows-companion/w15/Celikom.Companion/CompactPopup.cs -Raw)
+          foreach ($hex in @('#0b1013','#141b1f','#66e0bf','#2a3439','#f4f7f8')) {
+            if (-not $extension.Contains($hex)) { throw "W59_EXTENSION_COLOR_MISSING $hex" }
+            if (-not $window.ToLowerInvariant().Contains($hex)) { throw "W59_NATIVE_COLOR_MISSING $hex" }
+          }
+          if (-not $html.Contains('data-action="start"') -or -not $html.Contains('data-action="stop"')) {
+            throw 'W59_EXTENSION_PRIMARY_ACTION_MISSING'
+          }
+          if (-not $window.Contains('_start.Click += StartAction') -or
+              -not $window.Contains('_stop.Click += (_, _) =>') -or
+              -not $window.Contains('_bridge.SetEnabled(false)')) {
+            throw 'W59_WINDOWS_ACTION_NOT_BOUND'
+          }
+          if ($window.Contains('Process.Start(new ProcessStartInfo("yandexmusic://")') -eq $false) {
+            throw 'W59_LAUNCH_YANDEX_ACTION_REMOVED'
+          }
+          Write-Output 'W59_EXTENSION_THEME_AND_REAL_ACTION_CONTRACT_PASS'
+      - name: Compile actual Windows WinForms app with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Render source-only themed UI to PNG without any Yandex player
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $png = Join-Path $env:RUNNER_TEMP 'CELIKOM-W59-UI-STAGE.png'
+          dotnet run --project windows-companion/w59/Celikom.VisualPreview/Celikom.VisualPreview.csproj -c Release -- $png
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $png)) { throw 'W59_STAGE_SCREENSHOT_FAILED' }
+          Copy-Item $png (Join-Path $env:GITHUB_WORKSPACE 'CELIKOM-W59-UI-STAGE.png')
+          Get-ChildItem $env:RUNNER_TEMP -Filter 'CELIKOM-W59-UI-STAGE-*.png' |
+            Copy-Item -Destination $env:GITHUB_WORKSPACE
+      - name: Inspect static UI preview (not an installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W59-UI-STAGE
+          path: CELIKOM-W59-UI-STAGE*.png
+          retention-days: 3
+      - name: Run native bridge, auth and signed-source contract suite
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Build unmodified accepted renderer and verify Stop transitions
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'W59_NPM_INSTALL_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W59_RENDERER_BUILD_FAILED' }
+      - name: Verify source mapping, same-track Stop and renderer relay together
+        run: node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs
+      - name: Source and UI only - no signed or unsigned installer release
+        run: echo W59_NO_OWNER_UPDATE_OR_PRODUCTION_MUTATION

@@ -1,0 +1,32 @@
+name: CELIKOM W24 native .NET image builder and recovery
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w24/**
+      - windows-companion/w21/**
+      - .github/workflows/windows-w24-native-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-installer:
+    runs-on: windows-2022
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile native image builder and CLI with warnings as errors
+        run: dotnet build windows-companion/w24/Celikom.NativeInstaller.Cli/Celikom.NativeInstaller.Cli.csproj -c Release -warnaserror
+      - name: Test native ASAR/EXE image builder
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Test durable rollback when a patch operation is interrupted
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release

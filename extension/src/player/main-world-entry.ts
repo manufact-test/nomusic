@@ -1,0 +1,452 @@
+(function startCelikomMainWorldBridge(root) {
+  "use strict";
+
+  const core = root.__CELIKOM_PLAYER_CORE_V1__;
+  const adapterFactory = root.__CELIKOM_YANDEX_ADAPTER_V1__;
+  const guardFactory = root.__CELIKOM_ORIGINAL_GUARD_V1__;
+  if (!core || !adapterFactory || !guardFactory) return;
+
+  const BRIDGE_KEY = "__CELIKOM_MAIN_BRIDGE_V1__";
+  if (root[BRIDGE_KEY]) {
+    root[BRIDGE_KEY].announce();
+    return;
+  }
+
+  const DIRECTION_IN = "to-main";
+  const DIRECTION_OUT = "from-main";
+  const VISIBLE_TIMEOUT_MS = 12000;
+  const HIDDEN_TIMEOUT_MS = 120000;
+  let controllerSession = null;
+  let lastHeartbeatAt = 0;
+  let sequence = 0;
+  let destroyed = false;
+  let pageCached = false;
+  let lastReleasedGeneration = 0;
+  let lastGuardGeneration = 0;
+  let handoff = null;
+  let preparationTimer = null;
+  let heldStart = null;
+  let playbackPolicy = {revision:0,enabled:false};
+  let lastAdmission = null, admissionSequence = 0;
+  const transitionTrace = []; let tracePrevious = null;
+  function trace(snapshot, event) {
+    const player=snapshot?.player, track=snapshot?.track;
+    const replacements=Array.from(root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []).slice(0,3).map(a=>({trackId:a.dataset.celikomTrackId||null,time:Math.round((a.currentTime||0)*1000),paused:a.paused,muted:a.muted,seeking:a.seeking,readyState:a.readyState}));
+    const state={trackId:track?.id||null,evidence:track?.evidence||null,mediaId:player?.mediaId||null,time:Math.round((player?.currentTime||0)*1000),duration:player?.duration||null,paused:player?.paused,seeking:player?.seeking,readyState:player?.readyState,guard:guard.state().active,handoff:Boolean(handoff),replacements};
+    const previous=tracePrevious; tracePrevious=state;
+    const shape=x=>JSON.stringify({...x,time:0,replacements:x.replacements.map(a=>({...a,time:0}))});
+    if(previous&&shape(previous)===shape(state)&&Math.abs(state.time-previous.time)<800&&!/seek|metadata|load|emptied|playing|source|transition/.test(event||''))return;
+    transitionTrace.push({at:now(),event,...state});if(transitionTrace.length>48)transitionTrace.shift();
+  }
+  const adapter = adapterFactory.createAdapter(root);
+  const guard = new guardFactory.OriginalAudioGuard(() => {
+    post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("volume-intent")));
+  });
+
+  /* Only the beginning of a known, currently guarded native track may wait.
+     The native clock stays paused; user pause/load cancels rather than resumes. */
+  function finishHeldStart(resume, reason) {
+    const pending = heldStart;
+    if (!pending) return;
+    heldStart = null; root.clearTimeout(pending.timer);
+    const snapshot = adapter.getSnapshot("intro-start-verdict");
+    const same = snapshot.track?.id === pending.trackId && !snapshot.track?.ambiguous
+      && snapshot.player?.mediaId === pending.mediaId
+      && (pending.element.currentSrc || pending.element.src || "") === pending.source;
+    trace(snapshot, resume && same ? "intro-start-ready:"+reason : "intro-start-cancelled:"+reason);
+    if (!resume || !same) {
+      pending.reject(Object.assign(new Error("Native intro start cancelled"), {name:"AbortError"})); return;
+    }
+    try { Promise.resolve(pending.invoke()).then(pending.resolve, pending.reject); }
+    catch (error) { pending.reject(error); }
+  }
+  function holdIntroPlay(element, invoke) {
+    if (heldStart?.element === element) return heldStart.promise;
+    if (heldStart || playbackPolicy.holdIntro !== true || !playbackPolicy.enabled
+      || !controllerSession || pageCached || now()-lastHeartbeatAt>VISIBLE_TIMEOUT_MS) return null;
+    const snapshot = adapter.getSnapshot("intro-start-check"), player = snapshot.player;
+    if (!handoff || !guard.current || !player?.paused || player.seeking || player.readyState<2
+      || player.currentTime<0 || player.currentTime>0.25 || player.ended
+      || adapter.getMediaElement(player.mediaId)!==element || !snapshot.track?.id || snapshot.track.ambiguous
+      || snapshot.track.confidence<100 || !Number.isFinite(player.duration)
+      || Math.abs(player.duration*1000-snapshot.track.metadata?.durationMs)>1500) return null;
+    const pending = {element,invoke,trackId:snapshot.track.id,mediaId:player.mediaId,
+      source:element.currentSrc||element.src||"",timer:null};
+    pending.promise=new Promise((resolve,reject)=>{pending.resolve=resolve;pending.reject=reject;});
+    pending.promise.catch(()=>{});
+    heldStart=pending;
+    pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},400);
+    trace(snapshot,"intro-start-held");return pending.promise;
+  }
+
+  function stopReplacement() {
+    for (const element of root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []) {
+      try { element.muted = true; element.pause(); } catch (_error) { /* keep restoring */ }
+    }
+  }
+
+  function release(reason, token = null, detail = null) {
+    // The isolated controller acknowledges disposal of its old replacement.
+    // Keep only the bounded MAIN lease while Yandex still plays the old stream.
+    if (handoff && token === handoff.token && reason === "guard-lost:master-binding-changed") return { released: true, transitioning: true };
+    if (token && guard.current?.token !== token) return { released: false };
+    if (preparationTimer !== null) { root.clearTimeout(preparationTimer); preparationTimer = null; }
+    if (handoff) { root.clearTimeout(handoff.timer); handoff = null; }
+    const oldToken = guard.current?.token;
+    const releasedGeneration = leaseGeneration(token || oldToken);
+    if (releasedGeneration) lastReleasedGeneration = Math.max(lastReleasedGeneration, releasedGeneration);
+    if (token && guard.current?.token !== token) return { released: false };
+    stopReplacement();
+    const result = guard.release(token);
+    finishHeldStart(!/page|unload|session-changed|master-lost|source-changed|track-changed|media-changed/.test(reason), reason);
+    if (oldToken) post("GUARD_RELEASED", { reason, token: oldToken, detail });
+    if (oldToken && adapter.mounted) post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("guard-released")));
+    return result;
+  }
+
+  function leaseGeneration(token) {
+    if (typeof token !== "string" || !controllerSession || !token.startsWith(`${controllerSession}:`)) return 0;
+    const suffix = token.slice(controllerSession.length + 1);
+    const generation = /^\d+$/.test(suffix) ? Number(suffix) : 0;
+    return Number.isSafeInteger(generation) && generation > 0 ? generation : 0;
+  }
+
+  function decorate(snapshot) {
+    const state = guard.state();
+    if (snapshot.player) snapshot.player.guarded = state.active && state.mediaId === snapshot.player.mediaId;
+    snapshot.guard = { ...state, transitioning: Boolean(handoff) };
+    snapshot.transitionTrace = transitionTrace.slice();
+    return snapshot;
+  }
+
+  function admitBeforePlay(snapshot) {
+    const player=snapshot.player,track=snapshot.track;
+    if(snapshot.reason!=="before-method:play"||!playbackPolicy.enabled||pageCached||!controllerSession
+      ||now()-lastHeartbeatAt>VISIBLE_TIMEOUT_MS||!player||snapshot.triggerMediaId!==player.mediaId||!player.paused||player.ended||player.readyState<2
+      ||!track?.id||track.ambiguous||track.confidence<100||!track.metadata?.durationMs
+      ||!Number.isFinite(player.duration)||Math.abs(player.duration*1000-track.metadata.durationMs)>1500
+      ||(playbackPolicy.testTrackId&&playbackPolicy.testTrackId!==track.id)
+      ||playbackPolicy.bypassTrackId===track.id||playbackPolicy.blockedTrackId===track.id
+      ||(playbackPolicy.negative?.trackId===track.id&&playbackPolicy.negative.until>now()))return;
+    const element=adapter.getMediaElement(player.mediaId);if(!element)return;
+    const source=element.currentSrc||element.src||"";
+    if(lastAdmission?.element===element&&lastAdmission.trackId===track.id&&lastAdmission.source===source)return;
+    lastAdmission={element,trackId:track.id,source};
+    const token=`${controllerSession}:admission:${++admissionSequence}`;
+    try{
+      guard.engage(element,player.mediaId,token);guard.current.trackId=track.id;guard.current.source=source;
+      handoff={token,admission:true,startedAt:now(),timer:root.setTimeout(()=>release("admission-timeout",token),1000)};
+      trace(snapshot,"admission-guarded");
+    }catch(_error){release("admission-unavailable",token);}
+  }
+
+  function checkBinding(snapshot) {
+    if (heldStart) {
+      const changed = snapshot.track?.id !== heldStart.trackId || snapshot.track?.ambiguous
+        || snapshot.player?.mediaId !== heldStart.mediaId
+        || (heldStart.element.currentSrc||heldStart.element.src||"") !== heldStart.source;
+      if (changed) finishHeldStart(false,"binding-changed");
+      else if (snapshot.player?.seeking || snapshot.player?.currentTime > 0.25) release("intro-user-seek");
+    }
+    const lease = guard.current;
+    if (!lease) { admitBeforePlay(snapshot); return; }
+    const player = snapshot.player;
+    const element = adapter.getMediaElement(lease.mediaId);
+    if (handoff) {
+      if (!element || player?.mediaId !== lease.mediaId || player?.ended) release("transition-master-lost", lease.token);
+      else if(snapshot.reason==="before-method:play"&&snapshot.triggerMediaId===player.mediaId&&!handoff.admission
+        &&snapshot.track?.id&&!snapshot.track.ambiguous&&snapshot.track.confidence>=100
+        &&player.readyState>=2&&Number.isFinite(player.duration)
+        &&Math.abs(player.duration*1000-snapshot.track.metadata?.durationMs)<=1500
+        &&(snapshot.track.id!==lease.trackId||(element.currentSrc||element.src||"")!==lease.source)){
+        // Metadata can lead resource readiness by almost the entire old deadline.
+        // Give this fresh native play one bounded lookup window, never a poll renewal.
+        const token=lease.token,remaining=Math.min(1000,handoff.startedAt+2000-now());
+        if(remaining>0){root.clearTimeout(handoff.timer);handoff.admission=true;handoff.timer=root.setTimeout(()=>release("transition-timeout",token),remaining);}
+      }
+      return;
+    }
+    let reason = null;
+    // Resource identity remains authoritative while the adapter deliberately
+    // withholds stale track metadata during a stream transition.
+    if (element && (element.currentSrc || element.src || "") !== lease.source) reason = "media-source-changed";
+    else if (!snapshot.track?.id) reason = "track-unknown";
+    else if (snapshot.track.ambiguous) reason = "track-ambiguous";
+    else if (snapshot.track.id !== lease.trackId) reason = "track-changed";
+    else if (!element || player?.mediaId !== lease.mediaId) reason = "media-changed";
+    else if (player.ended) reason = "master-ended";
+    else if (!Number.isFinite(player.duration) || player.readyState < 1) reason = "media-emptied";
+    else if (Math.abs(player.duration * 1000 - snapshot.track.metadata?.durationMs) > 1500) reason = "duration-mismatch";
+    if (reason) {
+      if (["track-unknown", "track-ambiguous", "track-changed", "media-source-changed", "media-emptied"].includes(reason) && element && player?.mediaId === lease.mediaId && !player.ended) {
+        // Metadata may change before the native stream. Releasing here would
+        // unmute the previous ORIGINAL recording for the transition interval.
+        stopReplacement();
+        const token = lease.token;
+        handoff = { token, startedAt:now(), timer: root.setTimeout(() => release("transition-timeout", token), 1000) };
+        post("GUARD_RELEASED", { reason: "master-binding-changed", token, detail: { reason, transitioning: true, trackId: snapshot.track?.id || null, mediaId: player.mediaId, readyState: player.readyState, seeking: Boolean(player.seeking) } });
+        return;
+      }
+      release("master-binding-changed", lease.token, {
+        reason, trackId: snapshot.track?.id || null, mediaId: player?.mediaId || null,
+        readyState: player?.readyState ?? null, seeking: Boolean(player?.seeking)
+      });
+    }
+  }
+
+  function now() {
+    return Date.now();
+  }
+
+  function post(type, payload = {}, requestId = null) {
+    if (!controllerSession && type !== "BRIDGE_PRESENT") return null;
+    const messageSequence = type === "BRIDGE_PRESENT" ? 0 : ++sequence;
+    const normalizedPayload = type === "PLAYER_EVENT"
+      ? { ...payload, sequence: messageSequence }
+      : payload;
+    root.postMessage({
+      channel: core.CHANNEL,
+      protocolVersion: core.PROTOCOL_VERSION,
+      direction: DIRECTION_OUT,
+      sessionId: controllerSession,
+      sequence: messageSequence,
+      type,
+      requestId,
+      payload: normalizedPayload,
+      sentAt: now()
+    }, "*");
+    return messageSequence;
+  }
+
+  const sink = Object.freeze({
+    holdIntroPlay,
+    beforeNativeMethod(name, element) {
+      if (heldStart?.element !== element) return;
+      finishHeldStart(false,"native-"+name);
+      release("intro-user-cancelled");
+    },
+    onSnapshot(snapshot) {
+      trace(snapshot, snapshot.reason);
+      checkBinding(snapshot);
+      post("PLAYER_SNAPSHOT", decorate(snapshot));
+    },
+    onPlayerEvent(event) {
+      trace(event.snapshot, event.nativeEvent || event.type);
+      checkBinding(event.snapshot);
+      if (event.type === "ERROR" || (event.type === "ENDED" && event.snapshot.player?.ended === true)) {
+        release(`master-${event.type.toLowerCase()}`);
+      }
+      if (["PAUSE", "SEEK"].includes(event.type)) {
+        for (const element of root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []) {
+          try { element.pause(); } catch (_error) { /* isolated controller also pauses */ }
+        }
+      }
+      post("PLAYER_EVENT", { ...event, snapshot: decorate(event.snapshot) });
+    }
+  });
+
+  function attach(sessionId) {
+    if (controllerSession === sessionId && adapter.mounted) {
+      lastHeartbeatAt = now();
+      post("READY", {
+        bridgeVersion: core.VERSION,
+        protocolVersion: core.PROTOCOL_VERSION,
+        service: adapter.service
+      });
+      return;
+    }
+    if (controllerSession && controllerSession !== sessionId) { release("session-changed"); adapter.unmount(); }
+    controllerSession = sessionId;
+    playbackPolicy={revision:0,enabled:false};lastAdmission=null;
+    lastReleasedGeneration = 0;
+    lastGuardGeneration = 0;
+    lastHeartbeatAt = now();
+    sequence = 0;
+    adapter.mount(sink);
+    post("READY", {
+      bridgeVersion: core.VERSION,
+      protocolVersion: core.PROTOCOL_VERSION,
+      service: adapter.service
+    });
+    post("PLAYER_SNAPSHOT", decorate(adapter.getSnapshot("bridge-init")));
+  }
+
+  function detach(reason) {
+    if (!controllerSession) return;
+    const previousSession = controllerSession;
+    release(reason);
+    adapter.unmount();
+    controllerSession = null;
+    playbackPolicy={revision:0,enabled:false};lastAdmission=null;
+    lastHeartbeatAt = 0;
+    sequence = 0;
+    return { detached: true, reason, sessionId: previousSession };
+  }
+
+  function handleRequest(type, payload) {
+    if (pageCached && type === "GUARD_ENGAGE") throw new Error("Page is cached");
+    if (type === "GET_SNAPSHOT") return decorate(adapter.getSnapshot("request"));
+    if (type === "GUARD_RELEASE") return release(payload?.reason || "release-request", payload?.token);
+    if (type === "GUARD_TRANSITION_END") {
+      const snapshot = adapter.getSnapshot("transition-verdict");
+      const generation = leaseGeneration(payload?.token);
+      if (generation >= lastGuardGeneration && generation > lastReleasedGeneration && handoff && snapshot.track?.id === payload?.trackId && snapshot.player?.mediaId === payload?.mediaId) return release("no-replacement", handoff.token);
+      return { released: false };
+    }
+    if (type === "GUARD_ENGAGE") {
+      const generation = leaseGeneration(payload?.token);
+      if (!generation || generation <= lastReleasedGeneration || generation < lastGuardGeneration) throw new Error("Invalid or cancelled guard lease");
+      const snapshot = adapter.getSnapshot("guard-request");
+      const element = adapter.getMediaElement(payload.mediaId);
+      const player = snapshot.player;
+      if (!element || snapshot.track?.ambiguous || snapshot.track?.id !== payload.trackId || snapshot.track?.confidence < 100
+        || player?.mediaId !== payload.mediaId || player?.ended || player?.readyState < 2
+        || !Number.isFinite(player.duration) || !snapshot.track.metadata?.durationMs
+        || Math.abs(player.duration * 1000 - snapshot.track.metadata.durationMs) > 1500) throw new Error("Master changed before guard");
+      if (payload.preparing && !handoff) return { reserved: false };
+      if (preparationTimer !== null) { root.clearTimeout(preparationTimer); preparationTimer = null; }
+      if (handoff && guard.current?.element === element) {
+        const pending = handoff;
+        guard.transfer(element, payload.mediaId, pending.token, payload.token);
+        root.clearTimeout(pending.timer); handoff = null;
+      } else {
+        if (handoff) release("transition-master-changed", handoff.token);
+        guard.engage(element, payload.mediaId, payload.token);
+      }
+      lastGuardGeneration = generation;
+      guard.current.trackId = payload.trackId;
+      // Compare stream identity only inside MAIN; never serialize the raw URL.
+      guard.current.source = element.currentSrc || element.src || "";
+      // Only an existing transition mute can be reserved while a verified
+      // replacement loads. This cannot mute an unrelated initial playback.
+      if (payload.preparing) preparationTimer = root.setTimeout(() => release("preparation-timeout", payload.token), 10000);
+      if (!payload.preparing) finishHeldStart(true,"replacement-prepared");
+      return { guard: guard.state(), snapshot: decorate(adapter.getSnapshot("guard-engaged")) };
+    }
+    throw new Error(`Unknown bridge request: ${type}`);
+  }
+
+  function validSessionId(value) {
+    return typeof value === "string" && value.length >= 8 && value.length <= 128;
+  }
+
+  function onWindowMessage(event) {
+    if (destroyed || event.source !== root) return;
+    const message = event.data;
+    if (!message || message.channel !== core.CHANNEL || message.protocolVersion !== core.PROTOCOL_VERSION) return;
+    if (message.direction !== DIRECTION_IN || !validSessionId(message.sessionId)) return;
+
+    if (message.type === "INIT") {
+      attach(message.sessionId);
+      return;
+    }
+    if (message.sessionId !== controllerSession) return;
+
+    if(message.type==="POLICY_UPDATE"){
+      const policy=message.payload;
+      if(!Number.isSafeInteger(policy?.revision)||policy.revision<=playbackPolicy.revision)return;
+      playbackPolicy={...policy,enabled:policy.enabled===true};
+      if(policy.reset===true)lastAdmission=null;
+      if(!playbackPolicy.enabled){lastAdmission=null;release("policy-disabled");}
+      else if(guard.current&&(policy.bypassTrackId===guard.current.trackId||policy.blockedTrackId===guard.current.trackId
+        ||(policy.negative?.trackId===guard.current.trackId&&policy.negative.until>now())))release("policy-original");
+      return;
+    }
+    if (message.type === "RELEASE_NOW") { release(message.payload?.reason || "emergency-signal", message.payload?.token); return; }
+
+    if (message.type === "HEARTBEAT") {
+      // Only heartbeats that the isolated-world bridge has verified against
+      // the installed Chrome service worker can renew an active audio lease.
+      // Generic requests (including stale snapshots) must NOT keep it alive.
+      lastHeartbeatAt = now();
+      post("HEARTBEAT_ACK", {
+        bridgeVersion: core.VERSION,
+        hidden: Boolean(root.document?.hidden)
+      });
+      return;
+    }
+    if (message.type === "SHUTDOWN") {
+      detach("content-shutdown");
+      return;
+    }
+    if (message.type === "REQUEST" && typeof message.requestId === "string") {
+      try {
+        const result = handleRequest(message.payload?.type, message.payload?.payload);
+        if (controllerSession) post("RESPONSE", { ok: true, result }, message.requestId);
+      } catch (error) {
+        post("RESPONSE", { ok: false, error: String(error?.message || error) }, message.requestId);
+      }
+    }
+  }
+
+  function announce() {
+    if (destroyed) return;
+    root.postMessage({
+      channel: core.CHANNEL,
+      protocolVersion: core.PROTOCOL_VERSION,
+      direction: DIRECTION_OUT,
+      sessionId: controllerSession,
+      sequence: 0,
+      type: "BRIDGE_PRESENT",
+      payload: { bridgeVersion: core.VERSION, service: adapter.service },
+      sentAt: now()
+    }, "*");
+  }
+
+  function checkHeartbeat() {
+    if (pageCached) return;
+    if (!controllerSession) return;
+    const timeoutMs = root.document?.hidden ? HIDDEN_TIMEOUT_MS : VISIBLE_TIMEOUT_MS;
+    const elapsedMs = now() - lastHeartbeatAt;
+    if (elapsedMs <= timeoutMs) return;
+    post("BRIDGE_TIMEOUT", { elapsedMs, hidden: Boolean(root.document?.hidden) });
+    detach("heartbeat-timeout");
+  }
+
+  function onVisibilityChange() {
+    if (root.document?.hidden) return;
+    checkHeartbeat();
+    announce();
+  }
+
+  function destroy(reason = "page-unload") {
+    if (destroyed) return;
+    detach(reason);
+    destroyed = true;
+    root.removeEventListener("message", onWindowMessage);
+    root.document?.removeEventListener("visibilitychange", onVisibilityChange);
+    root.clearInterval(watchdogTimer);
+  }
+
+  root.addEventListener("message", onWindowMessage);
+  root.document?.addEventListener("visibilitychange", onVisibilityChange);
+  root.addEventListener("pagehide", (event) => {
+    // BFCache keeps these immutable globals. Release audio but retain a live
+    // bridge; destroying it here makes Back/Forward permanently disconnected.
+    if (event.persisted) { pageCached = true; release("page-cached"); }
+    else destroy("pagehide");
+  }, { capture: true });
+  root.addEventListener("pageshow", (event) => {
+    if (event.persisted && !destroyed) { pageCached = false; lastHeartbeatAt = now(); announce(); }
+  });
+  const watchdogTimer = root.setInterval(checkHeartbeat, 500);
+
+  Object.defineProperty(root, BRIDGE_KEY, {
+    value: Object.freeze({
+      announce,
+      destroy,
+      getDiagnostics: () => ({
+        attached: Boolean(controllerSession),
+        mounted: adapter.mounted,
+        service: adapter.service,
+        lastHeartbeatAt,
+        guard: guard.state()
+      })
+    }),
+    configurable: false,
+    enumerable: false,
+    writable: false
+  });
+
+  announce();
+})(globalThis);

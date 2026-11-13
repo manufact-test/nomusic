@@ -1,0 +1,11 @@
+# W16 — owner-approved isolated Windows experiment, 2026-11-09
+
+Approval: install official Yandex Music and PulseSync in a separate disposable test Windows; NEVER owner's signed-in client. Windows GitHub-hosted runner is Windows Server 2022 (not Windows 10). Workflow first verifies Defender active, official Yandex Authenticode, PulseSync release SHA-256 and exact official ASAR SHA-256 versus W10 owner value. If any fail, it stops rather than disabling protection. With gates passed, attempts normal unattended installs into disposable runner; no account, no mod patching, no remote debugging, no Yandex process injection, no music output. No secrets or repo checkout; upload redacted status JSON only. Real audio + modified-client integration still need an interactive isolated Windows 10 with legitimate test access. PulseSync v2.1.5 advertises 5.126.1 but its version is spoofed from 5.125.3. Commercial distribution licensing not cleared.
+
+## W16 first real run
+
+[CI 42582971555](https://github.com/manufact-test/nomusic/actions/runs/42582971555) completed read-only verification: official Yandex installer 5.126.1 SHA-256 `131fa1d9bc32eee2baadbdd7c1fe7aa8ba4a2f89ec972dd462aa06ee5b170435`, valid Authenticode CN=YANDEX LLC. PulseSync Client 3.0.3-beta and mod v2.1.5 checksums matched vendor release assets. GitHub-hosted Windows Server 2022 reported AntivirusEnabled=True but RealTimeProtectionEnabled=False, so no installer was executed. W16 follow-up tries to enable realtime protection (never disable it); if OS policy blocks, installation remains STOPPED. No Windows 10 compatibility or audio is proven.
+
+## W16 second real run
+
+[CI 42583212585](https://github.com/manufact-test/nomusic/actions/runs/42583212585) successfully **enabled** Defender realtime in disposable Windows Server 2022 (`antivirus=True;realtime=True`). Confirmed authentic official Yandex installer again. PulseSync Client download from `github.com/.../releases/download/...` then failed with HTTP 504 (reported broader GitHub release CDN incident), so no installation was run. W16 follow-up uses the publisher's GitHub REST release-asset endpoints (asset IDs 673621306 and 713319817), still requiring exact published SHA-256 digests. No downgrade or security bypass.

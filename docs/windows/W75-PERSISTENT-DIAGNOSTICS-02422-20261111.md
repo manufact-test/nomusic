@@ -1,0 +1,32 @@
+> **CI 0.24.22 SUCCESS — ПРОВЕРЕНО:** [GitHub Actions 43091527029](https://github.com/manufact-test/nomusic/actions/runs/43091527029). 158 W15 .NET Windows contracts, 16 native installer contracts, Inno Setup and real disposable Windows 0.24.21 → 0.24.22 same-AppId inplace upgrade, saved-login DPAPI decrypt preserved, native host/renderer SHA identical, no vendor Yandex folder touched. Artifact `CELIKOM-W75-PERSISTENT-DIAGNOSTICS-UNSIGNED` (EXE within ZIP), final unsigned installer SHA256 `ECEA2166B087702D5A66590130A6D8DC647E9DB8E33F2E7B0C5063469DBA4FCA`. Physical owner's 60–90 sec outage cause remains unknown until owner sends the real `companion-events.log`/`native-events.log` and optional `.1` from `%LOCALAPPDATA%\CELIKOM\Windows`. Keep `session.dpapi` PRIVATE.
+
+# CELIKOM Windows W75 — диагностика не исчезает при сбое связи (0.24.22)
+
+Дата: 11.11.2026. Исходная проверенная сборка W74 0.24.21 — CI [43085966611](https://github.com/manufact-test/nomusic/actions/runs/43085966611) PASS, exact backup `backup/windows-w74-02421-start-race-retry-ci-pass-20261111`. W75 построена поверх неё, нативные скрипты подмены не изменялись.
+
+## Инцидент владельца
+
+При обычном воспроизведении CELIKOM отключился, затем переподключился только через ~1–1,5 минуты. В этот момент владелец нажал владельческую кнопку диагностики, после чего **кнопка пропала**, и отправить актуальный отчёт он не смог. **Причина самого отключения ещё не установлена:** реальная копия локальных логов не получена, не выдавать conjecture о VPN/SMTP/Яндексе за факт.
+
+## Проверенная причина исчезновения кнопки — дважды неправильная обработка ошибки
+
+В оригинальной W74 `MainWindow.RefreshDiagnosticsAccessAsync` принудительно скрывал `_staffPanel` перед каждым новым сетевым запросом `auth/me`. `CopyDiagnosticsAuthorized` при **любом** исключении от `CanExportDiagnosticsAsync` (включая `HttpRequestException` и timeout) устанавливал `_diagnosticsAllowed = false` и скрывал кнопку. Таким образом **временная сеть трактовалась как настоящий отзыв полномочий**.
+
+Это нужно чинить, не открывая клиентам закрытую владельческую диагностику. Важный технический контракт: доступ к содержимому **всегда** подтверждается свежим `auth/me` при экспорте, и отрицательный ответ, 401/403, logout, смена аккаунта/устройства и новая не подтверждённая учётка запрещают экспорт.
+
+## W75 решение
+
+1. `DiagnosticsAccessRecovery.KeepButtonOnFailure`: только если до сбоя владельческий доступ уже был подтверждён, пользователь по-прежнему авторизован в том же аккаунте, то же origin/device/email, а ошибка запроса временная — кнопка **остаётся видимой**. Открываться файлы из неё до успешного свежего подтверждения **не могут**.
+2. При нажатии во время сетевого сбоя вместо исчезновения кнопки текст `Нет связи · повтори`; после восстановления владелец сможет нажать снова. При настоящем серверном запрете кнопка скрывается. При logout состояние немедленно очищается.
+3. `DiagnosticLog.Record` теперь сохраняет privacy-safe коды инцидентов отдельно в `%LOCALAPPDATA%\CELIKOM\Windows\incident-events.log` (+ один архив `.1`). Только timestamp UTC, событие из allowlist, необязательный числовой track ID. Нет URL, токенов, писем, сырых ошибок или абсолютных путей. Два файла ограничены 512 KiB каждый.
+4. `DiagnosticLog.ExportText` независимо от последних 15 минут дополнен разделом `PERSISTENT INCIDENT HISTORY (LAST 7 DAYS, MAX 1000)`. Если частый нативный polling затёр обычный лог, инциденты и восстановление связи сохранятся. До 7 дней при условии, что нет чрезвычайно большого числа инцидентов, так как размер архива ограничен.
+5. Оригинальные `companion-events.log`, `native-events.log` и архивы `.1` остались. Для диагностики **уже произошедшего** сбоя 0.24.20/0.24.21: `Win+R` → `%LOCALAPPDATA%\CELIKOM\Windows` → прислать `companion-events.log(.1)` и `native-events.log(.1)`, но **не** `session.dpapi`. W75 не может восстановить записи, стёртые до её установки.
+6. Новый `CELIKOM 0.24.22` — исключительно эти GUI/diagnostic изменения; не вмешиваться в entitlements, Start/Stop, подписи Range, музыку, продакшн API, подписки, PHP, Android или реальные файлы Яндекса.
+
+## Автоматическая приёмка и ограничения
+
+- CI workflow `.github/workflows/windows-w75-diagnostics-resilience-installer.yml`: Windows 2022 .NET 10 и Inno Setup, stage gate, тесты текущих W72/W74 контрактов + W75 permission policy (временная ошибка оставляет кнопку; отказ/смена учётки/устройства/логаут скрывают) и архива инцидентов (независимость от 3000 polling сообщений, три часа, семидневная граница, отсутствие токенов). Собран самодостаточный 0.24.22 EXE.
+- Интеграционная проверка поверх точной 0.24.21 из W74 CI 43085966611 по закреплённому SHA256: тот же AppId, DPAPI saved login сохраняется/расшифровывается, native host.cjs/renderer.js имеют неизменный SHA, оригинальный Yandex не затронут.
+- *Обязательно проверить финальный статус W75 CI и SHA установщика перед распространением.* Автотесты не заменяют реальный отключившийся ПК. До присланных владельцем логов причина ожидания 60–90 сек остаётся **открытой**.
+- Архив W75 и точный HEAD сохраняются в отдельной backup ветке только после CI успеха.
+- Оригинальный откат: `backup/windows-w75-pre-diagnostics-resilience-20261111`; прежняя 0.24.21 в CI 43085966611.

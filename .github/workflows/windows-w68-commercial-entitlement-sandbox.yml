@@ -1,0 +1,82 @@
+name: CELIKOM W68 disposable commercial entitlement security gate
+
+on:
+  push:
+    branches:
+      - experiment/windows-commercial-entitlement-audit-20261110
+    paths:
+      - server/**
+      - .github/workflows/windows-w68-commercial-entitlement-sandbox.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  commercial-mysql-fixture:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 22
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: celikom_test_w68
+          MYSQL_USER: celikom
+          MYSQL_PASSWORD: w68-disposable-ci-password
+          MYSQL_ROOT_PASSWORD: w68-disposable-ci-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -pw68-disposable-ci-root"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CI: "true"
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test_w68
+      DB_USER: celikom
+      DB_PASSWORD: w68-disposable-ci-password
+      AUDIO_SIGNING_KEY: w68-disposable-ci-sample-signing-key-not-production
+      ANALYTICS_PRIVACY_KEY: w68-disposable-ci-sample-analytics-key-not-production
+      STORAGE_PATH: /tmp/w68-disposable-private-audio
+      FEATURE_REPLACEMENTS: "0"
+      FEATURE_USER_AUTH: "0"
+      FEATURE_USER_ENTITLEMENT: "0"
+      FEATURE_PAID_ENTITLEMENT: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Syntax check all changed PHP authorization paths
+        run: |
+          set -euo pipefail
+          for file in server/config/app.php server/src/Application.php server/src/Entitlement/AudioAccessService.php server/src/Auth/AuthService.php server/src/Promo/PromoService.php server/src/Http/AudioController.php server/tests/prelaunch-commercial.php; do
+            php -l "$file"
+          done
+      - name: Permit fixture transaction rollback trigger creation in disposable MySQL only
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="$(docker ps --filter 'ancestor=mysql:8.0' -q | head -n 1)"
+          test -n "$container"
+          docker exec "$container" mysql -u root -pw68-disposable-ci-root \
+            -e 'SET GLOBAL log_bin_trust_function_creators=1;'
+      - name: Run independent baseline PHP API smoke
+        run: php server/tests/smoke.php
+      - name: Run real disposable MySQL migrations, account and trial integration
+        run: |
+          mkdir -p "$STORAGE_PATH"
+          php server/tests/database.php
+          php server/tests/entitlement.php
+      - name: Exercise payment webhook/ledger and commercial signed Range authorization
+        run: |
+          php server/tests/billing.php
+          php server/tests/prelaunch-commercial.php
+      - name: Explicitly refuse production deployment and public payment endpoints
+        run: echo W68_DISPOSABLE_TEST_ONLY_NO_PRODUCTION_OR_PAYMENT_GATEWAY

@@ -1,0 +1,86 @@
+name: CELIKOM W50 0.24.5 to 0.24.6 same-app real-network upgrade proof
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w50-owner-upgrade-proof.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  same-app-upgrade:
+    runs-on: windows-2022
+    timeout-minutes: 14
+    steps:
+      - name: Obtain old owner 0.24.5 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W48-PLAYER-DIAG-UNSIGNED
+          run-id: 42776884046
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: old
+      - name: Obtain W50 0.24.6 stage-only candidate artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W50-NATIVE-NET-UNSIGNED
+          run-id: 42781645724
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: new
+      - name: Verify exact same AppId, no second app or owner state loss
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $oldSetup = (Resolve-Path 'old/CELIKOM-W48-PLAYER-DIAG-UNSIGNED.exe').Path
+          $newSetup = (Resolve-Path 'new/CELIKOM-W50-NATIVE-NET-UNSIGNED.exe').Path
+          $program = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe = Join-Path $program 'CELIKOM.Companion.exe'
+          $uninstall = Join-Path $program 'unins000.exe'
+          $originalYandex = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $program) -or (Test-Path $originalYandex)) { throw 'W50_DIRTY_RUNNER' }
+          $old = Start-Process $oldSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($old.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W50_OLD_INSTALL_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.5.0') {
+            throw 'W50_OLD_VERSION_UNEXPECTED'
+          }
+          $state = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          New-Item -ItemType Directory $state -Force | Out-Null
+          $sentinel = Join-Path $state 'session.dpapi'
+          $magic = 'W50_PRESERVE_EXISTING_OWNER_ACCOUNT'
+          [IO.File]::WriteAllText($sentinel, $magic)
+          $up = Start-Process $newSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($up.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W50_NEW_INSTALL_FAILED' }
+          $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim()
+          if ($version -ne '0.24.6.0') { throw "W50_WRONG_UPGRADED_VERSION=$version" }
+          if (-not (Test-Path $uninstall) -or (Test-Path (Join-Path $program 'unins001.exe'))) {
+            throw 'W50_DUPLICATE_APPLICATION'
+          }
+          if ([IO.File]::ReadAllText($sentinel) -ne $magic) { throw 'W50_ACCOUNT_WIPED' }
+          $hostFile = Join-Path $program 'integration\host.cjs'
+          $rendererFile = Join-Path $program 'integration\renderer.js'
+          if (-not (Test-Path $hostFile) -or -not (Test-Path $rendererFile)) {
+            throw 'W50_NATIVE_ASSETS_MISSING'
+          }
+          $hostText = [IO.File]::ReadAllText($hostFile)
+          if (-not $hostText.Contains('const CELIKOM_NATIVE_VERSION = "0.24.6"') -or
+              -not $hostText.Contains('PLAYER_NET_REQUEST') -or
+              -not $hostText.Contains('PLAYER_NET_HTTP_PARTIAL')) {
+            throw 'W50_NEW_DIAGNOSTIC_MODULE_NOT_INSTALLED'
+          }
+          if (Test-Path $originalYandex) { throw 'W50_UPGRADE_TOUCHED_YANDEX' }
+          Write-Output 'W50_0245_TO_0246_SAME_APP_INPLACE_PASS'
+          Write-Output 'W50_ACCOUNT_DPAPI_PRESERVED_PASS'
+          Write-Output 'W50_NATIVE_NETWORK_DIAGNOSTICS_PRESENT_PASS'
+          Write-Output 'W50_NO_YANDEX_FILE_CHANGE_PASS'
+          $removed = Start-Process $uninstall -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($removed.ExitCode -ne 0) { throw 'W50_UNINSTALL_FAILED' }
+          Start-Sleep -Seconds 2
+          if (Test-Path $exe) { throw 'W50_UNINSTALL_LEFT_EXE' }
+          if ([IO.File]::ReadAllText($sentinel) -ne $magic) { throw 'W50_UNINSTALL_WIPED_DPAPI' }
+          if (Test-Path $originalYandex) { throw 'W50_UNINSTALL_TOUCHED_YANDEX' }
+          Write-Output 'W50_CLEAN_UNINSTALL_OWNER_STATE_PRESERVED_PASS'

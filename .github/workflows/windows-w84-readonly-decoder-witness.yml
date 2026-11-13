@@ -1,0 +1,34 @@
+name: CELIKOM Windows W84 read-only decoder source witness
+on:
+  push:
+    branches: [experiment/windows-w84-readonly-player-source-evidence-20261113]
+    paths:
+      - windows-companion/w23/**
+      - .github/workflows/windows-w84-readonly-decoder-witness.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  passive-native-source-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Native build integrity
+        run: |
+          npm install --no-audit --no-fund --prefix windows-companion/w23
+          node windows-companion/w23/build.mjs
+      - name: Test read-only current source, prevent false prefetch / URL leaks
+        run: node --test windows-companion/w23/native-host.test.mjs
+      - name: Test renderer source-only / recovery unchanged
+        run: |
+          node --test windows-companion/w23/renderer-relay.test.mjs
+          node --test windows-companion/w23/transient-source-recovery.test.mjs
+          node --test windows-companion/w23/deferred-track-recovery.test.mjs

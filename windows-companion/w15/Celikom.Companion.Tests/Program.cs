@@ -1,0 +1,930 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using Celikom.Companion;
+
+int checks = 0;
+void Test(bool condition, string message)
+{
+    checks++;
+    if (!condition) throw new Exception("W15_TEST_FAILED: " + message);
+}
+var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
+try
+{
+    // W74: first Start must not confuse an in-flight host scan with an
+    // unsupported vendor version. Existing active native integration is valid
+    // without checking the original ASAR hash of the modified host.
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            null)!.Contains("ещё не завершена"),
+        "W74 pending host scan never reports unsupported Yandex");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Active,
+            null) == null,
+        "W74 existing native integration bypasses original-host hash probe");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.126.1.0")) == null,
+        "W74 only verified official baseline permits first integration");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            new YandexHostResult(YandexHostStatus.InspectionUnavailable, "")) is { } temporarily &&
+         !temporarily.Contains("не поддерживается"),
+        "W74 interrupted inspection never shows false unsupported modal");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.NotInstalled,
+            new YandexHostResult(YandexHostStatus.UnsupportedVersion, "9.9.9"))!.Contains("не поддерживается"),
+        "W74 genuine unsupported version still blocked");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
+            new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.126.1.0")) != null,
+        "W74 changed patched host never bypasses backup safety gate");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
+            new YandexHostResult(YandexHostStatus.UnsupportedVersion, "5.128.0.r24000000"))!
+            .Contains("Новая версия пока проходит проверку"),
+        "W80 newly updated unsupported Yandex reports calm pending compatibility without changing files");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate,
+            new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.127.0.r22015925")) == null,
+        "W80 fully reviewed new vendor pair is startable even with previous snapshot");
+    Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
+            new YandexHostResult(YandexHostStatus.UntrustedExecutable, "5.128.0.r24000000"))!
+            .Contains("заблокировано"),
+        "W80 unknown tampered host remains blocked, never mistaken for verified update");
+    // W82: transition-only native heartbeats cannot prove an outage.
+    // Successful handoff is normal, not a yellow warning; true explicit
+    // source failures are the only per-track red error.
+    Test(UserFacingPlaybackHealth.Host(Celikom.NativeInstaller.NativeInstallState.Active,
+        null, true).Level == UserFacingPlaybackHealth.Severity.Good,
+        "W82 verified integrated host has good connectivity only");
+    Test(UserFacingPlaybackHealth.Host(Celikom.NativeInstaller.NativeInstallState.Changed,
+        new YandexHostResult(YandexHostStatus.UnsupportedVersion, "5.128.0.r24000000"), false)
+        .Level == UserFacingPlaybackHealth.Severity.Error,
+        "W82 genuinely unsupported official Yandex build remains actionable");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Error,
+        "W82 explicit failed track replacement remains red");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Message
+        .Contains("оригинал"),
+        "W82 explicit song error correctly distinguishes working original playback");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_MAPPING_ACCEPTED", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 normal audio source accepted has no false warning");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_CONNECTED", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 steady track and transition-only heartbeat must not report connection loss");
+    Test(!PlaybackSourceEvidence.Verified(true, "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         !PlaybackSourceEvidence.Verified(true, "SDK_MAPPING_ACCEPTED", "approved"),
+         "W89 approved mapping and HTTP grant are not proof of audible CELIKOM source");
+    Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !PlaybackSourceEvidence.Verified(false, "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
+         !PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_SOURCE_VERIFIED", "approved"),
+         "W89 only exact current decoder proof while enabled with approved version may paint green");
+    Test(UserFacingPlaybackHealth.Track("HOST_ERROR", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Error,
+        "W82 explicitly reported host failure remains visible");
+    Test(UserFacingPlaybackHealth.Track("NATIVE_RECOVERING", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 normal transient source recovery is not a customer warning");
+    Test(UserFacingPlaybackHealth.Track("RESOLVING", true, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 normal resolving status is not a customer warning");
+    Test(UserFacingPlaybackHealth.Track("ORIGINAL", true, "approved").Message.Contains("оригинал"),
+        "W82 known original source is surfaced quietly, not alarm");
+    Test(UserFacingPlaybackHealth.Track("OFF", false, "approved").Level ==
+        UserFacingPlaybackHealth.Severity.Neutral,
+        "W82 explicitly stopped service is not a failure");
+    // W83: recurring entitlement checks must not flash the promo label.
+    const string lifetime = "Промокод · доступ навсегда";
+    Test(CompactAccessRefresh.WhileChecking(lifetime, "install-1",
+        "owner@example.test", "install-1", "OWNER@example.test") == lifetime,
+        "W83 15s repeated entitlement request keeps confirmed lifetime promo visible");
+    Test(CompactAccessRefresh.WhileChecking("Подписка до 1 января",
+        "install-1", "owner@example.test", "install-1", "owner@example.test") ==
+        "Подписка до 1 января",
+        "W83 subscription label stays steady through server revalidation");
+    Test(CompactAccessRefresh.WhileChecking(lifetime, "install-1",
+        "owner@example.test", "install-2", "owner@example.test") ==
+        CompactAccessRefresh.Checking,
+        "W83 different device never sees previous lifetime promo");
+    Test(CompactAccessRefresh.WhileChecking(lifetime, "install-1",
+        "owner@example.test", "install-1", "another@example.test") ==
+        CompactAccessRefresh.Checking,
+        "W83 account switch never sees old account's entitlement");
+    Test(CompactAccessRefresh.WhileChecking("Доступ не подтверждён", "",
+        "", "install-1", "owner@example.test") == CompactAccessRefresh.Checking,
+        "W83 unverified access always displays checking until server responds");
+    Test(!CompactAccessRefresh.NeedsLabelChange(lifetime, lifetime) &&
+        CompactAccessRefresh.NeedsLabelChange(lifetime, "Подписка завершена"),
+        "W83 no text repaint for identical label but real revocation must repaint");
+    // W88: one-time default-on enrollment is a preference, never
+    // a playback entitlement. A recorded opt-out must survive upgrades.
+    Test(WindowsLaunchSettings.ShouldEnableDefault(false),
+        "W88 initial clean install enables tray autostart by default");
+    Test(!WindowsLaunchSettings.ShouldEnableDefault(true),
+        "W88 explicit autostart choice must never be overwritten on later launch");
+    // W87: Windows login persistence is only a remembered user preference.
+    // It can never replace server entitlement or grant access by itself.
+    const string loginInstallation = "94e77e24-9abc-4c68-b3c0-a3e7aa1bb516";
+    const string loginEmail = "owner@example.test";
+    var loginFingerprint = WindowsLaunchSettings.FingerprintForTest(
+        loginInstallation, loginEmail);
+    Test(WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
+        loginInstallation, "OWNER@example.test"),
+        "W87 explicit autostart and same signed-in account can request a server check");
+    Test(!WindowsLaunchSettings.ShouldResume(false, true, loginFingerprint,
+        loginInstallation, loginEmail),
+        "W87 disabling autostart prevents all automatic playback attempts");
+    Test(!WindowsLaunchSettings.ShouldResume(true, false, loginFingerprint,
+        loginInstallation, loginEmail),
+        "W87 last user Stop prevents silent resume across reboot");
+    Test(!WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
+        "c6e77e24-9abc-4c68-b3c0-a3e7aa1bb516", loginEmail),
+        "W87 new installation never inherits another installation's Start");
+    Test(!WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
+        loginInstallation, "other@example.test"),
+        "W87 another account never inherits previous user's Start");
+    Test(!WindowsLaunchSettings.ShouldResume(true, true, null,
+        loginInstallation, loginEmail),
+        "W87 missing saved intent cannot enable background");
+    var runCmd = WindowsLaunchSettings.BuildRunCommand(
+        @"C:\Program Files\CELIKOM\CELIKOM.Companion.exe");
+    Test(runCmd.StartsWith('"') && runCmd.EndsWith(" --background") &&
+        runCmd.Contains(@"C:\Program Files\CELIKOM\CELIKOM.Companion.exe"),
+        "W87 HKCU Run command quotes paths with spaces and starts quietly");
+    Test(UserFacingPlaybackHealth.Host(
+        Celikom.NativeInstaller.NativeInstallState.Active, null,
+        moduleMatches:false).Level == UserFacingPlaybackHealth.Severity.Neutral,
+        "W87 normal new-app module refresh is a neutral Start hint, not red alarm");
+    Test(UserFacingPlaybackHealth.Host(
+        Celikom.NativeInstaller.NativeInstallState.Active, null,
+        moduleMatches:false).Message.Contains("Старт"),
+        "W87 repair instruction references the real Start button");
+
+    // W75: a temporary /auth/me failure must never hide an already
+    // verified owner's diagnostics button, but never authorizes export.
+    var temporaryError = new HttpRequestException("synthetic unreachable");
+    Test(DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "OWNER@example.test", temporaryError),
+        "W75 existing verified owner keeps diagnostics control visible during transient network failure");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        false, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "owner@example.test", temporaryError),
+        "W75 never shows developer diagnostics for unverified user");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "other@example.test", temporaryError),
+        "W75 account switch always hides previous owner's diagnostics");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-2", "owner@example.test", temporaryError),
+        "W75 device change never reuses prior owner identity");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, false, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "owner@example.test", temporaryError),
+        "W75 logout always revokes diagnostics");
+    Test(!DiagnosticsAccessRecovery.KeepButtonOnFailure(
+        true, true, "https://example.test", "installation-1", "owner@example.test",
+        "https://example.test", "installation-1", "owner@example.test",
+        new ApiFailure(403, "ACCESS_DENIED")),
+        "W75 real server permission denial hides owner diagnostics");
+
+    Test(YandexHostProbe.VerifiedVersion == "5.126.1.0", "pinned official host version");
+    Test(YandexHostProbe.VerifiedAsarSha256.Length == 64, "pinned official ASAR fingerprint");
+    Test(YandexHostProbe.Inspect(Path.Combine(folder, "yandex-not-installed")).Status ==
+        YandexHostStatus.NotInstalled, "missing host does not prompt for patching");
+    var incomplete = Path.Combine(folder, "broken-yandex");
+    Directory.CreateDirectory(incomplete);
+    File.WriteAllText(Path.Combine(incomplete, "Яндекс Музыка.exe"), "not an app");
+    Test(YandexHostProbe.Inspect(incomplete).Status == YandexHostStatus.IncompleteInstallation,
+        "incomplete install is never treated as compatible");
+    Directory.Delete(incomplete, true);
+
+    Test(BridgeServer.ValidNativeOrigin("https://desktop.app.music.yandex.net"),
+        "native Yandex renderer is allowed");
+    Test(!BridgeServer.ValidNativeOrigin("https://evil.yandex.net"),
+        "unrelated renderer is denied");
+    Test(!BridgeServer.ValidNativeOrigin("null"),
+        "opaque origin denied without native capability");
+    Test(BridgeServer.ValidNativeProtocolOrigin("null"),
+        "custom Electron scheme can serialize an opaque origin");
+    Test(BridgeServer.ValidNativeProtocolOrigin("musicapplication://desktop"),
+        "exact official native protocol accepted for capability checking");
+    Test(!BridgeServer.ValidNativeProtocolOrigin("file://local"),
+        "arbitrary local protocol is not a native host");
+    using (var native = new NativeTokenPublisher(Path.Combine(folder, "native-test")))
+    {
+        var key = new string('a', 64);
+        native.Publish(key);
+        Test(File.ReadAllText(native.FilePath) == key, "native bridge capability published");
+        native.Publish(new string('b', 64));
+        Test(File.ReadAllText(native.FilePath) == new string('b', 64),
+            "native pairing capability rotates");
+    }
+    Test(!File.Exists(Path.Combine(folder, "native-test", "native-bridge.key")),
+        "native bridge capability removed on shutdown");
+    var store = new SessionStore(folder);
+    var first = store.LoadOrCreate();
+    Test(Guid.TryParse(first.InstallationId, out _), "device ID");
+    Test(SessionStore.IsHexToken(first.BridgeToken), "bridge token");
+    Test(first.AccessToken == "", "off by default");
+    Test(Directory.GetFiles(folder).Length == 1, "only DPAPI session file");
+    Test(!Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(folder, "session.dpapi"))).Contains(first.BridgeToken),
+        "bridge token is encrypted at rest");
+
+    var now = DateTimeOffset.UtcNow;
+    var unix = now.ToUnixTimeSeconds() + 200;
+    var audio = "/api/v1/audio/42?token=" + new string('a', 64) + "&expires=" + unix + "&sid=7";
+    JsonElement Parse(object source) { using var json = JsonDocument.Parse(JsonSerializer.Serialize(source)); return json.RootElement.Clone(); }
+    // W74: retry only an idempotent activation once after a bounded transient
+    // network failure. A denial, throttle, or cancelled user intent is never
+    // blindly replayed. The retry can authorize only from a fresh server JSON.
+    var activationCalls = 0;
+    var activationCodes = new List<string>();
+    var freshAccess = Parse(new { allowed = true, source = "promo",
+        valid_until = (string?)null, reason = "promo_lifetime" });
+    var recoveredAccess = await StartupActivationRecovery.ActivateAsync(
+        _ => {
+            activationCalls++;
+            return activationCalls == 1
+                ? Task.FromException<JsonElement>(new HttpRequestException("synthetic route failure"))
+                : Task.FromResult(freshAccess);
+        }, () => true, activationCodes.Add);
+    Test(activationCalls == 2 && recoveredAccess.GetProperty("allowed").GetBoolean() &&
+         activationCodes.SequenceEqual(new [] {
+             "ACTIVE_ENTITLEMENT_NETWORK_ERROR", "START_ENTITLEMENT_RETRY",
+             "START_ENTITLEMENT_RETRY_OK"
+         }), "W74 one network failure retries activation exactly once");
+    activationCalls = 0;
+    try {
+        await StartupActivationRecovery.ActivateAsync(
+            _ => {
+                activationCalls++;
+                return Task.FromException<JsonElement>(new ApiFailure(403, "ACCESS_DENIED"));
+            }, () => true);
+        throw new Exception("W74_DENIAL_MUST_THROW");
+    } catch (ApiFailure denied) when (denied.HttpStatus == 403) { }
+    Test(activationCalls == 1 && !StartupActivationRecovery.SafeToRetry(
+        new ApiFailure(429, "RATE_LIMITED")), "W74 no retry for denial or throttle");
+    activationCalls = 0;
+    try {
+        await StartupActivationRecovery.ActivateAsync(
+            _ => {
+                activationCalls++;
+                return Task.FromException<JsonElement>(new HttpRequestException("synthetic"));
+            }, () => false);
+        throw new Exception("W74_INVALID_START_MUST_THROW");
+    } catch (HttpRequestException) { }
+    Test(activationCalls == 1, "W74 Stop/account change vetoes retry");
+    var payload = Parse(new { found = true, audio_url = audio, expires_at = unix,
+        duration_ms = 200_000, mime_type = "audio/mpeg", gain_db = 5.5 });
+    var origin = GrantValidator.NormalizeOrigin("https://api.celikom.example");
+    var grant = GrantValidator.FromResolve(payload, "123", origin, now);
+    Test(grant != null, "real PHP ResolveService grant accepted");
+    Test(grant!.ExpiresAt == unix * 1000, "server Unix seconds to JS milliseconds");
+    Test(grant.MimeType == "audio/mpeg", "source mime survives bridge to native decoder");
+    Test(grant.GainDb == 5.5, "W90 saved admin boost must survive typed Windows grant");
+    Test(grant.GainApplied == false, "W91 raw grant cannot claim DSP applied");
+    var gainWire = JsonSerializer.Serialize(grant, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    Test(gainWire.Contains("gainDb"), "W90 native localhost grant includes camelCase gainDb");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" }),
+        "123", origin, now)?.GainDb == 0,
+        "W90 missing gain defaults to zero for older server contracts");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = -9.0 }),
+        "123", origin, now)?.GainDb == -9.0,
+        "W90 negative admin gain survives grant as well");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = 12.1 }),
+        "123", origin, now) == null,
+        "W90 rejects out-of-range admin gains");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = "6" }),
+        "123", origin, now) == null,
+        "W90 rejects string gain and never guesses dB");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = 1.25 }),
+        "123", origin, now) == null,
+        "W90 rejects unapproved fractional precision");
+    var processedUrl = audio + "&variant=windows_gain_v1";
+    var processed = GrantValidator.FromResolve(Parse(new { found = true,
+        audio_url = processedUrl, expires_at = unix, duration_ms = 200000,
+        mime_type = "audio/mpeg", gain_db = 11.5, gain_applied = true }),
+        "123", origin, now);
+    Test(processed?.GainApplied == true && processed.GainDb == 11.5 &&
+         processed.AudioUrl.EndsWith("&variant=windows_gain_v1"),
+         "W91 scoped offline render accepted only with explicit gain_applied");
+    Test(GrantValidator.FromResolve(Parse(new { found = true,
+        audio_url = processedUrl, expires_at = unix, duration_ms = 200000,
+        mime_type = "audio/mpeg", gain_db = 11.5, gain_applied = false }),
+        "123", origin, now) == null,
+        "W91 raw and rendered source may never be confused");
+    Test(GrantValidator.FromResolve(Parse(new { found = true,
+        audio_url = audio, expires_at = unix, duration_ms = 200000,
+        mime_type = "audio/mpeg", gain_db = 11.5, gain_applied = true }),
+        "123", origin, now) == null,
+        "W91 an unprocessed source cannot claim gain already applied");
+    Test(grant.AudioUrl == "https://api.celikom.example" + audio, "exact HTTPS signed URL");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio.Replace("&sid=7", ""),
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" }), "123", origin, now) == null,
+        "W68 legacy sid-less audio grants rejected before native SDK");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio + "&sid=8",
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" }), "123", origin, now) == null,
+        "duplicate sid rejected");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix + 1, duration_ms = 200000, mime_type = "audio/mpeg" }), "123", origin, now) == null,
+        "mismatched expiry rejected");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "text/html" }), "123", origin, now) == null,
+        "unsupported audio rejected");
+    Test(GrantValidator.FromResolve(Parse(new { found = false }), "123", origin, now) == null,
+        "missing track returns original");
+    Test(!GrantValidator.IsTrackId("123:42"), "no fuzzy album ID");
+    Test(!GrantValidator.IsTrackId("01"), "no ambiguous leading zeros");
+    // W64: Only validate audio locally BEFORE a multipart request can begin.
+    // Deterministic 128kbps 44.1kHz MPEG1 Layer III frames, no real music.
+    var frames = new byte[417 * 90];
+    for (var i = 0; i < 90; i++)
+    {
+        var at = i * 417;
+        frames[at] = 0xff; frames[at + 1] = 0xfb;
+        frames[at + 2] = 0x90; frames[at + 3] = 0x64;
+    }
+    var duration = AudioPreflight.Mp3DurationMs(frames);
+    Test(duration is > 2300 and < 2400, "MP3 frames determine actual duration");
+    var testAudio = Path.Combine(folder, "wrong_artist_wrong_song.mp3");
+    Directory.CreateDirectory(folder);
+    await File.WriteAllBytesAsync(testAudio, frames);
+    var okDuration = await AudioPreflight.CheckAsync(testAudio, duration);
+    Test(!okDuration.Blocked,
+        "matching duration permits any filename regardless of title");
+    var unicodeAudio = Path.Combine(folder, "中文-💿-неизвестно.mp3");
+    File.Copy(testAudio, unicodeAudio);
+    var unicodeOk = await AudioPreflight.CheckAsync(unicodeAudio, duration);
+    Test(!unicodeOk.Blocked, "unicode filenames cannot trigger name-based rejection");
+    File.Delete(unicodeAudio);
+    var wrongDuration = await AudioPreflight.CheckAsync(testAudio, 223000);
+    Test(wrongDuration.Blocked && wrongDuration.DurationMessage.Contains("Допуск подмены"),
+        "large duration mismatch is rejected BEFORE any upload");
+    var unknownOriginal = await AudioPreflight.CheckAsync(testAudio, null);
+    Test(unknownOriginal.Blocked, "unverified original duration fails closed");
+    var invalidAudio = Path.Combine(folder, "fake.mp3");
+    await File.WriteAllBytesAsync(invalidAudio, new byte[2048]);
+    var fake = await AudioPreflight.CheckAsync(invalidAudio, 2350);
+    Test(fake.Blocked && fake.DurationMs == null,
+        "fake MP3 is rejected locally (not just filename validation)");
+    File.Delete(testAudio);
+    File.Delete(invalidAudio);
+
+
+    // GitHub Windows installer workflow injects the built ZIP after Inno Setup.
+    var zipFixture = Environment.GetEnvironmentVariable("CELIKOM_UPDATE_TEST_PACKAGE");
+    if (!string.IsNullOrWhiteSpace(zipFixture))
+    {
+        var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 16, 0));
+        Test(staged.Version == new Version(0, 24, 36, 0),
+            "ZIP one-click updater accepts new CELIKOM version");
+        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W100-",StringComparison.Ordinal),
+            "ZIP extraction stages only CELIKOM installer");
+        bool oldRejected = false;
+        try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
+        catch (IOException e) when (e.Message == "UPDATE_NOT_NEWER") { oldRejected = true; }
+        Test(oldRejected, "update button rejects already-installed version");
+        Test(!File.Exists(Path.Combine(AppUpdateManager.RunningVersion.ToString(), "fake")),
+            "upgrade acceptance never modifies Yandex");
+    }
+        var expectedAccess = new string('b', 64);
+    var expectedRefresh = new string('c', 64);
+    var backendCalls = new List<string>();
+    using var api = new CelikomApi(store, new FakeHandler(request =>
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        backendCalls.Add(path);
+        if (path == "/api/v1/auth/login")
+            return JsonResponse(new { user = new { id = 1, email = "test@example.com", status = "active" },
+                access_token = expectedAccess, refresh_token = expectedRefresh, expires_in = 900 });
+        if (path == "/api/v1/auth/activate")
+        {
+            Test(request.Method == HttpMethod.Post &&
+                request.Headers.Authorization?.Parameter == expectedAccess,
+                "W68 trial activation uses POST with current user bearer");
+            return JsonResponse(new { ok = true, trial = new { activated = true, trial_seconds = 259200 },
+                entitlement = new { allowed = true, source = "trial",
+                    valid_until = now.AddDays(3).ToString("O"), reason = "trial_active" } });
+        }
+        if (path == "/api/v1/entitlement")
+        {
+            Test(request.Method == HttpMethod.Get && request.Headers.ConnectionClose == true &&
+                 request.Headers.CacheControl?.NoStore == true &&
+                 request.Headers.CacheControl?.NoCache == true,
+                 "W72 entitlement GET bypasses stale cached VPN route and cache");
+            return JsonResponse(new { allowed = true, source = "promo",
+                valid_until = (string?)null, reason = "promo_lifetime" });
+        }
+        if (path == "/api/v1/promos/redeem")
+        {
+            Test(request.Headers.Authorization?.Parameter == expectedAccess,
+                "promo uses CELIKOM bearer only");
+            return JsonResponse(new { revoked = false, already_activated = false,
+                entitlement = new { allowed = true, source = "promo",
+                    valid_until = (string?)null, reason = "promo_lifetime" } });
+        }
+        if (path == "/api/v1/support")
+        {
+            Test(request.Headers.Authorization?.Parameter == expectedAccess,
+                "support uses CELIKOM bearer only");
+            var content = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            Test(!content.Contains("refresh_token") && !content.Contains("access_token"),
+                "support does not leak tokens");
+            using var payload = JsonDocument.Parse(content);
+            var body = payload.RootElement;
+            Test(body.GetProperty("request_key").GetString()!.Length == 36,
+                "support idempotent request key");
+            if (body.GetProperty("kind").GetString() == "song")
+            {
+                if (body.GetProperty("report").GetProperty("diagnostics")
+                    .TryGetProperty("windows", out var songWindows) &&
+                    songWindows.ValueKind == JsonValueKind.Object)
+                    Test(songWindows.GetProperty("platform").GetString() == "windows" &&
+                         songWindows.GetProperty("events").ValueKind == JsonValueKind.Array,
+                         "W70 song ticket automatically carries bounded Windows diagnostic payload");
+                Test(body.GetProperty("report").GetProperty("category").GetString() == "audio_issue",
+                    "song report category matches extension");
+                Test(body.GetProperty("report").GetProperty("track").GetProperty("id").GetString() == "144530503",
+                    "only exact owner track ID reported");
+            }
+            else if (body.TryGetProperty("diagnostics", out var generalWindows) &&
+                     generalWindows.ValueKind == JsonValueKind.Object)
+            {
+                Test(generalWindows.GetProperty("platform").GetString() == "windows" &&
+                     generalWindows.GetProperty("scopeSeconds").GetInt32() == 900,
+                     "W70 general ticket automatically carries bounded diagnostics");
+            }
+            return JsonResponse(new { ticket_id = 3 });
+        }
+        if (path == "/api/v1/auth/me")
+        {
+            Test(request.Headers.Authorization?.Parameter == expectedAccess,
+                "diagnostic permission asks server using CELIKOM authorization");
+            return JsonResponse(new { user = new { id = 1, email = "test@example.com", status = "active" } });
+        }
+        if (path == "/api/v1/resolve")
+        {
+            Test(request.Headers.Authorization?.Parameter == expectedAccess,
+                "backend receives own CELIKOM session only");
+            Test(request.RequestUri.Query.Contains("track_id=123"), "exact track ID query");
+            return JsonResponse(new { found = true, audio_url = audio,
+                expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" });
+        }
+        if (path == "/api/v1/auth/logout") return JsonResponse(new { ok = true });
+        return JsonResponse(new { error = "not_found" }, 404);
+    }));
+
+    await api.LoginAsync("https://api.celikom.example", "test@example.com", "own_password");
+    Test(api.IsLoggedIn, "CELIKOM auth session accepted");
+    Test(api.Email == "test@example.com", "account displayed");
+    Test(store.LoadOrCreate().RefreshToken == expectedRefresh, "session retained through DPAPI");
+    var authenticatedBridgeToken = store.LoadOrCreate().BridgeToken;
+    Test(authenticatedBridgeToken != first.BridgeToken,
+        "sign-in rotates prior add-on bridge capability");
+    var resolved = await api.ResolveAsync("123", CancellationToken.None);
+    Test(resolved?.AudioUrl == "https://api.celikom.example" + audio, "live-contract resolve mapping");
+    Test(backendCalls.SequenceEqual(new [] { "/api/v1/auth/login", "/api/v1/resolve" }),
+        "only expected private backend endpoints");
+    // W68 launch gate: trial begins on explicit first Start, never on login,
+    // preview, or local session load. The server is the only clock/authority.
+    var beforeTrialCalls = backendCalls.Count;
+    var started = await api.ActivatePlaybackAsync();
+    Test(backendCalls.Count == beforeTrialCalls + 1 &&
+        backendCalls[^1] == "/api/v1/auth/activate",
+        "W68 explicit server trial activation, not local timestamp");
+    Test(PlaybackEntitlement.Allowed(started, now),
+        "W68 active 72h trial accepted only after server response");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "trial", valid_until = now.AddSeconds(-1).ToString("O"),
+        reason = "trial_active" }), now), "W68 expired trial blocked");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = false,
+        source = "subscription", valid_until = now.AddDays(10).ToString("O"),
+        reason = "subscription_inactive" }), now), "W68 unpaid account blocked");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "subscription", valid_until = (string?)null,
+        reason = "subscription_active" }), now), "W68 malformed forever subscription denied");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "none", valid_until = (string?)null,
+        reason = "trial_not_started" }), now), "W68 unknown perpetual source denied");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = false,
+        source = "trial", valid_until = now.AddHours(10).ToString("O"),
+        reason = "service_incident" }), now), "W68 incident not marked active");
+    Test(PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "promo", valid_until = (string?)null,
+        reason = "promo_active" }), now), "W68 genuine lifetime promo accepted");
+    Test(!PlaybackEntitlement.Allowed(Parse(new { allowed = true,
+        source = "trial", valid_until = "invalid-date", reason = "trial_active" }), now),
+        "W68 unparseable expiry fails closed");
+    // W71: only fresh, positive authenticated entitlement may resume after a network flap.
+    Test(EntitlementCheckRecovery.IsTransient(new HttpRequestException()) &&
+         EntitlementCheckRecovery.IsTransient(new TaskCanceledException()) &&
+         EntitlementCheckRecovery.IsTransient(new ApiFailure(429, "RATE_LIMITED")) &&
+         EntitlementCheckRecovery.IsTransient(new ApiFailure(503, "API_ERROR")),
+         "W71 temporary network, 429 and 5xx errors retryable");
+    Test(EntitlementCheckRecovery.IsTransient(new ApiFailure(0, "INVALID_API_JSON")) &&
+         EntitlementCheckRecovery.IsTransient(new ApiFailure(302, "REDIRECT_FORBIDDEN")) &&
+         EntitlementCheckRecovery.FailureCode(new ApiFailure(0, "INVALID_API_JSON")) ==
+             "ACTIVE_ENTITLEMENT_BAD_RESPONSE" &&
+         EntitlementCheckRecovery.FailureCode(new TaskCanceledException()) ==
+             "ACTIVE_ENTITLEMENT_TIMEOUT",
+         "W72 captive-portal HTML, VPN redirect and timeout are classified safely");
+    Test(EntitlementCheckRecovery.PollIntervalMs(false) == 15_000 &&
+         EntitlementCheckRecovery.PollIntervalMs(true) == 3_000,
+         "W89 suspended VPN recovery checks bounded to three seconds, healthy 15s unchanged");
+    Test(EntitlementCheckRecovery.FastRouteCheck(true, now, DateTimeOffset.MinValue) &&
+         EntitlementCheckRecovery.FastRouteCheck(false, now, now.AddSeconds(-4)) &&
+         !EntitlementCheckRecovery.FastRouteCheck(false, now, now.AddMinutes(-2)) &&
+         !EntitlementCheckRecovery.FastRouteCheck(false, now, DateTimeOffset.MinValue) &&
+         EntitlementCheckRecovery.QuickRecheckTimeout == TimeSpan.FromSeconds(3),
+         "W89 short request deadline applies only after a network route change or suspension");
+    // W94: multiple network-address events during VPN switch are NOT skipped.
+    // The last event owns the only new revalidation after the quiet period.
+    var firstRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(0);
+    var secondRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(firstRouteEpoch);
+    var lastRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(secondRouteEpoch);
+    Test(firstRouteEpoch == 1 && secondRouteEpoch == 2 && lastRouteEpoch == 3 &&
+         !NetworkRouteBurstPolicy.Latest(firstRouteEpoch, lastRouteEpoch) &&
+         !NetworkRouteBurstPolicy.Latest(secondRouteEpoch, lastRouteEpoch) &&
+         NetworkRouteBurstPolicy.Latest(lastRouteEpoch, lastRouteEpoch),
+         "W94 VPN bursts invalidate stale scheduled route checks, last signal wins");
+    Test(NetworkRouteBurstPolicy.LogDue(now, DateTimeOffset.MinValue) &&
+         !NetworkRouteBurstPolicy.LogDue(now.AddMilliseconds(100),
+             now) &&
+         NetworkRouteBurstPolicy.LogDue(now.AddMilliseconds(1400), now) &&
+         NetworkRouteBurstPolicy.NextEpoch(int.MaxValue) == 1,
+         "W94 1.4s coalescing suppresses only diagnostics, not actual route checks");
+    Test(!EntitlementCheckRecovery.IsTransient(new ApiFailure(401, "INVALID_SESSION")) &&
+         !EntitlementCheckRecovery.IsTransient(new ApiFailure(403, "ACCESS_DENIED")) &&
+         !EntitlementCheckRecovery.IsTransient(new InvalidOperationException()),
+         "W71 denied session and local errors not retryable");
+    var freshAllowed = Parse(new { allowed = true, source = "promo",
+        valid_until = (string?)null, reason = "promo_active" });
+    var freshDenied = Parse(new { allowed = false, source = "trial",
+        valid_until = now.AddHours(1).ToString("O"), reason = "service_incident" });
+    Test(EntitlementCheckRecovery.MayResume(true, true, true, true, freshAllowed, now),
+         "W71 approved server entitlement may restore suspended playback");
+    Test(!EntitlementCheckRecovery.MayResume(false, true, true, true, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, false, true, true, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, true, false, true, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, true, true, false, freshAllowed, now) &&
+         !EntitlementCheckRecovery.MayResume(true, true, true, true, freshDenied, now),
+         "W71 manual stop, logout, mismatch and denied never auto-restart");
+    var accessPreview = await api.GetEntitlementAsync();
+    Test(accessPreview.GetProperty("source").GetString() == "promo" &&
+         accessPreview.GetProperty("valid_until").ValueKind == JsonValueKind.Null,
+        "W62 lifetime promo access is server-backed (not hardcoded)");
+    var redeemed = await api.RedeemPromoAsync("TESTPROMO123");
+    Test(redeemed.GetProperty("entitlement").GetProperty("allowed").GetBoolean(),
+        "W62 promo redeems via existing service");
+    var automaticDiagnostics = DiagnosticLog.ExportSupportSnapshot(
+        "5.126.1.0", "ACTIVE", true, true, "0.24.19", true, "144530503");
+    var support = await api.SendSupportAsync("Проверка поддержки", Guid.NewGuid(),
+        diagnostics: automaticDiagnostics);
+    Test(support.GetProperty("ticket_id").GetInt32() == 3, "W62 general support real API");
+    var songSupport = await api.SendSongSupportAsync("Звук прерывается", Guid.NewGuid(),
+        "144530503", "audio_issue", true, true,
+        windowsDiagnostics: automaticDiagnostics);
+    Test(songSupport.GetProperty("ticket_id").GetInt32() == 3,
+        "W62 typed song support real API");
+    Test(!await api.CanExportDiagnosticsAsync(),
+        "regular active user cannot export owner diagnostics");
+    Test(backendCalls[^1] == "/api/v1/auth/me",
+        "diagnostics access revalidates server user, not UI email alone");
+
+    await using (var bridge = new BridgeServer(api, store))
+    {
+        await bridge.StartAsync();
+        using var http = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:21471") };
+        async Task<HttpResponseMessage> Request(string route, HttpMethod method,
+            object? body = null, string? token = null, string originHeader = "https://addon-1024.pulsesync.invalid")
+        {
+            using var req = new HttpRequestMessage(method, route);
+            req.Headers.TryAddWithoutValidation("Origin", originHeader);
+            if (token != null) req.Headers.TryAddWithoutValidation("X-Celikom-Bridge-Token", token);
+            if (body != null) req.Content = JsonContent.Create(body);
+            return await http.SendAsync(req);
+        }
+        using (var bad = await Request("/v1/health", HttpMethod.Get,
+            originHeader: "https://evil.example"))
+            Test(bad.StatusCode == HttpStatusCode.Forbidden, "foreign site blocked");
+        using (var bad = await Request("/v1/state", HttpMethod.Get))
+            Test(bad.StatusCode == HttpStatusCode.Unauthorized, "unpaired state forbidden");
+        using (var preflight = await Request("/v1/state", HttpMethod.Options))
+            Test(preflight.StatusCode == HttpStatusCode.NoContent, "CORS preflight");
+        using var paired = await Request("/v1/pair", HttpMethod.Post, new { code = bridge.PairCode });
+        Test(paired.IsSuccessStatusCode, "one-time code pairs");
+        using var pairJson = JsonDocument.Parse(await paired.Content.ReadAsStringAsync());
+        var token = pairJson.RootElement.GetProperty("bridgeToken").GetString();
+        Test(SessionStore.IsHexToken(token), "isolated bridge token issued");
+        bridge.SetEnabled(true);
+        foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
+        {
+            using (var nativePreflight = new HttpRequestMessage(HttpMethod.Options, "/v1/state"))
+            {
+                nativePreflight.Headers.TryAddWithoutValidation("Origin", nativeOrigin);
+                nativePreflight.Headers.TryAddWithoutValidation(
+                    "Access-Control-Request-Headers", "x-celikom-bridge-token, x-celikom-native-host");
+                using var response = await http.SendAsync(nativePreflight);
+                Test(response.StatusCode == HttpStatusCode.NoContent,
+                    "native custom-protocol preflight permitted");
+                Test(response.Headers.GetValues("Access-Control-Allow-Origin").Single() == nativeOrigin,
+                    "native preflight scoped to actual origin");
+            }
+            using (var nativeState = new HttpRequestMessage(HttpMethod.Get, "/v1/state"))
+            {
+                nativeState.Headers.TryAddWithoutValidation("Origin", nativeOrigin);
+                nativeState.Headers.TryAddWithoutValidation("X-Celikom-Bridge-Token", token);
+                nativeState.Headers.TryAddWithoutValidation("X-Celikom-Native-Host", "1");
+                using var response = await http.SendAsync(nativeState);
+                Test(response.IsSuccessStatusCode, "native Yandex renderer reads authorized state");
+            }
+            using (var foreign = new HttpRequestMessage(HttpMethod.Get, "/v1/state"))
+            {
+                foreign.Headers.TryAddWithoutValidation("Origin", nativeOrigin);
+                foreign.Headers.TryAddWithoutValidation("X-Celikom-Bridge-Token", token);
+                using var response = await http.SendAsync(foreign);
+                Test(response.StatusCode == HttpStatusCode.Forbidden,
+                    "opaque-origin request without native marker refused");
+            }
+        }
+        using (var state = await Request("/v1/state", HttpMethod.Get, token: token))
+        {
+            Test(state.IsSuccessStatusCode, "paired can read state");
+            var body = await state.Content.ReadAsStringAsync();
+            Test(body.Contains("\"enabled\":true"), "start action reaches addon");
+            Test(!body.Contains(expectedAccess), "no CELIKOM access token leaked");
+            Test(!body.Contains(expectedRefresh), "no CELIKOM refresh token leaked");
+        }
+        using (var response = await Request("/v1/resolve?track_id=123", HttpMethod.Get, token: token))
+        {
+            var json = await response.Content.ReadAsStringAsync();
+            Test(response.IsSuccessStatusCode && json.Contains("https://api.celikom.example"),
+                "paired route emits authorized signed media");
+            Test(!json.Contains(expectedAccess) && !json.Contains(expectedRefresh),
+                "audio grant never exposes API credentials");
+        }
+        bridge.SetEnabled(false);
+        using (var response = await Request("/v1/resolve?track_id=123", HttpMethod.Get, token: token))
+            Test((await response.Content.ReadAsStringAsync()).Contains("\"found\":false"),
+                "stop disables future source replacement");
+    }
+
+    // W72: extension's refresh-race regression ported to real Windows DPAPI.
+    // An old 401 can spawn a refresh that finishes AFTER a user's logout.
+    // The late successful POST must never resurrect that earlier login.
+    var raceFolder = Path.Combine(folder, "refresh-race");
+    var raceStore = new SessionStore(raceFolder);
+    var refreshEntered = new TaskCompletionSource<bool>(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseRefresh = new TaskCompletionSource<HttpResponseMessage>(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+    var raceRefreshCalls = 0;
+    using (var raceApi = new CelikomApi(raceStore,
+        new AsyncFakeHandler(async (request, cancel) =>
+        {
+            var route = request.RequestUri!.AbsolutePath;
+            if (route == "/api/v1/auth/login")
+                return JsonResponse(new { user = new { id = 91, email = "race@example.invalid", status = "active" },
+                    access_token = new string('1', 64), refresh_token = new string('2', 64), expires_in = 900 });
+            if (route == "/api/v1/entitlement")
+                return JsonResponse(new { error = "invalid_session" }, 401);
+            if (route == "/api/v1/auth/refresh")
+            {
+                ++raceRefreshCalls;
+                refreshEntered.TrySetResult(true);
+                return await releaseRefresh.Task.WaitAsync(cancel);
+            }
+            if (route == "/api/v1/auth/logout") return JsonResponse(new { ok = true });
+            return JsonResponse(new { error = "not_found" }, 404);
+        })))
+    {
+        await raceApi.LoginAsync("https://api.celikom.example",
+            "race@example.invalid", "test_password");
+        var pendingOldRefresh = raceApi.GetEntitlementAsync();
+        await refreshEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await raceApi.LogoutAsync();
+        releaseRefresh.SetResult(JsonResponse(new {
+            user = new { id = 91, email = "race@example.invalid", status = "active" },
+            access_token = new string('3', 64), refresh_token = new string('4', 64), expires_in = 900 }));
+        var oldRefreshRejected = false;
+        try { await pendingOldRefresh; }
+        catch (ApiFailure ex) when (ex.HttpStatus == 401) { oldRefreshRejected = true; }
+        Test(oldRefreshRejected && !raceApi.IsLoggedIn &&
+             raceStore.LoadOrCreate().RefreshToken == "" &&
+             raceStore.LoadOrCreate().AccessToken == "" &&
+             raceRefreshCalls == 1,
+             "W72 stale in-flight refresh cannot restore access after logout");
+    }
+    await api.LogoutAsync();
+    Test(!api.IsLoggedIn, "only Windows CELIKOM session logged out");
+    Test(store.LoadOrCreate().RefreshToken == "", "local refresh token cleared");
+    Test(store.LoadOrCreate().BridgeToken != authenticatedBridgeToken,
+        "logout invalidates old add-on pairing without touching Yandex account");
+    var safeTimestamp = "2026-11-09T17:06:00.000Z";
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|SOURCE_MAPPED|track=123"),
+        "safe numeric track event passes export");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|SOURCE_MAPPED|track=123?token=SECRET"),
+        "signed URL cannot appear in diagnostic event");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|LOGIN_EMAIL=test@example.com"),
+        "email cannot appear in diagnostic event");
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139"),
+        "W53 native resource id survives export allowlist");
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=139"),
+        "W53 typed 403 event survives export allowlist");
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_URL_QUERY_CHANGED|resource_id=89"),
+        "W53 signed URL mismatch classification survives export");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_URL_MATCH|resource_id=139?token=SECRET"),
+        "W53 rejects URLs and query leakage in signed request log");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_403_HTML|resource_id=139|token=secret"),
+        "W53 rejects extra log fields");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=0139"),
+        "W53 rejects ambiguous leading-zero resource IDs");
+    Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139\nSECRET"),
+        "W53 rejects multiline log injection");
+    var fixtureLogsDirectory = Path.Combine(folder, "owner-export-isolated");
+    var nativeFixture = Path.Combine(fixtureLogsDirectory, "native-events.log");
+    Directory.CreateDirectory(fixtureLogsDirectory);
+    var when = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ",
+        System.Globalization.CultureInfo.InvariantCulture);
+    File.AppendAllText(nativeFixture,
+        when + "|PLAYER_NET_REQUEST|resource_id=739209\n" +
+        when + "|PLAYER_NET_HTTP_FORBIDDEN|resource_id=739209\n" +
+        when + "|PLAYER_URL_QUERY_CHANGED|resource_id=739209\n" +
+        when + "|PLAYER_URL_SIGNED_FIELDS_INTACT|resource_id=739209\n" +
+        when + "|PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209\n" +
+        when + "|PLAYER_403_HTML|resource_id=739209\n" +
+        when + "|PLAYER_403_PHP_ACCESS_DENIED|resource_id=739209\n" +
+        when + "|PLAYER_NET_REQUEST|resource_id=739209?token=SENSITIVE\n" +
+        when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\n");
+    File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
+        when + "|OWNER_DIAG_TEST|track=123\n");
+    DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
+    var snapshot = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true,
+        diagnosticDirectory: fixtureLogsDirectory);
+    Test(snapshot.Contains("OWNER_DIAG_TEST|track=123"), "diagnostic export has observed event");
+    Test(snapshot.Contains("DiagnosticScope=LAST_15_MINUTES"), "recent sessions only");
+    Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING"),
+        "successful MP3 probe never implies audio replacement");
+    Test(snapshot.Contains("CodeBaseline=W53_NATIVE_403_CLASSIFICATION_EXPORT_SAFE"), "W53 truthful diagnostics baseline");
+    Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
+        "W53 native URL mismatch reaches actual exported TXT");
+    Test(snapshot.Contains("PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209"),
+        "W53 real PHP denial category reaches owner export");
+    Test(snapshot.Contains("NativeAudio403Observed=true") &&
+         snapshot.Contains("PlayerNetworkRequestObserved=true") &&
+         snapshot.Contains("NativeMediaUrlQueryMismatchObserved=true") &&
+         snapshot.Contains("NativeMediaUrlSignedFieldsIntactObserved=true") &&
+         snapshot.Contains("Native403PhpSignatureRejectionObserved=true") &&
+         snapshot.Contains("Native403PhpAccessDenialObserved=true") &&
+         snapshot.Contains("Native403HtmlResponseObserved=true"),
+        "W53 owner summary correctly reflects native resource events");
+    Test(!snapshot.Contains("SENSITIVE"),"W53 malformed native lines cannot leak signed query or sid");
+    var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
+        "0.24.20", true, "123", fixtureLogsDirectory);
+    var autoJson = JsonSerializer.Serialize(auto);
+    using (var parsedAuto = JsonDocument.Parse(autoJson))
+    {
+        var root = parsedAuto.RootElement;
+        Test(root.GetProperty("platform").GetString() == "windows" &&
+            root.GetProperty("scopeSeconds").GetInt32() == 900,
+            "W70 auto-attachment includes version, bounded scope and platform");
+        var events = root.GetProperty("events");
+        Test(events.GetArrayLength() <= 64 &&
+             events.EnumerateArray().Any(x => x.GetProperty("code").GetString() ==
+                "PLAYER_NET_HTTP_FORBIDDEN" &&
+                x.GetProperty("resourceId").GetString() == "739209"),
+             "W70 auto-support includes recent error and safe numeric resource id");
+    }
+    Test(!autoJson.Contains("SENSITIVE") && !autoJson.Contains("token=") &&
+         !autoJson.Contains("test@example.com") && !autoJson.Contains("sid="),
+         "W70 automatic customer attachment is free of tokens, email and signed URLs");
+    // W71: flood of status polls cannot hide three intermittent network outages.
+    var pollingFlood = string.Concat(Enumerable.Repeat(when + "|NATIVE_STATE_RECEIVED\n" +
+        when + "|LOCAL_STATE_OK\n" + when + "|RENDERER_STATE_DELIVERED\n", 200));
+    File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
+        pollingFlood + when + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        when + "|ACTIVE_ENTITLEMENT_RECOVERED\n" +
+        when + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        when + "|ACTIVE_ENTITLEMENT_RECOVERED\n" +
+        when + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n");
+    var outageJson = JsonSerializer.Serialize(DiagnosticLog.ExportSupportSnapshot(
+        "5.126.1.0", "ACTIVE", true, false, "0.24.20", true, "123", fixtureLogsDirectory));
+    using (var outageDoc = JsonDocument.Parse(outageJson))
+    {
+        var incidents = outageDoc.RootElement.GetProperty("events").EnumerateArray().ToArray();
+        Test(incidents.Length <= 64 &&
+             incidents.Count(x => x.GetProperty("code").GetString() ==
+                 "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED") == 3 &&
+             incidents.Count(x => x.GetProperty("code").GetString() ==
+                 "ACTIVE_ENTITLEMENT_RECOVERED") == 2,
+             "W71 three network disconnects survive 600 polling messages");
+        Test(incidents.All(x => x.GetProperty("code").GetString() is not
+                 ("NATIVE_STATE_RECEIVED" or "LOCAL_STATE_OK" or "RENDERER_STATE_DELIVERED")),
+             "W71 noisy status polling never floods hidden support attachment");
+    }
+    Test(!outageJson.Contains("SENSITIVE") && !outageJson.Contains("token="),
+         "W71 intermittent outage report remains secret-free");
+    // W72 regression: the owner-export TXT keeps only 1600 recent rows,
+    // whereas hidden support must retain an event from thirteen minutes ago
+    // even after 2500 harmless native status polls.
+    var oldIncidentStamp = DateTimeOffset.UtcNow.AddMinutes(-13)
+        .ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+    File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
+        oldIncidentStamp + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        string.Concat(Enumerable.Repeat(when + "|NATIVE_STATE_RECEIVED\n", 2_500)) +
+        when + "|ACTIVE_ENTITLEMENT_RECOVERED\n");
+    var fullWindowJson = JsonSerializer.Serialize(DiagnosticLog.ExportSupportSnapshot(
+        "5.126.1.0", "ACTIVE", true, false, "0.24.20", true, "123",
+        fixtureLogsDirectory));
+    using (var fullWindowDoc = JsonDocument.Parse(fullWindowJson))
+    {
+        var history = fullWindowDoc.RootElement.GetProperty("events")
+            .EnumerateArray().ToArray();
+        Test(history.Length <= 64 && history.Any(x =>
+            x.GetProperty("code").GetString() == "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED" &&
+            x.GetProperty("ageSeconds").GetInt32() >= 720),
+            "W72 13-minute-old disconnect survives more than 2500 later status polls");
+        Test(!history.Any(x => x.GetProperty("code").GetString() ==
+             "NATIVE_STATE_RECEIVED") &&
+             !fullWindowJson.Contains("SENSITIVE") && !fullWindowJson.Contains("token="),
+             "W72 full-window incident report is bounded, filtered and redacted");
+    }
+
+    // W75: persistent incident file survives noisy rolling event logs and
+    // remains entirely allowlisted without storing log strings or tokens.
+    var archiveDir = Path.Combine(folder, "w75-persistent-incidents");
+    Directory.CreateDirectory(archiveDir);
+    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED", null, archiveDir);
+    DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED", null, archiveDir);
+    DiagnosticLog.Record("NATIVE_STATE_RECEIVED", null, archiveDir);
+    var preserved = DiagnosticLog.ReadIncidentHistory(archiveDir);
+    Test(preserved.Count == 2 &&
+         preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")) &&
+         preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")),
+        "W75 only incident transitions are durably archived, not native poll chatter");
+    var noisy = string.Concat(Enumerable.Repeat(
+        DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") +
+        "|NATIVE_STATE_RECEIVED\n", 3000));
+    File.WriteAllText(Path.Combine(archiveDir, "companion-events.log"), noisy);
+    var historic = DiagnosticLog.ExportText("5.126.1.0", "ACTIVE",
+        true, false, true, "0.24.22", true, archiveDir);
+    Test(historic.Contains("PERSISTENT INCIDENT HISTORY") &&
+         historic.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED") &&
+         historic.Contains("|ACTIVE_ENTITLEMENT_RECOVERED"),
+        "W75 owner export still contains incident even after thousands of native polls");
+    Test(!DiagnosticLog.IsIncidentCode("NATIVE_STATE_RECEIVED") &&
+         !historic.Contains("token=") && !historic.Contains("password="),
+        "W75 archived incidents never carry polling chatter or credentials");
+    var savedPast = DateTimeOffset.UtcNow.AddHours(-3).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+    File.WriteAllText(Path.Combine(archiveDir, "incident-events.log"),
+        savedPast + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n");
+    Test(DiagnosticLog.ReadIncidentHistory(archiveDir).Any(x =>
+        x.Contains(savedPast) && x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")),
+        "W75 owner can recover outage history hours after disconnect");
+    var stale = DateTimeOffset.UtcNow.AddDays(-8).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+    File.AppendAllText(Path.Combine(archiveDir, "incident-events.log"),
+        stale + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        savedPast + "|ACCESS_TOKEN=SECRET\n");
+    Test(DiagnosticLog.ReadIncidentHistory(archiveDir).Count == 1,
+        "W75 seven-day cutoff and allowlist reject stale and tampered incident archive");
+
+    Test(snapshot.Contains("EngineFastPauseObserved=") &&
+        snapshot.Contains("PlayerAudibleEventObserved=") &&
+        snapshot.Contains("DecoderErrorObserved="), "typed owner playback evidence summary");
+    Test(snapshot.Contains("PlayerNetworkRequestObserved=") &&
+        snapshot.Contains("PlayerNetworkCorsFailureObserved=") &&
+        snapshot.Contains("FastPauseTrackAttribution=NOT_AVAILABLE_WITHOUT_PLAYER_TRACK_ID"),
+        "real Yandex network evidence remains distinct from playable audio");
+    Test(!snapshot.Contains("yandex-drm") && !snapshot.Contains("token="),
+        "owner export never leaks native crypto or signed URLs");
+    Test(!snapshot.Contains(expectedAccess) && !snapshot.Contains(expectedRefresh) &&
+        !snapshot.Contains("test@example.com"), "diagnostics exclude credentials and email");
+    Console.WriteLine("W15_NATIVE_CONTRACT_PASS " + checks);
+}
+finally
+{
+    if (Directory.Exists(folder)) Directory.Delete(folder, true);
+}
+
+static HttpResponseMessage JsonResponse(object value, int status = 200) =>
+    new((HttpStatusCode)status) { Content = JsonContent.Create(value) };
+
+sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> reply) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Task.FromResult(reply(request));
+}
+
+sealed class AsyncFakeHandler(
+    Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken) =>
+        reply(request, cancellationToken);
+}

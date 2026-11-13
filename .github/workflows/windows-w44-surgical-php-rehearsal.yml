@@ -1,0 +1,87 @@
+name: CELIKOM W44 surgical live PHP CORS rehearsal (NO DEPLOY)
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w44-surgical-php-rehearsal.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-live-file-surgical-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Read existing production PHP without writing and build one-hunk candidate locally
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HOSTINGER_SSH_KEY" || { echo W44_HOST_KEY_MISSING; exit 1; }
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          [[ "$(ssh-keygen -lf "$work/public" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] ||
+            { echo W44_UNKNOWN_KEY; exit 1; }
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          ssh -T -p 65002 -i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15 \
+            u235811320@92.113.19.189 \
+            'cat /home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/current/src/Application.php' > "$work/live.php"
+          python3 - "$work/live.php" server/src/Application.php <<'PY'
+          from pathlib import Path
+          import hashlib
+          import sys
+          source = Path(sys.argv[1]).read_bytes()
+          staged = Path(sys.argv[2]).read_text(encoding="utf8").replace("\r\n","\n")
+          checksum = lambda value: hashlib.sha256(value).hexdigest()
+          expected_original = "ec7f5d0d87978c823ece2dcfa2e76a021d4e2af09eb4f5c4d5fe52b6ab6c897e"
+          expected_normalized_patch = "920a4fa28357a3e61d6af64085448eacc76ea8c3c3c1946597b6428e61b506e0"
+          if checksum(source) != expected_original:
+              raise SystemExit("W44_LIVE_SOURCE_DRIFT_NO_GO")
+          newline = b"\r\n" if b"\r\n" in source else b"\n"
+          anchor = b"                'musicapplication://desktop'," + newline
+          addition = (
+              b"                // Genuine native Yandex 5.126.1 uses the hyphenated protocol." + newline +
+              b"                // Only signed numeric audio routes; never auth/admin/resolve." + newline +
+              b"                'music-application://desktop'," + newline
+          )
+          if source.count(anchor) != 1 or b"'music-application://desktop'" in source:
+              raise SystemExit("W44_LIVE_CORS_ANCHOR_UNSAFE")
+          if staged.count("'music-application://desktop'") != 1:
+              raise SystemExit("W44_STAGED_CONTRACT_NOT_PINNED")
+          patched = source.replace(anchor,anchor+addition)
+          normalized=patched.decode("utf8").replace("\r\n","\n").encode("utf8")
+          if checksum(normalized) != expected_normalized_patch:
+              raise SystemExit("W44_PATCHED_CONTENT_HASH_MISMATCH")
+          # This overwrites ONLY the ephemeral GitHub runner checkout.
+          Path(sys.argv[2]).write_bytes(patched)
+          print("W44_ORIGINAL_LIVE_HASH_MATCH")
+          print("W44_LOCAL_PATCHED_SHA256="+checksum(patched))
+          print("W44_SINGULAR_HUNK_ONLY")
+          PY
+      - name: PHP syntax plus complete signed media CORS and security regression on locally patched live code
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l server/src/Application.php
+          php -l server/tests/smoke.php
+          php server/tests/smoke.php
+          echo W44_SURGICALLY_PATCHED_LIVE_PHP_TESTS_PASS
+      - name: Affirm no production writes, no deploy and no artifact containing remote source
+        run: echo W44_STRICTLY_LOCAL_REHEARSAL_NO_RELEASE_NO_UPLOAD

@@ -1,0 +1,47 @@
+name: CELIKOM W60 live Start Stop in-place source reload STAGING ONLY
+
+on:
+  push:
+    branches:
+      - experiment/windows-stop-lifecycle-20261110
+    paths:
+      - windows-companion/w60/**
+      - windows-companion/w23/renderer-entry.mjs
+      - windows-companion/w23/renderer-relay.test.mjs
+      - windows-companion/w23/host.cjs
+      - windows-companion/w22/native-resource-adapter.mjs
+      - windows-companion/w22/native-resource-adapter.test.mjs
+      - .github/workflows/windows-w60-live-current-source-reload-stage.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-player-integration:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned esbuild, build bundled renderer without changing signed Yandex
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'W60_STAGE_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W60_STAGE_RENDERER_BUNDLE_FAILED' }
+      - name: Exact player adapter and source reload tests (including pause/position)
+        shell: pwsh
+        run: |
+          node --test windows-companion/w60/current-source-refresh.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w22/native-resource-adapter.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W60_LIVE_SOURCE_RELOAD_CONTRACT_FAILED' }
+      - name: Original signed vendor reload API was independently audited
+        run: echo W60_STATIC_SIGNED_VENDOR_RELOAD_QUALITY_CHANGE_AND_DISABLE_CACHE_PROVED_RUN_42803676080
+      - name: Staging only - no installer no Yandex user session no production
+        run: echo W60_SOURCE_ONLY_NO_INSTALLER_NO_OWNER_UPDATE

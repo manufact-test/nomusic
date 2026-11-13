@@ -1,0 +1,97 @@
+name: Signed Yandex runtime source audit
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/android-yandex-runtime-audit.yml
+      - tools/android-source-audit/runtime-launch-audit.py
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;36.0.0'
+      - name: Retrieve and verify the exact signed publisher build
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          INPUT_DECRYPT_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/yandex-source"
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/runtime-input-key" "$RUNNER_TEMP/publisher-input.xz.age" "$RUNNER_TEMP/publisher-input.xz"' EXIT
+          curl --fail --silent --show-error --location --max-time 120 https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz -o "$RUNNER_TEMP/age.tar.gz"
+          echo "7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50  $RUNNER_TEMP/age.tar.gz" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/age.tar.gz" -C "$RUNNER_TEMP"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,urllib.request
+          parts=["063c8182fadd627dfa32c4e17e36092655cfe7bb","b351a173b828f2ff0631ac26bef8f81dbd2b3ddb","bd54592691800e437a9a47b32682de87df148dec","b5c68341f411d2f28ea9ae8320b3d877ce2692ed","c7f838d5916a065c74ca970d24897a6af33e31b2","76486befb8cb391880ca1832637cf9c9e311d43c","d88a1442019dfb8a7167b52228f7aa44c5c0dcdf","a42c8a45baf0a7ac6490acb32911be55aee7040a","0ad0ce7fea479457a90a41c5d1ddf9dd191d19a8","1c09e211cb515024c9c178c15b67740f693e0496","828a3139888bbc71bd877b394ab156d663dc3ac9","141309d4b67f6f2e91f23d3df580ad9ab441ee67","128b325c0127a7370758a3c1127dd2042126a15f","dd1a60635bc639db49608e398835e4ccf1307d95","b090cf4a9dfba546abe2ed7dcf52bb224e997411","02d40d0c5f67684ab68851ee286a050c062a7af4","7899c53a3de4b0916faf6f7e372ef80bb28b3044","5662fac42001ccd9313c6b12b960f6c128e2cbdc","35b327ba061ad8456ccfbed410a68ab0fb8a0656","ee10a38adae537514844bf669ab62f663233cf1d","6fe77aedad5d514b7b4b0a1fb73ba8ec7348411b","b6a715572bc63ac763e98765f6182d7a31067dd8","38ad524ecdbf04f364d78e7e002c57b2a3d9ae8e","4ab4659d71409d4453b701a80f822bf5e1079316","1cc7de351768d9641c7e98bce8a76a347874b768","add53fc2b6081ec59d9f1a4ac8f552a0927be65f","704bcd6e9d536018fa001ce0d69c3fb3d215d958","10af02f219fb5227f0fbb513f8d0e17b1ee80dd9","550045c4ca57c25884bc37e95ebef860d193eeb4","3031430f7ac0629935cbe59e3d278657531578fa","3be1abd1ef97d476409d712023a65209d04e6505","0132c3127c2debc73f3128c6796dba160c42d8d3","e60d422b7cdf6b9288b8791b420b8392d8204ab7","131812f11ee14bde75db746644f2dac3fe27414d","81325b2e0017d2a97fe74db531e85217fbc4a378","03c26a8a9edcfa150a9c59d66892bbfa4711f153","d490010948750c36c9b0c8dfcd736e4f6dbbac84"]
+          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'publisher-input.xz.age'
+          with target.open('wb') as output:
+              for sha in parts:
+                  request=urllib.request.Request('https://api.github.com/repos/manufact-test/nomusic/git/blobs/'+sha,headers={'Authorization':'Bearer '+os.environ['INPUT_GITHUB_TOKEN'],'Accept':'application/vnd.github+json'})
+                  with urllib.request.urlopen(request,timeout=60) as response:
+                      blob=json.load(response)
+                  assert blob['sha']==sha and blob['encoding']=='base64'
+                  output.write(base64.b64decode(blob['content']))
+          assert hashlib.sha256(target.read_bytes()).hexdigest()=='7610393ddc887c8a0dcb94d71a706f0b4fbbabcb0f0c6bc35c95c589b21102b5'
+          key=pathlib.Path(os.environ['RUNNER_TEMP'])/'runtime-input-key'
+          key.write_text(os.environ['INPUT_DECRYPT_KEY']+'\n')
+          key.chmod(0o600)
+          PY
+          ssh-keygen -y -f "$RUNNER_TEMP/runtime-input-key" > "$RUNNER_TEMP/runtime-input-public"
+          ssh-keygen -lf "$RUNNER_TEMP/runtime-input-public" -E sha256 | grep -Fq 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          "$RUNNER_TEMP/age/age" --decrypt -i "$RUNNER_TEMP/runtime-input-key" -o "$RUNNER_TEMP/publisher-input.xz" "$RUNNER_TEMP/publisher-input.xz.age"
+          xz --decompress --stdout "$RUNNER_TEMP/publisher-input.xz" > "$RUNNER_TEMP/yandex.xapk"
+          echo "a036d7e5051659fd20d1808757498f2521bcc7519bcbaf03743e3dd0406bbab2  $RUNNER_TEMP/yandex.xapk" | sha256sum --check --status
+          rm -f "$RUNNER_TEMP/runtime-input-key"
+          python3 - <<'PY'
+          import hashlib,os,pathlib,zipfile
+          with zipfile.ZipFile(os.environ['RUNNER_TEMP']+'/yandex.xapk') as z:
+              names=['ru.yandex.music.apk','config.arm64_v8a.apk','config.en.apk','config.ru.apk','config.xhdpi.apk']
+              for name in names:
+                  data=z.read(name)
+                  if name==names[0]:
+                      assert hashlib.sha256(data).hexdigest()=='a3e4d3aedd24ea0370ead4f25c4f0085a1f43b94e458ee949da86797df27fc61'
+                  (pathlib.Path(os.environ['RUNNER_TEMP'])/'yandex-source'/name).write_bytes(data)
+          PY
+          for apk in "$RUNNER_TEMP/yandex-source/"*.apk; do
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/signer.txt"
+            grep -Fq 'Signer #1 certificate SHA-256 digest: aca405ded8b25cb2e8c6da69425d2b4307d087c1276fc06ad5942731ccc51dba' "$RUNNER_TEMP/signer.txt"
+          done
+      - name: Enable test-emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run original Yandex on ARM-compatible Android 11 without account login
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none
+          script: python3 tools/android-source-audit/runtime-launch-audit.py --adb "$ANDROID_HOME/platform-tools/adb" --xapk "$RUNNER_TEMP/yandex.xapk" --output "$RUNNER_TEMP/yandex-runtime"
+      - name: Save only sanitized observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yandex-runtime-observations-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/yandex-runtime/runtime-report.json
+            ${{ runner.temp }}/yandex-runtime/initial-screen.json
+            ${{ runner.temp }}/yandex-runtime/incoming-track-1.json
+            ${{ runner.temp }}/yandex-runtime/incoming-track-2.json
+          if-no-files-found: warn
+          retention-days: 7

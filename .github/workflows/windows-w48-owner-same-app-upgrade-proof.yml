@@ -1,0 +1,86 @@
+name: CELIKOM W48 0.24.4 to 0.24.5 same-app diagnostic upgrade proof
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w48-owner-same-app-upgrade-proof.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  same-app-upgrade:
+    runs-on: windows-2022
+    timeout-minutes: 14
+    steps:
+      - name: Obtain old installed owner 0.24.4 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W32-EASY-UPDATE-UNSIGNED
+          run-id: 42677316909
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: old
+      - name: Obtain W48 0.24.5 stage-only diagnostic artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W48-PLAYER-DIAG-UNSIGNED
+          run-id: 42776884046
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: new
+      - name: Verify exact same AppId, no second app or owner state loss
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $oldSetup = (Resolve-Path 'old/CELIKOM-W32-EASY-UPDATE-UNSIGNED.exe').Path
+          $newSetup = (Resolve-Path 'new/CELIKOM-W48-PLAYER-DIAG-UNSIGNED.exe').Path
+          $program = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe = Join-Path $program 'CELIKOM.Companion.exe'
+          $uninstall = Join-Path $program 'unins000.exe'
+          $originalYandex = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $program) -or (Test-Path $originalYandex)) { throw 'W48_DIRTY_RUNNER' }
+          $old = Start-Process $oldSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($old.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W48_OLD_INSTALL_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.4.0') {
+            throw 'W48_OLD_VERSION_UNEXPECTED'
+          }
+          $state = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          New-Item -ItemType Directory $state -Force | Out-Null
+          $sentinel = Join-Path $state 'session.dpapi'
+          $magic = 'W48_PRESERVE_EXISTING_OWNER_ACCOUNT'
+          [IO.File]::WriteAllText($sentinel, $magic)
+          $up = Start-Process $newSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($up.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W48_NEW_INSTALL_FAILED' }
+          $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim()
+          if ($version -ne '0.24.5.0') { throw "W48_WRONG_UPGRADED_VERSION=$version" }
+          if (-not (Test-Path $uninstall) -or (Test-Path (Join-Path $program 'unins001.exe'))) {
+            throw 'W48_DUPLICATE_APPLICATION'
+          }
+          if ([IO.File]::ReadAllText($sentinel) -ne $magic) { throw 'W48_ACCOUNT_WIPED' }
+          $hostFile = Join-Path $program 'integration\host.cjs'
+          $rendererFile = Join-Path $program 'integration\renderer.js'
+          if (-not (Test-Path $hostFile) -or -not (Test-Path $rendererFile)) {
+            throw 'W48_NATIVE_ASSETS_MISSING'
+          }
+          $hostText = [IO.File]::ReadAllText($hostFile)
+          if (-not $hostText.Contains('const CELIKOM_NATIVE_VERSION = "0.24.5"') -or
+              -not $hostText.Contains('PLAYER_ENGINE_FAST_PAUSE') -or
+              -not $hostText.Contains('PLAYER_CDP_PIPELINE_ERROR')) {
+            throw 'W48_NEW_DIAGNOSTIC_MODULE_NOT_INSTALLED'
+          }
+          if (Test-Path $originalYandex) { throw 'W48_UPGRADE_TOUCHED_YANDEX' }
+          Write-Output 'W48_0244_TO_0245_SAME_APP_INPLACE_PASS'
+          Write-Output 'W48_ACCOUNT_DPAPI_PRESERVED_PASS'
+          Write-Output 'W48_NATIVE_PLAYER_DIAGNOSTICS_PRESENT_PASS'
+          Write-Output 'W48_NO_YANDEX_FILE_CHANGE_PASS'
+          $removed = Start-Process $uninstall -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($removed.ExitCode -ne 0) { throw 'W48_UNINSTALL_FAILED' }
+          Start-Sleep -Seconds 2
+          if (Test-Path $exe) { throw 'W48_UNINSTALL_LEFT_EXE' }
+          if ([IO.File]::ReadAllText($sentinel) -ne $magic) { throw 'W48_UNINSTALL_WIPED_DPAPI' }
+          if (Test-Path $originalYandex) { throw 'W48_UNINSTALL_TOUCHED_YANDEX' }
+          Write-Output 'W48_CLEAN_UNINSTALL_OWNER_STATE_PRESERVED_PASS'

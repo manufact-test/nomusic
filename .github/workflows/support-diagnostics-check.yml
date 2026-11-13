@@ -1,0 +1,86 @@
+name: Support diagnostics (isolated checks)
+on:
+  push:
+    branches: [feature/support-diagnostics-attachments]
+  pull_request:
+    branches: [feature/api-range]
+permissions:
+  contents: read
+jobs:
+  support:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-support-ci
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql
+          coverage: none
+      - run: npm ci
+      - name: PHP syntax
+        run: |
+          php -l server/src/Support/SongReport.php
+          php -l server/src/Support/SupportService.php
+          php -l server/src/Support/SupportAdminView.php
+          php -l server/src/Admin/AdminPanel.php
+      - name: Extension tests and types
+        run: npm run test:extension
+      - name: Support API/DB and RBAC tests
+        run: php server/tests/support.php
+      - name: Install CI-only audio encoder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Full repository regression suite
+        run: npm run ci
+      - name: Build versioned extension package
+        run: npm run build:extension
+      - name: Assert installable package has working CELIKOM API permissions
+        run: |
+          python3 - <<'CHECK'
+          import json, pathlib, zipfile
+          version=json.loads(pathlib.Path('extension/package.json').read_text())['version']
+          path=pathlib.Path('extension/dist') / ('celikom-extension-'+version+'.zip')
+          with zipfile.ZipFile(path) as archive:
+              manifest=json.loads(archive.read('manifest.json'))
+              config=json.loads(archive.read('api/config.json'))
+              assert archive.testzip() is None, 'Damaged extension package'
+          api='https://darkred-camel-588676.hostingersite.com'
+          assert config.get('baseUrl')==api, 'RELEASE BLOCKED: empty or wrong API origin'
+          assert api+'/*' in manifest.get('host_permissions',[]), 'RELEASE BLOCKED: missing server host permission'
+          assert manifest.get('version')==version, 'RELEASE BLOCKED: version mismatch'
+          print('PASS: configured API address and host permissions verified inside final ZIP')
+          CHECK
+          cd extension/dist
+          sha256sum --check "celikom-extension-$(node -p 'require("../package.json").version').zip.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-extension-0.4.65-support-candidate
+          path: |
+            extension/dist/celikom-extension-0.4.65.zip
+            extension/dist/celikom-extension-0.4.65.zip.sha256
+          if-no-files-found: error
+          retention-days: 30

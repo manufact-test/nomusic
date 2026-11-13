@@ -1,0 +1,17 @@
+/* Stage 4: only inserted into a changed, private editorial preview.
+   Preserve approved v10 markup/styles when no content changes exist.
+   Let user-edited words wrap instead of disappearing beyond a 320px viewport. */
+.header-inner, .hero-copy, #sound .demo-copy, #sound .demo-board { min-width: 0; }
+.hero-copy h1, .hero-lead, #sound .section-heading, #sound .section-body,
+#sound-result, #sound .demo-board-foot { overflow-wrap: anywhere; }
+.hero .btn, #sound .mode-btn { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 540px) {
+  .header-inner { gap: 10px; }
+  .header-inner .brand { min-width: 0; flex: 1 1 auto; }
+  .header-inner .brand img { flex: 0 0 auto; }
+  .header-inner .brand span { min-width: 0; overflow-wrap: anywhere; line-height: 1.13; }
+  .header-inner .header-chip {
+    flex: 0 1 auto; min-width: 0; max-width: 46%;
+    white-space: normal; overflow-wrap: anywhere; text-align: center;
+  }
+}

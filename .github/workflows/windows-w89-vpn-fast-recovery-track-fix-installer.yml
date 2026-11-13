@@ -1,0 +1,154 @@
+name: CELIKOM Windows W89 0.24.33 VPN quick recovery and track source guard TEST
+
+on:
+  push:
+    branches:
+      - experiment/windows-w89-vpn-fast-recovery-audio-proof-20261113
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w23/**
+      - windows-companion/w20/installer/CELIKOM.iss
+      - windows-companion/w21/**
+      - windows-companion/w24/**
+      - windows-companion/w81/**
+      - .github/workflows/windows-w89-vpn-fast-recovery-track-fix-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  candidate-only:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build W89 bounded native current-source recovery and decoder witness
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W89_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W89_NATIVE_BUILD_FAILED' }
+          $nativeHostContents=Get-Content dist/host.cjs -Raw
+          if ($nativeHostContents -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.26"' -or
+              $nativeHostContents -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
+              $nativeHostContents -notmatch 'PLAYER_DECODER_CELIKOM_PIPELINE_ERROR') {
+            throw 'W89_PASSIVE_WITNESS_MISSING'
+          }
+      - name: Preserve known native audio plus W89 guarded source and VPN tests
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W89_AUDIO_REGRESSION' }
+      - name: W21 crash rollback and unknown updater refusal
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+      - name: W24 reviewed catalog/ASAR builder
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: W15 entitlement/login/updated vendor-state tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Compile GUI warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Verify installer only replaces CELIKOM files
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W89_STAGE_GATE_FAILED' }
+      - name: Publish GUI 0.24.33
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W89_PUBLISH_FAILED' }
+      - name: Build W89 candidate setup; NEVER install on owner automatically
+        shell: pwsh
+        run: |
+          $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W89_INNO_SETUP_UNAVAILABLE' }
+          }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W89_INNO_BUILD_FAILED' }
+          $setup='windows-companion/w20/output/CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED.exe'
+          if (!(Test-Path $setup)) { throw 'W89_CANDIDATE_MISSING' }
+          $info=[Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $setup).Path)
+          if ($info.FileVersion.Trim() -ne '0.24.33.0' -or $info.ProductName.Trim() -ne 'CELIKOM') { throw 'W89_VERSION_MISMATCH' }
+          Write-Host "W89_INSTALLER_SHA256=$((Get-FileHash $setup -Algorithm SHA256).Hash)"
+      - name: One-click candidate ZIP valid
+        shell: pwsh
+        run: |
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-W89-update.zip'
+          Compress-Archive -Path 'windows-companion/w20/output/CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED.exe' -DestinationPath $zip
+          $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W89_ZIP_UPDATE_FAILED' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W88-AUTORUN-DEFAULT-ON-TEST-UNSIGNED
+          run-id: 43404108350
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: previous-W88
+      - name: In-place W88 0.24.32 to W89 0.24.33; preserve DPAPI and verify BOTH native audio assets intentionally refreshed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=(Resolve-Path 'previous-W88/CELIKOM-W88-AUTORUN-DEFAULT-ON-TEST-UNSIGNED.exe').Path
+          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED.exe').Path
+          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne '715D7F8B97F2D97E2ACE2FBBB0211F760F9A34E2EB14864FE91CB261C965CF4E') { throw 'W89_PREVIOUS_EXE_HASH_UNTRUSTED' }
+          $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe=Join-Path $app 'CELIKOM.Companion.exe'
+          $native=Join-Path $app 'integration'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          $vendor=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $app) -or (Test-Path $vendor)) { throw 'W89_DIRTY_RUNNER' }
+          $p=Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W89_PREVIOUS_SETUP_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.32.0') { throw 'W89_PREVIOUS_VERSION_MISMATCH' }
+          $hostBefore=(Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash
+          $rendererBefore=(Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash
+          New-Item -ItemType Directory -Force -Path $state | Out-Null
+          $sealed=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('W89_SAVED_LOGIN_PRESERVED'),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+          [IO.File]::WriteAllBytes($session,$sealed)
+          $sessionBefore=(Get-FileHash $session -Algorithm SHA256).Hash
+          $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W89_INPLACE_SETUP_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.33.0') { throw 'W89_NEW_VERSION_MISMATCH' }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $sessionBefore) { throw 'W89_DPAPI_CHANGED' }
+          $plain=[Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($session),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))
+          if ($plain -ne 'W89_SAVED_LOGIN_PRESERVED') { throw 'W89_DPAPI_UNDECRYPTABLE' }
+          $hostAfter=(Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash
+          $rendererAfter=(Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash
+          if ($hostAfter -eq $hostBefore -or $rendererAfter -eq $rendererBefore) {
+            throw 'W89_NATIVE_PATCH_NOT_DELIVERED'
+          }
+          $rendererScript=Get-Content (Join-Path $native 'renderer.js') -Raw
+          if ($rendererScript -notmatch '__celikomBridgeNativeRefreshUnfetched') {
+            throw 'W89_NEW_RENDERER_SOURCE_GUARD_MISSING'
+          }
+          $hostScript=Get-Content (Join-Path $native 'host.cjs') -Raw
+          if ($hostScript -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
+              $hostScript -notmatch 'PLAYER_CURRENT_SOURCE_UNFETCHED_RECOVERY' -or
+              $hostScript -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.26"') {
+            throw 'W89_NEW_NATIVE_HOST_NOT_INSTALLED'
+          }
+          if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W89_VENDOR_OR_APPID_CHANGED' }
+          Write-Host 'W89_02432_TO_02433_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS'
+      - name: Store candidate for owner-approved future test only
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 10

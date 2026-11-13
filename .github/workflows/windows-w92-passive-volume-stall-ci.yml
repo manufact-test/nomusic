@@ -1,0 +1,41 @@
+name: CELIKOM Windows W92 passive volume/source/stall witness (NO RELEASE)
+on:
+  push:
+    branches:
+      - experiment/windows-w92-audio-volume-stall-witness-20261113
+    paths:
+      - windows-companion/w23/**
+      - windows-companion/w22/**
+      - windows-companion/w15/**
+      - .github/workflows/windows-w92-passive-volume-stall-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  witness:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build native renderer before integration tests
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W92_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W92_NATIVE_BUILD_FAILED' }
+      - name: Source and volume witness, original audio, 403, pause, seek regression
+        run: node --test windows-companion/w23/native-host.test.mjs windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+      - name: Account entitlement and Windows native API regression
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Compile Windows GUI unchanged
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror

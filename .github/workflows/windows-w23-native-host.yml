@@ -1,0 +1,64 @@
+name: CELIKOM W23 genuine Yandex native-host disposable integration
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - windows-companion/w23/**
+      - windows-companion/w15/Celikom.Companion/**
+      - windows-companion/w22/native-resource-adapter.mjs
+      - windows-companion/w22/native-resource-adapter.test.mjs
+      - windows-companion/w24/**
+      - windows-companion/w15/Celikom.Companion.Tests/**
+      - .github/workflows/windows-w23-native-host.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-host:
+    runs-on: windows-2022
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile Companion, test live local bridge and automatic same-user bootstrap
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Build independent native Yandex renderer and main host
+        working-directory: windows-companion/w23
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'NATIVE_BUNDLE_INSTALL_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'NATIVE_BUNDLE_BUILD_FAILED' }
+      - name: Native source contract and ASAR/EXE staging tests
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/asar-images.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'NATIVE_IMAGE_CONTRACT_FAILURE' }
+      - name: Publish CELIKOM GUI with actual local bridge for native-origin test
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained false -o windows-companion/w23/companion
+          if ($LASTEXITCODE -ne 0) { throw 'W23_COMPANION_PUBLISH_FAILED' }
+      - name: Patch genuine Yandex only on disposable runner, verify native host and restore
+        shell: pwsh
+        run: ./windows-companion/w23/w23-host-smoke.ps1
+      - name: Keep redacted report only, NEVER patched Yandex executables
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W23-NATIVE-HOST-REPORT
+          path: windows-companion/w23/W23-report.json
+          if-no-files-found: warn
+          retention-days: 10

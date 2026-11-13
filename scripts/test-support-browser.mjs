@@ -1,0 +1,48 @@
+import { access, readFile, writeFile, mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+let binary;
+for (const p of ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']) {
+  try { await access(p); binary = p; break; } catch {}
+}
+if (!binary) { if (process.env.REQUIRE_BROWSER_AUDIO === '1') throw Error('Chromium required'); console.log('Support browser check deferred to CI'); process.exit(0); }
+const directory = await mkdtemp(join(tmpdir(), 'celikom-support-'));
+try {
+  const root = new URL('../extension/dist/unpacked/', import.meta.url);
+  const css = await readFile(new URL('popup/popup.css', root), 'utf8');
+  const code = (await Promise.all(['upload/contract.js','popup/song-report.js','popup/support.js'].map(async p=>(await readFile(new URL(p,root),'utf8')).replace(/^import .*$/gm,'').replace(/^export /gm,'')))).join('\n');
+  let html = (await readFile(new URL('popup/popup.html', root), 'utf8')).replace('<link rel="stylesheet" href="popup.css">', `<style>${css}body{width:292px}</style>`).replace('<script type="module" src="popup.js"></script>', '');
+  html = html.replace('</body>', `<script>${code}
+  (async()=>{try{
+  let copied='',submitted=[],openCalls=0;
+  const check=(v,m)=>{if(!v)throw Error(m)};
+  window.chrome={storage:{session:{get:async()=>({}),set:async()=>{},remove:async()=>{}}},runtime:{getManifest:()=>({version:'0.4.31'}),getURL:()=>'/config'},tabs:{create:async({url})=>{opened=url}}};
+  window.fetch=async()=>({ok:true,json:async()=>({supportEmail:'team@example.org'})});
+  Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{copied=t}},configurable:true});
+  await initSupport({send:async(m)=>{if(m.type==='CELIKOM_STATUS_GET'||m.type==='CELIKOM_SUPPORT_STATUS_GET')return {enabled:true,phase:'ERROR',track:{id:'50163040',confidence:260,ambiguous:false,metadata:{durationMs:187520,title:'Холодно',artist:'SLIMUS'}},token:'SECRET',account:{email:'PRIVATE'},network:[{endpoint:'config',httpStatus:504,result:'api_response_error',elapsedMs:10000,Authorization:'SECRET'}]};if(m.action==='support-send'){submitted.push(m);await new Promise(r=>setTimeout(r,50));return {ok:true,ticket_id:7}};if(m.action==='support-thread'){openCalls++;return {ok:true,messages:[{author:'support',body:'Ответ '+String.fromCharCode(60)+'script>SECRET'+String.fromCharCode(60)+'/script>'}]}};return {ok:true,tickets:[{id:7,status:'answered'}]}},getState:()=>({phase:'ERROR',track:{id:'36116709'},token:'SECRET',account:{email:'PRIVATE'}})});
+  const panel=document.querySelector('[data-support-panel]');panel.open=true;
+  const description=document.querySelector('[data-support-description]');description.value='Ошибка воспроизведения';
+  document.querySelector('[data-support-send]').click();document.querySelector('[data-support-send]').click();await new Promise(r=>setTimeout(r,150));
+  check(submitted.length===1 && submitted[0].message==='Ошибка воспроизведения','single send');
+  check(!submitted[0].message.includes('SECRET')&&!submitted[0].message.includes('PRIVATE'),'request privacy');
+  check(document.querySelector('[data-support-note]').textContent==='Сообщение отправлено' && !document.querySelector('[data-support-note]').hidden,'visible confirmation');
+  check(!document.querySelector('[data-support-copy]') && !document.querySelector('[data-support-tickets]'),'simple support form');
+  const kind=document.querySelector('[data-support-kind]');kind.value='song';kind.dispatchEvent(new Event('change'));await new Promise(r=>setTimeout(r,50));
+  check(!document.querySelector('[data-support-song-fields]').hidden && document.querySelector('[data-support-track]').textContent.includes('Холодно'),'song fields and pinned identity');
+  description.value='';document.querySelector('[data-support-category]').value='audio_issue';
+  document.querySelector('[data-support-send]').click();document.querySelector('[data-support-send]').click();await new Promise(r=>setTimeout(r,150));
+  check(submitted.length===2&&submitted[1].kind==='song'&&submitted[1].report.track.id==='50163040','one song report with optional comment');
+  check(!JSON.stringify(submitted[1]).includes('SECRET')&&!JSON.stringify(submitted[1]).includes('PRIVATE'),'song diagnostic privacy');
+  check(submitted[1].report.diagnostics.trace.some(e=>e.event==='backend_http'&&e.httpCode===504),'song diagnostic network trace');
+  check(document.querySelector('[data-support-note]').textContent==='Сообщение о проблеме с песней отправлено','song confirmation');
+  check(document.documentElement.scrollWidth<=innerWidth,'horizontal overflow');
+  panel.scrollIntoView();await new Promise(r=>setTimeout(r,200));
+  document.body.dataset.supportResult='pass';
+  }catch(e){document.body.dataset.supportResult=e.message}})();</script></body>`);
+  const file = join(directory, 'support.html'); await writeFile(file, html); await mkdir('dist/layout-proof', {recursive:true});
+  const r = spawnSync(binary, ['--headless=new','--no-sandbox','--disable-gpu','--window-size=340,700','--virtual-time-budget=3000','--dump-dom','--screenshot='+join(process.cwd(),'dist/layout-proof/support.png'),pathToFileURL(file).href], {encoding:'utf8',timeout:30000,maxBuffer:2e6});
+  if (r.status!==0 || !r.stdout.includes('data-support-result="pass"')) throw Error('Support browser: '+(r.stdout.match(/data-support-result="([^"]*)"/)?.[1]||'no result'));
+  console.log('Support send, duplicate click, inbox, escaped reply and privacy browser PASS');
+} finally { await rm(directory,{recursive:true,force:true}); }

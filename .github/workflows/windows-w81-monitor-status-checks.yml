@@ -1,0 +1,47 @@
+name: Windows W81 monitor and visible failure regression
+
+on:
+  push:
+    branches:
+      - experiment/windows-w81-vendor-monitor-compat-visibility-20261112
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w24/**
+      - windows-companion/w81/**
+      - .github/workflows/windows-w81-monitor-status-checks.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health-and-compatibility:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Confirm both public compatibility feeds match reviewed files
+        shell: pwsh
+        run: |
+          $base='https://raw.githubusercontent.com/manufact-test/nomusic/support/windows-yandex-compatibility/windows-companion/w24/compatibility'
+          foreach($kind in @('v1','v2')) {
+            $file="official-yandex-builds-$kind.json"
+            $remote=Join-Path $env:RUNNER_TEMP $file
+            Invoke-WebRequest -Uri "$base/$file" -OutFile $remote -MaximumRedirection 0 -TimeoutSec 15
+            if ((Get-FileHash $remote -Algorithm SHA256).Hash -ne
+                (Get-FileHash "windows-companion/w24/compatibility/$file" -Algorithm SHA256).Hash) {
+              throw "W81_$kind_REMOTE_FEED_DIFFERS"
+            }
+            Write-Host "W81_2026_REMOTE_CATALOG_$kind_PASS"
+          }
+      - name: W81 live host and playback error UI cases
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Native and accumulated compatibility checks
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Compile Windows GUI with warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror

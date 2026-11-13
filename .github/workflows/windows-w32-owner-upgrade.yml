@@ -1,0 +1,82 @@
+name: CELIKOM W32 owner 0.24.2 to 0.24.4 same-app upgrade proof
+
+on:
+  push:
+    branches:
+      - experiment/windows-companion-integration-20261108
+    paths:
+      - .github/workflows/windows-w32-owner-upgrade.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  owner-upgrade:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - name: Obtain original owner 0.24.2 CI installer
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W29-NATIVE-SAFE-UNSIGNED
+          run-id: 42638433588
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: old
+      - name: Obtain new one-click-capable 0.24.4 CI installer
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W32-EASY-UPDATE-UNSIGNED
+          run-id: 42677316909
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: new
+      - name: Prove old-to-new in-place Windows installation, same app, DPAPI not wiped
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $oldSetup = (Resolve-Path 'old/CELIKOM-W29-NATIVE-SAFE-UNSIGNED.exe').Path
+          $newSetup = (Resolve-Path 'new/CELIKOM-W32-EASY-UPDATE-UNSIGNED.exe').Path
+          $program = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe = Join-Path $program 'CELIKOM.Companion.exe'
+          $uninstall = Join-Path $program 'unins000.exe'
+          $originalYandex = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if (Test-Path $program) { throw 'W32_OWNER_UPGRADE_DIRTY_RUNNER' }
+          if (Test-Path $originalYandex) { throw 'W32_OWNER_UPGRADE_YANDEX_PREEXISTS' }
+          $first = Start-Process -FilePath $oldSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($first.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W32_OWNER_OLD_INSTALL_FAILED' }
+          $actualOld = ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe)).FileVersion.Trim()
+          if ($actualOld -ne '0.24.2.0') { throw "W32_OWNER_OLD_VERSION_UNEXPECTED=$actualOld" }
+          $stateDirectory = Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          New-Item -Path $stateDirectory -ItemType Directory -Force | Out-Null
+          $sentinel = Join-Path $stateDirectory 'session.dpapi'
+          $magic = 'W32_OWNER_ACCOUNT_PRESERVATION_TEST'
+          [IO.File]::WriteAllText($sentinel, $magic)
+          $new = Start-Process -FilePath $newSetup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($new.ExitCode -ne 0 -or -not (Test-Path $exe)) { throw 'W32_OWNER_INPLACE_INSTALL_FAILED' }
+          $actualNew = ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe)).FileVersion.Trim()
+          if ($actualNew -ne '0.24.4.0') { throw "W32_OWNER_BINARY_NOT_REPLACED=$actualNew" }
+          if (-not (Test-Path $uninstall) -or (Test-Path (Join-Path $program 'unins001.exe'))) {
+            throw 'W32_OWNER_DUPLICATE_UNINSTALLER'
+          }
+          if ([IO.File]::ReadAllText($sentinel) -ne $magic) {
+            throw 'W32_OWNER_DPAPI_STATE_OVERWRITTEN'
+          }
+          $hostFile = Join-Path $program 'integration\host.cjs'
+          if (-not (Test-Path $hostFile) -or
+              -not ([IO.File]::ReadAllText($hostFile)).Contains('const CELIKOM_NATIVE_VERSION = "0.24.4"')) {
+            throw 'W32_OWNER_HOST_ASSETS_NOT_REPLACED'
+          }
+          if (Test-Path $originalYandex) { throw 'W32_OWNER_INSTALLER_TOUCHED_YANDEX' }
+          Write-Output 'W32_OWNER_0242_TO_0244_INPLACE_PASS'
+          Write-Output 'W32_OWNER_SINGLE_APPID_AND_UNINSTALLER_PASS'
+          Write-Output 'W32_OWNER_DPAPI_ACCOUNT_PRESERVED_PASS'
+          Write-Output 'W32_OWNER_NATIVE_ASSETS_UPDATED_PASS'
+          $removed = Start-Process -FilePath $uninstall -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($removed.ExitCode -ne 0) { throw 'W32_OWNER_NEW_UNINSTALL_FAILED' }
+          Start-Sleep -Seconds 2
+          if (Test-Path $exe) { throw 'W32_OWNER_UNINSTALL_LEFT_EXE' }
+          if ([IO.File]::ReadAllText($sentinel) -ne $magic) { throw 'W32_OWNER_UNINSTALL_ERASED_ACCOUNT' }
+          if (Test-Path $originalYandex) { throw 'W32_OWNER_UNINSTALL_TOUCHED_YANDEX' }
+          Write-Output 'W32_OWNER_CLEAN_UNINSTALL_PRESERVES_STATE_PASS'

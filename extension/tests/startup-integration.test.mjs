@@ -1,0 +1,630 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import vm from "node:vm";
+import { createControllerBootstrap } from "../dist/unpacked/background/controller-bootstrap.js";
+import { contentScriptGroups } from "../scripts/content-script-groups.mjs";
+
+const unpacked = new URL("../dist/unpacked/", import.meta.url);
+const manifest = JSON.parse(await readFile(new URL("manifest.json", unpacked), "utf8"));
+const scriptFiles = [...new Set([...manifest.content_scripts.flatMap((entry) => entry.js), ...contentScriptGroups.flatMap((group) => group.modules)])];
+const sources = new Map(await Promise.all(scriptFiles.map(async (file) => [file, await readFile(new URL(file, unpacked), "utf8")])));
+
+function browserFixture() {
+  const runtimeListeners = new Set();
+  const runtimeMessages=[],documentListeners=new Map();
+  const storageListeners = new Set();
+  const errors = [];
+  const worlds = new Map();
+  const eventListeners = new Map();
+  let timerId = 0;
+  const timers = new Map();
+  const elements = new Set();
+  const stored = { enabled: true, testTrackId: "" };
+  let installedWorkerAlive = true;
+  const document = {
+    documentElement: { dataset: {}, append: (element) => { elements.add(element); element.isConnected = true; } },
+    hidden: false,
+    title: "Папиросы — Зануда",
+    querySelector: () => null,
+    querySelectorAll: (selector) => selector.includes("data-celikom-replacement")
+      ? [...elements].filter((element) => element.dataset.celikomReplacement === "true") : [...elements],
+    createElement: () => new FakeMedia(),
+    addEventListener(type,fn) {if(!documentListeners.has(type))documentListeners.set(type,new Set());documentListeners.get(type).add(fn);},
+    removeEventListener(type,fn) {documentListeners.get(type)?.delete(fn);}
+  };
+  class FakeMedia extends EventTarget {
+    constructor() {
+      super(); Object.assign(this, { physicalMuted: false, physicalVolume: 0.012, paused: true, ended: false, seeking: false, readyState: 4, duration: 201, currentTime: 9, playbackRate: 1, tagName: "AUDIO", src: "https://strm-fra-03.strm.yandex.net/test", dataset: {}, isConnected: false });
+    }
+    get volume() { return this.physicalVolume; }
+    set volume(value) { if (this.physicalVolume === value) return; this.physicalVolume = value; queueMicrotask(() => this.dispatchEvent(new Event("volumechange"))); }
+    get muted() { return this.physicalMuted; }
+    set muted(value) { if (this.physicalMuted === Boolean(value)) return; this.physicalMuted = Boolean(value); queueMicrotask(() => this.dispatchEvent(new Event("volumechange"))); }
+    play() { this.paused = false; queueMicrotask(() => this.dispatchEvent(new Event("play"))); return Promise.resolve(); }
+    pause() { this.paused = true; queueMicrotask(() => this.dispatchEvent(new Event("pause"))); }
+    load() {}
+    removeAttribute(name) { if (name === "src") this.src = ""; }
+    remove() { elements.delete(this); this.isConnected = false; }
+  }
+  const runtime = {
+    sendMessage: async (message) => {
+      runtimeMessages.push(message);
+      if (message?.type === "CELIKOM_CONTEXT_PING") {
+        if (!installedWorkerAlive) throw new Error("Extension context invalidated");
+        return { ok: true, version: manifest.version };
+      }
+      return { ok: true, configured: false, asset: { found: false, retryAfterMs: 60000 } };
+    },
+    getManifest: () => manifest,
+    getURL: (file) => `chrome-extension://test/${file}`,
+    onMessage: {
+      addListener: (callback) => runtimeListeners.add(callback),
+      removeListener: (callback) => runtimeListeners.delete(callback)
+    }
+  };
+  const chrome = {
+    runtime,
+    storage: {
+      local: { get: async () => ({ ...stored }) },
+      onChanged: {
+        addListener: (callback) => storageListeners.add(callback),
+        removeListener: (callback) => storageListeners.delete(callback)
+      }
+    }
+  };
+
+  for (const name of ["MAIN", "ISOLATED"]) {
+    const listeners = new Map();
+    eventListeners.set(name, listeners);
+    const context = vm.createContext({
+      URL,
+      Event,
+      AbortController,
+      fetch: async () => ({ ok: true, blob: async () => new Blob(["synthetic fixture"]) }),
+      console,
+      crypto: globalThis.crypto,
+      chrome: name === "ISOLATED" ? chrome : undefined,
+      document,
+      HTMLMediaElement: FakeMedia,
+      navigator: {
+        mediaSession: { metadata: { title: "Папиросы", artist: "Зануда", album: "Папиросы", artwork: [] } }
+      },
+      location: new URL("https://music.yandex.ru/album/192577/track/1944599"),
+      history: { pushState() {}, replaceState() {} },
+      __STATE_PATCHES__: [[{
+        id: "1944599", title: "Папиросы", durationMs: 201000,
+        artists: [{ name: "Зануда" }], albums: [{ id: "192577", title: "Папиросы" }]
+      }]],
+      queueMicrotask,
+      setTimeout: (callback, ms) => setTimeout(callback, ms),
+      clearTimeout,
+      setInterval: (callback) => {
+        const id = ++timerId;
+        timers.set(id, callback);
+        return id;
+      },
+      clearInterval: (id) => timers.delete(id),
+      addEventListener: (type, callback) => {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type).add(callback);
+      },
+      removeEventListener: (type, callback) => listeners.get(type)?.delete(callback),
+      postMessage: (message) => {
+        // postMessage is asynchronous; each world sees its own WindowProxy as source.
+        queueMicrotask(() => {
+          for (const [targetName, target] of worlds) {
+            const source = vm.runInContext("globalThis", target);
+            for (const listener of eventListeners.get(targetName).get("message") || []) {
+              try {
+                listener({ source, data: structuredClone(message) });
+              } catch (error) {
+                errors.push(error);
+              }
+            }
+          }
+        });
+      }
+    });
+    worlds.set(name, context);
+  }
+
+  const api = {
+    runtime,
+    tabs: {
+      get: async () => ({ id: 42, url: "https://music.yandex.ru/album/192577/track/1944599" }),
+      sendMessage: async (_tabId, message) => {
+        for (const listener of runtimeListeners) {
+          let response;
+          listener(message, {}, (value) => { response = value; });
+          if (response) return response;
+        }
+        throw new Error("Receiving end does not exist");
+      }
+    },
+    scripting: {
+      executeScript: async ({ files, world }) => {
+        for (const file of files) vm.runInContext(sources.get(file), worlds.get(world), { filename: file });
+      }
+    }
+  };
+  const changeStorage = (changes) => {
+    for (const [key, change] of Object.entries(changes)) stored[key] = change.newValue;
+    for (const listener of storageListeners) listener(changes, "local");
+  };
+  return { api, worlds, runtimeMessages,document,dispatchDocument:type=>{for(const fn of documentListeners.get(type)||[])fn();},runtimeListeners, storageListeners, errors, timers, changeStorage, elements,
+    dispatchPage: (type, persisted) => { for (const name of ["MAIN", "ISOLATED"]) for (const fn of eventListeners.get(name).get(type) || []) fn({ persisted }); },
+    disableInstalledWorker: () => { installedWorkerAlive = false; } };
+}
+
+test("packaged MAIN + ISOLATED scripts bootstrap an already-open tab end to end", async () => {
+  const fixture = browserFixture();
+  const bootstrap = createControllerBootstrap(fixture.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) });
+  const result = await bootstrap.ensure(42);
+  assert.equal(result.error, null, result.detail);
+  assert.equal(result.status.bridge.ready, true);
+  assert.equal(result.status.bridge.healthy, true);
+  assert.equal(result.status.track.id, "1944599");
+  assert.equal(fixture.runtimeListeners.size, 1);
+  assert.deepEqual(fixture.errors.map((error) => error.message), []);
+
+  // Repeated packaged-file injection must not throw on immutable globals or
+  // duplicate controller/listener/adapter state.
+  for (const group of manifest.content_scripts) {
+    await fixture.api.scripting.executeScript({ files: group.js, world: group.world });
+  }
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(fixture.runtimeListeners.size, 1);
+  assert.equal(fixture.storageListeners.size, 1);
+  assert.deepEqual(fixture.errors.map((error) => error.message), []);
+  vm.runInContext("globalThis.__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", fixture.worlds.get("ISOLATED"));
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  vm.runInContext("globalThis.__CELIKOM_MAIN_BRIDGE_V1__.destroy()", fixture.worlds.get("MAIN"));
+  assert.equal(fixture.timers.size, 0);
+});
+
+test("playback registration before core availability does not poison subsequent packaged startup", async () => {
+  for (const early of [["player/replacement-controller.js"], [
+    "player/sync-engine.js", "player/replacement-player.js", "player/fail-open-controller.js", "player/replacement-controller.js"
+  ]]) {
+    const f = browserFixture();
+    await f.api.scripting.executeScript({ world: "ISOLATED", files: early });
+    const result = await createControllerBootstrap(f.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) }).ensure(42);
+    assert.equal(result.status?.startupError, null, JSON.stringify(result));
+    assert.equal(result.error, null);
+    assert.equal(result.status.bridge.healthy, true);
+    assert.equal(result.status.track.id, "1944599");
+    for (const group of manifest.content_scripts) await f.api.scripting.executeScript({ world: group.world, files: group.js });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(f.runtimeListeners.size, 1); assert.equal(f.storageListeners.size, 1);
+    assert.deepEqual(f.errors.map((error) => error.message), []);
+    vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", f.worlds.get("ISOLATED"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", f.worlds.get("MAIN"));
+    assert.equal(f.timers.size, 0);
+  }
+});
+
+test("packaged playback guards exact master, follows controls, bypasses and independently restores on lost heartbeat", async () => {
+  const f = browserFixture();
+  const bootstrap = createControllerBootstrap(f.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) });
+  await bootstrap.ensure(42);
+  const main = f.worlds.get("MAIN"); const isolated = f.worlds.get("ISOLATED");
+  vm.runInContext("globalThis.original = new HTMLMediaElement(); original.play();", main);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  f.changeStorage({ testTrackId: { newValue: "1944599" } });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  let response = await f.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" });
+  assert.equal(response.status.phase, "REPLACEMENT_ACTIVE", JSON.stringify(response.status));
+  assert.equal(vm.runInContext("original.physicalMuted", main), true);
+  assert.equal(response.status.player.muted, false);
+  assert.equal(response.status.guardActive, true);
+  assert.equal(f.elements.size, 1, "one CELIKOM media instance; master is detached");
+  const replacement = [...f.elements][0]; assert.equal(replacement.paused, false);
+  vm.runInContext("original.volume = 0.2; original.pause();", main);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(replacement.paused, true); assert.equal(replacement.volume, 0.2);
+  await f.api.tabs.sendMessage(42, { type: "CELIKOM_RESTORE_ORIGINAL" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(vm.runInContext("original.physicalMuted", main), false);
+  assert.equal(vm.runInContext("original.volume", main), 0.2);
+  assert.equal(f.elements.size, 0);
+  await assert.rejects(vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.bridge.request('GUARD_ENGAGE', { token: __CELIKOM_CONTENT_CONTROLLER_V2__.bridge.sessionId + ':1', trackId: '1944599', mediaId: 'media-1' })", isolated), /cancelled guard lease/);
+  vm.runInContext("original.play();", main); await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(f.elements.size, 0, "same-track state must not rearm manual bypass");
+  await f.api.tabs.sendMessage(42, { type: "CELIKOM_REPLACEMENT_RETRY" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(vm.runInContext("original.physicalMuted", main), true);
+  // Simulate a dead extension context without running its cleanup. MAIN watchdog
+  // must stop replacement and restore original using only shared DOM + native state.
+  vm.runInContext("Date = { now: () => 9999999999999 };", main);
+  for (const callback of [...f.timers.values()]) callback();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(vm.runInContext("original.physicalMuted", main), false);
+  assert.equal([...f.elements][0]?.paused ?? true, true);
+  assert.equal([...f.elements][0]?.muted ?? true, true);
+  vm.runInContext("globalThis.__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", isolated);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  vm.runInContext("globalThis.__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
+  assert.deepEqual(f.errors.map((error) => error.message), []);
+});
+
+test("controller diagnostics still respond when async startup fails", async () => {
+  const fixture = browserFixture();
+  vm.runInContext("chrome.storage.local.get = async () => { throw new Error('storage unavailable'); }", fixture.worlds.get("ISOLATED"));
+  const group = manifest.content_scripts.find((entry) => entry.world === "ISOLATED");
+  await fixture.api.scripting.executeScript({ files: group.js, world: "ISOLATED" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const response = await fixture.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" });
+  assert.equal(response.ok, true);
+  assert.equal(response.status.startupError, "storage unavailable");
+  assert.equal(response.status.bridge.ready, false);
+  const before = response.status.recentLog.length;
+  for (let i = 0; i < 5; i++) await fixture.api.scripting.executeScript({ files: group.js, world: "ISOLATED" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const after = await fixture.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" });
+  assert.equal(after.status.recentLog.length, before, "reinjection must not flood a failed startup with settings errors");
+  vm.runInContext("globalThis.__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", fixture.worlds.get("ISOLATED"));
+});
+
+test("packaged playback keeps one lease through utility events and metadata-only seek, then fails open on stream rebinding", async () => {
+  const f = browserFixture();
+  const main = f.worlds.get("MAIN"); const isolated = f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api, { wait: () => new Promise((resolve) => setTimeout(resolve, 5)) }).ensure(42);
+  try {
+    vm.runInContext("globalThis.original = new HTMLMediaElement(); original.play();", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    f.changeStorage({ testTrackId: { newValue: "1944599" } });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const status = async () => (await f.api.tabs.sendMessage(42, { type: "CELIKOM_CONTROLLER_STATUS_GET" })).status;
+    const initial = await status();
+    assert.equal(initial.phase, "REPLACEMENT_ACTIVE", JSON.stringify(initial));
+    const replacement = [...f.elements][0];
+    vm.runInContext("original.pause(); globalThis.utility = new HTMLMediaElement(); utility.src = 'data:audio/wav;base64,fixture'; utility.duration = 0.015; utility.currentTime = 0; utility.play(); utility.pause();", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    let next = await status();
+    assert.equal(next.active?.generation, initial.active.generation, JSON.stringify(next));
+    assert.equal(next.player.mediaId, initial.player.mediaId);
+    const fresh = await vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.bridge.getSnapshot()", isolated);
+    assert.equal(fresh.player.mediaId, initial.player.mediaId);
+    // Detached, paused utility media may already have been pruned.
+    assert.ok(fresh.mediaCandidates.filter(c => c.duration === 0.015).every(c => c.rejectedReason === "utility-media"));
+    assert.equal(replacement.paused, true); assert.equal(vm.runInContext("original.physicalMuted", main), true);
+    vm.runInContext("original.readyState = 1; original.seeking = true; original.currentTime = 80; original.dispatchEvent(new Event('seeking'));", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active?.generation, initial.active.generation, JSON.stringify(next));
+    assert.equal(replacement.paused, true);
+    vm.runInContext("original.seeking = false; original.readyState = 4; original.dispatchEvent(new Event('seeked')); original.play();", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active?.generation, initial.active.generation, JSON.stringify(next));
+    assert.equal(next.playback.activationCount, 1); assert.equal(next.playback.restoreCount, 0);
+    assert.equal(replacement.paused, false); assert.equal(f.elements.size, 1);
+
+    // Old metadata may outlive native stream rebinding: stop replacement and
+    // hold this Track ID until a new identity or explicit retry is observed.
+    vm.runInContext("original.src = 'https://strm-fra-04.strm.yandex.net/new?private_signature=secret'; original.dispatchEvent(new Event('loadedmetadata'));", main);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active, null, JSON.stringify(next));
+    assert.equal(next.playback.restoreCount, 1);
+    assert.equal(next.playback.lastRestore.detail.reason, "media-source-changed");
+    assert.equal(vm.runInContext("original.physicalMuted", main), false, "a blocked stale identity restores native playback immediately");
+    assert.equal(replacement.paused, true); assert.equal(f.elements.size, 0);
+    for (const callback of [...f.timers.values()]) callback();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    next = await status();
+    assert.equal(next.active, null); assert.equal(next.playback.activationCount, 1);
+    assert.equal(JSON.stringify(next).includes("private_signature"), false);
+    assert.equal(JSON.stringify(next).includes("secret"), false);
+    assert.deepEqual(f.errors.map(error => error.message), []);
+  } finally {
+    vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", isolated);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
+  }
+});
+
+test("live replacement restores original on extension disable even while stale isolated timers keep running", async () => {
+  const f = browserFixture();
+  const main = f.worlds.get("MAIN"), isolated = f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api, { wait: () => new Promise(resolve => setTimeout(resolve, 5)) }).ensure(42);
+  try {
+    vm.runInContext("globalThis.original = new HTMLMediaElement(); original.play();", main);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    f.changeStorage({ testTrackId: { newValue: "1944599" } });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    const replacement = [...f.elements][0];
+    assert.equal(vm.runInContext("original.physicalMuted", main), true);
+    assert.equal(replacement.paused, false);
+    // Simulate Chrome being disabled while an existing content script can still
+    // call its timers (the user's observed case); only background is invalidated.
+    f.disableInstalledWorker();
+    for (let i = 0; i < 2; i++) {
+      vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.bridge.heartbeat()", isolated);
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.equal(vm.runInContext("original.physicalMuted", main), false,
+      "original audio must immediately recover when installed worker disappears");
+    assert.equal(replacement.paused, true, "replacement is silent");
+    assert.equal(replacement.muted, true, "replacement cannot keep playing over original");
+    assert.equal(vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed", isolated), true);
+    assert.deepEqual(f.errors.map(error => error.message), []);
+  } finally {
+    vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()", isolated);
+    vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()", main);
+  }
+});
+
+test('packaged bridge ignores late ended and rearms after genuine completion without Start or reload',async()=>{
+ const f=browserFixture();const main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ await createControllerBootstrap(f.api,{wait:()=>new Promise(resolve=>setTimeout(resolve,5))}).ensure(42);
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,5));
+ const status=async()=>(await f.api.tabs.sendMessage(42,{type:'CELIKOM_CONTROLLER_STATUS_GET'})).status;
+ try {
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play();',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();
+  const first=await status();assert.equal(first.phase,'REPLACEMENT_ACTIVE');
+  vm.runInContext("original.ended=false;original.dispatchEvent(new Event('ended'));",main);await wait();
+  const late=await status();assert.equal(late.phase,'REPLACEMENT_ACTIVE');
+  assert.equal(late.active.generation,first.active.generation,'late event preserves the current lease');
+  assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  vm.runInContext("original.ended=true;original.paused=true;original.currentTime=201;original.dispatchEvent(new Event('ended'));",main);await wait();
+  const ended=await status();assert.equal(ended.active,null);assert.equal(ended.replacementError,null);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  vm.runInContext('original.ended=false;original.currentTime=0;original.play();',main);await wait();
+  const next=await status();assert.equal(next.phase,'REPLACEMENT_ACTIVE');assert.equal(next.replacementError,null);
+ }finally{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);await wait();
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
+
+
+test('cached page restores its bridge and replacement without reinjection; Stop while away wins',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try {
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play();',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  f.dispatchPage('pagehide',true);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed',isolated),false);
+  // Cached pages may resume timers before pageshow after a long frozen interval.
+  vm.runInContext('globalThis.realDate=Date;Date={now:()=>realDate.now()+300000};',main);
+  for(const callback of [...f.timers.values()]) callback();await wait();
+  vm.runInContext('Date=realDate;',main);
+  f.dispatchPage('pageshow',true);await wait();
+  // Access is revalidated via the worker, never granted by pageshow itself.
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.onRuntimeMessage({type:'CELIKOM_ACCESS_STATE',state:'allowed'},{id:chrome.runtime.id},()=>{});",isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),true,JSON.stringify(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.getDiagnostics()',isolated)));
+  assert.equal(f.runtimeListeners.size,1);assert.equal(f.elements.size,1);
+  f.dispatchPage('pagehide',true);await wait();
+  f.changeStorage({enabled:{newValue:false}});
+  f.dispatchPage('pageshow',true);await wait();
+  vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.onRuntimeMessage({type:'CELIKOM_ACCESS_STATE',state:'allowed'},{id:chrome.runtime.id},()=>{});",isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.enabled',isolated),false);
+  f.dispatchPage('pagehide',false);await wait();
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed',isolated),true);
+ } finally {
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
+
+test('late persisted settings cannot undo Stop during controller wake',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ await createControllerBootstrap(f.api,{wait:()=>new Promise(resolve=>setTimeout(resolve,5))}).ensure(42);
+ try {
+  vm.runInContext('globalThis.finishSettings=null;chrome.storage.local.get=()=>new Promise(resolve=>finishSettings=resolve);__CELIKOM_CONTENT_CONTROLLER_V2__.wake();',isolated);
+  f.changeStorage({enabled:{newValue:false}});
+  vm.runInContext("finishSettings({enabled:true,testTrackId:''});",isolated);
+  await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.enabled',isolated),false);
+ } finally {
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
+
+test('Back/Forward preserves explicit original bypass instead of treating it as Start',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ const wait=()=>new Promise(resolve=>setTimeout(resolve,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try {
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play();',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();
+  await f.api.tabs.sendMessage(42,{type:'CELIKOM_RESTORE_ORIGINAL'});await wait();
+  f.dispatchPage('pagehide',true);await wait();f.dispatchPage('pageshow',true);await wait();
+  vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.onRuntimeMessage({type:'CELIKOM_ACCESS_STATE',state:'allowed'},{id:chrome.runtime.id},()=>{});",isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.manualBypass.trackId',isolated),'1944599');
+ } finally {
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);
+  vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);
+ }
+});
+
+test("metadata-first transition silences previous ORIGINAL as well as replacement; Stop releases immediately", async () => {
+  const f=browserFixture(),main=f.worlds.get("MAIN"),isolated=f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api,{wait:()=>new Promise(r=>setTimeout(r,5))}).ensure(42);
+  try {
+    vm.runInContext("globalThis.original=new HTMLMediaElement();original.play();",main);
+    await new Promise(r=>setTimeout(r,5));f.changeStorage({testTrackId:{newValue:"1944599"}});await new Promise(r=>setTimeout(r,5));
+    const previous=[...f.elements][0];assert.equal(previous.paused,false);assert.equal(vm.runInContext("original.physicalMuted",main),true);
+    // A queued metadata update describes B, but the native A recording is
+    // still running on its old source. 0.4.44 unmuted A at this exact point.
+    vm.runInContext("navigator.mediaSession.metadata.title='Next song';original.dispatchEvent(new Event('timeupdate'));",main);
+    await new Promise(r=>setTimeout(r,5));
+    assert.equal(previous.paused,true);assert.equal(f.elements.size,0);
+    assert.equal(vm.runInContext("original.paused",main),false,"Yandex retains control of its clock");
+    assert.equal(vm.runInContext("original.physicalMuted",main),true,"old original must remain inaudible after old replacement teardown");
+    vm.runInContext("original.src='https://strm-fra-04.strm.yandex.net/new';original.readyState=0;original.dispatchEvent(new Event('emptied'));original.readyState=4;original.play();",main);
+    await new Promise(r=>setTimeout(r,5));
+    assert.equal(vm.runInContext("original.physicalMuted",main),true,"new native stream cannot leak while next replacement is resolving");
+    f.changeStorage({enabled:{newValue:false}});await new Promise(r=>setTimeout(r,5));
+    assert.equal(vm.runInContext("original.physicalMuted",main),false,"explicit Stop cancels the short transition mute immediately");
+  } finally {vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);}
+});
+
+test("transition mute fails open after its one-second deadline when no fresh binding arrives", async () => {
+  const f=browserFixture(),main=f.worlds.get("MAIN"),isolated=f.worlds.get("ISOLATED");
+  await createControllerBootstrap(f.api,{wait:()=>new Promise(r=>setTimeout(r,5))}).ensure(42);
+  try {
+    vm.runInContext("globalThis.original=new HTMLMediaElement();original.play();",main);
+    await new Promise(r=>setTimeout(r,5));f.changeStorage({testTrackId:{newValue:"1944599"}});await new Promise(r=>setTimeout(r,5));
+    vm.runInContext("navigator.mediaSession.metadata.title='Unknown';original.dispatchEvent(new Event('timeupdate'));",main);
+    await new Promise(r=>setTimeout(r,5));assert.equal(vm.runInContext("original.physicalMuted",main),true);
+    await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext("original.physicalMuted",main),false);
+  } finally {vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);}
+});
+
+test('first native play after page load is muted synchronously until the resolver verdict; negative and Stop fail open',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');
+ const wait=()=>new Promise(r=>setTimeout(r,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext("globalThis.original=new HTMLMediaElement();original.pause();globalThis.utility=new HTMLMediaElement();utility.src='data:audio/wav;base64,fixture';utility.duration=.015;utility.play()",main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false,'utility playback cannot admit a different paused original');
+  vm.runInContext('original.play()',main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),true,'guard applies before native play returns, without a previous replacement');
+  await wait();assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  vm.runInContext('finishAsset({found:false,retryAfterMs:15000})',isolated);await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);assert.equal(f.elements.size,0);
+  vm.runInContext('original.pause();original.play()',main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false,'known negative and ordinary pause/resume do not remute');
+  f.changeStorage({enabled:{newValue:false}});await wait();
+  vm.runInContext("original.src='https://strm-fra-03.strm.yandex.net/second';original.play()",main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false,'Stop disables future admission');
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+test('first-play admission fails open on its deadline and does not remute on repeated play',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(()=>{})',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play()',main);
+  assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  vm.runInContext('original.pause();original.play()',main);assert.equal(vm.runInContext('original.physicalMuted',main),false);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+
+test('page online and visible returns request fresh recovery without clearing manual Original; Stop suppresses hints',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,5));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  assert.ok(f.runtimeMessages.some(m=>m.type==='CELIKOM_RECOVERY_HINT'&&m.reason==='document'));
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play()',main);await wait();
+  f.changeStorage({testTrackId:{newValue:'1944599'}});await wait();await f.api.tabs.sendMessage(42,{type:'CELIKOM_RESTORE_ORIGINAL'});await wait();
+  f.dispatchPage('online');await wait();f.dispatchDocument('visibilitychange');await wait();
+  assert.ok(f.runtimeMessages.some(m=>m.type==='CELIKOM_RECOVERY_HINT'&&m.reason==='online'));
+  assert.ok(f.runtimeMessages.some(m=>m.type==='CELIKOM_RECOVERY_HINT'&&m.reason==='visible'));
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.manualBypass.trackId',isolated),'1944599');
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  f.document.hidden=true;const count=()=>f.runtimeMessages.filter(m=>m.type==='CELIKOM_RECOVERY_HINT').length;const hidden=count();f.dispatchDocument('visibilitychange');await wait();assert.equal(count(),hidden);
+  f.changeStorage({enabled:{newValue:false}});await wait();const stopped=count();f.document.hidden=false;f.dispatchPage('online');f.dispatchDocument('visibilitychange');await wait();assert.equal(count(),stopped);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+
+
+test("stale extension context cannot throw from controller wake/storage or leave its timers running",async()=>{
+  for(const failure of ["missing-storage","sync-context-invalidation","async-context-invalidation"]) {
+    const f=browserFixture(),isolated=f.worlds.get("ISOLATED"),main=f.worlds.get("MAIN");
+    await createControllerBootstrap(f.api,{wait:()=>new Promise(resolve=>setTimeout(resolve,5))}).ensure(42);
+    try {
+      if(failure==="missing-storage") {
+        vm.runInContext("chrome.storage = undefined; __CELIKOM_CONTENT_CONTROLLER_V2__.wake();",isolated);
+      } else if(failure==="sync-context-invalidation") {
+        vm.runInContext("chrome.storage.local.get=()=>{throw new Error('Extension context invalidated.')}; __CELIKOM_CONTENT_CONTROLLER_V2__.wake();",isolated);
+      } else {
+        vm.runInContext("chrome.storage.local.get=()=>Promise.reject(new Error('Extension context invalidated.')); __CELIKOM_CONTENT_CONTROLLER_V2__.wake();",isolated);
+        await new Promise(resolve=>setTimeout(resolve,5));
+      }
+      assert.equal(vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroyed",isolated),true);
+      assert.equal(f.runtimeListeners.size,0);
+      assert.equal(f.errors.length,0);
+    } finally {
+      vm.runInContext("__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()",isolated);
+      vm.runInContext("__CELIKOM_MAIN_BRIDGE_V1__.destroy()",main);
+    }
+  }
+});
+
+test('bounded intro waits for a resolver verdict without advancing native playback',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;globalThis.first=original.play();globalThis.second=original.play()',main);
+  assert.equal(vm.runInContext('original.paused',main),true);
+  assert.equal(vm.runInContext('original.currentTime',main),.1);
+  assert.equal(vm.runInContext('first===second',main),true);
+  await wait();vm.runInContext('finishAsset({found:false})',isolated);await wait();
+  assert.equal(vm.runInContext('original.paused',main),false);
+  assert.equal(vm.runInContext('original.physicalMuted',main),false);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+for(const action of ['pause','load','source','stop','timeout'])test('bounded intro handles '+action+' without a stale native start',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play().catch(e=>globalThis.playError=e.name)',main);
+  await wait();assert.equal(vm.runInContext('original.paused',main),true);
+  if(action==='pause'||action==='load')vm.runInContext('original.'+action+'()',main);
+  if(action==='source')vm.runInContext("original.src='https://strm-fra-03.strm.yandex.net/changed';original.dispatchEvent(new Event('timeupdate'))",main);
+  if(action==='stop')f.changeStorage({enabled:{newValue:false}});
+  if(action==='timeout')await new Promise(r=>setTimeout(r,430));
+  await wait();
+  if(['pause','load','source'].includes(action)){
+   assert.equal(vm.runInContext('original.paused',main),true);
+   assert.equal(vm.runInContext('playError',main),'AbortError');
+  }else{
+   assert.equal(vm.runInContext('original.paused',main),false);
+   assert.equal(vm.runInContext('original.physicalMuted',main),false);
+  }
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+
+for(const delay of [20,450])test('intro positive verdict after '+delay+'ms retains a single replacement and valid lease',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play()',main);
+  await new Promise(r=>setTimeout(r,delay));
+  vm.runInContext("finishAsset({found:true,demoLoop:true,url:'https://fixture.test/audio'})",isolated);await wait();await wait();
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'REPLACEMENT_ACTIVE');
+  assert.equal(vm.runInContext('original.paused',main),false);assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  assert.equal(f.elements.size,1);assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.blockedTrackId',isolated),null);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+
+for(const action of ['timeout','pause'])test('reserved preparation survives intro '+action+' with one decoder and a renewed lease',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  vm.runInContext(`{
+   const engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine,create=engine.createPlayer;
+   engine.resolveAsset=async()=>({found:true,demoLoop:true,url:'https://fixture.test/audio'});
+   engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare.bind(p);p.prepare=async asset=>{await new Promise(r=>globalThis.finishLoad=r);await prepare(asset);};return p;};
+  }`,isolated);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play().catch(()=>{})',main);await wait();
+  const token=vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated);
+  assert.equal(vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.getDiagnostics().guard.token',main),token);
+  if(action==='pause')vm.runInContext('original.pause()',main);else await new Promise(r=>setTimeout(r,430));
+  await wait();assert.notEqual(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated),token);
+  vm.runInContext('finishLoad()',isolated);await wait();await wait();
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'REPLACEMENT_ACTIVE');
+  assert.equal(vm.runInContext('original.paused',main),action==='pause');
+  assert.equal(f.elements.size,1);
+  if(action==='pause')assert.equal([...f.elements][0].paused,true);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});

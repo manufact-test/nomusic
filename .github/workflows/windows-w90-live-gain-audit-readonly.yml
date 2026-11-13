@@ -1,0 +1,102 @@
+name: CELIKOM W90 all boosted Windows tracks LIVE READ-ONLY inventory
+on:
+  push:
+    branches:
+      - experiment/windows-w90-boosted-tracks-gain-parity-20261113
+      - experiment/windows-w92-audio-volume-stall-witness-20261113
+      - experiment/windows-w98-integrated-gain-and-original-vpn-20261113
+    paths:
+      - .github/workflows/windows-w90-live-gain-audit-readonly.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-w90-gain-live-readonly
+  cancel-in-progress: false
+
+jobs:
+  live-readonly-inventory:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - name: Read-only aggregate count of live track gain settings (never mutate music, DB, or authentication)
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "${HOSTINGER_SSH_KEY:-}" ]] || { echo 'W90_NO_SSH_CREDENTIAL'; exit 2; }
+          umask 077
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/pub"
+          [[ "$(ssh-keygen -lf "$dir/pub" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]] || { echo 'W90_BAD_SSH_IDENTITY'; exit 2; }
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh -T -p 65002 "${opts[@]}" 'u235811320@92.113.19.189' 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          base='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          [[ -L "$base/current" ]] || { echo 'W90_LIVE_RELEASE_LINK_MISSING'; exit 2; }
+          active="$(readlink -f "$base/current")"
+          case "$active" in "$base"/releases/*) ;; *) echo 'W90_UNEXPECTED_RELEASE_PATH'; exit 2 ;; esac
+          command -v ffmpeg >/dev/null && echo 'W90_FFMPEG_AVAILABLE=1' || echo 'W90_FFMPEG_AVAILABLE=0'
+          command -v ffprobe >/dev/null && echo 'W90_FFPROBE_AVAILABLE=1' || echo 'W90_FFPROBE_AVAILABLE=0'
+          /opt/alt/php83/usr/bin/php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          ini_set('display_errors', '0');
+          try {
+            $base = '/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/current';
+            require $base . '/bootstrap.php';
+            $config = require $base . '/config/app.php';
+            $pdo = Celikom\Database\Connection::open($config);
+            $pdo->exec('SET TRANSACTION READ ONLY');
+            $pdo->beginTransaction();
+            $sql = "SELECT COUNT(*) AS active_versions,
+                COALESCE(SUM(CASE WHEN r.gain_db > 0 THEN 1 ELSE 0 END),0) AS boosted_versions,
+                COALESCE(SUM(CASE WHEN r.gain_db < 0 THEN 1 ELSE 0 END),0) AS attenuated_versions,
+                COALESCE(SUM(CASE WHEN r.gain_db = 0 THEN 1 ELSE 0 END),0) AS unchanged_versions,
+                COALESCE(SUM(CASE WHEN r.gain_db < -12 OR r.gain_db > 12 OR r.gain_db IS NULL THEN 1 ELSE 0 END),0) AS invalid_versions
+                FROM track_replacements r
+                JOIN audio_assets a ON a.id = r.audio_asset_id
+                WHERE r.status = 'approved' AND r.is_active = 1 AND r.disabled_at IS NULL";
+            $data = $pdo->query($sql)->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($data)) throw new RuntimeException('W90_EMPTY_AUDIT');
+            $historic = $pdo->query("SELECT COUNT(*) total,
+               COALESCE(SUM(gain_db > 0),0) positive,
+               COALESCE(SUM(gain_db < 0),0) negative
+               FROM track_replacements")->fetch(PDO::FETCH_ASSOC);
+            $history = $pdo->query("SELECT COUNT(*) edits,
+               COUNT(DISTINCT entity_id) distinct_replacements
+               FROM audit_log WHERE action='replacement_gain_update'")->fetch(PDO::FETCH_ASSOC);
+            $nonzero = $pdo->query("SELECT t.service_track_id, t.title, t.artist, r.gain_db
+              FROM track_replacements r JOIN tracks t ON t.id=r.track_id
+              WHERE r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL
+                AND r.gain_db <> 0 LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+
+            $allEdits = $pdo->query("SELECT entity_id, before_json, after_json
+              FROM audit_log WHERE action = 'replacement_gain_update' ORDER BY id ASC LIMIT 30")->fetchAll(PDO::FETCH_ASSOC);
+            $nonzeroVersions = $pdo->query("SELECT t.service_track_id, t.title, t.artist, r.status, r.is_active, r.gain_db
+              FROM track_replacements r JOIN tracks t ON t.id = r.track_id
+              WHERE r.gain_db <> 0 ORDER BY r.id LIMIT 20")->fetchAll(PDO::FETCH_ASSOC);
+            $pdo->rollBack();
+            $summary = array_map(static fn($v) => (int)$v, $data);
+            if ($summary['active_versions'] !==
+                $summary['boosted_versions'] + $summary['attenuated_versions'] + $summary['unchanged_versions'] ||
+                $summary['invalid_versions'] !== 0) throw new RuntimeException('W90_INVALID_GAIN_DATA');
+            echo 'W90_LIVE_GAIN_AUDIT_READ_ONLY ' . json_encode($summary, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W90_HISTORY_COUNTS ' . json_encode($historic, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W90_GAIN_EDITS ' . json_encode($history, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W90_ACTIVE_NONZERO ' . json_encode($nonzero, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+            echo 'W92_GAIN_EDIT_HISTORY ' . json_encode($allEdits, JSON_THROW_ON_ERROR) . "\n";
+            echo 'W92_ALL_NONZERO_VERSIONS ' . json_encode($nonzeroVersions, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+            echo 'W90_NO_MEDIA_DATA_EXPORTED_NO_DB_WRITE\n';
+          } catch (Throwable $error) {
+            fwrite(STDERR, 'W90_READONLY_AUDIT_FAILURE ' . get_class($error) . "\n");
+            exit(2);
+          }
+          PHP
+          REMOTE
