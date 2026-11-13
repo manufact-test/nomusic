@@ -190,3 +190,25 @@ The fingerprint algorithm in `ExitCallsiteWitness` hashes the Android runtime sy
 Independent local verification was performed against the actual `assets/lspatch/origin.apk` extracted from the exact NAV5 APK above. That embedded original is Yandex Music 2025.10.4 and contains six DEX files (`classes.dex` through `classes6.dex`). The known symbol `com.yandex.passport.internal.ui.router.LoginRouterActivity#onCreate` hashes to `5F37181A47977002` and was found in `classes5.dex`. This verifies the resolver algorithm and exact DEX provenance; it does **not** identify this method as the crash cause.
 
 On receipt of the owner's NAV5 TXT, resolve every `PASSPORT_FATAL_FRAME` token privately against all six DEX method tables, preserving cause depth and frame order. Prefer a tiny local resolver over emitting raw publisher class/method names into GitHub Actions logs. Distinguish a matched frame from a proven throwing frame: stack order and exception/cause relationship matter.
+
+## NAV5 owner-phone exact fatal result — 13 Nov 22:25 local
+
+Source: owner video `SVID_20261113_222512_1.mp4` (58.17 sec) and owner TXT `CELIKOM-A1-Diagnostics-1794597969944.txt` (506 lines); NAV5 marker `NAV_V5_PASSPORT_FATAL_CAUSE / ACTIVE` was present. After the four native intro cards, an explicit own Passport launch returned; the separate `:passport` process crashed. The video shows a return to the launcher and repeated intro on re-open. This is not Firebase/Push and not an idle-main startup failure.
+
+The merged Passport log contains **five** uncaught `ILLEGAL_STATE` crashes, each `PASSPORT_AUTH`, same ordered three fingerprints:
+- `D0_F0_PASSPORT / SYM_BA2F2F8F515934E8`
+- `D0_F1_PASSPORT / SYM_0B7BA9643E8EF47C`
+- `D0_F2_JAVA / SYM_9B2283F471456A56`
+No `CAUSE_1` was captured. Android exit-info snapshot showed four recent `JAVA_CRASH` entries for Passport. The five log entries and four exit-info entries are independent windows, not conflicting crash totals.
+
+Locally matched every frame across the **six exact embedded original 2025.10.4 DEX files** (317,558 method references). Both Passport frames matched uniquely in `classes5.dex`; the Java frame resolves to the normal `Thread.run` (two DEX references). The previously verified control fingerprint `5F37181A47977002` also matched once. No raw vendor method/class names or error strings were exported to public CI. The top frame creates an `IllegalStateException` in the Passport configuration validator and stores it in a fatal error list; a later initialization step throws the first list member. Thus the top stack frame is the exception **construction** site, not a bare DEX `throw` instruction.
+
+The exact already-built NAV5 owned-outer `resources.arsc` has the Passport sync prefix but an authority ending in **the original** `ru.yandex.music` package, while the installed clone is `pro.celikom.yandex.nativeclonelab`. The current 2025.10.4 validator requires `prefix + current applicationId`. The static account type is already the expected production type and `android:allowBackup=false`, excluding the other initial fatal-list checks. The clone also rewrote the original SyncProvider manifest resource-reference authority into an unrelated generated literal while the sync-adapter XML still points to that original resource ID. These **configuration mismatches** explain the owner-observed `PASSPORT_AUTH` fatal; they are not an authorization/signature bypass.
+
+**Narrow repair trial** commit `f05122cf01fbbfb1156d858053127a88ac7e2a74`:
+- Preserve the SyncProvider's original manifest **resource reference** in the disposable own clone, so it resolves the same authority as the sync-adapter XML.
+- Rebuild **one uniquely anchored string in clone-outer** `resources.arsc` to use the CELIKOM package, maintaining every other global string, table entry, inner original publisher APK, DEX, native library and resource-table package namespace.
+- Independently re-sign with the same ephemeral **own** signer, verify exact three top-level v1 signing metadata differences only, zip parity, own signer equality and native library alignment. No vendor code, Passport return values, account secrets or original Yandex APK are changed.
+- Separate tests run in paired original-first ARM13 and standalone clone-only workflows on this commit. **No native result or owner login success is claimed until the exact workflows finish and the owner tests the new APK.** Do not create or offer an unverified APK.
+
+Saved protective exact pre-fix snapshot: `backup/android-a1-nav5-owner-passport-crash-proof-pre-fix-20261113` @ `ab8537253fdd9e361c630a92caeee78472d3fea9`. Previous owner handoff backup also remains untouched. Stage A still NO-GO; Stage B LOCKED. Test.50, Windows, production, backend and official Yandex untouched.
