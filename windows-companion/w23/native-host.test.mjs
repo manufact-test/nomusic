@@ -8,7 +8,8 @@ const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
 async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null, grantOverride = null,
-  currentTrack = null, clock = Date, rendererStatus = "ORIGINAL" } = {}) {
+  grantSequence = [], currentTrack = null, clock = Date,
+  rendererStatus = "ORIGINAL" } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
   let drained = false, pump = () => {}, timerIntervalMs = 0;
@@ -24,7 +25,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
       if (script.includes("__celikomBridgeNativeDrain?.()")) {
         if (drained) return [];
         drained = true;
-        return queue;
+        return queue.splice(0, 6);
       }
       if (script.includes("__celikomBridgeNativeStatus?.()")) return rendererStatus;
       if (script.includes("__celikomBridgeNativeCurrentTrack?.()"))
@@ -57,11 +58,12 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
           resp.resume = () => {};
           callback(resp);
           const value = options.path.startsWith("/v1/resolve")
-            ? {found:true,grant:grantOverride ?? {
-              trackId:"123",approved:true,entitled:true,
-              audioUrl:"https://api.celikom.example/api/v1/audio/1?token="+ "a".repeat(64) + "&expires=1800000180",
-              expiresAt:1800000180000,mimeType:"audio/mpeg"
-            }}
+            ? {found:true,grant:grantSequence.length ? grantSequence.shift() :
+              grantOverride ?? {
+                trackId:"123",approved:true,entitled:true,
+                audioUrl:"https://api.celikom.example/api/v1/audio/1?token="+ "a".repeat(64) + "&expires=1800000180",
+                expiresAt:1800000180000,mimeType:"audio/mpeg"
+              }}
             : (stateOverride ?? {enabled:false,signedIn:false,apiOrigin:""});
           resp.emit("data", Buffer.from(JSON.stringify(value)));
           resp.emit("end");
@@ -91,6 +93,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   vm.runInNewContext(source,context,{timeout:1200});
   await new Promise(resolve=>setTimeout(resolve,35));
   return {diagnostics,evaluated,network,tokenReads,timerIntervalMs,pulse:() => pump(),
+    pushQueue: items => { queue.push(...items); drained=false; },
     emitView: (name,...args) => {
       for(const handler of viewEvents.get(name) || []) handler({},...args);
     },
@@ -164,6 +167,36 @@ test("W91 native observer verifies variant signed fields without leaking media U
   assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
 });
 
+test("W54 current decoder reports a mid-track loss of the Windows gain variant",async()=>{
+  const variant=w54GainGrant("139",true);
+  const raw=w54GainGrant("139",false);
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:variant,grantSequence:[variant,raw],
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Big City synthetic",artist:"Artist",durationMs:190000},
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"gain-transition-current",
+    properties:[{name:"kUrl",value:variant.audioUrl},{name:"kIsPlaying",value:"true"}]
+  });
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED|track=123")),
+    "the initial current decoder uses the offline Windows gain sidecar");
+  r.pushQueue([{requestId:"2",trackId:"123"}]);
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"gain-transition-current",properties:[{name:"kUrl",value:raw.audioUrl}]
+  });
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123")),
+    "if the same current track is re-resolved to raw CELIKOM audio, the missing gain variant is visible");
+  assert.ok(!r.diagnostics.some(x=>x.includes("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM")),
+    "raw signed CELIKOM audio is still CELIKOM; the loss is specifically its gain variant");
+  assert.ok(!JSON.stringify(r.diagnostics).includes(variant.audioUrl) &&
+    !JSON.stringify(r.diagnostics).includes(raw.audioUrl),
+    "neither signed URL nor token enters diagnostics");
+});
 test("approved exact-ID grant is relayed, not CELIKOM login tokens",async()=>{
   const {diagnostics,evaluated,network}=await runHost("musicapplication://desktop/",{
     queue:[{requestId:"1",trackId:"123"}]
@@ -350,6 +383,14 @@ function w52Grant(resourceId, trackId="123", seconds=120, sid="7") {
     "?token=" + "e".repeat(64) + "&expires=" + expires +
     (sid ? "&sid=" + sid : "");
   return { trackId, approved:true, entitled:true, audioUrl,
+    expiresAt: expires * 1000, mimeType:"audio/mpeg" };
+}
+function w54GainGrant(resourceId, gainApplied, trackId="123", gainDb=11.5) {
+  const expires = Math.floor(Date.now()/1000) + 120;
+  const audioUrl = "https://api.celikom.example/api/v1/audio/" + resourceId +
+    "?token=" + "f".repeat(64) + "&expires=" + expires + "&sid=7" +
+    (gainApplied ? "&variant=windows_gain_v1" : "");
+  return { trackId, approved:true, entitled:true, gainDb, gainApplied, audioUrl,
     expiresAt: expires * 1000, mimeType:"audio/mpeg" };
 }
 function w52Debugger(body = '{"error":"invalid_audio_token"}') {

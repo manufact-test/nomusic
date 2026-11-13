@@ -88,6 +88,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED",
   "PLAYER_DECODER_CELIKOM_PIPELINE_ERROR",
   "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", "PLAYER_CURRENT_NATIVE_VOLUME_DROP",
+  "PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING",
   "SOURCE_RECOVERY_DECODER_ALREADY_PLAYING",
   "NATIVE_ELECTRON_EVENT_LOOP_STALL", "NATIVE_ELECTRON_MEMORY_HIGH",
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
@@ -466,7 +467,8 @@ function rememberExpectedAudio(view, grant) {
     if (entries.size >= 32) entries.delete(entries.keys().next().value);
     // Yandex track ID remains private metadata and is never used as an audio path ID.
     entries.set(resourceId, { href: url.origin + url.pathname + url.search,
-      expiresAt, yandexTrackId: grant.trackId, recordedAt: now });
+      expiresAt, yandexTrackId: grant.trackId, gainApplied: grant.gainApplied === true,
+      gainDb: Number.isFinite(grant.gainDb) ? grant.gainDb : null, recordedAt: now });
   } catch { /* Invalid grant is handled by the existing renderer validator. */ }
 }
 function classifyPlayerUrl(view, resourceId, actualUrl) {
@@ -534,8 +536,8 @@ function observeNativePlayback(view) {
     if (!decoderPlayers.has(id) && decoderPlayers.size >= 32)
       decoderPlayers.delete(decoderPlayers.keys().next().value);
     const prev = decoderPlayers.get(id) || {
-      playing:false, sourceTrackId:null, evidenceReportedFor:null,
-      lastVolume:null, volumeTrackId:null
+      playing:false, sourceTrackId:null, gainApplied:null, gainDb:null,
+      evidenceReportedFor:null, lastVolume:null, volumeTrackId:null
     };
     const properties = params.properties.slice(0, 30);
     let sourceLeftCurrent = false;
@@ -544,9 +546,12 @@ function observeNativePlayback(view) {
     // sample cannot be lost when kVolume arrives first in the array.
     for (const prop of properties) {
       if (prop?.name === "kUrl") {
-        const wasCurrentCelikom = prev.playing && !!prev.sourceTrackId &&
-          prev.sourceTrackId === lastStatus.get(view)?.trackId;
+        const previousTrackId = prev.sourceTrackId;
+        const wasCurrentCelikom = prev.playing && !!previousTrackId &&
+          previousTrackId === lastStatus.get(view)?.trackId;
         prev.sourceTrackId = null;
+        prev.gainApplied = null;
+        prev.gainDb = null;
         prev.evidenceReportedFor = null;
         verifiedDecoderSource.delete(view);
         if (typeof prop.value !== "string" || prop.value.length > 4096) continue;
@@ -561,8 +566,11 @@ function observeNativePlayback(view) {
             classifyPlayerUrl(view, resourceId, actual) : "";
           if (expected?.expiresAt > Date.now() &&
               (classification === "PLAYER_URL_MATCH" ||
-               classification === "PLAYER_URL_SIGNED_FIELDS_INTACT"))
+               classification === "PLAYER_URL_SIGNED_FIELDS_INTACT")) {
             prev.sourceTrackId = expected.yandexTrackId;
+            prev.gainApplied = expected.gainApplied === true;
+            prev.gainDb = expected.gainDb;
+          }
         } catch { /* Unknown native URL: no source evidence. */ }
         if (wasCurrentCelikom && !prev.sourceTrackId) {
           const currentTrackId = lastStatus.get(view)?.trackId;
@@ -615,6 +623,12 @@ function observeNativePlayback(view) {
       prev.evidenceReportedFor = current;
       verifiedDecoderSource.set(view, {trackId: current, at: Date.now()});
       note("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", current);
+      // This proves only which signed CELIKOM URL the current decoder selected,
+      // not that the rendered samples were heard at the configured loudness.
+      if (prev.gainApplied === true)
+        note("PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", current);
+      else if (Number.isFinite(prev.gainDb) && prev.gainDb !== 0)
+        note("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", current);
       // If old signed URL 403 already recovered to a CONFIRMED CURRENT
       // native decoder, do not fire a second 650ms reload that could pop.
       // Observer absent? Existing bounded recovery remains unchanged.

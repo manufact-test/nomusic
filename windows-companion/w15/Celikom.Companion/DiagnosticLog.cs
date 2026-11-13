@@ -55,7 +55,9 @@ public static class DiagnosticLog
 
     public static bool IsIncidentCode(string code) =>
         Code.IsMatch(code) &&
-        ((code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH") ||
+        ((code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
+             "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
+             "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
          code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.StartsWith("START_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.Contains("DISCONNECT", StringComparison.Ordinal) ||
@@ -129,6 +131,49 @@ public static class DiagnosticLog
         return entries.TakeLast(1000).ToArray();
     }
 
+    private static void ArchiveNativeIncidents(string directory, DateTimeOffset now)
+    {
+        // The Electron host writes its own bounded native-events.log rather than
+        // calling the companion's DiagnosticLog.Record. Import only validated,
+        // allowlisted native incident lines into the independent 7-day archive
+        // when a support snapshot/export is requested.
+        var existing = ReadIncidentHistory(directory, now).ToHashSet(StringComparer.Ordinal);
+        var cutoff = now.AddDays(-7);
+        lock (Gate)
+        {
+            foreach (var name in new[] { "native-events.log.1", "native-events.log" })
+            {
+                try
+                {
+                    var path = Path.Combine(directory, name);
+                    if (!File.Exists(path)) continue;
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete);
+                    using var reader = new StreamReader(stream, Encoding.UTF8);
+                    for (var i = 0; i < 20_000 && reader.ReadLine() is { } line; i++)
+                    {
+                        if (!IsSafeEntry(line) || line.Length < 24 ||
+                            !DateTimeOffset.TryParseExact(line[..24], "yyyy-MM-ddTHH:mm:ss.fffZ",
+                                CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal,
+                                out var timestamp) ||
+                            timestamp < cutoff || timestamp > now.AddSeconds(5))
+                            continue;
+                        var separator = line.IndexOf('|');
+                        var codeEnd = line.IndexOf('|', separator + 1);
+                        var code = codeEnd < 0 ? line[(separator + 1)..]
+                            : line[(separator + 1)..codeEnd];
+                        if (!IsIncidentCode(code) || !existing.Add(line)) continue;
+                        try { AppendBounded(directory, IncidentFile, IncidentLogLimit, line); }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
+                    }
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+    }
+
     /// <summary>Validate again when reading: even a tampered log cannot inject
     /// signed URLs, passwords, or arbitrary text into an owner export.</summary>
     public static bool IsSafeEntry(string? line) =>
@@ -149,6 +194,7 @@ public static class DiagnosticLog
         var cutoff = now.AddMinutes(-15);
         var entries = new List<string>();
         var directory = diagnosticDirectory ?? DirectoryPath;
+        ArchiveNativeIncidents(directory, now);
         // Scan the real last-15-minute allowlisted log, not ExportText's
         // owner-friendly last-1600-line display. A busy 180ms native poll can
         // otherwise erase earlier incidents before support filtering begins.
@@ -184,12 +230,14 @@ public static class DiagnosticLog
         // Local state polling runs several times per second. A simple last-64
         // slice would hide three earlier outage events behind hundreds of
         // NATIVE_STATE_RECEIVED/LOCAL_STATE_OK lines. Reserve room for the last
-        // 24 distinct error/entitlement transitions, and 40 contextual events.
+        // 24 incident transitions/current-player anomalies, and 40 contextual events.
         static bool IsPollingChatter(string code) => code is
             "NATIVE_STATE_RECEIVED" or "LOCAL_STATE_OK" or
             "RENDERER_STATE_DELIVERED" or "RENDERER_BRIDGE_STATE_SEEN";
         static bool IsIncident(string code) =>
-            (code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH") ||
+            (code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
+                "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
+                "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
             code.Contains("ERROR", StringComparison.Ordinal) ||
             code.Contains("FAILED", StringComparison.Ordinal) ||
@@ -249,8 +297,9 @@ public static class DiagnosticLog
         // The optional directory permits isolated synthetic export fixtures in
         // contract tests. Real GUI callers always use the fixed user-owned path.
         var readDirectory = diagnosticDirectory ?? DirectoryPath;
+        ArchiveNativeIncidents(readDirectory, DateTimeOffset.UtcNow);
         var text = new StringBuilder();
-        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W53");
+        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W54");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         text.AppendLine("AppVersion=" + (typeof(DiagnosticLog).Assembly.GetName().Version?.ToString() ?? "unknown"));
         text.AppendLine("NativeModuleVersion=" +
@@ -258,7 +307,7 @@ public static class DiagnosticLog
                 ? nativeModuleVersion : "unknown"));
         text.AppendLine("NativeModuleMatchesApp=" +
             (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
-        text.AppendLine("CodeBaseline=W53_NATIVE_403_CLASSIFICATION_EXPORT_SAFE");
+        text.AppendLine("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
             Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
@@ -356,6 +405,18 @@ public static class DiagnosticLog
                 .ToString().ToLowerInvariant());
         text.AppendLine("ElectronMemoryHighObserved=" +
             entries.Any(s => s.Contains("|NATIVE_ELECTRON_MEMORY_HIGH", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("PlayerGainVariantUrlSelectedObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("PlayerGainVariantUrlMissingObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("PlayerNativeVolumeDropObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("PlayerCelikomSourceLeftObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         foreach (var line in entries.TakeLast(1600)) text.AppendLine(line);
         if (entries.Count == 0) text.AppendLine("NO_RECENT_EVENTS_AVAILABLE");

@@ -749,8 +749,11 @@ try
         "W53 rejects multiline log injection");
     Test(DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_MEMORY_HIGH") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
          !DiagnosticLog.IsIncidentCode("WEB_CONTENTS_PRESENT"),
-        "W53 event-loop and memory warnings are durable incidents, ordinary status is not");
+        "W53/W54 performance, gain and volume/source warnings are durable incidents, ordinary status is not");
     var fixtureLogsDirectory = Path.Combine(folder, "owner-export-isolated");
     var nativeFixture = Path.Combine(fixtureLogsDirectory, "native-events.log");
     Directory.CreateDirectory(fixtureLogsDirectory);
@@ -767,7 +770,11 @@ try
         when + "|PLAYER_NET_REQUEST|resource_id=739209?token=SENSITIVE\n" +
         when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\n" +
         when + "|NATIVE_ELECTRON_EVENT_LOOP_STALL\n" +
-        when + "|NATIVE_ELECTRON_MEMORY_HIGH\n");
+        when + "|NATIVE_ELECTRON_MEMORY_HIGH\n" +
+        when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED|track=739209\n" +
+        when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209\n" +
+        when + "|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209\n" +
+        when + "|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=739209\n");
     File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
         when + "|OWNER_DIAG_TEST|track=123\n");
     DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
@@ -777,7 +784,7 @@ try
     Test(snapshot.Contains("DiagnosticScope=LAST_15_MINUTES"), "recent sessions only");
     Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING"),
         "successful MP3 probe never implies audio replacement");
-    Test(snapshot.Contains("CodeBaseline=W53_NATIVE_403_CLASSIFICATION_EXPORT_SAFE"), "W53 truthful diagnostics baseline");
+    Test(snapshot.Contains("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE"), "W54 truthful diagnostics baseline");
     Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
         "W53 native URL mismatch reaches actual exported TXT");
     Test(snapshot.Contains("PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209"),
@@ -790,9 +797,25 @@ try
          snapshot.Contains("Native403PhpAccessDenialObserved=true") &&
          snapshot.Contains("Native403HtmlResponseObserved=true") &&
          snapshot.Contains("ElectronEventLoopStallObserved=true") &&
-         snapshot.Contains("ElectronMemoryHighObserved=true"),
-        "W53 owner summary correctly reflects native resource events");
+         snapshot.Contains("ElectronMemoryHighObserved=true") &&
+         snapshot.Contains("PlayerGainVariantUrlSelectedObserved=true") &&
+         snapshot.Contains("PlayerGainVariantUrlMissingObserved=true") &&
+         snapshot.Contains("PlayerNativeVolumeDropObserved=true") &&
+         snapshot.Contains("PlayerCelikomSourceLeftObserved=true"),
+        "W54 owner summary correctly reflects native resource and current-player events");
     Test(!snapshot.Contains("SENSITIVE"),"W53 malformed native lines cannot leak signed query or sid");
+    var importedNativeIncidents = DiagnosticLog.ReadIncidentHistory(fixtureLogsDirectory);
+    Test(importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
+         importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=739209")),
+        "W53/W54 native Electron and current-player incidents are imported into the 7-day archive on export");
+    var importedCount = importedNativeIncidents.Count;
+    DiagnosticLog.ExportText("5.126.1.0", "ACTIVE", true, true, true,
+        diagnosticDirectory: fixtureLogsDirectory);
+    Test(DiagnosticLog.ReadIncidentHistory(fixtureLogsDirectory).Count == importedCount,
+        "repeated owner exports do not duplicate native incident history");
     var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
         "0.24.20", true, "123", fixtureLogsDirectory);
     var autoJson = JsonSerializer.Serialize(auto);
@@ -846,6 +869,9 @@ try
     File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
         when + "|NATIVE_ELECTRON_EVENT_LOOP_STALL\n" +
          when + "|NATIVE_ELECTRON_MEMORY_HIGH\n" +
+         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123\n" +
+         when + "|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123\n" +
+         when + "|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123\n" +
          oldIncidentStamp + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
         string.Concat(Enumerable.Repeat(when + "|NATIVE_STATE_RECEIVED\n", 2_500)) +
         when + "|ACTIVE_ENTITLEMENT_RECOVERED\n");
@@ -860,6 +886,13 @@ try
             x.GetProperty("code").GetString() == "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED" &&
             x.GetProperty("ageSeconds").GetInt32() >= 720),
             "W72 13-minute-old disconnect survives more than 2500 later status polls");
+         Test(history.Any(x => x.GetProperty("code").GetString() == "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" &&
+              x.GetProperty("trackId").GetString() == "123") &&
+              history.Any(x => x.GetProperty("code").GetString() == "PLAYER_CURRENT_NATIVE_VOLUME_DROP" &&
+              x.GetProperty("trackId").GetString() == "123") &&
+              history.Any(x => x.GetProperty("code").GetString() == "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" &&
+              x.GetProperty("trackId").GetString() == "123"),
+             "W54 gain, volume and source transitions survive later native status polling");
          Test(history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
               history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_MEMORY_HIGH"),
              "W53 performance incidents survive later native status polling in support attachment");
@@ -877,14 +910,20 @@ try
     DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED", null, archiveDir);
     DiagnosticLog.Record("NATIVE_ELECTRON_EVENT_LOOP_STALL", null, archiveDir);
     DiagnosticLog.Record("NATIVE_ELECTRON_MEMORY_HIGH", null, archiveDir);
+     DiagnosticLog.Record("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", "123", archiveDir);
+     DiagnosticLog.Record("PLAYER_CURRENT_NATIVE_VOLUME_DROP", "123", archiveDir);
+     DiagnosticLog.Record("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", "123", archiveDir);
     DiagnosticLog.Record("NATIVE_STATE_RECEIVED", null, archiveDir);
     var preserved = DiagnosticLog.ReadIncidentHistory(archiveDir);
-    Test(preserved.Count == 4 &&
+    Test(preserved.Count == 7 &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")) &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")) &&
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
-          preserved.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")),
-        "W75/W53 outage and performance incidents are durably archived, not native poll chatter");
+          preserved.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")) &&
+          preserved.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123")) &&
+          preserved.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123")) &&
+          preserved.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123")),
+        "W75/W53/W54 outage, performance and missing-gain incidents are durably archived, not native poll chatter");
     var noisy = string.Concat(Enumerable.Repeat(
         DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") +
         "|NATIVE_STATE_RECEIVED\n", 3000));
@@ -898,6 +937,9 @@ try
     Test(!DiagnosticLog.IsIncidentCode("NATIVE_STATE_RECEIVED") &&
           historic.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
           historic.Contains("|NATIVE_ELECTRON_MEMORY_HIGH") &&
+          historic.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123") &&
+          historic.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123") &&
+          historic.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123") &&
          !historic.Contains("token=") && !historic.Contains("password="),
         "W75 archived incidents never carry polling chatter or credentials");
     var savedPast = DateTimeOffset.UtcNow.AddHours(-3).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
