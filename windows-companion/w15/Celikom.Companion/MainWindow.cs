@@ -39,6 +39,9 @@ public sealed partial class MainWindow : Form
     private NativeModuleIdentity _installedModule = NativeModuleIdentity.Unknown;
     private bool _updatingApplication;
     private readonly bool _finishApplicationUpdate;
+    private readonly bool _backgroundStartup;
+    private bool _autoReconnectBusy;
+    private DateTimeOffset _autoReconnectLastAttempt;
     private readonly PopupButton _connectYandex = new();
     private readonly PopupButton _restoreYandex = new();
     private NativeInstallState _nativeInstallState = NativeInstallState.NotInstalled;
@@ -103,9 +106,14 @@ public sealed partial class MainWindow : Form
     private readonly System.Windows.Forms.Timer _entitlementPulse = new()
         { Interval = 15000 };
 
-    public MainWindow(bool finishApplicationUpdate = false)
+    public MainWindow(bool finishApplicationUpdate = false, bool startBackground = false)
     {
         _finishApplicationUpdate = finishApplicationUpdate;
+        _backgroundStartup = startBackground;
+        // Build and measure the full compact popup before the user can see
+        // any empty WinForms rectangles during the first HandleCreated paint.
+        Opacity = 0;
+        if (startBackground) ShowInTaskbar = false;
         _api = new CelikomApi(_store);
         _bridge = new BridgeServer(_api, _store);
         _bridge.Changed += () => UpdateSafe();
@@ -145,6 +153,26 @@ public sealed partial class MainWindow : Form
         var menu = new ContextMenuStrip();
         menu.Items.Add("Открыть CELIKOM", null, (_, _) => ShowMain());
         menu.Items.Add("Остановить подмену", null, (_, _) => StopPlaybackExplicitly());
+        menu.Items.Add(new ToolStripSeparator());
+        var launchWithWindows = new ToolStripMenuItem("Запускать с Windows")
+        {
+            Checked = WindowsLaunchSettings.IsRunAtLoginEnabled(Application.ExecutablePath)
+        };
+        launchWithWindows.Click += (_, _) =>
+        {
+            var enable = !launchWithWindows.Checked;
+            if (WindowsLaunchSettings.TrySetRunAtLogin(Application.ExecutablePath, enable))
+            {
+                launchWithWindows.Checked = enable;
+                DiagnosticLog.Record(enable ? "WIN_AUTORUN_ENABLED_BY_OWNER" :
+                    "WIN_AUTORUN_DISABLED_BY_OWNER");
+                if (enable && !_bridge.Enabled) _ = ResumeSavedPlaybackAsync();
+            }
+            else
+                MessageBox.Show(this, "Не удалось изменить автозапуск Windows. Проверь разрешения учётной записи.",
+                    "CELIKOM", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        };
+        menu.Items.Add(launchWithWindows);
         menu.Items.Add("Выход", null, (_, _) => Close());
         _tray = new NotifyIcon
         {
@@ -162,10 +190,32 @@ public sealed partial class MainWindow : Form
             if (!_closing && !_integrationBusy && !_hostProbeBusy &&
                 DateTimeOffset.UtcNow - _lastHostProbe > TimeSpan.FromMinutes(2))
                 _ = RefreshHostAsync();
+            // Background reconnect only if the owner previously requested
+            // playback, opted into autorun and has fresh server entitlement.
+            if (!_closing && !_integrationBusy && !_autoReconnectBusy &&
+                !_bridge.Enabled && _api.IsLoggedIn &&
+                DateTimeOffset.UtcNow - _autoReconnectLastAttempt > TimeSpan.FromMinutes(2) &&
+                WindowsLaunchSettings.MayResume(_api.Settings, Application.ExecutablePath))
+                _ = ResumeSavedPlaybackAsync();
         };
         FormClosing += ClosingAsync;
         Shown += async (_, _) =>
         {
+            RenderCompact();
+            LayoutCompact();
+            if (_backgroundStartup)
+            {
+                // Zero visible loading window on OS sign-in; the tray still
+                // initializes and handles remote Yandex launch later.
+                Hide();
+                Opacity = 1;
+            }
+            else
+            {
+                // Reveal only after a complete first layout; prevents the
+                // owner-observed flash of empty unpainted UI squares.
+                BeginInvoke(new Action(() => { if (!IsDisposed) Opacity = 1; }));
+            }
             await StartBridgeAsync();
             _entitlementPulse.Start();
             await RefreshHostAsync();
@@ -175,6 +225,8 @@ public sealed partial class MainWindow : Form
                 await RefreshDiagnosticsAccessAsync();
                 await RefreshCompactAccessAsync(force: true);
             }
+            if (_backgroundStartup)
+                await ResumeSavedPlaybackAsync();
         };
         Activated += (_, _) =>
         {
@@ -384,6 +436,7 @@ public sealed partial class MainWindow : Form
         ++_compactStartEpoch;
         _compactStarting = false;
         _bridge.SetEnabled(false);
+        WindowsLaunchSettings.RememberPlayback(_api.Settings, enabled: false);
         DiagnosticLog.Record("ACTIVE_ENTITLEMENT_MANUAL_STOP");
     }
 
@@ -467,6 +520,7 @@ public sealed partial class MainWindow : Form
                 return;
             }
             _bridge.SetEnabled(true);
+            WindowsLaunchSettings.RememberPlayback(account, enabled: true);
             _compactStarting = true;
             _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
             _ = MonitorStartupAsync(generation);
@@ -509,10 +563,8 @@ public sealed partial class MainWindow : Form
         }
         catch { /* Try normal launch. */ }
 
-        if (MessageBox.Show(this, "Открыть Яндекс.Музыку?",
-                "Запустить Яндекс.Музыку", MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question) != DialogResult.Yes)
-            return false;
+        // A manual Start is already explicit consent to open the normal
+        // official Yandex window after a successful entitlement check.
         try
         {
             var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory,
@@ -838,6 +890,7 @@ public sealed partial class MainWindow : Form
                 } catch { DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_RECHECK_FAILED"); }
             }
             _bridge.SetEnabled(allowedNow);
+            if (allowedNow) WindowsLaunchSettings.RememberPlayback(account, enabled: true);
             _compactStartupText = allowedNow
                 ? "Подождите, идёт загрузка Яндекс.Музыки…"
                 : "Доступ не подтверждён. Нажми «Старт» после проверки подписки.";
@@ -894,6 +947,7 @@ public sealed partial class MainWindow : Form
             DiagnosticLog.Record("NATIVE_RESTORE_REQUEST");
             await Task.Run(() => NativeIntegrationManager.Restore());
             DiagnosticLog.Record("NATIVE_RESTORE_OK");
+            WindowsLaunchSettings.RememberPlayback(_api.Settings, enabled: false);
             _hostStatus.Text = "Оригинальная Яндекс.Музыка восстановлена.";
         }
         catch (Exception error)
@@ -1125,6 +1179,7 @@ public sealed partial class MainWindow : Form
         ++_compactStartEpoch;
         _compactStarting = false;
         _bridge.SetEnabled(false);
+        WindowsLaunchSettings.RememberPlayback(_api.Settings, enabled: false);
         ++_diagnosticsEpoch;
         RevokeDiagnosticsVisibility();
         _logout.Enabled = false;
@@ -1245,7 +1300,7 @@ public sealed partial class MainWindow : Form
         if (_nativeInstallState == NativeInstallState.Active)
             _hostStatus.Text = _installedModule.MatchesApplication
                 ? "Модуль Яндекса подключён и совпадает с версией CELIKOM."
-                : "В Яндексе старый модуль! Нажми «Обновить модуль».";
+                : "Нажми «Старт», чтобы обновить модуль CELIKOM.";
         else if (_nativeInstallState == NativeInstallState.Interrupted)
             _hostStatus.Text = "Подключение прервалось. Доступно восстановление оригинала.";
         else if (_nativeInstallState == NativeInstallState.VerifiedVendorUpdate)
@@ -1258,8 +1313,14 @@ public sealed partial class MainWindow : Form
         RenderCompact();
     }
 
+    public void RestoreWindowFromSecondLaunch() => ShowMain();
+
     private void ShowMain()
     {
+        RenderCompact();
+        LayoutCompact();
+        Opacity = 1;
+        ShowInTaskbar = true;
         Show();
         WindowState = FormWindowState.Normal;
         Activate();
