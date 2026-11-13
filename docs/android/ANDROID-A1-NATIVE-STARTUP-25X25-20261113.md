@@ -34,3 +34,7 @@ Next: review the existing B42 audio contract, identify the native source integra
 ### 13 Nov exact audio-observer extension (startup stability still passed)
 - Native standalone #43428891020 and paired original-first #43428891031: 25/25 CELIKOM in both, original installed in paired, provider returned without throw; snapshot `d425771accce3443d8edb159021c717a5470d80d` / `backup/android-a1-2025-extractor-arg-reader-labels-25x25-20261113`.
 - Both MediaDataSource readAt subclasses and the exact framework MediaExtractor source hook register; source classes now separately categorized but **0 live calls** because login/music not exercised. This does not extend the startup claim to audio, album edition, controls or release readiness. Prior proven Firebase backup unchanged.
+
+
+### 13 Nov latest exact object-identity witness — native restart regression verified
+- Read-only Java source object == reference correlation `a18ee8d705dd08154c4cb904ffcec9aacd2ed475`, backup `backup/android-a1-2025-extractor-readat-same-object-25x25-20261113`; pair [#43436009883](https://github.com/manufact-test/nomusic/actions/runs/43436009883) original installed and clone 25/25, standalone [#43436009850](https://github.com/manufact-test/nomusic/actions/runs/43436009850) clone 25/25, both SUCCESS. Expected 0 MediaExtractor/readAt/same-object match calls in startup-only tests, not an audio/product pass. No Firebase/architecture changes.
