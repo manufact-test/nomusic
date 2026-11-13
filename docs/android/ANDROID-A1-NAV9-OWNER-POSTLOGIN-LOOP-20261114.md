@@ -1,0 +1,38 @@
+# CELIKOM Android A1 — NAV9 owner post-login loop, actual evidence (14 Nov 2026)
+
+## State at handoff — **NAV9 NOT FIXED**, Stage A NO-GO, Stage B LOCKED
+
+Owner on HONOR 50 / Android 13 installed actual NAV9 from persistent Library, reproduced the same loop after completing Yandex ID login: four intro screens -> native Yandex Passport -> OTP/code -> loading -> back to four intro screens, then choosing the remembered account repeats the loop. Do **not** ask the owner to enter a code or repeat these steps again to reconfirm. Native Yandex Music interface and playback have **never** been verified in this A1 path.
+
+Raw owner diagnostic received: `CELIKOM-A1-Diagnostics-1794611832074.txt` (508 physical lines, includes blank separator before Passport section). Marker exactly `DIAGNOSTIC_BUILD / NAV_V9_POSTLOGIN_ROUTE_PREF_WITNESS / ACTIVE` at line 3. This report contains finite categorical events only and no authentication material.
+
+**Proven:**
+1. MAIN process started real `MAIN_ACTIVITY CREATED` (line 81), then issued four `EXPLICIT_OWN_ENTRY` launches (84/87/90/93) and `MAIN_ACTIVITY FINISH` (line 98). No second `MAIN_ACTIVITY CREATED` in the exported window. `ENTRY_ACTIVITY CREATED/STARTED/RESUMED` at 119/120/129; main Entry resumes again at 276, 304, 331.
+2. `ONBOARDING_PREF / ENTRY_ACTIVITY / UNSET` occurs **four times** (lines **134, 281, 309, 336**). Crucially `ACCOUNT_STATE CLONE_OWN ONE` is already recorded at **308 and 335**, immediately before the last two `UNSET` events. The expected original-vendor `Yandex_Music` shared-preference key is **absent from this cloned MAIN app context**, even when Android AccountManager knows the account. This is a **concrete candidate** for persistent startup/onboarding routing error, **not yet an established sole cause**. It could be unset simply because the vendor never wrote it, or because the clone is using a different resource/storage context or callback path.
+3. `ACCOUNT_OWNER OWN_PRESENT / PUBLISHER_PRESENT` throughout. In the separate `:passport` process `ACCOUNT_ADD CLONE_OWN ADDED` at **422** followed by repeated `ACCOUNT_QUERY CLONE_OWN ONE` (424 onward); 6 `ACTIVITY_RESULT PASSPORT_ACTIVITY OK` at **447, 450, 456, 496, 499, 503** and normal `ACTIVITY_FINISH`. All three plus three are from two staged Passport UI sequences, not six separate accounts. MAIN's `ACCOUNT_STATE ONE` confirms visibility across processes. Thus **Android authenticator ownership and adding the account are working**; do NOT undo the prefixed, independent clone-owned account type or the successful NAV8 bridge.
+4. No `PASSPORT_FATAL_TYPE`, `JAVA_CRASH`, `FATAL_DISPATCH` or abnormal Android exits; `PREVIOUS_EXIT_INFO NONE` at lines 1 and 343. No events named `ACTIVITY_NEW_INTENT` appear in this bounded report, **but absence alone cannot prove that no callback or return path occurred** (the observer watches a specific Instrumentation entry and not every callback).
+5. MAIN issues new `EXPLICIT_OWN_PASSPORT` at lines **288, 326** while Entry is on screen. Passport itself launches nested `EXPLICIT_OWN_PASSPORT` at **353, 385, 467, 486**. After actual account commit MAIN records Entry + account ONE, but no navigation to a freshly created main music Activity is observed. No functional music screen, audio routing, or B42 is proven.
+6. `OWN_RES_ROUTE LATE_ALREADY_CACHED` appears but is **not** proof it causes this login loop; old Push/AppMetrica fatal observations also appear only with normal returns, not crash events. Do not conflate with entry routing unless evidence links them.
+
+**Confidence:** account persistence and Passport OK are confirmed; absent `onboarding` preference is confirmed; its causal role, exact expected value/transition, and missing post-login navigation callback are NOT YET confirmed.
+
+## Immediate NEXT developer task (NO architecture rewrite)
+
+Work only in repo `manufact-test/nomusic`, branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. At handoff, NAV9 diagnostic source is `8f8e898a5934e53844bb7e383f4e74efce14753e`; latest docs HEAD will be recorded in NEXT-CHAT handoff. Preserve all accepted backups, original publisher signature/APK, Test.50, Windows, backend and production.
+
+1. Inspect the **exact signed Yandex Music 2025.10.4** DEX privately, particularly `MainScreenActivity.onCreate`, `EntryScreenActivity`, WizardActivity, original `Yandex_Music` onboarding preference read/writers, the `f67` completion callback and Passport result -> Entry routing. Confirm whether `UNSET` deterministically selects intro and whether the success callback is skipped because of process/Intent, SharedPreferences namespace, or result delivery. Distinguish startup from post-login behavior.
+2. Do **not** blindly set `onboarding=true/false`, force a screen, spoof an auth/Android AccountManager result, or turn off protection. Confirm the **correct** expected writer/event and apply a narrowly scoped **legitimate state or return-route** repair only if grounded by the existing original logic. Account registration already works; do not risk NAV5–NAV7 regressions.
+3. Prove source/manifest/DEX compatibility with clone identity and real Android 13 task/result lifecycle, with specific tests covering post-login route (25/25 idle CI alone does NOT prove this). Only after exact paired+standalone native CI passes, publish owner APK: upload **FIRST** to user's persistent **Library `/CELIKOM/`**, verify Library listing, then provide a Library file card. **NEVER offer sandbox link to user.** No cables, ADB, root or personal credential requests.
+4. Ask owner for **one bounded smoke test**, not repeated OTP loops. Owner can report music screen or provide a new sanitized diagnostic TXT; no passwords/screenshots of account details needed.
+5. Maintain Stage A **NO-GO** until actual owner device reaches Yandex Music and at least basic media works; Stage B **LOCKED**. Do not claim success from startup CI.
+
+## Proven versions / rollback points
+
+- NAV5: four intros and full Passport UI; later Android `authorizeByCookie` could not add stock `com.yandex.passport` account.
+- NAV6: **REGRESSION**; original account type replaced by incompatible non-Passport prefix; Passport UI failed early.
+- NAV7: separate clone-owned account type with compatible `com.yandex.passport` prefix; OTP accepted, intro loop persists.
+- NAV8: exact original AccountManager `ACCOUNT_ADD ADDED` and `ACCOUNT_STATE ONE`, Passport `RESULT_OK` confirmed, still intro loop.
+- NAV9: confirms the missing `onboarding` preference even after account exists and establishes Entry rather than Main route; **not fixed**.
+- NAV9 code `8f8e898a5934e53844bb7e383f4e74efce14753e` (NAV8 logic intact). Standalone Android13 workflow `43518864566` **SUCCESS 25/25**, paired publisher-first `43518864593` **SUCCESS 25/25** — startup/co-install only.
+- Exact NAV9 owner APK in Library: `/CELIKOM/CELIKOM-A1-NAV9-PostLogin-Route-Diagnostics-20261114.apk` (71,442,412 bytes, SHA256 `78f110eeadac9d313e2f9f2212dd0432a4dce0eac828b4defa3c9a6f2dfb8158`); owner diagnostic TXT `CELIKOM-A1-Diagnostics-1794611832074.txt`.
+- Backups: `backup/android-a1-nav8-owner-account-created-result-ok-20261114` (pre-NAV9), `backup/android-a1-nav9-postlogin-route-native-pass-library-20261114` (NAV9 before latest owner log), plus original Test.50 reference `backup/android-test50-exact-source-owner-accepted-20261108`.
