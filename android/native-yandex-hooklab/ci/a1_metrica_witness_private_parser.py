@@ -34,6 +34,7 @@ EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","UNCAUGHT",
           "METRICA_PROVIDER_RESOLVE","METRICA_PROVIDER_QUERY_HOOK",
           "METRICA_PROVIDER_QUERY","METRICA_SERVICE_HOOK",
           "METRICA_SERVICE_CALL",
+         "PUSH_SERVICE_HOOK","PUSH_SERVICE_CALL","PUSH_SERVICE_PHASE","PUSH_SERVICE_ERROR",
          "METRICA_PUSH_THROW_CLASS","METRICA_PUSH_THROW_METHOD",
         "RUN_HOOK","RUN_ENTER","PREFIX_CHECK"}
 ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
@@ -74,6 +75,7 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
          "OBJECT_NULL","OBJECT_NULL_DEPENDENCY","OBJECT_NO_REFERENCE_FIELDS",
          "OBJECT_ALL_REFERENCES_SET","OBJECT_TOO_MANY_FIELDS","OBJECT_FIELDS_UNREADABLE",
          "FIELD_NULL","FIELD_SET","FIELD_UNREADABLE",
+         "AFTER_TRUE","BEFORE_TRUE","OUTSIDE_FATAL_CALL",
          "GUARD_THROW","GUARD_MIXED","GUARD_TRUE_ONLY","GUARD_FALSE_ONLY",
          "GUARD_NONBOOLEAN","GUARD_NOT_IN_CALL",
          "CTOR_AFTER_TRUE","CTOR_BEFORE_TRUE","CTOR_NOT_IN_SCOPE",
@@ -159,6 +161,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     push_init_hooks=[x for x in seen if x[0]=="PUSH_INIT_HOOK"]
     push_hooks=[x for x in seen if x[0]=="PUSH_ACTIVATE_HOOK"]
     service_call=[x for x in seen if x[0]=="METRICA_SERVICE_CALL"]
+    exact_push_service_hook=[x for x in seen if x[0]=="PUSH_SERVICE_HOOK"]
+    exact_push_service_call=[x for x in seen if x[0]=="PUSH_SERVICE_CALL"]
+    exact_push_service_phase=[x for x in seen if x[0]=="PUSH_SERVICE_PHASE"]
+    exact_push_service_error=[x for x in seen if x[0]=="PUSH_SERVICE_ERROR"]
     service_hook=[x for x in seen if x[0]=="METRICA_SERVICE_HOOK"]
     provider_resolve=[x for x in seen if x[0]=="METRICA_PROVIDER_RESOLVE"]
     provider_query=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY"]
@@ -205,6 +211,14 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         "push_throw_subpackage_categories":sorted({x[2] for x in push_throw_classes}),
         "push_throw_method_categories":sorted({x[2] for x in push_throw_methods}),
         "activation_push_order_bounded":sequence,
+        "exact_post_true_push_service_hook_registered":any(
+            x[2]=="REGISTERED" for x in exact_push_service_hook),
+        "exact_post_true_push_service_states":{
+            state:sum(x[2]==state for x in exact_push_service_call)
+            for state in ("ENTER","RETURN","THROW")},
+        "exact_post_true_push_service_phase":[x[2] for x in exact_push_service_phase[:12]],
+        "exact_post_true_push_service_error":[x[2] for x in exact_push_service_error[:12]],
+        "exact_post_true_push_service_original_execution_preserved":True,
         "service_hook_registered":any(x[2]=="REGISTERED" for x in service_hook),
         "service_sdk_target_states":{
             name:{state:sum(x[1]==name and x[2]==state for x in service_call)
