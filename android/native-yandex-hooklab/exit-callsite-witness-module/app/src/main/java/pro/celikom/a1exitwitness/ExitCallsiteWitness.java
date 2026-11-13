@@ -60,6 +60,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         PACKAGE + ".provider.7e1ef82da0d52923";
     private static final String DIAGNOSTIC_FILE = "celikom-a1-diagnostics.txt";
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V3_OWNER_PHONE";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2181,6 +2182,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             diagnosticContext = appContext == null ? app : appContext;
             capturePreviousProcessExits(diagnosticContext);
             emit("DIAGNOSTIC_CAPTURE", "LOCAL_FILE", "READY");
+            emit("DIAGNOSTIC_BUILD", "NAV_V3_OWNER_PHONE", "ACTIVE");
         } catch (Throwable ignored) { }
         if (diagnosticUiReady) return;
         try {
@@ -2358,6 +2360,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                             Intent intent = raw instanceof Intent ? (Intent) raw : null;
                             emit("ACTIVITY_START", intentActionCategory(intent),
                                 intentDestinationCategory(intent));
+                            // Minimal unconditional marker before any PackageManager
+                            // call; exposes whether this exact new hook is running.
+                            emit("NAV_V3_START", "CLONE_ACTIVITY", "SEEN");
                             emit("ACTIVITY_TARGET", ownActivityTargetStatus(activity,intent),
                                 ownActivityFlagsCategory(intent));
                         }
@@ -2451,7 +2456,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
-            button.setText("Сохранить диагностику");
+            button.setText("Диагностика NAV3");
             button.setTextColor(Color.WHITE);
             button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
