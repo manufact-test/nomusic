@@ -236,6 +236,34 @@ def exact_extractor_receiver_category(origin) -> str:
     return kind if kind in allowed else "UNRESOLVED"
 
 
+
+def exact_extractor_caller_parameter_shape(dex, method_index: int) -> str:
+    """Inspect only the exact source configurator's DEX proto. Never output names."""
+    try:
+        _owner,_name,proto=dex.method_signature(method_index)
+        count,offset=struct.unpack_from("<II",dex.data,72)
+        if not 0<=proto<count<=100000 or offset+count*12>len(dex.data):
+            return "UNKNOWN_PROTO"
+        params_off=struct.unpack_from("<I",dex.data,offset+proto*12+8)[0]
+        if params_off==0:
+            return "NO_PARAMETERS"
+        if params_off+4>len(dex.data):
+            return "UNKNOWN_PROTO"
+        length=struct.unpack_from("<I",dex.data,params_off)[0]
+        if length>24 or params_off+4+2*length>len(dex.data):
+            return "UNKNOWN_PROTO"
+        params=tuple(dex.type(struct.unpack_from("<H",dex.data,params_off+4+2*i)[0])
+                     for i in range(length))
+        # Do not serialize or print vendor prototypes.
+        if "Landroid/media/MediaExtractor;" in params:
+            return "EXACT_EXTRACTOR_PARAMETER"
+        if "Landroid/media/MediaDataSource;" in params:
+            return "MEDIA_DATA_SOURCE_PARAMETER"
+        return "OTHER_PARAMETERS" if params else "NO_PARAMETERS"
+    except (AttributeError, IndexError, ValueError, DexError, struct.error):
+        return "UNKNOWN_PROTO"
+
+
 def exact_extractor_caller_return_shape(dex, method_index: int) -> str:
     """Only a public TYPE CATEGORY, never the private return descriptor.
 
@@ -307,6 +335,7 @@ def classify_private_extractor_sink_lifecycle(rows: list[dict]) -> dict:
             "same_method_public_framework_steps":[],
             "same_class_public_framework_steps":[],
             "caller_return_shapes":[],
+            "caller_parameter_shapes":[],
             "caller_return_object_opcode_present":False,
             "extractor_receiver_origin_categories":[],
             "same_method_reads_samples":False,
@@ -323,6 +352,7 @@ def classify_private_extractor_sink_lifecycle(rows: list[dict]) -> dict:
         "same_method_public_framework_steps":method,
         "same_class_public_framework_steps":clazz,
         "caller_return_shapes":[row["return_shape"]],
+        "caller_parameter_shapes":[row["parameter_shape"]],
         "caller_return_object_opcode_present":row["return_object_opcode"],
         "extractor_receiver_origin_categories":[row["receiver_category"]],
         "same_method_reads_samples":"READ_SAMPLE_DATA" in method,
@@ -403,6 +433,7 @@ def count_direct_public_invocations(dex, private_sink_rows=None, sink_lifecycle_
             exact_sink_methods.append((
                 dex.method(_index)[0], tuple(framework_steps),
                 exact_extractor_caller_return_shape(dex,_index),
+                exact_extractor_caller_parameter_shape(dex,_index),
                 any(op==0x11 for _,op,_ in instructions),
                 exact_extractor_receiver_category(recv)))
         if "ANDROID_MEDIA_EXTRACTOR_SOURCE" in body_roles and (
@@ -410,13 +441,14 @@ def count_direct_public_invocations(dex, private_sink_rows=None, sink_lifecycle_
             "ANDROID_MEDIA_CODEC_INPUT" in body_roles):
             same_body+=1
     if sink_lifecycle_rows is not None:
-        for owner,steps,shape,returns_object,receiver_category in exact_sink_methods:
+        for owner,steps,shape,parameter_shape,returns_object,receiver_category in exact_sink_methods:
             if len(sink_lifecycle_rows)>=4:
                 raise DexError("EXACT_EXTRACTOR_LIFECYCLE_BOUND")
             sink_lifecycle_rows.append({
                 "same_method_steps":steps,
                 "same_class_steps":tuple(lifecycle_by_owner.get(owner,())),
                 "return_shape":shape,
+                "parameter_shape":parameter_shape,
                 "return_object_opcode":returns_object,
                 "receiver_category":receiver_category,
             })

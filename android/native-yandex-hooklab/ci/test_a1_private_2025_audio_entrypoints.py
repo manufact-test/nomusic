@@ -281,6 +281,35 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertEqual(exact_extractor_receiver_category(unresolved),
                          "PARAMETER_OR_CAPTURE_UNRESOLVED")
 
+    def test_exact_extractor_caller_parameter_shape_no_private_symbols(self):
+        from a1_private_2025_audio_entrypoints import exact_extractor_caller_parameter_shape
+        import struct
+        class Fake:
+            data=bytearray(160)
+            def method_signature(self,index): return ("Lprivate/Settings;","x",0)
+            def type(self,index):
+                return {4:"Landroid/media/MediaExtractor;",
+                        5:"Landroid/media/MediaDataSource;",
+                        6:"Lprivate/Other;"}.get(index,"Lprivate/Unknown;")
+        x=Fake()
+        struct.pack_into("<II",x.data,72,1,100)
+        struct.pack_into("<I",x.data,108,120)
+        struct.pack_into("<I",x.data,120,2)
+        struct.pack_into("<HH",x.data,124,6,4)
+        self.assertEqual(exact_extractor_caller_parameter_shape(x,0),
+                         "EXACT_EXTRACTOR_PARAMETER")
+        struct.pack_into("<HH",x.data,124,6,5)
+        self.assertEqual(exact_extractor_caller_parameter_shape(x,0),
+                         "MEDIA_DATA_SOURCE_PARAMETER")
+        struct.pack_into("<HH",x.data,124,6,6)
+        self.assertEqual(exact_extractor_caller_parameter_shape(x,0),
+                         "OTHER_PARAMETERS")
+        struct.pack_into("<I",x.data,108,0)
+        self.assertEqual(exact_extractor_caller_parameter_shape(x,0),
+                         "NO_PARAMETERS")
+        struct.pack_into("<I",x.data,108,8000)
+        self.assertEqual(exact_extractor_caller_parameter_shape(x,0),"UNKNOWN_PROTO")
+
     def test_exact_extractor_caller_return_type_categories_redact_private_values(self):
         from a1_private_2025_audio_entrypoints import exact_extractor_caller_return_shape
         import struct
@@ -315,10 +344,12 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
             {"same_method_steps":["SET_SOURCE"],
              "same_class_steps":["SET_SOURCE"],
              "return_shape":"RETURNS_EXTRACTOR",
+             "parameter_shape":"EXACT_EXTRACTOR_PARAMETER",
              "return_object_opcode":True,
              "receiver_category":"INSTANCE_OBJECT_FIELD"}
         ])
         self.assertEqual(got["caller_return_shapes"],["RETURNS_EXTRACTOR"])
+        self.assertEqual(got["caller_parameter_shapes"],["EXACT_EXTRACTOR_PARAMETER"])
         self.assertTrue(got["caller_return_object_opcode_present"])
         self.assertEqual(got["extractor_receiver_origin_categories"],["INSTANCE_OBJECT_FIELD"])
         self.assertFalse(got["live_playback_or_same_object_proven"])
