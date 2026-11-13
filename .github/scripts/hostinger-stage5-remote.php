@@ -86,7 +86,19 @@ try {
         return $result;
     };
     $audio = $walk($shared . '/audio', $shared . '/audio');
-    if (!$audio || array_sum(array_column($audio, 'size')) > 500 * 1024 * 1024) throw new RuntimeException('backup-size-limit');
+    $audioBytes = array_sum(array_column($audio, 'size'));
+    $audioDevice = @stat($shared . '/audio')['dev'] ?? null;
+    $backupDevice = @stat($app)['dev'] ?? null;
+    $freeBytes = @disk_free_space($app);
+    // Storage objects are immutable: LocalStorageAdapter writes a fresh
+    // temporary inode and atomically renames it into place. Keep rollback
+    // copies as same-filesystem hard links, so a large existing music library
+    // does not need to be duplicated on the shared hosting quota.
+    if (!$audio || $audioBytes > 20 * 1024 * 1024 * 1024 ||
+        $audioDevice === null || $backupDevice === null || $audioDevice !== $backupDevice ||
+        $freeBytes === false || $freeBytes < 128 * 1024 * 1024) {
+        throw new RuntimeException('backup-capacity-limit');
+    }
     if ($operation === 'audit') {
         $prior = glob($backupRoot . '/snapshot-*', GLOB_ONLYDIR) ?: [];
         if (!$prior) throw new RuntimeException('no-snapshot');
@@ -135,15 +147,18 @@ try {
         echo "After-deploy audit PASS: private env, media and historic row counts preserved; additive migrations verified; newly introduced promo tables contain no real codes or grants.\n";
         exit(0);
     }
-    $copyAudio = static function(string $source, string $destination, array $index): void {
+    $linkAudio = static function(string $source, string $destination, array $index): void {
         foreach ($index as $relative => $data) {
             $from = $source . '/' . $relative;
             $to = $destination . '/' . $relative;
-            if (!is_dir(dirname($to)) && !mkdir(dirname($to), 0700, true)) throw new RuntimeException('copy-directory');
-            if (is_link($from) || !copy($from, $to)) throw new RuntimeException('copy-file');
-            chmod($to, 0600);
+            if (!is_dir(dirname($to)) && !mkdir(dirname($to), 0700, true)) throw new RuntimeException('link-directory');
+            // Hard links are safe here because storage writes are atomic rename,
+            // deletes unlink only the source name, and neither operation mutates
+            // the inode retained by the private snapshot.
+            if (is_link($from) || !is_file($from) || !link($from, $to))
+                throw new RuntimeException('hardlink-unavailable');
             if (filesize($to) !== $data['size'] || !hash_equals($data['sha256'], hash_file('sha256', $to)))
-                throw new RuntimeException('copy-integrity');
+                throw new RuntimeException('hardlink-integrity');
         }
     };
     $latest = static function() use ($backupRoot): string {
@@ -181,7 +196,7 @@ try {
         mkdir($staging . '/audio', 0700);
         if (!copy($shared . '/env', $staging . '/env')) throw new RuntimeException('snapshot-env');
         chmod($staging . '/env', 0600);
-        $copyAudio($shared . '/audio', $staging . '/audio', $audio);
+        $linkAudio($shared . '/audio', $staging . '/audio', $audio);
         // SQL export of the CELIKOM-owned tables with schema and explicit IDs.
         // Generated columns are reconstructed by MySQL; they are never inserted.
         $stream = fopen($staging . '/database.sql', 'xb');
@@ -248,8 +263,9 @@ try {
         chmod($staging . '/manifest.json', 0600);
         $verify($staging);
         if (!rename($staging, $final)) throw new RuntimeException('snapshot-publish');
-        echo "Stage 5 private snapshot PASS: copied ", count($audio), " audio objects and ",
-            count($tables), " SQL tables; credentials and media remain outside the web root.\n";
+        echo "Stage 5 private snapshot PASS: hard-linked ", count($audio), " immutable audio objects (",
+            $audioBytes, " bytes) and captured ", count($tables),
+            " SQL tables; credentials and media remain outside the web root.\n";
         exit(0);
     }
     $backup = $latest();
@@ -265,7 +281,7 @@ try {
         mkdir($scratch . '/audio', 0700);
         if (!copy($backup . '/env', $scratch . '/env')) throw new RuntimeException('drill-env');
         chmod($scratch . '/env', 0600);
-        $copyAudio($backup . '/audio', $scratch . '/audio', $manifest['files']);
+        $linkAudio($backup . '/audio', $scratch . '/audio', $manifest['files']);
         if (!hash_equals($manifest['env_sha256'], hash_file('sha256', $scratch . '/env'))
             || $walk($scratch . '/audio', $scratch . '/audio') !== $manifest['files'])
             throw new RuntimeException('drill-integrity');
@@ -273,12 +289,12 @@ try {
         foreach ($it as $entry) { if ($entry->isDir()) rmdir($entry->getPathname()); else unlink($entry->getPathname()); }
         rmdir($scratch);
         echo "Stage 5 isolated file restore PASS: config and ", count($manifest['files']),
-            " audio objects restored and verified; live deployment untouched.\n";
+            " immutable audio objects verified through private hard links; live deployment untouched.\n";
         exit(0);
     }
 } catch (Throwable $e) {
     fwrite(STDERR, "Stage 5 operation failed safely (" .
-        (in_array($e->getMessage(), ['no-snapshot', 'backup-size-limit', 'flags', 'layout'], true)
+        (in_array($e->getMessage(), ['no-snapshot', 'backup-capacity-limit', 'flags', 'layout'], true)
             ? $e->getMessage() : 'integrity-or-precondition-check') . "). No private data logged.\n");
     exit(1);
 }
