@@ -1,0 +1,149 @@
+name: CELIKOM Windows W86 0.24.30 TEST passive source witness
+
+on:
+  push:
+    branches:
+      - experiment/windows-w86-02430-source-witness-owner-test-20261113
+    paths:
+      - windows-companion/w15/**
+      - windows-companion/w23/**
+      - windows-companion/w20/installer/CELIKOM.iss
+      - windows-companion/w21/**
+      - windows-companion/w24/**
+      - windows-companion/w81/**
+      - .github/workflows/windows-w86-source-witness-test-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  candidate-only:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build W84 read-only decoder witness (playback source handling unchanged)
+        shell: pwsh
+        working-directory: windows-companion/w23
+        run: |
+          npm install --no-audit --no-fund --no-package-lock
+          if ($LASTEXITCODE -ne 0) { throw 'W86_NPM_FAILED' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'W86_NATIVE_BUILD_FAILED' }
+          $host=Get-Content dist/host.cjs -Raw
+          if ($host -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.25"' -or
+              $host -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
+              $host -notmatch 'PLAYER_DECODER_CELIKOM_PIPELINE_ERROR') {
+            throw 'W86_PASSIVE_WITNESS_MISSING'
+          }
+      - name: Preserve known native audio playback and local source tests
+        shell: pwsh
+        run: |
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W86_AUDIO_REGRESSION' }
+      - name: W21 crash rollback and unknown updater refusal
+        run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+      - name: W24 reviewed catalog/ASAR builder
+        run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: W15 entitlement/login/updated vendor-state tests
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Compile GUI warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: Verify installer only replaces CELIKOM files
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W86_STAGE_GATE_FAILED' }
+      - name: Publish GUI 0.24.30
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W86_PUBLISH_FAILED' }
+      - name: Build W86 candidate setup; NEVER install on owner automatically
+        shell: pwsh
+        run: |
+          $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W86_INNO_SETUP_UNAVAILABLE' }
+          }
+          & $compiler windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W86_INNO_BUILD_FAILED' }
+          $setup='windows-companion/w20/output/CELIKOM-W86-READONLY-SOURCE-WITNESS-TEST-UNSIGNED.exe'
+          if (!(Test-Path $setup)) { throw 'W86_CANDIDATE_MISSING' }
+          $info=[Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $setup).Path)
+          if ($info.FileVersion.Trim() -ne '0.24.30.0' -or $info.ProductName.Trim() -ne 'CELIKOM') { throw 'W86_VERSION_MISMATCH' }
+          Write-Host "W86_INSTALLER_SHA256=$((Get-FileHash $setup -Algorithm SHA256).Hash)"
+      - name: One-click candidate ZIP valid
+        shell: pwsh
+        run: |
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-W86-update.zip'
+          Compress-Archive -Path 'windows-companion/w20/output/CELIKOM-W86-READONLY-SOURCE-WITNESS-TEST-UNSIGNED.exe' -DestinationPath $zip
+          $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W86_ZIP_UPDATE_FAILED' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-W85-PROMO-STEADY-UNSIGNED
+          run-id: 43318116147
+          repository: manufact-test/nomusic
+          github-token: ${{ github.token }}
+          path: previous-W85
+      - name: In-place W85 0.24.29 to W86 0.24.30; preserve DPAPI and renderer; update ONLY passive host witness
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=(Resolve-Path 'previous-W85/CELIKOM-W85-PROMO-STEADY-UNSIGNED.exe').Path
+          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-W86-READONLY-SOURCE-WITNESS-TEST-UNSIGNED.exe').Path
+          if ((Get-FileHash $old -Algorithm SHA256).Hash -ne 'B70B67517A81A0329A197BF65DCFB52660123CDA216CD5881DED8CD20B3173A0') { throw 'W86_PREVIOUS_EXE_HASH_UNTRUSTED' }
+          $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
+          $exe=Join-Path $app 'CELIKOM.Companion.exe'
+          $native=Join-Path $app 'integration'
+          $state=Join-Path $env:LOCALAPPDATA 'CELIKOM\Windows'
+          $session=Join-Path $state 'session.dpapi'
+          $vendor=Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
+          if ((Test-Path $app) -or (Test-Path $vendor)) { throw 'W86_DIRTY_RUNNER' }
+          $p=Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W86_PREVIOUS_SETUP_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.29.0') { throw 'W86_PREVIOUS_VERSION_MISMATCH' }
+          $hostBefore=(Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash
+          $rendererBefore=(Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash
+          New-Item -ItemType Directory -Force -Path $state | Out-Null
+          $sealed=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('W86_SAVED_LOGIN_PRESERVED'),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+          [IO.File]::WriteAllBytes($session,$sealed)
+          $sessionBefore=(Get-FileHash $session -Algorithm SHA256).Hash
+          $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W86_INPLACE_SETUP_FAILED' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.30.0') { throw 'W86_NEW_VERSION_MISMATCH' }
+          if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $sessionBefore) { throw 'W86_DPAPI_CHANGED' }
+          $plain=[Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($session),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))
+          if ($plain -ne 'W86_SAVED_LOGIN_PRESERVED') { throw 'W86_DPAPI_UNDECRYPTABLE' }
+          $hostAfter=(Get-FileHash (Join-Path $native 'host.cjs') -Algorithm SHA256).Hash
+          $rendererAfter=(Get-FileHash (Join-Path $native 'renderer.js') -Algorithm SHA256).Hash
+          if ($hostAfter -eq $hostBefore -or $rendererAfter -ne $rendererBefore) {
+            throw 'W86_HOST_WITNESS_EXPECTED_BUT_RENDERER_MUST_BE_BYTE_IDENTICAL'
+          }
+          $hostScript=Get-Content (Join-Path $native 'host.cjs') -Raw
+          if ($hostScript -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
+              $hostScript -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.25"') {
+            throw 'W86_PASSIVE_HOST_NOT_INSTALLED'
+          }
+          if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W86_VENDOR_OR_APPID_CHANGED' }
+          Write-Host 'W86_02429_TO_02430_INPLACE_DPAPI_AND_ONLY_EXPECTED_PASS'
+      - name: Store candidate for owner-approved future test only
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-W86-READONLY-SOURCE-WITNESS-TEST-UNSIGNED
+          path: windows-companion/w20/output/CELIKOM-W86-READONLY-SOURCE-WITNESS-TEST-UNSIGNED.exe
+          if-no-files-found: error
+          retention-days: 10
