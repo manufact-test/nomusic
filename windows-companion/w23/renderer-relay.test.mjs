@@ -249,6 +249,14 @@ test("W99 verified CELIKOM source-left schedules one bounded current-track recov
       r.window.__celikomBridgeNativeReceive(job.requestId,makeGrant("123"));
     await tick();
   }
+  await new Promise(resolve=>setTimeout(resolve,220));
+  for (let i=0;i<4;i++) {
+    await tick();
+    const reloadJobs=r.window.__celikomBridgeNativeDrain();
+    for (const job of reloadJobs)
+      r.window.__celikomBridgeNativeReceive(job.requestId,makeGrant("123"));
+    await tick();
+  }
   assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
   assert.equal(player.mediaSources[0],
     makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
@@ -385,7 +393,7 @@ test("W76: local bridge timeout recovers already-playing Yandex source without r
   assert.equal(retries[0].recovery,true,
     "only recovery is authorized a longer transport deadline");
   r.window.__celikomBridgeNativeReceive(retries[0].requestId,makeGrant("123"));
-  await new Promise(resolve=>setTimeout(resolve,45));
+  await new Promise(resolve=>setTimeout(resolve,220));
   assert.deepEqual(nativePlayer.reloadReasons,["QUALITY_CHANGE"],
     "native Yandex already-playing entity reloads only its existing source");
   assert.equal(nativePlayer.mediaSources[0],
@@ -485,7 +493,7 @@ test("W76: expired signed media 403 callback checks current ID and honestly repo
   assert.equal(req[0].trackId,"123");
   assert.equal(req[0].recovery,true);
   r.window.__celikomBridgeNativeReceive(req[0].requestId,makeGrant("123"));
-  await new Promise(resolve=>setTimeout(resolve,40));
+  await new Promise(resolve=>setTimeout(resolve,220));
   assert.deepEqual(p.reloadReasons,["QUALITY_CHANGE"]);
   assert.equal(p.state.playerState.progress.value.position,24.5);
   assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_MAPPING_ACCEPTED");
@@ -534,7 +542,7 @@ test("W77: Kishlak-style transient batch prefetch remains pending until song act
   assert.equal(recovery[0].trackId,"456");
   assert.equal(recovery[0].recovery,true);
   r.window.__celikomBridgeNativeReceive(recovery[0].requestId,makeGrant("456"));
-  await new Promise(resolve=>setTimeout(resolve,80));
+  await new Promise(resolve=>setTimeout(resolve,220));
   assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
   assert.equal(player.mediaSources[0],makeGrant("456").audioUrl+
     "&celikom_native_query_guard=0");
