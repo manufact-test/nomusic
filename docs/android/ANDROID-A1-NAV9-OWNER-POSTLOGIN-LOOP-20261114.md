@@ -1,5 +1,11 @@
 # CELIKOM Android A1 — NAV9 owner post-login loop, actual evidence (14 Nov 2026)
 
+## Exact original callback-chain correction (verified 14 Nov 2026)
+
+The signed `classes3.dex/classes6.dex` from embedded 2025.10.4 reveal the **real callback contract**: Passport UI result -> LoginFragment `Success(userInfo)` (`LeY5$a`) -> `LZX5` publishes `EntryScreenCloseLoginKey` / `EntryScreenLoginResultKey` -> Entry fragment `LhT3/LiT3` handles it -> `LYS3.if(userInfo,...)` launches native Main/Wizard. No password/token observation and no forced success. **`ACTIVITY_RESULT PASSPORT_ACTIVITY OK` only records the Passport activity's `setResult(OK)` call, NOT delivery to its caller.** Therefore a system account is confirmed, but no successful *Music* user-info session nor fragment result is confirmed. The earlier description of `f67` as a proven login/onboarding completion callback is incorrect: its observed callsite belongs to the app initialization/upgrade family. `onboarding UNSET` may be normal, and the loop cannot be attributed to it without a verified writer/event. Do not set it manually. The precise gap along the callback chain remains unknown.
+
+See [exact signed 2025 post-login contract](ANDROID-A1-NAV9-SIGNED-2025-POSTLOGIN-CONTRACT-20261114.md). Preserve the original account bridge and NAV9 signed origin APK.
+
 ## State at handoff — **NAV9 NOT FIXED**, Stage A NO-GO, Stage B LOCKED
 
 Owner on HONOR 50 / Android 13 installed actual NAV9 from persistent Library, reproduced the same loop after completing Yandex ID login: four intro screens -> native Yandex Passport -> OTP/code -> loading -> back to four intro screens, then choosing the remembered account repeats the loop. Do **not** ask the owner to enter a code or repeat these steps again to reconfirm. Native Yandex Music interface and playback have **never** been verified in this A1 path.
