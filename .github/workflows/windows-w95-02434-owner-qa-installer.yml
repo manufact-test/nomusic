@@ -69,7 +69,7 @@ jobs:
         run: |
           dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
           if ($LASTEXITCODE -ne 0) { throw 'W95_PUBLISH_FAILED' }
-      - name: Build W89 candidate setup; NEVER install on owner automatically
+      - name: Build W95 0.24.34 QA setup; NEVER install on owner automatically
         shell: pwsh
         run: |
           $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
@@ -87,7 +87,7 @@ jobs:
       - name: W95 update ZIP valid
         shell: pwsh
         run: |
-          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-W89-update.zip'
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-W95-update.zip'
           Compress-Archive -Path 'windows-companion/w20/output/CELIKOM-W95-02434-WINDOWS-AUDIO-VPN-TRACK-TEST-UNSIGNED.exe' -DestinationPath $zip
           $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
           dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
@@ -144,11 +144,11 @@ jobs:
             throw 'W95_NEW_NATIVE_HOST_NOT_INSTALLED'
           }
           if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W95_VENDOR_OR_APPID_CHANGED' }
-          Write-Host 'W95_02432_TO_02433_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS'
+          Write-Host 'W95_02433_TO_02434_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS'
       - name: W95 unverified QA candidate artifact ONLY, no owner installation
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED
+          name: CELIKOM-W95-02434-QA-TEST-UNSIGNED
           path: windows-companion/w20/output/CELIKOM-W95-02434-WINDOWS-AUDIO-VPN-TRACK-TEST-UNSIGNED.exe
           if-no-files-found: error
           retention-days: 10
