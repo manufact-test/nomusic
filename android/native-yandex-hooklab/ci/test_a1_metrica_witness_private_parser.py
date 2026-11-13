@@ -517,6 +517,18 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(got["exact_post_true_push_provider_states"]["RETURN"],1)
         self.assertEqual(got["all_witness_events_bounded"],250)
 
+    def test_provider_failure_reason_categorized_only_and_correlated(self):
+        rows=(
+            log(431,"event=PUSH_PROVIDER_REASON;origin=PUSH_PROVIDER;error=PROVIDER_CUSTOM_META_PAIR;thread=OTHER")
+            +log(431,"event=PUSH_FATAL_PROVIDER_LINK;origin=PUSH_ARG;error=SAME_CALL_PROVIDER_THROW;thread=OTHER")
+            +log(432,"event=PUSH_PROVIDER_REASON;origin=PUSH_PROVIDER;error=PROVIDER_REASON_OTHER;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_REASON;origin=PUSH_PROVIDER;error=TOKEN_123;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,rows)
+        self.assertEqual(got["exact_post_true_push_provider_reason"],["PROVIDER_CUSTOM_META_PAIR"])
+        self.assertEqual(got["exact_post_true_push_provider_same_fatal_call"],
+                         ["SAME_CALL_PROVIDER_THROW"])
+        self.assertNotIn("TOKEN_123",str(got))
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))

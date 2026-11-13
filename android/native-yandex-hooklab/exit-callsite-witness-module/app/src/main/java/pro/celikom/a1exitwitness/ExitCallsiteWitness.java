@@ -64,6 +64,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactFatalObjectReady;
     private static final class ExactPushFrame {
         int yes, no, other, failed;
+        boolean providerThrewAfterTrue;
         // In-memory throwable identity only; never expose or stringify object.
         final java.util.IdentityHashMap<Throwable,String> constructed =
             new java.util.IdentityHashMap<>();
@@ -1042,6 +1043,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                         if (hit<=8) {
                                             emit("PUSH_FATAL_GUARD_THROW","PUSH_ARG",
                                                  frameCategory(frame));
+                                            emit("PUSH_FATAL_PROVIDER_LINK","PUSH_ARG",
+                                                 frame.providerThrewAfterTrue
+                                                     ? "SAME_CALL_PROVIDER_THROW"
+                                                     : "NO_PROVIDER_THROW_OBSERVED");
                                             String constructorOrder=frame.constructed.get(failure);
                                             emit("PUSH_FATAL_CONSTRUCTOR_ORDER","PUSH_ARG",
                                                  constructorOrder!=null ? constructorOrder
@@ -1420,11 +1425,39 @@ public final class ExitCallsiteWitness extends XposedModule {
     }
 
     /**
-     * Single publicly identified AppMetrica PushServiceFacade.initPushService
-     * invocation on the exact private TRUE-normal, catch-covered Push.a route.
+     * Single exactly resolved Firebase provider implementation call on the TRUE-normal,
+     * catch-covered Push.a route.
      * Read-only source-grounded probe: original method runs exactly once.
      * No app/SDK values, config, exceptions, args or results ever changed.
      */
+    // Read an existing Throwable message inside the observed exact provider
+    // catch; emit only fixed categories. Never log keys, identifiers or text.
+    private static String exactProviderFailureReason(Throwable failure) {
+        try {
+            String message=failure.getMessage();
+            if (message==null) return "PROVIDER_MESSAGE_ABSENT";
+            String s=message.toLowerCase(java.util.Locale.ROOT);
+            if (s.contains("ymp_firebase_default_app_id") ||
+                    s.contains("ymp_gcm_default_sender_id"))
+                return "PROVIDER_DEFAULT_META_PAIR";
+            if (s.contains("ymp_firebase_app_id") ||
+                    s.contains("ymp_gcm_sender_id"))
+                return "PROVIDER_CUSTOM_META_PAIR";
+            if (s.contains("google_app_id") ||
+                    s.contains("gcm_defaultsenderid"))
+                return "PROVIDER_GOOGLE_RESOURCE_PAIR";
+            if (s.contains("expected two identifiers"))
+                return "PROVIDER_IDENTIFIERS_GENERIC";
+            if (s.contains("firebase") &&
+                    (s.contains("missing") || s.contains("invalid") ||
+                     s.contains("not initialized") || s.contains("not configured")))
+                return "PROVIDER_FIREBASE_OTHER";
+            return "PROVIDER_REASON_OTHER";
+        } catch (Throwable ignored) {
+            return "PROVIDER_REASON_UNKNOWN";
+        }
+    }
+
     private synchronized void installExactPostTruePushProvider(ClassLoader loader) {
         if (exactPushProviderReady || loader == null) return;
         try {
@@ -1474,6 +1507,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                             emit("PUSH_PROVIDER_CALL","PUSH_PROVIDER","RETURN");
                         return result;
                     } catch (Throwable failure) {
+                        ExactPushFrame frame=scopedPushCall.get();
+                        if (frame!=null && frame.yes>0)
+                            frame.providerThrewAfterTrue=true;
                         if (hit<=12) {
                             emit("PUSH_PROVIDER_CALL","PUSH_PROVIDER","THROW");
                             emit("PUSH_PROVIDER_ERROR","PUSH_PROVIDER",
@@ -1481,6 +1517,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     "ILLEGAL_STATE" :
                                 failure instanceof SecurityException ?
                                     "SECURITY" : "OTHER_THROWABLE");
+                            emit("PUSH_PROVIDER_REASON","PUSH_PROVIDER",
+                                 exactProviderFailureReason(failure));
                         }
                         throw failure;
                     }
