@@ -71,10 +71,9 @@ CI regression is not owner acoustic QA. The owner must still verify #58 on «М�
 
 ## Next actions
 
-1. Verify exact current W98 CI run [43458387990](https://github.com/manufact-test/nomusic/actions/runs/43458387990) is SUCCESS.
-2. Owner approval is already given for his primary account by email. Ask the owner to add the one-time Actions secret `CELIKOM_W98_TEST_EMAIL`; confirm the preflight passes. The helper now resolves that email to only the owner's active session and checks entitlement.
-2. PHP/Bash syntax checks and Hostinger workflow YAML validation are now in W98 no-deploy CI; the latest run passed.
+1. Owner adds the one-time GitHub Actions repository secret `CELIKOM_W98_TEST_EMAIL` containing the already-authorized primary CELIKOM email. The GitHub connection cannot create repository secrets; use **Settings → Secrets and variables → Actions → New repository secret**. Do not commit the email or print it in logs.
+2. Confirm the owner-account preflight passes. It runs before Hostinger snapshot, deploy, or migration; if the secret is absent/invalid, the live workflow stops without changing production.
 3. After the secret exists, update `.github/deploy/hostinger-request.json` to a fresh one-shot request and trigger private Hostinger deployment from the exact current branch SHA.
-4. Confirm Stage 5 snapshot/restore checks, migration 020 checksum, all active nonzero-gain sidecars, offline audio measurements, and real signed HTTPS Range 206 for each row. Confirm rollback path remains usable.
+4. Confirm Stage 5 snapshot/restore checks, migration 020 checksum, every active nonzero-gain sidecar, offline audio measurements, and real signed HTTPS Range 206 for each row. Confirm rollback remains usable.
 5. Wait for exact-commit W98 Windows CI success; build the single 0.24.35 EXE + ZIP; verify ZIP CRC and both SHA256 values; upload to `/CELIKOM/Windows/Test/`.
 6. Update this document, `W97-FINAL-READY-RELEASE-HANDOFF-20261113.md`, and `NEXT-CHAT.md` with final exact commits, CI, artifacts, checksums, and rollback. Owner then performs one combined real-PC listening/functional QA pass.
