@@ -1,3 +1,10 @@
+> **LATEST — 13 Nov NAV5 is ready for owner retest; NAV4 already proved the failing process.** NAV4 owner TXT shows four `JAVA_CRASH` exits of the cloned `:passport` process in five minutes. Each Passport session records uncaught `IllegalStateException` → `FATAL_DISPATCH / NOT_METRICA` → self-kill. The exact cause and throwing method were not exposed by NAV4; do not infer Firebase, signature, account or provider cause.
+
+> NAV5 APK `CELIKOM-A1-NAV5-Passport-Fatal-20261113.apk`, 71,438,316 bytes, SHA-256 `d0d0d52f44f5a62cfcbcf8e34ed6d0b239dae31117ba8c6a5876e3303801af37`, is saved in Library at `/CELIKOM/CELIKOM-A1-NAV5-Passport-Fatal-20261113.apk`. Exact source `0851e384101e2bc21a16043350e1cfed24b0d97d`; paired ARM13 #43488933870 and standalone #43488933817 both SUCCESS 25/25. These are startup-only checks, not Passport/login/audio acceptance. The owner will provide NAV5 video and TXT in the next chat; read those first and do not request another NAV4 run, USB, ADB or credentials.
+
+Current lead handoff: `NEXT-CHAT-ANDROID-A1-LEAD-20261113.md`. NAV4 exact reserve: `backup/android-a1-nav4-real-passport-illegalstate-owner-proof-20261113` @ `fed35ede4acdbf2ea9e9c9c0405fa517aa4d1e53`.
+
+---
 # CELIKOM Android A1 — owner-device onboarding exit triage (13 Nov 2026)
 
 ## Current observed result
