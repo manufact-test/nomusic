@@ -138,7 +138,6 @@ public sealed partial class MainWindow : Form
                     _ = RecheckYandexAfterNativeFailureAsync("YANDEX_NATIVE_HOST_ERROR")));
             }
             catch (InvalidOperationException) { /* Window is shutting down. */ }
-            catch (ObjectDisposedException) { /* Window is shutting down. */ }
         };
         NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
 
