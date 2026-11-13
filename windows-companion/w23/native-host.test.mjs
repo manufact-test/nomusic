@@ -570,3 +570,68 @@ test("W84 prefetched player for a different Yandex track is NOT counted as curre
   assert.ok(!r.diagnostics.some(x => x.includes("PLAYER_DECODER_CELIKOM_PIPELINE_ERROR")),
     "unrelated original or prefetched track failures must not blame CELIKOM");
 });
+
+
+test("W89 missing current CELIKOM Media GET causes one bounded native refresh, never a retry storm",async()=>{
+  let instant=Date.now();
+  class TestClock extends Date { static now(){return instant;} }
+  const grant=w52Grant("139","123");
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,clock:TestClock,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Current",artist:"Artist",durationMs:140000},
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  assert.ok(r.diagnostics.includes("PLAYER_NET_READY"));
+  const count=()=>r.evaluated.filter(s=>s.includes("__celikomBridgeNativeRefreshUnfetched?.")).length;
+  assert.equal(count(),0,"do not refresh while native source is still initially loading");
+  instant+=5000;
+  r.pulse(); await new Promise(resolve=>setTimeout(resolve,45));
+  assert.equal(count(),1,"current song mapped but never fetched must get one bounded recovery");
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_CURRENT_SOURCE_UNFETCHED_RECOVERY|track=123")));
+  instant+=5000;
+  r.pulse(); await new Promise(resolve=>setTimeout(resolve,45));
+  assert.equal(count(),1,"no unbounded reload loop for a current song");
+  assert.ok(!r.evaluated.some(js=>js.includes("window.play(")||js.includes("window.pause(")),
+    "host must not control Yandex play/pause/queue");
+});
+
+test("W89 signed Media GET 206 suppresses fallback refresh but does NOT verify sound",async()=>{
+  let instant=Date.now();
+  class TestClock extends Date { static now(){return instant;} }
+  const grant=w52Grant("139","123");
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,clock:TestClock,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Current",artist:"Artist",durationMs:140000},
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{},"Network.requestWillBeSent",{
+    requestId:"media-a",request:{url:grant.audioUrl,method:"GET"},type:"Media"
+  });
+  debug.emit("message",{},"Network.responseReceived",{
+    requestId:"media-a",response:{status:206}
+  });
+  instant+=5000;
+  r.pulse(); await new Promise(resolve=>setTimeout(resolve,45));
+  assert.ok(!r.evaluated.some(js=>js.includes("__celikomBridgeNativeRefreshUnfetched?.")),
+    "media already fetched, avoid unnecessary player reload and audio pops");
+  const beat=r.network.filter(x=>x.path==="/v1/heartbeat").at(-1);
+  assert.equal(JSON.parse(beat.body).status,"NATIVE_MAPPING_ACCEPTED",
+    "a prefetch HTTP 206 must not produce green verified status");
+
+  // A matching current decoder URL plus kIsPlaying is stronger than 206.
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"player-current",properties:[
+      {name:"kUrl",value:grant.audioUrl},
+      {name:"kIsPlaying",value:"true"}]
+  });
+  instant+=3000;
+  r.pulse(); await new Promise(resolve=>setTimeout(resolve,45));
+  assert.equal(JSON.parse(r.network.filter(x=>x.path==="/v1/heartbeat").at(-1).body).status,
+    "NATIVE_SOURCE_VERIFIED","green allowed only after actual current decoder source evidence");
+});
