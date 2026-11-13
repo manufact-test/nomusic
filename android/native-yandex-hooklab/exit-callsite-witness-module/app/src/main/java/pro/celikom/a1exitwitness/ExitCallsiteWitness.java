@@ -71,7 +71,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String STOCK_ACCOUNT_TYPE = "com.yandex.passport";
     private static final String OWN_ACCOUNT_TYPE = PACKAGE + ".passport";
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V5_PASSPORT_FATAL_CAUSE";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V6_OWN_ACCOUNT_TYPE";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2764,7 +2764,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
-            button.setText("Диагностика NAV5");
+            button.setText("Диагностика NAV6");
             button.setTextColor(Color.WHITE);
             button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
