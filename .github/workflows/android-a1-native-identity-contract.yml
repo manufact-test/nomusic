@@ -1,0 +1,42 @@
+name: CELIKOM Android A1 native identity API contract (isolated)
+
+on:
+  push:
+    branches:
+      - experiment/android-a1-metrica-init-state-observer-arm13-20261112
+    paths:
+      - 'server/migrations/019_android_a1_native_identity.sql'
+      - 'server/src/Admin/NativeIdentityService.php'
+      - 'server/src/Admin/AdminPanel.php'
+      - 'server/src/Application/ResolveService.php'
+      - 'server/src/Repositories/PdoCatalogRepository.php'
+      - 'server/tests/android-a1-native-identity.php'
+      - '.github/workflows/android-a1-native-identity-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-php-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install isolated PHP and SQLite test runtime
+        run: |
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq php-cli php-sqlite3 php-mbstring
+      - name: Syntax checks
+        run: |
+          php -l server/src/Admin/NativeIdentityService.php
+          php -l server/src/Admin/AdminPanel.php
+          php -l server/src/Application/ResolveService.php
+          php -l server/src/Repositories/PdoCatalogRepository.php
+          php -l server/tests/android-a1-native-identity.php
+      - name: Test exact identity persistence and resolve attestation without production access
+        run: |
+          php server/tests/android-a1-native-identity.php
+          php server/tests/replacement-catalogue.php

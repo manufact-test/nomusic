@@ -44,6 +44,13 @@ final class ResolveService
         $sessionId = $access['session_id'] ?? null;
         return [
             'found' => true,
+            // This row is selected only from the approved, active catalogue.
+            'track_id' => $trackId,
+            'approved' => true,
+            // Private test API-token access is deliberately not a user entitlement.
+            'entitled' => $access !== null,
+            'album_id' => isset($row['album_id']) ? (string) $row['album_id'] : null,
+            'edition_id' => isset($row['edition_id']) ? (string) $row['edition_id'] : null,
             'replacement_id' => $id,
             'audio_url' => '/api/v1/audio/' . $id . '?token=' . $this->tokens->sign($id, $version, $expires, $sessionId) . '&expires=' . $expires . ($sessionId === null ? '' : '&sid=' . $sessionId),
             'duration_ms' => (int) $row['duration_ms'],

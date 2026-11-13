@@ -145,6 +145,35 @@ final class AdminPanel
                 return Response::json(409,['error'=>'metadata_conflict']);
             }
         }
+        if ($path === '/admin/native-identity') {
+            if ($admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
+            if ($method !== 'POST') return Response::json(405,['error'=>'method_not_allowed']);
+            $form = $this->form($headers,$body);
+            if (!AdminAuth::validCsrf($admin,$form['csrf'] ?? null)) {
+                return Response::json(403,['error'=>'csrf_failed']);
+            }
+            $track = $this->positiveInt($form['track'] ?? null);
+            if (!$track || !is_string($form['expected_track_id'] ?? null)) {
+                return Response::json(400,['error'=>'invalid_native_identity']);
+            }
+            $clear = ($form['clear_identity'] ?? '') === '1';
+            if (!$clear && (!is_string($form['album_id'] ?? null)
+                || !is_string($form['edition_id'] ?? null))) {
+                return Response::json(400,['error'=>'invalid_native_identity']);
+            }
+            try {
+                (new NativeIdentityService($this->pdo))->update(
+                    (int)$admin['id'], $track, $form['expected_track_id'],
+                    $clear ? null : $form['album_id'],
+                    $clear ? null : $form['edition_id']
+                );
+                return new Response(303,['Location'=>'/admin?tab=uploads&identity_saved='.$track,'Cache-Control'=>'no-store']);
+            } catch (\InvalidArgumentException) {
+                return Response::json(400,['error'=>'invalid_native_identity']);
+            } catch (\DomainException) {
+                return Response::json(409,['error'=>'native_identity_conflict']);
+            }
+        }
         if ($path==='/admin/rewards/action') return Response::json(404,['error'=>'not_found']);
         if ($path==='/admin/rewards/policy') {
             if (!$this->rewardEligibilityEnabled) return Response::json(404,['error'=>'not_found']);
@@ -617,6 +646,7 @@ final class AdminPanel
         $total = (int) $count->fetchColumn();
         $stmt = $this->pdo->prepare("SELECT r.id,r.status,r.is_active,r.version,r.track_id,r.gain_db,
             t.service,t.service_track_id,t.artist,t.title,t.duration_ms AS original_duration_ms,
+            t.service_album_id,t.service_edition_id,
             a.duration_ms AS audio_duration_ms,a.mime_type,a.size_bytes,a.sha256,
             d.action AS decision_action,d.reason AS decision_reason,d.created_at AS decision_at,
             (SELECT q.id FROM track_replacements q WHERE q.track_id=r.track_id
@@ -680,6 +710,38 @@ final class AdminPanel
                 . ' · Формат: ' . (in_array($r['mime_type'], ['audio/mpeg'], true) ? 'MP3' : ($r['mime_type'] === 'audio/mp4' ? 'M4A' : 'Аудио'))
                 . '<p style="margin:8px 0 0">Контрольная сумма SHA-256: '
                 . self::e($r['sha256']) . '</p></div></details>';
+
+            if ($admin['role'] === 'owner') {
+                $nativeAlbum = (string)($r['service_album_id'] ?? '');
+                $nativeEdition = (string)($r['service_edition_id'] ?? '');
+                $nativeState = $nativeAlbum !== '' && $nativeEdition !== ''
+                    ? 'Задана' : (($nativeAlbum !== '' || $nativeEdition !== '')
+                        ? 'Неполная — подмена запрещена' : 'Не задана');
+                $html .= '<details class="detail-toggle"><summary>Точная идентичность Android A1 · '
+                    . self::e($nativeState) . '</summary>'
+                    . '<p class="muted">Только точные значения из текущего объекта трека Яндекс Музыки. '
+                    . 'Не выводите их из названия или обложки. Без обоих значений Android A1 оставляет оригинал.</p>'
+                    . '<form class="metadata-form" method="post" action="/admin/native-identity">'
+                    . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                    . '<input type="hidden" name="track" value="' . (int)$r['track_id'] . '">'
+                    . '<input type="hidden" name="expected_track_id" value="' . self::e($trackId) . '">'
+                    . '<label class="form-field">Album ID'
+                    . '<input name="album_id" inputmode="numeric" maxlength="24" pattern="[1-9][0-9]{0,23}" required value="'
+                    . self::e($nativeAlbum) . '"></label>'
+                    . '<label class="form-field">Edition ID'
+                    . '<input name="edition_id" maxlength="128" required value="'
+                    . self::e($nativeEdition) . '"></label>'
+                    . '<button class="primary" type="submit">Сохранить точную идентичность</button></form>'
+                    . '<form method="post" action="/admin/native-identity" style="margin-top:8px">'
+                    . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                    . '<input type="hidden" name="track" value="' . (int)$r['track_id'] . '">'
+                    . '<input type="hidden" name="expected_track_id" value="' . self::e($trackId) . '">'
+                    . '<input type="hidden" name="clear_identity" value="1">'
+                    . '<button type="submit">Сбросить подтверждённую идентичность</button></form></details>';
+                if (($query['identity_saved'] ?? '') === (string)$r['track_id']) {
+                    $html .= '<p class="notice">Точная идентичность сохранена.</p>';
+                }
+            }
 
             if ($admin['role'] === 'owner'
                 && (trim((string) $r['artist']) === '' || trim((string) $r['title']) === '')) {
