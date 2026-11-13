@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using Celikom.Companion;
 
 int checks = 0;
@@ -13,6 +14,57 @@ void Test(bool condition, string message)
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
 try
 {
+    // W101: signed stable update contracts are read-only and fail closed.
+    // No unattended updater is enabled while signing/rollback gates are missing.
+    using (var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
+    {
+        var origin = new Uri("https://celikom.example.test");
+        var now = new DateTimeOffset(2026, 11, 14, 0, 0, 0, TimeSpan.Zero);
+        var pub = releaseKey.ExportSubjectPublicKeyInfo();
+        byte[] ManifestBytes(string channel = "stable",
+            string version = "0.24.37", long sequence = 42,
+            string? url = null) =>
+            JsonSerializer.SerializeToUtf8Bytes(new {
+                schema = 1, channel, version, sequence,
+                packageUrl = url ?? "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37-SIGNED.exe",
+                packageSize = 500000L,
+                sha256 = new string('a', 64), publisher = "CELIKOM",
+                publishedAt = "2026-11-14T00:00:00Z",
+                expiresAt = "2026-11-20T00:00:00Z",
+                minimumVersion = "0.24.20", mandatory = false, notes = "Safe update"
+            });
+        StableUpdateManifestVerifier.VerifiedRelease VerifyManifest(byte[] bytes,
+            byte[]? signature = null, long previousSequence = 41) =>
+            StableUpdateManifestVerifier.Verify(bytes,
+                signature ?? releaseKey.SignData(bytes, HashAlgorithmName.SHA256,
+                    DSASignatureFormat.Rfc3279DerSequence),
+                pub, origin, new Version(0, 24, 36, 0), previousSequence, now);
+        var signedDocument = ManifestBytes();
+        var signedRelease = VerifyManifest(signedDocument);
+        Test(signedRelease.Sequence == 42 &&
+             signedRelease.Version == new Version(0, 24, 37, 0) &&
+             signedRelease.PackageUri.Host == origin.Host,
+             "W101 pinned P256 stable manifest permits only newer exact-origin release");
+        bool Reject(byte[] bytes, byte[]? signature = null, long lastSequence = 41)
+        {
+            try { VerifyManifest(bytes, signature, lastSequence); return false; }
+            catch (InvalidDataException) { return true; }
+        }
+        Test(Reject(signedDocument, new byte[70]) &&
+             Reject(ManifestBytes(channel: "beta")) &&
+             Reject(ManifestBytes(version: "0.24.36")) &&
+             Reject(ManifestBytes(sequence: 41)) &&
+             Reject(signedDocument, lastSequence: 42),
+             "W101 unsigned, wrong-channel, same-version and replayed updates fail closed");
+        Test(Reject(ManifestBytes(url:
+                "https://evil.example/CELIKOM/Windows/Updates/stable/0.24.37/bad.exe")) &&
+             Reject(ManifestBytes(url:
+                "http://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/bad.exe")) &&
+             Reject(ManifestBytes(url:
+                "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/bad.exe")),
+             "W101 package origin, HTTPS and immutable version path are required");
+    }
+
     // W104: explicit bridge failure / missing startup handshake triggers a
     // read-only compatibility refresh, never on a per-track 403 or originals.
     Test(YandexFailureRecheckGate.IsNativeHostFailure("HOST_ERROR") &&
