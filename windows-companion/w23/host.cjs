@@ -538,6 +538,7 @@ function observeNativePlayback(view) {
       lastVolume:null, volumeTrackId:null
     };
     const properties = params.properties.slice(0, 30);
+    let sourceLeftCurrent = false;
     // CDP does not promise a useful order for changed properties. Resolve
     // source + playing state before consuming kVolume so a same-event volume
     // sample cannot be lost when kVolume arrives first in the array.
@@ -566,13 +567,7 @@ function observeNativePlayback(view) {
         if (wasCurrentCelikom && !prev.sourceTrackId) {
           const currentTrackId = lastStatus.get(view)?.trackId;
           note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
-          if (prev.playing && currentTrackId) {
-            // Source-left recovery is renderer-gated: exact current entity,
-            // active adapter and fresh entitlement are checked again there.
-            void execute(view,
-              ";window.__celikomBridgeNativeRecoverSourceLeft?.(" +
-              JSON.stringify(currentTrackId) + ")").catch(() => null);
-          }
+          sourceLeftCurrent = !!currentTrackId;
         }
       } else if (prop?.name === "kIsPlaying") {
         prev.playing = prop.value === "true";
@@ -582,6 +577,16 @@ function observeNativePlayback(view) {
           prev.volumeTrackId = null;
           verifiedDecoderSource.delete(view);
         }
+      }
+    }
+    if (sourceLeftCurrent && prev.playing) {
+      const currentTrackId = lastStatus.get(view)?.trackId;
+      if (currentTrackId) {
+        // Evaluate only after all changed properties are applied, so a
+        // same-event pause prevents recovery from firing.
+        void execute(view,
+          ";window.__celikomBridgeNativeRecoverSourceLeft?.(" +
+          JSON.stringify(currentTrackId) + ")").catch(() => null);
       }
     }
     for (const prop of properties) {
