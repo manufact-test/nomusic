@@ -121,7 +121,10 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   }
   function forgetMappedTrack(raw) {
     const id = validId(raw);
-    if (id) mappedTracks.delete(id);
+    if (id) {
+      mappedTracks.delete(id);
+      setClassification(id, 'ORIGINAL');
+    }
   }
   function classificationForTrack(raw) {
     const id = validId(raw);

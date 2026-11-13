@@ -46,6 +46,7 @@ test('W98 mapped-source ownership is exact per track and includes real batch map
   assert.equal(a.classificationForTrack('123'),'ACTIVE_REPLACEMENT');
   a.forgetMappedTrack('123');
   assert.equal(a.hasMappedTrack('123'),false);
+  assert.equal(a.classificationForTrack('123'),'ORIGINAL');
   await proto.getFileInfoBatch({trackIds:['123']});
   assert.equal(a.hasMappedTrack('123'),true,'batch marks only an item actually replaced in Yandex response');
   a.dispose();
