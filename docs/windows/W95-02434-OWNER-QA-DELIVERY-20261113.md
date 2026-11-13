@@ -28,3 +28,14 @@
 - If regression, reinstall exact old 0.24.33 or 0.24.32 TEST from Library, and send owner diagnostics. Do not delete account/DPAPI.
 
 Outstanding: #52 audible decoder proof/«Ты», #53 Brave slowdown, #54 sudden Big City Life dip, #56 Windows gain not actually applied until validated sidecar rollout, #57 hiss. No final claim until owner test.
+
+
+## W97 OWNER CORRECTION / FINAL HANDOFF — 2026-11-13 (SUPERSEDES PARTIAL QA REQUEST)
+
+Owner explicitly clarified that he wants **one complete integrated TEST build** to check all outstanding Windows issues together, not another partial installer.
+
+**Do not send/ask owner to install 0.24.34 for full QA.** Its W15 client requests `audio_profile=windows_gain_v1`, but production migration 020 and real pre-rendered private Windows sidecars are not deployed/registered. Thus actual admin gain is not yet active. The installer cannot test the advertised gain parity. 0.24.34 remains a CI-green intermediate QA candidate only.
+
+New separate GitHub issue **#58**: https://github.com/manufact-test/nomusic/issues/58 — «Моя волна» / original songs WITHOUT active replacement interrupt and pop on VPN switch. This is not #57 (403 recovery hiss), #54 (Big City Life mid-track dip), or #56 (missing admin gain parity). Full acceptance and exact next-chat prompt: `docs/windows/W97-FINAL-READY-RELEASE-HANDOFF-20261113.md`.
+
+Next developer must finish private/offline gain sidecars for every active nonzero gain, controlled migration 020 + signed Range verification, #58 original-track transparency, and remaining #52/#53/#54/#57 plus real VPN reconnect before creating one new installer. No owner PC installation, no claim of stable release, no partial installer. Preserve all backups and original audio/browser path.
