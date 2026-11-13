@@ -3,8 +3,10 @@ on:
   push:
     branches:
       - experiment/windows-w93-private-gain-stage-cli-20261113
+      - experiment/windows-w98-integrated-gain-and-original-vpn-20261113
     paths:
       - server/bin/windows-gain-stage.php
+      - server/bin/windows-gain-rollback.php
       - server/tests/windows-gain-stage-fixture.php
       - docs/windows/W93-PRIVATE-GAIN-STAGING-AND-ROLLBACK-20261113.md
       - .github/workflows/windows-w93-private-gain-cli-audit.yml
@@ -24,7 +26,9 @@ jobs:
         run: |
           set -euo pipefail
           php -l server/bin/windows-gain-stage.php
+          php -l server/bin/windows-gain-rollback.php
           php server/bin/windows-gain-stage.php --help | grep -F 'Default dry-run'
+          php server/bin/windows-gain-rollback.php --help | grep -F 'explicit rollback authorization'
           if php server/bin/windows-gain-stage.php --commit 2>/dev/null; then
             echo W93_UNAUTHORIZED_COMMIT_NOT_BLOCKED
             exit 2
@@ -96,6 +100,15 @@ jobs:
           CELIKOM_W93_ENABLE_STAGE=YES_EXPLICIT_PRIVATE_STAGE php server/bin/windows-gain-stage.php "${args[@]}" --commit | grep -F 'W93_PRIVATE_WINDOWS_GAIN_STAGED'
           after_retry="$(mariadb -N -B --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" -e 'SELECT COUNT(*) FROM windows_gain_variants')"
           [[ "$after_retry" == 1 ]] || { echo W93_IDEMPOTENCY_FAILED; exit 5; }
+          if php server/bin/windows-gain-rollback.php --replacement="$id" --source-sha="$source_sha" --source-version="$version" --gain-db="$gain_db" --render-sha="$render_sha" 2>/dev/null; then
+            echo W98_UNAUTHORIZED_ROLLBACK_ALLOWED
+            exit 7
+          fi
+          CELIKOM_W93_ENABLE_ROLLBACK=YES_EXPLICIT_PRIVATE_ROLLBACK php server/bin/windows-gain-rollback.php --replacement="$id" --source-sha="$source_sha" --source-version="$version" --gain-db="$gain_db" --render-sha="$render_sha" | grep -F 'W98_PRIVATE_WINDOWS_GAIN_ROLLBACK_PASS'
+          after_rollback="$(mariadb -N -B --host=127.0.0.1 --user=root --password="$DB_PASSWORD" "$DB_NAME" -e 'SELECT COUNT(*) FROM windows_gain_variants')"
+          [[ "$after_rollback" == 0 ]] || { echo W98_ROLLBACK_ROW_REMAINS; exit 8; }
+          sidecar_key="$STORAGE_PATH/windows-gain/${render_sha:0:2}/$render_sha.mp3"
+          [[ ! -e "$sidecar_key" ]] || { echo W98_ROLLBACK_FILE_REMAINS; exit 9; }
           current_original="$(find "$STORAGE_PATH/audio" -name '*.mp3' -type f -exec sha256sum {} \; | awk '{print $1}')"
           [[ "$current_original" == "$original_digest" ]] || { echo W93_ORIGINAL_MUTATED; exit 6; }
           echo W93_DISPOSABLE_DB_COMMIT_DRY_RUN_HMAC_ORIGINAL_PASS
