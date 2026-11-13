@@ -15,3 +15,14 @@ W90 transports finite bounded one-decimal gain_db through typed Windows SourceGr
 
 ## Next audio work
 Achieve per-track dB gain WITHOUT a second independent player. Either validate existing Yandex decoded-output DSP on supported pinned build with real listening and no audio cut/duplicate connections, or build versioned, limited **Windows-only pre-rendered media variants** server-side (signed URLs/Range/ETag/clip/rollback/batch backfill). Preserve the Chrome original URL to prevent double gain. Never process all songs on-the-fly via Hostinger PHP or overwrite originals. Measure several +dB, -dB and 0dB songs and Big City Life before/after dip. Only then claim sound boost parity. Investigate separate VPN, false green «Ты», hiss and freezes independently (#52/#53/#54).
+
+
+## Live DB audit (READ-ONLY, 2026-11-13)
+Executed [Windows W90 SQL aggregate audit](https://github.com/manufact-test/nomusic/actions/runs/43434214069) with verified pinned SSH host/user and read-only transaction; job SUCCESS, no files, audio bytes, or rows mutated:
+- active approved versions: **1493**
+- with `gain_db > 0`: **1**
+- with `gain_db < 0`: **0**
+- with `gain_db = 0`: **1492**
+- invalid gain values: **0**
+
+The Windows code bug is universal for any nonzero admin gain, but the live active catalog currently contains **one** boosted song. This count does NOT establish the identity of that song, reset history, or settings for disabled/pending versions. Do not claim all 1493 songs were formerly boosted; identify the lone boosted row and audit prior edits only with read-only, privacy-limited access. Reproduction of Big City Life's mid-song volume dip remains separate/unverified. Issues #56 / #54.
