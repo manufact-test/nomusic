@@ -254,7 +254,7 @@ async function relayState(view, token, now) {
   // W61: short bounded local-only state poll to reduce time from UI click
   // to the native source refresh. Per-view tick is serialized (busy WeakSet)
   // and this never speeds up the actual Yandex media source download.
-  if (now - (lastStateAt.get(view) || 0) < 260) return;
+  if (now - (lastStateAt.get(view) || 0) < 300) return;
   lastStateAt.set(view, now);
   const state = await localRequest(token, "/v1/state");
   if (state && typeof state === "object") note("LOCAL_STATE_OK");
@@ -537,7 +537,11 @@ function observeNativePlayback(view) {
       playing:false, sourceTrackId:null, evidenceReportedFor:null,
       lastVolume:null, volumeTrackId:null
     };
-    for (const prop of params.properties.slice(0, 30)) {
+    const properties = params.properties.slice(0, 30);
+    // CDP does not promise a useful order for changed properties. Resolve
+    // source + playing state before consuming kVolume so a same-event volume
+    // sample cannot be lost when kVolume arrives first in the array.
+    for (const prop of properties) {
       if (prop?.name === "kUrl") {
         const wasCurrentCelikom = prev.playing && !!prev.sourceTrackId &&
           prev.sourceTrackId === lastStatus.get(view)?.trackId;
@@ -561,23 +565,6 @@ function observeNativePlayback(view) {
         } catch { /* Unknown native URL: no source evidence. */ }
         if (wasCurrentCelikom && !prev.sourceTrackId)
           note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", lastStatus.get(view)?.trackId);
-      } else if (prop?.name === "kVolume") {
-        // Optional CDP property, not all Electron builds expose it. Only
-        // track a real signed-current decoder, never log values or URLs.
-        const currentId = lastStatus.get(view)?.trackId;
-        const value = prop.value;
-        const volume = typeof value === "string" &&
-          /^(?:0(?:\.\d{1,6})?|1(?:\.0{1,6})?)$/.test(value)
-          ? Number(value) : null;
-        if (volume !== null && currentId && prev.playing &&
-            prev.sourceTrackId === currentId) {
-          if (prev.volumeTrackId === currentId &&
-              Number.isFinite(prev.lastVolume) &&
-              volume < prev.lastVolume - 0.15)
-            note("PLAYER_CURRENT_NATIVE_VOLUME_DROP", currentId);
-          prev.volumeTrackId = currentId;
-          prev.lastVolume = volume;
-        }
       } else if (prop?.name === "kIsPlaying") {
         prev.playing = prop.value === "true";
         if (!prev.playing) {
@@ -586,6 +573,25 @@ function observeNativePlayback(view) {
           prev.volumeTrackId = null;
           verifiedDecoderSource.delete(view);
         }
+      }
+    }
+    for (const prop of properties) {
+      if (prop?.name !== "kVolume") continue;
+      // Optional CDP property, not all Electron builds expose it. Only
+      // track a real signed-current decoder, never log values or URLs.
+      const currentId = lastStatus.get(view)?.trackId;
+      const value = prop.value;
+      const volume = typeof value === "string" &&
+        /^(?:0(?:\.\d{1,6})?|1(?:\.0{1,6})?)$/.test(value)
+        ? Number(value) : null;
+      if (volume !== null && currentId && prev.playing &&
+          prev.sourceTrackId === currentId) {
+        if (prev.volumeTrackId === currentId &&
+            Number.isFinite(prev.lastVolume) &&
+            volume < prev.lastVolume - 0.15)
+          note("PLAYER_CURRENT_NATIVE_VOLUME_DROP", currentId);
+        prev.volumeTrackId = currentId;
+        prev.lastVolume = volume;
       }
     }
     decoderPlayers.set(id, prev);
@@ -826,6 +832,8 @@ app.on("web-contents-created", (_event, view) => {
 });
 let lastHostPulseAt = Date.now();
 let lastResourceSampleAt = Date.now();
+// W99: reduce idle host polling from 5.6Hz to 3.3Hz. CDP player
+// events remain event-driven; state/resolve relay stays bounded to 300ms.
 const timer = setInterval(() => {
   const now = Date.now();
   const elapsed = now - lastHostPulseAt;
@@ -848,5 +856,5 @@ const timer = setInterval(() => {
   const views = webContents.getAllWebContents();
   if (views.length) note("WEB_CONTENTS_PRESENT");
   for (const view of views) void tick(view);
-}, 180);
+}, 300);
 if (timer.unref) timer.unref();
