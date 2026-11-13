@@ -1,3 +1,15 @@
+# 2026-11-13 — W90 WINDOWS OWNER UPDATE: GLOBAL ADMIN GAIN LOSS CONFIRMED IN CODE, ONE LIVE BOOSTED SONG
+
+**Current W90 experimental / NON-RELEASE** `experiment/windows-w90-boosted-tracks-gain-parity-20261113`, based on W89 owner handoff HEAD `ba46821aaee8f9750b725699d4b7db7656a2b0cc`; exact rollback `backup/windows-w90-pre-gain-parity-20261113`. W90 code commit `d097981a41e37b754fee834b7643901f47ef936b`, CI **SUCCESS** [43433517528](https://github.com/manufact-test/nomusic/actions/runs/43433517528). W89 0.24.33 TEST and installer unchanged, **not field-verified**; no W90 installer or deployment.
+
+**Definite systemic admin gain gap**: server `ResolveService` returns numeric `gain_db`, admin preview and Chrome extension add Web Audio gain, but signed Range audio serves raw original bytes; prior Windows `GrantValidator` dropped gain, and native Yandex downloadInfo `gain: false` is boolean. W90 safely transports gain through C# grant and emits code-only `GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED` for nonzero positive/negative gain in native single/batch; **no actual DSP yet, no audible fix claimed**. See `docs/windows/W90-ALL-ADMIN-GAIN-TRACKS-AUDIT-20261113.md`, [Issue #56](https://github.com/manufact-test/nomusic/issues/56).
+
+**New LIVE read-only query result**, [Actions 43434214069](https://github.com/manufact-test/nomusic/actions/runs/43434214069) SUCCESS: 1493 active approved replacements; **one boosted**, zero attenuated, 1492 with 0 dB, 0 invalid. Historical inactive/pending gain edits and identity of the one boosted track **not yet checked**, so cannot infer others lost their settings. Big City Life's sudden *mid-song* dip is separate Issue #54 with no root cause proof.
+
+**Next:** implement validated per-track audible gain without a second player / without breaking native Yandex, account entitlement, Range 403/VPN, pause/seek/Next and Chrome parity. Do not set Yandex boolean gain to numeric dB, do not globally amplify on server or Windows. Preserve W89 and W88 rollbacks, test offline then Windows CI, only then owner-sound TEST. Continue W89 VPN and «Ты» source QA, hiss, Brave freeze per W89 documentation. W90 is not stable/a production release.
+
+---
+
 # 2026-11-13 — WINDOWS OWNER HANDOFF / STOP CODING (ALL ISSUES INCLUDING BIG CITY LIFE)
 
 **Owner instructed current developer to STOP and hand all remaining work to the NEXT chat.** Preserve and continue existing repo, no rewrite. **Read first** `docs/windows/W89-02433-VPN-RECOVERY-AND-FALSE-GREEN-TRACK-20261113.md`, especially the newest **STOP-WORK / OWNER HANDOFF ADDENDUM** at its end.
