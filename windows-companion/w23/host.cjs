@@ -240,8 +240,11 @@ async function relayState(view, token, now) {
     apiOrigin: typeof state?.apiOrigin === "string" ? state.apiOrigin.slice(0, 256) : ""
   };
   const previousOrigin = nativeAudioOrigins.get(view);
-  if (!safeState.enabled || !safeState.signedIn || previousOrigin !== safeState.apiOrigin)
+  if (!safeState.enabled || !safeState.signedIn || previousOrigin !== safeState.apiOrigin) {
     nativeExpectedAudio.delete(view);
+    verifiedDecoderSource.delete(view);
+    nativeMediaHttpSuccess.delete(view);
+  }
   nativeAudioOrigins.set(view, safeState.apiOrigin);
   const ok = await execute(view,
     ";(()=>{if(!window.__celikomBridgeNativeSetState)return false;" +
@@ -312,11 +315,55 @@ async function tick(view) {
       // Check the observed current Yandex queue entity before assuming the
       // old source is still good. Recovery may reload that entity only.
       await execute(view, ";window.__celikomBridgeNativeCheckDeferred?.()||false");
-      const status = await execute(view, ";window.__celikomBridgeNativeStatus?.()||'ORIGINAL'");
+      const rendererStatus = await execute(view, ";window.__celikomBridgeNativeStatus?.()||'ORIGINAL'");
       const observed = await execute(view,
         ";window.__celikomBridgeNativeCurrentTrack?.()||null");
       const trackId = typeof observed?.id === "string" &&
         /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : null;
+      const previous = lastStatus.get(view);
+      const checkedAt = Date.now();
+      const firstSeenAt = previous?.trackId === trackId && previous?.firstSeenAt
+        ? previous.firstSeenAt : checkedAt;
+      // Only matching current decoder kUrl + kIsPlaying is evidence of our
+      // source reaching the actual player. HTTP 206 or a mapped file-info
+      // is NOT enough for the green "Подмена активна" label.
+      const decoder = verifiedDecoderSource.get(view);
+      const decoderConfirmed = trackId && decoder?.trackId === trackId &&
+        decoder.at >= firstSeenAt - 2000 &&
+        checkedAt - decoder.at < 600000;
+      const status = rendererStatus === "NATIVE_MAPPING_ACCEPTED" && decoderConfirmed
+        ? "NATIVE_SOURCE_VERIFIED" : rendererStatus;
+      if (rendererStatus === "NATIVE_MAPPING_ACCEPTED" && trackId &&
+          nativeNetworkObserversReady.has(view) &&
+          checkedAt - firstSeenAt >= 3500 &&
+          checkedAt - firstSeenAt <= 16000) {
+        const expected = [...(nativeExpectedAudio.get(view)?.values() || [])]
+          .some(entry => entry.yandexTrackId === trackId &&
+            entry.expiresAt > checkedAt && entry.recordedAt >= firstSeenAt - 5000);
+        const mediaAt = nativeMediaHttpSuccess.get(view)?.get(trackId) || 0;
+        const fetched = mediaAt >= firstSeenAt - 8000;
+        let attempted = nativeUnfetchedReloadAttempt.get(view);
+        if (!attempted) {
+          attempted = new Map();
+          nativeUnfetchedReloadAttempt.set(view, attempted);
+        }
+        const lastAttempt = attempted.get(trackId) || 0;
+        if (expected && !fetched && !decoderConfirmed &&
+            (!lastAttempt || checkedAt - lastAttempt >= 120000)) {
+          if (attempted.size >= 32)
+            attempted.delete(attempted.keys().next().value);
+          attempted.set(trackId, checkedAt);
+          // The renderer rechecks exact CURRENT track and its Start state
+          // before requesting a single vendor reloadEntity. No other track,
+          // seek, pause or media transport is controlled by this observer.
+          void execute(view,
+            ";window.__celikomBridgeNativeRefreshUnfetched?.(" +
+            JSON.stringify(trackId) + ")").then(ok => {
+              if (ok === true && validView(view))
+                note("PLAYER_CURRENT_SOURCE_UNFETCHED_RECOVERY", trackId);
+            });
+        }
+      }
       // Validate once more at the native boundary. None of the free-form
       // metadata ever enters the diagnostic event stream or public API.
       const cleanText = value => typeof value === "string" &&
@@ -328,9 +375,10 @@ async function tick(view) {
         Number.isSafeInteger(observed.durationMs) &&
         observed.durationMs >= 1000 && observed.durationMs <= 86400000
           ? observed.durationMs : null;
-      const previous = lastStatus.get(view);
-      lastStatus.set(view, { value: status, trackId, title, artist, durationMs, at: now });
+      lastStatus.set(view, { value: status, trackId, title, artist, durationMs,
+        at: now, firstSeenAt });
       if ((status === "NATIVE_CONNECTED" || status === "NATIVE_MAPPING_ACCEPTED" ||
+           status === "NATIVE_SOURCE_VERIFIED" ||
            status === "NATIVE_RECOVERING" || status === "NATIVE_SOURCE_FAILED" ||
            status === "ORIGINAL") &&
           (!previous || status !== previous.value || trackId !== previous.trackId ||
