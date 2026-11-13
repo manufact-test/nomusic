@@ -218,6 +218,38 @@ test("W60 START/STOP re-requests current source through real Yandex position-pre
   assert.notStrictEqual(initialGetter,undefined);
 });
 
+test("W89 unfetched signed source: exactly one current-track native reload, preserve queue, position and pause",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const original=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const job=r.window.__celikomBridgeNativeDrain();
+  assert.equal(job.length,1);
+  r.window.__celikomBridgeNativeReceive(job[0].requestId,makeGrant("123"));
+  await original;
+  assert.equal(r.window.__celikomBridgeNativeRefreshUnfetched("456"),false,
+    "never reload an unrelated/preloaded song");
+  assert.equal(r.window.__celikomBridgeNativeRefreshUnfetched("123"),true);
+  assert.equal(r.window.__celikomBridgeNativeRefreshUnfetched("123"),false,
+    "duplicate signed-media observer events cannot cause a reload loop");
+  await tick();
+  await tick();
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.mediaSources[0],
+    makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
+  assert.equal(player.state.playerState.progress.value.position,82.25);
+  assert.equal(player.state.playerState.status.value,"playing");
+  assert.ok(r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
+    x[0]==="SOURCE_UNFETCHED_CURRENT_REFRESH_OK"&&x[1]==="123"));
+  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  assert.equal(r.window.__celikomBridgeNativeRefreshUnfetched("123"),false,
+    "explicit Stop prevents any source-refresh attempt");
+  r.handlers.beforeunload();
+  assert.equal(r.window.__celikomBridgeNativeRefreshUnfetched,undefined);
+});
+
 test("W60 paused native Yandex reload retains pause and position without auto-play",async()=>{
   const r=createRenderer({withPlayer:true});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
