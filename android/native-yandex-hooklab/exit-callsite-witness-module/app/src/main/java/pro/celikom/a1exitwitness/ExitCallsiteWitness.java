@@ -2279,7 +2279,20 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (activity == null || intent == null) return "NO_TARGET";
         try {
             ComponentName component = intent.getComponent();
-            if (component == null) return "IMPLICIT_TARGET";
+            if (component == null) {
+                // A package-scoped implicit intent may resolve to no Activity
+                // at all. Check resolution without launching or modifying it.
+                try {
+                    android.content.pm.ResolveInfo result =
+                        activity.getPackageManager().resolveActivity(intent, 0);
+                    if (result == null || result.activityInfo == null)
+                        return "IMPLICIT_UNRESOLVED";
+                    return PACKAGE.equals(result.activityInfo.packageName)
+                        ? "IMPLICIT_OWN_RESOLVED" : "IMPLICIT_EXTERNAL_RESOLVED";
+                } catch (Throwable ignored) {
+                    return "IMPLICIT_CHECK_UNAVAILABLE";
+                }
+            }
             if (!PACKAGE.equals(component.getPackageName())) return "NOT_OWN_PACKAGE";
             try {
                 activity.getPackageManager().getActivityInfo(component, 0);
