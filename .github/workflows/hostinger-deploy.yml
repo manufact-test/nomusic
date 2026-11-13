@@ -346,7 +346,7 @@ jobs:
             throw 'W98_NATIVE_HOST_NOT_INSTALLED'
           }
           if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W98_VENDOR_OR_APPID_CHANGED' }
-          Write-Host 'W98_02433_TO_02435_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS'
+          Write-Host 'W99_02433_TO_02436_INPLACE_DPAPI_AND_NEW_NATIVE_READY_PASS'
       - name: Create final EXE, update ZIP and SHA256 manifest
         shell: pwsh
         run: |
