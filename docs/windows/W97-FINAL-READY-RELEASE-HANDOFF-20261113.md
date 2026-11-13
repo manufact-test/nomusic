@@ -1,3 +1,17 @@
+# W100 CURRENT STATE — 2026-11-13 (supersedes older W97/W98/W99 blockers)
+
+The authoritative current lead handoff is [W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md](W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md). Continue from branch `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`, code baseline `e48e05f75629becc7efd2198dc7459a1ac91b825`, exact rollback `backup/windows-w100-handoff-pre-docs-20261113` at the same SHA.
+
+- Exact Windows CI [43500415302](https://github.com/manufact-test/nomusic/actions/runs/43500415302) is **SUCCESS**.
+- Current Hostinger/final-build run [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358) was **IN PROGRESS** at handoff. Verify/package, owner-only secret preflight, private snapshot, and dedicated website deployment passed; isolated restore/audit drill was running. Continue this run, do not duplicate it.
+- The existing `CELIKOM_W98_TEST_EMAIL` secret is already present and preflight passed. Do not ask the owner to add or disclose any email/secret again.
+- Prior run [43495186951](https://github.com/manufact-test/nomusic/actions/runs/43495186951) passed live private sidecar staging and signed Range 206 for active Big City Life replacement 37 / track 40371622. Measured output was +6.70 dB RMS with peak limited to 0 dB from configured +11.5 dB; the actual mid-track volume-drop issue still needs owner acoustic QA.
+- Final W100 installer/ZIP pipeline and publish-name wiring were corrected; current run must prove these fixes before delivery. No package is considered delivered until public EXE/ZIP are re-downloaded and hashes verified.
+
+**Do not follow older W97/W98/W99 instructions that say the owner must add `CELIKOM_W98_TEST_EMAIL`. That blocker is resolved.** The detailed current sequence and all remaining #52/#53/#54/#56/#57/#58 owner QA gates are in W100.
+
+---
+
 ## W99 update — 2026-11-13 (current integrated QA state)
 
 Current lead status and the exact remaining owner action are documented in [W99-0.24.36-INTEGRATED-QA-STATUS-20261113.md](W99-0.24.36-INTEGRATED-QA-STATUS-20261113.md). Current branch `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`, HEAD `b1f9064edfc33b83e08abe22e7d38a0a87298e59`; exact rollback `backup/windows-w99-0.24.36-green-hostinger-blocked-20261113`. GUI 0.24.36 / native 0.24.29 / W23 0.24.10. Full Windows CI [43470332842](https://github.com/manufact-test/nomusic/actions/runs/43470332842) SUCCESS; W91 sidecar CI [43469841569](https://github.com/manufact-test/nomusic/actions/runs/43469841569) SUCCESS. Hostinger verify/package passed, but deploy safely stopped before writes because repository Actions secret `CELIKOM_W98_TEST_EMAIL` is empty. Add that secret using the owner's primary CELIKOM account email (do not send it in chat), then advance the request JSON and rerun the guarded deployment. No final installer has been published yet.
