@@ -1,3 +1,18 @@
+# 2026-11-13 W100 — CURRENT LEAD HANDOFF (READ FIRST)
+
+**Current code branch:** `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
+**Code baseline:** `e48e05f75629becc7efd2198dc7459a1ac91b825`.
+**Exact code rollback:** `backup/windows-w100-handoff-pre-docs-20261113` @ `e48e05f75629becc7efd2198dc7459a1ac91b825`.
+**Current detailed handoff:** [W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md](W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md).
+**Latest exact Windows CI:** [43500415302](https://github.com/manufact-test/nomusic/actions/runs/43500415302) SUCCESS on code SHA `e48e05f75629becc7efd2198dc7459a1ac91b825).
+**Current release/deploy pipeline:** [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358), was IN PROGRESS at handoff. Verify/package job passed; owner secret preflight, private snapshot and dedicated-site deployment passed; isolated restore/audit drill was running. Continue this exact run; do not launch a duplicate or advance the request JSON while it is active.
+**Important:** `CELIKOM_W98_TEST_EMAIL` is already present as a GitHub Actions secret; its owner-only preflight passed. Do NOT ask the owner for another email, secret, account, password or token. Do not reveal the value.
+**Live gain evidence from prior run:** [43495186951](https://github.com/manufact-test/nomusic/actions/runs/43495186951) passed private sidecar stage for replacement 37 / track 40371622 (+11.5 dB), measured +6.70 dB RMS with peak limited to 0 dB, and passed signed live Range 206 / gain-applied verification. Current run rechecks it.
+**Final package target:** one GUI 0.24.36 / native 0.24.29 package, EXE + updater ZIP + SHA256 manifest, publish to `/CELIKOM/Windows/Test/`. No partial installers. No installation on the owner's PC.
+**W100 handoff file is authoritative.** W99 status below is historical and its earlier “secret missing” blocker is superseded.
+
+---
+
 # 2026-11-13 W99 — CURRENT LEAD HANDOFF (READ FIRST)
 
 **Current branch:** `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
