@@ -7,13 +7,42 @@ namespace Celikom.Companion;
 /// <summary>
 /// HKCU-only Windows login startup; no admin rights, passwords, tokens or
 /// automatic server entitlement grants are stored here.
-/// RunAtLogin is opt-in; a remembered Start is NOT an authorization to play.
+/// First launch enables background startup by default once; the user's
+/// explicit opt-out is saved and NEVER overridden by later app launches.
+/// A remembered Start is NOT an authorization to play.
 /// </summary>
 public static class WindowsLaunchSettings
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string SettingsKey = @"Software\CELIKOM\Windows";
     private const string RunName = "CELIKOM";
+    private const string StartupChoiceKey = "AutoRunConfigured";
+
+    public static bool ShouldEnableDefault(bool hasExplicitChoice) =>
+        !hasExplicitChoice;
+
+    /// <summary>
+    /// First launch registers a quiet Windows login start. A user's later
+    /// decision in the tray (or Windows Startup Settings) must not be undone
+    /// by each subsequent CELIKOM launch or application upgrade.
+    /// </summary>
+    public static bool EnsureFirstLaunchDefault(string executablePath)
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        try
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(SettingsKey))
+            {
+                if (!ShouldEnableDefault(key?.GetValue(StartupChoiceKey) is int choice &&
+                    choice == 1))
+                    return IsRunAtLoginEnabled(executablePath);
+            }
+            return TrySetRunAtLogin(executablePath, true);
+        }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (IOException) { return false; }
+        catch (System.Security.SecurityException) { return false; }
+    }
 
     public static string BuildRunCommand(string executablePath) =>
         "\"" + executablePath.Replace("\"", "") + "\" --background";
@@ -42,7 +71,15 @@ public static class WindowsLaunchSettings
                 key.SetValue(RunName, BuildRunCommand(executablePath), RegistryValueKind.String);
             else
                 key.DeleteValue(RunName, throwOnMissingValue: false);
-            return IsRunAtLoginEnabled(executablePath) == enable;
+            if (IsRunAtLoginEnabled(executablePath) != enable)
+                return false;
+            using var settings = Registry.CurrentUser.CreateSubKey(SettingsKey,
+                writable: true);
+            if (settings is null) return false;
+            // Sticky marker: a manual opt-out must survive every future
+            // session and in-place upgrade. No re-enrollment on next boot.
+            settings.SetValue(StartupChoiceKey, 1, RegistryValueKind.DWord);
+            return true;
         }
         catch (UnauthorizedAccessException) { return false; }
         catch (IOException) { return false; }
