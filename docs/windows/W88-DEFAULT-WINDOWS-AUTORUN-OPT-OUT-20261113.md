@@ -21,4 +21,8 @@ Owner corrected requirement on 2026-11-13: **the user should NOT need to enable 
 ## Release
 
 - Candidate Windows 0.24.32; CI `.github/workflows/windows-w88-default-autorun-installer.yml` includes in-place 0.24.31 → 0.24.32 install with unchanged DPAPI and native audio assets.
-- Exact artifact, SHA256, Library location and owner field QA: pending successful CI.
+- **GitHub Windows CI SUCCESS** https://github.com/manufact-test/nomusic/actions/runs/43404108350 — installer artifact `14026731408`: https://github.com/manufact-test/nomusic/actions/runs/43404108350/artifacts/14026731408.
+- Verified EXE SHA256 `715D7F8B97F2D97E2ACE2FBBB0211F760F9A34E2EB14864FE91CB261C965CF4E`, 43,546,132 bytes, extracted from official Actions artifact and independently hashed in container.
+- Verified persistent Library upload: `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.32-AUTORUN-DEFAULT-ON-TEST.exe` (Library ID `libfile_c4548e97dfac81918a6d250d92ba3e73`). Direct local file `/mnt/data/CELIKOM-Windows-0.24.32-AUTORUN-DEFAULT-ON-TEST.exe`.
+- Verified Windows setup in-place **0.24.31→0.24.32** `W88_02431_TO_02432_INPLACE_DPAPI_AND_NATIVE_UNCHANGED_PASS`: same AppId, encrypted session intact/decryptable and native host.cjs / renderer.js byte-identical.
+- **Owner Windows reboot/audio test not yet performed**, do not mark field QA complete. If trouble use 0.24.31 TEST or stable 0.24.29 from Library; no automatic deployment onto owner PC.
