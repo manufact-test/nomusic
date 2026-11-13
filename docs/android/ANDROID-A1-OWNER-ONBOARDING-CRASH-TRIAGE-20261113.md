@@ -332,3 +332,22 @@ Native Android13 standalone and publisher-first paired workflows were started fo
 - Exact current owner TEST still PENDING. User uninstalls **only** previous disposable NAV7 clone, keeps official Yandex, installs NAV8, follows one bounded sign-in if needed, stops after first repeat, exports TXT via NAV8 button. Must never request/capture account names, passwords, code, tokens, video of credentials or ADB.
 - Root-cause decision after TXT: `ACCOUNT_OWNER OWN_ABSENT` -> own Android authenticator registration; `ACCOUNT_ADD PUBLISHER_TYPE/DENIED` -> stock-type call escaped bridge; `ACCOUNT_ADD CLONE_OWN/ADDED` + `ACCOUNT_STATE ZERO` -> persisted visibility / account restore; `ACCOUNT_STATE ONE` but UI loops -> Passport-to-main result/routing or local session state. **Do not claim any of these diagnoses before actual owner TXT evidence.**
 - Protect prior working progress: NAV7 backup `backup/android-a1-nav7-owner-login-loop-diagnostic-20261114` @ `2fcb3b8d102e8d60b907648a580dc5f87f27747d`; first NAV8 intermediate `backup/android-a1-nav8-pre-per-operation-event-budgets-20261114` @ `17430e30c56930169f66d749d031817c77bce342`. Stage A NO-GO, Stage B LOCKED.
+
+## Owner NAV8 succeeded at real Android account commit — 14 Nov 2026
+
+Uploaded exact owner `CELIKOM-A1-Diagnostics-1794608144136.txt` (483 events). This is the decisive discrimination requested from NAV8:
+- `DIAGNOSTIC_BUILD NAV_V8_ACCOUNT_COMMIT_LOOP_WITNESS ACTIVE` and both MAIN / :passport `ACCOUNT_BRIDGE REGISTERED BOTH_PLUS_ADD_OBS`.
+- Android recognizes **both** genuine publisher and clone-owned independent authenticator types: `ACCOUNT_OWNER OWN_PRESENT / PUBLISHER_PRESENT`.
+- In the real `:passport` process: `ACCOUNT_CTOR CLONE_OWN REAL_RETURN`, exactly one `ACCOUNT_ADD CLONE_OWN ADDED` (not DENIED), followed by several `ACCOUNT_QUERY CLONE_OWN ONE`; then **three** `ACTIVITY_RESULT VENDOR_ACTIVITY OK` and normal activity FINISH. The saved clone account exists in the real Android AccountManager, not a fake result.
+- MAIN: multiple `ACCOUNT_STATE CLONE_OWN ZERO` before completion, then **`ACCOUNT_STATE CLONE_OWN ONE`** on vendor activity resume. This proves cross-process account visibility after completion; does not establish auth token availability, correct local session or finished Yandex Music route.
+- No `PASSPORT_FATAL_TYPE`, `JAVA_CRASH`, uncaught, `FATAL_DISPATCH` or Android abnormal exits; `PREVIOUS_EXIT_INFO NONE`.
+- MAIN started `EXPLICIT_OWN_ENTRY` four times at initial startup, `MAIN_ACTIVITY FINISH`; later `EXPLICIT_OWN_PASSPORT`, but after Passport OK there is no observed new `MAIN_ACTIVITY CREATED`. Owner previously saw intro loop; the current uploaded TXT alone does not explicitly re-report what the screen looked like. Do not claim post-login music interface launched.
+- The separate original native 2025.10.4 MainScreenActivity startup handler reads `SharedPreferences(\"Yandex_Music\",MODE_PRIVATE).getBoolean(\"onboarding\",default)`. A separate real issuer callback `f67#if` stores `onboarding=false`; ProfileActivity routes can set true. **No owner runtime measurement** of this preference yet; the absence of music screen does not prove the flag is the cause.
+
+**Current investigative step:** NAV9 exact source `8f8e898a5934e53844bb7e383f4e74efce14753e`. Keeps all functional NAV8 account/auth/passport behavior unchanged, logs bounded enum only:
+- `ONBOARDING_PREF MAIN_ACTIVITY|ENTRY_ACTIVITY|WIZARD_ACTIVITY|VENDOR_ACTIVITY / UNSET|TRUE|FALSE|UNAVAILABLE` in MAIN process after Activity resumes, no preference writes;
+- Activity lifecycle family identifies Entry/Wizard vs genuine Main vs Passport; old logs collapsed these to VENDOR_ACTIVITY;
+- `ACTIVITY_NEW_INTENT MAIN_ACTIVITY|ENTRY_ACTIVITY|... / LOGIN_RESULT|OTHER` based solely on equality with fixed official Yandex Passport result action; no other Intent data logged. 
+- Signed nested original issuer APK untouched; no password, OTP, account name, UID, cookies, tokens or URLs collected. No forced screen, no fake success, no signing bypass.
+- CI exact native runs 43518864566 and 43518864593 **are not on-device login tests** and do not confirm real onboarding. Require both SUCCESS and exact hash verification before exporting any new APK, and upload only to Library `/CELIKOM/` before offering.
+- Backup of this genuine NAV8 owner evidence: `backup/android-a1-nav8-owner-account-created-result-ok-20261114` at `7a2828e97a4f9ea926f399bdf319cc5b146630a0`. Stage A NO-GO / B LOCKED.
