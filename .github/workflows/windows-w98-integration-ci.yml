@@ -29,6 +29,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Validate owner-scoped private gain staging scripts
+        run: |
+          bash -n .github/scripts/hostinger-windows-gain-stage.sh
+          php -l .github/scripts/hostinger-windows-gain-remote.php
+          grep -F "explicit_owner_email_required" .github/scripts/hostinger-windows-gain-remote.php
+          grep -F "WHERE u.email = ?" .github/scripts/hostinger-windows-gain-remote.php
+          grep -F "CELIKOM_W98_TEST_EMAIL" .github/scripts/hostinger-windows-gain-stage.sh
       - name: Build browser extension and private server package on supported ZIP runner
         run: |
           npm ci --no-audit --no-fund
