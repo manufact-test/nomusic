@@ -1,3 +1,9 @@
+# W86 0.24.30 — real Windows CDP source diagnosis TEST installer uploaded 2026-11-13
+
+Owner asked why the experimental sound diagnostics was not provided for testing on their real Yandex Music computer. Corrected: delivered **separate TEST 0.24.30**, preserving stable 0.24.29 separately. **Windows installer CI green** https://github.com/manufact-test/nomusic/actions/runs/43384241445, SHA256 `F289167A6106505FCFD46F89BE7B6DA34DAFD2DD27695AF3549F0D1A7BBD1AD8`, 43,551,635 bytes, artifact `14018310589`. Verified persistent Library upload: `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.30-TEST-SOURCE-DIAGNOSTICS.exe` (`libfile_e2c07d37b86c8191ad375857a5d44843`). Owner real-device QA pending: use new TEST to listen normally and send owner diagnostics, observing `PLAYER_DECODER_CELIKOM_SOURCE_MATCHED` and `PLAYER_DECODER_CELIKOM_PIPELINE_ERROR`; may be unknown if Yandex doesn't expose CDP kUrl. No new user-facing warnings. If regression, reinstall stable 0.24.29 from Library `/CELIKOM/Windows/CELIKOM-Windows-0.24.29-PROMO-FIX.exe` (same AppId). In-place 0.24.29→0.24.30 tested with retained DPAPI and unchanged renderer audio file, only passive host.cjs witness differs. Branch `experiment/windows-w86-02430-source-witness-owner-test-20261113`; exact pre-edits `backup/windows-w86-pre-02430-source-witness-20261113`. Full details `docs/windows/W86-02430-OWNER-TEST-CDP-DECODER-20261113.md`. Issue #52 remains open until owner's live test.
+
+---
+
 # W83 promo steady / W84 current-decoder source evidence — 2026-11-13
 
 Current owner version **0.24.28** (W82 CI green, user said «вроде всё хорошо», plans live music QA tomorrow). **Do not ask owner to replace 0.24.28 before that QA.**
