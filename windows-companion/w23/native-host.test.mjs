@@ -605,6 +605,7 @@ test("W99 volume witness is independent of CDP property array order",async()=>{
   const grant=w52Grant("139","123");
   const {debug}=w52Debugger();
   const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],
     debuggerDriver:debug,grantOverride:grant,
     currentTrack:{id:"123",title:"Big City synthetic",artist:"Artist",durationMs:190000},
     stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
