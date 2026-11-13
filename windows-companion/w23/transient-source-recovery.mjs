@@ -5,12 +5,15 @@
 const TRACK = /^[1-9][0-9]{0,23}$/;
 export function createTransientSourceRecovery({
   prime, reload, currentTrackId, active, onEvent = () => {},
-  delays = [650, 2400], timer = setTimeout, clearTimer = clearTimeout
+  delays = [650, 2400], confirmationDelayMs = 150,
+  timer = setTimeout, clearTimer = clearTimeout
 }) {
   if (typeof prime !== "function" || typeof reload !== "function" ||
       typeof currentTrackId !== "function" || typeof active !== "function" ||
       !Array.isArray(delays) || delays.length < 1 || delays.length > 3 ||
-      delays.some(x => !Number.isInteger(x) || x < 0 || x > 12000))
+      delays.some(x => !Number.isInteger(x) || x < 0 || x > 12000) ||
+      !Number.isInteger(confirmationDelayMs) || confirmationDelayMs < 0 ||
+      confirmationDelayMs > 1000)
     throw new TypeError("W76_BAD_RECOVERY_CONTRACT");
   let epoch = 0;
   const pending = new Map();
@@ -42,12 +45,30 @@ export function createTransientSourceRecovery({
       if (!current(id, job)) { finish(id, job); return; }
       if (found) {
         emit("SOURCE_RECOVERY_GRANTED", id);
-        job.phase = "reload";
-        let reloaded = false;
-        try { reloaded = await reload(id) === true; } catch {}
-        if (!current(id, job)) { finish(id, job); return; }
-        if (reloaded) { emit("SOURCE_RECOVERY_RELOAD_OK", id); finish(id, job); return; }
-        emit("SOURCE_RECOVERY_RELOAD_FAILED", id);
+        // Give Yandex's own retry a short chance to surface a fresh, playing
+        // decoder URL. CDP confirmation can cancel this window before the
+        // player is explicitly reloaded, avoiding a redundant 403→206 pop.
+        job.phase = "confirm";
+        job.timer = timer(async () => {
+          job.timer = null;
+          if (!current(id, job)) {
+            emit("SOURCE_RECOVERY_NO_LONGER_CURRENT", id);
+            finish(id, job);
+            return;
+          }
+          job.phase = "reload";
+          let reloaded = false;
+          try { reloaded = await reload(id) === true; } catch {}
+          if (!current(id, job)) { finish(id, job); return; }
+          if (reloaded) {
+            emit("SOURCE_RECOVERY_RELOAD_OK", id);
+            finish(id, job);
+            return;
+          }
+          emit("SOURCE_RECOVERY_RELOAD_FAILED", id);
+          attempt(id, job);
+        }, confirmationDelayMs);
+        return;
       }
       attempt(id, job);
     }, delay);
@@ -61,9 +82,9 @@ export function createTransientSourceRecovery({
     attempt(id, job);
     return true;
   }
-  // W99: a strong CURRENT decoder kUrl + playing witness proves Yandex has
-  // already chosen a fresh CELIKOM stream. Cancel a waiting or in-flight
-  // prime, but never interrupt a reload that has already started.
+  // W99/W103: a strong CURRENT decoder kUrl + playing witness proves Yandex
+  // has already chosen a fresh CELIKOM stream. Cancel a waiting/prime or
+  // post-prime confirmation window, but never interrupt a reload already started.
   function confirmedCurrentSource(id) {
     const job = pending.get(id);
     if (!job || job.phase === "reload" || !current(id,job)) return false;

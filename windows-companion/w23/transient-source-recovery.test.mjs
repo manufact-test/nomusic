@@ -13,7 +13,7 @@ test("W76: 13 KARAT Ty id=106040459 recovers after one local HTTP timeout", asyn
     prime:async id=>{ assert.equal(id,"106040459"); tries++; return tries===2; },
     reload:async()=>{ reloads++; return true; },
     onEvent:(code,id)=>events.push([code,id]),
-    delays:[2,2]
+    delays:[2,2], confirmationDelayMs:0
   });
   assert.equal(recovery.schedule("106040459"),true);
   assert.equal(recovery.schedule("106040459"),false,"duplicate local misses dedupe");
@@ -79,7 +79,7 @@ test("W99: verified source cannot interrupt a reload that already started",async
     active:()=>true,currentTrackId:()=>"40371622",
     prime:async()=>true,
     reload:()=>{reloads++;started();return new Promise(resolve=>{finish=resolve})},
-    delays:[1]
+    delays:[1], confirmationDelayMs:0
   });
   recovery.schedule("40371622");
   await entered;
@@ -90,6 +90,58 @@ test("W99: verified source cannot interrupt a reload that already started",async
   assert.equal(recovery.pendingCount,0);
 });
 
+test("W103: fresh decoder confirmation during post-prime grace suppresses redundant reload",async()=>{
+  const id="40371622", events=[];
+  let primes=0, reloads=0;
+  const recovery=createTransientSourceRecovery({
+    active:()=>true,currentTrackId:()=>id,
+    prime:async()=>{primes++;return true;},
+    reload:async()=>{reloads++;return true;},
+    delays:[1],confirmationDelayMs:90,
+    onEvent:(code,track)=>events.push([code,track])
+  });
+  assert.equal(recovery.schedule(id),true);
+  await pause(20);
+  assert.equal(primes,1,"the fresh grant was resolved");
+  assert.equal(recovery.confirmedCurrentSource(id),true,
+    "CDP-confirmed current CELIKOM decoder cancels the post-prime window");
+  await pause(110);
+  assert.equal(reloads,0,"a redundant player reload is never started");
+  assert.equal(recovery.pendingCount,0);
+  assert.ok(events.some(([code,track])=>
+    code==="SOURCE_RECOVERY_DECODER_ALREADY_PLAYING"&&track===id));
+});
+test("W103: a track switch during post-prime grace suppresses the stale reload",async()=>{
+  const id="40371622";
+  let current=id, primes=0, reloads=0;
+  const recovery=createTransientSourceRecovery({
+    active:()=>true,currentTrackId:()=>current,
+    prime:async()=>{primes++;return true;},
+    reload:async()=>{reloads++;return true;},
+    delays:[1],confirmationDelayMs:70
+  });
+  assert.equal(recovery.schedule(id),true);
+  await pause(20);
+  current="106040459";
+  await pause(90);
+  assert.equal(primes,1);
+  assert.equal(reloads,0,"a retry must never reload a track that is no longer current");
+  assert.equal(recovery.pendingCount,0);
+});
+test("W103: without fresh decoder confirmation, recovery reload proceeds after grace",async()=>{
+  const id="40371622";
+  let reloads=0;
+  const recovery=createTransientSourceRecovery({
+    active:()=>true,currentTrackId:()=>id,
+    prime:async()=>true,
+    reload:async()=>{reloads++;return true;},
+    delays:[1],confirmationDelayMs:30
+  });
+  assert.equal(recovery.schedule(id),true);
+  await pause(60);
+  assert.equal(reloads,1,"stuck expired source still recovers after the bounded grace");
+  assert.equal(recovery.pendingCount,0);
+});
 test("W76: no source reload if user switched songs before delayed retry",async()=>{
   let current="106040459", calls=0;
   const recovery=createTransientSourceRecovery({

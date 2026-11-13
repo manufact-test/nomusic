@@ -214,8 +214,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     }
   });
   window.__celikomBridgeNativeCheckDeferred = () => deferredRecovery.check();
-  // Only CDP-verified current decoder source may suppress an unfired 403
-  // refresh. HTTP206 alone/prefetch/mapping never qualify. No player calls.
+  // Only CDP-verified current decoder source may suppress a waiting or
+  // post-prime 403 refresh. HTTP206 alone/prefetch/mapping never qualify.
   window.__celikomBridgeNativeConfirmedCurrentSource = trackId => {
     if (typeof trackId !== "string" || !/^[1-9][0-9]{0,23}$/.test(trackId) ||
         stopped || !attached || !adapter.enabled ||
