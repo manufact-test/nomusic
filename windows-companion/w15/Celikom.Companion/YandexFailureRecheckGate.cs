@@ -8,6 +8,11 @@ public sealed class YandexFailureRecheckGate
 {
     private DateTimeOffset _nextAllowed = DateTimeOffset.MinValue;
     private bool _running;
+    private int _consecutiveTriggers;
+
+    public static bool IsNativeHandshakePresent(string? status) =>
+        status is "ORIGINAL" or "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
+            "NATIVE_SOURCE_VERIFIED" or "NATIVE_RECOVERING" or "NATIVE_SOURCE_FAILED";
 
     public static bool IsNativeHostFailure(string? status) =>
         string.Equals(status, "HOST_ERROR", StringComparison.Ordinal);
@@ -19,8 +24,17 @@ public sealed class YandexFailureRecheckGate
     {
         if (_running || now < _nextAllowed) return false;
         _running = true;
-        _nextAllowed = now.AddMinutes(2);
+        // Repeated native failures back off 2, 4, 8 then 15 minutes.
+        _consecutiveTriggers = Math.Min(4, _consecutiveTriggers + 1);
+        _nextAllowed = now.AddMinutes(Math.Min(15, 1 << _consecutiveTriggers));
         return true;
+    }
+
+    public void ConfirmNativeHealthy()
+    {
+        if (_running) return;
+        _consecutiveTriggers = 0;
+        _nextAllowed = DateTimeOffset.MinValue;
     }
 
     public void Finish() => _running = false;

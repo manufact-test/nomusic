@@ -127,6 +127,9 @@ public sealed partial class MainWindow : Form
         _bridge.Changed += () =>
         {
             UpdateSafe();
+            if (_bridge.Enabled &&
+                YandexFailureRecheckGate.IsNativeHandshakePresent(_bridge.LastStatus))
+                _failureRecheckGate.ConfirmNativeHealthy();
             // A native HOST_ERROR is explicit; track source failures are not
             // evidence of a Yandex update. Never reload the player here.
             if (!_bridge.Enabled ||
@@ -981,6 +984,7 @@ public sealed partial class MainWindow : Form
         _resumeAfterNetworkFailure = false;
         if (_integrationBusy) return;
         var upgrading = _nativeInstallState == NativeInstallState.Active;
+        var nativeIntegrationFailed = false;
         // Defense-in-depth: no "unsupported version" modal based on a null or
         // temporarily unavailable scan. StartAction already awaited the probe.
         if (StartupHostPreflight.BlockReason(_nativeInstallState, _hostReport) is
@@ -1085,6 +1089,7 @@ public sealed partial class MainWindow : Form
         catch (Exception error)
         {
             DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_FAILED" : "NATIVE_INSTALL_FAILED");
+            nativeIntegrationFailed = true;
             ++_compactStartEpoch;
             _compactStarting = false;
             _compactStartupText = "Не удалось подключить Яндекс.Музыку.";
@@ -1097,6 +1102,10 @@ public sealed partial class MainWindow : Form
             RenderCompact();
             LayoutCompact();
             await RefreshHostAsync();
+            // Native image/bridge failure may follow an unexpected Yandex
+            // update. Recheck verified catalog pins, but NEVER retry patching.
+            if (nativeIntegrationFailed && !_closing)
+                _ = RecheckYandexAfterNativeFailureAsync("YANDEX_NATIVE_INTEGRATION_FAILED");
             UpdateSafe();
         }
     }

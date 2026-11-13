@@ -35,6 +35,19 @@ try
          failureGate.TryStart(failureAt.AddSeconds(120)),
         "W104 compatibility requests throttle for two minutes after start");
     failureGate.Finish();
+    Test(!failureGate.TryStart(failureAt.AddSeconds(359)) &&
+         failureGate.TryStart(failureAt.AddSeconds(360)),
+        "W104 repeated native failures back off to four minutes");
+    failureGate.Finish();
+    Test(YandexFailureRecheckGate.IsNativeHandshakePresent("ORIGINAL") &&
+         YandexFailureRecheckGate.IsNativeHandshakePresent("NATIVE_CONNECTED") &&
+         YandexFailureRecheckGate.IsNativeHandshakePresent("NATIVE_SOURCE_FAILED") &&
+         !YandexFailureRecheckGate.IsNativeHandshakePresent("HOST_ERROR"),
+        "W104 native heartbeat presence is separate from successful alternative playback");
+    failureGate.ConfirmNativeHealthy();
+    Test(failureGate.TryStart(failureAt.AddSeconds(361)),
+        "W104 valid native handshake clears repeated-failure backoff");
+    failureGate.Finish();
 
     // W74: first Start must not confuse an in-flight host scan with an
     // unsupported vendor version. Existing active native integration is valid
