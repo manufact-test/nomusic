@@ -7,7 +7,7 @@ The work continued on a separate branch from the exact W95 input, without changi
 - Current W98 branch: `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
 - Exact W98 pre-change backup: `backup/windows-w98-pre-integrated-gain-and-original-vpn-20261113` @ `5ce1ec127009ba4a86a8e5ee1d129ec86623fd54`.
 - Prepared candidate: GUI 0.24.35 / native 0.24.28.
-- Full W98 CI [43457943838](https://github.com/manufact-test/nomusic/actions/runs/43457943838) passed on `65c2aba287183c655cbb89deed05f3029addca15`. Exact-current-head run [43458387990](https://github.com/manufact-test/nomusic/actions/runs/43458387990) must also pass before the final installer.
+- Latest full W98 CI [43462340493](https://github.com/manufact-test/nomusic/actions/runs/43462340493) SUCCESS on code SHA `696e36b65c2a5accaa0e5c6c8aeb7548611932f1`; Hostinger workflow YAML, owner-email session scoping, Linux package build, W22/W23/W60, W21, W24, W15 and GUI compile all passed.
 - Issue #58 now has explicit original/unknown/actual-replacement classification and no reload for a confirmed original during VPN/entitlement transitions. W22/W23 regression tests pass; owner acoustic QA is still required.
 - W98 has prepared private offline gain rendering, source/version/gain-bound sidecar registration, signed Range verification, and an explicit rollback CLI. Live verification is scoped to the owner's explicitly authorized account email via Actions secret `CELIKOM_W98_TEST_EMAIL`; it never scans other users' sessions. **Migration 020 and real sidecars have not been activated.**
 - Hostinger attempt [43454991506](https://github.com/manufact-test/nomusic/actions/runs/43454991506) stopped before deployment because its branch revision was stale. No deploy or media writes occurred.
