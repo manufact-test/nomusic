@@ -33,6 +33,7 @@ manifest_remote="$backup_dir/windows-gain-$GITHUB_SHA.json"
 
 work="$(mktemp -d)"
 success=0
+remote_ready=0
 : > "$work/attempted.tsv"
 : > "$work/uploaded.tsv"
 : > "$work/metrics.tsv"
@@ -40,7 +41,7 @@ success=0
 cleanup() {
   local result=$?
   trap - EXIT
-  if [[ "$success" -ne 1 ]]; then
+  if [[ "$remote_ready" -eq 1 && "$success" -ne 1 ]]; then
     if [[ -s "$work/attempted.tsv" && -n "${release:-}" ]]; then
       while IFS=$'\t' read -r id version gain source_sha render_sha; do
         [[ -n "$id" ]] || continue
@@ -54,13 +55,13 @@ cleanup() {
       remote "rm -f '$manifest_remote'" >/dev/null 2>&1 || true
     fi
   fi
-  if [[ -s "$work/uploaded.tsv" ]]; then
+  if [[ "$remote_ready" -eq 1 && -s "$work/uploaded.tsv" ]]; then
     while IFS= read -r remote_file; do
       [[ -n "$remote_file" ]] || continue
       remote "rm -f '$remote_file'" >/dev/null 2>&1 || true
     done < "$work/uploaded.tsv"
   fi
-  if [[ -n "${helper_remote:-}" ]]; then
+  if [[ "$remote_ready" -eq 1 && -n "${helper_remote:-}" ]]; then
     remote "rm -f '$helper_remote'" >/dev/null 2>&1 || true
   fi
   rm -rf "$work"
@@ -84,6 +85,7 @@ remote() {
 copy_to_remote() {
   scp -P "$port" "${ssh_opts[@]}" "$1" "$target:$2"
 }
+remote_ready=1
 
 remote "set -e; mkdir -p '$incoming' '$stage_dir' '$backup_dir'; chmod 700 '$incoming' '$stage_dir' '$backup_dir'; test ! -L '$incoming'; test ! -L '$stage_dir'; test ! -L '$backup_dir'"
 release="$(remote "readlink -f '$site/current'")"

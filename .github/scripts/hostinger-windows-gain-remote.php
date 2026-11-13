@@ -7,8 +7,6 @@
  */
 declare(strict_types=1);
 
-ini_set('display_errors', '0');
-
 use Celikom\Admin\AudioGainService;
 use Celikom\Application\AudioTokenService;
 use Celikom\Application\ResolveService;
@@ -17,6 +15,8 @@ use Celikom\Database\Connection;
 use Celikom\Entitlement\EntitlementService;
 use Celikom\Storage\LocalStorageAdapter;
 use Celikom\Repositories\PdoCatalogRepository;
+
+ini_set('display_errors', '0');
 
 try {
     if (PHP_SAPI !== 'cli') throw new RuntimeException('cli_required');
