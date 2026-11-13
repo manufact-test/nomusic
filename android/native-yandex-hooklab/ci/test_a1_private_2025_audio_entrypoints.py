@@ -1,6 +1,6 @@
 """Only synthetic public API descriptors; no publisher APK required."""
 import unittest
-from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods, count_direct_public_invocations,public_extractor_shape,extractor_argument_shape
+from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods, count_direct_public_invocations,public_extractor_shape,extractor_argument_shape,summarize_mediadatasource_inheritance
 
 class AudioEntryPointSafetyTests(unittest.TestCase):
     def test_public_media3_and_legacy_methods_classified(self):
@@ -31,6 +31,25 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         for value in ("Secret","random","Lcq7","Lga4"):
             self.assertNotIn(value,str(got))
 
+
+    def test_mediadatasource_subclasses_including_indirect_are_private(self):
+        parents={
+            "Lvendor/private/A;":"Landroid/media/MediaDataSource;",
+            "Lvendor/private/B;":"Lvendor/private/A;",
+            "Lunrelated/X;":"Ljava/lang/Object;",
+            "Lcyclic/A;":"Lcyclic/B;",
+            "Lcyclic/B;":"Lcyclic/A;",
+        }
+        x=summarize_mediadatasource_inheritance(
+            parents,{"Lvendor/private/A;","Lunrelated/X;"},
+            {"Lvendor/private/B;"})
+        self.assertEqual(x["direct_2025_mediadatasource_subclasses_bounded"],1)
+        self.assertEqual(x["transitive_2025_mediadatasource_subclasses_bounded"],2)
+        self.assertEqual(x["descendant_readat_method_bodies_bounded"],1)
+        self.assertEqual(x["descendant_getsize_method_bodies_bounded"],1)
+        self.assertFalse(x["current_playback_or_current_track_proven"])
+        self.assertFalse(x["third_party_class_names_disclosed"])
+        self.assertNotIn("vendor/private",str(x))
 
     def test_exact_public_extractor_argument_shapes_never_export_paths(self):
         self.assertEqual(public_extractor_shape(["Landroid/content/Context;","Landroid/net/Uri;"]),

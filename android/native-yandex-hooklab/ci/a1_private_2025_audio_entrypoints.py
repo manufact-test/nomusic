@@ -174,6 +174,50 @@ def count_direct_public_invocations(dex):
         "executed_on_real_player_proven":False,
     }
 
+
+def private_class_superclasses(dex):
+    """Use DEX class-def metadata in memory; never emit vendor descriptors."""
+    result={}
+    for idx in range(dex.class_count):
+        off=dex.class_off+32*idx
+        if off+12>len(dex.data):
+            raise DexError("AUDIO_CLASS_DEF_BOUNDS")
+        class_idx=struct.unpack_from("<I",dex.data,off)[0]
+        super_idx=struct.unpack_from("<I",dex.data,off+8)[0]
+        name=dex.type(class_idx)
+        if name in result:
+            raise DexError("AUDIO_DUPLICATE_CLASS")
+        result[name]=None if super_idx==0xffffffff else dex.type(super_idx)
+    return result
+
+def summarize_mediadatasource_inheritance(superclasses,readat_owners,getsize_owners):
+    """Subclass structure, NOT a live player or proof any source is selected."""
+    base="Landroid/media/MediaDataSource;"
+    def is_child(owner):
+        seen=set()
+        name=owner
+        for _ in range(16):
+            if name in seen:
+                return False
+            seen.add(name)
+            parent=superclasses.get(name)
+            if parent==base:
+                return True
+            if parent is None:
+                return False
+            name=parent
+        return False
+    descendants={name for name in superclasses if is_child(name)}
+    direct={name for name in superclasses if superclasses[name]==base}
+    return {
+        "direct_2025_mediadatasource_subclasses_bounded":min(len(direct),9999),
+        "transitive_2025_mediadatasource_subclasses_bounded":min(len(descendants),9999),
+        "descendant_readat_method_bodies_bounded":min(len(descendants & set(readat_owners)),9999),
+        "descendant_getsize_method_bodies_bounded":min(len(descendants & set(getsize_owners)),9999),
+        "current_playback_or_current_track_proven":False,
+        "third_party_class_names_disclosed":False,
+    }
+
 def scan_publisher(xapk: Path) -> dict:
     if (os.getenv("GITHUB_ACTIONS")!="true"
         or os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic"
@@ -204,6 +248,9 @@ def scan_publisher(xapk: Path) -> dict:
         total_decoded=0
         total_undecoded=0
         shared_bodies=0
+        supers={}
+        readat=set()
+        getsize=set()
         for apk in parts:
             with zipfile.ZipFile(apk) as archive:
                 if archive.testzip() is not None:
@@ -219,6 +266,12 @@ def scan_publisher(xapk: Path) -> dict:
                         raise RuntimeError("PUBLISHER_DEX_COUNT_EXCEEDED")
                     methods=[d.method(i) for i in range(d.method_count)]
                     defined={index for index,_code in d.code_methods()}
+                    scan_classes=private_class_superclasses(d)
+                    if supers.keys() & scan_classes.keys():
+                        raise RuntimeError("AUDIO_DUPLICATE_CLASS_ACROSS_SPLITS")
+                    supers.update(scan_classes)
+                    readat.update(methods[i][0] for i in defined if methods[i][1]=="readAt")
+                    getsize.update(methods[i][0] for i in defined if methods[i][1]=="getSize")
                     row=summarize_methods(methods,defined)
                     for key,value in row["public_api_references"].items(): combined[key]+=value
                     for key,value in row["public_api_defined_bodies"].items(): combined["DEFINED_"+key]+=value
@@ -247,6 +300,8 @@ def scan_publisher(xapk: Path) -> dict:
         "android_extractor_callsite_overload_categories":{
             k:min(combined["SHAPE_"+k],9999) for k in EXTRACTOR_SHAPES},
         "extractor_and_renderer_invoked_same_method_bodies_bounded":min(shared_bodies,9999),
+        "mediadata_source_class_contract":summarize_mediadatasource_inheritance(
+            supers,readat,getsize),
         "actual_current_track_binding_proven":False,
         "source_before_decoder_execution_proven":False,
         "native_audio_playback_proven":False,
