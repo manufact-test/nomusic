@@ -139,14 +139,25 @@ def _exact_extractor_source_register(code: bytes, pc: int, opcode: int):
     return None
 
 
-def _exact_extractor_register_origin(dex, code: bytes, instructions, index: int):
+def _exact_extractor_receiver_register(code: bytes, pc: int, opcode: int):
+    """Exactly the receiver in invoke-virtual {receiver, MediaDataSource}."""
+    if opcode==0x6e:
+        return code[pc+4]&15 if code[pc+1]>>4==2 else None
+    if opcode==0x74:
+        return struct.unpack_from("<H",code,pc+4)[0] if code[pc+1]==2 else None
+    return None
+
+
+def _exact_extractor_register_origin(dex, code: bytes, instructions,
+                                     index: int, *, receiver: bool=False):
     """Conservative straight-line local backslice, with private class kept in memory.
 
     Never resolve through unknown branches, external calls, objects, registers,
     fields, track identity or decoder state. Source is only a static clue.
     """
     pc,opcode,_=instructions[index]
-    register=_exact_extractor_source_register(code,pc,opcode)
+    register=(_exact_extractor_receiver_register(code,pc,opcode) if receiver
+              else _exact_extractor_source_register(code,pc,opcode))
     if register is None:
         return ("ARGUMENT_SHAPE_UNRESOLVED",None)
     for j in range(index-1,max(-1,index-81),-1):
@@ -208,6 +219,21 @@ def classify_private_extractor_sink_rows(rows, superclasses, readat, getsize):
         "real_player_execution_proven":False,
     }
 
+
+
+def exact_extractor_receiver_category(origin) -> str:
+    """Finite enum only, never export caller or object type descriptors."""
+    kind,actual=origin
+    if kind=="NEW_INSTANCE":
+        return ("DIRECT_NEW_EXTRACTOR" if actual=="Landroid/media/MediaExtractor;"
+                else "DIRECT_NEW_NON_EXTRACTOR")
+    allowed={
+        "INVOKE_RETURN_OBJECT","UNLINKED_RESULT","INSTANCE_OBJECT_FIELD",
+        "STATIC_OBJECT_FIELD","ARRAY_OBJECT_ELEMENT","LITERAL_OR_NULL",
+        "OTHER_REGISTER_WRITE","PARAMETER_OR_CAPTURE_UNRESOLVED",
+        "FLOW_BOUNDARY_UNRESOLVED","ARGUMENT_SHAPE_UNRESOLVED",
+    }
+    return kind if kind in allowed else "UNRESOLVED"
 
 
 def exact_extractor_caller_return_shape(dex, method_index: int) -> str:
@@ -282,6 +308,7 @@ def classify_private_extractor_sink_lifecycle(rows: list[dict]) -> dict:
             "same_class_public_framework_steps":[],
             "caller_return_shapes":[],
             "caller_return_object_opcode_present":False,
+            "extractor_receiver_origin_categories":[],
             "same_method_reads_samples":False,
             "same_class_reads_samples":False,
             "unambiguous_single_static_sink":False,
@@ -297,6 +324,7 @@ def classify_private_extractor_sink_lifecycle(rows: list[dict]) -> dict:
         "same_class_public_framework_steps":clazz,
         "caller_return_shapes":[row["return_shape"]],
         "caller_return_object_opcode_present":row["return_object_opcode"],
+        "extractor_receiver_origin_categories":[row["receiver_category"]],
         "same_method_reads_samples":"READ_SAMPLE_DATA" in method,
         "same_class_reads_samples":"READ_SAMPLE_DATA" in clazz,
         "unambiguous_single_static_sink":True,
@@ -360,16 +388,29 @@ def count_direct_public_invocations(dex, private_sink_rows=None, sink_lifecycle_
         if found_exact_media_sink and sink_lifecycle_rows is not None:
             if len(exact_sink_methods)>=4:
                 raise DexError("EXACT_EXTRACTOR_LIFECYCLE_BOUND")
+            # The public MediaExtractor receiver is independent from the
+            # private MediaDataSource argument previously traced as candidate0.
+            sink_index=next((i for i,(pc,op,_) in enumerate(instructions)
+                if op in INVOKE_METHOD
+                and dex.method(struct.unpack_from("<H",code,pc+2)[0])==
+                    ("Landroid/media/MediaExtractor;","setDataSource")
+                and extractor_argument_shape(
+                    dex,struct.unpack_from("<H",code,pc+2)[0])=="MEDIA_DATA_SOURCE"),None)
+            if sink_index is None:
+                raise DexError("EXACT_EXTRACTOR_RECEIVER_SINK_MISSING")
+            recv=_exact_extractor_register_origin(
+                dex,code,instructions,sink_index,receiver=True)
             exact_sink_methods.append((
                 dex.method(_index)[0], tuple(framework_steps),
                 exact_extractor_caller_return_shape(dex,_index),
-                any(op==0x11 for _,op,_ in instructions)))
+                any(op==0x11 for _,op,_ in instructions),
+                exact_extractor_receiver_category(recv)))
         if "ANDROID_MEDIA_EXTRACTOR_SOURCE" in body_roles and (
             "ANDROID_AUDIO_TRACK_OUTPUT" in body_roles or
             "ANDROID_MEDIA_CODEC_INPUT" in body_roles):
             same_body+=1
     if sink_lifecycle_rows is not None:
-        for owner,steps,shape,returns_object in exact_sink_methods:
+        for owner,steps,shape,returns_object,receiver_category in exact_sink_methods:
             if len(sink_lifecycle_rows)>=4:
                 raise DexError("EXACT_EXTRACTOR_LIFECYCLE_BOUND")
             sink_lifecycle_rows.append({
@@ -377,6 +418,7 @@ def count_direct_public_invocations(dex, private_sink_rows=None, sink_lifecycle_
                 "same_class_steps":tuple(lifecycle_by_owner.get(owner,())),
                 "return_shape":shape,
                 "return_object_opcode":returns_object,
+                "receiver_category":receiver_category,
             })
     return {
         "direct_public_invocation_counts":{k:min(counts[k],9999) for k in PUBLIC_METHODS},

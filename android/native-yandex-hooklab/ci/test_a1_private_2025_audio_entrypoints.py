@@ -256,6 +256,31 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertFalse(x["live_playback_or_same_object_proven"])
 
 
+    def test_exact_extractor_receiver_origin_is_distinct_from_media_source(self):
+        from a1_private_2025_audio_entrypoints import (
+            _exact_extractor_register_origin, exact_extractor_receiver_category)
+        from a1_private_dex_flow import decode_instructions
+        class Fake:
+            def type(self,i):
+                return {7:"Landroid/media/MediaExtractor;",
+                        8:"Lsecret/MediaDataSource;"}.get(i,"Lsecret/Other;")
+        # new-instance v0,MediaExtractor; new-instance v1,Source;
+        # setDataSource({v0,v1}); return-void
+        sample=bytes([0x22,0x00,0x07,0x00,0x22,0x01,0x08,0x00,
+                      0x6e,0x20,0x00,0x00,0x10,0x00,0x0e,0x00])
+        ins=decode_instructions(sample)
+        a=_exact_extractor_register_origin(Fake(),sample,ins,2)
+        b=_exact_extractor_register_origin(Fake(),sample,ins,2,receiver=True)
+        self.assertEqual(a,("NEW_INSTANCE","Lsecret/MediaDataSource;"))
+        self.assertEqual(exact_extractor_receiver_category(b),"DIRECT_NEW_EXTRACTOR")
+        self.assertNotIn("secret",exact_extractor_receiver_category(b))
+        # Another method may supply an already-made extractor as parameter.
+        code=bytes([0x6e,0x20,0x00,0x00,0x10,0x00])
+        unresolved=_exact_extractor_register_origin(Fake(),code,decode_instructions(code),
+                                                     0,receiver=True)
+        self.assertEqual(exact_extractor_receiver_category(unresolved),
+                         "PARAMETER_OR_CAPTURE_UNRESOLVED")
+
     def test_exact_extractor_caller_return_type_categories_redact_private_values(self):
         from a1_private_2025_audio_entrypoints import exact_extractor_caller_return_shape
         import struct
@@ -290,10 +315,12 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
             {"same_method_steps":["SET_SOURCE"],
              "same_class_steps":["SET_SOURCE"],
              "return_shape":"RETURNS_EXTRACTOR",
-             "return_object_opcode":True}
+             "return_object_opcode":True,
+             "receiver_category":"INSTANCE_OBJECT_FIELD"}
         ])
         self.assertEqual(got["caller_return_shapes"],["RETURNS_EXTRACTOR"])
         self.assertTrue(got["caller_return_object_opcode_present"])
+        self.assertEqual(got["extractor_receiver_origin_categories"],["INSTANCE_OBJECT_FIELD"])
         self.assertFalse(got["live_playback_or_same_object_proven"])
         self.assertNotIn("Caller",str(got))
 
