@@ -779,7 +779,8 @@ public sealed partial class MainWindow : Form
             _hostReport = inspected.Item1;
             _nativeInstallState = inspected.Item2;
             _installedModule = inspected.Item3;
-            if (wasPlaying && inspected.Item2 != NativeInstallState.Active)
+            if (wasPlaying && (inspected.Item2 != NativeInstallState.Active ||
+                !inspected.Item3.MatchesApplication))
             {
                 // Never claim connected when Yandex replaced the native host.
                 _bridge.SetEnabled(false);
@@ -828,14 +829,13 @@ public sealed partial class MainWindow : Form
         // forced through a second modal. RESTORED users still consent once.
         var previouslyApproved = _nativeInstallState == NativeInstallState.VerifiedVendorUpdate &&
             NativeIntegrationManager.IsPreviouslyApprovedVendorUpdate();
-        if (!previouslyApproved)
+        // Manual Start is already consent to refresh a module the same
+        // owner previously installed. First installation still asks once.
+        if (!previouslyApproved && !upgrading)
         {
             var answer = MessageBox.Show(this,
-                upgrading
-                    ? "Чтобы CELIKOM работал, нужно обновить подключение к Яндекс.Музыке. Яндекс перезапустится. Продолжить?"
-                    : "Подключить CELIKOM к Яндекс.Музыке? Оригинальные файлы будут сохранены, Яндекс перезапустится.",
-                "Подключение CELIKOM",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                "Подключить CELIKOM к Яндекс.Музыке? Оригинальные файлы будут сохранены, Яндекс перезапустится.",
+                "Подключение CELIKOM", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (answer != DialogResult.Yes) return;
         }
         else DiagnosticLog.Record("YANDEX_UPDATE_RECONNECT_PRIOR_CONSENT");
