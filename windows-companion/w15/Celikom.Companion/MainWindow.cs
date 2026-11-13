@@ -150,20 +150,31 @@ public sealed partial class MainWindow : Form
         // One compact popup sourced from the actual Chrome extension layout.
         BuildCompactPopup();
 
+        // Turn on Windows-login startup on the first app launch ONLY.
+        // This creates a one-time preference marker so a user who disables
+        // autostart will never be silently re-enrolled by an app update.
+        WindowsLaunchSettings.EnsureFirstLaunchDefault(Application.ExecutablePath);
         var menu = new ContextMenuStrip();
         menu.Items.Add("Открыть CELIKOM", null, (_, _) => ShowMain());
         menu.Items.Add("Остановить подмену", null, (_, _) => StopPlaybackExplicitly());
         menu.Items.Add(new ToolStripSeparator());
-        var launchWithWindows = new ToolStripMenuItem("Запускать с Windows")
+        var launchWithWindows = new ToolStripMenuItem();
+        void SyncAutorunMenu()
         {
-            Checked = WindowsLaunchSettings.IsRunAtLoginEnabled(Application.ExecutablePath)
-        };
+            var enabled = WindowsLaunchSettings.IsRunAtLoginEnabled(Application.ExecutablePath);
+            launchWithWindows.Checked = enabled;
+            launchWithWindows.Text = enabled
+                ? "Отключить запуск с Windows"
+                : "Включить запуск с Windows";
+        }
+        SyncAutorunMenu();
+        menu.Opening += (_, _) => SyncAutorunMenu();
         launchWithWindows.Click += (_, _) =>
         {
-            var enable = !launchWithWindows.Checked;
+            var enable = !WindowsLaunchSettings.IsRunAtLoginEnabled(Application.ExecutablePath);
             if (WindowsLaunchSettings.TrySetRunAtLogin(Application.ExecutablePath, enable))
             {
-                launchWithWindows.Checked = enable;
+                SyncAutorunMenu();
                 DiagnosticLog.Record(enable ? "WIN_AUTORUN_ENABLED_BY_OWNER" :
                     "WIN_AUTORUN_DISABLED_BY_OWNER");
                 if (enable && !_bridge.Enabled) _ = ResumeSavedPlaybackAsync();
