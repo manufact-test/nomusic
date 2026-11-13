@@ -177,6 +177,15 @@ def inspect(xapk,private_java=None):
                 private_java_parameter_signature(dex,service_direct[0])==
                 "android.content.Context"):
                 service_private.append(dex.method(service_direct[0]))
+            provider_get=[mid for mid in candidates
+                if dex.method(mid)[1]=="getPushServiceController"]
+            provider_get_public=[mid for mid in provider_get if
+                dex.method(mid)[0].endswith("/PushServiceControllerProvider;")]
+            provider_concrete=[mid for mid in candidates if
+                dex.method(mid)[1]=="getIdentifier"]
+            composite_ctor=[mid for mid in candidates if
+                dex.method(mid)[1]=="<init>" and
+                dex.method(mid)[0].endswith("/PushServiceControllerComposite;")]
             service_onehop=[mid for mid in candidates
                 if dex.method_signature(mid) in defined
                 and any(push_service_target(other)
@@ -202,6 +211,12 @@ def inspect(xapk,private_java=None):
                 "direct_permission_or_signature_api_bounded":min(direct_auth,16),
                 "one_hop_permission_or_signature_api_bounded":min(onehop_auth,16),
                 "one_hop_known_permission_literal_bounded":min(onehop_literal,16),
+                "provider_get_direct_bounded":min(len(provider_get),8),
+                "provider_get_exact_api_class_bounded":min(len(provider_get_public),8),
+                "provider_get_declared_same_dex":sum(dex.method_signature(mid) in defined for mid in provider_get),
+                "provider_get_prototype_arity_zero":sum(private_java_parameter_signature(dex,mid)=="" for mid in provider_get),
+                "identifier_lookup_direct_bounded":min(len(provider_concrete),8),
+                "composite_constructor_direct_bounded":min(len(composite_ctor),8),
                 "service_class_matches_public_modern":(len(service_direct)==1 and
                     dex.method(service_direct[0])[0]==
                     "Lio/appmetrica/analytics/push/coreutils/internal/PushServiceFacade;"),
