@@ -95,7 +95,15 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean activityResultHooked;
     private final java.util.concurrent.atomic.AtomicInteger accountSnapshots =
         new java.util.concurrent.atomic.AtomicInteger();
-    private final java.util.concurrent.atomic.AtomicInteger accountObservations =
+    // Independent event quotas: a long login cannot exhaust the budget
+    // before the decisive account-add result.
+    private final java.util.concurrent.atomic.AtomicInteger accountCtorObservations =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger accountQueryObservations =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger accountAddObservations =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger accountRegistryObservations =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger ownAccountCtorRemaps =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -291,7 +299,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                             return value;
                         }
                         Object value=chain.proceed();
-                        if (accountObservations.incrementAndGet()<=24)
+                        if (accountCtorObservations.incrementAndGet()<=16)
                             emit("ACCOUNT_CTOR", ownAccountTypeCategory(
                                 chain.getArg(1) instanceof String
                                     ? (String)chain.getArg(1) : null), "REAL_RETURN");
@@ -318,13 +326,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 : chain.proceed();
                             if (remap && ownAccountQueryRemaps.getAndIncrement()<8)
                                 emit("ACCOUNT_BRIDGE", "QUERY", "STOCK_TO_OWN");
-                            if (accountObservations.incrementAndGet()<=24)
+                            if (accountQueryObservations.incrementAndGet()<=32)
                                 emit("ACCOUNT_QUERY",
                                     ownAccountTypeCategory(type),
                                     ownAccountCountCategory(value));
                             return value;
                         } catch (Throwable failure) {
-                            if (accountObservations.incrementAndGet()<=24)
+                            if (accountQueryObservations.incrementAndGet()<=32)
                                 emit("ACCOUNT_QUERY",
                                     ownAccountTypeCategory(type),
                                     failure instanceof SecurityException
@@ -350,13 +358,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                         String family=ownAccountTypeCategory(type);
                         try {
                             Object result=chain.proceed();
-                            if (accountObservations.incrementAndGet()<=24)
+                            if (accountAddObservations.incrementAndGet()<=16)
                                 emit("ACCOUNT_ADD", family,
                                     Boolean.TRUE.equals(result) ? "ADDED"
                                         : "NOT_ADDED");
                             return result;
                         } catch (Throwable failure) {
-                            if (accountObservations.incrementAndGet()<=24)
+                            if (accountAddObservations.incrementAndGet()<=16)
                                 emit("ACCOUNT_ADD", family,
                                     failure instanceof SecurityException
                                         ? "DENIED" : "THREW");
@@ -375,7 +383,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                         Object result=chain.proceed();
                         // Account types only: snapshot above performs the
                         // explicit unique owned-vs-stock registry checks.
-                        if (accountObservations.incrementAndGet()<=24)
+                        if (accountRegistryObservations.incrementAndGet()<=16)
                             emit("ACCOUNT_REGISTRY", "ANDROID",
                                 result instanceof android.accounts.AuthenticatorDescription[]
                                     ? "RETURN" : "UNAVAILABLE");
@@ -408,8 +416,12 @@ public final class ExitCallsiteWitness extends XposedModule {
         count += observeOwnActivityFinish("finish") ? 1 : 0;
         count += observeOwnActivityLaunch("startActivity",
             new Class<?>[]{Intent.class}) ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivity",
+            new Class<?>[]{Intent.class,Bundle.class}) ? 1 : 0;
         count += observeOwnActivityLaunch("startActivityForResult",
             new Class<?>[]{Intent.class,int.class}) ? 1 : 0;
+        count += observeOwnActivityLaunch("startActivityForResult",
+            new Class<?>[]{Intent.class,int.class,Bundle.class}) ? 1 : 0;
         count += observePassportResultDelivery() ? 1 : 0;
         count += observe(Thread.class, "dispatchUncaughtException",
             new Class<?>[]{Throwable.class}, "UNCAUGHT") ? 1 : 0;
@@ -2766,30 +2778,38 @@ public final class ExitCallsiteWitness extends XposedModule {
      * extras, tokens, names or authorization data. */
     private synchronized boolean observePassportResultDelivery() {
         if (activityResultHooked) return true;
-        try {
-            Method method=Activity.class.getDeclaredMethod("setResult",
-                int.class, Intent.class);
-            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                .intercept(chain -> {
-                    try {
-                        Object receiver=chain.getThisObject();
-                        if (receiver instanceof Activity
-                                && PACKAGE.equals(((Activity)receiver).getPackageName())
-                                && activityFinishesLogged.incrementAndGet()<=24) {
-                            Object result=chain.getArg(0);
-                            String category=!(result instanceof Integer)
-                                ? "UNKNOWN" : ((Integer)result)==Activity.RESULT_OK
-                                ? "OK" : ((Integer)result)==Activity.RESULT_CANCELED
-                                ? "CANCELED" : "OTHER";
-                            emit("ACTIVITY_RESULT",activityFamily((Activity)receiver),
-                                category);
-                        }
-                    } catch (Throwable ignored) { }
-                    return chain.proceed();
-                });
-            activityResultHooked=true;
-            return true;
-        } catch (Throwable ignored) { return false; }
+        int registered=0;
+        // Only the result category is observed; no Intent fields or extras.
+        for (Class<?>[] signature : new Class<?>[][] {
+                new Class<?>[]{int.class},
+                new Class<?>[]{int.class, Intent.class}}) {
+            try {
+                Method method=Activity.class.getDeclaredMethod("setResult",signature);
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            Object receiver=chain.getThisObject();
+                            if (receiver instanceof Activity
+                                    && PACKAGE.equals(((Activity)receiver).getPackageName())
+                                    && activityFinishesLogged.incrementAndGet()<=32) {
+                                Object result=chain.getArg(0);
+                                String category=!(result instanceof Integer)
+                                    ? "UNKNOWN" : ((Integer)result)==Activity.RESULT_OK
+                                    ? "OK" : ((Integer)result)==Activity.RESULT_CANCELED
+                                    ? "CANCELED" : "OTHER";
+                                emit("ACTIVITY_RESULT",activityFamily((Activity)receiver),
+                                    category);
+                            }
+                        } catch (Throwable ignored) { }
+                        return chain.proceed();
+                    });
+                registered++;
+            } catch (Throwable ignored) { }
+        }
+        activityResultHooked=registered==2;
+        emit("ACTIVITY_RESULT_HOOK","ANDROID",
+            registered==2 ? "BOTH" : registered==1 ? "PARTIAL" : "NO_HOOK");
+        return registered>0;
     }
 
     private boolean observeOwnActivityFinish(String methodName) {
