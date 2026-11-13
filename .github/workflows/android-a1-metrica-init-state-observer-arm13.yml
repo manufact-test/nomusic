@@ -179,13 +179,12 @@ jobs:
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
           test -s "$bundle/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
-          cp android/native-yandex-hooklab/device-audio-trial/capture-diagnostics.bat "$bundle/capture-diagnostics.bat"
           sha256sum "$bundle/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk"
       - name: Upload private one-time owner-phone diagnostic bundle
         if: success() && (github.event_name == 'push' || inputs.export_diagnostic_apk)
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-Native-ReadOnly-Diagnostic-20261113
+          name: CELIKOM-A1-OnDevice-Diagnostic-20261113
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7

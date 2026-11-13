@@ -1,20 +1,45 @@
 package pro.celikom.a1exitwitness;
 
+import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.Application;
+import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.ComponentName;
 import android.content.pm.ProviderInfo;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Method;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -33,6 +58,12 @@ public final class ExitCallsiteWitness extends XposedModule {
         "com.yandex.preinstallsatellite.appmetrica.provider";
     private static final String CLONE_AUTHORITY =
         PACKAGE + ".provider.7e1ef82da0d52923";
+    private static final String DIAGNOSTIC_FILE = "celikom-a1-diagnostics.txt";
+    private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
+    private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
+    private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
+    private static volatile Context diagnosticContext;
+    private boolean diagnosticUiReady;
     private boolean armed;
     private boolean exitCtorHooked;
     private boolean exitRunHooked;
@@ -1278,6 +1309,11 @@ public final class ExitCallsiteWitness extends XposedModule {
             method.setAccessible(true);
             hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
+                    try {
+                        Object candidate = chain.getArg(0);
+                        if (candidate instanceof Application)
+                            prepareOwnerDiagnostics((Application) candidate);
+                    } catch (Throwable ignored) { }
                     appOnCreateEntered=true;
                     emit("APP_LIFECYCLE","APPLICATION","ENTER");
                     try {
@@ -2113,6 +2149,232 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
     }
 
+    /**
+     * Owner-phone diagnostic export. Events are finite enums and are stored
+     * only inside the disposable clone's private files directory. The button
+     * is an ordinary in-window view: no overlay permission or storage
+     * permission is requested. The report is copied to MediaStore Downloads
+     * only after the owner taps the button.
+     */
+    private synchronized void prepareOwnerDiagnostics(Application app) {
+        if (app == null || !PACKAGE.equals(app.getPackageName())) return;
+        try {
+            Context appContext = app.getApplicationContext();
+            diagnosticContext = appContext == null ? app : appContext;
+            capturePreviousProcessExits(diagnosticContext);
+            emit("DIAGNOSTIC_CAPTURE", "LOCAL_FILE", "READY");
+        } catch (Throwable ignored) { }
+        if (diagnosticUiReady) return;
+        try {
+            app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+                @Override public void onActivityCreated(Activity activity, Bundle state) { }
+                @Override public void onActivityStarted(Activity activity) { }
+                @Override public void onActivityResumed(Activity activity) {
+                    attachDiagnosticExportButton(activity);
+                }
+                @Override public void onActivityPaused(Activity activity) { }
+                @Override public void onActivityStopped(Activity activity) { }
+                @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) { }
+                @Override public void onActivityDestroyed(Activity activity) { }
+            });
+            diagnosticUiReady = true;
+        } catch (Throwable ignored) {
+            emit("DIAGNOSTIC_UI", "ACTIVITY_CALLBACKS", "NO_HOOK");
+        }
+    }
+
+    private static void capturePreviousProcessExits(Context context) {
+        if (context == null) return;
+        if (Build.VERSION.SDK_INT < 30) {
+            emit("PREVIOUS_EXIT_INFO", "ANDROID", "API_UNAVAILABLE");
+            return;
+        }
+        try {
+            ActivityManager manager = (ActivityManager)
+                context.getSystemService(Context.ACTIVITY_SERVICE);
+            if (manager == null) {
+                emit("PREVIOUS_EXIT_INFO", "ANDROID", "SERVICE_UNAVAILABLE");
+                return;
+            }
+            List<ApplicationExitInfo> exits =
+                manager.getHistoricalProcessExitReasons(PACKAGE, 0, 4);
+            if (exits == null || exits.isEmpty()) {
+                emit("PREVIOUS_EXIT_INFO", "ANDROID", "NONE");
+                return;
+            }
+            int count = 0;
+            for (ApplicationExitInfo info : exits) {
+                if (info == null || count++ >= 4) continue;
+                emit("PREVIOUS_PROCESS_EXIT", "ANDROID_EXIT_INFO",
+                    exitReasonCategory(info.getReason()));
+            }
+        } catch (Throwable ignored) {
+            emit("PREVIOUS_EXIT_INFO", "ANDROID", "UNAVAILABLE");
+        }
+    }
+
+    private static String exitReasonCategory(int reason) {
+        switch (reason) {
+            case ApplicationExitInfo.REASON_EXIT_SELF: return "EXIT_SELF";
+            case ApplicationExitInfo.REASON_SIGNALED: return "SIGNALED";
+            case ApplicationExitInfo.REASON_LOW_MEMORY: return "LOW_MEMORY";
+            case ApplicationExitInfo.REASON_CRASH: return "JAVA_CRASH";
+            case ApplicationExitInfo.REASON_CRASH_NATIVE: return "NATIVE_CRASH";
+            case ApplicationExitInfo.REASON_ANR: return "ANR";
+            case ApplicationExitInfo.REASON_INITIALIZATION_FAILURE: return "INIT_FAILURE";
+            case ApplicationExitInfo.REASON_PERMISSION_CHANGE: return "PERMISSION_CHANGE";
+            case ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE: return "RESOURCE_LIMIT";
+            case ApplicationExitInfo.REASON_USER_REQUESTED: return "USER_REQUESTED";
+            case ApplicationExitInfo.REASON_USER_STOPPED: return "USER_STOPPED";
+            case ApplicationExitInfo.REASON_DEPENDENCY_DIED: return "DEPENDENCY_DIED";
+            case ApplicationExitInfo.REASON_OTHER: return "OTHER";
+            default: return "UNKNOWN";
+        }
+    }
+
+    private static int diagnosticDp(Context context, int value) {
+        return (int) (value * context.getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void attachDiagnosticExportButton(Activity activity) {
+        if (activity == null || !PACKAGE.equals(activity.getPackageName())) return;
+        try {
+            if (activity.getWindow() == null) return;
+            View decor = activity.getWindow().getDecorView();
+            if (!(decor instanceof FrameLayout)) return;
+            FrameLayout root = (FrameLayout) decor;
+            if (root.findViewWithTag(DIAGNOSTIC_BUTTON_TAG) != null) return;
+
+            TextView button = new TextView(activity);
+            button.setTag(DIAGNOSTIC_BUTTON_TAG);
+            button.setText("Сохранить диагностику");
+            button.setTextColor(Color.WHITE);
+            button.setTextSize(12.0f);
+            button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            button.setGravity(Gravity.CENTER);
+            button.setPadding(diagnosticDp(activity, 12), diagnosticDp(activity, 9),
+                diagnosticDp(activity, 12), diagnosticDp(activity, 9));
+            GradientDrawable background = new GradientDrawable();
+            background.setColor(Color.rgb(20, 32, 40));
+            background.setCornerRadius(diagnosticDp(activity, 18));
+            background.setStroke(diagnosticDp(activity, 1), Color.rgb(102, 224, 255));
+            button.setBackground(background);
+            button.setElevation(diagnosticDp(activity, 8));
+            button.setClickable(true);
+            button.setFocusable(true);
+            button.setOnClickListener(view -> {
+                try {
+                    emit("DIAGNOSTIC_EXPORT", "DOWNLOADS", "REQUESTED");
+                    Uri saved = saveDiagnosticReportToDownloads(activity);
+                    if (saved != null) {
+                        Toast.makeText(activity,
+                            "Отчёт сохранён: Загрузки / CELIKOM A1",
+                            Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(activity,
+                            "Не удалось сохранить отчёт. Попробуй ещё раз.",
+                            Toast.LENGTH_LONG).show();
+                    }
+                } catch (Throwable ignored) {
+                    emit("DIAGNOSTIC_EXPORT", "DOWNLOADS", "FAILED");
+                    Toast.makeText(activity,
+                        "Не удалось сохранить отчёт. Попробуй ещё раз.",
+                        Toast.LENGTH_LONG).show();
+                }
+            });
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP | Gravity.END);
+            params.topMargin = diagnosticDp(activity, 52);
+            params.rightMargin = diagnosticDp(activity, 12);
+            root.addView(button, params);
+        } catch (Throwable ignored) {
+            emit("DIAGNOSTIC_UI", "BUTTON", "ATTACH_FAILED");
+        }
+    }
+
+    private static Uri saveDiagnosticReportToDownloads(Context context) throws IOException {
+        if (context == null || Build.VERSION.SDK_INT < 29) return null;
+        File source = new File(context.getFilesDir(), DIAGNOSTIC_FILE);
+        if (!source.isFile()) {
+            emit("DIAGNOSTIC_EXPORT", "LOCAL_FILE", "MISSING");
+            return null;
+        }
+        ContentResolver resolver = context.getContentResolver();
+        String displayName = "CELIKOM-A1-Diagnostics-" +
+            System.currentTimeMillis() + ".txt";
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+            Environment.DIRECTORY_DOWNLOADS + "/CELIKOM A1");
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri target = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (target == null) throw new IOException("DOWNLOAD_INSERT_FAILED");
+        boolean complete = false;
+        try {
+            try (InputStream input = new FileInputStream(source);
+                 OutputStream output = resolver.openOutputStream(target, "w")) {
+                if (output == null) throw new IOException("DOWNLOAD_STREAM_UNAVAILABLE");
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                output.flush();
+            }
+            ContentValues ready = new ContentValues();
+            ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            resolver.update(target, ready, null, null);
+            complete = true;
+            return target;
+        } finally {
+            if (!complete) {
+                try { resolver.delete(target, null, null); }
+                catch (Throwable ignored) { }
+            }
+        }
+    }
+
+    private static String safeDiagnosticToken(String value) {
+        if (value == null) return "UNKNOWN";
+        String clean = value.replaceAll("[^A-Z0-9_]", "_");
+        if (clean.length() > 64) clean = clean.substring(0, 64);
+        return clean.isEmpty() ? "UNKNOWN" : clean;
+    }
+
+    private static void appendLocalDiagnosticEvent(String line) {
+        Context context = diagnosticContext;
+        if (context == null || line == null) return;
+        try {
+            synchronized (DIAGNOSTIC_FILE_LOCK) {
+                File file = new File(context.getFilesDir(), DIAGNOSTIC_FILE);
+                if (file.exists() && file.length() > MAX_DIAGNOSTIC_FILE_BYTES) {
+                    byte[] old = new byte[(int) Math.min(file.length(), 128L * 1024L)];
+                    try (FileInputStream input = new FileInputStream(file)) {
+                        int offset = 0;
+                        while (offset < old.length) {
+                            int read = input.read(old, offset, old.length - offset);
+                            if (read < 0) break;
+                            offset += read;
+                        }
+                    }
+                    int start = Math.max(0, old.length - 32 * 1024);
+                    while (start < old.length && old[start] != (byte) '\n') start++;
+                    try (FileOutputStream output = new FileOutputStream(file, false)) {
+                        output.write("event=LOG_TRIMMED;origin=LOCAL_FILE;error=KEEP_LAST_32KB;thread=OTHER\n"
+                            .getBytes(StandardCharsets.UTF_8));
+                        if (start < old.length) output.write(old, start, old.length - start);
+                    }
+                }
+                try (FileOutputStream output = new FileOutputStream(file, true)) {
+                    output.write(line.getBytes(StandardCharsets.UTF_8));
+                    output.write('\n');
+                    output.flush();
+                }
+            }
+        } catch (Throwable ignored) { }
+    }
+
     private static void emit(String event, String origin, String error) {
         if (!PACKAGE.equals(Application.getProcessName())) return;
         String thread = "OTHER";
@@ -2122,7 +2384,16 @@ public final class ExitCallsiteWitness extends XposedModule {
                 thread = "MAIN";
         } catch (Throwable ignored) { }
         // Entire message is finite enums; never stringifies a Throwable.
-        Log.i(TAG, "event=" + event + ";origin=" + origin +
-                ";error=" + error + ";thread=" + thread);
+        String line = "event=" + safeDiagnosticToken(event) +
+            ";origin=" + safeDiagnosticToken(origin) +
+            ";error=" + safeDiagnosticToken(error) + ";thread=" + thread;
+        Log.i(TAG, line);
+        // Keep readAt hot-path instrumentation memory-light: audio-read events
+        // remain in logcat but are not synchronously written to flash storage.
+        if (!"MEDIA_DS_READ".equals(event) &&
+                !"MEDIA_DS_SOURCE".equals(event) &&
+                !"MEDIA_DS_EXTRACTOR_LINK".equals(event) &&
+                !"MEDIA_EXTRACTOR_SOURCE".equals(event))
+            appendLocalDiagnosticEvent(line);
     }
 }

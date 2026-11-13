@@ -50,3 +50,15 @@ Do not uninstall the clone, clear its data, disable Play Protect, or modify/remo
 5. Re-run onboarding through the final arrow, then verify login and only then begin real audio source observation / B42 integration.
 
 No second player. No architecture change. Do not touch Test.50, Windows, production, original Yandex or the proven Firebase startup baseline. Do not claim audio or full app acceptance based on the prior 25/25 idle test.
+
+
+## 13 Nov — on-device export build requested
+
+The owner correctly pointed out that the previously supplied bundle did not include the BAT file and that a USB cable/PC workflow was inappropriate. A new clone-only diagnostic build is being prepared with:
+- finite diagnostic events persisted in the clone's private files directory across process death/relaunch;
+- Android 13 `ApplicationExitInfo` mapped to fixed reason enums (no raw descriptions or traces);
+- a small in-window `Сохранить диагностику` button attached to resumed activities;
+- one-tap export to `Downloads/CELIKOM A1` through MediaStore, requiring no storage permission, cable, PC, ADB or BAT;
+- readAt hot-path events excluded from synchronous file writes to avoid affecting audio timing.
+
+Owner flow: reproduce the same onboarding exit; reopen the clone; tap the button; attach the TXT from Downloads in ChatGPT. Original Yandex remains untouched. Await build/ARM13 CI before sending APK. The prior APK/artifact is superseded and must not be used for this new capture.
