@@ -90,8 +90,10 @@ jobs:
           $nativeHostText=Get-Content dist/host.cjs -Raw
           if ($nativeHostText -notmatch 'maxTotalBufferSize: 2 \* 1024 \* 1024' -or
               $nativeHostText -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
-              $nativeHostText -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.28"') {
-            throw 'W98_W23_INTEGRATION_GUARDS_MISSING'
+              $nativeHostText -notmatch 'PLAYER_CURRENT_NATIVE_VOLUME_DROP' -or
+              $nativeHostText -notmatch 'setInterval\(\(\) => \{' -or
+              $nativeHostText -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.29"') {
+            throw 'W99_W23_INTEGRATION_GUARDS_MISSING'
           }
       - name: W22/W23/W60 original-source, VPN, 403 and audio regressions
         shell: pwsh
