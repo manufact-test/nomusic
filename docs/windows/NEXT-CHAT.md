@@ -1,56 +1,63 @@
-# 2026-11-13 W101 — CURRENT LEAD HANDOFF (READ FIRST)
+# 2026-11-13 W102 — CURRENT LEAD HANDOFF (AUTHORITATIVE)
 
-**Authoritative current policy:** [W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md](W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md). Read this first, then W100 below.
+**Read first:** [W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md](W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md). It records the owner's latest decisions and complete work order. W101 contains the detailed updater design; W100 is historical release evidence.
 
-**Repository:** `manufact-test/nomusic`.
-**Active work branch:** `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
-**Current branch HEAD:** re-fetch from GitHub before work; documentation commits have advanced the branch beyond the code baseline below.
-**Code baseline in the branch:** `e48e05f75629becc7efd2198dc7459a1ac91b825` (GUI 0.24.36 / native 0.24.29 / W23 0.24.10); commits after this baseline in the current handoff are documentation-only.
-**Exact rollback before W101 documentation:** `backup/windows-w101-pre-update-policy-20261113` @ `39b763d6b94ce4ffb8660765da4eabeb3eeb9b48`.
-**Earlier exact code rollback:** `backup/windows-w100-handoff-pre-docs-20261113` @ `e48e05f75629becc7efd2198dc7459a1ac91b825`.
+## One product / one production line
 
-**Windows CI:** [43500415302](https://github.com/manufact-test/nomusic/actions/runs/43500415302) SUCCESS on exact code SHA `e48e05f75629becc7efd2198dc7459a1ac91b825`.
+The owner wants the existing original CELIKOM Windows app, not parallel TEST apps or repeated interim installers. Before each substantial change, create an exact `backup/*` branch of the current production commit. Backups are rollback points, not test products. Do all Windows product work on one canonical production line and publish one coherent next version.
 
-**Latest Hostinger + gain + final installer workflow:** [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358) is now **COMPLETED / FAILURE**, not in progress. Verify/package job passed. Deploy failed at **“Verify preserved data and restore new snapshot in isolated MySQL”**. Private gain staging, final installer build and publish were skipped. Only the server-package artifact remains. Re-fetch the exact failing job log and determine actual remote state before doing anything. Do not blindly rerun, increment the one-shot request, repeat migrations, or make speculative server changes. The prior handoff's instruction to continue this run while it was in progress is superseded.
+## Critical source-of-truth issue — resolve before code edits
 
-**Gain evidence:** Previous run [43495186951](https://github.com/manufact-test/nomusic/actions/runs/43495186951) passed private Windows sidecar staging for replacement 37 / track 40371622, admin +11.5 dB; measured +6.70 dB RMS with peak limited to 0 dB; live signed Range 206 and `gain_applied=true` passed. The latest run did not repeat this stage because deploy stopped. Do not claim current run staged or published gain files.
+GitHub default `main` at handoff baseline `2741c403772f6e2837cd27bf748f90dc8d7722c9` did not contain `windows-companion/` or `docs/windows/`. The Windows application source is on `experiment/windows-w98-integrated-gain-and-original-vpn-20261113` at `0158fcf71d06e4784751b8ddc1982e2b951b2753`. GitHub compare says the branches are diverged (main→W98: ahead 2661 / behind 41). Do not merge all history, reset main or continue experiment branches as permanent product lines. Inspect trees/merge base and safely integrate only the Windows source into the one canonical production line, preserving main's Android, extension and server code.
 
-**One coherent next version only:** continue the existing CELIKOM application and same AppId/install path. Do not create a parallel app, do not send intermediate installers, and do not install anything on the owner's PC. The owner wants the next original CELIKOM release, not a series of user-facing “TEST apps”. Internal CI/QA is an engineering gate only.
+Exact snapshots already created:
+- `backup/windows-main-pre-w102-handoff-20261113` @ `2741c403772f6e2837cd27bf748f90dc8d7722c9`
+- `backup/windows-source-pre-w102-handoff-20261113` @ `0158fcf71d06e4784751b8ddc1982e2b951b2753`
 
-**Updater truth:** the current CELIKOM app updater is manual local ZIP/EXE selection, staff/diagnostics-only via Ctrl+Shift+U. It is NOT a customer-facing automatic updater. W101 defines the required stable signed update feed, background check/download, in-place install, health check and automatic rollback. Do not claim automatic CELIKOM app updates already exist. Yandex vendor update monitoring is separate and already has its own hourly discovery + reviewed compatibility catalog.
+W102 docs have been added to both main and the Windows source branch. The code has not been changed by this handoff.
 
-**Do not ask the owner for another account, email, password, token or GitHub secret.** Do not expose or log existing secret values. Software update discovery must be independent of user login and entitlement.
+## Current release blocker
 
-**Owner's open Windows tasks remain:** VPN reconnect; #52 «Ты» actual audible replacement; #53 Brave/Windows stalls; #54 Big City Life mid-track volume drop; #56 admin gain for all active nonzero-gain alternatives; #57 403→206 hiss/pop; #58 original songs/My Wave must not be interrupted on VPN change. Keep #54, #56 and #57 separate. CI is not proof of audible success.
+- Code baseline: GUI 0.24.36 / native 0.24.29 / W23 0.24.10 @ `e48e05f75629becc7efd2198dc7459a1ac91b825`.
+- Windows CI [43500415302](https://github.com/manufact-test/nomusic/actions/runs/43500415302): SUCCESS.
+- Hostinger/final release [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358): COMPLETED / FAILURE at isolated MySQL restore/audit. Gain stage, final installer and publication were skipped. Inspect logs and real server state before any retry.
+- Previous run [43495186951](https://github.com/manufact-test/nomusic/actions/runs/43495186951) did pass live private gain sidecar staging for Big City Life, replacement 37 / track 40371622, configured +11.5 dB, measured +6.70 dB RMS with peak limited to 0 dB, signed Range 206 / `gain_applied=true`. Do not claim the failed latest run repeated it.
+- No final EXE/ZIP was delivered from run 43500415358; no install on owner's PC.
 
-**Next actions:**
-1. Read W101 and W100.
-2. Re-fetch current branch HEAD and inspect run 43500415358's exact failed MySQL restore/audit log and actual server state. No duplicate deploy until root cause and idempotency are established.
-3. Resume the current Windows fixes in the existing branch, one issue at a time; exact backup before each substantial change.
-4. Deliver one coherent in-place update package only after server gain path and full installer pipeline pass.
-5. Only after the owner has checked the coherent version, implement W101's automatic updater as a dedicated work block and make it a release requirement before general customer rollout.
+## User's main issues — exact order
 
-## First message to the next lead
+1. VPN reconnect 40–50s — W89/W94 code + CI, real field QA open.
+2. #52 «Ты» — false-green guard integrated, audible CELIKOM replacement not proven.
+3. #53 Brave/Windows stalls — passive diagnostics and polling optimization integrated, real CPU/RAM root cause not proven.
+4. #54 Big City Life mid-track volume drop — separate and unresolved.
+5. #56 admin gain — private sidecar path and one prior live stage; latest pipeline failed before restaging; real Windows playback not confirmed.
+6. #57 hiss/pop after 403→206 — bounded guards/tests; acoustic QA open.
+7. #58 original songs / My Wave interruption on VPN switch — no-reload guards/tests; field QA open.
 
-You are the lead developer for the existing CELIKOM Windows application. Continue; do not start over.
+Also close W74 first-start retry, W75 persistent diagnostics, W87 no-flash/quiet module recovery and W88 default tray autostart with remembered opt-out through one consolidated acceptance checklist. Full status and closure criteria are in W102.
 
-Repository: `manufact-test/nomusic`.
-Work branch: `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
-Read first: `docs/windows/W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md`, then the historical W100 snapshot (now corrected to mark run 43500415358 as failed), then this file.
+## Yandex monitoring
 
-The current code baseline is GUI 0.24.36 / native 0.24.29 / W23 0.24.10 at `e48e05f75629becc7efd2198dc7459a1ac91b825`; re-fetch the current branch HEAD before editing. Exact rollback points are listed above.
+The current workflow on main `.github/workflows/windows-yandex-hourly-release-watch.yml` runs once hourly at minute 19 and checks out `experiment/windows-w81-vendor-monitor-compat-visibility-20261112`. Change discovery to every 15 minutes (suggested `7,22,37,52 * * * *`), split fast discovery from longer candidate verification, add immediate client-side compatibility checks on startup, local Yandex version change and bridge failure. Keep official signature/hash/runtime checks; do not blindly trust unknown builds. See W102.
 
-Your first task is not a new architecture: inspect the completed failed workflow 43500415358, especially the isolated MySQL restore/audit step, and determine the actual state before any retry. Its gain staging, final installer and publish jobs were skipped. Do not blindly rerun deployment or mutate the one-shot request.
+## CELIKOM app auto-updater
 
-Then continue the owner's existing Windows fixes in the same CELIKOM product, one issue at a time: VPN reconnect, #52 «Ты», #53 Brave/Windows load, #54 Big City Life mid-track volume drop, #56 admin gain, #57 403→206 hiss, #58 original-song interruption/pop on VPN change. Keep #54/#56/#57 separate. Preserve pause, seek, Next, crossfade, autostart, authorization, Yandex originals and subscription enforcement. Make an exact backup before substantial changes. Do not count CI as proof of real audio.
+Current app updater is manual local ZIP/EXE selection behind staff/diagnostics Ctrl+Shift+U; it is NOT automatic for ordinary users. Implement W101's signed stable manifest, signed installer, background download, safe in-place install, health check, local + remote exact rollback. The owner installs one coherent updater-capable version once; after acceptance, publish the stable feed for mass rollout. Legacy installations without an updater require a one-time bootstrap. No repeated manual downloads after bootstrap.
 
-The owner wants one coherent next release of the original CELIKOM application, installed over the existing AppId/path with saved login/settings preserved. No parallel app, no intermediate installers, no remote installation on the owner's PC, no unnecessary new branches, no new accounts/emails/secrets, and no user-facing “TEST app” terminology. Do not ask the owner to configure anything unless a real blocker is proven and explained first.
+## First actions for the next lead
 
-Important updater finding: current CELIKOM app updater is manual local ZIP/EXE selection behind a staff/diagnostics shortcut; it is not automatic for ordinary users. Implement the automatic signed stable-feed updater, background download, safe in-place install, post-update health check and automatic rollback from W101 as a separate bounded block after the current audio fixes and coherent owner delivery. Yandex vendor update monitoring is separate and already exists.
+1. Read W102, W101, W100.
+2. Re-fetch `main`, the Windows source branch and both backups. Safely consolidate the Windows source into one canonical production line; do not blindly merge the diverged history.
+3. Diagnose run 43500415358's MySQL restore/audit failure and verify actual server state; no blind redeploy.
+4. Close the seven main defects sequentially, using existing code and evidence rather than rewriting architecture.
+5. Implement 15-minute Yandex discovery and event-triggered client checks.
+6. Implement signed CELIKOM auto-update/rollback.
+7. Deliver exactly one coherent next version of the existing app for owner acceptance. Only after acceptance, mass-publish the stable updater feed.
 
-Work in large coherent blocks. Report only what changed, what is proven, what remains unverified, and the single current blocker. Never announce completion based only on CI.
+Do not ask for new emails/accounts/secrets. Do not install anything on the owner's PC. Do not call a task fixed from CI alone. No TEST product, no interim installers, no task hopping.
 
 ---
+
 
 
 # 2026-11-13 W99 — CURRENT LEAD HANDOFF (READ FIRST)
