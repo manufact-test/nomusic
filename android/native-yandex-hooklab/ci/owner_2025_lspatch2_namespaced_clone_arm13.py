@@ -347,6 +347,41 @@ def run(xapk):
             "binary_published":False,
             "stage_a":"NO_GO",
         }
+        # ONE strictly isolated differential: without the publisher installed,
+        # does the exact same independently signed clone still crash?
+        # This is *not* a product acceptance path. Default remains untouched.
+        if os.getenv("CELIKOM_A1_CLONE_ONLY_CONTROL")=="1":
+            report["control"]="CLONE_ALONE_FRESH_ANDROID13"
+            report["publisher_intentionally_absent"]=not bool(
+                guest("pm","path",ORIGINAL).stdout.strip())
+            if not report["publisher_intentionally_absent"]:
+                stop("CLONE_ONLY_ORIGINAL_PRESENT")
+            report["clone_install"]=install_clones([("base",single)])
+            if report["clone_install"]!="INSTALLED":
+                report["verdict"]="CLONE_ONLY_INSTALL_NO_GO"
+                return report
+            report["original_splits_installed_before_clone"]=0
+            report["single_clone_installed_after_original"]=False
+            guest("logcat","-c")
+            observed=observe_clone()
+            report["clone_lifecycle"]=observed
+            report["native_clone_main_75s"]=observed["stable"]
+            report["clone_metrica_service_snapshot"]=_finite_service_snapshot(DEST)
+            stable_pid=None
+            if observed["stable"]:
+                live=guest("pidof",DEST,timeout=30).stdout.strip()
+                if re.fullmatch(r"[1-9][0-9]{0,8}",live):
+                    stable_pid=live
+            report["scoped_own_readonly_witness"]=scoped_metrica_witness(
+                guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
+                guest("logcat","-v","threadtime","-d",timeout=55).stdout,
+                stable_live_main_pid=stable_pid)
+            report["verdict"]=(
+                "CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS"
+                if observed["stable"] else "CLONE_ONLY_NATIVE_MAIN_NO_GO")
+            # No change to any original-first acceptance verdict.
+            report["stage_a"]="NO_GO"
+            return report
         # Actual owner condition: original publisher app already installed
         # BEFORE CELIKOM is installed. Earlier native test did the reverse.
         publisher_parts = [(apk_name(p).get("split","") or "base", p)
@@ -423,7 +458,11 @@ if __name__=="__main__":
     try:
         result=run(args.xapk)
         print(json.dumps(result,sort_keys=True))
-        sys.exit(0 if result["verdict"]=="METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO" else 1)
+        control=os.getenv("CELIKOM_A1_CLONE_ONLY_CONTROL")=="1"
+        allowed=(result["verdict"]=="METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO" or
+                 (control and result["verdict"]==
+                  "CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS"))
+        sys.exit(0 if allowed else 1)
     except Exception as e:
         code=str(e)
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{4,92}",code):
