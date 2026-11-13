@@ -1,3 +1,16 @@
+# 2026-11-13 W98 — CURRENT LEAD HANDOFF (READ FIRST)
+
+**Latest integrated work branch:** `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
+**W98 pre-change exact backup:** `backup/windows-w98-pre-integrated-gain-and-original-vpn-20261113` @ `5ce1ec127009ba4a86a8e5ee1d129ec86623fd54`.
+**Latest documented W98 code HEAD:** `df49afe6b725b2c6b977a6ea2c9d9638f0785223` (re-fetch current branch; documentation may advance HEAD).
+**Full current handoff:** `docs/windows/W98-INTEGRATED-QA-AND-LIVE-GAIN-HANDOFF-20261113.md`.
+
+W98 adds issue #58 original-track no-reload handling, W22/W23 regressions, Windows-only private gain sidecar staging/rollback, and a single 0.24.35 / native 0.24.28 installer pipeline. Browser extension sources remain unchanged. W98 full CI [43457943838](https://github.com/manufact-test/nomusic/actions/runs/43457943838) SUCCESS on SHA `65c2aba287183c655cbb89deed05f3029addca15`; after final workflow-gate changes, verify queued exact-head run [43458387990](https://github.com/manufact-test/nomusic/actions/runs/43458387990).
+
+**Do not trigger live Hostinger gain staging yet:** production migration 020 and real sidecars are not activated. The prior deploy attempt [43454991506](https://github.com/manufact-test/nomusic/actions/runs/43454991506) stopped at pre-deploy snapshot due stale branch SHA; deploy and staging jobs were skipped. Before the next attempt, make live verification target one explicit owner-approved test account ID. Never select an arbitrary customer's active session. See W98 handoff for the exact gate and next actions.
+
+---
+
 # 2026-11-13 W97 — OWNER REQUEST: ONE COMPLETE WINDOWS TEST BUILD (READ FIRST)
 
 **Главный handoff и готовое первое сообщение следующему чату:** [W97-FINAL-READY-RELEASE-HANDOFF-20261113.md](W97-FINAL-READY-RELEASE-HANDOFF-20261113.md).
