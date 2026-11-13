@@ -55,7 +55,7 @@ jobs:
           $host=Get-Content dist/host.cjs -Raw
           if ($host -notmatch 'maxTotalBufferSize: 2 \* 1024 \* 1024' -or
               $host -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
-              $host -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.27"') {
+              $host -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.28"') {
             throw 'W98_W23_INTEGRATION_GUARDS_MISSING'
           }
       - name: W22/W23/W60 original-source, VPN, 403 and audio regressions
