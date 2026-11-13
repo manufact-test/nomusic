@@ -10,7 +10,7 @@ use Celikom\Storage\StorageAdapter;
 
 final class AudioController
 {
-    public function __construct(private readonly CatalogRepository $catalog, private readonly StorageAdapter $storage, private readonly AudioTokenService $tokens, private readonly ?\Celikom\Entitlement\AudioAccessService $access = null)
+    public function __construct(private readonly CatalogRepository $catalog, private readonly StorageAdapter $storage, private readonly AudioTokenService $tokens, private readonly ?\Celikom\Entitlement\AudioAuthorization $access = null)
     {
     }
 
