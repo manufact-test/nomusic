@@ -198,7 +198,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     exact_push_provider_config=[
         x for x in exact_service_events if x[0] in (
             "PUSH_PROVIDER_CONFIG_CUSTOM","PUSH_PROVIDER_CONFIG_DEFAULT",
-            "PUSH_PROVIDER_CONFIG_RESOURCE")]
+            "PUSH_PROVIDER_CONFIG_RESOURCE","PUSH_PROVIDER_CONFIG_CLONE_ID",
+            "PUSH_PROVIDER_CONFIG_STOCK_ID","PUSH_PROVIDER_CONFIG_STOCK_VALUE")]
     service_hook=[x for x in seen if x[0]=="METRICA_SERVICE_HOOK"]
     provider_resolve=[x for x in seen if x[0]=="METRICA_PROVIDER_RESOLVE"]
     provider_query=[x for x in seen if x[0]=="METRICA_PROVIDER_QUERY"]
