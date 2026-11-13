@@ -15,8 +15,10 @@ expected_branch='experiment/windows-w98-integrated-gain-and-original-vpn-2026111
 [[ -n "${HOSTINGER_SSH_KEY:-}" ]] || {
   echo 'W98_NO_HOSTINGER_SSH_CREDENTIAL'; exit 2;
 }
-[[ -n "${CELIKOM_W98_TEST_EMAIL:-}" && ${#CELIKOM_W98_TEST_EMAIL} -le 254 &&
-   "${CELIKOM_W98_TEST_EMAIL}" != *command -v ssh >/dev/null && command -v scp >/dev/null &&
+[[ -n "${CELIKOM_W98_TEST_EMAIL:-}" && ${#CELIKOM_W98_TEST_EMAIL} -le 254 ]] || {
+  echo 'W98_EXPLICIT_OWNER_EMAIL_SECRET_REQUIRED'; exit 2;
+}
+command -v ssh >/dev/null && command -v scp >/dev/null &&
 command -v ssh-keygen >/dev/null && command -v ffmpeg >/dev/null &&
 command -v ffprobe >/dev/null && command -v node >/dev/null || {
   echo 'W98_REQUIRED_TOOL_MISSING'; exit 2;
