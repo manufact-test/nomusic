@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.31
-VersionInfoVersion=0.24.31.0
+AppVersion=0.24.32
+VersionInfoVersion=0.24.32.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W87-AUTORUN-QUIET-REPAIR-TEST-UNSIGNED
+OutputBaseFilename=CELIKOM-W88-AUTORUN-DEFAULT-ON-TEST-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
