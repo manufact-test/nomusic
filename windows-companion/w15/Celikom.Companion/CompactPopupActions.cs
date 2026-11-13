@@ -68,6 +68,12 @@ public sealed partial class MainWindow
             _api.Settings.InstallationId == account.InstallationId &&
             string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase);
         _compactAccessBusy = true;
+        using var requestCancellation = new CancellationTokenSource();
+        _compactAccessRequestCancellation = requestCancellation;
+        var fastRoute = EntitlementCheckRecovery.FastRouteCheck(
+            _resumeAfterNetworkFailure, DateTimeOffset.UtcNow, _lastNetworkRecheckHint);
+        if (fastRoute)
+            requestCancellation.CancelAfter(EntitlementCheckRecovery.QuickRecheckTimeout);
         // Previously we replaced "Промокод · доступ навсегда" with "Проверяем
         // доступ…" on EVERY 15-second poll. That was the visible blinking.
         // Keep the confirmed label stable; server check and revoke still run.
@@ -77,17 +83,23 @@ public sealed partial class MainWindow
         try
         {
             JsonElement response;
-            try { response = await _api.GetEntitlementAsync(); }
-            catch (Exception ex) when (_bridge.Enabled && EntitlementCheckRecovery.IsTransient(ex))
+            try { response = await _api.GetEntitlementAsync(requestCancellation.Token); }
+            catch (Exception ex) when (!fastRoute && _bridge.Enabled &&
+                EntitlementCheckRecovery.IsTransient(ex))
             {
-                // A one-off 9-second timeout, 429 or 5xx need not force a manual
-                // Stop/Start. One short, bounded GET retry only; no replayed writes.
+                // Keep the previous bounded retry during ordinary playback.
+                // On a VPN change we instead cancel the stale request and run
+                // a fresh short check; never queue old and new routes together.
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RETRY");
-                await Task.Delay(400);
-                using var retryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                await Task.Delay(400, requestCancellation.Token);
+                using var retryTimeout =
+                    CancellationTokenSource.CreateLinkedTokenSource(requestCancellation.Token);
+                retryTimeout.CancelAfter(TimeSpan.FromSeconds(3));
                 response = await _api.GetEntitlementAsync(retryTimeout.Token);
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RETRY_OK");
             }
+            if (requestCancellation.IsCancellationRequested && _networkRouteRecheckPending)
+                return;
             if (!StillSameUser()) return;
             _compactAccessConfirmedInstallation = account.InstallationId;
             _compactAccessConfirmedEmail = account.Email;
@@ -118,6 +130,13 @@ public sealed partial class MainWindow
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED");
             }
         }
+        catch (OperationCanceledException) when (
+            requestCancellation.IsCancellationRequested && _networkRouteRecheckPending)
+        {
+            // Windows reported a new VPN route. A GET on the retired route
+            // carries no new authority; scheduled fresh validation replaces it.
+            DiagnosticLog.Record("ACTIVE_ENTITLEMENT_OLD_ROUTE_CANCELLED");
+        }
         catch (Exception ex)
         {
             if (!StillSameUser()) return;
@@ -146,8 +165,16 @@ public sealed partial class MainWindow
         }
         finally
         {
+            if (ReferenceEquals(_compactAccessRequestCancellation, requestCancellation))
+                _compactAccessRequestCancellation = null;
             _compactAccessBusy = false;
-            if (!_closing && !IsDisposed) UpdateSafe();
+            if (!_closing && !IsDisposed)
+            {
+                UpdateSafe();
+                if (_networkRouteRecheckPending &&
+                    (_bridge.Enabled || _resumeAfterNetworkFailure))
+                    _ = RecheckAfterRouteSettledAsync(_networkRouteEpoch);
+            }
         }
     }
 
