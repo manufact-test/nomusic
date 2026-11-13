@@ -242,6 +242,11 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       emit(field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' : 'FILEINFO_SHAPE_DOWNLOAD', id);
       observeOriginalFileInfo(value[field], emit, id);
       const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType, params?.quality);
+      // Code-only evidence: signed source is raw, Windows native Yandex does
+      // NOT yet apply the positive/negative admin dB of this grant.
+      if (Number.isFinite(grant.gainDb) && grant.gainDb >= -12 &&
+          grant.gainDb <= 12 && grant.gainDb !== 0)
+        emit('GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
       emit('SOURCE_MAPPED', id);
       status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
       return { ...value, [field]: replacement };
@@ -304,6 +309,11 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         if (!mapped) {
           emit('SOURCE_BATCH_ORIGINAL', hits[0]?.[0] || null);
           return base;
+        }
+        for (const [id, grant] of hits) {
+          if (Number.isFinite(grant.gainDb) && grant.gainDb >= -12 &&
+              grant.gainDb <= 12 && grant.gainDb !== 0)
+            emit('GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
         }
         emit('SOURCE_BATCH_MAPPED', hits[0]?.[0] || null);
         status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';

@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace Celikom.Companion;
 
 public sealed record SourceGrant(string TrackId, bool Approved, bool Entitled,
-    string AudioUrl, long ExpiresAt, string MimeType);
+    string AudioUrl, long ExpiresAt, string MimeType, double GainDb);
 
 /// <summary>
 /// Converts the actual server ResolveService contract into a narrow,
@@ -82,7 +82,18 @@ public static class GrantValidator
                 RegexOptions.CultureInvariant))
             return null;
 
+        // PHP supplies gain_db; Yandex file-info 'gain' is only a bool.
+        // Passing this numeric value is NOT yet native DSP/audible amplification.
+        var gainDb = 0.0;
+        if (response.TryGetProperty("gain_db", out var gain))
+        {
+            if (gain.ValueKind != JsonValueKind.Number ||
+                !gain.TryGetDouble(out gainDb) || !double.IsFinite(gainDb) ||
+                gainDb < -12 || gainDb > 12 ||
+                Math.Abs(gainDb * 10 - Math.Round(gainDb * 10)) > 0.00001)
+                return null;
+        }
         return new SourceGrant(trackId, true, true, link.AbsoluteUri, expiresSeconds * 1000,
-            mime.GetString()!);
+            mime.GetString()!, gainDb);
     }
 }

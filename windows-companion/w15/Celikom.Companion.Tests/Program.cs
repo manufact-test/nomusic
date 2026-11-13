@@ -275,12 +275,35 @@ try
     } catch (HttpRequestException) { }
     Test(activationCalls == 1, "W74 Stop/account change vetoes retry");
     var payload = Parse(new { found = true, audio_url = audio, expires_at = unix,
-        duration_ms = 200_000, mime_type = "audio/mpeg" });
+        duration_ms = 200_000, mime_type = "audio/mpeg", gain_db = 5.5 });
     var origin = GrantValidator.NormalizeOrigin("https://api.celikom.example");
     var grant = GrantValidator.FromResolve(payload, "123", origin, now);
     Test(grant != null, "real PHP ResolveService grant accepted");
     Test(grant!.ExpiresAt == unix * 1000, "server Unix seconds to JS milliseconds");
     Test(grant.MimeType == "audio/mpeg", "source mime survives bridge to native decoder");
+    Test(grant.GainDb == 5.5, "W90 saved admin boost must survive typed Windows grant");
+    var gainWire = JsonSerializer.Serialize(grant, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    Test(gainWire.Contains("gainDb"), "W90 native localhost grant includes camelCase gainDb");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" }),
+        "123", origin, now)?.GainDb == 0,
+        "W90 missing gain defaults to zero for older server contracts");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = -9.0 }),
+        "123", origin, now)?.GainDb == -9.0,
+        "W90 negative admin gain survives grant as well");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = 12.1 }),
+        "123", origin, now) == null,
+        "W90 rejects out-of-range admin gains");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = "6" }),
+        "123", origin, now) == null,
+        "W90 rejects string gain and never guesses dB");
+    Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio,
+        expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg", gain_db = 1.25 }),
+        "123", origin, now) == null,
+        "W90 rejects unapproved fractional precision");
     Test(grant.AudioUrl == "https://api.celikom.example" + audio, "exact HTTPS signed URL");
     Test(GrantValidator.FromResolve(Parse(new { found = true, audio_url = audio.Replace("&sid=7", ""),
         expires_at = unix, duration_ms = 200000, mime_type = "audio/mpeg" }), "123", origin, now) == null,

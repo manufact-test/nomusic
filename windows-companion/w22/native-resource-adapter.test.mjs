@@ -47,6 +47,30 @@ test('approved mp3 changes only source, leaves native response intact',async()=>
   assert.equal(r.downloadInfo.bitrate,320,'MP3 must not inherit original AAC bitrate');
   assert.equal(a.status,'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED');a.dispose();
 });
+test('W90 native positive/negative gain stays unapplied, all approved songs audited',async()=>{
+  for(const value of [3, 6.5, 12, -7.5]){
+    const events=[];
+    const a=create(async id=>grant(id,{gainDb:value}),{onEvent:(code,id)=>events.push([code,id])});
+    const {proto}=resource();a.attach(proto);a.enable();
+    const single=await proto.getFileInfo({trackId:'123'});
+    assert.equal(single.downloadInfo.url,nativeUrl);
+    assert.equal(single.downloadInfo.gain,false,'native Yandex gain is boolean, not admin dB');
+    assert.ok(events.some(([code,id])=>code==='GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED'&&id==='123'));
+    events.length=0;
+    const batch=await proto.getFileInfoBatch({trackIds:['123']});
+    assert.equal(batch.downloadInfos[0].url,nativeUrl);
+    assert.ok(events.some(([code,id])=>code==='GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED'&&id==='123'));
+    a.dispose();
+  }
+  const events=[];
+  const a=create(async id=>grant(id,{gainDb:0}),{onEvent:(code,id)=>events.push([code,id])});
+  const {proto}=resource();a.attach(proto);a.enable();
+  await proto.getFileInfo({trackId:'123'});
+  await proto.getFileInfoBatch({trackIds:['123']});
+  assert.ok(!events.some(([code])=>code==='GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED'));
+  a.dispose();
+});
+
 test('approved MP4 uses AAC codec, not MP3',async()=>{
   const a=create(async id=>grant(id,{mimeType:'audio/mp4'}));const {proto}=resource();a.attach(proto);a.enable();
   assert.equal((await proto.getFileInfo({trackId:'123'})).downloadInfo.codec,'aac-mp4');a.dispose();
