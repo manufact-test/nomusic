@@ -290,3 +290,15 @@ The exact TXT has the expected `DIAGNOSTIC_BUILD / NAV_V6_OWN_ACCOUNT_TYPE / ACT
 - Two native ARM13 jobs run automatically from this exact commit; **do not claim success or release an APK until they complete**. They do not test live Yandex login. Stage A NO-GO / B LOCKED.
 
 Regression reserve: `backup/android-a1-nav6-owner-regression-before-bridge-attach-fix-20261113` @ `00c4641f5ed388422817ff20bde1ef5314deeb22`. Existing previous proven NAV5 artifact and backups are untouched. Main production, official Yandex, Test.50, Windows, backend untouched. If NAV7 is exported after CI, upload its verified bytes **FIRST to Library `/CELIKOM/`**, verify the Library entry and display it through a Library file citation/card; **never give the user a sandbox download link** (explicit owner requirement).
+
+### NAV7 native gates SUCCESS + verified owner Library delivery (13 Nov 2026)
+
+Exact owner code: `92ee935cbdc093cf587314615e78ec81ae1fa4f8`.
+- Clone-alone native ARM13 GitHub Actions run `43509552355`: SUCCESS, clone MAIN 25/25 foreground observations across 75s, `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`.
+- Publisher-first side-by-side native ARM13 run `43509552388`: SUCCESS, original publisher and clone remain installed together, clone 25/25, `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- Exact owner APK artifact `14078526243` (run `43509552388`, seven-day retention). APK `71,438,316` bytes, SHA-256 `583df0afb70e08057cae579df78aa2cccdd5dc53bbafdd818c1e3ba278548d17`. Artifact ZIP verified independently, ZIP CRC checks PASS, APK SHA matches native build report. Manifest package is `pro.celikom.yandex.nativeclonelab`.
+- Parsed exact final `resources.arsc`: `com.yandex.passport.pro.celikom.yandex.nativeclonelab` occurs **exactly once**, `com.yandex.passport.sync.pro.celikom.yandex.nativeclonelab` occurs once, stock `com.yandex.passport` resource value absent, and prior NAV6 incompatible `pro.celikom.yandex.nativeclonelab.passport` value absent. Embedded original signed Yandex APK `assets/lspatch/origin.apk` is SHA-identical to NAV6, so original vendor source was not altered.
+- Exact own module contains `NAV_V7_PASSPORT_ACCOUNT_PREFIX` marker. Diagnostic UI button `Диагностика NAV7`.
+- **Uploaded first to the user's personal persistent Library**, then Library entry and 71,438,316-byte size verified by `files__list`: `/CELIKOM/CELIKOM-A1-NAV7-Passport-Account-20261113.apk` with instructions `/CELIKOM/NAV7-Инструкция-проверки-входа-20261113.txt`. Shared with user only as **Library file cards/links**, not sandbox.
+- New NAV7 owner phone test still PENDING: does native Passport login appear after four intros? If yes, test sign-in and Android account ownership once; if no, submit NAV7 diagnostic TXT. Only after real sign-in and normal Yandex Music screen proceed to playback and then B42. No owner login/audio/product accepted by CI. Stage A **NO-GO**, Stage B **LOCKED**.
+
