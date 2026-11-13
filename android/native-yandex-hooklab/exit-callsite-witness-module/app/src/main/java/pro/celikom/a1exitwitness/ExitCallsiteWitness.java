@@ -75,13 +75,18 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V8_ACCOUNT_COMMIT_LOOP_WITNESS";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V9_POSTLOGIN_ROUTE_PREF_WITNESS";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
     private boolean diagnosticUiReady;
     private final java.util.concurrent.atomic.AtomicInteger activityPhasesLogged =
         new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger onboardingReads =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger newIntentObserved =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private boolean newIntentObserverArmed;
     private final java.util.concurrent.atomic.AtomicInteger activityFinishesLogged =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger activityStartsLogged =
@@ -462,6 +467,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         count += observeOwnActivityLaunch("startActivityForResult",
             new Class<?>[]{Intent.class,int.class,Bundle.class}) ? 1 : 0;
         count += observePassportResultDelivery() ? 1 : 0;
+        count += observeLoginResultNewIntent() ? 1 : 0;
         count += observeHi2IllegalStateConstructor() ? 1 : 0;
         count += observeFatalDispatches();
         // Arms only tell us that a hook was registered, not that it ran.
@@ -2635,6 +2641,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 @Override public void onActivityResumed(Activity activity) {
                     logActivityPhase(activity,"RESUMED");
                     observeAccountSnapshot(activity);
+                    observeOnboardingReadOnly(activity);
                     attachDiagnosticExportButton(activity);
                 }
                 @Override public void onActivityPaused(Activity activity) {
@@ -2672,11 +2679,73 @@ public final class ExitCallsiteWitness extends XposedModule {
             String name = activity.getClass().getName();
             if ("ru.yandex.music.main.MainScreenActivity".equals(name))
                 return "MAIN_ACTIVITY";
+            if ("ru.yandex.music.entry.EntryScreenActivity".equals(name))
+                return "ENTRY_ACTIVITY";
+            if ("ru.yandex.music.wizard3.WizardActivity".equals(name)
+                    || "ru.yandex.music.wizard.WizardActivityOld".equals(name))
+                return "WIZARD_ACTIVITY";
+            if (name.startsWith("com.yandex.passport.")
+                    || name.startsWith("ru.yandex.passport."))
+                return "PASSPORT_ACTIVITY";
             if (name.startsWith("ru.yandex.") || name.startsWith("com.yandex."))
                 return "VENDOR_ACTIVITY";
             return "OTHER_ACTIVITY";
         } catch (Throwable ignored) {
             return "UNKNOWN_ACTIVITY";
+        }
+    }
+
+    /**
+     * Real, clone-owned original Yandex startup gate. The exact issuer-signed
+     * 2025 MainScreenActivity reads this boolean from Yandex_Music prefs;
+     * an issuer onboarding callback also writes it. Observe it ONLY.
+     * No preference edit, login change, forced navigation or account access.
+     */
+    private void observeOnboardingReadOnly(Activity activity) {
+        if (activity==null || !PACKAGE.equals(activity.getPackageName())
+                || !PACKAGE.equals(Application.getProcessName())
+                || onboardingReads.incrementAndGet()>20) return;
+        try {
+            android.content.SharedPreferences prefs=activity.getSharedPreferences(
+                "Yandex_Music", Context.MODE_PRIVATE);
+            String state=!prefs.contains("onboarding") ? "UNSET"
+                : prefs.getBoolean("onboarding",false) ? "TRUE" : "FALSE";
+            emit("ONBOARDING_PREF",activityFamily(activity),state);
+        } catch (Throwable ignored) {
+            emit("ONBOARDING_PREF",activityFamily(activity),"UNAVAILABLE");
+        }
+    }
+
+    /** Only compare the Intent action against the known fixed result action.
+     * Never inspect Intent fields, identity, URL, account or token extras. */
+    private synchronized boolean observeLoginResultNewIntent() {
+        if (newIntentObserverArmed) return true;
+        try {
+            Method m=android.app.Instrumentation.class.getDeclaredMethod(
+                "callActivityOnNewIntent",Activity.class,Intent.class);
+            hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        Object receiver=chain.getArg(0);
+                        Object data=chain.getArg(1);
+                        if (receiver instanceof Activity
+                                && PACKAGE.equals(((Activity)receiver).getPackageName())
+                                && newIntentObserved.incrementAndGet()<=24) {
+                            String action=data instanceof Intent
+                                ? ((Intent)data).getAction() : null;
+                            emit("ACTIVITY_NEW_INTENT",
+                                activityFamily((Activity)receiver),
+                                "com.yandex.passport.ACTION_LOGIN_RESULT".equals(action)
+                                    ? "LOGIN_RESULT" : "OTHER");
+                        }
+                    } catch (Throwable ignored) { }
+                    return chain.proceed();
+                });
+            newIntentObserverArmed=true;
+            return true;
+        } catch (Throwable ignored) {
+            emit("ACTIVITY_NEW_INTENT_HOOK","ANDROID","NO_HOOK");
+            return false;
         }
     }
 
@@ -2961,7 +3030,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
-            button.setText("Диагностика NAV8");
+            button.setText("Диагностика NAV9");
             button.setTextColor(Color.WHITE);
             button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
