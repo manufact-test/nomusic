@@ -479,6 +479,17 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertNotIn("PRIVATE_THROWABLE_NAME",str(result))
         self.assertNotIn("432",str(result))
 
+    def test_exact_pushservice_events_survive_existing_250_legacy_cap(self):
+        prefix=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=OTHER")*260
+        suffix=(log(431,"event=PUSH_SERVICE_HOOK;origin=PUSH_SERVICE;error=REGISTERED;thread=OTHER")
+                +log(431,"event=PUSH_SERVICE_PHASE;origin=PUSH_SERVICE;error=AFTER_TRUE;thread=OTHER")
+                +log(431,"event=PUSH_SERVICE_CALL;origin=PUSH_SERVICE;error=RETURN;thread=OTHER"))
+        result=scoped_metrica_witness(EXIT,prefix+suffix)
+        self.assertTrue(result["exact_post_true_push_service_hook_registered"])
+        self.assertEqual(result["exact_post_true_push_service_states"]["RETURN"],1)
+        self.assertEqual(result["exact_post_true_push_service_phase"],["AFTER_TRUE"])
+        self.assertEqual(result["all_witness_events_bounded"],250)
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
