@@ -235,13 +235,16 @@ test("W99 verified CELIKOM source-left schedules one bounded current-track recov
   assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("123"),false,
     "one source-left transition cannot create duplicate recovery timers");
   await new Promise(resolve=>setTimeout(resolve,720));
-  await tick();
-  // The source-left retry must obtain a fresh authenticated grant before it
-  // can ask Yandex to reload the current entity.
-  const retryJobs=r.window.__celikomBridgeNativeDrain();
-  for (const job of retryJobs)
-    r.window.__celikomBridgeNativeReceive(job.requestId,makeGrant("123"));
-  await tick();await tick();
+  // The recovery prime and the subsequent position-preserving Yandex reload
+  // can each ask for an exact-ID grant. Drain both bridge turns, not just the
+  // first one, before asserting the decoder source.
+  for (let i=0;i<4;i++) {
+    await tick();
+    const retryJobs=r.window.__celikomBridgeNativeDrain();
+    for (const job of retryJobs)
+      r.window.__celikomBridgeNativeReceive(job.requestId,makeGrant("123"));
+    await tick();
+  }
   assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
   assert.equal(player.mediaSources[1],
     makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
