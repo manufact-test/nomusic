@@ -58,3 +58,8 @@ The workflow has no secrets and no deployment step. It does not connect to Hosti
 The pure source-contract normalizer was added and verified by isolated B42 workflow [#43441677339](https://github.com/manufact-test/nomusic/actions/runs/43441677339), **49/49 PASS**. Tests cover actual PHP ResolveService snake_case response mapping, epoch-seconds conversion, same-origin HTTPS URL resolution, private test-token entitlement denial, old track-only backend rejection, partial identity, mismatched track and URL expiry mismatch. The first attempt #43441514979 failed on an over-escaped control-character regex; it was corrected and the full rerun passed. No source-selection guard was weakened.
 
 This is still a pure JS helper; it has not been connected to a live Android adapter or live Resolve request. No actual Yandex test account or permitted track values are available. No production deployment.
+
+
+## Java model identity parity
+
+The older pure-Java NativeSourceGate and NativeTrackIdentityGate models were aligned from track+edition to exact track+album+edition. They now reject wrong track, album or edition before a source can be admitted or sealed. Isolated javac workflow [#43442318127](https://github.com/manufact-test/nomusic/actions/runs/43442318127) passed: NativeSourceGate 10,038 assertions and NativeTrackIdentityGate 10,015 assertions. These classes are MODEL ONLY and are not wired to the Yandex player or active hooks; no Android runtime or audio result is implied.
