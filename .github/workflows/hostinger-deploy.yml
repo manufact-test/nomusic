@@ -3,7 +3,7 @@ name: Deploy Hostinger private test
 on:
   workflow_dispatch:
   push:
-    branches: [develop, feature/api-range]
+    branches: [develop, feature/api-range, experiment/windows-w98-integrated-gain-and-original-vpn-20261113]
     paths:
       - .github/deploy/hostinger-request.json
 
@@ -54,6 +54,10 @@ jobs:
           bash -n .github/scripts/hostinger-activate.sh
           bash -n .github/scripts/hostinger-stage7-owner.sh
           php -l .github/scripts/hostinger-stage7-owner-remote.php
+          php -l .github/scripts/hostinger-windows-gain-remote.php
+          php -l server/bin/windows-gain-stage.php
+          php -l server/bin/windows-gain-rollback.php
+          bash -n .github/scripts/hostinger-windows-gain-stage.sh
           bash -n .github/scripts/hostinger-user-feedback-audit.sh
           php -l .github/scripts/hostinger-user-feedback-audit.php
           bash -n .github/scripts/hostinger-admin-gain-ux-audit.sh
@@ -154,3 +158,29 @@ jobs:
               echo 'Feedback-specific read-only audit not selected for this deployment.'
             fi
           fi
+
+  windows-gain-stage:
+    name: Stage private Windows gain sidecars and verify signed Range
+    needs: deploy
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install private offline audio renderer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+          ffprobe -version | head -n 1
+      - name: Validate private staging scripts
+        run: |
+          bash -n .github/scripts/hostinger-windows-gain-stage.sh
+          php -l .github/scripts/hostinger-windows-gain-remote.php
+          php -l server/bin/windows-gain-stage.php
+          php -l server/bin/windows-gain-rollback.php
+      - name: Stage every active nonzero-gain replacement and verify real entitled HTTPS Range
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/hostinger-windows-gain-stage.sh
