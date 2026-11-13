@@ -216,22 +216,31 @@ try {
 
         $rows = $activeRows();
         if (!$rows) throw new RuntimeException('no_active_nonzero_gain_rows');
-        $sessions = $pdo->query("SELECT id,user_id,refresh_expires_at
-            FROM user_sessions
-            WHERE revoked_at IS NULL AND refresh_expires_at > UTC_TIMESTAMP(6)
-            ORDER BY id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
-        $entitlements = new EntitlementService($pdo, (bool)($config['paid_entitlement_enabled'] ?? false));
-        $session = null;
-        $decision = null;
-        foreach ($sessions as $candidate) {
-            $checked = $entitlements->check((int)$candidate['user_id']);
-            if ($checked->allowed) {
-                $session = $candidate;
-                $decision = $checked;
-                break;
-            }
+
+        // The owner explicitly authorized this one account by email. Read the
+        // address from SSH stdin (never argv/logs), then select only its session.
+        $ownerEmail = strtolower(trim((string)stream_get_contents(STDIN)));
+        if ($ownerEmail === '' || strlen($ownerEmail) > 254 ||
+            filter_var($ownerEmail, FILTER_VALIDATE_EMAIL) === false) {
+            throw new RuntimeException('explicit_owner_email_required');
         }
-        if (!$session || !$decision) throw new RuntimeException('no_real_entitled_session_available');
+        $sessionQuery = $pdo->prepare("SELECT s.id,s.user_id,s.refresh_expires_at
+            FROM user_sessions s
+            INNER JOIN users u ON u.id = s.user_id
+            WHERE u.email = ?
+              AND u.status = 'active'
+              AND s.revoked_at IS NULL
+              AND s.refresh_expires_at > UTC_TIMESTAMP(6)
+            ORDER BY s.id DESC LIMIT 1");
+        $sessionQuery->execute([$ownerEmail]);
+        $session = $sessionQuery->fetch(PDO::FETCH_ASSOC);
+        if (!$session) throw new RuntimeException('authorized_owner_session_not_available');
+
+        $entitlements = new EntitlementService($pdo, (bool)($config['paid_entitlement_enabled'] ?? false));
+        $decision = $entitlements->check((int)$session['user_id']);
+        if (!$decision->allowed) {
+            throw new RuntimeException('authorized_owner_entitlement_not_active');
+        }
         $access = [
             'session_id' => (int)$session['id'],
             'refresh_expires_at' => (string)$session['refresh_expires_at'],
