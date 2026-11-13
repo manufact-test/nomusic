@@ -1,5 +1,7 @@
 # W101 — CELIKOM Windows: единая политика обновлений и отката (2026-11-13)
 
+> **Latest owner decisions are in W102.** W102 supersedes this document's earlier branch/release workflow assumptions and adds the single-production-line rule, 15-minute Yandex monitoring, complete task ledger and ordered handoff. Keep the technical updater security and rollback requirements below.
+
 ## Зачем этот документ
 
 Владелец зафиксировал обязательное продуктовое требование: пользователь CELIKOM Windows не должен самостоятельно следить за релизами, заходить на сайт и вручную скачивать каждый новый EXE/ZIP. Обновление самого CELIKOM должно доставляться приложением автоматически, безопасно и без прерывания музыки.
