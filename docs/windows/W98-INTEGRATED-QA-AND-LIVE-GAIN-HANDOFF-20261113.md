@@ -4,7 +4,7 @@
 
 - Repository: `manufact-test/nomusic`.
 - Work branch: `experiment/windows-w98-integrated-gain-and-original-vpn-20261113`.
-- Current documented HEAD at this handoff: `df49afe6b725b2c6b977a6ea2c9d9638f0785223` (always re-fetch the branch before continuing).
+- Last code HEAD with full W98 CI SUCCESS: `696e36b65c2a5accaa0e5c6c8aeb7548611932f1` (always re-fetch the branch before continuing).
 - Exact pre-W98 backup: `backup/windows-w98-pre-integrated-gain-and-original-vpn-20261113` @ `5ce1ec127009ba4a86a8e5ee1d129ec86623fd54`.
 - W95 input branch remains unchanged: `experiment/windows-w95-02434-qa-candidate-20261113` @ `5ce1ec127009ba4a86a8e5ee1d129ec86623fd54`.
 - Do not reset or modify W95/W89 backups. Browser extension source under `extension/` was not modified by W98.
@@ -55,7 +55,7 @@ CI regression is not owner acoustic QA. The owner must still verify #58 on «М�
 - W91 signed-sidecar contract CI: [43456768892](https://github.com/manufact-test/nomusic/actions/runs/43456768892) SUCCESS.
 - Full W98 integration CI [43457943838](https://github.com/manufact-test/nomusic/actions/runs/43457943838) SUCCESS on code SHA `65c2aba287183c655cbb89deed05f3029addca15`: Linux extension/server package build, Windows repo checks, W23 bundle, W22/W23/W60 audio regressions, W21 recovery, W24 ASAR/catalog, W15 entitlement/login/native-state tests, GUI warnings-as-errors compile.
 - The first W98 CI failures were runner-only: the Unix `zip` executable was invoked on Windows, then PowerShell's reserved `$Host` variable was overwritten. The pipeline was split so packaging runs on Linux; the reserved variable was renamed. Both corrections are covered by the successful W98 run above.
-- After the final Hostinger-workflow CI-gate changes, exact-current-head W98 run [43458387990](https://github.com/manufact-test/nomusic/actions/runs/43458387990) was queued at `df49afe6b725b2c6b977a6ea2c9d9638f0785223`. Verify its final conclusion before continuing.
+- Latest owner-email-scoped W98 run [43462340493](https://github.com/manufact-test/nomusic/actions/runs/43462340493) **SUCCESS** on code SHA `696e36b65c2a5accaa0e5c6c8aeb7548611932f1`: Hostinger workflow YAML parsed, private gain PHP/Bash syntax and email-only session guard passed, Linux extension/server package build passed, and all Windows W22/W23/W60, W21, W24, W15 tests plus GUI warnings-as-errors compile passed.
 - The Hostinger final installer job now waits for the W98 Windows CI run for the exact same commit SHA; it must not package a different or unverified source revision.
 
 ## Still open — do not claim solved from CI
@@ -73,8 +73,8 @@ CI regression is not owner acoustic QA. The owner must still verify #58 on «М�
 
 1. Verify exact current W98 CI run [43458387990](https://github.com/manufact-test/nomusic/actions/runs/43458387990) is SUCCESS.
 2. Owner approval is already given for his primary account by email. Ask the owner to add the one-time Actions secret `CELIKOM_W98_TEST_EMAIL`; confirm the preflight passes. The helper now resolves that email to only the owner's active session and checks entitlement.
-3. Add PHP/Bash syntax checks for all W98 remote helpers to the no-deploy CI, then run the deployment verify job.
-4. Update `.github/deploy/hostinger-request.json` to a fresh one-shot request only after the account gate is in place; trigger the private Hostinger deployment from the exact current branch SHA.
-5. Confirm Stage 5 snapshot/restore checks, migration 020 checksum, all active nonzero-gain sidecars, offline audio measurements, and real signed HTTPS Range 206 for each row. Confirm rollback path remains usable.
-6. Wait for exact-commit W98 Windows CI success; build the single 0.24.35 EXE + ZIP; verify ZIP CRC and both SHA256 values; upload to `/CELIKOM/Windows/Test/`.
-7. Update this document, `W97-FINAL-READY-RELEASE-HANDOFF-20261113.md`, and `NEXT-CHAT.md` with final exact commits, CI, artifacts, checksums, and rollback. Owner then performs one combined real-PC listening/functional QA pass.
+2. PHP/Bash syntax checks and Hostinger workflow YAML validation are now in W98 no-deploy CI; the latest run passed.
+3. After the secret exists, update `.github/deploy/hostinger-request.json` to a fresh one-shot request and trigger private Hostinger deployment from the exact current branch SHA.
+4. Confirm Stage 5 snapshot/restore checks, migration 020 checksum, all active nonzero-gain sidecars, offline audio measurements, and real signed HTTPS Range 206 for each row. Confirm rollback path remains usable.
+5. Wait for exact-commit W98 Windows CI success; build the single 0.24.35 EXE + ZIP; verify ZIP CRC and both SHA256 values; upload to `/CELIKOM/Windows/Test/`.
+6. Update this document, `W97-FINAL-READY-RELEASE-HANDOFF-20261113.md`, and `NEXT-CHAT.md` with final exact commits, CI, artifacts, checksums, and rollback. Owner then performs one combined real-PC listening/functional QA pass.
