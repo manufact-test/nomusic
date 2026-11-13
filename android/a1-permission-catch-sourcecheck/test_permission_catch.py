@@ -30,6 +30,16 @@ class PermissionCheckTests(unittest.TestCase):
         const=bytes((0x1a,0,0,0,0x0e,0))
         self.assertTrue(p._direct_literal(const,Dex("Lnone;","x",p.PERMISSION_MARKER)))
         self.assertFalse(p._direct_literal(const,Dex("Lnone;","x","not the permission")))
+    def test_direct_iae_throw_requires_matching_register_and_type(self):
+        class Types:
+            type_count=1
+            def type(self,idx):return "Ljava/lang/IllegalArgumentException;"
+        # new-instance v1, type#0; throw v1
+        direct=bytes((0x22,1,0,0,0x27,1,0x0e,0))
+        just_new=bytes((0x22,1,0,0,0x27,2,0x0e,0))
+        self.assertEqual(p._explicit_iae_throw(direct,Types()),"IAE_DIRECT_THROW")
+        self.assertEqual(p._explicit_iae_throw(just_new,Types()),"IAE_CONSTRUCT_ONLY")
+
     def test_runtime_causality_default_not_claimed(self):
         self.assertNotIn("runtime_throw_site_proven\":True",SUBJECT.read_text())
 if __name__=="__main__":
