@@ -3,6 +3,8 @@ package pro.celikom.a1exitwitness;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Application;
+import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.content.ContentResolver;
@@ -46,8 +48,11 @@ import java.util.WeakHashMap;
 /**
  * Laboratory-only early-exit observer. Exactly one independent, disposable
  * CELIKOM package. Never scoped to ru.yandex.music, system or any user app.
- * All hooks forward original args/results untouched: no signature, Passport,
- * media, protection, process lifecycle or exception behavior is overridden.
+ * Read-only diagnostics plus a deliberately isolated clone-owned AccountManager
+ * type-namespace compatibility trial. Exactly the original Yandex account type
+ * is rewritten to the independently owned CELIKOM type at the Android API
+ * boundary; no result is forged, exception suppressed or publisher account read.
+ * All unrelated media, protection, process and crash hooks remain read-only.
  * No exception messages, stack traces, account data, paths or URLs are logged.
  */
 public final class ExitCallsiteWitness extends XposedModule {
@@ -61,6 +66,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String DIAGNOSTIC_FILE = "celikom-a1-diagnostics.txt";
     private static final String PASSPORT_DIAGNOSTIC_FILE = "celikom-a1-passport-diagnostics.txt";
     private static final String PASSPORT_PROCESS = PACKAGE + ":passport";
+    // The matching resource in authenticator.xml and sync-adapter XML is
+    // exclusively rewritten on the own clone; never claim stock's account type.
+    private static final String STOCK_ACCOUNT_TYPE = "com.yandex.passport";
+    private static final String OWN_ACCOUNT_TYPE = PACKAGE + ".passport";
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
     private static final String DIAGNOSTIC_BUILD = "NAV_V5_PASSPORT_FATAL_CAUSE";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
@@ -75,6 +84,12 @@ public final class ExitCallsiteWitness extends XposedModule {
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean armed;
     private boolean passportArmed;
+    private boolean accountCtorHooked;
+    private boolean accountQueryHooked;
+    private final java.util.concurrent.atomic.AtomicInteger ownAccountCtorRemaps =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger ownAccountQueryRemaps =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean passportDiagnosticCallbacksReady;
     private final java.util.concurrent.atomic.AtomicInteger passportCrashCaptured = new java.util.concurrent.atomic.AtomicInteger();
     private boolean exitCtorHooked;
@@ -173,6 +188,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         // Exact prior ordering for *every* clone process; do not alter routing
         // or native startup behavior while adding passive Passport diagnostics.
         installOwnedResourceRouteTrial();
+        installCloneAccountTypeBridge();
         if (isPassportProcess()) armPassport();
         else arm();
         try { installExactRunModeWitness(param.getDefaultClassLoader()); }
@@ -181,8 +197,74 @@ public final class ExitCallsiteWitness extends XposedModule {
 
     @Override public void onPackageReady(PackageReadyParam param) {
         if (!PACKAGE.equals(param.getPackageName())) return;
+        installCloneAccountTypeBridge();
         if (isPassportProcess()) armPassport();
         else if (PACKAGE.equals(Application.getProcessName())) arm();
+    }
+
+
+    /**
+     * Clone-owned account compatibility. Android's real AccountManager
+     * authenticator ownership check remains fully enforced: after the paired
+     * resource change the clone owns only PACKAGE+".passport", not the
+     * publisher's "com.yandex.passport" type. Never borrow publisher accounts.
+     *
+     * Hooking the public Account(String,String) constructor catches the
+     * issuer SDK's hardcoded compile-time account type without modifying
+     * any signed issuer bytecode. No credentials, cookies, names or tokens are
+     * observed. Do not simulate AccountManager success or handle exceptions.
+     */
+    private synchronized void installCloneAccountTypeBridge() {
+        String process;
+        try { process=Application.getProcessName(); }
+        catch (Throwable ignored) { return; }
+        if (!PACKAGE.equals(process) && !PASSPORT_PROCESS.equals(process)) return;
+
+        if (!accountCtorHooked) {
+            try {
+                Constructor<Account> ctor=Account.class.getDeclaredConstructor(
+                    String.class, String.class);
+                hook(ctor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        if (STOCK_ACCOUNT_TYPE.equals(chain.getArg(1))) {
+                            // Preserve the actual account name untouched and
+                            // pass the new owned type to the REAL constructor.
+                            Object value=chain.proceed(new Object[]{
+                                chain.getArg(0), OWN_ACCOUNT_TYPE});
+                            if (ownAccountCtorRemaps.getAndIncrement()<8)
+                                emit("ACCOUNT_BRIDGE", "CONSTRUCTOR", "OWN_TYPE");
+                            return value;
+                        }
+                        return chain.proceed();
+                    });
+                accountCtorHooked=true;
+            } catch (Throwable ignored) { }
+        }
+
+        if (!accountQueryHooked) {
+            try {
+                Method query=AccountManager.class.getDeclaredMethod(
+                    "getAccountsByType", String.class);
+                hook(query).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        if (STOCK_ACCOUNT_TYPE.equals(chain.getArg(0))) {
+                            // Never query the genuine publisher's accounts:
+                            // request only accounts owned by the clone.
+                            Object value=chain.proceed(new Object[]{OWN_ACCOUNT_TYPE});
+                            if (ownAccountQueryRemaps.getAndIncrement()<8)
+                                emit("ACCOUNT_BRIDGE", "QUERY", "OWN_TYPE");
+                            return value;
+                        }
+                        return chain.proceed();
+                    });
+                accountQueryHooked=true;
+            } catch (Throwable ignored) { }
+        }
+
+        emit("ACCOUNT_BRIDGE", "REGISTERED",
+            accountCtorHooked && accountQueryHooked
+                ? "BOTH" : accountCtorHooked ? "CTOR_ONLY"
+                : accountQueryHooked ? "QUERY_ONLY" : "NO_HOOK");
     }
 
     private static boolean isPassportProcess() {
