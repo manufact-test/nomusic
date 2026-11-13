@@ -370,3 +370,21 @@ jobs:
           path: dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST/*
           if-no-files-found: error
           retention-days: 30
+
+  publish-windows-test:
+    name: Publish verified Windows QA package to Hostinger Test folder
+    needs: windows-final-qa
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-W98-0.24.36-INTEGRATED-QA-TEST
+          path: dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST
+      - name: Verify checksums and publish exact files to /CELIKOM/Windows/Test/
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/hostinger-windows-qa-publish.sh dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST
