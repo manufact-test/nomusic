@@ -126,6 +126,66 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertFalse(x["executed_on_real_player_proven"])
         self.assertNotIn("Raw",str(x))
 
+
+    def test_only_exact_extractor_overload_source_argument_is_classified(self):
+        from a1_private_2025_audio_entrypoints import (
+            _exact_extractor_register_origin, classify_private_extractor_sink_rows)
+        from a1_private_dex_flow import decode_instructions
+        import struct
+        class Fake:
+            def type(self,i):
+                return "Lprivate/Source;" if i==7 else "Lprivate/Other;"
+        # new-instance v1,type@7, invoke-virtual {v0,v1},setDataSource
+        code=bytes([0x22,0x01,0x07,0x00,0x6e,0x20,0x00,0x00,0x10,0x00,
+                    0x0e,0x00])
+        instructions=decode_instructions(code)
+        raw=_exact_extractor_register_origin(Fake(),code,instructions,1)
+        self.assertEqual(raw,("NEW_INSTANCE","Lprivate/Source;"))
+        summary=classify_private_extractor_sink_rows(
+            [("Lprivate/Caller;",raw)],
+            {"Lprivate/Source;":"Landroid/media/MediaDataSource;",
+             "Lprivate/Other;":"Landroid/media/MediaDataSource;"},
+            {"Lprivate/Source;","Lprivate/Other;"},
+            {"Lprivate/Source;","Lprivate/Other;"})
+        self.assertEqual(summary["exact_2025_extractor_mediadatasource_argument_categories"],
+                         ["DIRECT_NEW_NON_TARGET"] if False else ["DIRECT_NEW_TARGET_1"])
+        self.assertFalse(summary["same_decoder_active_track_proven"])
+        self.assertFalse(summary["real_player_execution_proven"])
+        self.assertNotIn("private/",str(summary))
+
+    def test_extractor_source_origin_range_alias_and_ambiguous_control_flow(self):
+        from a1_private_2025_audio_entrypoints import _exact_extractor_register_origin
+        from a1_private_dex_flow import decode_instructions
+        class Fake:
+            def type(self,i): return "Lprivate/Unexpected;"
+        # new-instance v2; move-object v1,v2; invoke-virtual/range {v0,v1}
+        code=bytes([0x22,0x02,0x04,0x00,0x07,0x21,
+                    0x74,0x02,0x00,0x00,0x00,0x00,0x0e,0x00])
+        ins=decode_instructions(code)
+        self.assertEqual(
+            _exact_extractor_register_origin(Fake(),code,ins,2),
+            ("NEW_INSTANCE","Lprivate/Unexpected;"))
+        # Unconditional goto between source and sink is never traced through.
+        amb=bytes([0x22,0x01,0x04,0x00,0x28,0x01,
+                   0x6e,0x20,0x00,0x00,0x10,0x00])
+        self.assertEqual(
+            _exact_extractor_register_origin(Fake(),amb,decode_instructions(amb),2),
+            ("FLOW_BOUNDARY_UNRESOLVED",None))
+        # An argument passed from a caller remains unknown, no fabricated type.
+        bare=bytes([0x6e,0x20,0x00,0x00,0x10,0x00])
+        self.assertEqual(
+            _exact_extractor_register_origin(Fake(),bare,decode_instructions(bare),0),
+            ("PARAMETER_OR_CAPTURE_UNRESOLVED",None))
+
+    def test_exact_extractor_classification_failclosed_without_target(self):
+        from a1_private_2025_audio_entrypoints import classify_private_extractor_sink_rows
+        x=classify_private_extractor_sink_rows(
+            [("Lprivate/Caller;",("INVOKE_RETURN_OBJECT",None))],{},set(),set())
+        self.assertEqual(x["exact_2025_extractor_mediadatasource_argument_categories"],
+                         ["INVOKE_RETURN_OBJECT"])
+        self.assertFalse(x["private_source_class_or_caller_disclosed"])
+        self.assertNotIn("Caller",str(x))
+
     def test_empty_and_duplicate_pure_invokes_no_execution_claim(self):
         empty=summarize_methods([])
         self.assertTrue(all(x==0 for x in empty["public_api_references"].values()))

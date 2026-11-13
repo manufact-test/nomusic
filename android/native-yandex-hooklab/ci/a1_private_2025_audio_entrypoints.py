@@ -129,7 +129,86 @@ def extractor_argument_shape(dex, method_index):
     except (AttributeError,IndexError,struct.error,DexError,ValueError):
         return "UNREADABLE_SHAPE"
 
-def count_direct_public_invocations(dex):
+
+def _exact_extractor_source_register(code: bytes, pc: int, opcode: int):
+    """Dalvik 35c/3rc instance receiver + ONE MediaDataSource argument."""
+    if opcode==0x6e:  # invoke-virtual {C,D}
+        return code[pc+4]>>4 if code[pc+1]>>4==2 else None
+    if opcode==0x74:  # invoke-virtual/range {vCCCC .. vNNNN}
+        return struct.unpack_from("<H",code,pc+4)[0]+1 if code[pc+1]==2 else None
+    return None
+
+
+def _exact_extractor_register_origin(dex, code: bytes, instructions, index: int):
+    """Conservative straight-line local backslice, with private class kept in memory.
+
+    Never resolve through unknown branches, external calls, objects, registers,
+    fields, track identity or decoder state. Source is only a static clue.
+    """
+    pc,opcode,_=instructions[index]
+    register=_exact_extractor_source_register(code,pc,opcode)
+    if register is None:
+        return ("ARGUMENT_SHAPE_UNRESOLVED",None)
+    for j in range(index-1,max(-1,index-81),-1):
+        p,op,_=instructions[j]
+        # A branch or exception edge prevents a reliable straight-line claim.
+        if op in (0x0e,0x0f,0x10,0x11,0x27,0x28,0x29,0x2a,
+                  0x2b,0x2c) or 0x32<=op<=0x3d:
+            return ("FLOW_BOUNDARY_UNRESOLVED",None)
+        if op==0x07:  # move-object vA,vB
+            if code[p+1]&15==register:
+                register=code[p+1]>>4
+            continue
+        if op==0x08:  # move-object/from16 vAA,vBBBB
+            if code[p+1]==register:
+                register=struct.unpack_from("<H",code,p+2)[0]
+            continue
+        if op==0x09:  # move-object/16 vAAAA,vBBBB
+            if struct.unpack_from("<H",code,p+2)[0]==register:
+                register=struct.unpack_from("<H",code,p+4)[0]
+            continue
+        if op==0x22 and code[p+1]==register:  # new-instance vAA,type@BBBB
+            return ("NEW_INSTANCE",dex.type(struct.unpack_from("<H",code,p+2)[0]))
+        if op==0x0c and code[p+1]==register:  # move-result-object
+            if j>0 and instructions[j-1][1] in INVOKE_METHOD:
+                return ("INVOKE_RETURN_OBJECT",None)
+            return ("UNLINKED_RESULT",None)
+        if op==0x54 and code[p+1]&15==register:  # iget-object
+            return ("INSTANCE_OBJECT_FIELD",None)
+        if op==0x62 and code[p+1]==register:  # sget-object
+            return ("STATIC_OBJECT_FIELD",None)
+        if op==0x46 and code[p+1]==register:  # aget-object
+            return ("ARRAY_OBJECT_ELEMENT",None)
+        if op==0x12 and code[p+1]&15==register:
+            return ("LITERAL_OR_NULL",None)
+        if op in (0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,
+                  0x23) and code[p+1]==register:
+            return ("OTHER_REGISTER_WRITE",None)
+    return ("PARAMETER_OR_CAPTURE_UNRESOLVED",None)
+
+
+def classify_private_extractor_sink_rows(rows, superclasses, readat, getsize):
+    """Publish finite categories ONLY; third-party class/caller never leaves memory."""
+    candidates=sorted(owner for owner,parent in superclasses.items()
+                      if parent=="Landroid/media/MediaDataSource;"
+                      and owner in readat and owner in getsize)
+    result=[]
+    for caller,(kind,private_type) in rows[:4]:
+        if kind=="NEW_INSTANCE":
+            if private_type in candidates:
+                kind="DIRECT_NEW_TARGET_"+str(candidates.index(private_type))
+            else:
+                kind="DIRECT_NEW_NON_TARGET"
+        result.append(kind)
+    return {
+        "exact_2025_extractor_mediadatasource_callsites_bounded":len(rows),
+        "exact_2025_extractor_mediadatasource_argument_categories":sorted(result),
+        "private_source_class_or_caller_disclosed":False,
+        "same_decoder_active_track_proven":False,
+        "real_player_execution_proven":False,
+    }
+
+def count_direct_public_invocations(dex, private_sink_rows=None):
     """Actual DEX invoke instructions; never logs direct caller identities.
 
     A code path present in DEX is NOT proof that Android executed it.
@@ -148,7 +227,7 @@ def count_direct_public_invocations(dex):
             undecoded+=1
             continue
         complete+=1
-        for pc,op,_ in instructions:
+        for index,(pc,op,_) in enumerate(instructions):
             if op not in INVOKE_METHOD:
                 continue
             method_index=struct.unpack_from("<H",code,pc+2)[0]
@@ -159,7 +238,15 @@ def count_direct_public_invocations(dex):
                 counts[role]+=1
                 body_roles.add(role)
                 if role=="ANDROID_MEDIA_EXTRACTOR_SOURCE":
-                    overloads[extractor_argument_shape(dex,method_index)]+=1
+                    shape=extractor_argument_shape(dex,method_index)
+                    overloads[shape]+=1
+                    if shape=="MEDIA_DATA_SOURCE" and private_sink_rows is not None:
+                        # Keep all supplier types private in-run, never report names.
+                        if len(private_sink_rows)>=4:
+                            raise DexError("EXACT_EXTRACTOR_SINK_BOUND")
+                        private_sink_rows.append((
+                            dex.method(_index)[0],
+                            _exact_extractor_register_origin(dex,code,instructions,index)))
         if "ANDROID_MEDIA_EXTRACTOR_SOURCE" in body_roles and (
             "ANDROID_AUDIO_TRACK_OUTPUT" in body_roles or
             "ANDROID_MEDIA_CODEC_INPUT" in body_roles):
@@ -279,6 +366,7 @@ def scan_publisher(xapk: Path,private_java: Path|None=None) -> dict:
         supers={}
         readat=set()
         getsize=set()
+        exact_sink_rows=[]
         for apk in parts:
             with zipfile.ZipFile(apk) as archive:
                 if archive.testzip() is not None:
@@ -304,7 +392,7 @@ def scan_publisher(xapk: Path,private_java: Path|None=None) -> dict:
                     for key,value in row["public_api_references"].items(): combined[key]+=value
                     for key,value in row["public_api_defined_bodies"].items(): combined["DEFINED_"+key]+=value
                     historical.update((o,n) for o,n in methods if (o,n) in HISTORICAL)
-                    direct=count_direct_public_invocations(d)
+                    direct=count_direct_public_invocations(d,exact_sink_rows)
                     total_decoded+=direct["decoded_code_bodies_bounded"]
                     total_undecoded+=direct["undecoded_code_bodies_bounded"]
                     shared_bodies+=direct["extractor_and_renderer_invoked_same_method_bodies_bounded"]
@@ -333,6 +421,8 @@ def scan_publisher(xapk: Path,private_java: Path|None=None) -> dict:
         "extractor_and_renderer_invoked_same_method_bodies_bounded":min(shared_bodies,9999),
         "mediadata_source_class_contract":summarize_mediadatasource_inheritance(
             supers,readat,getsize),
+        "exact_media_extractor_source_argument_audit":classify_private_extractor_sink_rows(
+            exact_sink_rows,supers,readat,getsize),
         "actual_current_track_binding_proven":False,
         "source_before_decoder_execution_proven":False,
         "native_audio_playback_proven":False,
