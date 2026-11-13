@@ -86,6 +86,9 @@ remote() {
   ssh -T -p "$port" "${ssh_opts[@]}" "$target" "$1"
 }
 copy_to_remote() {
+  [[ "$2" != "$target:"* ]] || {
+    echo 'W98_COPY_TARGET_ALREADY_PREFIXED'; return 2;
+  }
   scp -P "$port" "${ssh_opts[@]}" "$1" "$target:$2"
 }
 remote_ready=1
@@ -257,7 +260,7 @@ const manifest = {
 fs.writeFileSync(process.argv[6], JSON.stringify(manifest,null,2)+'\n',{mode:0o600});
 NODE
 
-copy_to_remote "$work/manifest.json" "$target:$manifest_remote"
+copy_to_remote "$work/manifest.json" "$manifest_remote"
 remote "chmod 600 '$manifest_remote'"
 success=1
 echo "W98_PRIVATE_GAIN_STAGE_PASS count=$count live_signed_range=206 manifest=private"
