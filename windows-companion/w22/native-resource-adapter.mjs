@@ -95,9 +95,37 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   let ownSingle = null, ownBatch = null;
   const pending = new Map();
   const cache = new Map();
+  const mappedTracks = new Set();
+  const sourceClassifications = new Map();
   let status = 'OFF';
   function emit(code, id = null) {
     try { onEvent(code, id); } catch { /* Diagnostics must never block the player. */ }
+  }
+  function setClassification(id, classification) {
+    if (!id) return;
+    if (sourceClassifications.size >= MAX_CACHE && !sourceClassifications.has(id))
+      sourceClassifications.delete(sourceClassifications.keys().next().value);
+    sourceClassifications.delete(id);
+    sourceClassifications.set(id, classification);
+  }
+  function markMapped(id) {
+    if (!id) return;
+    if (mappedTracks.size >= MAX_CACHE && !mappedTracks.has(id))
+      mappedTracks.delete(mappedTracks.values().next().value);
+    mappedTracks.delete(id);
+    mappedTracks.add(id);
+  }
+  function hasMappedTrack(raw) {
+    const id = validId(raw);
+    return !!id && mappedTracks.has(id);
+  }
+  function forgetMappedTrack(raw) {
+    const id = validId(raw);
+    if (id) mappedTracks.delete(id);
+  }
+  function classificationForTrack(raw) {
+    const id = validId(raw);
+    return id ? sourceClassifications.get(id) || 'UNKNOWN' : 'UNKNOWN';
   }
 
   function cancel() {
@@ -143,7 +171,11 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   async function lookup(id, revisionAtStart, background = false) {
     if (!enabled || disposed || revisionAtStart !== revision) return null;
     const cached = fromCache(id);
-    if (cached !== undefined) { emit('CACHE_HIT', id); return cached; }
+    if (cached !== undefined) {
+      setClassification(id, cached ? 'ACTIVE_REPLACEMENT_CANDIDATE' : 'ORIGINAL');
+      emit('CACHE_HIT', id);
+      return cached;
+    }
     let job = pending.get(id);
     if (!job) {
       emit('RESOLVE_START', id);
@@ -165,14 +197,19 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         // Never poison a negative cache with network failure. Schedule an
         // independently bounded current-track recovery, not a second player.
         if (!abort.signal.aborted && grant?.transient === true) {
+          setClassification(id, 'UNKNOWN');
           emit(background ? 'RESOLVE_BACKGROUND_TRANSIENT' : 'RESOLVE_TRANSIENT', id);
           return null;
         }
         const origin = typeof allowedOrigin === 'function' ? allowedOrigin() : allowedOrigin;
         const validated = validateCelikomGrant(grant, id, origin, now());
-        if (!abort.signal.aborted && enabled && !disposed && revision === revisionAtStart)
-          setCache(id, validated && (grant.mimeType === 'audio/mpeg' || grant.mimeType === 'audio/mp4')
-            ? { ...grant, signedUrl: validated } : null);
+        const usable = validated && (grant?.mimeType === 'audio/mpeg' || grant?.mimeType === 'audio/mp4')
+          ? { ...grant, signedUrl: validated } : null;
+        if (!abort.signal.aborted && enabled && !disposed && revision === revisionAtStart) {
+          setCache(id, usable);
+          setClassification(id, grant === null ? 'ORIGINAL' :
+            usable ? 'ACTIVE_REPLACEMENT_CANDIDATE' : 'UNKNOWN');
+        }
         return fromCache(id) ?? null;
       }).finally(() => {
         clearTimeout(timer);
@@ -212,7 +249,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
               error => { emit('NATIVE_FILEINFO_ERROR', id); return { error }; });
       const grant = await lookup(id, rev);
       if (!grant || !isLive(id, rev)) {
-        emit('SOURCE_ORIGINAL', id);
+        if (isLive(id, rev))
+          emit(classificationForTrack(id) === 'ORIGINAL' ? 'SOURCE_ORIGINAL' : 'SOURCE_UNKNOWN', id);
         const base = await native;
         if (rev === revision) status = enabled ? 'ORIGINAL' : 'OFF';
         if ('error' in base) throw base.error;
@@ -242,6 +280,9 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       emit(field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' : 'FILEINFO_SHAPE_DOWNLOAD', id);
       observeOriginalFileInfo(value[field], emit, id);
       const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType, params?.quality);
+      markMapped(id);
+      setClassification(id, 'ACTIVE_REPLACEMENT');
+      emit('SOURCE_ACTIVE_REPLACEMENT', id);
       // Preserve Yandex native player: same decoder, URL-only replacement.
       // gainApplied reflects a verified offline server-render, NOT an in-process
       // DSP claim. Never set native boolean 'gain' to numeric admin dB.
@@ -279,6 +320,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         const hits = results.filter(([id, grant]) => !!grant && ids.includes(id) &&
           fromCache(id) === grant);
         if (hits.length === 0) {
+          for (const id of selected)
+            emit(classificationForTrack(id) === 'ORIGINAL' ? 'SOURCE_ORIGINAL' : 'SOURCE_UNKNOWN', id);
           if ('error' in result) throw result.error;
           return result.value;
         }
@@ -306,6 +349,9 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
           observeOriginalFileInfo(list[index], emit, id);
           list[index] = toDownloadInfo(list[index],
             id, grant.signedUrl, grant.mimeType, params?.quality);
+          markMapped(id);
+          setClassification(id, 'ACTIVE_REPLACEMENT');
+          emit('SOURCE_ACTIVE_REPLACEMENT', id);
           mapped = true;
         }
         if (!mapped) {
@@ -329,6 +375,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   function dispose() {
     if (disposed) return;
     disable(); disposed = true;
+    mappedTracks.clear();
+    sourceClassifications.clear();
     if (prototype) {
       if (prototype.getFileInfo === ownSingle) prototype.getFileInfo = originalSingle;
       if (originalBatch && prototype.getFileInfoBatch === ownBatch)
@@ -337,7 +385,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     prototype = null;
   }
   const adapter = Object.freeze({ attach, prime, enable, disable, original,
-    trackChanged, dispose,
+    trackChanged, hasMappedTrack, forgetMappedTrack, classificationForTrack, dispose,
     get status() { return status; },
     get enabled() { return enabled && !disposed; }
   });

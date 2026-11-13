@@ -253,8 +253,14 @@ test("W89 unfetched signed source: exactly one current-track native reload, pres
 test("W60 paused native Yandex reload retains pause and position without auto-play",async()=>{
   const r=createRenderer({withPlayer:true});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  const p=new r.NativeYandexPlayer({status:"paused",position:99.2});
+  const p=new r.NativeYandexPlayer({trackId:"123",status:"paused",position:99.2});
   void p.state;
+  const pending=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const request=r.window.__celikomBridgeNativeDrain();
+  assert.equal(request.length,1);
+  r.window.__celikomBridgeNativeReceive(request[0].requestId,makeGrant("123"));
+  await pending;
   r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
   await tick();await tick();
   assert.equal(p.mediaSources[0],"https://official.yandex.example/stream");
@@ -371,9 +377,39 @@ test("W76: real missing song never schedules background reload",async()=>{
   r.handlers.beforeunload();
 });
 
-test("W76: Stop after temporary failure cancels pending current-track recovery",async()=>{
+test("W98 VPN state transitions leave a confirmed ORIGINAL current song untouched",async()=>{
   const r=createRenderer({withPlayer:true});
-  const player=new r.NativeYandexPlayer();
+  const player=new r.NativeYandexPlayer({trackId:"456",position:18.4});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"456"});
+  await tick();
+  const initial=r.window.__celikomBridgeNativeDrain();
+  assert.equal(initial.length,1);
+  r.window.__celikomBridgeNativeReceive(initial[0].requestId,null);
+  assert.equal((await first).downloadInfo.url,"https://official.yandex.example/stream");
+  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  await tick();await tick();
+  assert.deepEqual(player.reloadReasons,[]);
+  assert.equal(player.state.playerState.progress.value.position,18.4);
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  await tick();
+  const revalidate=r.window.__celikomBridgeNativeDrain();
+  assert.equal(revalidate.length,1);
+  assert.equal(revalidate[0].trackId,"456");
+  r.window.__celikomBridgeNativeReceive(revalidate[0].requestId,null);
+  await tick();await tick();
+  assert.deepEqual(player.reloadReasons,[],
+    "a fresh authenticated not-found response must not recreate the original decoder");
+  const codes=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(codes.includes("SOURCE_ORIGINAL"));
+  assert.ok(codes.includes("NATIVE_ORIGINAL_SOURCE_NO_RELOAD"));
+  r.handlers.beforeunload();
+});
+
+test("W76: Stop after temporary failure cancels recovery without touching unknown current source",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123"});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
   void player.state;
   const first=new r.Resource().getFileInfo({trackId:"123"});
@@ -384,9 +420,11 @@ test("W76: Stop after temporary failure cancels pending current-track recovery",
   r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
   await new Promise(resolve=>setTimeout(resolve,730));
   assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
-  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"],
-    "only explicit STOP may reload original, not pending recovery");
-  assert.deepEqual(player.mediaSources,["https://official.yandex.example/stream"]);
+  assert.deepEqual(player.reloadReasons,[],
+    "a transient miss is UNKNOWN, not permission to reload an original track");
+  assert.deepEqual(player.mediaSources,[]);
+  const codes=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(codes.includes("NATIVE_UNKNOWN_SOURCE_NO_RELOAD"));
   r.handlers.beforeunload();
 });
 

@@ -38,6 +38,37 @@ test('disabled is transparent: no CELIKOM request',async()=>{
   assert.deepEqual(await proto.getFileInfo({trackId:'123'}),orig);
   assert.equal(calls,0);a.dispose();
 });
+test('W98 mapped-source ownership is exact per track and includes real batch mappings',async()=>{
+  const a=create(async id=>grant(id));const {proto}=resource();a.attach(proto);a.enable();
+  assert.equal(a.hasMappedTrack('123'),false);
+  await proto.getFileInfo({trackId:'123'});
+  assert.equal(a.hasMappedTrack('123'),true);
+  assert.equal(a.classificationForTrack('123'),'ACTIVE_REPLACEMENT');
+  a.forgetMappedTrack('123');
+  assert.equal(a.hasMappedTrack('123'),false);
+  await proto.getFileInfoBatch({trackIds:['123']});
+  assert.equal(a.hasMappedTrack('123'),true,'batch marks only an item actually replaced in Yandex response');
+  a.dispose();
+});
+test('W98 authoritative no-match is ORIGINAL; transport failure is UNKNOWN',async()=>{
+  const originalEvents=[];
+  const originalAdapter=create(async()=>null,{onEvent:(code,id)=>originalEvents.push([code,id])});
+  const x=resource();originalAdapter.attach(x.proto);originalAdapter.enable();
+  await x.proto.getFileInfo({trackId:'456'});
+  assert.equal(originalAdapter.classificationForTrack('456'),'ORIGINAL');
+  assert.equal(originalAdapter.hasMappedTrack('456'),false);
+  assert.ok(originalEvents.some(([code,id])=>code==='SOURCE_ORIGINAL'&&id==='456'));
+  originalAdapter.dispose();
+
+  const unknownEvents=[];
+  const unknownAdapter=create(async()=>({transient:true}),{onEvent:(code,id)=>unknownEvents.push([code,id])});
+  const y=resource();unknownAdapter.attach(y.proto);unknownAdapter.enable();
+  await y.proto.getFileInfo({trackId:'789'});
+  assert.equal(unknownAdapter.classificationForTrack('789'),'UNKNOWN');
+  assert.equal(unknownAdapter.hasMappedTrack('789'),false);
+  assert.ok(unknownEvents.some(([code,id])=>code==='SOURCE_UNKNOWN'&&id==='789'));
+  unknownAdapter.dispose();
+});
 test('approved mp3 changes only source, leaves native response intact',async()=>{
   const a=create();const {proto}=resource();a.attach(proto);a.enable();
   const r=await proto.getFileInfo({trackId:'123'});

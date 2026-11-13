@@ -24,13 +24,21 @@ const nativeDirectory = path.join(process.env.LOCALAPPDATA || "", "CELIKOM", "Wi
 const nativeFile = path.join(nativeDirectory, "native-events.log");
 const logged = new Set();
 const recent = [];
+let tokenCache = "", tokenCacheAt = 0;
+let tokenCacheMtime = -1, tokenCacheCtime = -1, tokenCacheSize = -1;
 const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT_MISS",
   "GRANT_DELIVERED", "GRANT_DELIVERY_FAILED", "LOCAL_RESOLVE_REPLY",
   "RESOLVE_BRIDGE_FAILURE", "RESOLVE_TRANSIENT", "NATIVE_FILEINFO_REQUEST", "NATIVE_FILEINFO_OK",
   "NATIVE_FILEINFO_ERROR", "SOURCE_ORIGINAL", "SOURCE_MAPPED",
   "SOURCE_SYNTHETIC_RESPONSE", "NATIVE_FILEINFO_SLOW", "NATIVE_FILEINFO_WAIT",
-  "SOURCE_BATCH_ORIGINAL",
+  "SOURCE_BATCH_ORIGINAL", "SOURCE_ACTIVE_REPLACEMENT", "SOURCE_UNKNOWN",
   "RESOLVE_TIMEOUT", "RESOLVE_START", "RESOLVE_ABORTED", "GRANT_RECEIVED",
+  "NATIVE_ORIGINAL_SOURCE_NO_RELOAD", "NATIVE_UNKNOWN_SOURCE_NO_RELOAD",
+  "NATIVE_STATE_CURRENT_SOURCE_UNKNOWN", "NATIVE_CURRENT_SOURCE_REVALIDATE",
+  "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE", "NATIVE_ORIGINAL_SOURCE_RESTORE",
+  "NATIVE_ORIGINAL_SOURCE_RESTORED", "NATIVE_ORIGINAL_SOURCE_RESTORE_DEFERRED",
+  "NATIVE_REPLACEMENT_SOURCE_RELOAD", "NATIVE_REPLACEMENT_SOURCE_RELOAD_OK",
+  "NATIVE_REPLACEMENT_SOURCE_RELOAD_DEFERRED",
   "NATIVE_TOGGLE_PLAYER_OBSERVER_READY", "NATIVE_TOGGLE_RELOAD_DEFERRED",
   "NATIVE_TOGGLE_RELOAD_REQUEST", "NATIVE_TOGGLE_RELOAD_OK",
   "NATIVE_TOGGLE_RELOAD_FAILED",
@@ -146,10 +154,29 @@ const lastNativeState = new WeakMap();
 const lastDiagPoll = new WeakMap();
 
 function readToken() {
+  const now = Date.now();
+  if (now - tokenCacheAt < 1000) return tokenCache;
+  tokenCacheAt = now;
   try {
+    const stat = fs.statSync(capabilityFile);
+    const mtime = Number(stat.mtimeMs) || 0;
+    const ctime = Number(stat.ctimeMs) || 0;
+    const size = Number(stat.size) || 0;
+    if (mtime === tokenCacheMtime && ctime === tokenCacheCtime &&
+        size === tokenCacheSize) return tokenCache;
     const value = fs.readFileSync(capabilityFile, "utf8").trim();
-    return /^[0-9a-f]{64}$/.test(value) ? value : "";
-  } catch { return ""; }
+    tokenCache = /^[0-9a-f]{64}$/.test(value) ? value : "";
+    tokenCacheMtime = mtime;
+    tokenCacheCtime = ctime;
+    tokenCacheSize = size;
+    return tokenCache;
+  } catch {
+    tokenCache = "";
+    tokenCacheMtime = -1;
+    tokenCacheCtime = -1;
+    tokenCacheSize = -1;
+    return "";
+  }
 }
 function validView(view) {
   try {
@@ -750,7 +777,14 @@ function observeNativePlayback(view) {
         });
       // Passive read-only recording of status and request destination class;
       // Network is NOT intercepted, requests are never modified or retried.
-      Promise.resolve(debug.sendCommand("Network.enable")).then(
+      // Bound Chromium's retained Network payload buffers. We only need
+      // small denial metadata for the 403 guard; request/response bodies,
+      // post data and signed URLs are never exported.
+      Promise.resolve(debug.sendCommand("Network.enable", {
+        maxTotalBufferSize: 2 * 1024 * 1024,
+        maxResourceBufferSize: 128 * 1024,
+        maxPostDataSize: 0
+      })).then(
         () => {
           if (validView(view)) {
             nativeNetworkObserversReady.add(view);

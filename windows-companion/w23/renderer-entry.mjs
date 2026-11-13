@@ -20,6 +20,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         window.location.hostname.toLowerCase() === "desktop")) return;
 
   let apiOrigin = "", stopped = false, attached = false, stateSeen = false;
+  let stateTransitionGeneration = 0;
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
   const MAX_QUEUE = 24;
@@ -231,6 +232,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   window.__celikomBridgeNativeSetState = next => {
     if (stopped) return;
     const previousActive = adapter.enabled;
+    const currentTrackId = playerSourceRefresh.currentTrackId();
+    const currentWasMapped = currentTrackId ? adapter.hasMappedTrack(currentTrackId) : false;
     let origin = "";
     try {
       const uri = new URL(next?.apiOrigin);
@@ -238,7 +241,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           !uri.username && !uri.password && !uri.search && !uri.hash &&
           uri.origin === next.apiOrigin) origin = uri.origin;
     } catch {}
-    if (origin !== apiOrigin) {
+    const originChanged = origin !== apiOrigin;
+    if (originChanged) {
       sourceRecovery.cancel();
       deferredRecovery.cancel();
       deferredSourceTrack = null;
@@ -250,8 +254,9 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       apiOrigin = origin;
       adapter.disable();
     }
-    if (next?.enabled === true && next?.signedIn === true && !!origin && attached)
-      adapter.enable();
+    const shouldEnable = next?.enabled === true && next?.signedIn === true &&
+      !!origin && attached;
+    if (shouldEnable) adapter.enable();
     else {
       sourceRecovery.cancel();
       deferredRecovery.cancel();
@@ -263,11 +268,67 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       lastExpiredAttemptAt = 0;
       adapter.disable();
     }
-    // AFTER switching CELIKOM's grant hook, ask the signed native player to
-    // recreate its already-loaded source while preserving pause/position.
-    // Initial app state receipt deliberately never triggers a second play.
-    if (stateSeen && previousActive !== adapter.enabled && attached &&
-        playerSourceRefresh.attached) void playerSourceRefresh.request();
+    const nextActive = adapter.enabled;
+    const transitionChanged = previousActive !== nextActive || originChanged;
+    const transitionGeneration = transitionChanged
+      ? ++stateTransitionGeneration : stateTransitionGeneration;
+
+    // ORIGINAL songs are transparent: a VPN/entitlement state transition
+    // must not call QUALITY_CHANGE unless CELIKOM previously returned a
+    // replacement for this exact current Yandex entity. On re-enable, first
+    // ask the authenticated resolver; only a confirmed grant can trigger a
+    // source refresh. No local/offline entitlement is inferred here.
+    if (stateSeen && transitionChanged && attached && playerSourceRefresh.attached) {
+      if (!currentTrackId) {
+        report("NATIVE_STATE_CURRENT_SOURCE_UNKNOWN");
+      } else if (previousActive && !nextActive) {
+        if (currentWasMapped) {
+          report("NATIVE_ORIGINAL_SOURCE_RESTORE", currentTrackId);
+          void playerSourceRefresh.request(currentTrackId).then(ok => {
+            if (transitionGeneration !== stateTransitionGeneration) return;
+            if (ok) adapter.forgetMappedTrack(currentTrackId);
+            report(ok ? "NATIVE_ORIGINAL_SOURCE_RESTORED" :
+              "NATIVE_ORIGINAL_SOURCE_RESTORE_DEFERRED", currentTrackId);
+          });
+        } else {
+          report(adapter.classificationForTrack(currentTrackId) === "ORIGINAL"
+            ? "NATIVE_ORIGINAL_SOURCE_NO_RELOAD" : "NATIVE_UNKNOWN_SOURCE_NO_RELOAD",
+            currentTrackId);
+        }
+      } else if (nextActive && (!previousActive || originChanged)) {
+        report("NATIVE_CURRENT_SOURCE_REVALIDATE", currentTrackId);
+        void adapter.prime(currentTrackId).then(found => {
+          if (transitionGeneration !== stateTransitionGeneration || stopped ||
+              !adapter.enabled ||
+              playerSourceRefresh.currentTrackId() !== currentTrackId) {
+            report("NATIVE_CURRENT_SOURCE_REVALIDATE_STALE", currentTrackId);
+            return;
+          }
+          if (found) {
+            report("NATIVE_REPLACEMENT_SOURCE_RELOAD", currentTrackId);
+            void playerSourceRefresh.request(currentTrackId).then(ok => {
+              if (transitionGeneration !== stateTransitionGeneration) return;
+              report(ok ? "NATIVE_REPLACEMENT_SOURCE_RELOAD_OK" :
+                "NATIVE_REPLACEMENT_SOURCE_RELOAD_DEFERRED", currentTrackId);
+            });
+          } else if (currentWasMapped) {
+            // A prior CELIKOM source may still be loaded under the old route.
+            // With no fresh grant, restore Yandex original instead of reusing it.
+            report("NATIVE_ORIGINAL_SOURCE_RESTORE", currentTrackId);
+            void playerSourceRefresh.request(currentTrackId).then(ok => {
+              if (transitionGeneration !== stateTransitionGeneration) return;
+              if (ok) adapter.forgetMappedTrack(currentTrackId);
+              report(ok ? "NATIVE_ORIGINAL_SOURCE_RESTORED" :
+                "NATIVE_ORIGINAL_SOURCE_RESTORE_DEFERRED", currentTrackId);
+            });
+          } else {
+            report(adapter.classificationForTrack(currentTrackId) === "ORIGINAL"
+              ? "NATIVE_ORIGINAL_SOURCE_NO_RELOAD" : "NATIVE_UNKNOWN_SOURCE_NO_RELOAD",
+              currentTrackId);
+          }
+        });
+      }
+    }
     stateSeen = true;
     const status = adapter.enabled ? "NATIVE_CONNECTED" : "ORIGINAL";
     if (status !== lastReported) {

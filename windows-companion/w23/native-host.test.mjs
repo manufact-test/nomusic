@@ -10,6 +10,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null, grantOverride = null,
   currentTrack = null, clock = Date, rendererStatus = "ORIGINAL" } = {}) {
   const diagnostics = [], evaluated = [], network = [];
+  const tokenReads = { count: 0 };
   let drained = false, pump = () => {};
   const viewEvents = new Map();
   const view = {
@@ -33,9 +34,14 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   };
   const fakeFs = {
     mkdirSync: () => {},
-    statSync: () => { throw Object.assign(new Error("NOT_FOUND"), { code: "ENOENT" }); },
-    readFileSync: file => file.includes("renderer.js")
-      ? "window.__celikomBridgeNativeDrain=()=>[];" : token,
+    statSync: file => file.endsWith("native-bridge.key")
+      ? {mtimeMs:1,ctimeMs:1,size:64}
+      : (()=>{throw Object.assign(new Error("NOT_FOUND"),{code:"ENOENT"});})(),
+    readFileSync: file => {
+      if (file.includes("renderer.js")) return "window.__celikomBridgeNativeDrain=()=>[];";
+      tokenReads.count++;
+      return token;
+    },
     appendFileSync: (_file, line) => diagnostics.push(line.trim())
   };
   const fakeHttp = {
@@ -84,7 +90,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   };
   vm.runInNewContext(source,context,{timeout:1200});
   await new Promise(resolve=>setTimeout(resolve,35));
-  return {diagnostics,evaluated,network,pulse:() => pump(),
+  return {diagnostics,evaluated,network,tokenReads,pulse:() => pump(),
     emitView: (name,...args) => {
       for(const handler of viewEvents.get(name) || []) handler({},...args);
     },
@@ -109,6 +115,15 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
     assert.ok(evaluated.every(js=>!js.includes("b".repeat(64))),"token never leaked to renderer");
   }
 });
+test("W98 unchanged bridge capability key is not synchronously reread on every host pulse",async()=>{
+  const r=await runHost("musicapplication://desktop/");
+  assert.equal(r.tokenReads.count,1);
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,35));
+  assert.equal(r.tokenReads.count,1,
+    "the bridge key is cached briefly while its file identity is unchanged");
+});
+
 test("unrelated or spoofed desktop renderer never gets native bridge",async()=>{
   for(const url of [
     "https://unrelated.example/",
@@ -204,11 +219,17 @@ test("W48 passive Media CDP reports player error and fixed events without sensit
   debug.isAttached=()=>attached;
   debug.attach=version=>{ assert.equal(version,"1.3"); attached=true; };
   debug.detach=()=>{attached=false;};
-  debug.sendCommand=async name=>{ sent.push(name); };
+  debug.sendCommand=async (name,params)=>{ sent.push({name,params}); };
   const r=await runHost("musicapplication://desktop/",{debuggerDriver:debug});
   assert.ok(r.diagnostics.includes("PLAYER_CDP_READY"));
-  assert.ok(sent.includes("Media.enable"));
-  assert.ok(sent.includes("Network.enable"));
+  assert.ok(sent.some(x=>x.name==="Media.enable"));
+  const networkEnable=sent.find(x=>x.name==="Network.enable");
+  assert.ok(networkEnable);
+  assert.deepEqual(networkEnable.params,{
+    maxTotalBufferSize:2*1024*1024,
+    maxResourceBufferSize:128*1024,
+    maxPostDataSize:0
+  });
   debug.emit("message",{}, "Media.playerErrorsRaised",
     {errors:[{message:"TOKEN_SECRET_EXAMPLE",errorCode:"DRM-PRIVATE"}]});
   debug.emit("message",{}, "Media.playerEventsAdded",
