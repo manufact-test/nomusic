@@ -79,7 +79,7 @@ export function normalizeResolveGrant(response, requestedTrackId, origin) {
       ? response.album_id : undefined;
   const editionId = response.edition_id === null ? null
     : typeof response.edition_id === "string" && response.edition_id.length >= 1 &&
-      response.edition_id.length <= 128 && !/[\\x00-\\x1f\\x7f]/.test(response.edition_id)
+      response.edition_id.length <= 128 && !/[\x00-\x1f\x7f]/.test(response.edition_id)
       ? response.edition_id : undefined;
   if (albumId === undefined || editionId === undefined ||
       ((albumId === null) !== (editionId === null)))
@@ -126,8 +126,7 @@ export function validateGrant(raw, track, origin, nowMs, safetyMs = 30_000, dura
       raw.expiresAt <= nowMs + safetyMs || raw.expiresAt > nowMs + MAX_TTL_MS)
     return null;
 
-  // Exact edition and album must be attested by the catalog adapter when
-  // present in the host snapshot; current PHP resolve does not return these.
+  // Exact edition and album must match the server-attested native identity.
   if ((track.albumId !== null && raw.albumId !== track.albumId) ||
       (track.editionId !== null && raw.editionId !== track.editionId))
     return null;
