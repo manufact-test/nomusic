@@ -105,6 +105,12 @@ try
     Test(!CompactAccessRefresh.NeedsLabelChange(lifetime, lifetime) &&
         CompactAccessRefresh.NeedsLabelChange(lifetime, "Подписка завершена"),
         "W83 no text repaint for identical label but real revocation must repaint");
+    // W88: one-time default-on enrollment is a preference, never
+    // a playback entitlement. A recorded opt-out must survive upgrades.
+    Test(WindowsLaunchSettings.ShouldEnableDefault(false),
+        "W88 initial clean install enables tray autostart by default");
+    Test(!WindowsLaunchSettings.ShouldEnableDefault(true),
+        "W88 explicit autostart choice must never be overwritten on later launch");
     // W87: Windows login persistence is only a remembered user preference.
     // It can never replace server entitlement or grant access by itself.
     const string loginInstallation = "94e77e24-9abc-4c68-b3c0-a3e7aa1bb516";
