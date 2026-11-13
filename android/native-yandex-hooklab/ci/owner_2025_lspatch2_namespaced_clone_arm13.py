@@ -34,6 +34,10 @@ from ci.owner_2025_gpr_lab_clone_no_bypass_arm13 import (
     ORIGINAL,SPLITS
 )
 from ci.owner_2025_same_name_own_key_arm13_control import sign_same_name
+from ci.a1_resource_package_rename import (
+    rewrite_exact_namespace,package_names,InvalidResourceTable,
+    classify_outer_signing_change,only_expected_own_v1_signing_changes
+)
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 
 BRANCH="experiment/android-a1-metrica-init-state-observer-arm13-20261112"
@@ -67,6 +71,21 @@ def digest_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
+
+def _outer_signer_cert_sha256(apk):
+    """Verify exactly one APK signer and return its SHA-256, without logging."""
+    result=cmd([lab_sdk_tool("apksigner"),"verify","--verbose",
+                "--print-certs","--min-sdk-version","24",str(apk)],timeout=100)
+    if result.returncode:
+        stop("NAMESPACE_OWN_SIGNING_CERT_VERIFY_FAILED")
+    fingerprints=re.findall(
+        r"(?im)^\s*Signer #1 certificate SHA-256 digest:\s*([0-9a-f]{64})\s*$",
+        result.stdout or "")
+    if len(fingerprints)!=1:
+        stop("NAMESPACE_OWN_SIGNING_CERT_UNIQUE_FAILED")
+    return fingerprints[0].lower()
+
+
 def _firebase_resource_table_parity(original_apk,clone_apk):
     """Name/package only from aapt resource table; no values leave CI."""
     def scan(apk):
@@ -94,6 +113,86 @@ def _firebase_resource_table_parity(original_apk,clone_apk):
             "clone_table_namespace":clone["namespace"],
             "source_strings_or_values_logged":False,
             "original_or_clone_apk_modified_by_audit":False}
+
+
+def _rename_only_owned_outer_resource_package(single, work, key):
+    """One opt-in A/B: rewrite one outer ARSC package-name field only.
+
+    All other ZIP member payloads must match, including the byte-identical
+    nested publisher original and LSPatch loader. Do not touch publisher XAPK.
+    """
+    unsigned=work/"celikom-namespace-only-unsigned.apk"
+    aligned=work/"celikom-namespace-only-aligned.apk"
+    try:
+        with zipfile.ZipFile(single,"r") as old:
+            entries=old.infolist()
+            if len(entries)!=len({info.filename for info in entries}):
+                stop("NAMESPACE_DUPLICATE_ZIP_ENTRIES")
+            if "resources.arsc" not in {info.filename for info in entries}:
+                stop("NAMESPACE_OUTER_RESOURCE_TABLE_ABSENT")
+            before=old.read("resources.arsc")
+            source_names=package_names(before)
+            if source_names.count(ORIGINAL)!=1 or DEST in source_names:
+                stop("NAMESPACE_RESOURCE_PACKAGE_NOT_EXACT_SOURCE")
+            after=rewrite_exact_namespace(before,ORIGINAL,DEST)
+            if tuple(x for x in package_names(after) if x!=DEST) != tuple(
+                x for x in source_names if x!=ORIGINAL):
+                stop("NAMESPACE_NON_SOURCE_RESOURCE_PACKAGE_CHANGED")
+            with zipfile.ZipFile(unsigned,"w",allowZip64=True) as new:
+                new.comment=old.comment
+                for info in entries:
+                    # Copy every other entry unmodified, including actual
+                    # nested signed original, code, libs, keys and assets.
+                    member=(after if info.filename=="resources.arsc"
+                            else old.read(info.filename))
+                    new.writestr(info,member)
+        done=cmd([lab_sdk_tool("zipalign"),"-f","-p","4",
+                  str(unsigned),str(aligned)],timeout=120)
+        if done.returncode:
+            stop("NAMESPACE_PATCH_ZIPALIGN_FAILED")
+        resign_own(aligned,key)
+        if apk_name(aligned).get("name")!=DEST:
+            stop("NAMESPACE_PATCH_APK_IDENTITY_DRIFT")
+        changed_names=[]
+        diff_counts={label:0 for label in (
+            "V1_MANIFEST","V1_SIGNATURE_FILE","V1_SIGNATURE_BLOCK",
+            "OTHER_META_INF","NON_META_INF_APP_CONTENT")}
+        # Both independently signed ZIPs must have an identical member set,
+        # order and contents, except exact ARSC bytes and *three* outer
+        # signing metadata members determined by the prior A/B native audit.
+        with zipfile.ZipFile(single) as old,zipfile.ZipFile(aligned) as new:
+            if old.namelist()!=new.namelist() or new.testzip() is not None:
+                stop("NAMESPACE_PATCH_ZIP_STRUCTURE_DRIFT")
+            for name in old.namelist():
+                if name=="resources.arsc":
+                    if new.read(name)!=after:
+                        stop("NAMESPACE_PATCH_ARSCTABLE_DRIFT")
+                elif digest_bytes(old.read(name))!=digest_bytes(new.read(name)):
+                    changed_names.append(name)
+                    diff_counts[classify_outer_signing_change(name)]+=1
+        if not only_expected_own_v1_signing_changes(changed_names):
+            print("NAMESPACE_OUTER_DIFF_REJECTED "+json.dumps({
+                "changed_member_types":diff_counts,
+                "member_names_or_payloads_logged":False,
+                "vendor_content_exempted":False},sort_keys=True),flush=True)
+            stop("NAMESPACE_PATCH_NON_RESOURCE_PAYLOAD_CHANGED")
+        # The prepatch and postpatch outer APK must BOTH cryptographically
+        # verify with the EXACT SAME independently generated CELIKOM signer.
+        # This is never the embedded publisher signature or signing key.
+        if _outer_signer_cert_sha256(single)!=_outer_signer_cert_sha256(aligned):
+            stop("NAMESPACE_PATCH_OWN_SIGNING_CERT_CHANGED")
+        own_signing_entries_updated=len(changed_names)
+        print("NAMESPACE_SIGNER_DIFF_CONFIRMED "+json.dumps({
+            "modified_signer_members":own_signing_entries_updated,
+            "modified_app_members":0,
+            "same_own_signing_certificate":True,
+            "member_names_or_payloads_logged":False},sort_keys=True),flush=True)
+        aligned_elf=verify_native_loader_elf_offsets(aligned)
+        if not all(row["page_aligned_4096"] for row in aligned_elf.values()):
+            stop("NAMESPACE_PATCH_NATIVE_LOADER_ALIGNMENT_INVALID")
+    except (OSError,ValueError,InvalidResourceTable,zipfile.BadZipFile):
+        stop("NAMESPACE_PATCH_VERIFIED_RESOURCE_FAILED")
+    return aligned, min(own_signing_entries_updated,16)
 
 
 def patch_manifest(data):
@@ -352,6 +451,12 @@ def run(xapk):
         single=merge_publisher_input_lspatch_clone_splits(
             renamed,editor,work,work/"unique-own-key.jks")
         firebase_resource_parity=_firebase_resource_table_parity(publisher_base[0],single)
+        namespace_trial=os.getenv("CELIKOM_A1_RESOURCE_NAMESPACE_TRIAL")=="1"
+        own_signing_entries_updated=0
+        if namespace_trial:
+            single,own_signing_entries_updated=_rename_only_owned_outer_resource_package(
+                single,work,work/"unique-own-key.jks")
+        firebase_resource_after=_firebase_resource_table_parity(publisher_base[0],single)
         with zipfile.ZipFile(single) as packaged:
             own_modules=[name for name in packaged.namelist()
                          if name.startswith("assets/lspatch/modules/") and name.endswith(".apk")]
@@ -360,6 +465,9 @@ def run(xapk):
         report={
             "verified_publisher_source_splits":16,
             "firebase_resource_table_parity":firebase_resource_parity,
+            "firebase_resource_table_after":firebase_resource_after,
+            "resource_namespace_trial_only":namespace_trial,
+            "own_signature_metadata_entries_regenerated_bounded":own_signing_entries_updated,
             "clone_provider_namespace_rewrites":rewrite_summary,
             "own_signed_cloned_splits":len(renamed),
             "LSPatch_level":2,

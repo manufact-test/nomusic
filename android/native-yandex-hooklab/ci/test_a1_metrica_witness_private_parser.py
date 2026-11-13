@@ -573,6 +573,20 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertNotIn("432",str(got))
         self.assertNotIn("private/cache",str(got))
 
+    def test_own_resource_trial_event_is_bounded_clone_only_and_redacted(self):
+        rows=(
+            log(431,"event=OWN_RES_ROUTE;origin=CLONE;error=HOOKED;thread=MAIN")
+            +log(431,"event=OWN_RES_ROUTE;origin=CLONE;error=APPLIED;thread=MAIN")
+            +log(431,"event=OWN_RES_ROUTE;origin=CLONE;error=GUARD_REJECTED;thread=MAIN")
+            +log(432,"event=OWN_RES_ROUTE;origin=CLONE;error=APPLIED;thread=MAIN")
+            +log(431,"event=OWN_RES_ROUTE;origin=ORIGINAL;error=APPLIED;thread=MAIN")
+            +log(431,"event=OWN_RES_ROUTE;origin=CLONE;error=/raw/path;thread=MAIN"))
+        x=scoped_metrica_witness(EXIT,rows)
+        self.assertEqual(x["own_resource_path_trial_bounded_events"],
+                         ["HOOKED","APPLIED","GUARD_REJECTED"])
+        self.assertNotIn("/raw/path",str(x))
+        self.assertNotIn("432",str(x))
+
     def test_loadedapk_route_survives_existing_250_event_limit(self):
         old=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=OTHER")*260
         extra=log(431,"event=LOADEDAPK_RESDIR;origin=CLONE;error=INNER_CACHE;thread=OTHER")

@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from clone_main_crash_buffer import main_exit_pids, LOG
 
-EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","UNCAUGHT",
+EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","OWN_RES_ROUTE","UNCAUGHT",
         "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
         "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
@@ -67,6 +67,7 @@ ERRORS={"EXC_UNKNOWN","EXC_SIGN_AND_AUTH","EXC_SIGNATURE","EXC_AUTH",
         "EXC_SDK_INIT","EXC_CONFIG","EXC_ASYNC",
         "APPINFO_CLONE","APPINFO_ORIGINAL","APPINFO_MISSING","APPINFO_OTHER",
         "INNER_CACHE","OUTER_OWN","OTHER_PATH","UNKNOWN_PATH",
+        "HOOKED","HOOK_UNAVAILABLE","APPLIED","GUARD_REJECTED","LATE_ALREADY_CACHED",
         "ILLEGAL_STATE","SECURITY","LINK","OTHER_THROWABLE",
         "DIRECT_METRICA","CAUSE_METRICA","NOT_METRICA","NON_THROWABLE",
         "DETAIL_UNKNOWN","DETAIL_NOT_INITIALIZED","DETAIL_ALREADY_ACTIVE",
@@ -131,6 +132,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     seen=[]
     exact_service_events=[] # bounded separate capture; original 250-event gate unchanged
     resource_route_events=[] # one exact runtime witness, independent 250-event gate
+    own_route_trial_events=[] # strictly finite opt-in own loader experiment
     for line in logcat.splitlines()[-25000:]:
         parsed=LOG.match(line)
         if parsed is None or int(parsed.group(1)) not in owned:
@@ -154,6 +156,8 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             exact_service_events.append((event,origin,error,thread))
         if event=="LOADEDAPK_RESDIR" and origin=="CLONE" and len(resource_route_events)<12:
             resource_route_events.append(error)
+        if event=="OWN_RES_ROUTE" and origin=="CLONE" and len(own_route_trial_events)<16:
+            own_route_trial_events.append(error)
         if len(seen)<250:
             seen.append((event,origin,error,thread))
         # Keep scanning finite 25k log lines solely for this exact source
@@ -242,6 +246,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     return {
         "stable_live_main_pid_admitted_without_disclosure":admitted,
         "read_only_loadedapk_runtime_resource_route_categories":resource_route_events,
+        "own_resource_path_trial_bounded_events":own_route_trial_events,
         "sdk_exception_throw_sites":sorted({x[2] for x in throw_sites}),
         "sdk_exception_exec_contexts":sorted({x[2] for x in throw_execution}),
         "sdk_exception_thread_loader_categories":sorted({x[2] for x in throw_loaders}),

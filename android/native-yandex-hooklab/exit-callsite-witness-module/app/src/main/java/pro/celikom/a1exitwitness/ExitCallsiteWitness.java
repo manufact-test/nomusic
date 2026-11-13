@@ -50,6 +50,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
     private volatile Context exactCloneRuntimeContext;
+    private boolean ownRouteHooked;
+    private final java.util.concurrent.atomic.AtomicInteger ownRouteEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean privatePushBoolWitnessReady;
     private boolean exactPushProviderReady;
     private final java.util.concurrent.atomic.AtomicInteger exactPushProviderHits =
@@ -92,6 +95,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
     @Override public void onPackageLoaded(PackageLoadedParam param) {
         if (PACKAGE.equals(param.getPackageName())) {
+            installOwnedResourceRouteTrial();
             arm();
             try { installExactRunModeWitness(param.getDefaultClassLoader()); }
             catch (Throwable ignored) { }
@@ -1489,6 +1493,92 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Read ONLY the existing Application.attach ContextImpl.mPackageInfo.mResDir;
     // compare it privately against the installed outer own APK and the
     // existing LSPatch private cache. Never emit paths or resource values.
+
+    // CI-only own-loader resource experiment. The original LSPatch inner
+    // sourceDir, original code, nested signed origin and all SDK return values
+    // remain untouched. Select the own outer signed resource APK only before
+    // the target LoadedApk constructs its first Resources object.
+    private synchronized void installOwnedResourceRouteTrial() {
+        if (ownRouteHooked || !BuildConfig.OWN_RESOURCE_ROUTE_TRIAL) return;
+        try {
+            Class<?> loadedClass=Class.forName("android.app.LoadedApk");
+            Method getResources=loadedClass.getDeclaredMethod("getResources");
+            getResources.setAccessible(true);
+            hook(getResources).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object receiver=chain.getThisObject();
+                    if (receiver==null) return chain.proceed();
+                    try {
+                        Field appInfoField=loadedClass.getDeclaredField("mApplicationInfo");
+                        appInfoField.setAccessible(true);
+                        Object rawInfo=appInfoField.get(receiver);
+                        if (!(rawInfo instanceof android.content.pm.ApplicationInfo))
+                            return chain.proceed();
+                        android.content.pm.ApplicationInfo runtime=
+                            (android.content.pm.ApplicationInfo)rawInfo;
+                        if (!PACKAGE.equals(runtime.packageName)
+                                || runtime.uid!=android.os.Process.myUid())
+                            return chain.proceed();
+                        String category="GUARD_REJECTED";
+                        try {
+                            Field resField=loadedClass.getDeclaredField("mResDir");
+                            Field codeField=loadedClass.getDeclaredField("mAppDir");
+                            Field cachedField=loadedClass.getDeclaredField("mResources");
+                            resField.setAccessible(true);
+                            codeField.setAccessible(true);
+                            cachedField.setAccessible(true);
+                            Object resDir=resField.get(receiver);
+                            Object codeDir=codeField.get(receiver);
+                            if (cachedField.get(receiver)!=null) {
+                                category="LATE_ALREADY_CACHED";
+                            } else if (resDir instanceof String
+                                    && codeDir instanceof String
+                                    && runtime.sourceDir!=null
+                                    && runtime.dataDir!=null
+                                    && resDir.equals(runtime.sourceDir)
+                                    && codeDir.equals(runtime.sourceDir)
+                                    && new java.io.File(runtime.sourceDir)
+                                        .getCanonicalFile().toPath()
+                                        .startsWith(new java.io.File(runtime.dataDir,
+                                            "cache/lspatch/origin").getCanonicalFile().toPath())) {
+                                Class<?> threadClass=Class.forName("android.app.ActivityThread");
+                                Method current=threadClass.getDeclaredMethod("currentActivityThread");
+                                current.setAccessible(true);
+                                Object activityThread=current.invoke(null);
+                                Method systemContext=threadClass.getDeclaredMethod("getSystemContext");
+                                systemContext.setAccessible(true);
+                                Object system=systemContext.invoke(activityThread);
+                                if (system instanceof Context) {
+                                    android.content.pm.ApplicationInfo installed=
+                                        ((Context)system).getPackageManager()
+                                        .getApplicationInfo(PACKAGE,0);
+                                    if (installed!=null
+                                            && PACKAGE.equals(installed.packageName)
+                                            && installed.uid==runtime.uid
+                                            && installed.sourceDir!=null
+                                            && !installed.sourceDir.equals(runtime.sourceDir)
+                                            && new java.io.File(installed.sourceDir).isFile()
+                                            && installed.sourceDir.endsWith(".apk")) {
+                                        // Preserve mAppDir and all code/classloader paths.
+                                        resField.set(receiver,installed.sourceDir);
+                                        category="APPLIED";
+                                    }
+                                }
+                            }
+                        } catch (Throwable ignored) { }
+                        if (ownRouteEvents.incrementAndGet()<=8)
+                            emit("OWN_RES_ROUTE","CLONE",category);
+                    } catch (Throwable ignored) { }
+                    // Always call the unmodified framework implementation.
+                    return chain.proceed();
+                });
+            ownRouteHooked=true;
+            emit("OWN_RES_ROUTE","CLONE","HOOKED");
+        } catch (Throwable ignored) {
+            emit("OWN_RES_ROUTE","CLONE","HOOK_UNAVAILABLE");
+        }
+    }
+
     private void observeActualLoadedApkResourceOrigin() {
         String category="UNKNOWN_PATH";
         try {

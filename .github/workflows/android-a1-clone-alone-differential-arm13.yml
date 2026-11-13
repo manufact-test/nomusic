@@ -25,6 +25,7 @@ jobs:
     env:
       CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
       CELIKOM_A1_CLONE_ONLY_CONTROL: '1'
+      CELIKOM_A1_RESOURCE_NAMESPACE_TRIAL: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,6 +82,8 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_resource_package_rename.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_resource_package_rename.py -v
           python3 -B -m py_compile android/a1-permission-catch-sourcecheck/permission_catch.py
           python3 -B -m unittest discover -s android/a1-permission-catch-sourcecheck -p test_permission_catch.py -v
           test -s "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
