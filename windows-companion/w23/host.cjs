@@ -80,6 +80,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED",
   "PLAYER_DECODER_CELIKOM_PIPELINE_ERROR",
   "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", "PLAYER_CURRENT_NATIVE_VOLUME_DROP",
+  "SOURCE_RECOVERY_DECODER_ALREADY_PLAYING",
   "NATIVE_ELECTRON_EVENT_LOOP_STALL", "NATIVE_ELECTRON_MEMORY_HIGH",
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
   "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
@@ -567,6 +568,12 @@ function observeNativePlayback(view) {
       prev.evidenceReportedFor = current;
       verifiedDecoderSource.set(view, {trackId: current, at: Date.now()});
       note("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", current);
+      // If old signed URL 403 already recovered to a CONFIRMED CURRENT
+      // native decoder, do not fire a second 650ms reload that could pop.
+      // Observer absent? Existing bounded recovery remains unchanged.
+      void execute(view,
+        ";window.__celikomBridgeNativeConfirmedCurrentSource?.(" +
+        JSON.stringify(current) + ")").catch(() => null);
     }
   };
   if (debug && typeof debug.attach === "function" &&
