@@ -1,7 +1,9 @@
 """Pure synthetic checks for single-string Android table rewrite (no vendor bytes)."""
 import struct
 import unittest
-from a1_passport_sync_exact import PassportResourceMismatch, rewrite_exact_sync_authority, _strings
+from a1_passport_sync_exact import (
+    PassportResourceMismatch, rewrite_exact_sync_authority,
+    rewrite_exact_owned_account_type, _strings)
 
 OLD = 'ru.yandex.music'
 OWN = 'pro.celikom.yandex.nativeclonelab'
@@ -32,6 +34,26 @@ class Tests(unittest.TestCase):
         s,_,_=_strings(after)
         self.assertEqual([x[0] for x in s],['unrelated',PREFIX+OWN,'other'])
         self.assertEqual(after[-8:],before[-8:])
+    def test_owned_authenticator_and_sync_use_distinct_strings(self):
+        before=table(['com.yandex.passport',PREFIX+OLD,'unrelated'])
+        sync=rewrite_exact_sync_authority(before,OLD,OWN)
+        after=rewrite_exact_owned_account_type(sync,OLD,OWN)
+        actual=[x[0] for x in _strings(after)[0]]
+        self.assertEqual(actual,[OWN+'.passport',PREFIX+OWN,'unrelated'])
+        self.assertEqual(after[-8:],before[-8:])
+        with self.assertRaises(PassportResourceMismatch):
+            rewrite_exact_owned_account_type(after,OLD,OWN)
+
+    def test_reject_duplicate_owned_type(self):
+        before=table(['com.yandex.passport','com.yandex.passport'])
+        with self.assertRaises(PassportResourceMismatch):
+            rewrite_exact_owned_account_type(before,OLD,OWN)
+
+    def test_reject_foreign_names(self):
+        with self.assertRaises(PassportResourceMismatch):
+            rewrite_exact_owned_account_type(table(['com.yandex.passport']),
+                'someone.else','com.yandex.passport')
+
     def test_reject_missing(self):
         with self.assertRaises(PassportResourceMismatch):
             rewrite_exact_sync_authority(table(['unrelated']),OLD,OWN)

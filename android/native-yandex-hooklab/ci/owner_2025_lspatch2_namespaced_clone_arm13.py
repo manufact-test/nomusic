@@ -38,7 +38,9 @@ from ci.a1_resource_package_rename import (
     rewrite_exact_namespace,package_names,InvalidResourceTable,
     classify_outer_signing_change,only_expected_own_v1_signing_changes
 )
-from ci.a1_passport_sync_exact import rewrite_exact_sync_authority, PassportResourceMismatch
+from ci.a1_passport_sync_exact import (
+    rewrite_exact_sync_authority, rewrite_exact_owned_account_type,
+    PassportResourceMismatch)
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 from owner_phone_diagnostic_artifact import export_after_native_acceptance
 
@@ -210,6 +212,8 @@ def _repair_only_owned_passport_sync(single, work, key):
                 stop("PASSPORT_PATCH_DUPLICATE_ZIP_ENTRIES")
             before=old.read("resources.arsc")
             after=rewrite_exact_sync_authority(before,ORIGINAL,DEST)
+            if os.getenv("CELIKOM_A1_OWN_ACCOUNT_TYPE_TRIAL")=="1":
+                after=rewrite_exact_owned_account_type(after,ORIGINAL,DEST)
             with zipfile.ZipFile(unsigned,"w",allowZip64=True) as out:
                 out.comment=old.comment
                 for info in entries:
@@ -245,6 +249,8 @@ def _repair_only_owned_passport_sync(single, work, key):
     except (OSError,ValueError,PassportResourceMismatch,zipfile.BadZipFile):
         stop("PASSPORT_PATCH_VERIFICATION_FAILED")
     print("PASSPORT_SYNC_OWN_RESOURCE_PARITY_OK",flush=True)
+    if os.getenv("CELIKOM_A1_OWN_ACCOUNT_TYPE_TRIAL")=="1":
+        print("PASSPORT_ACCOUNT_OWN_TYPE_RESOURCE_PARITY_OK",flush=True)
     return aligned
 
 
@@ -531,6 +537,8 @@ def run(xapk):
             "firebase_resource_table_after":firebase_resource_after,
             "resource_namespace_trial_only":namespace_trial,
             "passport_sync_config_trial_only":passport_trial,
+            "independent_clone_owned_account_type_trial_only":(
+                os.getenv("CELIKOM_A1_OWN_ACCOUNT_TYPE_TRIAL")=="1"),
             "own_signature_metadata_entries_regenerated_bounded":own_signing_entries_updated,
             "clone_provider_namespace_rewrites":rewrite_summary,
             "own_signed_cloned_splits":len(renamed),

@@ -46,15 +46,32 @@ def _strings(d):
     return records,offs,dict(size=n,start=start,styles=styles,styles_start=sty_start,header=h)
 
 def rewrite_exact_sync_authority(d,original_package,clone_package):
-    """Change one uniquely anchored global string; all other resources byte-stable."""
-    if not isinstance(d,bytes) or original_package==clone_package or not original_package or not clone_package:
+    """Only the own-clone Passport sync provider authority."""
+    if original_package!='ru.yandex.music' or clone_package!='pro.celikom.yandex.nativeclonelab':
+        raise PassportResourceMismatch('RESOURCE_UNEXPECTED_SYNC_IDENTITIES')
+    return _rewrite_exact_string(d,
+        'com.yandex.passport.sync.'+original_package,
+        'com.yandex.passport.sync.'+clone_package)
+
+def rewrite_exact_owned_account_type(d, original_package, clone_package):
+    """Independent account type legitimately OWNED by our authenticator.
+
+    This does not change code, impersonate a publisher certificate, access the
+    publisher's accounts or bypass Android's account ownership permission.
+    """
+    if original_package!='ru.yandex.music' or clone_package!='pro.celikom.yandex.nativeclonelab':
+        raise PassportResourceMismatch('RESOURCE_UNEXPECTED_ACCOUNT_IDENTITIES')
+    return _rewrite_exact_string(d,'com.yandex.passport',clone_package+'.passport')
+
+def _rewrite_exact_string(d,old,new):
+    """Rewrite one unique UTF8 pool value; untouched strings and chunks are identical."""
+    if (not isinstance(d,bytes) or not old or not new or old==new
+        or '\0' in old or '\0' in new):
         raise PassportResourceMismatch('RESOURCE_INPUT_INVALID')
     t,h,n=_chunk(d,0)
     if t!=2 or h!=12 or n!=len(d) or struct.unpack_from('<I',d,8)[0]!=1:
         raise PassportResourceMismatch('RESOURCE_TABLE_EXPECTED')
     pool,offs,meta=_strings(d)
-    old='com.yandex.passport.sync.'+original_package
-    new='com.yandex.passport.sync.'+clone_package
     hits=[i for i,(s,_) in enumerate(pool) if s==old]
     if len(hits)!=1 or new in (x[0] for x in pool):
         raise PassportResourceMismatch('RESOURCE_EXACT_OLD_VALUE_REQUIRED')

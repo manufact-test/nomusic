@@ -34,6 +34,7 @@ jobs:
       CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
       CELIKOM_A1_RESOURCE_NAMESPACE_TRIAL: '1'
       CELIKOM_A1_PASSPORT_SYNC_TRIAL: '1'
+      CELIKOM_A1_OWN_ACCOUNT_TYPE_TRIAL: '1'
     steps:
       - uses: actions/checkout@v4
         with:
