@@ -1727,8 +1727,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                     }
                     try {
                         Object result=chain.proceed();
-                        if (hit<=12)
+                        if (hit<=12) {
                             emit("PUSH_PROVIDER_CALL","PUSH_PROVIDER","RETURN");
+                            // Read-only: verify the *successful* provider's
+                            // resource namespace. Previously only failures
+                            // emitted lookup/path categories.
+                            observeExactProviderFirebasePresence();
+                        }
                         return result;
                     } catch (Throwable failure) {
                         ExactPushFrame frame=scopedPushCall.get();

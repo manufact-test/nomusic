@@ -594,6 +594,26 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(got["read_only_loadedapk_runtime_resource_route_categories"],["INNER_CACHE"])
         self.assertEqual(got["all_witness_events_bounded"],250)
 
+    def test_successful_provider_resource_lookup_and_outer_route(self):
+        rows=(
+            log(431,"event=OWN_RES_ROUTE;origin=CLONE;error=APPLIED;thread=MAIN")
+            +log(431,"event=PUSH_PROVIDER_CALL;origin=PUSH_PROVIDER;error=ENTER;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CALL;origin=PUSH_PROVIDER;error=RETURN;thread=OTHER")
+            +log(431,"event=LOADEDAPK_RESDIR;origin=CLONE;error=OUTER_OWN;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CONFIG_CLONE_ID;origin=PUSH_PROVIDER;error=PAIR_BOTH;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CONFIG_STOCK_ID;origin=PUSH_PROVIDER;error=PAIR_NONE;thread=OTHER")
+            +log(431,"event=PUSH_PROVIDER_CONFIG_STOCK_VALUE;origin=PUSH_PROVIDER;error=PAIR_NONE;thread=OTHER")
+            +log(432,"event=LOADEDAPK_RESDIR;origin=CLONE;error=INNER_CACHE;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,rows)
+        self.assertEqual(x["own_resource_path_trial_bounded_events"],["APPLIED"])
+        self.assertEqual(x["read_only_loadedapk_runtime_resource_route_categories"],["OUTER_OWN"])
+        self.assertEqual(x["exact_post_true_push_provider_states"],
+                         {"ENTER":1,"RETURN":1,"THROW":0})
+        self.assertEqual(x["exact_post_true_provider_namespace_lookup"],
+                         {"CLONE_RESOURCE_ID":["PAIR_BOTH"],
+                          "PUBLISHER_NAMESPACE_ID":["PAIR_NONE"],
+                          "PUBLISHER_NAMESPACE_VALUE":["PAIR_NONE"]})
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))
