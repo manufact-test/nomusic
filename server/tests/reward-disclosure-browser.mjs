@@ -36,7 +36,12 @@ setTimeout(()=>{
 },100);
 </script>`;
   const file=join(directory,'fixture.html');await writeFile(file,html);
-  const result=spawnSync(binary,['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--window-size=900,600','--virtual-time-budget=2000','--dump-dom',pathToFileURL(file).href],{encoding:'utf8',timeout:30000});
-  if(result.status!==0 || !result.stdout.includes('data-result="pass"')) throw new Error('Native Chromium disclosure regression failed: '+(result.stdout.match(/data-result="([^"]*)"/)?.[1]||'no result'));
+  const result=spawnSync(binary,['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-background-networking','--disable-renderer-backgrounding','--disable-background-timer-throttling','--window-size=900,600','--virtual-time-budget=3000','--dump-dom',pathToFileURL(file).href],{encoding:'utf8',timeout:45000});
+  const nativeResult=result.stdout.match(/data-result="([^"]*)"/)?.[1]||'no result';
+  if(result.status!==0 || nativeResult!=='pass') {
+    const stderr=(result.stderr||'').trim().slice(-1800);
+    const stdout=(result.stdout||'').trim().slice(-900);
+    throw new Error(`Native Chromium disclosure regression failed: result=${nativeResult}; exit=${result.status}; signal=${result.signal||'none'}; spawnError=${result.error?.message||'none'}; stderr=${stderr||'empty'}; stdoutTail=${stdout||'empty'}`);
+  }
   console.log('Native Chromium disclosure: bottom collapse, repeated toggle and space release PASS');
 } finally {await rm(directory,{recursive:true,force:true})}
