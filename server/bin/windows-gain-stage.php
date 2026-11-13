@@ -66,6 +66,8 @@ try {
     $key = 'windows-gain/'.substr($renderSha,0,2).'/'.$renderSha.'.mp3';
     $pdo = Connection::open($config);
     $pdo->beginTransaction();
+    $existing = null;
+    $createdNewObject = false;
     try {
         $lock = $pdo->prepare("SELECT r.id,r.status,r.is_active,r.disabled_at,r.version,r.gain_db,
             a.sha256,a.mime_type,a.duration_ms,a.storage_driver
@@ -92,7 +94,7 @@ try {
         if ($commit && !$storage->exists($key)) {
             $stream = fopen($source, 'rb');
             if (!is_resource($stream)) throw new RuntimeException('stage_read_failure');
-            try { $storage->put($key,$stream); } finally { fclose($stream); }
+            try { $storage->put($key,$stream); $createdNewObject = true; } finally { fclose($stream); }
         }
         if ($commit) {
             if (!$storage->exists($key) || $storage->getSize($key)!==$size)
@@ -120,6 +122,15 @@ try {
         }
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
+        // A failed first insert must not leave an unreferenced private render.
+        // Existing rows may have been repaired, so those objects are retained.
+        if ($commit && !$existing && isset($storage, $key)) {
+            try {
+                $refs = $pdo->prepare('SELECT COUNT(*) FROM windows_gain_variants WHERE storage_key = ?');
+                $refs->execute([$key]);
+                if ((int)$refs->fetchColumn() === 0 && $storage->exists($key)) $storage->delete($key);
+            } catch (Throwable) { /* An orphan remains private and is safe to clean later. */ }
+        }
         throw $error;
     }
 } catch (Throwable $error) {
