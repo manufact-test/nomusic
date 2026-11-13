@@ -1,4 +1,4 @@
-name: Admin song search isolated verification
+name: Admin song search guarded release
 on:
   push:
     branches: [feature/admin-song-search-20261113]
@@ -45,5 +45,19 @@ jobs:
           python3 .github/scripts/admin-search/check-patch.py
           php -l server/src/Admin/AdminPanel.php
           php -l .github/scripts/admin-search/patch.php
+          php -l .github/scripts/admin-search/smoke.php
+          bash -n .github/scripts/admin-search/deploy.sh
           php server/tests/admin-search.php
           php server/tests/admin.php
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Back up active release and install search-only admin delta
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/admin-search/deploy.sh
