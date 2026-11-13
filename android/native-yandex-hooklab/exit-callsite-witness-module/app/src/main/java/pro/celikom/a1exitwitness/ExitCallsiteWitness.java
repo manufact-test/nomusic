@@ -62,7 +62,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String PASSPORT_DIAGNOSTIC_FILE = "celikom-a1-passport-diagnostics.txt";
     private static final String PASSPORT_PROCESS = PACKAGE + ":passport";
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V4_PASSPORT_WITNESS";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V5_PASSPORT_FATAL_CAUSE";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -76,6 +76,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean armed;
     private boolean passportArmed;
     private boolean passportDiagnosticCallbacksReady;
+    private final java.util.concurrent.atomic.AtomicInteger passportCrashCaptured = new java.util.concurrent.atomic.AtomicInteger();
     private boolean exitCtorHooked;
     private boolean exitRunHooked;
     private final Map<Object, Integer> constructorModes =
@@ -239,6 +240,130 @@ public final class ExitCallsiteWitness extends XposedModule {
         emit("ARMED", count > 0 ? "REGISTERED" : "NO_HOOK", "NONE");
     }
 
+    /** Passport subprocess fatal-only observer. Never logs exception text,
+     * source names, account details, URLs, tokens or raw stack. */
+    private static String passportThrowableFamily(Throwable t) {
+        if (t == null) return "NONE";
+        if (t instanceof IllegalStateException) return "ILLEGAL_STATE";
+        if (t instanceof SecurityException) return "SECURITY";
+        if (t instanceof IllegalArgumentException) return "ILLEGAL_ARGUMENT";
+        if (t instanceof NullPointerException) return "NULL_POINTER";
+        if (t instanceof ClassNotFoundException) return "CLASS_NOT_FOUND";
+        if (t instanceof NoClassDefFoundError) return "NO_CLASS_DEF";
+        if (t instanceof LinkageError) return "LINKAGE";
+        if (t instanceof java.io.IOException) return "IO";
+        if (t instanceof RuntimeException) return "RUNTIME_OTHER";
+        if (t instanceof Error) return "ERROR_OTHER";
+        return "OTHER_THROWABLE";
+    }
+
+    private static String passportMessageHint(Throwable t) {
+        if (t == null) return "NONE";
+        try {
+            String msg = t.getMessage();
+            if (msg == null || msg.length() == 0) return "EMPTY";
+            String s = msg.toLowerCase(java.util.Locale.ROOT);
+            if (s.contains("signature") || s.contains("certificate") ||
+                    s.contains("signing") || s.contains("fingerprint"))
+                return "SIGNATURE";
+            if (s.contains("not initialized") || s.contains("not initialised") ||
+                    s.contains("not been initialized")) return "NOT_INITIALIZED";
+            if (s.contains("already initialized") || s.contains("already initialised"))
+                return "ALREADY_INITIALIZED";
+            if (s.contains("main thread") || s.contains("ui thread"))
+                return "THREAD_REQUIREMENT";
+            if (s.contains("account") || s.contains("passport") ||
+                    s.contains("authentication") || s.contains("authorization") ||
+                    s.contains("login") || s.contains("credential") ||
+                    s.contains("token")) return "PASSPORT_AUTH";
+            if (s.contains("package") || s.contains("application id"))
+                return "PACKAGE_ID";
+            if (s.contains("activity") || s.contains("fragment") ||
+                    s.contains("intent")) return "ACTIVITY_NAV";
+            if (s.contains("provider") || s.contains("authority"))
+                return "PROVIDER";
+            if (s.contains("firebase")) return "FIREBASE";
+            if (s.contains("resource") || s.contains("theme"))
+                return "RESOURCES";
+            if (s.contains("config") || s.contains("property"))
+                return "CONFIG";
+            if (s.contains("permission") || s.contains("denied"))
+                return "PERMISSION";
+            if (s.contains("service") || s.contains("bind"))
+                return "SERVICE_BIND";
+            if (s.contains("coroutine") || s.contains("dispatcher"))
+                return "COROUTINE";
+            if (s.contains("context")) return "CONTEXT";
+            if (s.contains("not registered") || s.contains("unregistered"))
+                return "UNREGISTERED";
+            if (s.contains("not found") || s.contains("missing"))
+                return "MISSING";
+            if (s.contains("unsupported") || s.contains("not supported"))
+                return "UNSUPPORTED";
+            if (s.contains("expected")) return "EXPECTED";
+            return "OTHER_MESSAGE";
+        } catch (Throwable ignored) { return "MESSAGE_UNAVAILABLE"; }
+    }
+
+    private static String passportFrameFamily(String n) {
+        if (n == null) return "UNKNOWN";
+        if (n.startsWith("com.yandex.passport") ||
+                n.startsWith("ru.yandex.passport")) return "PASSPORT";
+        if (n.startsWith("ru.yandex.music")) return "MUSIC";
+        if (n.startsWith("com.yandex.") || n.startsWith("ru.yandex."))
+            return "YANDEX_OTHER";
+        if (n.startsWith("android.") || n.startsWith("com.android."))
+            return "ANDROID";
+        if (n.startsWith("java.") || n.startsWith("javax.")) return "JAVA";
+        if (n.startsWith("kotlin.") || n.startsWith("kotlinx."))
+            return "KOTLIN";
+        if (n.startsWith("io.github.libxposed") ||
+                n.startsWith("org.lsposed")) return "HOOK_RUNTIME";
+        return "OTHER";
+    }
+
+    private static String passportFrameFingerprint(StackTraceElement frame) {
+        if (frame == null) return "NO_FRAME";
+        try {
+            String symbol = frame.getClassName() + "#" + frame.getMethodName();
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(symbol.getBytes(StandardCharsets.UTF_8));
+            char[] digits = "0123456789ABCDEF".toCharArray();
+            char[] hex = new char[16];
+            for (int i = 0; i < 8; i++) {
+                int b = digest[i] & 255;
+                hex[2 * i] = digits[b >>> 4];
+                hex[2 * i + 1] = digits[b & 15];
+            }
+            return "SYM_" + new String(hex);
+        } catch (Throwable ignored) { return "SYMBOL_UNAVAILABLE"; }
+    }
+
+    private void capturePassportUncaught(Throwable failure) {
+        if (!isPassportProcess() || failure == null ||
+                passportCrashCaptured.incrementAndGet() > 1) return;
+        try {
+            Throwable c = failure;
+            for (int depth = 0; c != null && depth < 3; depth++) {
+                emit("PASSPORT_FATAL_TYPE", "CAUSE_" + depth,
+                    passportThrowableFamily(c));
+                emit("PASSPORT_FATAL_HINT", "CAUSE_" + depth,
+                    passportMessageHint(c));
+                StackTraceElement[] stack = c.getStackTrace();
+                if (stack != null) for (int i = 0; i < Math.min(10, stack.length); i++) {
+                    StackTraceElement e = stack[i];
+                    emit("PASSPORT_FATAL_FRAME",
+                        "D" + depth + "_F" + i + "_" +
+                            passportFrameFamily(e.getClassName()),
+                        passportFrameFingerprint(e));
+                }
+                Throwable next = c.getCause();
+                if (next == c) break;
+                c = next;
+            }
+        } catch (Throwable ignored) { }
+    }
+
     private boolean observe(Class<?> clazz, String name, Class<?>[] parameters,
                             String event) {
         try {
@@ -254,6 +379,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                             else if (value instanceof IllegalStateException) category = "ILLEGAL_STATE";
                             else if (value instanceof LinkageError) category = "LINK";
                             else if (value instanceof Throwable) category = "OTHER_THROWABLE";
+                            if (isPassportProcess() && value instanceof Throwable)
+                                capturePassportUncaught((Throwable) value);
                         } else if ("PROCESS_KILL".equals(event)) {
                             Object value = chain.getArg(0);
                             if (value instanceof Integer) {
@@ -2555,7 +2682,7 @@ public final class ExitCallsiteWitness extends XposedModule {
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
-            button.setText("Диагностика NAV4");
+            button.setText("Диагностика NAV5");
             button.setTextColor(Color.WHITE);
             button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
