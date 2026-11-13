@@ -1,6 +1,6 @@
 """Only synthetic public API descriptors; no publisher APK required."""
 import unittest
-from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods, count_direct_public_invocations,public_extractor_shape,extractor_argument_shape,summarize_mediadatasource_inheritance
+from a1_private_2025_audio_entrypoints import PUBLIC_METHODS, classify, summarize_methods, count_direct_public_invocations,public_extractor_shape,extractor_argument_shape,summarize_mediadatasource_inheritance,make_ephemeral_mediadatasource_targets
 
 class AudioEntryPointSafetyTests(unittest.TestCase):
     def test_public_media3_and_legacy_methods_classified(self):
@@ -50,6 +50,27 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertFalse(x["current_playback_or_current_track_proven"])
         self.assertFalse(x["third_party_class_names_disclosed"])
         self.assertNotIn("vendor/private",str(x))
+
+    def test_generated_private_media_target_is_synthetic_and_never_logged(self):
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="exit-callsite-witness-module-") as root:
+            target=Path(root)/"PrivateMediaDataSourceTargets.java"
+            supers={
+                "Lexample/One;":"Landroid/media/MediaDataSource;",
+                "Lexample/Two;":"Landroid/media/MediaDataSource;",
+            }
+            amount=make_ephemeral_mediadatasource_targets(
+                target,supers,set(supers),set(supers))
+            self.assertEqual(amount,2)
+            data=target.read_text()
+            self.assertIn("final class PrivateMediaDataSourceTargets",data)
+            self.assertIn("example.One",data)
+            self.assertIn("example.Two",data)
+            with self.assertRaises(RuntimeError):
+                make_ephemeral_mediadatasource_targets(
+                    target,supers,set(supers),set(supers))
+            self.assertNotIn("example.One",str(amount))
 
     def test_exact_public_extractor_argument_shapes_never_export_paths(self):
         self.assertEqual(public_extractor_shape(["Landroid/content/Context;","Landroid/net/Uri;"]),

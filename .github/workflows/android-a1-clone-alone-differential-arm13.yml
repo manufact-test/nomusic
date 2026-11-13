@@ -78,6 +78,7 @@ jobs:
           python3 -B -m py_compile android/native-yandex-hooklab/clone_lspatch_loader_zero.py android/native-yandex-hooklab/merge_lab_splits_ephemeral.py android/native-yandex-hooklab/clone_main_crash_buffer.py
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_metrica_manifest_preserved_detail_control.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
@@ -133,6 +134,18 @@ jobs:
             ln -sf "$(command -v "$tool")" "$sdk/build-tools/35.0.0/$tool"
           done
           echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+      - name: Generate exact owned 2025 MediaDataSource read-only targets; private CI only
+        shell: bash
+        run: |
+          set -euo pipefail
+          media_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateMediaDataSourceTargets.java"
+          test ! -e "$media_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_2025_audio_entrypoints.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$media_target"
+          test -s "$media_target"
+          gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
+          cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
       - name: Boot fresh native ARM64 plus ARMv7 Android13 guest
         timeout-minutes: 16
         shell: bash
@@ -156,4 +169,5 @@ jobs:
           rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-2025-lspatch2-sdk" "$RUNNER_TEMP/celikom-own-metrica-module" "$RUNNER_TEMP/celikom-native-aapt2"
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePostTrueProviderTarget.java
+          rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateMediaDataSourceTargets.java
           echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'

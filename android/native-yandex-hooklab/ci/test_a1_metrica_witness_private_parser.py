@@ -614,6 +614,28 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                           "PUBLISHER_NAMESPACE_ID":["PAIR_NONE"],
                           "PUBLISHER_NAMESPACE_VALUE":["PAIR_NONE"]})
 
+    def test_exact_2025_mediadatasource_readat_is_readonly_pid_scoped(self):
+        lines=(
+            log(431,"event=MEDIA_DS_HOOK;origin=MEDIA_DATA_SOURCE;error=TWO_REGISTERED;thread=MAIN")
+            +log(431,"event=MEDIA_DS_READ;origin=MEDIA_DATA_SOURCE;error=ENTER;thread=OTHER")
+            +log(431,"event=MEDIA_DS_READ;origin=MEDIA_DATA_SOURCE;error=RETURN;thread=OTHER")
+            +log(432,"event=MEDIA_DS_READ;origin=MEDIA_DATA_SOURCE;error=THROW;thread=OTHER")
+            +log(431,"event=MEDIA_DS_READ;origin=MEDIA_DATA_SOURCE;error=/SECRET_PATH;thread=OTHER"))
+        got=scoped_metrica_witness(EXIT,lines)
+        self.assertTrue(got["read_only_mediadatasource_two_hooks_registered"])
+        self.assertEqual(got["read_only_mediadatasource_readat_states"],
+                         {"ENTER":1,"RETURN":1,"THROW":0})
+        self.assertTrue(got["read_only_mediadatasource_no_source_bytes_disclosed"])
+        self.assertNotIn("SECRET_PATH",str(got))
+        self.assertNotIn("432",str(got))
+
+    def test_media_readat_events_survive_existing_250_event_cap(self):
+        prev=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")*260
+        more=log(431,"event=MEDIA_DS_HOOK;origin=MEDIA_DATA_SOURCE;error=TWO_REGISTERED;thread=MAIN")
+        got=scoped_metrica_witness(EXIT,prev+more)
+        self.assertEqual(got["all_witness_events_bounded"],250)
+        self.assertTrue(got["read_only_mediadatasource_two_hooks_registered"])
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))

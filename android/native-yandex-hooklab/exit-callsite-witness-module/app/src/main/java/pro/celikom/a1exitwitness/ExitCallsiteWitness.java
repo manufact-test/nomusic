@@ -50,6 +50,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         Collections.synchronizedMap(new WeakHashMap<>());
     private volatile ClassLoader cloneAppClassLoader;
     private volatile Context exactCloneRuntimeContext;
+    private boolean mediaDataReadWitnessReady;
+    private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean ownRouteHooked;
     private final java.util.concurrent.atomic.AtomicInteger ownRouteEvents =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -1794,6 +1797,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installAllFatalGuardWitness(loader);
                                 installExactFatalObjectWitness(loader);
                                 installExactPostTruePushProvider(loader);
+                                installPrivateMediaDataReadWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
@@ -1805,6 +1809,62 @@ public final class ExitCallsiteWitness extends XposedModule {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+
+    // Only the two exact, issuer-verified 2025 implementations are selected
+    // by ephemeral CI. This is a read-only observation of readAt() calls.
+    // No buffers, offsets, filenames, URLs, ids or byte payloads are read.
+    private synchronized void installPrivateMediaDataReadWitness(ClassLoader appLoader) {
+        if (mediaDataReadWitnessReady || appLoader==null
+                || !PACKAGE.equals(Application.getProcessName())) return;
+        int hooked=0;
+        try {
+            Class<?> own=Class.forName(
+                "pro.celikom.a1exitwitness.PrivateMediaDataSourceTargets",
+                false,ExitCallsiteWitness.class.getClassLoader());
+            Method selector=own.getDeclaredMethod("classes");
+            selector.setAccessible(true);
+            Object raw=selector.invoke(null);
+            if (!(raw instanceof String[])) {
+                emit("MEDIA_DS_HOOK","MEDIA_DATA_SOURCE","NO_HOOK");
+                return;
+            }
+            String[] candidates=(String[])raw;
+            if (candidates.length!=2 || candidates[0].equals(candidates[1])) {
+                emit("MEDIA_DS_HOOK","MEDIA_DATA_SOURCE","NO_HOOK");
+                return;
+            }
+            for (String className:candidates) {
+                if (!className.matches("[A-Za-z0-9_$.]{2,180}")) break;
+                Class<?> impl=Class.forName(className,false,appLoader);
+                if (!android.media.MediaDataSource.class.isAssignableFrom(impl)) break;
+                Method exact=impl.getDeclaredMethod("readAt",
+                    long.class,byte[].class,int.class,int.class);
+                exact.setAccessible(true);
+                hook(exact).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        int count=mediaDataReadCalls.incrementAndGet();
+                        if (count<=12)
+                            emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","ENTER");
+                        try {
+                            // Exactly one unmodified original call.
+                            Object result=chain.proceed();
+                            if (count<=12)
+                                emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","RETURN");
+                            return result;
+                        } catch (Throwable failure) {
+                            if (count<=12)
+                                emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","THROW");
+                            throw failure;
+                        }
+                    });
+                hooked++;
+            }
+        } catch (Throwable ignored) { }
+        mediaDataReadWitnessReady=hooked==2;
+        emit("MEDIA_DS_HOOK","MEDIA_DATA_SOURCE",
+             hooked==2 ? "TWO_REGISTERED" : "NO_HOOK");
     }
 
     private synchronized void installExactPrefixWitness(ClassLoader appLoader) {

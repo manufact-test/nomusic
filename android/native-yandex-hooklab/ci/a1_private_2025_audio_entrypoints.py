@@ -218,7 +218,35 @@ def summarize_mediadatasource_inheritance(superclasses,readat_owners,getsize_own
         "third_party_class_names_disclosed":False,
     }
 
-def scan_publisher(xapk: Path) -> dict:
+
+def make_ephemeral_mediadatasource_targets(path: Path, superclasses, readat, getsize):
+    """Generate only an OWN, temporary CI Java target table; never publish."""
+    if (path.name!="PrivateMediaDataSourceTargets.java" or path.is_symlink()
+        or "exit-callsite-witness-module" not in path.as_posix()
+        or path.exists()):
+        raise RuntimeError("PRIVATE_SOURCE_TARGET_PATH_INVALID")
+    candidates=sorted(name for name,parent in superclasses.items()
+                      if parent=="Landroid/media/MediaDataSource;"
+                      and name in readat and name in getsize)
+    if len(candidates)!=2 or any(
+        re.fullmatch(r"L[A-Za-z0-9_/$]{1,180};",name) is None
+        for name in candidates):
+        raise RuntimeError("EXACT_TWO_PRIVATE_MEDIA_READERS_REQUIRED")
+    dotted=[name[1:-1].replace("/",".") for name in candidates]
+    lines=(
+        "package pro.celikom.a1exitwitness;\n"
+        "final class PrivateMediaDataSourceTargets {\n"
+        "  static String[] classes() { return new String[]{"
+        + ",".join('"'+name+'"' for name in dotted)
+        + "}; }\n"
+        "}\n"
+    )
+    file_descriptor=os.open(str(path),os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+    with os.fdopen(file_descriptor,"w",encoding="utf-8") as out:
+        out.write(lines)
+    return len(candidates)
+
+def scan_publisher(xapk: Path,private_java: Path|None=None) -> dict:
     if (os.getenv("GITHUB_ACTIONS")!="true"
         or os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic"
         or os.getenv("GITHUB_REF_NAME")!="experiment/android-a1-metrica-init-state-observer-arm13-20261112"
@@ -286,7 +314,10 @@ def scan_publisher(xapk: Path) -> dict:
                         combined["CALL_"+role]+=n
         if dex_count==0:
             raise RuntimeError("PUBLISHER_DEX_MISSING")
+        ephemeral_count=(make_ephemeral_mediadatasource_targets(
+            private_java,supers,readat,getsize) if private_java is not None else 0)
     return {
+        "private_media_target_count_bounded":ephemeral_count,
         "verdict":"VERIFIED_2025_PUBLISHER_AUDIO_API_INVENTORY_ONLY",
         "publisher_issuer_verified_splits":16,
         "publisher_dex_count_bounded":dex_count,
@@ -311,9 +342,10 @@ def scan_publisher(xapk: Path) -> dict:
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--xapk",type=Path,required=True)
+    parser.add_argument("--private-java",type=Path,default=None)
     args=parser.parse_args()
     try:
-        print(json.dumps(scan_publisher(args.xapk),sort_keys=True))
+        print(json.dumps(scan_publisher(args.xapk,args.private_java),sort_keys=True))
     except Exception as err:
         # Deliberately do not disclose private exception text or paths.
         print(json.dumps({"verdict":"PUBLISHER_AUDIO_API_INVENTORY_INCOMPLETE",
