@@ -4,7 +4,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 let binary;
-for(const p of ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){try{await access(p);binary=p;break}catch{}}
+for(const p of [process.env.CELIKOM_BROWSER_BINARY,'/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){if(!p)continue;try{await access(p);binary=p;break}catch{}}
+if(process.env.CELIKOM_BROWSER_BINARY&&binary!==process.env.CELIKOM_BROWSER_BINARY)throw Error('Requested browser binary unavailable');
 if(!binary){if(process.env.REQUIRE_BROWSER_AUDIO==='1')throw Error('Chromium required');console.log('Upload recovery native check deferred to CI');process.exit(0);}
 const directory=await mkdtemp(join(tmpdir(),'celikom-upload-recovery-'));
 try{
