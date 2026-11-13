@@ -255,6 +255,48 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertEqual(x["same_method_public_framework_steps"],[])
         self.assertFalse(x["live_playback_or_same_object_proven"])
 
+
+    def test_exact_extractor_caller_return_type_categories_redact_private_values(self):
+        from a1_private_2025_audio_entrypoints import exact_extractor_caller_return_shape
+        import struct
+        class Fake:
+            data=bytearray(140)
+            def method_signature(self,_index):
+                return ("Lsecret/Caller;","x",0)
+            def type(self,index):
+                return {
+                    1:"Landroid/media/MediaExtractor;",
+                    2:"V",
+                    3:"Lsecret/OtherThing;",
+                    4:"[B",
+                    5:"Landroid/media/MediaFormat;",
+                }[index]
+        f=Fake()
+        struct.pack_into("<II",f.data,72,1,100)
+        for idx,expected in [
+            (1,"RETURNS_EXTRACTOR"),(2,"RETURNS_VOID"),
+            (3,"RETURNS_OTHER_OBJECT"),(4,"RETURNS_BYTES"),
+            (5,"RETURNS_MEDIA_FORMAT")]:
+            struct.pack_into("<I",f.data,104,idx)
+            got=exact_extractor_caller_return_shape(f,0)
+            self.assertEqual(got,expected)
+            self.assertNotIn("secret",got)
+        struct.pack_into("<II",f.data,72,0,100)
+        self.assertEqual(exact_extractor_caller_return_shape(f,0),"UNREADABLE_PROTO")
+
+    def test_exact_sink_lifecycle_includes_only_return_type_categories(self):
+        from a1_private_2025_audio_entrypoints import classify_private_extractor_sink_lifecycle
+        got=classify_private_extractor_sink_lifecycle([
+            {"same_method_steps":["SET_SOURCE"],
+             "same_class_steps":["SET_SOURCE"],
+             "return_shape":"RETURNS_EXTRACTOR",
+             "return_object_opcode":True}
+        ])
+        self.assertEqual(got["caller_return_shapes"],["RETURNS_EXTRACTOR"])
+        self.assertTrue(got["caller_return_object_opcode_present"])
+        self.assertFalse(got["live_playback_or_same_object_proven"])
+        self.assertNotIn("Caller",str(got))
+
     def test_empty_and_duplicate_pure_invokes_no_execution_claim(self):
         empty=summarize_methods([])
         self.assertTrue(all(x==0 for x in empty["public_api_references"].values()))

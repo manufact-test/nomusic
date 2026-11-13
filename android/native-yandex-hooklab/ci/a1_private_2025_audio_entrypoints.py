@@ -209,6 +209,37 @@ def classify_private_extractor_sink_rows(rows, superclasses, readat, getsize):
     }
 
 
+
+def exact_extractor_caller_return_shape(dex, method_index: int) -> str:
+    """Only a public TYPE CATEGORY, never the private return descriptor.
+
+    The exact signed DEX's caller may be a factory. A public return type
+    still does not prove the extractor is used by the music player.
+    """
+    try:
+        _owner,_name,proto=dex.method_signature(method_index)
+        count,offset=struct.unpack_from("<II",dex.data,72)
+        if not 0<=proto<count<=100000 or offset+count*12>len(dex.data):
+            return "UNREADABLE_PROTO"
+        type_idx=struct.unpack_from("<I",dex.data,offset+proto*12+4)[0]
+        actual=dex.type(type_idx)
+        if actual=="Landroid/media/MediaExtractor;":
+            return "RETURNS_EXTRACTOR"
+        if actual=="Landroid/media/MediaDataSource;":
+            return "RETURNS_MEDIA_SOURCE"
+        if actual=="Landroid/media/MediaFormat;":
+            return "RETURNS_MEDIA_FORMAT"
+        if actual=="V":
+            return "RETURNS_VOID"
+        if actual=="[B":
+            return "RETURNS_BYTES"
+        if actual in ("Z","B","S","C","I","J","F","D"):
+            return "RETURNS_PRIMITIVE"
+        return "RETURNS_OTHER_OBJECT" if actual.startswith(("L","[")) else "UNREADABLE_PROTO"
+    except (AttributeError, IndexError, ValueError, struct.error, DexError):
+        return "UNREADABLE_PROTO"
+
+
 # Exact public Android framework method names only. These are STATIC DEX
 # invocations, not proof of music playback, same extractor instance or even
 # an executed branch. No private symbols or argument values are exported.
@@ -249,6 +280,8 @@ def classify_private_extractor_sink_lifecycle(rows: list[dict]) -> dict:
             "exact_sink_count":min(len(rows),4),
             "same_method_public_framework_steps":[],
             "same_class_public_framework_steps":[],
+            "caller_return_shapes":[],
+            "caller_return_object_opcode_present":False,
             "same_method_reads_samples":False,
             "same_class_reads_samples":False,
             "unambiguous_single_static_sink":False,
@@ -262,6 +295,8 @@ def classify_private_extractor_sink_lifecycle(rows: list[dict]) -> dict:
         "exact_sink_count":1,
         "same_method_public_framework_steps":method,
         "same_class_public_framework_steps":clazz,
+        "caller_return_shapes":[row["return_shape"]],
+        "caller_return_object_opcode_present":row["return_object_opcode"],
         "same_method_reads_samples":"READ_SAMPLE_DATA" in method,
         "same_class_reads_samples":"READ_SAMPLE_DATA" in clazz,
         "unambiguous_single_static_sink":True,
@@ -325,18 +360,23 @@ def count_direct_public_invocations(dex, private_sink_rows=None, sink_lifecycle_
         if found_exact_media_sink and sink_lifecycle_rows is not None:
             if len(exact_sink_methods)>=4:
                 raise DexError("EXACT_EXTRACTOR_LIFECYCLE_BOUND")
-            exact_sink_methods.append((dex.method(_index)[0],tuple(framework_steps)))
+            exact_sink_methods.append((
+                dex.method(_index)[0], tuple(framework_steps),
+                exact_extractor_caller_return_shape(dex,_index),
+                any(op==0x11 for _,op,_ in instructions)))
         if "ANDROID_MEDIA_EXTRACTOR_SOURCE" in body_roles and (
             "ANDROID_AUDIO_TRACK_OUTPUT" in body_roles or
             "ANDROID_MEDIA_CODEC_INPUT" in body_roles):
             same_body+=1
     if sink_lifecycle_rows is not None:
-        for owner,steps in exact_sink_methods:
+        for owner,steps,shape,returns_object in exact_sink_methods:
             if len(sink_lifecycle_rows)>=4:
                 raise DexError("EXACT_EXTRACTOR_LIFECYCLE_BOUND")
             sink_lifecycle_rows.append({
                 "same_method_steps":steps,
                 "same_class_steps":tuple(lifecycle_by_owner.get(owner,())),
+                "return_shape":shape,
+                "return_object_opcode":returns_object,
             })
     return {
         "direct_public_invocation_counts":{k:min(counts[k],9999) for k in PUBLIC_METHODS},
