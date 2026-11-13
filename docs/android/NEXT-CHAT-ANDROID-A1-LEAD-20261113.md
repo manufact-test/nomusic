@@ -1,3 +1,5 @@
+> **13.11.2026 — актуальный статус:** собственный CELIKOM и оригинал прошли повторный парный native ARM13 25/25. Подтверждён правильный Firebase namespace и успешный Push provider RETURN. Читай новый документ [ANDROID-A1-NATIVE-STARTUP-25X25-20261113.md](ANDROID-A1-NATIVE-STARTUP-25X25-20261113.md). Точный код: `0b8591329aae1e8b4c7f8f71815a12ee4dcc8e01`; резерв: `backup/android-a1-firebase-namespace-success-witness-20261113`. **MAIN startup PASS, consumer APK/audio/account/controls ещё не приняты.** Старые NO-GO ниже относятся к предыдущим тестам.
+
 # CELIKOM Android A1 — точная передача ведущего, 13.11.2026
 
 ## Цель, не менять
