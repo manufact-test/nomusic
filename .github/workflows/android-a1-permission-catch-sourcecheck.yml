@@ -7,7 +7,7 @@ on:
       - '.github/workflows/android-a1-permission-catch-sourcecheck.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write # GitHub draft release API read needs write on private draft
 jobs:
   exact-true-catch-permission:
     runs-on: ubuntu-24.04-arm
