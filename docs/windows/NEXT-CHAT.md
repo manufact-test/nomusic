@@ -1,50 +1,35 @@
-# CELIKOM Windows — NEXT CHAT (W102 progress, 2026-11-14)
+# CELIKOM Windows — FIRST HANDOFF / 14 November 2026
 
-Read first:
-- `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
-- `docs/windows/W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md`
+Repository: `manufact-test/nomusic`.
+**ONE active product line:** `main` @ `7a4768ecc7366abeb0358337f83e514e85cd8d53`.
+Exact post-W57 green rollback: `backup/windows-main-post-w57-ci-green-20261114` at the same SHA.
+Previous W54 rollback: `backup/windows-main-post-w54-gain-witness-20261114` @ `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
+No new `experiment/*` branches. Before each substantial change create exact `backup/*`, and avoid touching Android, extension, private original media or unrelated server logic.
 
-## One product line
+**Read first:**
+1. `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
+2. `docs/windows/W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md`
+3. `docs/windows/NEXT-CHAT.md` (this file)
+4. GitHub issues #52, #53, #54, #56, #57, #58; read actual code before changing.
 
-- Repository: `manufact-test/nomusic`
-- Canonical production branch: `main`
-- Current HEAD: `b045c640783e2708f5a887c5aa7eafbcf2febc50`
-- Existing application: GUI 0.24.36 / native 0.24.29 / W23 0.24.10.
-- Do not continue work on old `experiment/*` branches. Only `backup/*` rollback branches are allowed.
-- Pre-W54 rollback: `backup/windows-main-pre-w54-gain-variant-witness-20261114` @ `540e7bc01fcacf3f259d46ddb481697018a29c37`.
-- Post-W54 rollback: `backup/windows-main-post-w54-gain-witness-20261114` @ `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
+**Exact CI proof at takeover:**
+- Main CI [43523524721](https://github.com/manufact-test/nomusic/actions/runs/43523524721) — SUCCESS.
+- Windows integration CI [43523524722](https://github.com/manufact-test/nomusic/actions/runs/43523524722) — SUCCESS, including W22/W23/W60 audio/VPN/source/403, W21 recovery, W24 ASAR/catalog, W15 tests and warning-as-error GUI compile.
+- Earlier W103 `d903ffae` failed four integration tests because expected reload occurred before new 150 ms confirmation window; fixed in `7a4768e` with tests preserving actual delayed behavior. Do **not** revert to the failed intermediate.
+- Stage 5 Hostinger restore proof [43514995243](https://github.com/manufact-test/nomusic/actions/runs/43514995243) SUCCESS: 1498 original audio SHA256 checks and isolated DB restore with Big City Life gain sidecar. Live DB untouched in that test.
+- Dedicated gain-stage job [132132259655](https://github.com/manufact-test/nomusic/actions/runs/43495186951) SUCCESS: Big City Life track 40371622, configured +11.5 dB, measured +6.70 dB RMS and verified signed Range 206. Its parent workflow failed later in updater ZIP verification, **not** sidecar staging.
 
-## Verified current state
+**Open defects (do not call them done):**
+1. VPN reconnection 40–50 seconds — recovery code/CI exists, owner field test pending.
+2. #52 «Ты» (тринадцать карат) false green — current decoder proof guard exists; audible alternative still needs confirmation.
+3. #53 Brave/Windows load or freeze — durable Electron memory/event-loop + source diagnostics now exported; root bottleneck unproven. Need owner diagnostic and Task Manager CPU/RAM/GPU capture. Origin of elevated-rights prompt still unproven.
+4. #54 Big City Life sudden mid-track volume dip — W54 records signed gain-variant URL selected/missing, native volume drop and source-left. This is **diagnostic evidence, not an acoustic fix**.
+5. #56 admin gain — Windows private offline sidecar server stage/restore passed; owner seek/Next/crossfade/volume/headroom proof pending, no changes to extension originals.
+6. #57 signed 403→206 hiss/pop — W103 now gives 150 ms post-prime CDP confirmation chance before reload; approved decoder already playing cancels pending reload only. No proof means bounded reload proceeds. CI green, owner acoustic test pending. Do not force a production 403.
+7. #58 «Моя волна» and other original tracks pop under VPN change — original/unknown no-reload guards CI green, acoustic test pending.
 
-- Windows source is present on `main`; no blind merge of the old divergent history.
-- Yandex monitoring is 15-minute on `main`; slow candidate verification no longer blocks discovery. The app checks at startup and watches the installed Yandex EXE/`app.asar` for version changes, then forces a catalog refresh. Immediate recheck after native bridge/start failure remains to be finished.
-- Stage 5 server recovery [43514995243](https://github.com/manufact-test/nomusic/actions/runs/43514995243): SUCCESS — all 1498 original audio objects matched SHA256, isolated MySQL restore recovered the Big City Life gain sidecar, external HTTPS health/config passed, anonymous access denied, live MySQL untouched.
-- Live Windows gain stage job [132132259655](https://github.com/manufact-test/nomusic/actions/runs/43495186951): SUCCESS — replacement 37 / track 40371622, +11.5 dB, RMS +6.70 dB, peak 0.0 dB, signed Range 206 and `gain_applied=true`. The parent workflow failed later at updater ZIP validation; the gain job itself succeeded.
-- W53 diagnostic retention now imports native Electron stall/memory and player source/volume incidents into the 7-day archive on export.
-- W54 current-decoder witness now distinguishes the signed Windows gain-variant URL from raw CELIKOM audio on the same track. It logs URL selection only, not audible output.
-- Main CI [43521371379](https://github.com/manufact-test/nomusic/actions/runs/43521371379): SUCCESS.
-- Full Windows integration CI [43521371795](https://github.com/manufact-test/nomusic/actions/runs/43521371795): SUCCESS, including W23 variant→raw mid-track regression, W15 incident archive/export tests, W24 catalog/ASAR, W21 recovery and GUI warnings-as-errors.
-- Installer audit: Inno Setup uses `PrivilegesRequired=lowest`; Windows autorun is HKCU-only; no `runas` request was found in the inspected native installer, CLI or app updater paths. The origin of the owner's elevated-rights prompt is still unknown.
-- No final EXE/ZIP has been delivered. Nothing has been installed on the owner's PC.
+**Other open work:** first/second/third start race, disappeared diagnostics, initial popup, false outdated-module message, tray autorun default, upgrade/repair user acceptance. Yandex releases are discovered every 15 min on `main`; app startup and EXE/ASAR change watcher are integrated, but *immediate recheck after bridge/start failure* remains open. W101 signed automatic in-app stable update and safe rollback are **not implemented**; current updater is manual/staff only.
 
-## Defect order and status
+**Next work order:** finish exact native bridge/start-failure Yandex compatibility recheck; complete signed in-app update + rollback per W101; verify existing startup guards and acceptance flow; run CI after changes; make **one** coherent final Windows EXE + ZIP and link it only when successfully built and independently verified. Do not send partial TEST installers or ask for new secrets/accounts/emails. The user expects big completed chunks and a short status, not endless theory. Mass release only after owner QA. No final package has been delivered and nothing was installed on user's PC from this handoff.
 
-1. VPN reconnect — code/CI present; owner field QA pending.
-2. #52 «Ты» — false-green guard present; owner must confirm actual CELIKOM audio.
-3. #53 Brave/Windows freezes — diagnostic retention fixed and CI green; root cause still unknown until owner diagnostics and one safe Task Manager snapshot (Yandex/CELIKOM/Brave CPU, memory and GPU) are available.
-4. #54 Big City Life mid-track volume drop — current decoder now reports gain-variant URL selected/missing, source-left and native volume-drop events; CI green. Root cause and owner acoustic QA remain open. Original report predates live sidecar staging.
-5. #56 Windows admin gain — live sidecar and Stage 5 restore verified; owner acoustic playback/headroom/seek/Next/crossfade QA pending.
-6. #57 403→206 hiss — code/CI present; real acoustic confirmation pending.
-7. #58 original songs / «Моя волна» on VPN switch — code/CI present; owner field QA pending.
-
-## Next actions
-
-1. Continue on `main`, create an exact backup before substantial code changes.
-2. Keep #54 open until owner diagnostics/acoustic test distinguish sidecar loss, Yandex volume change or Windows audio-session change.
-3. Continue #57 code audit separately; do not force an artificial production 403.
-4. Finish the immediate Yandex compatibility recheck after native bridge/start failure.
-5. Finish the startup, diagnostics and autostart owner-acceptance checklist.
-6. Implement signed automatic in-app updates and exact rollback per W101.
-7. Deliver one coherent next version of the existing CELIKOM once. Do not create interim installers or a separate TEST product. Enable mass rollout only after owner acceptance.
-
-No new secrets, accounts or emails. No remote installation. No claims of audio fixes from CI alone.
+**Owner-side proof required:** VPN A→B reconnect, «Ты» audible replacement, Big City Life full-song loudness, natural 403→206 without hiss, «Моя волна» originals on VPN switch, Brave/Windows resource usage, and startup/reboot behavior. Never claim a real playback bug fixed by CI alone.

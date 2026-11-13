@@ -20,7 +20,7 @@ The owner does NOT want a parallel TEST application, a second Windows product, o
 
 The Windows application source is now present on GitHub `main`. **`main` is the one canonical CELIKOM Windows production line.** The Windows source was integrated without merging the entire divergent experiment history or overwriting Android, extension and server work.
 
-Current canonical HEAD at this update: `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
+Current canonical HEAD at this update: `7a4768ecc7366abeb0358337f83e514e85cd8d53`.
 
 Exact safety backups:
 - Original repository `main`: `backup/windows-main-pre-w102-handoff-20261113` @ `2741c403772f6e2837cd27bf748f90dc8d7722c9`.
@@ -84,7 +84,7 @@ Status vocabulary:
 | 3 | #53 Brave/Windows freezes and excessive load | W92 passive event-loop stall and memory signals existed, but W53 found they were not classified as incidents by the durable archive or support-snapshot priority filter. Fixed in `8a4d7ef`; W54 also added safe import of native Electron/player incidents from the bounded native log into the 7-day archive on export. Owner TXT includes explicit stall/memory/volume/source summary fields. Latest main CI [43521371379](https://github.com/manufact-test/nomusic/actions/runs/43521371379) and full Windows integration CI [43521371795](https://github.com/manufact-test/nomusic/actions/runs/43521371795) both SUCCESS. No audio/CDP polling behavior was changed. | **Partial; code + CI proven.** Need the owner's diagnostic from the next accepted build and one safe Task Manager snapshot of Yandex/CELIKOM/Brave CPU, memory and GPU at the slowdown. Elevated-rights prompt source remains unidentified; do not assume it was CELIKOM or harmless. |
 | 4 | #54 Big City Life suddenly becomes about half as loud mid-track | W54 stores `gainApplied`/`gainDb` beside each expected signed source. When the current decoder selects the URL it logs `PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED` (sidecar URL) or `PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING` (raw CELIKOM URL despite nonzero admin gain). Existing `PLAYER_CURRENT_NATIVE_VOLUME_DROP` and `PLAYER_CURRENT_SOURCE_LEFT_CELIKOM` are now priority incidents and are imported from native logs into the 7-day archive on support export. W23 test simulates the same track switching from variant URL to raw URL mid-playback; W15 verifies incident archive, support summary and no signed URL/token leakage. CI [43521371379](https://github.com/manufact-test/nomusic/actions/runs/43521371379) and [43521371795](https://github.com/manufact-test/nomusic/actions/runs/43521371795) both SUCCESS. This observes URL selection only; it is not proof of audible loudness. | **Partial; diagnostic code + CI proven, root cause open.** The original report (13 Nov 13:03 UTC) predates the live sidecar stage (13 Nov 19:57 UTC). Need owner acoustic test and diagnostics from the next accepted integrated build. Do not conflate with #56 or claim fixed. |
 | 5 | #56 Windows must apply admin gain to all active alternatives with nonzero `gain_db` | In run [43495186951](https://github.com/manufact-test/nomusic/actions/runs/43495186951), the dedicated private sidecar job [132132259655](https://github.com/manufact-test/nomusic/actions/runs/43495186951) succeeded: replacement 37 / track 40371622, +11.5 dB, measured +6.70 dB RMS, peak 0.0 dB, live signed Range 206 and `gain_applied=true`. The overall run failed later only in updater ZIP validation; the gain-stage job itself succeeded and its private-stage cleanup had already completed. Follow-up Stage 5 run [43514995243](https://github.com/manufact-test/nomusic/actions/runs/43514995243) passed: 1498 original audio objects matched SHA256, isolated MySQL restore recovered the Big City Life gain sidecar, and external HTTPS health/config plus anonymous-denial checks passed. | **Server sidecar + restore proven; field audio QA open.** Confirm actual Windows playback, headroom, seek, Next, crossfade and 403 recovery. Re-audit live inventory before further staging. Never alter browser-extension originals or original audio files. |
-| 6 | #57 hiss/pop when audio recovers from 403 to 206 | Bounded 403 recovery guards and W22/W23 regression tests are integrated; CI passed. | **Partial.** Need real acoustic confirmation after natural recovery; do not force an artificial production 403. |
+| 6 | #57 hiss/pop when audio recovers from 403 to 206 | W103 inserts a bounded 150 ms post-prime confirmation window after a valid fresh grant, before an explicit source reload. Only verified current playing CELIKOM decoder source may cancel a pending reload; if no verification arrives, existing bounded reload proceeds. Stale track, Stop and started-reload protections remain. First W103 CI found 4 old timing tests failing; the subsequent test alignment commit `7a4768e` restored both suites: main CI [43523524721](https://github.com/manufact-test/nomusic/actions/runs/43523524721) SUCCESS, Windows integration [43523524722](https://github.com/manufact-test/nomusic/actions/runs/43523524722) SUCCESS. | **Code + CI passed, acoustic QA open.** The audio pop/hiss root cause remains unproven; use natural 403→206 recovery on owner's PC, not forced production 403. |
 | 7 | #58 original songs / «Моя волна» pop or interrupt when VPN changes despite no replacement | Original/unknown source classification and no-reload behavior on VPN/entitlement transition are integrated; W22/W23 tests passed. | **Code + CI; field QA open.** Listen to original/non-replaced songs while changing VPN and prove CELIKOM is transparent. #58 is not #57. |
 
 ### Previously requested startup, diagnostics and reliability tasks
@@ -102,14 +102,14 @@ Do not reopen already implemented items as new architecture projects. Inspect th
 
 ## 4. Current release pipeline and real state
 
-- Canonical production branch: `main`; current HEAD: `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
+- Canonical production branch: `main`; current HEAD: `7a4768ecc7366abeb0358337f83e514e85cd8d53`.
 - Code baseline: GUI 0.24.36 / native 0.24.29 / W23 package 0.24.10. W53/W54 only improve diagnostics and source/gain-variant evidence; they do not change the audio playback path or package versions.
 - Latest exact pre-W54 code backup: `backup/windows-main-pre-w54-gain-variant-witness-20261114` @ `540e7bc01fcacf3f259d46ddb481697018a29c37`.
 - Exact post-W54 rollback point: `backup/windows-main-post-w54-gain-witness-20261114` @ `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
 - Original Windows source snapshot: `backup/windows-source-pre-w102-handoff-20261113` @ `0158fcf71d06e4784751b8ddc1982e2b951b2753`.
 - Original default-main snapshot: `backup/windows-main-pre-w102-handoff-20261113` @ `2741c403772f6e2837cd27bf748f90dc8d7722c9`.
-- Main CI [43521371379](https://github.com/manufact-test/nomusic/actions/runs/43521371379): SUCCESS on `b045c64`.
-- Full Windows integration CI [43521371795](https://github.com/manufact-test/nomusic/actions/runs/43521371795): SUCCESS on `b045c64`, including W23 mid-track gain-variant transition regression, W24 catalog/ASAR tests, W15 incident archive/export tests and warning-as-error GUI compile.
+- Main CI [43523524721](https://github.com/manufact-test/nomusic/actions/runs/43523524721): SUCCESS on `7a4768e`.
+- Full Windows integration CI [43523524722](https://github.com/manufact-test/nomusic/actions/runs/43523524722): SUCCESS on `7a4768e`; W22/W23/W60 source, VPN, signed 403 and audio regression, W24 catalog/ASAR, W15 support/entitlement and GUI compile. Includes W54 evidence and W103 confirmation-window regressions.
 - Stage 5 server recovery [43514995243](https://github.com/manufact-test/nomusic/actions/runs/43514995243): SUCCESS. Restore drill, all 1498 original audio SHA256 checks, isolated MySQL restore with Big City Life gain sidecar, external HTTPS health/config and anonymous-denial checks passed. Live MySQL was untouched.
 - Earlier final release attempt [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358) failed at isolated MySQL restore and was not blindly repeated. The later Stage 5 run is a separate successful recovery/monitoring proof, not a final app release. No final EXE+ZIP has been delivered and nothing has been installed on the owner's PC.
 
@@ -163,3 +163,12 @@ No private signing key in repository or normal CI logs. Until real code-signing 
 - Do not use arbitrary percentages. Report: done in code / CI proven / field QA pending / open.
 - Do not make a long progress report. State the single current blocker and the next concrete action.
 - Do not create a new branch just to have a new W-number. Backups are allowed and required; parallel product branches are not.
+
+
+## 2026-11-14 final W103 handoff — frozen at green CI
+
+- `main` @ `7a4768ecc7366abeb0358337f83e514e85cd8d53`, backup `backup/windows-main-post-w57-ci-green-20261114` at same SHA.
+- #57 uses a 150 ms confirmation window only between successful grant re-prime and explicit current-source reload. No confirmation means the existing bounded reload still occurs. The earlier commit `d903ffae` failed four legacy timing checks; **do not use that intermediate commit**. `7a4768e` adjusts the integration tests; full Windows CI is green.
+- No final owner installer/ZIP was built or delivered, and no owner acoustic QA occurred. Do not report #54 or #57 acoustically fixed.
+- Highest-priority remaining engineering work is immediate Yandex compatibility recheck on native bridge/start failure, plus signed in-app update with verified rollback under W101. Owner must separately validate VPN reconnect, #52, #53, #54, #56, #57, #58 and startup UX.
+- Read `docs/windows/NEXT-CHAT.md` for exact takeover. Never open another active experiment branch. Preserve existing Android/extension/server paths and original media.
