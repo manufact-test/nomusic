@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import struct
 import sys
@@ -103,12 +104,13 @@ def _explicit_sdk_illegal_state(code,dex):
                 return True
     return False
 
-def inspect(xapk):
+def inspect(xapk,private_java=None):
     if (os.getenv("GITHUB_ACTIONS")!="true" or
         os.getenv("GITHUB_REPOSITORY")!="manufact-test/nomusic" or
         os.getenv("GITHUB_REF_NAME")!=BRANCH):
         raise Closed("CI_ISOLATION")
     targets=[]
+    service_private=[]
     for blob in _verified_xapk(xapk):
         dex=Dex(blob)
         strings=dex.possible_error_strings()
@@ -170,6 +172,11 @@ def inspect(xapk):
                 owner,name=dex.method(mid)
                 return owner.endswith("/PushServiceFacade;") and name=="initPushService"
             service_direct=[mid for mid in candidates if push_service_target(mid)]
+            if (len(service_direct)==1 and
+                dex.method_signature(service_direct[0]) in defined and
+                private_java_parameter_signature(dex,service_direct[0])==
+                "android.content.Context"):
+                service_private.append(dex.method(service_direct[0]))
             service_onehop=[mid for mid in candidates
                 if dex.method_signature(mid) in defined
                 and any(push_service_target(other)
@@ -232,14 +239,36 @@ def inspect(xapk):
         return {"exact_method":"AMBIGUOUS_OR_ABSENT",
                 "source_permission_link":"UNKNOWN",
                 "runtime_throw_site_proven":False}
+    if private_java is not None:
+        root=Path(os.environ.get("GITHUB_WORKSPACE","/unavailable")).resolve()
+        dest=Path(private_java).resolve()
+        if (dest.name!="PrivatePostTrueServiceTarget.java" or
+            root not in dest.parents or len(service_private)!=1):
+            raise Closed("PRIVATE_SERVICE_SOURCE_BOUND")
+        owner,method=service_private[0]
+        class_name=owner[1:-1].replace("/",".") if owner.startswith("L") and owner.endswith(";") else ""
+        if (not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$.]*",class_name) or
+            method!="initPushService"):
+            raise Closed("PRIVATE_SERVICE_TOKEN_INVALID")
+        # Third-party class identity exists only in this runner's transient Java.
+        # Never include this generated class in git or uploaded artifacts.
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        dest.write_text(
+            "package pro.celikom.a1exitwitness;\n"
+            "public final class PrivatePostTrueServiceTarget {\n"
+            "  public static String[] exact() { return new String[] {"
+            +json.dumps(class_name)+","+json.dumps(method)+","
+            +json.dumps("android.content.Context")+"}; }\n"
+            "}\n",encoding="utf-8")
     return targets[0]
 
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--xapk",required=True,type=Path)
+    ap.add_argument("--private-java",type=Path)
     args=ap.parse_args()
     try:
-        out=inspect(args.xapk)
+        out=inspect(args.xapk,args.private_java)
         print("PERMISSION_CATCH_CHECK "+json.dumps(out,sort_keys=True))
         return 0 if out["exact_method"]=="ONE" else 2
     except (Closed,FlowDecodeError,ValueError,IndexError,struct.error,OSError):
