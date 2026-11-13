@@ -78,8 +78,14 @@ try {
     // test. Production AudioController still enforces each real Range session.
     $http=new AudioController($catalog,$store,$tokens);
     $range=$http->handle('GET',71,$params,['range'=>'bytes=7-30']);
-    check($range->status===206 && body($range)===substr($derived,7,24)
-        && $range->headers['ETag']==='"'.$variantSha.'-3"', 'signed variant Range206 exact bytes and ETag');
+    $rangeBytes = body($range);
+    if (!($range->status===206 && $rangeBytes===substr($derived,7,24)
+        && ($range->headers['ETag']??null)==='"'.$variantSha.'-3"'))
+        fwrite(STDERR,'W91_DEBUG_RANGE '.json_encode(['status'=>$range->status,
+          'range_length'=>strlen($rangeBytes), 'expected_length'=>strlen(substr($derived,7,24)),
+          'headers'=>$range->headers, 'expected_etag'=>'"'.$variantSha.'-3"'],JSON_THROW_ON_ERROR)."\n");
+    check($range->status===206 && $rangeBytes===substr($derived,7,24)
+        && ($range->headers['ETag']??null)==='"'.$variantSha.'-3"', 'signed variant Range206 exact bytes and ETag');
     check($http->handle('HEAD',71,$params,[])->headers['Content-Length']===strval(strlen($derived)),
         'variant HEAD size');
     check($http->handle('GET',71,$params,['range'=>'bytes=7-30','if-range'=>'"wrong"'])->status===200,
