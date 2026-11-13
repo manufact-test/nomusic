@@ -750,6 +750,9 @@ public sealed partial class MainWindow
         {
             _compactScroll.SuspendLayout();
             var hasTrack = GrantValidator.IsTrackId(_bridge.LastSong);
+            var hostNeedsStart = !_bridge.Enabled && !_compactStarting &&
+                !_autoReconnectBusy && _nativeInstallState == NativeInstallState.Active &&
+                !_installedModule.MatchesApplication;
             var rows = new (Control item, int height, int gap, bool visible)[]
             {
                 (_compactHeader, 34, 7, true),
