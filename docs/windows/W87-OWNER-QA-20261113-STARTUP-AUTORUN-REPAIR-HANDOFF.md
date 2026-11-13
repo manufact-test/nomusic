@@ -36,3 +36,23 @@ Latest snapshot: `Вставленный текст(20261113-084941).txt` genera
 - [#44](https://github.com/manufact-test/nomusic/issues/44) owner playback QA not fully closed.
 - [#52](https://github.com/manufact-test/nomusic/issues/52) real audible/native decoder witness still not proven.
 - [#48](https://github.com/manufact-test/nomusic/issues/48) preserve hourly vendor update monitor after private-server migration; pending migration.
+
+## W87 implementation complete — 0.24.31 TEST, Windows CI GREEN
+
+- **GitHub run success**: https://github.com/manufact-test/nomusic/actions/runs/43398111483, artifact `14024195652` https://github.com/manufact-test/nomusic/actions/runs/43398111483/artifacts/14024195652.
+- Exact installer SHA256 `762B9F4166B611BB78FDD7CE4F1F8311E2DA05E7171CC3E3EC3EC6017061EF83`; size **43,545,042 bytes**; verified after ZIP extraction. CELIKOM EXE unsigned as before.
+- Windows in-place 0.24.30→0.24.31 CI: **`W87_02430_TO_02431_INPLACE_DPAPI_AND_NATIVE_UNCHANGED_PASS`**. Same AppId; session.dpapi remains decryptable and byte-identical. Both native audio assets host.cjs and renderer.js identical to W86 / 0.24.30. Native sound pipeline unchanged.
+- **Persistent Library upload success**: `/CELIKOM/Windows/Test/CELIKOM-Windows-0.24.31-AUTORUN-TEST.exe` Library ID `libfile_9bb79f49b7908191a11150cafcd9c5fb`. User's 0.24.30 and stable 0.24.29 files untouched.
+- `WindowsLaunchSettings.cs`: opt-in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\CELIKOM` with quoted `--background` command; remember last explicit Start/Stop and account-specific hashed identity in HKCU, **never** store server grant or plaintext email in Run preference. Autostart default OFF until owner enables it once via tray right-click → **Запускать с Windows**. Toggling off removes own Run entry.
+- `Program.cs`: single instance via Windows named mutex, second manual launch signals existing tray to show instead of creating second bridge. Original `--restore-native` still works.
+- `MainWindow.cs`: transparent until layout complete first paint; `--background` never shows popup or taskbar at sign-in. Manual Start performs existing entitlement/native checks, refreshes an already approved module without redundant "обновить" dialog, and automatically opens installed official Yandex when needed. First-time native installation retains owner consent.
+- `MainWindow.Autostart.cs`: repeatable silent reconnect only with prior user Start intent, same account, fresh **non-activating** `GetEntitlementAsync` and exact native hash match; if signed Yandex vendor update or already-authorized old native module, stage safe repair only if Yandex is **not running**, re-read native state + revalidate entitlement after repair. If user is listening, defer; never silently close Yandex at Windows login; no forced Yandex launch. Network errors or unknown/tampered versions fail closed; 2-min retry and Stop/account-switch epoch guards. Legitimate manual Stop disables reboot resume.
+- `UserFacingPlaybackHealth.cs` and `CompactPopup.cs`: normal after-app-update module mismatch is a small neutral grey hint **«Нажми „Старт“, чтобы обновить модуль CELIKOM.»**, never misleading red or nonexistent "Обновить модуль" button. Dangerous untrusted builds remain true errors.
+- `MainWindow.RefreshHostCoreAsync`: if a running module hash no longer matches installed assets, disable bridge rather than falsely green connected.
+- Tests added for quoted startup command, opt-in/opt-out, account/installation isolation, remembered Stop, no false red after app upgrade. Existing native audio integration / W15 entitlement suites pass.
+
+### Owner field QA NOT yet confirmed
+
+After installing **0.24.31 TEST** over **0.24.30**, listen normally (same sound), check first window has no unstyled square flash, manually press Start after module upgrade (one native refresh and Yandex opens), then right-click CELIKOM tray → enable **Запускать с Windows**, verify Windows reboot/sign-in shows CELIKOM **only in tray**, opening Yandex manually yields working alternatives. Explicit Stop, reboot: must stay off; network outage, trial expiry, unsupported Yandex: must never enable. If necessary roll back to 0.24.30 TEST (saved Library) or 0.24.29 stable. CI is not a substitute for real reboot/playback QA.
+
+The latest owner's expired-audio-token 403 was **already followed by signed URL HTTP 206**; no alteration to source/streaming logic in W87. Do not claim proof of audible decoder source; issue #52 stays open.
