@@ -9,14 +9,41 @@ concurrency:
   group: celikom-hostinger-private-test
   cancel-in-progress: false
 jobs:
-  inspect:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-admin-search-tests
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 16
           persist-credentials: false
-      - name: Inspect current admin source without changing production
-        env:
-          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-        run: bash .github/scripts/admin-search/inspect.sh
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo, mbstring, curl
+          coverage: none
+      - name: Verify search and existing admin behavior on disposable database
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/admin-search/check-patch.py
+          php -l server/src/Admin/AdminPanel.php
+          php -l .github/scripts/admin-search/patch.php
+          php server/tests/admin-search.php
+          php server/tests/admin.php

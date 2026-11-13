@@ -1,0 +1,42 @@
+{
+  "before": "15aa4414bf3257730693a6a25d9d39578e15f27fe08a4e1d1f7557284022d69a",
+  "after": "7c5d63e5dbb6182daa55a4c8b31f2a98f070844fd34e995ec5f8e596d7160d25",
+  "replace": [
+    {
+      "old": "    /** User-supplied values never become free-form SQL predicates or LIMITs. */",
+      "new": "    /** Bounded UTF-8 search text; arrays and malformed input are ignored. */\n    private static function songSearch(array $query): string\n    {\n        $value = $query['q'] ?? '';\n        if (!is_string($value) || strlen($value) > 2048 || !preg_match('//u', $value)) return '';\n        $value = trim(preg_replace('/[\\s\\x00-\\x1F\\x7F]+/u', ' ', $value) ?? '');\n        preg_match('/^.{0,160}/us', $value, $match);\n        return trim($match[0] ?? '');\n    }\n\n    /** Every word must match; SQL wildcards are treated as literal characters. */\n    private static function songSearchWhere(string $search, string $alias, array &$params): string\n    {\n        if ($search === '') return '';\n        $parts = [];\n        foreach (preg_split('/\\s+/u', $search, 12, PREG_SPLIT_NO_EMPTY) as $word) {\n            $parts[] = \"CONCAT_WS(' ', $alias.artist, $alias.title, $alias.service_track_id) COLLATE utf8mb4_unicode_ci LIKE ? ESCAPE '!'\";\n            $params[] = '%' . strtr($word, ['!'=>'!!', '%'=>'!%', '_'=>'!_']) . '%';\n        }\n        return '(' . implode(' AND ', $parts) . ')';\n    }\n\n    /** User-supplied values never become free-form SQL predicates or LIMITs. */"
+    },
+    {
+      "old": "        $form .= '</select></label>';\n        if ($tab === 'uploads') {",
+      "new": "        $form .= '</select></label>';\n        if (in_array($tab, ['uploads','requests'], true)) {\n            $search = self::songSearch($query);\n            $form .= '<label class=\"form-field\">Поиск песни'\n                . '<input type=\"search\" name=\"q\" maxlength=\"160\" value=\"' . self::e($search)\n                . '\" placeholder=\"Название, исполнитель или Track ID\"></label>';\n            if ($search !== '') {\n                $clear = ['tab'=>$tab, 'status'=>$status, 'per_page'=>(string)$perPage];\n                if ($tab === 'uploads') $clear['duration'] = self::durationFilter($query);\n                $form .= '<a class=\"btn\" href=\"' . self::e('/admin?' . http_build_query($clear)) . '\">Сбросить поиск</a>';\n            }\n        }\n        if ($tab === 'uploads') {"
+    },
+    {
+      "old": "int $total, string $duration = ''): string",
+      "new": "int $total, string $duration = '', string $search = ''): string"
+    },
+    {
+      "old": "($duration !== '' ? '&duration=' . rawurlencode($duration) : '') . '&page=';",
+      "new": "($duration !== '' ? '&duration=' . rawurlencode($duration) : '')\n            . ($search !== '' ? '&q=' . rawurlencode($search) : '') . '&page=';"
+    },
+    {
+      "old": "        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';",
+      "new": "        $search = self::songSearch($query);\n        $searchWhere = self::songSearchWhere($search, 't', $params);\n        if ($searchWhere !== '') $conditions[] = $searchWhere;\n        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';"
+    },
+    {
+      "old": "        if (!$rows) $html .= '<section class=\"empty\"><strong>Записей пока нет</strong>'\n            . 'Попробуйте изменить фильтры статуса и длительности.</section>';",
+      "new": "        if (!$rows) $html .= '<section class=\"empty\"><strong>'\n            . ($search !== '' ? 'Песни не найдены' : 'Записей пока нет') . '</strong>'\n            . 'Попробуйте изменить поиск или фильтры статуса и длительности.</section>';"
+    },
+    {
+      "old": "$this->queuePages('uploads', $status, $page, $perPage, $total, $duration)",
+      "new": "$this->queuePages('uploads', $status, $page, $perPage, $total, $duration, $search)"
+    },
+    {
+      "old": "        $where = $status !== '' ? ' WHERE ' . $progress . ' = ? ' : ' ';\n        $params = $status !== '' ? [$status] : [];",
+      "new": "        $conditions = $status !== '' ? [$progress . ' = ?'] : [];\n        $params = $status !== '' ? [$status] : [];\n        $search = self::songSearch($query);\n        $searchWhere = self::songSearchWhere($search, 'r', $params);\n        if ($searchWhere !== '') $conditions[] = $searchWhere;\n        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';"
+    },
+    {
+      "old": "$this->queuePages('requests', $status, $page, $perPage, $total)",
+      "new": "$this->queuePages('requests', $status, $page, $perPage, $total, '', $search)"
+    }
+  ]
+}
