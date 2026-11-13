@@ -636,6 +636,35 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(got["all_witness_events_bounded"],250)
         self.assertTrue(got["read_only_mediadatasource_two_hooks_registered"])
 
+    def test_exact_2025_mediaextractor_source_witness_pid_scoped(self):
+        data=(
+            log(431,"event=MEDIA_EXTRACTOR_HOOK;origin=MEDIA_EXTRACTOR;error=REGISTERED;thread=MAIN")
+            +log(431,"event=MEDIA_EXTRACTOR_SOURCE;origin=MEDIA_EXTRACTOR;error=CANDIDATE_1;thread=OTHER")
+            +log(431,"event=MEDIA_EXTRACTOR_CALL;origin=MEDIA_EXTRACTOR;error=ENTER;thread=OTHER")
+            +log(431,"event=MEDIA_EXTRACTOR_CALL;origin=MEDIA_EXTRACTOR;error=RETURN;thread=OTHER")
+            +log(432,"event=MEDIA_EXTRACTOR_SOURCE;origin=MEDIA_EXTRACTOR;error=CANDIDATE_0;thread=OTHER")
+            +log(431,"event=MEDIA_EXTRACTOR_SOURCE;origin=MEDIA_EXTRACTOR;error=/private/track;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,data)
+        self.assertTrue(x["read_only_extractor_source_hook_registered"])
+        self.assertEqual(x["read_only_extractor_source_candidates_observed"],["CANDIDATE_1"])
+        self.assertEqual(x["read_only_extractor_source_call_states"],
+                         {"ENTER":1,"RETURN":1,"THROW":0})
+        self.assertTrue(x["read_only_extractor_no_source_values_disclosed"])
+        for secret in ("/private/track","431","432"):
+            self.assertNotIn(secret,str(x))
+
+    def test_mediaextractor_events_beyond_250_startup_records(self):
+        old=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")*260
+        new=(
+            log(431,"event=MEDIA_EXTRACTOR_HOOK;origin=MEDIA_EXTRACTOR;error=REGISTERED;thread=MAIN")
+            +log(431,"event=MEDIA_EXTRACTOR_SOURCE;origin=MEDIA_EXTRACTOR;error=OTHER_SOURCE;thread=OTHER")
+            +log(431,"event=MEDIA_EXTRACTOR_CALL;origin=MEDIA_EXTRACTOR;error=THROW;thread=OTHER"))
+        x=scoped_metrica_witness(EXIT,old+new)
+        self.assertEqual(x["all_witness_events_bounded"],250)
+        self.assertTrue(x["read_only_extractor_source_hook_registered"])
+        self.assertEqual(x["read_only_extractor_source_candidates_observed"],["OTHER_SOURCE"])
+        self.assertEqual(x["read_only_extractor_source_call_states"]["THROW"],1)
+
     def test_disallow_arbitrary_event_or_injected_message(self):
         bad=(log(431,"event=METRICA_EXCEPTION;origin=SECRET_VENDOR;error=EXC_OTHER;thread=OTHER")
              +log(431,"event=METRICA_EXCEPTION;origin=METRICA_SDK;error=EXC_OTHER;thread=OTHER token=secret"))

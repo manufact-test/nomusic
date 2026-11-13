@@ -53,6 +53,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean mediaDataReadWitnessReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
         new java.util.concurrent.atomic.AtomicInteger();
+    private boolean mediaExtractorSourceHookReady;
+    private final java.util.concurrent.atomic.AtomicInteger mediaExtractorSourceCalls =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean ownRouteHooked;
     private final java.util.concurrent.atomic.AtomicInteger ownRouteEvents =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -1861,10 +1864,62 @@ public final class ExitCallsiteWitness extends XposedModule {
                     });
                 hooked++;
             }
+            if (hooked==2) installExactMediaExtractorSourceWitness(candidates);
         } catch (Throwable ignored) { }
         mediaDataReadWitnessReady=hooked==2;
         emit("MEDIA_DS_HOOK","MEDIA_DATA_SOURCE",
              hooked==2 ? "TWO_REGISTERED" : "NO_HOOK");
+    }
+
+    /**
+     * The signed 2025 DEX has exactly one direct invocation of Android's
+     * MediaExtractor.setDataSource(MediaDataSource). Observe the *object*
+     * supplied to that framework method, not its contents. A registered
+     * observer or a method entry is NOT proof of music playback.
+     */
+    private synchronized void installExactMediaExtractorSourceWitness(String[] candidates) {
+        if (mediaExtractorSourceHookReady
+                || !PACKAGE.equals(Application.getProcessName())) return;
+        boolean registered=false;
+        try {
+            if (candidates==null || candidates.length!=2
+                    || candidates[0].equals(candidates[1])) {
+                emit("MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR","NO_HOOK");
+                return;
+            }
+            final String[] expectedClasses=candidates.clone(); // private, never logged
+            Method method=android.media.MediaExtractor.class.getDeclaredMethod(
+                "setDataSource",android.media.MediaDataSource.class);
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    int count=mediaExtractorSourceCalls.incrementAndGet();
+                    if (count<=8) {
+                        Object source=chain.getArg(0);
+                        String category="OTHER_SOURCE";
+                        if (source==null) category="NULL_SOURCE";
+                        else if (expectedClasses[0].equals(source.getClass().getName()))
+                            category="CANDIDATE_0";
+                        else if (expectedClasses[1].equals(source.getClass().getName()))
+                            category="CANDIDATE_1";
+                        emit("MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR",category);
+                        emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","ENTER");
+                    }
+                    try {
+                        Object result=chain.proceed(); // one unmodified original call
+                        if (count<=8)
+                            emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","RETURN");
+                        return result;
+                    } catch (Throwable problem) {
+                        if (count<=8)
+                            emit("MEDIA_EXTRACTOR_CALL","MEDIA_EXTRACTOR","THROW");
+                        throw problem;
+                    }
+                });
+            registered=true;
+        } catch (Throwable ignored) { }
+        mediaExtractorSourceHookReady=registered;
+        emit("MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR",
+            registered ? "REGISTERED":"NO_HOOK");
     }
 
     private synchronized void installExactPrefixWitness(ClassLoader appLoader) {
