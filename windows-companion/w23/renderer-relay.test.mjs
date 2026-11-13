@@ -246,6 +246,9 @@ test("W99 verified CELIKOM source-left schedules one bounded current-track recov
     await tick();
   }
   assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.mediaSources.length,1,
+    "reload must finish; pending="+JSON.stringify(r.window.__celikomBridgeNativeDrain())+
+    "; diagnostics="+JSON.stringify(r.window.__celikomBridgeNativeDrainDiagnostics()));
   assert.equal(player.mediaSources[0],
     makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
   assert.equal(player.state.playerState.progress.value.position,82.25);
