@@ -408,7 +408,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: CELIKOM-Windows-W98-0.24.36-INTEGRATED-QA-TEST
+          name: CELIKOM-Windows-W100-0.24.36-INTEGRATED-QA-TEST
           path: dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST
       - name: Verify checksums and publish exact files to /CELIKOM/Windows/Test/
         env:
