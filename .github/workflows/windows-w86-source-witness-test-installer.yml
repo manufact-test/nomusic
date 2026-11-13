@@ -40,10 +40,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W86_NPM_FAILED' }
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'W86_NATIVE_BUILD_FAILED' }
-          $host=Get-Content dist/host.cjs -Raw
-          if ($host -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.25"' -or
-              $host -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
-              $host -notmatch 'PLAYER_DECODER_CELIKOM_PIPELINE_ERROR') {
+          $nativeHostContents=Get-Content dist/host.cjs -Raw
+          if ($nativeHostContents -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.25"' -or
+              $nativeHostContents -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
+              $nativeHostContents -notmatch 'PLAYER_DECODER_CELIKOM_PIPELINE_ERROR') {
             throw 'W86_PASSIVE_WITNESS_MISSING'
           }
       - name: Preserve known native audio playback and local source tests
