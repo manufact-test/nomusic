@@ -1295,7 +1295,8 @@ public sealed partial class MainWindow : Form
         {
             "SDK_MAPPING_ACCEPTED" => "Версия CELIKOM подключена.",
             "NATIVE_CONNECTED" => "Связь с Яндексом установлена.",
-            "NATIVE_MAPPING_ACCEPTED" => "Версия CELIKOM подключена.",
+            "NATIVE_MAPPING_ACCEPTED" => "Версия CELIKOM передана плееру.",
+            "NATIVE_SOURCE_VERIFIED" => "Плеер подтвердил источник CELIKOM.",
             "NATIVE_RECOVERING" => "Восстанавливаем подмену…",
             "NATIVE_SOURCE_FAILED" => "Подмена этой песни не загрузилась.",
             "RESOLVING" => "Ищем одобренную версию песни…",
