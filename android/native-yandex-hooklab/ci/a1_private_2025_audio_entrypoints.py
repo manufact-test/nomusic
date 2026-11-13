@@ -208,7 +208,68 @@ def classify_private_extractor_sink_rows(rows, superclasses, readat, getsize):
         "real_player_execution_proven":False,
     }
 
-def count_direct_public_invocations(dex, private_sink_rows=None):
+
+# Exact public Android framework method names only. These are STATIC DEX
+# invocations, not proof of music playback, same extractor instance or even
+# an executed branch. No private symbols or argument values are exported.
+EXTRACTOR_LIFECYCLE_STEPS = {
+    "setDataSource": "SET_SOURCE",
+    "getTrackCount": "GET_TRACK_COUNT",
+    "getTrackFormat": "GET_TRACK_FORMAT",
+    "selectTrack": "SELECT_TRACK",
+    "unselectTrack": "UNSELECT_TRACK",
+    "readSampleData": "READ_SAMPLE_DATA",
+    "advance": "ADVANCE",
+    "getSampleTime": "GET_SAMPLE_TIME",
+    "getSampleFlags": "GET_SAMPLE_FLAGS",
+    "getSampleTrackIndex": "GET_SAMPLE_TRACK_INDEX",
+    "seekTo": "SEEK_TO",
+    "release": "RELEASE",
+}
+METADATA_RETRIEVER_STEPS = {
+    "extractMetadata": "EXTRACT_METADATA",
+    "getEmbeddedPicture": "GET_EMBEDDED_PICTURE",
+}
+def public_extractor_lifecycle_role(owner: str, name: str) -> str | None:
+    if owner=="Landroid/media/MediaExtractor;":
+        return EXTRACTOR_LIFECYCLE_STEPS.get(name)
+    if owner=="Landroid/media/MediaMetadataRetriever;":
+        return METADATA_RETRIEVER_STEPS.get(name)
+    return None
+
+
+def classify_private_extractor_sink_lifecycle(rows: list[dict]) -> dict:
+    """Return only bounded public API enums for the *one* signed-2025 sink.
+
+    Same-class marker does not imply same MediaExtractor object; same-method
+    callsite presence does not imply execution. Synthetic tests guard this.
+    """
+    if len(rows)!=1:
+        return {
+            "exact_sink_count":min(len(rows),4),
+            "same_method_public_framework_steps":[],
+            "same_class_public_framework_steps":[],
+            "same_method_reads_samples":False,
+            "same_class_reads_samples":False,
+            "unambiguous_single_static_sink":False,
+            "live_playback_or_same_object_proven":False,
+            "private_symbols_disclosed":False,
+        }
+    row=rows[0]
+    method=sorted(set(row["same_method_steps"]))[:20]
+    clazz=sorted(set(row["same_class_steps"]))[:20]
+    return {
+        "exact_sink_count":1,
+        "same_method_public_framework_steps":method,
+        "same_class_public_framework_steps":clazz,
+        "same_method_reads_samples":"READ_SAMPLE_DATA" in method,
+        "same_class_reads_samples":"READ_SAMPLE_DATA" in clazz,
+        "unambiguous_single_static_sink":True,
+        "live_playback_or_same_object_proven":False,
+        "private_symbols_disclosed":False,
+    }
+
+def count_direct_public_invocations(dex, private_sink_rows=None, sink_lifecycle_rows=None):
     """Actual DEX invoke instructions; never logs direct caller identities.
 
     A code path present in DEX is NOT proof that Android executed it.
@@ -219,8 +280,13 @@ def count_direct_public_invocations(dex, private_sink_rows=None):
     complete=0
     undecoded=0
     same_body=0
+    # These maps exist only in the ephemeral analysis process.
+    lifecycle_by_owner={}
+    exact_sink_methods=[]
     for _index, code in dex.code_methods():
         body_roles=set()
+        framework_steps=[]
+        found_exact_media_sink=False
         try:
             instructions=decode_instructions(code)
         except FlowDecodeError:
@@ -233,24 +299,45 @@ def count_direct_public_invocations(dex, private_sink_rows=None):
             method_index=struct.unpack_from("<H",code,pc+2)[0]
             if method_index>=dex.method_count:
                 raise DexError("AUDIO_CALLSITE_REF_BOUND")
-            role=classify(*dex.method(method_index))
+            public_owner,public_name=dex.method(method_index)
+            step=public_extractor_lifecycle_role(public_owner,public_name)
+            if step is not None:
+                framework_steps.append(step)
+            role=classify(public_owner,public_name)
             if role:
                 counts[role]+=1
                 body_roles.add(role)
                 if role=="ANDROID_MEDIA_EXTRACTOR_SOURCE":
                     shape=extractor_argument_shape(dex,method_index)
                     overloads[shape]+=1
-                    if shape=="MEDIA_DATA_SOURCE" and private_sink_rows is not None:
-                        # Keep all supplier types private in-run, never report names.
-                        if len(private_sink_rows)>=4:
-                            raise DexError("EXACT_EXTRACTOR_SINK_BOUND")
-                        private_sink_rows.append((
-                            dex.method(_index)[0],
-                            _exact_extractor_register_origin(dex,code,instructions,index)))
+                    if shape=="MEDIA_DATA_SOURCE":
+                        found_exact_media_sink=True
+                        if private_sink_rows is not None:
+                            # Keep all supplier types private in-run, never report names.
+                            if len(private_sink_rows)>=4:
+                                raise DexError("EXACT_EXTRACTOR_SINK_BOUND")
+                            private_sink_rows.append((
+                                dex.method(_index)[0],
+                                _exact_extractor_register_origin(dex,code,instructions,index)))
+        if framework_steps and sink_lifecycle_rows is not None:
+            caller_owner=dex.method(_index)[0] # never serialized
+            lifecycle_by_owner.setdefault(caller_owner,set()).update(framework_steps)
+        if found_exact_media_sink and sink_lifecycle_rows is not None:
+            if len(exact_sink_methods)>=4:
+                raise DexError("EXACT_EXTRACTOR_LIFECYCLE_BOUND")
+            exact_sink_methods.append((dex.method(_index)[0],tuple(framework_steps)))
         if "ANDROID_MEDIA_EXTRACTOR_SOURCE" in body_roles and (
             "ANDROID_AUDIO_TRACK_OUTPUT" in body_roles or
             "ANDROID_MEDIA_CODEC_INPUT" in body_roles):
             same_body+=1
+    if sink_lifecycle_rows is not None:
+        for owner,steps in exact_sink_methods:
+            if len(sink_lifecycle_rows)>=4:
+                raise DexError("EXACT_EXTRACTOR_LIFECYCLE_BOUND")
+            sink_lifecycle_rows.append({
+                "same_method_steps":steps,
+                "same_class_steps":tuple(lifecycle_by_owner.get(owner,())),
+            })
     return {
         "direct_public_invocation_counts":{k:min(counts[k],9999) for k in PUBLIC_METHODS},
         "android_extractor_callsite_overload_categories":{
@@ -367,6 +454,7 @@ def scan_publisher(xapk: Path,private_java: Path|None=None) -> dict:
         readat=set()
         getsize=set()
         exact_sink_rows=[]
+        exact_sink_lifecycle=[]
         for apk in parts:
             with zipfile.ZipFile(apk) as archive:
                 if archive.testzip() is not None:
@@ -392,7 +480,7 @@ def scan_publisher(xapk: Path,private_java: Path|None=None) -> dict:
                     for key,value in row["public_api_references"].items(): combined[key]+=value
                     for key,value in row["public_api_defined_bodies"].items(): combined["DEFINED_"+key]+=value
                     historical.update((o,n) for o,n in methods if (o,n) in HISTORICAL)
-                    direct=count_direct_public_invocations(d,exact_sink_rows)
+                    direct=count_direct_public_invocations(d,exact_sink_rows,exact_sink_lifecycle)
                     total_decoded+=direct["decoded_code_bodies_bounded"]
                     total_undecoded+=direct["undecoded_code_bodies_bounded"]
                     shared_bodies+=direct["extractor_and_renderer_invoked_same_method_bodies_bounded"]
@@ -423,6 +511,8 @@ def scan_publisher(xapk: Path,private_java: Path|None=None) -> dict:
             supers,readat,getsize),
         "exact_media_extractor_source_argument_audit":classify_private_extractor_sink_rows(
             exact_sink_rows,supers,readat,getsize),
+        "exact_media_extractor_source_lifecycle_audit":classify_private_extractor_sink_lifecycle(
+            exact_sink_lifecycle),
         "actual_current_track_binding_proven":False,
         "source_before_decoder_execution_proven":False,
         "native_audio_playback_proven":False,

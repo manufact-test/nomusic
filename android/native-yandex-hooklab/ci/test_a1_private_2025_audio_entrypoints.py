@@ -186,6 +186,75 @@ class AudioEntryPointSafetyTests(unittest.TestCase):
         self.assertFalse(x["private_source_class_or_caller_disclosed"])
         self.assertNotIn("Caller",str(x))
 
+
+    def test_public_extractor_steps_are_whitelisted_without_vendor_names(self):
+        from a1_private_2025_audio_entrypoints import public_extractor_lifecycle_role
+        self.assertEqual(public_extractor_lifecycle_role(
+            "Landroid/media/MediaExtractor;","readSampleData"),"READ_SAMPLE_DATA")
+        self.assertEqual(public_extractor_lifecycle_role(
+            "Landroid/media/MediaMetadataRetriever;","getEmbeddedPicture"),"GET_EMBEDDED_PICTURE")
+        self.assertIsNone(public_extractor_lifecycle_role(
+            "Lprivate/Hidden;","readSampleData"))
+        self.assertIsNone(public_extractor_lifecycle_role(
+            "Landroid/media/MediaExtractor;","privateMethod"))
+
+    def test_exact_media_sink_lifecycle_scans_only_same_method_and_same_class(self):
+        from a1_private_2025_audio_entrypoints import (
+            count_direct_public_invocations, classify_private_extractor_sink_lifecycle)
+        import struct
+        raw=bytearray(140)
+        struct.pack_into("<II",raw,72,1,100)   # one proto at byte 100
+        struct.pack_into("<I",raw,108,120)   # parameters offset
+        struct.pack_into("<I",raw,120,1)     # one MediaDataSource argument
+        struct.pack_into("<H",raw,124,4)
+        class Mock:
+            data=bytes(raw)
+            method_count=4
+            def type(self,i):
+                return "Landroid/media/MediaDataSource;" if i==4 else "Lhidden/Other;"
+            def method_signature(self,i):
+                return (*self.method(i),0)
+            def method(self,i):
+                return [
+                    ("Landroid/media/MediaExtractor;","setDataSource"),
+                    ("Landroid/media/MediaExtractor;","getTrackCount"),
+                    ("Landroid/media/MediaExtractor;","readSampleData"),
+                    ("Lprivate/Hidden;","invoke"),
+                ][i]
+            def code_methods(self):
+                # Sink and getTrackCount in Lprivate/Caller; readSampleData
+                # in Lprivate/Other; prevent leaking either private owner.
+                yield 0,bytes([0x6e,0x20,0x00,0x00,0x10,0x00,
+                               0x6e,0x10,0x01,0x00,0x00,0x00,
+                               0x0e,0x00])
+                yield 1,bytes([0x6e,0x10,0x02,0x00,0x00,0x00,0x0e,0x00])
+        # In this synthetic Dex method IDs carry framework owners themselves,
+        # so same-class is the MediaExtractor owner for both methods.
+        rows=[]
+        count_direct_public_invocations(Mock(), [], rows)
+        report=classify_private_extractor_sink_lifecycle(rows)
+        self.assertTrue(report["unambiguous_single_static_sink"])
+        self.assertEqual(report["same_method_public_framework_steps"],
+                         ["GET_TRACK_COUNT","SET_SOURCE"])
+        self.assertEqual(report["same_class_public_framework_steps"],
+                         ["GET_TRACK_COUNT","READ_SAMPLE_DATA","SET_SOURCE"])
+        self.assertFalse(report["same_method_reads_samples"])
+        self.assertTrue(report["same_class_reads_samples"])
+        self.assertFalse(report["live_playback_or_same_object_proven"])
+        for private in ("Hidden","Caller","/private/"):
+            self.assertNotIn(private,str(report))
+
+    def test_exact_sink_lifecycle_multiple_callsites_is_fail_closed(self):
+        from a1_private_2025_audio_entrypoints import classify_private_extractor_sink_lifecycle
+        x=classify_private_extractor_sink_lifecycle([
+            {"same_method_steps":["SET_SOURCE","READ_SAMPLE_DATA"],
+             "same_class_steps":["READ_SAMPLE_DATA"]},
+            {"same_method_steps":["SET_SOURCE"],"same_class_steps":["SET_SOURCE"]},
+        ])
+        self.assertFalse(x["unambiguous_single_static_sink"])
+        self.assertEqual(x["same_method_public_framework_steps"],[])
+        self.assertFalse(x["live_playback_or_same_object_proven"])
+
     def test_empty_and_duplicate_pure_invokes_no_execution_claim(self):
         empty=summarize_methods([])
         self.assertTrue(all(x==0 for x in empty["public_api_references"].values()))
