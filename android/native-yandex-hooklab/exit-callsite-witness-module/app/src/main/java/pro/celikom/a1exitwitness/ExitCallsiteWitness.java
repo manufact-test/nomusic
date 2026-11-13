@@ -1428,9 +1428,22 @@ public final class ExitCallsiteWitness extends XposedModule {
     private synchronized void installExactPostTruePushServiceInit(ClassLoader loader) {
         if (exactPushServiceInitReady || loader == null) return;
         try {
-            Class<?> service=Class.forName(
-                "io.appmetrica.analytics.push.coreutils.internal.PushServiceFacade",
-                false,loader);
+            Class<?> privateClass=Class.forName(
+                "pro.celikom.a1exitwitness.PrivatePostTrueServiceTarget",false,
+                ExitCallsiteWitness.class.getClassLoader());
+            Object privateRow=privateClass.getDeclaredMethod("exact").invoke(null);
+            if (!(privateRow instanceof String[])) {
+                emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+                return;
+            }
+            String[] target=(String[])privateRow;
+            if (target.length!=3 ||
+                !"initPushService".equals(target[1]) ||
+                !"android.content.Context".equals(target[2])) {
+                emit("PUSH_SERVICE_HOOK","PUSH_SERVICE","NO_HOOK");
+                return;
+            }
+            Class<?> service=Class.forName(target[0],false,loader);
             Method exact=null;
             for (Method m:service.getDeclaredMethods()) {
                 if (!"initPushService".equals(m.getName()) ||
