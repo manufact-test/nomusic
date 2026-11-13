@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "${GITHUB_REPOSITORY:-}" == 'manufact-test/nomusic' && "${GITHUB_REF:-}" == 'refs/heads/feature/api-range' ]] || exit 1
+branch="${GITHUB_REF#refs/heads/}"
+[[ "${GITHUB_REPOSITORY:-}" == 'manufact-test/nomusic' &&
+   ( "$branch" == 'feature/api-range' ||
+     "$branch" == 'experiment/windows-w98-integrated-gain-and-original-vpn-20261113' ) ]] || exit 1
 [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ && -n "${HOSTINGER_SSH_KEY:-}" ]] || exit 1
 node --input-type=module <<'VALIDATE'
 import fs from 'node:fs';
@@ -11,7 +14,7 @@ if (!req || typeof req !== 'object' || Array.isArray(req)
   throw new Error('invalid_stage5_request');
 console.log('Stage 5 restricted operation request validated.');
 VALIDATE
-remote_head="$(git ls-remote origin refs/heads/feature/api-range | cut -f1)"
+remote_head="$(git ls-remote origin "refs/heads/$branch" | cut -f1)"
 [[ "$remote_head" == "$GITHUB_SHA" ]] || { echo 'Stale workflow revision, refusing remote operation.' >&2; exit 1; }
 umask 077
 work="$(mktemp -d)"
@@ -44,7 +47,8 @@ if [[ "$operation" == "restore-drill" ]]; then
     exit 1
   }
   MYSQL_PWD='ci-disposable-mysql' mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -N -B celikom_restore \
-    -e "SELECT CASE WHEN (SELECT COUNT(*) FROM tracks WHERE service='yandex' AND service_track_id='144530503')=1 AND (SELECT COUNT(*) FROM audio_assets WHERE size_bytes=4345176 AND duration_ms=180872)=1 AND (SELECT COUNT(*) FROM track_replacements WHERE id=1 AND status='approved' AND is_active=1)=1 AND (SELECT COUNT(*) FROM schema_migrations)>=1 THEN 'recovered' ELSE 'invalid' END;" > "$work/result"
+    -e "SELECT CASE WHEN (SELECT COUNT(*) FROM tracks WHERE service='yandex' AND service_track_id='144530503')=1 AND (SELECT COUNT(*) FROM audio_assets WHERE size_bytes=4345176 AND duration_ms=180872)=1 AND (SELECT COUNT(*) FROM track_replacements WHERE id=1 AND status='approved' AND is_active=1)=1 AND (SELECT COUNT(*) FROM schema_migrations)>=1 AND
+      (SELECT COUNT(*) FROM windows_gain_variants)=0 THEN 'recovered' ELSE 'invalid' END;" > "$work/result"
   [[ "$(cat "$work/result")" == 'recovered' ]] || { echo 'Isolated MySQL data verification failed.' >&2; exit 1; }
   echo 'Stage 5 isolated MySQL database restore PASS: schema and approved track mapping recovered; live MySQL untouched.'
 fi
