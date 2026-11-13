@@ -692,6 +692,11 @@ public sealed partial class MainWindow
             _bridge.Enabled, _compactPresenceStatus);
         var hostProblem = hostHealth.Level is UserFacingPlaybackHealth.Severity.Error or
             UserFacingPlaybackHealth.Severity.Warning;
+        var hostNeedsStart = !_bridge.Enabled && !_compactStarting && !_autoReconnectBusy &&
+            _nativeInstallState == NativeInstallState.Active &&
+            !_installedModule.MatchesApplication;
+        var hostHint = hostNeedsStart
+            ? "Нажми «Старт», чтобы обновить модуль CELIKOM." : "";
         var trackProblem = trackHealth.Level == UserFacingPlaybackHealth.Severity.Error;
         // Exactly one small actionable message. No yellow, no duplicated
         // "not confirmed" banner while music is playing normally.
@@ -708,6 +713,7 @@ public sealed partial class MainWindow
         var originalPlaying = _bridge.Enabled &&
             _bridge.LastStatus == "ORIGINAL" && _compactPresenceStatus == "approved";
         _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
+            hostHint.Length > 0 ? hostHint :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
             originalPlaying ? "Играет оригинал. Версия CELIKOM доступна." :
             activelyReplacing ? "Подмена активна · версия CELIKOM" :
@@ -720,6 +726,7 @@ public sealed partial class MainWindow
                 _ => "Проверяем версию песни CELIKOM…"
             };
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
+            hostHint.Length > 0 ? Secondary :
             originalPlaying ? Secondary :
             activelyReplacing || _compactPresenceStatus == "approved" ? Accent :
             Secondary;
@@ -759,7 +766,7 @@ public sealed partial class MainWindow
                 (_compactTrackArtist, 25, 3, !string.IsNullOrWhiteSpace(_compactTrackArtist.Text)),
                 (_compactVersionStatus, 40, 8,
                     hasTrack || !string.IsNullOrWhiteSpace(_compactVersionStatus.Text) &&
-                        (UserFacingPlaybackHealth.Host(
+                        (hostNeedsStart || UserFacingPlaybackHealth.Host(
                             _nativeInstallState, _hostReport, _installedModule.MatchesApplication)
                             .Level is UserFacingPlaybackHealth.Severity.Error or
                                 UserFacingPlaybackHealth.Severity.Warning ||
