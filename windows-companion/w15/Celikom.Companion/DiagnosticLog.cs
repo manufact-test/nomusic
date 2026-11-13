@@ -55,7 +55,8 @@ public static class DiagnosticLog
 
     public static bool IsIncidentCode(string code) =>
         Code.IsMatch(code) &&
-        (code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
+        ((code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH") ||
+         code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.StartsWith("START_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.Contains("DISCONNECT", StringComparison.Ordinal) ||
          code.Contains("NETWORK", StringComparison.Ordinal) ||
@@ -188,6 +189,7 @@ public static class DiagnosticLog
             "NATIVE_STATE_RECEIVED" or "LOCAL_STATE_OK" or
             "RENDERER_STATE_DELIVERED" or "RENDERER_BRIDGE_STATE_SEEN";
         static bool IsIncident(string code) =>
+            (code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH") ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
             code.Contains("ERROR", StringComparison.Ordinal) ||
             code.Contains("FAILED", StringComparison.Ordinal) ||
@@ -348,6 +350,12 @@ public static class DiagnosticLog
         text.AppendLine("DecoderErrorObserved=" +
             entries.Any(s => s.Contains("|PLAYER_CDP_PIPELINE_ERROR", StringComparison.Ordinal) ||
                 s.Contains("|PLAYER_CDP_ERROR_MESSAGE", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("ElectronEventLoopStallObserved=" +
+            entries.Any(s => s.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("ElectronMemoryHighObserved=" +
+            entries.Any(s => s.Contains("|NATIVE_ELECTRON_MEMORY_HIGH", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         foreach (var line in entries.TakeLast(1600)) text.AppendLine(line);
         if (entries.Count == 0) text.AppendLine("NO_RECENT_EVENTS_AVAILABLE");

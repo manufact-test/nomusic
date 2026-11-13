@@ -747,6 +747,10 @@ try
         "W53 rejects ambiguous leading-zero resource IDs");
     Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139\nSECRET"),
         "W53 rejects multiline log injection");
+    Test(DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
+         DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_MEMORY_HIGH") &&
+         !DiagnosticLog.IsIncidentCode("WEB_CONTENTS_PRESENT"),
+        "W53 event-loop and memory warnings are durable incidents, ordinary status is not");
     var fixtureLogsDirectory = Path.Combine(folder, "owner-export-isolated");
     var nativeFixture = Path.Combine(fixtureLogsDirectory, "native-events.log");
     Directory.CreateDirectory(fixtureLogsDirectory);
@@ -761,7 +765,9 @@ try
         when + "|PLAYER_403_HTML|resource_id=739209\n" +
         when + "|PLAYER_403_PHP_ACCESS_DENIED|resource_id=739209\n" +
         when + "|PLAYER_NET_REQUEST|resource_id=739209?token=SENSITIVE\n" +
-        when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\n");
+        when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\n" +
+        when + "|NATIVE_ELECTRON_EVENT_LOOP_STALL\n" +
+        when + "|NATIVE_ELECTRON_MEMORY_HIGH\n");
     File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
         when + "|OWNER_DIAG_TEST|track=123\n");
     DiagnosticLog.Record("OWNER_DIAG_TEST", "123");
@@ -782,7 +788,9 @@ try
          snapshot.Contains("NativeMediaUrlSignedFieldsIntactObserved=true") &&
          snapshot.Contains("Native403PhpSignatureRejectionObserved=true") &&
          snapshot.Contains("Native403PhpAccessDenialObserved=true") &&
-         snapshot.Contains("Native403HtmlResponseObserved=true"),
+         snapshot.Contains("Native403HtmlResponseObserved=true") &&
+         snapshot.Contains("ElectronEventLoopStallObserved=true") &&
+         snapshot.Contains("ElectronMemoryHighObserved=true"),
         "W53 owner summary correctly reflects native resource events");
     Test(!snapshot.Contains("SENSITIVE"),"W53 malformed native lines cannot leak signed query or sid");
     var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
@@ -836,7 +844,9 @@ try
     var oldIncidentStamp = DateTimeOffset.UtcNow.AddMinutes(-13)
         .ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
     File.AppendAllText(Path.Combine(fixtureLogsDirectory, "companion-events.log"),
-        oldIncidentStamp + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
+        when + "|NATIVE_ELECTRON_EVENT_LOOP_STALL\n" +
+         when + "|NATIVE_ELECTRON_MEMORY_HIGH\n" +
+         oldIncidentStamp + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
         string.Concat(Enumerable.Repeat(when + "|NATIVE_STATE_RECEIVED\n", 2_500)) +
         when + "|ACTIVE_ENTITLEMENT_RECOVERED\n");
     var fullWindowJson = JsonSerializer.Serialize(DiagnosticLog.ExportSupportSnapshot(
@@ -850,6 +860,9 @@ try
             x.GetProperty("code").GetString() == "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED" &&
             x.GetProperty("ageSeconds").GetInt32() >= 720),
             "W72 13-minute-old disconnect survives more than 2500 later status polls");
+         Test(history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
+              history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_MEMORY_HIGH"),
+             "W53 performance incidents survive later native status polling in support attachment");
         Test(!history.Any(x => x.GetProperty("code").GetString() ==
              "NATIVE_STATE_RECEIVED") &&
              !fullWindowJson.Contains("SENSITIVE") && !fullWindowJson.Contains("token="),
@@ -862,12 +875,16 @@ try
     Directory.CreateDirectory(archiveDir);
     DiagnosticLog.Record("ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED", null, archiveDir);
     DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED", null, archiveDir);
+    DiagnosticLog.Record("NATIVE_ELECTRON_EVENT_LOOP_STALL", null, archiveDir);
+    DiagnosticLog.Record("NATIVE_ELECTRON_MEMORY_HIGH", null, archiveDir);
     DiagnosticLog.Record("NATIVE_STATE_RECEIVED", null, archiveDir);
     var preserved = DiagnosticLog.ReadIncidentHistory(archiveDir);
-    Test(preserved.Count == 2 &&
+    Test(preserved.Count == 4 &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")) &&
-         preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")),
-        "W75 only incident transitions are durably archived, not native poll chatter");
+         preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")) &&
+          preserved.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
+          preserved.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")),
+        "W75/W53 outage and performance incidents are durably archived, not native poll chatter");
     var noisy = string.Concat(Enumerable.Repeat(
         DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") +
         "|NATIVE_STATE_RECEIVED\n", 3000));
@@ -879,6 +896,8 @@ try
          historic.Contains("|ACTIVE_ENTITLEMENT_RECOVERED"),
         "W75 owner export still contains incident even after thousands of native polls");
     Test(!DiagnosticLog.IsIncidentCode("NATIVE_STATE_RECEIVED") &&
+          historic.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
+          historic.Contains("|NATIVE_ELECTRON_MEMORY_HIGH") &&
          !historic.Contains("token=") && !historic.Contains("password="),
         "W75 archived incidents never carry polling chatter or credentials");
     var savedPast = DateTimeOffset.UtcNow.AddHours(-3).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
