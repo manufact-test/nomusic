@@ -193,7 +193,7 @@ jobs:
         run: bash .github/scripts/hostinger-windows-gain-stage.sh
 
   windows-final-qa:
-    name: Build one final CELIKOM Windows 0.24.35 QA installer and ZIP
+    name: Build one final CELIKOM Windows 0.24.36 QA installer and ZIP
     needs: windows-gain-stage
     runs-on: windows-2022
     timeout-minutes: 55
@@ -242,7 +242,7 @@ jobs:
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'W98_W23_BUILD_FAILED' }
           $nativeHost=Get-Content dist/host.cjs -Raw
-          if ($nativeHost -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.28"' -or
+          if ($nativeHost -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.29"' -or
               $nativeHost -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
               $nativeHost -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
               $nativeHost -notmatch 'NATIVE_REPLACEMENT_SOURCE_RELOAD') {
@@ -266,12 +266,12 @@ jobs:
         run: |
           & ./windows-companion/w20/release-gate.ps1 -Mode Stage
           if ($LASTEXITCODE -notin @(0,$null)) { throw 'W98_STAGE_GATE_FAILED' }
-      - name: Publish GUI 0.24.35
+      - name: Publish GUI 0.24.36
         shell: pwsh
         run: |
           dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
           if ($LASTEXITCODE -ne 0) { throw 'W98_PUBLISH_FAILED' }
-      - name: Build final 0.24.35 QA installer; do not install on owner computer
+      - name: Build final 0.24.36 QA installer; do not install on owner computer
         shell: pwsh
         run: |
           $compiler=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
@@ -281,15 +281,15 @@ jobs:
           }
           & $compiler windows-companion/w20/installer/CELIKOM.iss
           if ($LASTEXITCODE -ne 0) { throw 'W98_INNO_BUILD_FAILED' }
-          $setup='windows-companion/w20/output/CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.exe'
+          $setup='windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
           if (!(Test-Path $setup)) { throw 'W98_INSTALLER_MISSING' }
           $info=[Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $setup).Path)
-          if ($info.FileVersion.Trim() -ne '0.24.35.0' -or $info.ProductName.Trim() -ne 'CELIKOM') { throw 'W98_VERSION_MISMATCH' }
+          if ($info.FileVersion.Trim() -ne '0.24.36.0' -or $info.ProductName.Trim() -ne 'CELIKOM') { throw 'W98_VERSION_MISMATCH' }
       - name: Update ZIP valid for the in-app updater
         shell: pwsh
         run: |
-          $setup='windows-companion/w20/output/CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.exe'
-          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.zip'
+          $setup='windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip'
           Compress-Archive -Path $setup -DestinationPath $zip
           $env:CELIKOM_UPDATE_TEST_PACKAGE=$zip
           dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
@@ -301,12 +301,12 @@ jobs:
           repository: manufact-test/nomusic
           github-token: ${{ github.token }}
           path: previous-W89
-      - name: In-place 0.24.33 to 0.24.35 upgrade; preserve DPAPI and install only CELIKOM assets
+      - name: In-place 0.24.33 to 0.24.36 upgrade; preserve DPAPI and install only CELIKOM assets
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $old=(Resolve-Path 'previous-W89/CELIKOM-W89-VPN-FAST-RECOVERY-TRACK-FIX-TEST-UNSIGNED.exe').Path
-          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.exe').Path
+          $new=(Resolve-Path 'windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe').Path
           if ((Get-FileHash $old -Algorithm SHA256).Hash -ne '414EDBA856A12B25CB3EDE26D136C7F263CFC02FC3448730C7F7D02D60791879') { throw 'W98_PREVIOUS_EXE_HASH_UNTRUSTED' }
           $app=Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM'
           $exe=Join-Path $app 'CELIKOM.Companion.exe'
@@ -326,7 +326,7 @@ jobs:
           $sessionBefore=(Get-FileHash $session -Algorithm SHA256).Hash
           $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W98_INPLACE_SETUP_FAILED' }
-          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.35.0') { throw 'W98_NEW_VERSION_MISMATCH' }
+          if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.36.0') { throw 'W98_NEW_VERSION_MISMATCH' }
           if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $sessionBefore) { throw 'W98_DPAPI_CHANGED' }
           $plain=[Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($session),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))
           if ($plain -ne 'W98_SAVED_LOGIN_PRESERVED') { throw 'W98_DPAPI_UNDECRYPTABLE' }
@@ -338,7 +338,7 @@ jobs:
           $hostScript=Get-Content (Join-Path $native 'host.cjs') -Raw
           if ($hostScript -notmatch 'PLAYER_DECODER_CELIKOM_SOURCE_MATCHED' -or
               $hostScript -notmatch 'NATIVE_ORIGINAL_SOURCE_NO_RELOAD' -or
-              $hostScript -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.28"') {
+              $hostScript -notmatch 'CELIKOM_NATIVE_VERSION = "0.24.29"') {
             throw 'W98_NATIVE_HOST_NOT_INSTALLED'
           }
           if ((Test-Path (Join-Path $app 'unins001.exe')) -or !(Test-Path (Join-Path $app 'unins000.exe')) -or (Test-Path $vendor)) { throw 'W98_VENDOR_OR_APPID_CHANGED' }
@@ -346,27 +346,27 @@ jobs:
       - name: Create final EXE, update ZIP and SHA256 manifest
         shell: pwsh
         run: |
-          $exe='windows-companion/w20/output/CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.exe'
-          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.zip'
+          $exe='windows-companion/w20/output/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
+          $zip=Join-Path $env:RUNNER_TEMP 'CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip'
           $check=Join-Path $env:RUNNER_TEMP 'W98-ZIP-CHECK'
           Expand-Archive -Path $zip -DestinationPath $check -Force
-          $inside=Join-Path $check 'CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.exe'
+          $inside=Join-Path $check 'CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe'
           if (!(Test-Path $inside)) { throw 'W98_ZIP_CONTENT_MISSING' }
           $exeHash=(Get-FileHash $exe -Algorithm SHA256).Hash
           $insideHash=(Get-FileHash $inside -Algorithm SHA256).Hash
           if ($exeHash -ne $insideHash) { throw 'W98_ZIP_EXE_HASH_MISMATCH' }
           $zipHash=(Get-FileHash $zip -Algorithm SHA256).Hash
-          New-Item -ItemType Directory -Force -Path 'dist/CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST' | Out-Null
-          $out='dist/CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST'
+          New-Item -ItemType Directory -Force -Path 'dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST' | Out-Null
+          $out='dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST'
           Copy-Item $exe $out
           Copy-Item $zip $out
-          @("$exeHash  CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.exe","$zipHash  CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST.zip") | Set-Content -Path "$out/SHA256SUMS.txt" -Encoding ascii
+          @("$exeHash  CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.exe","$zipHash  CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST.zip") | Set-Content -Path "$out/SHA256SUMS.txt" -Encoding ascii
           Write-Host "W98_EXE_SHA256=$exeHash"
           Write-Host "W98_ZIP_SHA256=$zipHash"
       - name: Upload the single final QA package
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Windows-W98-0.24.35-INTEGRATED-QA-TEST
-          path: dist/CELIKOM-Windows-0.24.35-INTEGRATED-QA-TEST/*
+          name: CELIKOM-Windows-W98-0.24.36-INTEGRATED-QA-TEST
+          path: dist/CELIKOM-Windows-0.24.36-INTEGRATED-QA-TEST/*
           if-no-files-found: error
           retention-days: 30

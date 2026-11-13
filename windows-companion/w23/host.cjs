@@ -1,5 +1,5 @@
 "use strict";
-const CELIKOM_NATIVE_VERSION = "0.24.28";
+const CELIKOM_NATIVE_VERSION = "0.24.29";
 
 /**
  * CELIKOM main-process relay for genuine Yandex Music desktop.
