@@ -153,3 +153,17 @@ Native 25/25 idle test does **not** tap onboarding or enter :passport; owner acc
 - Uploaded and verified in user's Library: `/CELIKOM/CELIKOM-A1-NAV4-Passport-Witness-20261113.apk`.
 - Next owner step: uninstall **only** old disposable NAV3 CELIKOM clone because CI temporary signatures differ; keep original Yandex installed, install NAV4 APK, confirm top-right `Диагностика NAV4`. Repeat one onboarding transition; if task closes, reopen clone and tap button **once**, send TXT from Downloads/CELIKOM A1. No USB, ADB, PC, password, account details or another video required. If login opens successfully, this is welcome but needs a separate logged-in/playback acceptance before any audio claim.
 - Protected original known-good Firebase backup `backup/android-a1-firebase-namespace-success-witness-20261113` untouched; additional pre-change reserve `backup/android-a1-nav3-owner-runtime-before-passport-observer-20261113` at `7b6d9f3bbadc2d6341cadbc8441d7cb304f126b3`. No changes to Test.50, original Yandex, production, Windows or native B42 audio; no product release.
+
+## 13 Nov — NAV4 owner phone: definitive Passport subprocess crash
+
+Owner files: SVID_20261113_215824_1.mp4 (55.49s) and CELIKOM-A1-Diagnostics-1794596358589.txt (407 event records). The correct NAV4 running on the phone is proven by event #3 DIAGNOSTIC_BUILD/NAV_V4_PASSPORT_WITNESS/ACTIVE. The video confirms intro -> auth loading -> Android launcher -> fresh intro after a second launch.
+
+Root-cause boundary established:
+- #285-288 and #303-306: the vendor intro explicitly attempts to open EXPLICIT_OWN_PASSPORT in the clone package; Android startActivity returns normally, not proof the Activity became usable.
+- #349-362 at owner export: Android ApplicationExitInfo records FOUR JAVA_CRASH exits belonging to pro.celikom.yandex.nativeclonelab:passport, all within five minutes. These are not MAIN process crashes.
+- #364-407: the private Passport log proves FOUR repeated process sessions. Each has PASSPORT_PROCESS/APPLICATION_READY and APP_LIFECYCLE ENTER/RETURN, an uncaught IllegalStateException on another thread, FATAL_DISPATCH/NOT_METRICA and PROCESS_KILL/KILL_TARGET_SELF. Several sessions create a vendor Activity. This is conclusive that :passport actually crashes; prior main-only logs could not capture it.
+- The exception message/cause and stack site remain UNKNOWN: NAV4 intentionally stores no message or stack. Do not speculate that signing, providers, Firebase or credentials are the root cause, and do not bypass authentication or app-signature protections.
+
+For a single bounded next diagnosis, experimental NAV5 source 0851e384101e2bc21a16043350e1cfed24b0d97d adds fatal-only Passport exception/cause categories, fixed lexical message hints and max ten SHA-256 class#method frame fingerprints per cause level. The file does NOT store message text, class/method names, credentials, tokens or URLs; the original fatal execution is untouched. UI marker Диагностика NAV5; persisted DIAGNOSTIC_BUILD/NAV_V5_PASSPORT_FATAL_CAUSE. Resolve fingerprints against the exact 2025.10.4 embedded original DEX in a private environment, not by guessing from generic errors. This is diagnostic only and requires both ARM13 CI gates before owner use.
+
+Safety reserve before NAV5: backup/android-a1-nav4-real-passport-illegalstate-owner-proof-20261113 @ fed35ede4acdbf2ea9e9c9c0405fa517aa4d1e53. Firebase known-good, original Yandex, B42, Test.50, Windows and production remain unchanged. Native ARM13 idle 25/25 is still not an onboarding/login/music acceptance test.
