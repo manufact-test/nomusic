@@ -1,0 +1,63 @@
+name: CELIKOM Windows W91 signed offline gain sidecar CI (NO DEPLOY)
+on:
+  push:
+    branches:
+      - experiment/windows-w91-gain-variant-sidecar-20261113
+    paths:
+      - server/**
+      - scripts/windows-gain-render.sh
+      - windows-companion/w15/**
+      - windows-companion/w22/**
+      - windows-companion/w23/**
+      - .github/workflows/windows-w91-gain-sidecar-ci.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  server-and-offline-audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: PHP 8.3 syntax, signed media Range, HMAC, unchanged original
+        shell: bash
+        run: |
+          php -v
+          php -l server/src/Application/WindowsGainVariant.php
+          php -l server/src/Application/ResolveService.php
+          php -l server/src/Application/AudioTokenService.php
+          php -l server/src/Http/AudioController.php
+          php -l server/src/Repositories/PdoCatalogRepository.php
+          php -l server/src/Application.php
+          php server/tests/windows-gain-variant.php
+      - name: Deterministic offline synthetic gain rendering, never real songs
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg && command -v ffprobe
+          ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i 'sine=frequency=440:duration=4:sample_rate=44100' -c:a libmp3lame -b:a 192k "$RUNNER_TEMP/original.mp3"
+          bash scripts/windows-gain-render.sh "$RUNNER_TEMP/original.mp3" "$RUNNER_TEMP/processed.mp3" 6.0
+          [[ -s "$RUNNER_TEMP/processed.mp3" ]] || exit 2
+          [[ "$(sha256sum "$RUNNER_TEMP/original.mp3" | cut -d' ' -f1)" != "$(sha256sum "$RUNNER_TEMP/processed.mp3" | cut -d' ' -f1)" ]] || exit 3
+          echo W91_SYNTHETIC_OFFLINE_RENDER_PASS
+  windows-native:
+    runs-on: windows-2022
+    timeout-minutes: 26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Native source, stop, pause, seek, VPN and exact signed variant tests
+        run: node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+      - name: W15 owner auth, entitlement, gain and immutable source contract
+        run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Native GUI compile warnings as errors
+        run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
