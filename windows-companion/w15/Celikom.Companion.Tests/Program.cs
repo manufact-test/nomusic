@@ -1360,10 +1360,14 @@ try
     if (!string.IsNullOrWhiteSpace(zipFixture))
     {
         var staged = AppUpdateManager.Stage(zipFixture, new Version(0, 24, 16, 0));
-        Test(staged.Version == new Version(0, 24, 36, 0),
-            "ZIP one-click updater accepts new CELIKOM version");
-        Test(Path.GetFileName(staged.Path).StartsWith("CELIKOM-W100-",StringComparison.Ordinal),
-            "ZIP extraction stages only CELIKOM installer");
+        Test(staged.Version == AppUpdateManager.RunningVersion,
+            "W136 ZIP one-click updater accepts the actual current CELIKOM version");
+        Test(System.Text.RegularExpressions.Regex.IsMatch(
+                Path.GetFileName(staged.Path),
+                @"^CELIKOM-W[0-9]{1,3}-[A-Z0-9-]{3,80}-UNSIGNED\.exe$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant),
+            "W136 ZIP extraction stages only the current CELIKOM installer contract");
         bool oldRejected = false;
         try { AppUpdateManager.Stage(zipFixture, AppUpdateManager.RunningVersion); }
         catch (IOException e) when (e.Message == "UPDATE_NOT_NEWER") { oldRejected = true; }
