@@ -35,3 +35,19 @@ A review before native CI acceptance found that the new regex had double-escaped
 The earlier strict CI runs #43597709855 and #43597709845 were FAILURE because they required the new original LoginFragment hooks to register during a MAIN-only 75-second idle acceptance test. Both observed stable 25/25 MAIN, ORIGINAL_KEY_PERSISTED and all four pre-existing registration gates REGISTERED. FLOW/PIPELINE returned NOT_OBSERVED (not NO_HOOK). These new observers are deliberately armed only on Entry Activity CREATED, which idle CI never reaches. Thus the unconditional gate was wrong; there was no proven startup regression.
 
 The corrected source checks `postlogin_entry_created_observed`: if real Entry CREATED is logged, BOTH FLOW/PIPELINE must REGISTERED; if Entry is absent, NOT_OBSERVED is permitted but NO_HOOK/UNAVAILABLE still fails. The new synthetic source test executes the actual gate against idle and Entry examples. This remains registration-only startup acceptance; it cannot prove login or audio. Exact pre-correction backup `backup/android-a1-nav13-pre-entry-scoped-ci-gate-fix-20261114` @ e33a132f2eb0289d78cea885b62e03957a5be272.
+
+## Final latest native CI (source SHA `26e952d1f6b0d980b10ed5c9d21310f6d20c0d20`)
+
+Both native no-suppression Android 13 runs completed SUCCESS after correcting the Entry-scoped admission test:
+
+- Clone-only #43598738033: `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`, `native_clone_main_75s=true`, `master_key_init_runtime_status=ORIGINAL_KEY_PERSISTED`; new `FLOW` and `PIPELINE` statuses `NOT_OBSERVED`, `postlogin_entry_created_observed=false`, `postlogin_registration_accepted=true`. This is the correct classification when the real LoginFragment was not opened.
+- Publisher-first paired #43598738007: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, original publisher stable 75s before clone and still installed after clone launch; clone native MAIN stable for 75s (25/25 observations); original key persisted, persistent owner signing certificate verified, no uncaught exception or Metrica fatal suppression. Same no-Entry FLOW/PIPELINE statuses and correct admission.
+
+The previously failing runs #43597709855 and #43597709845 were false negatives caused by inappropriate unconditional hook registration admission. New CI runs passed only after exact Entry-scoped test fix; do not repeat these flawed expectations.
+
+**The new LoginFragment FLOW/PIPELINE hooks are NOT yet observed REGISTERED on a real Entry run.** Their source compile and no-Entry native safety are verified; no user OTP/login or audio occurred in CI. No new APK was published, no owner handset affected, no original Yandex/Test.50/Windows/production modified. Signed owner APK from previous #43593916246 remains the only delivered binary.
+
+Exact rollback backup for native CI-green source:
+`backup/android-a1-nav13-owner-receipt-source-ci-green-20261114` @ `26e952d1f6b0d980b10ed5c9d21310f6d20c0d20`.
+
+Actual owner-login root cause remains unresolved between original token API, userinfo fetch and synchronization, as real TXT lacks more granular result events. Stage A NO-GO, Stage B LOCKED. The next assistant should not ask for OTP or another install now: first verify source version and assess whether one more controlled owner login is truly justified, then seek explicit owner readiness before doing so.
