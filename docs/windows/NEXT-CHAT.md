@@ -1,32 +1,94 @@
-# CELIKOM Windows — CURRENT HANDOFF / 14 November 2026
+# CELIKOM Windows — AUTHORITATIVE CURRENT HANDOFF / 14 November 2026
 
-Repository: `manufact-test/nomusic`.
-**ONE active product line:** `main`.
-**Latest verified code/test HEAD:** `228a9d66cd2f858a537ce37a773fe65820a4e964`.
-- Main CI [43592142890](https://github.com/manufact-test/nomusic/actions/runs/43592142890) — **SUCCESS**.
-- Windows integration CI [43592142866](https://github.com/manufact-test/nomusic/actions/runs/43592142866) — **SUCCESS**.
-- Stage 5 live integrity audit [43592142904](https://github.com/manufact-test/nomusic/actions/runs/43592142904) — **SUCCESS**.
-- W90 live read-only gain inventory [43592142899](https://github.com/manufact-test/nomusic/actions/runs/43592142899) — **SUCCESS**.
-- W98 exact post-stage identity and signed Range reconciliation [43592142876](https://github.com/manufact-test/nomusic/actions/runs/43592142876) — **SUCCESS**.
-- Exact pre-documentation backup: `backup/windows-main-pre-w118-docs-20261114` @ the code/test SHA above.
-No new `experiment/*` branches. Before substantial changes create an exact `backup/*`; avoid touching Android, extension, private original media or unrelated server logic.
+> **READ FIRST.** This is the controlling handoff for CELIKOM Windows. Read `docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md`. If any older W-series note or previous chat conflicts with this top section or W119, follow W119. Older sections below are technical history, not current work orders.
 
-## W118 — latest Windows result
+## Hard product rule — one product, one main version
 
-Read `docs/windows/W118-W98-EXACT-POST-STAGE-IDENTITY-AND-LIVE-RANGE-20261114.md`.
+- There is **one existing CELIKOM Windows product**.
+- `main` is the actual version being developed and maintained. All code work happens directly on `main`.
+- `backup/*` contains exact snapshots of `main` made before substantial changes. Backups are rollback points only, not development branches.
+- There is NO Windows TEST product/version, no separate QA product, no `experiment/*` development branch, no parallel product and no intermediate installer.
+- Never call `main` a test version. Automated CI/tests are engineering checks only; they do not create another product.
+- Do not change the agreed architecture or start from scratch.
+- Do not build/send an installer until the complete agreed work is finished. Then produce one final EXE+ZIP from `main`.
 
-- #56 server-side private gain sidecar is present and live signed Range 206 / `gain_applied=true` is verified against the exact original track/version/gain/source SHA and sidecar SHA.
-- W90 found 1 active nonzero-gain replacement: replacement 37 / track 40371622 / +11.5 dB. Other 1,492 active replacements have zero gain.
-- No new sidecar row or audio render was needed in the final W98 pass; original media stayed unchanged.
-- Nine W98 identity/TSV contract tests pass.
-- #56 still needs real Windows listening/seek/Next/crossfade/403 acoustic acceptance. #54 remains separate.
-- No EXE+ZIP has been built or delivered in W118.
+## Exact repository state
 
-## Immediate next priority
+- Repository: `manufact-test/nomusic`.
+- Current `main` HEAD: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- Last Windows-specific implementation commit: `dafb6191a8e311053f64b455fec075f3944706f1` (W20 existing-installer Supervisor allowlist/gate).
+- Current HEAD is a subsequent repository-wide Android A1 diagnostic-workflow commit. Preserve it; do not modify/reset Android work.
+- Exact backup before this documentation update: `backup/windows-main-pre-owner-work-order-20261114` @ `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- Main CI [43593559415](https://github.com/manufact-test/nomusic/actions/runs/43593559415) — **SUCCESS**.
+- CELIKOM Windows integration CI [43593559384](https://github.com/manufact-test/nomusic/actions/runs/43593559384) — **SUCCESS**. Includes W20 stage allowlist, Supervisor in the same installer definition, W110 simulation, W117 fail-closed checks, existing VPN/audio/source regressions and warning-as-error builds.
 
-Prepare **one coherent Windows QA EXE+ZIP** from current `main`, using the existing final-QA packaging path but **without replaying the old one-shot Hostinger deployment/migration request**. Verify in-place upgrade/session/native integration preservation and checksums, then give the owner one build for consolidated PC acceptance. Do not publish a public stable feed or mass-roll out.
+## Current state — what is and is not done
 
-The automatic updater remains dormant: production P-256 pin, Authenticode signer pin and official feed origin are unprovisioned; no live signed feed, trusted Supervisor launch callsite or real crash/rollback field test exists. Do not call it ready.
+### Implemented and CI-validated infrastructure
+W105–W118 contain signed-package validation, SHA-256/Authenticode checks, DPAPI rollback journal, previous/target package retention, independent Supervisor health witness, schema-2 exact payload identity, signed manifest generation, immutable version manifests, initial LKG bootstrap and shared fail-closed trust configuration. W20 verifies the existing installer definition contains exactly:
+- existing CELIKOM app EXE;
+- `integration/host.cjs`;
+- `integration/renderer.js`;
+- `CELIKOM.UpdateSupervisor.exe`.
+
+This is meaningful implementation progress, **not a production-ready automatic updater**.
+
+### W118 server-side gain proof
+- W90 inventory: 1,493 active approved replacements; one nonzero-gain row (replacement 37 / track 40371622 / +11.5 dB), 1,492 zero-gain rows, no invalid values.
+- W98 verified the existing private sidecar's exact source/version/gain/SHA identity and live signed HTTP 206 range. No new render or sidecar row was needed.
+- Stage 5 integrity audit passed; live DB was not restored/rewritten and original audio objects were not changed.
+- Nine W98 identity/TSV tests passed.
+- This is server-side proof only. It does not close Windows listening/seek/Next/crossfade/403/VPN behavior or #56 owner acceptance.
+
+### Still incomplete
+- All owner issues #52, #53, #54, #56, #57 and #58 are still **OPEN**.
+- VPN A→B and reconnect, original-track continuity, first connection, startup, autostart, tray and diagnostics still need implementation/behavioral acceptance.
+- Automatic updater is not production-ready: production P-256 pin, Authenticode signer pin and official HTTPS feed origin are empty/unprovisioned; no confirmed live signed-feed publisher, signed latest-manifest consumer, trusted Supervisor launch callsite, update coordinator/scheduler/notices or real production-signed crash/one-shot rollback test.
+- No final Windows EXE+ZIP has been built or delivered.
+
+### Legacy installer naming — do not misinterpret it
+The current Inno script still has historical `AppVersion=0.24.36` and `OutputBaseFilename=CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED`. This is stale W100 metadata, **not** a separate product or a request to create a TEST build. Do not build/distribute that stale artifact. At the end, update the final version/name as part of the single final `main` build. No interim installers.
+
+## Owner's complete task list
+
+1. VPN A→B: reliable, fast reconnect/recovery without long hangs, hiss or quiet return.
+2. #52 «Ты» (13 карат): truthful confirmation of the actual alternate playback source; no false “active” state.
+3. #53 Brave/Windows performance: diagnose system/browser freezes, resource load and elevated-rights/startup behavior.
+4. #54 Big City Life: fix the mid-track volume drop.
+5. #56 admin gain: apply consistently to intended tracks; verify real loudness/headroom, seek, Next, crossfade and recovery.
+6. #57 expired URL 403→206: remove hiss/click/pop during stream recovery.
+7. #58 originals/«Моя волна»: prevent pops/cuts when VPN changes during non-replaced playback.
+8. First connection/startup: fix first and subsequent connection initialization, unsupported-version/server errors and recovery.
+9. Diagnostics: keep available after disconnect and make status truthful.
+10. Autostart/tray: correct Windows startup, tray, reconnect and failure recovery.
+11. Yandex update detection: at least every 30 minutes, preferably faster.
+12. Signed updater: finish signature, SHA-256, Authenticode and package-substitution protection.
+13. Supervisor: connect it to the existing CELIKOM product.
+14. Automatic one-shot rollback: restore last working version after failure while preserving account/DPAPI/native/user data.
+15. Production update delivery: real keys/certificates, official HTTPS origin, signed manifests and reliable delivery.
+16. Integrated verification: update, forced failure, rollback, account/native/Yandex safeguards and full regressions.
+17. One final EXE+ZIP and mass update only after all work and owner acceptance.
+
+Full descriptions and strict work rules are in W119. Do not drop or replace any item.
+
+## Mandatory work method and next order
+
+- Continue directly on `main`; create and verify an exact `backup/*` before substantial code changes.
+- Work in large coherent blocks; do not stop after each small patch or ask the owner to manually test intermediate builds.
+- Finish the complete Windows issue/task list and the updater end-to-end in the one existing product. Do not package early.
+- Never touch Android, browser extension behavior, original audio files or unrelated server logic during Windows work.
+- Do not invent production pins, certificates or feed URLs. Do not request passwords/emails/tokens or private signing keys in chat.
+- CI is necessary but does not prove audible or owner-PC acceptance. Keep issues open until the behavior is actually fixed.
+- After the complete work, run integrated CI/security/regression checks, then create one final EXE+ZIP from `main`. Group unavoidable owner-PC checks into one consolidated acceptance pass. Only after acceptance prepare mass update.
+- Keep reports short and infrequent. Continue working without progress spam; ask the owner only when a real owner action is necessary.
+
+## Controlling handoff
+
+Read `docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md` first. The W117/W118 and W100–W118 notes below are historical implementation records. Their old “next priority”, “QA package”, “TEST release”, branch and installer instructions are superseded. Do not follow them as current work orders.
+
+---
+
+## Historical technical records — archive only; W119 overrides stale next steps
 
 ## W117 — shared fail-closed trust configuration and dormant first-LKG startup bootstrap
 
@@ -65,38 +127,9 @@ The automatic updater remains dormant: production P-256 pin, Authenticode signer
 
 Do not paste private keys into chat or commit them. Do not fill production pins with guessed values. Do not publish to the Hostinger QA hostname as a substitute for the official feed. Do not enable automatic installation until the actual signed update/rollback path passes on Windows.
 
-## Current Windows product work — owner QA before updater expansion
+## Superseded W117/W118 work-order snapshot — archive only
 
-W118 has completed the W98 server-side gain verification and exact identity binding. The previous W100/W117 notes below are historical; do not replay the old failed Stage 5 request or repeat migration 020.
-
-- **#56 server sidecar: verified in code + CI + live signed Range.** The active Big City Life row (replacement 37 / track 40371622 / +11.5 dB) has an existing private sidecar; W98 confirmed exact source/version/gain/sidecar identity and HTTP 206 with `gain_applied=true`. No new row or render was needed in the final check.
-- W90 live inventory: 1,493 active approved replacements; one nonzero gain, 1,492 at 0 dB, no invalid gain values.
-- Stage 5 live audit: PASS. Snapshot/original audio integrity and additive migration invariants verified; the live database was not restored or rewritten.
-- The W98 exact-identity helper has nine passing tests covering replacement-set drift, source/version/gain/duration/size mismatch, sidecar SHA mismatch, live Range mismatch, entitlement/ETag/206 and existing-sidecar TSV parsing.
-- **Owner acoustic QA remains open:** #56 loudness/headroom/seek/Next/crossfade/403; #54 Big City Life mid-track drop; #52 «Ты»; #53 Brave/Windows performance; #57 403→206 hiss; #58 original-track VPN switch; VPN reconnect and startup/tray/diagnostics. Keep each diagnosis separate and do not close from CI alone.
-
-## Next work order
-
-1. Inspect the existing `hostinger-deploy.yml` final-QA packaging job and reuse its safe build/verification steps without replaying its old one-shot deploy request, migration or gain-stage jobs.
-2. Build exactly one coherent Windows QA EXE+ZIP from a fixed `main` SHA. Verify installer metadata, ZIP CRC/contents, SHA-256, same-AppId in-place upgrade, DPAPI login/session, native host/renderer/Supervisor packaging, Yandex originals and extension files.
-3. Deliver that one package to the owner for a consolidated real-PC listening and functional acceptance pass. No intermediate installers, no TEST product line, no public stable feed and no mass release.
-4. Fix any owner findings on the same `main` line with exact backups. After acceptance, return to the updater consumer/launch wiring and genuine signed crash/rollback test.
-
-## Read first
-
-1. `docs/windows/W118-W98-EXACT-POST-STAGE-IDENTITY-AND-LIVE-RANGE-20261114.md`
-2. `docs/windows/W117-TRUST-CONFIG-AND-DORMANT-LKG-BOOTSTRAP-20261114.md`
-3. `docs/windows/W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md`
-4. `docs/windows/W98-INTEGRATED-QA-AND-LIVE-GAIN-HANDOFF-20261113.md`
-5. `docs/windows/W93-PRIVATE-GAIN-STAGING-AND-ROLLBACK-20261113.md`
-6. `docs/windows/W116-FIRST-SIGNED-BOOTSTRAP-AND-IMMUTABLE-VERSION-MANIFEST-20261114.md`
-7. `docs/windows/W115-LAST-KNOWN-GOOD-SIGNED-PACKAGE-CACHE-20261114.md`
-8. `docs/windows/W114-SUPERVISOR-PAYLOAD-AND-SINGLE-INSTALLER-20261114.md`
-9. `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`
-10. `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md`
-11. `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`
-12. `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
-13. GitHub issues #52, #53, #54, #56, #57, #58.
+The W117/W118 implementation records immediately above this point are historical. Their old instruction to prepare an early “QA” or “TEST” EXE+ZIP is superseded and must not be followed. Their old Stage 5/W98 repair sequence is also superseded: W118 records the successful W90/W98/Stage 5 results. Current work is defined only by the authoritative top of this file and W119.
 
 ## W113–W114 implementation history — 14 November 2026
 

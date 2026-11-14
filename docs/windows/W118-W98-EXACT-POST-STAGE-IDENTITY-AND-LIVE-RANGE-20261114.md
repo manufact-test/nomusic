@@ -1,5 +1,8 @@
 # W118 — W98 exact post-stage identity and signed Range reconciliation
 
+> **Historical technical record.** The live W98/W90/Stage 5 facts below remain valid, but the old “Next work order” is superseded. Do not create a QA/TEST product or early installer. Follow `docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md` and the authoritative top of `NEXT-CHAT.md`. There is one product, developed on `main`; `backup/*` are exact rollback snapshots only.
+
+
 Date: 14 November 2026  
 Repository: `manufact-test/nomusic`  
 Product line: `main` only
@@ -49,13 +52,9 @@ The remote live-verification response now returns the additional identity witnes
 - No Windows installer/ZIP was built or delivered in W118.
 - The CELIKOM automatic updater remains dormant and **not production-ready**: production trust values are empty, no live signed feed is published, the main app has no trusted Supervisor launch callsite, and no real signed crash/rollback test has run.
 
-## Next work order
+## Superseded next-work note
 
-1. Prepare exactly one coherent Windows QA EXE+ZIP from the current `main`, reusing the existing final-QA packaging path without replaying the old one-shot Hostinger deployment/migration request.
-2. Verify installer metadata, ZIP structure/CRC, SHA-256 values and in-place upgrade/session/native integration preservation.
-3. Deliver that one build for a consolidated owner-PC acceptance pass. Do not publish to the public stable feed or mass-roll out.
-4. Keep #52/#53/#54/#56/#57/#58 and VPN reconnect separate in the owner QA checklist.
-5. Return to the customer updater only after the owner accepts the coherent Windows build. Keep W117 trust/bootstrap dormant until genuine production pins and official feed are provisioned.
+The earlier instruction to prepare a Windows QA EXE+ZIP immediately is obsolete. No installer was built by W118. Do not build an intermediate package. Continue all owner tasks and production updater work directly on the one existing `main` product. The only package to produce is one final EXE+ZIP after the full implementation and integrated checks, as defined in W119.
 
 ## Safety
 

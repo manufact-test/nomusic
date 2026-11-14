@@ -1,5 +1,8 @@
 # W117 — shared fail-closed trust configuration and dormant LKG bootstrap
 
+> **Historical implementation record.** Its old “Next priority” is superseded by W118 and W119. Do not repeat the old W98 Stage 5 repair sequence and do not create a TEST/QA product or early installer. Follow W119 and the authoritative top of `NEXT-CHAT.md`: one product on `main`, exact `backup/*` snapshots only.
+
+
 Date: 14 November 2026  
 Repository: `manufact-test/nomusic`  
 Product line: `main` only
@@ -66,13 +69,7 @@ Both CI gates passed on the exact commit.
 
 The W117 startup hook is dormant by design until all production trust inputs are approved. Do not populate placeholders with guessed values. Do not use the Hostinger QA hostname as a production update feed. Do not paste private keys into chat or commit them.
 
-## Next priority
+## Superseded next-priority note
 
-Per W101 product policy, do not expand the updater further while the requested Windows audio fixes remain unfinished.
+The Stage 5/W98 work listed in the original W117 handoff was subsequently completed and superseded by W118. Do not repeat it unless fresh evidence shows a new failure. The current full task list, product rules and next work order are in `docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md` and the authoritative top of `NEXT-CHAT.md`.
 
-1. Fix the W98 Stage 5 isolated SQL restore assertion; the failed run [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358) completed private snapshot and original-audio hash restore checks but failed the isolated database invariant.
-2. Investigate the current `.github/scripts/hostinger-stage5.sh` hardcoded Big City Life sidecar requirement before rerunning any production workflow. The sidecar staging job runs after this restore check, so the assertion may be checking future state too early.
-3. Re-audit all active approved nonzero-gain replacements read-only, then use the W98 offline/private sidecar pipeline with exact source/version/gain/hash checks and rollback.
-4. Keep #52, #53, #54, #57, #58 and VPN reconnect separate; CI is not owner acoustic acceptance.
-
-Keep one existing CELIKOM Windows product and one `main` branch. No intermediate customer installer or mass release.
