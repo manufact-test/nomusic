@@ -85,11 +85,32 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('getPassword(',part)
         self.assertNotIn('getString(',part)
 
+    def test_onboarding_writer_witness_is_exact_read_only_and_persist_observed(self):
+        s=self.code
+        self.assertIn('Class.forName("android.app.ContextImpl", false, null)',s)
+        self.assertIn('getDeclaredMethod("getSharedPreferences", String.class, int.class)',s)
+        self.assertIn('"Yandex_Music".equals(name)',s)
+        self.assertIn('Class.forName("android.app.SharedPreferencesImpl", false, null)',s)
+        self.assertIn('Class.forName("android.app.SharedPreferencesImpl$EditorImpl", false, null)',s)
+        self.assertIn('getDeclaredMethod("putBoolean", String.class, boolean.class)',s)
+        self.assertIn('"onboarding".equals(key)',s)
+        self.assertIn('getDeclaredMethod("commit")',s)
+        self.assertIn('getDeclaredMethod("apply")',s)
+        self.assertIn('emit("ONBOARDING_WRITE"',s)
+        self.assertIn('emit("ONBOARDING_WRITE_PERSIST"',s)
+        part=s[s.index('private synchronized void installOnboardingWriterWitness('):
+                s.index('private void observeOnboardingReadOnly(',s.index('private synchronized void installOnboardingWriterWitness('))]
+        self.assertNotIn('.putBoolean(',part)
+        self.assertNotIn('.putString(',part)
+        self.assertNotIn('.setResult(',part)
+        self.assertNotIn('.startActivity(',part)
+        self.assertIn('NAV_V12_ONBOARDING_WRITER_WITNESS',s)
+
     def test_scoped_to_real_clone_entry_only(self):
         s=self.code
         self.assertIn('!"ENTRY_ACTIVITY".equals(activityFamily(activity))',s)
         self.assertIn('postLoginHookAttempts.incrementAndGet() > 3',s)
-        self.assertIn('NAV_V11_FRESH_MASTER_KEY_ORDER_TRIAL',s)
+        self.assertIn('NAV_V12_ONBOARDING_WRITER_WITNESS',s)
 
 if __name__=="__main__":
     unittest.main()

@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V11_FRESH_MASTER_KEY_ORDER_TRIAL";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V12_ONBOARDING_WRITER_WITNESS";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -84,6 +84,13 @@ public final class ExitCallsiteWitness extends XposedModule {
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger onboardingReads =
         new java.util.concurrent.atomic.AtomicInteger();
+    private boolean onboardingWriterHooked;
+    private final java.util.concurrent.atomic.AtomicInteger onboardingWriterEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final Map<Object, Boolean> onboardingPreferenceStores =
+        Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<Object, Boolean> onboardingPreferenceEditors =
+        Collections.synchronizedMap(new WeakHashMap<>());
     private final java.util.concurrent.atomic.AtomicInteger newIntentObserved =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean newIntentObserverArmed;
@@ -233,6 +240,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (!PACKAGE.equals(param.getPackageName())) return;
         // Exact prior ordering for *every* clone process; do not alter routing
         // or native startup behavior while adding passive Passport diagnostics.
+        installOnboardingWriterWitness();
         installOwnedResourceRouteTrial();
         installCloneAccountTypeBridge();
         if (isPassportProcess()) armPassport();
@@ -2879,6 +2887,125 @@ public final class ExitCallsiteWitness extends XposedModule {
             return "OTHER_ACTIVITY";
         } catch (Throwable ignored) {
             return "UNKNOWN_ACTIVITY";
+        }
+    }
+
+
+    /**
+     * Read-only exact Yandex_Music/onboarding write witness.
+     *
+     * Tracks only SharedPreferences instances requested under the exact
+     * Yandex_Music filename, their Editor instances, and putBoolean("onboarding").
+     * It records the caller class/method and whether the real Editor commit/apply
+     * returns. No preference is read or written by this observer.
+     */
+    private static String onboardingWriterCaller() {
+        try {
+            for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+                String owner = frame.getClassName();
+                if (owner == null || owner.isEmpty()
+                        || owner.equals(ExitCallsiteWitness.class.getName())
+                        || owner.startsWith("io.github.libxposed.")
+                        || owner.startsWith("android.")
+                        || owner.startsWith("java.")
+                        || owner.startsWith("dalvik.")
+                        || owner.startsWith("sun.")) continue;
+                String method = frame.getMethodName();
+                if (method == null || method.isEmpty()) method = "UNKNOWN";
+                return owner + "_" + method;
+            }
+        } catch (Throwable ignored) { }
+        return "UNKNOWN";
+    }
+
+    private synchronized void installOnboardingWriterWitness() {
+        if (onboardingWriterHooked) return;
+        try {
+            Class<?> contextImpl = Class.forName("android.app.ContextImpl", false, null);
+            Method getPrefs = contextImpl.getDeclaredMethod(
+                "getSharedPreferences", String.class, int.class);
+            getPrefs.setAccessible(true);
+            hook(getPrefs).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    try {
+                        Object name = chain.getArg(0);
+                        if ("Yandex_Music".equals(name) && result != null)
+                            onboardingPreferenceStores.put(result, Boolean.TRUE);
+                    } catch (Throwable ignored) { }
+                    return result;
+                });
+
+            Class<?> prefsImpl = Class.forName("android.app.SharedPreferencesImpl", false, null);
+            Method edit = prefsImpl.getDeclaredMethod("edit");
+            edit.setAccessible(true);
+            hook(edit).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object result = chain.proceed();
+                    try {
+                        if (onboardingPreferenceStores.containsKey(chain.getThisObject())
+                                && result != null)
+                            onboardingPreferenceEditors.put(result, null);
+                    } catch (Throwable ignored) { }
+                    return result;
+                });
+
+            Class<?> editorImpl = Class.forName(
+                "android.app.SharedPreferencesImpl$EditorImpl", false, null);
+            Method putBoolean = editorImpl.getDeclaredMethod(
+                "putBoolean", String.class, boolean.class);
+            putBoolean.setAccessible(true);
+            hook(putBoolean).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object editor = chain.getThisObject();
+                    Object key = chain.getArg(0);
+                    boolean value = Boolean.TRUE.equals(chain.getArg(1));
+                    Object result = chain.proceed();
+                    try {
+                        if (onboardingPreferenceEditors.containsKey(editor)
+                                && "onboarding".equals(key)
+                                && onboardingWriterEvents.incrementAndGet() <= 24) {
+                            onboardingPreferenceEditors.put(editor, value);
+                            emit("ONBOARDING_WRITE", onboardingWriterCaller(),
+                                value ? "TRUE" : "FALSE");
+                        }
+                    } catch (Throwable ignored) { }
+                    return result;
+                });
+
+            Method commit = editorImpl.getDeclaredMethod("commit");
+            commit.setAccessible(true);
+            hook(commit).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object editor = chain.getThisObject();
+                    boolean tracked = onboardingPreferenceEditors.containsKey(editor);
+                    Object result = chain.proceed();
+                    if (tracked) {
+                        onboardingPreferenceEditors.remove(editor);
+                        emit("ONBOARDING_WRITE_PERSIST", "COMMIT",
+                            Boolean.TRUE.equals(result) ? "TRUE" : "FALSE");
+                    }
+                    return result;
+                });
+
+            Method apply = editorImpl.getDeclaredMethod("apply");
+            apply.setAccessible(true);
+            hook(apply).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object editor = chain.getThisObject();
+                    boolean tracked = onboardingPreferenceEditors.containsKey(editor);
+                    Object result = chain.proceed();
+                    if (tracked) {
+                        onboardingPreferenceEditors.remove(editor);
+                        emit("ONBOARDING_WRITE_PERSIST", "APPLY", "RETURN");
+                    }
+                    return result;
+                });
+
+            onboardingWriterHooked = true;
+            emit("ONBOARDING_WRITER_HOOK", "ANDROID", "REGISTERED");
+        } catch (Throwable ignored) {
+            emit("ONBOARDING_WRITER_HOOK", "ANDROID", "NO_HOOK");
         }
     }
 

@@ -35,6 +35,14 @@ This is a **candidate fix**, not a verified successful login. The native Android
 
 Exact original static DEX contracts were expanded from 14 to **18** to cover the vendor preference store, cached getter, original key generator and commit/apply APIs. No original APK bytes are changed.
 
+## Final NAV12 onboarding writer witness (read-only, no auth/state mutation)
+
+NAV9's owner diagnostic confirms `ONBOARDING_PREF / ENTRY_ACTIVITY / UNSET` four times, including after `ACCOUNT_STATE / CLONE_OWN / ONE`. The exact original DEX shows Main reads `Yandex_Music/onboarding`, but `f67` is an app upgrade/initialization writer, not a proven post-Passport callback. **Absence of the key is observed; its causal role is not established.**
+
+The final source pass adds a strictly read-only observer around Android 13's `ContextImpl.getSharedPreferences("Yandex_Music")`, its `SharedPreferencesImpl.edit()`, and the corresponding `EditorImpl.putBoolean("onboarding", value)`, followed by the real `commit()` or `apply()`. It logs only the boolean, the first non-framework caller class/method (sanitized by the existing finite-token logger), and the real persistence method return. It does not write any preference, change the onboarding state, call the login success callback, or launch Main. This will answer whether the original vendor ever attempts to set the onboarding key during a real login, and which code path does so. The hook is armed at package load in the isolated clone scope only; no system/stock process is targeted.
+
+The paired native idle test cannot prove an auth-time writer exists; no owner APK is exported because the NAV9 certificate is not updatable. If static scan finds no writer candidate, the onboarding key may be an incidental read, not the root cause. If the runtime observer reports no write during real login, continue upstream through `MASTER_TOKEN_READ`, `MASTER_TOKEN_DECRYPT`, `POSTLOGIN_PUBLISH/CONSUME/MAIN_ROUTE` rather than forcing the preference.
+
 ## Signing blocker (separate, verified)
 
 Both owner NAV8 and NAV9 APKs had different outer signing certificates, because ephemeral own JKS is regenerated per CI run. Android cannot update either clone in-place with a different signer and preserve its package data. Therefore owner export is now **fail-closed for disposable signing** even if idle native CI is green. It requires an independently verified, long-lived owner signer supplied to the pipeline; the current lab does not and cannot assert that condition. Push builds never export APKs automatically. The publisher's inner signed APK and its key are untouched.
