@@ -15,7 +15,7 @@ import zipfile
 
 from a1_private_postlogin_contract import source_from_xapk
 from a1_private_push_dex_method import Dex
-from a1_private_dex_flow import decode_instructions, INVOKE_METHOD
+from a1_private_dex_flow import decode_instructions, INVOKE_METHOD, FlowDecodeError
 import struct
 
 ORIGINAL_CLASSES=6
@@ -43,6 +43,7 @@ def classify_calls(calls):
 
 def scan_onboarding_methods(apkbytes: bytes):
     rows=[]
+    undecodable=0
     with zipfile.ZipFile(io.BytesIO(apkbytes)) as apk:
         required={f"classes{i if i>1 else ''}.dex" for i in range(1,ORIGINAL_CLASSES+1)}
         if not required <= set(apk.namelist()):
@@ -50,7 +51,11 @@ def scan_onboarding_methods(apkbytes: bytes):
         for dex_name in sorted(required):
             dex=Dex(apk.read(dex_name))
             for method_index,code in dex.code_methods():
-                strings,calls=_refs(dex,code)
+                try:
+                    strings,calls=_refs(dex,code)
+                except FlowDecodeError:
+                    undecodable+=1
+                    continue
                 if "onboarding" not in strings:
                     continue
                 owner,name=dex.method(method_index)
@@ -64,6 +69,7 @@ def scan_onboarding_methods(apkbytes: bytes):
     return {
       "original_dex_files":ORIGINAL_CLASSES,
       "onboarding_literal_method_count":len(rows),
+      "undecodable_methods_skipped":undecodable,
       "onboarding_reader_candidates":readers,
       "onboarding_writer_candidates":writers,
       "raw_dex_or_preference_values_disclosed":False,
@@ -77,9 +83,6 @@ def main():
     group.add_argument("--origin-apk",type=Path)
     args=parser.parse_args()
     if args.xapk:
-        with zipfile.ZipFile(io.BytesIO(source_from_xapk(args.xapk))) as apk:
-            base=apk.read("classes.dex")
-        # source_from_xapk returns base APK bytes; reopen all DEX below.
         source=source_from_xapk(args.xapk)
     else:
         source=args.origin_apk.read_bytes()
