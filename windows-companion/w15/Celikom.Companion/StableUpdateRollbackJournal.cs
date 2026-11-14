@@ -151,6 +151,31 @@ public static class StableUpdateRollbackJournal
         return next;
     }
 
+    /// <summary>
+    /// W110: mark the ONLY automatic rollback attempt before launching the
+    /// prior signed installer. Restarting this helper cannot grant a second
+    /// attempt. The old-version health timeout starts at rollback launch,
+    /// not at the original update's preparation time.
+    /// </summary>
+    public static Record BeginRollback(string privateRoot, Guid id, DateTimeOffset now)
+    {
+        RequireWindows();
+        var root = FullRoot(privateRoot);
+        using var exclusive = AcquireLock(root);
+        var state = ReadRecord(root);
+        if (state.Id != id || state.State != Phase.RollbackNeeded ||
+            state.RollbackAttempts != 0)
+            throw new IOException("STABLE_ROLLBACK_ALREADY_ATTEMPTED");
+        var next = state with
+        {
+            State = Phase.RollbackStarted,
+            RollbackAttempts = 1,
+            DeadlineUnix = now.AddMinutes(10).ToUnixTimeSeconds()
+        };
+        WriteRecord(root, next);
+        return next;
+    }
+
     /// <summary>Health success is NOT an arbitrary phase transition.</summary>
     public static Record ConfirmNewAppHealthy(string privateRoot, Guid id,
         HealthEvidence evidence, DateTimeOffset now)
@@ -263,6 +288,7 @@ public static class StableUpdateRollbackJournal
         (Phase.NewAppObserved, Phase.RollbackNeeded) => true,
         (Phase.RollbackNeeded, Phase.RollbackStarted) => true,
         (Phase.RollbackStarted, Phase.ManualRecovery) => true,
+        (Phase.RollbackNeeded, Phase.ManualRecovery) => true,
         _ => false
     };
 
