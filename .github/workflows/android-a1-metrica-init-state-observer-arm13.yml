@@ -10,6 +10,7 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_witness_private_parser.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_postlogin_contract.py'
       - 'android/native-yandex-hooklab/ci/owner_phone_diagnostic_artifact.py'
       - 'android/native-yandex-hooklab/ci/test_owner_phone_diagnostic_artifact.py'
       - 'android/native-yandex-hooklab/device-audio-trial/**'
@@ -115,6 +116,12 @@ jobs:
           f="$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
           test "$(stat -c %s "$f")" = 45961661
           test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Verify exact original 2025 Passport to userInfo to native screen DEX contract (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_private_postlogin_contract.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Private offline exact 2025 XAPK DEX method classifier (no code disclosure)
         shell: bash
         run: |
@@ -171,12 +178,12 @@ jobs:
         shell: bash
         env:
           CELIKOM_A1_METRICA_OWN_MODULE_PATH: ${{ runner.temp }}/celikom-own-metrica-module/app-debug.apk
-          CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ (github.event_name == 'push' || inputs.export_diagnostic_apk) && '1' || '0' }}
+          CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk) && '1' || '0' }}
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Package Russian owner-phone test instructions
-        if: success() && (github.event_name == 'push' || inputs.export_diagnostic_apk)
+        if: success() && (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk)
         shell: bash
         run: |
           set -euo pipefail
@@ -185,7 +192,7 @@ jobs:
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
           sha256sum "$bundle/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk"
       - name: Upload private one-time owner-phone diagnostic bundle
-        if: success() && (github.event_name == 'push' || inputs.export_diagnostic_apk)
+        if: success() && (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk)
         uses: actions/upload-artifact@v4
         with:
           name: CELIKOM-A1-OnDevice-Diagnostic-20261113
