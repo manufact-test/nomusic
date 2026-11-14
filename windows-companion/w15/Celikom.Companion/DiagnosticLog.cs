@@ -56,6 +56,7 @@ public static class DiagnosticLog
     public static bool IsIncidentCode(string code) =>
         Code.IsMatch(code) &&
         ((code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
+             "NATIVE_ELECTRON_CPU_HIGH" or
              "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
              "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
          code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
@@ -236,6 +237,7 @@ public static class DiagnosticLog
             "RENDERER_STATE_DELIVERED" or "RENDERER_BRIDGE_STATE_SEEN";
         static bool IsIncident(string code) =>
             (code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
+                "NATIVE_ELECTRON_CPU_HIGH" or
                 "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
                 "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
@@ -405,6 +407,9 @@ public static class DiagnosticLog
                 .ToString().ToLowerInvariant());
         text.AppendLine("ElectronMemoryHighObserved=" +
             entries.Any(s => s.Contains("|NATIVE_ELECTRON_MEMORY_HIGH", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("ElectronCpuHighObserved=" +
+            entries.Any(s => s.Contains("|NATIVE_ELECTRON_CPU_HIGH", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("PlayerGainVariantUrlSelectedObserved=" +
             entries.Any(s => s.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", StringComparison.Ordinal))

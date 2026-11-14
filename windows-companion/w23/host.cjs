@@ -91,6 +91,7 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING",
   "SOURCE_RECOVERY_DECODER_ALREADY_PLAYING",
   "NATIVE_ELECTRON_EVENT_LOOP_STALL", "NATIVE_ELECTRON_MEMORY_HIGH",
+  "NATIVE_ELECTRON_CPU_HIGH",
   "PLAYER_URL_MATCH", "PLAYER_URL_QUERY_MISSING", "PLAYER_URL_QUERY_CHANGED",
   "PLAYER_URL_EXPECTATION_MISSING", "PLAYER_URL_EXPIRED_AT_REQUEST",
   "PLAYER_URL_SIGNED_FIELDS_INTACT",
@@ -152,6 +153,7 @@ const busy = new WeakSet();
 const lastStateAt = new WeakMap();
 const lastStatus = new WeakMap();
 const lastNativeState = new WeakMap();
+const lastDeliveredState = new WeakMap();
 const lastDiagPoll = new WeakMap();
 
 function readToken() {
@@ -248,8 +250,25 @@ async function inject(view) {
     "\n}return !!window.__celikomBridgeNativeDrain;})()");
   if (result !== true) return false;
   injected.set(view, true);
+  // A fresh renderer document must receive state even if the previous one
+  // had the same value cached for this webContents.
+  lastDeliveredState.delete(view);
   note("RENDERER_INJECTED");
   return true;
+}
+async function deliverState(view, safeState) {
+  // Avoid repeated Electron IPC/renderer execution when the authoritative
+  // bridge state has not changed. A newly injected document clears this cache.
+  const stateKey = JSON.stringify(safeState);
+  if (lastDeliveredState.get(view) === stateKey) return true;
+  const ok = await execute(view,
+    ";(()=>{if(!window.__celikomBridgeNativeSetState)return false;" +
+    "window.__celikomBridgeNativeSetState(" + stateKey + ");return true})()");
+  if (ok === true) {
+    lastDeliveredState.set(view, stateKey);
+    note("RENDERER_STATE_DELIVERED");
+  }
+  return ok === true;
 }
 async function relayState(view, token, now) {
   // W61: short bounded local-only state poll to reduce time from UI click
@@ -258,17 +277,20 @@ async function relayState(view, token, now) {
   if (now - (lastStateAt.get(view) || 0) < 300) return;
   lastStateAt.set(view, now);
   const state = await localRequest(token, "/v1/state");
-  if (state && typeof state === "object") note("LOCAL_STATE_OK");
-  else note("STATE_UNREACHABLE");
-  const active = state?.enabled === true;
-  if (lastNativeState.get(view) !== active) {
-    lastNativeState.set(view, active);
-    note(active ? "STATE_ENABLED" : "STATE_DISABLED");
-  }
+  const stateAvailable = !!state && typeof state === "object" && !Array.isArray(state);
+  if (stateAvailable) {
+    note("LOCAL_STATE_OK");
+    const active = state.enabled === true;
+    if (lastNativeState.get(view) !== active) {
+      lastNativeState.set(view, active);
+      note(active ? "STATE_ENABLED" : "STATE_DISABLED");
+    }
+  } else note("STATE_UNREACHABLE");
   const safeState = {
-    enabled: state?.enabled === true,
-    signedIn: state?.signedIn === true,
-    apiOrigin: typeof state?.apiOrigin === "string" ? state.apiOrigin.slice(0, 256) : ""
+    enabled: stateAvailable && state.enabled === true,
+    signedIn: stateAvailable && state.signedIn === true,
+    apiOrigin: stateAvailable && typeof state.apiOrigin === "string"
+      ? state.apiOrigin.slice(0, 256) : ""
   };
   const previousOrigin = nativeAudioOrigins.get(view);
   if (!safeState.enabled || !safeState.signedIn || previousOrigin !== safeState.apiOrigin) {
@@ -277,10 +299,7 @@ async function relayState(view, token, now) {
     nativeMediaHttpSuccess.delete(view);
   }
   nativeAudioOrigins.set(view, safeState.apiOrigin);
-  const ok = await execute(view,
-    ";(()=>{if(!window.__celikomBridgeNativeSetState)return false;" +
-    "window.__celikomBridgeNativeSetState(" + JSON.stringify(safeState) + ");return true})()");
-  if (ok === true) note("RENDERER_STATE_DELIVERED");
+  await deliverState(view, safeState);
 }
 async function relayGrant(view, token, request) {
   if (!request || typeof request !== "object" ||
@@ -321,8 +340,7 @@ async function tick(view) {
     if (!await inject(view)) return;
     const token = readToken();
     if (!token) {
-      await execute(view,
-        ";window.__celikomBridgeNativeSetState?.({enabled:false,signedIn:false,apiOrigin:''})");
+      await deliverState(view, {enabled:false,signedIn:false,apiOrigin:""});
       return;
     }
     note("BOOTSTRAP_KEY_PRESENT");
@@ -859,19 +877,26 @@ app.on("web-contents-created", (_event, view) => {
   });
 });
 let lastHostPulseAt = Date.now();
-let lastResourceSampleAt = Date.now();
-// W99: reduce idle host polling from 5.6Hz to 3.3Hz. CDP player
-// events remain event-driven; state/resolve relay stays bounded to 300ms.
-const timer = setInterval(() => {
+let lastResourceSampleAt = lastHostPulseAt;
+let lastCpuUsage = null;
+try {
+  if (typeof process.cpuUsage === "function") lastCpuUsage = process.cpuUsage();
+} catch {}
+let firstHostPulse = true;
+function scheduleHostPulse(delay) {
+  const timer = setTimeout(pulseHost, delay);
+  if (timer && typeof timer.unref === "function") timer.unref();
+}
+function pulseHost() {
   const now = Date.now();
   const elapsed = now - lastHostPulseAt;
-  // A small, read-only heartbeat for #53. No process names, stats,
-  // account identifiers, privileged APIs or raw values enter diagnostics.
-  // Ignore sleep/resume gaps; this is NOT proof of a whole-PC slowdown.
+  // A small, read-only heartbeat for #53. Ignore sleep/resume gaps; this is
+  // not proof of a whole-PC slowdown or a measurement of other applications.
   if (elapsed > 4000 && elapsed < 60000)
     note("NATIVE_ELECTRON_EVENT_LOOP_STALL");
   lastHostPulseAt = now;
-  if (now - lastResourceSampleAt >= 30000) {
+  const sampleElapsed = now - lastResourceSampleAt;
+  if (sampleElapsed >= 30000) {
     lastResourceSampleAt = now;
     try {
       const memory = typeof process.memoryUsage === "function"
@@ -880,9 +905,31 @@ const timer = setInterval(() => {
           memory.rss > 700 * 1024 * 1024)
         note("NATIVE_ELECTRON_MEMORY_HIGH");
     } catch {}
+    // Measure only this Electron main process. Record a fixed threshold event,
+    // never raw CPU values, PIDs, process names or account/audio information.
+    try {
+      const currentCpu = typeof process.cpuUsage === "function"
+        ? process.cpuUsage() : null;
+      if (currentCpu && lastCpuUsage &&
+          sampleElapsed >= 10000 && sampleElapsed <= 60000) {
+        const cpuMicros = (currentCpu.user - lastCpuUsage.user) +
+          (currentCpu.system - lastCpuUsage.system);
+        const cpuPercent = cpuMicros / (sampleElapsed * 1000) * 100;
+        if (Number.isFinite(cpuPercent) && cpuPercent >= 80)
+          note("NATIVE_ELECTRON_CPU_HIGH");
+      }
+      if (currentCpu) lastCpuUsage = currentCpu;
+    } catch {}
   }
   const views = webContents.getAllWebContents();
   if (views.length) note("WEB_CONTENTS_PRESENT");
   for (const view of views) void tick(view);
-}, 300);
-if (timer.unref) timer.unref();
+  const active = views.some(view => lastNativeState.get(view) === true);
+  // Preserve the 300ms active relay for prompt Start/Next/recovery, but back
+  // off to 1s when no active entitlement is confirmed. A failed state GET
+  // keeps the last active value so recovery remains on the fast cadence.
+  const delay = firstHostPulse ? 300 : active ? 300 : 1000;
+  firstHostPulse = false;
+  scheduleHostPulse(delay);
+}
+pulseHost();

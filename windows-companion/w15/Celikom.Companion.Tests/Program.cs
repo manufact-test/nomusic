@@ -1656,6 +1656,7 @@ try
         "W53 rejects multiline log injection");
     Test(DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_MEMORY_HIGH") &&
+         DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_CPU_HIGH") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
@@ -1678,6 +1679,7 @@ try
         when + "|PLAYER_NET_REQUEST|resource_id=739209|sid=SENSITIVE\n" +
         when + "|NATIVE_ELECTRON_EVENT_LOOP_STALL\n" +
         when + "|NATIVE_ELECTRON_MEMORY_HIGH\n" +
+        when + "|NATIVE_ELECTRON_CPU_HIGH\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209\n" +
         when + "|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209\n" +
@@ -1705,6 +1707,7 @@ try
          snapshot.Contains("Native403HtmlResponseObserved=true") &&
          snapshot.Contains("ElectronEventLoopStallObserved=true") &&
          snapshot.Contains("ElectronMemoryHighObserved=true") &&
+         snapshot.Contains("ElectronCpuHighObserved=true") &&
          snapshot.Contains("PlayerGainVariantUrlSelectedObserved=true") &&
          snapshot.Contains("PlayerGainVariantUrlMissingObserved=true") &&
          snapshot.Contains("PlayerNativeVolumeDropObserved=true") &&
@@ -1714,6 +1717,7 @@ try
     var importedNativeIncidents = DiagnosticLog.ReadIncidentHistory(fixtureLogsDirectory);
     Test(importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
          importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")) &&
+         importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_CPU_HIGH")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=739209")),
@@ -1801,7 +1805,8 @@ try
               x.GetProperty("trackId").GetString() == "123"),
              "W54 gain, volume and source transitions survive later native status polling");
          Test(history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
-              history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_MEMORY_HIGH"),
+              history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_MEMORY_HIGH") &&
+              history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_CPU_HIGH"),
              "W53 performance incidents survive later native status polling in support attachment");
         Test(!history.Any(x => x.GetProperty("code").GetString() ==
              "NATIVE_STATE_RECEIVED") &&
@@ -1817,16 +1822,18 @@ try
     DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED", null, archiveDir);
     DiagnosticLog.Record("NATIVE_ELECTRON_EVENT_LOOP_STALL", null, archiveDir);
     DiagnosticLog.Record("NATIVE_ELECTRON_MEMORY_HIGH", null, archiveDir);
+    DiagnosticLog.Record("NATIVE_ELECTRON_CPU_HIGH", null, archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", "123", archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_NATIVE_VOLUME_DROP", "123", archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", "123", archiveDir);
     DiagnosticLog.Record("NATIVE_STATE_RECEIVED", null, archiveDir);
     var preserved = DiagnosticLog.ReadIncidentHistory(archiveDir);
-    Test(preserved.Count == 7 &&
+    Test(preserved.Count == 8 &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")) &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")) &&
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")) &&
+          preserved.Any(x => x.Contains("|NATIVE_ELECTRON_CPU_HIGH")) &&
           preserved.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123")) &&
           preserved.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123")) &&
           preserved.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123")),
@@ -1844,6 +1851,7 @@ try
     Test(!DiagnosticLog.IsIncidentCode("NATIVE_STATE_RECEIVED") &&
           historic.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
           historic.Contains("|NATIVE_ELECTRON_MEMORY_HIGH") &&
+          historic.Contains("|NATIVE_ELECTRON_CPU_HIGH") &&
           historic.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123") &&
           historic.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123") &&
           historic.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123") &&
