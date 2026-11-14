@@ -129,6 +129,17 @@ jobs:
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
       - name: W110 build independent update supervisor with warnings as errors
         run: dotnet build windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj -c Release -warnaserror
+      - name: W114 same CELIKOM installer carries the signed-payload supervisor
+        shell: pwsh
+        run: |
+          $iss = Get-Content windows-companion/w20/installer/CELIKOM.iss -Raw
+          $w20 = Get-Content .github/workflows/windows-w20-safe-installer.yml -Raw
+          $release = Get-Content .github/workflows/hostinger-deploy.yml -Raw
+          if (-not $iss.Contains('Source: "..\publish\CELIKOM.UpdateSupervisor.exe"; DestDir: "{app}"')) { throw 'W114_INNO_SUPERVISOR_ENTRY_MISSING' }
+          if (-not $w20.Contains('dotnet publish windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj')) { throw 'W114_W20_SUPERVISOR_BUILD_MISSING' }
+          if (-not $release.Contains('dotnet publish windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj')) { throw 'W114_RELEASE_SUPERVISOR_BUILD_MISSING' }
+          if (-not $release.Contains('W114_SUPERVISOR_NOT_INSTALLED')) { throw 'W114_INSTALLED_SUPERVISOR_SMOKE_MISSING' }
+          Write-Output 'W114_SAME_PRODUCT_INSTALLER_SUPERVISOR_PASS'
       - name: W110 crash-independent watchdog health and rollback simulation
         run: dotnet run --project windows-companion/w15/Celikom.UpdateSupervisor.Tests/Celikom.UpdateSupervisor.Tests.csproj -c Release
       - name: W110 unsigned production helper refuses automatic recovery
