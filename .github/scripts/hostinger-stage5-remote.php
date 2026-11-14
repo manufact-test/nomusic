@@ -160,7 +160,7 @@ try {
             throw new RuntimeException('no-snapshot');
         return $paths[0];
     };
-    $verify = static function(string $dir) use ($shared, $walk): array {
+    $verify = static function(string $dir, bool $verifyAudio = true) use ($shared, $walk): array {
         if (is_link($dir) || !is_file($dir . '/manifest.json') || !is_file($dir . '/database.sql')
             || !is_file($dir . '/env') || is_link($dir . '/env') || is_link($dir . '/database.sql'))
             throw new RuntimeException('snapshot-layout');
@@ -170,10 +170,12 @@ try {
             || !hash_equals((string) $data['sql_sha256'], hash_file('sha256', $dir . '/database.sql')))
             throw new RuntimeException('snapshot-hash');
         $audioMode = $data['audio_backup_mode'] ?? 'copied';
-        if ($audioMode === 'immutable-inventory') {
+        if (!in_array($audioMode, ['immutable-inventory', 'copied'], true))
+            throw new RuntimeException('snapshot-layout');
+        if ($verifyAudio && $audioMode === 'immutable-inventory') {
             if ($walk($shared . '/audio', $shared . '/audio') !== $data['files'])
                 throw new RuntimeException('snapshot-audio-hash');
-        } elseif ($audioMode === 'copied') {
+        } elseif ($verifyAudio && $audioMode === 'copied') {
             foreach ($data['files'] as $name => $file) {
                 $path = $dir . '/audio/' . $name;
                 if ($name === '' || str_contains($name, '..') || is_link($path)
@@ -181,8 +183,6 @@ try {
                     || !hash_equals($file['sha256'], hash_file('sha256', $path)))
                     throw new RuntimeException('snapshot-audio-hash');
             }
-        } else {
-            throw new RuntimeException('snapshot-layout');
         }
         return $data;
     };
@@ -267,7 +267,11 @@ try {
         exit(0);
     }
     $backup = $latest();
-    $manifest = $verify($backup);
+    // restore-drill verifies every original media object once. The following
+    // SQL export/count operations still re-hash the SQL dump and env, but avoid
+    // repeating the expensive full media inventory walk.
+    $verifyAudio = !in_array($operation, ['restore-export', 'restore-counts'], true);
+    $manifest = $verify($backup, $verifyAudio);
     if ($operation === 'restore-export') {
         // stdout is raw SQL, caller must redirect to private runner scratch.
         readfile($backup . '/database.sql');

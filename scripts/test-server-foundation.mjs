@@ -28,6 +28,8 @@ const restoreCounts = await readFile(path.join(root, ".github/scripts/hostinger-
 if (!snapshotSource.includes("if ($operation === 'restore-counts')") ||
     !snapshotSource.includes("$manifest['tables']") ||
     !snapshotSource.includes("'windows_gain_variants'") ||
+    !snapshotSource.includes("$verify($backup, $verifyAudio)") ||
+    !snapshotSource.includes("['restore-export', 'restore-counts']") ||
     !restoreCheck.includes('{"operation":"restore-counts"}') ||
     !restoreCheck.includes("hostinger-stage5-restore-counts.mjs") ||
     !restoreCheck.includes("snapshot table row counts match") ||

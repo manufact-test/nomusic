@@ -45,6 +45,8 @@ if [[ "$operation" == "restore-drill" ]]; then
     echo 'Isolated MySQL restore failed. No private SQL or row data disclosed.' >&2
     exit 1
   }
+  # The restore-drill above already verified every original media object.
+  # These following exports re-check SQL/env hashes without repeating the media walk.
   # Compare the restored SQL with the exact private snapshot row-count manifest.
   # A zero-row gain table is valid before the downstream W98 sidecar job runs.
   printf '%s\n' '{"operation":"restore-counts"}' > "$work/restore-counts.json"
