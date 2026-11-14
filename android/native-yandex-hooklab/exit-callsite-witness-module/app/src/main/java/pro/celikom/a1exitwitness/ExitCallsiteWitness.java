@@ -148,6 +148,8 @@ public final class ExitCallsiteWitness extends XposedModule {
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger postLoginPipelineSourceEvents =
         new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger postLoginTokenOutcomeEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean postLoginFlowHooked;
     private final java.util.concurrent.atomic.AtomicInteger postLoginFlowEvents =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -3081,6 +3083,25 @@ public final class ExitCallsiteWitness extends XposedModule {
      * Only armed in clone MAIN when a real Entry Activity is created.
      * There is NO synthetic Success(userInfo), preference write or launch.
      */
+    /**
+     * Closed, no-secret reason classes from the original coroutine's token
+     * request. Never serialize the continuation result, token, exception,
+     * message, stack, UID, account, or request arguments.
+     */
+    private static String tokenRequestErrorCategory(Throwable error) {
+        if (error == null) return "NO_THROWABLE";
+        if (error instanceof java.net.SocketTimeoutException) return "TIMEOUT";
+        if (error instanceof java.net.UnknownHostException) return "DNS";
+        if (error instanceof java.io.IOException) return "NETWORK_OR_IO";
+        if (error instanceof SecurityException) return "SECURITY";
+        String name = error.getClass().getName();
+        if ("com.yandex.passport.api.exception.a".equals(name)) return "PASSPORT_API_A";
+        if ("com.yandex.passport.api.exception.b".equals(name)) return "PASSPORT_API_B";
+        if (name.startsWith("com.yandex.passport.")) return "PASSPORT_OTHER";
+        if (error instanceof IllegalStateException) return "ILLEGAL_STATE";
+        return "OTHER_FAILURE";
+    }
+
     private synchronized void observeOriginalPostLoginReceipts(Activity activity) {
         if (activity == null || !PACKAGE.equals(Application.getProcessName())
                 || !"ENTRY_ACTIVITY".equals(activityFamily(activity))
@@ -3108,6 +3129,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                 Class<?> resumed = Class.forName("nY5", false, loader);
                 Field stateField = resumed.getDeclaredField("continue");
                 stateField.setAccessible(true);
+                // Exact original nY5.invokeSuspend writes its result into
+                // private:Object before resuming qY5. Inspect ONLY type.
+                Field tokenResumeResult = resumed.getDeclaredField("private");
+                tokenResumeResult.setAccessible(true);
+                Class<?> tokenFailure = Class.forName("zW8$b", false, loader);
+                Field tokenFailureCause = tokenFailure.getDeclaredField("default");
+                tokenFailureCause.setAccessible(true);
                 Method m = owner.getDeclaredMethod("if", owner, boolean.class,
                     passportUser, continuation);
                 hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
@@ -3128,6 +3156,29 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 postLoginPipelineSourceEvents.incrementAndGet() <= 8) {
                             emit("LOGIN_PIPELINE_SOURCE", "ENTRY",
                                 originalPostLoginCallerCategory());
+                        }
+                        if ("AFTER_TOKEN_REQUEST".equals(stage)
+                                && postLoginTokenOutcomeEvents.incrementAndGet() <= 12) {
+                            try {
+                                Object frame = chain.getArg(3);
+                                Object reply = tokenResumeResult.get(frame);
+                                boolean isFailure = reply != null
+                                    && tokenFailure.isInstance(reply);
+                                String category = reply == null ? "NULL" :
+                                    isFailure ? "FAILURE" :
+                                    reply instanceof String ? "STRING_RESULT" :
+                                    "OTHER_NONFAILURE_RESULT";
+                                emit("LOGIN_TOKEN_OUTCOME", "ENTRY", category);
+                                if (isFailure) {
+                                    Object cause = tokenFailureCause.get(reply);
+                                    emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",
+                                        cause instanceof Throwable
+                                            ? tokenRequestErrorCategory((Throwable) cause)
+                                            : "NO_THROWABLE");
+                                }
+                            } catch (Throwable ignored) {
+                                emit("LOGIN_TOKEN_OUTCOME", "ENTRY", "UNAVAILABLE");
+                            }
                         }
                         Object result;
                         try {
