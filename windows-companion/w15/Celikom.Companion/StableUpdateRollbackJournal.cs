@@ -105,6 +105,7 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         Directory.CreateDirectory(root);
         using var exclusive = AcquireLock(root);
+        Guid? supersededSnapshotId = null;
         if (File.Exists(JournalPath(root)))
         {
             // A completed, separately proven transaction may be superseded
@@ -113,6 +114,7 @@ public static class StableUpdateRollbackJournal
             var previousTransaction = ReadRecord(root);
             if (previousTransaction.State is not (Phase.Healthy or Phase.Restored))
                 throw new IOException("STABLE_ROLLBACK_PENDING_EXISTS");
+            supersededSnapshotId = previousTransaction.Id;
         }
 
         var identifier = Guid.NewGuid();
@@ -138,6 +140,20 @@ public static class StableUpdateRollbackJournal
                 previous.SupervisorSha256, target.SupervisorSha256,
                 TargetSize: target.PackageSize);
             WriteRecord(root, record);
+            // The new transaction now owns a byte-identical previous package
+            // and a verified target package. Only after its DPAPI journal is
+            // durable may the superseded snapshot be discarded.
+            if (supersededSnapshotId is Guid oldId && oldId != identifier)
+            {
+                var oldSnapshot = Path.Combine(root, oldId.ToString("N"));
+                try
+                {
+                    if (Directory.Exists(oldSnapshot) &&
+                        (File.GetAttributes(oldSnapshot) & FileAttributes.ReparsePoint) == 0)
+                        Directory.Delete(oldSnapshot, recursive: true);
+                }
+                catch { /* The new journal and snapshot are already complete. */ }
+            }
             return record;
         }
         catch
