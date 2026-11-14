@@ -13,6 +13,12 @@ This source change adds **one narrowly scoped, read-only, finite receipt trail**
 
 **One future bounded test is sufficient to distinguish:** no `MASTER_TOKEN_READ` (path never reached), `NULL_OR_EMPTY` (token retrieval), `PRESENT` + no `REAL_USERINFO_SUCCESS` (Music session/login pipeline), success + no consume (FragmentManager), or consume + no route (Entry handler). Presence of any diagnostic event alone is not evidence that a user can play music.
 
+## Added original 2025 decryptor outcome (no token data)
+
+The exact original 2025.10.4 `com.yandex.passport.internal.core.accounts.v.if(String)` decryptor returns an internal `v$c` result whose private `for` field is an Exception on cryptographic failure. The clone-only read-only witness now hooks the *naturally invoked* method in MAIN and `:passport`, and observes **only whether the exception field is null**, returning the original result unchanged. Finite `MASTER_TOKEN_DECRYPT/MAIN|PASSPORT/NO_EXCEPTION|DECRYPT_EXCEPTION|UNAVAILABLE|THREW` events distinguish an actual post-login crypto failure from a missing UI result. No token ciphertext, plaintext, key, Account fields or exception text are accessed. `NO_EXCEPTION` is **not** proof that a usable token or session exists.
+
+The vendor's real encryption key is held as `yandex_am_storage/master_token_key` via a cached `LY7a` preferences delegate. That raises a theoretical cross-process cache risk, but **there is no owner-device evidence yet that either process generated or read a different key**. No preferences read, key generation, cache invalidation, encryption rewrite or signature bypass has been added. To avoid that race being created by the observer itself, it does not proactively call `getSharedPreferences`.
+
 ## Signing blocker (separate, verified)
 
 Both owner NAV8 and NAV9 APKs had different outer signing certificates, because ephemeral own JKS is regenerated per CI run. Android cannot update either clone in-place with a different signer and preserve its package data. Therefore owner export is now **fail-closed for disposable signing** even if idle native CI is green. It requires an independently verified, long-lived owner signer supplied to the pipeline; the current lab does not and cannot assert that condition. Push builds never export APKs automatically. The publisher's inner signed APK and its key are untouched.

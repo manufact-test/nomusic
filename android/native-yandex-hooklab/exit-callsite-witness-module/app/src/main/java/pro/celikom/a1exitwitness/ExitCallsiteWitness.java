@@ -119,6 +119,12 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean ownedPasswordReturnHooked;
     private final java.util.concurrent.atomic.AtomicInteger ownedPasswordReturnEvents =
         new java.util.concurrent.atomic.AtomicInteger();
+    // The real vendor decryptor returns a result object with an exception field.
+    // Only that exception's presence is observed. No encrypted or decrypted
+    // master-token value, length, account or error message is inspected.
+    private boolean passportDecryptOutcomeHooked;
+    private final java.util.concurrent.atomic.AtomicInteger passportDecryptOutcomeEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean postLoginPublishHooked;
     private boolean postLoginConsumeHooked;
     private boolean postLoginNativeRouteHooked;
@@ -2633,12 +2639,64 @@ public final class ExitCallsiteWitness extends XposedModule {
      * permission is requested. The report is copied to MediaStore Downloads
      * only after the owner taps the button.
      */
+
+    /** Exact 2025.10.4 real vendor master-token decoder outcome only.
+     * Never call a decoder ourselves; the real invocation must occur naturally.
+     * Reading just the exception field never reads ciphertext or plaintext.
+     */
+    private synchronized void observeOriginalPassportDecryptOutcome(Application app) {
+        if (passportDecryptOutcomeHooked || app == null
+                || !PACKAGE.equals(app.getPackageName())) return;
+        try {
+            ClassLoader loader = app.getClass().getClassLoader();
+            if (loader == null) loader = app.getClassLoader();
+            if (loader == null) {
+                emit("MASTER_TOKEN_DECRYPT_HOOK", "VENDOR", "NO_LOADER");
+                return;
+            }
+            Class<?> decoder = Class.forName(
+                "com.yandex.passport.internal.core.accounts.v", false, loader);
+            Class<?> outcome = Class.forName(
+                "com.yandex.passport.internal.core.accounts.v$c", false, loader);
+            Field failureField = outcome.getDeclaredField("for");
+            failureField.setAccessible(true);
+            Method m = decoder.getDeclaredMethod("if", String.class);
+            hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    String process = isPassportProcess() ? "PASSPORT" : "MAIN";
+                    Object result;
+                    try {
+                        result = chain.proceed();
+                    } catch (Throwable failure) {
+                        if (passportDecryptOutcomeEvents.incrementAndGet() <= 12)
+                            emit("MASTER_TOKEN_DECRYPT", process, "THREW");
+                        throw failure;
+                    }
+                    if (passportDecryptOutcomeEvents.incrementAndGet() <= 12) {
+                        String status = "UNAVAILABLE";
+                        try {
+                            if (outcome.isInstance(result))
+                                status = failureField.get(result) == null
+                                    ? "NO_EXCEPTION" : "DECRYPT_EXCEPTION";
+                        } catch (Throwable ignored) { }
+                        emit("MASTER_TOKEN_DECRYPT", process, status);
+                    }
+                    return result;
+                });
+            passportDecryptOutcomeHooked = true;
+            emit("MASTER_TOKEN_DECRYPT_HOOK", "VENDOR", "REGISTERED");
+        } catch (Throwable ignored) {
+            emit("MASTER_TOKEN_DECRYPT_HOOK", "VENDOR", "NO_HOOK");
+        }
+    }
+
     private synchronized void preparePassportDiagnostics(Application app) {
         if (passportDiagnosticCallbacksReady || app == null || !isPassportProcess() ||
                 !PACKAGE.equals(app.getPackageName())) return;
         try {
             Context c = app.getApplicationContext();
             diagnosticContext = c == null ? app : c;
+            observeOriginalPassportDecryptOutcome(app);
             emit("PASSPORT_PROCESS", "CLONE_PASSPORT", "APPLICATION_READY");
             app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
                 @Override public void onActivityCreated(Activity a, Bundle state) {
@@ -2676,6 +2734,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         try {
             Context appContext = app.getApplicationContext();
             diagnosticContext = appContext == null ? app : appContext;
+            observeOriginalPassportDecryptOutcome(app);
             capturePreviousProcessExits(diagnosticContext);
             emit("DIAGNOSTIC_CAPTURE", "LOCAL_FILE", "READY");
             emit("DIAGNOSTIC_BUILD", DIAGNOSTIC_BUILD, "ACTIVE");
@@ -2782,7 +2841,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 || (postLoginPublishHooked && postLoginConsumeHooked
                     && postLoginNativeRouteHooked)
                 || postLoginHookAttempts.incrementAndGet() > 3) return;
-        ClassLoader loader = activity.getClassLoader();
+        ClassLoader loader = activity.getClass().getClassLoader();
+        if (loader == null) loader = activity.getClassLoader();
         if (loader == null) {
             emit("POSTLOGIN_HOOK", "ENTRY", "NO_LOADER");
             return;

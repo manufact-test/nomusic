@@ -50,6 +50,18 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.edit()',part)
         self.assertNotIn('putBoolean(',part)
 
+    def test_vendor_master_token_decrypt_exception_only(self):
+        s=self.code
+        self.assertIn('Class.forName("com.yandex.passport.internal.core.accounts.v"',s.replace('\n                ',''))
+        self.assertIn('Class.forName("com.yandex.passport.internal.core.accounts.v$c"',s.replace('\n                ',''))
+        self.assertIn('getDeclaredField("for")',s)
+        self.assertIn('getDeclaredMethod("if", String.class)',s)
+        self.assertIn('emit("MASTER_TOKEN_DECRYPT"',s)
+        self.assertIn('failureField.get(result) == null',s)
+        self.assertIn('return chain.proceed();',s)
+        self.assertNotIn('failure.getMessage()',s[s.index('private synchronized void observeOriginalPassportDecryptOutcome('):
+                                           s.index('private synchronized void preparePassportDiagnostics(')])
+
     def test_scoped_to_real_clone_entry_only(self):
         s=self.code
         self.assertIn('!"ENTRY_ACTIVITY".equals(activityFamily(activity))',s)
