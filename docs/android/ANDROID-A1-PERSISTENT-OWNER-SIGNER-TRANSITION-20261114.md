@@ -110,3 +110,53 @@ The diagnostic TXT carries the NAV9 build marker but not the CI run ID or APK SH
 - A new validated-source backup should point to the final NAV13 handoff commit after this documentation update.
 - Do not uninstall the current diagnostic clone while the login loop is unresolved. The fresh-install workflow input remains false by default and requires explicit owner approval.
 - Stage A remains NO-GO; Stage B remains LOCKED. No audio or successful Passport login is claimed.
+
+
+## NAV13 — permanent owner signer provisioned by owner; native CI validation (14 Nov 2026)
+
+### Owner provisioning completed
+
+The owner generated one private PKCS#12 signing keystore outside the repository and added the following repository Actions values:
+
+Secrets:
+- `CELIKOM_A1_OWNER_KEYSTORE_BASE64`
+- `CELIKOM_A1_OWNER_KEYSTORE_PASSWORD`
+- `CELIKOM_A1_OWNER_KEY_ALIAS` = `celikom-a1-owner`
+- `CELIKOM_A1_OWNER_KEY_PASSWORD`
+
+Repository Actions Variable:
+- `CELIKOM_A1_OWNER_CERT_SHA256` = `048D76E1C4447FA4F3AC976C45D5A0F8427C087FA665C4FCA88CE5CAA068F9BF`
+
+The actual PKCS#12 archive was independently checked outside the repository: Base64 decodes byte-for-byte to the PKCS#12 file; keytool reports a PrivateKeyEntry; its SHA-256 matches the pinned variable; the imported JKS alias and password format required by the existing signer were verified. The keystore and password are not committed or attached to CI artifacts. The owner was instructed to retain two protected offline copies.
+
+`CELIKOM_A1_INSTALLED_CERT_SHA256` remains intentionally unset. The exact certificate of the APK currently installed on the owner's phone is not independently proven; do not infer it from a nearby historical artifact.
+
+### Real owner-key CI validation
+
+- #43591803531 — SUCCESS, push event, source commit `5767a961e7715c434ee81ba1e29f09647fe5f4d1`.
+- The sanitized native report explicitly records `owner_apk_signer_provenance=PERSISTENT_OWNER_SIGNER`, `owner_apk_signer_verified=true`, and signer fingerprint `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
+- Publisher-first Android 13 paired run succeeded: original publisher installed first and remained installed; clone installed; clone MAIN stable 75 seconds; 25/25 lifecycle samples; activity-result delivery, master-token read/decrypt and onboarding-writer hooks registered; original master key persisted; no uncaught exception or Metrica fatal suppression.
+- `owner_apk_install_mode=BLOCKED` was expected for this push run because no workflow-dispatch fresh-install authorization was supplied. No diagnostic APK was exported, no workflow artifact exists, and the owner's phone/account/data were not touched.
+- Verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; this does not prove Passport login, audio or product readiness. Stage A remains NO-GO; Stage B remains LOCKED.
+
+### Secret-copy line-ending hardening
+
+The owner copied values from text files. To make the import robust to Windows CRLF copied from the password files, commit `1c9aa880e2dc7b4a7ed11aeadae20572aa889716` trims only trailing CR/LF from the PKCS#12 store and key passwords before invoking keytool. Base64 whitespace and alias/fingerprint normalization were already handled. The regression test now appends actual CRLF to every copied text value.
+
+- #43591990881 failed only in the newly added regression fixture because it encoded literal backslash-r/backslash-n characters rather than actual CRLF; the fixture reached alias validation and failed closed. The ordinary PKCS#12 import test passed. No native test ran in that attempt.
+- Commit `73726716e118cd21ab1dd5615d9c512b41c36f3f` corrects the fixture to actual CRLF. The full source-check step, including the CRLF regression test, passed in #43592027144; its native paired ARM13 step was still running at the time of this documentation update.
+
+### Current source and exact backups
+
+- Working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
+- Current source at this update: `73726716e118cd21ab1dd5615d9c512b41c36f3f`
+- `backup/android-a1-nav13-persistent-owner-signer-20261114` @ `797dac9abc49344a51b796331f681ac9b826af64`
+- `backup/android-a1-owner-signer-secrets-ci-trigger-20261114` @ `5767a961e7715c434ee81ba1e29f09647fe5f4d1`
+- `backup/android-a1-signer-crlf-secret-fix-20261114` @ `1c9aa880e2dc7b4a7ed11aeadae20572aa889716`
+- `backup/android-a1-signer-crlf-test-corrected-20261114` @ `73726716e118cd21ab1dd5615d9c512b41c36f3f`
+
+### Next owner interaction — only after #43592027144 finishes
+
+The workflow's two manual inputs remain false by default. When ready to export the next diagnostic APK, the owner must run the existing workflow via Actions → `CELIKOM A1 readonly AppMetrica lifecycle ARM13 no suppression`, select the working branch, and set both `export_diagnostic_apk=true` and `authorize_fresh_clone_install=true`. This is an explicit one-time export/install gate; it does not uninstall anything on the phone. The eventual installation removes only the diagnostic CELIKOM clone and may lose that clone's local data/account. The original publisher Yandex must remain installed and untouched. Do not request another OTP until the signed diagnostic APK is built, checksummed and delivered.
+
+No APK was exported in the runs above. No owner phone or account was touched. Test.50, Windows and production remain untouched.
