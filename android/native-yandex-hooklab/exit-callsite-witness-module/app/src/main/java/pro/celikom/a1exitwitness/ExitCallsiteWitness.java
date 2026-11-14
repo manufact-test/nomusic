@@ -146,6 +146,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean postLoginPipelineHooked;
     private final java.util.concurrent.atomic.AtomicInteger postLoginPipelineEvents =
         new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger postLoginPipelineSourceEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean postLoginFlowHooked;
     private final java.util.concurrent.atomic.AtomicInteger postLoginFlowEvents =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -3052,6 +3054,27 @@ public final class ExitCallsiteWitness extends XposedModule {
 
 
     /**
+     * Return only a fixed category for the two exact original callers of qY5.if.
+     * Stack contents and arbitrary class names are never emitted.
+     */
+    private static String originalPostLoginCallerCategory() {
+        try {
+            StackTraceElement[] frames = Thread.currentThread().getStackTrace();
+            int limit = Math.min(frames.length, 48);
+            for (int i = 0; i < limit; i++) {
+                StackTraceElement frame = frames[i];
+                String owner = frame.getClassName();
+                String method = frame.getMethodName();
+                if ("oY5$a".equals(owner) && "emit".equals(method))
+                    return "PASSPORT_LOGIN_RESULT";
+                if ("pY5$a".equals(owner) && "emit".equals(method))
+                    return "AUTOLOGIN_UID_RESULT";
+            }
+        } catch (Throwable ignored) { }
+        return "OTHER_CALLER";
+    }
+
+    /**
      * Exact immutable 2025.10.4 publisher result chain, read-only:
      * ZX5.if(WS3) -> hT3.try(Bundle,String) -> YS3.if(lw4,boolean).
      * Strict, version-pinned method signatures; no payload/extras/token reads.
@@ -3090,15 +3113,22 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         String stage = "INITIAL";
+                        boolean initialCall = true;
                         try {
                             Object frame = chain.getArg(3);
                             if (resumed.isInstance(frame)) {
+                                initialCall = false;
                                 int state = stateField.getInt(frame) & Integer.MAX_VALUE;
                                 stage = state == 1 ? "AFTER_TOKEN_REQUEST" :
                                     state == 2 ? "AFTER_USERINFO_REQUEST" :
                                     state == 3 ? "AFTER_SYNC" : "OTHER_STAGE";
                             }
                         } catch (Throwable ignored) { stage = "UNKNOWN_STAGE"; }
+                        if (initialCall &&
+                                postLoginPipelineSourceEvents.incrementAndGet() <= 8) {
+                            emit("LOGIN_PIPELINE_SOURCE", "ENTRY",
+                                originalPostLoginCallerCategory());
+                        }
                         Object result;
                         try {
                             result = chain.proceed();

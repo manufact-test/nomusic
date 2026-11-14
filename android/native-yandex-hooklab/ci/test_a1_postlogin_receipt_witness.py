@@ -40,6 +40,26 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
           'POSTLOGIN_MAIN_ROUTE'):
             self.assertIn(snippet,s)
 
+    def test_original_login_and_autologin_source_are_fixed_enum_only(self):
+        s=self.code
+        start=s.index('private static String originalPostLoginCallerCategory()')
+        end=s.index('private synchronized void observeOriginalPostLoginReceipts(',start)
+        part=s[start:end]
+        self.assertIn('Thread.currentThread().getStackTrace()',part)
+        self.assertIn('Math.min(frames.length, 48)',part)
+        self.assertIn('"oY5$a".equals(owner) && "emit".equals(method)',part)
+        self.assertIn('"pY5$a".equals(owner) && "emit".equals(method)',part)
+        self.assertIn('return "PASSPORT_LOGIN_RESULT"',part)
+        self.assertIn('return "AUTOLOGIN_UID_RESULT"',part)
+        self.assertIn('return "OTHER_CALLER"',part)
+        self.assertNotIn('emit("LOGIN_PIPELINE_SOURCE", owner',part)
+        self.assertNotIn('frame.toString()',part)
+        observer=s[s.index('private synchronized void observeOriginalPostLoginReceipts('):
+                   s.index('// Original LoginFragment flow emission:',s.index('private synchronized void observeOriginalPostLoginReceipts('))]
+        self.assertIn('postLoginPipelineSourceEvents.incrementAndGet() <= 8',observer)
+        self.assertIn('emit("LOGIN_PIPELINE_SOURCE", "ENTRY",',observer)
+        self.assertIn('originalPostLoginCallerCategory()',observer)
+
     def test_exact_original_coroutine_terminal_stage_is_readonly(self):
         s=self.code
         start=s.index('private synchronized void observeOriginalPostLoginReceipts(')
@@ -87,6 +107,10 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
                   "a1_private_postlogin_contract.py").read_text(encoding="utf-8")
         for snippet in (
             '("LeY5$a;", "emit")',
+            '("LoY5$a;", "emit")',
+            '("LpY5$a;", "emit")',
+            '{"login result = "}',
+            '{"autologin result = "}',
             '"Lkotlin/coroutines/Continuation;"',
             '("LqY5;", "if")',
             '"Lcom/yandex/passport/api/n0;"',

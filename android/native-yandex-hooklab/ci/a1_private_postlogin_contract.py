@@ -60,6 +60,10 @@ def required_callsites():
          {"entry_type"}, {("Landroid/content/Intent;", "getParcelableExtra")}),
       ("LeY5$a;", "emit"): (
          {"auto_login"}, {("LWS3$b;", "<init>"), ("LYX5;", "if")}),
+      ("LoY5$a;", "emit"): (
+         {"login result = "}, {("LqY5;", "if")}),
+      ("LpY5$a;", "emit"): (
+         {"autologin result = "}, {("LqY5;", "if")}),
       ("LZX5;", "if"): (
          {"EntryScreenLoginResultKey", "EntryScreenCloseLoginKey"},
          {("Landroidx/fragment/app/k;", "r")}),
@@ -128,6 +132,12 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
     # Exact reflection signatures used by the passive Android observer.
     expected_methods = {
         ("LeY5$a;", "emit"): (
+            "Ljava/lang/Object;",
+            ("Ljava/lang/Object;", "Lkotlin/coroutines/Continuation;")),
+        ("LoY5$a;", "emit"): (
+            "Ljava/lang/Object;",
+            ("Ljava/lang/Object;", "Lkotlin/coroutines/Continuation;")),
+        ("LpY5$a;", "emit"): (
             "Ljava/lang/Object;",
             ("Ljava/lang/Object;", "Lkotlin/coroutines/Continuation;")),
         ("LqY5;", "if"): (
