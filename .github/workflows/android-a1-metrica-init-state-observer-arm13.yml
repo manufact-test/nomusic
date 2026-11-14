@@ -87,7 +87,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Check exact isolated CI and own research code before any vendor input
+      - name: Check isolated CI, persistent owner signer tests, and own research code before vendor input
         shell: bash
         run: |
           set -euo pipefail
