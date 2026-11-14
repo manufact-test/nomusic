@@ -5,8 +5,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $setupPath = Join-Path $PSScriptRoot 'installer/CELIKOM.iss'
 $projectPath = Join-Path $PSScriptRoot '../w15/Celikom.Companion/Celikom.Companion.csproj'
+$supervisorProjectPath = Join-Path $PSScriptRoot '../w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj'
 if (-not (Test-Path -LiteralPath $setupPath) -or
-    -not (Test-Path -LiteralPath $projectPath)) {
+    -not (Test-Path -LiteralPath $projectPath) -or
+    -not (Test-Path -LiteralPath $supervisorProjectPath)) {
     throw 'W136_STAGE_IDENTITY_SOURCE_MISSING'
 }
 
@@ -22,10 +24,21 @@ $fileVersion = SingleSetupValue '(?m)^VersionInfoVersion=([0-9]+\.[0-9]+\.[0-9]+
 $baseName = SingleSetupValue '(?m)^OutputBaseFilename=([A-Za-z0-9_-]+)\s*$' 'W136_INNO_OUTPUT_NAME_INVALID'
 $project = [xml](Get-Content -LiteralPath $projectPath -Raw -Encoding utf8)
 $projectVersion = [string]$project.Project.PropertyGroup.Version
+$supervisorProject = [xml](Get-Content -LiteralPath $supervisorProjectPath -Raw -Encoding utf8)
+$supervisorVersion = [string]$supervisorProject.Project.PropertyGroup.Version
+$supervisorAssemblyVersion = [string]$supervisorProject.Project.PropertyGroup.AssemblyVersion
+$supervisorFileVersion = [string]$supervisorProject.Project.PropertyGroup.FileVersion
 
 if ($version -ne $projectVersion -or $fileVersion -ne "$version.0") {
     throw 'W136_APP_INNO_AND_PE_VERSION_DIVERGED'
 }
+if ($supervisorVersion -ne $version -or
+    $supervisorAssemblyVersion -ne $fileVersion -or
+    $supervisorFileVersion -ne $fileVersion) {
+    throw 'W137_SUPERVISOR_AND_APP_VERSION_DIVERGED'
+}
+# In-place updates must never allocate a second CELIKOM AppId.
+$null = SingleSetupValue '(?m)^AppId=(\{\{D99FDB90-46BF-4EE5-989E-659A2B6450D6\})\s*$' 'W137_INNO_APPLICATION_ID_CHANGED'
 # The manually selected ZIP upgrade path has a deliberately narrower naming
 # contract than the signed production updater. Staging must keep that contract
 # until the owner approves a production-signed package.
