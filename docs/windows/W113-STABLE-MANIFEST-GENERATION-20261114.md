@@ -12,7 +12,7 @@
 - Hashes the exact installer package and the installed CELIKOM executable, native host and renderer. W114 subsequently adds the Supervisor as the fourth payload.
 - Requires a P-256 private key and an independently pinned SPKI public-key DER; refuses to sign if the derived public key differs from the client pin.
 - Signs the exact UTF-8 JSON bytes with SHA-256 / ECDSA P-256 and DER sequence encoding.
-- Validates version, monotonic sequence, HTTPS root shape, immutable versioned package path, UTC publication/expiry and bounded lifetime.
+- Validates version, a positive sequence input (the release pipeline must supply a monotonic value), HTTPS root shape, immutable versioned package path, UTC publication/expiry and bounded lifetime.
 - Tests use a generated throwaway P-256 key only. No test key is a production trust anchor.
 
 ## What W113 does NOT do
@@ -22,4 +22,4 @@
 - No automatic update, installer launch, supervisor launch, real crash recovery or owner-PC test is enabled.
 
 ## Next
-Provision real signing trust through the protected release configuration (never chat or repository files), confirm the official origin, connect generation to the existing release/upload infrastructure, and verify the uploaded bytes independently. Continue with W114 and then a real signed update/rollback test.
+W114 is now complete. Provision real signing trust through the protected release configuration (never chat or repository files), confirm the official origin, connect generation to the existing release/upload infrastructure, and verify the uploaded bytes independently. Then run a real signed update/rollback test.
