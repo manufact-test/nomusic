@@ -1,3 +1,57 @@
+# CELIKOM A1 — CURRENT OWNER HANDOFF (14 Nov 2026, WAITING FOR DIAGNOSTIC)
+
+> **READ THIS FIRST. This block and `docs/android/ANDROID-A1-NAV13-WAIT-FOR-OWNER-DIAGNOSTICS-HANDOFF-20261114.md` override older "next action" notes below. Historical sections are retained as history; where they conflict with this current handoff, this handoff wins.**
+
+## Current state — do not start another run yet
+
+- Repository: `manufact-test/nomusic`.
+- The only Android A1 working branch is `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Last working branch HEAD before this documentation refresh: `376af367c664759039410b68e331a37ce35dfad2`. The new documentation commits will advance the branch; do not confuse documentation HEAD with Android source HEAD.
+- Exact Android source under the latest native test: `cb6f5b6b00fa35b0c66d499e4e795229d198daae`. The assistant-trigger/cleanup and handoff documentation commits did not change Android source.
+- Latest native owner-diagnostic workflow: [#43604192249 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43604192249). Its final verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- Native Android 13 ARM proof: publisher-first install, original publisher's 16 splits verified, original stable for 75 seconds before and after clone installation; clone stable for 75 seconds with 25/25 resumed lifecycle observations. Real clone Entry Activity was created in smoke without login interaction. FLOW/PIPELINE, token read/decrypt, Android result delivery and onboarding-writer observers registered. Original master key persisted.
+- Persistent owner signer verified: `048D76E1C4447FA4F3AC976C45D5A0F8427C087FA665C4FCA88CE5CAA068F9BF`.
+- Exported diagnostic APK SHA-256: `6e62b17aad4b9d7633a22880cceea02d39029cbe22bb663a7b302b5e9a8bc722`; size 71,446,508 bytes. Certificate was independently read from the APK and matched the pinned owner signer.
+- Artifact #14117891265 belongs to run #43604192249. The APK and Russian instruction were copied to the owner's Library:
+  - `/CELIKOM/CELIKOM-A1-NAV13-Entry-PostLogin-Diagnostic-20261114.apk`
+  - `/CELIKOM/NAV13-Инструкция-реального-входа-CELIKOM-A1-20261114.txt`
+- The APK is a **temporary diagnostic build, not a product release**. No genuine owner Passport login, `Success(userInfo)`, native Main route after login, or music playback was tested by CI. Stage A remains **NO-GO**; Stage B remains **LOCKED**. Do not claim the login loop or playback is fixed.
+- `owner_phone_touched=false` in CI. The old installed CELIKOM clone's signer was not proven; install mode was explicitly `FRESH_INSTALL_AUTHORIZED`. Ordinary Yandex Music must remain installed and untouched.
+
+## Immediate instruction to the next chat: WAIT FOR THE OWNER TXT
+
+The owner will attach the result of the controlled real-login diagnostic in the next chat. The next assistant must:
+
+1. Read this handoff, this NEXT-CHAT document, and `docs/android/ANDROID-A1-NAV13-OWNER-REAL-POSTLOGIN-RECEIPT-20261114.md`.
+2. Understand the current state and then **stop and wait for the owner to attach** `CELIKOM-A1-Diagnostics-....txt`.
+3. Do not ask the owner to repeat installation, login, OTP, or diagnostic capture. Do not ask them to click GitHub Actions or press `Run workflow`.
+4. Until the TXT arrives, do not start a new workflow, export another APK, modify Android source, change architecture, or invent a fix. The next actionable input is the diagnostic file.
+5. When the TXT arrives, inspect the actual evidence first and identify the exact observed boundary: Passport result delivery, token read/decrypt, `Success(userInfo)`, onboarding/sync, Entry-to-Main navigation, or process exit. Do not infer a stage that the file does not prove. Then continue autonomously with a protected backup before substantial source changes and the existing native CI gates.
+6. Never request or collect a password, OTP, access token, account contents, or other credentials. The diagnostic is designed to report bounded categories only.
+
+If the owner has not attached the TXT yet, the correct response is simply that the documentation has been read and you are waiting. No extra questionnaire, no repeated setup instructions, no speculative work.
+
+## How this project is operated — mandatory owner preferences
+
+- The assistant is the developer/operator. Use the connected GitHub capability to inspect, edit, commit, back up, trigger workflows, check jobs, retrieve artifacts and update handoff documents.
+- **Never make the owner operate GitHub Actions manually.** Do not tell them to click `Run workflow`, tick inputs, copy workflow parameters, or babysit builds. The assistant triggers and verifies automation itself. If a protected manual dispatch cannot be called directly, use a temporary, narrowly scoped, self-cleaning dispatch mechanism only when appropriate; remove it after successful dispatch and verify cleanup. Do not leave permanent helper files or change the product workflow just to avoid one click.
+- The previous one-time dispatcher already succeeded (#43604186462), launched #43604192249, and removed its temporary files. Two initial helper attempts failed before starting any Android build; the corrected dispatcher succeeded. Do not repeat that work now.
+- Work in large coherent blocks. Do not stop after every tiny operation to ask "continue?" or give a long technical report. Report only meaningful results, blockers, and any action genuinely required from the owner.
+- Keep the existing architecture and the single Android A1 working branch. Do not create a second product/player or reinterpret this branch as a separate test product.
+- Before substantial source changes, create an exact backup branch pointing to the exact current HEAD. Keep rollback possible and record the backup in the handoff.
+- Keep the ordinary Yandex Music app and its data untouched. Never uninstall it, clear its data, or change its account. Do not touch CELIKOM Windows, backend, production, or the accepted Android Test.50 baseline unless explicitly asked.
+- A passing idle/native lifecycle run is not proof of login success or music playback. Preserve the NO-GO / LOCKED gates until genuine owner evidence proves the required stages.
+- Owner interaction is reserved for necessary real-device verification. The assistant handles repository work, CI, artifact export, and documentation.
+
+## Exact rollback references
+
+- Pre-dispatch backup: `backup/android-a1-pre-one-shot-owner-diagnostic-dispatch-20261114` @ `37fd2f806afc8cd1e1739ef5c17d3f1e5381101b`.
+- Post-run/pre-documentation backup: `backup/android-a1-nav13-owner-diagnostic-apk-43604192249-20261114` @ `8ab403e5c9d927af158bf606c17cbe387bcd2b46`.
+- Backup immediately before this documentation-only refresh: `backup/android-a1-nav13-pre-wait-for-owner-diagnostics-docs-20261114` @ `376af367c664759039410b68e331a37ce35dfad2`.
+- No Android source change is part of this handoff update.
+
+---
+
 > **14.11.2026 CURRENT NAV13 SOURCE + ENTRY RUNTIME PASS:** Working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`, source HEAD `cb6f5b6b00fa35b0c66d499e4e795229d198daae`. Source tests, Java module build and exact private DEX contract PASS. **Both latest Android 13 native runs SUCCESS:** clone-only #43602536005 and publisher-first paired #43602536019. Both actually created the clone Entry Activity without extras, taps, login or OTP; both new FLOW/PIPELINE observers registered (`REGISTERED/REGISTERED`). Paired run also proves original publisher installed + stable before/after clone, persistent owner signer verified, clone MAIN 75s stable, no uncaught exception/Metrica fatal suppression. New source category distinguishes `PASSPORT_LOGIN_RESULT` vs `AUTOLOGIN_UID_RESULT`; stage witness distinguishes token / userInfo / sync. No new owner APK exported, no phone touched, no OTP. Real owner failure still lacks `WS3$b Success(userInfo)`; Stage A NO-GO / Stage B LOCKED. Next step, only with explicit owner readiness: verify signer compatibility and prepare one diagnostic APK for one controlled real login. **Read `docs/android/ANDROID-A1-NAV13-OWNER-REAL-POSTLOGIN-RECEIPT-20261114.md` first.** Exact source backup: `backup/android-a1-nav13-entry-hook-smoke-before-ci-20261114` @ `cb6f5b6`.
 
 > **14.11.2026 NAV13 FINAL NATIVE CI GREEN (CURRENT):** Corrected Entry-scoped source `26e952d1f6b0d980b10ed5c9d21310f6d20c0d20`. **Both final Android13 CI SUCCESS:** clone #43598738033, publisher-first paired #43598738007. Original stable and retained, clone MAIN 75s/25-of-25 stable, persistent owner signer verified, original key persisted, no uncaught/Metrica fatal. FLOW/PIPELINE are NOT_OBSERVED because Entry was NOT created in idle tests, correctly accepted; registration on real Entry has NOT been proven. Real owner TXT `CELIKOM-A1-Diagnostics-1794659649152.txt` proves Passport token present/decrypt no exception, Android Entry result OK + FragmentManager key consumed but original Music `POSTLOGIN_PUBLISH OTHER_RESULT` twice with no Success(userInfo). Causal stage remains unknown. No new APK/OTP. Stage A NO-GO / Stage B LOCKED. Source-green exact backup `backup/android-a1-nav13-owner-receipt-source-ci-green-20261114` @ 26e952d. READ `docs/android/ANDROID-A1-NAV13-OWNER-REAL-POSTLOGIN-RECEIPT-20261114.md` FIRST.
