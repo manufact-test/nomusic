@@ -30,3 +30,13 @@
 3. Add the trusted main-app callsite: verify/copy the old supervisor to a protected per-transaction path, prepare the DPAPI journal, then launch only with the exact transaction GUID. Keep fail-closed until signer pins exist.
 4. Run a real signed update, forcibly terminate the new GUI, prove one verified restore and preserve the original account, native integration and Yandex playback.
 5. Only then produce one final EXE+ZIP for owner QA and later mass rollout.
+
+## W114a — 14 November: preserve Supervisor hash in rollback re-verification
+
+- Exact pre-change backup: `backup/windows-main-pre-w114-rollback-supervisor-hash-20261114` @ `ffb983ec97982263e4559b3d7e7aad120976ad76`.
+- Fixed `StableUpdateRollbackJournal.VerifiedPreviousInstallerCore`: reconstructed signed previous-release identity now includes `PreviousSupervisorSha256`, in addition to application, native host and renderer hashes. The production verifier therefore validates all four installed payload identities when re-verifying the cached rollback installer.
+- Strengthened the W15 synthetic signed-package verifier so rollback tests require all four payload hashes to be present. This specifically catches the omission that previously passed because the test seam checked only package bytes.
+- Code commits: `54219d43e550e4c5ea42eb2fa511264a4255ee0e` and `a7c8474a9dadb55c55261bffe6e6141aabac1146`.
+- CI for the final documentation HEAD is pending at handoff; do not claim W114a green until both Main CI and Windows integration complete successfully.
+- This fixes rollback payload verification only. It does not provision production signing keys, launch the helper from the app, publish a live feed or enable automatic updates.
+
