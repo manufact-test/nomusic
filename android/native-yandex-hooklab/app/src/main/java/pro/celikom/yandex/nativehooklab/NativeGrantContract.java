@@ -28,15 +28,25 @@ public final class NativeGrantContract {
     /** From a previously authorized CELIKOM bridge, never from Yandex data. */
     public static final class Grant {
         public final String trackId;
+        public final String albumId;
+        public final String editionId;
+        public final long durationMs;
+        public final long version;
         public final boolean approved;
         public final boolean entitled;
         public final String audioUrl;
         public final long expiresAtMs;
         public final String mimeType;
 
-        public Grant(String trackId, boolean approved, boolean entitled,
-                     String audioUrl, long expiresAtMs, String mimeType) {
+        public Grant(String trackId, String albumId, String editionId,
+                     long durationMs, long version, boolean approved,
+                     boolean entitled, String audioUrl, long expiresAtMs,
+                     String mimeType) {
             this.trackId = trackId;
+            this.albumId = albumId;
+            this.editionId = editionId;
+            this.durationMs = durationMs;
+            this.version = version;
             this.approved = approved;
             this.entitled = entitled;
             this.audioUrl = audioUrl;
@@ -49,11 +59,29 @@ public final class NativeGrantContract {
         return id != null && TRACK.matcher(id).matches();
     }
 
+    /** Account/session + exact native album/edition/duration must be proven upstream. */
+    private static boolean exactText(String value) {
+        if (value == null || value.isEmpty() || value.length() > 128
+                || !value.equals(value.trim())) return false;
+        for (int i=0;i<value.length();i++)
+            if (Character.isISOControl(value.charAt(i))) return false;
+        return true;
+    }
+
     /** No parsed URL, sensitive query, token or secret leaves the caller. */
     public static boolean isAcceptable(Grant grant, String requestedTrackId,
+                                        String requestedAlbumId, String requestedEditionId,
+                                        long originalDurationMs,
                                         String allowedOrigin, long nowMs) {
         if (grant == null || !isExactTrackId(requestedTrackId)
                 || !requestedTrackId.equals(grant.trackId)
+                || !exactText(requestedAlbumId) || !exactText(requestedEditionId)
+                || !requestedAlbumId.equals(grant.albumId)
+                || !requestedEditionId.equals(grant.editionId)
+                || originalDurationMs <= 0 || originalDurationMs > 86_400_000L
+                || grant.durationMs <= 0 || grant.durationMs > 86_400_000L
+                || Math.abs(originalDurationMs-grant.durationMs) > 2_000L
+                || grant.version <= 0
                 || !grant.approved || !grant.entitled || nowMs < 0
                 || grant.audioUrl == null || allowedOrigin == null
                 || !("audio/mpeg".equals(grant.mimeType)

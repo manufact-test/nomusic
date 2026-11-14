@@ -10,6 +10,7 @@ public final class NativeReplacementLifecycleTest {
     private static final String ORIGIN = "https://api.celikom.test";
     private static final String TRACK = "42884423";
     private static final String ALBUM = "album-main";
+    private static final long DURATION = 200_000L;
     private static final String EDITION = "studio";
     private static final String SIGNED = ORIGIN + "/api/v1/audio/139?token="
             + "a".repeat(64) + "&expires=" + EXPIRY/1000 + "&sid=7";
@@ -26,12 +27,11 @@ public final class NativeReplacementLifecycleTest {
                 true,true,true,true,true,true);
     }
     private static NativeGrantContract.Grant grant(String id) {
-        return new NativeGrantContract.Grant(id,true,true,SIGNED,EXPIRY,"audio/mpeg");
+        return new NativeGrantContract.Grant(id, ALBUM, EDITION, DURATION, 1, true, true, SIGNED, EXPIRY, "audio/mpeg");
     }
     private static NativePrePrepareAdmission.Offer offer(
             NativeReplacementLifecycle s, long token, long elapsed) {
-        return s.offerValidated(token,candidate(TRACK,EDITION),
-                grant(TRACK),ORIGIN,elapsed,EPOCH);
+        return s.offerValidated(token, candidate(TRACK,EDITION), grant(TRACK), ORIGIN, DURATION, elapsed, EPOCH);
     }
 
     private static void stopCancelsPendingAndPreventsGrantLeaks() {
@@ -96,11 +96,9 @@ public final class NativeReplacementLifecycleTest {
         s.start();
         long t=s.beginTrack(TRACK, ALBUM, EDITION, 100);
         yes(s.observeFileInfo(t, TRACK, ALBUM, EDITION),"FileInfo match");
-        NativeGrantContract.Grant malformed=new NativeGrantContract.Grant(
-                TRACK,true,true,SIGNED+"?vsid=YT11&source_index=2",
-                EXPIRY,"audio/mpeg");
+        NativeGrantContract.Grant malformed=new NativeGrantContract.Grant(TRACK, ALBUM, EDITION, DURATION, 1, true, true, SIGNED+"?vsid=YT11&source_index=2", EXPIRY, "audio/mpeg");
         eq(NativePrePrepareAdmission.Offer.REJECTED,
-                s.offerValidated(t,candidate(TRACK,EDITION),malformed,ORIGIN,110,EPOCH),
+                s.offerValidated(t, candidate(TRACK,EDITION), malformed, ORIGIN, DURATION, 110, EPOCH),
                 "desktop double-query pattern must be rejected in native Android");
         eq(NativeSourceGate.Choice.ORIGINAL,
                 s.atNativePrepare(t, TRACK, ALBUM, EDITION, 120).source,
@@ -138,7 +136,7 @@ public final class NativeReplacementLifecycleTest {
         yes(s.observeFileInfo(g,TRACK,ALBUM,EDITION),"full triple fileinfo");
         NativeSourceGate.Candidate other=new NativeSourceGate.Candidate(
             TRACK,"another-album",EDITION,true,true,true,true,true,true);
-        eq(s.offerValidated(g,other,grant(TRACK),ORIGIN,110,EPOCH),
+        eq(s.offerValidated(g, other, grant(TRACK), ORIGIN, DURATION, 110, EPOCH),
             NativePrePrepareAdmission.Offer.REJECTED,"wrong album candidate blocked");
         eq(s.atNativePrepare(g,TRACK,ALBUM,EDITION,120).source,
             NativeSourceGate.Choice.ORIGINAL,"invalid candidate never applied");
@@ -150,7 +148,24 @@ public final class NativeReplacementLifecycleTest {
             NativeSourceGate.Choice.ORIGINAL,"null decoder album original");
     }
 
+
+    private static void grantFromDifferentAlbumCannotAuthorize() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
+        s.start();
+        long token=s.beginTrack(TRACK,ALBUM,EDITION,100);
+        yes(s.observeFileInfo(token,TRACK,ALBUM,EDITION),"native triple");
+        NativeGrantContract.Grant wrong=new NativeGrantContract.Grant(
+            TRACK,"unrelated-album",EDITION,DURATION,3,true,true,SIGNED,EXPIRY,"audio/mpeg");
+        eq(s.offerValidated(token,candidate(TRACK,EDITION),wrong,ORIGIN,DURATION,110,EPOCH),
+            NativePrePrepareAdmission.Offer.REJECTED,
+            "server grant must match selected album, not merely track ID");
+        eq(s.atNativePrepare(token,TRACK,ALBUM,EDITION,120).source,
+            NativeSourceGate.Choice.ORIGINAL,
+            "rejected server album cannot reach native alternate");
+    }
+
     public static void main(String[] args) {
+        grantFromDifferentAlbumCannotAuthorize();
         wrongAlbumAndMissingAlbumAlwaysOriginal();
         stopCancelsPendingAndPreventsGrantLeaks();
         stopCannotRetractAlreadyBufferedAudio();

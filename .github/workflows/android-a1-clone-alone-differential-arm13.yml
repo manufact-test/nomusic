@@ -21,6 +21,7 @@ on:
       - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java'
       - 'android/native-yandex-hooklab/tests/src/NativePrePrepareAdmissionTest.java'
       - 'android/native-yandex-hooklab/tests/src/NativeReplacementLifecycleTest.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java'
       - 'android/native-yandex-hooklab/ci/test_native_clone_java_rootcause_triage.py'
       - '.github/workflows/android-a1-clone-alone-differential-arm13.yml'
   workflow_dispatch:
@@ -99,9 +100,11 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
             android/native-yandex-hooklab/tests/src/NativePrePrepareAdmissionTest.java \
-            android/native-yandex-hooklab/tests/src/NativeReplacementLifecycleTest.java
+            android/native-yandex-hooklab/tests/src/NativeReplacementLifecycleTest.java \
+            android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java
           java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativePrePrepareAdmissionTest
           java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativeReplacementLifecycleTest
+          java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativeGrantContractTest
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py

@@ -6,6 +6,9 @@ public final class NativeGrantContractTest {
     private static final long NOW = 1_799_000_000_000L;
     private static final long EXPIRES = NOW + 300_000L;
     private static final String ORIGIN = "https://api.celikom.test";
+    private static final String ALBUM = "album-main";
+    private static final String EDITION = "studio";
+    private static final long DURATION = 200_000L;
     private static final String T = "a".repeat(64);
     private static final String GOOD = ORIGIN + "/api/v1/audio/139?token=" + T
             + "&expires=" + (EXPIRES / 1000) + "&sid=7";
@@ -15,13 +18,13 @@ public final class NativeGrantContractTest {
     }
     private static Grant grant(String id, boolean approved, boolean entitled, String url,
                                long expiry, String type) {
-        return new Grant(id, approved, entitled, url, expiry, type);
+        return new Grant(id,ALBUM,EDITION,DURATION,1,approved,entitled,url,expiry,type);
     }
     private static Grant good(String url) {
         return grant("42498653", true, true, url, EXPIRES, "audio/mpeg");
     }
     private static boolean accept(Grant g) {
-        return NativeGrantContract.isAcceptable(g, "42498653", ORIGIN, NOW);
+        return NativeGrantContract.isAcceptable(g, "42498653", ALBUM,EDITION,DURATION, ORIGIN, NOW);
     }
     private static void exactOriginalContract() {
         yes(accept(good(GOOD)), "exact signed session grant accepted structurally");
@@ -65,18 +68,35 @@ public final class NativeGrantContractTest {
                 "insufficient lifetime");
         yes(!accept(grant("42498653",true,true,GOOD,NOW+40*60*1000,"audio/mpeg")),
                 "excessive lifetime");
-        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653",
-                "https://api.celikom.test/path",NOW), "origin must be root");
-        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653",
-                "http://api.celikom.test",NOW), "allowed origin HTTPS only");
-        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653",
-                "https://api.celikom.test?ignored=1",NOW), "origin query forbidden");
-        yes(!NativeGrantContract.isAcceptable(good(GOOD), "another-track",
-                ORIGIN,NOW), "no fuzzy matching");
-        yes(!NativeGrantContract.isAcceptable(good(GOOD), "42498653",
-                ORIGIN,-1), "invalid monotonic auth time rejected");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD), "42498653", ALBUM,EDITION,DURATION, "https://api.celikom.test/path", NOW), "origin must be root");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD), "42498653", ALBUM,EDITION,DURATION, "http://api.celikom.test", NOW), "allowed origin HTTPS only");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD), "42498653", ALBUM,EDITION,DURATION, "https://api.celikom.test?ignored=1", NOW), "origin query forbidden");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD), "another-track", ALBUM,EDITION,DURATION, ORIGIN, NOW), "no fuzzy matching");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD), "42498653", ALBUM,EDITION,DURATION, ORIGIN, -1), "invalid monotonic auth time rejected");
     }
+
+    private static void albumEditionVersionDurationNeverAlias() {
+        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653","other-album",EDITION,
+                DURATION,ORIGIN,NOW),"wrong selected album vetoes grant");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653",ALBUM,"live",
+                DURATION,ORIGIN,NOW),"wrong selected edition vetoes grant");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653",null,EDITION,
+                DURATION,ORIGIN,NOW),"unproven selected album vetoes grant");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653",ALBUM,null,
+                DURATION,ORIGIN,NOW),"unproven selected edition vetoes grant");
+        yes(!NativeGrantContract.isAcceptable(good(GOOD),"42498653",ALBUM,EDITION,
+                DURATION+3000,ORIGIN,NOW),"duration drift vetoes grant");
+        for(Grant g:new Grant[]{
+                new Grant("42498653",null,EDITION,DURATION,1,true,true,GOOD,EXPIRES,"audio/mpeg"),
+                new Grant("42498653",ALBUM,null,DURATION,1,true,true,GOOD,EXPIRES,"audio/mpeg"),
+                new Grant("42498653",ALBUM,"live",DURATION,1,true,true,GOOD,EXPIRES,"audio/mpeg"),
+                new Grant("42498653",ALBUM,EDITION,DURATION,0,true,true,GOOD,EXPIRES,"audio/mpeg"),
+                new Grant("42498653",ALBUM,EDITION,0,1,true,true,GOOD,EXPIRES,"audio/mpeg")
+        }) yes(!accept(g),"invalid or mismatched backend album/edition/version/duration");
+    }
+
     public static void main(String[] args) {
+        albumEditionVersionDurationNeverAlias();
         exactOriginalContract();
         identityAndSecurity();
         System.out.println("PASS: NativeGrantContract " + checks

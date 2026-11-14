@@ -104,12 +104,13 @@ public final class NativeReplacementLifecycle {
     public synchronized NativePrePrepareAdmission.Offer offerValidated(
             long generationToken, NativeSourceGate.Candidate candidate,
             NativeGrantContract.Grant grant, String apiOrigin,
-            long elapsedRealtimeMs, long unixEpochMs) {
+            long originalDurationMs, long elapsedRealtimeMs, long unixEpochMs) {
         if (generationToken != generation) return NativePrePrepareAdmission.Offer.STALE;
         if (!enabled || active == null || issued || candidate == null)
             return NativePrePrepareAdmission.Offer.REJECTED;
         if (!NativeGrantContract.isAcceptable(
-                grant, candidate.track, apiOrigin, unixEpochMs))
+                grant, candidate.track, candidate.album, candidate.edition,
+                originalDurationMs, apiOrigin, unixEpochMs))
             return NativePrePrepareAdmission.Offer.REJECTED;
         return active.offer(activeRevision, candidate, elapsedRealtimeMs);
     }
