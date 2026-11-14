@@ -15,10 +15,10 @@
 ## Exact repository state
 
 - Repository: `manufact-test/nomusic`.
-- Current `main` HEAD: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- Code baseline immediately before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`. The current branch also contains the W119 documentation-only commit; always fetch live `main` before coding.
 - Last Windows-specific implementation commit: `dafb6191a8e311053f64b455fec075f3944706f1` (W20 existing-installer Supervisor allowlist/gate).
 - Current HEAD is a subsequent repository-wide Android A1 diagnostic-workflow commit. Preserve it; do not modify/reset Android work.
-- Exact backup before this documentation update: `backup/windows-main-pre-owner-work-order-20261114` @ `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- Exact backup of the code baseline before the W119 documentation-only update: `backup/windows-main-pre-owner-work-order-20261114` @ `2c12ea50797d8c395e4a2e169c9000d897dffb11`. The later W119 commits change documentation only; they do not change application code.
 - Main CI [43593559415](https://github.com/manufact-test/nomusic/actions/runs/43593559415) — **SUCCESS**.
 - CELIKOM Windows integration CI [43593559384](https://github.com/manufact-test/nomusic/actions/runs/43593559384) — **SUCCESS**. Includes W20 stage allowlist, Supervisor in the same installer definition, W110 simulation, W117 fail-closed checks, existing VPN/audio/source regressions and warning-as-error builds.
 

@@ -23,10 +23,10 @@ The owner has corrected this several times. Treat it as a hard requirement, not 
 
 ## 2. Exact repository state at this handoff
 
-- Current `main` HEAD: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- Code baseline immediately before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`. The current `main` also contains documentation-only W119 commits; always fetch live `main` before coding.
 - Last Windows-specific implementation commit: `dafb6191a8e311053f64b455fec075f3944706f1` — W20 same-installer Supervisor allowlist/gate change.
 - The current HEAD is a later repository-wide commit for a separate Android A1 diagnostic workflow. Preserve it; do not reset, rewrite or modify Android work.
-- Exact pre-documentation backup: `backup/windows-main-pre-owner-work-order-20261114` @ `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- Exact backup of the code baseline before the W119 documentation-only update: `backup/windows-main-pre-owner-work-order-20261114` @ `2c12ea50797d8c395e4a2e169c9000d897dffb11`. Later W119 commits change documentation only, not application code.
 - Main CI [43593559415](https://github.com/manufact-test/nomusic/actions/runs/43593559415) — **SUCCESS** at current HEAD.
 - CELIKOM Windows integration CI [43593559384](https://github.com/manufact-test/nomusic/actions/runs/43593559384) — **SUCCESS** at current HEAD.
 - Windows integration explicitly passed: W22/W23/W60 source/VPN/403/audio regressions; W21 recovery; W24 package/catalog checks; W15 login/native state; warning-as-error GUI and Supervisor builds; W114 same-installer Supervisor payload check; W20 installer stage allowlist; W110 watchdog simulation; W117 fail-closed trust/bootstrap checks.
