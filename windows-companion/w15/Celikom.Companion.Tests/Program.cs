@@ -59,9 +59,11 @@ try
     var tx = StableUpdateRollbackJournal.PrepareCore(
         rollbackRoot, previousRelease, previousSetup, targetRelease, nextSetup,
         testSignerPin, previousRelease.Version, rollbackAt,
-        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup);
+        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
+        sessionIdentitySha256: new string('d', 64));
     Test(tx.State == StableUpdateRollbackJournal.Phase.Prepared &&
          tx.RollbackAttempts == 0 && verifiedImages == 3 &&
+         tx.SessionIdentitySha256 == new string('d', 64) &&
          StableUpdateRollbackJournal.Read(rollbackRoot) == tx,
          "W109 DPAPI journal roundtrip and byte-identical previous EXE snapshot");
     bool overlappingDenied = false;
@@ -69,7 +71,8 @@ try
     {
         StableUpdateRollbackJournal.PrepareCore(rollbackRoot, previousRelease,
             previousSetup, targetRelease, nextSetup, testSignerPin,
-            previousRelease.Version, rollbackAt, true, true, VerifySyntheticSetup);
+            previousRelease.Version, rollbackAt, true, true, VerifySyntheticSetup,
+            sessionIdentitySha256: new string('d', 64));
     }
     catch (IOException e) when (e.Message == "STABLE_ROLLBACK_PENDING_EXISTS")
     { overlappingDenied = true; }
@@ -121,7 +124,8 @@ try
     var accepted = StableUpdateRollbackJournal.PrepareCore(
         acceptedRoot, previousRelease, previousSetup, targetRelease, nextSetup,
         testSignerPin, previousRelease.Version, rollbackAt,
-        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup);
+        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
+        sessionIdentitySha256: new string('d', 64));
     accepted = StableUpdateRollbackJournal.Advance(acceptedRoot, accepted.Id,
         StableUpdateRollbackJournal.Phase.Prepared,
         StableUpdateRollbackJournal.Phase.InstallerStarted);
@@ -143,7 +147,8 @@ try
     var nextTransaction = StableUpdateRollbackJournal.PrepareCore(
         acceptedRoot, targetRelease, nextSetup, thirdRelease, previousSetup,
         testSignerPin, targetRelease.Version, rollbackAt.AddHours(1),
-        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup);
+        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
+        sessionIdentitySha256: new string('d', 64));
     Test(nextTransaction.State == StableUpdateRollbackJournal.Phase.Prepared &&
          nextTransaction.Id != accepted.Id &&
          StableUpdateRollbackJournal.Read(acceptedRoot).Id == nextTransaction.Id,
