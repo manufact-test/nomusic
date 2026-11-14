@@ -74,9 +74,10 @@ public static class StableUpdateRollbackJournal
         string sessionIdentitySha256 = "")
     {
         RequireWindows();
-        // The synthetic CI verifier seam may omit the session fingerprint.
-        // Production PrepareSigned ALWAYS supplies the existing identity.
-        if (sessionIdentitySha256.Length != 0 && !ValidSha(sessionIdentitySha256))
+        // When there was an existing login, its identity witness is
+        // mandatory even for synthetic CI transactions. No silent bypass.
+        if (hasSession && !ValidSha(sessionIdentitySha256) ||
+            !hasSession && sessionIdentitySha256.Length != 0)
             throw new IOException("STABLE_ROLLBACK_SESSION_FINGERPRINT_INVALID");
         if (previous.Version != runningVersion ||
             target.Version <= previous.Version ||
@@ -350,9 +351,8 @@ public static class StableUpdateRollbackJournal
             if (record is null || record.Schema != 1 || record.Id == Guid.Empty ||
                 !ValidSha(record.PreviousSha256) || !ValidSha(record.TargetSha256) ||
                 !ValidSha(record.SignerSha256) ||
-                (record.SessionIdentitySha256 is null ||
-                 record.SessionIdentitySha256.Length != 0 &&
-                 !ValidSha(record.SessionIdentitySha256)) ||
+                (record.ExpectedSession && !ValidSha(record.SessionIdentitySha256) ||
+                 !record.ExpectedSession && record.SessionIdentitySha256 != "") ||
                 !Version.TryParse(record.PreviousVersion, out var previous) ||
                 !Version.TryParse(record.TargetVersion, out var target) ||
                 previous >= target || record.PreviousSequence >= record.TargetSequence ||
