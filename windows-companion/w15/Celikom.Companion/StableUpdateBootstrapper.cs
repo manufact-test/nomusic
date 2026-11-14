@@ -39,8 +39,9 @@ public static class StableUpdateBootstrapper
     {
         if (!OperatingSystem.IsWindows())
             throw new IOException("STABLE_ROLLBACK_WINDOWS_ONLY");
-        if (!Regex.IsMatch(pinnedSignerCertificateSha256 ?? "",
-            "^[a-fA-F0-9]{64}$", RegexOptions.CultureInvariant))
+        if (pinnedSignerCertificateSha256 is not { Length: 64 } ||
+            !Regex.IsMatch(pinnedSignerCertificateSha256,
+                "^[a-fA-F0-9]{64}$", RegexOptions.CultureInvariant))
             throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
 
         var installed = InstalledPayloadPaths.CurrentProcess();
