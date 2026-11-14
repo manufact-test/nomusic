@@ -671,6 +671,55 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
   assert.ok(commands.every(([name])=>name!=="Media.getResponseBody" && name!=="Runtime.evaluate"));
 });
 
+test("W133 verified playback heartbeat downgrades immediately when current decoder leaves CELIKOM", async () => {
+  let clockNow = Date.now();
+  class FakeDate extends Date {
+    constructor(...args) { super(...(args.length ? args : [clockNow])); }
+    static now() { return clockNow; }
+  }
+  const grant = w52Grant("139", "123");
+  const {debug} = w52Debugger();
+  const r = await runHost("musicapplication://desktop/", {
+    debuggerDriver:debug,
+    grantOverride:grant,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Track",artist:"Artist",durationMs:180000},
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"},
+    clock:FakeDate
+  });
+  const heartbeatStatuses = () => r.network
+    .filter(request => request.path === "/v1/heartbeat")
+    .map(request => JSON.parse(request.body).status);
+
+  // Only a current signed URL + kIsPlaying can produce the green heartbeat.
+  debug.emit("message",{}, "Media.playerPropertiesChanged", {
+    playerId:"current-source",
+    properties:[
+      {name:"kUrl",value:grant.audioUrl},
+      {name:"kIsPlaying",value:"true"}
+    ]
+  });
+  clockNow += 2600;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,50));
+  assert.ok(heartbeatStatuses().includes("NATIVE_SOURCE_VERIFIED"),
+    "the current signed decoder first becomes verified");
+
+  const beforeSourceLeft = heartbeatStatuses().length;
+  debug.emit("message",{}, "Media.playerPropertiesChanged", {
+    playerId:"current-source",
+    properties:[{name:"kUrl",value:"https://official.yandex.example/original"}]
+  });
+  await new Promise(resolve=>setTimeout(resolve,50));
+  const afterSourceLeft = heartbeatStatuses().slice(beforeSourceLeft);
+  assert.ok(afterSourceLeft.includes("NATIVE_MAPPING_ACCEPTED"),
+    "source-left immediately clears the green status without waiting for the 2.2s sampler");
+  assert.equal(afterSourceLeft.at(-1),"NATIVE_MAPPING_ACCEPTED");
+  assert.ok(!JSON.stringify(r.network).includes(grant.audioUrl),
+    "the immediate heartbeat never contains a signed media URL");
+});
+
 test("W130 diagnostics distinguish CDP player properties from kUrl visibility without exporting URL", async () => {
   const {debug} = w52Debugger();
   const r = await runHost("musicapplication://desktop/", {
