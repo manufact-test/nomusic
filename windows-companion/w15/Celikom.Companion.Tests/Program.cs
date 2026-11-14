@@ -1728,6 +1728,8 @@ try
     Test(DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_MEMORY_HIGH") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_CPU_HIGH") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_CDP_PROPERTIES_SEEN") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_CDP_URL_PROPERTY_SEEN") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
@@ -1751,6 +1753,8 @@ try
         when + "|NATIVE_ELECTRON_EVENT_LOOP_STALL\n" +
         when + "|NATIVE_ELECTRON_MEMORY_HIGH\n" +
         when + "|NATIVE_ELECTRON_CPU_HIGH\n" +
+        when + "|PLAYER_CDP_PROPERTIES_SEEN\n" +
+        when + "|PLAYER_CDP_URL_PROPERTY_SEEN\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209\n" +
         when + "|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209\n" +
@@ -1779,6 +1783,8 @@ try
          snapshot.Contains("ElectronEventLoopStallObserved=true") &&
          snapshot.Contains("ElectronMemoryHighObserved=true") &&
          snapshot.Contains("ElectronCpuHighObserved=true") &&
+         snapshot.Contains("NativeDecoderPropertiesObserved=true") &&
+         snapshot.Contains("NativeDecoderUrlPropertyObserved=true") &&
          snapshot.Contains("PlayerGainVariantUrlSelectedObserved=true") &&
          snapshot.Contains("PlayerGainVariantUrlMissingObserved=true") &&
          snapshot.Contains("PlayerNativeVolumeDropObserved=true") &&
@@ -1789,6 +1795,8 @@ try
     Test(importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
          importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")) &&
          importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_CPU_HIGH")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_CDP_PROPERTIES_SEEN")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_CDP_URL_PROPERTY_SEEN")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=739209")),
@@ -1807,6 +1815,9 @@ try
         Test(root.GetProperty("platform").GetString() == "windows" &&
             root.GetProperty("scopeSeconds").GetInt32() == 900,
             "W70 auto-attachment includes version, bounded scope and platform");
+        Test(root.GetProperty("nativeDecoderPropertiesObserved").GetBoolean() &&
+             root.GetProperty("nativeDecoderUrlPropertyObserved").GetBoolean(),
+            "W130 auto-support distinguishes CDP player-property and kUrl visibility");
         var events = root.GetProperty("events");
         Test(events.GetArrayLength() <= 64 &&
              events.EnumerateArray().Any(x => x.GetProperty("code").GetString() ==
