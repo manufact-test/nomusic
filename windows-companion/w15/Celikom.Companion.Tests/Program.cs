@@ -66,6 +66,11 @@ try
              Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file)))
                 .Equals(expected.Sha256, StringComparison.OrdinalIgnoreCase),
              "W109 verified rollback snapshot/installer matches signed manifest hash");
+        Test(expected.ApplicationSha256.Length == 64 &&
+             expected.NativeHostSha256.Length == 64 &&
+             expected.RendererSha256.Length == 64 &&
+             expected.SupervisorSha256.Length == 64,
+             "W114 previous/target rollback release preserves all four signed payload hashes");
         verifiedImages++;
     }
     var tx = StableUpdateRollbackJournal.PrepareCore(
