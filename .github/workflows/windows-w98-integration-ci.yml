@@ -112,18 +112,18 @@ jobs:
           $stableCoordinatorText=Get-Content ..\w15\Celikom.Companion\StableUpdateInstallCoordinator.cs -Raw
           $mainWindowStableText=Get-Content ..\w15\Celikom.Companion\MainWindow.StableUpdate.cs -Raw
           $appUpdateManagerText=Get-Content ..\w15\Celikom.Companion\AppUpdateManager.cs -Raw
-          $guardChecks=@(
-            $nativeHostText.Contains('maxTotalBufferSize: 2 * 1024 * 1024'),
-            $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
-            $nativeHostText.Contains('PLAYER_CURRENT_NATIVE_VOLUME_DROP'),
-            $nativeHostText.Contains('setInterval(() => {'),
-            $detachStart=$nativeHostText.IndexOf('debug.on("detach"', [StringComparison]::Ordinal)
+          $detachStart=$nativeHostText.IndexOf('debug.on("detach"', [StringComparison]::Ordinal)
           $detachEnd=$nativeHostText.IndexOf('Promise.resolve(debug.sendCommand("Media.enable"))', $detachStart, [StringComparison]::Ordinal)
           if ($detachStart -lt 0 -or $detachEnd -le $detachStart) {
             throw 'W125_DECODER_DETACH_GUARD_BOUNDS_INVALID'
           }
           $detachHandler=$nativeHostText.Substring($detachStart, $detachEnd - $detachStart)
-          $nativeHostText.Contains('lastDeliveredState'),
+          $guardChecks=@(
+            $nativeHostText.Contains('maxTotalBufferSize: 2 * 1024 * 1024'),
+            $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
+            $nativeHostText.Contains('PLAYER_CURRENT_NATIVE_VOLUME_DROP'),
+            $nativeHostText.Contains('setInterval(() => {'),
+            $nativeHostText.Contains('lastDeliveredState'),
             $detachHandler.Contains('verifiedDecoderSource.delete(view)'),
             $detachHandler.Contains('nativeNetworkObserversReady.delete(view)'),
             $detachHandler.Contains('decoderPlayers.clear()'),
