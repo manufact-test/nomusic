@@ -16,7 +16,7 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code/test/workflow HEAD: `152d07123bff4cebd71118141c766c8c62651c5a` (W136 one-product installer metadata/staging repair). The most recent Windows runtime implementation remains W135 `3045a9deaa7f87e031313741b64f4f9fbdd6e5c5`. The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
+- Current first-owner-review source HEAD: `1338b73f3709847d5e42f9eb47cc8e8078b70374` (W138, CELIKOM 0.24.37 one EXE+ZIP private owner acceptance); newer main commits may contain Windows documentation only. The most recent Windows runtime implementation remains W135 `3045a9deaa7f87e031313741b64f4f9fbdd6e5c5`. The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
 - Last Windows app implementation commit: `3045a9deaa7f87e031313741b64f4f9fbdd6e5c5` (W135 source-decision incident retention); W135 regression-test/final code-test HEAD: `5a40357d28f1a1cc4f467a16bfaaaf38aa530b3f`; W134 regression-test commit: `d6c091fb109baeaa1690b15ca3f90d7c914a279a`; W133 runtime commit: `d548ed0af0f3717669c1fbcd903fc4f626428c7e`; W133 regression-test commit: `d79c20f37ce7428fca0e1abf1bdf3b0ad1a05832`; W132 test: `c02cd4988292598f81e857062279d0179253a42a`; W131 runtime/test: `5fb5f32d0364d476889bf56d0f8e8fc0e38d71b2` / `2f41091d1af072483ed5c79782958002b0ee2101`; W127 implementation/test: `4fe42d745b6708524c65eb4f9855e026f314fefa` / `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`; W130 host/test: `5acbcc2af1a6cee85ef96bc81ce45d56d2f90726` / `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
 - Exact pre-W128 CI policy backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`.
 - Exact pre-W130 diagnostics backup: `backup/windows-main-pre-w130-cdp-property-observability-20261114` @ `312d61a62fb4abcb779df539503adf4226818185`.
@@ -31,6 +31,17 @@
 - The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
 
 ## Current state — what is and is not done
+
+## W138 — single first-owner-review package BUILT, not production stable
+
+- Private GitHub Actions [W138 owner-review run 43617609655](https://github.com/manufact-test/nomusic/actions/runs/43617609655) — **SUCCESS**, exact source `1338b73f3709847d5e42f9eb47cc8e8078b70374`.
+- GUI, Supervisor and Inno all identify the one existing CELIKOM product `0.24.37` / `0.24.37.0`, preserving the same existing AppId and user data. No second product or Windows TEST line.
+- One private artifact ID `14122464630`: `CELIKOM-W138-WINDOWS-02437-UNSIGNED.exe` (SHA-256 `1986c8269c990c91ad0b5910fc76021915ecdbafd1cdf796dce8b474ad03bb38`), `CELIKOM-Windows-0.24.37.zip` (SHA-256 `adc372876b49b9d9a3fbded7d7b1a751d69874469de0f71b8492cee39f39d16a`, exactly one EXE) and `SHA256SUMS.txt`. Outer archive, both digests and inner ZIP content checked independently.
+- Exact main-source CI: [Main 43617609632](https://github.com/manufact-test/nomusic/actions/runs/43617609632) SUCCESS and [Windows integration 43617609631](https://github.com/manufact-test/nomusic/actions/runs/43617609631) SUCCESS. Stage job verified native code/GUI/Supervisor, single-AppId upgrade, per-user install/uninstall, zipped updater acceptance and checksums.
+- Latest exact backups: W136 `backup/windows-main-pre-w136-stage-pipeline-current-version-20261114` @ `b7789299e901cf2218520f724043057744ef05ec`; W137 `backup/windows-main-pre-w137-one-package-exe-zip-20261114` @ `c2620d34884aad7d69d7e641e7b98e67bfe9716c`; W138 `backup/windows-main-pre-w138-first-owner-review-version-20261114` @ `48bd36d47aa1f7f2abfb0b89e95ffb8d5ecbdbdc`.
+- **FIRST OWNER MANUAL ACCEPTANCE NOW REQUIRED**: real audio/VPN («Моя волна», «Ты», Big City Life, gain, 403→206), login/reconnect/diagnostics, Brave resource usage, startup/tray and suspicious elevation prompts. Group all checks; keep all six owner issues OPEN pending evidence. See `docs/windows/W138-SINGLE-OWNER-REVIEW-02437-EXE-ZIP-CI-20261114.md`.
+- This owner-review build is **UNSIGNED**, private and **NOT** production. Automatic updater is dormant: no real approved stable HTTPS origin / P-256 public key / Authenticode signer fingerprint. Do not mass-distribute or declare automatic rollback production-proven. Do not create a second installer merely because docs or unrelated work changes.
+
 
 ## W136 — unblock the one existing CELIKOM Windows package-validation pipeline
 
