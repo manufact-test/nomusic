@@ -508,17 +508,38 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, code_off: int):
         elif op in INVOKES:
             callee = dex.method(words[1])
             regs = invoke_registers(op, words)
-            if callee[1] in ("collect", "collectLatest", "launchIn", "emit"):
-                for target in targets:
-                    positions = [i for i, reg in enumerate(regs) if reg in aliases[target]]
-                    if positions:
-                        collected.append({
-                            "class": target,
-                            "callee": {"owner": callee[0], "method": callee[1],
-                                       "signature": callee[2]},
-                            "argument_positions": positions,
-                            "ordinal": ordinal,
-                        })
+            for target in targets:
+                positions = [i for i, reg in enumerate(regs) if reg in aliases[target]]
+                if positions:
+                    collected.append({
+                        "class": target,
+                        "call_kind": "FLOW_COLLECT_OR_EMIT" if callee[1] in (
+                            "collect", "collectLatest", "launchIn", "emit") else "OBJECT_PASSED_TO_METHOD",
+                        "callee": {"owner": callee[0], "method": callee[1],
+                                   "signature": callee[2]},
+                        "argument_positions": positions,
+                        "ordinal": ordinal,
+                    })
+        elif 0x59 <= op <= 0x5f:  # iput*: capture only the destination field identity
+            value_register = (words[0] >> 8) & 15
+            owner, name, typ = field_id(dex, words[1])
+            for target in targets:
+                if value_register in aliases[target]:
+                    collected.append({
+                        "class": target, "call_kind": "OBJECT_STORED_IN_INSTANCE_FIELD",
+                        "destination_owner": owner, "destination_field": name,
+                        "destination_type": typ, "ordinal": ordinal,
+                    })
+        elif 0x67 <= op <= 0x6d:  # sput*: capture only static destination field
+            value_register = words[0] >> 8
+            owner, name, typ = field_id(dex, words[1])
+            for target in targets:
+                if value_register in aliases[target]:
+                    collected.append({
+                        "class": target, "call_kind": "OBJECT_STORED_IN_STATIC_FIELD",
+                        "destination_owner": owner, "destination_field": name,
+                        "destination_type": typ, "ordinal": ordinal,
+                    })
         elif op == 0x1f:
             pass
         else:
