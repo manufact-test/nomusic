@@ -671,6 +671,35 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
   assert.ok(commands.every(([name])=>name!=="Media.getResponseBody" && name!=="Runtime.evaluate"));
 });
 
+test("W130 diagnostics distinguish CDP player properties from kUrl visibility without exporting URL", async () => {
+  const {debug} = w52Debugger();
+  const r = await runHost("musicapplication://desktop/", {
+    debuggerDriver:debug,
+    queue:[],
+    currentTrack:null,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  const seen = code => r.diagnostics.some(x => x.includes("|" + code));
+  debug.emit("message",{}, "Media.playerPropertiesChanged", {
+    playerId:"player-properties-only",
+    properties:[{name:"kIsPlaying",value:"true"}]
+  });
+  assert.ok(seen("PLAYER_CDP_PROPERTIES_SEEN"),
+    "the host records that CDP player properties are available");
+  assert.ok(!seen("PLAYER_CDP_URL_PROPERTY_SEEN"),
+    "properties without kUrl do not imply decoder URL visibility");
+  const privateUrl = "https://media.celikom.example/private/audio?token=secret&sid=hidden";
+  debug.emit("message",{}, "Media.playerPropertiesChanged", {
+    playerId:"player-url-property",
+    properties:[{name:"kUrl",value:privateUrl}]
+  });
+  assert.ok(seen("PLAYER_CDP_URL_PROPERTY_SEEN"),
+    "the host records kUrl field visibility without relying on a successful match");
+  assert.ok(!JSON.stringify(r.diagnostics).includes(privateUrl));
+  assert.ok(!JSON.stringify(r.diagnostics).includes("token=secret"));
+  assert.ok(!JSON.stringify(r.diagnostics).includes("sid=hidden"));
+});
+
 test("W127 current decoder proof is reconciled when queue identity arrives after CDP properties", async () => {
   let clockNow = Date.now();
   class FakeDate extends Date {
