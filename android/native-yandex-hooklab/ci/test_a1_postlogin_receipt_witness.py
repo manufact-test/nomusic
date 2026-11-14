@@ -161,6 +161,17 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertGreaterEqual(runner.count('report["master_token_read_hook_status"] == "REGISTERED"'),2)
         self.assertGreaterEqual(runner.count('report["master_token_decrypt_hook_status"] == "REGISTERED"'),2)
 
+    def test_native_gate_requires_exact_login_receipt_hook_registration(self):
+        runner=(Path(__file__).resolve().parent /
+                "owner_2025_lspatch2_namespaced_clone_arm13.py").read_text(encoding="utf-8")
+        self.assertIn('def _postlogin_hook_status(raw_logcat: str, kind: str)',runner)
+        self.assertIn('kind not in ("FLOW", "PIPELINE")',runner)
+        self.assertIn('event=POSTLOGIN_HOOK;origin={kind};error=',runner)
+        self.assertEqual(runner.count('report["postlogin_flow_hook_status"]=_postlogin_hook_status(raw_logcat, "FLOW")'),2)
+        self.assertEqual(runner.count('report["postlogin_pipeline_hook_status"]=_postlogin_hook_status(raw_logcat, "PIPELINE")'),2)
+        self.assertGreaterEqual(runner.count('report["postlogin_flow_hook_status"] == "REGISTERED"'),2)
+        self.assertGreaterEqual(runner.count('report["postlogin_pipeline_hook_status"] == "REGISTERED"'),2)
+
     def test_passport_set_result_observer_has_independent_quota(self):
         s=self.code
         self.assertIn('activityResultProducerObservations =',s)
