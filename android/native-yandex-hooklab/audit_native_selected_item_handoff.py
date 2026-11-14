@@ -59,7 +59,8 @@ SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "for"),
     ("Lcom/yandex/music/shared/player/download2/o;", "if"),
     ("LGp0;", "new"), ("Lou3;", "new"),
-    ("LDp0;", "if"), ("Lwp0$a;", "emit"),
+    ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
+    ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"),
     ("Lcq7;", "i0"), ("Lga4;", "d"),
 }
 MAX_DEX = 6
@@ -504,7 +505,8 @@ def inspect_signed(apks):
     focused_method_traces = []
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
-        ("LDp0;", "if"), ("Lwp0$a;", "emit")
+        ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
+        ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
