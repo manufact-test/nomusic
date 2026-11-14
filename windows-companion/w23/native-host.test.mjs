@@ -671,6 +671,56 @@ test("W84 passive decoder witness requires current player URL + signed grant + p
   assert.ok(commands.every(([name])=>name!=="Media.getResponseBody" && name!=="Runtime.evaluate"));
 });
 
+test("W127 current decoder proof is reconciled when queue identity arrives after CDP properties", async () => {
+  let clockNow = Date.now();
+  class FakeDate extends Date {
+    constructor(...args) { super(...(args.length ? args : [clockNow])); }
+    static now() { return clockNow; }
+  }
+  const grant = w52Grant("139", "123");
+  const {debug} = w52Debugger();
+  const currentTrack = {id:null,title:"",artist:"",durationMs:180000};
+  const r = await runHost("musicapplication://desktop/", {
+    debuggerDriver:debug, grantOverride:grant,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack,
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"},
+    clock:FakeDate
+  });
+  const evidence = () => r.diagnostics.filter(x =>
+    x.endsWith("|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=123"));
+  // The decoder event can precede Yandex's current queue identity. It must
+  // not be attributed to a previous/unknown track at this point.
+  debug.emit("message",{}, "Media.playerPropertiesChanged", {
+    playerId:"player-race",
+    properties:[
+      {name:"kUrl",value:grant.audioUrl},
+      {name:"kIsPlaying",value:"true"}
+    ]
+  });
+  assert.equal(evidence().length,0,
+    "a signed current decoder URL without matching current queue identity is not yet attributed");
+  currentTrack.id = "123";
+  currentTrack.title = "Track";
+  currentTrack.artist = "Artist";
+  // The native host samples current queue identity on its established 2.2s
+  // status cadence. Reconciliation must recover the already-observed decoder.
+  clockNow += 2600;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,50));
+  assert.equal(evidence().length,1,
+    "the retained exact signed decoder witness is reconciled when the current track becomes known");
+  assert.ok(r.evaluated.some(s=>s.includes("__celikomBridgeNativeConfirmedCurrentSource?.") &&
+    s.includes("123")),
+    "the delayed proof also cancels only a still-pending redundant source recovery");
+  assert.ok(r.network.some(x=>x.path==="/v1/heartbeat" &&
+    x.body?.includes('"status":"NATIVE_SOURCE_VERIFIED"')),
+    "the exact current track receives the verified-only heartbeat");
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl),
+    "signed source URLs remain excluded from diagnostics");
+});
+
 test("W99 only a verified playing CELIKOM decoder source loss requests bounded recovery",async()=>{
   const grant=w52Grant("139","123");
   const {debug}=w52Debugger();
