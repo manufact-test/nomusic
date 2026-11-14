@@ -285,7 +285,12 @@ async function relayState(view, token, now) {
       lastNativeState.set(view, active);
       note(active ? "STATE_ENABLED" : "STATE_DISABLED");
     }
-  } else note("STATE_UNREACHABLE");
+  } else {
+    // A failed poll invalidates the cached disabled state too. Keep the next
+    // host pulse fast until the companion explicitly confirms OFF again.
+    lastNativeState.delete(view);
+    note("STATE_UNREACHABLE");
+  }
   const safeState = {
     enabled: stateAvailable && state.enabled === true,
     signedIn: stateAvailable && state.signedIn === true,
@@ -925,7 +930,8 @@ function pulseHost() {
   if (views.length) note("WEB_CONTENTS_PRESENT");
   for (const view of views) void tick(view);
   // Unknown/unreachable is not proof of idle: only a successful disabled
-  // state response permits the 1s idle cadence.
+  // state response permits the 1s idle cadence. relayState deletes the cache
+  // after any failed GET, so the next pulse returns to the fast cadence.
   const active = views.some(view => lastNativeState.get(view) !== false);
   // Preserve the 300ms active relay for prompt Start/Next/recovery, but back
   // off to 1s only after the companion explicitly confirms CELIKOM is disabled.

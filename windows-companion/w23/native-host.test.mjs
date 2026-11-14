@@ -125,10 +125,12 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
 test("W120 host relay backs off while disabled and keeps the active 300ms cadence",async()=>{
   const idle=await runHost("musicapplication://desktop/");
   assert.equal(idle.timerDelayMs,300,"first native handshake stays prompt");
-  for(let i=0;i<3 && idle.timerDelayMs!==1000;i++){
-    idle.pulse();
-    await new Promise(resolve=>setTimeout(resolve,60));
-  }
+  for(let i=0;i<20 && !idle.diagnostics.includes("STATE_DISABLED");i++)
+    await new Promise(resolve=>setTimeout(resolve,20));
+  assert.ok(idle.diagnostics.includes("STATE_DISABLED"),
+    "idle cadence starts only after the companion explicitly confirms disabled");
+  idle.pulse();
+  await new Promise(resolve=>setTimeout(resolve,35));
   assert.equal(idle.timerDelayMs,1000,"only a confirmed disabled state may use the 1s idle cadence");
 
   const active=await runHost("musicapplication://desktop/",{
@@ -161,10 +163,12 @@ test("W120 a failed state GET preserves fast recovery cadence after active playb
       {enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
     ]
   });
-  for(let i=0;i<5 && !r.diagnostics.some(x=>x.includes("|STATE_ENABLED"));i++)
-    await new Promise(resolve=>setTimeout(resolve,40));
+  for(let i=0;i<20 && !r.diagnostics.some(x=>x.includes("|STATE_ENABLED"));i++)
+    await new Promise(resolve=>setTimeout(resolve,20));
   assert.ok(r.diagnostics.some(x=>x.includes("|STATE_ENABLED")),
     "initial successful state must be observed before simulating an outage");
+  for(let i=0;i<20 && !r.evaluated.some(x=>x.includes("__celikomBridgeNativeCurrentTrack?.()"));i++)
+    await new Promise(resolve=>setTimeout(resolve,20));
   fakeNow+=1000;
   r.pulse();
   await new Promise(resolve=>setTimeout(resolve,60));
