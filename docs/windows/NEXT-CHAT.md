@@ -16,7 +16,7 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code/test HEAD: `7e4c8268cba30f781a3fa091d9657718ec463b66` (W127 current-decoder/queue-identity ordering fix and regression test). The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
+- Current Windows code/test HEAD: `7e4c8268cba30f781a3fa091d9657718ec463b66` (W127 current-decoder/queue-identity ordering fix and regression test). W128 is documentation-only. The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
 - Last Windows-specific implementation commit: `4fe42d745b6708524c65eb4f9855e026f314fefa`; W127 regression-test commit: `7e4c8268cba30f781a3fa091d9657718ec463b66`.
 - Exact pre-W127 rollback snapshot: `backup/windows-main-pre-w127-current-decoder-witness-race-20261114` @ `4b7d2277d98986d8d4ab0ed9ba42a76fc25da810`.
 - W127 Main CI [43603865004](https://github.com/manufact-test/nomusic/actions/runs/43603865004) and Windows integration CI [43603864999](https://github.com/manufact-test/nomusic/actions/runs/43603864999) — **SUCCESS**.
@@ -38,6 +38,14 @@
 - W127 implementation: `4fe42d745b6708524c65eb4f9855e026f314fefa`; test: `7e4c8268cba30f781a3fa091d9657718ec463b66`; exact pre-change backup: `backup/windows-main-pre-w127-current-decoder-witness-race-20261114` @ `4b7d2277d98986d8d4ab0ed9ba42a76fc25da810`.
 - Main CI [43603865004](https://github.com/manufact-test/nomusic/actions/runs/43603865004) and Windows integration CI [43603864999](https://github.com/manufact-test/nomusic/actions/runs/43603864999) — **SUCCESS**.
 - **#52 remains OPEN.** This fixes event ordering only; it does not prove audible output on the owner's PC. VPN A→B and all other owner-PC audio acceptance also remain open. No installer was built.
+
+# W128 — Read-only CELIKOM elevation launch audit — 14 November 2026
+
+- Reviewed the current app launch paths, updater, Supervisor launcher, project settings and Inno installer. No explicit `runas` / `Verb="runas"` request was found in the reviewed CELIKOM paths.
+- MainWindow launches Yandex normally; AppUpdateManager launches the verified Inno updater without an elevation verb; Supervisor is a same-user child process with `UseShellExecute=false`.
+- The installer declares `PrivilegesRequired=lowest` and installs under `%LOCALAPPDATA%\Programs\CELIKOM`; the release gate checks this policy.
+- This does **not** identify the prompt the owner saw, prove it came from Yandex, or establish that it was harmless. #53 remains OPEN until the prompt publisher/title is known and owner CPU/RAM/GPU evidence is available. Do not grant administrator rights to an unknown prompt.
+- Full audit: `docs/windows/W128-READ-ONLY-ELEVATION-LAUNCH-AUDIT-20261114.md`. No runtime behavior changed and no installer was built.
 
 # W120 — Native-host performance evidence without changing playback cadence — 14 November 2026
 
