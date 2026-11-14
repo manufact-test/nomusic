@@ -4,7 +4,7 @@
 
 - Repository: `manufact-test/nomusic`
 - Working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Source snapshot before this documentation commit: `d397a34cb25561dc65ae22afa4c15781f59a2b00`
+- Source snapshot before this documentation refresh: `670ca1131bca094e836eaff0af8523e38aa42fb4`. Preserved checkpoint: `backup/android-a1-nav12-final-handoff-20261114`.
 - Pre-NAV12 exact rollback: `backup/android-a1-nav12-pre-onboarding-writer-trace-20261114` @ `00f9e4485a2814aa81ed9b089fc40c83e02d96f8`
 - Earlier stable source checkpoints: `backup/android-a1-nav9-pre-token-callback-witness-20261114` @ `50fc7ca`; `backup/android-a1-nav10-pre-master-token-crypto-status-20261114` @ `a0410c5`; `backup/android-a1-nav10-postlogin-crypto-witness-before-key-init-20261114` @ `a0a4565`; `backup/android-a1-nav11-key-order-before-native-event-gate-20261114` @ `9c141f5`.
 
@@ -57,11 +57,21 @@ Previously confirmed:
 - [#43574754550](https://github.com/manufact-test/nomusic/actions/runs/43574754550) — SUCCESS, `ORIGINAL_KEY_PERSISTED`.
 
 Latest NAV12 checks were still running when this handoff was written; re-check the exact run pages before accepting anything:
-- [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113) — onboarding DEX scan step SUCCESS; paired native 75-second step still running.
-- [#43577067135](https://github.com/manufact-test/nomusic/actions/runs/43577067135) — clone-alone run with runtime onboarding-hook gate.
-- [#43577136676](https://github.com/manufact-test/nomusic/actions/runs/43577136676) — latest paired run from the final test-source correction.
+- [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113) — **SUCCESS**. Static onboarding DEX scan completed; paired native 75-second run passed with `ORIGINAL_KEY_PERSISTED` and verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. This run predates the new onboarding-writer registration gate.
+- [#43577067135](https://github.com/manufact-test/nomusic/actions/runs/43577067135) — clone-alone run with the runtime onboarding-hook gate; still running at this handoff.
+- [#43577366277](https://github.com/manufact-test/nomusic/actions/runs/43577366277) — latest paired run after the final multiline-test assertion correction `d397a34`; still running at this handoff.
 
 Some intermediate runs failed only because source-contract tests assumed a reflection declaration was on one line while Java formatting split it across lines. Those test assertions were corrected in `c700ae1` and `e353f72`; re-check the latest run rather than treating the earlier assertion failure as a native or product failure. The static onboarding scan output from #43576640113 should be read from its completed job log; it was not yet available at handoff time.
+
+### Exact onboarding DEX inventory result
+
+The read-only scan completed in [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113): **8 methods** contained the `onboarding` literal, **2 reader candidates**, **5 writer candidates**, and **0 undecodable methods skipped**. It identified:
+- Reader candidates: `Lru/yandex/music/main/MainScreenActivity;->onCreate` (`contains/getBoolean`) and `LUc1$b;->emit` (`contains/getLong/setValue`).
+- Writer candidates: `LVj1;->transient` (`clear/setValue`), `LUc1$b;->emit` (`contains/getLong/setValue`), `Lf67;->if` (`putBoolean/apply`), `Lru/yandex/music/profile/ProfileActivity$b;->emit` and `ProfileActivity$c;->emit` (`putBoolean/apply`).
+
+These are **same-method literal/API co-occurrence candidates**, not a proven runtime call chain or proof that every candidate writes this specific key. Prior exact DEX callsite work places `f67` in app upgrade/initialization, not the demonstrated Passport success callback; profile writers are not evidence of login completion. The NAV12 runtime observer is the next discriminator.
+
+The same #43576640113 paired Android13 run completed **SUCCESS** with `master_key_init_runtime_status=ORIGINAL_KEY_PERSISTED` and verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. This source predates the new onboarding-writer registration gate, so it proves paired idle startup/key persistence only.
 
 ### Exact onboarding DEX inventory result
 

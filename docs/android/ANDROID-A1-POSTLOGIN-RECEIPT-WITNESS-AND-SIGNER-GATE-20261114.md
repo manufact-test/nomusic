@@ -2,7 +2,7 @@
 
 A read-only writer observer now tracks only the clone's exact `Yandex_Music` SharedPreferences object and editor. It records `putBoolean("onboarding", value)`, a sanitized vendor caller class/method, and the real `commit/apply` return. It does not mutate the preference. The editor map was corrected so unrelated edits to the same file do not create false persistence events.
 
-The private original-DEX inventory is implemented in `ci/a1_private_onboarding_contract.py`; its CI step passed on run [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113), while that run's paired native phase was still running at handoff. The strict Android13 gate also requires `ONBOARDING_WRITER_HOOK=REGISTERED`; latest runs are #43577067135 and #43577136676. Re-check before declaring success.
+The private original-DEX inventory is implemented in `ci/a1_private_onboarding_contract.py`; its CI step passed on [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113), and the same paired native run also completed SUCCESS with `ORIGINAL_KEY_PERSISTED` (but predates the onboarding-writer registration gate). The strict Android13 gate also requires `ONBOARDING_WRITER_HOOK=REGISTERED`; latest runs are #43577067135 and #43577366277, still in progress at this handoff. Re-check before declaring success.
 
 **NAV9's existing account is deliberately untouched by NAV11 key preinitialization.** No token/key rotation, onboarding write, fabricated result, APK export or owner login attempt. The fresh-install Passport key write itself is already proven by paired and clone-alone runs #43574754550 and #43574754576. User's post-login loop remains unverified and Stage A NO-GO / Stage B LOCKED.
 
