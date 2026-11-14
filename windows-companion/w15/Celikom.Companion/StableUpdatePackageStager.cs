@@ -55,7 +55,7 @@ public static class StableUpdatePackageStager
         var downloaded = await DownloadUntrustedAsync(release, root, client, cancellationToken);
         try
         {
-            VerifyInstaller(downloaded, release, pinnedSignerCertSha256);
+            VerifyInstaller(downloaded, release, pinnedSignerCertSha256!);
             return new VerifiedInstaller(downloaded, release.Version,
                 release.Sequence, release.Sha256);
         }
@@ -106,7 +106,7 @@ public static class StableUpdatePackageStager
             using var signer = X509Certificate.CreateFromSignedFile(stagedPath);
 #pragma warning restore SYSLIB0057
             var certHash = SHA256.HashData(signer.GetRawCertData());
-            var pinned = Convert.FromHexString(pinnedSignerCertSha256);
+            var pinned = Convert.FromHexString(pinnedSignerCertSha256!);
             if (!CryptographicOperations.FixedTimeEquals(certHash, pinned))
                 throw new IOException("STABLE_UPDATE_SIGNER_MISMATCH");
         }
