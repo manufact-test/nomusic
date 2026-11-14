@@ -200,3 +200,8 @@ Replacement diagnostic APK is ready:
 Owner steps: remove only the previous diagnostic clone (its ephemeral signing key differs); leave original Yandex installed. Install the new APK, repeat the same four intro pages/final arrow, reopen clone after exit, tap `Сохранить диагностику`, attach TXT from Downloads. No extra Yandex account needed. If the button is absent or export fails, report that without clearing data or reinstalling. Do not send credentials or raw logs.
 
 Do not start B42 integration until the onboarding exit is understood and the intro path passes. Original Yandex, Test.50, Windows and production remain untouched.
+
+
+> **NAV12 FINAL CI RESULT:** Paired Android13 workflow [#43578243485](https://github.com/manufact-test/nomusic/actions/runs/43578243485) completed SUCCESS. Exact onboarding scanner/classifier passed; native clone lifecycle stable 25/25. Verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, Stage A remains NO-GO. No owner login/audio test, no APK export.
+
+> **IMPORTANT ONBOARDING INTERPRETATION:** Original `MainScreenActivity.onCreate` uses `getBoolean("onboarding", true)`. Therefore missing key / `UNSET` evaluates to TRUE; do not pursue it as the cause and do not write it. Three exact persisted writers are statically confirmed, but none is proven on Passport success. The unresolved path remains usable master-token retrieval/decryption → real `Success(userInfo)` → FragmentManager consume → native Main/Wizard.

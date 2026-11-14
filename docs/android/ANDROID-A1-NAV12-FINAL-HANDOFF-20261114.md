@@ -61,7 +61,7 @@ Latest NAV12 strict Android13 gates completed SUCCESS:
 - #43577366277 — publisher-first paired: same two runtime states; publisher remained installed and clone MAIN was stable 25/25.
 Both runs prove read-only hook registration in the two Android13 layouts. They are idle startup tests, not login, token, userInfo, navigation or audio acceptance. Neither touched the owner phone or exported an APK.
 
-The original DEX inventory in #43576640113 was a coarse co-occurrence scan. The stricter direct-call/dataflow classifier and its expanded unit tests are in commits 9592930 and 4297bbe. In paired Android13 workflow #43578243485, both the exact onboarding scan/test step and the private DEX classifier step have completed SUCCESS; later native ARM13 stages are still running, so the overall workflow has no final conclusion yet. The classifier's static output is not runtime login evidence.
+The original DEX inventory in #43576640113 was a coarse co-occurrence scan. The stricter direct-call/dataflow classifier and its expanded unit tests are in commits 9592930 and 4297bbe. Paired Android13 workflow #43578243485 completed SUCCESS. Its exact onboarding scan/test and private DEX classifier passed; native clone lifecycle also reached 25/25 stable observations. Verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a: NO_GO`. This is not a real Passport login or audio acceptance. The classifier's static output is not runtime login evidence.
 
 ### Refined exact onboarding writer result — original signed DEX
 
