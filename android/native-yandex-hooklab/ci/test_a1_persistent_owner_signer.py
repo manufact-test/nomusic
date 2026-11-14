@@ -60,7 +60,7 @@ class PersistentOwnerSignerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source, env, expected = self.create_source_keystore(root)
-            copied_text_values = {name: value + "\\r\\n" for name, value in env.items()}
+            copied_text_values = {name: value + "\r\n" for name, value in env.items()}
             result = prepare_persistent_owner_keystore(root, copied_text_values)
             self.assertEqual(result["certificate_sha256"], expected)
             self.assertFalse(source.exists())
