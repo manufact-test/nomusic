@@ -59,6 +59,7 @@ SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "for"),
     ("Lcom/yandex/music/shared/player/download2/o;", "if"),
     ("LGp0;", "new"), ("Lou3;", "new"),
+    ("LDp0;", "if"), ("Lwp0$a;", "emit"),
     ("Lcq7;", "i0"), ("Lga4;", "d"),
 }
 MAX_DEX = 6
@@ -502,7 +503,8 @@ def inspect_signed(apks):
     target_callers = []
     focused_method_traces = []
     trace_targets = {
-        (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new")
+        (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
+        ("LDp0;", "if"), ("Lwp0$a;", "emit")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -569,14 +571,16 @@ def inspect_signed(apks):
                             if len(target_callers) < MAX_METHODS:
                                 regs = invoke_registers(op, words)
                                 params = parse_types(callee[2])
-                                target_types = [callee[0]] + params
+                                is_static = op in (0x71, 0x77)
+                                target_types = params if is_static else [callee[0]] + params
                                 target_callers.append({
                                     "caller": {"owner": method[0], "name": method[1],
                                                "signature": method[2]},
                                     "target": {"owner": callee[0], "name": callee[1],
                                                "signature": callee[2]},
                                     "argument_registers": regs,
-                                    "argument_types_receiver_assumed": target_types,
+                                    "invoke_kind": "STATIC" if is_static else "INSTANCE_OR_OTHER",
+                                    "argument_types": target_types,
                                     "native_track_argument_positions": [
                                         i for i, register in enumerate(regs)
                                         if register in model_regs
