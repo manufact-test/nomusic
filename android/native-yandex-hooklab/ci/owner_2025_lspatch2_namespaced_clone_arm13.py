@@ -424,6 +424,22 @@ def merge_publisher_input_lspatch_clone_splits(renamed, editor, work, key):
     return aligned
 
 
+# Exact original vendor master-key initialization gate on a clean Android13.
+# Parse only the one finite CELIKOM enum, never expose raw logcat/token data.
+def _fresh_master_key_init_status(raw_logcat: str) -> str:
+    if not isinstance(raw_logcat, str):
+        return "UNAVAILABLE"
+    statuses = re.findall(
+        r'CELIKOM_A1_EXIT_WITNESS[^\n]{0,700}event=MASTER_KEY_PREINIT;origin=MAIN;error=([A-Z0-9_]{3,55})(?:;|\s)',
+        raw_logcat)
+    if "ORIGINAL_KEY_PERSISTED" in statuses:
+        return "ORIGINAL_KEY_PERSISTED"
+    if "EXISTING_UNCHANGED" in statuses:
+        return "EXISTING_UNCHANGED"
+    if statuses:
+        return "NOT_PERSISTED_OR_NOT_FRESH"
+    return "NOT_OBSERVED"
+
 def observe_clone(seconds=75):
     component=DEST+"/ru.yandex.music.main.MainScreenActivity"
     launched=guest("am","start","--user","0","-n",component,timeout=65)
@@ -584,13 +600,17 @@ def run(xapk):
                 live=guest("pidof",DEST,timeout=30).stdout.strip()
                 if re.fullmatch(r"[1-9][0-9]{0,8}",live):
                     stable_pid=live
+            raw_logcat=guest("logcat","-v","threadtime","-d",timeout=55).stdout
+            report["master_key_init_runtime_status"]=_fresh_master_key_init_status(raw_logcat)
             report["scoped_own_readonly_witness"]=scoped_metrica_witness(
                 guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
-                guest("logcat","-v","threadtime","-d",timeout=55).stdout,
+                raw_logcat,
                 stable_live_main_pid=stable_pid)
             report["verdict"]=(
                 "CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS"
-                if observed["stable"] else "CLONE_ONLY_NATIVE_MAIN_NO_GO")
+                if observed["stable"] and report["master_key_init_runtime_status"] in (
+                    "ORIGINAL_KEY_PERSISTED", "EXISTING_UNCHANGED")
+                else "CLONE_ONLY_MASTER_KEY_INIT_OR_MAIN_NO_GO")
             # No change to any original-first acceptance verdict.
             report["stage_a"]="NO_GO"
             return report
@@ -645,9 +665,11 @@ def run(xapk):
             live=guest("pidof",DEST,timeout=30).stdout.strip()
             if re.fullmatch(r"[1-9][0-9]{0,8}",live):
                 stable_pid=live
+        raw_logcat=guest("logcat","-v","threadtime","-d",timeout=55).stdout
+        report["master_key_init_runtime_status"]=_fresh_master_key_init_status(raw_logcat)
         report["scoped_own_readonly_witness"]=scoped_metrica_witness(
             guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
-            guest("logcat","-v","threadtime","-d",timeout=55).stdout,
+            raw_logcat,
             stable_live_main_pid=stable_pid)
         report["publisher_still_installed_after_clone_start"] = sum(
             row.startswith("package:") for row in
@@ -655,6 +677,8 @@ def run(xapk):
         report["verdict"] = (
             "METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO"
             if report["native_clone_main_75s"] and
+               report["master_key_init_runtime_status"] in (
+                   "ORIGINAL_KEY_PERSISTED", "EXISTING_UNCHANGED") and
                report["publisher_still_installed_after_clone_start"] and
                report["scoped_own_readonly_witness"]["read_only_witness_arm_marker_seen"] and
                not report["scoped_own_readonly_witness"]["lab_only_metrica_fatal_suppression_observed"]
