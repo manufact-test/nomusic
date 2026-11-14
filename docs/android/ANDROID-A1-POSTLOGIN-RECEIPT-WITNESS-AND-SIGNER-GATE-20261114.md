@@ -117,3 +117,18 @@ The runner has a hard runtime gate for ACTIVITY_RESULT_DELIVERY_HOOK=REGISTERED;
 - #43582980390 publisher-first paired: SUCCESS; result-delivery hook REGISTERED, onboarding writer hook REGISTERED, original master key persisted; original Yandex installed first and remained installed; publisher stable 75s before clone; clone stable 25/25. METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO.
 
 No Passport flow was run, so result delivery and Success(userInfo) remain unobserved at runtime. No APK, OTP, account mutation or owner handset activity. Disposable CI signer only. Stage A NO-GO / Stage B LOCKED.
+
+
+## NAV13 final runner-gate result — 14 Nov 2026
+
+Commit 5f683900b966673224babc2d6b684960dc8ea2ac (parent 4536ba75001050de17ae3e9cb5e1921548a33884) adds required runner parsing/gates for MASTER_TOKEN_HOOK and MASTER_TOKEN_DECRYPT_HOOK registration in both native verdict paths, plus source-contract assertions.
+
+Verified latest no-suppression Android13 runs:
+- #43583886782 clone-only — SUCCESS. Result-delivery, master-token read, master-token decrypt and onboarding writer hooks all REGISTERED; original key persisted; clone MAIN 75s stable; no uncaught exception. This is a clone-only startup differential.
+- #43583886793 publisher-first paired — SUCCESS. Same registration/key results; original publisher's 16 splits installed first and retained; publisher stable 75s before clone; clone 25/25 stable; no Metrica fatal suppression; no uncaught exception. METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO.
+
+Neither run executes Passport login. No actual MASTER_TOKEN_READ/MASTER_TOKEN_DECRYPT callback, receiver result delivery, POSTLOGIN_PUBLISH, POSTLOGIN_CONSUME or POSTLOGIN_MAIN_ROUTE has been demonstrated. The REGISTERED fields prove observer installation only.
+
+No owner APK was exported because CI still signs with DISPOSABLE_PER_CI_RUN; owner export remains fail-closed unless a dedicated persistent A1 signer is independently verified. Owner handset, account and onboarding state remain untouched. Stage A NO-GO / Stage B LOCKED.
+
+Next: continue read-only exact route investigation and provision the stable signer through an owner-controlled secure process. Do not place private signing material in chat, request another OTP, or deliver a new APK before explicit readiness and a single bounded owner test.

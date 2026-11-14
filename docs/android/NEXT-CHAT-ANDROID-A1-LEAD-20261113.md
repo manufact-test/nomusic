@@ -236,3 +236,22 @@ Corrected native CI:
 Still not proven: no Passport login ran in CI. Actual result delivery, Success(userInfo), FragmentManager consumption and Main routing remain unobserved on the owner's existing account. No APK exported; no OTP or owner-device action; no data/onboarding mutation. CI signer remains disposable.
 
 Next work: continue exact post-login route/DEX investigation and preserve read-only instrumentation. Before any owner delivery, provision a dedicated persistent A1 signing identity; never reuse Test.50's production signer without explicit approval. Once signer and diagnostic bundle are ready, one bounded owner-device login is the only way to collect the missing runtime receipt. Keep Stage A NO-GO / Stage B LOCKED. Do not request OTP again until that controlled test is explicitly ready.
+
+
+## NAV13 final CI checkpoint — 14 Nov 2026, 13:18 local
+
+**Current source:** 5f683900b966673224babc2d6b684960dc8ea2ac  
+**Working branch:** experiment/android-a1-metrica-init-state-observer-arm13-20261112  
+**Exact rollback:** backup/android-a1-nav12-final-handoff-r3-20261114 — same HEAD.
+
+The latest runner hardening (commit 5f68390, parent 4536ba7) now parses and requires both MASTER_TOKEN_HOOK=REGISTERED and MASTER_TOKEN_DECRYPT_HOOK=REGISTERED for clone-only and publisher-first native verdicts. Source regression tests were expanded accordingly.
+
+Latest no-suppression Android13 runs, both SUCCESS:
+- #43583886782 — clone-only control. ACTIVITY_RESULT_DELIVERY_HOOK=REGISTERED, MASTER_TOKEN_READ_HOOK=REGISTERED, MASTER_TOKEN_DECRYPT_HOOK=REGISTERED, ONBOARDING_WRITER_HOOK=REGISTERED, ORIGINAL_KEY_PERSISTED; clone MAIN stable 75s, lifecycle 25/25; no uncaught exception. Verdict CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS. Publisher intentionally absent.
+- #43583886793 — publisher-first paired. Same hook/key statuses; original Yandex's 16 splits installed first and remained installed; publisher stable 75s before clone; clone MAIN stable 75s/lifecycle 25/25; no Metrica fatal suppression and no uncaught exception. Verdict METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO.
+
+Both are idle startup/lifecycle checks. Hook REGISTERED means only that a hook was installed. Neither workflow performed Passport login, requested an OTP, retrieved/decrypted an actual master token, received a real Entry dispatchActivityResult, published Success(userInfo), consumed EntryScreenCloseLoginKey, or executed the post-login Main route. Those runtime receipts remain unproven.
+
+No APK exported: the owner artifact steps were skipped. Signer provenance remains DISPOSABLE_PER_CI_RUN; binary not published; owner handset untouched; no account/onboarding mutation. The owner diagnostic APK exporter correctly remains fail-closed until a dedicated persistent A1 signer is provisioned and verified.
+
+Decision unchanged: Stage A NO-GO; Stage B LOCKED. Do not request another OTP or deliver an APK yet. Next lead should continue the real Passport → token read/decrypt → Success(userInfo) → FragmentManager → Main route investigation, and separately resolve a dedicated persistent A1 signer without sending private key material in chat. Once both are ready, use one explicitly approved, bounded test on the existing owner account and collect the diagnostic TXT. Do not clear owner data or touch the original Yandex/Test.50/Windows/production.

@@ -141,3 +141,15 @@ Verified on corrected source b565dc4d050f463397312c8f409b2450cc8bbc79:
 These are startup/lifecycle and hook-registration checks only. No Passport login/OTP ran, no ACTIVITY_RESULT_DELIVERY callback was observed, and no POSTLOGIN_PUBLISH, POSTLOGIN_CONSUME, or POSTLOGIN_MAIN_ROUTE event was produced. No APK was exported; owner handset untouched; signer remains disposable per CI run. Stage A NO-GO; Stage B LOCKED.
 
 Exact source backup backup/android-a1-nav12-final-handoff-r3-20261114 is synchronized with the working branch.
+
+
+## NAV13 latest no-suppression Android13 CI — 14 Nov 2026
+
+Source 5f683900b966673224babc2d6b684960dc8ea2ac adds hard native-runner acceptance gates for registration of both the original Passport account password-return observer and original Passport token decrypt-outcome observer. The regression test verifies both statuses are required in clone-only and paired verdict paths. Exact backup backup/android-a1-nav12-final-handoff-r3-20261114 is synchronized with the working branch.
+
+- #43583886782 clone-only: SUCCESS; ACTIVITY_RESULT_DELIVERY_HOOK, MASTER_TOKEN_READ_HOOK, MASTER_TOKEN_DECRYPT_HOOK, and ONBOARDING_WRITER_HOOK all REGISTERED; original master key persisted; clone MAIN stable 75s and 25/25 lifecycle; no uncaught exception. Publisher intentionally absent. Verdict CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS.
+- #43583886793 publisher-first paired: SUCCESS; same hook/key registration; original Yandex 16 splits installed first and retained; publisher stable 75s before clone; clone stable 75s and 25/25 lifecycle; no Metrica fatal suppression; no uncaught exception. Verdict METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO.
+
+Important distinction: these are registration and idle startup tests only. They do not execute Passport login, actual token read/decrypt, Entry result delivery, Success(userInfo), FragmentManager consumption or native Main routing. A REGISTERED status is not an observed callback.
+
+No APK export, no owner-phone action, no account/onboarding mutation. CI signer is still disposable; artifact export remains blocked by the stable-signer gate. Stage A NO-GO / Stage B LOCKED.
