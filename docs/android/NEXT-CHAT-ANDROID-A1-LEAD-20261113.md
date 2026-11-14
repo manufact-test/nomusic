@@ -208,3 +208,6 @@ Do not start B42 integration until the onboarding exit is understood and the int
 
 
 > **NAV13 CURRENT SOURCE:** `9e723f3d404f1e78ac9fbf72a699a24cfaf7db1a` adds a read-only Android framework `Activity.dispatchActivityResult` observer on the clone's exact Entry Activity. It records only whether Android actually delivered RESULT_OK/CANCELED/OTHER, unlike the old Passport-side `setResult()` producer event. CI #43581081486 (paired) and #43581081611 (clone-alone) were queued at handoff. Check these gates before continuing. Exact backup `backup/android-a1-nav12-final-handoff-r3-20261114` is at the same source commit. No APK, no owner OTP, no preference or account mutation. Keep Stage A NO-GO / Stage B LOCKED.
+
+
+> **NAV13 QUOTA FIX:** The receiver-side Entry result delivery observer now has an independent 48-event counter (not shared with Activity finish observations), commit `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073`. CI reruns #43581508098 paired and #43581508085 clone-alone; inspect before any handoff. Backup branch remains exact at current HEAD.

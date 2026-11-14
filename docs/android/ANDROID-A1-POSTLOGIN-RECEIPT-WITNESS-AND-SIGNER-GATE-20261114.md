@@ -86,3 +86,8 @@ Source rollback: `backup/android-a1-nav9-pre-token-callback-witness-20261114` @ 
 ## NAV13 — Entry result receiver-side witness
 
 Added `Activity.dispatchActivityResult(String,int,int,Intent)` observer in clone MAIN, filtered to exact `EntryScreenActivity`. It logs only the result category, with no Intent or extras inspection. This closes the gap between the already observed Passport-side `setResult(OK)` producer and actual framework delivery to Entry. Hook registration and Android13 compatibility are gated in paired run #43581081486 and clone-alone run #43581081611. Source: `9e723f3d404f1e78ac9fbf72a699a24cfaf7db1a`; rollback backup `backup/android-a1-nav12-final-handoff-r3-20261114`.
+
+
+## NAV13 hardening
+
+The Entry receiver-side result event now has an independent 48-event quota rather than sharing the generic Activity-finish quota, preventing unrelated finishes from exhausting the diagnostic budget. Fix: `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073`. CI #43581508098 paired and #43581508085 clone-alone.
