@@ -127,6 +127,7 @@ jobs:
           node --check .github/scripts/hostinger-windows-gain-verify.mjs
           node --test .github/scripts/tests/hostinger-windows-gain-verify.test.mjs
           grep -F 'W98 preserves trailing empty fields for an already-staged variant' .github/scripts/tests/hostinger-windows-gain-verify.test.mjs
+          grep -F '].join("\\t");' .github/scripts/tests/hostinger-windows-gain-verify.test.mjs
           grep -F 'W98_COPY_TARGET_ALREADY_PREFIXED' .github/scripts/hostinger-windows-gain-stage.sh
           grep -F 'hostinger-windows-gain-verify.mjs' .github/scripts/hostinger-windows-gain-stage.sh
           grep -F 'copy_to_remote "$work/manifest.json" "$manifest_remote"' .github/scripts/hostinger-windows-gain-stage.sh
