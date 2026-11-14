@@ -15,6 +15,18 @@ Exact source of evidence: `/CELIKOM/CELIKOM-A1-NAV9-PostLogin-Route-Diagnostics-
 6. `LiT3.g(LgT3$a)` dispatches the confirmed `userInfo` via `LXS3.if(Llw4,Z)`; concrete `LYS3.if(Llw4,Z)` implements the native transition, updates the app's user state and, subject to its normal decisions, launches **MainScreenActivity** or **WizardActivity**, finishing the Entry Activity. These vendor transitions require genuine user information and must not be called just because an AccountManager entry exists.
 7. The earlier handoff called `f67` an onboarding-completion callback. Actual DEX callsite inspection finds `Lf67.if(LLTa$a,LV2b)` reached through `LNJb.invokeSuspend` in the **application upgrade/initialization family**, not the demonstrated Passport success return chain. Thus the claim that NAV9 skipped a specific `f67` post-login callback is **not substantiated**.
 
+## Verified original token/session boundary (additional finding)
+
+The immutable publisher DEX has a separate **token/session** boundary between successful Passport UI and a usable Music `userInfo`. `LqY5.if` requests the token through `LEd5.this(uid)` / `LNG.this` / `Ltya.new` / `LAd5.try` / `LKi7.try` / original `com.yandex.passport.api.e.catch`. If no valid token is returned, its original error path is **not a successful Music login**; only the valid-token path proceeds to loading user information and `Success(userInfo)`. The original Passport SDK writes an **encrypted master-token password** and account metadata through `AccountManager.addAccountExplicitly`. When reading accounts back, `com.yandex.passport.internal.core.accounts.p.for` checks `AccountManager.getPassword(account)` and excludes an account if it lacks a master token; it also reads several `getUserData` keys. NAV9 saw the account count only; it did not prove the token or Music user-information object exists. There is no evidence that this token step is actually failing on the owner's device: **this is a justified suspect, not a diagnosed cause**.
+
+A read-only exact-version private source contract guard was added at `android/native-yandex-hooklab/ci/a1_private_postlogin_contract.py`, with **14 original DEX callsite contracts** confirmed locally against embedded NAV9 `origin.apk`. The pinned private-XAPK gate passed in GitHub native workflow run `43568891197` at its "Verify exact original ... DEX contract" step. Static 14/14 is **not** evidence of authenticated runtime or finished Android native CI. Keep credentials/token values out of output.
+
+## Owner APK signing continuity: verified separate deployment blocker
+
+The old NAV8 and NAV9 artifact certificates differ: NAV8 SHA256 `8c71b643f3ae3c3a9f037ffe7808217c69c4c72b03599b68f9e2c7e069f61295`, NAV9 SHA256 `03c2917442666c49d3d60466e0ed43077321ee472e7915d065b4bb4c1b3b6081`. The current native CI `owner_2025_same_name_own_key_arm13_control.sign_same_name` **generates a fresh disposable own-signing JKS in each run**. Therefore a future build will be incompatible with an Android in-place update of NAV9 and could require uninstall/data loss. **Do not offer another owner APK** under this policy. Establish a secure persistent release signing key (without exposing it in source or logs) before any further owner delivery; the unavailable NAV9 ephemeral private key cannot simply be reconstructed from its certificate.
+
+The push-triggered workflow no longer automatically exports diagnostic owner APK artifacts; export requires an explicit manual dispatch. The exact original issuer signature and nested asset remain unchanged, and the existing Passport AccountManager hook is untouched.
+
 ## What the owner diagnostic really proves
 
 - `ACCOUNT_ADD CLONE_OWN ADDED`: real Android AccountManager accepted the clone-owned account.
