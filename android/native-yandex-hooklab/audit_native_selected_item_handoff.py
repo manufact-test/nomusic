@@ -485,6 +485,62 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
     }
 
 
+
+def class_instantiation_and_flow_collect_sites(dex: Dex, method, code_off: int):
+    targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;"}
+    aliases = {name: set() for name in targets}
+    instantiated = []
+    collected = []
+    for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
+        if op == 0x22:  # new-instance
+            target = dex.descriptor(words[1])
+            if target in targets:
+                dest = words[0] >> 8
+                aliases[target].add(dest)
+                instantiated.append({"class": target, "register": dest, "ordinal": ordinal})
+        elif op in (0x07, 0x08, 0x09):
+            dest, source = move_object_registers(op, words)
+            for target in targets:
+                if source in aliases[target]:
+                    aliases[target].add(dest)
+                else:
+                    aliases[target].discard(dest)
+        elif op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            if callee[1] in ("collect", "collectLatest", "launchIn", "emit"):
+                for target in targets:
+                    positions = [i for i, reg in enumerate(regs) if reg in aliases[target]]
+                    if positions:
+                        collected.append({
+                            "class": target,
+                            "callee": {"owner": callee[0], "method": callee[1],
+                                       "signature": callee[2]},
+                            "argument_positions": positions,
+                            "ordinal": ordinal,
+                        })
+        elif op == 0x1f:
+            pass
+        else:
+            dest = written_register(op, words)
+            if dest is not None:
+                for target in targets:
+                    aliases[target].discard(dest)
+            if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+                for target in targets:
+                    aliases[target].clear()
+        if len(instantiated) + len(collected) >= MAX_EVENTS:
+            break
+    if not instantiated and not collected:
+        return None
+    return {
+        "caller": {"owner": method[0], "name": method[1], "signature": method[2]},
+        "instantiations": instantiated,
+        "flow_collect_or_emit_calls": collected,
+        "branch_flow_not_inferred": True,
+    }
+
+
 def inspect_signed(apks):
     dex_count = 0
     model_defined = False
@@ -503,6 +559,8 @@ def inspect_signed(apks):
     wrapper_methods = set()
     target_callers = []
     focused_method_traces = []
+    flow_dispatcher_instantiation_sites = []
+    flow_dispatcher_class_fields = {}
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
@@ -538,6 +596,12 @@ def inspect_signed(apks):
                             raise ValueError("ALBUM_FIELD_LIMIT")
                     album_methods, reads = class_member_field_reads(dex, ALBUM_MODEL)
                     album_accessor_field_reads.extend(reads)
+                for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;"):
+                    if target_class in defined:
+                        flow_dispatcher_class_fields[target_class] = [
+                            {"field": name, "type": typ}
+                            for _, name, typ in declared_fields_for_owner(dex, target_class)
+                        ]
                 for i in range(dex.method_count):
                     method = dex.method(i)
                     if method[0] == MODEL:
@@ -562,6 +626,10 @@ def inspect_signed(apks):
                             dex, method, flags, code_off)
                         if wrapper_flow and len(wrapper_constructor_callsites) < MAX_METHODS:
                             wrapper_constructor_callsites.append(wrapper_flow)
+                    collector_flow = class_instantiation_and_flow_collect_sites(
+                        dex, method, code_off)
+                    if collector_flow and len(flow_dispatcher_instantiation_sites) < MAX_METHODS:
+                        flow_dispatcher_instantiation_sites.append(collector_flow)
                     ins = list(instructions(dex, code_off))
                     model_regs = {r for _, r in model_parameter_registers(
                         dex, method, flags, code_off)}
@@ -646,6 +714,8 @@ def inspect_signed(apks):
         ],
         "track_id_wrapper_constructor_callsites": wrapper_constructor_callsites,
         "selected_item_source_target_callers": target_callers,
+        "flow_dispatcher_class_fields": flow_dispatcher_class_fields,
+        "flow_dispatcher_instantiation_and_collect_sites": flow_dispatcher_instantiation_sites,
         "focused_native_model_to_wrapper_method_traces": focused_method_traces,
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [
