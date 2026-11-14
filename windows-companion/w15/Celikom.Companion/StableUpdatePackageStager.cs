@@ -121,14 +121,15 @@ public static class StableUpdatePackageStager
     internal static string GetPendingPackagePath(
         string root, StableUpdateManifestVerifier.VerifiedRelease release)
     {
+        var sha256 = release?.Sha256 ?? "";
         if (string.IsNullOrWhiteSpace(root) || release is null ||
             release.Version.Major < 0 || release.Version.Minor < 0 ||
             release.Version.Build < 0 || release.Sequence <= 0 ||
-            !CertFingerprint.IsMatch(release.Sha256 ?? ""))
+            !CertFingerprint.IsMatch(sha256))
             throw new IOException("STABLE_UPDATE_PENDING_IDENTITY_INVALID");
 
         var name = $"CELIKOM-{release.Version.ToString(3)}-{release.Sequence}-" +
-            release.Sha256.ToLowerInvariant() + ".exe";
+            sha256.ToLowerInvariant() + ".exe";
         return Path.Combine(Path.GetFullPath(root), name);
     }
 
