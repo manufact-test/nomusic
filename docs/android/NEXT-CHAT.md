@@ -1,3 +1,7 @@
+> **АКТУАЛЬНАЯ ПЕРЕДАЧА — 15.11.2026.** Перед продолжением сначала прочитать [новую передачу Track → Exo](NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md) и проверить CI [#43649573590](https://github.com/manufact-test/nomusic/actions/runs/43649573590). Активная ветка `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; кодовый checkpoint `d80495370ff8f442b6993c688783c24547caa24f`; точный резерв `backup/android-a1-track-exo-continuity-pre-ci-20261115`. Текущая работа — только read-only runtime identity witness native Track → wrapper → Exo. **Это не доказательство текущего audible playback и не готовая CELIKOM-подмена.** Исторические разделы ниже читать с учётом новой передачи и актуального CI.
+
+---
+
 > **ВАЖНО — АКТУАЛЬНОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА (10.11.2026).** Архитектура согласована окончательно: **один APK CELIKOM с нативной Яндекс.Музыкой и одним её аудиодвижком; LSPatch только для закрытого прототипа, после принятия эталона — напомнить владельцу и начать собственный независимый механизм внедрения по согласованию.** WebView/собственный музыкальный UI не выбирать.
 >
 > **[ПОЛНОЕ АКТУАЛЬНОЕ ТЗ](CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md)** · **[НОВЫЙ ТЕКСТ ПЕРВОГО СООБЩЕНИЯ](NEXT-CHAT-NATIVE-CLONE-20261110.md)** · **[РЕШЕНИЯ ВЛАДЕЛЬЦА](ANDROID-PLAN-A-OWNER-DECISIONS-CHECKPOINT-20261110.md)**.
