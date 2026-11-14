@@ -8,17 +8,26 @@
  * playback position and paused status.
  */
 const ALLOWED_STATUS = new Set(["playing", "paused"]);
+const CURRENT_STATUS = new Set(["playing", "paused", "stopped"]);
 const MODULE_ID = 7123;
 const MODULE_EXPORT = "VE";
 const KNOWN_RELOAD_REASON = "QUALITY_CHANGE";
 const EXACT_ID = /^[1-9][0-9]{0,23}$/;
 
-function playable(state) {
+function currentEntity(state) {
   const current = state?.queueState?.currentEntity?.value;
   const id = current?.entity?.data?.meta?.id;
   const status = state?.playerState?.status?.value;
-  return ALLOWED_STATUS.has(status) &&
-    EXACT_ID.test(typeof id === "number" && Number.isSafeInteger(id) ? String(id) : id);
+  const normalizedId = typeof id === "number" && Number.isSafeInteger(id)
+    ? String(id) : id;
+  if (!CURRENT_STATUS.has(status) || typeof normalizedId !== "string" ||
+      !EXACT_ID.test(normalizedId)) return null;
+  return { entry: current.entity, id: normalizedId, status };
+}
+
+function playable(state) {
+  const current = currentEntity(state);
+  return !!current && ALLOWED_STATUS.has(current.status);
 }
 
 export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
@@ -50,7 +59,7 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
       if (!disposed) {
         // The vendor getter must keep its exact return/throw behavior even if
         // an exotic entity's metadata accessor rejects our observer.
-        try { if (playable(state)) current = new WeakRef(this); } catch {}
+        try { if (currentEntity(state)) current = new WeakRef(this); } catch {}
       }
       return state;
     };
@@ -124,11 +133,11 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
     if (!player) return null;
     try {
       const state = player.state;
-      if (!playable(state)) return null;
-      const entry = state.queueState.currentEntity.value.entity;
+      const current = currentEntity(state);
+      if (!current) return null;
+      const entry = current.entry;
       const meta = entry.data.meta;
-      const id = typeof meta.id === "number" && Number.isSafeInteger(meta.id)
-        ? String(meta.id) : meta.id;
+      const id = current.id;
       if (typeof id !== "string" || !EXACT_ID.test(id)) return null;
       const clean = value => typeof value === "string"
         ? value.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 180) : "";
@@ -151,7 +160,8 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
         meta.duration_milliseconds;
       const durationMs = Number.isSafeInteger(rawDuration) &&
         rawDuration >= 1000 && rawDuration <= 86400000 ? rawDuration : null;
-      return {id, title, artist, durationMs};
+      return {id, title, artist, durationMs,
+        playbackState: current.status.toUpperCase()};
     } catch { return null; }
   }
   function currentTrackId() { return currentTrack()?.id || ""; }
