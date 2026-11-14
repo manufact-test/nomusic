@@ -38,8 +38,8 @@ def prepare_persistent_owner_keystore(work_directory, env=None) -> dict:
     alias = str(values["CELIKOM_A1_OWNER_KEY_ALIAS"]).strip()
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", alias):
         raise ValueError("OWNER_SIGNER_ALIAS_INVALID")
-    store_password = str(values["CELIKOM_A1_OWNER_KEYSTORE_PASSWORD"])
-    key_password = str(values["CELIKOM_A1_OWNER_KEY_PASSWORD"])
+    store_password = str(values["CELIKOM_A1_OWNER_KEYSTORE_PASSWORD"]).rstrip("\r\n")
+    key_password = str(values["CELIKOM_A1_OWNER_KEY_PASSWORD"]).rstrip("\r\n")
     if len(store_password) < 6 or len(key_password) < 6:
         raise ValueError("OWNER_SIGNER_PASSWORD_INVALID")
     expected = normalize_sha256(values["CELIKOM_A1_OWNER_CERT_SHA256"])

@@ -56,6 +56,15 @@ class PersistentOwnerSignerTests(unittest.TestCase):
             self.assertEqual(check.returncode, 0, check.stderr)
             self.assertIn("PrivateKeyEntry", check.stdout)
 
+    def test_accepts_text_file_trailing_newlines_in_secrets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, env, expected = self.create_source_keystore(root)
+            copied_text_values = {name: value + "\\r\\n" for name, value in env.items()}
+            result = prepare_persistent_owner_keystore(root, copied_text_values)
+            self.assertEqual(result["certificate_sha256"], expected)
+            self.assertFalse(source.exists())
+
     def test_rejects_incomplete_secret_set(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "SECRETS_INCOMPLETE"):
