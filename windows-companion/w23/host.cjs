@@ -576,9 +576,14 @@ function downgradeVerifiedPlaybackHeartbeat(view, trackId) {
   if (!token) return false;
   // A CDP source/playing invalidation is stronger and faster than the regular
   // 2.2s status sample. Downgrade only the UI heartbeat; never touch playback.
+  const downgraded = {...previous, value:"NATIVE_MAPPING_ACCEPTED"};
+  lastStatus.set(view, downgraded);
   void localRequest(token, "/v1/heartbeat", "POST", {
-    trackId, status:"NATIVE_MAPPING_ACCEPTED",
+    trackId, status:downgraded.value,
     title:previous.title, artist:previous.artist, durationMs:previous.durationMs
+  }).then(result => {
+    if (!result && lastStatus.get(view) === downgraded)
+      lastStatus.set(view, previous);
   });
   return true;
 }
