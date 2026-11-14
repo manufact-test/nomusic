@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseSnapshotTableCountsJson } from "../hostinger-stage5-restore-counts.mjs";
 
 const base = {
@@ -53,4 +56,28 @@ test("W98 restore rejects arrays, null and invalid JSON", () => {
   assert.throws(() => parseSnapshotTableCountsJson("[]"));
   assert.throws(() => parseSnapshotTableCountsJson("null"));
   assert.throws(() => parseSnapshotTableCountsJson("{"));
+});
+
+
+test("W98 live audit excludes only volatile session/auth/navigation row counts", () => {
+  const remote = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "../hostinger-stage5-remote.php"),
+    "utf8"
+  );
+  const match = remote.match(/\$volatileRowCountTables = \[(.*?)\];/s);
+  assert.ok(match, "volatile row-count policy must be explicit");
+  for (const table of [
+    "admin_sessions",
+    "user_sessions",
+    "admin_login_attempts",
+    "user_auth_attempts",
+    "user_auth_events",
+    "admin_navigation_seen"
+  ]) {
+    assert.ok(match[1].includes("'" + table + "'"), table + " must be treated as volatile");
+  }
+  for (const table of ["tracks", "audio_assets", "track_replacements"]) {
+    assert.ok(!match[1].includes("'" + table + "'"), table + " must remain strictly checked");
+  }
+  assert.ok(remote.includes("if (in_array($table, $volatileRowCountTables, true)) continue;"));
 });

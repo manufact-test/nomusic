@@ -114,6 +114,14 @@ try {
         $baseline = json_decode((string) file_get_contents($prior[0] . '/manifest.json'), true, 16, JSON_THROW_ON_ERROR);
         if (($baseline['format'] ?? null) !== 1 || !hash_equals((string) $baseline['env_sha256'], $envHash)
             || ($baseline['files'] ?? null) !== $audio) throw new RuntimeException('state-changed-after-deploy');
+        $volatileRowCountTables = [
+            'admin_sessions',
+            'user_sessions',
+            'admin_login_attempts',
+            'user_auth_attempts',
+            'user_auth_events',
+            'admin_navigation_seen',
+        ];
         foreach ($baseline['tables'] as $table => $beforeCount) {
             if (!in_array($table, ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements',
                 'analytics_events', 'analytics_daily_aggregates', 'audio_fingerprint_jobs',
@@ -123,6 +131,8 @@ try {
                 'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials',
                 'subscriptions','billing_events','billing_payments','billing_adjustments',
                 'referrals','referral_codes','reward_ledger','reward_policy','reward_allocations','service_incident_locks','service_incidents','incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'windows_gain_variants', 'support_tickets', 'support_messages', 'admin_navigation_seen'], true)) throw new RuntimeException('unknown_table');
+            // Authentication sessions and rate-limit/navigation witnesses are expected to change during normal use.
+            if (in_array($table, $volatileRowCountTables, true)) continue;
             $currentCount = (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn();
             // The only permitted pre-deployment row-count increase is the
             // expected checksummed additive Stage 9 email security migration.
@@ -150,7 +160,7 @@ try {
             if ((int)$exists->fetchColumn() && (int)$pdo->query('SELECT COUNT(*) FROM '.chr(96).$table.chr(96))->fetchColumn()!==0)
                 throw new RuntimeException('unexpected_new_promo_data');
         }
-        echo "After-deploy audit PASS: private env, media and historic row counts preserved; additive migrations verified; newly introduced promo tables contain no real codes or grants.\n";
+        echo "After-deploy audit PASS: private env, original media and stable table counts preserved; additive migrations verified; volatile session/auth/navigation counts excluded; newly introduced promo tables contain no real codes or grants.\n";
         exit(0);
     }
     $latest = static function() use ($backupRoot): string {
