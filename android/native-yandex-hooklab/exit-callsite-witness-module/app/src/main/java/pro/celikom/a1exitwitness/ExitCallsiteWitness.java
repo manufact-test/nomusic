@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V10_POSTLOGIN_RECEIPT_WITNESS";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V11_FRESH_MASTER_KEY_ORDER_TRIAL";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -122,6 +122,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     // The real vendor decryptor returns a result object with an exception field.
     // Only that exception's presence is observed. No encrypted or decrypted
     // master-token value, length, account or error message is inspected.
+    // Original vendor key-generation is only brought forward before the first
+    // Passport subprocess. No existing account, key or token is overwritten.
+    // No vendor cryptography implementation or signature checks are replaced.
+    private boolean masterKeyPreinitAttempted;
     private boolean passportDecryptOutcomeHooked;
     private final java.util.concurrent.atomic.AtomicInteger passportDecryptOutcomeEvents =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -2644,6 +2648,77 @@ public final class ExitCallsiteWitness extends XposedModule {
      * Never call a decoder ourselves; the real invocation must occur naturally.
      * Reading just the exception field never reads ciphertext or plaintext.
      */
+
+    /**
+     * Exact publisher 2025.10.4 method-order repair for the independent clone
+     * signer: its master token must use the private yandex_am_storage key.
+     * Bring the vendor's OWN normal key initialization into clone MAIN before
+     * :passport starts, only on a fresh (no own account, no key) installation.
+     *
+     * This neither reads/writes auth values nor manufactures login success.
+     * Existing account/key states are strictly left untouched. SDK only.
+     */
+    private synchronized void preinitializeOriginalMasterKeyIfFresh(Application app) {
+        if (masterKeyPreinitAttempted || app == null
+                || !PACKAGE.equals(Application.getProcessName())
+                || !PACKAGE.equals(app.getPackageName())) return;
+        masterKeyPreinitAttempted = true;
+        try {
+            android.content.SharedPreferences prefs = app.getSharedPreferences(
+                "yandex_am_storage", Context.MODE_PRIVATE);
+            if (prefs.contains("master_token_key")) {
+                emit("MASTER_KEY_PREINIT", "MAIN", "EXISTING_UNCHANGED");
+                return;
+            }
+            Account[] ownAccounts = AccountManager.get(app).getAccountsByType(OWN_ACCOUNT_TYPE);
+            if (ownAccounts == null) {
+                emit("MASTER_KEY_PREINIT", "MAIN", "ACCOUNT_QUERY_UNAVAILABLE");
+                return;
+            }
+            if (ownAccounts.length != 0) {
+                // NEVER rotate the encryption key of an existing real account.
+                emit("MASTER_KEY_PREINIT", "MAIN", "ACCOUNT_EXISTS_NO_KEY_UNCHANGED");
+                return;
+            }
+            ClassLoader loader = app.getClass().getClassLoader();
+            if (loader == null) loader = app.getClassLoader();
+            if (loader == null) {
+                emit("MASTER_KEY_PREINIT", "MAIN", "NO_LOADER");
+                return;
+            }
+            Class<?> storeClass = Class.forName(
+                "com.yandex.passport.internal.storage.a", false, loader);
+            Class<?> cipherClass = Class.forName(
+                "com.yandex.passport.internal.core.accounts.v", false, loader);
+            Constructor<?> storageCtor = storeClass.getDeclaredConstructor(Context.class);
+            storageCtor.setAccessible(true);
+            Constructor<?> cryptoCtor = cipherClass.getDeclaredConstructor(
+                Context.class, storeClass);
+            cryptoCtor.setAccessible(true);
+            Method originalKeyMethod = cipherClass.getDeclaredMethod("try");
+            originalKeyMethod.setAccessible(true);
+            Object originalStorage = storageCtor.newInstance(app);
+            Object originalCipher = cryptoCtor.newInstance(app, originalStorage);
+            // The issuer's real private method generates/persists its key as-is.
+            // Its returned key object is not retained or inspected.
+            originalKeyMethod.invoke(originalCipher);
+            if (!prefs.contains("master_token_key")) {
+                emit("MASTER_KEY_PREINIT", "MAIN", "SDK_DID_NOT_PERSIST");
+                return;
+            }
+            // Serialization fence for the SDK's earlier Editor.apply(); there
+            // are no new values in this Editor and no key values are read.
+            boolean committed = prefs.edit().commit();
+            emit("MASTER_KEY_PREINIT", "MAIN",
+                committed ? "ORIGINAL_KEY_PERSISTED" : "PERSISTENCE_UNCONFIRMED");
+        } catch (SecurityException failure) {
+            emit("MASTER_KEY_PREINIT", "MAIN", "ACCOUNT_ACCESS_DENIED");
+        } catch (Throwable failure) {
+            // Do not force a key, touch an existing account or suppress SDK exceptions.
+            emit("MASTER_KEY_PREINIT", "MAIN", "SDK_UNAVAILABLE");
+        }
+    }
+
     private synchronized void observeOriginalPassportDecryptOutcome(Application app) {
         if (passportDecryptOutcomeHooked || app == null
                 || !PACKAGE.equals(app.getPackageName())) return;
@@ -2735,6 +2810,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             Context appContext = app.getApplicationContext();
             diagnosticContext = appContext == null ? app : appContext;
             observeOriginalPassportDecryptOutcome(app);
+            preinitializeOriginalMasterKeyIfFresh(app);
             capturePreviousProcessExits(diagnosticContext);
             emit("DIAGNOSTIC_CAPTURE", "LOCAL_FILE", "READY");
             emit("DIAGNOSTIC_BUILD", DIAGNOSTIC_BUILD, "ACTIVE");

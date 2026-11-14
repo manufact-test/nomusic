@@ -87,6 +87,20 @@ def required_callsites():
          {("Landroid/accounts/AccountManager;", "getUserData")}),
       ("Lcom/yandex/passport/internal/core/accounts/p;", "else"): (
          set(), {("Landroid/accounts/AccountManager;", "getPassword")}),
+      ("Lcom/yandex/passport/internal/storage/a;", "<init>"): (
+         {"yandex_am_storage", "master_token_key"},
+         {("Landroid/content/Context;", "getSharedPreferences"),
+          ("LY7a;", "<init>")}),
+      ("Lcom/yandex/passport/internal/core/accounts/v;", "try"): (
+         {"AES", "SHA1PRNG"},
+         {("LY7a;", "getValue"), ("LY7a;", "setValue")}),
+      ("LY7a;", "getValue"): (
+         {"property"}, {("Landroid/content/SharedPreferences;", "getString")}),
+      ("LY7a;", "setValue"): (
+         {"property"},
+         {("Landroid/content/SharedPreferences$Editor;", "commit"),
+          ("Landroid/content/SharedPreferences$Editor;", "apply")}),
+
     }
 
 def verify_original(apkbytes: bytes) -> dict:

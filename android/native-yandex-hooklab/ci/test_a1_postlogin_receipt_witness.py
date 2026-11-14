@@ -62,11 +62,34 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('failure.getMessage()',s[s.index('private synchronized void observeOriginalPassportDecryptOutcome('):
                                            s.index('private synchronized void preparePassportDiagnostics(')])
 
+    def test_fresh_install_original_key_preinit_is_scoped_and_idempotent(self):
+        s=self.code
+        start=s.index('private synchronized void preinitializeOriginalMasterKeyIfFresh(')
+        end=s.index('private synchronized void observeOriginalPassportDecryptOutcome(',start)
+        part=s[start:end]
+        self.assertIn('masterKeyPreinitAttempted = true;',part)
+        self.assertIn('!PACKAGE.equals(Application.getProcessName())',part)
+        self.assertIn('prefs.contains("master_token_key")',part)
+        self.assertIn('ownAccounts.length != 0',part)
+        self.assertIn('"ACCOUNT_EXISTS_NO_KEY_UNCHANGED"',part)
+        self.assertIn('Class.forName(',part)
+        self.assertIn('"com.yandex.passport.internal.core.accounts.v"',part)
+        self.assertIn('"com.yandex.passport.internal.storage.a"',part)
+        self.assertIn('originalKeyMethod.invoke(originalCipher);',part)
+        self.assertIn('prefs.edit().commit()',part)
+        self.assertNotIn('putString(',part)
+        self.assertNotIn('putBoolean(',part)
+        self.assertNotIn('setPassword(',part)
+        self.assertNotIn('setResult(',part)
+        self.assertNotIn('startActivity(',part)
+        self.assertNotIn('getPassword(',part)
+        self.assertNotIn('getString(',part)
+
     def test_scoped_to_real_clone_entry_only(self):
         s=self.code
         self.assertIn('!"ENTRY_ACTIVITY".equals(activityFamily(activity))',s)
         self.assertIn('postLoginHookAttempts.incrementAndGet() > 3',s)
-        self.assertIn('NAV_V10_POSTLOGIN_RECEIPT_WITNESS',s)
+        self.assertIn('NAV_V11_FRESH_MASTER_KEY_ORDER_TRIAL',s)
 
 if __name__=="__main__":
     unittest.main()

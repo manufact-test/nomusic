@@ -19,6 +19,16 @@ The exact original 2025.10.4 `com.yandex.passport.internal.core.accounts.v.if(St
 
 The vendor's real encryption key is held as `yandex_am_storage/master_token_key` via a cached `LY7a` preferences delegate. That raises a theoretical cross-process cache risk, but **there is no owner-device evidence yet that either process generated or read a different key**. No preferences read, key generation, cache invalidation, encryption rewrite or signature bypass has been added. To avoid that race being created by the observer itself, it does not proactively call `getSharedPreferences`.
 
+## Narrow fresh-install key-order repair (source candidate, NOT owner-verified)
+
+Static inspection of the original signed 2025.10.4 issuer DEX shows that the independently signed clone enters the SDK's AES token-encryption path (the signature-dependent original method `v.new()` does not identify the own CELIKOM certificate as a publisher certificate). The original `v.try()` generates/stores `yandex_am_storage/master_token_key` and its `LY7a` delegate caches preference reads. Consequently, a first-login timing race across original MAIN and `:passport` is plausible: system account creation succeeds while the main process cannot decrypt the token with the same key. **This is a causal hypothesis based on exact bytecode, NOT yet confirmed by an owner runtime decrypt failure.**
+
+The clone-only module now invokes the **original 2025 SDK's own key-initialization routine** once in MAIN `Application.onCreate`, before any Passport UI, **only if there is zero clone-owned AccountManager account AND `master_token_key` does not already exist**. The existing SDK writes its key, then an empty `SharedPreferences.Editor.commit()` provides a disk-write ordering fence. No key bytes read/modified, no account touched, no publisher signature check bypassed, no forced onboarding or fabricated authorization. If an account exists but the key is missing, this repair deliberately leaves both unchanged and logs `ACCOUNT_EXISTS_NO_KEY_UNCHANGED`. Errors fail open without changing the app's normal authentication route.
+
+This is a **candidate fix**, not a verified successful login. The native Android13 start/co-install gate can ensure no startup regression but **cannot** certify cross-process post-OTP correctness without real owner-device result. The existing bounded `MASTER_TOKEN_DECRYPT` and `POSTLOGIN_*` witnesses remain to distinguish cryptographic failure from result delivery once a stable signer and a single genuine user test are available.
+
+Exact original static DEX contracts were expanded from 14 to **18** to cover the vendor preference store, cached getter, original key generator and commit/apply APIs. No original APK bytes are changed.
+
 ## Signing blocker (separate, verified)
 
 Both owner NAV8 and NAV9 APKs had different outer signing certificates, because ephemeral own JKS is regenerated per CI run. Android cannot update either clone in-place with a different signer and preserve its package data. Therefore owner export is now **fail-closed for disposable signing** even if idle native CI is green. It requires an independently verified, long-lived owner signer supplied to the pipeline; the current lab does not and cannot assert that condition. Push builds never export APKs automatically. The publisher's inner signed APK and its key are untouched.
