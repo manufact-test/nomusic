@@ -85,7 +85,7 @@ W105–W118 added and CI-validated substantial pieces:
 Still not complete:
 - Production P-256 public-key pin, Authenticode signer certificate SHA-256 and official stable HTTPS feed origin are not provisioned. The production values intentionally remain empty.
 - There is no confirmed live signed-feed publisher/atomic upload target.
-- The main app has no completed signed `latest.json` consumer, trusted same-user Supervisor launch callsite, install coordinator, update scheduling and user notices.
+- W124 has since added the signed latest-manifest consumer, same-user Supervisor READY launch callsite, install coordinator and 30-minute scheduler. These paths are present but gated by the empty production trust tuple; they do not currently perform an automatic feed check, download or install. User-facing production notices and the complete live signed-feed/rollback cycle remain unaccepted.
 - No real production-signed update, forced GUI crash, one-shot automatic rollback and owner-PC account/native/Yandex preservation test has run.
 
 Never invent certificates, key material or an official feed URL. Never ask the owner to paste a private key or credentials into chat. When real production inputs are genuinely needed, request only the specific owner action that is necessary and use protected release configuration.
@@ -102,10 +102,10 @@ This closes the **server-side identity and delivery check only**. It does not cl
 
 ### Installer packaging — important legacy trap
 
-- W20 CI proves the **existing single installer definition** allows the app EXE, native host, renderer and Supervisor together.
-- It does **not** prove an actual installer was compiled, installed or upgraded.
-- No final Windows EXE+ZIP has been built or delivered at this handoff.
-- The current Inno script still has historical metadata `AppVersion=0.24.36` and `OutputBaseFilename=CELIKOM-W100-WINDOWS-02436-INTEGRATED-QA-TEST-UNSIGNED`. This is legacy W100 naming, **not a second product or a direction to create a TEST build**. Do not build/distribute that stale artifact. When the one final package is eventually produced, set the correct current application version and normal product filename as part of that final main-line packaging work. Do not create an interim installer to test the name.
+- W138 built one **private unsigned owner-review** EXE+ZIP for the existing product 0.24.37. The exact artifact, hashes and CI evidence are recorded in `docs/windows/W138-SINGLE-OWNER-REVIEW-02437-EXE-ZIP-CI-20261114.md`.
+- W138's staging CI compiled Inno and verified the existing AppId in-place upgrade, per-user install/uninstall smoke, ZIP updater acceptance and SHA256 package. This is CI staging evidence, not installation/listening evidence on the owner's PC.
+- No **production-signed stable** EXE+ZIP or automatic stable-feed delivery has been completed. The owner has now begun listening to 0.24.37; W139 records the observed results.
+- Current GUI/Supervisor/Inno version is 0.24.37 / 0.24.37.0. Do not rely on the obsolete W100 metadata `0.24.36` or its old output filename. Do not create another interim installer.
 
 ## 4. Owner's complete task list — preserve all items
 
