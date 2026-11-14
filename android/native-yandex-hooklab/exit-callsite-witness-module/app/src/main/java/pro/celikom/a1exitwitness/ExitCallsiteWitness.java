@@ -89,6 +89,8 @@ public final class ExitCallsiteWitness extends XposedModule {
         new java.util.concurrent.atomic.AtomicInteger();
     private final Map<Object, Boolean> onboardingPreferenceStores =
         Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<Object, Boolean> yandexMusicPreferenceEditors =
+        Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<Object, Boolean> onboardingPreferenceEditors =
         Collections.synchronizedMap(new WeakHashMap<>());
     private final java.util.concurrent.atomic.AtomicInteger newIntentObserved =
@@ -2904,8 +2906,12 @@ public final class ExitCallsiteWitness extends XposedModule {
             for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
                 String owner = frame.getClassName();
                 if (owner == null || owner.isEmpty()
-                        || owner.equals(ExitCallsiteWitness.class.getName())
+                        || owner.startsWith(ExitCallsiteWitness.class.getName())
+                        || owner.startsWith("pro.celikom.a1exitwitness.")
                         || owner.startsWith("io.github.libxposed.")
+                        || owner.startsWith("org.lsposed.")
+                        || owner.startsWith("de.robv.android.xposed.")
+                        || owner.startsWith("com.android.")
                         || owner.startsWith("android.")
                         || owner.startsWith("java.")
                         || owner.startsWith("dalvik.")
@@ -2945,7 +2951,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                     try {
                         if (onboardingPreferenceStores.containsKey(chain.getThisObject())
                                 && result != null)
-                            onboardingPreferenceEditors.put(result, null);
+                            yandexMusicPreferenceEditors.put(result, Boolean.TRUE);
                     } catch (Throwable ignored) { }
                     return result;
                 });
@@ -2962,7 +2968,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                     boolean value = Boolean.TRUE.equals(chain.getArg(1));
                     Object result = chain.proceed();
                     try {
-                        if (onboardingPreferenceEditors.containsKey(editor)
+                        if (yandexMusicPreferenceEditors.containsKey(editor)
                                 && "onboarding".equals(key)
                                 && onboardingWriterEvents.incrementAndGet() <= 24) {
                             onboardingPreferenceEditors.put(editor, value);
@@ -2982,6 +2988,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                     Object result = chain.proceed();
                     if (tracked) {
                         onboardingPreferenceEditors.remove(editor);
+                        yandexMusicPreferenceEditors.remove(editor);
                         emit("ONBOARDING_WRITE_PERSIST", "COMMIT",
                             Boolean.TRUE.equals(result) ? "TRUE" : "FALSE");
                     }
@@ -2997,6 +3004,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                     Object result = chain.proceed();
                     if (tracked) {
                         onboardingPreferenceEditors.remove(editor);
+                        yandexMusicPreferenceEditors.remove(editor);
                         emit("ONBOARDING_WRITE_PERSIST", "APPLY", "RETURN");
                     }
                     return result;

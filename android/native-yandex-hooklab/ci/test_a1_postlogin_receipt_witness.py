@@ -100,6 +100,8 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertIn('emit("ONBOARDING_WRITE_PERSIST"',s)
         part=s[s.index('private synchronized void installOnboardingWriterWitness('):
                 s.index('private void observeOnboardingReadOnly(',s.index('private synchronized void installOnboardingWriterWitness('))]
+        self.assertIn('yandexMusicPreferenceEditors.containsKey(editor)',part)
+        self.assertIn('onboardingPreferenceEditors.containsKey(editor)',part)
         self.assertNotIn('.putBoolean(',part)
         self.assertNotIn('.putString(',part)
         self.assertNotIn('.setResult(',part)
