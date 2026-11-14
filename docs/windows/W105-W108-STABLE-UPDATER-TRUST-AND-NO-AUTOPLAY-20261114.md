@@ -1,6 +1,6 @@
 # W105–W108: signed stable updater trust chain and manual no-autoplay safety / 14 November 2026
 
-> **W112 latest:** stable manifest schema 2 now binds exact SHA256 hashes for the installed CELIKOM executable, `integration/host.cjs` and `integration/renderer.js`; installer staging, rollback journal and independent supervisor fail closed without them. Code `a7dbed8e19c9f23d952f689c1074c6057d0116d0`; Main CI `43577376444` and Windows integration `43577376383` SUCCESS. Production signing keys/feed and actual automatic deployment remain OFF; see `docs/windows/W112-EXACT-SIGNED-PAYLOAD-IDENTITY-20261114.md`.
+> **W114 latest:** stable manifest schema 2 now binds exact SHA256 hashes for four installed files: CELIKOM executable, `integration/host.cjs`, `integration/renderer.js` and `CELIKOM.UpdateSupervisor.exe`. The same installer packages the helper; the DPAPI journal and health probe bind previous/target helper identity. Code `5fbc5ed39694dbd43329d47e2ea169f4142cf540`; Main CI `43579759654` / `43580005463` and Windows integration `43579759677` / `43580005419` SUCCESS. Production signing keys/feed and actual automatic deployment remain OFF; see W113/W114 handoffs.
 
 ## Exact source / backups / CI
 - Canonical repo: `manufact-test/nomusic`, ONLY working branch `main`.
