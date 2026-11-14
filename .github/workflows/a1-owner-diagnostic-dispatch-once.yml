@@ -1,0 +1,47 @@
+name: CELIKOM A1 one-time owner diagnostic dispatch
+on:
+  push:
+    branches:
+      - experiment/android-a1-metrica-init-state-observer-arm13-20261112
+    paths:
+      - .github/a1-owner-diagnostic-dispatch.once
+permissions:
+  actions: write
+  contents: write
+jobs:
+  dispatch:
+    if: github.event.head_commit.message == 'chore(android-a1): one-time diagnostic export dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch the existing protected diagnostic workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: experiment/android-a1-metrica-init-state-observer-arm13-20261112
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run android-a1-metrica-init-state-observer-arm13.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TARGET_BRANCH" \
+            -f export_diagnostic_apk=true \
+            -f authorize_fresh_clone_install=true
+          echo "A1_OWNER_DIAGNOSTIC_WORKFLOW_DISPATCH_ACCEPTED"
+
+      - name: Remove this one-time dispatcher and trigger file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: experiment/android-a1-metrica-init-state-observer-arm13-20261112
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            .github/workflows/a1-owner-diagnostic-dispatch-once.yml \
+            .github/a1-owner-diagnostic-dispatch.once; do
+            sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$TARGET_BRANCH" --jq .sha)"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/contents/$path" \
+              -f message="chore(android-a1): remove one-time dispatch helper" \
+              -f sha="$sha" \
+              -f branch="$TARGET_BRANCH" >/dev/null
+          done
+          echo "A1_ONE_TIME_DISPATCHER_REMOVED"
