@@ -7,12 +7,12 @@ import { EventEmitter } from "node:events";
 const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
 async function runHost(url, { queue = [], token = "b".repeat(64),
-  debuggerDriver = null, stateOverride = null, stateSequence = [],
+  debuggerDriver = null, stateOverride = null,
   grantOverride = null, grantSequence = [], currentTrack = null, clock = Date,
-  rendererStatus = "ORIGINAL", cpuUsage = null } = {}) {
+  rendererStatus = "ORIGINAL", cpuUsage = null } = {})
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
-  let drained = false, pump = () => {}, timerDelayMs = 0;
+  let drained = false, pump = () => {}, timerIntervalMs = 0;
   const viewEvents = new Map();
   const view = {
     isDestroyed: () => false,
@@ -64,8 +64,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
                 audioUrl:"https://api.celikom.example/api/v1/audio/1?token="+ "a".repeat(64) + "&expires=1800000180",
                 expiresAt:1800000180000,mimeType:"audio/mpeg"
               }}
-            : (stateSequence.length ? stateSequence.shift() :
-              stateOverride ?? {enabled:false,signedIn:false,apiOrigin:""});
+            : (stateOverride ?? {enabled:false,signedIn:false,apiOrigin:""});
           resp.emit("data", Buffer.from(JSON.stringify(value)));
           resp.emit("end");
         });
@@ -92,11 +91,11 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
       ...(typeof cpuUsage === "function" ? {cpuUsage} : {})
     },
     URL,WeakMap,WeakSet,Set,JSON,Buffer,Date:clock,Promise,console,encodeURIComponent,
-    setTimeout:(callback,delayMs)=>{pump=callback;timerDelayMs=delayMs;return{unref(){}}}
+    setInterval:(callback,intervalMs)=>{pump=callback;timerIntervalMs=intervalMs;callback();return{unref(){}}}
   };
   vm.runInNewContext(source,context,{timeout:1200});
   await new Promise(resolve=>setTimeout(resolve,35));
-  return {diagnostics,evaluated,network,tokenReads,timerDelayMs,pulse:() => pump(),
+  return {diagnostics,evaluated,network,tokenReads,timerIntervalMs,pulse:() => pump(),
     pushQueue: items => { queue.push(...items); drained=false; },
     emitView: (name,...args) => {
       for(const handler of viewEvents.get(name) || []) handler({},...args);
@@ -122,23 +121,9 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
     assert.ok(evaluated.every(js=>!js.includes("b".repeat(64))),"token never leaked to renderer");
   }
 });
-test("W120 host relay backs off while disabled and keeps the active 300ms cadence",async()=>{
-  const idle=await runHost("musicapplication://desktop/");
-  assert.equal(idle.timerDelayMs,300,"first native handshake stays prompt");
-  for(let i=0;i<20 && !idle.diagnostics.includes("STATE_DISABLED");i++)
-    await new Promise(resolve=>setTimeout(resolve,20));
-  assert.ok(idle.diagnostics.includes("STATE_DISABLED"),
-    "idle cadence starts only after the companion explicitly confirms disabled");
-  idle.pulse();
-  await new Promise(resolve=>setTimeout(resolve,35));
-  assert.equal(idle.timerDelayMs,1000,"only a confirmed disabled state may use the 1s idle cadence");
-
-  const active=await runHost("musicapplication://desktop/",{
-    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
-  });
-  active.pulse();
-  await new Promise(resolve=>setTimeout(resolve,35));
-  assert.equal(active.timerDelayMs,300,"active playback keeps fast source/recovery relay");
+test("W120 keeps the established 300ms native relay cadence pending objective profiling",async()=>{
+  const r=await runHost("musicapplication://desktop/");
+  assert.equal(r.timerIntervalMs,300);
 });
 test("W120 unchanged state is not resent into the Yandex renderer",async()=>{
   let fakeNow=Date.now();
@@ -151,29 +136,6 @@ test("W120 unchanged state is not resent into the Yandex renderer",async()=>{
   r.pulse();
   await new Promise(resolve=>setTimeout(resolve,35));
   assert.equal(deliveries(),1,"same authoritative state is delivered only once");
-});
-test("W120 a failed state GET preserves fast recovery cadence after active playback",async()=>{
-  let fakeNow=Date.now();
-  class ControlledDate extends Date { static now(){return fakeNow;} }
-  const r=await runHost("musicapplication://desktop/",{
-    clock:ControlledDate,
-    stateSequence:[
-      {enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"},
-      null,
-      {enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
-    ]
-  });
-  for(let i=0;i<20 && !r.diagnostics.some(x=>x.includes("|STATE_ENABLED"));i++)
-    await new Promise(resolve=>setTimeout(resolve,20));
-  assert.ok(r.diagnostics.some(x=>x.includes("|STATE_ENABLED")),
-    "initial successful state must be observed before simulating an outage");
-  for(let i=0;i<20 && !r.evaluated.some(x=>x.includes("__celikomBridgeNativeCurrentTrack?.()"));i++)
-    await new Promise(resolve=>setTimeout(resolve,20));
-  fakeNow+=1000;
-  r.pulse();
-  await new Promise(resolve=>setTimeout(resolve,60));
-  assert.ok(r.diagnostics.some(x=>x.includes("|STATE_UNREACHABLE")));
-  assert.equal(r.timerDelayMs,300,"transient state failure does not slow active reconnect polling");
 });
 test("W120 high native-host CPU is preserved as a fixed, privacy-safe incident",async()=>{
   let fakeNow=Date.now(), cpuMicros=0;

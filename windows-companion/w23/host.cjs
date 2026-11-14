@@ -887,12 +887,9 @@ let lastCpuUsage = null;
 try {
   if (typeof process.cpuUsage === "function") lastCpuUsage = process.cpuUsage();
 } catch {}
-let firstHostPulse = true;
-function scheduleHostPulse(delay) {
-  const timer = setTimeout(pulseHost, delay);
-  if (timer && typeof timer.unref === "function") timer.unref();
-}
-function pulseHost() {
+// Keep the established 300ms relay cadence until issue #53 has objective
+// runtime evidence. CDP playback observation and recovery are not disabled.
+const timer = setInterval(() => {
   const now = Date.now();
   const elapsed = now - lastHostPulseAt;
   // A small, read-only heartbeat for #53. Ignore sleep/resume gaps; this is
@@ -929,14 +926,5 @@ function pulseHost() {
   const views = webContents.getAllWebContents();
   if (views.length) note("WEB_CONTENTS_PRESENT");
   for (const view of views) void tick(view);
-  // Unknown/unreachable is not proof of idle: only a successful disabled
-  // state response permits the 1s idle cadence. relayState deletes the cache
-  // after any failed GET, so the next pulse returns to the fast cadence.
-  const active = views.some(view => lastNativeState.get(view) !== false);
-  // Preserve the 300ms active relay for prompt Start/Next/recovery, but back
-  // off to 1s only after the companion explicitly confirms CELIKOM is disabled.
-  const delay = firstHostPulse ? 300 : active ? 300 : 1000;
-  firstHostPulse = false;
-  scheduleHostPulse(delay);
-}
-pulseHost();
+}, 300);
+if (timer.unref) timer.unref();
