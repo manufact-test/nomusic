@@ -143,6 +143,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean passportDecryptOutcomeHooked;
     private final java.util.concurrent.atomic.AtomicInteger passportDecryptOutcomeEvents =
         new java.util.concurrent.atomic.AtomicInteger();
+    private boolean postLoginFlowHooked;
+    private final java.util.concurrent.atomic.AtomicInteger postLoginFlowEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean postLoginPublishHooked;
     private boolean postLoginConsumeHooked;
     private boolean postLoginNativeRouteHooked;
@@ -3055,14 +3058,46 @@ public final class ExitCallsiteWitness extends XposedModule {
     private synchronized void observeOriginalPostLoginReceipts(Activity activity) {
         if (activity == null || !PACKAGE.equals(Application.getProcessName())
                 || !"ENTRY_ACTIVITY".equals(activityFamily(activity))
-                || (postLoginPublishHooked && postLoginConsumeHooked
-                    && postLoginNativeRouteHooked)
+                || (postLoginFlowHooked && postLoginPublishHooked
+                    && postLoginConsumeHooked && postLoginNativeRouteHooked)
                 || postLoginHookAttempts.incrementAndGet() > 3) return;
         ClassLoader loader = activity.getClass().getClassLoader();
         if (loader == null) loader = activity.getClassLoader();
         if (loader == null) {
             emit("POSTLOGIN_HOOK", "ENTRY", "NO_LOADER");
             return;
+        }
+        // Original LoginFragment flow emission: only class identity, never
+        // a user-info object, result payload, URL, token, account or exception.
+        if (!postLoginFlowHooked) {
+            try {
+                Class<?> receiver = Class.forName("eY5$a", false, loader);
+                Class<?> continuation =
+                    Class.forName("kotlin.coroutines.Continuation", false, loader);
+                Method m = receiver.getDeclaredMethod(
+                    "emit", Object.class, continuation);
+                hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            if (postLoginFlowEvents.incrementAndGet() <= 24) {
+                                Object event = chain.getArg(0);
+                                String type = event == null ? "" :
+                                    event.getClass().getName();
+                                String category =
+                                    "qY5$a$a".equals(type) ? "NO_USERINFO_RESULT" :
+                                    "qY5$a$b".equals(type) ? "EXTERNAL_HANDOFF" :
+                                    "qY5$a$c".equals(type) ? "USERINFO_READY" :
+                                    "OTHER_FLOW_STATE";
+                                emit("LOGIN_FLOW_RESULT", "ENTRY", category);
+                            }
+                        } catch (Throwable ignored) { }
+                        return chain.proceed();
+                    });
+                postLoginFlowHooked = true;
+                emit("POSTLOGIN_HOOK", "FLOW", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("POSTLOGIN_HOOK", "FLOW", "NO_HOOK");
+            }
         }
         if (!postLoginPublishHooked) {
             try {

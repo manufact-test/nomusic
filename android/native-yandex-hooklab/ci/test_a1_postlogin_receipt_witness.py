@@ -38,6 +38,25 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
           'POSTLOGIN_MAIN_ROUTE'):
             self.assertIn(snippet,s)
 
+    def test_exact_original_flow_subtype_witness_is_bounded_and_readonly(self):
+        s=self.code
+        start=s.index('private synchronized void observeOriginalPostLoginReceipts(')
+        end=s.index('/** Only compare the Intent action',start)
+        part=s[start:end]
+        self.assertIn('Class.forName("eY5$a", false, loader)',part)
+        self.assertIn('Class.forName("kotlin.coroutines.Continuation", false, loader)',part)
+        self.assertIn('"emit", Object.class, continuation',part)
+        self.assertIn('postLoginFlowEvents.incrementAndGet() <= 24',part)
+        self.assertIn('"qY5$a$a".equals(type) ? "NO_USERINFO_RESULT"',part)
+        self.assertIn('"qY5$a$b".equals(type) ? "EXTERNAL_HANDOFF"',part)
+        self.assertIn('"qY5$a$c".equals(type) ? "USERINFO_READY"',part)
+        self.assertIn('emit("LOGIN_FLOW_RESULT", "ENTRY", category)',part)
+        self.assertIn('emit("POSTLOGIN_HOOK", "FLOW", "REGISTERED")',part)
+        self.assertIn('return chain.proceed();',part)
+        self.assertNotIn('.getMessage()',part)
+        self.assertNotIn('.toString()',part)
+        self.assertNotIn('chain.proceed(new Object',part)
+
     def test_no_result_spoofing_or_forced_navigation(self):
         s=self.code
         part=s[s.index('private synchronized void observeOriginalPostLoginReceipts('):
