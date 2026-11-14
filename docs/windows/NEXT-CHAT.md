@@ -1,10 +1,32 @@
 # CELIKOM Windows — CURRENT HANDOFF / 14 November 2026
 
 Repository: `manufact-test/nomusic`.
-**ONE active product line:** `main`; latest verified updater implementation @ `5fbc5ed39694dbd43329d47e2ea169f4142cf540`; latest packaging-contract guard @ `273fe22132123d7af7d3e961748b9d09104c0c7a` (both CI-green). This handoff supersedes the W112-only snapshot; check GitHub HEAD before more code.
-Historical post-W57 green rollback: `backup/windows-main-post-w57-ci-green-20261114` @ `7a4768ecc7366abeb0358337f83e514e85cd8d53` (NOT the current W108 rollback). Latest W108 green backup is listed below.
-Previous W54 rollback: `backup/windows-main-post-w54-gain-witness-20261114` @ `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
-No new `experiment/*` branches. Before each substantial change create exact `backup/*`, and avoid touching Android, extension, private original media or unrelated server logic.
+**ONE active product line:** `main`. Latest W114a code/test HEAD: `e27cd829dc0f101c92bf21d44425504359b7cb21` (Main CI + Windows integration both SUCCESS before this documentation-only update).
+Exact pre-documentation rollback: `backup/windows-main-pre-w114a-ci-docs-20261114` @ `e27cd829dc0f101c92bf21d44425504359b7cb21`.
+No new `experiment/*` branches. Before each substantial change create exact `backup/*`; avoid touching Android, extension, private original media or unrelated server logic.
+
+## W114a latest verified — 14 November 2026
+- Fixed signed rollback reconstruction to retain the previous Supervisor SHA-256; synthetic verification now requires all four signed payload hashes.
+- Schema-2 journal read rejects missing/invalid previous or target Supervisor hashes.
+- Added W15 tests proving both previous-release and target-release missing-Supervisor-hash cases fail closed.
+- Code/test commits: `54219d43e550e4c5ea42eb2fa511264a4255ee0e`, `a7c8474a9dadb55c55261bffe6e6141aabac1146`, `59a84955308ec73f3a4e3b8dad1282002eb4f3ed`, `0540673c68fdd2fca1bc32acda74496de6fe09e6`.
+- Exact code HEAD CI: Main [43581840478](https://github.com/manufact-test/nomusic/actions/runs/43581840478) SUCCESS; Windows integration [43581840481](https://github.com/manufact-test/nomusic/actions/runs/43581840481) SUCCESS.
+- Full details: `docs/windows/W114-SUPERVISOR-PAYLOAD-AND-SINGLE-INSTALLER-20261114.md`.
+
+## Still blocked — do not call updater ready
+- Production P-256 manifest key/public-key pin and Authenticode certificate fingerprint are not provisioned; helper deliberately exits fail-closed while signer pin is empty.
+- W113 generates signed schema-2 manifests but no live feed publication is configured; official HTTPS origin and atomic upload target are unconfirmed.
+- Main app still has no trusted same-user Supervisor launch callsite after durable journal preparation.
+- No real signed install, forced GUI crash, one-shot rollback, account-preservation or Yandex-idle end-to-end test has run.
+- No final EXE+ZIP has been built or delivered; no mass release.
+- Do not use Hostinger QA domain as production origin, do not invent or request secrets in chat, and do not run manual QA installer as a substitute for production trust.
+
+## Next work order
+1. Confirm protected production P-256 signing key and Authenticode certificate configuration.
+2. Confirm official HTTPS stable-feed origin and existing atomic upload target.
+3. Implement trusted same-user Supervisor launch only after the signed journal is durable and all production pins verify.
+4. Run real signed update + forced GUI termination + exactly one verified rollback; preserve existing DPAPI account, native integration and Yandex playback.
+5. Only after that build one final Windows EXE + ZIP for owner QA.
 
 ## W113–W114 current state — 14 November 2026
 
