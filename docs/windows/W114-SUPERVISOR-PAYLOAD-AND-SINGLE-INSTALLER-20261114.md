@@ -63,3 +63,11 @@
 - W15 covers healthy target reuse, tamper rejection, next-update reuse, restored previous package and snapshot rotation.
 - Main CI [43583092781](https://github.com/manufact-test/nomusic/actions/runs/43583092781) SUCCESS; Windows integration [43583092822](https://github.com/manufact-test/nomusic/actions/runs/43583092822) SUCCESS.
 - This still does not solve the first signed bootstrap, provision production signing pins, publish a live feed or wire the trusted Supervisor launch callsite. No automatic updater or installer release is enabled. Full handoff: `docs/windows/W115-LAST-KNOWN-GOOD-SIGNED-PACKAGE-CACHE-20261114.md`.
+
+## W116 — first signed-install bootstrap / 14 November 2026
+
+- Exact code/test HEAD: `d1c807dbc2bb748a8a6d692ef0e01b96a5d9f7d5`.
+- Main CI [43585155970](https://github.com/manufact-test/nomusic/actions/runs/43585155970) SUCCESS; Windows integration [43585155942](https://github.com/manufact-test/nomusic/actions/runs/43585155942) SUCCESS.
+- W116 adds the version-addressed immutable manifest/signature output and a bootstrapper that seeds the first signed LKG package for the exact installed version. It verifies the package signer and all four installed payload hashes; it does not launch an installer or touch Yandex.
+- The bootstrapper is not yet called by the main app. Production signing pins and the official stable-feed origin/upload target remain unconfigured.
+- Full details: `docs/windows/W116-FIRST-SIGNED-BOOTSTRAP-AND-IMMUTABLE-VERSION-MANIFEST-20261114.md`.

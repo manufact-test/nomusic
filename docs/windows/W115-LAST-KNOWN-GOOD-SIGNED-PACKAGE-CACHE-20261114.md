@@ -57,11 +57,11 @@ W115 is **rollback-cache groundwork**, not an enabled automatic updater.
 - The main application still has no trusted Supervisor launch callsite.
 - The production P-256 manifest key/public-key pin and Authenticode certificate fingerprint are not provisioned.
 - No official production feed origin or atomic upload target is confirmed.
-- The first signed bootstrap is still missing: before the first automatic update, the first production-signed installation needs a safe way to seed its own verified setup as the initial LKG package. `GetLastKnownGood` intentionally returns nothing until a transaction is `Healthy` or `Restored`.
+- W116 now implements the first signed bootstrap: a version-addressed immutable manifest for the exact installed version is verified, the signed installer is downloaded and Authenticode-checked, all four installed payload hashes are compared, and a DPAPI `Seeded` record stores the initial LKG package. This code is not wired to app startup until production pins and the official feed are configured.
 - No real signed update, forced GUI crash, automatic rollback, owner-PC verification or final EXE+ZIP has been produced.
 
 Do not populate pins with guessed values, do not use the Hostinger QA hostname as production, do not run the QA installer workflow as a release, and do not enable automatic installation until the real signed bootstrap and end-to-end rollback test pass.
 
-## Next
+## W116 follow-on
 
-Implement and test the first signed-install bootstrap, then wire the main app to the verified feed + durable journal + copied same-user Supervisor. Keep the existing one CELIKOM installer, AppId, install path and user session. Do not create a second product or release intermediate installers.
+The first signed bootstrap is implemented and covered by CI, but remains dormant: no production P-256 key/public-key pin, Authenticode signer fingerprint, official feed origin or main-app callsite is configured. Next provision those release trust inputs, wire `StableUpdateBootstrapper` into the existing app, then connect the verified update flow to the same-user Supervisor. Keep the existing one CELIKOM installer, AppId, install path and user session. Do not create a second product or release intermediate installers.
