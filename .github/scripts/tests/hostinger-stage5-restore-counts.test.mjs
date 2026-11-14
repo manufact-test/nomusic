@@ -16,19 +16,19 @@ test("W98 restore count manifest is stable and sorted", () => {
     users: 4
   }));
   assert.equal(parsed, [
-    "audio_assets\\t1498",
-    "schema_migrations\\t20",
-    "track_replacements\\t1493",
-    "tracks\\t1493",
-    "users\\t4",
-    "windows_gain_variants\\t0",
+    "audio_assets\t1498",
+    "schema_migrations\t20",
+    "track_replacements\t1493",
+    "tracks\t1493",
+    "users\t4",
+    "windows_gain_variants\t0",
     ""
-  ].join("\\n"));
+  ].join("\n"));
 });
 
 test("W98 restore accepts a pre-sidecar snapshot", () => {
   const parsed = parseSnapshotTableCountsJson(JSON.stringify(base));
-  assert.equal(parsed.split("\\n").filter(Boolean).length, 4);
+  assert.equal(parsed.split("\n").filter(Boolean).length, 4);
 });
 
 test("W98 restore rejects missing required tables", () => {

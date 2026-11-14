@@ -35,8 +35,8 @@ export function parseSnapshotTableCountsJson(source) {
 
   return entries
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([table, count]) => table + "\\t" + String(count))
-    .join("\\n") + "\\n";
+    .map(([table, count]) => table + "\t" + String(count))
+    .join("\n") + "\n";
 }
 
 if (process.argv[1] &&
@@ -47,7 +47,7 @@ if (process.argv[1] &&
       fs.readFileSync(process.argv[2], "utf8")
     ));
   } catch {
-    process.stderr.write("W5_RESTORE_COUNTS_INVALID\\n");
+    process.stderr.write("W5_RESTORE_COUNTS_INVALID\n");
     process.exitCode = 2;
   }
 }

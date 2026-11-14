@@ -47,13 +47,13 @@ if [[ "$operation" == "restore-drill" ]]; then
   }
   # Compare the restored SQL with the exact private snapshot row-count manifest.
   # A zero-row gain table is valid before the downstream W98 sidecar job runs.
-  printf '%s\\n' '{"operation":"restore-counts"}' > "$work/restore-counts.json"
+  printf '%s\n' '{"operation":"restore-counts"}' > "$work/restore-counts.json"
   scp -P 65002 "${options[@]}" "$work/restore-counts.json" "$target:$incoming/hostinger-stage5-request.json"
   ssh -T -p 65002 "${options[@]}" "$target" "'$php_bin' '$incoming/hostinger-stage5-remote.php' '$incoming/hostinger-stage5-request.json'" > "$work/table-counts.json"
   [[ -s "$work/table-counts.json" ]] || { echo 'Snapshot table-count manifest unavailable.' >&2; exit 1; }
   node .github/scripts/hostinger-stage5-restore-counts.mjs "$work/table-counts.json" > "$work/table-counts.tsv"
   table_count=0
-  while IFS=$'\\t' read -r table expected; do
+  while IFS=$'\t' read -r table expected; do
     [[ -n "$table" && "$expected" =~ ^[0-9]+$ ]] || { echo 'Snapshot table-count entry invalid.' >&2; exit 1; }
     if ! actual="$(MYSQL_PWD='ci-disposable-mysql' mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root -N -B celikom_restore -e "SELECT COUNT(*) FROM $table;" 2> "$work/count-errors")" ||
        [[ ! "$actual" =~ ^[0-9]+$ || "$actual" != "$expected" ]]; then
@@ -63,7 +63,8 @@ if [[ "$operation" == "restore-drill" ]]; then
     table_count=$((table_count + 1))
   done < "$work/table-counts.tsv"
   [[ "$table_count" -ge 4 ]] || { echo 'Snapshot table-count manifest incomplete.' >&2; exit 1; }
-  echo "Stage 5 isolated MySQL database restore PASS: all $table_count snapshot table row counts match; live MySQL untouched."fi
+  echo "Stage 5 isolated MySQL database restore PASS: all $table_count snapshot table row counts match; live MySQL untouched."
+fi
 ssh -T -p 65002 "${options[@]}" "$target" "rm -f '$incoming/hostinger-stage5-remote.php' '$incoming/hostinger-stage5-request.json' && rmdir '$incoming'"
 node --input-type=module <<'EXTERNAL'
 import assert from 'node:assert/strict';
