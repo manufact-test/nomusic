@@ -74,7 +74,7 @@ public final class NativeReplacementLifecycle {
      * Returns a generation token; no raw ID is retained outside the gate.
      * Disabled mapping returns a token but cannot offer/commit anything.
      */
-    public synchronized long beginTrack(String trackId, String edition,
+    public synchronized long beginTrack(String trackId, String albumId, String edition,
                                         long elapsedRealtimeMs) {
         if (active != null && !issued) active.abort(activeRevision);
         generation++;
@@ -83,15 +83,15 @@ public final class NativeReplacementLifecycle {
         issuedSource = NativeSourceGate.Choice.ORIGINAL;
         if (enabled) {
             active = new NativePrePrepareAdmission(resolveBudgetMs);
-            activeRevision = active.begin(trackId, edition, elapsedRealtimeMs);
+            activeRevision = active.begin(trackId, albumId, edition, elapsedRealtimeMs);
         }
         return generation;
     }
 
     public synchronized boolean observeFileInfo(long generationToken,
-                                                 String trackId, String edition) {
+                                                 String trackId, String albumId, String edition) {
         return live(generationToken) && !issued
-                && active.observeFileInfo(activeRevision, trackId, edition);
+                && active.observeFileInfo(activeRevision, trackId, albumId, edition);
     }
 
     /**
@@ -119,7 +119,8 @@ public final class NativeReplacementLifecycle {
      * If disabled/stale, do NOT mutate/replace the original source.
      */
     public synchronized NativePrePrepareAdmission.Decision atNativePrepare(
-            long generationToken, String decoderTrackId, String decoderEdition,
+            long generationToken, String decoderTrackId, String decoderAlbumId,
+            String decoderEdition,
             long elapsedRealtimeMs) {
         if (!live(generationToken) || issued) {
             return new NativePrePrepareAdmission.Decision(false,
@@ -128,7 +129,7 @@ public final class NativeReplacementLifecycle {
         }
         NativePrePrepareAdmission.Decision decision =
                 active.commitAtNativePrepare(activeRevision,
-                        decoderTrackId, decoderEdition, elapsedRealtimeMs);
+                        decoderTrackId, decoderAlbumId, decoderEdition, elapsedRealtimeMs);
         if (decision.applyOnce) {
             issued = true;
             issuedSource = decision.source;

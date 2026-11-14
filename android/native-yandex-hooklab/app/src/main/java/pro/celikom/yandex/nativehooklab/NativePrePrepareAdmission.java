@@ -8,7 +8,7 @@ package pro.celikom.yandex.nativehooklab;
  * An external authorized host alone may observe trusted native boundaries.
  *
  * Invariants:
- * - Only exact native track+edition+generation identity may admit alternate.
+ * - Only exact native track+album+edition+generation identity may admit alternate.
  * - File-info must match AND the native decoder descriptor must match.
  * - Exactly one pre-prepare decision per selection, never a mid-play flip.
  * - Late responses and callbacks never change a later selection.
@@ -46,12 +46,12 @@ public final class NativePrePrepareAdmission {
     }
 
     /** Every native selection (including replay, Next and radio) starts a generation. */
-    public synchronized long begin(String trackId, String edition, long nowMs) {
+    public synchronized long begin(String trackId, String albumId, String edition, long nowMs) {
         generation++;
-        identityGeneration = identity.beginNativeTrack(trackId, edition);
-        hasExactSelection = exact(trackId) && exact(edition);
+        identityGeneration = identity.beginNativeTrack(trackId, albumId, edition);
+        hasExactSelection = exact(trackId) && exact(albumId) && exact(edition);
         sourceRevision = hasExactSelection
-                ? gate.beginTrack(trackId, edition, nowMs) : -1;
+                ? gate.beginTrack(trackId, albumId, edition, nowMs) : -1;
         committed = false;
         aborted = false;
         commits = 0;
@@ -60,10 +60,10 @@ public final class NativePrePrepareAdmission {
 
     /** Call only from a trusted same-generation native FileInfo request observer. */
     public synchronized boolean observeFileInfo(long observedGeneration, String trackId,
-                                                String edition) {
+                                                String albumId, String edition) {
         if (observedGeneration != generation || committed || aborted)
             return false;
-        return identity.observeFileInfo(identityGeneration, trackId, edition);
+        return identity.observeFileInfo(identityGeneration, trackId, albumId, edition);
     }
 
     /**
@@ -86,6 +86,7 @@ public final class NativePrePrepareAdmission {
      */
     public synchronized Decision commitAtNativePrepare(long observedGeneration,
                                                        String descriptorTrackId,
+                                                       String descriptorAlbumId,
                                                        String descriptorEdition,
                                                        long nowMs) {
         if (observedGeneration != generation || aborted)
@@ -96,7 +97,7 @@ public final class NativePrePrepareAdmission {
         committed = true;
         NativeTrackIdentityGate.Verdict verdict =
                 identity.sealAtNativePrepare(identityGeneration,
-                                             descriptorTrackId, descriptorEdition);
+                                             descriptorTrackId, descriptorAlbumId, descriptorEdition);
         NativeSourceGate.Choice selected;
         if (!hasExactSelection) {
             selected = NativeSourceGate.Choice.ORIGINAL;

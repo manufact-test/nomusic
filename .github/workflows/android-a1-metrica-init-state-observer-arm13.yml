@@ -100,6 +100,20 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
+          # Compile actual admission/lifecycle models on BOTH native Android CI lanes.
+          # All selection, file-info and pre-prepare decisions require the
+          # exact track+album+edition triple; no legacy 2-field overloads.
+          mkdir -p "$RUNNER_TEMP/celikom-a1-triple-jvm"
+          javac --release 17 -d "$RUNNER_TEMP/celikom-a1-triple-jvm" \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
+            android/native-yandex-hooklab/tests/src/NativePrePrepareAdmissionTest.java \
+            android/native-yandex-hooklab/tests/src/NativeReplacementLifecycleTest.java
+          java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativePrePrepareAdmissionTest
+          java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativeReplacementLifecycleTest
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_persistent_owner_signer.py
