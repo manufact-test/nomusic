@@ -108,6 +108,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean authenticatorTypesHooked;
     private boolean activityResultHooked;
     private boolean activityResultDeliveryHooked;
+    private final java.util.concurrent.atomic.AtomicInteger activityResultDeliveryObservations =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger accountSnapshots =
         new java.util.concurrent.atomic.AtomicInteger();
     // Independent event quotas: a long login cannot exhaust the budget
@@ -3323,7 +3325,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                         if (receiver instanceof Activity
                                 && PACKAGE.equals(((Activity) receiver).getPackageName())
                                 && "ENTRY_ACTIVITY".equals(activityFamily((Activity) receiver))
-                                && activityFinishesLogged.incrementAndGet() <= 48) {
+                                && activityResultDeliveryObservations.incrementAndGet() <= 48) {
                             Object raw = chain.getArg(2);
                             String category = !(raw instanceof Integer) ? "UNKNOWN"
                                 : ((Integer) raw) == Activity.RESULT_OK ? "OK"
