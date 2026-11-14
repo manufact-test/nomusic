@@ -716,6 +716,18 @@ test("W133 verified playback heartbeat downgrades immediately when current decod
   assert.ok(afterSourceLeft.includes("NATIVE_MAPPING_ACCEPTED"),
     "source-left immediately clears the green status without waiting for the 2.2s sampler");
   assert.equal(afterSourceLeft.at(-1),"NATIVE_MAPPING_ACCEPTED");
+
+  // If the exact signed source becomes current again, the next native sample
+  // must be able to restore green; the immediate downgrade cannot stick.
+  debug.emit("message",{}, "Media.playerPropertiesChanged", {
+    playerId:"current-source",
+    properties:[{name:"kUrl",value:grant.audioUrl},{name:"kIsPlaying",value:"true"}]
+  });
+  clockNow += 2600;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,50));
+  assert.equal(heartbeatStatuses().at(-1),"NATIVE_SOURCE_VERIFIED");
+
   assert.ok(!JSON.stringify(r.network).includes(grant.audioUrl),
     "the immediate heartbeat never contains a signed media URL");
 });
