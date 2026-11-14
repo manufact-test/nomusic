@@ -59,6 +59,8 @@ final class StageBAudioEvidence {
     private final AtomicLong nativeTrackSourceRequests = new AtomicLong();
     private final AtomicLong flowTrackSourceSameObject = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
+    private final AtomicLong nativeTrackWrapperConstructed = new AtomicLong();
+    private final AtomicLong nativeMainSourceEnters = new AtomicLong();
     private final AtomicLong wrapperMainSourceRequests = new AtomicLong();
     private final AtomicLong wrapperDescriptorLinks = new AtomicLong();
     private final AtomicLong trackDescriptorFactoryLinks = new AtomicLong();
@@ -79,7 +81,8 @@ final class StageBAudioEvidence {
 
     private static void pushScope(
             ThreadLocal<ArrayList<WeakReference<Object>>> local, Object value) {
-        if (value == null) return;
+        // A null nested frame must shadow its parent rather than expose a
+        // stale outer selected track/wrapper. The weak ref may hold null.
         ArrayList<WeakReference<Object>> stack = local.get();
         if (stack == null) {
             stack = new ArrayList<>();
@@ -91,14 +94,9 @@ final class StageBAudioEvidence {
     private static Object currentScope(
             ThreadLocal<ArrayList<WeakReference<Object>>> local) {
         ArrayList<WeakReference<Object>> stack = local.get();
-        if (stack == null) return null;
-        while (!stack.isEmpty()) {
-            Object value = stack.get(stack.size()-1).get();
-            if (value != null) return value;
-            stack.remove(stack.size()-1);
-        }
-        local.remove();
-        return null;
+        if (stack == null || stack.isEmpty()) return null;
+        // Never fall back to an outer frame if a nested frame was null or GC'd.
+        return stack.get(stack.size()-1).get();
     }
 
     private static void popScope(
@@ -128,10 +126,10 @@ final class StageBAudioEvidence {
     }
 
     void enterNativeTrackSourceRequest(Object track) {
-        if (track == null) return;
         pushScope(activeTrackScopes,track);
         mark(nativeTrackSourceRequests);
-        if (wasNativeTrackFlowItem(track)) mark(flowTrackSourceSameObject);
+        if (track != null && wasNativeTrackFlowItem(track))
+            mark(flowTrackSourceSameObject);
     }
 
     void exitNativeTrackSourceRequest() {
@@ -139,6 +137,7 @@ final class StageBAudioEvidence {
     }
 
     synchronized void onNativeTrackWrapperCreated(Object wrapper) {
+        mark(nativeTrackWrapperConstructed);
         Object track=currentScope(activeTrackScopes);
         if (track==null || wrapper==null || !wasNativeTrackFlowItem(track)) return;
         NativeTrackSourceLink link=null;
@@ -156,14 +155,20 @@ final class StageBAudioEvidence {
             link.track=new WeakReference<>(track);
             nativeTrackSourceLinks.add(link);
         }
+        // Reconstructing a wrapper creates a new lineage generation. Old
+        // descriptor/factory/source links must never be inherited by it.
         link.wrapper=new WeakReference<>(wrapper);
+        link.descriptor=null;
+        link.factoryResult=null;
+        link.sourceInstance=null;
         mark(nativeTrackWrapperLinks);
     }
 
     void enterNativeMainSourceRequest(Object wrapper) {
-        if (wrapper==null) return;
         pushScope(activeWrapperScopes,wrapper);
-        if (hasWrapperLink(wrapper)) mark(wrapperMainSourceRequests);
+        mark(nativeMainSourceEnters);
+        if (wrapper!=null && hasWrapperLink(wrapper))
+            mark(wrapperMainSourceRequests);
     }
 
     void exitNativeMainSourceRequest() {
@@ -180,60 +185,82 @@ final class StageBAudioEvidence {
         NativeTrackSourceLink link=findByWrapper(wrapper);
         if (link!=null) {
             link.descriptor=new WeakReference<>(descriptor);
+            link.factoryResult=null;
+            link.sourceInstance=null;
             mark(wrapperDescriptorLinks);
         }
     }
 
     private NativeTrackSourceLink findByWrapper(Object wrapper) {
         if (wrapper==null) return null;
+        NativeTrackSourceLink match=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
             if (link.track==null || link.track.get()==null) {
                 nativeTrackSourceLinks.remove(i);
                 continue;
             }
-            if (link.wrapper!=null && link.wrapper.get()==wrapper) return link;
+            if (link.wrapper!=null && link.wrapper.get()==wrapper) {
+                // Multiple active tracks sharing one object is ambiguous.
+                if (match!=null) return null;
+                match=link;
+            }
         }
-        return null;
+        return match;
     }
 
     private NativeTrackSourceLink findByDescriptor(Object descriptor) {
         if (descriptor==null) return null;
+        NativeTrackSourceLink match=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
             if (link.track==null || link.track.get()==null) {
                 nativeTrackSourceLinks.remove(i);
                 continue;
             }
-            if (link.descriptor!=null && link.descriptor.get()==descriptor) return link;
+            if (link.descriptor!=null && link.descriptor.get()==descriptor) {
+                // Multiple active tracks sharing one object is ambiguous.
+                if (match!=null) return null;
+                match=link;
+            }
         }
-        return null;
+        return match;
     }
 
     private NativeTrackSourceLink findByFactory(Object factory) {
         if (factory==null) return null;
+        NativeTrackSourceLink match=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
             if (link.track==null || link.track.get()==null) {
                 nativeTrackSourceLinks.remove(i);
                 continue;
             }
-            if (link.factoryResult!=null && link.factoryResult.get()==factory) return link;
+            if (link.factoryResult!=null && link.factoryResult.get()==factory) {
+                // Multiple active tracks sharing one object is ambiguous.
+                if (match!=null) return null;
+                match=link;
+            }
         }
-        return null;
+        return match;
     }
 
     private NativeTrackSourceLink findBySource(Object source) {
         if (source==null) return null;
+        NativeTrackSourceLink match=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
             if (link.track==null || link.track.get()==null) {
                 nativeTrackSourceLinks.remove(i);
                 continue;
             }
-            if (link.sourceInstance!=null && link.sourceInstance.get()==source) return link;
+            if (link.sourceInstance!=null && link.sourceInstance.get()==source) {
+                // Multiple active tracks sharing one object is ambiguous.
+                if (match!=null) return null;
+                match=link;
+            }
         }
-        return null;
+        return match;
     }
 
     synchronized void onExoDescriptorBuilt(Object source) {
@@ -265,6 +292,7 @@ final class StageBAudioEvidence {
         NativeTrackSourceLink link=findByDescriptor(descriptor);
         if (link!=null && factoryResult!=null) {
             link.factoryResult=new WeakReference<>(factoryResult);
+            link.sourceInstance=null;
             mark(trackDescriptorFactoryLinks);
         }
     }
@@ -405,6 +433,8 @@ final class StageBAudioEvidence {
             event("TRACK_FACTORY_SOURCE_LINK", trackFactorySourceLinks),
             event("TRACK_SOURCE_OPEN_LINK", trackSourceOpenLinks),
             event("TRACK_SOURCE_READ_LINK", trackSourceReadLinks),
+            event("NATIVE_TRACK_WRAPPER_CONSTRUCTED", nativeTrackWrapperConstructed),
+            event("NATIVE_MAIN_SOURCE_ENTER", nativeMainSourceEnters),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }

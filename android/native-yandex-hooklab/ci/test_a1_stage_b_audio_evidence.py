@@ -24,9 +24,9 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 32);
-        for (int i=0;i<31;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[31].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 34);
+        for (int i=0;i<33;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[33].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
         Object factory=new Object(), source=new Object();
@@ -63,7 +63,95 @@ public final class StageBAudioEvidenceTest {
             "WRAPPER_DESCRIPTOR_LINK","TRACK_DESCRIPTOR_FACTORY_LINK",
             "TRACK_FACTORY_SOURCE_LINK","TRACK_SOURCE_OPEN_LINK","TRACK_SOURCE_READ_LINK"};
         for(int i=0;i<names.length;i++) bucket(links,21+i,names[i],i==1?"FEW":"ONE");
-        check(links[31].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        bucket(links,31,"NATIVE_TRACK_WRAPPER_CONSTRUCTED","FEW");
+        bucket(links,32,"NATIVE_MAIN_SOURCE_ENTER","FEW");
+        check(links[33].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+
+        // A nested missing argument/collected weak ref must never borrow its
+        // outer track or wrapper. Scope accounting survives null arguments.
+        StageBAudioEvidence nested=new StageBAudioEvidence();
+        Object nt=new Object(), nw=new Object(), nd=new Object();
+        Object nf=new Object(), ns=new Object();
+        nested.onNativeTrackFlowEmission(nt);
+        nested.enterNativeTrackSourceRequest(nt);
+        nested.enterNativeTrackSourceRequest(null);
+        nested.onNativeTrackWrapperCreated(new Object());
+        nested.exitNativeTrackSourceRequest();
+        nested.onNativeTrackWrapperCreated(nw);
+        nested.exitNativeTrackSourceRequest();
+        bucket(nested.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
+        nested.enterNativeMainSourceRequest(nw);
+        nested.enterNativeMainSourceRequest(null);
+        nested.onNativeExoDescriptorBuiltForCurrentWrapper(new Object());
+        nested.exitNativeMainSourceRequest();
+        nested.onNativeExoDescriptorBuiltForCurrentWrapper(nd);
+        nested.exitNativeMainSourceRequest();
+        nested.onExoFactoryCreated(nd,nf);
+        nested.onExoSourceInstanceCreated(ns,nf);
+        nested.onExoSourceInstanceOpen(ns);
+        nested.onExoSourceInstanceRead(ns,1);
+        bucket(nested.exportLines(),26,"WRAPPER_DESCRIPTOR_LINK","ONE");
+        bucket(nested.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
+
+        // A newer wrapper/descriptor/factory resets every downstream hop.
+        StageBAudioEvidence reset=new StageBAudioEvidence();
+        Object rt=new Object(), rw1=new Object(), rw2=new Object();
+        Object rd1=new Object(), rd2=new Object(), rf1=new Object(), rf2=new Object();
+        Object rs1=new Object(), rs2=new Object();
+        reset.onNativeTrackFlowEmission(rt);
+        reset.enterNativeTrackSourceRequest(rt);
+        reset.onNativeTrackWrapperCreated(rw1);
+        reset.exitNativeTrackSourceRequest();
+        reset.enterNativeMainSourceRequest(rw1);
+        reset.onNativeExoDescriptorBuiltForCurrentWrapper(rd1);
+        reset.exitNativeMainSourceRequest();
+        reset.onExoFactoryCreated(rd1,rf1);
+        reset.onExoSourceInstanceCreated(rs1,rf1);
+        reset.onExoSourceInstanceOpen(rs1);
+        reset.onExoSourceInstanceRead(rs1,1);
+        reset.enterNativeTrackSourceRequest(rt);
+        reset.onNativeTrackWrapperCreated(rw2);
+        reset.exitNativeTrackSourceRequest();
+        reset.onExoSourceInstanceOpen(rs1);
+        reset.onExoSourceInstanceRead(rs1,1);
+        reset.onExoFactoryCreated(rd1,new Object());
+        bucket(reset.exportLines(),29,"TRACK_SOURCE_OPEN_LINK","ONE");
+        bucket(reset.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
+        bucket(reset.exportLines(),27,"TRACK_DESCRIPTOR_FACTORY_LINK","ONE");
+        reset.enterNativeMainSourceRequest(rw2);
+        reset.onNativeExoDescriptorBuiltForCurrentWrapper(rd2);
+        reset.exitNativeMainSourceRequest();
+        reset.onExoFactoryCreated(rd2,rf2);
+        reset.onExoSourceInstanceCreated(rs2,rf2);
+        reset.onExoSourceInstanceOpen(rs2);
+        reset.onExoSourceInstanceRead(rs2,1);
+        bucket(reset.exportLines(),29,"TRACK_SOURCE_OPEN_LINK","FEW");
+        bucket(reset.exportLines(),30,"TRACK_SOURCE_READ_LINK","FEW");
+
+        // Shared descriptor across two different tracks is ambiguous: fail closed.
+        StageBAudioEvidence collision=new StageBAudioEvidence();
+        Object ct1=new Object(),ct2=new Object(),cw1=new Object(),cw2=new Object();
+        Object cd=new Object(),cf=new Object(),cs=new Object();
+        collision.onNativeTrackFlowEmission(ct1);
+        collision.onNativeTrackFlowEmission(ct2);
+        collision.enterNativeTrackSourceRequest(ct1);
+        collision.onNativeTrackWrapperCreated(cw1);
+        collision.exitNativeTrackSourceRequest();
+        collision.enterNativeTrackSourceRequest(ct2);
+        collision.onNativeTrackWrapperCreated(cw2);
+        collision.exitNativeTrackSourceRequest();
+        collision.enterNativeMainSourceRequest(cw1);
+        collision.onNativeExoDescriptorBuiltForCurrentWrapper(cd);
+        collision.exitNativeMainSourceRequest();
+        collision.enterNativeMainSourceRequest(cw2);
+        collision.onNativeExoDescriptorBuiltForCurrentWrapper(cd);
+        collision.exitNativeMainSourceRequest();
+        collision.onExoFactoryCreated(cd,cf);
+        collision.onExoSourceInstanceCreated(cs,cf);
+        collision.onExoSourceInstanceOpen(cs);
+        collision.onExoSourceInstanceRead(cs,1);
+        bucket(collision.exportLines(),27,"TRACK_DESCRIPTOR_FACTORY_LINK","NONE");
+        bucket(collision.exportLines(),30,"TRACK_SOURCE_READ_LINK","NONE");
 
         Object different=new Object();
         e.onExoSourceInstanceCreated(different);
