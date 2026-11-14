@@ -36,6 +36,7 @@ PINNED_XAPK_SHA256 = "8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0
 PUBLISHER_VERSION = "2025.10.4 #120.1gpr"
 
 MODEL = "Lru/yandex/music/data/audio/o;"
+ALBUM_MODEL = "Lru/yandex/music/data/audio/Album;"
 WRAPPER = "LtCa;"
 DESCRIPTOR_BUILDER = (
     "Lcom/yandex/music/shared/player/download2/o;", "while"
@@ -193,9 +194,11 @@ def model_parameter_registers(dex: Dex, method, flags: int, code_off: int):
     if ins_size > registers_size:
         raise DexError("INVALID_INS_SIZE")
     reg = registers_size - ins_size
-    if not (flags & ACC_STATIC):
-        reg += 1
     found = []
+    if not (flags & ACC_STATIC):
+        if method[0] == MODEL:
+            found.append((-1, reg))  # the exact Track instance is "this"
+        reg += 1
     for index, typ in enumerate(params):
         if typ == MODEL:
             found.append((index, reg))
@@ -223,10 +226,10 @@ def straight_line_model_flow(dex: Dex, method, flags: int, code_off: int):
                     role = "PLAYER_SELECTION_OR_TRANSPORT"
                 elif callee[0] == MODEL:
                     role = "MODEL_ACCESSOR_OR_METHOD"
-                elif callee[1] == "<init>":
-                    role = "OBJECT_CONSTRUCTOR"
                 elif callee[0] == WRAPPER:
                     role = "TRACK_ID_WRAPPER_CONSTRUCTOR"
+                elif callee[1] == "<init>":
+                    role = "OBJECT_CONSTRUCTOR"
                 if role:
                     events.append({
                         "ordinal": ordinal,
@@ -276,11 +279,140 @@ def straight_line_model_flow(dex: Dex, method, flags: int, code_off: int):
     }
 
 
+
+def class_member_field_reads(dex: Dex, target: str):
+    """Read only declared target-class methods and their own field projections."""
+    methods = []
+    reads = []
+    for method, flags, code_off in method_definitions_with_flags(dex):
+        if method[0] != target:
+            continue
+        methods.append(method)
+        for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
+            if op not in (0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58,
+                          0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66):
+                continue
+            owner, name, typ = field_id(dex, words[1])
+            if owner == target:
+                reads.append({
+                    "method": method[1],
+                    "signature": method[2],
+                    "field": name,
+                    "field_type": typ,
+                    "ordinal": ordinal,
+                })
+    return sorted(set(methods)), reads[:MAX_METHODS]
+
+
+def wrapper_constructor_input_flow(dex: Dex, method, flags: int, code_off: int):
+    """Track only same-block String provenance into LtCa(String) constructors."""
+    model_params = model_parameter_registers(dex, method, flags, code_off)
+    model_aliases = {reg for _, reg in model_params}
+    provenance = {}
+    pending_result = None
+    events = []
+    for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            if callee[0] == WRAPPER and callee[1] == "<init>" and len(regs) >= 2:
+                origin = provenance.get(regs[1], {"kind": "UNTRACED_STRING"})
+                events.append({
+                    "ordinal": ordinal,
+                    "constructor": {"owner": callee[0], "method": callee[1],
+                                    "signature": callee[2]},
+                    "string_argument_origin": origin,
+                    "model_receiver_in_same_method": bool(
+                        origin.get("model_receiver_in_same_method", False)),
+                })
+            pending_result = None
+            if callee[2].endswith(")Ljava/lang/String;"):
+                if callee[0] == MODEL and regs and regs[0] in model_aliases:
+                    pending_result = {
+                        "kind": "NATIVE_TRACK_ACCESSOR",
+                        "method": callee[1],
+                        "model_receiver_in_same_method": True,
+                    }
+                else:
+                    inputs = [provenance[r] for r in regs if r in provenance]
+                    if inputs:
+                        pending_result = {
+                            "kind": "DERIVED_STRING",
+                            "producer_owner": callee[0],
+                            "producer_method": callee[1],
+                            "input_kinds": sorted({v.get("kind", "UNKNOWN") for v in inputs}),
+                            "model_receiver_in_same_method": any(
+                                v.get("model_receiver_in_same_method", False) for v in inputs),
+                        }
+        elif op == 0x0c:  # move-result-object
+            dest = words[0] >> 8
+            if pending_result is not None:
+                provenance[dest] = pending_result
+            else:
+                provenance.pop(dest, None)
+            pending_result = None
+        elif op in (0x54,):  # iget-object
+            dest = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            owner, name, typ = field_id(dex, words[1])
+            if owner == MODEL and typ == "Ljava/lang/String;" and receiver in model_aliases:
+                provenance[dest] = {
+                    "kind": "NATIVE_TRACK_STRING_FIELD",
+                    "field": name,
+                    "model_receiver_in_same_method": True,
+                }
+            else:
+                provenance.pop(dest, None)
+            pending_result = None
+        elif op in (0x1a, 0x1b):  # const-string; do not export the literal
+            provenance[words[0] >> 8] = {"kind": "CONSTANT_STRING"}
+            pending_result = None
+        else:
+            move = move_object_registers(op, words)
+            if move:
+                dest, source = move
+                if source in model_aliases:
+                    model_aliases.add(dest)
+                else:
+                    model_aliases.discard(dest)
+                if source in provenance:
+                    provenance[dest] = provenance[source]
+                else:
+                    provenance.pop(dest, None)
+            elif op == 0x1f:  # check-cast preserves the reference
+                pass
+            else:
+                dest = written_register(op, words)
+                if dest is not None:
+                    model_aliases.discard(dest)
+                    provenance.pop(dest, None)
+                if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+                    model_aliases.clear()
+                    provenance.clear()
+            pending_result = None
+        if len(events) >= MAX_EVENTS:
+            break
+    if not events:
+        return None
+    return {
+        "caller": {"owner": method[0], "name": method[1], "signature": method[2]},
+        "model_parameters": [{"index": i, "register": r} for i, r in model_params],
+        "wrapper_constructors": events,
+        "branch_flow_not_inferred": True,
+    }
+
+
 def inspect_signed(apks):
     dex_count = 0
     model_defined = False
+    album_defined = False
     model_fields = {}
+    album_fields = {}
     model_methods = []
+    album_methods = []
+    model_accessor_field_reads = []
+    album_accessor_field_reads = []
+    wrapper_constructor_callsites = []
     model_referenced_methods = []
     descriptor_builder_callers = []
     player_method_refs = set()
@@ -304,6 +436,18 @@ def inspect_signed(apks):
                         model_fields[name] = typ
                         if len(model_fields) > MAX_FIELDS:
                             raise ValueError("MODEL_FIELD_LIMIT")
+                    model_methods, reads = class_member_field_reads(dex, MODEL)
+                    model_accessor_field_reads.extend(reads)
+                if ALBUM_MODEL in defined:
+                    if album_defined:
+                        raise ValueError("DUPLICATE_NATIVE_ALBUM_MODEL")
+                    album_defined = True
+                    for owner, name, typ in declared_fields_for_owner(dex, ALBUM_MODEL):
+                        album_fields[name] = typ
+                        if len(album_fields) > MAX_FIELDS:
+                            raise ValueError("ALBUM_FIELD_LIMIT")
+                    album_methods, reads = class_member_field_reads(dex, ALBUM_MODEL)
+                    album_accessor_field_reads.extend(reads)
                 for i in range(dex.method_count):
                     method = dex.method(i)
                     if method[0] == MODEL:
@@ -313,8 +457,6 @@ def inspect_signed(apks):
                     if method[0] in PLAYER_OWNERS and method[1] in PLAYER_METHODS:
                         player_method_refs.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
-                    if method[0] == MODEL:
-                        model_methods.append(method)
                     if method[0] not in (MODEL, WRAPPER) and (
                         MODEL in method[2] or WRAPPER in method[2]
                     ):
@@ -322,6 +464,11 @@ def inspect_signed(apks):
                             flow = straight_line_model_flow(dex, method, flags, code_off)
                             if flow and flow["straight_line_events"]:
                                 model_flow_candidates.append(flow)
+                    if method[0] == MODEL or MODEL in method[2]:
+                        wrapper_flow = wrapper_constructor_input_flow(
+                            dex, method, flags, code_off)
+                        if wrapper_flow and len(wrapper_constructor_callsites) < MAX_METHODS:
+                            wrapper_constructor_callsites.append(wrapper_flow)
                     ins = list(instructions(dex, code_off))
                     for ordinal, (pc, op, words) in enumerate(ins):
                         if op not in INVOKES:
@@ -343,6 +490,7 @@ def inspect_signed(apks):
     if not model_defined:
         raise ValueError("NATIVE_TRACK_MODEL_NOT_DEFINED")
     model_methods = sorted(set(model_methods))[:MAX_METHODS]
+    album_methods = sorted(set(album_methods))[:MAX_METHODS]
     model_referenced_methods = sorted(set(model_referenced_methods))[:MAX_METHODS]
     wrapper_methods = sorted(wrapper_methods)[:MAX_METHODS]
     player_method_refs = sorted(player_method_refs)[:MAX_METHODS]
@@ -364,10 +512,22 @@ def inspect_signed(apks):
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in model_referenced_methods
         ],
+        "native_track_model_accessor_field_reads": model_accessor_field_reads[:MAX_METHODS],
+        "native_album_model": ALBUM_MODEL if album_defined else None,
+        "native_album_model_field_names_and_types": [
+            {"field": name, "type": typ}
+            for name, typ in sorted(album_fields.items())
+        ],
+        "native_album_model_defined_methods": [
+            {"owner": x[0], "method": x[1], "signature": x[2]}
+            for x in album_methods
+        ],
+        "native_album_model_accessor_field_reads": album_accessor_field_reads[:MAX_METHODS],
         "track_id_wrapper_method_examples": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in wrapper_methods
         ],
+        "track_id_wrapper_constructor_callsites": wrapper_constructor_callsites,
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [
             {"owner": x[0], "method": x[1], "signature": x[2]}

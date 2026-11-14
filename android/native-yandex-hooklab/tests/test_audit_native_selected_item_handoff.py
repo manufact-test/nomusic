@@ -18,6 +18,11 @@ class SelectedItemAuditTests(unittest.TestCase):
             "8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053")
         self.assertEqual(PUBLISHER_VERSION, "2025.10.4 #120.1gpr")
 
+    def test_album_model_is_a_distinct_native_object(self):
+        from audit_native_selected_item_handoff import ALBUM_MODEL
+        self.assertEqual(ALBUM_MODEL, "Lru/yandex/music/data/audio/Album;")
+        self.assertNotEqual(ALBUM_MODEL, MODEL)
+
     def test_descriptor_builder_is_exact(self):
         self.assertEqual(DESCRIPTOR_BUILDER,
             ("Lcom/yandex/music/shared/player/download2/o;", "while"))
