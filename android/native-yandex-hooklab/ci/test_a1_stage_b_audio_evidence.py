@@ -25,10 +25,15 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 17);
-        for (int i=0;i<16;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[16].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
-        e.onExoFactoryCreated();
+        check(initial.length == 19);
+        for (int i=0;i<18;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[18].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        Object source = new Object();
+        Object different = new Object();
+        e.onExoDescriptorBuilt(source);
+        e.onExoFactoryCreated(different);
+        check(e.exportLines()[17].contains(";error=NONE;"));
+        e.onExoFactoryCreated(source);
         e.onExoOpen();
         e.onExoReadResult(8192);
         e.onExoReadResult(0);
@@ -58,8 +63,9 @@ public final class StageBAudioEvidenceTest {
         }
         for (int i=0;i<10;i++) e.onReader(1,false);
         check(e.exportLines()[3].contains(";error=MANY;"));
-        for(int i=11;i<16;i++) check(e.exportLines()[i].contains(";error=ONE;"));
-        check(e.exportLines()[16].contains("NOT_CONNECTED"));
+        for(int i=12;i<18;i++) check(e.exportLines()[i].contains(";error=ONE;"));
+        check(e.exportLines()[11].contains(";error=FEW;"));
+        check(e.exportLines()[18].contains("NOT_CONNECTED"));
         for(int i=0;i<50;i++) e.onExoReadResult(1);
         check(e.exportLines()[13].contains(";error=MANY;"));
         System.out.println("PASS Stage B scoped native summary: no source, URL or identity disclosure");
@@ -90,7 +96,8 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onFileInfoResult()", code)
         self.assertIn("STAGE_B_AUDIO.onDirectDownloadInfoResult()", code)
         self.assertIn("installExactNativeExoSourceWitness(loader)", code)
-        self.assertIn("STAGE_B_AUDIO.onExoFactoryCreated()", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1))", code)
+        self.assertIn("STAGE_B_AUDIO.onExoDescriptorBuilt(result)", code)
         self.assertIn("STAGE_B_AUDIO.onExoOpen()", code)
         self.assertIn("STAGE_B_AUDIO.onExoReadResult(", code)
         self.assertIn("STAGE_B_AUDIO.onExoFailure()", code)

@@ -182,6 +182,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactFileInfoGetterWitnessReady;
     private boolean exactDirectDownloadGetterWitnessReady;
     private boolean exactExoFactoryWitnessReady;
+    private boolean exactExoDescriptorWitnessReady;
     private boolean exactExoDataOpenWitnessReady;
     private boolean exactExoDataReadWitnessReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
@@ -2608,6 +2609,28 @@ public final class ExitCallsiteWitness extends XposedModule {
      */
     private synchronized void installExactNativeExoSourceWitness(ClassLoader loader) {
         if (loader == null || !PACKAGE.equals(Application.getProcessName())) return;
+        if (!exactExoDescriptorWitnessReady) {
+            try {
+                Class<?> owner = Class.forName(
+                    "com.yandex.music.shared.player.download2.o", false, loader);
+                Method descriptor = owner.getDeclaredMethod("while",
+                    Class.forName("QBa", false, loader),
+                    Class.forName("f6a", false, loader),
+                    Class.forName("n26", false, loader));
+                descriptor.setAccessible(true);
+                hook(descriptor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed(); // native descriptor unchanged
+                        try { STAGE_B_AUDIO.onExoDescriptorBuilt(result); }
+                        catch (Throwable ignored) { }
+                        return result;
+                    });
+                exactExoDescriptorWitnessReady = true;
+                emit("AUDIO_EXO_DESCRIPTOR_HOOK", "EXO_DESCRIPTOR", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_EXO_DESCRIPTOR_HOOK", "EXO_DESCRIPTOR", "NO_HOOK");
+            }
+        }
         if (!exactExoFactoryWitnessReady) {
             try {
                 Class<?> target = Class.forName(
@@ -2621,7 +2644,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(factory).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         Object result = chain.proceed(); // vendor factory once, unchanged
-                        try { if (result != null) STAGE_B_AUDIO.onExoFactoryCreated(); }
+                        try {
+                            if (result != null)
+                                STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1));
+                        }
                         catch (Throwable ignored) { }
                         return result;
                     });

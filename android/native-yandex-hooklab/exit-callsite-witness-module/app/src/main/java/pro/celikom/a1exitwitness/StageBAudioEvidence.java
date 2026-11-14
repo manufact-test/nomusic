@@ -1,6 +1,8 @@
 package pro.celikom.a1exitwitness;
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 
 /**
  * Session-local privacy-safe Stage B evidence from the *actual scoped native
@@ -13,6 +15,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * Export runs only when the owner explicitly saves diagnostics.
  */
 final class StageBAudioEvidence {
+    // Up to 16 real descriptor objects weakly held, reference (==) only.
+    // Neither source identity, URL nor track fields are ever serialized.
+    private final ArrayList<WeakReference<Object>> nativeDescriptors = new ArrayList<>();
+    private final AtomicLong exoDescriptorResults = new AtomicLong();
+    private final AtomicLong exoFactorySameDescriptor = new AtomicLong();
     private final AtomicLong exoFactoryResults = new AtomicLong();
     private final AtomicLong exoOpenResults = new AtomicLong();
     private final AtomicLong exoPositiveReads = new AtomicLong();
@@ -39,7 +46,29 @@ final class StageBAudioEvidence {
         }
     }
 
-    void onExoFactoryCreated() { mark(exoFactoryResults); }
+    synchronized void onExoDescriptorBuilt(Object source) {
+        if (source == null) return;
+        // Identity comparisons never invoke vendor equals, hashCode or toString.
+        for (int i=nativeDescriptors.size()-1; i>=0; i--) {
+            Object prior=nativeDescriptors.get(i).get();
+            if (prior==source) return;
+            if (prior==null) nativeDescriptors.remove(i);
+        }
+        if (nativeDescriptors.size()>=16) nativeDescriptors.remove(0);
+        nativeDescriptors.add(new WeakReference<>(source));
+        mark(exoDescriptorResults);
+    }
+
+    synchronized void onExoFactoryCreated(Object source) {
+        mark(exoFactoryResults);
+        if (source == null) return;
+        for (WeakReference<Object> ref:nativeDescriptors) {
+            if (ref.get()==source) {
+                mark(exoFactorySameDescriptor);
+                break;
+            }
+        }
+    }
     void onExoOpen() { mark(exoOpenResults); }
     void onExoReadResult(int result) {
         if (result > 0) mark(exoPositiveReads);
@@ -103,6 +132,8 @@ final class StageBAudioEvidence {
             event("EXO_READ_POSITIVE", exoPositiveReads),
             event("EXO_SOURCE_END", exoEndOfSource),
             event("EXO_IO_FAILURE", exoFailures),
+            event("EXO_DESCRIPTOR_BUILT", exoDescriptorResults),
+            event("EXO_SAME_DESCRIPTOR", exoFactorySameDescriptor),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }
