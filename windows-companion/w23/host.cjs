@@ -568,6 +568,20 @@ function currentDecoderPlayer(view, trackId, firstSeenAt, checkedAt) {
   }
   return null;
 }
+function downgradeVerifiedPlaybackHeartbeat(view, trackId) {
+  const previous = lastStatus.get(view);
+  if (!previous || previous.trackId !== trackId ||
+      previous.value !== "NATIVE_SOURCE_VERIFIED") return false;
+  const token = readToken();
+  if (!token) return false;
+  // A CDP source/playing invalidation is stronger and faster than the regular
+  // 2.2s status sample. Downgrade only the UI heartbeat; never touch playback.
+  void localRequest(token, "/v1/heartbeat", "POST", {
+    trackId, status:"NATIVE_MAPPING_ACCEPTED",
+    title:previous.title, artist:previous.artist, durationMs:previous.durationMs
+  });
+  return true;
+}
 function observeNativePlayback(view) {
   if (!validView(view) || playbackWitnesses.has(view)) return;
   playbackWitnesses.add(view);
@@ -635,14 +649,22 @@ function observeNativePlayback(view) {
             prev.gainDb = expected.gainDb;
           }
         } catch { /* Unknown native URL: no source evidence. */ }
-        if (wasCurrentCelikom && !prev.sourceTrackId) {
+        if (wasCurrentCelikom && prev.sourceTrackId !== previousTrackId) {
           const currentTrackId = lastStatus.get(view)?.trackId;
-          note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
-          sourceLeftCurrent = !!currentTrackId;
+          downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
+          if (!prev.sourceTrackId) {
+            note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
+            sourceLeftCurrent = !!currentTrackId;
+          }
         }
       } else if (prop?.name === "kIsPlaying") {
+        const currentTrackId = lastStatus.get(view)?.trackId;
+        const wasCurrentVerified = prev.playing && !!currentTrackId &&
+          prev.sourceTrackId === currentTrackId;
         prev.playing = prop.value === "true";
         if (!prev.playing) {
+          if (wasCurrentVerified)
+            downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
           prev.evidenceReportedFor = null;
           prev.lastVolume = null;
           prev.volumeTrackId = null;
@@ -825,8 +847,11 @@ function observeNativePlayback(view) {
         if (method === "Media.playerDestroyed" &&
             typeof params?.playerId === "string") {
           const lost = decoderPlayers.get(params.playerId);
-          if (lost?.sourceTrackId === verifiedDecoderSource.get(view)?.trackId)
+          const verified = verifiedDecoderSource.get(view);
+          if (lost?.sourceTrackId === verified?.trackId) {
+            downgradeVerifiedPlaybackHeartbeat(view, verified.trackId);
             verifiedDecoderSource.delete(view);
+          }
           decoderPlayers.delete(params.playerId);
         }
         if (method === "Media.playerErrorsRaised" &&
@@ -837,8 +862,10 @@ function observeNativePlayback(view) {
           const player = typeof params?.playerId === "string" ?
             decoderPlayers.get(params.playerId) : null;
           const currentTrack = lastStatus.get(view)?.trackId;
-          if (player?.sourceTrackId && player.sourceTrackId === currentTrack)
+          if (player?.sourceTrackId && player.sourceTrackId === currentTrack) {
             note("PLAYER_DECODER_CELIKOM_PIPELINE_ERROR", currentTrack);
+            downgradeVerifiedPlaybackHeartbeat(view, currentTrack);
+          }
         }
         else if (method === "Media.playerMessagesLogged" &&
             Array.isArray(params?.messages) &&
@@ -868,8 +895,11 @@ function observeNativePlayback(view) {
       debug.on("detach", () => {
         if (!validView(view)) return;
         // A detached CDP observer can no longer prove which source is
-        // currently playing. Invalidate the green witness immediately;
-        // never let a previous kUrl/kIsPlaying pair survive observer loss.
+        // currently playing. Downgrade any green heartbeat immediately and
+        // invalidate the witness; never retain an old kUrl/kIsPlaying pair.
+        const verified = verifiedDecoderSource.get(view);
+        if (verified?.trackId)
+          downgradeVerifiedPlaybackHeartbeat(view, verified.trackId);
         verifiedDecoderSource.delete(view);
         nativeExpectedAudio.delete(view);
         nativeMediaHttpSuccess.delete(view);
