@@ -375,7 +375,9 @@ public static class StableUpdateRollbackJournal
                   !ValidSha(record.PreviousNativeHostSha256) ||
                   !ValidSha(record.TargetNativeHostSha256) ||
                   !ValidSha(record.PreviousRendererSha256) ||
-                  !ValidSha(record.TargetRendererSha256))) ||
+                  !ValidSha(record.TargetRendererSha256) ||
+                  !ValidSha(record.PreviousSupervisorSha256) ||
+                  !ValidSha(record.TargetSupervisorSha256))) ||
                 !Version.TryParse(record.PreviousVersion, out var previous) ||
                 !Version.TryParse(record.TargetVersion, out var target) ||
                 previous >= target || record.PreviousSequence >= record.TargetSequence ||
