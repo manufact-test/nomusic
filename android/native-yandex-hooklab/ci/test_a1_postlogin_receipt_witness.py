@@ -88,21 +88,27 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         part=s[s.index('private static String tokenRequestErrorCategory('):
                s.index('// Original LoginFragment flow emission:',s.index('private static String tokenRequestErrorCategory('))]
         self.assertIn('resumed.getDeclaredField("private")',part)
+        self.assertIn('Class.forName("zW8", false, loader)',part)
+        self.assertIn('tokenEnvelope.getDeclaredField("default")',part)
+        self.assertIn('tokenEnvelope.isInstance(envelope)',part)
+        self.assertIn('tokenEnvelopePayload.get(envelope)',part)
         self.assertIn('Class.forName("zW8$b", false, loader)',part)
         self.assertIn('tokenFailure.getDeclaredField("default")',part)
         self.assertIn('"AFTER_TOKEN_REQUEST".equals(stage)',part)
         self.assertIn('postLoginTokenOutcomeEvents.incrementAndGet() <= 12',part)
         self.assertIn('emit("LOGIN_TOKEN_OUTCOME", "ENTRY", category)',part)
         self.assertIn('emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",',part)
-        for category in ('"NULL"', '"FAILURE"', '"STRING_RESULT"',
-                         '"OTHER_NONFAILURE_RESULT"', '"PASSPORT_API_A"',
-                         '"PASSPORT_API_B"', '"SECURITY"', '"NETWORK_OR_IO"'):
+        for category in ('"UNEXPECTED_ENVELOPE"', '"WRAPPED_NULL"',
+                         '"WRAPPED_FAILURE"', '"WRAPPED_STRING"', '"WRAPPED_OTHER"',
+                         '"PASSPORT_API_A"', '"PASSPORT_API_B"', '"SECURITY"',
+                         '"NETWORK_OR_IO"'):
             self.assertIn(category,part)
         self.assertIn('result = chain.proceed();',part)
         self.assertIn('return result;',part)
         for forbidden in ('getMessage()', 'getStackTrace()', 'getPassword(',
                           '.toString()', '.setResult(', '.startActivity(',
-                          'chain.proceed(new Object', 'emit("LOGIN_TOKEN_OUTCOME", reply'):
+                          'chain.proceed(new Object', 'emit("LOGIN_TOKEN_OUTCOME", reply', 'tokenFailure.isInstance(envelope)',
+                          'tokenFailureCause.get(envelope)'):
             self.assertNotIn(forbidden,part)
 
     def test_exact_original_flow_subtype_witness_is_bounded_and_readonly(self):
@@ -144,6 +150,8 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
             '("LnY5;", "invokeSuspend")',
             '("LnY5;", "I", "continue")',
             '("LnY5;", "Ljava/lang/Object;", "private")',
+            '("LzW8;", "Ljava/lang/Object;", "default")',
+            'token_envelope_contract',
             '("LzW8$b;", "Ljava/lang/Throwable;", "default")',
             '("LqY5$a$a;", "LqY5$a;")',
             '("LqY5$a$b;", "LqY5$a;")',
