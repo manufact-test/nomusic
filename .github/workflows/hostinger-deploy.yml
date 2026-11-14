@@ -55,6 +55,7 @@ jobs:
           bash -n .github/scripts/hostinger-user-feedback-audit.sh
           php -l .github/scripts/hostinger-user-feedback-audit.php
           php -l .github/scripts/hostinger-stage5-remote.php
+          node --test .github/scripts/tests/hostinger-stage5-restore-counts.test.mjs
           php .github/scripts/tests/hostinger-stage5-inventory.test.php
           bash -n .github/scripts/hostinger-admin-gain-ux-audit.sh
           php -l .github/scripts/hostinger-admin-gain-ux-audit.php

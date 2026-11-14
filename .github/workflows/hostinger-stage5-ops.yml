@@ -43,6 +43,7 @@ jobs:
         run: |
           bash -n .github/scripts/hostinger-stage5.sh
           php -l .github/scripts/hostinger-stage5-remote.php
+          node --test .github/scripts/tests/hostinger-stage5-restore-counts.test.mjs
       - name: Verify private snapshot and public HTTPS without logging private data
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}

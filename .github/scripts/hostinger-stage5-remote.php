@@ -20,7 +20,7 @@ try {
         || filesize($requestPath) > 1024) throw new RuntimeException('request-path');
     $request = json_decode((string) file_get_contents($requestPath), true, 8, JSON_THROW_ON_ERROR);
     if (!is_array($request) || array_keys($request) !== ['operation']
-        || !in_array($request['operation'], ['audit', 'snapshot', 'restore-drill', 'restore-export'], true)) throw new RuntimeException('request');
+        || !in_array($request['operation'], ['audit', 'snapshot', 'restore-drill', 'restore-export', 'restore-counts'], true)) throw new RuntimeException('request');
     $operation = $request['operation'];
     require $release . '/bootstrap.php';
     $config = require $release . '/config/app.php';
@@ -41,7 +41,8 @@ try {
     $marker=(int)$pdo->query("SELECT COUNT(*) FROM schema_migrations WHERE version='013_automatic_rewards.sql'")->fetchColumn();
     $column=(int)$pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='reward_ledger' AND column_name='grant_mode'")->fetchColumn();
     $allocation=(int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='reward_allocations'")->fetchColumn();
-    if ($operation!=='restore-export') fwrite(STDOUT,"Reward schema diagnostic: engine=$engine marker=$marker grant_mode=$column allocations=$allocation\n");
+    if (!in_array($operation, ['restore-export', 'restore-counts'], true))
+        fwrite(STDOUT,"Reward schema diagnostic: engine=$engine marker=$marker grant_mode=$column allocations=$allocation\n");
     $approved = (new Celikom\Repositories\PdoCatalogRepository($pdo))->findActive('yandex', '144530503');
     if ($approved === null || (int) $approved['replacement_id'] !== 1
         || (int) $approved['duration_ms'] !== 180872) throw new RuntimeException('mapping');
@@ -270,6 +271,24 @@ try {
     if ($operation === 'restore-export') {
         // stdout is raw SQL, caller must redirect to private runner scratch.
         readfile($backup . '/database.sql');
+        exit(0);
+    }
+    if ($operation === 'restore-counts') {
+        // This manifest contains only table names and row counts, never row data.
+        $counts = $manifest['tables'] ?? null;
+        $required = ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements'];
+        if (!is_array($counts) || count($counts) < count($required) || count($counts) > 100)
+            throw new RuntimeException('snapshot-table-counts-invalid');
+        foreach ($required as $table) {
+            if (!array_key_exists($table, $counts))
+                throw new RuntimeException('snapshot-table-counts-incomplete');
+        }
+        foreach ($counts as $table => $count) {
+            if (!is_string($table) || !preg_match('/^[a-z][a-z0-9_]{0,63}$/D', $table) ||
+                !is_int($count) || $count < 0)
+                throw new RuntimeException('snapshot-table-counts-invalid');
+        }
+        echo json_encode($counts, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         exit(0);
     }
     if ($operation === 'restore-drill') {
