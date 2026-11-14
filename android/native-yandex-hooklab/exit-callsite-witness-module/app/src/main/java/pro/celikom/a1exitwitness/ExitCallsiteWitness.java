@@ -179,6 +179,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private volatile ClassLoader cloneAppClassLoader;
     private volatile Context exactCloneRuntimeContext;
     private boolean mediaDataReadWitnessReady;
+    private boolean exactFileInfoGetterWitnessReady;
+    private boolean exactDirectDownloadGetterWitnessReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean mediaExtractorSourceHookReady;
@@ -2380,6 +2382,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installExactFatalObjectWitness(loader);
                                 installExactPostTruePushProvider(loader);
                                 installPrivateMediaDataReadWitness(loader);
+                                installExactNativeSourceDtoWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
@@ -2534,6 +2537,58 @@ public final class ExitCallsiteWitness extends XposedModule {
         mediaExtractorSourceHookReady=registered;
         emit("MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR",
             registered ? "REGISTERED":"NO_HOOK");
+    }
+
+    /**
+     * Exactly the two DTO getters identified in the original 2025.10.4 DEX.
+     * Their invocation is evidence of a file-info/download-info path ONLY,
+     * not of the current audible song, album, edition or authorized replacement.
+     * Returned objects, link Strings and network values are NEVER inspected.
+     */
+    private synchronized void installExactNativeSourceDtoWitness(ClassLoader loader) {
+        if (loader == null || !PACKAGE.equals(Application.getProcessName())) return;
+        if (!exactFileInfoGetterWitnessReady) {
+            try {
+                Class<?> dto = Class.forName(
+                    "com.yandex.music.shared.player.content.remote.fileinfo.GetFileInfoDto",
+                    false, loader);
+                Method getter = dto.getDeclaredMethod("if");
+                getter.setAccessible(true);
+                hook(getter).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed(); // unmodified original once
+                        try { if (result != null) STAGE_B_AUDIO.onFileInfoResult(); }
+                        catch (Throwable ignored) { }
+                        return result;
+                    });
+                exactFileInfoGetterWitnessReady = true;
+                emit("AUDIO_FILEINFO_HOOK", "FILEINFO_DTO", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_FILEINFO_HOOK", "FILEINFO_DTO", "NO_HOOK");
+            }
+        }
+        if (!exactDirectDownloadGetterWitnessReady) {
+            try {
+                Class<?> dto = Class.forName(
+                    "com.yandex.music.shared.player.content.remote.downloadinfo.DownloadInfoDto",
+                    false, loader);
+                Method getter = dto.getDeclaredMethod("case");
+                getter.setAccessible(true);
+                hook(getter).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed(); // unmodified original once
+                        try {
+                            if (result instanceof String)
+                                STAGE_B_AUDIO.onDirectDownloadInfoResult();
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                exactDirectDownloadGetterWitnessReady = true;
+                emit("AUDIO_DOWNLOADINFO_HOOK", "DOWNLOADINFO_DTO", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_DOWNLOADINFO_HOOK", "DOWNLOADINFO_DTO", "NO_HOOK");
+            }
+        }
     }
 
     private synchronized void installExactPrefixWitness(ClassLoader appLoader) {

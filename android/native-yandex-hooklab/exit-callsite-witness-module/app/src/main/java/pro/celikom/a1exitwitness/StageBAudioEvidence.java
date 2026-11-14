@@ -13,6 +13,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * Export runs only when the owner explicitly saves diagnostics.
  */
 final class StageBAudioEvidence {
+    private final AtomicLong fileInfoResults = new AtomicLong();
+    private final AtomicLong directDownloadInfoResults = new AtomicLong();
     private final AtomicLong reader0 = new AtomicLong();
     private final AtomicLong reader1 = new AtomicLong();
     private final AtomicLong extractor0 = new AtomicLong();
@@ -22,6 +24,10 @@ final class StageBAudioEvidence {
     private final AtomicLong positiveReads = new AtomicLong();
     private final AtomicLong endOfSourceReads = new AtomicLong();
     private final AtomicLong failedReads = new AtomicLong();
+
+    void onFileInfoResult() { fileInfoResults.incrementAndGet(); }
+
+    void onDirectDownloadInfoResult() { directDownloadInfoResults.incrementAndGet(); }
 
     void onReader(int candidate, boolean wasPassedToExtractor) {
         if (candidate == 0) reader0.incrementAndGet();
@@ -59,6 +65,8 @@ final class StageBAudioEvidence {
 
     String[] exportLines() {
         return new String[] {
+            event("FILEINFO_DTO", fileInfoResults),
+            event("DOWNLOADINFO_DTO", directDownloadInfoResults),
             event("READER_0", reader0),
             event("READER_1", reader1),
             event("EXTRACTOR_0", extractor0),

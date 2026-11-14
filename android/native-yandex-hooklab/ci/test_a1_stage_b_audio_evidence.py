@@ -25,9 +25,11 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 10);
-        for (int i=0;i<9;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[9].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 12);
+        for (int i=0;i<11;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[11].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        e.onFileInfoResult();
+        e.onDirectDownloadInfoResult();
         e.onReader(0, true);
         e.onReader(0, false);
         e.onExtractorSource(0);
@@ -36,19 +38,20 @@ public final class StageBAudioEvidenceTest {
         e.onReadReturn(0);
         e.onReadException();
         String[] rows = e.exportLines();
-        for(int i=0;i<9;i++){
-            String[] categories = {"READER_0","READER_1","EXTRACTOR_0","EXTRACTOR_1",
+        for(int i=0;i<11;i++){
+            String[] categories = {"FILEINFO_DTO","DOWNLOADINFO_DTO",
+                "READER_0","READER_1","EXTRACTOR_0","EXTRACTOR_1",
                 "EXTRACTOR_OTHER","SAME_SOURCE_OBJECT","POSITIVE_READS",
                 "SOURCE_END","READ_EXCEPTIONS"};
-            String bucket = i==0 ? "FEW" :
-                (i==2||i==5||i==6||i==7||i==8 ? "ONE" : "NONE");
+            String bucket = i==2 ? "FEW" :
+                (i==0||i==1||i==4||i==7||i==8||i==9||i==10 ? "ONE" : "NONE");
             check(rows[i].equals("event=AUDIO_STAGE_B_SUMMARY;origin="+categories[i]+
                  ";error="+bucket+";thread=OTHER"));
             check(!rows[i].contains("512") && !rows[i].contains("http"));
         }
         for (int i=0;i<10;i++) e.onReader(1,false);
-        check(e.exportLines()[1].contains(";error=MANY;"));
-        check(e.exportLines()[9].contains("NOT_CONNECTED"));
+        check(e.exportLines()[3].contains(";error=MANY;"));
+        check(e.exportLines()[11].contains("NOT_CONNECTED"));
         System.out.println("PASS Stage B scoped native summary: no source, URL or identity disclosure");
     }
 }
@@ -73,6 +76,9 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExtractorSource(", code)
         self.assertIn("STAGE_B_AUDIO.onReadReturn(", code)
         self.assertIn("STAGE_B_AUDIO.onReadException()", code)
+        self.assertIn("installExactNativeSourceDtoWitness(loader)", code)
+        self.assertIn("STAGE_B_AUDIO.onFileInfoResult()", code)
+        self.assertIn("STAGE_B_AUDIO.onDirectDownloadInfoResult()", code)
         self.assertIn("STAGE_B_AUDIO.exportLines()", code)
         self.assertIn("result=chain.proceed(); // exactly one unmodified original call", code)
         self.assertIn("result=chain.proceed();", code)
