@@ -174,6 +174,9 @@ jobs:
           if ($body.Contains('Process.Start(') -or $body.Contains('AppUpdateManager.Launch(')) {
             throw 'W117_BOOTSTRAP_MUST_NOT_INSTALL_OR_RESTART'
           }
+          if (-not $body.Contains('CanLaunchWithoutPlaybackInterrupt(_bridge.Enabled)')) {
+            throw 'W117_BOOTSTRAP_MUST_WAIT_FOR_YANDEX_IDLE'
+          }
           if (-not $supervisor.Contains('StableUpdateTrustConfiguration.TryGetProduction')) {
             throw 'W117_SUPERVISOR_SHARED_TRUST_GATE_MISSING'
           }

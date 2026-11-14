@@ -1305,7 +1305,8 @@ public sealed partial class MainWindow : Form
     private async Task BootstrapStableRollbackIfConfiguredAsync()
     {
         if (!StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
-            trust is null)
+            trust is null ||
+            !AppUpdateManager.CanLaunchWithoutPlaybackInterrupt(_bridge.Enabled))
             return;
 
         try
