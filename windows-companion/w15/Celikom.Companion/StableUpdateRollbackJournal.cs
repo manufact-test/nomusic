@@ -145,14 +145,6 @@ public static class StableUpdateRollbackJournal
             try { Directory.Delete(snapshot, recursive: true); } catch { }
             throw;
         }
-            WriteRecord(root, record);
-            return record;
-        }
-        catch
-        {
-            try { Directory.Delete(snapshot, recursive: true); } catch { }
-            throw;
-        }
     }
 
     public static Record Read(string privateRoot)
