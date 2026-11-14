@@ -25,7 +25,7 @@ Source changes in the **same sole Android working branch**:
 - `f0c86d278db7627c56f77060cacedb02be84a190`: exact signed vendor DEX gate pins the two fields used.
 - `73f246187a6a9d678eeada8cb5e23a749613078c`: static tests for classifier bounds, no-secret policy and original pipeline behavior.
 
-The existing Android13 native workflows trigger on the source/test changes. As of this documentation authoring, relevant latest full paired CI is #43607380238 and the clone-only run on the original source change is #43607320585; verify their *actual final statuses* before any claim of CI acceptance. These runs do not perform owner login or music playback. No APK exported for the owner, no phone interaction and no extra OTP requested.
+Current corrected source/test commit: `423c401aa81d41bc35ef80bd0cddbb0dbc443135`. Its isolated source tests, the exact original DEX contract and module build passed. **Latest clone-only native Android13 CI #43607698877 completed SUCCESS.** Latest publisher-first paired CI #43607698917 was still executing the unsuppressed 75-second native acceptance at the last verified check (14 November, 15:07 UTC); treat its final verdict as UNKNOWN until read. Earlier paired #43607380238 failed at a wrong new static-test assertion, which was fixed by `67258f7`; do not confuse it with a native regression. None of these runs performs genuine owner Passport login or audio. No new APK exported, no owner phone interaction, no extra OTP.
 
 ## Next action
 
