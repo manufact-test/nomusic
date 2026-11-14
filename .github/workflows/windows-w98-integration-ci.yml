@@ -249,6 +249,34 @@ jobs:
             throw 'W117_SUPERVISOR_SHARED_TRUST_GATE_MISSING'
           }
           Write-Output 'W117_FAIL_CLOSED_TRUST_AND_BOOTSTRAP_PASS'
+      - name: W128 CELIKOM launch paths stay non-elevated
+        shell: pwsh
+        run: |
+          $main = Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
+          $updater = Get-Content windows-companion/w15/Celikom.Companion/AppUpdateManager.cs -Raw
+          $supervisor = Get-Content windows-companion/w15/Celikom.Companion/StableUpdateSupervisorLauncher.cs -Raw
+          $native = Get-Content windows-companion/w24/Celikom.NativeInstaller/NativeIntegrationManager.cs -Raw
+          $project = Get-Content windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -Raw
+          $installer = Get-Content windows-companion/w20/installer/CELIKOM.iss -Raw
+          $launchSources = @($main, $updater, $supervisor, $native)
+          foreach ($source in $launchSources) {
+            if ($source -match '(?im)\bVerb\s*=\s*["'']runas["'']') {
+              throw 'W128_CELIKOM_MUST_NOT_REQUEST_RUNAS'
+            }
+          }
+          if (-not $updater.Contains('UseShellExecute = true') -or
+              -not $supervisor.Contains('UseShellExecute = false')) {
+            throw 'W128_EXPECTED_NON_ELEVATED_PROCESS_LAUNCH_MISSING'
+          }
+          if (-not $installer.Contains('PrivilegesRequired=lowest') -or
+              -not $installer.Contains('DefaultDirName={localappdata}\Programs\CELIKOM')) {
+            throw 'W128_INSTALLER_MUST_REMAIN_PER_USER'
+          }
+          if ($project.Contains('ApplicationManifest') -or
+              $project.Contains('requireAdministrator')) {
+            throw 'W128_COMPANION_MUST_NOT_EMBED_ADMIN_MANIFEST'
+          }
+          Write-Output 'W128_NON_ELEVATED_LAUNCH_POLICY_PASS'
       - name: W108 app updater never autoplays Yandex or reports ticket as health
         shell: pwsh
         run: |
