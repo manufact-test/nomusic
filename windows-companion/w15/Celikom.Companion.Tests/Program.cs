@@ -82,6 +82,21 @@ try
          tx.TargetRendererSha256 == nextRendererHash &&
          StableUpdateRollbackJournal.Read(rollbackRoot) == tx,
          "W109 DPAPI journal roundtrip and byte-identical previous EXE snapshot");
+    bool missingPayloadDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.PrepareCore(
+            Path.Combine(rollbackFixtureRoot, "missing-payload"),
+            previousRelease with { ApplicationSha256 = "" }, previousSetup,
+            targetRelease, nextSetup, testSignerPin, previousRelease.Version,
+            rollbackAt, true, true, VerifySyntheticSetup,
+            sessionIdentitySha256: new string('d', 64));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_PLAN_INVALID")
+    { missingPayloadDenied = true; }
+    Test(missingPayloadDenied,
+        "W112 rollback journal cannot be prepared from a release without signed payload identity");
+
     bool overlappingDenied = false;
     try
     {
@@ -289,6 +304,9 @@ try
              payloadHostHash),
          "W112 wrong hash, malformed hash and missing payload fail closed");
     File.AppendAllText(payloadHost, "tampered");
+    File.AppendAllText(payloadExe, "tampered");
+    Test(!StableUpdatePayloadVerifier.MatchesFile(payloadExe, payloadExeHash),
+         "W112 executable tamper cannot be hidden by unchanged PE version");
     Test(!StableUpdatePayloadVerifier.MatchesFile(payloadHost, payloadHostHash, 32_000_000),
          "W112 native bridge tamper cannot be hidden by unchanged EXE version");
     File.AppendAllText(payloadRenderer, "tampered");
@@ -466,7 +484,7 @@ try
             string target = "0.24.35", bool mandatory = true, long sequence = 48) =>
             JsonSerializer.SerializeToUtf8Bytes(new
             {
-                schema = 1, channel = "stable", version = target, sequence,
+                schema = 2, channel = "stable", version = target, sequence,
                 packageUrl = "https://celikom.example.test/CELIKOM/Windows/Updates/stable/"
                              + target + "/CELIKOM-Windows-" + target + "-SIGNED.exe",
                 packageSize = 500000L, sha256 = new string('a', 64),

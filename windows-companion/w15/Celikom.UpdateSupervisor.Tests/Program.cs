@@ -151,6 +151,28 @@ Check(await waiting.TickAsync(start.AddMinutes(26)) ==
         UpdateSupervisorEngine.Step.ManualRecovery &&
       busy.VerifyCount == 0,
       "beyond bounded playback deferral remain safe, require manual recovery");
+// W112 legacy schema-1 records have no signed payload witness and are
+// never eligible for unattended install or rollback.
+var legacy = NewRecord(StableUpdateRollbackJournal.Phase.RollbackNeeded) with
+{
+    Schema = 1,
+    PreviousApplicationSha256 = "",
+    TargetApplicationSha256 = "",
+    PreviousNativeHostSha256 = "",
+    TargetNativeHostSha256 = "",
+    PreviousRendererSha256 = "",
+    TargetRendererSha256 = ""
+};
+bool legacyDenied = false;
+try
+{
+    await new UpdateSupervisorEngine(guid, new FakeJournal(legacy),
+        new FakeProbe { Safe = true }, new FakeLauncher()).TickAsync(start.AddMinutes(12));
+}
+catch (IOException e) when (e.Message == "SUPERVISOR_TRANSACTION_SCHEMA_UNSUPPORTED")
+{ legacyDenied = true; }
+Check(legacyDenied, "W112 legacy journal without exact installed-payload hashes is never auto-executed");
+
 // Failed restoration must not claim success and stops after health timeout.
 var incomplete = new FakeJournal(NewRecord(StableUpdateRollbackJournal.Phase.RollbackStarted)
     with { RollbackAttempts = 1, DeadlineUnix = start.AddMinutes(20).ToUnixTimeSeconds() });
