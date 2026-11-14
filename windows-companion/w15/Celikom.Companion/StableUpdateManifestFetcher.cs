@@ -12,6 +12,7 @@ namespace Celikom.Companion;
 public static class StableUpdateManifestFetcher
 {
     private const string LatestPath = "/CELIKOM/Windows/Updates/stable/latest.json";
+    private const string StablePath = "/CELIKOM/Windows/Updates/stable/";
     private const int ManifestMaxBytes = 16_384;
     private const int SignatureMaxBytes = 80;
 
@@ -32,6 +33,48 @@ public static class StableUpdateManifestFetcher
         return await FetchSignedWithClientAsync(officialOrigin, pinnedPublicKey,
             currentVersion, lastAcceptedSequence, DateTimeOffset.UtcNow,
             http, cancellationToken);
+    }
+
+    /// <summary>
+    /// Fetches the immutable manifest beside the package for one exact
+    /// installed version. Redirects and cookies remain disabled.
+    /// </summary>
+    public static async Task<StableUpdateManifestVerifier.VerifiedRelease> FetchSignedVersionAsync(
+        Uri officialOrigin, byte[] pinnedPublicKey, Version installedVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateOrigin(officialOrigin);
+        if (pinnedPublicKey is not { Length: >= 64 and <= 256 })
+            throw new InvalidDataException("STABLE_FEED_KEY_NOT_PINNED");
+        using var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseDefaultCredentials = false
+        };
+        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(6) };
+        return await FetchSignedVersionWithClientAsync(officialOrigin, pinnedPublicKey,
+            installedVersion, DateTimeOffset.UtcNow, http, cancellationToken);
+    }
+
+    internal static async Task<StableUpdateManifestVerifier.VerifiedRelease> FetchSignedVersionWithClientAsync(
+        Uri officialOrigin, byte[] pinnedPublicKey, Version installedVersion,
+        DateTimeOffset now, HttpClient client, CancellationToken cancellationToken = default)
+    {
+        ValidateOrigin(officialOrigin);
+        if (pinnedPublicKey is not { Length: >= 64 and <= 256 } ||
+            installedVersion is null || installedVersion.Major < 0 ||
+            installedVersion.Minor < 0 || installedVersion.Build < 0)
+            throw new InvalidDataException("STABLE_FEED_BOOTSTRAP_REQUEST_INVALID");
+        var versionPath = StablePath + installedVersion.ToString(3) + "/";
+        var manifestUrl = new Uri(officialOrigin, versionPath + "manifest.json");
+        var signatureUrl = new Uri(officialOrigin, versionPath + "manifest.json.sig");
+        var manifest = await ReadBoundedAsync(client, manifestUrl, ManifestMaxBytes,
+            cancellationToken);
+        var signature = await ReadBoundedAsync(client, signatureUrl, SignatureMaxBytes,
+            cancellationToken);
+        return StableUpdateManifestVerifier.VerifyBootstrap(manifest, signature,
+            pinnedPublicKey, officialOrigin, installedVersion, now);
     }
 
     /// <summary>

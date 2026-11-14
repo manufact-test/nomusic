@@ -15,7 +15,7 @@ public static class StableUpdateRollbackJournal
     public enum Phase
     {
         Prepared, InstallerStarted, NewAppObserved, Healthy,
-        RollbackNeeded, RollbackStarted, Restored, ManualRecovery
+        RollbackNeeded, RollbackStarted, Restored, ManualRecovery, Seeded
     }
 
     public enum Decision { Wait, AcceptNewVersion, RequestRollback, ManualRecovery }
@@ -38,6 +38,9 @@ public static class StableUpdateRollbackJournal
         long TargetSize = 0);
 
     private const string TicketName = "stable-update-rollback.dpapi";
+    public static string DefaultPrivateRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CELIKOM", "Windows", "StableRollback");
     private const string PreviousName = "previous-signed-setup.exe";
     private const string TargetName = "target-signed-setup.exe";
     private static readonly byte[] Purpose =
@@ -112,7 +115,7 @@ public static class StableUpdateRollbackJournal
             // by the next signed upgrade. Never discard a live/failed
             // rollback ticket, or silently overwrite an unreadable record.
             var previousTransaction = ReadRecord(root);
-            if (previousTransaction.State is not (Phase.Healthy or Phase.Restored))
+            if (previousTransaction.State is not (Phase.Seeded or Phase.Healthy or Phase.Restored))
                 throw new IOException("STABLE_ROLLBACK_PENDING_EXISTS");
             supersededSnapshotId = previousTransaction.Id;
         }
@@ -171,6 +174,103 @@ public static class StableUpdateRollbackJournal
         return ReadRecord(root);
     }
 
+    /// <summary>
+    /// Seeds the first signed rollback package for this exact installed build.
+    /// The signed immutable manifest, Authenticode pin and installed payload
+    /// hashes must all agree. This does not run an installer or touch Yandex.
+    /// </summary>
+    public static Record SeedInitialLastKnownGoodSigned(
+        string privateRoot, StableUpdateManifestVerifier.VerifiedRelease release,
+        string signedInstaller, string pinnedSignerSha256,
+        string installedApplicationPath, string installedNativeHostPath,
+        string installedRendererPath, string installedSupervisorPath) =>
+        SeedInitialLastKnownGoodCore(privateRoot, release, signedInstaller,
+            pinnedSignerSha256, AppUpdateManager.RunningVersion,
+            installedApplicationPath, installedNativeHostPath,
+            installedRendererPath, installedSupervisorPath, DateTimeOffset.UtcNow,
+            StableUpdatePackageStager.VerifyInstaller,
+            (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
+
+    internal static Record SeedInitialLastKnownGoodCore(
+        string privateRoot, StableUpdateManifestVerifier.VerifiedRelease release,
+        string signedInstaller, string pinnedSignerSha256, Version runningVersion,
+        string installedApplicationPath, string installedNativeHostPath,
+        string installedRendererPath, string installedSupervisorPath,
+        DateTimeOffset now,
+        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify,
+        Func<string, string, bool> payloadMatches)
+    {
+        RequireWindows();
+        if (release is null || release.Version != runningVersion ||
+            release.Sequence <= 0 || release.RollbackFrom != null ||
+            release.PackageSize is < 10_000 or > 125_000_000 ||
+            !ValidSha(release.Sha256) || !ValidSha(pinnedSignerSha256) ||
+            !ValidSha(release.ApplicationSha256) ||
+            !ValidSha(release.NativeHostSha256) ||
+            !ValidSha(release.RendererSha256) ||
+            !ValidSha(release.SupervisorSha256) ||
+            release.PackageUri is null ||
+            release.PackageUri.Scheme != Uri.UriSchemeHttps ||
+            release.PackageUri.UserInfo.Length != 0 ||
+            release.PackageUri.Query.Length != 0 ||
+            release.PackageUri.Fragment.Length != 0 ||
+            !release.PackageUri.AbsolutePath.StartsWith(
+                "/CELIKOM/Windows/Updates/stable/" + release.Version.ToString(3) + "/",
+                StringComparison.Ordinal) ||
+            !release.PackageUri.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_PLAN_INVALID");
+
+        verify(signedInstaller, release, pinnedSignerSha256);
+        if (!payloadMatches(installedApplicationPath, release.ApplicationSha256) ||
+            !payloadMatches(installedNativeHostPath, release.NativeHostSha256) ||
+            !payloadMatches(installedRendererPath, release.RendererSha256) ||
+            !payloadMatches(installedSupervisorPath, release.SupervisorSha256))
+            throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_PAYLOAD_MISMATCH");
+
+        var root = FullRoot(privateRoot);
+        Directory.CreateDirectory(root);
+        using var exclusive = AcquireLock(root);
+        if (File.Exists(JournalPath(root)))
+            throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_ALREADY_INITIALIZED");
+
+        var identifier = Guid.NewGuid();
+        var snapshot = Path.Combine(root, identifier.ToString("N"));
+        Directory.CreateDirectory(snapshot);
+        var copiedTarget = Path.Combine(snapshot, TargetName);
+        try
+        {
+            CopyVerifiedImage(signedInstaller, copiedTarget, release.PackageSize);
+            verify(copiedTarget, release, pinnedSignerSha256);
+            if (!payloadMatches(installedApplicationPath, release.ApplicationSha256) ||
+                !payloadMatches(installedNativeHostPath, release.NativeHostSha256) ||
+                !payloadMatches(installedRendererPath, release.RendererSha256) ||
+                !payloadMatches(installedSupervisorPath, release.SupervisorSha256))
+                throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_PAYLOAD_CHANGED");
+
+            // Seeded is deliberately not an update transaction. Previous*
+            // fields are a strict 0.0.0.0/sequence-0 sentinel; the target image
+            // is the exact currently installed signed release.
+            var record = new Record(2, identifier, Phase.Seeded,
+                "0.0.0.0", release.Version.ToString(4),
+                release.Sha256, release.Sha256, pinnedSignerSha256,
+                release.PackageSize, 0, release.Sequence,
+                now.AddYears(10).ToUnixTimeSeconds(), 0,
+                false, false, "",
+                release.ApplicationSha256, release.ApplicationSha256,
+                release.NativeHostSha256, release.NativeHostSha256,
+                release.RendererSha256, release.RendererSha256,
+                release.SupervisorSha256, release.SupervisorSha256,
+                TargetSize: release.PackageSize);
+            WriteRecord(root, record);
+            return record;
+        }
+        catch
+        {
+            try { Directory.Delete(snapshot, recursive: true); } catch { }
+            throw;
+        }
+    }
+
     public sealed record CachedSignedPackage(
         string InstallerPath, StableUpdateManifestVerifier.VerifiedRelease Release);
 
@@ -196,14 +296,14 @@ public static class StableUpdateRollbackJournal
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
         if (state.Schema != 2 || state.RollbackAttempts is < 0 or > 1 ||
-            state.State == Phase.Healthy && state.RollbackAttempts != 0 ||
+            (state.State is Phase.Seeded or Phase.Healthy) && state.RollbackAttempts != 0 ||
             state.State == Phase.Restored && state.RollbackAttempts != 1 ||
             !string.Equals(state.SignerSha256, pinnedSignerSha256,
                 StringComparison.OrdinalIgnoreCase) ||
-            state.State is not (Phase.Healthy or Phase.Restored))
+            state.State is not (Phase.Seeded or Phase.Healthy or Phase.Restored))
             throw new IOException("STABLE_ROLLBACK_LAST_KNOWN_GOOD_NOT_READY");
 
-        var useTarget = state.State == Phase.Healthy;
+        var useTarget = state.State is Phase.Seeded or Phase.Healthy;
         var versionText = useTarget ? state.TargetVersion : state.PreviousVersion;
         var sequence = useTarget ? state.TargetSequence : state.PreviousSequence;
         var packageSize = useTarget ? state.TargetSize : state.PreviousSize;
@@ -470,7 +570,17 @@ public static class StableUpdateRollbackJournal
                 record.TargetSize != 0 &&
                     (record.TargetSize is < 10_000 or > 125_000_000) ||
                 record.DeadlineUnix <= 0 ||
-                !Enum.IsDefined(record.State))
+                !Enum.IsDefined(record.State) ||
+                record.State == Phase.Seeded &&
+                    (record.RollbackAttempts != 0 ||
+                     record.PreviousVersion != "0.0.0.0" ||
+                     record.PreviousSequence != 0 ||
+                     record.TargetSize != record.PreviousSize ||
+                     !string.Equals(record.PreviousSha256, record.TargetSha256, StringComparison.Ordinal) ||
+                     !string.Equals(record.PreviousApplicationSha256, record.TargetApplicationSha256, StringComparison.Ordinal) ||
+                     !string.Equals(record.PreviousNativeHostSha256, record.TargetNativeHostSha256, StringComparison.Ordinal) ||
+                     !string.Equals(record.PreviousRendererSha256, record.TargetRendererSha256, StringComparison.Ordinal) ||
+                     !string.Equals(record.PreviousSupervisorSha256, record.TargetSupervisorSha256, StringComparison.Ordinal)))
                 throw new IOException("STABLE_ROLLBACK_RECORD_INVALID");
             return record;
         }

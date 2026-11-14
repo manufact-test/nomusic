@@ -38,6 +38,7 @@ public sealed class UpdateSupervisorEngine(
 
         switch (state.State)
         {
+            case StableUpdateRollbackJournal.Phase.Seeded:
             case StableUpdateRollbackJournal.Phase.Healthy:
             case StableUpdateRollbackJournal.Phase.Restored:
                 return Step.Completed;

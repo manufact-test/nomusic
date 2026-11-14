@@ -213,6 +213,11 @@ public static class StableUpdatePackageStager
         a.Major == b.Major && a.Minor == b.Minor &&
         a.Build == b.Build && Math.Max(a.Revision, 0) == Math.Max(b.Revision, 0);
 
+    internal static void CleanupVerifiedStage(VerifiedInstaller installer)
+    {
+        if (installer is not null) CleanupStage(installer.Path);
+    }
+
     private static void CleanupStage(string path)
     {
         try

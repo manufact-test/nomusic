@@ -32,7 +32,26 @@ public static class StableUpdateManifestVerifier
     public static VerifiedRelease Verify(
         byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
         Uri officialOrigin, Version runningVersion, long lastAcceptedSequence,
-        DateTimeOffset now)
+        DateTimeOffset now) =>
+        VerifyCore(document, detachedSignature, pinnedPublicKey, officialOrigin,
+            runningVersion, lastAcceptedSequence, now, bootstrap: false);
+
+    /// <summary>
+    /// Verifies the immutable release record for the exact version already
+    /// installed. Unlike latest.json, this version-addressed record may outlive
+    /// its offer window: it is used only to recover the signed installer for
+    /// the bytes currently installed, never to offer or launch an update.
+    /// </summary>
+    public static VerifiedRelease VerifyBootstrap(
+        byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
+        Uri officialOrigin, Version installedVersion, DateTimeOffset now) =>
+        VerifyCore(document, detachedSignature, pinnedPublicKey, officialOrigin,
+            installedVersion, 0, now, bootstrap: true);
+
+    private static VerifiedRelease VerifyCore(
+        byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
+        Uri officialOrigin, Version runningVersion, long lastAcceptedSequence,
+        DateTimeOffset now, bool bootstrap)
     {
         if (document is not { Length: >= 100 and <= 16_384 } ||
             detachedSignature is not { Length: >= 64 and <= 80 } ||
@@ -92,7 +111,9 @@ public static class StableUpdateManifestVerifier
             (JsonValueKind.Null or JsonValueKind.Undefined))
             throw new InvalidDataException("STABLE_ROLLBACK_DIRECTIVE_INVALID");
 
-        if (rollbackFrom is null && target <= Normalize(runningVersion))
+        if (bootstrap
+            ? rollbackFrom is not null || target != Normalize(runningVersion)
+            : rollbackFrom is null && target <= Normalize(runningVersion))
             throw new InvalidDataException("STABLE_MANIFEST_VERSION_INVALID");
         if (!string.IsNullOrWhiteSpace(raw.MinimumVersion) &&
             (!TryVersion(raw.MinimumVersion, out var minimum) ||
@@ -101,7 +122,8 @@ public static class StableUpdateManifestVerifier
 
         var published = ParseUtc(raw.PublishedAt);
         var expires = ParseUtc(raw.ExpiresAt);
-        if (published > now.AddMinutes(5) || expires <= now ||
+        if (published > now.AddMinutes(5) ||
+            (!bootstrap && expires <= now) ||
             expires <= published || expires > published.AddDays(30))
             throw new InvalidDataException("STABLE_MANIFEST_EXPIRED");
 
