@@ -79,8 +79,11 @@ try
         ExactSignedNewExe: true, BridgeResponds: false,
         SessionPreserved: false, NativeIntegrationConsistent: false);
     Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(1)) ==
-         StableUpdateRollbackJournal.Decision.Wait,
-         "W109 mere EXE launch is NOT successful app health");
+         StableUpdateRollbackJournal.Decision.Wait &&
+         StableUpdateRollbackJournal.Decide(tx,
+             new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true),
+             rollbackAt.AddMinutes(1)) == StableUpdateRollbackJournal.Decision.Wait,
+         "W109 mere installer start is never enough even with optimistic health flags");
     tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
         StableUpdateRollbackJournal.Phase.InstallerStarted,
         StableUpdateRollbackJournal.Phase.NewAppObserved);
