@@ -128,6 +128,32 @@ try
              Reject(ManifestBytes(url:
                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/bad.exe")),
              "W101 package origin, HTTPS and immutable version path are required");
+
+        byte[] RollbackManifest(string from = "0.24.36",
+            string target = "0.24.35", bool mandatory = true, long sequence = 48) =>
+            JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schema = 1, channel = "stable", version = target, sequence,
+                packageUrl = "https://celikom.example.test/CELIKOM/Windows/Updates/stable/"
+                             + target + "/CELIKOM-Windows-" + target + "-SIGNED.exe",
+                packageSize = 500000L, sha256 = new string('a', 64),
+                publisher = "CELIKOM", publishedAt = "2026-11-14T00:00:00Z",
+                expiresAt = "2026-11-20T00:00:00Z",
+                minimumVersion = "0.24.20", mandatory, notes = "Bad version rollback",
+                rollback = new { fromVersion = from, toVersion = target }
+            });
+        var exactRollback = VerifyManifest(RollbackManifest(), previousSequence: 47);
+        Test(exactRollback.RollbackFrom == new Version(0, 24, 36, 0) &&
+             exactRollback.Version == new Version(0, 24, 35, 0) &&
+             exactRollback.Mandatory && exactRollback.Sequence == 48,
+             "W106 signed mandatory rollback is scoped to one exact bad version");
+        Test(Reject(RollbackManifest(from: "0.24.34"), lastSequence: 47) &&
+             Reject(RollbackManifest(target: "0.24.37"), lastSequence: 47) &&
+             Reject(RollbackManifest(mandatory: false), lastSequence: 47) &&
+             Reject(RollbackManifest(sequence: 47), lastSequence: 47) &&
+             Reject(ManifestBytes(version: "0.24.35", url:
+                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.35/CELIKOM-Windows-0.24.35-SIGNED.exe")),
+             "W106 wrong source, downgrade without directive, replay and optional rollback fail closed");
     }
 
     // W104: explicit bridge failure / missing startup handshake triggers a
