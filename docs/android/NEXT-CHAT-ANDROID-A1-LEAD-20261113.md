@@ -542,3 +542,7 @@ Do not ask the owner to repeat OTP before the APK is installed. The owner must e
 4. Send the resulting `CELIKOM-A1-Diagnostics-....txt`. Never send an OTP, password or account token. No USB/ADB/computer is needed.
 
 This is the first NAV13 owner APK built with the persistent owner signer and the current read-only Entry/Flow/Pipeline observers. The earlier NAV9 installed clone's certificate remains unverified; the explicit fresh-install authorization is why only the CELIKOM clone is replaced.
+
+
+### Dispatcher implementation note
+The first two temporary-helper attempts (#43604031846 and #43604039492) failed before creating any jobs because the initial helper YAML was invalid. The helper was corrected; final dispatcher run #43604186462 completed SUCCESS, dispatched #43604192249, and removed both temporary files. These two failed helper runs did not start Android builds, access secrets, export APKs or touch a device.
