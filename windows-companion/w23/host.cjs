@@ -595,6 +595,12 @@ function observeNativePlayback(view) {
       evidenceReportedFor:null, lastVolume:null, volumeTrackId:null
     };
     const properties = params.properties.slice(0, 30);
+    // Distinguish "CDP attached but no player properties" from "player
+    // properties exist but this Yandex build does not expose kUrl". Never
+    // record the property value or any media URL.
+    if (properties.length) note("PLAYER_CDP_PROPERTIES_SEEN");
+    if (properties.some(prop => prop?.name === "kUrl"))
+      note("PLAYER_CDP_URL_PROPERTY_SEEN");
     let sourceLeftCurrent = false;
     // CDP does not promise a useful order for changed properties. Resolve
     // source + playing state before consuming kVolume so a same-event volume
