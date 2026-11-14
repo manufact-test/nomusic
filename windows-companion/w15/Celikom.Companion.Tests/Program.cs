@@ -95,6 +95,45 @@ try
         new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true),
         rollbackAt.AddMinutes(2)) == StableUpdateRollbackJournal.Decision.AcceptNewVersion,
         "W109 signed new EXE + bridge + DPAPI + native checks all required");
+    bool fakeHealthBlocked = false;
+    try
+    {
+        StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+            StableUpdateRollbackJournal.Phase.NewAppObserved,
+            StableUpdateRollbackJournal.Phase.Healthy);
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_TRANSITION_DENIED")
+    { fakeHealthBlocked = true; }
+    Test(fakeHealthBlocked, "W109 generic phase change cannot forge health acceptance");
+    bool deniedMissingNativeHealth = false;
+    try
+    {
+        StableUpdateRollbackJournal.ConfirmNewAppHealthy(rollbackRoot, tx.Id,
+            new StableUpdateRollbackJournal.HealthEvidence(true, true, true, false),
+            rollbackAt.AddMinutes(2));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_HEALTH_NOT_PROVEN")
+    { deniedMissingNativeHealth = true; }
+    Test(deniedMissingNativeHealth, "W109 health acceptance requires all prior-state evidence");
+    var acceptedRoot = Path.Combine(folder, "rollback-happy");
+    var accepted = StableUpdateRollbackJournal.PrepareCore(
+        acceptedRoot, previousRelease, previousSetup, targetRelease, nextSetup,
+        testSignerPin, previousRelease.Version, rollbackAt,
+        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup);
+    accepted = StableUpdateRollbackJournal.Advance(acceptedRoot, accepted.Id,
+        StableUpdateRollbackJournal.Phase.Prepared,
+        StableUpdateRollbackJournal.Phase.InstallerStarted);
+    accepted = StableUpdateRollbackJournal.Advance(acceptedRoot, accepted.Id,
+        StableUpdateRollbackJournal.Phase.InstallerStarted,
+        StableUpdateRollbackJournal.Phase.NewAppObserved);
+    accepted = StableUpdateRollbackJournal.ConfirmNewAppHealthy(acceptedRoot,
+        accepted.Id,
+        new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true),
+        rollbackAt.AddMinutes(2));
+    Test(accepted.State == StableUpdateRollbackJournal.Phase.Healthy &&
+         StableUpdateRollbackJournal.Read(acceptedRoot).State ==
+             StableUpdateRollbackJournal.Phase.Healthy,
+         "W109 only explicitly verified signed app health closes transaction");
     Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(11)) ==
          StableUpdateRollbackJournal.Decision.RequestRollback,
         "W109 timeout requests exact last-known-good package instead of fake success");
@@ -136,9 +175,29 @@ try
     catch (IOException e) when (e.Message == "STABLE_ROLLBACK_TRANSITION_DENIED")
     { replayDenied = true; }
     Test(replayDenied, "W109 repeated rollback request is refused");
-    tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
-        StableUpdateRollbackJournal.Phase.RollbackStarted,
-        StableUpdateRollbackJournal.Phase.ManualRecovery);
+    bool fakeRestoreDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+            StableUpdateRollbackJournal.Phase.RollbackStarted,
+            StableUpdateRollbackJournal.Phase.Restored);
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_TRANSITION_DENIED")
+    { fakeRestoreDenied = true; }
+    Test(fakeRestoreDenied, "W109 arbitrary phase transition cannot forge restored app health");
+    bool missingSessionDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.ConfirmPreviousRestored(rollbackRoot, tx.Id,
+            new StableUpdateRollbackJournal.HealthEvidence(true, true, false, true));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_RESTORE_NOT_PROVEN")
+    { missingSessionDenied = true; }
+    Test(missingSessionDenied, "W109 rollback confirmation must preserve encrypted login");
+    tx = StableUpdateRollbackJournal.ConfirmPreviousRestored(rollbackRoot, tx.Id,
+        new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true));
+    Test(tx.State == StableUpdateRollbackJournal.Phase.Restored,
+        "W109 verified previous EXE, bridge, session and native state finish recovery");
     var dpapiJournal = Path.Combine(rollbackRoot, "stable-update-rollback.dpapi");
     var ciphertext = File.ReadAllBytes(dpapiJournal);
     ciphertext[18] ^= 1;
