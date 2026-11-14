@@ -13,6 +13,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * Export runs only when the owner explicitly saves diagnostics.
  */
 final class StageBAudioEvidence {
+    private final AtomicLong exoFactoryResults = new AtomicLong();
+    private final AtomicLong exoOpenResults = new AtomicLong();
+    private final AtomicLong exoPositiveReads = new AtomicLong();
+    private final AtomicLong exoEndOfSource = new AtomicLong();
+    private final AtomicLong exoFailures = new AtomicLong();
     private final AtomicLong fileInfoResults = new AtomicLong();
     private final AtomicLong directDownloadInfoResults = new AtomicLong();
     private final AtomicLong reader0 = new AtomicLong();
@@ -24,6 +29,23 @@ final class StageBAudioEvidence {
     private final AtomicLong positiveReads = new AtomicLong();
     private final AtomicLong endOfSourceReads = new AtomicLong();
     private final AtomicLong failedReads = new AtomicLong();
+
+    // Bounded without storing URLs, media bytes, offsets or returned sizes.
+    private static void mark(AtomicLong bucket) {
+        for (;;) {
+            long old = bucket.get();
+            if (old >= 32) return;
+            if (bucket.compareAndSet(old, old + 1)) return;
+        }
+    }
+
+    void onExoFactoryCreated() { mark(exoFactoryResults); }
+    void onExoOpen() { mark(exoOpenResults); }
+    void onExoReadResult(int result) {
+        if (result > 0) mark(exoPositiveReads);
+        else if (result == -1) mark(exoEndOfSource);
+    }
+    void onExoFailure() { mark(exoFailures); }
 
     void onFileInfoResult() { fileInfoResults.incrementAndGet(); }
 
@@ -76,6 +98,11 @@ final class StageBAudioEvidence {
             event("POSITIVE_READS", positiveReads),
             event("SOURCE_END", endOfSourceReads),
             event("READ_EXCEPTIONS", failedReads),
+            event("EXO_FACTORY_CREATED", exoFactoryResults),
+            event("EXO_OPEN_OK", exoOpenResults),
+            event("EXO_READ_POSITIVE", exoPositiveReads),
+            event("EXO_SOURCE_END", exoEndOfSource),
+            event("EXO_IO_FAILURE", exoFailures),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }

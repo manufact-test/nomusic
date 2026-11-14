@@ -181,6 +181,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean mediaDataReadWitnessReady;
     private boolean exactFileInfoGetterWitnessReady;
     private boolean exactDirectDownloadGetterWitnessReady;
+    private boolean exactExoFactoryWitnessReady;
+    private boolean exactExoDataOpenWitnessReady;
+    private boolean exactExoDataReadWitnessReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean mediaExtractorSourceHookReady;
@@ -2383,6 +2386,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installExactPostTruePushProvider(loader);
                                 installPrivateMediaDataReadWitness(loader);
                                 installExactNativeSourceDtoWitness(loader);
+                                installExactNativeExoSourceWitness(loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
@@ -2587,6 +2591,97 @@ public final class ExitCallsiteWitness extends XposedModule {
                 emit("AUDIO_DOWNLOADINFO_HOOK", "DOWNLOADINFO_DTO", "REGISTERED");
             } catch (Throwable ignored) {
                 emit("AUDIO_DOWNLOADINFO_HOOK", "DOWNLOADINFO_DTO", "NO_HOOK");
+            }
+        }
+    }
+
+    /**
+     * Verified in the issuer-pinned 2025.10.4 DEX: GetFileInfoDto ->
+     * native fileinfo model -> native download descriptor -> own Exo source
+     * factory -> RetryingBalancingDataSource. Observe only successful
+     * factory/open/read categories, never inspect the DataSpec, URI,
+     * buffers, headers, source objects, track IDs or account credentials.
+     *
+     * A source factory can also serve prefetch/offline downloads. None
+     * of these events proves audible current-song playback or grants an
+     * alternate source. The real Yandex path executes unmodified.
+     */
+    private synchronized void installExactNativeExoSourceWitness(ClassLoader loader) {
+        if (loader == null || !PACKAGE.equals(Application.getProcessName())) return;
+        if (!exactExoFactoryWitnessReady) {
+            try {
+                Class<?> target = Class.forName(
+                    "com.yandex.music.shared.player.download2.exo.c", false, loader);
+                Method factory = target.getDeclaredMethod("for",
+                    Class.forName("dA9", false, loader),
+                    Class.forName("QAa", false, loader),
+                    Class.forName("mu3", false, loader),
+                    Class.forName("gA9", false, loader));
+                factory.setAccessible(true);
+                hook(factory).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed(); // vendor factory once, unchanged
+                        try { if (result != null) STAGE_B_AUDIO.onExoFactoryCreated(); }
+                        catch (Throwable ignored) { }
+                        return result;
+                    });
+                exactExoFactoryWitnessReady = true;
+                emit("AUDIO_EXO_FACTORY_HOOK", "EXO_FACTORY", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_EXO_FACTORY_HOOK", "EXO_FACTORY", "NO_HOOK");
+            }
+        }
+
+        if (!exactExoDataOpenWitnessReady || !exactExoDataReadWitnessReady) {
+            try {
+                Class<?> source = Class.forName(
+                    "com.yandex.music.shared.player.download2.exo.RetryingBalancingDataSource",
+                    false, loader);
+                if (!exactExoDataOpenWitnessReady) {
+                    Method open = source.getDeclaredMethod("if",
+                        Class.forName("UC2", false, loader));
+                    open.setAccessible(true);
+                    hook(open).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            try {
+                                Object result = chain.proceed(); // single real open
+                                try { STAGE_B_AUDIO.onExoOpen(); }
+                                catch (Throwable ignored) { }
+                                return result;
+                            } catch (Throwable failure) {
+                                try { STAGE_B_AUDIO.onExoFailure(); }
+                                catch (Throwable ignored) { }
+                                throw failure; // real original failure, no suppression
+                            }
+                        });
+                    exactExoDataOpenWitnessReady = true;
+                    emit("AUDIO_EXO_OPEN_HOOK", "EXO_DATASOURCE", "REGISTERED");
+                }
+                if (!exactExoDataReadWitnessReady) {
+                    Method read = source.getDeclaredMethod("read",
+                        byte[].class, int.class, int.class);
+                    read.setAccessible(true);
+                    hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            try {
+                                Object result = chain.proceed(); // single real read
+                                try {
+                                    STAGE_B_AUDIO.onExoReadResult(
+                                        result instanceof Integer
+                                            ? (Integer) result : Integer.MIN_VALUE);
+                                } catch (Throwable ignored) { }
+                                return result;
+                            } catch (Throwable failure) {
+                                try { STAGE_B_AUDIO.onExoFailure(); }
+                                catch (Throwable ignored) { }
+                                throw failure;
+                            }
+                        });
+                    exactExoDataReadWitnessReady = true;
+                    emit("AUDIO_EXO_READ_HOOK", "EXO_DATASOURCE", "REGISTERED");
+                }
+            } catch (Throwable ignored) {
+                emit("AUDIO_EXO_DATASOURCE_HOOK", "EXO_DATASOURCE", "NO_HOOK");
             }
         }
     }

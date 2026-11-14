@@ -25,9 +25,16 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 12);
-        for (int i=0;i<11;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[11].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 17);
+        for (int i=0;i<16;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[16].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        e.onExoFactoryCreated();
+        e.onExoOpen();
+        e.onExoReadResult(8192);
+        e.onExoReadResult(0);
+        e.onExoReadResult(-1);
+        e.onExoReadResult(Integer.MIN_VALUE);
+        e.onExoFailure();
         e.onFileInfoResult();
         e.onDirectDownloadInfoResult();
         e.onReader(0, true);
@@ -51,7 +58,10 @@ public final class StageBAudioEvidenceTest {
         }
         for (int i=0;i<10;i++) e.onReader(1,false);
         check(e.exportLines()[3].contains(";error=MANY;"));
-        check(e.exportLines()[11].contains("NOT_CONNECTED"));
+        for(int i=11;i<16;i++) check(e.exportLines()[i].contains(";error=ONE;"));
+        check(e.exportLines()[16].contains("NOT_CONNECTED"));
+        for(int i=0;i<50;i++) e.onExoReadResult(1);
+        check(e.exportLines()[13].contains(";error=MANY;"));
         System.out.println("PASS Stage B scoped native summary: no source, URL or identity disclosure");
     }
 }
@@ -79,6 +89,11 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("installExactNativeSourceDtoWitness(loader)", code)
         self.assertIn("STAGE_B_AUDIO.onFileInfoResult()", code)
         self.assertIn("STAGE_B_AUDIO.onDirectDownloadInfoResult()", code)
+        self.assertIn("installExactNativeExoSourceWitness(loader)", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFactoryCreated()", code)
+        self.assertIn("STAGE_B_AUDIO.onExoOpen()", code)
+        self.assertIn("STAGE_B_AUDIO.onExoReadResult(", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFailure()", code)
         self.assertIn("STAGE_B_AUDIO.exportLines()", code)
         self.assertIn("result=chain.proceed(); // exactly one unmodified original call", code)
         self.assertIn("result=chain.proceed();", code)

@@ -22,3 +22,14 @@
 5. Только после реальной подмены + CI ARM13 выдавать новый подписанный APK владельцу. До реальной проверки замены никаких заявлений о готовности.
 
 **Статус:** появился исполняемый диагностический слой Stage B, но аудиоподмена ещё НЕ ПОДКЛЮЧЕНА.
+
+
+## 14 Nov — точный downstream Exo source path (новая работа)
+
+После проверки оригинального подписанного `classes4.dex` установлена последовательность классов (СТАТИЧЕСКАЯ, НЕ доказательство реального воспроизведения):
+- `GetFileInfoDto` → `FileInfoDto` преобразуется через obfuscated mapping в внутреннюю file-info model.
+- `com.yandex.music.shared.player.download2/o` делает собственный media download descriptor с `android.net.Uri` + альтернативами, сроками и форматом.
+- `com.yandex.music.shared.player.download2.exo.c.for` использует этот descriptor при создании Exo `RetryingBalancingDataSource` factory; `RetryingBalancingDataSource` имеет точные методы `if(DataSpec)` (open) и `read(byte[],int,int)`. Это точный собственный Exo HTTP audio-source путь оригинала; он может обслуживать **prefetch/offline**, поэтому факт вызова сам по себе всё ещё не доказывает именно текущий трек и звук.
+- Добавлены clone-MAIN-only read-only hooks на точно установленные factory/open/read с оригинальным `chain.proceed()` ОДИН раз, неизменёнными аргументами/результатом и исходными исключениями. Диагностика экспорта TXT показывает только ограниченные категории: `EXO_FACTORY_CREATED`, `EXO_OPEN_OK`, `EXO_READ_POSITIVE`, `EXO_SOURCE_END`, `EXO_IO_FAILURE`; **никаких** URL, MIME headers, треков, байтов или source objects. Горячий `read` не пишет в TXT/logcat; только сбрасывает анонимные насыщаемые счётчики в памяти.
+
+**Сейчас это лишь подтверждённая статически точная граница и динамический read-only witness.** До подмены всё ещё нужно найти достоверный native selected-track album+edition+duration и увязать ровно тот Exo source instance с текущим decoder, отдельной CELIKOM-сессией и проверенным правом/версией. Не подменять `QAa` или `DataSpec` на основании одного `trackId`.
