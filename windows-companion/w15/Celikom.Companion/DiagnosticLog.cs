@@ -327,6 +327,7 @@ public static class DiagnosticLog
         text.AppendLine("MEDIA_* DOM events may remain NOT_OBSERVED for WebAudio. UI Play/Pause label changes are NOT monitored.");
         text.AppendLine("PLAYER_AUDIO_RESOURCE_TIMING_SEEN can be preloading. PLAYER_NET_HTTP_PARTIAL/FINISHED does NOT prove audio decoded.");
         text.AppendLine("PLAYER_URL_* compares exact signed origin/path/query in memory, never exports links, tokens, sid, HTTP bodies or keys.");
+        text.AppendLine("PLAYER_CDP_PROPERTIES_SEEN/PLAYER_CDP_URL_PROPERTY_SEEN show Media-domain field availability only, NOT current-track or replacement proof.");
         text.AppendLine("PLAYER_403_* distinguishes native HTTP denial classes, not confirmed PHP origin unless a fixed PHP error enum is present.");
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
         text.AppendLine("Events: UTC | allowlisted code | optional numeric track or CELIKOM resource_id. No raw request URLs or error messages.");
