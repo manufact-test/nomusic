@@ -108,6 +108,26 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.startActivity(',part)
         self.assertIn('NAV_V12_ONBOARDING_WRITER_WITNESS',s)
 
+    def test_entry_result_delivery_is_receiver_side_readonly_and_independently_bounded(self):
+        s=self.code
+        self.assertIn('private boolean activityResultDeliveryHooked;',s)
+        self.assertIn('activityResultDeliveryObservations =',s)
+        self.assertIn('Activity.class.getDeclaredMethod(',s)
+        self.assertIn('"dispatchActivityResult", String.class, int.class, int.class, Intent.class',s)
+        self.assertIn('activityResultDeliveryObservations.incrementAndGet() <= 48',s)
+        self.assertIn('emit("ACTIVITY_RESULT_DELIVERY_HOOK", "ANDROID", "REGISTERED")',s)
+        self.assertIn('emit("ACTIVITY_RESULT_DELIVERY_HOOK", "ANDROID", "NO_HOOK")',s)
+        self.assertIn('emit("ACTIVITY_RESULT_DELIVERY", "ENTRY_ACTIVITY", category)',s)
+        part=s[s.index('private synchronized boolean observeEntryActivityResultDelivery('):
+                s.index('private boolean observeOwnActivityFinish(',s.index('private synchronized boolean observeEntryActivityResultDelivery('))]
+        self.assertIn('return chain.proceed();',part)
+        self.assertNotIn('chain.getArg(0)',part)
+        self.assertNotIn('chain.getArg(1)',part)
+        self.assertNotIn('chain.getArg(3)',part)
+        self.assertNotIn('getExtras(',part)
+        self.assertNotIn('setResult(',part)
+        self.assertNotIn('startActivity(',part)
+
     def test_scoped_to_real_clone_entry_only(self):
         s=self.code
         self.assertIn('!"ENTRY_ACTIVITY".equals(activityFamily(activity))',s)
