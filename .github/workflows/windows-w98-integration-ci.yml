@@ -117,7 +117,16 @@ jobs:
             $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
             $nativeHostText.Contains('PLAYER_CURRENT_NATIVE_VOLUME_DROP'),
             $nativeHostText.Contains('setInterval(() => {'),
-            $nativeHostText.Contains('lastDeliveredState'),
+            $detachStart=$nativeHostText.IndexOf('debug.on("detach"', [StringComparison]::Ordinal)
+          $detachEnd=$nativeHostText.IndexOf('Promise.resolve(debug.sendCommand("Media.enable"))', $detachStart, [StringComparison]::Ordinal)
+          if ($detachStart -lt 0 -or $detachEnd -le $detachStart) {
+            throw 'W125_DECODER_DETACH_GUARD_BOUNDS_INVALID'
+          }
+          $detachHandler=$nativeHostText.Substring($detachStart, $detachEnd - $detachStart)
+          $nativeHostText.Contains('lastDeliveredState'),
+            $detachHandler.Contains('verifiedDecoderSource.delete(view)'),
+            $detachHandler.Contains('nativeNetworkObserversReady.delete(view)'),
+            $detachHandler.Contains('decoderPlayers.clear()'),
             $nativeHostText.Contains('NATIVE_ELECTRON_CPU_HIGH'),
             $nativeHostText.Contains('}, 300);'),
             $nativeHostText.Contains('CELIKOM_NATIVE_VERSION = "0.24.29"'),

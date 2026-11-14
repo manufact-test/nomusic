@@ -825,7 +825,19 @@ function observeNativePlayback(view) {
           }
         }
       });
-      debug.on("detach", () => { if (validView(view)) note("PLAYER_CDP_DETACHED"); });
+      debug.on("detach", () => {
+        if (!validView(view)) return;
+        // A detached CDP observer can no longer prove which source is
+        // currently playing. Invalidate the green witness immediately;
+        // never let a previous kUrl/kIsPlaying pair survive observer loss.
+        verifiedDecoderSource.delete(view);
+        nativeExpectedAudio.delete(view);
+        nativeMediaHttpSuccess.delete(view);
+        nativeNetworkObserversReady.delete(view);
+        nativeUnfetchedReloadAttempt.delete(view);
+        decoderPlayers.clear();
+        note("PLAYER_CDP_DETACHED");
+      });
       Promise.resolve(debug.sendCommand("Media.enable")).then(
         () => { if (validView(view)) note("PLAYER_CDP_READY"); },
         () => {
