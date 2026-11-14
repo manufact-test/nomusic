@@ -16,9 +16,10 @@ $entries = @($filesSection.Groups[1].Value -split "\r?\n" |
 $allowed = @(
     'Source: "..\publish\{#AppExecutable}"',
     'Source: "..\..\w23\dist\host.cjs"',
-    'Source: "..\..\w23\dist\renderer.js"'
+    'Source: "..\..\w23\dist\renderer.js"',
+    'Source: "..\publish\CELIKOM.UpdateSupervisor.exe"'
 )
-if ($entries.Count -ne 3) { throw 'W24_UNEXPECTED_INSTALLER_FILE_COUNT' }
+if ($entries.Count -ne 4) { throw 'W24_UNEXPECTED_INSTALLER_FILE_COUNT' }
 foreach ($entry in $allowed) {
     if (@($entries | Where-Object { $_.Trim().StartsWith($entry, [StringComparison]::Ordinal) }).Count -ne 1) {
         throw 'W24_INSTALLER_FILE_NOT_ALLOWED'
@@ -34,4 +35,4 @@ if ($Mode -eq "Release") {
     # recovery, Windows security and signature checks pass.
     throw "W24_RELEASE_BLOCKED_NO_VERIFIED_AUDIO_OR_SIGNING"
 }
-Write-Output "W24_STAGE_PACKAGE_POLICY_PASS: OWN_EXECUTABLE_AND_NATIVE_MODULE"
+Write-Output "W24_STAGE_PACKAGE_POLICY_PASS: APP_NATIVE_MODULES_AND_INTERNAL_SUPERVISOR"

@@ -144,6 +144,11 @@ jobs:
           if (-not $release.Contains('dotnet publish windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj')) { throw 'W114_RELEASE_SUPERVISOR_BUILD_MISSING' }
           if (-not $release.Contains('W114_SUPERVISOR_NOT_INSTALLED')) { throw 'W114_INSTALLED_SUPERVISOR_SMOKE_MISSING' }
           Write-Output 'W114_SAME_PRODUCT_INSTALLER_SUPERVISOR_PASS'
+      - name: W20 installer stage allowlist includes app, native assets and supervisor
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/release-gate.ps1 -Mode Stage
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W20_STAGE_GATE_FAILED' }
       - name: W110 crash-independent watchdog health and rollback simulation
         run: dotnet run --project windows-companion/w15/Celikom.UpdateSupervisor.Tests/Celikom.UpdateSupervisor.Tests.csproj -c Release
       - name: W110 unsigned production helper refuses automatic recovery
