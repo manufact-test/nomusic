@@ -364,6 +364,94 @@ try
          File.ReadAllBytes(restoredPackage.InstallerPath).SequenceEqual(previousBytes),
          "W115 a verified rollback restores the previous package as the next last-known-good base");
 
+    var bootstrapRoot = Path.Combine(rollbackFixtureRoot, "rollback-bootstrap");
+    var bootstrapPayloadRoot = Path.Combine(rollbackFixtureRoot, "bootstrap-payload");
+    Directory.CreateDirectory(bootstrapPayloadRoot);
+    var bootstrapAppBytes = Encoding.UTF8.GetBytes("signed-celikom-app-payload");
+    var bootstrapHostBytes = Encoding.UTF8.GetBytes("signed-native-host-payload");
+    var bootstrapRendererBytes = Encoding.UTF8.GetBytes("signed-renderer-payload");
+    var bootstrapSupervisorBytes = Encoding.UTF8.GetBytes("signed-supervisor-payload");
+    var bootstrapApp = Path.Combine(bootstrapPayloadRoot, "CELIKOM.Companion.exe");
+    var bootstrapHost = Path.Combine(bootstrapPayloadRoot, "host.cjs");
+    var bootstrapRenderer = Path.Combine(bootstrapPayloadRoot, "renderer.js");
+    var bootstrapSupervisor = Path.Combine(bootstrapPayloadRoot, "CELIKOM.UpdateSupervisor.exe");
+    File.WriteAllBytes(bootstrapApp, bootstrapAppBytes);
+    File.WriteAllBytes(bootstrapHost, bootstrapHostBytes);
+    File.WriteAllBytes(bootstrapRenderer, bootstrapRendererBytes);
+    File.WriteAllBytes(bootstrapSupervisor, bootstrapSupervisorBytes);
+    string HashBytes(byte[] bytes) =>
+        Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    var bootstrapRelease = new StableUpdateManifestVerifier.VerifiedRelease(
+        new Version(0, 24, 36, 0), 40,
+        new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.36/CELIKOM-Windows-0.24.36.exe"),
+        previousBytes.Length, prevHash, rollbackAt.AddDays(-10), false, "",
+        ApplicationSha256: HashBytes(bootstrapAppBytes),
+        NativeHostSha256: HashBytes(bootstrapHostBytes),
+        RendererSha256: HashBytes(bootstrapRendererBytes),
+        SupervisorSha256: HashBytes(bootstrapSupervisorBytes));
+    var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+        bootstrapRoot, bootstrapRelease, previousSetup, testSignerPin,
+        new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
+        bootstrapRenderer, bootstrapSupervisor, rollbackAt,
+        VerifySyntheticSetup,
+        (file, hash) => StableUpdatePayloadVerifier.MatchesFile(file, hash));
+    var seededSnapshot = Path.Combine(bootstrapRoot, seeded.Id.ToString("N"));
+    var seededPackage = StableUpdateRollbackJournal.GetLastKnownGoodCore(
+        bootstrapRoot, testSignerPin, VerifySyntheticSetup);
+    Test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
+         seeded.RollbackAttempts == 0 &&
+         seeded.PreviousVersion == "0.0.0.0" &&
+         seeded.PreviousSequence == 0 &&
+         seededPackage.Release.Version == bootstrapRelease.Version &&
+         seededPackage.Release.Sequence == bootstrapRelease.Sequence &&
+         Path.GetFileName(seededPackage.InstallerPath) == "target-signed-setup.exe" &&
+         File.ReadAllBytes(seededPackage.InstallerPath).SequenceEqual(previousBytes),
+         "W116 first signed install seeds an exact durable LKG package without inventing a previous release");
+
+    bool bootstrapPayloadMismatchDenied = false;
+    File.AppendAllText(bootstrapRenderer, "tampered");
+    try
+    {
+        StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+            Path.Combine(rollbackFixtureRoot, "rollback-bootstrap-tampered"),
+            bootstrapRelease, previousSetup, testSignerPin,
+            new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
+            bootstrapRenderer, bootstrapSupervisor, rollbackAt,
+            VerifySyntheticSetup,
+            (file, hash) => StableUpdatePayloadVerifier.MatchesFile(file, hash));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_BOOTSTRAP_PAYLOAD_MISMATCH")
+    { bootstrapPayloadMismatchDenied = true; }
+    File.WriteAllBytes(bootstrapRenderer, bootstrapRendererBytes);
+    Test(bootstrapPayloadMismatchDenied,
+        "W116 mismatched installed payload cannot seed an initial rollback package");
+
+    bool bootstrapOverwriteDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+            bootstrapRoot, bootstrapRelease, previousSetup, testSignerPin,
+            new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
+            bootstrapRenderer, bootstrapSupervisor, rollbackAt,
+            VerifySyntheticSetup,
+            (file, hash) => StableUpdatePayloadVerifier.MatchesFile(file, hash));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_BOOTSTRAP_ALREADY_INITIALIZED")
+    { bootstrapOverwriteDenied = true; }
+    Test(bootstrapOverwriteDenied,
+        "W116 bootstrap never overwrites an existing rollback journal");
+
+    var seedNext = StableUpdateRollbackJournal.PrepareCore(
+        bootstrapRoot, seededPackage.Release, seededPackage.InstallerPath,
+        targetRelease, nextSetup, testSignerPin, bootstrapRelease.Version,
+        rollbackAt.AddHours(1), hasSession: false, nativeWasInstalled: false,
+        VerifySyntheticSetup);
+    Test(seedNext.State == StableUpdateRollbackJournal.Phase.Prepared &&
+         !Directory.Exists(seededSnapshot) &&
+         File.Exists(Path.Combine(bootstrapRoot, seedNext.Id.ToString("N"),
+             "previous-signed-setup.exe")),
+         "W116 first seeded package becomes the exact previous installer for the first signed update");
+
     var dpapiJournal = Path.Combine(rollbackRoot, "stable-update-rollback.dpapi");
     var ciphertext = File.ReadAllBytes(dpapiJournal);
     // Mutate the authenticated ciphertext tail, not merely a DPAPI header
@@ -579,6 +667,81 @@ try
             { feedRedirectRejected = true; }
             Test(feedRedirectRejected, "W107 stable feed never follows redirects");
         }
+        byte[] BootstrapManifestBytes(string version = "0.24.36", long sequence = 40,
+            object? rollback = null) =>
+            JsonSerializer.SerializeToUtf8Bytes(new {
+                schema = 2, channel = "stable", version, sequence,
+                packageUrl = "https://celikom.example.test/CELIKOM/Windows/Updates/stable/"
+                    + version + "/CELIKOM-Windows-" + version + ".exe",
+                packageSize = 500000L, sha256 = new string('a', 64),
+                publisher = "CELIKOM",
+                applicationSha256 = new string('1', 64),
+                nativeHostSha256 = new string('2', 64),
+                rendererSha256 = new string('3', 64),
+                supervisorSha256 = new string('4', 64),
+                publishedAt = "2026-10-01T00:00:00Z",
+                expiresAt = "2026-10-08T00:00:00Z",
+                minimumVersion = "0.24.20", mandatory = false,
+                notes = "Immutable bootstrap", rollback
+            });
+        var bootstrapDocument = BootstrapManifestBytes();
+        var bootstrapSignature = releaseKey.SignData(bootstrapDocument,
+            HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+        var bootstrapRelease = StableUpdateManifestVerifier.VerifyBootstrap(
+            bootstrapDocument, bootstrapSignature, pub, signedFeedOrigin,
+            new Version(0, 24, 36, 0), signedFeedNow);
+        Test(bootstrapRelease.Version == new Version(0, 24, 36, 0) &&
+             bootstrapRelease.Sequence == 40 &&
+             bootstrapRelease.ExpiresAt < signedFeedNow,
+             "W116 immutable exact-version bootstrap accepts the current signed release after its offer expiry");
+        bool bootstrapWrongVersionDenied = false;
+        try
+        {
+            StableUpdateManifestVerifier.VerifyBootstrap(
+                bootstrapDocument, bootstrapSignature, pub, signedFeedOrigin,
+                new Version(0, 24, 35, 0), signedFeedNow);
+        }
+        catch (InvalidDataException e) when (e.Message == "STABLE_MANIFEST_VERSION_INVALID")
+        { bootstrapWrongVersionDenied = true; }
+        Test(bootstrapWrongVersionDenied,
+            "W116 bootstrap manifest cannot seed a different installed version");
+        var bootstrapRollback = BootstrapManifestBytes(rollback:
+            new { fromVersion = "0.24.36", toVersion = "0.24.35" });
+        bool bootstrapRollbackDenied = false;
+        try
+        {
+            StableUpdateManifestVerifier.VerifyBootstrap(bootstrapRollback,
+                releaseKey.SignData(bootstrapRollback, HashAlgorithmName.SHA256,
+                    DSASignatureFormat.Rfc3279DerSequence),
+                pub, signedFeedOrigin, new Version(0, 24, 36, 0), signedFeedNow);
+        }
+        catch (InvalidDataException) { bootstrapRollbackDenied = true; }
+        Test(bootstrapRollbackDenied,
+            "W116 immutable bootstrap manifest cannot smuggle a rollback directive");
+
+        var bootstrapRequests = new List<string>();
+        using (var bootstrapHttp = new HttpClient(new FakeHandler(req =>
+        {
+            bootstrapRequests.Add(req.RequestUri!.AbsolutePath);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = req,
+                Content = new ByteArrayContent(req.RequestUri.AbsolutePath.EndsWith(".sig",
+                    StringComparison.Ordinal) ? bootstrapSignature : bootstrapDocument)
+            };
+        })))
+        {
+            var fetchedBootstrap = await StableUpdateManifestFetcher.FetchSignedVersionWithClientAsync(
+                signedFeedOrigin, pub, new Version(0, 24, 36, 0),
+                signedFeedNow, bootstrapHttp);
+            Test(fetchedBootstrap.Version == new Version(0, 24, 36, 0) &&
+                 bootstrapRequests.SequenceEqual(new[] {
+                    "/CELIKOM/Windows/Updates/stable/0.24.36/manifest.json",
+                    "/CELIKOM/Windows/Updates/stable/0.24.36/manifest.json.sig"
+                 }),
+                 "W116 bootstrap fetches only the exact immutable version manifest and detached signature");
+        }
+
         var signedRelease = VerifyManifest(signedDocument);
         Test(signedRelease.Sequence == 42 &&
              signedRelease.Version == new Version(0, 24, 37, 0) &&
