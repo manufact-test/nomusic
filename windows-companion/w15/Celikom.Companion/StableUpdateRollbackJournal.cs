@@ -303,7 +303,8 @@ public static class StableUpdateRollbackJournal
             DateTimeOffset.MaxValue, false, "",
             ApplicationSha256: state.PreviousApplicationSha256,
             NativeHostSha256: state.PreviousNativeHostSha256,
-            RendererSha256: state.PreviousRendererSha256);
+            RendererSha256: state.PreviousRendererSha256,
+            SupervisorSha256: state.PreviousSupervisorSha256);
         verify(previous, release, pinnedSignerSha256);
         return previous;
     }
