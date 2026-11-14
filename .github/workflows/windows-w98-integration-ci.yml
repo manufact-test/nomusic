@@ -186,7 +186,7 @@ jobs:
           $downloadGateIndex=$stableCoordinatorText.IndexOf('StableUpdateInstallSafety.CanDownload', [StringComparison]::Ordinal)
           $manifestIndex=$stableCoordinatorText.IndexOf('StableUpdateManifestFetcher.FetchSignedIfNewerAsync', [StringComparison]::Ordinal)
           $stageIndex=$stableCoordinatorText.IndexOf('StableUpdatePackageStager.FetchOrReusePendingAsync', [StringComparison]::Ordinal)
-          $installGateIndex=$stableCoordinatorText.IndexOf('CanInstall(getContext())', [StringComparison]::Ordinal)
+          $installGateIndex=$stableCoordinatorText.IndexOf('if (!CanInstall(getContext()))', $stageIndex, [StringComparison]::Ordinal)
           if ($downloadGateIndex -lt 0 -or $manifestIndex -le $downloadGateIndex -or
               $stageIndex -le $manifestIndex -or $installGateIndex -le $stageIndex) {
             throw 'W140_DOWNLOAD_MUST_PRECEDE_SAFE_INSTALL_GATE'
