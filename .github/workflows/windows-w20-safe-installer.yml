@@ -158,12 +158,43 @@ jobs:
           if (Test-Path $exe) { throw 'W20_OWN_EXE_NOT_REMOVED' }
           if (Test-Path $yandexDir) { throw 'W20_UNINSTALL_TOUCHED_YANDEX' }
           Write-Output 'W20_INTERNAL_INSTALL_UNINSTALL_PASS_NO_YANDEX_FILES'
-      - name: Report internal package fingerprint
+      - name: Package the exact same CELIKOM installer as one ZIP with SHA256 checksums
         shell: pwsh
         run: |
-          $hash = (Get-FileHash -LiteralPath $env:CELIKOM_STAGE_INSTALLER -Algorithm SHA256).Hash
-          Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
-          Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path -LiteralPath $env:CELIKOM_STAGE_INSTALLER).Path
+          $exeName = Split-Path $exe -Leaf
+          $version = $env:CELIKOM_STAGE_FILE_VERSION -replace '\.0
+      - name: Retain INTERNAL staging build, not a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-Windows-internal-stage-${{ github.sha }}
+          path: |
+            ${{ env.CELIKOM_STAGE_INSTALLER }}
+            ${{ env.CELIKOM_STAGE_ZIP }}
+            windows-companion/w20/output/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 10
+, ''
+          $zip = "windows-companion/w20/output/CELIKOM-Windows-$version.zip"
+          if (Test-Path -LiteralPath $zip) { throw 'W137_STAGE_ZIP_ALREADY_EXISTS' }
+          Compress-Archive -LiteralPath $exe -DestinationPath $zip -CompressionLevel Optimal
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $zip).Path)
+          try {
+            $entries = @($archive.Entries)
+            if ($entries.Count -ne 1 -or $entries[0].FullName -ne $exeName) {
+              throw 'W137_STAGE_ZIP_MUST_CONTAIN_EXACTLY_ONE_ROOT_INSTALLER'
+            }
+          } finally { $archive.Dispose() }
+          $exeHash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "$exeHash  $exeName"
+            "$zipHash  $(Split-Path $zip -Leaf)"
+          ) | Set-Content -LiteralPath 'windows-companion/w20/output/SHA256SUMS.txt' -Encoding ascii
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "CELIKOM_STAGE_ZIP=$zip" -Encoding utf8
+          Write-Output 'W137_SINGLE_INSTALLER_EXE_ZIP_AND_SHA256_PASS'
+          Write-Output 'INTERNAL ONLY: no production signing or owner acoustic acceptance is claimed'
       - name: Retain INTERNAL staging build, not a release
         uses: actions/upload-artifact@v4
         with:
