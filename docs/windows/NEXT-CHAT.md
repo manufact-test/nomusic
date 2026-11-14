@@ -1,7 +1,7 @@
 # CELIKOM Windows — FIRST HANDOFF / 14 November 2026
 
 Repository: `manufact-test/nomusic`.
-**ONE active product line:** `main`; last green **code** @ `1ad2c63e78746db49ca8bca5e0c3c8bee2cbc48b`, followed by this documentation-only handoff (verify current GitHub HEAD).
+**ONE active product line:** `main`; latest proven **code** @ `0d90fea82cfd8d95e7c830941e1443cafa594fd3`, then this documentation-only handoff. Verify current HEAD before changes.
 Historical post-W57 green rollback: `backup/windows-main-post-w57-ci-green-20261114` @ `7a4768ecc7366abeb0358337f83e514e85cd8d53` (NOT the current W108 rollback). Latest W108 green backup is listed below.
 Previous W54 rollback: `backup/windows-main-post-w54-gain-witness-20261114` @ `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
 No new `experiment/*` branches. Before each substantial change create exact `backup/*`, and avoid touching Android, extension, private original media or unrelated server logic.
@@ -9,9 +9,10 @@ No new `experiment/*` branches. Before each substantial change create exact `bac
 **Read first:**
 1. `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
 2. `docs/windows/W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md`
-3. `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`
-4. `docs/windows/NEXT-CHAT.md` (this file)
-5. GitHub issues #52, #53, #54, #56, #57, #58; read actual code before changing.
+3. `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md`
+4. `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`
+5. `docs/windows/NEXT-CHAT.md` (this file)
+6. GitHub issues #52, #53, #54, #56, #57, #58; read actual code before changing.
 
 **Exact CI proof at takeover:**
 - Main CI [43523524721](https://github.com/manufact-test/nomusic/actions/runs/43523524721) — SUCCESS.
@@ -19,6 +20,14 @@ No new `experiment/*` branches. Before each substantial change create exact `bac
 - Earlier W103 `d903ffae` failed four integration tests because expected reload occurred before new 150 ms confirmation window; fixed in `7a4768e` with tests preserving actual delayed behavior. Do **not** revert to the failed intermediate.
 - Stage 5 Hostinger restore proof [43514995243](https://github.com/manufact-test/nomusic/actions/runs/43514995243) SUCCESS: 1498 original audio SHA256 checks and isolated DB restore with Big City Life gain sidecar. Live DB untouched in that test.
 - Dedicated gain-stage job [132132259655](https://github.com/manufact-test/nomusic/actions/runs/43495186951) SUCCESS: Big City Life track 40371622, configured +11.5 dB, measured +6.70 dB RMS and verified signed Range 206. Its parent workflow failed later in updater ZIP verification, **not** sidecar staging.
+
+## W109 — 14 November 2026: durable rollback journal (CODE + CI GREEN)
+- **Exact verified code:** `0d90fea82cfd8d95e7c830941e1443cafa594fd3`; backup `backup/windows-main-post-w109-rollback-journal-ci-green-20261114` points to the same SHA. Pre-W109 exact backup: `backup/windows-main-pre-w109-rollback-transaction-20261114` @ `2331a7de51c9ae2f33162bc382c77ad65bd34bb8`.
+- CI [43572820346](https://github.com/manufact-test/nomusic/actions/runs/43572820346) **SUCCESS**; full Windows integration [43572820294](https://github.com/manufact-test/nomusic/actions/runs/43572820294) **SUCCESS**. Only `StableUpdateRollbackJournal.cs` and W15 contract tests changed in W109.
+- Windows DPAPI-per-user durable journal + atomic rewrite, signed-old-installer byte snapshot and re-verification, pending-upgrade mutual exclusion, 10-minute bounded health decision, **one permitted rollback attempt**, and separate, evidence-gated `Healthy` / `Restored` transitions. A completed transaction permits another approved release while active/crash recovery records are never overwritten. Tests exercise healthy, failed/timeout, replay refusal, invalid health, tampered snapshot, DPAPI ciphertext alteration, and sequential release.
+- **NOT a finished automatic rollback:** `PrepareSigned` has NO consumer call site; test-only synthetic verifier is not a real signed installer. No independent external watchdog process, install/rollback launcher, production signing pins/keys, signed live feed or real owner-PC install tests. W109 never modifies Yandex, plays audio, launches an installer or marks a user machine updated.
+- **Next:** implement and test a truly independent signed-package watchdog (survives new app crashes) using this journal; obtain production signing/public trust configuration through existing release infrastructure without asking user for new secrets, then bounded stable polling/idle install/in-place recovery. One final signed EXE+ZIP only after end-to-end Windows and owner QA.
+- Full file: `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md`.
 
 ## Latest implementation W105–W108 / 14 November 2026
 
@@ -49,6 +58,6 @@ No new `experiment/*` branches. Before each substantial change create exact `bac
 
 **Other open work:** first/second/third start race, disappeared diagnostics, initial popup, false outdated-module message, tray autorun default, upgrade/repair user acceptance. Yandex releases are discovered every 15 min on `main`; app startup and EXE/ASAR change watcher are integrated, and bounded recheck after bridge/start failure is now implemented with code+CI green; owner runtime verification remains open. W101 signed automatic in-app stable update and safe rollback are **not implemented**; current updater is manual/staff only.
 
-**Next work order:** complete and independently verify signed in-app stable updates, separate crash-health supervision and exact previous signed installer rollback per W101; verify W104 bridge/start failure recheck on owner's PC; verify existing startup guards and acceptance flow; run CI after changes; make **one** coherent final Windows EXE + ZIP and link it only when successfully built and independently verified. Do not send partial TEST installers or ask for new secrets/accounts/emails. The user expects big completed chunks and a short status, not endless theory. Mass release only after owner QA. No final package has been delivered and nothing was installed on user's PC from this handoff.
+**Next work order:** complete independent watchdog/real crash recovery atop W109, then signed in-app stable updates, actual verified install/rollback per W101; verify W104 bridge/start failure recheck on owner's PC; verify existing startup guards and acceptance flow; run CI after changes; make **one** coherent final Windows EXE + ZIP and link it only when successfully built and independently verified. Do not send partial TEST installers or ask for new secrets/accounts/emails. The user expects big completed chunks and a short status, not endless theory. Mass release only after owner QA. No final package has been delivered and nothing was installed on user's PC from this handoff.
 
 **Owner-side proof required:** VPN A→B reconnect, «Ты» audible replacement, Big City Life full-song loudness, natural 403→206 without hiss, «Моя волна» originals on VPN switch, Brave/Windows resource usage, and startup/reboot behavior. Never claim a real playback bug fixed by CI alone.

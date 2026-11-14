@@ -2,6 +2,8 @@
 
 > **14 November latest W105–W108:** Single `main` green code @ `1ad2c63e78746db49ca8bca5e0c3c8bee2cbc48b`, main CI `43569385121` and Windows integration `43569385123` both SUCCESS. Secure signed-manifest download, verified installer staging, exact signed rollback *authorization*, and no-autoplay manual upgrade gates are integrated. **Still no consumer automatic installer, independent crash rollback, production signing key/certificate or final EXE+ZIP.** Read `docs/windows/NEXT-CHAT.md` and `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`; W102 historical body below is preserved.
 
+> **14 November W109 latest source:** `main` code @ `0d90fea82cfd8d95e7c830941e1443cafa594fd3`; main CI [43572820346](https://github.com/manufact-test/nomusic/actions/runs/43572820346) SUCCESS; Windows integration [43572820294](https://github.com/manufact-test/nomusic/actions/runs/43572820294) SUCCESS. Signed-previous-package snapshot and DPAPI rollback journal are code/CI complete, but **an independent crash watchdog and real automatic install/rollback are not active**. See `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md` and `docs/windows/NEXT-CHAT.md`. All original W102 owner constraints below still apply.
+
 Date: 2026-11-13
 Owner's explicit decisions from the latest discussion are authoritative.
 
