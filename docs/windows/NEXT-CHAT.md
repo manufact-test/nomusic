@@ -15,14 +15,57 @@
 ## Exact repository state
 
 - Repository: `manufact-test/nomusic`.
-- Code baseline immediately before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`. The current branch also contains the W119 documentation-only commit; always fetch live `main` before coding.
-- Last Windows-specific implementation commit: `dafb6191a8e311053f64b455fec075f3944706f1` (W20 existing-installer Supervisor allowlist/gate).
-- Current HEAD is a subsequent repository-wide Android A1 diagnostic-workflow commit. Preserve it; do not modify/reset Android work.
-- Exact backup of the code baseline before the W119 documentation-only update: `backup/windows-main-pre-owner-work-order-20261114` @ `2c12ea50797d8c395e4a2e169c9000d897dffb11`. The later W119 commits change documentation only; they do not change application code.
-- Main CI [43593559415](https://github.com/manufact-test/nomusic/actions/runs/43593559415) — **SUCCESS**.
-- CELIKOM Windows integration CI [43593559384](https://github.com/manufact-test/nomusic/actions/runs/43593559384) — **SUCCESS**. Includes W20 stage allowlist, Supervisor in the same installer definition, W110 simulation, W117 fail-closed checks, existing VPN/audio/source regressions and warning-as-error builds.
+- Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- Current Windows code HEAD: `62ff2b67f869607e20e9d8899113f391eab80c7e` (W121 Start-action gate). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
+- Last Windows-specific implementation commit: `62ff2b67f869607e20e9d8899113f391eab80c7e`.
+- Exact green rollback snapshot: `backup/windows-main-post-w121-ci-green-20261114` @ `62ff2b67f869607e20e9d8899113f391eab80c7e`.
+- W120 Main CI [43596984190](https://github.com/manufact-test/nomusic/actions/runs/43596984190) — **SUCCESS**; Windows integration [43596984195](https://github.com/manufact-test/nomusic/actions/runs/43596984195) — **SUCCESS**.
+- W121 Main CI [43597478523](https://github.com/manufact-test/nomusic/actions/runs/43597478523) — **SUCCESS**; Windows integration [43597478531](https://github.com/manufact-test/nomusic/actions/runs/43597478531) — **SUCCESS**.
+- The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
 
 ## Current state — what is and is not done
+
+# W120 — Native-host performance evidence without changing playback cadence — 14 November 2026
+
+- Repository: `manufact-test/nomusic`; only working branch: `main`.
+- Exact pre-W120 code backup: `backup/windows-main-pre-w120-native-host-performance-20261114` @ `e4da7bad1bc83b4eb2888de6c3f4d67a0732af78`.
+- W120 implementation commit: `9a9193d7bd728a4ff1a2da2f8b5f11c42c4d8a7b`.
+- Main CI [43596984190](https://github.com/manufact-test/nomusic/actions/runs/43596984190) and Windows integration CI [43596984195](https://github.com/manufact-test/nomusic/actions/runs/43596984195) — **SUCCESS**.
+
+## Changes
+
+1. Native host caches the last safe state sent to the Yandex renderer. Identical state is not executed into the renderer repeatedly; the cache is cleared on renderer reinjection.
+2. A failed local state read invalidates the cached enabled/disabled observation, so the next successful read can report the transition truthfully.
+3. Every 30 seconds the host samples only its own Electron main-process CPU usage. At 80% or higher it records the fixed event `NATIVE_ELECTRON_CPU_HIGH`. Raw CPU counters, PIDs, process names, account identifiers and audio metadata are never written.
+4. `DiagnosticLog` recognizes the CPU event as an incident, includes `ElectronCpuHighObserved` in the text export and preserves the event in support snapshots and diagnostic history.
+
+## Deliberately unchanged
+
+- Existing 300ms native relay cadence remains unchanged.
+- CDP playback observation and 403 recovery remain enabled.
+- No audio-source, gain, VPN or original-file behavior was changed.
+- This is instrumentation and removal of redundant renderer IPC, **not proof that #53 is fixed**.
+
+W23 tests cover unchanged-state deduplication, fixed CPU-threshold recording and the unchanged 300ms cadence. W15 tests cover diagnostics allowlisting, export, imported incidents and durable archive. No installer was built. Owner Task Manager evidence is still required to identify whether the load comes from CELIKOM, Brave, Yandex renderer, GPU or another process.
+
+# W121 — Gate duplicate Start actions during first connection — 14 November 2026
+
+- Repository: `manufact-test/nomusic`; only working branch: `main`.
+- Exact pre-W121 code backup: `backup/windows-main-pre-w121-start-action-gate-20261114` @ `9a9193d7bd728a4ff1a2da2f8b5f11c42c4d8a7b`.
+- W121 implementation commit: `62ff2b67f869607e20e9d8899113f391eab80c7e`.
+- Exact green rollback snapshot: `backup/windows-main-post-w121-ci-green-20261114` @ the W121 commit.
+- Main CI [43597478523](https://github.com/manufact-test/nomusic/actions/runs/43597478523) and Windows integration CI [43597478531](https://github.com/manufact-test/nomusic/actions/runs/43597478531) — **SUCCESS**.
+
+## Changes
+
+- Added the pure `PlaybackStartGate` policy and use the same rule in both the Start handler and Start-button availability.
+- The gate blocks Start while the bridge is not ready, integration/update is busy, a previous Start is still pending, the app is closing, or playback is already enabled for the active native module.
+- `StartAction` immediately calls `UpdateSafe()` after setting `_compactStarting`, so repeated clicks cannot be silently accepted by an enabled-looking button and then ignored.
+- During the initial host/entitlement check, the compact hint says `Проверяем Яндекс.Музыку…`; the normal loading status remains for the active Yandex startup phase.
+- W15 tests cover each blocked/allowed gate state; the Windows integration workflow statically guards both call sites and the pending-start hint.
+
+This addresses the duplicate-click race in the first/repeated Start flow. It does **not** close the broader first-run/reboot/autostart owner acceptance, and it does not change audio, native installation, VPN or updater behavior. No installer was built.
+
 
 ### Implemented and CI-validated infrastructure
 W105–W118 contain signed-package validation, SHA-256/Authenticode checks, DPAPI rollback journal, previous/target package retention, independent Supervisor health witness, schema-2 exact payload identity, signed manifest generation, immutable version manifests, initial LKG bootstrap and shared fail-closed trust configuration. W20 verifies the existing installer definition contains exactly:
@@ -41,8 +84,10 @@ This is meaningful implementation progress, **not a production-ready automatic u
 - This is server-side proof only. It does not close Windows listening/seek/Next/crossfade/403/VPN behavior or #56 owner acceptance.
 
 ### Still incomplete
-- All owner issues #52, #53, #54, #56, #57 and #58 are still **OPEN**.
-- VPN A→B and reconnect, original-track continuity, first connection, startup, autostart, tray and diagnostics still need implementation/behavioral acceptance.
+- All owner issues #52, #53, #54, #56, #57 and #58 remain **OPEN**; CI is not audible or owner-PC acceptance.
+- W120 adds privacy-safe Electron main-process CPU evidence and removes repeated identical renderer-state deliveries; #53 root cause remains unproven until owner diagnostics and a Task Manager CPU/RAM/GPU capture are available.
+- W121 blocks duplicate Start clicks during pending host/entitlement checks and shows a small progress hint. First/repeated connection, reboot, tray and autostart still need one grouped owner-PC acceptance pass.
+- #52 source truth, #54 Big City Life volume, #56 real gain loudness/headroom, #57 audible 403→206 recovery and #58 original-track VPN continuity still need owner-side evidence; do not mark them fixed from CI.
 - Automatic updater is not production-ready: production P-256 pin, Authenticode signer pin and official HTTPS feed origin are empty/unprovisioned; no confirmed live signed-feed publisher, signed latest-manifest consumer, trusted Supervisor launch callsite, update coordinator/scheduler/notices or real production-signed crash/one-shot rollback test.
 - No final Windows EXE+ZIP has been built or delivered.
 
@@ -53,12 +98,12 @@ The current Inno script still has historical `AppVersion=0.24.36` and `OutputBas
 
 1. VPN A→B: reliable, fast reconnect/recovery without long hangs, hiss or quiet return.
 2. #52 «Ты» (13 карат): truthful confirmation of the actual alternate playback source; no false “active” state.
-3. #53 Brave/Windows performance: diagnose system/browser freezes, resource load and elevated-rights/startup behavior.
+3. #53 Brave/Windows performance: W120 adds main-process CPU threshold evidence and renderer-state deduplication without changing the 300ms relay; root cause and owner Task Manager evidence still pending.
 4. #54 Big City Life: fix the mid-track volume drop.
 5. #56 admin gain: apply consistently to intended tracks; verify real loudness/headroom, seek, Next, crossfade and recovery.
 6. #57 expired URL 403→206: remove hiss/click/pop during stream recovery.
 7. #58 originals/«Моя волна»: prevent pops/cuts when VPN changes during non-replaced playback.
-8. First connection/startup: fix first and subsequent connection initialization, unsupported-version/server errors and recovery.
+8. First connection/startup: W121 prevents duplicate Start actions while a connection check is pending; unsupported-version/server errors, subsequent launches and grouped owner-PC acceptance remain.
 9. Diagnostics: keep available after disconnect and make status truthful.
 10. Autostart/tray: correct Windows startup, tray, reconnect and failure recovery.
 11. Yandex update detection: at least every 30 minutes, preferably faster.
@@ -215,7 +260,7 @@ The W117/W118 implementation records immediately above this point are historical
 6. #57 signed 403→206 hiss/pop — W103 now gives 150 ms post-prime CDP confirmation chance before reload; approved decoder already playing cancels pending reload only. No proof means bounded reload proceeds. CI green, owner acoustic test pending. Do not force a production 403.
 7. #58 «Моя волна» and other original tracks pop under VPN change — original/unknown no-reload guards CI green, acoustic test pending.
 
-**Other open work:** first/second/third start race, disappeared diagnostics, initial popup, false outdated-module message, tray autorun default, upgrade/repair user acceptance. Yandex releases are discovered every 15 min on `main`; app startup and EXE/ASAR change watcher are integrated, and bounded recheck after bridge/start failure is now implemented with code+CI green; owner runtime verification remains open. W101 signed automatic in-app stable update and safe rollback are **not implemented**; current updater is manual/staff only.
+**Other open work:** W121 now blocks duplicate Start clicks while the first host/entitlement check is pending. The broader first/second/third launch, reboot, tray and autostart behavior still needs grouped owner-PC acceptance. W120 keeps diagnostics useful after transient state failure and adds a privacy-safe CPU incident; owner diagnostic export after disconnect still needs acceptance. Initial popup, false outdated-module message and W87/W88 default tray autorun are implemented in code; runtime acceptance remains open. Yandex release detection uses the 15-minute catalog refresh and the app's existing refresh path; do not weaken the cadence or CDP recovery without objective profiling. W101 signed automatic in-app stable update and safe rollback are **not implemented**; current updater is manual/staff only.
 
 **Next work order:** after current audio blockers and one owner-accepted integrated Windows build, provision the schema-2 release trust pins/feed and connect the already bundled Supervisor through a trusted same-user launch callsite; prove real signed crash recovery and stable automatic updates per W101. Verify W104 bridge/start failure recheck on owner's PC; run CI after changes; make **one** coherent final Windows EXE + ZIP and link it only when successfully built and independently verified. Do not send partial TEST installers or ask for new secrets/accounts/emails. The user expects big completed chunks and a short status, not endless theory. Mass release only after owner QA. No final package has been delivered and nothing was installed on user's PC from this handoff.
 
