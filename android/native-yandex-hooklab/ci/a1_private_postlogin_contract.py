@@ -99,7 +99,7 @@ def verify_original(apkbytes: bytes) -> dict:
         for dex_name in sorted(files):
             dex = Dex(apk.read(dex_name))
             for idx, code in dex.code_methods():
-                owner, name, _ = dex.method(idx)
+                owner, name = dex.method(idx)
                 key = (owner, name)
                 if key not in requirements:
                     continue
