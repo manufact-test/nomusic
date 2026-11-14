@@ -46,5 +46,70 @@ class MetricaPreservedControl(unittest.TestCase):
         self.assertEqual(stats["optional_metrica_components_excluded"],0)
 
 
+class PassportOwnProviderAuthorityControl(unittest.TestCase):
+    def test_owned_passport_providers_match_the_original_sdk_generated_uris(self):
+        # Exact original Android SDK: provider lookup uses this app's own
+        # Context.getPackageName(), not a provider-authority hash.
+        expected={
+          "com.yandex.passport.internal.provider.InternalProvider":
+              "com.yandex.passport.internal.provider."+DEST,
+          "com.yandex.passport.internal.authsdk.AuthSdkProvider":
+              "com.yandex.passport.authsdk.provider."+DEST,
+          "com.yandex.passport.internal.sso.SsoContentProvider":
+              "com.yandex.passport.internal.sso."+DEST,
+        }
+        source={
+          "com.yandex.passport.internal.provider.InternalProvider":
+              "com.yandex.passport.internal.provider.ru.yandex.music",
+          "com.yandex.passport.internal.authsdk.AuthSdkProvider":
+              "com.yandex.passport.authsdk.provider.ru.yandex.music",
+          "com.yandex.passport.internal.sso.SsoContentProvider":
+              "com.yandex.passport.internal.sso.ru.yandex.music",
+        }
+        parts=[
+            '<provider android:name="'+name+'" android:authorities="'+auth+'"/>'
+            for name,auth in source.items()
+        ]
+        parts.append(
+            '<provider android:name="com.yandex.metrica.impl.Provider"'
+            ' android:authorities="com.yandex.metrica.provider"/>')
+        xml=HEADER+'<application>'+''.join(parts)+'</application>'+END
+        data,stats=patch_manifest(xml.encode())
+        root=ET.fromstring(data)
+        providers={
+            p.attrib[ANDROID+"name"]:p.attrib[ANDROID+"authorities"]
+            for p in root.findall("./application/provider")
+        }
+        for name,expected_authority in expected.items():
+            self.assertEqual(providers[name],expected_authority)
+            self.assertNotEqual(providers[name],source[name])
+        self.assertEqual(stats["passport_sdk_own_provider_components_seen"],3)
+        self.assertTrue(providers["com.yandex.metrica.impl.Provider"].startswith(
+            DEST+".provider."))
+
+    def test_previously_hashed_owned_passport_authority_must_repair(self):
+        import hashlib
+        original="com.yandex.passport.internal.provider.ru.yandex.music"
+        old=DEST+".provider."+hashlib.sha256(
+            original.encode("utf-8")).hexdigest()[:16]
+        xml=(HEADER+'<application><provider '
+             'android:name="com.yandex.passport.internal.provider.InternalProvider" '
+             'android:authorities="'+old+'"/>'
+             '</application>'+END)
+        data,stats=patch_manifest(xml.encode())
+        provider=ET.fromstring(data).find("./application/provider")
+        self.assertEqual(provider.attrib[ANDROID+"authorities"],
+                         "com.yandex.passport.internal.provider."+DEST)
+        self.assertEqual(stats["passport_sdk_own_provider_components_seen"],1)
+
+    def test_unknown_passport_authority_fails_closed(self):
+        xml=(HEADER+'<application><provider '
+             'android:name="com.yandex.passport.internal.provider.InternalProvider" '
+             'android:authorities="unrelated.package.provider"/>'
+             '</application>'+END)
+        with self.assertRaises(Exception):
+            patch_manifest(xml.encode())
+
+
 if __name__=="__main__":
     unittest.main()
