@@ -16,8 +16,9 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code/test HEAD: `7e4c8268cba30f781a3fa091d9657718ec463b66` (W127 current-decoder/queue-identity ordering fix and regression test). W128 is documentation-only. The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
-- Last Windows-specific implementation commit: `4fe42d745b6708524c65eb4f9855e026f314fefa`; W127 regression-test commit: `7e4c8268cba30f781a3fa091d9657718ec463b66`.
+- Current Windows code/test HEAD: `7e4c8268cba30f781a3fa091d9657718ec463b66` (W127 current-decoder/queue-identity ordering fix and regression test). W128 adds a CI-only elevation-policy guard; no app runtime code changed. The live `main` may contain documentation/workflow commits after this code/test SHA; always fetch the live branch before coding.
+- Last Windows app implementation commit: `4fe42d745b6708524c65eb4f9855e026f314fefa`; W127 regression-test commit: `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`.
+- Exact pre-W128 CI policy backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`.
 - Exact pre-W127 rollback snapshot: `backup/windows-main-pre-w127-current-decoder-witness-race-20261114` @ `4b7d2277d98986d8d4ab0ed9ba42a76fc25da810`.
 - W127 Main CI [43603865004](https://github.com/manufact-test/nomusic/actions/runs/43603865004) and Windows integration CI [43603864999](https://github.com/manufact-test/nomusic/actions/runs/43603864999) — **SUCCESS**.
 - Previous exact green W126 rollback snapshot: `backup/windows-main-post-w126-ci-green-20261114` @ `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
