@@ -42,6 +42,31 @@ final class StageBAudioEvidence {
     private final AtomicLong endOfSourceReads = new AtomicLong();
     private final AtomicLong failedReads = new AtomicLong();
 
+    // Exact selected-track Flow -> native wrapper -> descriptor -> Exo factory
+    // continuity. Every object is weakly held and compared only with ==.
+    private static final class NativeTrackSourceLink {
+        WeakReference<Object> track;
+        WeakReference<Object> wrapper;
+        WeakReference<Object> descriptor;
+        WeakReference<Object> factoryResult;
+        WeakReference<Object> sourceInstance;
+    }
+    private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
+    private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
+    private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
+    private final ThreadLocal<ArrayList<WeakReference<Object>>> activeWrapperScopes = new ThreadLocal<>();
+    private final AtomicLong nativeTrackFlowEmits = new AtomicLong();
+    private final AtomicLong nativeTrackSourceRequests = new AtomicLong();
+    private final AtomicLong flowTrackSourceSameObject = new AtomicLong();
+    private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
+    private final AtomicLong wrapperMainSourceRequests = new AtomicLong();
+    private final AtomicLong wrapperDescriptorLinks = new AtomicLong();
+    private final AtomicLong trackDescriptorFactoryLinks = new AtomicLong();
+    private final AtomicLong trackFactorySourceLinks = new AtomicLong();
+    private final AtomicLong trackSourceOpenLinks = new AtomicLong();
+    private final AtomicLong trackSourceReadLinks = new AtomicLong();
+    private final AtomicLong trackSourceReadProbeBudget = new AtomicLong();
+
     // Bounded without storing URLs, media bytes, offsets or returned sizes.
     private static void mark(AtomicLong bucket) {
         for (;;) {
@@ -49,6 +74,166 @@ final class StageBAudioEvidence {
             if (old >= 32) return;
             if (bucket.compareAndSet(old, old + 1)) return;
         }
+    }
+
+
+    private static void pushScope(
+            ThreadLocal<ArrayList<WeakReference<Object>>> local, Object value) {
+        if (value == null) return;
+        ArrayList<WeakReference<Object>> stack = local.get();
+        if (stack == null) {
+            stack = new ArrayList<>();
+            local.set(stack);
+        }
+        stack.add(new WeakReference<>(value));
+    }
+
+    private static Object currentScope(
+            ThreadLocal<ArrayList<WeakReference<Object>>> local) {
+        ArrayList<WeakReference<Object>> stack = local.get();
+        if (stack == null) return null;
+        while (!stack.isEmpty()) {
+            Object value = stack.get(stack.size()-1).get();
+            if (value != null) return value;
+            stack.remove(stack.size()-1);
+        }
+        local.remove();
+        return null;
+    }
+
+    private static void popScope(
+            ThreadLocal<ArrayList<WeakReference<Object>>> local) {
+        ArrayList<WeakReference<Object>> stack = local.get();
+        if (stack == null) return;
+        if (!stack.isEmpty()) stack.remove(stack.size()-1);
+        if (stack.isEmpty()) local.remove();
+    }
+
+    synchronized void onNativeTrackFlowEmission(Object track) {
+        if (track == null) return;
+        mark(nativeTrackFlowEmits);
+        for (int i=nativeTrackFlowItems.size()-1;i>=0;i--) {
+            if (nativeTrackFlowItems.get(i).get()==null)
+                nativeTrackFlowItems.remove(i);
+        }
+        if (nativeTrackFlowItems.size()>=32) nativeTrackFlowItems.remove(0);
+        nativeTrackFlowItems.add(new WeakReference<>(track));
+    }
+
+    private synchronized boolean wasNativeTrackFlowItem(Object track) {
+        if (track == null) return false;
+        for (WeakReference<Object> item:nativeTrackFlowItems)
+            if (item.get()==track) return true;
+        return false;
+    }
+
+    void enterNativeTrackSourceRequest(Object track) {
+        if (track == null) return;
+        pushScope(activeTrackScopes,track);
+        mark(nativeTrackSourceRequests);
+        if (wasNativeTrackFlowItem(track)) mark(flowTrackSourceSameObject);
+    }
+
+    void exitNativeTrackSourceRequest() {
+        popScope(activeTrackScopes);
+    }
+
+    synchronized void onNativeTrackWrapperCreated(Object wrapper) {
+        Object track=currentScope(activeTrackScopes);
+        if (track==null || wrapper==null || !wasNativeTrackFlowItem(track)) return;
+        NativeTrackSourceLink link=null;
+        for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
+            NativeTrackSourceLink candidate=nativeTrackSourceLinks.get(i);
+            if (candidate.track==null || candidate.track.get()==null) {
+                nativeTrackSourceLinks.remove(i);
+                continue;
+            }
+            if (candidate.track.get()==track) { link=candidate; break; }
+        }
+        if (link==null) {
+            if (nativeTrackSourceLinks.size()>=16) nativeTrackSourceLinks.remove(0);
+            link=new NativeTrackSourceLink();
+            link.track=new WeakReference<>(track);
+            nativeTrackSourceLinks.add(link);
+        }
+        link.wrapper=new WeakReference<>(wrapper);
+        mark(nativeTrackWrapperLinks);
+    }
+
+    void enterNativeMainSourceRequest(Object wrapper) {
+        if (wrapper==null) return;
+        pushScope(activeWrapperScopes,wrapper);
+        if (hasWrapperLink(wrapper)) mark(wrapperMainSourceRequests);
+    }
+
+    void exitNativeMainSourceRequest() {
+        popScope(activeWrapperScopes);
+    }
+
+    private synchronized boolean hasWrapperLink(Object wrapper) {
+        return findByWrapper(wrapper)!=null;
+    }
+
+    synchronized void onNativeExoDescriptorBuiltForCurrentWrapper(Object descriptor) {
+        Object wrapper=currentScope(activeWrapperScopes);
+        if (wrapper==null || descriptor==null) return;
+        NativeTrackSourceLink link=findByWrapper(wrapper);
+        if (link!=null) {
+            link.descriptor=new WeakReference<>(descriptor);
+            mark(wrapperDescriptorLinks);
+        }
+    }
+
+    private NativeTrackSourceLink findByWrapper(Object wrapper) {
+        if (wrapper==null) return null;
+        for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
+            NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
+            if (link.track==null || link.track.get()==null) {
+                nativeTrackSourceLinks.remove(i);
+                continue;
+            }
+            if (link.wrapper!=null && link.wrapper.get()==wrapper) return link;
+        }
+        return null;
+    }
+
+    private NativeTrackSourceLink findByDescriptor(Object descriptor) {
+        if (descriptor==null) return null;
+        for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
+            NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
+            if (link.track==null || link.track.get()==null) {
+                nativeTrackSourceLinks.remove(i);
+                continue;
+            }
+            if (link.descriptor!=null && link.descriptor.get()==descriptor) return link;
+        }
+        return null;
+    }
+
+    private NativeTrackSourceLink findByFactory(Object factory) {
+        if (factory==null) return null;
+        for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
+            NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
+            if (link.track==null || link.track.get()==null) {
+                nativeTrackSourceLinks.remove(i);
+                continue;
+            }
+            if (link.factoryResult!=null && link.factoryResult.get()==factory) return link;
+        }
+        return null;
+    }
+
+    private NativeTrackSourceLink findBySource(Object source) {
+        if (source==null) return null;
+        for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
+            NativeTrackSourceLink link=nativeTrackSourceLinks.get(i);
+            if (link.track==null || link.track.get()==null) {
+                nativeTrackSourceLinks.remove(i);
+                continue;
+            }
+            if (link.sourceInstance!=null && link.sourceInstance.get()==source) return link;
+        }
+        return null;
     }
 
     synchronized void onExoDescriptorBuilt(Object source) {
@@ -64,14 +249,23 @@ final class StageBAudioEvidence {
         mark(exoDescriptorResults);
     }
 
-    synchronized void onExoFactoryCreated(Object source) {
+    synchronized void onExoFactoryCreated(Object descriptor) {
+        onExoFactoryCreated(descriptor,null);
+    }
+
+    synchronized void onExoFactoryCreated(Object descriptor,Object factoryResult) {
         mark(exoFactoryResults);
-        if (source == null) return;
+        if (descriptor == null) return;
         for (WeakReference<Object> ref:nativeDescriptors) {
-            if (ref.get()==source) {
+            if (ref.get()==descriptor) {
                 mark(exoFactorySameDescriptor);
                 break;
             }
+        }
+        NativeTrackSourceLink link=findByDescriptor(descriptor);
+        if (link!=null && factoryResult!=null) {
+            link.factoryResult=new WeakReference<>(factoryResult);
+            mark(trackDescriptorFactoryLinks);
         }
     }
 
@@ -95,6 +289,15 @@ final class StageBAudioEvidence {
         mark(exoSourceInstancesCreated);
     }
 
+    synchronized void onExoSourceInstanceCreated(Object source,Object factoryObject) {
+        onExoSourceInstanceCreated(source);
+        NativeTrackSourceLink link=findByFactory(factoryObject);
+        if (link!=null && source!=null) {
+            link.sourceInstance=new WeakReference<>(source);
+            mark(trackFactorySourceLinks);
+        }
+    }
+
     private synchronized boolean sameExoSource(Object source) {
         if (source == null) return false;
         for (WeakReference<Object> item:exoSourceInstances)
@@ -104,6 +307,9 @@ final class StageBAudioEvidence {
 
     void onExoSourceInstanceOpen(Object source) {
         if (sameExoSource(source)) mark(exoSourceInstancesOpened);
+        synchronized(this) {
+            if (findBySource(source)!=null) mark(trackSourceOpenLinks);
+        }
     }
 
     void onExoSourceInstanceRead(Object source,int count) {
@@ -112,6 +318,13 @@ final class StageBAudioEvidence {
         if (count > 0 && firstAtMost(exoSourceReadProbeBudget,16)
                 && sameExoSource(source))
             mark(exoSourceInstancesRead);
+        if (count > 0 && trackSourceReadProbeBudget.get()<16) {
+            synchronized(this) {
+                if (findBySource(source)!=null
+                        && firstAtMost(trackSourceReadProbeBudget,16))
+                    mark(trackSourceReadLinks);
+            }
+        }
     }
 
     void onExoOpen() { mark(exoOpenResults); }
@@ -182,6 +395,16 @@ final class StageBAudioEvidence {
             event("EXO_SOURCE_INSTANCE", exoSourceInstancesCreated),
             event("EXO_INSTANCE_OPENED", exoSourceInstancesOpened),
             event("EXO_INSTANCE_READ", exoSourceInstancesRead),
+            event("NATIVE_TRACK_FLOW_EMIT", nativeTrackFlowEmits),
+            event("NATIVE_TRACK_SOURCE_REQUEST", nativeTrackSourceRequests),
+            event("FLOW_TRACK_SAME_OBJECT", flowTrackSourceSameObject),
+            event("TRACK_WRAPPER_LINK", nativeTrackWrapperLinks),
+            event("WRAPPER_MAIN_SOURCE", wrapperMainSourceRequests),
+            event("WRAPPER_DESCRIPTOR_LINK", wrapperDescriptorLinks),
+            event("TRACK_DESCRIPTOR_FACTORY_LINK", trackDescriptorFactoryLinks),
+            event("TRACK_FACTORY_SOURCE_LINK", trackFactorySourceLinks),
+            event("TRACK_SOURCE_OPEN_LINK", trackSourceOpenLinks),
+            event("TRACK_SOURCE_READ_LINK", trackSourceReadLinks),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }
