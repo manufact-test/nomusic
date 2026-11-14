@@ -189,8 +189,16 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   window.__celikomBridgeNativeRecoverSourceLeft = trackId => {
     if (typeof trackId !== "string" || !/^[1-9][0-9]{0,23}$/.test(trackId) ||
         playerSourceRefresh.currentTrackId() !== trackId ||
-        !adapter.enabled || !attached || stopped ||
-        !playerSourceRefresh.attached) return false;
+        !attached || stopped || !playerSourceRefresh.attached) return false;
+    // The main-process CDP witness calls this only after a previously verified
+    // current CELIKOM decoder has switched away from its signed source. Drop
+    // the stale mapping before checking the enabled state: a simultaneous
+    // VPN/entitlement transition must not reload an original decoder again.
+    adapter.forgetMappedTrack(trackId);
+    if (!adapter.enabled) {
+      report("SOURCE_LEFT_CURRENT_ALREADY_ORIGINAL", trackId);
+      return false;
+    }
     const now = Date.now();
     if (lastSourceLeftAttemptTrack === trackId &&
         now - lastSourceLeftAttemptAt < 15000) return false;
