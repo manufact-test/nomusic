@@ -117,3 +117,14 @@ Correction to the earlier status above: a private owner diagnostic APK HAS now b
 - Installed old clone signer remains unverified, so install mode is explicitly `FRESH_INSTALL_AUTHORIZED`. Delete only old CELIKOM diagnostic clone; preserve ordinary Yandex and its data. One genuine login reproduction and one TXT export are now the next required owner-side proof.
 
 A one-time GitHub Actions dispatcher was used so the owner did not need to click Run workflow. It dispatched the existing workflow with the two previously approved one-time export/fresh-clone inputs and removed its own temporary helper files afterward. Backup before dispatch: `backup/android-a1-pre-one-shot-owner-diagnostic-dispatch-20261114` @ `37fd2f806afc8cd1e1739ef5c17d3f1e5381101b`; backup after cleanup: `backup/android-a1-nav13-owner-diagnostic-apk-43604192249-20261114` @ `8ab403e5c9d927af158bf606c17cbe387bcd2b46`.
+
+
+## FINAL CURRENT HANDOFF — WAIT FOR OWNER DIAGNOSTIC TXT (14 Nov 2026)
+
+This section supersedes the earlier owner-action instructions in this receipt. The verified diagnostic APK and Russian instruction have already been exported and saved in the owner's Library. The owner will provide the resulting `CELIKOM-A1-Diagnostics-....txt` to the next chat.
+
+**Do not ask the owner to repeat the controlled install/login/capture. Do not run another workflow, export another APK, or modify source before the TXT is received and analyzed.** The next assistant must read the current NEXT-CHAT handoff and this receipt, then wait for the diagnostic file.
+
+Latest verified workflow #43604192249 completed SUCCESS; verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. This does not prove a real Passport `Success(userInfo)`, post-login Main navigation, or audio playback. Stage A remains NO-GO and Stage B LOCKED.
+
+Operating rule: the assistant performs repository, backup, CI, artifact and documentation work autonomously. The owner must not be asked to click `Run workflow` or operate GitHub Actions. Owner interaction is limited to real-device verification when truly needed. Preserve the ordinary Yandex Music app/data; do not request credentials or OTPs.
