@@ -1,5 +1,9 @@
 # CELIKOM Android A1 — exact original 2025.10.4 post-login route (14 Nov 2026)
 
+## CI outcome for source-only investigation
+
+GitHub ARM13 workflow [#43568891197](https://github.com/manufact-test/nomusic/actions/runs/43568891197) **SUCCESS** at source commit `bee142784a6aad3ac8bb8bbac8d618c29693008c`. The pinned private exact-signed 2025.10.4 original DEX contract gate reported 14/14. The original publisher-first co-install native startup test reported `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO` and `stage_a: NO_GO`. **There was no real login, post-login callback, media playback, or owner phone test** in that CI run. No owner APK artifact was exported on push. Existing standalone NAV9 startup result remains a historical result, not a new post-login pass.
+
 ## Status
 **NAV9 remains NOT FIXED. Stage A NO-GO; Stage B LOCKED.** No new APK has been prepared. This is an exact, source-independent investigation of the publisher-signed APK embedded inside the already tested NAV9, based on the existing 508-line owner diagnostic; no repeat OTP, ADB, or credential access is required.
 
