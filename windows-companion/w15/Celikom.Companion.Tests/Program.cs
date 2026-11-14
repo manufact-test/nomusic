@@ -16,6 +16,135 @@ try
 {
     Test(!AppUpdateManager.CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: true),
         "W108 manual in-place update must not interrupt active CELIKOM playback");
+
+    // W109: snapshot the exact previous signed installer and journal the
+    // single rollback attempt before a new app can be accepted as healthy.
+    // Test verifier is intentionally synthetic; PrepareSigned in production
+    // always requires Authenticode, pinned signer + exact PE checks.
+    var rollbackRoot = Path.Combine(folder, "rollback-vault");
+    Directory.CreateDirectory(rollbackRoot);
+    var previousSetup = Path.Combine(folder, "previous-fixture.exe");
+    var nextSetup = Path.Combine(folder, "next-fixture.exe");
+    var previousBytes = new byte[12_345];
+    var nextBytes = new byte[12_678];
+    for (var n = 0; n < previousBytes.Length; n++) previousBytes[n] = (byte)(n % 251);
+    for (var n = 0; n < nextBytes.Length; n++) nextBytes[n] = (byte)(n % 239);
+    File.WriteAllBytes(previousSetup, previousBytes);
+    File.WriteAllBytes(nextSetup, nextBytes);
+    var prevHash = Convert.ToHexString(SHA256.HashData(previousBytes)).ToLowerInvariant();
+    var nextHash = Convert.ToHexString(SHA256.HashData(nextBytes)).ToLowerInvariant();
+    var rollbackAt = new DateTimeOffset(2026, 11, 14, 9, 0, 0, TimeSpan.Zero);
+    var previousRelease = new StableUpdateManifestVerifier.VerifiedRelease(
+        new Version(0, 24, 36, 0), 40,
+        new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.36/previous.exe"),
+        previousBytes.Length, prevHash, rollbackAt.AddDays(7), false, "");
+    var targetRelease = new StableUpdateManifestVerifier.VerifiedRelease(
+        new Version(0, 24, 37, 0), 41,
+        new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/new.exe"),
+        nextBytes.Length, nextHash, rollbackAt.AddDays(7), false, "");
+    var testSignerPin = new string('b', 64);
+    var verifiedImages = 0;
+    void VerifySyntheticSetup(string file,
+        StableUpdateManifestVerifier.VerifiedRelease expected, string signerPin)
+    {
+        Test(signerPin == testSignerPin &&
+             new FileInfo(file).Length == expected.PackageSize &&
+             Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file)))
+                .Equals(expected.Sha256, StringComparison.OrdinalIgnoreCase),
+             "W109 verified rollback snapshot/installer matches signed manifest hash");
+        verifiedImages++;
+    }
+    var tx = StableUpdateRollbackJournal.PrepareCore(
+        rollbackRoot, previousRelease, previousSetup, targetRelease, nextSetup,
+        testSignerPin, previousRelease.Version, rollbackAt,
+        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup);
+    Test(tx.State == StableUpdateRollbackJournal.Phase.Prepared &&
+         tx.RollbackAttempts == 0 && verifiedImages == 3 &&
+         StableUpdateRollbackJournal.Read(rollbackRoot) == tx,
+         "W109 DPAPI journal roundtrip and byte-identical previous EXE snapshot");
+    bool overlappingDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.PrepareCore(rollbackRoot, previousRelease,
+            previousSetup, targetRelease, nextSetup, testSignerPin,
+            previousRelease.Version, rollbackAt, true, true, VerifySyntheticSetup);
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_PENDING_EXISTS")
+    { overlappingDenied = true; }
+    Test(overlappingDenied, "W109 overlapping update cannot overwrite last-known-good snapshot");
+    tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+        StableUpdateRollbackJournal.Phase.Prepared,
+        StableUpdateRollbackJournal.Phase.InstallerStarted);
+    var noneHealthy = new StableUpdateRollbackJournal.HealthEvidence(
+        ExactSignedNewExe: true, BridgeResponds: false,
+        SessionPreserved: false, NativeIntegrationConsistent: false);
+    Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(1)) ==
+         StableUpdateRollbackJournal.Decision.Wait,
+         "W109 mere EXE launch is NOT successful app health");
+    tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+        StableUpdateRollbackJournal.Phase.InstallerStarted,
+        StableUpdateRollbackJournal.Phase.NewAppObserved);
+    Test(StableUpdateRollbackJournal.Decide(tx,
+        new StableUpdateRollbackJournal.HealthEvidence(true, true, true, false),
+        rollbackAt.AddMinutes(2)) == StableUpdateRollbackJournal.Decision.Wait,
+        "W109 native integration status must be verified before successful upgrade");
+    Test(StableUpdateRollbackJournal.Decide(tx,
+        new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true),
+        rollbackAt.AddMinutes(2)) == StableUpdateRollbackJournal.Decision.AcceptNewVersion,
+        "W109 signed new EXE + bridge + DPAPI + native checks all required");
+    Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(11)) ==
+         StableUpdateRollbackJournal.Decision.RequestRollback,
+        "W109 timeout requests exact last-known-good package instead of fake success");
+    tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+        StableUpdateRollbackJournal.Phase.NewAppObserved,
+        StableUpdateRollbackJournal.Phase.RollbackNeeded);
+    var retained = StableUpdateRollbackJournal.VerifiedPreviousInstallerCore(
+        rollbackRoot, tx.Id, testSignerPin, VerifySyntheticSetup);
+    Test(File.Exists(retained) && verifiedImages == 4,
+        "W109 previous installer re-verified immediately before rollback");
+    var corrupted = File.ReadAllBytes(retained);
+    corrupted[31] ^= 1;
+    File.WriteAllBytes(retained, corrupted);
+    bool corruptedRollbackRefused = false;
+    try
+    {
+        StableUpdateRollbackJournal.VerifiedPreviousInstallerCore(
+            rollbackRoot, tx.Id, testSignerPin, VerifySyntheticSetup);
+    }
+    catch (Exception e) when (e.Message.StartsWith("W15_TEST_FAILED",
+        StringComparison.Ordinal) || e is IOException)
+    { corruptedRollbackRefused = true; }
+    Test(corruptedRollbackRefused, "W109 tampered retained rollback image cannot be used");
+    tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+        StableUpdateRollbackJournal.Phase.RollbackNeeded,
+        StableUpdateRollbackJournal.Phase.RollbackStarted);
+    Test(tx.RollbackAttempts == 1 &&
+         StableUpdateRollbackJournal.Decide(tx, noneHealthy,
+             rollbackAt.AddHours(1)) == StableUpdateRollbackJournal.Decision.ManualRecovery,
+         "W109 rollback is at-most-once; never create an automatic install loop");
+    bool replayDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+            StableUpdateRollbackJournal.Phase.RollbackNeeded,
+            StableUpdateRollbackJournal.Phase.RollbackStarted);
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_TRANSITION_DENIED")
+    { replayDenied = true; }
+    Test(replayDenied, "W109 repeated rollback request is refused");
+    tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
+        StableUpdateRollbackJournal.Phase.RollbackStarted,
+        StableUpdateRollbackJournal.Phase.ManualRecovery);
+    var dpapiJournal = Path.Combine(rollbackRoot, "stable-update-rollback.dpapi");
+    var ciphertext = File.ReadAllBytes(dpapiJournal);
+    ciphertext[18] ^= 1;
+    File.WriteAllBytes(dpapiJournal, ciphertext);
+    bool tamperedJournalDenied = false;
+    try { StableUpdateRollbackJournal.Read(rollbackRoot); }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_RECORD_UNTRUSTED")
+    { tamperedJournalDenied = true; }
+    Test(tamperedJournalDenied, "W109 encrypted rollback transaction rejects modification");
+
     // W105: exact byte stream, SHA256 and signature all have to succeed
     // before a staged installer may ever be considered executable.
     var updateBytes = new byte[32_768];
