@@ -123,6 +123,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         part=s[start:end]
         self.assertIn('activityResultProducerObservations.incrementAndGet()<=32',part)
         self.assertNotIn('activityFinishesLogged.incrementAndGet()',part)
+        self.assertIn('"PASSPORT_ACTIVITY".equals(activityFamily((Activity)receiver))',part)
         self.assertIn('return chain.proceed();',part)
 
     def test_entry_result_delivery_is_receiver_side_readonly_and_independently_bounded(self):
@@ -130,7 +131,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertIn('private boolean activityResultDeliveryHooked;',s)
         self.assertIn('activityResultDeliveryObservations =',s)
         self.assertIn('Activity.class.getDeclaredMethod(',s)
-        self.assertIn('"dispatchActivityResult", String.class, int.class, int.class, Intent.class',s)
+        self.assertIn('"dispatchActivityResult", String.class, int.class, int.class, Intent.class, String.class',s)
         self.assertIn('activityResultDeliveryObservations.incrementAndGet() <= 48',s)
         self.assertIn('emit("ACTIVITY_RESULT_DELIVERY_HOOK", "ANDROID", "REGISTERED")',s)
         self.assertIn('emit("ACTIVITY_RESULT_DELIVERY_HOOK", "ANDROID", "NO_HOOK")',s)
@@ -141,6 +142,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('chain.getArg(0)',part)
         self.assertNotIn('chain.getArg(1)',part)
         self.assertNotIn('chain.getArg(3)',part)
+        self.assertNotIn('chain.getArg(4)',part)
         self.assertNotIn('getExtras(',part)
         self.assertNotIn('setResult(',part)
         self.assertNotIn('startActivity(',part)

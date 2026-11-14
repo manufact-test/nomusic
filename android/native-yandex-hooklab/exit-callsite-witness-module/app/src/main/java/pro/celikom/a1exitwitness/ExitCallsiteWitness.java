@@ -3287,6 +3287,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                             Object receiver=chain.getThisObject();
                             if (receiver instanceof Activity
                                     && PACKAGE.equals(((Activity)receiver).getPackageName())
+                                    && "PASSPORT_ACTIVITY".equals(activityFamily((Activity)receiver))
                                     && activityResultProducerObservations.incrementAndGet()<=32) {
                                 Object result=chain.getArg(0);
                                 String category=!(result instanceof Integer)
@@ -3318,7 +3319,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (activityResultDeliveryHooked) return true;
         try {
             Method method = Activity.class.getDeclaredMethod(
-                "dispatchActivityResult", String.class, int.class, int.class, Intent.class);
+                "dispatchActivityResult", String.class, int.class, int.class, Intent.class, String.class);
             method.setAccessible(true);
             hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
