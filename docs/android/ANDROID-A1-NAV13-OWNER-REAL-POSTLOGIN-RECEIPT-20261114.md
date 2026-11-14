@@ -51,3 +51,52 @@ Exact rollback backup for native CI-green source:
 `backup/android-a1-nav13-owner-receipt-source-ci-green-20261114` @ `26e952d1f6b0d980b10ed5c9d21310f6d20c0d20`.
 
 Actual owner-login root cause remains unresolved between original token API, userinfo fetch and synchronization, as real TXT lacks more granular result events. Stage A NO-GO, Stage B LOCKED. The next assistant should not ask for OTP or another install now: first verify source version and assess whether one more controlled owner login is truly justified, then seek explicit owner readiness before doing so.
+
+
+## 14 November — exact observer contract, caller origin and real Entry runtime smoke
+
+Latest source commit: `cb6f5b6b00fa35b0c66d499e4e795229d198daae` on the single Android A1 working branch.
+
+### Exact original DEX contract, privately checked
+
+The private original-XAPK DEX gate now pins:
+- Exact reflection descriptors for `LeY5$a.emit`, `LoY5$a.emit`, `LpY5$a.emit`, `LqY5.if`, and `LnY5.invokeSuspend`.
+- The generated continuation hierarchy and `nY5.continue:I` field.
+- Exact resume labels 1/2/3 at the original suspend boundaries: token request (`LEd5.this`), userInfo request (`LiE6.public`), sync (`Lol0.if`).
+- The original EntryScreenActivity's explicit no-extra fallback-to-login path.
+
+### Distinguishing the two original callers
+
+Original DEX inspection confirms two callers of the same `qY5.if` pipeline:
+- `oY5$a.emit`: Passport login-result flow (original log string `login result = `).
+- `pY5$a.emit`: autologin UID flow (original log string `autologin result = `).
+
+New bounded `LOGIN_PIPELINE_SOURCE` events emit only fixed categories:
+`PASSPORT_LOGIN_RESULT`, `AUTOLOGIN_UID_RESULT`, or `OTHER_CALLER`. Only the first eight initial pipeline entries are classified. Stack contents, arbitrary class names, user data and auth payloads are never emitted.
+
+Combined diagnostic meanings:
+- `LOGIN_PIPELINE_SOURCE` identifies which of the two original caller paths entered `qY5.if`.
+- `LOGIN_PIPELINE_RESULT` identifies INITIAL / AFTER_TOKEN_REQUEST / AFTER_USERINFO_REQUEST / AFTER_SYNC and only the fixed result class category.
+- `LOGIN_FLOW_RESULT` independently classifies the original LoginFragment flow object as NO_USERINFO_RESULT, EXTERNAL_HANDOFF, USERINFO_READY, or OTHER_FLOW_STATE.
+- If the flow result is present without a pipeline source event, the non-success path may have ended before entering `qY5.if`; do not infer a token/userInfo/sync failure from that alone.
+
+### No-OTP Android 13 Entry smoke — PASS
+
+The native runner now launches the real clone `EntryScreenActivity` with no extras, using the vendor's statically verified fallback-to-login route. It performs no tap, text entry, Passport approval or OTP. It then checks the real Entry lifecycle event and both hook registrations.
+
+Both latest no-suppression ARM13 runs completed SUCCESS on source `cb6f5b6`:
+- Clone-only #43602536005: main stability 75s PASS; Entry Activity created; FLOW and PIPELINE hooks both REGISTERED; `registration_pass=true`; no login interaction. Verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`.
+- Publisher-first paired #43602536019: original publisher installed and stable 75s before clone, still installed after; persistent owner signer verified; clone main stable 75s; Entry Activity created; both hooks REGISTERED; `registration_pass=true`; no uncaught exception or Metrica fatal suppression. Verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+
+This closes the previous gap: the new FLOW/PIPELINE hooks are now proven to register on a real Entry Activity inside Android 13, without any owner login or OTP. It does NOT prove a real Yandex Music userInfo success, Main navigation or audio playback.
+
+### Protected rollback and current owner action
+
+- Pre-source-origin backup: `backup/android-a1-nav13-before-login-source-origin-witness-20261114` @ `43ea6fe4e015cb0b888cb4673595eec14cdacb38`.
+- Exact source + Entry-smoke backup: `backup/android-a1-nav13-entry-hook-smoke-before-ci-20261114` @ `cb6f5b6b00fa35b0c66d499e4e795229d198daae`.
+
+No new owner APK was exported. No owner phone was changed. No OTP was requested. Original Yandex, Test.50, Windows, backend and production remain untouched.
+
+**Next useful proof requires one controlled real owner login with this diagnostic code**, only after the owner explicitly confirms readiness. Before preparing or delivering an APK, verify the persistent signer against the currently installed diagnostic clone; do not assume an in-place update is possible. If signer differs, only the CELIKOM diagnostic clone may need a controlled reinstall; never uninstall or clear data for original Yandex. One login attempt is enough. Never request or collect the OTP itself.
+
+Stage A **NO-GO**, Stage B **LOCKED** until a genuine `WS3$b Success(userInfo)`, native Main route and actual music playback are proven.
