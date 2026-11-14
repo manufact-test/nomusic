@@ -20,9 +20,9 @@ W112 binds the installed application payload to the exact immutable release that
 
 | Manifest field | Installed file |
 |---|---|
-| `applicationSha256` | `%LOCALAPPDATA%\\Programs\\CELIKOM\\CELIKOM.Companion.exe` |
-| `nativeHostSha256` | `%LOCALAPPDATA%\\Programs\\CELIKOM\\integration\\host.cjs` |
-| `rendererSha256` | `%LOCALAPPDATA%\\Programs\\CELIKOM\\integration\\renderer.js` |
+| `applicationSha256` | `%LOCALAPPDATA%\Programs\CELIKOM\CELIKOM.Companion.exe` |
+| `nativeHostSha256` | `%LOCALAPPDATA%\Programs\CELIKOM\integration\host.cjs` |
+| `rendererSha256` | `%LOCALAPPDATA%\Programs\CELIKOM\integration\renderer.js` |
 
 - All three fields are mandatory, lowercase 64-character SHA-256 values.
 - The manifest schema is now **2**. Schema 1 is rejected by the verifier because it cannot prove the installed payload identity.
