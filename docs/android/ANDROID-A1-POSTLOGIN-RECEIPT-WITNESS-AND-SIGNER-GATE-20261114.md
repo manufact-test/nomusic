@@ -100,3 +100,8 @@ The Entry receiver-side result event now has an independent 48-event quota rathe
 - Quota hardening commit `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073` gives Entry delivery its own 48-event counter.
 - Added source-contract regression test in `468fa14e8a6328e021968143afa8e00712c6ec73`; it checks exact Android dispatch signature, receiver filter, separate quota, and read-only behavior.
 - #43581508098/#43581508085 and source-test run #43581718989 were still running/queued. No owner login evidence yet.
+
+
+## NAV13 quota-fix CI update — 14 Nov 2026
+
+Quota-fix clone-alone rerun #43581508098 completed SUCCESS with native clone MAIN stable 75s, `ORIGINAL_KEY_PERSISTED`, `ONBOARDING_WRITER_HOOK=REGISTERED`, and no uncaught exception. This is not a Passport login and does not establish Activity result delivery or `Success(userInfo)`. Paired run #43581508085 and source-test run #43581718989 were still in progress at this checkpoint.

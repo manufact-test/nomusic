@@ -214,3 +214,8 @@ Do not start B42 integration until the onboarding exit is understood and the int
 
 
 > **NAV13 TEST COVERAGE UPDATE:** The standalone clone-only gate #43581081611 is SUCCESS but no real Entry/Passport flow ran, so receiver-side result delivery remains unobserved. Independent 48-event quota fix `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073`; regression source test `468fa14e8a6328e021968143afa8e00712c6ec73`. Check #43581081486, #43581508098, #43581508085, #43581718989. No APK/OTP/owner action. Stage A NO-GO, Stage B LOCKED.
+
+
+## NAV13 quota-fix CI update — 14 Nov 2026
+
+Quota-fix clone-alone rerun #43581508098 completed SUCCESS: 75s native ARM13 clone stability, original master key persisted, onboarding writer hook registered, no uncaught exception. It is not an auth/login/product acceptance test. Paired quota-fix #43581508085 and source-test #43581718989 remained in progress at this checkpoint.
