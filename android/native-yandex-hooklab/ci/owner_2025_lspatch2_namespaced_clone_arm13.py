@@ -440,6 +440,21 @@ def _fresh_master_key_init_status(raw_logcat: str) -> str:
         return "NOT_PERSISTED_OR_NOT_FRESH"
     return "NOT_OBSERVED"
 
+
+# Verify that all exact Android13 SharedPreferences hooks actually registered.
+# This is an instrumentation admission check, not proof that onboarding is written.
+def _onboarding_writer_hook_status(raw_logcat: str) -> str:
+    if not isinstance(raw_logcat, str):
+        return "UNAVAILABLE"
+    statuses = re.findall(
+        r'CELIKOM_A1_EXIT_WITNESS[^\\n]{0,700}event=ONBOARDING_WRITER_HOOK;origin=ANDROID;error=(REGISTERED|NO_HOOK)(?:;|\\s)',
+        raw_logcat)
+    if "REGISTERED" in statuses:
+        return "REGISTERED"
+    if "NO_HOOK" in statuses:
+        return "NO_HOOK"
+    return "NOT_OBSERVED"
+
 def observe_clone(seconds=75):
     component=DEST+"/ru.yandex.music.main.MainScreenActivity"
     launched=guest("am","start","--user","0","-n",component,timeout=65)
@@ -602,6 +617,7 @@ def run(xapk):
                     stable_pid=live
             raw_logcat=guest("logcat","-v","threadtime","-d",timeout=55).stdout
             report["master_key_init_runtime_status"]=_fresh_master_key_init_status(raw_logcat)
+            report["onboarding_writer_hook_status"]=_onboarding_writer_hook_status(raw_logcat)
             report["scoped_own_readonly_witness"]=scoped_metrica_witness(
                 guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
                 raw_logcat,
@@ -609,7 +625,7 @@ def run(xapk):
             report["verdict"]=(
                 "CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS"
                 if observed["stable"] and report["master_key_init_runtime_status"] in (
-                    "ORIGINAL_KEY_PERSISTED", "EXISTING_UNCHANGED")
+                    "ORIGINAL_KEY_PERSISTED", "EXISTING_UNCHANGED") and report["onboarding_writer_hook_status"] == "REGISTERED"
                 else "CLONE_ONLY_MASTER_KEY_INIT_OR_MAIN_NO_GO")
             # No change to any original-first acceptance verdict.
             report["stage_a"]="NO_GO"
@@ -667,6 +683,7 @@ def run(xapk):
                 stable_pid=live
         raw_logcat=guest("logcat","-v","threadtime","-d",timeout=55).stdout
         report["master_key_init_runtime_status"]=_fresh_master_key_init_status(raw_logcat)
+        report["onboarding_writer_hook_status"]=_onboarding_writer_hook_status(raw_logcat)
         report["scoped_own_readonly_witness"]=scoped_metrica_witness(
             guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
             raw_logcat,
@@ -679,6 +696,7 @@ def run(xapk):
             if report["native_clone_main_75s"] and
                report["master_key_init_runtime_status"] in (
                    "ORIGINAL_KEY_PERSISTED", "EXISTING_UNCHANGED") and
+               report["onboarding_writer_hook_status"] == "REGISTERED" and
                report["publisher_still_installed_after_clone_start"] and
                report["scoped_own_readonly_witness"]["read_only_witness_arm_marker_seen"] and
                not report["scoped_own_readonly_witness"]["lab_only_metrica_fatal_suppression_observed"]
