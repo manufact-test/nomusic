@@ -16,9 +16,11 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code HEAD: `ed41f613640f55c8de4a027a8f6f12ac31a15093` (W126 single bounded activation for first install/upgrade). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
-- Last Windows-specific implementation commit: `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
-- Exact green rollback snapshot: `backup/windows-main-post-w126-ci-green-20261114` @ `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
+- Current Windows code/test HEAD: `7e4c8268cba30f781a3fa091d9657718ec463b66` (W127 current-decoder/queue-identity ordering fix and regression test). The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
+- Last Windows-specific implementation commit: `4fe42d745b6708524c65eb4f9855e026f314fefa`; W127 regression-test commit: `7e4c8268cba30f781a3fa091d9657718ec463b66`.
+- Exact pre-W127 rollback snapshot: `backup/windows-main-pre-w127-current-decoder-witness-race-20261114` @ `4b7d2277d98986d8d4ab0ed9ba42a76fc25da810`.
+- W127 Main CI [43603865004](https://github.com/manufact-test/nomusic/actions/runs/43603865004) and Windows integration CI [43603864999](https://github.com/manufact-test/nomusic/actions/runs/43603864999) — **SUCCESS**.
+- Previous exact green W126 rollback snapshot: `backup/windows-main-post-w126-ci-green-20261114` @ `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
 - W126 Main CI [43601959568](https://github.com/manufact-test/nomusic/actions/runs/43601959568) and Windows integration CI [43601959593](https://github.com/manufact-test/nomusic/actions/runs/43601959593) — **SUCCESS**.
 - Exact pre-W126 backup: `backup/windows-main-pre-w126-single-start-activation-20261114` @ `2488e38ebfae605c78d9e3f511d6fca0901c5cc2`.
 - W120 Main CI [43596984190](https://github.com/manufact-test/nomusic/actions/runs/43596984190) — **SUCCESS**; Windows integration [43596984195](https://github.com/manufact-test/nomusic/actions/runs/43596984195) — **SUCCESS**.
@@ -26,6 +28,16 @@
 - The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
 
 ## Current state — what is and is not done
+
+# W127 — Reconcile current-decoder proof after queue identity race — 14 November 2026
+
+- The Yandex queue's current track ID and native CDP `kUrl`/`kIsPlaying` events can arrive in either order. Previously, a valid signed CELIKOM decoder event arriving before the queue ID could remain unconfirmed if no further CDP property event followed.
+- W127 retains bounded per-player decoder state and reconciles it after the existing current-track sample. It still requires a currently playing exact signed CELIKOM source mapped to the same current Yandex track; HTTP 206, grant delivery or mapping alone never turns the UI green.
+- When the late queue ID makes the proof valid, the host emits the source witness once, sends the verified-only heartbeat and invokes the existing hook that cancels only a still-pending redundant reload. CDP detach/player destruction invalidate the witness.
+- Regression coverage explicitly delivers decoder properties before queue identity and verifies no early attribution, one later source proof, verified heartbeat, pending-recovery hook and URL-free diagnostics.
+- W127 implementation: `4fe42d745b6708524c65eb4f9855e026f314fefa`; test: `7e4c8268cba30f781a3fa091d9657718ec463b66`; exact pre-change backup: `backup/windows-main-pre-w127-current-decoder-witness-race-20261114` @ `4b7d2277d98986d8d4ab0ed9ba42a76fc25da810`.
+- Main CI [43603865004](https://github.com/manufact-test/nomusic/actions/runs/43603865004) and Windows integration CI [43603864999](https://github.com/manufact-test/nomusic/actions/runs/43603864999) — **SUCCESS**.
+- **#52 remains OPEN.** This fixes event ordering only; it does not prove audible output on the owner's PC. VPN A→B and all other owner-PC audio acceptance also remain open. No installer was built.
 
 # W120 — Native-host performance evidence without changing playback cadence — 14 November 2026
 
