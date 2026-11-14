@@ -114,6 +114,10 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertIn("def _activity_result_delivery_hook_status(",runner)
         self.assertIn('report["activity_result_delivery_hook_status"]=_activity_result_delivery_hook_status(raw_logcat)',runner)
         self.assertGreaterEqual(runner.count('report["activity_result_delivery_hook_status"] == "REGISTERED"'),2)
+        self.assertIn("def _master_token_read_hook_status(",runner)
+        self.assertIn("def _master_token_decrypt_hook_status(",runner)
+        self.assertGreaterEqual(runner.count('report["master_token_read_hook_status"] == "REGISTERED"'),2)
+        self.assertGreaterEqual(runner.count('report["master_token_decrypt_hook_status"] == "REGISTERED"'),2)
 
     def test_passport_set_result_observer_has_independent_quota(self):
         s=self.code
