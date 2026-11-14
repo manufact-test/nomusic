@@ -11,7 +11,7 @@ Exact source of evidence: `/CELIKOM/CELIKOM-A1-NAV9-PostLogin-Route-Diagnostics-
 
 ## The actual original post-login contract
 
-1. `MainScreenActivity.onCreate` in classes6.dex reads `getSharedPreferences("Yandex_Music", MODE_PRIVATE).getBoolean("onboarding", true)` as part of startup decisions, but reading `UNSET` **does not prove** why the post-login return fails. Do not set this value manually.
+1. `MainScreenActivity.onCreate` in classes6.dex reads `getSharedPreferences("Yandex_Music", MODE_PRIVATE).getBoolean("onboarding", true)`. If the key is absent (`UNSET`), the original getter returns its default `true`. The owner's UNSET observations are therefore NOT evidence of a blocked Main route. Do not set this value manually.
 2. On the unauthenticated startup path, `MainScreenActivity.l(true)` creates an `EntryScreenActivity` intent with Parcelable **`Login(openMainScreenAfter=true)`** and sets task flags `0x10008000` (`NEW_TASK | CLEAR_TASK`); it can finish Main after launching Entry. `l(false)` constructs `ChangeUser` instead. This exact bytecode refutes the earlier `openMainScreenAfter=false` description. It is an **original vendor path**, not by itself evidence of clone-specific corruption.
 3. `EntryScreenActivity.onCreate` reads `entry_type` and sets up its Entry fragment. The fragment registers a listener for **`EntryScreenCloseLoginKey`**, reading Parcelable **`EntryScreenLoginResultKey`** (`LiT3.onCreate`, classes3.dex).
 4. The real LoginFragment coroutine `LeY5$a.emit` maps an actual successful login with `userInfo` (`Llw4`) into **`LWS3$b; Success(userInfo, wasAutoLogin)`**; failure is a different `LWS3$a` type. It notifies the `LYX5.if(LWS3)` interface, implemented by `LZX5.if(LWS3)`.

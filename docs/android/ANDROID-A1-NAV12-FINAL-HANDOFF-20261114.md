@@ -35,7 +35,7 @@ No password, account identifier, token, Bundle payload or userInfo fields are re
 
 ### 3. Final NAV12 onboarding writer investigation
 
-NAV9 owner diagnostics show `ONBOARDING_PREF / ENTRY_ACTIVITY / UNSET` four times, including after the clone-owned account is visible. That is a fact, but not proof that this preference is the root cause. Exact original DEX inspection already established that `f67` is in the app upgrade/initialization family, not a proven Passport success callback.
+NAV9 owner diagnostics show `ONBOARDING_PREF / ENTRY_ACTIVITY / UNSET` four times, including after the clone-owned account is visible. Exact original DEX inspection establishes that `MainScreenActivity.onCreate` reads `getBoolean("onboarding", true)`, so an absent key resolves to TRUE. The four UNSET observations are NOT evidence of a blocked Main route and must not be treated as the login-loop cause. `f67` is in the app upgrade/initialization family, not a proven Passport success callback.
 
 The final source pass adds a read-only observer restricted to the clone's exact `Yandex_Music` SharedPreferences instance:
 `ContextImpl.getSharedPreferences("Yandex_Music")` → `SharedPreferencesImpl.edit()` → `EditorImpl.putBoolean("onboarding", value)` → actual `commit()` or `apply()`.
