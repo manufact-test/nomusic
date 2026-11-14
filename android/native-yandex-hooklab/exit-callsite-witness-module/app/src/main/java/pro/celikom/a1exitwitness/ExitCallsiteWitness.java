@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V15_EXACT_TOKEN_ENVELOPE";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V16_PASSPORT_EXCEPTION_KIND";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3092,12 +3092,69 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (error == null) return "NO_THROWABLE";
         if (error instanceof java.net.SocketTimeoutException) return "TIMEOUT";
         if (error instanceof java.net.UnknownHostException) return "DNS";
+        // Only code-defined class identity is read. The exact known short
+        // Passport SDK exception subclass is a closed enum, not a message.
+        // Never read exception text, account data, tokens or request args.
+        String name = error.getClass().getName();
+        final String apiPrefix = "com.yandex.passport.api.exception.";
+        if (name.startsWith(apiPrefix)) {
+            String subclass = name.substring(apiPrefix.length());
+            switch (subclass) {
+            case "a": return "PASSPORT_API_LOWER_A";
+            case "b": return "PASSPORT_API_LOWER_B";
+            case "c": return "PASSPORT_API_LOWER_C";
+            case "d": return "PASSPORT_API_LOWER_D";
+            case "e": return "PASSPORT_API_LOWER_E";
+            case "f": return "PASSPORT_API_LOWER_F";
+            case "g": return "PASSPORT_API_LOWER_G";
+            case "i": return "PASSPORT_API_LOWER_I";
+            case "j": return "PASSPORT_API_LOWER_J";
+            case "k": return "PASSPORT_API_LOWER_K";
+            case "l": return "PASSPORT_API_LOWER_L";
+            case "m": return "PASSPORT_API_LOWER_M";
+            case "n": return "PASSPORT_API_LOWER_N";
+            case "o": return "PASSPORT_API_LOWER_O";
+            case "p": return "PASSPORT_API_LOWER_P";
+            case "q": return "PASSPORT_API_LOWER_Q";
+            case "r": return "PASSPORT_API_LOWER_R";
+            case "s": return "PASSPORT_API_LOWER_S";
+            case "t": return "PASSPORT_API_LOWER_T";
+            case "u": return "PASSPORT_API_LOWER_U";
+            case "v": return "PASSPORT_API_LOWER_V";
+            case "w": return "PASSPORT_API_LOWER_W";
+            case "x": return "PASSPORT_API_LOWER_X";
+            case "y": return "PASSPORT_API_LOWER_Y";
+            case "A": return "PASSPORT_API_UPPER_A";
+            case "B": return "PASSPORT_API_UPPER_B";
+            case "C": return "PASSPORT_API_UPPER_C";
+            case "D": return "PASSPORT_API_UPPER_D";
+            case "E": return "PASSPORT_API_UPPER_E";
+            case "F": return "PASSPORT_API_UPPER_F";
+                default: return "PASSPORT_API_OTHER_CLASS";
+            }
+        }
+        if ("com.yandex.passport.common.exception.a".equals(name))
+            return "PASSPORT_COMMON_A";
+        if ("com.yandex.passport.common.exception.b".equals(name))
+            return "PASSPORT_COMMON_B";
+        if ("com.yandex.passport.internal.network.exception.a".equals(name))
+            return "PASSPORT_INTERNAL_NETWORK_A";
+        if ("com.yandex.passport.common.network.BackendError".equals(name))
+            return "PASSPORT_COMMON_BACKEND";
+        if (name.startsWith("com.yandex.passport.internal.network."))
+            return "PASSPORT_INTERNAL_NETWORK_OTHER";
+        if (name.startsWith("com.yandex.passport.internal.core."))
+            return "PASSPORT_INTERNAL_CORE_OTHER";
+        if (name.startsWith("com.yandex.passport.internal."))
+            return "PASSPORT_INTERNAL_OTHER";
+        if (name.startsWith("com.yandex.passport.common."))
+            return "PASSPORT_COMMON_OTHER";
+        if (name.startsWith("com.yandex.passport.api."))
+            return "PASSPORT_API_OTHER";
+        if (name.startsWith("com.yandex.passport."))
+            return "PASSPORT_SDK_OTHER";
         if (error instanceof java.io.IOException) return "NETWORK_OR_IO";
         if (error instanceof SecurityException) return "SECURITY";
-        String name = error.getClass().getName();
-        if ("com.yandex.passport.api.exception.a".equals(name)) return "PASSPORT_API_A";
-        if ("com.yandex.passport.api.exception.b".equals(name)) return "PASSPORT_API_B";
-        if (name.startsWith("com.yandex.passport.")) return "PASSPORT_OTHER";
         if (error instanceof IllegalStateException) return "ILLEGAL_STATE";
         return "OTHER_FAILURE";
     }
@@ -3182,10 +3239,23 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     emit("LOGIN_TOKEN_OUTCOME", "ENTRY", category);
                                     if (isFailure) {
                                         Object cause = tokenFailureCause.get(payload);
-                                        emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",
-                                            cause instanceof Throwable
-                                                ? tokenRequestErrorCategory((Throwable) cause)
-                                                : "NO_THROWABLE");
+                                        if (cause instanceof Throwable) {
+                                            Throwable reason = (Throwable) cause;
+                                            emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",
+                                                tokenRequestErrorCategory(reason));
+                                            // Only classify one immediate Throwable cause;
+                                            // never inspect or output its message, values,
+                                            // stack, UID, token or request metadata.
+                                            try {
+                                                Throwable nested = reason.getCause();
+                                                if (nested != null && nested != reason)
+                                                    emit("LOGIN_TOKEN_CAUSE_KIND", "ENTRY",
+                                                        tokenRequestErrorCategory(nested));
+                                            } catch (Throwable ignored) { }
+                                        } else {
+                                            emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",
+                                                "NO_THROWABLE");
+                                        }
                                     }
                                 }
                             } catch (Throwable ignored) {
