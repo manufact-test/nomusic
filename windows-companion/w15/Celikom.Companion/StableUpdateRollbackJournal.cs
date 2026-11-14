@@ -161,7 +161,10 @@ public static class StableUpdateRollbackJournal
         var allHealthy = evidence.ExactSignedNewExe && evidence.BridgeResponds &&
             (!record.ExpectedSession || evidence.SessionPreserved) &&
             (!record.NativeWasInstalled || evidence.NativeIntegrationConsistent);
-        if (allHealthy) return Decision.AcceptNewVersion;
+        // Never certify an update from an installer launch alone: a separate
+        // new-process/version observation must have been recorded first.
+        if (record.State == Phase.NewAppObserved && allHealthy)
+            return Decision.AcceptNewVersion;
         return now.ToUnixTimeSeconds() >= record.DeadlineUnix
             ? Decision.RequestRollback : Decision.Wait;
     }
