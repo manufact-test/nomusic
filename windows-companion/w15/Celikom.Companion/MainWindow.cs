@@ -1111,11 +1111,22 @@ public sealed partial class MainWindow : Form
             }
             catch { /* Connected files verified; user may open Yandex normally. */ }
         }
-        catch (ApiFailure)
+        catch (ApiFailure error)
         {
             _bridge.SetEnabled(false);
             _compactStarting = false;
             _compactStartupText = "Не удалось проверить доступ. Яндекс не изменён.";
+            DiagnosticLog.Record(EntitlementCheckRecovery.FailureCode(error));
+            DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_UNAVAILABLE");
+        }
+        catch (Exception error) when (EntitlementCheckRecovery.IsTransient(error))
+        {
+            // A failed bounded activation retry is a network/access problem,
+            // not evidence that the native Yandex integration is damaged.
+            _bridge.SetEnabled(false);
+            _compactStarting = false;
+            _compactStartupText = "Не удалось установить связь. Яндекс не изменён.";
+            DiagnosticLog.Record(EntitlementCheckRecovery.FailureCode(error));
             DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_UNAVAILABLE");
         }
         catch (Exception error)

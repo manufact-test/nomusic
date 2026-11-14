@@ -154,6 +154,7 @@ jobs:
             $mainWindowText.Contains('_compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…"'),
             $connectBody.Contains('StartupActivationRecovery.ActivateAsync'),
             $connectBody.Contains('SetCompactAccessText(AccessLabel(access))'),
+            $connectBody.Contains('catch (Exception error) when (EntitlementCheckRecovery.IsTransient(error))'),
             -not $connectBody.Contains('var access = await _api.ActivatePlaybackAsync()'),
             $startGateText.Contains('!compactStarting'),
             $supervisorLauncherText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync'),
