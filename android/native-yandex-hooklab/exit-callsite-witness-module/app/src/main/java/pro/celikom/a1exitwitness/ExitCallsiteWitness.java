@@ -143,6 +143,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean passportDecryptOutcomeHooked;
     private final java.util.concurrent.atomic.AtomicInteger passportDecryptOutcomeEvents =
         new java.util.concurrent.atomic.AtomicInteger();
+    private boolean postLoginPipelineHooked;
+    private final java.util.concurrent.atomic.AtomicInteger postLoginPipelineEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
     private boolean postLoginFlowHooked;
     private final java.util.concurrent.atomic.AtomicInteger postLoginFlowEvents =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -3058,14 +3061,71 @@ public final class ExitCallsiteWitness extends XposedModule {
     private synchronized void observeOriginalPostLoginReceipts(Activity activity) {
         if (activity == null || !PACKAGE.equals(Application.getProcessName())
                 || !"ENTRY_ACTIVITY".equals(activityFamily(activity))
-                || (postLoginFlowHooked && postLoginPublishHooked
-                    && postLoginConsumeHooked && postLoginNativeRouteHooked)
+                || (postLoginPipelineHooked && postLoginFlowHooked
+                    && postLoginPublishHooked && postLoginConsumeHooked
+                    && postLoginNativeRouteHooked)
                 || postLoginHookAttempts.incrementAndGet() > 3) return;
         ClassLoader loader = activity.getClass().getClassLoader();
         if (loader == null) loader = activity.getClassLoader();
         if (loader == null) {
             emit("POSTLOGIN_HOOK", "ENTRY", "NO_LOADER");
             return;
+        }
+        // Original 2025 qY5 coroutine: classify only the finite state label
+        // and terminal result subtype. The continuation label is an int, not
+        // an account/token; never read its captured fields or the result body.
+        // This distinguishes missing-token, user-info and sync boundaries
+        // without faking a login or calling the vendor coroutine ourselves.
+        if (!postLoginPipelineHooked) {
+            try {
+                Class<?> owner = Class.forName("qY5", false, loader);
+                Class<?> passportUser =
+                    Class.forName("com.yandex.passport.api.n0", false, loader);
+                Class<?> continuation = Class.forName("Oe2", false, loader);
+                Class<?> resumed = Class.forName("nY5", false, loader);
+                Field stateField = resumed.getDeclaredField("continue");
+                stateField.setAccessible(true);
+                Method m = owner.getDeclaredMethod("if", owner, boolean.class,
+                    passportUser, continuation);
+                hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        String stage = "INITIAL";
+                        try {
+                            Object frame = chain.getArg(3);
+                            if (resumed.isInstance(frame)) {
+                                int state = stateField.getInt(frame) & Integer.MAX_VALUE;
+                                stage = state == 1 ? "AFTER_TOKEN_REQUEST" :
+                                    state == 2 ? "AFTER_USERINFO_REQUEST" :
+                                    state == 3 ? "AFTER_SYNC" : "OTHER_STAGE";
+                            }
+                        } catch (Throwable ignored) { stage = "UNKNOWN_STAGE"; }
+                        Object result;
+                        try {
+                            result = chain.proceed();
+                        } catch (Throwable failure) {
+                            if (postLoginPipelineEvents.incrementAndGet() <= 32)
+                                emit("LOGIN_PIPELINE_RESULT", stage, "THREW");
+                            throw failure;
+                        }
+                        try {
+                            if (postLoginPipelineEvents.incrementAndGet() <= 32) {
+                                String type = result == null ? "" :
+                                    result.getClass().getName();
+                                String category =
+                                    "qY5$a$a".equals(type) ? "NO_USERINFO_RESULT" :
+                                    "qY5$a$b".equals(type) ? "EXTERNAL_HANDOFF" :
+                                    "qY5$a$c".equals(type) ? "USERINFO_READY" :
+                                    "NONTERMINAL_OR_OTHER";
+                                emit("LOGIN_PIPELINE_RESULT", stage, category);
+                            }
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                postLoginPipelineHooked = true;
+                emit("POSTLOGIN_HOOK", "PIPELINE", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("POSTLOGIN_HOOK", "PIPELINE", "NO_HOOK");
+            }
         }
         // Original LoginFragment flow emission: only class identity, never
         // a user-info object, result payload, URL, token, account or exception.

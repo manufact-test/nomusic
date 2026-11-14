@@ -38,6 +38,29 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
           'POSTLOGIN_MAIN_ROUTE'):
             self.assertIn(snippet,s)
 
+    def test_exact_original_coroutine_terminal_stage_is_readonly(self):
+        s=self.code
+        start=s.index('private synchronized void observeOriginalPostLoginReceipts(')
+        end=s.index('// Original LoginFragment flow emission:',start)
+        part=s[start:end]
+        self.assertIn('Class.forName("qY5", false, loader)',part)
+        self.assertIn('Class.forName("nY5", false, loader)',part)
+        self.assertIn('getDeclaredField("continue")',part)
+        self.assertIn('"if", owner, boolean.class,',part)
+        self.assertIn('chain.getArg(3)',part)
+        self.assertIn('stateField.getInt(frame) & Integer.MAX_VALUE',part)
+        self.assertIn('"AFTER_TOKEN_REQUEST"',part)
+        self.assertIn('"AFTER_USERINFO_REQUEST"',part)
+        self.assertIn('"AFTER_SYNC"',part)
+        self.assertIn('postLoginPipelineEvents.incrementAndGet() <= 32',part)
+        self.assertIn('emit("LOGIN_PIPELINE_RESULT", stage, category)',part)
+        self.assertIn('emit("POSTLOGIN_HOOK", "PIPELINE", "REGISTERED")',part)
+        self.assertIn('throw failure;',part)
+        self.assertIn('return result;',part)
+        self.assertNotIn('.getMessage()',part)
+        self.assertNotIn('.getPassword(',part)
+        self.assertNotIn('chain.proceed(new Object',part)
+
     def test_exact_original_flow_subtype_witness_is_bounded_and_readonly(self):
         s=self.code
         start=s.index('private synchronized void observeOriginalPostLoginReceipts(')
