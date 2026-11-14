@@ -101,8 +101,30 @@ public static class AppUpdateManager
         catch { return false; }
     }
 
+    // Staff/manual updates obey the same no-music-interruption rule as the
+    // future stable updater. Unknown process state fails closed.
+    public static bool CanLaunchWithoutPlaybackInterrupt(bool bridgeEnabled)
+    {
+        if (bridgeEnabled || !OperatingSystem.IsWindows()) return false;
+        try
+        {
+            var hosts = Process.GetProcessesByName("Яндекс Музыка");
+            try { return hosts.Length == 0; }
+            finally { foreach (var host in hosts) host.Dispose(); }
+        }
+        catch { return false; }
+    }
+
+    public static void ClearPending()
+    {
+        try { if (File.Exists(TicketPath)) File.Delete(TicketPath); }
+        catch { /* Pending ticket still expires; no installer was executed. */ }
+    }
+
     public static void Launch(StagedInstaller item)
     {
+        if (!CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: false))
+            throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
         // Invoke the installed application's normal Inno AppId upgrade path,
         // never the uninstaller. The installer restarts the new app with
         // --complete-update via a custom explicit-upgrade Inno parameter.

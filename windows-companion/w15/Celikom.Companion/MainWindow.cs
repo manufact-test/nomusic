@@ -1198,11 +1198,13 @@ public sealed partial class MainWindow : Form
                 " → " + staged.Version.ToString(3) + "\n\n" +
                 "Обновим ЭТО ЖЕ приложение в Windows, без удаления и нового входа. " +
                 "Затем проверим и при необходимости обновим модуль внутри Яндекса. " +
-                "Яндекс может перезапуститься.\n\n" +
+                "Воспроизведение не будет прервано: обновление начнётся только после закрытия Яндекса.\n\n" +
                 "Используй только ZIP, скачанный из нашего GitHub (сборки пока без цифровой подписи).",
                 "Обновить CELIKOM",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (agree != DialogResult.Yes) return;
+            if (!AppUpdateManager.CanLaunchWithoutPlaybackInterrupt(_bridge.Enabled))
+                throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
             AppUpdateManager.MarkPending(staged.Version);
             AppUpdateManager.Launch(staged);
             DiagnosticLog.Record("APP_UPDATE_INSTALLER_LAUNCHED");
@@ -1212,9 +1214,12 @@ public sealed partial class MainWindow : Form
             System.IO.InvalidDataException or System.ComponentModel.Win32Exception or
             InvalidOperationException or ArgumentException)
         {
+            AppUpdateManager.ClearPending();
             DiagnosticLog.Record("APP_UPDATE_FAILED");
             var message = ex.Message switch
             {
+                "UPDATE_DEFER_YANDEX_RUNNING" =>
+                    "Обновление не запускалось. Закончи прослушивание и закрой Яндекс.Музыку, затем повтори обновление.",
                 "UPDATE_NOT_NEWER" => "Этот ZIP содержит старую или уже установленную версию. Скачай более новую.",
                 "UPDATE_NOT_CELIKOM" => "Файл не похож на подходящий установщик CELIKOM. Обновление остановлено.",
                 "UPDATE_PACKAGE_INVALID" or "UPDATE_FILE_INVALID" =>
@@ -1235,9 +1240,24 @@ public sealed partial class MainWindow : Form
     private async Task CompleteApplicationUpdateAsync()
     {
         if (!AppUpdateManager.TryConsumePending(AppUpdateManager.RunningVersion)) return;
-        DiagnosticLog.Record("APP_UPDATE_COMPLETED");
-        if (_nativeInstallState != NativeInstallState.Active || _installedModule.MatchesApplication)
+        // A ticket proves only that the new executable relaunched. It does
+        // NOT prove signed-install health, native bridge/audio or rollback.
+        DiagnosticLog.Record("APP_UPDATE_NEW_EXE_STARTED");
+        if (!_bridgeStarted)
+        {
+            DiagnosticLog.Record("APP_UPDATE_LOCAL_BRIDGE_UNAVAILABLE");
             return;
+        }
+        if (_nativeInstallState != NativeInstallState.Active)
+        {
+            DiagnosticLog.Record("APP_UPDATE_NATIVE_CHECK_PENDING");
+            return;
+        }
+        if (_installedModule.MatchesApplication)
+        {
+            DiagnosticLog.Record("APP_UPDATE_NATIVE_VERSION_MATCHED");
+            return;
+        }
         _integrationBusy = true;
         UpdateSafe();
         try
@@ -1248,12 +1268,9 @@ public sealed partial class MainWindow : Form
                 NativeIntegrationManager.Upgrade();
             });
             DiagnosticLog.Record("APP_UPDATE_NATIVE_REFRESH_OK");
-            // An upgrade must not restart native playback from a locally
-            // remembered login. The owner presses Start for a fresh check.
+            // An app update must not launch Yandex or restart music.
+            // The owner presses Start later for a fresh entitlement check.
             _bridge.SetEnabled(false);
-            var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory, "Яндекс Музыка.exe");
-            try { Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true }); }
-            catch { /* Owner can open Yandex normally. */ }
         }
         catch (Exception error)
         {
@@ -1267,6 +1284,11 @@ public sealed partial class MainWindow : Form
         {
             _integrationBusy = false;
             await RefreshHostAsync();
+            DiagnosticLog.Record(_bridgeStarted &&
+                _nativeInstallState == NativeInstallState.Active &&
+                _installedModule.MatchesApplication
+                ? "APP_UPDATE_NATIVE_VERSION_MATCHED"
+                : "APP_UPDATE_NATIVE_CHECK_PENDING");
             UpdateSafe();
         }
     }
