@@ -98,7 +98,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
                          '"OTHER_NONFAILURE_RESULT"', '"PASSPORT_API_A"',
                          '"PASSPORT_API_B"', '"SECURITY"', '"NETWORK_OR_IO"'):
             self.assertIn(category,part)
-        self.assertIn('return chain.proceed();',part)
+        self.assertIn('result = chain.proceed();',part)
         self.assertIn('return result;',part)
         for forbidden in ('getMessage()', 'getStackTrace()', 'getPassword(',
                           '.toString()', '.setResult(', '.startActivity(',
