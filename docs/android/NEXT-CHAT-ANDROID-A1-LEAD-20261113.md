@@ -412,3 +412,20 @@ The owner copied values from text files. To make the import robust to Windows CR
 The workflow's two manual inputs remain false by default. When ready to export the next diagnostic APK, the owner must run the existing workflow via Actions → `CELIKOM A1 readonly AppMetrica lifecycle ARM13 no suppression`, select the working branch, and set both `export_diagnostic_apk=true` and `authorize_fresh_clone_install=true`. This is an explicit one-time export/install gate; it does not uninstall anything on the phone. The eventual installation removes only the diagnostic CELIKOM clone and may lose that clone's local data/account. The original publisher Yandex must remain installed and untouched. Do not request another OTP until the signed diagnostic APK is built, checksummed and delivered.
 
 No APK was exported in the runs above. No owner phone or account was touched. Test.50, Windows and production remain untouched.
+
+
+## Final correction — #43592027144 completed SUCCESS (14 Nov 2026)
+
+The latest source-validation and native paired ARM13 run has now completed successfully:
+
+- Workflow #43592027144 — SUCCESS, source commit `73726716e118cd21ab1dd5615d9c512b41c36f3f`.
+- Persistent signer regression suite: 6/6 passed, including `test_accepts_text_file_trailing_newlines_in_secrets` with actual CRLF characters. The source gate completed successfully.
+- Sanitized native report: `owner_apk_signer_provenance=PERSISTENT_OWNER_SIGNER`, `owner_apk_signer_verified=true`, SHA-256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
+- Original publisher installed first and remained installed; clone installed; publisher-first pair passed; clone MAIN stable for 75 seconds with 25/25 lifecycle observations.
+- `ACTIVITY_RESULT_DELIVERY_HOOK`, `MASTER_TOKEN_READ_HOOK`, `MASTER_TOKEN_DECRYPT_HOOK`, and `ONBOARDING_WRITER_HOOK` all report `REGISTERED`; original master key reports `ORIGINAL_KEY_PERSISTED`; no uncaught exception and no Metrica fatal suppression.
+- This remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. No real Passport login, owner account, OTP, or audio was tested. Stage A remains NO-GO; Stage B remains LOCKED.
+- The run was a push event, so `owner_apk_install_mode=BLOCKED` was expected. No diagnostic APK/artifact was exported; no owner phone or account was touched.
+
+The documentation refresh itself is a separate docs-only commit. At the start of this addendum the branch HEAD was `a4c8a2b7c82f0f80e58a8b8cff778c5dc923fc62`; exact backup: `backup/android-a1-owner-signer-docs-current-20261114` at the same commit. Do not confuse the documentation HEAD with the tested source commit `73726716e118cd21ab1dd5615d9c512b41c36f3f`.
+
+Next action remains a manual `workflow_dispatch` after this successful gate: select the working branch and set both `export_diagnostic_apk=true` and `authorize_fresh_clone_install=true`. This will export a private diagnostic APK only; it does not prove or release a working music product. Keep the original Yandex untouched and do not request another OTP until the signed APK is ready.
