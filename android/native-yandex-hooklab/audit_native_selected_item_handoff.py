@@ -62,6 +62,7 @@ SOURCE_METHODS = {
     ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
     ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"),
     ("Lcq7;", "i0"), ("Lga4;", "d"), ("Ljm4;", "for"),
+    ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
 }
 MAX_DEX = 6
 MAX_FIELDS = 80
@@ -487,7 +488,7 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
 
 
 def class_instantiation_and_flow_collect_sites(dex: Dex, method, code_off: int):
-    targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;"}
+    targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;", "Lam4;"}
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
@@ -578,6 +579,7 @@ def inspect_signed(apks):
     player_method_refs = set()
     model_flow_candidates = []
     wrapper_methods = set()
+    flow_source_interface_methods = set()
     target_callers = []
     focused_method_traces = []
     flow_dispatcher_instantiation_sites = []
@@ -585,7 +587,8 @@ def inspect_signed(apks):
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
-        ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for")
+        ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for"),
+        ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -618,7 +621,7 @@ def inspect_signed(apks):
                     album_methods, reads = class_member_field_reads(dex, ALBUM_MODEL)
                     album_accessor_field_reads.extend(reads)
                 for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;",
-                                     "LGl4;", "Ljm4;", "Lk1a;"):
+                                     "LGl4;", "Ljm4;", "Lk1a;", "Lam4;"):
                     if target_class in defined:
                         flow_dispatcher_class_fields[target_class] = [
                             {"field": name, "type": typ}
@@ -632,6 +635,8 @@ def inspect_signed(apks):
                         wrapper_methods.add(method)
                     if method[0] in PLAYER_OWNERS and method[1] in PLAYER_METHODS:
                         player_method_refs.add(method)
+                    if method[0] == "LGl4;":
+                        flow_source_interface_methods.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
                     if (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
@@ -737,6 +742,10 @@ def inspect_signed(apks):
         "track_id_wrapper_constructor_callsites": wrapper_constructor_callsites,
         "selected_item_source_target_callers": target_callers,
         "flow_dispatcher_class_fields": flow_dispatcher_class_fields,
+        "flow_source_interface_methods": [
+            {"owner": x[0], "method": x[1], "signature": x[2]}
+            for x in sorted(flow_source_interface_methods)[:MAX_METHODS]
+        ],
         "flow_dispatcher_instantiation_and_collect_sites": flow_dispatcher_instantiation_sites,
         "focused_native_model_to_wrapper_method_traces": focused_method_traces,
         "descriptor_builder_callers": descriptor_builder_callers,
