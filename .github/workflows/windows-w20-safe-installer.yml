@@ -164,18 +164,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = (Resolve-Path -LiteralPath $env:CELIKOM_STAGE_INSTALLER).Path
           $exeName = Split-Path $exe -Leaf
-          $version = $env:CELIKOM_STAGE_FILE_VERSION -replace '\.0
-      - name: Retain INTERNAL staging build, not a release
-        uses: actions/upload-artifact@v4
-        with:
-          name: CELIKOM-Windows-internal-stage-${{ github.sha }}
-          path: |
-            ${{ env.CELIKOM_STAGE_INSTALLER }}
-            ${{ env.CELIKOM_STAGE_ZIP }}
-            windows-companion/w20/output/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 10
-, ''
+          $version = $env:CELIKOM_STAGE_FILE_VERSION -replace '\.0$', ''
           $zip = "windows-companion/w20/output/CELIKOM-Windows-$version.zip"
           if (Test-Path -LiteralPath $zip) { throw 'W137_STAGE_ZIP_ALREADY_EXISTS' }
           Compress-Archive -LiteralPath $exe -DestinationPath $zip -CompressionLevel Optimal
@@ -199,6 +188,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: CELIKOM-Windows-internal-stage-${{ github.sha }}
-          path: ${{ env.CELIKOM_STAGE_INSTALLER }}
+          path: |
+            ${{ env.CELIKOM_STAGE_INSTALLER }}
+            ${{ env.CELIKOM_STAGE_ZIP }}
+            windows-companion/w20/output/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 10
