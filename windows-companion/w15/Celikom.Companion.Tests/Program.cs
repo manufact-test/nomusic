@@ -21,10 +21,12 @@ try
     // single rollback attempt before a new app can be accepted as healthy.
     // Test verifier is intentionally synthetic; PrepareSigned in production
     // always requires Authenticode, pinned signer + exact PE checks.
-    var rollbackRoot = Path.Combine(folder, "rollback-vault");
+    var rollbackFixtureRoot = Path.Combine(Path.GetTempPath(),
+        "celikom-w109-contract-" + Guid.NewGuid().ToString("N"));
+    var rollbackRoot = Path.Combine(rollbackFixtureRoot, "rollback-vault");
     Directory.CreateDirectory(rollbackRoot);
-    var previousSetup = Path.Combine(folder, "previous-fixture.exe");
-    var nextSetup = Path.Combine(folder, "next-fixture.exe");
+    var previousSetup = Path.Combine(rollbackFixtureRoot, "previous-fixture.exe");
+    var nextSetup = Path.Combine(rollbackFixtureRoot, "next-fixture.exe");
     var previousBytes = new byte[12_345];
     var nextBytes = new byte[12_678];
     for (var n = 0; n < previousBytes.Length; n++) previousBytes[n] = (byte)(n % 251);
@@ -115,7 +117,7 @@ try
     catch (IOException e) when (e.Message == "STABLE_ROLLBACK_HEALTH_NOT_PROVEN")
     { deniedMissingNativeHealth = true; }
     Test(deniedMissingNativeHealth, "W109 health acceptance requires all prior-state evidence");
-    var acceptedRoot = Path.Combine(folder, "rollback-happy");
+    var acceptedRoot = Path.Combine(rollbackFixtureRoot, "rollback-happy");
     var accepted = StableUpdateRollbackJournal.PrepareCore(
         acceptedRoot, previousRelease, previousSetup, targetRelease, nextSetup,
         testSignerPin, previousRelease.Version, rollbackAt,
@@ -210,6 +212,9 @@ try
         or "STABLE_ROLLBACK_RECORD_INVALID")
     { tamperedJournalDenied = true; }
     Test(tamperedJournalDenied, "W109 encrypted rollback transaction rejects modification");
+    // Isolate all W109 fixtures from legacy W15 SessionStore tests that
+    // explicitly require the account folder to contain only session.dpapi.
+    Directory.Delete(rollbackFixtureRoot, recursive: true);
 
     // W105: exact byte stream, SHA256 and signature all have to succeed
     // before a staged installer may ever be considered executable.
