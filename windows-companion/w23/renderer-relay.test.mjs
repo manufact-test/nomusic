@@ -265,6 +265,36 @@ test("W99 verified CELIKOM source-left schedules one bounded current-track recov
   r.handlers.beforeunload();
 });
 
+test("W131 verified source-left invalidates stale mapping before VPN state-off",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const initial=r.window.__celikomBridgeNativeDrain();
+  assert.equal(initial.length,1);
+  r.window.__celikomBridgeNativeReceive(initial[0].requestId,makeGrant("123"));
+  assert.ok((await first).downloadInfo.url.includes("/api/v1/audio/123?"));
+
+  // Main-process CDP invokes this only after proving that the current decoder
+  // left its previously verified CELIKOM signed source.
+  assert.equal(r.window.__celikomBridgeNativeRecoverSourceLeft("123"),true);
+  // A VPN/entitlement state transition races the scheduled recovery. Because
+  // the decoder is already on the original source, Stop must not issue a
+  // second QUALITY_CHANGE reload that would interrupt it with an audible pop.
+  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  await tick();await tick();
+  assert.deepEqual(player.reloadReasons,[]);
+  assert.equal(player.state.playerState.progress.value.position,82.25);
+  assert.equal(player.state.playerState.status.value,"playing");
+  const codes=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(codes.includes("SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED"));
+  assert.ok(codes.includes("NATIVE_ORIGINAL_SOURCE_NO_RELOAD"));
+  assert.ok(!codes.includes("NATIVE_ORIGINAL_SOURCE_RESTORE"));
+  r.handlers.beforeunload();
+});
+
 test("W89 unfetched signed source: exactly one current-track native reload, preserve queue, position and pause",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
