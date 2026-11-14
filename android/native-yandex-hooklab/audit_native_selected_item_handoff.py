@@ -61,7 +61,7 @@ SOURCE_METHODS = {
     ("LGp0;", "new"), ("Lou3;", "new"),
     ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
     ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"),
-    ("Lcq7;", "i0"), ("Lga4;", "d"),
+    ("Lcq7;", "i0"), ("Lga4;", "d"), ("Ljm4;", "for"),
 }
 MAX_DEX = 6
 MAX_FIELDS = 80
@@ -487,7 +487,7 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
 
 
 def class_instantiation_and_flow_collect_sites(dex: Dex, method, code_off: int):
-    targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;"}
+    targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;"}
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
@@ -585,7 +585,7 @@ def inspect_signed(apks):
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
-        ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>")
+        ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -617,7 +617,8 @@ def inspect_signed(apks):
                             raise ValueError("ALBUM_FIELD_LIMIT")
                     album_methods, reads = class_member_field_reads(dex, ALBUM_MODEL)
                     album_accessor_field_reads.extend(reads)
-                for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;"):
+                for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;",
+                                     "LGl4;", "Ljm4;", "Lk1a;"):
                     if target_class in defined:
                         flow_dispatcher_class_fields[target_class] = [
                             {"field": name, "type": typ}
