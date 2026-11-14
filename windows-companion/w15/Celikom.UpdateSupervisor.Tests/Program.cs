@@ -12,12 +12,18 @@ var guid = Guid.NewGuid();
 
 StableUpdateRollbackJournal.Record NewRecord(
     StableUpdateRollbackJournal.Phase phase) =>
-    new(1, guid, phase, "0.24.36.0", "0.24.37.0",
+    new(2, guid, phase, "0.24.36.0", "0.24.37.0",
         new string('a', 64), new string('b', 64),
         new string('c', 64), 40_000, 42, 43,
         start.AddMinutes(10).ToUnixTimeSeconds(), 0,
         ExpectedSession: true, NativeWasInstalled: true,
-        SessionIdentitySha256: new string('d', 64));
+        SessionIdentitySha256: new string('d', 64),
+        PreviousApplicationSha256: new string('1', 64),
+        TargetApplicationSha256: new string('2', 64),
+        PreviousNativeHostSha256: new string('3', 64),
+        TargetNativeHostSha256: new string('4', 64),
+        PreviousRendererSha256: new string('5', 64),
+        TargetRendererSha256: new string('6', 64));
 
 var valid = new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true);
 var notReady = new StableUpdateRollbackJournal.HealthEvidence(false, false, false, false);
@@ -56,6 +62,9 @@ Check(await engine.TickAsync(start.AddMinutes(12)) == UpdateSupervisorEngine.Ste
 Check(await engine.TickAsync(start.AddMinutes(13)) == UpdateSupervisorEngine.Step.Waiting,
       "rollback installer start is not mistaken for actual restored health");
 probe.Evidence = valid;
+probe.ObservedApplicationSha256 = new string('1', 64);
+probe.ObservedNativeHostSha256 = new string('3', 64);
+probe.ObservedRendererSha256 = new string('5', 64);
 Check(await engine.TickAsync(start.AddMinutes(14)) ==
         UpdateSupervisorEngine.Step.PreviousVersionRestored &&
       journal.Current.State == StableUpdateRollbackJournal.Phase.Restored &&
@@ -81,6 +90,18 @@ goodProbe.Evidence = signedNoBridge;
 Check(await good.TickAsync(start.AddSeconds(7)) == UpdateSupervisorEngine.Step.Waiting,
       "running signed target without authenticated local bridge is NOT healthy");
 goodProbe.Evidence = valid;
+goodProbe.ObservedNativeHostSha256 = new string('f', 64);
+Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
+      "W112 a mismatched installed native host is not healthy");
+goodProbe.ObservedNativeHostSha256 = new string('4', 64);
+goodProbe.ObservedRendererSha256 = new string('f', 64);
+Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
+      "W112 a mismatched installed renderer is not healthy");
+goodProbe.ObservedRendererSha256 = new string('6', 64);
+goodProbe.ObservedApplicationSha256 = new string('f', 64);
+Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
+      "W112 a mismatched installed executable is not healthy");
+goodProbe.ObservedApplicationSha256 = new string('2', 64);
 goodProbe.ObservedSessionFingerprint = new string('e', 64);
 Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
       "a new readable account is not the original DPAPI login");
@@ -201,12 +222,23 @@ sealed class FakeProbe : ISupervisorHealthProbe
         new(false, false, false, false);
     public bool Safe { get; set; }
     public string ObservedSessionFingerprint { get; set; } = new string('d', 64);
+    public string ObservedApplicationSha256 { get; set; } = new string('2', 64);
+    public string ObservedNativeHostSha256 { get; set; } = new string('4', 64);
+    public string ObservedRendererSha256 { get; set; } = new string('6', 64);
 
     public Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
         Version expected, string originalSessionFingerprint,
-        CancellationToken cancellationToken) =>
+        string expectedApplicationSha256, string expectedNativeHostSha256,
+        string expectedRendererSha256, CancellationToken cancellationToken) =>
         Task.FromResult(Evidence with
         {
+            ExactSignedNewExe = Evidence.ExactSignedNewExe &&
+                string.Equals(ObservedApplicationSha256, expectedApplicationSha256,
+                    StringComparison.Ordinal) &&
+                string.Equals(ObservedNativeHostSha256, expectedNativeHostSha256,
+                    StringComparison.Ordinal) &&
+                string.Equals(ObservedRendererSha256, expectedRendererSha256,
+                    StringComparison.Ordinal),
             SessionPreserved = Evidence.SessionPreserved &&
                 string.Equals(ObservedSessionFingerprint, originalSessionFingerprint,
                     StringComparison.Ordinal)

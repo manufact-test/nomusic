@@ -16,14 +16,17 @@ public static class StableUpdateManifestVerifier
     public sealed record VerifiedRelease(
         Version Version, long Sequence, Uri PackageUri,
         long PackageSize, string Sha256, DateTimeOffset ExpiresAt,
-        bool Mandatory, string Notes, Version? RollbackFrom = null);
+        bool Mandatory, string Notes, Version? RollbackFrom = null,
+        string ApplicationSha256 = "", string NativeHostSha256 = "",
+        string RendererSha256 = "");
 
     private sealed record Manifest(
         int Schema, string? Channel, string? Version, long Sequence,
         string? PackageUrl, long PackageSize, string? Sha256,
         string? Publisher, string? PublishedAt, string? ExpiresAt,
         string? MinimumVersion, bool Mandatory, string? Notes,
-        JsonElement? Rollback);
+        JsonElement? Rollback, string? ApplicationSha256,
+        string? NativeHostSha256, string? RendererSha256);
 
     public static VerifiedRelease Verify(
         byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
@@ -59,7 +62,7 @@ public static class StableUpdateManifestVerifier
         {
             throw new InvalidDataException("STABLE_MANIFEST_JSON_INVALID");
         }
-        if (raw is null || raw.Schema != 1 || raw.Channel != "stable" ||
+        if (raw is null || raw.Schema != 2 || raw.Channel != "stable" ||
             raw.Publisher != "CELIKOM" || raw.Sequence <= lastAcceptedSequence ||
             raw.Sequence <= 0)
             throw new InvalidDataException("STABLE_MANIFEST_POLICY_INVALID");
@@ -102,8 +105,10 @@ public static class StableUpdateManifestVerifier
             throw new InvalidDataException("STABLE_MANIFEST_EXPIRED");
 
         if (raw.PackageSize is < 10_000 or > 125_000_000 ||
-            raw.Sha256 is not { Length: 64 } ||
-            !Regex.IsMatch(raw.Sha256, "^[a-f0-9]{64}$", RegexOptions.CultureInvariant) ||
+            !ValidSha256(raw.Sha256) ||
+            !ValidSha256(raw.ApplicationSha256) ||
+            !ValidSha256(raw.NativeHostSha256) ||
+            !ValidSha256(raw.RendererSha256) ||
             !Uri.TryCreate(raw.PackageUrl, UriKind.Absolute, out var url) ||
             !officialOrigin.IsAbsoluteUri ||
             officialOrigin.Scheme != Uri.UriSchemeHttps ||
@@ -121,8 +126,13 @@ public static class StableUpdateManifestVerifier
         if (raw.Notes is { Length: > 240 })
             throw new InvalidDataException("STABLE_MANIFEST_NOTES_INVALID");
         return new VerifiedRelease(target, raw.Sequence, url, raw.PackageSize,
-            raw.Sha256!, expires, raw.Mandatory, raw.Notes ?? "", rollbackFrom);
+            raw.Sha256!, expires, raw.Mandatory, raw.Notes ?? "", rollbackFrom,
+            raw.ApplicationSha256!, raw.NativeHostSha256!, raw.RendererSha256!);
     }
+
+    private static bool ValidSha256(string? value) =>
+        value is { Length: 64 } &&
+        Regex.IsMatch(value, "^[a-f0-9]{64}$", RegexOptions.CultureInvariant);
 
     private static bool TryVersion(string? text, out Version result)
     {

@@ -18,14 +18,25 @@ namespace Celikom.UpdateSupervisor;
 public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
     : ISupervisorHealthProbe
 {
-    private static readonly string InstalledExe = Path.Combine(
+    private static readonly string InstallRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Programs", "CELIKOM", "CELIKOM.Companion.exe");
+        "Programs", "CELIKOM");
+    private static readonly string InstalledExe =
+        Path.Combine(InstallRoot, "CELIKOM.Companion.exe");
+    private static readonly string InstalledNativeHost =
+        Path.Combine(InstallRoot, "integration", "host.cjs");
+    private static readonly string InstalledRenderer =
+        Path.Combine(InstallRoot, "integration", "renderer.js");
+
     public async Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
         Version expected, string originalSessionFingerprint,
-        CancellationToken cancellationToken)
+        string expectedApplicationSha256, string expectedNativeHostSha256,
+        string expectedRendererSha256, CancellationToken cancellationToken)
     {
-        var installedAndRunning = IsExpectedSignedProcess(expected);
+        // The manifest pins the exact bytes of all files copied by Inno Setup.
+        var installedAndRunning = IsExpectedSignedProcess(expected,
+            expectedApplicationSha256, expectedNativeHostSha256,
+            expectedRendererSha256);
         // A fresh session.dpapi is decryptable but is NOT preserved login.
         var session = SignedUpdateSessionIdentity.ReadExisting();
         var sessionPreserved = originalSessionFingerprint.Length == 64 &&
@@ -67,10 +78,15 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
             UnauthorizedAccessException) { return false; }
     }
 
-    private bool IsExpectedSignedProcess(Version expected)
+    private bool IsExpectedSignedProcess(Version expected,
+        string applicationSha256, string nativeHostSha256, string rendererSha256)
     {
-        if (!OperatingSystem.IsWindows() || !File.Exists(InstalledExe) ||
-            !IsExpectedSignedExecutable(InstalledExe, expected))
+        if (!OperatingSystem.IsWindows() ||
+            !StableUpdatePayloadVerifier.MatchesFile(InstalledNativeHost,
+                nativeHostSha256, 32_000_000) ||
+            !StableUpdatePayloadVerifier.MatchesFile(InstalledRenderer,
+                rendererSha256, 32_000_000) ||
+            !IsExpectedSignedExecutable(InstalledExe, expected, applicationSha256))
             return false;
         try
         {
@@ -93,11 +109,13 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
         return false;
     }
 
-    private bool IsExpectedSignedExecutable(string path, Version expected)
+    private bool IsExpectedSignedExecutable(string path, Version expected,
+        string expectedApplicationSha256)
     {
         try
         {
-            if (new FileInfo(path).Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+            if (!StableUpdatePayloadVerifier.MatchesFile(path,
+                    expectedApplicationSha256) ||
                 !NativeHostSignature.IsValid(path))
                 return false;
             var pe = FileVersionInfo.GetVersionInfo(path);

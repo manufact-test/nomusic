@@ -30,7 +30,10 @@ public static class StableUpdateRollbackJournal
         string SignerSha256, long PreviousSize, long PreviousSequence,
         long TargetSequence, long DeadlineUnix, int RollbackAttempts,
         bool ExpectedSession, bool NativeWasInstalled,
-        string SessionIdentitySha256 = "");
+        string SessionIdentitySha256 = "",
+        string PreviousApplicationSha256 = "", string TargetApplicationSha256 = "",
+        string PreviousNativeHostSha256 = "", string TargetNativeHostSha256 = "",
+        string PreviousRendererSha256 = "", string TargetRendererSha256 = "");
 
     private const string TicketName = "stable-update-rollback.dpapi";
     private const string PreviousName = "previous-signed-setup.exe";
@@ -85,6 +88,9 @@ public static class StableUpdateRollbackJournal
             target.RollbackFrom != null || previous.RollbackFrom != null ||
             !ValidSha(previous.Sha256) || !ValidSha(target.Sha256) ||
             !ValidSha(pinnedSignerSha256) ||
+            !ValidSha(previous.ApplicationSha256) || !ValidSha(target.ApplicationSha256) ||
+            !ValidSha(previous.NativeHostSha256) || !ValidSha(target.NativeHostSha256) ||
+            !ValidSha(previous.RendererSha256) || !ValidSha(target.RendererSha256) ||
             previous.PackageSize is < 10_000 or > 125_000_000 ||
             now > target.ExpiresAt)
             throw new IOException("STABLE_ROLLBACK_PLAN_INVALID");
@@ -118,12 +124,15 @@ public static class StableUpdateRollbackJournal
                 output.Flush(flushToDisk: true);
             }
             verify(copied, previous, pinnedSignerSha256);
-            var record = new Record(1, identifier, Phase.Prepared,
+            var record = new Record(2, identifier, Phase.Prepared,
                 previous.Version.ToString(4), target.Version.ToString(4),
                 previous.Sha256, target.Sha256, pinnedSignerSha256,
                 previous.PackageSize, previous.Sequence, target.Sequence,
                 now.AddMinutes(10).ToUnixTimeSeconds(), 0,
-                hasSession, nativeWasInstalled, sessionIdentitySha256);
+                hasSession, nativeWasInstalled, sessionIdentitySha256,
+                previous.ApplicationSha256, target.ApplicationSha256,
+                previous.NativeHostSha256, target.NativeHostSha256,
+                previous.RendererSha256, target.RendererSha256);
             WriteRecord(root, record);
             return record;
         }
@@ -153,8 +162,8 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var current = ReadRecord(root);
-        if (current.Id != expectedId || current.State != expectedPhase ||
-            !Allowed(expectedPhase, nextPhase))
+        if (current.Schema != 2 || current.Id != expectedId ||
+            current.State != expectedPhase || !Allowed(expectedPhase, nextPhase))
             throw new IOException("STABLE_ROLLBACK_TRANSITION_DENIED");
         var attempts = current.RollbackAttempts +
             (nextPhase == Phase.RollbackStarted ? 1 : 0);
@@ -177,8 +186,8 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
-        if (state.Id != id || state.State != Phase.RollbackNeeded ||
-            state.RollbackAttempts != 0)
+        if (state.Schema != 2 || state.Id != id ||
+            state.State != Phase.RollbackNeeded || state.RollbackAttempts != 0)
             throw new IOException("STABLE_ROLLBACK_ALREADY_ATTEMPTED");
         var next = state with
         {
@@ -214,8 +223,8 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
-        if (state.Id != id || state.State != Phase.RollbackStarted ||
-            state.RollbackAttempts != 1 ||
+        if (state.Schema != 2 || state.Id != id ||
+            state.State != Phase.RollbackStarted || state.RollbackAttempts != 1 ||
             !evidence.ExactSignedNewExe || !evidence.BridgeResponds ||
             (state.ExpectedSession && !evidence.SessionPreserved) ||
             (state.NativeWasInstalled && !evidence.NativeIntegrationConsistent))
@@ -228,7 +237,7 @@ public static class StableUpdateRollbackJournal
     public static Decision Decide(Record record, HealthEvidence evidence,
         DateTimeOffset now)
     {
-        if (record.Schema != 1 || record.Id == Guid.Empty ||
+        if (record.Schema != 2 || record.Id == Guid.Empty ||
             record.RollbackAttempts is < 0 or > 1)
             return Decision.ManualRecovery;
         if (record.State is Phase.Healthy or Phase.Restored)
@@ -270,8 +279,8 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
-        if (state.Id != transaction || state.State != Phase.RollbackNeeded ||
-            state.RollbackAttempts != 0 ||
+        if (state.Schema != 2 || state.Id != transaction ||
+            state.State != Phase.RollbackNeeded || state.RollbackAttempts != 0 ||
             !string.Equals(state.SignerSha256, pinnedSignerSha256,
                 StringComparison.OrdinalIgnoreCase) ||
             !Version.TryParse(state.PreviousVersion, out var version) ||
@@ -288,7 +297,10 @@ public static class StableUpdateRollbackJournal
             new Uri("https://celikom.invalid/CELIKOM/Windows/Updates/stable/" +
                     version.ToString(3) + "/previous.exe"),
             state.PreviousSize, state.PreviousSha256,
-            DateTimeOffset.MaxValue, false, "");
+            DateTimeOffset.MaxValue, false, "",
+            ApplicationSha256: state.PreviousApplicationSha256,
+            NativeHostSha256: state.PreviousNativeHostSha256,
+            RendererSha256: state.PreviousRendererSha256);
         verify(previous, release, pinnedSignerSha256);
         return previous;
     }
@@ -348,11 +360,18 @@ public static class StableUpdateRollbackJournal
                 DataProtectionScope.CurrentUser);
             var record = JsonSerializer.Deserialize<Record>(plain);
             CryptographicOperations.ZeroMemory(plain);
-            if (record is null || record.Schema != 1 || record.Id == Guid.Empty ||
+            if (record is null || record.Schema is not (1 or 2) || record.Id == Guid.Empty ||
                 !ValidSha(record.PreviousSha256) || !ValidSha(record.TargetSha256) ||
                 !ValidSha(record.SignerSha256) ||
                 (record.ExpectedSession && !ValidSha(record.SessionIdentitySha256) ||
                  !record.ExpectedSession && record.SessionIdentitySha256 != "") ||
+                (record.Schema == 2 &&
+                 (!ValidSha(record.PreviousApplicationSha256) ||
+                  !ValidSha(record.TargetApplicationSha256) ||
+                  !ValidSha(record.PreviousNativeHostSha256) ||
+                  !ValidSha(record.TargetNativeHostSha256) ||
+                  !ValidSha(record.PreviousRendererSha256) ||
+                  !ValidSha(record.TargetRendererSha256))) ||
                 !Version.TryParse(record.PreviousVersion, out var previous) ||
                 !Version.TryParse(record.TargetVersion, out var target) ||
                 previous >= target || record.PreviousSequence >= record.TargetSequence ||
