@@ -218,6 +218,7 @@ try
         accepted.Id,
         new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true),
         rollbackAt.AddMinutes(2));
+    var acceptedSnapshot = Path.Combine(acceptedRoot, accepted.Id.ToString("N"));
     Test(accepted.State == StableUpdateRollbackJournal.Phase.Healthy &&
          StableUpdateRollbackJournal.Read(acceptedRoot).State ==
              StableUpdateRollbackJournal.Phase.Healthy,
@@ -263,10 +264,15 @@ try
         testSignerPin, targetRelease.Version, rollbackAt.AddHours(1),
         hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
         sessionIdentitySha256: new string('d', 64));
+    var nextSnapshot = Path.Combine(acceptedRoot, nextTransaction.Id.ToString("N"));
     Test(nextTransaction.State == StableUpdateRollbackJournal.Phase.Prepared &&
          nextTransaction.Id != accepted.Id &&
-         StableUpdateRollbackJournal.Read(acceptedRoot).Id == nextTransaction.Id,
-         "W109 completed upgrade allows future signed upgrades without overwriting active rollback");
+         StableUpdateRollbackJournal.Read(acceptedRoot).Id == nextTransaction.Id &&
+         !Directory.Exists(acceptedSnapshot) &&
+         Directory.Exists(nextSnapshot) &&
+         File.Exists(Path.Combine(nextSnapshot, "previous-signed-setup.exe")) &&
+         File.Exists(Path.Combine(nextSnapshot, "target-signed-setup.exe")),
+         "W115 durable new transaction rotates the obsolete snapshot only after copying both verified installers");
     Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(11)) ==
          StableUpdateRollbackJournal.Decision.RequestRollback,
         "W109 timeout requests exact last-known-good package instead of fake success");
