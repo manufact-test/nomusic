@@ -57,11 +57,17 @@ W115 is **rollback-cache groundwork**, not an enabled automatic updater.
 - The main application still has no trusted Supervisor launch callsite.
 - The production P-256 manifest key/public-key pin and Authenticode certificate fingerprint are not provisioned.
 - No official production feed origin or atomic upload target is confirmed.
-- W116 now implements the first signed bootstrap: a version-addressed immutable manifest for the exact installed version is verified, the signed installer is downloaded and Authenticode-checked, all four installed payload hashes are compared, and a DPAPI `Seeded` record stores the initial LKG package. This code is not wired to app startup until production pins and the official feed are configured.
+- W116 implements the first signed bootstrap: a version-addressed immutable manifest for the exact installed version is verified, the signed installer is downloaded and Authenticode-checked, all four installed payload hashes are compared, and a DPAPI `Seeded` record stores the initial LKG package. W117 wires it to MainWindow startup behind the intentionally empty production trust tuple and a Yandex-idle gate; it remains dormant.
 - No real signed update, forced GUI crash, automatic rollback, owner-PC verification or final EXE+ZIP has been produced.
 
 Do not populate pins with guessed values, do not use the Hostinger QA hostname as production, do not run the QA installer workflow as a release, and do not enable automatic installation until the real signed bootstrap and end-to-end rollback test pass.
 
 ## W116 follow-on
 
-The first signed bootstrap is implemented and covered by CI, but remains dormant: no production P-256 key/public-key pin, Authenticode signer fingerprint, official feed origin or main-app callsite is configured. Next provision those release trust inputs, wire `StableUpdateBootstrapper` into the existing app, then connect the verified update flow to the same-user Supervisor. Keep the existing one CELIKOM installer, AppId, install path and user session. Do not create a second product or release intermediate installers.
+The first signed bootstrap is implemented, covered by CI and wired behind a fail-closed startup gate. It remains dormant because production P-256 public-key pin, Authenticode signer fingerprint and official feed origin are not provisioned. Next, after current audio blockers and one coherent owner QA build, connect the signed latest-manifest consumer and trusted same-user Supervisor launch. Keep the existing one CELIKOM installer, AppId, install path and user session. Do not create a second product or release intermediate installers.
+
+## W117 follow-on
+
+- Exact code/test HEAD `5b5a2e0845eb1d9f02400ae382d702c25abedf43`; Main CI [43587767442](https://github.com/manufact-test/nomusic/actions/runs/43587767442) and Windows integration [43587767458](https://github.com/manufact-test/nomusic/actions/runs/43587767458) SUCCESS.
+- The initial LKG bootstrap is now called from MainWindow startup only through the shared trust gate. It is skipped while Yandex is running or the CELIKOM bridge is enabled.
+- Production pins/origin remain empty, so this does not enable network access, automatic install or Supervisor launch in production.

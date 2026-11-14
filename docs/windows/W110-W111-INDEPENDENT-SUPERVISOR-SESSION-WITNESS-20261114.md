@@ -38,3 +38,10 @@
 4. Connect verified app update staging, independent helper launch, safe idle-playback transaction and bounded consumer checking (startup / ~6 hours). Real Windows CI must prove killed-GUI recovery, logged-in session continuity, native module compatibility and one clean old-version restore before release.
 5. Previous W105–W109 docs and W101/W102 policy still control. Need physical owner PC acceptance for VPN A→B, #52 false green «Ты», #53 Brave load, #54 Big City Life mid-track volume dip, #56 gain, #57 403→206 hiss, #58 original audio pop on VPN switch, startup/diagnostics/tray.
 6. Still **no final signed EXE+ZIP**, no intermediate TEST installer, no mass publishing. Do not request new user credentials, passwords, emails or random secrets. Before every substantial change preserve exact `backup/*`, work solely in `main`, then require both CI gates and owner QA.
+
+## W117 follow-on — shared production trust gate
+
+- `StableUpdateTrustConfiguration.cs` is now the single shared trust source for the GUI and independent Supervisor. Production origin, P-256 public-key DER and Authenticode signer fingerprint are intentionally empty; no environment/CLI override is accepted.
+- The Supervisor reads this shared configuration and still exits code 3 before journal access or installer execution while values are empty.
+- MainWindow has a dormant first-LKG bootstrap callsite, gated by the same trust tuple and Yandex-idle check. This is not a Supervisor launch callsite and does not enable automatic updates.
+- Code/test HEAD `5b5a2e0845eb1d9f02400ae382d702c25abedf43`; Main CI [43587767442](https://github.com/manufact-test/nomusic/actions/runs/43587767442) and Windows integration [43587767458](https://github.com/manufact-test/nomusic/actions/runs/43587767458) SUCCESS.

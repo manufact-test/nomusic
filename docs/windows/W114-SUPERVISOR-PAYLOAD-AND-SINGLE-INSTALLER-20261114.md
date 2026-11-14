@@ -69,5 +69,12 @@
 - Exact code/test HEAD: `d1c807dbc2bb748a8a6d692ef0e01b96a5d9f7d5`.
 - Main CI [43585155970](https://github.com/manufact-test/nomusic/actions/runs/43585155970) SUCCESS; Windows integration [43585155942](https://github.com/manufact-test/nomusic/actions/runs/43585155942) SUCCESS.
 - W116 adds the version-addressed immutable manifest/signature output and a bootstrapper that seeds the first signed LKG package for the exact installed version. It verifies the package signer and all four installed payload hashes; it does not launch an installer or touch Yandex.
-- The bootstrapper is not yet called by the main app. Production signing pins and the official stable-feed origin/upload target remain unconfigured.
+- W117 now calls the bootstrapper from MainWindow startup behind the shared empty trust configuration and Yandex-idle gate. Production signing pins and the official stable-feed origin/upload target remain unconfigured; the bootstrap remains dormant.
 - Full details: `docs/windows/W116-FIRST-SIGNED-BOOTSTRAP-AND-IMMUTABLE-VERSION-MANIFEST-20261114.md`.
+
+## W117 follow-on — 14 November 2026
+
+- Code/test HEAD `5b5a2e0845eb1d9f02400ae382d702c25abedf43`; Main CI [43587767442](https://github.com/manufact-test/nomusic/actions/runs/43587767442) and Windows integration [43587767458](https://github.com/manufact-test/nomusic/actions/runs/43587767458) SUCCESS.
+- Shared `StableUpdateTrustConfiguration` now gates both GUI bootstrap and Supervisor. All production values remain empty, and the Supervisor still exits code 3 before reading the journal.
+- The startup bootstrap only verifies/seeds LKG when CELIKOM bridge is disabled and Yandex Music is not running. It does not install, restart or touch audio.
+- This is not the trusted Supervisor launch callsite and does not activate automatic updating.

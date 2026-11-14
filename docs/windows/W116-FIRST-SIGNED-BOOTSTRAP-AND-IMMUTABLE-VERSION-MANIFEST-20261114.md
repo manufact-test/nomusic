@@ -62,9 +62,9 @@ Main CI also passed the JavaScript manifest-generator tests, including immutable
 
 ## Still blocked — no automatic updater is enabled
 
-- Production P-256 private key, client-pinned public-key DER and Authenticode certificate SHA-256 fingerprint are not provisioned. `ProductionSignerCertificateSha256` remains empty; the Supervisor intentionally refuses to launch.
+- Production P-256 public-key pin, Authenticode certificate SHA-256 fingerprint and official feed origin remain unprovisioned. The shared constants in `StableUpdateTrustConfiguration.cs` intentionally remain empty; Supervisor exits code 3 before journal access.
 - Official production HTTPS feed origin and atomic upload destination are not confirmed. Do not assume the Hostinger QA hostname or `celikom.com` is the production feed.
-- W116 bootstrap code is **not wired to MainWindow/startup** until the real trust pins and official origin are provisioned.
+- W117 wires the bootstrap into MainWindow startup, but only behind `TryGetProduction`; with the three shared trust constants empty it is dormant. It also defers while CELIKOM bridge is enabled or Yandex Music is running.
 - The main app still has no trusted same-user Supervisor launch callsite or complete signed latest-manifest/stage/install orchestration.
 - No real production-signed installer/feed, forced GUI crash, automatic one-shot rollback, owner-PC account-preservation or Yandex-idle test has run.
 - No final EXE+ZIP has been built or delivered. No mass release.
@@ -75,8 +75,19 @@ Do not paste private keys into chat or commit them. Do not fill production pins 
 
 1. Provision production P-256/public-key and Authenticode trust through protected release configuration.
 2. Confirm the official HTTPS stable-feed origin and atomic upload target; publish the immutable version package + manifest/signature and mutable latest pointer.
-3. Wire `EnsureInitialLastKnownGoodAsync` into the existing CELIKOM startup only after trust inputs are real.
+3. W117 has wired `EnsureInitialLastKnownGoodAsync` into startup behind a fail-closed trust gate and Yandex-idle check. Do not populate the constants until the owner approves the exact production origin and trust pins.
 4. Wire the normal signed update flow and same-user Supervisor launch, then run a real signed update/forced-crash/one-shot-rollback test with Yandex closed and the existing account preserved.
 5. Only after that produce one final EXE+ZIP for owner QA.
 
 Keep the one existing CELIKOM Windows product, AppId, install path and main branch. Do not create test products or release intermediate installers.
+
+## W117 follow-on — shared trust tuple and dormant startup bootstrap
+
+- Latest code/test HEAD: `5b5a2e0845eb1d9f02400ae382d702c25abedf43`.
+- Main CI [43587767442](https://github.com/manufact-test/nomusic/actions/runs/43587767442) SUCCESS; Windows integration [43587767458](https://github.com/manufact-test/nomusic/actions/runs/43587767458) SUCCESS.
+- Exact pre-W117 rollback: `backup/windows-main-pre-w117-trust-config-bootstrap-wire-20261114` @ `c058d00c4e5f20730552fe5ac3faaf10490279f3`.
+- Additional pre-idle-gate checkpoint: `backup/windows-main-pre-w117-playback-safe-bootstrap-gate-20261114` @ `e0fd39a449096d62b889b64c8d09ea8cb7659f73`.
+- `StableUpdateTrustConfiguration` is the single shared source of production origin, P-256 public key and Authenticode signer fingerprint. Values intentionally remain empty; no environment/CLI/config override exists.
+- The MainWindow startup callsite is now wired but dormant. If later configured, it runs off the UI thread only when the CELIKOM bridge is disabled and Yandex Music is not running. It seeds/verifies LKG only; it never launches an installer or touches playback.
+- The Supervisor consumes the same shared trust config and remains fail-closed with exit code 3 while values are empty.
+- This does not enable automatic updates: no live feed, signed customer installer, latest-manifest consumer, trusted Supervisor launch callsite or real rollback test exists.

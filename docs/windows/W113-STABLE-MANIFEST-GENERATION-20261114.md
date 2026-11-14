@@ -23,3 +23,7 @@
 
 ## W116 follow-on
 The immutable versioned manifest/signature are now consumed by `StableUpdateBootstrapper` to seed the first LKG package for the exact currently installed signed build. The bootstrap code is not wired to the main app yet. Provision production signing pins, confirm the official feed origin and upload target, then wire bootstrap and the normal signed update flow. Do not publish from the Hostinger QA hostname or enable automatic installation before real end-to-end rollback verification.
+
+## W117 follow-on
+
+The first-LKG bootstrap is now wired to MainWindow startup through the shared `StableUpdateTrustConfiguration`, but the origin, P-256 public key and Authenticode signer fingerprint remain intentionally empty. Startup skips the operation unless the complete trust tuple exists and CELIKOM/Yandex are idle. The Supervisor consumes the same shared trust source and remains fail-closed. This is only bootstrap wiring; no live feed, latest-manifest consumer, trusted Supervisor launch or automatic installer is enabled. Current Windows priority returns to owner-requested audio fixes before full updater expansion.
