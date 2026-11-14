@@ -57,6 +57,7 @@ public static class DiagnosticLog
         Code.IsMatch(code) &&
         ((code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
              "NATIVE_ELECTRON_CPU_HIGH" or
+             "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
              "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
              "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
          code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
@@ -238,6 +239,7 @@ public static class DiagnosticLog
         static bool IsIncident(string code) =>
             (code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
                 "NATIVE_ELECTRON_CPU_HIGH" or
+                "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
                 "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
                 "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
@@ -287,6 +289,10 @@ public static class DiagnosticLog
             enabled,
             lastTrackId = Id.IsMatch(lastTrackId ?? "") ? lastTrackId : null,
             scopeSeconds = 900,
+            nativeDecoderPropertiesObserved = parsedEvents.Any(e =>
+                e.code == "PLAYER_CDP_PROPERTIES_SEEN"),
+            nativeDecoderUrlPropertyObserved = parsedEvents.Any(e =>
+                e.code == "PLAYER_CDP_URL_PROPERTY_SEEN"),
             events
         };
     }
@@ -366,6 +372,12 @@ public static class DiagnosticLog
                 .ToString().ToLowerInvariant());
         text.AppendLine("PlayerAudibleEventObserved=" +
             entries.Any(s => s.Contains("|PLAYER_AUDIO_AUDIBLE", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("NativeDecoderPropertiesObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_CDP_PROPERTIES_SEEN", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("NativeDecoderUrlPropertyObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_CDP_URL_PROPERTY_SEEN", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("FastPauseTrackAttribution=NOT_AVAILABLE_WITHOUT_PLAYER_TRACK_ID");
         text.AppendLine("PlayerNetworkRequestObserved=" +
