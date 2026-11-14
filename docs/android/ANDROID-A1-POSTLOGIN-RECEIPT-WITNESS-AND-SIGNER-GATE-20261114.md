@@ -2,9 +2,20 @@
 
 A read-only writer observer now tracks only the clone's exact `Yandex_Music` SharedPreferences object and editor. It records `putBoolean("onboarding", value)`, a sanitized vendor caller class/method, and the real `commit/apply` return. It does not mutate the preference. The editor map was corrected so unrelated edits to the same file do not create false persistence events.
 
-The private original-DEX inventory is implemented in `ci/a1_private_onboarding_contract.py`; its CI step passed on [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113), and the same paired native run also completed SUCCESS with `ORIGINAL_KEY_PERSISTED` (but predates the onboarding-writer registration gate). The strict Android13 gate also requires `ONBOARDING_WRITER_HOOK=REGISTERED`; latest runs are #43577067135 and #43577366277, still in progress at this handoff. Re-check before declaring success.
+The coarse private original-DEX inventory passed in #43576640113. Strict Android13 registration gates are now complete: clone-alone #43577067135 and publisher-first paired #43577366277 both report ONBOARDING_WRITER_HOOK=REGISTERED and ORIGINAL_KEY_PERSISTED. This proves hook compatibility in both native layouts, not a real login writer invocation.
 
 **NAV9's existing account is deliberately untouched by NAV11 key preinitialization.** No token/key rotation, onboarding write, fabricated result, APK export or owner login attempt. The fresh-install Passport key write itself is already proven by paired and clone-alone runs #43574754550 and #43574754576. User's post-login loop remains unverified and Stage A NO-GO / Stage B LOCKED.
+
+## Exact DEX writer refinement — 14 Nov 2026
+
+The first scanner counted literal/API co-occurrence, not argument dataflow. Manual exact instruction review of the embedded publisher-signed 2025.10.4 DEX identified three direct, persisted writers:
+- Lf67;->if: exact Yandex_Music → edit → putBoolean("onboarding", …) → apply; its caller chain is upgrade/initialization, not Passport success.
+- Lru/yandex/music/profile/ProfileActivity$b;->emit and ProfileActivity$c;->emit: exact direct writes and apply, belonging to profile coroutine handlers.
+- LVj1;->transient is a configuration-map value, and LUc1$b;->emit contains unrelated notification timestamp preference calls; both are co-occurrence false positives.
+
+The scanner now adds a strict direct register-chain classifier for Context/SharedPreferences/Editor calls and emits direct-writer and persisted-writer method lists. Tests cover correct file/key, wrong file/key, co-occurrence-only candidates and missing persistence. Classifier commits: 9592930 and 4297bbe; paired Android13 CI #43578243485 was running at this handoff.
+
+Runtime interpretation remains open: no idle CI run invokes Passport login. None of the three static writers is proven to run during Success(userInfo); do not invoke one or mutate onboarding to force Main.
 
 ## Confirmed Android 13 runtime key initialization — 14 Nov 2026
 
