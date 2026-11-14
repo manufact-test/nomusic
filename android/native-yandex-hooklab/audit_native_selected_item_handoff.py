@@ -196,8 +196,8 @@ def model_parameter_registers(dex: Dex, method, flags: int, code_off: int):
     reg = registers_size - ins_size
     found = []
     if not (flags & ACC_STATIC):
-        if method[0] == MODEL:
-            found.append((-1, reg))  # the exact Track instance is "this"
+        if method[0] in (MODEL, ALBUM_MODEL):
+            found.append((-1, reg))  # exact native Track or Album instance is "this"
         reg += 1
     for index, typ in enumerate(params):
         if typ == MODEL:
@@ -408,6 +408,78 @@ def wrapper_constructor_input_flow(dex: Dex, method, flags: int, code_off: int):
     }
 
 
+
+def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
+    """Bounded opcode-shape trace; never emits literals, values or media data."""
+    model_params = model_parameter_registers(dex, method, flags, code_off)
+    aliases = {reg for _, reg in model_params}
+    rows = []
+    for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            rows.append({
+                "ordinal": ordinal, "op": "INVOKE",
+                "callee": {"owner": callee[0], "method": callee[1],
+                           "signature": callee[2]},
+                "argument_registers": regs,
+                "native_track_argument_positions": [
+                    i for i, reg in enumerate(regs) if reg in aliases
+                ],
+            })
+        elif op in (0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58,
+                    0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66):
+            owner, name, typ = field_id(dex, words[1])
+            dest = ((words[0] >> 8) & 15) if op < 0x60 else None
+            receiver = ((words[0] >> 12) & 15) if op < 0x60 else None
+            rows.append({
+                "ordinal": ordinal, "op": "FIELD_READ",
+                "owner": owner, "field": name, "type": typ,
+                "destination_register": dest,
+                "receiver_is_native_model": receiver in aliases if receiver is not None else False,
+            })
+        elif op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            dest, source = move
+            rows.append({"ordinal": ordinal, "op": "MOVE_OBJECT",
+                         "destination_register": dest, "source_register": source,
+                         "source_is_native_track": source in aliases})
+            if source in aliases:
+                aliases.add(dest)
+            else:
+                aliases.discard(dest)
+        elif op == 0x0c:
+            rows.append({"ordinal": ordinal, "op": "MOVE_RESULT_OBJECT",
+                         "destination_register": words[0] >> 8})
+        elif op in (0x1a, 0x1b):
+            rows.append({"ordinal": ordinal, "op": "CONST_STRING",
+                         "destination_register": words[0] >> 8,
+                         "literal_disclosed": False})
+        elif op == 0x11:
+            rows.append({"ordinal": ordinal, "op": "RETURN_OBJECT",
+                         "source_register": words[0] >> 8,
+                         "source_is_native_track": (words[0] >> 8) in aliases})
+        elif op == 0x1f:
+            rows.append({"ordinal": ordinal, "op": "CHECK_CAST",
+                         "type": dex.descriptor(words[1]),
+                         "register": words[0] >> 8})
+        else:
+            dest = written_register(op, words)
+            if dest is not None:
+                aliases.discard(dest)
+            if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+                rows.append({"ordinal": ordinal, "op": "BRANCH_OR_SWITCH"})
+                aliases.clear()
+        if len(rows) >= 180:
+            break
+    return {
+        "method": {"owner": method[0], "name": method[1], "signature": method[2]},
+        "native_model_parameters": [{"index": i, "register": r} for i, r in model_params],
+        "instructions": rows,
+        "literals_or_runtime_values_disclosed": False,
+    }
+
+
 def inspect_signed(apks):
     dex_count = 0
     model_defined = False
@@ -424,6 +496,10 @@ def inspect_signed(apks):
     player_method_refs = set()
     model_flow_candidates = []
     wrapper_methods = set()
+    focused_method_traces = []
+    trace_targets = {
+        (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new")
+    }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -463,6 +539,9 @@ def inspect_signed(apks):
                     if method[0] in PLAYER_OWNERS and method[1] in PLAYER_METHODS:
                         player_method_refs.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
+                    if (method[0], method[1]) in trace_targets:
+                        focused_method_traces.append(
+                            focused_method_trace(dex, method, flags, code_off))
                     if method[0] not in (MODEL, WRAPPER) and (
                         MODEL in method[2] or WRAPPER in method[2]
                     ):
@@ -534,6 +613,7 @@ def inspect_signed(apks):
             for x in wrapper_methods
         ],
         "track_id_wrapper_constructor_callsites": wrapper_constructor_callsites,
+        "focused_native_model_to_wrapper_method_traces": focused_method_traces,
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
