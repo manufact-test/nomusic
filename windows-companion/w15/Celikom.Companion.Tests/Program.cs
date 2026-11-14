@@ -14,6 +14,71 @@ void Test(bool condition, string message)
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
 try
 {
+    // W105: exact byte stream, SHA256 and signature all have to succeed
+    // before a staged installer may ever be considered executable.
+    var updateBytes = new byte[32_768];
+    for (var j = 0; j < updateBytes.Length; j++)
+        updateBytes[j] = (byte)(j % 251);
+    var updateHash = Convert.ToHexString(SHA256.HashData(updateBytes)).ToLowerInvariant();
+    var updateRelease = new StableUpdateManifestVerifier.VerifiedRelease(
+        new Version(0, 24, 37, 0), 47,
+        new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37-SIGNED.exe"),
+        updateBytes.Length, updateHash, DateTimeOffset.UtcNow.AddDays(1),
+        false, "Safe updater test");
+    var updateStage = Path.Combine(folder, "stable-stage");
+    using (var updateClient = new HttpClient(new FakeHandler(_ =>
+        new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new ByteArrayContent(updateBytes) })))
+    {
+        var untrusted = await StableUpdatePackageStager.DownloadUntrustedAsync(
+            updateRelease, updateStage, updateClient);
+        Test(File.Exists(untrusted) && File.ReadAllBytes(untrusted).SequenceEqual(updateBytes),
+            "W105 bounded HTTP200 content and exact SHA256 stage without execution");
+        bool unsignedRejected = false;
+        try { StableUpdatePackageStager.VerifyInstaller(
+                untrusted, updateRelease, new string('a', 64)); }
+        catch (IOException e) when (e.Message == "STABLE_UPDATE_AUTHENTICODE_INVALID")
+        { unsignedRejected = true; }
+        Test(unsignedRejected, "W105 unsigned fixture must fail Authenticode even with signed-feed hash");
+        var tamperedBytes = (byte[])updateBytes.Clone();
+        tamperedBytes[3] ^= 1;
+        File.WriteAllBytes(untrusted, tamperedBytes);
+        bool tamperRejected = false;
+        try { StableUpdatePackageStager.VerifyInstaller(
+                untrusted, updateRelease, new string('a', 64)); }
+        catch (IOException e) when (e.Message == "STABLE_UPDATE_SHA256_MISMATCH")
+        { tamperRejected = true; }
+        Test(tamperRejected, "W105 post-stage byte tamper is rejected before launch");
+    }
+    using (var badClient = new HttpClient(new FakeHandler(_ =>
+        new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new ByteArrayContent(updateBytes.AsSpan(0, 25_000).ToArray()) })))
+    {
+        bool shortRejected = false;
+        try { await StableUpdatePackageStager.DownloadUntrustedAsync(
+                updateRelease, updateStage, badClient); }
+        catch (IOException e) when (e.Message is "STABLE_UPDATE_HTTP_INVALID" or
+            "STABLE_UPDATE_HASH_OR_LENGTH") { shortRejected = true; }
+        Test(shortRejected, "W105 interrupted transfer cannot leave an executable staged file");
+    }
+    using (var redirectClient = new HttpClient(new FakeHandler(_ =>
+        new HttpResponseMessage(HttpStatusCode.Redirect)
+            { Headers = { Location = new Uri("https://evil.example/install.exe") } })))
+    {
+        bool redirectRejected = false;
+        try { await StableUpdatePackageStager.DownloadUntrustedAsync(
+                updateRelease, updateStage, redirectClient); }
+        catch (IOException e) when (e.Message == "STABLE_UPDATE_HTTP_INVALID")
+        { redirectRejected = true; }
+        Test(redirectRejected, "W105 no redirects permitted for signed release package");
+    }
+    Test(StableUpdateInstallSafety.CanInstall(false, false, true, false) &&
+         !StableUpdateInstallSafety.CanInstall(true, false, true, false) &&
+         !StableUpdateInstallSafety.CanInstall(false, true, true, false) &&
+         !StableUpdateInstallSafety.CanInstall(false, false, false, false) &&
+         !StableUpdateInstallSafety.CanInstall(false, false, true, true),
+         "W105 never interrupt Yandex audio or install with unknown playback state");
+
     // W101: signed stable update contracts are read-only and fail closed.
     // No unattended updater is enabled while signing/rollback gates are missing.
     using (var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
