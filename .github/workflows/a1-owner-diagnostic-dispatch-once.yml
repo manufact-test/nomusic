@@ -10,7 +10,6 @@ permissions:
   contents: write
 jobs:
   dispatch:
-    if: github.event.head_commit.message == 'chore(android-a1): one-time diagnostic export dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
