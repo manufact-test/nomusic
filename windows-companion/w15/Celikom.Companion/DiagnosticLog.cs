@@ -59,7 +59,14 @@ public static class DiagnosticLog
              "NATIVE_ELECTRON_CPU_HIGH" or
              "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
              "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
-             "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
+             "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
+             "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
+             "SOURCE_ACTIVE_REPLACEMENT" or "SOURCE_ORIGINAL" or "SOURCE_UNKNOWN" or
+             "SOURCE_LEFT_CURRENT_ALREADY_ORIGINAL" or "SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED") ||
+         code.StartsWith("NATIVE_ORIGINAL_SOURCE_", StringComparison.Ordinal) ||
+         code.StartsWith("NATIVE_UNKNOWN_SOURCE_", StringComparison.Ordinal) ||
+         code.StartsWith("NATIVE_REPLACEMENT_SOURCE_", StringComparison.Ordinal) ||
+         code is "NATIVE_CURRENT_SOURCE_REVALIDATE" or "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE" ||
          code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.StartsWith("START_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.Contains("DISCONNECT", StringComparison.Ordinal) ||
@@ -241,7 +248,14 @@ public static class DiagnosticLog
                 "NATIVE_ELECTRON_CPU_HIGH" or
                 "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
                 "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
-                "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") ||
+                "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
+                "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
+                "SOURCE_ACTIVE_REPLACEMENT" or "SOURCE_ORIGINAL" or "SOURCE_UNKNOWN" or
+                "SOURCE_LEFT_CURRENT_ALREADY_ORIGINAL" or "SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED") ||
+            code.StartsWith("NATIVE_ORIGINAL_SOURCE_", StringComparison.Ordinal) ||
+            code.StartsWith("NATIVE_UNKNOWN_SOURCE_", StringComparison.Ordinal) ||
+            code.StartsWith("NATIVE_REPLACEMENT_SOURCE_", StringComparison.Ordinal) ||
+            code is "NATIVE_CURRENT_SOURCE_REVALIDATE" or "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE" ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
             code.Contains("ERROR", StringComparison.Ordinal) ||
             code.Contains("FAILED", StringComparison.Ordinal) ||
