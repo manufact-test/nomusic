@@ -62,7 +62,7 @@ public final class StageBAudioEvidenceTest {
             "FLOW_TRACK_SAME_OBJECT","TRACK_WRAPPER_LINK","WRAPPER_MAIN_SOURCE",
             "WRAPPER_DESCRIPTOR_LINK","TRACK_DESCRIPTOR_FACTORY_LINK",
             "TRACK_FACTORY_SOURCE_LINK","TRACK_SOURCE_OPEN_LINK","TRACK_SOURCE_READ_LINK"};
-        for(int i=0;i<names.length;i++) bucket(links,21+i,names[i],"ONE");
+        for(int i=0;i<names.length;i++) bucket(links,21+i,names[i],i==1?"FEW":"ONE");
         check(links[31].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object different=new Object();
@@ -106,7 +106,7 @@ public final class StageBAudioEvidenceTest {
         check(rows[14].contains(";error=ONE;"));
         check(rows[15].contains(";error=ONE;"));
         check(rows[16].contains(";error=FEW;"));
-        check(rows[17].contains(";error=ONE;"));
+        check(rows[17].contains(";error=FEW;"));
         check(rows[18].contains(";error=FEW;"));
         check(rows[19].contains(";error=FEW;"));
         check(rows[20].contains(";error=FEW;"));
@@ -129,7 +129,8 @@ class StageBAudioEvidenceTest(unittest.TestCase):
                            check=True, capture_output=True, text=True)
             done = subprocess.run(["java", "-cp", tmp,
                                    "pro.celikom.a1exitwitness.StageBAudioEvidenceTest"],
-                                  check=True, capture_output=True, text=True)
+                                  check=False, capture_output=True, text=True)
+            self.assertEqual(done.returncode, 0, done.stdout + "\\n" + done.stderr)
             self.assertIn("PASS Stage B", done.stdout)
 
     def test_hook_uses_actual_reader_and_export_but_never_replaces_source(self):
