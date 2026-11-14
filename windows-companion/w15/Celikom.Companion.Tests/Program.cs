@@ -79,7 +79,7 @@ try
         hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
         sessionIdentitySha256: new string('d', 64));
     Test(tx.State == StableUpdateRollbackJournal.Phase.Prepared &&
-         tx.RollbackAttempts == 0 && verifiedImages == 3 &&
+         tx.RollbackAttempts == 0 && verifiedImages == 4 &&
          tx.SessionIdentitySha256 == new string('d', 64) && tx.Schema == 2 &&
          tx.PreviousApplicationSha256 == prevAppHash &&
          tx.TargetApplicationSha256 == nextAppHash &&
@@ -90,7 +90,18 @@ try
          tx.PreviousSupervisorSha256 == prevSupervisorHash &&
          tx.TargetSupervisorSha256 == nextSupervisorHash &&
          StableUpdateRollbackJournal.Read(rollbackRoot) == tx,
-         "W109 DPAPI journal roundtrip and byte-identical previous EXE snapshot");
+         "W115 DPAPI journal retains byte-identical previous and target signed installers");
+    bool prematureLastKnownGoodDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.GetLastKnownGoodCore(
+            rollbackRoot, testSignerPin, VerifySyntheticSetup);
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_LAST_KNOWN_GOOD_NOT_READY")
+    { prematureLastKnownGoodDenied = true; }
+    Test(prematureLastKnownGoodDenied,
+        "W115 prepared or in-progress update cannot seed the next rollback base");
+
     bool missingPayloadDenied = false;
     try
     {
@@ -211,6 +222,33 @@ try
          StableUpdateRollbackJournal.Read(acceptedRoot).State ==
              StableUpdateRollbackJournal.Phase.Healthy,
          "W109 only explicitly verified signed app health closes transaction");
+    var cachedTarget = StableUpdateRollbackJournal.GetLastKnownGoodCore(
+        acceptedRoot, testSignerPin, VerifySyntheticSetup);
+    Test(cachedTarget.Release.Version == targetRelease.Version &&
+         cachedTarget.Release.Sequence == targetRelease.Sequence &&
+         cachedTarget.Release.PackageSize == targetRelease.PackageSize &&
+         cachedTarget.Release.SupervisorSha256 == targetSupervisorHash &&
+         Path.GetFileName(cachedTarget.InstallerPath) == "target-signed-setup.exe" &&
+         File.ReadAllBytes(cachedTarget.InstallerPath).SequenceEqual(nextBytes),
+         "W115 only a healthy update exposes its exact signed target installer as last known good");
+
+    var cachedTargetBytes = File.ReadAllBytes(cachedTarget.InstallerPath);
+    var damagedTargetBytes = cachedTargetBytes.ToArray();
+    damagedTargetBytes[31] ^= 1;
+    File.WriteAllBytes(cachedTarget.InstallerPath, damagedTargetBytes);
+    bool damagedLastKnownGoodDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.GetLastKnownGoodCore(
+            acceptedRoot, testSignerPin, VerifySyntheticSetup);
+    }
+    catch (Exception e) when (e is IOException ||
+        e.Message.StartsWith("W15_TEST_FAILED", StringComparison.Ordinal))
+    { damagedLastKnownGoodDenied = true; }
+    File.WriteAllBytes(cachedTarget.InstallerPath, cachedTargetBytes);
+    Test(damagedLastKnownGoodDenied,
+        "W115 a tampered cached current installer cannot seed a later rollback");
+
     var thirdRelease = new StableUpdateManifestVerifier.VerifiedRelease(
         new Version(0, 24, 38, 0), 42,
         new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/new.exe"),
@@ -220,7 +258,8 @@ try
         RendererSha256: new string('9', 64),
         SupervisorSha256: new string('a', 64));
     var nextTransaction = StableUpdateRollbackJournal.PrepareCore(
-        acceptedRoot, targetRelease, nextSetup, thirdRelease, previousSetup,
+        acceptedRoot, cachedTarget.Release, cachedTarget.InstallerPath,
+        thirdRelease, previousSetup,
         testSignerPin, targetRelease.Version, rollbackAt.AddHours(1),
         hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
         sessionIdentitySha256: new string('d', 64));
@@ -292,6 +331,33 @@ try
         new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true));
     Test(tx.State == StableUpdateRollbackJournal.Phase.Restored,
         "W109 verified previous EXE, bridge, session and native state finish recovery");
+
+    var restoredLkgRoot = Path.Combine(rollbackFixtureRoot, "rollback-restored-lkg");
+    var restoredLkg = StableUpdateRollbackJournal.PrepareCore(
+        restoredLkgRoot, previousRelease, previousSetup, targetRelease, nextSetup,
+        testSignerPin, previousRelease.Version, rollbackAt,
+        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
+        sessionIdentitySha256: new string('d', 64));
+    restoredLkg = StableUpdateRollbackJournal.Advance(restoredLkgRoot, restoredLkg.Id,
+        StableUpdateRollbackJournal.Phase.Prepared,
+        StableUpdateRollbackJournal.Phase.InstallerStarted);
+    restoredLkg = StableUpdateRollbackJournal.Advance(restoredLkgRoot, restoredLkg.Id,
+        StableUpdateRollbackJournal.Phase.InstallerStarted,
+        StableUpdateRollbackJournal.Phase.RollbackNeeded);
+    restoredLkg = StableUpdateRollbackJournal.BeginRollback(
+        restoredLkgRoot, restoredLkg.Id, rollbackAt.AddMinutes(12));
+    restoredLkg = StableUpdateRollbackJournal.ConfirmPreviousRestored(
+        restoredLkgRoot, restoredLkg.Id,
+        new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true));
+    var restoredPackage = StableUpdateRollbackJournal.GetLastKnownGoodCore(
+        restoredLkgRoot, testSignerPin, VerifySyntheticSetup);
+    Test(restoredLkg.State == StableUpdateRollbackJournal.Phase.Restored &&
+         restoredPackage.Release.Version == previousRelease.Version &&
+         restoredPackage.Release.Sequence == previousRelease.Sequence &&
+         Path.GetFileName(restoredPackage.InstallerPath) == "previous-signed-setup.exe" &&
+         File.ReadAllBytes(restoredPackage.InstallerPath).SequenceEqual(previousBytes),
+         "W115 a verified rollback restores the previous package as the next last-known-good base");
+
     var dpapiJournal = Path.Combine(rollbackRoot, "stable-update-rollback.dpapi");
     var ciphertext = File.ReadAllBytes(dpapiJournal);
     // Mutate the authenticated ciphertext tail, not merely a DPAPI header
