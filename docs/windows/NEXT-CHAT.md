@@ -16,10 +16,11 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code HEAD: `5ae6b285889ca542d2ba30bbe25b5d3233800333` (W123 signed no-update manifest handling). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
-- Last Windows-specific implementation commit: `5ae6b285889ca542d2ba30bbe25b5d3233800333`.
-- Exact green rollback snapshot: `backup/windows-main-post-w123-ci-green-20261114` @ `5ae6b285889ca542d2ba30bbe25b5d3233800333`.
-- W123 Main CI [43598711117](https://github.com/manufact-test/nomusic/actions/runs/43598711117) and Windows integration CI [43598711096](https://github.com/manufact-test/nomusic/actions/runs/43598711096) — **SUCCESS**.
+- Current Windows code HEAD: `cd5d2bf623f368529e5efd16e3d95c813975ad8d` (W124 stable-update coordinator + startup LKG gate). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
+- Last Windows-specific implementation commit: `cd5d2bf623f368529e5efd16e3d95c813975ad8d`.
+- Exact green rollback snapshot: `backup/windows-main-post-w124-ci-green-20261114` @ `cd5d2bf623f368529e5efd16e3d95c813975ad8d`.
+- W124 Main CI [43600704215](https://github.com/manufact-test/nomusic/actions/runs/43600704215) and Windows integration CI [43600704211](https://github.com/manufact-test/nomusic/actions/runs/43600704211) — **SUCCESS**.
+- Exact pre-W124 code backup: `backup/windows-main-pre-w124-stable-update-coordinator-20261114` @ `e734579f0f6e6aff1436bbccdbc1396a055cb788`.
 - W120 Main CI [43596984190](https://github.com/manufact-test/nomusic/actions/runs/43596984190) — **SUCCESS**; Windows integration [43596984195](https://github.com/manufact-test/nomusic/actions/runs/43596984195) — **SUCCESS**.
 - W121 Main CI [43597478523](https://github.com/manufact-test/nomusic/actions/runs/43597478523) — **SUCCESS**; Windows integration [43597478531](https://github.com/manufact-test/nomusic/actions/runs/43597478531) — **SUCCESS**.
 - The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
@@ -85,9 +86,9 @@ This addresses the duplicate-click race in the first/repeated Start flow. It doe
 
 ## Safety boundary / what is not yet complete
 
-- The future update coordinator must not advance `Prepared → InstallerStarted` or launch the signed installer unless `StartAsync` returns true.
-- Production feed origin, P-256 public key and Authenticode signer fingerprint remain intentionally empty. The launcher returns false while production trust is unconfigured; no keys, URLs or certificates were invented.
-- **This is the trusted launch bridge, not the completed automatic updater.** There is still no MainWindow/update-coordinator callsite that fetches a newer release, prepares the journal, launches the Supervisor and then starts the installer. That is the next implementation block.
+- W124 now wires the coordinator to this launcher. The coordinator advances `Prepared → InstallerStarted` and launches only after `StartAsync` returns READY; it rechecks the signed target and exact transaction-bound path at the final launch boundary.
+- Production feed origin, P-256 public key and Authenticode signer fingerprint remain intentionally empty. The launcher and coordinator stay fail-closed while production trust is unconfigured; no keys, URLs or certificates were invented.
+- W124 adds the 30-minute stable-update scheduler and signed package staging, but **the automatic updater is still not active in production** until the owner supplies/approves the real feed origin and production signing identities.
 - No installer was built and no user installation was requested.
 
 # W123 — Signed no-update result for stable manifest polling — 14 November 2026
@@ -108,9 +109,34 @@ This addresses the duplicate-click race in the first/repeated Start flow. It doe
 
 This is required for a real periodic stable updater: a current manifest must not be misclassified as a broken feed. It does not fetch from a production origin, launch an installer or activate the Supervisor. Production trust values remain empty. No installer was built.
 
+# W124 — Stable update coordinator, safe scheduling and Supervisor-gated install — 14 November 2026
+
+- Repository: `manufact-test/nomusic`; only working branch: `main`.
+- Exact pre-W124 code backup: `backup/windows-main-pre-w124-stable-update-coordinator-20261114` @ `e734579f0f6e6aff1436bbccdbc1396a055cb788`.
+- W124 final code HEAD: `cd5d2bf623f368529e5efd16e3d95c813975ad8d`.
+- Exact green rollback snapshot: `backup/windows-main-post-w124-ci-green-20261114` @ the W124 code HEAD.
+- Main CI [43600704215](https://github.com/manufact-test/nomusic/actions/runs/43600704215) and Windows integration CI [43600704211](https://github.com/manufact-test/nomusic/actions/runs/43600704211) — **SUCCESS**.
+
+## Changes
+
+1. Added `StableUpdateInstallCoordinator`, the single stable update transaction. It checks the immutable production trust tuple first and refuses to run if any production pin is absent.
+2. Added a 30-minute WinForms scheduler in `MainWindow.StableUpdate.cs`. It is started only when production trust is configured. Each check defers while CELIKOM bridge is enabled, Yandex is running, playback state is unknown, or another install/host operation is busy.
+3. The coordinator obtains/verifies the signed last-known-good installer, polls the signed latest manifest using W123 equal-sequence/no-update semantics, downloads and verifies a newer package, then rechecks idle state after download.
+4. It creates a DPAPI-backed transaction with byte-identical previous/target signed installers and existing account/session/native identity, launches the immutable signed Supervisor snapshot through W122, and waits for its READY handshake.
+5. Only after READY does it advance `Prepared → InstallerStarted`, reverify the exact journal-bound target installer (SHA-256, Authenticode signer, manifest identity), and call the existing Inno AppId upgrade path. A launch failure is recorded as `ManualRecovery`; no unverified or unjournaled path can be executed.
+6. Restored W117's asynchronous first-install LKG bootstrap call and method. It remains behind the same pinned production trust and Yandex-idle gates.
+7. Added regression coverage for trust-unconfigured fail-closed behavior and the installer-started-to-manual-recovery transition. Windows integration CI also guards the coordinator, scheduler, Supervisor launcher, signed latest-manifest fetch and final signed-launch path.
+
+## Safety boundary / what is not complete
+
+- Production feed origin, P-256 public key and Authenticode signer certificate fingerprint are still empty by design. No real official delivery URL, key or certificate was invented.
+- Therefore `TryGetProduction` returns false in this build: the scheduler does not start and the coordinator does no network or install work. **The updater is wired but not activated for production.**
+- Still required: owner-approved official HTTPS feed, production P-256 public key, production Authenticode certificate fingerprint and protected release-side signing/publishing. Then run the real signed-feed install, forced-failure, Supervisor crash/one-shot rollback, account/session preservation and recovery tests.
+- CI validates code and simulations only. No production installer was built; no owner installation or audible test was requested.
+
 
 ### Implemented and CI-validated infrastructure
-W122 adds the transaction-scoped current-user Supervisor READY handshake and immutable snapshot launch bridge. It is still dormant: there is no stable update coordinator callsite and production trust pins remain empty.
+W122 adds the transaction-scoped current-user Supervisor READY handshake and immutable snapshot launch bridge. W123 adds signed no-update polling semantics. W124 wires both into a single fail-closed stable update coordinator, the 30-minute scheduler, journaled signed staging and final verified installer launch. The complete path remains dormant until production trust pins are provisioned.
 W105–W118 contain signed-package validation, SHA-256/Authenticode checks, DPAPI rollback journal, previous/target package retention, independent Supervisor health witness, schema-2 exact payload identity, signed manifest generation, immutable version manifests, initial LKG bootstrap and shared fail-closed trust configuration. W20 verifies the existing installer definition contains exactly:
 - existing CELIKOM app EXE;
 - `integration/host.cjs`;
@@ -131,7 +157,7 @@ This is meaningful implementation progress, **not a production-ready automatic u
 - W120 adds privacy-safe Electron main-process CPU evidence and removes repeated identical renderer-state deliveries; #53 root cause remains unproven until owner diagnostics and a Task Manager CPU/RAM/GPU capture are available.
 - W121 blocks duplicate Start clicks during pending host/entitlement checks and shows a small progress hint. First/repeated connection, reboot, tray and autostart still need one grouped owner-PC acceptance pass.
 - #52 source truth, #54 Big City Life volume, #56 real gain loudness/headroom, #57 audible 403→206 recovery and #58 original-track VPN continuity still need owner-side evidence; do not mark them fixed from CI.
-- Automatic updater is not production-ready: production P-256 pin, Authenticode signer pin and official HTTPS feed origin are empty/unprovisioned. W122 provides the trusted Supervisor launcher/READY handshake and W123 provides signed no-update polling semantics, but no update coordinator/MainWindow callsite, staged install flow, scheduler/notices or production-signed crash/one-shot rollback test exists yet.
+- Automatic updater is not production-ready: W124 now provides the coordinator/MainWindow callsite, 30-minute scheduler, signed package staging, DPAPI transaction, Supervisor READY gate and final signed launch checks. Production P-256 pin, Authenticode signer pin and official HTTPS feed origin are still empty/unprovisioned, so the path is deliberately dormant. A real production-signed feed/install/crash/one-shot rollback run remains outstanding.
 - No final Windows EXE+ZIP has been built or delivered.
 
 ### Legacy installer naming — do not misinterpret it
@@ -151,7 +177,7 @@ The current Inno script still has historical `AppVersion=0.24.36` and `OutputBas
 10. Autostart/tray: correct Windows startup, tray, reconnect and failure recovery.
 11. Yandex update detection: at least every 30 minutes, preferably faster.
 12. Signed updater: finish signature, SHA-256, Authenticode and package-substitution protection.
-13. Supervisor: W122 adds the signed helper snapshot and READY launcher; W123 adds signed no-update manifest semantics. Still needs the stable update coordinator/MainWindow callsite and end-to-end install wiring.
+13. Supervisor: W122 adds the signed helper snapshot and READY launcher; W123 adds signed no-update manifest semantics; W124 wires the coordinator, scheduler, signed staging, READY gate and final verified launch. Production trust and real end-to-end signed-feed/rollback acceptance remain outstanding.
 14. Automatic one-shot rollback: restore last working version after failure while preserving account/DPAPI/native/user data.
 15. Production update delivery: real keys/certificates, official HTTPS origin, signed manifests and reliable delivery.
 16. Integrated verification: update, forced failure, rollback, account/native/Yandex safeguards and full regressions.
