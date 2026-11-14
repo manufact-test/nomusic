@@ -16,8 +16,8 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code/test HEAD: `d79c20f37ce7428fca0e1abf1bdf3b0ad1a05832` (W133 immediate decoder-witness status downgrade). The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
-- Last Windows app implementation commit: `d548ed0af0f3717669c1fbcd903fc4f626428c7e` (W133); W133 regression-test/current code-test HEAD: `d79c20f37ce7428fca0e1abf1bdf3b0ad1a05832`; W132 test: `c02cd4988292598f81e857062279d0179253a42a`; W131 runtime/test: `5fb5f32d0364d476889bf56d0f8e8fc0e38d71b2` / `2f41091d1af072483ed5c79782958002b0ee2101`; W127 implementation/test: `4fe42d745b6708524c65eb4f9855e026f314fefa` / `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`; W130 host/test: `5acbcc2af1a6cee85ef96bc81ce45d56d2f90726` / `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
+- Current Windows code/test HEAD: `d6c091fb109baeaa1690b15ca3f90d7c914a279a` (W134 regression matrix for immediate decoder-status downgrade on source-left, pause, player destruction, current decoder error and CDP detach). The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
+- Last Windows app implementation commit: `d548ed0af0f3717669c1fbcd903fc4f626428c7e` (W133); W134 regression-test/current code-test HEAD: `d6c091fb109baeaa1690b15ca3f90d7c914a279a`; W133 regression-test commit: `d79c20f37ce7428fca0e1abf1bdf3b0ad1a05832`; W132 test: `c02cd4988292598f81e857062279d0179253a42a`; W131 runtime/test: `5fb5f32d0364d476889bf56d0f8e8fc0e38d71b2` / `2f41091d1af072483ed5c79782958002b0ee2101`; W127 implementation/test: `4fe42d745b6708524c65eb4f9855e026f314fefa` / `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`; W130 host/test: `5acbcc2af1a6cee85ef96bc81ce45d56d2f90726` / `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
 - Exact pre-W128 CI policy backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`.
 - Exact pre-W130 diagnostics backup: `backup/windows-main-pre-w130-cdp-property-observability-20261114` @ `312d61a62fb4abcb779df539503adf4226818185`.
 - W130 Main CI [43605388622](https://github.com/manufact-test/nomusic/actions/runs/43605388622) and Windows integration CI [43605388482](https://github.com/manufact-test/nomusic/actions/runs/43605388482) — **SUCCESS**.
@@ -52,6 +52,17 @@
 - Main CI [43604761393](https://github.com/manufact-test/nomusic/actions/runs/43604761393) and Windows integration CI [43604761386](https://github.com/manufact-test/nomusic/actions/runs/43604761386) — **SUCCESS**, including the new W128 guard step.
 - This does **not** identify the prompt the owner saw, prove it came from Yandex, or establish that it was harmless. #53 remains OPEN until the prompt publisher/title is known and owner CPU/RAM/GPU evidence is available. Do not grant administrator rights to an unknown prompt.
 - Full audit: `docs/windows/W128-READ-ONLY-ELEVATION-LAUNCH-AUDIT-20261114.md`. No runtime behavior changed and no installer was built.
+
+# W134 — Immediate downgrade coverage for every decoder-proof invalidation — 14 November 2026
+
+- Regression tests only; W133 runtime behavior is unchanged.
+- W134 verifies that each of four invalidation events — pause (`kIsPlaying=false`), current player destruction, current decoder pipeline error and CDP observer detach — immediately downgrades the exact current track from `NATIVE_SOURCE_VERIFIED` to neutral `NATIVE_MAPPING_ACCEPTED`.
+- Each subtest starts with an exact signed current decoder and verifies the green heartbeat first. It then triggers one invalidation and checks the neutral heartbeat without waiting for the regular 2.2-second sampler. Signed media URLs must remain absent from heartbeat payloads and diagnostics.
+- Exact pre-W134 backup: `backup/windows-main-pre-w134-verified-status-invalidation-matrix-20261114` @ `63b3a155bde732d527cfa57e5280bae69b3acbb6`.
+- Regression-test/current code-test HEAD: `d6c091fb109baeaa1690b15ca3f90d7c914a279a`.
+- Main CI [43609116940](https://github.com/manufact-test/nomusic/actions/runs/43609116940) and Windows integration CI [43609116972](https://github.com/manufact-test/nomusic/actions/runs/43609116972) — **SUCCESS**. Full W22/W23/W60 original-source, VPN, 403 and audio regression step passed, including all four W134 subtests.
+- **#52 remains OPEN** pending owner-PC proof that «Ты» (13 карат) actually plays the alternate source; CDP source selection is not speaker-level proof.
+- Full record: `docs/windows/W134-IMMEDIATE-DECODER-STATUS-INVALIDATION-MATRIX-20261114.md`. No installer was built.
 
 # W133 — Immediate downgrade when current decoder proof is invalidated — 14 November 2026
 
