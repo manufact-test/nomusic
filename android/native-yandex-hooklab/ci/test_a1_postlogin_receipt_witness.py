@@ -83,6 +83,28 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.getPassword(',part)
         self.assertNotIn('chain.proceed(new Object',part)
 
+    def test_token_request_return_categories_do_not_read_or_log_credentials(self):
+        s=self.code
+        part=s[s.index('private static String tokenRequestErrorCategory('):
+               s.index('// Original LoginFragment flow emission:',s.index('private static String tokenRequestErrorCategory('))]
+        self.assertIn('resumed.getDeclaredField("private")',part)
+        self.assertIn('Class.forName("zW8$b", false, loader)',part)
+        self.assertIn('tokenFailure.getDeclaredField("default")',part)
+        self.assertIn('"AFTER_TOKEN_REQUEST".equals(stage)',part)
+        self.assertIn('postLoginTokenOutcomeEvents.incrementAndGet() <= 12',part)
+        self.assertIn('emit("LOGIN_TOKEN_OUTCOME", "ENTRY", category)',part)
+        self.assertIn('emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",',part)
+        for category in ('"NULL"', '"FAILURE"', '"STRING_RESULT"',
+                         '"OTHER_NONFAILURE_RESULT"', '"PASSPORT_API_A"',
+                         '"PASSPORT_API_B"', '"SECURITY"', '"NETWORK_OR_IO"'):
+            self.assertIn(category,part)
+        self.assertIn('return chain.proceed();',part)
+        self.assertIn('return result;',part)
+        for forbidden in ('getMessage()', 'getStackTrace()', 'getPassword(',
+                          '.toString()', '.setResult(', '.startActivity(',
+                          'chain.proceed(new Object', 'emit("LOGIN_TOKEN_OUTCOME", reply'):
+            self.assertNotIn(forbidden,part)
+
     def test_exact_original_flow_subtype_witness_is_bounded_and_readonly(self):
         s=self.code
         start=s.index('private synchronized void observeOriginalPostLoginReceipts(')
@@ -121,6 +143,8 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
             '"LOe2;"',
             '("LnY5;", "invokeSuspend")',
             '("LnY5;", "I", "continue")',
+            '("LnY5;", "Ljava/lang/Object;", "private")',
+            '("LzW8$b;", "Ljava/lang/Throwable;", "default")',
             '("LqY5$a$a;", "LqY5$a;")',
             '("LqY5$a$b;", "LqY5$a;")',
             '("LqY5$a$c;", "LqY5$a;")',
