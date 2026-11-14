@@ -14,7 +14,9 @@ from clone_main_crash_buffer import main_exit_pids, LOG
 EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","OWN_RES_ROUTE","MEDIA_DS_HOOK","MEDIA_DS_READ","MEDIA_DS_SOURCE","MEDIA_DS_EXTRACTOR_LINK","MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL",
         "AUDIO_FILEINFO_HOOK","AUDIO_DOWNLOADINFO_HOOK","AUDIO_EXO_FACTORY_HOOK",
         "AUDIO_EXO_OPEN_HOOK","AUDIO_EXO_READ_HOOK","AUDIO_EXO_DESCRIPTOR_HOOK",
-        "AUDIO_EXO_DATASOURCE_HOOK","AUDIO_EXO_SOURCE_INSTANCE_HOOK","UNCAUGHT",
+        "AUDIO_EXO_DATASOURCE_HOOK","AUDIO_EXO_SOURCE_INSTANCE_HOOK",
+        "AUDIO_NATIVE_TRACK_FLOW_HOOK","AUDIO_NATIVE_TRACK_REQUEST_HOOK",
+        "AUDIO_NATIVE_TRACK_WRAPPER_HOOK","AUDIO_NATIVE_MAIN_SOURCE_HOOK","UNCAUGHT",
         "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
         "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
@@ -59,6 +61,7 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
           "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL","PUSH_NEAR_GUARD","PUSH_SERVICE","PUSH_PROVIDER",
           "MEDIA_DATA_SOURCE","MEDIA_EXTRACTOR",
            "FILEINFO_DTO","DOWNLOADINFO_DTO","EXO_FACTORY","EXO_DATASOURCE","EXO_DESCRIPTOR",
+           "TRACK_FLOW","TRACK_REQUEST","TRACK_WRAPPER","MAIN_SOURCE",
           "PUSH_ARG","ARG_ENTER","ARG_THROW","RECEIVER_ENTER","RECEIVER_THROW",
           "CASE_0","CASE_1","CASE_2","CASE_3",
           "CASE_4","CASE_5","CASE_6","CASE_7",
@@ -180,8 +183,10 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         if (event in ("AUDIO_FILEINFO_HOOK","AUDIO_DOWNLOADINFO_HOOK",
                       "AUDIO_EXO_FACTORY_HOOK","AUDIO_EXO_OPEN_HOOK",
                       "AUDIO_EXO_READ_HOOK","AUDIO_EXO_DESCRIPTOR_HOOK",
-                      "AUDIO_EXO_DATASOURCE_HOOK","AUDIO_EXO_SOURCE_INSTANCE_HOOK")
-                and len(audio_source_hooks)<24):
+                      "AUDIO_EXO_DATASOURCE_HOOK","AUDIO_EXO_SOURCE_INSTANCE_HOOK",
+                      "AUDIO_NATIVE_TRACK_FLOW_HOOK","AUDIO_NATIVE_TRACK_REQUEST_HOOK",
+                      "AUDIO_NATIVE_TRACK_WRAPPER_HOOK","AUDIO_NATIVE_MAIN_SOURCE_HOOK")
+                and len(audio_source_hooks)<32):
             audio_source_hooks.append((event,origin,error))
         if len(seen)<250:
             seen.append((event,origin,error,thread))
@@ -305,6 +310,16 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
                 ("AUDIO_EXO_SOURCE_INSTANCE_HOOK","EXO_DATASOURCE"),
                 ("AUDIO_EXO_OPEN_HOOK","EXO_DATASOURCE"),
                 ("AUDIO_EXO_READ_HOOK","EXO_DATASOURCE"))
+        },
+        "stage_b_native_track_source_hooks":{
+            name:("REGISTERED" if (name,origin,"REGISTERED") in audio_source_hooks
+                  else "NO_HOOK" if (name,origin,"NO_HOOK") in audio_source_hooks
+                  else "NOT_SEEN")
+            for name,origin in (
+                ("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW"),
+                ("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST"),
+                ("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER"),
+                ("AUDIO_NATIVE_MAIN_SOURCE_HOOK","MAIN_SOURCE"))
         },
         "stage_b_registered_hooks_are_not_audio_replacement":True,
         "stage_b_current_player_album_edition_attested":False,

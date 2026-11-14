@@ -762,6 +762,22 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertTrue(r["stage_b_registered_hooks_are_not_audio_replacement"])
         self.assertNotIn("secret.url",str(r))
 
+
+    def test_stage_b_native_track_flow_to_exo_identity_hooks_are_pid_scoped(self):
+        prefix=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")*260
+        parts=[("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW"),
+               ("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST"),
+               ("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER"),
+               ("AUDIO_NATIVE_MAIN_SOURCE_HOOK","MAIN_SOURCE")]
+        good="".join(log(431,f"event={event};origin={origin};error=REGISTERED;thread=MAIN")
+                     for event,origin in parts)
+        false=log(999,"event=AUDIO_NATIVE_TRACK_FLOW_HOOK;origin=TRACK_FLOW;error=NO_HOOK;thread=MAIN")
+        bad=log(431,"event=AUDIO_NATIVE_MAIN_SOURCE_HOOK;origin=secret.url;error=NO_HOOK;thread=MAIN")
+        r=scoped_metrica_witness(EXIT,prefix+good+false+bad)
+        self.assertEqual(set(r["stage_b_native_track_source_hooks"].values()),{"REGISTERED"})
+        self.assertFalse(r["stage_b_current_player_album_edition_attested"])
+        self.assertTrue(r["stage_b_registered_hooks_are_not_audio_replacement"])
+
     def test_stage_b_missing_registration_fail_closed(self):
         r=scoped_metrica_witness(EXIT,
               log(431,"event=AUDIO_EXO_FACTORY_HOOK;origin=EXO_FACTORY;error=NO_HOOK;thread=MAIN"))
