@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Celikom.Companion;
@@ -21,7 +20,9 @@ public static class StableUpdateBootstrapper
                 throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_PROCESS_PATH_MISSING");
             var fullApplication = Path.GetFullPath(application);
             var directory = Path.GetDirectoryName(fullApplication);
-            if (string.IsNullOrWhiteSpace(directory))
+            if (string.IsNullOrWhiteSpace(directory) ||
+                !string.Equals(Path.GetFileName(fullApplication), "CELIKOM.Companion.exe",
+                    StringComparison.OrdinalIgnoreCase))
                 throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_INSTALL_ROOT_INVALID");
             return new InstalledPayloadPaths(
                 fullApplication,
@@ -41,15 +42,15 @@ public static class StableUpdateBootstrapper
             throw new IOException("STABLE_ROLLBACK_WINDOWS_ONLY");
         if (pinnedSignerCertificateSha256 is not { Length: 64 } ||
             !Regex.IsMatch(pinnedSignerCertificateSha256,
-                "^[a-fA-F0-9]{64}$", RegexOptions.CultureInvariant))
+                "^[a-f0-9]{64}$", RegexOptions.CultureInvariant))
             throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
 
         var installed = InstalledPayloadPaths.CurrentProcess();
-        var appInfo = FileVersionInfo.GetVersionInfo(installed.Application);
-        if (!string.Equals(appInfo.CompanyName?.Trim(), "CELIKOM", StringComparison.Ordinal) ||
-            !string.Equals(appInfo.ProductName?.Trim(), "CELIKOM", StringComparison.Ordinal) ||
-            !Version.TryParse(appInfo.FileVersion?.Trim(), out var installedVersion) ||
-            !SameVersion(installedVersion, AppUpdateManager.RunningVersion))
+        // The running assembly version is authoritative here; the signed
+        // manifest then binds the exact executable and all companion payloads.
+        var installedVersion = AppUpdateManager.RunningVersion;
+        if (installedVersion.Major < 0 || installedVersion.Minor < 0 ||
+            installedVersion.Build < 0)
             throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_INSTALLED_IDENTITY_INVALID");
 
         var root = StableUpdateRollbackJournal.DefaultPrivateRoot;
