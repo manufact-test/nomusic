@@ -1,5 +1,7 @@
 # W109 — CELIKOM Windows durable rollback journal / 14 November 2026
 
+> **Subsequent W110–W111 development:** a separately built internal watchdog and original-account DPAPI fingerprint now extend this journal. Green code @ `be6bda507aeeb68a7046a4ad12c41448d139860a`, CI `43575703455` and `43575703509` SUCCESS. See `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`. **Production recovery is still OFF**, helper not bundled or signed; W109 statements below describe its historical implementation stage.
+
 ## Source and CI
 - Repository `manufact-test/nomusic` — one active working branch `main`.
 - Exact verified W109 code commit: `0d90fea82cfd8d95e7c830941e1443cafa594fd3`.

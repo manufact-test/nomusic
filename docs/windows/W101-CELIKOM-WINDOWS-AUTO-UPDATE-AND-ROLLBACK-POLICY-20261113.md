@@ -6,6 +6,8 @@
 
 > **W109 rollback state progress / 14 November:** Code `0d90fea82cfd8d95e7c830941e1443cafa594fd3`, main CI `43572820346` and Windows integration `43572820294`, both SUCCESS. Added DPAPI-protected last-known-good installer snapshot and bounded, one-shot rollback journal with genuine health evidence required for terminal states. **No independent watchdog or actual automatic recovery is connected**, and signing/feed remain production release blockers. See `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md`.
 
+> **W110/W111 update / 14 November:** Code `be6bda507aeeb68a7046a4ad12c41448d139860a`, both CI gates [43575703455](https://github.com/manufact-test/nomusic/actions/runs/43575703455) / [43575703509](https://github.com/manufact-test/nomusic/actions/runs/43575703509) SUCCESS. A crash-independent supervisor executable and read-only verified-health probes exist; journal now binds original installation/account identity. Helper exits without doing anything while production signer pin is missing. **It is not deployed, and automatic signed updating/rollback is still not operational.** W101 product requirements remain open. Read `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`.
+
 ## Зачем этот документ
 
 Владелец зафиксировал обязательное продуктовое требование: пользователь CELIKOM Windows не должен самостоятельно следить за релизами, заходить на сайт и вручную скачивать каждый новый EXE/ZIP. Обновление самого CELIKOM должно доставляться приложением автоматически, безопасно и без прерывания музыки.

@@ -4,6 +4,8 @@
 
 > **14 November W109 latest source:** `main` code @ `0d90fea82cfd8d95e7c830941e1443cafa594fd3`; main CI [43572820346](https://github.com/manufact-test/nomusic/actions/runs/43572820346) SUCCESS; Windows integration [43572820294](https://github.com/manufact-test/nomusic/actions/runs/43572820294) SUCCESS. Signed-previous-package snapshot and DPAPI rollback journal are code/CI complete, but **an independent crash watchdog and real automatic install/rollback are not active**. See `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md` and `docs/windows/NEXT-CHAT.md`. All original W102 owner constraints below still apply.
 
+> **Latest W110–W111 continuation / 14 November 2026:** only active `main`, code `be6bda507aeeb68a7046a4ad12c41448d139860a`, exact backup `backup/windows-main-post-w111-account-witness-ci-green-20261114`. Main [43575703455](https://github.com/manufact-test/nomusic/actions/runs/43575703455) and Windows [43575703509](https://github.com/manufact-test/nomusic/actions/runs/43575703509), both SUCCESS. W110 independent watchdog **compiled + simulation-CI**, W111 original DPAPI account fingerprint enforced. **No active consumer automatic rollback**: no production signer pin, no shipped/running helper, no real signed installer or owner field QA. See `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`.
+
 Date: 2026-11-13
 Owner's explicit decisions from the latest discussion are authoritative.
 
