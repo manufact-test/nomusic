@@ -4,7 +4,7 @@
 
 - Repository: `manufact-test/nomusic`
 - Working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Source snapshot before this documentation refresh: 4297bbeaf0d0913fbd6f1944827a33b8cba7043e. Exact pre-classifier backup: backup/android-a1-nav12-post-dex-writer-dataflow-20261114 at the same SHA. Exact current handoff backup: backup/android-a1-nav12-exact-writer-classification-handoff-20261114 @ a459fbeab64832038b515dc4f70e64e71f59db28. Earlier handoff backup backup/android-a1-nav12-final-handoff-r2-20261114 remains at 01eed9cd9c4214680cb52d3f10ce442b1976ee3a.
+- Source snapshot before this documentation refresh: 4297bbeaf0d0913fbd6f1944827a33b8cba7043e. Exact pre-classifier backup: backup/android-a1-nav12-post-dex-writer-dataflow-20261114 at 4297bbe. Previous docs-stage checkpoint: backup/android-a1-nav12-exact-writer-classification-handoff-20261114 @ a459fbeab64832038b515dc4f70e64e71f59db28. Final handoff backup branch: backup/android-a1-nav12-final-handoff-r3-20261114; verify that it matches the working HEAD before continuing. Earlier NAV12 handoff backup backup/android-a1-nav12-final-handoff-r2-20261114 remains at 01eed9cd9c4214680cb52d3f10ce442b1976ee3a.
 - Pre-NAV12 exact rollback: `backup/android-a1-nav12-pre-onboarding-writer-trace-20261114` @ `00f9e4485a2814aa81ed9b089fc40c83e02d96f8`
 - Earlier stable source checkpoints: `backup/android-a1-nav9-pre-token-callback-witness-20261114` @ `50fc7ca`; `backup/android-a1-nav10-pre-master-token-crypto-status-20261114` @ `a0410c5`; `backup/android-a1-nav10-postlogin-crypto-witness-before-key-init-20261114` @ `a0a4565`; `backup/android-a1-nav11-key-order-before-native-event-gate-20261114` @ `9c141f5`.
 
@@ -97,7 +97,7 @@ It does **not** establish whether `getPassword` returned a master token, whether
 ## Next developer's exact order
 
 1. Read this file, `NEXT-CHAT-ANDROID-A1-LEAD-20261113.md`, `ANDROID-A1-POSTLOGIN-RECEIPT-WITNESS-AND-SIGNER-GATE-20261114.md`, and `ANDROID-A1-NAV9-SIGNED-2025-POSTLOGIN-CONTRACT-20261114.md`.
-2. Verify the working branch is at the latest handoff commit and the exact backup branch `backup/android-a1-nav12-exact-writer-classification-handoff-20261114` matches it.
+2. Verify the working branch HEAD and final handoff backup branch `backup/android-a1-nav12-final-handoff-r3-20261114` are identical. Do not reset to earlier NAV12 checkpoints.
 3. Hook registration is already confirmed in both layouts: #43577067135 clone-alone and #43577366277 publisher-first paired both show `ONBOARDING_WRITER_HOOK=REGISTERED` and `ORIGINAL_KEY_PERSISTED`. Do not repeat this test unless source changes affect hook setup.
 4. The exact onboarding scan/test steps in #43578243485 have passed; wait for the overall native ARM13 workflow conclusion and read its sanitized output. The manual DEX check confirms three direct persisted writers and two coarse false positives; none is proven on Passport success.
 5. Continue the real Passport → master token read/decrypt → Success(userInfo) → FragmentManager → Main route investigation. Never invoke a writer, mutate onboarding, fake success or request another OTP.
