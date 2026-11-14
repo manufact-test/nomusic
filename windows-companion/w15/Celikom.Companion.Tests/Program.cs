@@ -200,11 +200,14 @@ try
         "W109 verified previous EXE, bridge, session and native state finish recovery");
     var dpapiJournal = Path.Combine(rollbackRoot, "stable-update-rollback.dpapi");
     var ciphertext = File.ReadAllBytes(dpapiJournal);
-    ciphertext[18] ^= 1;
+    // Mutate the authenticated ciphertext tail, not merely a DPAPI header
+    // byte that Windows may ignore during decryption.
+    ciphertext[^16] ^= 1;
     File.WriteAllBytes(dpapiJournal, ciphertext);
     bool tamperedJournalDenied = false;
     try { StableUpdateRollbackJournal.Read(rollbackRoot); }
-    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_RECORD_UNTRUSTED")
+    catch (IOException e) when (e.Message is "STABLE_ROLLBACK_RECORD_UNTRUSTED"
+        or "STABLE_ROLLBACK_RECORD_INVALID")
     { tamperedJournalDenied = true; }
     Test(tamperedJournalDenied, "W109 encrypted rollback transaction rejects modification");
 
