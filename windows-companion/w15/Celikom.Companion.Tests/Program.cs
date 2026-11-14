@@ -1733,8 +1733,16 @@ try
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED") &&
+         DiagnosticLog.IsIncidentCode("NATIVE_ORIGINAL_SOURCE_NO_RELOAD") &&
+         DiagnosticLog.IsIncidentCode("NATIVE_UNKNOWN_SOURCE_NO_RELOAD") &&
+         DiagnosticLog.IsIncidentCode("NATIVE_REPLACEMENT_SOURCE_RELOAD") &&
+         DiagnosticLog.IsIncidentCode("SOURCE_ORIGINAL") &&
+         DiagnosticLog.IsIncidentCode("SOURCE_UNKNOWN") &&
+         DiagnosticLog.IsIncidentCode("SOURCE_ACTIVE_REPLACEMENT") &&
+         !DiagnosticLog.IsIncidentCode("NATIVE_CONNECTED") &&
          !DiagnosticLog.IsIncidentCode("WEB_CONTENTS_PRESENT"),
-        "W53/W54 performance, gain and volume/source warnings are durable incidents, ordinary status is not");
+        "W135 source decisions and actual decoder proof are durable incidents, ordinary connection status is not");
     var fixtureLogsDirectory = Path.Combine(folder, "owner-export-isolated");
     var nativeFixture = Path.Combine(fixtureLogsDirectory, "native-events.log");
     Directory.CreateDirectory(fixtureLogsDirectory);
@@ -1867,6 +1875,10 @@ try
          when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123\n" +
          when + "|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123\n" +
          when + "|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123\n" +
+         when + "|NATIVE_ORIGINAL_SOURCE_NO_RELOAD|track=123\n" +
+         when + "|NATIVE_UNKNOWN_SOURCE_NO_RELOAD|track=124\n" +
+         when + "|NATIVE_REPLACEMENT_SOURCE_RELOAD|track=125\n" +
+         when + "|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=125\n" +
          oldIncidentStamp + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n" +
         string.Concat(Enumerable.Repeat(when + "|NATIVE_STATE_RECEIVED\n", 2_500)) +
         when + "|ACTIVE_ENTITLEMENT_RECOVERED\n");
@@ -1888,6 +1900,15 @@ try
               history.Any(x => x.GetProperty("code").GetString() == "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" &&
               x.GetProperty("trackId").GetString() == "123"),
              "W54 gain, volume and source transitions survive later native status polling");
+         Test(history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ORIGINAL_SOURCE_NO_RELOAD" &&
+              x.GetProperty("trackId").GetString() == "123") &&
+              history.Any(x => x.GetProperty("code").GetString() == "NATIVE_UNKNOWN_SOURCE_NO_RELOAD" &&
+              x.GetProperty("trackId").GetString() == "124") &&
+              history.Any(x => x.GetProperty("code").GetString() == "NATIVE_REPLACEMENT_SOURCE_RELOAD" &&
+              x.GetProperty("trackId").GetString() == "125") &&
+              history.Any(x => x.GetProperty("code").GetString() == "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" &&
+              x.GetProperty("trackId").GetString() == "125"),
+             "W135 original/unknown/replacement decisions and exact decoder proof survive later native status polling");
          Test(history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
               history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_MEMORY_HIGH") &&
               history.Any(x => x.GetProperty("code").GetString() == "NATIVE_ELECTRON_CPU_HIGH"),
@@ -1910,9 +1931,13 @@ try
      DiagnosticLog.Record("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", "123", archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_NATIVE_VOLUME_DROP", "123", archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", "123", archiveDir);
+     DiagnosticLog.Record("NATIVE_ORIGINAL_SOURCE_NO_RELOAD", "123", archiveDir);
+     DiagnosticLog.Record("NATIVE_UNKNOWN_SOURCE_NO_RELOAD", "124", archiveDir);
+     DiagnosticLog.Record("NATIVE_REPLACEMENT_SOURCE_RELOAD", "125", archiveDir);
+     DiagnosticLog.Record("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", "125", archiveDir);
     DiagnosticLog.Record("NATIVE_STATE_RECEIVED", null, archiveDir);
     var preserved = DiagnosticLog.ReadIncidentHistory(archiveDir);
-    Test(preserved.Count == 8 &&
+    Test(preserved.Count == 12 &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")) &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")) &&
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
@@ -1920,7 +1945,11 @@ try
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_CPU_HIGH")) &&
           preserved.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123")) &&
           preserved.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123")) &&
-          preserved.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123")),
+          preserved.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123")) &&
+          preserved.Any(x => x.Contains("|NATIVE_ORIGINAL_SOURCE_NO_RELOAD|track=123")) &&
+          preserved.Any(x => x.Contains("|NATIVE_UNKNOWN_SOURCE_NO_RELOAD|track=124")) &&
+          preserved.Any(x => x.Contains("|NATIVE_REPLACEMENT_SOURCE_RELOAD|track=125")) &&
+          preserved.Any(x => x.Contains("|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=125")),
         "W75/W53/W54 outage, performance and missing-gain incidents are durably archived, not native poll chatter");
     var noisy = string.Concat(Enumerable.Repeat(
         DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") +
@@ -1939,6 +1968,10 @@ try
           historic.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=123") &&
           historic.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=123") &&
           historic.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=123") &&
+          historic.Contains("|NATIVE_ORIGINAL_SOURCE_NO_RELOAD|track=123") &&
+          historic.Contains("|NATIVE_UNKNOWN_SOURCE_NO_RELOAD|track=124") &&
+          historic.Contains("|NATIVE_REPLACEMENT_SOURCE_RELOAD|track=125") &&
+          historic.Contains("|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=125"),
          !historic.Contains("token=") && !historic.Contains("password="),
         "W75 archived incidents never carry polling chatter or credentials");
     var savedPast = DateTimeOffset.UtcNow.AddHours(-3).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
