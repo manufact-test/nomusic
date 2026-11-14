@@ -11,7 +11,9 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from clone_main_crash_buffer import main_exit_pids, LOG
 
-EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","OWN_RES_ROUTE","MEDIA_DS_HOOK","MEDIA_DS_READ","MEDIA_DS_SOURCE","MEDIA_DS_EXTRACTOR_LINK","MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL","UNCAUGHT",
+EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","OWN_RES_ROUTE","MEDIA_DS_HOOK","MEDIA_DS_READ","MEDIA_DS_SOURCE","MEDIA_DS_EXTRACTOR_LINK","MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL",
+        "AUDIO_FILEINFO_HOOK","AUDIO_DOWNLOADINFO_HOOK","AUDIO_EXO_FACTORY_HOOK",
+        "AUDIO_EXO_OPEN_HOOK","AUDIO_EXO_READ_HOOK","AUDIO_EXO_DATASOURCE_HOOK","UNCAUGHT",
         "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
         "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
@@ -55,6 +57,7 @@ ORIGINS={"METRICA_SDK","MUSIC_APP","NO_METRICA_FRAME",
           "OTHER_TARGET","UNKNOWN_TARGET",
           "PUSH_MODERN","PUSH_LEGACY","PUSH_HELPER","PUSH_GUARD","PUSH_FATAL","PUSH_NEAR_GUARD","PUSH_SERVICE","PUSH_PROVIDER",
           "MEDIA_DATA_SOURCE","MEDIA_EXTRACTOR",
+           "FILEINFO_DTO","DOWNLOADINFO_DTO","EXO_FACTORY","EXO_DATASOURCE",
           "PUSH_ARG","ARG_ENTER","ARG_THROW","RECEIVER_ENTER","RECEIVER_THROW",
           "CASE_0","CASE_1","CASE_2","CASE_3",
           "CASE_4","CASE_5","CASE_6","CASE_7",
@@ -139,6 +142,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
     media_reader_candidates=[] # separately capped first 12 source-class labels
     media_extractor_identity_links=[] # first 8 exact Java object identity matches
     extractor_events=[] # one bounded source-to-Android-extractor observation
+    audio_source_hooks=[] # independently capped finite registrations
     for line in logcat.splitlines()[-25000:]:
         parsed=LOG.match(line)
         if parsed is None or int(parsed.group(1)) not in owned:
@@ -172,6 +176,11 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
             media_extractor_identity_links.append(error)
         if event in ("MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL") and origin=="MEDIA_EXTRACTOR" and len(extractor_events)<32:
             extractor_events.append((event,error))
+        if (event in ("AUDIO_FILEINFO_HOOK","AUDIO_DOWNLOADINFO_HOOK",
+                      "AUDIO_EXO_FACTORY_HOOK","AUDIO_EXO_OPEN_HOOK",
+                      "AUDIO_EXO_READ_HOOK","AUDIO_EXO_DATASOURCE_HOOK")
+                and len(audio_source_hooks)<24):
+            audio_source_hooks.append((event,origin,error))
         if len(seen)<250:
             seen.append((event,origin,error,thread))
         # Keep scanning finite 25k log lines solely for this exact source
@@ -282,6 +291,19 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
                       for event,val in extractor_events)
             for state in ("ENTER","RETURN","THROW")},
         "read_only_extractor_no_source_values_disclosed":True,
+        "stage_b_pinned_source_registration":{
+            name:("REGISTERED" if (name,origin,"REGISTERED") in audio_source_hooks
+                  else "NO_HOOK" if (name,origin,"NO_HOOK") in audio_source_hooks
+                  else "NOT_SEEN")
+            for name,origin in (
+                ("AUDIO_FILEINFO_HOOK","FILEINFO_DTO"),
+                ("AUDIO_DOWNLOADINFO_HOOK","DOWNLOADINFO_DTO"),
+                ("AUDIO_EXO_FACTORY_HOOK","EXO_FACTORY"),
+                ("AUDIO_EXO_OPEN_HOOK","EXO_DATASOURCE"),
+                ("AUDIO_EXO_READ_HOOK","EXO_DATASOURCE"))
+        },
+        "stage_b_registered_hooks_are_not_audio_replacement":True,
+        "stage_b_current_player_album_edition_attested":False,
         "sdk_exception_throw_sites":sorted({x[2] for x in throw_sites}),
         "sdk_exception_exec_contexts":sorted({x[2] for x in throw_execution}),
         "sdk_exception_thread_loader_categories":sorted({x[2] for x in throw_loaders}),
