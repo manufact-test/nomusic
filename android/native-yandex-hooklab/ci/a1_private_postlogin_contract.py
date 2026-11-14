@@ -57,7 +57,11 @@ def required_callsites():
          {"Yandex_Music", "onboarding", "com.yandex.passport.ACTION_LOGIN_RESULT"},
          {("Landroid/content/SharedPreferences;", "getBoolean")}),
       ("Lru/yandex/music/entry/EntryScreenActivity;", "onCreate"): (
-         {"entry_type"}, {("Landroid/content/Intent;", "getParcelableExtra")}),
+         {"entry_type",
+          "Entry screen activity entry type must not be null. Fallback to login"},
+         {("Landroid/content/Intent;", "getParcelableExtra"),
+          ("Lcom/yandex/music/shared/utils/assertions/Assertions;", "throwOrSkip"),
+          ("LxT3$b;", "<init>")}),
       ("LeY5$a;", "emit"): (
          {"auto_login"}, {("LWS3$b;", "<init>"), ("LYX5;", "if")}),
       ("LoY5$a;", "emit"): (

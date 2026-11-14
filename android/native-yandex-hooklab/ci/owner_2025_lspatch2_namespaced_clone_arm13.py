@@ -534,6 +534,33 @@ def _postlogin_registration_accepted(
     return all(s in ("REGISTERED", "NOT_OBSERVED") for s in states)
 
 
+def observe_entry_hook_registration():
+    # No extras: the exact 2025 EntryScreenActivity has a verified vendor
+    # fallback-to-login path when entry_type is absent. No taps, text input,
+    # Passport approval or OTP are performed by this smoke.
+    component=DEST+"/ru.yandex.music.entry.EntryScreenActivity"
+    launched=guest("am","start","--user","0","-n",component,timeout=45)
+    accepted=(launched.returncode==0 and
+              ("Starting:" in launched.stdout or
+               "Warning: Activity not started" in launched.stdout))
+    time.sleep(5)
+    activities=guest("dumpsys","activity","activities",timeout=35)
+    raw_logcat=guest("logcat","-v","threadtime","-d",timeout=45).stdout
+    entry_created=_postlogin_entry_seen(raw_logcat)
+    flow_status=_postlogin_hook_status(raw_logcat,"FLOW")
+    pipeline_status=_postlogin_hook_status(raw_logcat,"PIPELINE")
+    return {
+        "launch_accepted":accepted,
+        "entry_activity_visible":component in activities.stdout,
+        "entry_created":entry_created,
+        "flow_hook_status":flow_status,
+        "pipeline_hook_status":pipeline_status,
+        "registration_pass":bool(accepted and entry_created and
+            flow_status=="REGISTERED" and pipeline_status=="REGISTERED"),
+        "no_login_interaction":True,
+    }
+
+
 def observe_clone(seconds=75):
     component=DEST+"/ru.yandex.music.main.MainScreenActivity"
     launched=guest("am","start","--user","0","-n",component,timeout=65)
@@ -742,6 +769,9 @@ def run(xapk):
                 live=guest("pidof",DEST,timeout=30).stdout.strip()
                 if re.fullmatch(r"[1-9][0-9]{0,8}",live):
                     stable_pid=live
+            report["postlogin_entry_hook_smoke"]=observe_entry_hook_registration()
+            report["postlogin_entry_hook_smoke_pass"]=report[
+                "postlogin_entry_hook_smoke"]["registration_pass"]
             raw_logcat=guest("logcat","-v","threadtime","-d",timeout=55).stdout
             report["master_key_init_runtime_status"]=_fresh_master_key_init_status(raw_logcat)
             report["onboarding_writer_hook_status"]=_onboarding_writer_hook_status(raw_logcat)
@@ -765,7 +795,8 @@ def run(xapk):
                     report["activity_result_delivery_hook_status"] == "REGISTERED" and
                     report["master_token_read_hook_status"] == "REGISTERED" and
                     report["master_token_decrypt_hook_status"] == "REGISTERED" and
-                    report["postlogin_registration_accepted"]
+                    report["postlogin_registration_accepted"] and
+                    report["postlogin_entry_hook_smoke_pass"]
                 else "CLONE_ONLY_MASTER_KEY_INIT_OR_MAIN_NO_GO")
             # No change to any original-first acceptance verdict.
             report["stage_a"]="NO_GO"
@@ -821,6 +852,9 @@ def run(xapk):
             live=guest("pidof",DEST,timeout=30).stdout.strip()
             if re.fullmatch(r"[1-9][0-9]{0,8}",live):
                 stable_pid=live
+        report["postlogin_entry_hook_smoke"]=observe_entry_hook_registration()
+        report["postlogin_entry_hook_smoke_pass"]=report[
+            "postlogin_entry_hook_smoke"]["registration_pass"]
         raw_logcat=guest("logcat","-v","threadtime","-d",timeout=55).stdout
         report["master_key_init_runtime_status"]=_fresh_master_key_init_status(raw_logcat)
         report["onboarding_writer_hook_status"]=_onboarding_writer_hook_status(raw_logcat)
@@ -850,6 +884,7 @@ def run(xapk):
                report["master_token_read_hook_status"] == "REGISTERED" and
                report["master_token_decrypt_hook_status"] == "REGISTERED" and
                report["postlogin_registration_accepted"] and
+               report["postlogin_entry_hook_smoke_pass"] and
                report["publisher_still_installed_after_clone_start"] and
                report["scoped_own_readonly_witness"]["read_only_witness_arm_marker_seen"] and
                not report["scoped_own_readonly_witness"]["lab_only_metrica_fatal_suppression_observed"]

@@ -107,6 +107,10 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
                   "a1_private_postlogin_contract.py").read_text(encoding="utf-8")
         for snippet in (
             '("LeY5$a;", "emit")',
+            '("Lru/yandex/music/entry/EntryScreenActivity;", "onCreate")',
+            '"Entry screen activity entry type must not be null. Fallback to login"',
+            '("Lcom/yandex/music/shared/utils/assertions/Assertions;", "throwOrSkip")',
+            '("LxT3$b;", "<init>")',
             '("LoY5$a;", "emit")',
             '("LpY5$a;", "emit")',
             '{"login result = "}',
@@ -245,6 +249,26 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertEqual(parser(pipeline,"FLOW"),"NOT_OBSERVED")
         self.assertEqual(parser(pipeline.replace("REGISTERED","NO_HOOK"),"PIPELINE"),"NO_HOOK")
         self.assertEqual(parser(flow,"UNSUPPORTED"),"UNAVAILABLE")
+
+    def test_native_entry_hook_smoke_uses_vendor_fallback_without_login_input(self):
+        runner=(Path(__file__).resolve().parent /
+                "owner_2025_lspatch2_namespaced_clone_arm13.py").read_text(encoding="utf-8")
+        start=runner.index("def observe_entry_hook_registration():")
+        end=runner.index("def observe_clone(",start)
+        part=runner[start:end]
+        self.assertIn('component=DEST+"/ru.yandex.music.entry.EntryScreenActivity"',part)
+        self.assertIn('guest("am","start","--user","0","-n",component',part)
+        self.assertIn('_postlogin_entry_seen(raw_logcat)',part)
+        self.assertIn('_postlogin_hook_status(raw_logcat,"FLOW")',part)
+        self.assertIn('_postlogin_hook_status(raw_logcat,"PIPELINE")',part)
+        self.assertIn('"registration_pass":bool(accepted and entry_created',part)
+        self.assertIn('"no_login_interaction":True',part)
+        self.assertNotIn('input tap',part)
+        self.assertNotIn('input text',part)
+        self.assertNotIn('monkey',part)
+        self.assertEqual(runner.count('report["postlogin_entry_hook_smoke"]=observe_entry_hook_registration()'),2)
+        self.assertEqual(runner.count('report["postlogin_entry_hook_smoke_pass"]'),4)
+        self.assertIn('report["postlogin_entry_hook_smoke_pass"]',runner)
 
     def test_native_postlogin_gate_scoped_to_real_entry(self):
         source=(Path(__file__).resolve().parent /
