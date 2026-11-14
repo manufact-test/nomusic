@@ -381,10 +381,27 @@ async function tick(view) {
       // Only matching current decoder kUrl + kIsPlaying is evidence of our
       // source reaching the actual player. HTTP 206 or a mapped file-info
       // is NOT enough for the green "Подмена активна" label.
-      const decoder = verifiedDecoderSource.get(view);
-      const decoderConfirmed = trackId && decoder?.trackId === trackId &&
-        decoder.at >= firstSeenAt - 2000 &&
-        checkedAt - decoder.at < 600000;
+      // Queue identity and CDP player-property events can arrive in either
+      // order. Reconcile the retained current decoder state after observing
+      // the queue, rather than requiring kUrl/kIsPlaying to arrive second.
+      const decoderPlayer = currentDecoderPlayer(view, trackId, firstSeenAt, checkedAt);
+      const decoderConfirmed = !!decoderPlayer;
+      if (decoderConfirmed) {
+        verifiedDecoderSource.set(view, {trackId, at:decoderPlayer.sourceAt});
+        if (decoderPlayer.evidenceReportedFor !== trackId) {
+          decoderPlayer.evidenceReportedFor = trackId;
+          note("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", trackId);
+          if (decoderPlayer.gainApplied === true)
+            note("PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", trackId);
+          else if (Number.isFinite(decoderPlayer.gainDb) && decoderPlayer.gainDb !== 0)
+            note("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", trackId);
+          void execute(view,
+            ";window.__celikomBridgeNativeConfirmedCurrentSource?.(" +
+            JSON.stringify(trackId) + ")").catch(() => null);
+        }
+      } else {
+        verifiedDecoderSource.delete(view);
+      }
       const status = rendererStatus === "NATIVE_MAPPING_ACCEPTED" && decoderConfirmed
         ? "NATIVE_SOURCE_VERIFIED" : rendererStatus;
       if (rendererStatus === "NATIVE_MAPPING_ACCEPTED" && trackId &&
@@ -455,6 +472,7 @@ const nativeExpectedAudio = new WeakMap();
 const nativeMediaHttpSuccess = new WeakMap();
 const nativeNetworkObserversReady = new WeakSet();
 const nativeUnfetchedReloadAttempt = new WeakMap();
+const nativeDecoderPlayers = new WeakMap();
 const verifiedDecoderSource = new WeakMap();
 const AUDIO_RESOURCE_PATH = /^\/api\/v1\/audio\/([1-9][0-9]{0,17})$/;
 function rememberExpectedAudio(view, grant) {
@@ -537,6 +555,19 @@ async function classifyAudioDenial(debug, requestId, id, eligible) {
     else note("PLAYER_403_JSON_UNCLASSIFIED", id, "resource_id");
   } catch { /* Read-only CDP body access may be unavailable; do not interfere. */ }
 }
+function currentDecoderPlayer(view, trackId, firstSeenAt, checkedAt) {
+  if (!trackId) return null;
+  const players = nativeDecoderPlayers.get(view);
+  if (!players) return null;
+  for (const player of players.values()) {
+    if (player?.playing === true && player.sourceTrackId === trackId &&
+        Number.isSafeInteger(player.sourceAt) &&
+        player.sourceAt >= firstSeenAt - 3000 &&
+        checkedAt >= player.sourceAt && checkedAt - player.sourceAt < 600000)
+      return player;
+  }
+  return null;
+}
 function observeNativePlayback(view) {
   if (!validView(view) || playbackWitnesses.has(view)) return;
   playbackWitnesses.add(view);
@@ -552,6 +583,7 @@ function observeNativePlayback(view) {
   // Only matching *current* decoder URLs can corroborate a CELIKOM source.
   // Prefetch GETs, grant delivery, HTTP 206 and renderer status do not count.
   const decoderPlayers = new Map();
+  nativeDecoderPlayers.set(view, decoderPlayers);
   const capturePlayerProperties = params => {
     const id = params?.playerId;
     if (typeof id !== "string" || id.length < 1 || id.length > 128 ||
@@ -559,7 +591,7 @@ function observeNativePlayback(view) {
     if (!decoderPlayers.has(id) && decoderPlayers.size >= 32)
       decoderPlayers.delete(decoderPlayers.keys().next().value);
     const prev = decoderPlayers.get(id) || {
-      playing:false, sourceTrackId:null, gainApplied:null, gainDb:null,
+      playing:false, sourceTrackId:null, sourceAt:null, gainApplied:null, gainDb:null,
       evidenceReportedFor:null, lastVolume:null, volumeTrackId:null
     };
     const properties = params.properties.slice(0, 30);
@@ -573,6 +605,7 @@ function observeNativePlayback(view) {
         const wasCurrentCelikom = prev.playing && !!previousTrackId &&
           previousTrackId === lastStatus.get(view)?.trackId;
         prev.sourceTrackId = null;
+        prev.sourceAt = null;
         prev.gainApplied = null;
         prev.gainDb = null;
         prev.evidenceReportedFor = null;
@@ -591,6 +624,7 @@ function observeNativePlayback(view) {
               (classification === "PLAYER_URL_MATCH" ||
                classification === "PLAYER_URL_SIGNED_FIELDS_INTACT")) {
             prev.sourceTrackId = expected.yandexTrackId;
+            prev.sourceAt = Date.now();
             prev.gainApplied = expected.gainApplied === true;
             prev.gainDb = expected.gainDb;
           }
@@ -836,6 +870,7 @@ function observeNativePlayback(view) {
         nativeNetworkObserversReady.delete(view);
         nativeUnfetchedReloadAttempt.delete(view);
         decoderPlayers.clear();
+        nativeDecoderPlayers.delete(view);
         note("PLAYER_CDP_DETACHED");
       });
       Promise.resolve(debug.sendCommand("Media.enable")).then(
