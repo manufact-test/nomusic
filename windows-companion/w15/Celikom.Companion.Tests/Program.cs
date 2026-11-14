@@ -26,9 +26,9 @@ try
         updateBytes.Length, updateHash, DateTimeOffset.UtcNow.AddDays(1),
         false, "Safe updater test");
     var updateStage = Path.Combine(folder, "stable-stage");
-    using (var updateClient = new HttpClient(new FakeHandler(_ =>
+    using (var updateClient = new HttpClient(new FakeHandler(req =>
         new HttpResponseMessage(HttpStatusCode.OK)
-            { Content = new ByteArrayContent(updateBytes) })))
+            { RequestMessage = req, Content = new ByteArrayContent(updateBytes) })))
     {
         var untrusted = await StableUpdatePackageStager.DownloadUntrustedAsync(
             updateRelease, updateStage, updateClient);
@@ -50,9 +50,9 @@ try
         { tamperRejected = true; }
         Test(tamperRejected, "W105 post-stage byte tamper is rejected before launch");
     }
-    using (var badClient = new HttpClient(new FakeHandler(_ =>
+    using (var badClient = new HttpClient(new FakeHandler(req =>
         new HttpResponseMessage(HttpStatusCode.OK)
-            { Content = new ByteArrayContent(updateBytes.AsSpan(0, 25_000).ToArray()) })))
+            { RequestMessage = req, Content = new ByteArrayContent(updateBytes.AsSpan(0, 25_000).ToArray()) })))
     {
         bool shortRejected = false;
         try { await StableUpdatePackageStager.DownloadUntrustedAsync(
@@ -61,9 +61,9 @@ try
             "STABLE_UPDATE_HASH_OR_LENGTH") { shortRejected = true; }
         Test(shortRejected, "W105 interrupted transfer cannot leave an executable staged file");
     }
-    using (var redirectClient = new HttpClient(new FakeHandler(_ =>
+    using (var redirectClient = new HttpClient(new FakeHandler(req =>
         new HttpResponseMessage(HttpStatusCode.Redirect)
-            { Headers = { Location = new Uri("https://evil.example/install.exe") } })))
+            { RequestMessage = req, Headers = { Location = new Uri("https://evil.example/install.exe") } })))
     {
         bool redirectRejected = false;
         try { await StableUpdatePackageStager.DownloadUntrustedAsync(
