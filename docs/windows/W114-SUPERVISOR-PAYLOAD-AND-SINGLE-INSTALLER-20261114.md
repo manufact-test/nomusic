@@ -43,3 +43,15 @@
 - Additional journal consistency guard: schema-2 `ReadRecord` now rejects missing/invalid previous or target Supervisor SHA-256 values immediately, rather than returning a record that only the engine later refuses. This aligns durable journal validation with W114's four-file payload contract. Code commit: `59a84955308ec73f3a4e3b8dad1282002eb4f3ed`.
 
 - W114a regression coverage expanded: separate W15 cases now reject a previous release missing `SupervisorSha256` and a target release missing `SupervisorSha256`; this verifies both sides of the rollback pair fail closed before journal creation. Test commit: `0540673c68fdd2fca1bc32acda74496de6fe09e6`. Exact pre-test backup: `backup/windows-main-pre-w114a-supervisor-missing-hash-tests-20261114` @ `faf417f29db5a97cb4faded53663d07c4da64f1d`.
+
+## W114a — rollback Supervisor identity closure / 14 November 2026
+
+- Current code/test HEAD before documentation: `e27cd829dc0f101c92bf21d44425504359b7cb21`.
+- Exact pre-documentation rollback: `backup/windows-main-pre-w114a-ci-docs-20261114` @ `e27cd829dc0f101c92bf21d44425504359b7cb21`.
+- Fixed rollback re-verification so the reconstructed previous signed release retains `PreviousSupervisorSha256`; strengthened the synthetic signed-package verifier to require all four payload hashes (application, native host, renderer, supervisor).
+- Schema-2 DPAPI journal reader now rejects missing/invalid previous or target Supervisor hashes. W15 adds independent fail-closed tests for a previous release missing `SupervisorSha256` and a target release missing `SupervisorSha256`.
+- Relevant commits: `54219d43e550e4c5ea42eb2fa511264a4255ee0e`, `a7c8474a9dadb55c55261bffe6e6141aabac1146`, `59a84955308ec73f3a4e3b8dad1282002eb4f3ed`, `0540673c68fdd2fca1bc32acda74496de6fe09e6`.
+- Final code CI at exact HEAD `e27cd829`: Main CI [43581840478](https://github.com/manufact-test/nomusic/actions/runs/43581840478) SUCCESS; Windows integration [43581840481](https://github.com/manufact-test/nomusic/actions/runs/43581840481) SUCCESS.
+- This closes payload identity gaps in the rollback journal and package verifier only. It does not provision production P-256/AuthentiCode pins, publish a live stable feed, add the app's trusted Supervisor launch callsite, run a real signed crash-recovery test, or enable automatic updates. No installer was built or delivered to the owner.
+- Next engineering task remains production signing and trusted same-user Supervisor launch wiring, but only after the owner supplies/approves the production certificate/key configuration and official feed origin through protected release infrastructure. Keep fail-closed; do not fabricate credentials or use Hostinger QA as production.
+
