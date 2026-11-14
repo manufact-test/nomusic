@@ -321,6 +321,17 @@ try
             updateRelease, updateStage, updateClient);
         Test(File.Exists(untrusted) && File.ReadAllBytes(untrusted).SequenceEqual(updateBytes),
             "W105 bounded HTTP200 content and exact SHA256 stage without execution");
+        bool missingPayloadRejected = false;
+        try
+        {
+            StableUpdatePackageStager.VerifyInstaller(untrusted,
+                updateRelease with { RendererSha256 = "" }, new string('a', 64));
+        }
+        catch (IOException e) when (e.Message == "STABLE_UPDATE_PAYLOAD_IDENTITY_MISSING")
+        { missingPayloadRejected = true; }
+        Test(missingPayloadRejected,
+            "W112 staged installer is never considered verified without all signed payload hashes");
+
         bool unsignedRejected = false;
         try { StableUpdatePackageStager.VerifyInstaller(
                 untrusted, updateRelease, new string('a', 64)); }

@@ -38,6 +38,7 @@ public static class StableUpdatePackageStager
             throw new IOException("STABLE_UPDATE_WINDOWS_ONLY");
         if (!CertFingerprint.IsMatch(pinnedSignerCertSha256 ?? ""))
             throw new IOException("STABLE_UPDATE_SIGNER_UNPINNED");
+        RequirePayloadIdentity(release);
 
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -78,6 +79,7 @@ public static class StableUpdatePackageStager
             throw new IOException("STABLE_UPDATE_WINDOWS_ONLY");
         if (release is null || !CertFingerprint.IsMatch(pinnedSignerCertSha256 ?? ""))
             throw new IOException("STABLE_UPDATE_SIGNER_UNPINNED");
+        RequirePayloadIdentity(release);
         if (!File.Exists(stagedPath))
             throw new IOException("STABLE_UPDATE_FILE_MISSING");
 
@@ -188,6 +190,15 @@ public static class StableUpdatePackageStager
             catch { /* Do not turn a failed download into installer execution. */ }
             throw;
         }
+    }
+
+    private static void RequirePayloadIdentity(
+        StableUpdateManifestVerifier.VerifiedRelease release)
+    {
+        if (!CertFingerprint.IsMatch(release.ApplicationSha256 ?? "") ||
+            !CertFingerprint.IsMatch(release.NativeHostSha256 ?? "") ||
+            !CertFingerprint.IsMatch(release.RendererSha256 ?? ""))
+            throw new IOException("STABLE_UPDATE_PAYLOAD_IDENTITY_MISSING");
     }
 
     private static byte[] DecodeExpectedHash(string sha256)
