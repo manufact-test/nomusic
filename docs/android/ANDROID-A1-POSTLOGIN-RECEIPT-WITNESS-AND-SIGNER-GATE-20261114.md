@@ -51,6 +51,16 @@ The final source pass adds a strictly read-only observer around Android 13's `Co
 
 The paired native idle test cannot prove an auth-time writer exists; no owner APK is exported because the NAV9 certificate is not updatable. If static scan finds no writer candidate, the onboarding key may be an incidental read, not the root cause. If the runtime observer reports no write during real login, continue upstream through `MASTER_TOKEN_READ`, `MASTER_TOKEN_DECRYPT`, `POSTLOGIN_PUBLISH/CONSUME/MAIN_ROUTE` rather than forcing the preference.
 
+### Exact onboarding DEX inventory result
+
+The read-only scan completed in [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113): **8 methods** contained the `onboarding` literal, **2 reader candidates**, **5 writer candidates**, and **0 undecodable methods skipped**. It identified:
+- Reader candidates: `Lru/yandex/music/main/MainScreenActivity;->onCreate` (`contains/getBoolean`) and `LUc1$b;->emit` (`contains/getLong/setValue`).
+- Writer candidates: `LVj1;->transient` (`clear/setValue`), `LUc1$b;->emit` (`contains/getLong/setValue`), `Lf67;->if` (`putBoolean/apply`), `Lru/yandex/music/profile/ProfileActivity$b;->emit` and `ProfileActivity$c;->emit` (`putBoolean/apply`).
+
+These are **same-method literal/API co-occurrence candidates**, not a proven runtime call chain or proof that every candidate writes this specific key. Prior exact DEX callsite work places `f67` in app upgrade/initialization, not the demonstrated Passport success callback; profile writers are not evidence of login completion. The NAV12 runtime observer is the next discriminator.
+
+The same #43576640113 paired Android13 run completed **SUCCESS** with `master_key_init_runtime_status=ORIGINAL_KEY_PERSISTED` and verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. This source predates the new onboarding-writer registration gate, so it proves paired idle startup/key persistence only.
+
 ## Signing blocker (separate, verified)
 
 Both owner NAV8 and NAV9 APKs had different outer signing certificates, because ephemeral own JKS is regenerated per CI run. Android cannot update either clone in-place with a different signer and preserve its package data. Therefore owner export is now **fail-closed for disposable signing** even if idle native CI is green. It requires an independently verified, long-lived owner signer supplied to the pipeline; the current lab does not and cannot assert that condition. Push builds never export APKs automatically. The publisher's inner signed APK and its key are untouched.
