@@ -105,11 +105,11 @@ public final class StageBAudioEvidenceTest {
         check(rows[13].contains(";error=ONE;"));
         check(rows[14].contains(";error=ONE;"));
         check(rows[15].contains(";error=ONE;"));
-        check(rows[16].contains(";error=ONE;"));
+        check(rows[16].contains(";error=FEW;"));
         check(rows[17].contains(";error=ONE;"));
         check(rows[18].contains(";error=FEW;"));
-        check(rows[19].contains(";error=ONE;"));
-        check(rows[20].contains(";error=ONE;"));
+        check(rows[19].contains(";error=FEW;"));
+        check(rows[20].contains(";error=FEW;"));
         for(int i=0;i<10;i++) e.onReader(1,false);
         check(e.exportLines()[3].contains(";error=MANY;"));
         for(int i=0;i<50;i++) e.onExoReadResult(1);
