@@ -1768,6 +1768,8 @@ try
     Test(snapshot.Contains("DiagnosticScope=LAST_15_MINUTES"), "recent sessions only");
     Test(snapshot.Contains("ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING"),
         "successful MP3 probe never implies audio replacement");
+    Test(snapshot.Contains("PLAYER_CDP_PROPERTIES_SEEN/PLAYER_CDP_URL_PROPERTY_SEEN show Media-domain field availability only"),
+        "W130 export explicitly says CDP field visibility is not current-source proof");
     Test(snapshot.Contains("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE"), "W54 truthful diagnostics baseline");
     Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
         "W53 native URL mismatch reaches actual exported TXT");
