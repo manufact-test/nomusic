@@ -144,6 +144,41 @@ public static class StableUpdateRollbackJournal
         return next;
     }
 
+    /// <summary>Health success is NOT an arbitrary phase transition.</summary>
+    public static Record ConfirmNewAppHealthy(string privateRoot, Guid id,
+        HealthEvidence evidence, DateTimeOffset now)
+    {
+        RequireWindows();
+        var root = FullRoot(privateRoot);
+        using var exclusive = AcquireLock(root);
+        var state = ReadRecord(root);
+        if (state.Id != id || state.State != Phase.NewAppObserved ||
+            Decide(state, evidence, now) != Decision.AcceptNewVersion)
+            throw new IOException("STABLE_ROLLBACK_HEALTH_NOT_PROVEN");
+        var next = state with { State = Phase.Healthy };
+        WriteRecord(root, next);
+        return next;
+    }
+
+    /// <summary>Restoring the old installer is not proof it booted correctly.</summary>
+    public static Record ConfirmPreviousRestored(string privateRoot, Guid id,
+        HealthEvidence evidence)
+    {
+        RequireWindows();
+        var root = FullRoot(privateRoot);
+        using var exclusive = AcquireLock(root);
+        var state = ReadRecord(root);
+        if (state.Id != id || state.State != Phase.RollbackStarted ||
+            state.RollbackAttempts != 1 ||
+            !evidence.ExactSignedNewExe || !evidence.BridgeResponds ||
+            (state.ExpectedSession && !evidence.SessionPreserved) ||
+            (state.NativeWasInstalled && !evidence.NativeIntegrationConsistent))
+            throw new IOException("STABLE_ROLLBACK_RESTORE_NOT_PROVEN");
+        var next = state with { State = Phase.Restored };
+        WriteRecord(root, next);
+        return next;
+    }
+
     public static Decision Decide(Record record, HealthEvidence evidence,
         DateTimeOffset now)
     {
@@ -218,10 +253,8 @@ public static class StableUpdateRollbackJournal
         (Phase.Prepared, Phase.ManualRecovery) => true,
         (Phase.InstallerStarted, Phase.NewAppObserved) => true,
         (Phase.InstallerStarted, Phase.RollbackNeeded) => true,
-        (Phase.NewAppObserved, Phase.Healthy) => true,
         (Phase.NewAppObserved, Phase.RollbackNeeded) => true,
         (Phase.RollbackNeeded, Phase.RollbackStarted) => true,
-        (Phase.RollbackStarted, Phase.Restored) => true,
         (Phase.RollbackStarted, Phase.ManualRecovery) => true,
         _ => false
     };
