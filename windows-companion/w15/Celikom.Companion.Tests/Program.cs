@@ -106,6 +106,37 @@ try
     Test(missingPayloadDenied,
         "W112 rollback journal cannot be prepared from a release without signed payload identity");
 
+    bool missingPreviousSupervisorDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.PrepareCore(
+            Path.Combine(rollbackFixtureRoot, "missing-previous-supervisor"),
+            previousRelease with { SupervisorSha256 = "" }, previousSetup,
+            targetRelease, nextSetup, testSignerPin, previousRelease.Version,
+            rollbackAt, true, true, VerifySyntheticSetup,
+            sessionIdentitySha256: new string('d', 64));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_PLAN_INVALID")
+    { missingPreviousSupervisorDenied = true; }
+    Test(missingPreviousSupervisorDenied,
+        "W114 previous rollback release without signed supervisor hash is refused");
+
+    bool missingTargetSupervisorDenied = false;
+    try
+    {
+        StableUpdateRollbackJournal.PrepareCore(
+            Path.Combine(rollbackFixtureRoot, "missing-target-supervisor"),
+            previousRelease, previousSetup,
+            targetRelease with { SupervisorSha256 = "" }, nextSetup,
+            testSignerPin, previousRelease.Version, rollbackAt, true, true,
+            VerifySyntheticSetup,
+            sessionIdentitySha256: new string('d', 64));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_PLAN_INVALID")
+    { missingTargetSupervisorDenied = true; }
+    Test(missingTargetSupervisorDenied,
+        "W114 target release without signed supervisor hash is refused");
+
     bool overlappingDenied = false;
     try
     {
