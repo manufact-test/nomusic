@@ -29,7 +29,8 @@ public static class StableUpdateRollbackJournal
         string TargetVersion, string PreviousSha256, string TargetSha256,
         string SignerSha256, long PreviousSize, long PreviousSequence,
         long TargetSequence, long DeadlineUnix, int RollbackAttempts,
-        bool ExpectedSession, bool NativeWasInstalled);
+        bool ExpectedSession, bool NativeWasInstalled,
+        string SessionIdentitySha256 = "");
 
     private const string TicketName = "stable-update-rollback.dpapi";
     private const string PreviousName = "previous-signed-setup.exe";
@@ -48,10 +49,17 @@ public static class StableUpdateRollbackJournal
         string pinnedSignerSha256, Version runningVersion,
         DateTimeOffset now, bool hasSession, bool nativeWasInstalled)
     {
+        // Capture the EXISTING account/installation identity before the
+        // installer can replace any files. Never create a new DPAPI session.
+        var identity = hasSession
+            ? SignedUpdateSessionIdentity.ReadExistingFingerprint()
+            : "";
+        if (hasSession && identity is null)
+            throw new IOException("STABLE_ROLLBACK_EXISTING_SESSION_UNREADABLE");
         return PrepareCore(privateRoot, previous, previousInstaller, target,
             targetInstaller, pinnedSignerSha256, runningVersion, now,
             hasSession, nativeWasInstalled,
-            StableUpdatePackageStager.VerifyInstaller);
+            StableUpdatePackageStager.VerifyInstaller, identity ?? "");
     }
 
     // CI-only verifier seam; real entry point above always calls the full
@@ -62,9 +70,14 @@ public static class StableUpdateRollbackJournal
         StableUpdateManifestVerifier.VerifiedRelease target, string targetInstaller,
         string pinnedSignerSha256, Version runningVersion,
         DateTimeOffset now, bool hasSession, bool nativeWasInstalled,
-        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify)
+        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify,
+        string sessionIdentitySha256 = "")
     {
         RequireWindows();
+        // The synthetic CI verifier seam may omit the session fingerprint.
+        // Production PrepareSigned ALWAYS supplies the existing identity.
+        if (sessionIdentitySha256.Length != 0 && !ValidSha(sessionIdentitySha256))
+            throw new IOException("STABLE_ROLLBACK_SESSION_FINGERPRINT_INVALID");
         if (previous.Version != runningVersion ||
             target.Version <= previous.Version ||
             target.Sequence <= previous.Sequence ||
@@ -109,7 +122,7 @@ public static class StableUpdateRollbackJournal
                 previous.Sha256, target.Sha256, pinnedSignerSha256,
                 previous.PackageSize, previous.Sequence, target.Sequence,
                 now.AddMinutes(10).ToUnixTimeSeconds(), 0,
-                hasSession, nativeWasInstalled);
+                hasSession, nativeWasInstalled, sessionIdentitySha256);
             WriteRecord(root, record);
             return record;
         }
@@ -337,6 +350,8 @@ public static class StableUpdateRollbackJournal
             if (record is null || record.Schema != 1 || record.Id == Guid.Empty ||
                 !ValidSha(record.PreviousSha256) || !ValidSha(record.TargetSha256) ||
                 !ValidSha(record.SignerSha256) ||
+                (record.SessionIdentitySha256.Length != 0 &&
+                 !ValidSha(record.SessionIdentitySha256)) ||
                 !Version.TryParse(record.PreviousVersion, out var previous) ||
                 !Version.TryParse(record.TargetVersion, out var target) ||
                 previous >= target || record.PreviousSequence >= record.TargetSequence ||
