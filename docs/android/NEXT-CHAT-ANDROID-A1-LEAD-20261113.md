@@ -502,3 +502,43 @@ Do not ask the owner to repeat OTP before the APK is installed. The owner must e
 - Working branch before docs commit: `e58dc2c11396adf85e16b08abc03da7813b01c15`.
 - Exact backup: `backup/android-a1-owner-phone-apk-artifact-handoff-20261114` @ `e58dc2c11396adf85e16b08abc03da7813b01c15`.
 - No Android source code changed in this documentation-only update.
+
+
+## 14 Nov 2026 — NAV13 real Entry observers, owner APK exported by assistant-triggered workflow
+
+### Dispatch and exact state
+- The owner did not click GitHub Actions. A temporary one-shot dispatcher was committed, used to invoke the existing protected `workflow_dispatch` with both approved inputs true, and self-deleted after successful dispatch.
+- Dispatcher run #43604186462 SUCCESS; main diagnostic workflow #43604192249 SUCCESS.
+- Main run: https://github.com/manufact-test/nomusic/actions/runs/43604192249
+- Workflow head at dispatch: `bf3c67c96d4e723bae09e64bdc3e1b5edd4b6eb6`; Android source under test remains `cb6f5b6b00fa35b0c66d499e4e795229d198daae`. The intervening changes were dispatch/cleanup only, not Android source changes.
+- Current branch after helper cleanup: `8ab403e5c9d927af158bf606c17cbe387bcd2b46`.
+- Exact pre-dispatch backup: `backup/android-a1-pre-one-shot-owner-diagnostic-dispatch-20261114` @ `37fd2f806afc8cd1e1739ef5c17d3f1e5381101b`.
+- Exact post-run/pre-doc backup: `backup/android-a1-nav13-owner-diagnostic-apk-43604192249-20261114` @ `8ab403e5c9d927af158bf606c17cbe387bcd2b46`.
+- The temporary helper and marker files were removed. No permanent workflow behavior was changed.
+
+### Native acceptance
+- Publisher-first Android 13 ARM run SUCCESS: original publisher installed first, all 16 original splits verified, original stable for 75 seconds before and after clone install; CELIKOM clone stable for 75 seconds with 25/25 resumed lifecycle observations.
+- Entry smoke created the real clone Entry Activity without login interaction; FLOW and PIPELINE observers both REGISTERED.
+- `master_key_init_runtime_status=ORIGINAL_KEY_PERSISTED`; token read/decrypt, Android result delivery and onboarding writer observers REGISTERED.
+- Persistent owner signer verified: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
+- `owner_apk_install_mode=FRESH_INSTALL_AUTHORIZED`; `owner_phone_touched=false`.
+- Verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. No real Passport login or audio playback was performed. This is a diagnostic APK, not a product release. Stage A remains NO-GO; Stage B remains LOCKED.
+
+### Exported and independently checked APK
+- Private GitHub artifact ID: `14117891265`, run #43604192249, artifact `CELIKOM-A1-OnDevice-Diagnostic-20261113`, ZIP SHA-256 `dc6a1df7c421d785aba80cc96df3cef4bf9de35cb317e2853533d56e8cd89a27`.
+- APK size: `71,446,508` bytes.
+- APK SHA-256: `6e62b17aad4b9d7633a22880cceea02d39029cbe22bb663a7b302b5e9a8bc722`.
+- `keytool -printcert -jarfile` independently confirmed subject `C=BY, O=MANUFACT, CN=CELIKOM A1`, RSA 3072, SHA256withRSA, and certificate SHA-256 equal to the pinned owner signer above.
+- Sanitized native report independently records the same APK SHA-256, signer verification true, package `pro.celikom.yandex.nativeclonelab`, publisher/clone coexistence true, and no owner-phone access.
+- Uploaded to personal Library:
+  - `/CELIKOM/CELIKOM-A1-NAV13-Entry-PostLogin-Diagnostic-20261114.apk`
+  - `/CELIKOM/NAV13-Инструкция-реального-входа-CELIKOM-A1-20261114.txt`
+- `CELIKOM_A1_INSTALLED_CERT_SHA256` remains unset: the exact signer of the older clone on the owner's phone is not proven. Do not claim in-place update compatibility.
+
+### Next single owner-side check
+1. Remove only the existing CELIKOM diagnostic clone `pro.celikom.yandex.nativeclonelab`; its local clone account/data may be lost. Do not uninstall or clear data for the ordinary Yandex Music app.
+2. Install the Library APK above. If Play Protect blocks it, do not disable/bypass protection; stop and report.
+3. Complete one normal Yandex Passport login inside the app, reproduce the known return-to-intro loop once, then reopen CELIKOM and tap `Сохранить диагностику`.
+4. Send the resulting `CELIKOM-A1-Diagnostics-....txt`. Never send an OTP, password or account token. No USB/ADB/computer is needed.
+
+This is the first NAV13 owner APK built with the persistent owner signer and the current read-only Entry/Flow/Pipeline observers. The earlier NAV9 installed clone's certificate remains unverified; the explicit fresh-install authorization is why only the CELIKOM clone is replaced.
