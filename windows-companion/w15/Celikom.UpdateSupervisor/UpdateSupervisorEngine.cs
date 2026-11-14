@@ -20,6 +20,10 @@ public sealed class UpdateSupervisorEngine(
         var state = journal.Read();
         if (state.Id != expectedTransaction || state.Schema != 1)
             throw new IOException("SUPERVISOR_TRANSACTION_MISMATCH");
+        if (state.ExpectedSession && (state.SessionIdentitySha256.Length != 64 ||
+            state.SessionIdentitySha256.Any(c => c is not
+                (>= '0' and <= '9' or >= 'a' and <= 'f'))))
+            throw new IOException("SUPERVISOR_SESSION_WITNESS_MISSING");
 
         switch (state.State)
         {
@@ -32,7 +36,8 @@ public sealed class UpdateSupervisorEngine(
                 return Step.Waiting;
             case StableUpdateRollbackJournal.Phase.InstallerStarted:
             {
-                var health = await probe.CheckAsync(Version.Parse(state.TargetVersion), ct);
+                var health = await probe.CheckAsync(Version.Parse(state.TargetVersion),
+                    state.SessionIdentitySha256, ct);
                 if (health.ExactSignedNewExe)
                 {
                     journal.Advance(state.State, StableUpdateRollbackJournal.Phase.NewAppObserved);
@@ -47,7 +52,8 @@ public sealed class UpdateSupervisorEngine(
             }
             case StableUpdateRollbackJournal.Phase.NewAppObserved:
             {
-                var health = await probe.CheckAsync(Version.Parse(state.TargetVersion), ct);
+                var health = await probe.CheckAsync(Version.Parse(state.TargetVersion),
+                    state.SessionIdentitySha256, ct);
                 var decision = StableUpdateRollbackJournal.Decide(state, health, now);
                 if (decision == StableUpdateRollbackJournal.Decision.AcceptNewVersion)
                 {
@@ -107,7 +113,8 @@ public sealed class UpdateSupervisorEngine(
             }
             case StableUpdateRollbackJournal.Phase.RollbackStarted:
             {
-                var health = await probe.CheckAsync(Version.Parse(state.PreviousVersion), ct);
+                var health = await probe.CheckAsync(Version.Parse(state.PreviousVersion),
+                    state.SessionIdentitySha256, ct);
                 if (health.ExactSignedNewExe && health.BridgeResponds &&
                     (!state.ExpectedSession || health.SessionPreserved) &&
                     (!state.NativeWasInstalled || health.NativeIntegrationConsistent))
@@ -142,7 +149,8 @@ public interface ISupervisorJournal
 public interface ISupervisorHealthProbe
 {
     Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
-        Version expected, CancellationToken cancellationToken);
+        Version expected, string originalSessionFingerprint,
+        CancellationToken cancellationToken);
     bool SafeForRollback();
 }
 
