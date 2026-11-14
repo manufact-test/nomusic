@@ -1,3 +1,5 @@
+> **14 NOV 2026 LATEST OWNER NAV13 DIAGNOSTIC RECEIVED — supersedes earlier WAIT instruction.** The owner supplied `CELIKOM-A1-Diagnostics-1794667528891.txt`. It proves the real Passport result entered the original `qY5.if` path but returned `AFTER_TOKEN_REQUEST NO_USERINFO_RESULT`. No native userInfo success/Main/audio. Read **[ANDROID-A1-NAV14-TOKEN-REQUEST-BOUNDARY-20261114.md](ANDROID-A1-NAV14-TOKEN-REQUEST-BOUNDARY-20261114.md)** before work; token failure versus null remains unknown. A narrow read-only observer and static gates were committed in this SAME branch, with exact pre-change backup `backup/android-a1-nav13-owner-token-boundary-before-readonly-fix-20261114` @ `0f4100c`. Latest source/test head `73f2461`, native CI #43607380238 (paired) and #43607320585 (clone-only) require final verification. **DO NOT ask for another OTP, user installation or GitHub button-click; no new owner APK yet.** Stage A NO-GO, Stage B LOCKED. All older WAIT-FOR-TXT instructions below are historical and superseded by this receipt.
+
 # CELIKOM A1 — NAV13 WAITING FOR OWNER DIAGNOSTIC
 
 **Date:** 14 November 2026  
