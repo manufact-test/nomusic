@@ -1052,6 +1052,11 @@ public sealed partial class MainWindow : Form
                 ct => _api.ActivatePlaybackAsync(ct), StillSameConnection,
                 code => DiagnosticLog.Record(code));
             if (!StillSameConnection()) return;
+            ++_compactAccessGeneration; // this fresh activation supersedes any read-only preview
+            _compactAccessConfirmedInstallation = account.InstallationId;
+            _compactAccessConfirmedEmail = account.Email;
+            SetCompactAccessText(AccessLabel(access));
+            _compactAccessChecked = DateTimeOffset.UtcNow;
             if (!PlaybackEntitlement.Allowed(access, DateTimeOffset.UtcNow))
             {
                 _bridge.SetEnabled(false);

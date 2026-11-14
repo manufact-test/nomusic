@@ -153,6 +153,7 @@ jobs:
             (([regex]::Matches($mainWindowText, 'PlaybackStartGate\.CanAcceptStart\(')).Count -ge 2),
             $mainWindowText.Contains('_compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…"'),
             $connectBody.Contains('StartupActivationRecovery.ActivateAsync'),
+            $connectBody.Contains('SetCompactAccessText(AccessLabel(access))'),
             -not $connectBody.Contains('var access = await _api.ActivatePlaybackAsync()'),
             $startGateText.Contains('!compactStarting'),
             $supervisorLauncherText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync'),
