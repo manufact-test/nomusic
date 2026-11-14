@@ -27,7 +27,7 @@ The signed rollback journal previously retained the previous signed setup but di
 - Added `CachedSignedPackage` and public `GetLastKnownGood`. It returns:
   - the target package only after transaction state `Healthy`;
   - the previous package only after state `Restored`.
-- Before returning, it checks the DPAPI record, expected signer fingerprint, package size/hash, version/sequence and all four payload hashes, then re-runs the production installer verifier (SHA-256, Authenticode signer pin and CELIKOM PE identity).
+- Before returning, it checks the DPAPI record, signer fingerprint, package size/hash and version/sequence; requires all four recorded payload hashes to be valid; then re-runs the production installer verifier (SHA-256, Authenticode signer pin and CELIKOM PE identity). It does not unpack the EXE here: the Supervisor health probe separately checks the actual installed app, host, renderer and helper bytes after installation.
 - The returned release metadata is local-cache metadata; its `.invalid` package URI is intentionally not a feed URL. Use the returned installer path and release identity as the previous package for `PrepareSigned`, never as a URL to download.
 
 ### W115a — bounded snapshot retention

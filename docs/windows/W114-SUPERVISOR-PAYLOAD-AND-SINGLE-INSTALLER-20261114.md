@@ -58,7 +58,7 @@
 ## W115/W115a — last-known-good signed package retention / 14 November 2026
 
 - Code/test HEAD: `d74e61f68d8e12d3f2d1d56470e5f688b06b27e6`.
-- W115 adds a durable copy of the verified target installer beside the previous installer, records its package size, and exposes `GetLastKnownGood` only from a `Healthy` or `Restored` transaction. The package is rechecked against the recorded signer pin, SHA-256, size, CELIKOM PE identity and four signed payload hashes before reuse.
+- W115 adds a durable copy of the verified target installer beside the previous installer, records its package size, and exposes `GetLastKnownGood` only from a `Healthy` or `Restored` transaction. The package is rechecked against the recorded signer pin, SHA-256, size and CELIKOM PE identity; all four recorded payload hashes must be valid. The Supervisor's post-install health probe separately verifies the actual installed files.
 - W115a rotates the superseded snapshot only after the new DPAPI journal and both signed installer copies are durable; this prevents old rollback pairs from accumulating.
 - W15 covers healthy target reuse, tamper rejection, next-update reuse, restored previous package and snapshot rotation.
 - Main CI [43583092781](https://github.com/manufact-test/nomusic/actions/runs/43583092781) SUCCESS; Windows integration [43583092822](https://github.com/manufact-test/nomusic/actions/runs/43583092822) SUCCESS.

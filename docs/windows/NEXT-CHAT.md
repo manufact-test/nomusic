@@ -11,7 +11,7 @@ No new `experiment/*` branches. Before substantial changes create an exact `back
 
 - Added durable retention of **both** signed installers in every prepared transaction: `previous-signed-setup.exe` and `target-signed-setup.exe`.
 - DPAPI journal schema 2 now records `TargetSize` as well as previous package size. Old schema-2 records with no target size still deserialize, but cannot be promoted to last-known-good; they fail closed.
-- `GetLastKnownGood` exposes a cached package only after `Healthy` (verified target) or `Restored` (verified previous) and rechecks the recorded signer pin, package bytes, size, PE identity, Authenticode and all four payload hashes.
+- `GetLastKnownGood` exposes a cached package only after `Healthy` (verified target) or `Restored` (verified previous) and rechecks the recorded signer pin, package bytes, size, Authenticode and CELIKOM PE identity; it requires all four recorded payload hashes to be present and valid. The supervisor's post-install health probe separately verifies the actual installed files.
 - A later update can use that returned `CachedSignedPackage` as its previous signed package. Prepared, in-progress, tampered and failed transactions cannot seed a new rollback.
 - W115a rotates the previous transaction snapshot **only after** the new DPAPI journal and both copied installers are durable. The current rollback pair is retained; obsolete snapshots do not accumulate without bound.
 - W15 tests cover premature cache refusal, healthy target retention, tamper refusal, re-use as the next previous package, restored previous package, and snapshot rotation.
