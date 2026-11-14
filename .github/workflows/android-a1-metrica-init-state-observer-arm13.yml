@@ -11,6 +11,8 @@ on:
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_service_snapshot.py'
       - 'android/native-yandex-hooklab/ci/test_a1_metrica_witness_private_parser.py'
       - 'android/native-yandex-hooklab/ci/a1_private_postlogin_contract.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_onboarding_contract.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_private_onboarding_contract.py'
       - 'android/native-yandex-hooklab/ci/owner_phone_diagnostic_artifact.py'
       - 'android/native-yandex-hooklab/ci/test_owner_phone_diagnostic_artifact.py'
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
@@ -123,6 +125,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/a1_private_postlogin_contract.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Scan exact 2025 onboarding preference readers and writers (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_onboarding_contract.py -v
+          python3 -B android/native-yandex-hooklab/ci/a1_private_onboarding_contract.py \
             --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Private offline exact 2025 XAPK DEX method classifier (no code disclosure)
         shell: bash
