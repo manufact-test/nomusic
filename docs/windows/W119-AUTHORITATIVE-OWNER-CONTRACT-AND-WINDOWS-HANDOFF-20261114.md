@@ -7,6 +7,19 @@ Repository: `manufact-test/nomusic`
 
 > This document is the controlling handoff for the next developer/chat. Read it before changing anything. If any older W-series document, old release note, artifact name, or previous chat message conflicts with W119 or the top of `NEXT-CHAT.md`, W119 wins. Do not reinterpret the product model or invent another workflow.
 
+## Status addendum — W124/W125, 14 November 2026
+
+The product contract and owner task order in this document remain unchanged. The updater and source-evidence status below has advanced:
+
+- W124 now connects the signed latest-manifest consumer, 30-minute scheduler, verified package staging, DPAPI transaction and W122 Supervisor READY launcher to the existing CELIKOM app. The final installer launch is bound to the exact signed journal transaction and reverified.
+- W117's fail-closed initial LKG bootstrap remains present and is run asynchronously only when production trust is pinned and Yandex is idle.
+- W125 invalidates the current-decoder witness and cached source evidence immediately when CDP detaches, so a stale decoder proof cannot keep the UI green.
+- Current code HEAD: `d083218b4adb0b7fb1d1321d09b56245ab40fbd1`; exact green backup: `backup/windows-main-post-w125-ci-green-20261114`. Main CI [43601333189](https://github.com/manufact-test/nomusic/actions/runs/43601333189) and Windows integration CI [43601333191](https://github.com/manufact-test/nomusic/actions/runs/43601333191) — **SUCCESS**.
+- Production feed origin, P-256 public key and Authenticode signer fingerprint remain intentionally empty. The updater is wired but dormant; no production update has been delivered or installed.
+- All six owner issues remain OPEN. W125 is only a defensive source-evidence fix; it does not replace owner-PC audio acceptance.
+
+The priority order in section 6 and all one-product/main/backup/no-intermediate-installer rules remain authoritative.
+
 ## 1. Non-negotiable product model — do not change it
 
 There is **one CELIKOM Windows product and one current version**.

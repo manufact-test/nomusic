@@ -16,11 +16,11 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code HEAD: `cd5d2bf623f368529e5efd16e3d95c813975ad8d` (W124 stable-update coordinator + startup LKG gate). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
-- Last Windows-specific implementation commit: `cd5d2bf623f368529e5efd16e3d95c813975ad8d`.
-- Exact green rollback snapshot: `backup/windows-main-post-w124-ci-green-20261114` @ `cd5d2bf623f368529e5efd16e3d95c813975ad8d`.
-- W124 Main CI [43600704215](https://github.com/manufact-test/nomusic/actions/runs/43600704215) and Windows integration CI [43600704211](https://github.com/manufact-test/nomusic/actions/runs/43600704211) — **SUCCESS**.
-- Exact pre-W124 code backup: `backup/windows-main-pre-w124-stable-update-coordinator-20261114` @ `e734579f0f6e6aff1436bbccdbc1396a055cb788`.
+- Current Windows code HEAD: `d083218b4adb0b7fb1d1321d09b56245ab40fbd1` (W125 CDP decoder-witness invalidation on detach). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
+- Last Windows-specific implementation commit: `d083218b4adb0b7fb1d1321d09b56245ab40fbd1`.
+- Exact green rollback snapshot: `backup/windows-main-post-w125-ci-green-20261114` @ `d083218b4adb0b7fb1d1321d09b56245ab40fbd1`.
+- W125 Main CI [43601333189](https://github.com/manufact-test/nomusic/actions/runs/43601333189) and Windows integration CI [43601333191](https://github.com/manufact-test/nomusic/actions/runs/43601333191) — **SUCCESS**.
+- Exact pre-W125 backup: `backup/windows-main-pre-w125-decoder-detach-invalidation-20261114` @ `efbd6a1b1965472d8ad29519621a09d45a8651da`.
 - W120 Main CI [43596984190](https://github.com/manufact-test/nomusic/actions/runs/43596984190) — **SUCCESS**; Windows integration [43596984195](https://github.com/manufact-test/nomusic/actions/runs/43596984195) — **SUCCESS**.
 - W121 Main CI [43597478523](https://github.com/manufact-test/nomusic/actions/runs/43597478523) — **SUCCESS**; Windows integration [43597478531](https://github.com/manufact-test/nomusic/actions/runs/43597478531) — **SUCCESS**.
 - The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
@@ -109,6 +109,33 @@ This addresses the duplicate-click race in the first/repeated Start flow. It doe
 
 This is required for a real periodic stable updater: a current manifest must not be misclassified as a broken feed. It does not fetch from a production origin, launch an installer or activate the Supervisor. Production trust values remain empty. No installer was built.
 
+# W125 — Invalidate current-decoder proof when CDP detaches — 14 November 2026
+
+- Repository: `manufact-test/nomusic`; only working branch: `main`.
+- Exact pre-W125 code backup: `backup/windows-main-pre-w125-decoder-detach-invalidation-20261114` @ `efbd6a1b1965472d8ad29519621a09d45a8651da`.
+- W125 code HEAD: `d083218b4adb0b7fb1d1321d09b56245ab40fbd1`.
+- Exact green rollback snapshot: `backup/windows-main-post-w125-ci-green-20261114` @ the W125 code HEAD.
+- Main CI [43601333189](https://github.com/manufact-test/nomusic/actions/runs/43601333189) and Windows integration CI [43601333191](https://github.com/manufact-test/nomusic/actions/runs/43601333191) — **SUCCESS**.
+
+## Change
+
+The native host previously logged `PLAYER_CDP_DETACHED` but retained the last verified decoder witness. If the passive CDP observer detached after a valid `kUrl + kIsPlaying` pair, a stale proof could remain eligible for the green UI state for up to ten minutes.
+
+On a valid webContents CDP detach, W125 now immediately clears:
+- the verified current-decoder witness;
+- expected signed audio and native media-success evidence;
+- observer-ready state and bounded unfetched-reload attempts;
+- cached decoder-player property state.
+
+The existing renderer status can therefore fall back to mapped-but-unverified. It does not claim that a replacement is playing after losing the observer that proved it. The host does not try to seize or reattach DevTools; this path intentionally fails closed.
+
+Windows integration CI now checks that the detach handler invalidates the witness and observer state. No playback command, reload, audio source, VPN behavior or original file was changed.
+
+## What remains open
+
+- #52 remains OPEN. W125 closes only the stale-proof-on-detach edge case; the real «Ты» playback/source behavior still needs owner-PC evidence.
+- CI is not audible acceptance. No installer was built and no owner installation was requested.
+
 # W124 — Stable update coordinator, safe scheduling and Supervisor-gated install — 14 November 2026
 
 - Repository: `manufact-test/nomusic`; only working branch: `main`.
@@ -136,7 +163,7 @@ This is required for a real periodic stable updater: a current manifest must not
 
 
 ### Implemented and CI-validated infrastructure
-W122 adds the transaction-scoped current-user Supervisor READY handshake and immutable snapshot launch bridge. W123 adds signed no-update polling semantics. W124 wires both into a single fail-closed stable update coordinator, the 30-minute scheduler, journaled signed staging and final verified installer launch. The complete path remains dormant until production trust pins are provisioned.
+W122 adds the transaction-scoped current-user Supervisor READY handshake and immutable snapshot launch bridge. W123 adds signed no-update polling semantics. W124 wires both into a single fail-closed stable update coordinator, the 30-minute scheduler, journaled signed staging and final verified installer launch. W125 invalidates the current-decoder proof immediately if CDP detaches, preventing stale green playback claims. The updater path remains dormant until production trust pins are provisioned.
 W105–W118 contain signed-package validation, SHA-256/Authenticode checks, DPAPI rollback journal, previous/target package retention, independent Supervisor health witness, schema-2 exact payload identity, signed manifest generation, immutable version manifests, initial LKG bootstrap and shared fail-closed trust configuration. W20 verifies the existing installer definition contains exactly:
 - existing CELIKOM app EXE;
 - `integration/host.cjs`;
@@ -156,7 +183,7 @@ This is meaningful implementation progress, **not a production-ready automatic u
 - All owner issues #52, #53, #54, #56, #57 and #58 remain **OPEN**; CI is not audible or owner-PC acceptance.
 - W120 adds privacy-safe Electron main-process CPU evidence and removes repeated identical renderer-state deliveries; #53 root cause remains unproven until owner diagnostics and a Task Manager CPU/RAM/GPU capture are available.
 - W121 blocks duplicate Start clicks during pending host/entitlement checks and shows a small progress hint. First/repeated connection, reboot, tray and autostart still need one grouped owner-PC acceptance pass.
-- #52 source truth, #54 Big City Life volume, #56 real gain loudness/headroom, #57 audible 403→206 recovery and #58 original-track VPN continuity still need owner-side evidence; do not mark them fixed from CI.
+- #52 source truth (W125 now also clears stale decoder proof on CDP detach), #54 Big City Life volume, #56 real gain loudness/headroom, #57 audible 403→206 recovery and #58 original-track VPN continuity still need owner-side evidence; do not mark them fixed from CI.
 - Automatic updater is not production-ready: W124 now provides the coordinator/MainWindow callsite, 30-minute scheduler, signed package staging, DPAPI transaction, Supervisor READY gate and final signed launch checks. Production P-256 pin, Authenticode signer pin and official HTTPS feed origin are still empty/unprovisioned, so the path is deliberately dormant. A real production-signed feed/install/crash/one-shot rollback run remains outstanding.
 - No final Windows EXE+ZIP has been built or delivered.
 
