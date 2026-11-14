@@ -16,6 +16,9 @@
 - `windows-companion/w15/Celikom.Companion/NativeTokenPublisher.cs`
 - `windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj`
 - `windows-companion/w15/Celikom.UpdateSupervisor/Program.cs`
+- `windows-companion/w24/Celikom.NativeInstaller/NativeIntegrationManager.cs`
+- `windows-companion/w24/Celikom.NativeInstaller/NativeAsarImageBuilder.cs`
+- `windows-companion/w24/Celikom.NativeInstaller/NativeModuleIdentity.cs`
 - `windows-companion/w20/installer/CELIKOM.iss`
 - `windows-companion/w20/release-gate.ps1`
 
