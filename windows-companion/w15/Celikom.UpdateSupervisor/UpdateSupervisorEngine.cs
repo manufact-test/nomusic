@@ -27,7 +27,9 @@ public sealed class UpdateSupervisorEngine(
             !ValidSha(state.TargetRendererSha256) ||
             !ValidSha(state.PreviousApplicationSha256) ||
             !ValidSha(state.PreviousNativeHostSha256) ||
-            !ValidSha(state.PreviousRendererSha256))
+            !ValidSha(state.PreviousRendererSha256) ||
+            !ValidSha(state.TargetSupervisorSha256) ||
+            !ValidSha(state.PreviousSupervisorSha256))
             throw new IOException("SUPERVISOR_PAYLOAD_WITNESS_MISSING");
         if (state.ExpectedSession && (state.SessionIdentitySha256 is not { Length: 64 } ||
             state.SessionIdentitySha256.Any(c => c is not
@@ -47,7 +49,8 @@ public sealed class UpdateSupervisorEngine(
             {
                 var health = await probe.CheckAsync(Version.Parse(state.TargetVersion),
                     state.SessionIdentitySha256, state.TargetApplicationSha256,
-                    state.TargetNativeHostSha256, state.TargetRendererSha256, ct);
+                    state.TargetNativeHostSha256, state.TargetRendererSha256,
+                    state.TargetSupervisorSha256, ct);
                 if (health.ExactSignedNewExe)
                 {
                     journal.Advance(state.State, StableUpdateRollbackJournal.Phase.NewAppObserved);
@@ -64,7 +67,8 @@ public sealed class UpdateSupervisorEngine(
             {
                 var health = await probe.CheckAsync(Version.Parse(state.TargetVersion),
                     state.SessionIdentitySha256, state.TargetApplicationSha256,
-                    state.TargetNativeHostSha256, state.TargetRendererSha256, ct);
+                    state.TargetNativeHostSha256, state.TargetRendererSha256,
+                    state.TargetSupervisorSha256, ct);
                 var decision = StableUpdateRollbackJournal.Decide(state, health, now);
                 if (decision == StableUpdateRollbackJournal.Decision.AcceptNewVersion)
                 {
@@ -126,7 +130,8 @@ public sealed class UpdateSupervisorEngine(
             {
                 var health = await probe.CheckAsync(Version.Parse(state.PreviousVersion),
                     state.SessionIdentitySha256, state.PreviousApplicationSha256,
-                    state.PreviousNativeHostSha256, state.PreviousRendererSha256, ct);
+                    state.PreviousNativeHostSha256, state.PreviousRendererSha256,
+                    state.PreviousSupervisorSha256, ct);
                 if (health.ExactSignedNewExe && health.BridgeResponds &&
                     (!state.ExpectedSession || health.SessionPreserved) &&
                     (!state.NativeWasInstalled || health.NativeIntegrationConsistent))
@@ -167,7 +172,8 @@ public interface ISupervisorHealthProbe
     Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
         Version expected, string originalSessionFingerprint,
         string expectedApplicationSha256, string expectedNativeHostSha256,
-        string expectedRendererSha256, CancellationToken cancellationToken);
+        string expectedRendererSha256, string expectedSupervisorSha256,
+        CancellationToken cancellationToken);
     bool SafeForRollback();
 }
 

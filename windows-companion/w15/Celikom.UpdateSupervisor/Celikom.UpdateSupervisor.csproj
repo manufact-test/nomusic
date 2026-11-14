@@ -7,7 +7,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AssemblyName>CELIKOM.UpdateSupervisor</AssemblyName>
+    <AssemblyTitle>CELIKOM.UpdateSupervisor</AssemblyTitle>
+    <Company>CELIKOM</Company>
+    <Product>CELIKOM</Product>
     <Version>0.24.36</Version>
+    <AssemblyVersion>0.24.36.0</AssemblyVersion>
+    <FileVersion>0.24.36.0</FileVersion>
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
   <ItemGroup>

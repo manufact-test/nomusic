@@ -23,7 +23,9 @@ StableUpdateRollbackJournal.Record NewRecord(
         PreviousNativeHostSha256: new string('3', 64),
         TargetNativeHostSha256: new string('4', 64),
         PreviousRendererSha256: new string('5', 64),
-        TargetRendererSha256: new string('6', 64));
+        TargetRendererSha256: new string('6', 64),
+        PreviousSupervisorSha256: new string('7', 64),
+        TargetSupervisorSha256: new string('8', 64));
 
 var valid = new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true);
 var notReady = new StableUpdateRollbackJournal.HealthEvidence(false, false, false, false);
@@ -65,6 +67,7 @@ probe.Evidence = valid;
 probe.ObservedApplicationSha256 = new string('1', 64);
 probe.ObservedNativeHostSha256 = new string('3', 64);
 probe.ObservedRendererSha256 = new string('5', 64);
+probe.ObservedSupervisorSha256 = new string('7', 64);
 Check(await engine.TickAsync(start.AddMinutes(14)) ==
         UpdateSupervisorEngine.Step.PreviousVersionRestored &&
       journal.Current.State == StableUpdateRollbackJournal.Phase.Restored &&
@@ -98,6 +101,10 @@ goodProbe.ObservedRendererSha256 = new string('f', 64);
 Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
       "W112 a mismatched installed renderer is not healthy");
 goodProbe.ObservedRendererSha256 = new string('6', 64);
+goodProbe.ObservedSupervisorSha256 = new string('f', 64);
+Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
+      "W114 a mismatched installed supervisor is not healthy");
+goodProbe.ObservedSupervisorSha256 = new string('8', 64);
 goodProbe.ObservedApplicationSha256 = new string('f', 64);
 Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
       "W112 a mismatched installed executable is not healthy");
@@ -161,7 +168,9 @@ var legacy = NewRecord(StableUpdateRollbackJournal.Phase.RollbackNeeded) with
     PreviousNativeHostSha256 = "",
     TargetNativeHostSha256 = "",
     PreviousRendererSha256 = "",
-    TargetRendererSha256 = ""
+    TargetRendererSha256 = "",
+    PreviousSupervisorSha256 = "",
+    TargetSupervisorSha256 = ""
 };
 bool legacyDenied = false;
 try
@@ -247,14 +256,18 @@ sealed class FakeProbe : ISupervisorHealthProbe
     public string ObservedApplicationSha256 { get; set; } = new string('2', 64);
     public string ObservedNativeHostSha256 { get; set; } = new string('4', 64);
     public string ObservedRendererSha256 { get; set; } = new string('6', 64);
+    public string ObservedSupervisorSha256 { get; set; } = new string('8', 64);
 
     public Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
         Version expected, string originalSessionFingerprint,
         string expectedApplicationSha256, string expectedNativeHostSha256,
-        string expectedRendererSha256, CancellationToken cancellationToken) =>
+        string expectedRendererSha256, string expectedSupervisorSha256,
+        CancellationToken cancellationToken) =>
         Task.FromResult(Evidence with
         {
             ExactSignedNewExe = Evidence.ExactSignedNewExe &&
+                string.Equals(ObservedSupervisorSha256, expectedSupervisorSha256,
+                    StringComparison.Ordinal) &&
                 string.Equals(ObservedApplicationSha256, expectedApplicationSha256,
                     StringComparison.Ordinal) &&
                 string.Equals(ObservedNativeHostSha256, expectedNativeHostSha256,

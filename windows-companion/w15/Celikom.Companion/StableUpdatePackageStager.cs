@@ -197,7 +197,8 @@ public static class StableUpdatePackageStager
     {
         if (!CertFingerprint.IsMatch(release.ApplicationSha256 ?? "") ||
             !CertFingerprint.IsMatch(release.NativeHostSha256 ?? "") ||
-            !CertFingerprint.IsMatch(release.RendererSha256 ?? ""))
+            !CertFingerprint.IsMatch(release.RendererSha256 ?? "") ||
+            !CertFingerprint.IsMatch(release.SupervisorSha256 ?? ""))
             throw new IOException("STABLE_UPDATE_PAYLOAD_IDENTITY_MISSING");
     }
 

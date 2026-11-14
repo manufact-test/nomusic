@@ -285,6 +285,12 @@ jobs:
         run: |
           dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
           if ($LASTEXITCODE -ne 0) { throw 'W98_PUBLISH_FAILED' }
+      - name: Publish crash-independent update supervisor 0.24.36
+        shell: pwsh
+        run: |
+          dotnet publish windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W114_SUPERVISOR_PUBLISH_FAILED' }
+          if (!(Test-Path 'windows-companion/w20/publish/CELIKOM.UpdateSupervisor.exe')) { throw 'W114_SUPERVISOR_BINARY_MISSING' }
       - name: Build final 0.24.36 QA installer; do not install on owner computer
         shell: pwsh
         run: |
@@ -346,6 +352,7 @@ jobs:
           $p=Start-Process $new -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or !(Test-Path $exe)) { throw 'W98_INPLACE_SETUP_FAILED' }
           if ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion.Trim() -ne '0.24.36.0') { throw 'W98_NEW_VERSION_MISMATCH' }
+           if (!(Test-Path (Join-Path $app 'CELIKOM.UpdateSupervisor.exe'))) { throw 'W114_SUPERVISOR_NOT_INSTALLED' }
           if ((Get-FileHash $session -Algorithm SHA256).Hash -ne $sessionBefore) { throw 'W98_DPAPI_CHANGED' }
           $plain=[Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($session),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))
           if ($plain -ne 'W98_SAVED_LOGIN_PRESERVED') { throw 'W98_DPAPI_UNDECRYPTABLE' }

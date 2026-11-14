@@ -27,16 +27,19 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
         Path.Combine(InstallRoot, "integration", "host.cjs");
     private static readonly string InstalledRenderer =
         Path.Combine(InstallRoot, "integration", "renderer.js");
+    private static readonly string InstalledSupervisor =
+        Path.Combine(InstallRoot, "CELIKOM.UpdateSupervisor.exe");
 
     public async Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
         Version expected, string originalSessionFingerprint,
         string expectedApplicationSha256, string expectedNativeHostSha256,
-        string expectedRendererSha256, CancellationToken cancellationToken)
+        string expectedRendererSha256, string expectedSupervisorSha256,
+        CancellationToken cancellationToken)
     {
         // The manifest pins the exact bytes of all files copied by Inno Setup.
         var installedAndRunning = IsExpectedSignedProcess(expected,
             expectedApplicationSha256, expectedNativeHostSha256,
-            expectedRendererSha256);
+            expectedRendererSha256, expectedSupervisorSha256);
         // A fresh session.dpapi is decryptable but is NOT preserved login.
         var session = SignedUpdateSessionIdentity.ReadExisting();
         var sessionPreserved = originalSessionFingerprint.Length == 64 &&
@@ -79,14 +82,16 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
     }
 
     private bool IsExpectedSignedProcess(Version expected,
-        string applicationSha256, string nativeHostSha256, string rendererSha256)
+        string applicationSha256, string nativeHostSha256, string rendererSha256,
+        string supervisorSha256)
     {
         if (!OperatingSystem.IsWindows() ||
             !StableUpdatePayloadVerifier.MatchesFile(InstalledNativeHost,
                 nativeHostSha256, 32_000_000) ||
             !StableUpdatePayloadVerifier.MatchesFile(InstalledRenderer,
                 rendererSha256, 32_000_000) ||
-            !IsExpectedSignedExecutable(InstalledExe, expected, applicationSha256))
+            !IsExpectedSignedExecutable(InstalledExe, expected, applicationSha256) ||
+            !IsExpectedSignedExecutable(InstalledSupervisor, expected, supervisorSha256))
             return false;
         try
         {

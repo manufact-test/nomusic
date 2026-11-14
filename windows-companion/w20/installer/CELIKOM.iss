@@ -32,6 +32,7 @@ ChangesEnvironment=no
 Source: "..\publish\{#AppExecutable}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\w23\dist\host.cjs"; DestDir: "{app}\integration"; Flags: ignoreversion
 Source: "..\..\w23\dist\renderer.js"; DestDir: "{app}\integration"; Flags: ignoreversion
+Source: "..\publish\CELIKOM.UpdateSupervisor.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\CELIKOM"; Filename: "{app}\{#AppExecutable}"

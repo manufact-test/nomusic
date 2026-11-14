@@ -19,13 +19,15 @@ async function fixture(t) {
     packagePath: join(root, "CELIKOM-Windows-" + version + ".exe"),
     applicationPath: join(root, "CELIKOM.Companion.exe"),
     nativeHostPath: join(root, "host.cjs"),
-    rendererPath: join(root, "renderer.js")
+    rendererPath: join(root, "renderer.js"),
+    supervisorPath: join(root, "CELIKOM.UpdateSupervisor.exe")
   };
   await Promise.all([
     writeFile(paths.packagePath, Buffer.alloc(32_000, 0x51)),
     writeFile(paths.applicationPath, Buffer.alloc(24_000, 0x52)),
     writeFile(paths.nativeHostPath, Buffer.from("module.exports = true;")),
-    writeFile(paths.rendererPath, Buffer.from("globalThis.celikom = true;"))
+    writeFile(paths.rendererPath, Buffer.from("globalThis.celikom = true;")),
+    writeFile(paths.supervisorPath, Buffer.alloc(28_000, 0x53))
   ]);
   const pair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   return {
@@ -56,6 +58,7 @@ test("W113 creates exact schema-2 manifest and P-256 DER signature for installed
     hash(await readFile(f.paths.applicationPath)));
   assert.equal(result.manifest.nativeHostSha256, hash(await readFile(f.paths.nativeHostPath)));
   assert.equal(result.manifest.rendererSha256, hash(await readFile(f.paths.rendererPath)));
+  assert.equal(result.manifest.supervisorSha256, hash(await readFile(f.paths.supervisorPath)));
   assert.equal(result.signature.length >= 64 && result.signature.length <= 80, true);
   assert.equal(verifyBytes("sha256", result.document, {
     key: f.expectedPublicKeyDer, format: "der", type: "spki", dsaEncoding: "der"

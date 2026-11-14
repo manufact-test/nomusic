@@ -64,6 +64,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
           if ($LASTEXITCODE -ne 0) { throw 'W20_PUBLISH_FAILED' }
+      - name: Publish internal crash-independent update supervisor
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+          if ($LASTEXITCODE -ne 0) { throw 'W114_SUPERVISOR_PUBLISH_FAILED' }
+          if (-not (Test-Path 'windows-companion/w20/publish/CELIKOM.UpdateSupervisor.exe')) { throw 'W114_SUPERVISOR_BINARY_MISSING' }
       - name: Compile internal Inno Setup installer
         shell: pwsh
         run: |

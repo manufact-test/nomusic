@@ -47,7 +47,7 @@ async function hashRegularFile(filePath, code) {
  */
 export async function buildStableManifestArtifacts(options) {
   const {
-    packagePath, applicationPath, nativeHostPath, rendererPath, version,
+    packagePath, applicationPath, nativeHostPath, rendererPath, supervisorPath, version,
     sequence, origin: originText, signingPrivateKeyPem, expectedPublicKeyDer,
     publishedAt = new Date().toISOString(), expiresAt, mandatory = false, notes = ""
   } = options ?? {};
@@ -82,16 +82,18 @@ export async function buildStableManifestArtifacts(options) {
       !timingSafeEqual(publicKeyDer, expectedPublicKeyDer))
     fail("W113_SIGNING_KEY_DOES_NOT_MATCH_PINNED_PUBLIC_KEY");
 
-  const [pkg, app, host, renderer] = await Promise.all([
+  const [pkg, app, host, renderer, supervisor] = await Promise.all([
     hashRegularFile(packagePath, "W113_PACKAGE_FILE_INVALID"),
     hashRegularFile(applicationPath, "W113_APPLICATION_FILE_INVALID"),
     hashRegularFile(nativeHostPath, "W113_NATIVE_HOST_FILE_INVALID"),
-    hashRegularFile(rendererPath, "W113_RENDERER_FILE_INVALID")
+    hashRegularFile(rendererPath, "W113_RENDERER_FILE_INVALID"),
+    hashRegularFile(supervisorPath, "W114_SUPERVISOR_FILE_INVALID")
   ]);
   if (pkg.size < MIN_PACKAGE_BYTES || pkg.size > MAX_PACKAGE_BYTES ||
       basename(pkg.path) !== "CELIKOM-Windows-" + version + ".exe" ||
       basename(app.path) !== "CELIKOM.Companion.exe" ||
-      basename(host.path) !== "host.cjs" || basename(renderer.path) !== "renderer.js")
+      basename(host.path) !== "host.cjs" || basename(renderer.path) !== "renderer.js" ||
+      basename(supervisor.path) !== "CELIKOM.UpdateSupervisor.exe")
     fail("W113_RELEASE_PAYLOAD_LAYOUT_INVALID");
 
   const packageUrl = new URL(
@@ -104,7 +106,8 @@ export async function buildStableManifestArtifacts(options) {
     mandatory, notes, rollback: null,
     applicationSha256: app.sha256,
     nativeHostSha256: host.sha256,
-    rendererSha256: renderer.sha256
+    rendererSha256: renderer.sha256,
+    supervisorSha256: supervisor.sha256
   };
   const document = Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
   if (document.length < 100 || document.length > MAX_MANIFEST_BYTES)
@@ -142,7 +145,7 @@ function parseArgs(args) {
     values.set(key, args[++i]);
   }
   const required = [
-    "--package", "--application", "--native-host", "--renderer", "--version",
+    "--package", "--application", "--native-host", "--renderer", "--supervisor", "--version",
     "--sequence", "--origin", "--private-key-file", "--pinned-public-key-der",
     "--output-dir", "--expires-at"
   ];
@@ -163,6 +166,7 @@ async function main() {
     applicationPath: args.get("--application"),
     nativeHostPath: args.get("--native-host"),
     rendererPath: args.get("--renderer"),
+    supervisorPath: args.get("--supervisor"),
     version: args.get("--version"),
     sequence: Number(args.get("--sequence")),
     origin: args.get("--origin"),

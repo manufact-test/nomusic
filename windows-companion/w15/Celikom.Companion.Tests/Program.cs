@@ -41,19 +41,21 @@ try
     var nextHostHash = new string('4', 64);
     var prevRendererHash = new string('5', 64);
     var nextRendererHash = new string('6', 64);
+    var prevSupervisorHash = new string('7', 64);
+    var nextSupervisorHash = new string('8', 64);
     var rollbackAt = new DateTimeOffset(2026, 11, 14, 9, 0, 0, TimeSpan.Zero);
     var previousRelease = new StableUpdateManifestVerifier.VerifiedRelease(
         new Version(0, 24, 36, 0), 40,
         new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.36/previous.exe"),
         previousBytes.Length, prevHash, rollbackAt.AddDays(7), false, "",
         ApplicationSha256: prevAppHash, NativeHostSha256: prevHostHash,
-        RendererSha256: prevRendererHash);
+        RendererSha256: prevRendererHash, SupervisorSha256: prevSupervisorHash);
     var targetRelease = new StableUpdateManifestVerifier.VerifiedRelease(
         new Version(0, 24, 37, 0), 41,
         new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/new.exe"),
         nextBytes.Length, nextHash, rollbackAt.AddDays(7), false, "",
         ApplicationSha256: nextAppHash, NativeHostSha256: nextHostHash,
-        RendererSha256: nextRendererHash);
+        RendererSha256: nextRendererHash, SupervisorSha256: nextSupervisorHash);
     var testSignerPin = new string('b', 64);
     var verifiedImages = 0;
     void VerifySyntheticSetup(string file,
@@ -80,6 +82,8 @@ try
          tx.TargetNativeHostSha256 == nextHostHash &&
          tx.PreviousRendererSha256 == prevRendererHash &&
          tx.TargetRendererSha256 == nextRendererHash &&
+         tx.PreviousSupervisorSha256 == prevSupervisorHash &&
+         tx.TargetSupervisorSha256 == nextSupervisorHash &&
          StableUpdateRollbackJournal.Read(rollbackRoot) == tx,
          "W109 DPAPI journal roundtrip and byte-identical previous EXE snapshot");
     bool missingPayloadDenied = false;
@@ -177,7 +181,8 @@ try
         previousBytes.Length, prevHash, rollbackAt.AddDays(8), false, "",
         ApplicationSha256: new string('7', 64),
         NativeHostSha256: new string('8', 64),
-        RendererSha256: new string('9', 64));
+        RendererSha256: new string('9', 64),
+        SupervisorSha256: new string('a', 64));
     var nextTransaction = StableUpdateRollbackJournal.PrepareCore(
         acceptedRoot, targetRelease, nextSetup, thirdRelease, previousSetup,
         testSignerPin, targetRelease.Version, rollbackAt.AddHours(1),
@@ -280,7 +285,8 @@ try
         false, "Safe updater test",
         ApplicationSha256: new string('a', 64),
         NativeHostSha256: new string('b', 64),
-        RendererSha256: new string('c', 64));
+        RendererSha256: new string('c', 64),
+        SupervisorSha256: new string('d', 64));
     // W112: exact installed payload bytes must match the signed feed,
     // independently of the installer package hash and PE version metadata.
     var payloadFolder = Path.Combine(folder, "payload-fixture");
@@ -288,16 +294,20 @@ try
     var payloadExe = Path.Combine(payloadFolder, "CELIKOM.Companion.exe");
     var payloadHost = Path.Combine(payloadFolder, "host.cjs");
     var payloadRenderer = Path.Combine(payloadFolder, "renderer.js");
+    var payloadSupervisor = Path.Combine(payloadFolder, "CELIKOM.UpdateSupervisor.exe");
     File.WriteAllText(payloadExe, "signed-exe-payload-fixture");
     File.WriteAllText(payloadHost, "native-host-payload-fixture");
     File.WriteAllText(payloadRenderer, "renderer-payload-fixture");
+    File.WriteAllText(payloadSupervisor, "supervisor-payload-fixture");
     var payloadExeHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(payloadExe))).ToLowerInvariant();
     var payloadHostHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(payloadHost))).ToLowerInvariant();
     var payloadRendererHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(payloadRenderer))).ToLowerInvariant();
+    var payloadSupervisorHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(payloadSupervisor))).ToLowerInvariant();
     Test(StableUpdatePayloadVerifier.MatchesFile(payloadExe, payloadExeHash) &&
          StableUpdatePayloadVerifier.MatchesFile(payloadHost, payloadHostHash, 32_000_000) &&
-         StableUpdatePayloadVerifier.MatchesFile(payloadRenderer, payloadRendererHash, 32_000_000),
-         "W112 exact signed manifest payload hashes accept all three installed files");
+         StableUpdatePayloadVerifier.MatchesFile(payloadRenderer, payloadRendererHash, 32_000_000) &&
+         StableUpdatePayloadVerifier.MatchesFile(payloadSupervisor, payloadSupervisorHash),
+         "W114 exact signed manifest payload hashes accept all four installed files");
     Test(!StableUpdatePayloadVerifier.MatchesFile(payloadExe, new string('0', 64)) &&
          !StableUpdatePayloadVerifier.MatchesFile(payloadHost, "not-a-hash") &&
          !StableUpdatePayloadVerifier.MatchesFile(Path.Combine(payloadFolder, "missing.cjs"),
@@ -388,7 +398,7 @@ try
             string version = "0.24.37", long sequence = 42,
             string? url = null, int schema = 2,
             string? applicationHash = null, string? nativeHostHash = null,
-            string? rendererHash = null) =>
+            string? rendererHash = null, string? supervisorHash = null) =>
             JsonSerializer.SerializeToUtf8Bytes(new {
                 schema, channel, version, sequence,
                 packageUrl = url ?? "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37-SIGNED.exe",
@@ -397,6 +407,7 @@ try
                 applicationSha256 = applicationHash ?? new string('1', 64),
                 nativeHostSha256 = nativeHostHash ?? new string('2', 64),
                 rendererSha256 = rendererHash ?? new string('3', 64),
+                supervisorSha256 = supervisorHash ?? new string('4', 64),
                 publishedAt = "2026-11-14T00:00:00Z",
                 expiresAt = "2026-11-20T00:00:00Z",
                 minimumVersion = "0.24.20", mandatory = false, notes = "Safe update"
@@ -466,7 +477,8 @@ try
              signedRelease.PackageUri.Host == signedFeedOrigin.Host &&
              signedRelease.ApplicationSha256 == new string('1', 64) &&
              signedRelease.NativeHostSha256 == new string('2', 64) &&
-             signedRelease.RendererSha256 == new string('3', 64),
+             signedRelease.RendererSha256 == new string('3', 64) &&
+             signedRelease.SupervisorSha256 == new string('4', 64),
              "W101 pinned P256 stable manifest permits only newer exact-origin release");
         bool Reject(byte[] bytes, byte[]? signature = null, long lastSequence = 41)
         {
@@ -481,6 +493,7 @@ try
              Reject(ManifestBytes(applicationHash: "bad")) &&
              Reject(ManifestBytes(nativeHostHash: "")) &&
              Reject(ManifestBytes(rendererHash: new string('Z', 64))) &&
+              Reject(ManifestBytes(supervisorHash: "")) &&
              Reject(signedDocument, lastSequence: 42),
              "W101 unsigned, wrong-channel, same-version and replayed updates fail closed");
         Test(Reject(ManifestBytes(url:
@@ -503,6 +516,7 @@ try
                 applicationSha256 = new string('1', 64),
                 nativeHostSha256 = new string('2', 64),
                 rendererSha256 = new string('3', 64),
+                supervisorSha256 = new string('4', 64),
                 publishedAt = "2026-11-14T00:00:00Z",
                 expiresAt = "2026-11-20T00:00:00Z",
                 minimumVersion = "0.24.20", mandatory, notes = "Bad version rollback",

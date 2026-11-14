@@ -18,7 +18,7 @@ public static class StableUpdateManifestVerifier
         long PackageSize, string Sha256, DateTimeOffset ExpiresAt,
         bool Mandatory, string Notes, Version? RollbackFrom = null,
         string ApplicationSha256 = "", string NativeHostSha256 = "",
-        string RendererSha256 = "");
+        string RendererSha256 = "", string SupervisorSha256 = "");
 
     private sealed record Manifest(
         int Schema, string? Channel, string? Version, long Sequence,
@@ -26,7 +26,8 @@ public static class StableUpdateManifestVerifier
         string? Publisher, string? PublishedAt, string? ExpiresAt,
         string? MinimumVersion, bool Mandatory, string? Notes,
         JsonElement? Rollback, string? ApplicationSha256,
-        string? NativeHostSha256, string? RendererSha256);
+        string? NativeHostSha256, string? RendererSha256,
+        string? SupervisorSha256);
 
     public static VerifiedRelease Verify(
         byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
@@ -109,6 +110,7 @@ public static class StableUpdateManifestVerifier
             !ValidSha256(raw.ApplicationSha256) ||
             !ValidSha256(raw.NativeHostSha256) ||
             !ValidSha256(raw.RendererSha256) ||
+            !ValidSha256(raw.SupervisorSha256) ||
             !Uri.TryCreate(raw.PackageUrl, UriKind.Absolute, out var url) ||
             !officialOrigin.IsAbsoluteUri ||
             officialOrigin.Scheme != Uri.UriSchemeHttps ||
@@ -127,7 +129,8 @@ public static class StableUpdateManifestVerifier
             throw new InvalidDataException("STABLE_MANIFEST_NOTES_INVALID");
         return new VerifiedRelease(target, raw.Sequence, url, raw.PackageSize,
             raw.Sha256!, expires, raw.Mandatory, raw.Notes ?? "", rollbackFrom,
-            raw.ApplicationSha256!, raw.NativeHostSha256!, raw.RendererSha256!);
+            raw.ApplicationSha256!, raw.NativeHostSha256!, raw.RendererSha256!,
+            raw.SupervisorSha256!);
     }
 
     private static bool ValidSha256(string? value) =>

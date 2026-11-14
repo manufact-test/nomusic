@@ -33,7 +33,8 @@ public static class StableUpdateRollbackJournal
         string SessionIdentitySha256 = "",
         string PreviousApplicationSha256 = "", string TargetApplicationSha256 = "",
         string PreviousNativeHostSha256 = "", string TargetNativeHostSha256 = "",
-        string PreviousRendererSha256 = "", string TargetRendererSha256 = "");
+        string PreviousRendererSha256 = "", string TargetRendererSha256 = "",
+        string PreviousSupervisorSha256 = "", string TargetSupervisorSha256 = "");
 
     private const string TicketName = "stable-update-rollback.dpapi";
     private const string PreviousName = "previous-signed-setup.exe";
@@ -91,6 +92,7 @@ public static class StableUpdateRollbackJournal
             !ValidSha(previous.ApplicationSha256) || !ValidSha(target.ApplicationSha256) ||
             !ValidSha(previous.NativeHostSha256) || !ValidSha(target.NativeHostSha256) ||
             !ValidSha(previous.RendererSha256) || !ValidSha(target.RendererSha256) ||
+            !ValidSha(previous.SupervisorSha256) || !ValidSha(target.SupervisorSha256) ||
             previous.PackageSize is < 10_000 or > 125_000_000 ||
             now > target.ExpiresAt)
             throw new IOException("STABLE_ROLLBACK_PLAN_INVALID");
@@ -132,7 +134,8 @@ public static class StableUpdateRollbackJournal
                 hasSession, nativeWasInstalled, sessionIdentitySha256,
                 previous.ApplicationSha256, target.ApplicationSha256,
                 previous.NativeHostSha256, target.NativeHostSha256,
-                previous.RendererSha256, target.RendererSha256);
+                previous.RendererSha256, target.RendererSha256,
+                previous.SupervisorSha256, target.SupervisorSha256);
             WriteRecord(root, record);
             return record;
         }

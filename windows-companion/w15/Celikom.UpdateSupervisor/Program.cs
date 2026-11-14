@@ -1,3 +1,7 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using Celikom.Companion;
+using Celikom.NativeInstaller;
 using Celikom.UpdateSupervisor;
 
 internal static class Program
@@ -25,9 +29,16 @@ internal static class Program
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CELIKOM", "Windows", "StableRollback");
-        var engine = new UpdateSupervisorEngine(transaction,
-            new DurableSupervisorJournal(root, transaction,
-                ProductionSignerCertificateSha256),
+        var journal = new DurableSupervisorJournal(root, transaction,
+            ProductionSignerCertificateSha256);
+        var journalState = journal.Read();
+        var runningImage = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(runningImage) ||
+            !IsTrustedRunningImage(runningImage, journalState.PreviousSupervisorSha256,
+                ProductionSignerCertificateSha256))
+            return 8;
+
+        var engine = new UpdateSupervisorEngine(transaction, journal,
             new WindowsSupervisorHealthProbe(ProductionSignerCertificateSha256),
             new WindowsSignedRollbackLauncher());
 
@@ -57,6 +68,27 @@ internal static class Program
             // Fail closed. Never invent a new rollback ticket or run an
             // unverified setup in response to journal/OS errors.
             return 7;
+        }
+    }
+    private static bool IsTrustedRunningImage(
+        string path, string expectedSha256, string signerSha256)
+    {
+        if (!StableUpdatePayloadVerifier.MatchesFile(path, expectedSha256) ||
+            !NativeHostSignature.IsValid(path))
+            return false;
+        try
+        {
+#pragma warning disable SYSLIB0057
+            using var signer = X509Certificate.CreateFromSignedFile(path);
+#pragma warning restore SYSLIB0057
+            var actual = SHA256.HashData(signer.GetRawCertData());
+            var expected = Convert.FromHexString(signerSha256);
+            return CryptographicOperations.FixedTimeEquals(actual, expected);
+        }
+        catch (Exception e) when (e is IOException or CryptographicException or
+            ArgumentException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 }
