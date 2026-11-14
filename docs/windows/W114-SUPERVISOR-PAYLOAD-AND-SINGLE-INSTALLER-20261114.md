@@ -55,3 +55,11 @@
 - This closes payload identity gaps in the rollback journal and package verifier only. It does not provision production P-256/AuthentiCode pins, publish a live stable feed, add the app's trusted Supervisor launch callsite, run a real signed crash-recovery test, or enable automatic updates. No installer was built or delivered to the owner.
 - Next engineering task remains production signing and trusted same-user Supervisor launch wiring, but only after the owner supplies/approves the production certificate/key configuration and official feed origin through protected release infrastructure. Keep fail-closed; do not fabricate credentials or use Hostinger QA as production.
 
+## W115/W115a — last-known-good signed package retention / 14 November 2026
+
+- Code/test HEAD: `d74e61f68d8e12d3f2d1d56470e5f688b06b27e6`.
+- W115 adds a durable copy of the verified target installer beside the previous installer, records its package size, and exposes `GetLastKnownGood` only from a `Healthy` or `Restored` transaction. The package is rechecked against the recorded signer pin, SHA-256, size, CELIKOM PE identity and four signed payload hashes before reuse.
+- W115a rotates the superseded snapshot only after the new DPAPI journal and both signed installer copies are durable; this prevents old rollback pairs from accumulating.
+- W15 covers healthy target reuse, tamper rejection, next-update reuse, restored previous package and snapshot rotation.
+- Main CI [43583092781](https://github.com/manufact-test/nomusic/actions/runs/43583092781) SUCCESS; Windows integration [43583092822](https://github.com/manufact-test/nomusic/actions/runs/43583092822) SUCCESS.
+- This still does not solve the first signed bootstrap, provision production signing pins, publish a live feed or wire the trusted Supervisor launch callsite. No automatic updater or installer release is enabled. Full handoff: `docs/windows/W115-LAST-KNOWN-GOOD-SIGNED-PACKAGE-CACHE-20261114.md`.

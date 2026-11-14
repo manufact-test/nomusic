@@ -1,34 +1,60 @@
 # CELIKOM Windows — CURRENT HANDOFF / 14 November 2026
 
 Repository: `manufact-test/nomusic`.
-**ONE active product line:** `main`. Latest W114a code/test HEAD: `e27cd829dc0f101c92bf21d44425504359b7cb21` (Main CI + Windows integration both SUCCESS before this documentation-only update).
-Exact pre-documentation rollback: `backup/windows-main-pre-w114a-ci-docs-20261114` @ `e27cd829dc0f101c92bf21d44425504359b7cb21`.
-No new `experiment/*` branches. Before each substantial change create exact `backup/*`; avoid touching Android, extension, private original media or unrelated server logic.
+**ONE active product line:** `main`.
+**Latest verified code/test HEAD:** `d74e61f68d8e12d3f2d1d56470e5f688b06b27e6`.
+- Main CI [43583092781](https://github.com/manufact-test/nomusic/actions/runs/43583092781) — SUCCESS.
+- Windows integration CI [43583092822](https://github.com/manufact-test/nomusic/actions/runs/43583092822) — SUCCESS.
+No new `experiment/*` branches. Before substantial changes create an exact `backup/*`; avoid touching Android, extension, private original media or unrelated server logic.
 
-## W114a latest verified — 14 November 2026
-- Fixed signed rollback reconstruction to retain the previous Supervisor SHA-256; synthetic verification now requires all four signed payload hashes.
-- Schema-2 journal read rejects missing/invalid previous or target Supervisor hashes.
-- Added W15 tests proving both previous-release and target-release missing-Supervisor-hash cases fail closed.
-- Code/test commits: `54219d43e550e4c5ea42eb2fa511264a4255ee0e`, `a7c8474a9dadb55c55261bffe6e6141aabac1146`, `59a84955308ec73f3a4e3b8dad1282002eb4f3ed`, `0540673c68fdd2fca1bc32acda74496de6fe09e6`.
-- Exact code HEAD CI: Main [43581840478](https://github.com/manufact-test/nomusic/actions/runs/43581840478) SUCCESS; Windows integration [43581840481](https://github.com/manufact-test/nomusic/actions/runs/43581840481) SUCCESS.
-- Full details: `docs/windows/W114-SUPERVISOR-PAYLOAD-AND-SINGLE-INSTALLER-20261114.md`.
+## W115/W115a latest verified — 14 November 2026
+
+- Added durable retention of **both** signed installers in every prepared transaction: `previous-signed-setup.exe` and `target-signed-setup.exe`.
+- DPAPI journal schema 2 now records `TargetSize` as well as previous package size. Old schema-2 records with no target size still deserialize, but cannot be promoted to last-known-good; they fail closed.
+- `GetLastKnownGood` exposes a cached package only after `Healthy` (verified target) or `Restored` (verified previous) and rechecks the recorded signer pin, package bytes, size, PE identity, Authenticode and all four payload hashes.
+- A later update can use that returned `CachedSignedPackage` as its previous signed package. Prepared, in-progress, tampered and failed transactions cannot seed a new rollback.
+- W115a rotates the previous transaction snapshot **only after** the new DPAPI journal and both copied installers are durable. The current rollback pair is retained; obsolete snapshots do not accumulate without bound.
+- W15 tests cover premature cache refusal, healthy target retention, tamper refusal, re-use as the next previous package, restored previous package, and snapshot rotation.
+- Exact code/test CI at `d74e61f`: Main [43583092781](https://github.com/manufact-test/nomusic/actions/runs/43583092781) SUCCESS; Windows integration [43583092822](https://github.com/manufact-test/nomusic/actions/runs/43583092822) SUCCESS.
+- Full details: `docs/windows/W115-LAST-KNOWN-GOOD-SIGNED-PACKAGE-CACHE-20261114.md`.
+
+Exact rollback branches:
+- `backup/windows-main-pre-w115-last-known-good-cache-20261114` @ `779d916e889846ae29980aeacf7083cb4b59c12f`.
+- `backup/windows-main-pre-w115-test-name-fix-20261114` @ `7608aa12e197799e1db736b67eeda021cc65696a`.
+- `backup/windows-main-pre-w115a-snapshot-rotation-20261114` @ `f6f0a68c520b8eb53ff4fb7474156381a22e1e5e`.
 
 ## Still blocked — do not call updater ready
-- Production P-256 manifest key/public-key pin and Authenticode certificate fingerprint are not provisioned; helper deliberately exits fail-closed while signer pin is empty.
-- W113 generates signed schema-2 manifests but no live feed publication is configured; official HTTPS origin and atomic upload target are unconfirmed.
-- Main app still has no trusted same-user Supervisor launch callsite after durable journal preparation.
-- No real signed install, forced GUI crash, one-shot rollback, account-preservation or Yandex-idle end-to-end test has run.
+
+- Production P-256 manifest signing key/public-key pin and Authenticode certificate fingerprint are not provisioned. `ProductionSignerCertificateSha256` remains empty; the supervisor intentionally refuses to run.
+- W113 generates signed schema-2 manifests locally, but there is no live feed publication. Official HTTPS origin and atomic upload target are unconfirmed. Do not assume the Hostinger QA hostname or `celikom.com` is the production feed.
+- Main app still has no trusted same-user Supervisor launch callsite.
+- **First signed bootstrap is not solved yet:** the LKG cache becomes available only after one signed transaction reaches `Healthy` or `Restored`. Before enabling updates, the first production-signed installation must safely seed its own verified installer as the initial LKG package.
+- No real signed install, forced GUI crash, one-shot restore, account-preservation or Yandex-idle end-to-end test has run.
 - No final EXE+ZIP has been built or delivered; no mass release.
-- Do not use Hostinger QA domain as production origin, do not invent or request secrets in chat, and do not run manual QA installer as a substitute for production trust.
+- Owner field checks/issues #52, #53, #54, #56, #57 and #58 remain open. CI does not replace real audio/VPN/volume/first-run/tray testing on the owner's PC.
 
 ## Next work order
-1. Confirm protected production P-256 signing key and Authenticode certificate configuration.
-2. Confirm official HTTPS stable-feed origin and existing atomic upload target.
-3. Implement trusted same-user Supervisor launch only after the signed journal is durable and all production pins verify.
-4. Run real signed update + forced GUI termination + exactly one verified rollback; preserve existing DPAPI account, native integration and Yandex playback.
-5. Only after that build one final Windows EXE + ZIP for owner QA.
 
-## W113–W114 current state — 14 November 2026
+1. Provision the real P-256 key and Authenticode certificate through protected release configuration; never paste secrets into chat or commit them.
+2. Confirm the official HTTPS stable-feed origin and existing upload target.
+3. Implement the first signed-install bootstrap that seeds a verified current installer as LKG; do not trust the currently unsigned/manual setup as a rollback package.
+4. Wire the main app to fetch/verify the feed, prepare the durable journal, copy and launch the pinned Supervisor as the same user, then launch the target installer. Keep all paths fail-closed until the production pins exist.
+5. Run a real signed update, force-kill the new GUI, prove exactly one verified rollback, and preserve DPAPI account, native integration and Yandex playback.
+6. Only then produce one final EXE+ZIP for owner QA.
+
+## Read first
+
+1. `docs/windows/W115-LAST-KNOWN-GOOD-SIGNED-PACKAGE-CACHE-20261114.md`
+2. `docs/windows/W114-SUPERVISOR-PAYLOAD-AND-SINGLE-INSTALLER-20261114.md`
+3. `docs/windows/W113-STABLE-MANIFEST-GENERATION-20261114.md`
+4. `docs/windows/W112-EXACT-SIGNED-PAYLOAD-IDENTITY-20261114.md`
+5. `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`
+6. `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md`
+7. `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`
+8. `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
+9. GitHub issues #52, #53, #54, #56, #57, #58.
+
+## W113–W114 implementation history — 14 November 2026
 
 - **W113 manifest generation:** c7451d90863581794c70df7a3dc8c2525ee4930c; backup backup/windows-main-pre-w113-stable-manifest-publisher-20261114 @ d136d52d595574c25461fc05590ac7078a739cf6. Generator builds the exact schema-2 JSON and P-256 DER signature, requires the signing private key to match the client-pinned public key, and hashes the package plus installed payload. W113 tests: Main CI 43578863477 SUCCESS; Windows integration 43578863492 SUCCESS.
 - **W114 supervisor payload binding:** 5fbc5ed39694dbd43329d47e2ea169f4142cf540; backup backup/windows-main-pre-w114-supervisor-payload-20261114 @ c7451d90863581794c70df7a3dc8c2525ee4930c. Schema 2 now requires four installed-file hashes: CELIKOM.Companion.exe, integration/host.cjs, integration/renderer.js and CELIKOM.UpdateSupervisor.exe. DPAPI journal stores previous/target hashes for all four. The existing Inno installer includes the supervisor; the existing W20 and Hostinger QA build paths build it before compiling the same installer.
