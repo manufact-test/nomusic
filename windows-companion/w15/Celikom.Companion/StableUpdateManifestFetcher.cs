@@ -78,6 +78,48 @@ public static class StableUpdateManifestFetcher
     }
 
     /// <summary>
+    /// Signed latest-manifest check for a scheduler. Returns null only for an
+    /// authenticated manifest whose sequence exactly matches the accepted LKG.
+    /// Redirects, cookies and caller-selected origins remain forbidden.
+    /// </summary>
+    public static async Task<StableUpdateManifestVerifier.VerifiedRelease?> FetchSignedIfNewerAsync(
+        Uri officialOrigin, byte[] pinnedPublicKey, Version currentVersion,
+        long lastAcceptedSequence, CancellationToken cancellationToken = default)
+    {
+        ValidateOrigin(officialOrigin);
+        if (pinnedPublicKey is not { Length: >= 64 and <= 256 })
+            throw new InvalidDataException("STABLE_FEED_KEY_NOT_PINNED");
+        using var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseDefaultCredentials = false
+        };
+        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(6) };
+        return await FetchSignedIfNewerWithClientAsync(officialOrigin, pinnedPublicKey,
+            currentVersion, lastAcceptedSequence, DateTimeOffset.UtcNow,
+            http, cancellationToken);
+    }
+
+    internal static async Task<StableUpdateManifestVerifier.VerifiedRelease?> FetchSignedIfNewerWithClientAsync(
+        Uri officialOrigin, byte[] pinnedPublicKey, Version currentVersion,
+        long lastAcceptedSequence, DateTimeOffset now, HttpClient client,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateOrigin(officialOrigin);
+        if (pinnedPublicKey is not { Length: >= 64 and <= 256 })
+            throw new InvalidDataException("STABLE_FEED_KEY_NOT_PINNED");
+        var manifestUrl = new Uri(officialOrigin, LatestPath);
+        var signatureUrl = new Uri(officialOrigin, LatestPath + ".sig");
+        var manifest = await ReadBoundedAsync(client, manifestUrl, ManifestMaxBytes,
+            cancellationToken);
+        var signature = await ReadBoundedAsync(client, signatureUrl, SignatureMaxBytes,
+            cancellationToken);
+        return StableUpdateManifestVerifier.VerifyIfNewer(manifest, signature,
+            pinnedPublicKey, officialOrigin, currentVersion, lastAcceptedSequence, now);
+    }
+
+    /// <summary>
     /// Internal deterministic transport seam for CI. Caller must supply a
     /// build-time pinned public key, never a key received from this feed.
     /// </summary>

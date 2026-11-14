@@ -34,7 +34,21 @@ public static class StableUpdateManifestVerifier
         Uri officialOrigin, Version runningVersion, long lastAcceptedSequence,
         DateTimeOffset now) =>
         VerifyCore(document, detachedSignature, pinnedPublicKey, officialOrigin,
-            runningVersion, lastAcceptedSequence, now, bootstrap: false);
+            runningVersion, lastAcceptedSequence, now, bootstrap: false,
+            allowCurrentSequence: false)!;
+
+    /// <summary>
+    /// Verifies the signed latest manifest and returns null only when its
+    /// authenticated sequence exactly matches the last accepted sequence.
+    /// Lower sequences and invalid signatures remain hard failures.
+    /// </summary>
+    public static VerifiedRelease? VerifyIfNewer(
+        byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
+        Uri officialOrigin, Version runningVersion, long lastAcceptedSequence,
+        DateTimeOffset now) =>
+        VerifyCore(document, detachedSignature, pinnedPublicKey, officialOrigin,
+            runningVersion, lastAcceptedSequence, now, bootstrap: false,
+            allowCurrentSequence: true);
 
     /// <summary>
     /// Verifies the immutable release record for the exact version already
@@ -46,12 +60,13 @@ public static class StableUpdateManifestVerifier
         byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
         Uri officialOrigin, Version installedVersion, DateTimeOffset now) =>
         VerifyCore(document, detachedSignature, pinnedPublicKey, officialOrigin,
-            installedVersion, 0, now, bootstrap: true);
+            installedVersion, 0, now, bootstrap: true,
+            allowCurrentSequence: false)!;
 
-    private static VerifiedRelease VerifyCore(
+    private static VerifiedRelease? VerifyCore(
         byte[] document, byte[] detachedSignature, byte[] pinnedPublicKey,
         Uri officialOrigin, Version runningVersion, long lastAcceptedSequence,
-        DateTimeOffset now, bool bootstrap)
+        DateTimeOffset now, bool bootstrap, bool allowCurrentSequence)
     {
         if (document is not { Length: >= 100 and <= 16_384 } ||
             detachedSignature is not { Length: >= 64 and <= 80 } ||
@@ -83,9 +98,14 @@ public static class StableUpdateManifestVerifier
             throw new InvalidDataException("STABLE_MANIFEST_JSON_INVALID");
         }
         if (raw is null || raw.Schema != 2 || raw.Channel != "stable" ||
-            raw.Publisher != "CELIKOM" || raw.Sequence <= lastAcceptedSequence ||
-            raw.Sequence <= 0)
+            raw.Publisher != "CELIKOM" || raw.Sequence <= 0 ||
+            raw.Sequence < lastAcceptedSequence)
             throw new InvalidDataException("STABLE_MANIFEST_POLICY_INVALID");
+        if (!bootstrap && raw.Sequence == lastAcceptedSequence)
+        {
+            if (allowCurrentSequence) return null;
+            throw new InvalidDataException("STABLE_MANIFEST_POLICY_INVALID");
+        }
         if (!TryVersion(raw.Version, out var target))
             throw new InvalidDataException("STABLE_MANIFEST_VERSION_INVALID");
 

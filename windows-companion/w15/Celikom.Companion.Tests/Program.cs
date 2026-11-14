@@ -661,6 +661,51 @@ try
                     DSASignatureFormat.Rfc3279DerSequence),
                 pub, signedFeedOrigin, new Version(0, 24, 36, 0), previousSequence, signedFeedNow);
         var signedDocument = ManifestBytes();
+        var currentSequenceDocument = ManifestBytes(sequence: 41);
+        var currentSequenceSignature = releaseKey.SignData(currentSequenceDocument,
+            HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+        Test(StableUpdateManifestVerifier.VerifyIfNewer(
+                currentSequenceDocument, currentSequenceSignature, pub, signedFeedOrigin,
+                new Version(0, 24, 36, 0), 41, signedFeedNow) is null,
+            "W123 authenticated equal sequence is a normal no-update result");
+        bool equalSequenceBadSignatureRejected = false;
+        try
+        {
+            StableUpdateManifestVerifier.VerifyIfNewer(
+                currentSequenceDocument, new byte[70], pub, signedFeedOrigin,
+                new Version(0, 24, 36, 0), 41, signedFeedNow);
+        }
+        catch (InvalidDataException e) when (e.Message == "STABLE_MANIFEST_SIGNATURE_INVALID")
+        { equalSequenceBadSignatureRejected = true; }
+        Test(equalSequenceBadSignatureRejected,
+            "W123 equal sequence cannot bypass detached signature verification");
+        bool olderSequenceRejected = false;
+        try
+        {
+            var older = ManifestBytes(sequence: 40);
+            StableUpdateManifestVerifier.VerifyIfNewer(
+                older, releaseKey.SignData(older, HashAlgorithmName.SHA256,
+                    DSASignatureFormat.Rfc3279DerSequence),
+                pub, signedFeedOrigin, new Version(0, 24, 36, 0), 41, signedFeedNow);
+        }
+        catch (InvalidDataException e) when (e.Message == "STABLE_MANIFEST_POLICY_INVALID")
+        { olderSequenceRejected = true; }
+        Test(olderSequenceRejected, "W123 older signed sequence is not mistaken for no update");
+
+        using (var currentFeedHttp = new HttpClient(new FakeHandler(req =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = req,
+                Content = new ByteArrayContent(req.RequestUri!.AbsolutePath.EndsWith(".sig",
+                    StringComparison.Ordinal) ? currentSequenceSignature : currentSequenceDocument)
+            })))
+        {
+            var noUpdate = await StableUpdateManifestFetcher.FetchSignedIfNewerWithClientAsync(
+                signedFeedOrigin, pub, new Version(0, 24, 36, 0), 41,
+                signedFeedNow, currentFeedHttp);
+            Test(noUpdate is null,
+                "W123 signed latest feed reports no update without treating it as an error");
+        }
         // W107: do not trust TLS alone; both the JSON and its detached
         // signature must be fetched from the exact official HTTPS origin.
         var detachedSignature = releaseKey.SignData(signedDocument,

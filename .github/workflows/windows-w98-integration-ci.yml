@@ -107,6 +107,8 @@ jobs:
           $supervisorLauncherText=Get-Content ..\w15\Celikom.Companion\StableUpdateSupervisorLauncher.cs -Raw
           $supervisorProgramText=Get-Content ..\w15\Celikom.UpdateSupervisor\Program.cs -Raw
           $supervisorTestsText=Get-Content ..\w15\Celikom.UpdateSupervisor.Tests\Program.cs -Raw
+          $stableManifestVerifierText=Get-Content ..\w15\Celikom.Companion\StableUpdateManifestVerifier.cs -Raw
+          $stableManifestFetcherText=Get-Content ..\w15\Celikom.Companion\StableUpdateManifestFetcher.cs -Raw
           $guardChecks=@(
             $nativeHostText.Contains('maxTotalBufferSize: 2 * 1024 * 1024'),
             $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
@@ -128,7 +130,9 @@ jobs:
             $supervisorLauncherText.Contains('record.State != StableUpdateRollbackJournal.Phase.Prepared'),
             $supervisorLauncherText.Contains('Process.Start'),
             $supervisorProgramText.Contains('StableUpdateSupervisorHandshake.SignalReadyAsync'),
-            $supervisorTestsText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync')
+            $supervisorTestsText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync'),
+            $stableManifestVerifierText.Contains('VerifyIfNewer'),
+            $stableManifestFetcherText.Contains('FetchSignedIfNewerWithClientAsync')
           )
           Write-Host "W103_W23_GUARD_CHECKS=$($guardChecks -join ',')"
           if ($guardChecks -contains $false) {
