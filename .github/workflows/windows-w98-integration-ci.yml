@@ -137,6 +137,7 @@ jobs:
             throw "W110_FAIL_CLOSED_PRODUCTION_SIGNER_PIN_MISSING"
           }
           Write-Output 'W110_PRODUCTION_ROLLBACK_DISABLED_UNTIL_SIGNING_PASS'
+          exit 0
       - name: W108 app updater never autoplays Yandex or reports ticket as health
         shell: pwsh
         run: |
