@@ -1219,7 +1219,7 @@ public sealed partial class MainWindow : Form
             var message = ex.Message switch
             {
                 "UPDATE_DEFER_YANDEX_RUNNING" =>
-                    "Обновление не запускалось. Закончи прослушивание и закрой Яндекс.Музыку, затем повтори обновление.",
+                    "Обновление не запускалось. Останови CELIKOM и закрой Яндекс.Музыку после прослушивания, затем повтори.",
                 "UPDATE_NOT_NEWER" => "Этот ZIP содержит старую или уже установленную версию. Скачай более новую.",
                 "UPDATE_NOT_CELIKOM" => "Файл не похож на подходящий установщик CELIKOM. Обновление остановлено.",
                 "UPDATE_PACKAGE_INVALID" or "UPDATE_FILE_INVALID" =>

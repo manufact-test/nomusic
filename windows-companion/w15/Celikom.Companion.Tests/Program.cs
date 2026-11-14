@@ -14,6 +14,8 @@ void Test(bool condition, string message)
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
 try
 {
+    Test(!AppUpdateManager.CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: true),
+        "W108 manual in-place update must not interrupt active CELIKOM playback");
     // W105: exact byte stream, SHA256 and signature all have to succeed
     // before a staged installer may ever be considered executable.
     var updateBytes = new byte[32_768];
