@@ -35,6 +35,7 @@ class PersistentOwnerSignerTests(unittest.TestCase):
             "CELIKOM_A1_OWNER_KEY_PASSWORD": password,
             "CELIKOM_A1_OWNER_CERT_SHA256": fingerprint,
         }
+        source.unlink()
         return source, env, fingerprint
 
     def test_imports_pkcs12_and_verifies_pinned_certificate(self):
