@@ -7,7 +7,7 @@ Repository: `manufact-test/nomusic`
 
 > This document is the controlling handoff for the next developer/chat. Read it before changing anything. If any older W-series document, old release note, artifact name, or previous chat message conflicts with W119 or the top of `NEXT-CHAT.md`, W119 wins. Do not reinterpret the product model or invent another workflow.
 
-## Status addendum — W124/W125, 14 November 2026
+## Status addendum — W124–W126, 14 November 2026
 
 The product contract and owner task order in this document remain unchanged. The updater and source-evidence status below has advanced:
 
@@ -17,7 +17,7 @@ The product contract and owner task order in this document remain unchanged. The
 - W126 removes the duplicate activation POST on first native install/upgrade. The consented install path now uses the same bounded transient retry helper, retains the fresh access label and classifies network failure separately from native integration damage. W126 Main CI [43601959568](https://github.com/manufact-test/nomusic/actions/runs/43601959568) and Windows integration CI [43601959593](https://github.com/manufact-test/nomusic/actions/runs/43601959593) — **SUCCESS**.
 - Current code HEAD: `ed41f613640f55c8de4a027a8f6f12ac31a15093`; exact green backup: `backup/windows-main-post-w126-ci-green-20261114`. Main CI [43601959568](https://github.com/manufact-test/nomusic/actions/runs/43601959568) and Windows integration CI [43601959593](https://github.com/manufact-test/nomusic/actions/runs/43601959593) — **SUCCESS**.
 - Production feed origin, P-256 public key and Authenticode signer fingerprint remain intentionally empty. The updater is wired but dormant; no production update has been delivered or installed.
-- All six owner issues remain OPEN. W125 is only a defensive source-evidence fix; it does not replace owner-PC audio acceptance.
+- All six owner issues remain OPEN. W125 is only a defensive source-evidence fix and W126 is only a first-install activation/retry fix; neither replaces owner-PC audio acceptance.
 
 The priority order in section 6 and all one-product/main/backup/no-intermediate-installer rules remain authoritative.
 
