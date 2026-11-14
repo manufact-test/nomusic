@@ -16,7 +16,7 @@ public static class StableUpdateManifestVerifier
     public sealed record VerifiedRelease(
         Version Version, long Sequence, Uri PackageUri,
         long PackageSize, string Sha256, DateTimeOffset ExpiresAt,
-        bool Mandatory, string Notes);
+        bool Mandatory, string Notes, Version? RollbackFrom = null);
 
     private sealed record Manifest(
         int Schema, string? Channel, string? Version, long Sequence,
@@ -61,12 +61,34 @@ public static class StableUpdateManifestVerifier
         }
         if (raw is null || raw.Schema != 1 || raw.Channel != "stable" ||
             raw.Publisher != "CELIKOM" || raw.Sequence <= lastAcceptedSequence ||
-            raw.Sequence <= 0 ||
-            (raw.Rollback.HasValue && raw.Rollback.Value.ValueKind is not
-                (JsonValueKind.Null or JsonValueKind.Undefined)))
+            raw.Sequence <= 0)
             throw new InvalidDataException("STABLE_MANIFEST_POLICY_INVALID");
-        if (!TryVersion(raw.Version, out var target) ||
-            target <= Normalize(runningVersion))
+        if (!TryVersion(raw.Version, out var target))
+            throw new InvalidDataException("STABLE_MANIFEST_VERSION_INVALID");
+
+        // Normal releases only go forward. A bad-release rollback is the
+        // single exception: it must be a newer SIGNED manifest with an exact
+        // source-version match and a mandatory, strictly older target.
+        Version? rollbackFrom = null;
+        if (raw.Rollback is { ValueKind: JsonValueKind.Object } directive)
+        {
+            if (!raw.Mandatory || directive.EnumerateObject().Count() != 2 ||
+                !directive.TryGetProperty("fromVersion", out var fromElement) ||
+                !directive.TryGetProperty("toVersion", out var toElement) ||
+                fromElement.ValueKind != JsonValueKind.String ||
+                toElement.ValueKind != JsonValueKind.String ||
+                !TryVersion(fromElement.GetString(), out var fromVersion) ||
+                !TryVersion(toElement.GetString(), out var toVersion) ||
+                fromVersion != Normalize(runningVersion) ||
+                toVersion != target || target >= fromVersion)
+                throw new InvalidDataException("STABLE_ROLLBACK_DIRECTIVE_INVALID");
+            rollbackFrom = fromVersion;
+        }
+        else if (raw.Rollback.HasValue && raw.Rollback.Value.ValueKind is not
+            (JsonValueKind.Null or JsonValueKind.Undefined))
+            throw new InvalidDataException("STABLE_ROLLBACK_DIRECTIVE_INVALID");
+
+        if (rollbackFrom is null && target <= Normalize(runningVersion))
             throw new InvalidDataException("STABLE_MANIFEST_VERSION_INVALID");
         if (!string.IsNullOrWhiteSpace(raw.MinimumVersion) &&
             (!TryVersion(raw.MinimumVersion, out var minimum) ||
@@ -99,7 +121,7 @@ public static class StableUpdateManifestVerifier
         if (raw.Notes is { Length: > 240 })
             throw new InvalidDataException("STABLE_MANIFEST_NOTES_INVALID");
         return new VerifiedRelease(target, raw.Sequence, url, raw.PackageSize,
-            raw.Sha256!, expires, raw.Mandatory, raw.Notes ?? "");
+            raw.Sha256!, expires, raw.Mandatory, raw.Notes ?? "", rollbackFrom);
     }
 
     private static bool TryVersion(string? text, out Version result)
