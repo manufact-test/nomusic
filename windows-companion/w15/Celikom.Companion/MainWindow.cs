@@ -270,6 +270,11 @@ public sealed partial class MainWindow : Form
             }
             if (_backgroundStartup)
                 await ResumeSavedPlaybackAsync();
+
+            // W117: seed/verify the signed rollback base only when the complete
+            // production trust tuple is embedded. Runs off the UI thread and
+            // never launches an installer or touches Yandex playback.
+            _ = Task.Run(BootstrapStableRollbackIfConfiguredAsync);
         };
         Activated += (_, _) =>
         {
@@ -1294,6 +1299,27 @@ public sealed partial class MainWindow : Form
                 ? "APP_UPDATE_NATIVE_VERSION_MATCHED"
                 : "APP_UPDATE_NATIVE_CHECK_PENDING");
             UpdateSafe();
+        }
+    }
+
+    private async Task BootstrapStableRollbackIfConfiguredAsync()
+    {
+        if (!StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
+            trust is null)
+            return;
+
+        try
+        {
+            await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
+                trust.OfficialOrigin, trust.ManifestPublicKeyDer,
+                trust.SignerCertificateSha256).ConfigureAwait(false);
+            DiagnosticLog.Record("STABLE_ROLLBACK_BOOTSTRAP_READY");
+        }
+        catch
+        {
+            // Keep startup and playback unaffected. Exported diagnostics get
+            // only this fixed allowlisted code, never exception text or URLs.
+            DiagnosticLog.Record("STABLE_ROLLBACK_BOOTSTRAP_UNAVAILABLE");
         }
     }
 

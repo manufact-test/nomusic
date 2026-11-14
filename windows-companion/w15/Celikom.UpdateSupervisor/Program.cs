@@ -6,21 +6,19 @@ using Celikom.UpdateSupervisor;
 
 internal static class Program
 {
-    // Deliberately NOT configured. The trusted SHA256 fingerprint of the
-    // production CELIKOM signing certificate must be embedded by the signed
-    // release pipeline, not passed from CLI, an API response, config or env.
-    // Until then this independent helper cannot launch ANY installer.
-    private const string ProductionSignerCertificateSha256 = "";
-
     private static async Task<int> Main(string[] args)
     {
         if (!OperatingSystem.IsWindows() || args.Length != 2 ||
             args[0] != "--supervise" ||
             !Guid.TryParseExact(args[1], "N", out var transaction))
             return 2;
-        if (!System.Text.RegularExpressions.Regex.IsMatch(
-            ProductionSignerCertificateSha256, "^[a-fA-F0-9]{64}$"))
-            return 3; // fail closed: not production-signed / not provisioned
+        // Shared immutable build-pinned trust. Missing or malformed production
+        // values keep the independent helper unable to read a journal or run
+        // any installer. CLI, environment and mutable config cannot override it.
+        if (!StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
+            trust is null)
+            return 3;
+        var productionSignerCertificateSha256 = trust.SignerCertificateSha256;
 
         using var mutex = new Mutex(true,
             "Local\\CELIKOM.Windows.SignedUpdate." + transaction.ToString("N"),
@@ -30,16 +28,16 @@ internal static class Program
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CELIKOM", "Windows", "StableRollback");
         var journal = new DurableSupervisorJournal(root, transaction,
-            ProductionSignerCertificateSha256);
+            productionSignerCertificateSha256);
         var journalState = journal.Read();
         var runningImage = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(runningImage) ||
             !IsTrustedRunningImage(runningImage, journalState.PreviousSupervisorSha256,
-                ProductionSignerCertificateSha256))
+                productionSignerCertificateSha256))
             return 8;
 
         var engine = new UpdateSupervisorEngine(transaction, journal,
-            new WindowsSupervisorHealthProbe(ProductionSignerCertificateSha256),
+            new WindowsSupervisorHealthProbe(productionSignerCertificateSha256),
             new WindowsSignedRollbackLauncher());
 
         // Independent of the GUI: this process remains alive while the

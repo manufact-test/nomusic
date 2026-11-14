@@ -11,6 +11,52 @@ void Test(bool condition, string message)
     checks++;
     if (!condition) throw new Exception("W15_TEST_FAILED: " + message);
 }
+
+Test(!StableUpdateTrustConfiguration.TryGetProduction(out _),
+    "W117 production updater stays disabled until real owner-approved trust pins are embedded");
+using (var trustKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
+{
+    var publicKeyDer = trustKey.ExportSubjectPublicKeyInfo();
+    var publicKeyBase64 = Convert.ToBase64String(publicKeyDer);
+    var trustPin = new string('b', 64);
+    Test(StableUpdateTrustConfiguration.TryCreate(
+            "https://updates.example.invalid/", publicKeyBase64, trustPin, out var trust) &&
+         trust is not null &&
+         trust.OfficialOrigin.AbsoluteUri == "https://updates.example.invalid/" &&
+         trust.SignerCertificateSha256 == trustPin &&
+         trust.ManifestPublicKeyDer.SequenceEqual(publicKeyDer),
+         "W117 accepts only a complete HTTPS/P-256/signer trust tuple");
+    if (trust is not null)
+    {
+        var exposed = trust.ManifestPublicKeyDer;
+        exposed[0] ^= 0xff;
+        Test(trust.ManifestPublicKeyDer.SequenceEqual(publicKeyDer),
+            "W117 callers cannot mutate the pinned public-key bytes");
+    }
+    Test(!StableUpdateTrustConfiguration.TryCreate(
+            "http://updates.example.invalid/", publicKeyBase64, trustPin, out _) &&
+         !StableUpdateTrustConfiguration.TryCreate(
+            "https://updates.example.invalid/feed/", publicKeyBase64, trustPin, out _) &&
+         !StableUpdateTrustConfiguration.TryCreate(
+            "https://user@updates.example.invalid/", publicKeyBase64, trustPin, out _),
+         "W117 rejects HTTP, non-origin paths and URL user-info");
+    Test(!StableUpdateTrustConfiguration.TryCreate(
+            "https://updates.example.invalid/", "not-base64", trustPin, out _) &&
+         !StableUpdateTrustConfiguration.TryCreate(
+            "https://updates.example.invalid/", Convert.ToBase64String(new byte[80]), trustPin, out _),
+         "W117 rejects malformed/non-EC public-key material");
+    Test(!StableUpdateTrustConfiguration.TryCreate(
+            "https://updates.example.invalid/", publicKeyBase64, new string('b', 63), out _),
+         "W117 rejects incomplete Authenticode signer fingerprints");
+}
+using (var nonP256 = ECDsa.Create(ECCurve.NamedCurves.nistP384))
+{
+    Test(!StableUpdateTrustConfiguration.TryCreate(
+            "https://updates.example.invalid/",
+            Convert.ToBase64String(nonP256.ExportSubjectPublicKeyInfo()),
+            new string('b', 64), out _),
+         "W117 rejects a non-P-256 manifest public key");
+}
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
 try
 {

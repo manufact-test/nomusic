@@ -151,6 +151,33 @@ jobs:
           }
           Write-Output 'W110_PRODUCTION_ROLLBACK_DISABLED_UNTIL_SIGNING_PASS'
           exit 0
+      - name: W117 production trust and startup bootstrap remain fail-closed
+        shell: pwsh
+        run: |
+          $trust = Get-Content windows-companion/w15/Celikom.Companion/StableUpdateTrustConfiguration.cs -Raw
+          $main = Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
+          $supervisor = Get-Content windows-companion/w15/Celikom.UpdateSupervisor/Program.cs -Raw
+          if (-not $trust.Contains('private const string ProductionFeedOrigin = "";') -or
+              -not $trust.Contains('private const string ProductionManifestPublicKeyDerBase64 = "";') -or
+              -not $trust.Contains('private const string ProductionSignerCertificateSha256 = "";')) {
+            throw 'W117_PRODUCTION_TRUST_MUST_REMAIN_UNPROVISIONED'
+          }
+          if (-not $main.Contains('Task.Run(BootstrapStableRollbackIfConfiguredAsync)') -or
+              -not $main.Contains('StableUpdateTrustConfiguration.TryGetProduction') -or
+              -not $main.Contains('StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync')) {
+            throw 'W117_BOOTSTRAP_STARTUP_GATE_MISSING'
+          }
+          $begin = $main.IndexOf('private async Task BootstrapStableRollbackIfConfiguredAsync()', [StringComparison]::Ordinal)
+          $end = $main.IndexOf('private static string DescribeIntegrationFailure', $begin, [StringComparison]::Ordinal)
+          if ($begin -lt 0 -or $end -le $begin) { throw 'W117_BOOTSTRAP_METHOD_BOUNDS_INVALID' }
+          $body = $main.Substring($begin, $end - $begin)
+          if ($body.Contains('Process.Start(') -or $body.Contains('AppUpdateManager.Launch(')) {
+            throw 'W117_BOOTSTRAP_MUST_NOT_INSTALL_OR_RESTART'
+          }
+          if (-not $supervisor.Contains('StableUpdateTrustConfiguration.TryGetProduction')) {
+            throw 'W117_SUPERVISOR_SHARED_TRUST_GATE_MISSING'
+          }
+          Write-Output 'W117_FAIL_CLOSED_TRUST_AND_BOOTSTRAP_PASS'
       - name: W108 app updater never autoplays Yandex or reports ticket as health
         shell: pwsh
         run: |
