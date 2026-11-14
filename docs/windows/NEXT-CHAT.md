@@ -95,3 +95,13 @@ No new `experiment/*` branches. Before each substantial change create exact `bac
 **Next work order:** implement the schema-2 release publisher/key and certificate pins, include and hash the supervisor binary in the signed payload, wire it into the one existing CELIKOM installer only after trust checks, and prove real signed crash recovery and stable automatic updates per W101; verify W104 bridge/start failure recheck on owner's PC; verify existing startup guards and acceptance flow; run CI after changes; make **one** coherent final Windows EXE + ZIP and link it only when successfully built and independently verified. Do not send partial TEST installers or ask for new secrets/accounts/emails. The user expects big completed chunks and a short status, not endless theory. Mass release only after owner QA. No final package has been delivered and nothing was installed on user's PC from this handoff.
 
 **Owner-side proof required:** VPN A→B reconnect, «Ты» audible replacement, Big City Life full-song loudness, natural 403→206 without hiss, «Моя волна» originals on VPN switch, Brave/Windows resource usage, and startup/reboot behavior. Never claim a real playback bug fixed by CI alone.
+
+## W114a continuation — 14 November 2026
+
+- Latest code fix: `StableUpdateRollbackJournal.VerifiedPreviousInstallerCore` now passes `PreviousSupervisorSha256` into the reconstructed `VerifiedRelease`. Before this, the signed rollback package was re-verified without its required fourth payload hash and would be rejected by W114 stager validation.
+- W15 synthetic verifier now asserts all four payload hashes (application, native host, renderer, supervisor) on each verified package, so this omission is covered by regression tests.
+- Exact pre-change backup: `backup/windows-main-pre-w114-rollback-supervisor-hash-20261114` @ `ffb983ec97982263e4559b3d7e7aad120976ad76`.
+- Fix commits: `54219d43e550e4c5ea42eb2fa511264a4255ee0e` (code), `a7c8474a9dadb55c55261bffe6e6141aabac1146` (test).
+- Last verified HEAD before W114a: `ffb983ec97982263e4559b3d7e7aad120976ad76`; final CI for W114a must be checked against the newest `main` HEAD.
+- No production signer pin/key/feed is provisioned. Supervisor launch callsite is still absent. Do not run Hostinger QA publish or claim automatic updates are live.
+
