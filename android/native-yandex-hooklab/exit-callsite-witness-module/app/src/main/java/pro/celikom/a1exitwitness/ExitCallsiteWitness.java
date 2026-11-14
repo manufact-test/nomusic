@@ -186,6 +186,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoSourceInstanceHookReady;
     private boolean exactExoDataOpenWitnessReady;
     private boolean exactExoDataReadWitnessReady;
+    private boolean nativeTrackFlowHookReady;
+    private boolean nativeTrackRequestHookReady;
+    private boolean nativeTrackWrapperHookReady;
+    private boolean nativeMainSourceHookReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean mediaExtractorSourceHookReady;
@@ -2608,8 +2612,111 @@ public final class ExitCallsiteWitness extends XposedModule {
      * of these events proves audible current-song playback or grants an
      * alternate source. The real Yandex path executes unmodified.
      */
+
+    /**
+     * Read-only identity bridge from the app's native Track FlowCollector to
+     * the main LtCa -> Exo descriptor path. Values and fields are never read.
+     * Every intercepted vendor method is called exactly once, unchanged.
+     */
+    private synchronized void installNativeTrackSourceContinuityWitness(ClassLoader loader) {
+        if (loader==null || !PACKAGE.equals(Application.getProcessName())) return;
+        if (!nativeTrackFlowHookReady) {
+            try {
+                Class<?> collector=Class.forName("LDp0",false,loader);
+                Class<?> continuation=Class.forName(
+                    "kotlin.coroutines.Continuation",false,loader);
+                Method emit=collector.getDeclaredMethod("emit",Object.class,continuation);
+                emit.setAccessible(true);
+                hook(emit).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try { STAGE_B_AUDIO.onNativeTrackFlowEmission(chain.getArg(0)); }
+                        catch (Throwable ignored) { }
+                        return chain.proceed();
+                    });
+                nativeTrackFlowHookReady=true;
+                emit("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW","NO_HOOK");
+            }
+        }
+        if (!nativeTrackRequestHookReady) {
+            try {
+                Class<?> owner=Class.forName("LGp0",false,loader);
+                Class<?> track=Class.forName("ru.yandex.music.data.audio.o",false,loader);
+                Class<?> context=Class.forName("Oe2",false,loader);
+                Method request=owner.getDeclaredMethod("new",owner,track,context);
+                request.setAccessible(true);
+                hook(request).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object selectedTrack=chain.getArg(1);
+                        try { STAGE_B_AUDIO.enterNativeTrackSourceRequest(selectedTrack); }
+                        catch (Throwable ignored) { }
+                        try {
+                            return chain.proceed();
+                        } finally {
+                            try { STAGE_B_AUDIO.exitNativeTrackSourceRequest(); }
+                            catch (Throwable ignored) { }
+                        }
+                    });
+                nativeTrackRequestHookReady=true;
+                emit("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST","NO_HOOK");
+            }
+        }
+        if (!nativeTrackWrapperHookReady) {
+            try {
+                Class<?> wrapper=Class.forName("LtCa",false,loader);
+                java.lang.reflect.Constructor<?> constructor=
+                    wrapper.getDeclaredConstructor(String.class);
+                constructor.setAccessible(true);
+                hook(constructor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed();
+                        try { STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject()); }
+                        catch (Throwable ignored) { }
+                        return result;
+                    });
+                nativeTrackWrapperHookReady=true;
+                emit("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER","NO_HOOK");
+            }
+        }
+        if (!nativeMainSourceHookReady) {
+            try {
+                Class<?> owner=Class.forName(
+                    "com.yandex.music.shared.player.download2.o",false,loader);
+                Class<?> queueContext=Class.forName("qX8$d",false,loader);
+                Class<?> wrapper=Class.forName("LtCa",false,loader);
+                Class<?> format=Class.forName("f6a",false,loader);
+                Class<?> policy=Class.forName("n26",false,loader);
+                Class<?> context=Class.forName("Oe2",false,loader);
+                Method mainSource=owner.getDeclaredMethod(
+                    "for",owner,queueContext,wrapper,format,policy,context);
+                mainSource.setAccessible(true);
+                hook(mainSource).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try { STAGE_B_AUDIO.enterNativeMainSourceRequest(chain.getArg(2)); }
+                        catch (Throwable ignored) { }
+                        try {
+                            return chain.proceed();
+                        } finally {
+                            try { STAGE_B_AUDIO.exitNativeMainSourceRequest(); }
+                            catch (Throwable ignored) { }
+                        }
+                    });
+                nativeMainSourceHookReady=true;
+                emit("AUDIO_NATIVE_MAIN_SOURCE_HOOK","MAIN_SOURCE","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_MAIN_SOURCE_HOOK","MAIN_SOURCE","NO_HOOK");
+            }
+        }
+    }
+
     private synchronized void installExactNativeExoSourceWitness(ClassLoader loader) {
         if (loader == null || !PACKAGE.equals(Application.getProcessName())) return;
+        installNativeTrackSourceContinuityWitness(loader);
         if (!exactExoDescriptorWitnessReady) {
             try {
                 Class<?> owner = Class.forName(
@@ -2622,8 +2729,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(descriptor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         Object result = chain.proceed(); // native descriptor unchanged
-                        try { STAGE_B_AUDIO.onExoDescriptorBuilt(result); }
-                        catch (Throwable ignored) { }
+                        try {
+                            STAGE_B_AUDIO.onExoDescriptorBuilt(result);
+                            STAGE_B_AUDIO.onNativeExoDescriptorBuiltForCurrentWrapper(result);
+                        } catch (Throwable ignored) { }
                         return result;
                     });
                 exactExoDescriptorWitnessReady = true;
@@ -2647,7 +2756,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                         Object result = chain.proceed(); // vendor factory once, unchanged
                         try {
                             if (result != null)
-                                STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1));
+                                STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1),result);
                         }
                         catch (Throwable ignored) { }
                         return result;
@@ -2674,7 +2783,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                         Object result = chain.proceed(); // exact vendor factory once
                         try {
                             if (result != null)
-                                STAGE_B_AUDIO.onExoSourceInstanceCreated(result);
+                                STAGE_B_AUDIO.onExoSourceInstanceCreated(
+                                    result,chain.getThisObject());
                         } catch (Throwable ignored) { }
                         return result;
                     });
