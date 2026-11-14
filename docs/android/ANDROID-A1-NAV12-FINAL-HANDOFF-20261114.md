@@ -4,7 +4,7 @@
 
 - Repository: `manufact-test/nomusic`
 - Working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Source snapshot before this documentation refresh: 4297bbeaf0d0913fbd6f1944827a33b8cba7043e. Exact pre-classifier backup: backup/android-a1-nav12-post-dex-writer-dataflow-20261114 at the same SHA. Earlier handoff backup backup/android-a1-nav12-final-handoff-r2-20261114 remains at 01eed9cd9c4214680cb52d3f10ce442b1976ee3a.
+- Source snapshot before this documentation refresh: 4297bbeaf0d0913fbd6f1944827a33b8cba7043e. Exact pre-classifier backup: backup/android-a1-nav12-post-dex-writer-dataflow-20261114 at the same SHA. Exact current handoff backup: backup/android-a1-nav12-exact-writer-classification-handoff-20261114 @ a459fbeab64832038b515dc4f70e64e71f59db28. Earlier handoff backup backup/android-a1-nav12-final-handoff-r2-20261114 remains at 01eed9cd9c4214680cb52d3f10ce442b1976ee3a.
 - Pre-NAV12 exact rollback: `backup/android-a1-nav12-pre-onboarding-writer-trace-20261114` @ `00f9e4485a2814aa81ed9b089fc40c83e02d96f8`
 - Earlier stable source checkpoints: `backup/android-a1-nav9-pre-token-callback-witness-20261114` @ `50fc7ca`; `backup/android-a1-nav10-pre-master-token-crypto-status-20261114` @ `a0410c5`; `backup/android-a1-nav10-postlogin-crypto-witness-before-key-init-20261114` @ `a0a4565`; `backup/android-a1-nav11-key-order-before-native-event-gate-20261114` @ `9c141f5`.
 
@@ -61,7 +61,7 @@ Latest NAV12 strict Android13 gates completed SUCCESS:
 - #43577366277 — publisher-first paired: same two runtime states; publisher remained installed and clone MAIN was stable 25/25.
 Both runs prove read-only hook registration in the two Android13 layouts. They are idle startup tests, not login, token, userInfo, navigation or audio acceptance. Neither touched the owner phone or exported an APK.
 
-The original DEX inventory in #43576640113 was a coarse co-occurrence scan. A stricter direct-call/dataflow classifier was added in commits 9592930 and 4297bbe; paired Android13 workflow #43578243485 is running against the latest classifier/tests at this handoff. Do not treat static writer output as runtime login evidence.
+The original DEX inventory in #43576640113 was a coarse co-occurrence scan. The stricter direct-call/dataflow classifier and its expanded unit tests are in commits 9592930 and 4297bbe. In paired Android13 workflow #43578243485, both the exact onboarding scan/test step and the private DEX classifier step have completed SUCCESS; later native ARM13 stages are still running, so the overall workflow has no final conclusion yet. The classifier's static output is not runtime login evidence.
 
 ### Refined exact onboarding writer result — original signed DEX
 
@@ -97,9 +97,10 @@ It does **not** establish whether `getPassword` returned a master token, whether
 ## Next developer's exact order
 
 1. Read this file, `NEXT-CHAT-ANDROID-A1-LEAD-20261113.md`, `ANDROID-A1-POSTLOGIN-RECEIPT-WITNESS-AND-SIGNER-GATE-20261114.md`, and `ANDROID-A1-NAV9-SIGNED-2025-POSTLOGIN-CONTRACT-20261114.md`.
-2. Verify current branch HEAD and inspect latest Actions runs #43576640113, #43577067135, #43577136676. Read the private DEX onboarding scan output once its job has completed.
-3. Confirm `ONBOARDING_WRITER_HOOK=REGISTERED` on both native Android13 configurations. If not registered, fix hook compatibility first; do not issue an APK.
-4. Interpret the static writer candidates. Do not set `onboarding` manually. If the runtime writer is absent during a future genuine login, continue along token/decrypt/Success(userInfo)/FragmentManager/native route receipts.
-5. Resolve dedicated persistent A1 signing before any owner delivery. Only then consider one bounded owner test that preserves existing app data and avoids repeated authentication.
+2. Verify the working branch is at the latest handoff commit and the exact backup branch `backup/android-a1-nav12-exact-writer-classification-handoff-20261114` matches it.
+3. Hook registration is already confirmed in both layouts: #43577067135 clone-alone and #43577366277 publisher-first paired both show `ONBOARDING_WRITER_HOOK=REGISTERED` and `ORIGINAL_KEY_PERSISTED`. Do not repeat this test unless source changes affect hook setup.
+4. The exact onboarding scan/test steps in #43578243485 have passed; wait for the overall native ARM13 workflow conclusion and read its sanitized output. The manual DEX check confirms three direct persisted writers and two coarse false positives; none is proven on Passport success.
+5. Continue the real Passport → master token read/decrypt → Success(userInfo) → FragmentManager → Main route investigation. Never invoke a writer, mutate onboarding, fake success or request another OTP.
+6. Resolve dedicated persistent A1 signing before any owner delivery. Stage A remains NO-GO; Stage B remains LOCKED. Only consider one bounded owner test after a proven fix, stable signer and explicit readiness.
 
 **Stage A: NO-GO. Stage B: LOCKED.** The fresh-install key write is technically proven; the owner's post-login loop is not fixed or owner-verified.

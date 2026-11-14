@@ -13,7 +13,7 @@ The first scanner counted literal/API co-occurrence, not argument dataflow. Manu
 - Lru/yandex/music/profile/ProfileActivity$b;->emit and ProfileActivity$c;->emit: exact direct writes and apply, belonging to profile coroutine handlers.
 - LVj1;->transient is a configuration-map value, and LUc1$b;->emit contains unrelated notification timestamp preference calls; both are co-occurrence false positives.
 
-The scanner now adds a strict direct register-chain classifier for Context/SharedPreferences/Editor calls and emits direct-writer and persisted-writer method lists. Tests cover correct file/key, wrong file/key, co-occurrence-only candidates and missing persistence. Classifier commits: 9592930 and 4297bbe; paired Android13 CI #43578243485 was running at this handoff.
+The scanner now adds a strict direct register-chain classifier for Context/SharedPreferences/Editor calls and emits direct-writer and persisted-writer method lists. Tests cover correct file/key, wrong file/key, co-occurrence-only candidates and missing persistence. Classifier commits: 9592930 and 4297bbe; in paired Android13 CI #43578243485 the exact onboarding scan/test and private DEX classifier steps completed SUCCESS, while later native ARM13 stages were still running at handoff.
 
 Runtime interpretation remains open: no idle CI run invokes Passport login. None of the three static writers is proven to run during Success(userInfo); do not invoke one or mutate onboarding to force Main.
 
