@@ -80,7 +80,14 @@ public static class StableUpdateRollbackJournal
         Directory.CreateDirectory(root);
         using var exclusive = AcquireLock(root);
         if (File.Exists(JournalPath(root)))
-            throw new IOException("STABLE_ROLLBACK_PENDING_EXISTS");
+        {
+            // A completed, separately proven transaction may be superseded
+            // by the next signed upgrade. Never discard a live/failed
+            // rollback ticket, or silently overwrite an unreadable record.
+            var previousTransaction = ReadRecord(root);
+            if (previousTransaction.State is not (Phase.Healthy or Phase.Restored))
+                throw new IOException("STABLE_ROLLBACK_PENDING_EXISTS");
+        }
 
         var identifier = Guid.NewGuid();
         var snapshot = Path.Combine(root, identifier.ToString("N"));
