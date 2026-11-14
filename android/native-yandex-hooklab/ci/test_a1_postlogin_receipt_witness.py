@@ -98,10 +98,16 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertIn('postLoginTokenOutcomeEvents.incrementAndGet() <= 12',part)
         self.assertIn('emit("LOGIN_TOKEN_OUTCOME", "ENTRY", category)',part)
         self.assertIn('emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",',part)
+        self.assertIn('emit("LOGIN_TOKEN_CAUSE_KIND", "ENTRY",',part)
+        self.assertIn('Throwable nested = reason.getCause();',part)
+        self.assertIn('tokenRequestErrorCategory(nested)',part)
         for category in ('"UNEXPECTED_ENVELOPE"', '"WRAPPED_NULL"',
                          '"WRAPPED_FAILURE"', '"WRAPPED_STRING"', '"WRAPPED_OTHER"',
-                         '"PASSPORT_API_A"', '"PASSPORT_API_B"', '"SECURITY"',
-                         '"NETWORK_OR_IO"'):
+                         '"PASSPORT_API_LOWER_A"', '"PASSPORT_API_LOWER_B"',
+                         '"PASSPORT_API_LOWER_P"', '"PASSPORT_API_UPPER_F"',
+                         '"PASSPORT_INTERNAL_NETWORK_A"', '"PASSPORT_COMMON_B"',
+                         '"PASSPORT_API_OTHER_CLASS"', '"PASSPORT_SDK_OTHER"',
+                         '"SECURITY"', '"NETWORK_OR_IO"'):
             self.assertIn(category,part)
         self.assertIn('result = chain.proceed();',part)
         self.assertIn('return result;',part)
@@ -238,7 +244,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.putString(',part)
         self.assertNotIn('.setResult(',part)
         self.assertNotIn('.startActivity(',part)
-        self.assertIn('NAV_V15_EXACT_TOKEN_ENVELOPE',s)
+        self.assertIn('NAV_V16_PASSPORT_EXCEPTION_KIND',s)
 
     def test_native_gate_requires_receiver_hook_registration(self):
         runner=(Path(__file__).resolve().parent /
@@ -363,7 +369,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         s=self.code
         self.assertIn('!"ENTRY_ACTIVITY".equals(activityFamily(activity))',s)
         self.assertIn('postLoginHookAttempts.incrementAndGet() > 3',s)
-        self.assertIn('NAV_V15_EXACT_TOKEN_ENVELOPE',s)
+        self.assertIn('NAV_V16_PASSPORT_EXCEPTION_KIND',s)
 
 if __name__=="__main__":
     unittest.main()
