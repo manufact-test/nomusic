@@ -20,7 +20,7 @@ public sealed class UpdateSupervisorEngine(
         var state = journal.Read();
         if (state.Id != expectedTransaction || state.Schema != 1)
             throw new IOException("SUPERVISOR_TRANSACTION_MISMATCH");
-        if (state.ExpectedSession && (state.SessionIdentitySha256.Length != 64 ||
+        if (state.ExpectedSession && (state.SessionIdentitySha256 is not { Length: 64 } ||
             state.SessionIdentitySha256.Any(c => c is not
                 (>= '0' and <= '9' or >= 'a' and <= 'f'))))
             throw new IOException("SUPERVISOR_SESSION_WITNESS_MISSING");

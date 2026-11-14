@@ -350,7 +350,8 @@ public static class StableUpdateRollbackJournal
             if (record is null || record.Schema != 1 || record.Id == Guid.Empty ||
                 !ValidSha(record.PreviousSha256) || !ValidSha(record.TargetSha256) ||
                 !ValidSha(record.SignerSha256) ||
-                (record.SessionIdentitySha256.Length != 0 &&
+                (record.SessionIdentitySha256 is null ||
+                 record.SessionIdentitySha256.Length != 0 &&
                  !ValidSha(record.SessionIdentitySha256)) ||
                 !Version.TryParse(record.PreviousVersion, out var previous) ||
                 !Version.TryParse(record.TargetVersion, out var target) ||
