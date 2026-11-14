@@ -105,6 +105,58 @@ try
                     DSASignatureFormat.Rfc3279DerSequence),
                 pub, signedFeedOrigin, new Version(0, 24, 36, 0), previousSequence, signedFeedNow);
         var signedDocument = ManifestBytes();
+        // W107: do not trust TLS alone; both the JSON and its detached
+        // signature must be fetched from the exact official HTTPS origin.
+        var detachedSignature = releaseKey.SignData(signedDocument,
+            HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+        using (var feedHttp = new HttpClient(new FakeHandler(req =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = req,
+                Content = new ByteArrayContent(req.RequestUri!.AbsolutePath.EndsWith(".sig",
+                    StringComparison.Ordinal) ? detachedSignature : signedDocument)
+            })))
+        {
+            var feed = await StableUpdateManifestFetcher.FetchSignedWithClientAsync(
+                signedFeedOrigin, pub, new Version(0, 24, 36, 0), 41,
+                signedFeedNow, feedHttp);
+            Test(feed.Version == new Version(0, 24, 37, 0) &&
+                 feed.Sequence == 42 && feed.RollbackFrom == null,
+                 "W107 exact-origin signed feed is verified before displaying a version");
+        }
+        using (var tamperFeedHttp = new HttpClient(new FakeHandler(req =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = req,
+                Content = new ByteArrayContent(req.RequestUri!.AbsolutePath.EndsWith(".sig",
+                    StringComparison.Ordinal) ? new byte[70] : signedDocument)
+            })))
+        {
+            bool signatureRejected = false;
+            try { await StableUpdateManifestFetcher.FetchSignedWithClientAsync(
+                    signedFeedOrigin, pub, new Version(0, 24, 36, 0), 41,
+                    signedFeedNow, tamperFeedHttp); }
+            catch (InvalidDataException e) when
+                (e.Message == "STABLE_MANIFEST_SIGNATURE_INVALID")
+            { signatureRejected = true; }
+            Test(signatureRejected, "W107 signed feed refuses substituted signature");
+        }
+        using (var redirectFeedHttp = new HttpClient(new FakeHandler(req =>
+            new HttpResponseMessage(HttpStatusCode.Redirect)
+            {
+                RequestMessage = req,
+                Headers = { Location = new Uri("https://evil.example/latest.json") }
+            })))
+        {
+            bool feedRedirectRejected = false;
+            try { await StableUpdateManifestFetcher.FetchSignedWithClientAsync(
+                    signedFeedOrigin, pub, new Version(0, 24, 36, 0), 41,
+                    signedFeedNow, redirectFeedHttp); }
+            catch (InvalidDataException e) when
+                (e.Message == "STABLE_FEED_HTTP_INVALID")
+            { feedRedirectRejected = true; }
+            Test(feedRedirectRejected, "W107 stable feed never follows redirects");
+        }
         var signedRelease = VerifyManifest(signedDocument);
         Test(signedRelease.Sequence == 42 &&
              signedRelease.Version == new Version(0, 24, 37, 0) &&
