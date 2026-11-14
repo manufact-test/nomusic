@@ -95,6 +95,11 @@ test("W98 rejects duplicate replacement IDs in inventory or live checks", () => 
   assert.throws(() => verifyGainReconciliation(data), /W98_BEFORE_INVENTORY_ROW_INVALID/);
 
   const second = fixture();
+  second.before.rows.push({ ...second.before.rows[0], replacement_id: 38, track_id: "40371623" });
+  second.before.count = 2;
+  second.after.rows.push({ ...second.after.rows[0], replacement_id: 38, track_id: "40371623" });
+  second.after.count = 2;
+  second.metrics.push({ ...second.metrics[0], replacement_id: 38, track_id: "40371623" });
   second.liveVerify.checks.push({ ...second.liveVerify.checks[0] });
   second.liveVerify.count = 2;
   assert.throws(() => verifyGainReconciliation(second), /W98_GAIN_LIVE_ID_DUPLICATE/);

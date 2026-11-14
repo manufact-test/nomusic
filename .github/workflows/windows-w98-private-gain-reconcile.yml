@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - .github/workflows/windows-w98-private-gain-reconcile.yml
+      - .github/scripts/hostinger-windows-gain-stage.sh
+      - .github/scripts/hostinger-windows-gain-remote.php
+      - .github/scripts/hostinger-windows-gain-verify.mjs
+      - .github/scripts/tests/hostinger-windows-gain-verify.test.mjs
 
 permissions:
   contents: read
