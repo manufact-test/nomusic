@@ -56,6 +56,9 @@ PLAYER_METHODS = {
 }
 SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "while"),
+    ("Lcom/yandex/music/shared/player/download2/o;", "for"),
+    ("Lcom/yandex/music/shared/player/download2/o;", "if"),
+    ("LGp0;", "new"), ("Lou3;", "new"),
     ("Lcq7;", "i0"), ("Lga4;", "d"),
 }
 MAX_DEX = 6
@@ -496,6 +499,7 @@ def inspect_signed(apks):
     player_method_refs = set()
     model_flow_candidates = []
     wrapper_methods = set()
+    target_callers = []
     focused_method_traces = []
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new")
@@ -555,10 +559,32 @@ def inspect_signed(apks):
                         if wrapper_flow and len(wrapper_constructor_callsites) < MAX_METHODS:
                             wrapper_constructor_callsites.append(wrapper_flow)
                     ins = list(instructions(dex, code_off))
+                    model_regs = {r for _, r in model_parameter_registers(
+                        dex, method, flags, code_off)}
                     for ordinal, (pc, op, words) in enumerate(ins):
                         if op not in INVOKES:
                             continue
                         callee = dex.method(words[1])
+                        if (callee[0], callee[1]) in SOURCE_METHODS:
+                            if len(target_callers) < MAX_METHODS:
+                                regs = invoke_registers(op, words)
+                                params = parse_types(callee[2])
+                                target_types = [callee[0]] + params
+                                target_callers.append({
+                                    "caller": {"owner": method[0], "name": method[1],
+                                               "signature": method[2]},
+                                    "target": {"owner": callee[0], "name": callee[1],
+                                               "signature": callee[2]},
+                                    "argument_registers": regs,
+                                    "argument_types_receiver_assumed": target_types,
+                                    "native_track_argument_positions": [
+                                        i for i, register in enumerate(regs)
+                                        if register in model_regs
+                                    ],
+                                    "track_id_wrapper_argument_positions": [
+                                        i for i, typ in enumerate(target_types) if typ == WRAPPER
+                                    ],
+                                })
                         if (callee[0], callee[1]) == DESCRIPTOR_BUILDER:
                             if len(descriptor_builder_callers) < MAX_METHODS:
                                 descriptor_builder_callers.append({
@@ -613,6 +639,7 @@ def inspect_signed(apks):
             for x in wrapper_methods
         ],
         "track_id_wrapper_constructor_callsites": wrapper_constructor_callsites,
+        "selected_item_source_target_callers": target_callers,
         "focused_native_model_to_wrapper_method_traces": focused_method_traces,
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [
