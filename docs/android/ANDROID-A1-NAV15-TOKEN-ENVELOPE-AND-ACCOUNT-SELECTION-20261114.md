@@ -33,3 +33,19 @@ CI at time of document creation: final paired #43616245271 (head `939b19ac`) pen
 - First finish actual native CI, ensure permanent owner signer and artifact integrity. If and only if green, use established **assistant-driven** GitHub Actions one-shot workflow dispatcher to export signed diagnostic APK to owner Library; do not tell owner to click workflows. Preserve signer and existing clone data where possible. Do not remove original Yandex.
 - With new phone TXT, distinguish `WRAPPED_FAILURE` (error category) vs `WRAPPED_NULL` vs `WRAPPED_STRING`, and then implement the actual token-path correction based on the relevant vendor/AccountManager public contract, without spoofing Music success or bypassing Android ownership. If category is `WRAPPED_STRING` despite NO_USERINFO, investigate exact next vendor call, not token failure.
 - Native ARM13 co-install and hook-registration are NOT owner successful login. Stage A NO-GO, Stage B LOCKED; native Main and audio not yet proven. Do not call the issue resolved.
+
+
+## FINAL NAV15 build and owner artifact verified (14 November 2026)
+
+**Supersedes pending-CI paragraph above.**
+
+- Final source/test head `939b19ac080430e5357e984f84cc58abb4942627` confirmed in clone-only ARM13 run **#43616217356 SUCCESS** and original-publisher-first paired ARM13 run **#43616245271 SUCCESS**. Both are unattended native checks, not an owner login/audio acceptance.
+- One-shot workflow dispatcher **#43617036468 SUCCESS**, own signed owner-export workflow **#43617044651 SUCCESS**. Temporary dispatcher and trigger files self-deleted from the sole working branch; no manual owner GitHub actions.
+- GitHub Actions artifact ID **#14122434657**, downloaded ZIP SHA-256 `b0c6600a4aab5b0d9e0cf57ca3da7c59664426f42030b1f17004879dcf971fad`.
+- Final APK: `CELIKOM-A1-NAV15-TokenEnvelope-Diagnostic-20261114.apk`, exact size **71,450,604 bytes**, SHA-256 **`5551ba8813d34594567bc18523843f7eeccb33c57e13cd2ab270f9c7ee850577`**.
+- Independently extracted APK v2 signer certificate SHA-256 **`048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`**, identical to NAV14 permanent owner certificate; original Yandex embedded `assets/lspatch/origin.apk` byte SHA-256 remains **`1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`**, byte-for-byte identical to NAV14.
+- Independently confirmed inside exact embedded module DEX all markers `NAV_V15_EXACT_TOKEN_ENVELOPE`, `WRAPPED_FAILURE`, `WRAPPED_NULL`, `WRAPPED_STRING`, `UNEXPECTED_ENVELOPE`.
+- Personal Library `/CELIKOM/CELIKOM-A1-NAV15-TokenEnvelope-Diagnostic-20261114.apk` and `/CELIKOM/NAV15-Инструкция-проверки-CELIKOM-A1-20261114.txt` both uploaded successfully. Also stored `/CELIKOM/CELIKOM-A1-NAV14-Owner-Diagnostics-1794673530972.txt` for continuity.
+- Exact post-export/pre-final-doc backup `backup/android-a1-nav15-signed-apk-ci-green-pre-final-docs-20261114` @ `14c287cf331e6d471aeb4cc1cabdaf8522ef989b`; pre-fix backup remains intact.
+- Owner action **only if willing**: install signed NAV15 **in place over existing CELIKOM**, never uninstall, never touch original Yandex, do not demand a new Yandex ID OTP or repeated two-account selection. Launch once and export diagnostic if possible. If Android demands uninstall, STOP, do not destroy clone account. New diagnostic should distinguish `WRAPPED_FAILURE` (with fixed class enum) vs `WRAPPED_NULL` vs `WRAPPED_STRING`. If login flow not invoked, user should still report what happened, not be forced through OTP just to obtain new lines.
+- **NOT FIXED YET:** Native Music login, actual post-login Main UI and audio still unproven. Stage A NO-GO, Stage B LOCKED.
