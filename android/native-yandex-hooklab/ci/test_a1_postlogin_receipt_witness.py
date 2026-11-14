@@ -105,6 +105,9 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
                          '"WRAPPED_FAILURE"', '"WRAPPED_STRING"', '"WRAPPED_OTHER"',
                          '"PASSPORT_API_LOWER_A"', '"PASSPORT_API_LOWER_B"',
                          '"PASSPORT_API_LOWER_P"', '"PASSPORT_API_UPPER_F"',
+                         '"PASSPORT_DATA_EXC_A"', '"PASSPORT_DATA_EXC_I"',
+                         '"PASSPORT_INTERNAL_ACCOUNTS_S"',
+                         '"PASSPORT_INTERNAL_CREDENTIAL_A_A"',
                          '"PASSPORT_INTERNAL_NETWORK_A"', '"PASSPORT_COMMON_B"',
                          '"PASSPORT_API_OTHER_CLASS"', '"PASSPORT_SDK_OTHER"',
                          '"SECURITY"', '"NETWORK_OR_IO"'):
