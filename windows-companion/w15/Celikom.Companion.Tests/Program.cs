@@ -676,6 +676,37 @@ try
     Test(!Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(folder, "session.dpapi"))).Contains(first.BridgeToken),
         "bridge token is encrypted at rest");
 
+    // W111: an updater must prove the SAME account and installation survived,
+    // not merely that some new DPAPI file is decryptable after reinstall.
+    var witnessDir = Path.Combine(folder, "session-identity-fixture");
+    var witnessFile = Path.Combine(witnessDir, "session.dpapi");
+    Test(SignedUpdateSessionIdentity.ReadExistingFingerprint(witnessFile) is null &&
+         !File.Exists(witnessFile),
+         "W111 checking for preserved session never creates a fresh login");
+    var witnessStore = new SessionStore(witnessDir);
+    var originalLogin = witnessStore.LoadOrCreate() with
+    {
+        Email = "owner@example.test",
+        AccessToken = "old-access-token"
+    };
+    witnessStore.Save(originalLogin);
+    var originalWitness = SignedUpdateSessionIdentity.ReadExistingFingerprint(witnessFile);
+    Test(originalWitness is { Length: 64 } &&
+         SignedUpdateSessionIdentity.ReadExisting(witnessFile)?.Email == "owner@example.test",
+         "W111 original signed-in account identity can be read without mutation");
+    witnessStore.Save(originalLogin with { AccessToken = "rotated-access-token" });
+    Test(SignedUpdateSessionIdentity.ReadExistingFingerprint(witnessFile) == originalWitness,
+         "W111 normal access-token refresh does not fake a session reset");
+    witnessStore.Save(originalLogin with { InstallationId = Guid.NewGuid().ToString("D") });
+    Test(SignedUpdateSessionIdentity.ReadExistingFingerprint(witnessFile) != originalWitness,
+         "W111 newly recreated installation is not falsely marked preserved");
+    witnessStore.Save(originalLogin with { Email = "other@example.test" });
+    Test(SignedUpdateSessionIdentity.ReadExistingFingerprint(witnessFile) != originalWitness,
+         "W111 different account is not falsely marked preserved");
+    File.WriteAllBytes(witnessFile, new byte[256]);
+    Test(SignedUpdateSessionIdentity.ReadExistingFingerprint(witnessFile) is null,
+         "W111 corrupted DPAPI session never counts as healthy");
+
     var now = DateTimeOffset.UtcNow;
     var unix = now.ToUnixTimeSeconds() + 200;
     var audio = "/api/v1/audio/42?token=" + new string('a', 64) + "&expires=" + unix + "&sid=7";
