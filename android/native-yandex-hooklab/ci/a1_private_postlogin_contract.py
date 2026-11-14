@@ -154,6 +154,7 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
     field_matches = set()
     super_matches = set()
     stage_contract = False
+    token_envelope_contract = False
 
     for dex in dexes:
         for method_id in range(dex.method_count):
@@ -188,6 +189,20 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
                 continue
             instructions = decode_instructions(code)
             by_pc = {pc: opcode for pc, opcode, _ in instructions}
+            # Signed vendor qY5.if unpacks nY5.private as zW8 before
+            # inspecting zW8.default. The raw nY5 field is ONLY an envelope.
+            # These exact sites are pinned to issuer XAPK; no payload read.
+            token_envelope_contract = (
+                by_pc.get(0xA0) == 0x1F
+                and dex.type(struct.unpack_from("<H", code, 0xA0+2)[0]) == "LzW8;"
+                and by_pc.get(0xA4) == 0x54
+                and dex.field(struct.unpack_from("<H", code, 0xA4+2)[0]) ==
+                    ("LzW8;", "default")
+                and by_pc.get(0xE4) == 0x20
+                and dex.type(struct.unpack_from("<H", code, 0xE4+2)[0]) == "LzW8$b;"
+                and by_pc.get(0xF2) == 0x1F
+                and dex.type(struct.unpack_from("<H", code, 0xF2+2)[0]) == "Ljava/lang/String;"
+            )
             continue_ids = []
             for field_id in range(field_count):
                 field_base = field_off + field_id * 8
@@ -233,6 +248,7 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
     required_fields = {
         ("LnY5;", "I", "continue"),
         ("LnY5;", "Ljava/lang/Object;", "private"),
+        ("LzW8;", "Ljava/lang/Object;", "default"),
         ("LzW8$b;", "Ljava/lang/Throwable;", "default"),
     }
     required_supers = {
@@ -243,12 +259,13 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
     }
     if not required_fields <= field_matches:
         raise DexError("PRIVATE_LOGIN_RESUME_FIELD_MISMATCH")
-    if not required_supers <= super_matches or not stage_contract:
+    if not required_supers <= super_matches or not stage_contract or not token_envelope_contract:
         raise DexError("PRIVATE_LOGIN_RESUME_STAGE_MISMATCH")
     return {
         "login_flow_reflection_signature_exact": True,
         "login_pipeline_reflection_signature_exact": True,
         "coroutine_resume_stage_contract_exact": True,
+        "token_envelope_contract_exact": True,
         "owner_auth_payload_accessed": False,
     }
 
