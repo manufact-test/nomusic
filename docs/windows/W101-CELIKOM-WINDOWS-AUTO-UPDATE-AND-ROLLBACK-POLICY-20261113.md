@@ -2,6 +2,8 @@
 
 > **Latest owner decisions are in W102.** W102 supersedes earlier branch/release workflow assumptions and defines the single-production-line rule, 15-minute Yandex monitoring, full task ledger and ordered handoff. Keep the technical updater security and rollback requirements below.
 
+> **Current 14 November implementation (supersedes historical branch/CI below):** `main` @ `1ad2c63e78746db49ca8bca5e0c3c8bee2cbc48b`, CI [43569385121](https://github.com/manufact-test/nomusic/actions/runs/43569385121) SUCCESS and Windows integration [43569385123](https://github.com/manufact-test/nomusic/actions/runs/43569385123) SUCCESS. W105–W108 enforce signed release manifest + exact versioned rollback directives, bounded downloads, SHA256/Authenticode/signer pin/PE checks and manual no-Yandex-interruption safeguards. **Automatic user update and independent rollback are still NOT ACTIVE and must not be claimed implemented**: a production signing key/certificate, signed stable feed, supervised safe-install transaction and crash rollback are absent. Full details in `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`. The rest of this W101 document is original product policy/history; W102 branch policy controls.
+
 ## Зачем этот документ
 
 Владелец зафиксировал обязательное продуктовое требование: пользователь CELIKOM Windows не должен самостоятельно следить за релизами, заходить на сайт и вручную скачивать каждый новый EXE/ZIP. Обновление самого CELIKOM должно доставляться приложением автоматически, безопасно и без прерывания музыки.

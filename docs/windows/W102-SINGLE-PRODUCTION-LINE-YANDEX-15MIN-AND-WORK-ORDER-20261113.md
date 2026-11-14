@@ -1,6 +1,6 @@
 # W102 — CELIKOM Windows: single production line, Yandex monitoring, task ledger and rollout order
 
-> **14 November W104/W101 code continuation:** Latest verified code main @ `9ac9a5ab485c3ce1bebc8aa6a2352b422c0ffa1c` (W104 native failure recheck and W101 signed-manifest verifier: both CI successful), W104 native-failure recheck code and Windows integration CI passed at `3cc58b93`. Original W102 data below is historical at `7a4768e`. See `docs/windows/NEXT-CHAT.md` and `docs/windows/W104-NATIVE-FAILURE-RECHECK-AND-W101-STABLE-MANIFEST-20261114.md`. No signed automatic app update or final installer yet.
+> **14 November latest W105–W108:** Single `main` green code @ `1ad2c63e78746db49ca8bca5e0c3c8bee2cbc48b`, main CI `43569385121` and Windows integration `43569385123` both SUCCESS. Secure signed-manifest download, verified installer staging, exact signed rollback *authorization*, and no-autoplay manual upgrade gates are integrated. **Still no consumer automatic installer, independent crash rollback, production signing key/certificate or final EXE+ZIP.** Read `docs/windows/NEXT-CHAT.md` and `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`; W102 historical body below is preserved.
 
 Date: 2026-11-13
 Owner's explicit decisions from the latest discussion are authoritative.
