@@ -34,10 +34,12 @@ public static class StableUpdateRollbackJournal
         string PreviousApplicationSha256 = "", string TargetApplicationSha256 = "",
         string PreviousNativeHostSha256 = "", string TargetNativeHostSha256 = "",
         string PreviousRendererSha256 = "", string TargetRendererSha256 = "",
-        string PreviousSupervisorSha256 = "", string TargetSupervisorSha256 = "");
+        string PreviousSupervisorSha256 = "", string TargetSupervisorSha256 = "",
+        long TargetSize = 0);
 
     private const string TicketName = "stable-update-rollback.dpapi";
     private const string PreviousName = "previous-signed-setup.exe";
+    private const string TargetName = "target-signed-setup.exe";
     private static readonly byte[] Purpose =
         System.Text.Encoding.UTF8.GetBytes("CELIKOM.Windows.StableRollback.W109.v1");
 
@@ -94,6 +96,8 @@ public static class StableUpdateRollbackJournal
             !ValidSha(previous.RendererSha256) || !ValidSha(target.RendererSha256) ||
             !ValidSha(previous.SupervisorSha256) || !ValidSha(target.SupervisorSha256) ||
             previous.PackageSize is < 10_000 or > 125_000_000 ||
+            target.PackageSize is < 10_000 or > 125_000_000 ||
+            previous.Sequence <= 0 || target.Sequence <= 0 ||
             now > target.ExpiresAt)
             throw new IOException("STABLE_ROLLBACK_PLAN_INVALID");
         verify(previousInstaller, previous, pinnedSignerSha256);
@@ -114,18 +118,14 @@ public static class StableUpdateRollbackJournal
         var identifier = Guid.NewGuid();
         var snapshot = Path.Combine(root, identifier.ToString("N"));
         Directory.CreateDirectory(snapshot);
-        var copied = Path.Combine(snapshot, PreviousName);
+        var copiedPrevious = Path.Combine(snapshot, PreviousName);
+        var copiedTarget = Path.Combine(snapshot, TargetName);
         try
         {
-            using (var source = new FileStream(previousInstaller, FileMode.Open,
-                FileAccess.Read, FileShare.Read, 65536, FileOptions.SequentialScan))
-            using (var output = new FileStream(copied, FileMode.CreateNew,
-                FileAccess.Write, FileShare.None, 65536, FileOptions.WriteThrough))
-            {
-                source.CopyTo(output);
-                output.Flush(flushToDisk: true);
-            }
-            verify(copied, previous, pinnedSignerSha256);
+            CopyVerifiedImage(previousInstaller, copiedPrevious, previous.PackageSize);
+            CopyVerifiedImage(targetInstaller, copiedTarget, target.PackageSize);
+            verify(copiedPrevious, previous, pinnedSignerSha256);
+            verify(copiedTarget, target, pinnedSignerSha256);
             var record = new Record(2, identifier, Phase.Prepared,
                 previous.Version.ToString(4), target.Version.ToString(4),
                 previous.Sha256, target.Sha256, pinnedSignerSha256,
@@ -135,7 +135,16 @@ public static class StableUpdateRollbackJournal
                 previous.ApplicationSha256, target.ApplicationSha256,
                 previous.NativeHostSha256, target.NativeHostSha256,
                 previous.RendererSha256, target.RendererSha256,
-                previous.SupervisorSha256, target.SupervisorSha256);
+                previous.SupervisorSha256, target.SupervisorSha256,
+                TargetSize: target.PackageSize);
+            WriteRecord(root, record);
+            return record;
+        }
+        catch
+        {
+            try { Directory.Delete(snapshot, recursive: true); } catch { }
+            throw;
+        }
             WriteRecord(root, record);
             return record;
         }
@@ -152,6 +161,71 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         return ReadRecord(root);
+    }
+
+    public sealed record CachedSignedPackage(
+        string InstallerPath, StableUpdateManifestVerifier.VerifiedRelease Release);
+
+    /// <summary>
+    /// Returns the currently accepted signed installer for the next update's
+    /// rollback base. Healthy means the target is current; Restored means the
+    /// previous package was successfully restored. In-progress or failed
+    /// transactions never seed a future rollback.
+    /// </summary>
+    public static CachedSignedPackage GetLastKnownGood(
+        string privateRoot, string pinnedSignerSha256) =>
+        GetLastKnownGoodCore(privateRoot, pinnedSignerSha256,
+            StableUpdatePackageStager.VerifyInstaller);
+
+    internal static CachedSignedPackage GetLastKnownGoodCore(
+        string privateRoot, string pinnedSignerSha256,
+        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify)
+    {
+        RequireWindows();
+        if (!ValidSha(pinnedSignerSha256))
+            throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
+        var root = FullRoot(privateRoot);
+        using var exclusive = AcquireLock(root);
+        var state = ReadRecord(root);
+        if (state.Schema != 2 || state.RollbackAttempts is < 0 or > 1 ||
+            !string.Equals(state.SignerSha256, pinnedSignerSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            state.State is not (Phase.Healthy or Phase.Restored))
+            throw new IOException("STABLE_ROLLBACK_LAST_KNOWN_GOOD_NOT_READY");
+
+        var useTarget = state.State == Phase.Healthy;
+        var versionText = useTarget ? state.TargetVersion : state.PreviousVersion;
+        var sequence = useTarget ? state.TargetSequence : state.PreviousSequence;
+        var packageSize = useTarget ? state.TargetSize : state.PreviousSize;
+        var packageHash = useTarget ? state.TargetSha256 : state.PreviousSha256;
+        var applicationHash = useTarget ? state.TargetApplicationSha256 : state.PreviousApplicationSha256;
+        var nativeHostHash = useTarget ? state.TargetNativeHostSha256 : state.PreviousNativeHostSha256;
+        var rendererHash = useTarget ? state.TargetRendererSha256 : state.PreviousRendererSha256;
+        var supervisorHash = useTarget ? state.TargetSupervisorSha256 : state.PreviousSupervisorSha256;
+        if (!Version.TryParse(versionText, out var version) ||
+            sequence <= 0 || packageSize is < 10_000 or > 125_000_000 ||
+            !ValidSha(packageHash) || !ValidSha(applicationHash) ||
+            !ValidSha(nativeHostHash) || !ValidSha(rendererHash) ||
+            !ValidSha(supervisorHash))
+            throw new IOException("STABLE_ROLLBACK_LAST_KNOWN_GOOD_IDENTITY_INVALID");
+
+        var packageName = useTarget ? TargetName : PreviousName;
+        var installer = Path.Combine(root, state.Id.ToString("N"), packageName);
+        var info = new FileInfo(installer);
+        if (!info.Exists || info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+            info.Length != packageSize)
+            throw new IOException("STABLE_ROLLBACK_LAST_KNOWN_GOOD_IMAGE_MISSING");
+        var release = new StableUpdateManifestVerifier.VerifiedRelease(
+            version, sequence,
+            new Uri("https://celikom.invalid/CELIKOM/Windows/Updates/stable/" +
+                version.ToString(3) + "/cached.exe"),
+            packageSize, packageHash, DateTimeOffset.MaxValue, false, "",
+            ApplicationSha256: applicationHash,
+            NativeHostSha256: nativeHostHash,
+            RendererSha256: rendererHash,
+            SupervisorSha256: supervisorHash);
+        verify(installer, release, pinnedSignerSha256);
+        return new CachedSignedPackage(installer, release);
     }
 
     /// <summary>
@@ -383,6 +457,8 @@ public static class StableUpdateRollbackJournal
                 previous >= target || record.PreviousSequence >= record.TargetSequence ||
                 record.RollbackAttempts is < 0 or > 1 ||
                 record.PreviousSize is < 10_000 or > 125_000_000 ||
+                record.TargetSize != 0 &&
+                    (record.TargetSize is < 10_000 or > 125_000_000) ||
                 record.DeadlineUnix <= 0 ||
                 !Enum.IsDefined(record.State))
                 throw new IOException("STABLE_ROLLBACK_RECORD_INVALID");
@@ -392,6 +468,28 @@ public static class StableUpdateRollbackJournal
         {
             throw new IOException("STABLE_ROLLBACK_RECORD_UNTRUSTED", e);
         }
+    }
+
+    private static void CopyVerifiedImage(string sourcePath, string destinationPath,
+        long expectedSize)
+    {
+        var sourceInfo = new FileInfo(sourcePath);
+        if (!sourceInfo.Exists ||
+            sourceInfo.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+            sourceInfo.Length != expectedSize)
+            throw new IOException("STABLE_ROLLBACK_IMAGE_INVALID");
+        using (var source = new FileStream(sourcePath, FileMode.Open,
+            FileAccess.Read, FileShare.Read, 65536, FileOptions.SequentialScan))
+        using (var output = new FileStream(destinationPath, FileMode.CreateNew,
+            FileAccess.Write, FileShare.None, 65536, FileOptions.WriteThrough))
+        {
+            source.CopyTo(output);
+            output.Flush(flushToDisk: true);
+        }
+        var copied = new FileInfo(destinationPath);
+        if (!copied.Exists || copied.Length != expectedSize ||
+            copied.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new IOException("STABLE_ROLLBACK_IMAGE_COPY_INVALID");
     }
 
     private static void WriteRecord(string root, Record record)
