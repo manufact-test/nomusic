@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B -m py_compile android/native-yandex-hooklab/audit_native_selected_item_handoff.py
-          PYTHONPATH=android/native-yandex-hooklab/ci python3 -B -m unittest discover \
+          PYTHONPATH=android/native-yandex-hooklab python3 -B -m unittest discover \
             -s android/native-yandex-hooklab/tests -p 'test_audit_native_selected_item_handoff.py' -v
       - name: Inspect only the exact publisher-signed six-DEX original in memory
         shell: bash

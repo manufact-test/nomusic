@@ -134,6 +134,50 @@ def field_id(dex: Dex, index: int):
     return owner, name, typ
 
 
+def declared_fields_for_owner(dex: Dex, target: str):
+    """Return only field IDs declared in the exact target class_data."""
+    rows = []
+    for class_index in range(dex.class_count):
+        base = dex.class_offset + class_index * 32
+        owner = dex.descriptor(dex.u32(base))
+        if owner != target:
+            continue
+        data_off = dex.u32(base + 24)
+        if not data_off:
+            return rows
+        static_fields, pos = uleb(dex, data_off)
+        instance_fields, pos = uleb(dex, pos)
+        _, pos = uleb(dex, pos)
+        _, pos = uleb(dex, pos)
+        for count in (static_fields, instance_fields):
+            previous = 0
+            for _ in range(count):
+                delta, pos = uleb(dex, pos)
+                previous += delta
+                _, pos = uleb(dex, pos)
+                rows.append(field_id(dex, previous))
+        return rows
+    return rows
+
+
+def written_register(op: int, words):
+    """Conservative destination register for common DEX value-writing ops."""
+    if op in (0x01, 0x04, 0x07):
+        return (words[0] >> 8) & 15
+    if op in (0x02, 0x05, 0x08, 0x0a, 0x0b, 0x0c, 0x0d,
+              0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+              0x1a, 0x1b, 0x1c, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25):
+        return words[0] >> 8
+    if op in (0x03, 0x06, 0x09):
+        return words[1]
+    if (0x2d <= op <= 0x31 or 0x44 <= op <= 0x4a
+            or 0x52 <= op <= 0x58 or 0x60 <= op <= 0x66
+            or 0x7b <= op <= 0x8f or 0x90 <= op <= 0xcf
+            or 0xd0 <= op <= 0xe2):
+        return (words[0] >> 8) & 15
+    return None
+
+
 def model_parameter_registers(dex: Dex, method, flags: int, code_off: int):
     params = parse_types(method[2])
     registers_size = dex.u16(code_off)
@@ -207,9 +251,13 @@ def straight_line_model_flow(dex: Dex, method, flags: int, code_off: int):
                 aliases.add(dest)
         elif op == 0x1f:  # check-cast preserves the reference in vAA
             pass
-        elif op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
-            # Do not claim flow across branches or switch dispatch.
-            aliases.clear()
+        else:
+            dest = written_register(op, words)
+            if dest is not None:
+                aliases.discard(dest)
+            if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+                # Do not claim flow across branches or switch dispatch.
+                aliases.clear()
         if len(events) >= MAX_EVENTS:
             break
     return {
@@ -244,13 +292,10 @@ def inspect_signed(apks):
                     if model_defined:
                         raise ValueError("DUPLICATE_NATIVE_TRACK_MODEL")
                     model_defined = True
-                    field_count, field_table = dex.table(80, 8)
-                    for i in range(field_count):
-                        owner, name, typ = field_id(dex, i)
-                        if owner == MODEL:
-                            model_fields[name] = typ
-                            if len(model_fields) > MAX_FIELDS:
-                                raise ValueError("MODEL_FIELD_LIMIT")
+                    for owner, name, typ in declared_fields_for_owner(dex, MODEL):
+                        model_fields[name] = typ
+                        if len(model_fields) > MAX_FIELDS:
+                            raise ValueError("MODEL_FIELD_LIMIT")
                 for i in range(dex.method_count):
                     method = dex.method(i)
                     if method[0] == MODEL:
