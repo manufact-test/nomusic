@@ -444,3 +444,53 @@ A safe default-branch entry point has now been added:
 - Exact pre-change main backup: `backup/android-a1-main-before-workflow-dispatch-20261114` @ `dafb6191a8e311053f64b455fec075f3944706f1`.
 
 After refreshing the Actions workflow page, the owner should see `Run workflow`. Select `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Set `export_diagnostic_apk=true` to request the private APK. Set `authorize_fresh_clone_install=true` only with explicit acceptance that installing over the old CELIKOM diagnostic clone may erase that clone's saved local data/account; the original Yandex app is not removed. The CI workflow itself does not touch the owner's physical phone. Do not enter an OTP until the private APK is built and delivered.
+
+
+## Owner diagnostic APK exported — workflow #43593916246 SUCCESS (14 Nov 2026)
+
+### Run and native acceptance
+
+- Workflow run: #43593916246 — `workflow_dispatch`, SUCCESS.
+- Source branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Run HEAD: `e58dc2c11396adf85e16b08abc03da7813b01c15` (documentation-only branch head; Android source gates are the already-tested source on this branch).
+- Both explicit dispatch inputs were true: `export_diagnostic_apk=true`, `authorize_fresh_clone_install=true`.
+- Publisher-first ARM13 guest test passed: original Yandex installed and stable for 75 seconds before clone; clone installed afterwards; original publisher remained installed; clone MAIN stable for 75 seconds with 25/25 resumed lifecycle observations.
+- Runtime report: `master_key_init_runtime_status=ORIGINAL_KEY_PERSISTED`; `master_token_read_hook_status=REGISTERED`; `master_token_decrypt_hook_status=REGISTERED`; `activity_result_delivery_hook_status=REGISTERED`; `onboarding_writer_hook_status=REGISTERED`; no uncaught exception observed.
+- Signer report: `owner_apk_signer_provenance=PERSISTENT_OWNER_SIGNER`; `owner_apk_signer_verified=true`; `owner_apk_signer_sha256=048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`; `owner_apk_install_mode=FRESH_INSTALL_AUTHORIZED`; `owner_apk_fresh_install_authorized=true`.
+- The runner touched no owner handset: `owner_phone_touched=false`. The original Yandex was installed only in the disposable native Android 13 CI guest, not changed on the owner's phone.
+
+### Exported artifact and cryptographic verification
+
+- Private GitHub artifact: `CELIKOM-A1-OnDevice-Diagnostic-20261113`, artifact ID `14113552169`.
+- Run/artifact page: https://github.com/manufact-test/nomusic/actions/runs/43593916246/artifacts/14113552169
+- ZIP: `CELIKOM-A1-OnDevice-Diagnostic-20261113.zip`, 51,575,889 bytes, SHA-256 `06e9580ad8e8674ab2030507b1eb92f239cba80c553288b70f4cb6d79c2ab04a`.
+- Contents: `CELIKOM-A1-Native-ReadOnly-Diagnostic.apk` and `README-RU.txt` only.
+- APK: 71,446,508 bytes, SHA-256 `66d4edc0f65206a788b89a0b2760674981e221028697379633e784b3e676058e`.
+- APK certificate independently read from the downloaded artifact with `keytool -printcert -jarfile`: subject/issuer `C=BY, O=MANUFACT, CN=CELIKOM A1`; SHA-256 exactly `048D76E1C4447FA4F3AC976C45D5A0F8427C087FA665C4FCA88CE5CAA068F9BF`; SHA256withRSA; RSA 3072-bit; valid 14 Nov 2026 through 1 Apr 2054. This matches the pinned Actions variable and CI report.
+- Artifact downloaded and locally checked. No private keystore or password is included in the artifact. CI cleanup completed successfully, removing private source files, signing key material and the native guest.
+
+### Scope and gate — do not overclaim
+
+- Verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- `audio_or_account_tested=false`; no Passport login or audio playback was tested. This run proves the native diagnostic clone can install and remain in MAIN with the hooks registered; it does not prove that the user's post-login loop is fixed or that music plays.
+- `stage_a=NO_GO`; Stage B remains LOCKED. Test.50, Windows and production remain untouched.
+- `CELIKOM_A1_INSTALLED_CERT_SHA256` remains unset because the certificate of the old APK installed on the owner's handset was not proven. Do not guess or set it. The new APK is explicitly in `FRESH_INSTALL_AUTHORIZED` mode.
+
+### Next owner action — one controlled handset reproduction
+
+The owner previously explicitly approved removing/reinstalling only the diagnostic CELIKOM clone. The new APK is signed with the permanent owner certificate; the older diagnostic clone has a different temporary certificate and cannot be updated in place.
+
+1. Download `CELIKOM-A1-Native-ReadOnly-Diagnostic.apk` from the private artifact/run page above (or the separately delivered verified APK file). Keep the ordinary Yandex Music app installed and untouched.
+2. On the HONOR 50, uninstall only the existing CELIKOM diagnostic clone `pro.celikom.yandex.nativeclonelab`. Its local clone data/account may be lost. Do not uninstall the original Yandex Music app and do not clear its data.
+3. Install the new `CELIKOM-A1-Native-ReadOnly-Diagnostic.apk`.
+4. Follow `README-RU.txt`: reproduce the already-known CELIKOM/Passport/onboarding return-to-start failure once. After CELIKOM exits, reopen CELIKOM A1 and tap `Сохранить диагностику`.
+5. Send the resulting `CELIKOM-A1-Diagnostics-....txt` file. No cable, ADB, USB debugging, BAT file or computer connection is needed.
+6. If Play Protect blocks installation, do not disable or bypass it; report the warning and stop.
+
+Do not ask the owner to repeat OTP before the APK is installed. The owner must enter any OTP only in the normal Yandex Passport flow; never request or collect the OTP itself. Do not repeat the reproduction unnecessarily: one diagnostic capture is the target.
+
+### Exact backup before this documentation update
+
+- Working branch before docs commit: `e58dc2c11396adf85e16b08abc03da7813b01c15`.
+- Exact backup: `backup/android-a1-owner-phone-apk-artifact-handoff-20261114` @ `e58dc2c11396adf85e16b08abc03da7813b01c15`.
+- No Android source code changed in this documentation-only update.
