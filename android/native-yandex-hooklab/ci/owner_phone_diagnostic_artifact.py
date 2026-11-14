@@ -41,6 +41,9 @@ def export_after_native_acceptance(source_apk, report: dict, runner_temp) -> dic
     if (report.get("owner_apk_signer_provenance") != "PERSISTENT_OWNER_SIGNER"
             or report.get("owner_apk_signer_verified") is not True):
         raise ValueError("DIAGNOSTIC_EXPORT_STABLE_SIGNER_REQUIRED")
+    if report.get("owner_apk_install_mode") not in (
+            "UPDATE_EXISTING", "FRESH_INSTALL_AUTHORIZED"):
+        raise ValueError("DIAGNOSTIC_EXPORT_INSTALL_MODE_NOT_AUTHORIZED")
 
     source = Path(source_apk)
     if source.is_symlink() or not source.is_file():

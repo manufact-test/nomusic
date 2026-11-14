@@ -15,6 +15,8 @@ on:
       - 'android/native-yandex-hooklab/ci/test_a1_private_onboarding_contract.py'
       - 'android/native-yandex-hooklab/ci/owner_phone_diagnostic_artifact.py'
       - 'android/native-yandex-hooklab/ci/test_owner_phone_diagnostic_artifact.py'
+      - 'android/native-yandex-hooklab/ci/a1_persistent_owner_signer.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_persistent_owner_signer.py'
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
       - 'android/native-yandex-hooklab/device-audio-trial/**'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
@@ -25,6 +27,11 @@ on:
     inputs:
       export_diagnostic_apk:
         description: Export a private one-time APK for the owner's phone after the full native gate passes
+        required: false
+        type: boolean
+        default: false
+      authorize_fresh_clone_install:
+        description: Authorize removing and reinstalling CELIKOM clone only; its saved clone account/data will be lost. Original Yandex is untouched.
         required: false
         type: boolean
         default: false
@@ -94,6 +101,8 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_persistent_owner_signer.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_persistent_owner_signer.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_postlogin_receipt_witness.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
@@ -190,6 +199,13 @@ jobs:
         env:
           CELIKOM_A1_METRICA_OWN_MODULE_PATH: ${{ runner.temp }}/celikom-own-metrica-module/app-debug.apk
           CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk) && '1' || '0' }}
+          CELIKOM_A1_ALLOW_FRESH_INSTALL: ${{ (github.event_name == 'workflow_dispatch' && inputs.authorize_fresh_clone_install) && '1' || '0' }}
+          CELIKOM_A1_OWNER_KEYSTORE_BASE64: ${{ secrets.CELIKOM_A1_OWNER_KEYSTORE_BASE64 }}
+          CELIKOM_A1_OWNER_KEYSTORE_PASSWORD: ${{ secrets.CELIKOM_A1_OWNER_KEYSTORE_PASSWORD }}
+          CELIKOM_A1_OWNER_KEY_ALIAS: ${{ secrets.CELIKOM_A1_OWNER_KEY_ALIAS }}
+          CELIKOM_A1_OWNER_KEY_PASSWORD: ${{ secrets.CELIKOM_A1_OWNER_KEY_PASSWORD }}
+          CELIKOM_A1_OWNER_CERT_SHA256: ${{ vars.CELIKOM_A1_OWNER_CERT_SHA256 }}
+          CELIKOM_A1_INSTALLED_CERT_SHA256: ${{ vars.CELIKOM_A1_INSTALLED_CERT_SHA256 }}
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"

@@ -43,6 +43,7 @@ from ci.a1_passport_sync_exact import (
     PassportResourceMismatch)
 import ci.owner_2025_gpr_arm13_signed_control as publisher_control
 from owner_phone_diagnostic_artifact import export_after_native_acceptance
+from ci.a1_persistent_owner_signer import prepare_persistent_owner_keystore, normalize_sha256
 
 # Scoped native verification: exact signing helper is now restored, no payload allowlist broadened.
 BRANCH="experiment/android-a1-metrica-init-state-observer-arm13-20261112"
@@ -553,7 +554,22 @@ def run(xapk):
     with tempfile.TemporaryDirectory(prefix="celikom-2025-namespaced-lspatch2-") as tmp:
         work=Path(tmp)
         originals=verified_orig_paths(xapk,work)
-        independent,signer=sign_same_name(originals,work)
+        export_requested=os.getenv("CELIKOM_A1_EXPORT_DIAGNOSTIC_APK")=="1"
+        signer_secret_names=(
+            "CELIKOM_A1_OWNER_KEYSTORE_BASE64",
+            "CELIKOM_A1_OWNER_KEYSTORE_PASSWORD",
+            "CELIKOM_A1_OWNER_KEY_ALIAS",
+            "CELIKOM_A1_OWNER_KEY_PASSWORD",
+            "CELIKOM_A1_OWNER_CERT_SHA256",
+        )
+        signer_secrets_present=any(os.getenv(name) for name in signer_secret_names)
+        if export_requested and not signer_secrets_present:
+            stop("OWNER_SIGNER_SECRETS_REQUIRED")
+        owner_signer=(prepare_persistent_owner_keystore(work)
+                      if signer_secrets_present else None)
+        supplied_keystore=(Path(owner_signer["keystore_path"])
+                           if owner_signer is not None else None)
+        independent,signer=sign_same_name(originals,work,supplied_keystore)
         publisher_base=[p for p in originals if not apk_name(p).get("split","")]
         own_base=[p for name,p in independent if name=="base"]
         if len(publisher_base)!=1 or len(own_base)!=1:
@@ -605,6 +621,32 @@ def run(xapk):
                          if name.startswith("assets/lspatch/modules/") and name.endswith(".apk")]
             if len(own_modules)!=1 or packaged.read(own_modules[0])!=own_witness.read_bytes():
                 stop("METRICA_WITNESS_SINGLE_APK_MODULE_LOST")
+        owner_apk_signer_sha256=_outer_signer_cert_sha256(single)
+        owner_apk_signer_verified=bool(
+            owner_signer is not None
+            and owner_apk_signer_sha256==owner_signer["certificate_sha256"]
+            and signer.get("own_signer_sha256")==owner_signer["certificate_sha256"]
+        )
+        if owner_signer is not None and not owner_apk_signer_verified:
+            stop("OWNER_SIGNER_FINAL_APK_CERTIFICATE_MISMATCH")
+        installed_signer_sha256=normalize_sha256(
+            os.getenv("CELIKOM_A1_INSTALLED_CERT_SHA256",""))
+        if (os.getenv("CELIKOM_A1_INSTALLED_CERT_SHA256","").strip()
+                and not installed_signer_sha256):
+            stop("OWNER_INSTALLED_CERT_SHA256_INVALID")
+        fresh_install_authorized=os.getenv("CELIKOM_A1_ALLOW_FRESH_INSTALL")=="1"
+        if owner_apk_signer_verified:
+            if installed_signer_sha256 and installed_signer_sha256==owner_apk_signer_sha256:
+                owner_apk_install_mode="UPDATE_EXISTING"
+            elif fresh_install_authorized:
+                owner_apk_install_mode="FRESH_INSTALL_AUTHORIZED"
+            else:
+                owner_apk_install_mode="BLOCKED"
+        else:
+            owner_apk_install_mode="DISPOSABLE"
+        if export_requested and owner_apk_install_mode not in (
+                "UPDATE_EXISTING","FRESH_INSTALL_AUTHORIZED"):
+            stop("OWNER_INSTALL_MODE_NOT_AUTHORIZED")
         report={
             "verified_publisher_source_splits":16,
             "firebase_resource_table_parity":firebase_resource_parity,
@@ -623,7 +665,14 @@ def run(xapk):
             "preserves_publisher_metrica_manifest_components_in_clone":True,
             "readonly_no_metrica_fatal_suppression":True,
             "diagnostic_only_not_product_or_releasable":True,
-            "owner_apk_signer_provenance":"DISPOSABLE_PER_CI_RUN",
+            "owner_apk_signer_provenance":(
+                "PERSISTENT_OWNER_SIGNER" if owner_apk_signer_verified
+                else "DISPOSABLE_PER_CI_RUN"),
+            "owner_apk_signer_verified":owner_apk_signer_verified,
+            "owner_apk_signer_sha256":owner_apk_signer_sha256,
+            "owner_apk_install_mode":owner_apk_install_mode,
+            "owner_apk_installed_cert_sha256":installed_signer_sha256 or None,
+            "owner_apk_fresh_install_authorized":fresh_install_authorized,
             "own_readonly_witness_module_embedded":True,
             "test_order":"PUBLISHER_FIRST_CLONE_SECOND",
             "publisher_app_and_clone_can_be_concurrently_installed":False,

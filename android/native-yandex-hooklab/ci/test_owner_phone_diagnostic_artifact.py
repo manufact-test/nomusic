@@ -29,6 +29,7 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
             "original_splits_installed_before_clone": 16,
             "owner_apk_signer_provenance": "PERSISTENT_OWNER_SIGNER",
             "owner_apk_signer_verified": True,
+            "owner_apk_install_mode": "UPDATE_EXISTING",
         }
 
     def test_exports_only_after_full_original_first_acceptance(self):
@@ -64,6 +65,19 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
         report["owner_apk_signer_verified"] = False
         with self.assertRaisesRegex(ValueError, "STABLE_SIGNER_REQUIRED"):
             export_after_native_acceptance(self.source, report, self.runner)
+
+    def test_accepts_explicit_fresh_install_authorization(self):
+        report = self.accepted_report()
+        report["owner_apk_install_mode"] = "FRESH_INSTALL_AUTHORIZED"
+        result = export_after_native_acceptance(self.source, report, self.runner)
+        self.assertTrue(result["exported"])
+
+    def test_rejects_unapproved_signer_transition(self):
+        report = self.accepted_report()
+        report["owner_apk_install_mode"] = "BLOCKED"
+        with self.assertRaisesRegex(ValueError, "INSTALL_MODE_NOT_AUTHORIZED"):
+            export_after_native_acceptance(self.source, report, self.runner)
+        self.assertFalse((self.runner / "celikom-a1-owner-phone-test").exists())
 
     def test_refuses_existing_destination(self):
         (self.runner / "celikom-a1-owner-phone-test").mkdir()

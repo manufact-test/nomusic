@@ -55,20 +55,23 @@ def ensure_disposable_arm13() -> dict:
         stop("OWN_KEY_CONTROL_GUEST_HAS_CLONE")
     return {"fresh_native_arm_android13":True,"owner_device_untouched":True}
 
-def sign_same_name(originals: list[Path], work: Path) -> tuple[list[tuple[str,Path]],dict]:
+def sign_same_name(originals: list[Path], work: Path, keystore_path: Path | None = None) -> tuple[list[tuple[str,Path]],dict]:
     bases=[p for p in originals if not apk_name(p).get("split","")]
     if len(bases)!=1:
         stop("OWN_KEY_CONTROL_BASE_NOT_UNIQUE")
     base_sdk=lab_manifest_min_sdk(bases[0])
     if base_sdk!=24:
         stop("OWN_KEY_CONTROL_ORIGINAL_BASE_MIN_SDK_DRIFT")
-    key=work/"unique-own-key.jks"
-    source.action(["keytool","-genkeypair","-noprompt","-storetype","JKS",
-                   "-keystore",str(key),"-storepass","ephemeral-lab-only",
-                   "-keypass","ephemeral-lab-only","-alias","own-key",
-                   "-keyalg","RSA","-keysize","2048","-validity","1",
-                   "-dname","CN=CELIKOM Original Identity Own Signer Offline Control, O=CELIKOM, C=XX"],
-                  "OWN_KEY_CONTROL_KEY_ERROR",90)
+    key=Path(keystore_path) if keystore_path is not None else work/"unique-own-key.jks"
+    if keystore_path is None:
+        source.action(["keytool","-genkeypair","-noprompt","-storetype","JKS",
+                       "-keystore",str(key),"-storepass","ephemeral-lab-only",
+                       "-keypass","ephemeral-lab-only","-alias","own-key",
+                       "-keyalg","RSA","-keysize","2048","-validity","1",
+                       "-dname","CN=CELIKOM Original Identity Own Signer Offline Control, O=CELIKOM, C=XX"],
+                      "OWN_KEY_CONTROL_KEY_ERROR",90)
+    elif key.is_symlink() or not key.is_file():
+        stop("OWN_KEY_CONTROL_SUPPLIED_KEYSTORE_INVALID")
     lab=[]
     signer=None
     seen=set()
@@ -142,6 +145,7 @@ def sign_same_name(originals: list[Path], work: Path) -> tuple[list[tuple[str,Pa
         "repack_without_apkeditor":True,
         "old_jarsigner_entries_removed_from_lab_copy":removed,
         "base_min_sdk":base_sdk,
+        "own_signer_sha256":signer,
     }
 
 def observe_main_75_seconds() -> dict:
