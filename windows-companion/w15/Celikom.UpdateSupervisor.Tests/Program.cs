@@ -16,7 +16,8 @@ StableUpdateRollbackJournal.Record NewRecord(
         new string('a', 64), new string('b', 64),
         new string('c', 64), 40_000, 42, 43,
         start.AddMinutes(10).ToUnixTimeSeconds(), 0,
-        ExpectedSession: true, NativeWasInstalled: true);
+        ExpectedSession: true, NativeWasInstalled: true,
+        SessionIdentitySha256: new string('d', 64));
 
 var valid = new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true);
 var notReady = new StableUpdateRollbackJournal.HealthEvidence(false, false, false, false);
@@ -80,7 +81,11 @@ goodProbe.Evidence = signedNoBridge;
 Check(await good.TickAsync(start.AddSeconds(7)) == UpdateSupervisorEngine.Step.Waiting,
       "running signed target without authenticated local bridge is NOT healthy");
 goodProbe.Evidence = valid;
-Check(await good.TickAsync(start.AddSeconds(8)) ==
+goodProbe.ObservedSessionFingerprint = new string('e', 64);
+Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
+      "a new readable account is not the original DPAPI login");
+goodProbe.ObservedSessionFingerprint = new string('d', 64);
+Check(await good.TickAsync(start.AddSeconds(9)) ==
         UpdateSupervisorEngine.Step.NewApplicationHealthy &&
       goodStore.Current.State == StableUpdateRollbackJournal.Phase.Healthy &&
       goodLaunch.LaunchCount == 0,
@@ -195,10 +200,17 @@ sealed class FakeProbe : ISupervisorHealthProbe
     public StableUpdateRollbackJournal.HealthEvidence Evidence { get; set; } =
         new(false, false, false, false);
     public bool Safe { get; set; }
+    public string ObservedSessionFingerprint { get; set; } = new string('d', 64);
 
     public Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
-        Version expected, CancellationToken cancellationToken) =>
-        Task.FromResult(Evidence);
+        Version expected, string originalSessionFingerprint,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(Evidence with
+        {
+            SessionPreserved = Evidence.SessionPreserved &&
+                string.Equals(ObservedSessionFingerprint, originalSessionFingerprint,
+                    StringComparison.Ordinal)
+        });
 
     public bool SafeForRollback() => Safe;
 }
