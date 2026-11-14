@@ -177,3 +177,18 @@ The latest source-validation and native paired ARM13 run has now completed succe
 The documentation refresh itself is a separate docs-only commit. At the start of this addendum the branch HEAD was `a4c8a2b7c82f0f80e58a8b8cff778c5dc923fc62`; exact backup: `backup/android-a1-owner-signer-docs-current-20261114` at the same commit. Do not confuse the documentation HEAD with the tested source commit `73726716e118cd21ab1dd5615d9c512b41c36f3f`.
 
 Next action remains a manual `workflow_dispatch` after this successful gate: select the working branch and set both `export_diagnostic_apk=true` and `authorize_fresh_clone_install=true`. This will export a private diagnostic APK only; it does not prove or release a working music product. Keep the original Yandex untouched and do not request another OTP until the signed APK is ready.
+
+
+## Manual workflow entry point enabled on default branch (14 Nov 2026)
+
+GitHub did not show the `Run workflow` button because the manual workflow existed only on the Android working branch. The repository default branch is `main`, and the workflow path did not exist there. GitHub requires a `workflow_dispatch` workflow to be present on the default branch before the UI exposes manual dispatch.
+
+A safe default-branch entry point has now been added:
+- Default branch commit: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
+- File: `.github/workflows/android-a1-metrica-init-state-observer-arm13.yml`.
+- Its content is byte-for-byte the same as the already-tested working-branch workflow (blob `750e366086257affdc2f88b5be95176c614abd78`).
+- The workflow remains pinned to the one Android working branch by its explicit `GITHUB_REF_NAME` checks. Its push trigger is limited to that branch and the existing path filters.
+- The two manual inputs remain false by default: `export_diagnostic_apk` and `authorize_fresh_clone_install`.
+- Exact pre-change main backup: `backup/android-a1-main-before-workflow-dispatch-20261114` @ `dafb6191a8e311053f64b455fec075f3944706f1`.
+
+After refreshing the Actions workflow page, the owner should see `Run workflow`. Select `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Set `export_diagnostic_apk=true` to request the private APK. Set `authorize_fresh_clone_install=true` only with explicit acceptance that installing over the old CELIKOM diagnostic clone may erase that clone's saved local data/account; the original Yandex app is not removed. The CI workflow itself does not touch the owner's physical phone. Do not enter an OTP until the private APK is built and delivered.
