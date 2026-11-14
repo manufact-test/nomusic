@@ -2,13 +2,31 @@
 
 Repository: `manufact-test/nomusic`.
 **ONE active product line:** `main`.
-**Latest code/test HEAD:** `5b5a2e0845eb1d9f02400ae382d702c25abedf43`.
-- Main CI [43587767442](https://github.com/manufact-test/nomusic/actions/runs/43587767442) — **SUCCESS**.
-- Windows integration CI [43587767458](https://github.com/manufact-test/nomusic/actions/runs/43587767458) — **SUCCESS**.
-- Exact pre-W117 code backup: `backup/windows-main-pre-w117-trust-config-bootstrap-wire-20261114` @ `c058d00c4e5f20730552fe5ac3faaf10490279f3`.
-- Exact pre-idle-gate backup: `backup/windows-main-pre-w117-playback-safe-bootstrap-gate-20261114` @ `e0fd39a449096d62b889b64c8d09ea8cb7659f73`.
-- Exact pre-documentation backup: `backup/windows-main-pre-w117-docs-20261114` @ `5b5a2e0845eb1d9f02400ae382d702c25abedf43`.
+**Latest verified code/test HEAD:** `228a9d66cd2f858a537ce37a773fe65820a4e964`.
+- Main CI [43592142890](https://github.com/manufact-test/nomusic/actions/runs/43592142890) — **SUCCESS**.
+- Windows integration CI [43592142866](https://github.com/manufact-test/nomusic/actions/runs/43592142866) — **SUCCESS**.
+- Stage 5 live integrity audit [43592142904](https://github.com/manufact-test/nomusic/actions/runs/43592142904) — **SUCCESS**.
+- W90 live read-only gain inventory [43592142899](https://github.com/manufact-test/nomusic/actions/runs/43592142899) — **SUCCESS**.
+- W98 exact post-stage identity and signed Range reconciliation [43592142876](https://github.com/manufact-test/nomusic/actions/runs/43592142876) — **SUCCESS**.
+- Exact pre-documentation backup: `backup/windows-main-pre-w118-docs-20261114` @ the code/test SHA above.
 No new `experiment/*` branches. Before substantial changes create an exact `backup/*`; avoid touching Android, extension, private original media or unrelated server logic.
+
+## W118 — latest Windows result
+
+Read `docs/windows/W118-W98-EXACT-POST-STAGE-IDENTITY-AND-LIVE-RANGE-20261114.md`.
+
+- #56 server-side private gain sidecar is present and live signed Range 206 / `gain_applied=true` is verified against the exact original track/version/gain/source SHA and sidecar SHA.
+- W90 found 1 active nonzero-gain replacement: replacement 37 / track 40371622 / +11.5 dB. Other 1,492 active replacements have zero gain.
+- No new sidecar row or audio render was needed in the final W98 pass; original media stayed unchanged.
+- Nine W98 identity/TSV contract tests pass.
+- #56 still needs real Windows listening/seek/Next/crossfade/403 acoustic acceptance. #54 remains separate.
+- No EXE+ZIP has been built or delivered in W118.
+
+## Immediate next priority
+
+Prepare **one coherent Windows QA EXE+ZIP** from current `main`, using the existing final-QA packaging path but **without replaying the old one-shot Hostinger deployment/migration request**. Verify in-place upgrade/session/native integration preservation and checksums, then give the owner one build for consolidated PC acceptance. Do not publish a public stable feed or mass-roll out.
+
+The automatic updater remains dormant: production P-256 pin, Authenticode signer pin and official feed origin are unprovisioned; no live signed feed, trusted Supervisor launch callsite or real crash/rollback field test exists. Do not call it ready.
 
 ## W117 — shared fail-closed trust configuration and dormant first-LKG startup bootstrap
 
@@ -47,40 +65,38 @@ No new `experiment/*` branches. Before substantial changes create an exact `back
 
 Do not paste private keys into chat or commit them. Do not fill production pins with guessed values. Do not publish to the Hostinger QA hostname as a substitute for the official feed. Do not enable automatic installation until the actual signed update/rollback path passes on Windows.
 
-## Current Windows product work — audio defects take priority over further updater expansion
+## Current Windows product work — owner QA before updater expansion
 
-W101 policy says not to use updater work to postpone the already requested Windows fixes. The updater remains dormant; return to the integrated audio/Windows QA workstream before expanding the customer updater.
+W118 has completed the W98 server-side gain verification and exact identity binding. The previous W100/W117 notes below are historical; do not replay the old failed Stage 5 request or repeat migration 020.
 
-- **#56 admin gain parity is the clearest next engineering block.** The W91–W98 offline/private sidecar pipeline exists, but migration 020 and real Windows gain sidecars are not confirmed active for all active approved nonzero-gain replacements.
-- Hostinger run [43500415358](https://github.com/manufact-test/nomusic/actions/runs/43500415358) failed in the isolated MySQL restore verification. Its private snapshot captured 1,498 immutable audio objects and 43 tables; the restore drill reported all 1,498 original audio hashes unchanged. The isolated SQL import then returned an invalid data check, so the gain-stage, installer-build and publish jobs were skipped.
-- First code-level suspect: `.github/scripts/hostinger-stage5.sh` has a restore assertion that hardcodes a `windows_gain_variants` row for replacement 37 / Yandex track 40371622. That check runs BEFORE the downstream W98 job that stages gain sidecars. Verify against the snapshot and correct the restore test to validate preserved baseline/schema invariants without requiring a future sidecar row. Do not hardcode Big City Life as the only gain row.
-- Before any new production run, perform a read-only audit of the actual Hostinger release/schema/request state, confirm the exact failed assertion and ensure the previous one-shot request is not being replayed. The existing `CELIKOM_W98_TEST_EMAIL` secret preflight passed; never ask the owner to add or disclose it again.
-- W98 private staging must re-inventory every active approved nonzero-gain replacement, render offline on the ephemeral runner, verify source/version/gain/duration/peak/headroom, stage only private sidecars, and verify live signed HTTPS Range 206 plus `gain_applied=true`. Original `audio_assets` and browser extension playback must remain byte-identical.
-- Keep separate: #52 «Ты» source proof; #53 Brave/Windows performance freeze; #54 Big City Life mid-track volume drop; #57 CELIKOM 403→206 hiss; #58 original-track VPN-switch pop; and VPN reconnect latency. Do not close them from CI alone; owner listening/PC evidence remains necessary.
+- **#56 server sidecar: verified in code + CI + live signed Range.** The active Big City Life row (replacement 37 / track 40371622 / +11.5 dB) has an existing private sidecar; W98 confirmed exact source/version/gain/sidecar identity and HTTP 206 with `gain_applied=true`. No new row or render was needed in the final check.
+- W90 live inventory: 1,493 active approved replacements; one nonzero gain, 1,492 at 0 dB, no invalid gain values.
+- Stage 5 live audit: PASS. Snapshot/original audio integrity and additive migration invariants verified; the live database was not restored or rewritten.
+- The W98 exact-identity helper has nine passing tests covering replacement-set drift, source/version/gain/duration/size mismatch, sidecar SHA mismatch, live Range mismatch, entitlement/ETag/206 and existing-sidecar TSV parsing.
+- **Owner acoustic QA remains open:** #56 loudness/headroom/seek/Next/crossfade/403; #54 Big City Life mid-track drop; #52 «Ты»; #53 Brave/Windows performance; #57 403→206 hiss; #58 original-track VPN switch; VPN reconnect and startup/tray/diagnostics. Keep each diagnosis separate and do not close from CI alone.
 
 ## Next work order
 
-1. Read W101/W102 policy, W100 current QA handoff, W98 private gain handoff, W93 staging/rollback contract, and this W117 document.
-2. Fix and test the Stage 5 isolated SQL restore assertion described above. Preserve the previous production snapshot; no production rerun until the assertion and actual remote state are understood.
-3. Re-run read-only inventory for all active approved nonzero-gain rows; do not assume only Big City Life.
-4. Complete guarded private sidecar staging and signed Range verification; apply migration 020 only with exact snapshot/rollback proof.
-5. Integrate the resulting gain client/server changes into one coherent Windows TEST build. Keep #52/#53/#54/#57/#58 and VPN reconnect separate, with explicit field QA requirements.
-6. Only after the owner has one coherent accepted Windows build return to full automatic updater consumer checks, trusted Supervisor launch and real signed crash/rollback testing.
+1. Inspect the existing `hostinger-deploy.yml` final-QA packaging job and reuse its safe build/verification steps without replaying its old one-shot deploy request, migration or gain-stage jobs.
+2. Build exactly one coherent Windows QA EXE+ZIP from a fixed `main` SHA. Verify installer metadata, ZIP CRC/contents, SHA-256, same-AppId in-place upgrade, DPAPI login/session, native host/renderer/Supervisor packaging, Yandex originals and extension files.
+3. Deliver that one package to the owner for a consolidated real-PC listening and functional acceptance pass. No intermediate installers, no TEST product line, no public stable feed and no mass release.
+4. Fix any owner findings on the same `main` line with exact backups. After acceptance, return to the updater consumer/launch wiring and genuine signed crash/rollback test.
 
 ## Read first
 
-1. `docs/windows/W117-TRUST-CONFIG-AND-DORMANT-LKG-BOOTSTRAP-20261114.md`
-2. `docs/windows/W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md`
-3. `docs/windows/W98-INTEGRATED-QA-AND-LIVE-GAIN-HANDOFF-20261113.md`
-4. `docs/windows/W93-PRIVATE-GAIN-STAGING-AND-ROLLBACK-20261113.md`
-5. `docs/windows/W116-FIRST-SIGNED-BOOTSTRAP-AND-IMMUTABLE-VERSION-MANIFEST-20261114.md`
-6. `docs/windows/W115-LAST-KNOWN-GOOD-SIGNED-PACKAGE-CACHE-20261114.md`
-7. `docs/windows/W114-SUPERVISOR-PAYLOAD-AND-SINGLE-INSTALLER-20261114.md`
-8. `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`
-9. `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md`
-10. `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`
-11. `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
-12. GitHub issues #52, #53, #54, #56, #57, #58.
+1. `docs/windows/W118-W98-EXACT-POST-STAGE-IDENTITY-AND-LIVE-RANGE-20261114.md`
+2. `docs/windows/W117-TRUST-CONFIG-AND-DORMANT-LKG-BOOTSTRAP-20261114.md`
+3. `docs/windows/W100-0.24.36-FINAL-TEST-RELEASE-HANDOFF-20261113.md`
+4. `docs/windows/W98-INTEGRATED-QA-AND-LIVE-GAIN-HANDOFF-20261113.md`
+5. `docs/windows/W93-PRIVATE-GAIN-STAGING-AND-ROLLBACK-20261113.md`
+6. `docs/windows/W116-FIRST-SIGNED-BOOTSTRAP-AND-IMMUTABLE-VERSION-MANIFEST-20261114.md`
+7. `docs/windows/W115-LAST-KNOWN-GOOD-SIGNED-PACKAGE-CACHE-20261114.md`
+8. `docs/windows/W114-SUPERVISOR-PAYLOAD-AND-SINGLE-INSTALLER-20261114.md`
+9. `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`
+10. `docs/windows/W109-DURABLE-SIGNED-ROLLBACK-JOURNAL-20261114.md`
+11. `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`
+12. `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
+13. GitHub issues #52, #53, #54, #56, #57, #58.
 
 ## W113–W114 implementation history — 14 November 2026
 
