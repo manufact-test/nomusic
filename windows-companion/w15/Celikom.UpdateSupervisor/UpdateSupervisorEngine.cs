@@ -144,6 +144,10 @@ public sealed class UpdateSupervisorEngine(
             default: return Step.ManualRecovery;
         }
     }
+
+    private static bool ValidSha(string? value) =>
+        value is { Length: 64 } &&
+        value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 }
 
 public interface ISupervisorJournal
