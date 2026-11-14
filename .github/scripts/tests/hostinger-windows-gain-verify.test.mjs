@@ -116,3 +116,16 @@ test("W98 parses the exact 11-column private metrics format", () => {
   assert.equal(rows[0].output_peak_db, 0);
   assert.throws(() => parseMetricsTsv("37\tbad"), /W98_GAIN_METRICS_COLUMNS_INVALID/);
 });
+
+
+test("W98 preserves trailing empty fields for an already-staged variant", () => {
+  const line = [
+    "37", "40371622", "4", "11.5", sourceSha, "201000",
+    renderSha, "100000", "existing", "", ""
+  ].join("\\t");
+  const rows = parseMetricsTsv(line + "\\n");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "existing");
+  assert.equal(rows[0].measured_rms_delta_db, null);
+  assert.equal(rows[0].output_peak_db, null);
+});

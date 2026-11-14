@@ -40,7 +40,7 @@ function inventoryMap(value, label) {
 
 export function parseMetricsTsv(source) {
   if (typeof source !== "string" || source.trim() === "") fail("W98_GAIN_METRICS_EMPTY");
-  return source.trim().split(/\r?\n/).filter(Boolean).map(line => {
+  return source.replace(/(?:\r?\n)+$/, "").split(/\r?\n/).filter(Boolean).map(line => {
     const p = line.split("\t");
     if (p.length !== 11) fail("W98_GAIN_METRICS_COLUMNS_INVALID");
     const row = {
