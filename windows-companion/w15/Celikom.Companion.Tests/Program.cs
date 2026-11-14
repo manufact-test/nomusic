@@ -101,9 +101,10 @@ try
     tx = StableUpdateRollbackJournal.Advance(rollbackRoot, tx.Id,
         StableUpdateRollbackJournal.Phase.NewAppObserved,
         StableUpdateRollbackJournal.Phase.RollbackNeeded);
+    var beforeReverify = verifiedImages;
     var retained = StableUpdateRollbackJournal.VerifiedPreviousInstallerCore(
         rollbackRoot, tx.Id, testSignerPin, VerifySyntheticSetup);
-    Test(File.Exists(retained) && verifiedImages == 4,
+    Test(File.Exists(retained) && verifiedImages == beforeReverify + 1,
         "W109 previous installer re-verified immediately before rollback");
     var corrupted = File.ReadAllBytes(retained);
     corrupted[31] ^= 1;
