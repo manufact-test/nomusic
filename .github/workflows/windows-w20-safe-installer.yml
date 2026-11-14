@@ -2,15 +2,12 @@ name: CELIKOM W20 safe Windows installer staging
 
 on:
   push:
+    # Exactly one explicit owner's first-review request; ordinary source or
+    # documentation pushes must not create intermediate Windows installers.
     branches:
-      - experiment/windows-companion-integration-20261108
+      - main
     paths:
-      - windows-companion/w15/**
-      - windows-companion/w20/**
-      - windows-companion/w21/**
-      - windows-companion/w23/**
-      - windows-companion/w24/**
-      - .github/workflows/windows-w20-safe-installer.yml
+      - windows-companion/w20/owner-review-package-20261114.request
   workflow_dispatch:
 
 permissions:
