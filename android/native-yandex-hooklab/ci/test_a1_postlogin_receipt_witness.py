@@ -99,8 +99,13 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
             '("LEd5;", "this")',
             '("LiE6;", "public")',
             '("Lol0;", "if")',
-            'previous_is_resume_label',
-            'ordered_and_labelled and {1, 2, 3} <= literals',
+            'expected_sites = (',
+            '(0x4A, 0xCE, 0xD2, 1, 6, ("LEd5;", "this"))',
+            '(0x00, 0x106, 0x10A, 2, 0, ("LiE6;", "public"))',
+            '(0x48, 0x14C, 0x154, 3, 5, ("Lol0;", "if"))',
+            'const_value != label',
+            'iput_reg != register',
+            'dex.method(method_id) != target',
             '"coroutine_resume_stage_contract_exact": True'):
             self.assertIn(snippet,contract)
         self.assertIn('observer_contract = _private_login_observer_contract(dexes)',contract)
