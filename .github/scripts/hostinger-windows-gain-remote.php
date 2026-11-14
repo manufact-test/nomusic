@@ -310,7 +310,12 @@ try {
             $checks[] = [
                 'replacement_id' => $replacementId,
                 'track_id' => $trackId,
+                'version' => $version,
                 'gain_db' => $gain,
+                'source_sha256' => (string)$row['source_sha256'],
+                'sidecar_sha256' => (string)$variant['sha256'],
+                'duration_ms' => (int)$row['duration_ms'],
+                'source_size_bytes' => (int)$row['source_size_bytes'],
                 'gain_applied' => true,
                 'http_status' => 206,
                 'range_bytes' => $expectedLength,

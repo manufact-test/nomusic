@@ -12,7 +12,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: celikom-hostinger-private-test
+  group: celikom-w98-private-gain-reconcile
   cancel-in-progress: false
 
 jobs:
@@ -41,7 +41,8 @@ jobs:
           };
           const deadline = Date.now() + 30 * 60 * 1000;
           const completed = new Set();
-          while (completed.size !== required.length) {
+          let activeDeploy = true;
+          while (completed.size !== required.length || activeDeploy) {
             for (const item of required) {
               if (completed.has(item.workflow)) continue;
               const url = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/actions/workflows/${item.workflow}/runs?branch=main&per_page=20`;
@@ -53,14 +54,20 @@ jobs:
                 .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
               if (!run) continue;
               if (run.status === "completed") {
-                if (run.conclusion !== "success") {
-                  throw new Error(`${item.label} failed: ${run.conclusion}`);
-                }
+                if (run.conclusion !== "success") throw new Error(`${item.label} failed: ${run.conclusion}`);
                 completed.add(item.workflow);
                 console.log(`${item.label}: SUCCESS run=${run.id}`);
               }
             }
-            if (completed.size === required.length) break;
+            const deployUrl = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/actions/workflows/hostinger-deploy.yml/runs?branch=main&per_page=20`;
+            const deployResponse = await fetch(deployUrl, { headers });
+            if (!deployResponse.ok) throw new Error(`Hostinger deployment status API ${deployResponse.status}`);
+            const deployData = await deployResponse.json();
+            activeDeploy = (deployData.workflow_runs ?? []).some(x =>
+              x.head_branch === "main" && (x.status === "queued" || x.status === "in_progress")
+            );
+            if (activeDeploy) console.log("Hostinger deployment active; waiting before private sidecar writes");
+            if (completed.size === required.length && !activeDeploy) break;
             if (Date.now() >= deadline) throw new Error("Exact-commit safety gate timed out");
             await new Promise(resolve => setTimeout(resolve, 15000));
           }
@@ -83,6 +90,27 @@ jobs:
           php-version: "8.3"
           extensions: pdo_mysql, fileinfo
           coverage: none
+      - name: Recheck no Hostinger deployment is active immediately before SSH
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          const url = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/actions/workflows/hostinger-deploy.yml/runs?branch=main&per_page=20`;
+          const response = await fetch(url, {
+            headers: {
+              authorization: `Bearer ${process.env.GH_TOKEN}`,
+              accept: "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28"
+            }
+          });
+          if (!response.ok) throw new Error(`Hostinger deployment status API ${response.status}`);
+          const data = await response.json();
+          const active = (data.workflow_runs ?? []).some(x =>
+            x.head_branch === "main" && (x.status === "queued" || x.status === "in_progress")
+          );
+          if (active) throw new Error("HOSTINGER_DEPLOYMENT_ACTIVE_RETRY_LATER");
+          console.log("HOSTINGER_DEPLOYMENT_IDLE_PASS");
+          NODE
       - name: Install private offline audio renderer
         run: |
           sudo apt-get update
@@ -92,7 +120,10 @@ jobs:
       - name: Validate private staging scripts
         run: |
           bash -n .github/scripts/hostinger-windows-gain-stage.sh
+          node --check .github/scripts/hostinger-windows-gain-verify.mjs
+          node --test .github/scripts/tests/hostinger-windows-gain-verify.test.mjs
           grep -F 'W98_COPY_TARGET_ALREADY_PREFIXED' .github/scripts/hostinger-windows-gain-stage.sh
+          grep -F 'hostinger-windows-gain-verify.mjs' .github/scripts/hostinger-windows-gain-stage.sh
           grep -F 'copy_to_remote "$work/manifest.json" "$manifest_remote"' .github/scripts/hostinger-windows-gain-stage.sh
           php -l .github/scripts/hostinger-windows-gain-remote.php
           php -l server/bin/windows-gain-stage.php

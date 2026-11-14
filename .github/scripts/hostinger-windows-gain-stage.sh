@@ -229,36 +229,13 @@ remote "'$php_bin' '$helper_remote' inventory '$GITHUB_SHA'" > "$work/inventory-
 # Send the account email through SSH stdin, never in the remote command line.
 printf '%s\n' "$CELIKOM_W98_TEST_EMAIL" |
   remote "'$php_bin' '$helper_remote' live-verify '$GITHUB_SHA'" > "$work/live-verify.json"
-node - "$work/rows.tsv" "$work/metrics.tsv" "$work/live-verify.json" "$GITHUB_SHA" "$work/manifest.json" <<'NODE'
-const fs = require('node:fs');
-const rows = fs.readFileSync(process.argv[2], 'utf8').trim().split('\n').filter(Boolean);
-const metrics = fs.readFileSync(process.argv[3], 'utf8').trim().split('\n').filter(Boolean);
-const verify = JSON.parse(fs.readFileSync(process.argv[4], 'utf8'));
-const sha = process.argv[5];
-if (verify.session_entitled !== true || verify.count !== rows.length ||
-    !Array.isArray(verify.checks) || verify.checks.length !== rows.length ||
-    verify.checks.some(x => x.gain_applied !== true || x.http_status !== 206 ||
-      x.etag_verified !== true || x.range_bytes < 1024)) {
-  throw new Error('W98_LIVE_SIGNED_RANGE_VERIFY_FAILED');
-}
-const parsed = metrics.map(line => {
-  const p = line.split('\t');
-  return {
-    replacement_id:Number(p[0]), track_id:p[1], version:Number(p[2]),
-    gain_db:Number(p[3]), source_sha256:p[4], duration_ms:Number(p[5]),
-    render_sha256:p[6], render_size_bytes:Number(p[7]),
-    status:p[8], measured_rms_delta_db:p[9] === '' ? null : Number(p[9]),
-    output_peak_db:p[10] === '' ? null : Number(p[10])
-  };
-});
-if (parsed.length !== rows.length) throw new Error('W98_MANIFEST_ROW_COUNT_MISMATCH');
-const manifest = {
-  format:1, commit:sha, purpose:'windows-private-gain-sidecars',
-  live_entitlement_checked:true, live_signed_http_range_checked:true,
-  checks:verify.checks, rows:parsed
-};
-fs.writeFileSync(process.argv[6], JSON.stringify(manifest,null,2)+'\n',{mode:0o600});
-NODE
+node .github/scripts/hostinger-windows-gain-verify.mjs \
+  "$work/inventory.json" \
+  "$work/inventory-after.json" \
+  "$work/metrics.tsv" \
+  "$work/live-verify.json" \
+  "$GITHUB_SHA" \
+  "$work/manifest.json"
 
 copy_to_remote "$work/manifest.json" "$manifest_remote"
 remote "chmod 600 '$manifest_remote'"
