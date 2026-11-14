@@ -25,3 +25,7 @@ Read-only extracted `assets/lspatch/origin.apk` from existing NAV9 owner Library
 No new APK export, phone change or further OTP. Check complete source CI + both native ARM13 verdicts at latest branch SHA before considering any further diagnosis. Any future owner test must be separately justified and bounded. No repair claimed yet.
 
 Stage A **NO-GO**; Stage B **LOCKED**. Do not touch original Yandex/data, Test.50, Windows, backend, production or other working branches.
+
+## Regex source-gate correction
+
+A review before native CI acceptance found that the new regex had double-escaped the raw-string backslash classes. This would misclassify live logcat as NOT_OBSERVED. Fixed to the exact existing Android13 logcat parser convention in the next commit, with a regression that *executes the actual parser function* against synthetic FLOW and PIPELINE REGISTERED/NO_HOOK lines. The prior source snapshot is saved at `backup/android-a1-before-flow-regex-fix-20261114` @ `5cdf7ecb1e0fb64284cff528b4d67ceb746f0a33`. These are registration-only gates; Stage A remains NO-GO and Stage B LOCKED.

@@ -1,6 +1,8 @@
 """Read-only, no-secret original 2025 login receipt witness source gate."""
 from pathlib import Path
 import unittest
+import ast
+import re
 
 SRC=(Path(__file__).resolve().parents[1] /
      "exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java")
@@ -171,6 +173,25 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertEqual(runner.count('report["postlogin_pipeline_hook_status"]=_postlogin_hook_status(raw_logcat, "PIPELINE")'),2)
         self.assertGreaterEqual(runner.count('report["postlogin_flow_hook_status"] == "REGISTERED"'),2)
         self.assertGreaterEqual(runner.count('report["postlogin_pipeline_hook_status"] == "REGISTERED"'),2)
+
+    def test_native_postlogin_hook_parser_recognizes_real_logcat_shape(self):
+        source=(Path(__file__).resolve().parent /
+                "owner_2025_lspatch2_namespaced_clone_arm13.py").read_text(encoding="utf-8")
+        function=next(n for n in ast.parse(source).body
+                      if isinstance(n,ast.FunctionDef)
+                      and n.name=="_postlogin_hook_status")
+        namespace={"re":re}
+        exec(compile(ast.Module(body=[function],type_ignores=[]),
+                     "<postlogin-hook-parser-test>","exec"),namespace)
+        parser=namespace["_postlogin_hook_status"]
+        flow="11-14 13:15:00.000 123 456 I CELIKOM_A1_EXIT_WITNESS event=POSTLOGIN_HOOK;origin=FLOW;error=REGISTERED;thread=MAIN"
+        pipeline="11-14 13:15:01.000 123 456 I CELIKOM_A1_EXIT_WITNESS event=POSTLOGIN_HOOK;origin=PIPELINE;error=REGISTERED;thread=MAIN"
+        self.assertEqual(parser(flow,"FLOW"),"REGISTERED")
+        self.assertEqual(parser(pipeline,"PIPELINE"),"REGISTERED")
+        self.assertEqual(parser(flow,"PIPELINE"),"NOT_OBSERVED")
+        self.assertEqual(parser(pipeline,"FLOW"),"NOT_OBSERVED")
+        self.assertEqual(parser(pipeline.replace("REGISTERED","NO_HOOK"),"PIPELINE"),"NO_HOOK")
+        self.assertEqual(parser(flow,"UNSUPPORTED"),"UNAVAILABLE")
 
     def test_passport_set_result_observer_has_independent_quota(self):
         s=self.code

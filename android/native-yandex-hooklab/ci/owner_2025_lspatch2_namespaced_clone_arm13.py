@@ -504,7 +504,7 @@ def _postlogin_hook_status(raw_logcat: str, kind: str) -> str:
     if not isinstance(raw_logcat, str) or kind not in ("FLOW", "PIPELINE"):
         return "UNAVAILABLE"
     statuses = re.findall(
-        rf'CELIKOM_A1_EXIT_WITNESS[^\\n]{{0,700}}event=POSTLOGIN_HOOK;origin={kind};error=(REGISTERED|NO_HOOK)(?:;|\\s)',
+        rf'CELIKOM_A1_EXIT_WITNESS[^\n]{{0,700}}event=POSTLOGIN_HOOK;origin={kind};error=(REGISTERED|NO_HOOK)(?:;|\s)',
         raw_logcat)
     if "REGISTERED" in statuses:
         return "REGISTERED"
