@@ -9,6 +9,7 @@ on:
       - .github/scripts/hostinger-stage5-remote.php
       - .github/deploy/hostinger-stage5-request.json
       - .github/workflows/hostinger-stage5-ops.yml
+      - .github/workflows/windows-w98-private-gain-reconcile.yml
 
 permissions:
   contents: read

@@ -1,0 +1,104 @@
+name: CELIKOM W98 private Windows gain sidecar reconciliation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/windows-w98-private-gain-reconcile.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  exact-commit-gates:
+    name: Wait for exact-commit CI and read-only live audits
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Require exact-commit Windows CI and both read-only audits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          const required = [
+            { workflow: "windows-w98-integration-ci.yml", label: "Windows integration CI" },
+            { workflow: "hostinger-stage5-ops.yml", label: "Stage 5 live integrity audit" },
+            { workflow: "windows-w90-live-gain-audit-readonly.yml", label: "W90 gain inventory" }
+          ];
+          const headers = {
+            authorization: `Bearer ${process.env.GH_TOKEN}`,
+            accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+          };
+          const deadline = Date.now() + 30 * 60 * 1000;
+          const completed = new Set();
+          while (completed.size !== required.length) {
+            for (const item of required) {
+              if (completed.has(item.workflow)) continue;
+              const url = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/actions/workflows/${item.workflow}/runs?branch=main&per_page=20`;
+              const response = await fetch(url, { headers });
+              if (!response.ok) throw new Error(`${item.label} API ${response.status}`);
+              const data = await response.json();
+              const run = (data.workflow_runs ?? [])
+                .filter(x => x.head_sha === process.env.GITHUB_SHA && x.head_branch === "main")
+                .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+              if (!run) continue;
+              if (run.status === "completed") {
+                if (run.conclusion !== "success") {
+                  throw new Error(`${item.label} failed: ${run.conclusion}`);
+                }
+                completed.add(item.workflow);
+                console.log(`${item.label}: SUCCESS run=${run.id}`);
+              }
+            }
+            if (completed.size === required.length) break;
+            if (Date.now() >= deadline) throw new Error("Exact-commit safety gate timed out");
+            await new Promise(resolve => setTimeout(resolve, 15000));
+          }
+          NODE
+
+  reconcile:
+    name: Re-inventory and verify every active nonzero-gain replacement
+    needs: exact-commit-gates
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo
+          coverage: none
+      - name: Install private offline audio renderer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+          ffprobe -version | head -n 1
+      - name: Validate private staging scripts
+        run: |
+          bash -n .github/scripts/hostinger-windows-gain-stage.sh
+          grep -F 'W98_COPY_TARGET_ALREADY_PREFIXED' .github/scripts/hostinger-windows-gain-stage.sh
+          grep -F 'copy_to_remote "$work/manifest.json" "$manifest_remote"' .github/scripts/hostinger-windows-gain-stage.sh
+          php -l .github/scripts/hostinger-windows-gain-remote.php
+          php -l server/bin/windows-gain-stage.php
+          php -l server/bin/windows-gain-rollback.php
+      - name: Re-inventory and reconcile all active approved nonzero-gain replacements
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          CELIKOM_W98_TEST_EMAIL: ${{ secrets.CELIKOM_W98_TEST_EMAIL }}
+        run: bash .github/scripts/hostinger-windows-gain-stage.sh

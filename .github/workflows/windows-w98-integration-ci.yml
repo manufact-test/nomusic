@@ -34,6 +34,7 @@ jobs:
       - name: Validate Hostinger workflow YAML and owner-scoped private gain staging scripts
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/hostinger-deploy.yml"); puts "W98_HOSTINGER_WORKFLOW_YAML_PASS"'
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/windows-w98-private-gain-reconcile.yml"); puts "W98_PRIVATE_GAIN_RECONCILE_WORKFLOW_YAML_PASS"'
           bash -n .github/scripts/hostinger-windows-gain-stage.sh
           grep -F 'W98_COPY_TARGET_ALREADY_PREFIXED' .github/scripts/hostinger-windows-gain-stage.sh
           grep -F 'copy_to_remote "$work/manifest.json" "$manifest_remote"' .github/scripts/hostinger-windows-gain-stage.sh
