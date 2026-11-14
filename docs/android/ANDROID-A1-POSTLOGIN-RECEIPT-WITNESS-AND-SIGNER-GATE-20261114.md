@@ -96,7 +96,7 @@ The Entry receiver-side result event now has an independent 48-event quota rathe
 ## NAV13 latest CI and source contract
 
 - #43581081611 clone-only completed SUCCESS; this validates idle clone startup only, not Passport login or Entry result delivery.
-- #43581081486 paired publisher-first remained in progress.
+- #43581081486 paired publisher-first completed SUCCESS: publisher install/launch accepted, stable 75s before/after clone; clone stable 25/25; onboarding writer hook registered. No Passport login was exercised, so Activity result delivery remains unobserved.
 - Quota hardening commit `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073` gives Entry delivery its own 48-event counter.
 - Added source-contract regression test in `468fa14e8a6328e021968143afa8e00712c6ec73`; it checks exact Android dispatch signature, receiver filter, separate quota, and read-only behavior.
 - #43581508098/#43581508085 and source-test run #43581718989 were still running/queued. No owner login evidence yet.
