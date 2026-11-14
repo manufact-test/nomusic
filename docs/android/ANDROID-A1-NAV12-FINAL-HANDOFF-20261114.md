@@ -212,3 +212,51 @@ The current NAV9 APK cannot be updated in place using a newly generated key unle
 Do not request another OTP or uninstall the clone while the login loop remains unresolved. The new workflow's fresh-install input is an explicit authorization gate, not permission for the assistant or CI to touch the phone.
 
 No APK was exported, no secrets were added, no owner phone or account was touched, and no original Yandex/Test.50/Windows/production files were changed. Stage A remains NO-GO; Stage B remains LOCKED.
+
+
+## NAV13 final validation — 14 Nov 2026
+
+### Source and CI
+
+- Persistent signer implementation: commit f99a112b324a810d8690818d8c647e29e13ae629.
+- Test-fixture cleanup: commit 75258871f52ffe8b0f5fc08d6c9bfc1c498d4df8.
+- Signer-transition documentation: commit 6b12e56f866928f38b16f00cd46e764207346833.
+- #43586620493 — clone-only native ARM13 SUCCESS; 25/25 lifecycle observations, master key persisted, all required read-only hook registration gates present, no uncaught exception. Verdict CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS.
+- #43586813717 — publisher-first paired native ARM13 SUCCESS; original publisher stable 75s before clone and remained installed, clone MAIN stable 75s with 25/25 lifecycle observations, original key persisted, result-delivery/master-token-read/master-token-decrypt/onboarding-writer hooks all REGISTERED, no uncaught exception and no Metrica fatal suppression. Verdict METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO.
+
+The paired source-validation step passed, including:
+- persistent PKCS#12 import/pinned-certificate tests: 5/5;
+- diagnostic artifact export gate tests: 9/9;
+- post-login receipt source-contract tests: 10/10;
+- existing private DEX, Metrica, resource, account bridge and native source checks.
+
+The first paired attempt #43586620480 stopped before native execution because the test fixture itself retained its original source PKCS#12 file. This was corrected in 7525887; the subsequent paired run #43586813717 passed. No production code or owner data was involved in that test-fixture failure.
+
+### What the passing native report does and does not prove
+
+The final paired report records:
+- publisher stable before clone: true;
+- publisher still installed after clone start: true;
+- clone MAIN stable 75s: true; lifecycle 25/25;
+- master key: ORIGINAL_KEY_PERSISTED;
+- ACTIVITY_RESULT_DELIVERY_HOOK, MASTER_TOKEN_READ_HOOK, MASTER_TOKEN_DECRYPT_HOOK, ONBOARDING_WRITER_HOOK: REGISTERED;
+- uncaught exception: false;
+- owner phone touched: false; binary published: false.
+
+The run had no owner signing secrets configured, so it correctly used DISPOSABLE_PER_CI_RUN. The reported certificate fingerprint 87923acc4fc13161807c74c1bcbde742850ffb9beecd1f69b682f93e9165f275 is only this CI run's temporary certificate. It is NOT the permanent owner certificate and must NOT be set as CELIKOM_A1_INSTALLED_CERT_SHA256. APK export steps were skipped. This validates the default no-secret path and the signer gates; the real owner PKCS#12 has not yet been provisioned or exercised in the main ARM13 pipeline.
+
+### Correction to the old APK hash note
+
+The previously noted APK hash 2d043de0fdabcd9ee4109d01c376d764d4e640b4a4dd07df1bffb6a0264f7e63 is confirmed in the output of older run #43450303301 (artifact #14050162270, source commit 1ddb7811c74dd2b298f21421f4a523659649bce5). It is not the APK from NAV9 artifact #14081618529. The NAV9 diagnostic marker is present in source commit e9cdd607e668304aa97371399464104242aca601, whose closest matching later artifact #14081618529 has APK SHA-256 78f110eeadac9d313e2f9f2212dd0432a4dce0eac828b4defa3c9a6f2dfb8158 and certificate fingerprint 03c2917442666c49d3d60466e0ed43077321ee472e7915d065b4bb4c1b3b6081.
+
+The diagnostic TXT carries the NAV9 build marker but not the CI run ID or APK SHA. The #140816 artifact is the closest time/build match to the diagnostic session, not a cryptographic proof of the exact file on the phone. Keep CELIKOM_A1_INSTALLED_CERT_SHA256 unset until the installed APK itself is verified.
+
+### Current gate and next action
+
+- Working source remains one branch: experiment/android-a1-metrica-init-state-observer-arm13-20261112.
+- No owner signing secrets or variables were created by CI.
+- No APK was exported and no phone, Yandex account, or local app data was touched.
+- Old exact rollback backup backup/android-a1-nav12-final-handoff-r3-20261114 remains at 833531f931cd3a8877bfc0e816dbaf4dbe6c808f.
+- A new validated-source backup should point to the final NAV13 handoff commit after this documentation update.
+- Do not uninstall the current diagnostic clone while the login loop is unresolved. The fresh-install workflow input remains false by default and requires explicit owner approval.
+- Stage A remains NO-GO; Stage B remains LOCKED. No audio or successful Passport login is claimed.
