@@ -732,6 +732,67 @@ test("W133 verified playback heartbeat downgrades immediately when current decod
     "the immediate heartbeat never contains a signed media URL");
 });
 
+test("W134 every current-decoder proof invalidation immediately downgrades the verified heartbeat", async t => {
+  const scenarios = [
+    ["pause", ({debug}) => debug.emit("message",{}, "Media.playerPropertiesChanged", {
+      playerId:"current-source",properties:[{name:"kIsPlaying",value:"false"}]
+    })],
+    ["player destroyed", ({debug}) => debug.emit("message",{}, "Media.playerDestroyed", {
+      playerId:"current-source"
+    })],
+    ["decoder pipeline error", ({debug}) => debug.emit("message",{}, "Media.playerErrorsRaised", {
+      playerId:"current-source",errors:[{level:"error"}]
+    })],
+    ["CDP observer detached", ({debug}) => debug.emit("detach")]
+  ];
+
+  for (const [name,invalidate] of scenarios) await t.test(name, async () => {
+    let clockNow = Date.now();
+    class FakeDate extends Date {
+      constructor(...args) { super(...(args.length ? args : [clockNow])); }
+      static now() { return clockNow; }
+    }
+    const grant = w52Grant("139","123");
+    const {debug} = w52Debugger();
+    const r = await runHost("musicapplication://desktop/", {
+      debuggerDriver:debug,
+      grantOverride:grant,
+      queue:[{requestId:"1",trackId:"123"}],
+      currentTrack:{id:"123",title:"Track",artist:"Artist",durationMs:180000},
+      rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+      stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"},
+      clock:FakeDate
+    });
+    const statuses = () => r.network.filter(x => x.path === "/v1/heartbeat")
+      .map(x => JSON.parse(x.body).status);
+
+    debug.emit("message",{}, "Media.playerPropertiesChanged", {
+      playerId:"current-source",
+      properties:[
+        {name:"kUrl",value:grant.audioUrl},
+        {name:"kIsPlaying",value:"true"}
+      ]
+    });
+    clockNow += 2600;
+    r.pulse();
+    await new Promise(resolve=>setTimeout(resolve,50));
+    assert.equal(statuses().at(-1),"NATIVE_SOURCE_VERIFIED",
+      "scenario must start from a genuinely verified current decoder");
+
+    const before = statuses().length;
+    invalidate({debug});
+    await new Promise(resolve=>setTimeout(resolve,50));
+    const transition = statuses().slice(before);
+    assert.ok(transition.includes("NATIVE_MAPPING_ACCEPTED"),
+      "proof invalidation must immediately remove the green status");
+    assert.equal(transition.at(-1),"NATIVE_MAPPING_ACCEPTED");
+    assert.ok(!JSON.stringify(r.network).includes(grant.audioUrl),
+      "heartbeat payloads must never contain the signed media URL");
+    assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl),
+      "diagnostics must never contain the signed media URL");
+  });
+});
+
 test("W130 diagnostics distinguish CDP player properties from kUrl visibility without exporting URL", async () => {
   const {debug} = w52Debugger();
   const r = await runHost("musicapplication://desktop/", {
