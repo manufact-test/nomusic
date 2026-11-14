@@ -171,8 +171,9 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertIn('event=POSTLOGIN_HOOK;origin={kind};error=',runner)
         self.assertEqual(runner.count('report["postlogin_flow_hook_status"]=_postlogin_hook_status(raw_logcat, "FLOW")'),2)
         self.assertEqual(runner.count('report["postlogin_pipeline_hook_status"]=_postlogin_hook_status(raw_logcat, "PIPELINE")'),2)
-        self.assertGreaterEqual(runner.count('report["postlogin_flow_hook_status"] == "REGISTERED"'),2)
-        self.assertGreaterEqual(runner.count('report["postlogin_pipeline_hook_status"] == "REGISTERED"'),2)
+        self.assertEqual(runner.count('report["postlogin_entry_created_observed"]=_postlogin_entry_seen(raw_logcat)'),2)
+        self.assertEqual(runner.count('report["postlogin_registration_accepted"]=_postlogin_registration_accepted('),2)
+        self.assertGreaterEqual(runner.count('report["postlogin_registration_accepted"]'),2)
 
     def test_native_postlogin_hook_parser_recognizes_real_logcat_shape(self):
         source=(Path(__file__).resolve().parent /
@@ -192,6 +193,31 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertEqual(parser(pipeline,"FLOW"),"NOT_OBSERVED")
         self.assertEqual(parser(pipeline.replace("REGISTERED","NO_HOOK"),"PIPELINE"),"NO_HOOK")
         self.assertEqual(parser(flow,"UNSUPPORTED"),"UNAVAILABLE")
+
+    def test_native_postlogin_gate_scoped_to_real_entry(self):
+        source=(Path(__file__).resolve().parent /
+                "owner_2025_lspatch2_namespaced_clone_arm13.py").read_text(encoding="utf-8")
+        names=("_postlogin_entry_seen","_postlogin_registration_accepted")
+        funcs=[n for n in ast.parse(source).body
+               if isinstance(n,ast.FunctionDef) and n.name in names]
+        self.assertEqual(len(funcs),2)
+        namespace={"re":re}
+        exec(compile(ast.Module(body=funcs,type_ignores=[]),
+                     "<postlogin-scoped-gate>","exec"),namespace)
+        check=namespace["_postlogin_registration_accepted"]
+        entry="11-14 13:15:00.000 123 456 I CELIKOM_A1_EXIT_WITNESS event=ACTIVITY_PHASE;origin=ENTRY_ACTIVITY;error=CREATED;thread=MAIN"
+        idle="11-14 13:15:00.000 123 456 I CELIKOM_A1_EXIT_WITNESS event=ACTIVITY_PHASE;origin=MAIN_ACTIVITY;error=CREATED;thread=MAIN"
+        self.assertFalse(namespace["_postlogin_entry_seen"](idle))
+        self.assertTrue(namespace["_postlogin_entry_seen"](entry))
+        self.assertTrue(check(idle,"NOT_OBSERVED","NOT_OBSERVED"))
+        self.assertTrue(check(idle,"REGISTERED","NOT_OBSERVED"))
+        self.assertFalse(check(entry,"NOT_OBSERVED","NOT_OBSERVED"))
+        self.assertFalse(check(entry,"REGISTERED","NOT_OBSERVED"))
+        self.assertTrue(check(entry,"REGISTERED","REGISTERED"))
+        self.assertFalse(check(entry,"NO_HOOK","REGISTERED"))
+        self.assertFalse(check(idle,"NO_HOOK","NOT_OBSERVED"))
+        self.assertFalse(check("", "UNAVAILABLE", "REGISTERED"))
+        self.assertFalse(check(None, "REGISTERED", "REGISTERED"))
 
     def test_passport_set_result_observer_has_independent_quota(self):
         s=self.code

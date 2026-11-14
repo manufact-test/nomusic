@@ -29,3 +29,9 @@ Stage A **NO-GO**; Stage B **LOCKED**. Do not touch original Yandex/data, Test.5
 ## Regex source-gate correction
 
 A review before native CI acceptance found that the new regex had double-escaped the raw-string backslash classes. This would misclassify live logcat as NOT_OBSERVED. Fixed to the exact existing Android13 logcat parser convention in the next commit, with a regression that *executes the actual parser function* against synthetic FLOW and PIPELINE REGISTERED/NO_HOOK lines. The prior source snapshot is saved at `backup/android-a1-before-flow-regex-fix-20261114` @ `5cdf7ecb1e0fb64284cff528b4d67ceb746f0a33`. These are registration-only gates; Stage A remains NO-GO and Stage B LOCKED.
+
+## 14 November — Entry-scoped native gate correction
+
+The earlier strict CI runs #43597709855 and #43597709845 were FAILURE because they required the new original LoginFragment hooks to register during a MAIN-only 75-second idle acceptance test. Both observed stable 25/25 MAIN, ORIGINAL_KEY_PERSISTED and all four pre-existing registration gates REGISTERED. FLOW/PIPELINE returned NOT_OBSERVED (not NO_HOOK). These new observers are deliberately armed only on Entry Activity CREATED, which idle CI never reaches. Thus the unconditional gate was wrong; there was no proven startup regression.
+
+The corrected source checks `postlogin_entry_created_observed`: if real Entry CREATED is logged, BOTH FLOW/PIPELINE must REGISTERED; if Entry is absent, NOT_OBSERVED is permitted but NO_HOOK/UNAVAILABLE still fails. The new synthetic source test executes the actual gate against idle and Entry examples. This remains registration-only startup acceptance; it cannot prove login or audio. Exact pre-correction backup `backup/android-a1-nav13-pre-entry-scoped-ci-gate-fix-20261114` @ e33a132f2eb0289d78cea885b62e03957a5be272.

@@ -513,6 +513,27 @@ def _postlogin_hook_status(raw_logcat: str, kind: str) -> str:
     return "NOT_OBSERVED"
 
 
+# Entry-scoped observers cannot register in an idle MAIN-only 25/25 test.
+# Require registration when actual Entry activity was created. A no-Entry
+# idle run can legitimately report NOT_OBSERVED, but never NO_HOOK.
+def _postlogin_entry_seen(raw_logcat: str) -> bool:
+    return isinstance(raw_logcat, str) and bool(re.search(
+        r'CELIKOM_A1_EXIT_WITNESS[^\n]{0,700}event=ACTIVITY_PHASE;origin=ENTRY_ACTIVITY;error=CREATED(?:;|\s)',
+        raw_logcat))
+
+
+def _postlogin_registration_accepted(
+        raw_logcat: str, flow_status: str, pipeline_status: str) -> bool:
+    if not isinstance(raw_logcat, str):
+        return False
+    states=(flow_status,pipeline_status)
+    if any(s in ("NO_HOOK", "UNAVAILABLE") for s in states):
+        return False
+    if _postlogin_entry_seen(raw_logcat):
+        return all(s == "REGISTERED" for s in states)
+    return all(s in ("REGISTERED", "NOT_OBSERVED") for s in states)
+
+
 def observe_clone(seconds=75):
     component=DEST+"/ru.yandex.music.main.MainScreenActivity"
     launched=guest("am","start","--user","0","-n",component,timeout=65)
@@ -729,6 +750,10 @@ def run(xapk):
             report["master_token_decrypt_hook_status"]=_master_token_decrypt_hook_status(raw_logcat)
             report["postlogin_flow_hook_status"]=_postlogin_hook_status(raw_logcat, "FLOW")
             report["postlogin_pipeline_hook_status"]=_postlogin_hook_status(raw_logcat, "PIPELINE")
+            report["postlogin_entry_created_observed"]=_postlogin_entry_seen(raw_logcat)
+            report["postlogin_registration_accepted"]=_postlogin_registration_accepted(
+                raw_logcat, report["postlogin_flow_hook_status"],
+                report["postlogin_pipeline_hook_status"])
             report["scoped_own_readonly_witness"]=scoped_metrica_witness(
                 guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
                 raw_logcat,
@@ -740,8 +765,7 @@ def run(xapk):
                     report["activity_result_delivery_hook_status"] == "REGISTERED" and
                     report["master_token_read_hook_status"] == "REGISTERED" and
                     report["master_token_decrypt_hook_status"] == "REGISTERED" and
-                    report["postlogin_flow_hook_status"] == "REGISTERED" and
-                    report["postlogin_pipeline_hook_status"] == "REGISTERED"
+                    report["postlogin_registration_accepted"]
                 else "CLONE_ONLY_MASTER_KEY_INIT_OR_MAIN_NO_GO")
             # No change to any original-first acceptance verdict.
             report["stage_a"]="NO_GO"
@@ -805,6 +829,10 @@ def run(xapk):
         report["master_token_decrypt_hook_status"]=_master_token_decrypt_hook_status(raw_logcat)
         report["postlogin_flow_hook_status"]=_postlogin_hook_status(raw_logcat, "FLOW")
         report["postlogin_pipeline_hook_status"]=_postlogin_hook_status(raw_logcat, "PIPELINE")
+        report["postlogin_entry_created_observed"]=_postlogin_entry_seen(raw_logcat)
+        report["postlogin_registration_accepted"]=_postlogin_registration_accepted(
+            raw_logcat, report["postlogin_flow_hook_status"],
+            report["postlogin_pipeline_hook_status"])
         report["scoped_own_readonly_witness"]=scoped_metrica_witness(
             guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
             raw_logcat,
@@ -821,8 +849,7 @@ def run(xapk):
                report["activity_result_delivery_hook_status"] == "REGISTERED" and
                report["master_token_read_hook_status"] == "REGISTERED" and
                report["master_token_decrypt_hook_status"] == "REGISTERED" and
-               report["postlogin_flow_hook_status"] == "REGISTERED" and
-               report["postlogin_pipeline_hook_status"] == "REGISTERED" and
+               report["postlogin_registration_accepted"] and
                report["publisher_still_installed_after_clone_start"] and
                report["scoped_own_readonly_witness"]["read_only_witness_arm_marker_seen"] and
                not report["scoped_own_readonly_witness"]["lab_only_metrica_fatal_suppression_observed"]
