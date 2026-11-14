@@ -180,6 +180,8 @@ public static class StableUpdateRollbackJournal
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
         if (state.Schema != 2 || state.RollbackAttempts is < 0 or > 1 ||
+            state.State == Phase.Healthy && state.RollbackAttempts != 0 ||
+            state.State == Phase.Restored && state.RollbackAttempts != 1 ||
             !string.Equals(state.SignerSha256, pinnedSignerSha256,
                 StringComparison.OrdinalIgnoreCase) ||
             state.State is not (Phase.Healthy or Phase.Restored))
