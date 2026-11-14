@@ -2622,7 +2622,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (loader==null || !PACKAGE.equals(Application.getProcessName())) return;
         if (!nativeTrackFlowHookReady) {
             try {
-                Class<?> collector=Class.forName("LDp0",false,loader);
+                Class<?> collector=Class.forName("Dp0",false,loader);
                 Class<?> continuation=Class.forName(
                     "kotlin.coroutines.Continuation",false,loader);
                 Method emit=collector.getDeclaredMethod("emit",Object.class,continuation);
@@ -2641,7 +2641,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
         if (!nativeTrackRequestHookReady) {
             try {
-                Class<?> owner=Class.forName("LGp0",false,loader);
+                Class<?> owner=Class.forName("Gp0",false,loader);
                 Class<?> track=Class.forName("ru.yandex.music.data.audio.o",false,loader);
                 Class<?> context=Class.forName("Oe2",false,loader);
                 Method request=owner.getDeclaredMethod("new",owner,track,context);
@@ -2666,7 +2666,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
         if (!nativeTrackWrapperHookReady) {
             try {
-                Class<?> wrapper=Class.forName("LtCa",false,loader);
+                Class<?> wrapper=Class.forName("tCa",false,loader);
                 java.lang.reflect.Constructor<?> constructor=
                     wrapper.getDeclaredConstructor(String.class);
                 constructor.setAccessible(true);
@@ -2688,7 +2688,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 Class<?> owner=Class.forName(
                     "com.yandex.music.shared.player.download2.o",false,loader);
                 Class<?> queueContext=Class.forName("qX8$d",false,loader);
-                Class<?> wrapper=Class.forName("LtCa",false,loader);
+                Class<?> wrapper=Class.forName("tCa",false,loader);
                 Class<?> format=Class.forName("f6a",false,loader);
                 Class<?> policy=Class.forName("n26",false,loader);
                 Class<?> context=Class.forName("Oe2",false,loader);

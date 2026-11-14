@@ -16,31 +16,64 @@ EVIDENCE = SRC / "StageBAudioEvidence.java"
 HARNESS = """
 package pro.celikom.a1exitwitness;
 public final class StageBAudioEvidenceTest {
-    static void check(boolean b) { if (!b) throw new AssertionError(); }
-    static void line(String[] rows,int index,String expected) {
-        check(rows[index].equals("event=AUDIO_STAGE_B_SUMMARY;origin="+expected+";error="+
-            (index==0 ? "FEW" : index==2 || index==5 || index==6 || index==8 ? "ONE" : "NONE")+
-            ";thread=OTHER"));
+    static void check(boolean value) { if (!value) throw new AssertionError(); }
+    static void bucket(String[] rows,int index,String category,String value) {
+        check(rows[index].equals("event=AUDIO_STAGE_B_SUMMARY;origin="+category+
+            ";error="+value+";thread=OTHER"));
     }
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 22);
-        for (int i=0;i<21;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[21].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
-        Object source = new Object();
-        Object different = new Object();
-        e.onExoSourceInstanceCreated(source);
-        e.onExoSourceInstanceOpen(different);
-        e.onExoSourceInstanceRead(different, 1024);
-        check(e.exportLines()[19].contains(";error=NONE;"));
-        check(e.exportLines()[20].contains(";error=NONE;"));
+        check(initial.length == 32);
+        for (int i=0;i<31;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[31].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+
+        Object track=new Object(), wrapper=new Object(), descriptor=new Object();
+        Object factory=new Object(), source=new Object();
+        Object unselectedTrack=new Object(), unselectedWrapper=new Object();
+        Object wrongDescriptor=new Object(), wrongFactory=new Object(), wrongSource=new Object();
+
+        e.onNativeTrackFlowEmission(track);
+        e.enterNativeTrackSourceRequest(track);
+        e.onNativeTrackWrapperCreated(wrapper);
+        e.exitNativeTrackSourceRequest();
+        e.enterNativeTrackSourceRequest(unselectedTrack);
+        e.onNativeTrackWrapperCreated(unselectedWrapper);
+        e.exitNativeTrackSourceRequest();
+        e.enterNativeMainSourceRequest(wrapper);
+        e.onExoDescriptorBuilt(descriptor);
+        e.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
+        e.exitNativeMainSourceRequest();
+        e.enterNativeMainSourceRequest(unselectedWrapper);
+        e.onExoDescriptorBuilt(wrongDescriptor);
+        e.onNativeExoDescriptorBuiltForCurrentWrapper(wrongDescriptor);
+        e.exitNativeMainSourceRequest();
+        e.onExoFactoryCreated(descriptor,factory);
+        e.onExoFactoryCreated(wrongDescriptor,wrongFactory);
+        e.onExoSourceInstanceCreated(source,factory);
+        e.onExoSourceInstanceCreated(wrongSource,wrongFactory);
         e.onExoSourceInstanceOpen(source);
-        e.onExoSourceInstanceRead(source, 512);
-        e.onExoDescriptorBuilt(source);
+        e.onExoSourceInstanceRead(source,512);
+        e.onExoSourceInstanceOpen(wrongSource);
+        e.onExoSourceInstanceRead(wrongSource,1024);
+
+        String[] links=e.exportLines();
+        String[] names={"NATIVE_TRACK_FLOW_EMIT","NATIVE_TRACK_SOURCE_REQUEST",
+            "FLOW_TRACK_SAME_OBJECT","TRACK_WRAPPER_LINK","WRAPPER_MAIN_SOURCE",
+            "WRAPPER_DESCRIPTOR_LINK","TRACK_DESCRIPTOR_FACTORY_LINK",
+            "TRACK_FACTORY_SOURCE_LINK","TRACK_SOURCE_OPEN_LINK","TRACK_SOURCE_READ_LINK"};
+        for(int i=0;i<names.length;i++) bucket(links,21+i,names[i],"ONE");
+        check(links[31].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+
+        Object different=new Object();
+        e.onExoSourceInstanceCreated(different);
+        e.onExoSourceInstanceOpen(different);
+        e.onExoSourceInstanceRead(different,1024);
+        e.onExoSourceInstanceOpen(source);
+        e.onExoSourceInstanceRead(source,512);
+        e.onExoDescriptorBuilt(descriptor);
         e.onExoFactoryCreated(different);
-        check(e.exportLines()[17].contains(";error=NONE;"));
-        e.onExoFactoryCreated(source);
+        e.onExoFactoryCreated(descriptor);
         e.onExoOpen();
         e.onExoReadResult(8192);
         e.onExoReadResult(0);
@@ -49,34 +82,39 @@ public final class StageBAudioEvidenceTest {
         e.onExoFailure();
         e.onFileInfoResult();
         e.onDirectDownloadInfoResult();
-        e.onReader(0, true);
-        e.onReader(0, false);
+        e.onReader(0,true);
+        e.onReader(0,false);
         e.onExtractorSource(0);
         e.onReadReturn(512);
         e.onReadReturn(-1);
         e.onReadReturn(0);
         e.onReadException();
-        String[] rows = e.exportLines();
+
+        String[] rows=e.exportLines();
+        String[] categories={"FILEINFO_DTO","DOWNLOADINFO_DTO","READER_0","READER_1",
+            "EXTRACTOR_0","EXTRACTOR_1","EXTRACTOR_OTHER","SAME_SOURCE_OBJECT",
+            "POSITIVE_READS","SOURCE_END","READ_EXCEPTIONS"};
         for(int i=0;i<11;i++){
-            String[] categories = {"FILEINFO_DTO","DOWNLOADINFO_DTO",
-                "READER_0","READER_1","EXTRACTOR_0","EXTRACTOR_1",
-                "EXTRACTOR_OTHER","SAME_SOURCE_OBJECT","POSITIVE_READS",
-                "SOURCE_END","READ_EXCEPTIONS"};
-            String bucket = i==2 ? "FEW" :
-                (i==0||i==1||i==4||i==7||i==8||i==9||i==10 ? "ONE" : "NONE");
-            check(rows[i].equals("event=AUDIO_STAGE_B_SUMMARY;origin="+categories[i]+
-                 ";error="+bucket+";thread=OTHER"));
+            String value=i==2?"FEW":
+                (i==0||i==1||i==4||i==7||i==8||i==9||i==10?"ONE":"NONE");
+            bucket(rows,i,categories[i],value);
             check(!rows[i].contains("512") && !rows[i].contains("http"));
         }
-        for (int i=0;i<10;i++) e.onReader(1,false);
+        check(rows[11].contains(";error=FEW;"));
+        check(rows[12].contains(";error=ONE;"));
+        check(rows[13].contains(";error=ONE;"));
+        check(rows[14].contains(";error=ONE;"));
+        check(rows[15].contains(";error=ONE;"));
+        check(rows[16].contains(";error=ONE;"));
+        check(rows[17].contains(";error=ONE;"));
+        check(rows[18].contains(";error=FEW;"));
+        check(rows[19].contains(";error=ONE;"));
+        check(rows[20].contains(";error=ONE;"));
+        for(int i=0;i<10;i++) e.onReader(1,false);
         check(e.exportLines()[3].contains(";error=MANY;"));
-        for(int i=12;i<18;i++) check(e.exportLines()[i].contains(";error=ONE;"));
-        check(e.exportLines()[11].contains(";error=FEW;"));
-        for(int i=18;i<21;i++) check(e.exportLines()[i].contains(";error=ONE;"));
-        check(e.exportLines()[21].contains("NOT_CONNECTED"));
         for(int i=0;i<50;i++) e.onExoReadResult(1);
         check(e.exportLines()[13].contains(";error=MANY;"));
-        System.out.println("PASS Stage B scoped native summary: no source, URL or identity disclosure");
+        System.out.println("PASS Stage B exact Track-to-Exo identity chain; mismatches fail closed");
     }
 }
 """
@@ -104,9 +142,14 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onFileInfoResult()", code)
         self.assertIn("STAGE_B_AUDIO.onDirectDownloadInfoResult()", code)
         self.assertIn("installExactNativeExoSourceWitness(loader)", code)
-        self.assertIn("STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1))", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1),result)", code)
         self.assertIn("STAGE_B_AUDIO.onExoDescriptorBuilt(result)", code)
-        self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceCreated(result)", code)
+        self.assertIn("STAGE_B_AUDIO.onNativeExoDescriptorBuiltForCurrentWrapper(result)", code)
+        self.assertIn("STAGE_B_AUDIO.onNativeTrackFlowEmission(chain.getArg(0))", code)
+        self.assertIn("STAGE_B_AUDIO.enterNativeTrackSourceRequest(selectedTrack)", code)
+        self.assertIn("STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject())", code)
+        self.assertIn("STAGE_B_AUDIO.enterNativeMainSourceRequest(chain.getArg(2))", code)
+        self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceCreated( result,chain.getThisObject());", " ".join(code.split()))
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceRead(", code)
         self.assertIn("STAGE_B_AUDIO.onExoOpen()", code)
@@ -115,6 +158,12 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.exportLines()", code)
         self.assertIn("result=chain.proceed(); // exactly one unmodified original call", code)
         self.assertIn("result=chain.proceed();", code)
+        self.assertIn('Class.forName("Dp0",false,loader)', code)
+        self.assertIn('Class.forName("Gp0",false,loader)', code)
+        self.assertIn('Class.forName("tCa",false,loader)', code)
+        self.assertNotIn('Class.forName("LDp0",false,loader)', code)
+        self.assertNotIn('Class.forName("LGp0",false,loader)', code)
+        self.assertNotIn('Class.forName("LtCa",false,loader)', code)
         self.assertNotIn("MEDIA_SOURCE_REPLACEMENT_APPLIED", code)
 
 
