@@ -39,11 +39,14 @@
 - Main CI [43603865004](https://github.com/manufact-test/nomusic/actions/runs/43603865004) and Windows integration CI [43603864999](https://github.com/manufact-test/nomusic/actions/runs/43603864999) — **SUCCESS**.
 - **#52 remains OPEN.** This fixes event ordering only; it does not prove audible output on the owner's PC. VPN A→B and all other owner-PC audio acceptance also remain open. No installer was built.
 
-# W128 — Read-only CELIKOM elevation launch audit — 14 November 2026
+# W128 — Read-only CELIKOM elevation launch audit and CI guard — 14 November 2026
 
-- Reviewed the current app launch paths, updater, Supervisor launcher, project settings and Inno installer. No explicit `runas` / `Verb="runas"` request was found in the reviewed CELIKOM paths.
+- Reviewed the current app launch paths, updater, Supervisor launcher, native installer modules, project settings and Inno installer. No explicit `runas` / `Verb="runas"` request was found in the reviewed CELIKOM paths.
 - MainWindow launches Yandex normally; AppUpdateManager launches the verified Inno updater without an elevation verb; Supervisor is a same-user child process with `UseShellExecute=false`.
 - The installer declares `PrivilegesRequired=lowest` and installs under `%LOCALAPPDATA%\Programs\CELIKOM`; the release gate checks this policy.
+- Added a Windows Integration CI guard that rejects explicit `runas` in reviewed launch paths, requires the updater/Supervisor launch modes, keeps the installer per-user, and rejects an administrator manifest in the companion project.
+- Exact pre-guard backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`; guard commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`.
+- Main CI [43604761393](https://github.com/manufact-test/nomusic/actions/runs/43604761393) and Windows integration CI [43604761386](https://github.com/manufact-test/nomusic/actions/runs/43604761386) — **SUCCESS**, including the new W128 guard step.
 - This does **not** identify the prompt the owner saw, prove it came from Yandex, or establish that it was harmless. #53 remains OPEN until the prompt publisher/title is known and owner CPU/RAM/GPU evidence is available. Do not grant administrator rights to an unknown prompt.
 - Full audit: `docs/windows/W128-READ-ONLY-ELEVATION-LAUNCH-AUDIT-20261114.md`. No runtime behavior changed and no installer was built.
 
