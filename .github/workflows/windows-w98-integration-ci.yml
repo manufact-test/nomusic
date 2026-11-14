@@ -125,3 +125,19 @@ jobs:
         run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
       - name: Compile GUI with warnings as errors
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+      - name: W108 app updater never autoplays Yandex or reports ticket as health
+        shell: pwsh
+        run: |
+          $source = Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
+          $after = $source.Split('private async Task CompleteApplicationUpdateAsync()')
+          if ($after.Count -ne 2) { throw 'W108_UPDATER_ENTRY_MISSING' }
+          $body = $after[1].Split('private static string DescribeIntegrationFailure')[0]
+          if ($body.Contains('Process.Start(') -or $body.Contains('APP_UPDATE_COMPLETED')) {
+            throw 'W108_POST_UPDATE_AUTOPLAY_OR_FALSE_HEALTH'
+          }
+          if (-not $body.Contains('APP_UPDATE_NEW_EXE_STARTED') -or
+              -not $source.Contains('CanLaunchWithoutPlaybackInterrupt(_bridge.Enabled)') -or
+              -not $source.Contains('AppUpdateManager.ClearPending()')) {
+            throw 'W108_UPGRADE_SAFETY_GATES_MISSING'
+          }
+          Write-Output 'W108_NO_AUTOPLAY_OR_PREMATURE_SUCCESS_PASS'
