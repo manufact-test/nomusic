@@ -227,7 +227,7 @@ try
     Test(cachedTarget.Release.Version == targetRelease.Version &&
          cachedTarget.Release.Sequence == targetRelease.Sequence &&
          cachedTarget.Release.PackageSize == targetRelease.PackageSize &&
-         cachedTarget.Release.SupervisorSha256 == targetSupervisorHash &&
+         cachedTarget.Release.SupervisorSha256 == nextSupervisorHash &&
          Path.GetFileName(cachedTarget.InstallerPath) == "target-signed-setup.exe" &&
          File.ReadAllBytes(cachedTarget.InstallerPath).SequenceEqual(nextBytes),
          "W115 only a healthy update exposes its exact signed target installer as last known good");
