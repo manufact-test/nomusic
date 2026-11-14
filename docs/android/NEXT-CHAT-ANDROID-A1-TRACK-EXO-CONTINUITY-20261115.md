@@ -1,3 +1,5 @@
+> **Актуальное дополнение — 15.11.2026.** Сохранён следующий кодовый checkpoint `f7983590bee3eec38ee8b09fd41859b64192f2df`; резерв до hardening: `backup/android-a1-track-exo-identity-pre-hardening-20261115` @ `746abe055b4bf903e3d280834e7cf432a0b1bd96`. [Подробности, новые raw счётчики и coroutine-ограничение](ANDROID-A1-TRACK-EXO-IDENTITY-HARDENING-20261115.md). Clone-only [#43654168986](https://github.com/manufact-test/nomusic/actions/runs/43654168986) **SUCCESS**, 25/25, Java tests green. **Это не доказательство аудио и не готовая CELIKOM-подмена; Stage A NO-GO**. Publisher-first #43654169076 ещё выполняется. Старый `d8049537` ниже — предыдущий, а не текущий код.
+
 # CELIKOM Android A1 — Track → Exo continuity handoff, 15.11.2026
 
 **Приоритет:** эта передача актуальнее накопительной истории в `NEXT-CHAT.md`. Не начинать с нуля и не менять продуктовую архитектуру.
