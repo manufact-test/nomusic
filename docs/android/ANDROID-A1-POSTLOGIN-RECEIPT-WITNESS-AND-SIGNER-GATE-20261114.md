@@ -1,3 +1,11 @@
+## Final NAV12 onboarding-writer pass — 14 Nov 2026
+
+A read-only writer observer now tracks only the clone's exact `Yandex_Music` SharedPreferences object and editor. It records `putBoolean("onboarding", value)`, a sanitized vendor caller class/method, and the real `commit/apply` return. It does not mutate the preference. The editor map was corrected so unrelated edits to the same file do not create false persistence events.
+
+The private original-DEX inventory is implemented in `ci/a1_private_onboarding_contract.py`; its CI step passed on run [#43576640113](https://github.com/manufact-test/nomusic/actions/runs/43576640113), while that run's paired native phase was still running at handoff. The strict Android13 gate also requires `ONBOARDING_WRITER_HOOK=REGISTERED`; latest runs are #43577067135 and #43577136676. Re-check before declaring success.
+
+**NAV9's existing account is deliberately untouched by NAV11 key preinitialization.** No token/key rotation, onboarding write, fabricated result, APK export or owner login attempt. The fresh-install Passport key write itself is already proven by paired and clone-alone runs #43574754550 and #43574754576. User's post-login loop remains unverified and Stage A NO-GO / Stage B LOCKED.
+
 ## Confirmed Android 13 runtime key initialization — 14 Nov 2026
 
 The **clone-alone** fresh native ARM Android 13 [workflow #43574754576](https://github.com/manufact-test/nomusic/actions/runs/43574754576) and **publisher-first paired** [workflow #43574754550](https://github.com/manufact-test/nomusic/actions/runs/43574754550) both completed **SUCCESS** with the new explicit runtime assertion. BOTH native reports contain `"master_key_init_runtime_status": "ORIGINAL_KEY_PERSISTED"`. Standalone verdict is `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; paired verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. This proves that the clone MAIN's original 2025 Passport `v.try()` really generated and persisted its key on fresh native Android13, with the signed original app still installed in paired mode. No token, no owner account and no OTP were involved. The protected origin APK is unchanged.
