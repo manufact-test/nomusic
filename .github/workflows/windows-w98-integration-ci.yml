@@ -102,8 +102,8 @@ jobs:
           $rendererText=Get-Content dist/renderer.js -Raw
           $rendererSource=Get-Content renderer-entry.mjs -Raw
           $recoverySource=Get-Content transient-source-recovery.mjs -Raw
-          $mainWindowText=Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
-          $startGateText=Get-Content windows-companion/w15/Celikom.Companion/PlaybackStartGate.cs -Raw
+          $mainWindowText=Get-Content ..\w15\Celikom.Companion\MainWindow.cs -Raw
+          $startGateText=Get-Content ..\w15\Celikom.Companion\PlaybackStartGate.cs -Raw
           $guardChecks=@(
             $nativeHostText.Contains('maxTotalBufferSize: 2 * 1024 * 1024'),
             $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
