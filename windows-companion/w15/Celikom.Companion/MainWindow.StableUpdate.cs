@@ -1,3 +1,4 @@
+using System.Windows.Forms;
 using Celikom.NativeInstaller;
 
 namespace Celikom.Companion;

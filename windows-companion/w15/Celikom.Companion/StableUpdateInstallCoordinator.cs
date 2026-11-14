@@ -140,6 +140,9 @@ public static class StableUpdateInstallCoordinator
         }
         catch (Exception e) when (IsPendingTransaction(e))
         {
+            if (record is not null)
+                TryAdvance(record.Id, journalPhase,
+                    StableUpdateRollbackJournal.Phase.ManualRecovery);
             return new(Outcome.PendingTransaction);
         }
         catch
