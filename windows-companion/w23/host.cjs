@@ -924,10 +924,11 @@ function pulseHost() {
   const views = webContents.getAllWebContents();
   if (views.length) note("WEB_CONTENTS_PRESENT");
   for (const view of views) void tick(view);
-  const active = views.some(view => lastNativeState.get(view) === true);
+  // Unknown/unreachable is not proof of idle: only a successful disabled
+  // state response permits the 1s idle cadence.
+  const active = views.some(view => lastNativeState.get(view) !== false);
   // Preserve the 300ms active relay for prompt Start/Next/recovery, but back
-  // off to 1s when no active entitlement is confirmed. A failed state GET
-  // keeps the last active value so recovery remains on the fast cadence.
+  // off to 1s only after the companion explicitly confirms CELIKOM is disabled.
   const delay = firstHostPulse ? 300 : active ? 300 : 1000;
   firstHostPulse = false;
   scheduleHostPulse(delay);

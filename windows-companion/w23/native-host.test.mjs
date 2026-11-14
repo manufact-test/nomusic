@@ -125,9 +125,11 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
 test("W120 host relay backs off while disabled and keeps the active 300ms cadence",async()=>{
   const idle=await runHost("musicapplication://desktop/");
   assert.equal(idle.timerDelayMs,300,"first native handshake stays prompt");
-  idle.pulse();
-  await new Promise(resolve=>setTimeout(resolve,35));
-  assert.equal(idle.timerDelayMs,1000,"disabled CELIKOM no longer polls 3.3 times per second");
+  for(let i=0;i<3 && idle.timerDelayMs!==1000;i++){
+    idle.pulse();
+    await new Promise(resolve=>setTimeout(resolve,60));
+  }
+  assert.equal(idle.timerDelayMs,1000,"only a confirmed disabled state may use the 1s idle cadence");
 
   const active=await runHost("musicapplication://desktop/",{
     stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
@@ -149,18 +151,23 @@ test("W120 unchanged state is not resent into the Yandex renderer",async()=>{
   assert.equal(deliveries(),1,"same authoritative state is delivered only once");
 });
 test("W120 a failed state GET preserves fast recovery cadence after active playback",async()=>{
+  let fakeNow=Date.now();
+  class ControlledDate extends Date { static now(){return fakeNow;} }
   const r=await runHost("musicapplication://desktop/",{
+    clock:ControlledDate,
     stateSequence:[
       {enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"},
       null,
       {enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
     ]
   });
+  for(let i=0;i<5 && !r.diagnostics.some(x=>x.includes("|STATE_ENABLED"));i++)
+    await new Promise(resolve=>setTimeout(resolve,40));
+  assert.ok(r.diagnostics.some(x=>x.includes("|STATE_ENABLED")),
+    "initial successful state must be observed before simulating an outage");
+  fakeNow+=1000;
   r.pulse();
-  await new Promise(resolve=>setTimeout(resolve,35));
-  assert.equal(r.timerDelayMs,300);
-  r.pulse();
-  await new Promise(resolve=>setTimeout(resolve,35));
+  await new Promise(resolve=>setTimeout(resolve,60));
   assert.ok(r.diagnostics.some(x=>x.includes("|STATE_UNREACHABLE")));
   assert.equal(r.timerDelayMs,300,"transient state failure does not slow active reconnect polling");
 });
