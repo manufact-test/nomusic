@@ -136,6 +136,18 @@ try
          StableUpdateRollbackJournal.Read(acceptedRoot).State ==
              StableUpdateRollbackJournal.Phase.Healthy,
          "W109 only explicitly verified signed app health closes transaction");
+    var thirdRelease = new StableUpdateManifestVerifier.VerifiedRelease(
+        new Version(0, 24, 38, 0), 42,
+        new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/new.exe"),
+        previousBytes.Length, prevHash, rollbackAt.AddDays(8), false, "");
+    var nextTransaction = StableUpdateRollbackJournal.PrepareCore(
+        acceptedRoot, targetRelease, nextSetup, thirdRelease, previousSetup,
+        testSignerPin, targetRelease.Version, rollbackAt.AddHours(1),
+        hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup);
+    Test(nextTransaction.State == StableUpdateRollbackJournal.Phase.Prepared &&
+         nextTransaction.Id != accepted.Id &&
+         StableUpdateRollbackJournal.Read(acceptedRoot).Id == nextTransaction.Id,
+         "W109 completed upgrade allows future signed upgrades without overwriting active rollback");
     Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(11)) ==
          StableUpdateRollbackJournal.Decision.RequestRollback,
         "W109 timeout requests exact last-known-good package instead of fake success");
