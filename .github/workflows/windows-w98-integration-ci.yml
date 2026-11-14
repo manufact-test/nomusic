@@ -208,6 +208,18 @@ jobs:
         run: |
           & ./windows-companion/w20/release-gate.ps1 -Mode Stage
           if ($LASTEXITCODE -notin @(0,$null)) { throw 'W20_STAGE_GATE_FAILED' }
+      - name: W136 installer metadata and current-version staging contract
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/stage-package-identity.ps1
+          $stage = Get-Content .github/workflows/windows-w20-safe-installer.yml -Raw
+          if ($stage.Contains('CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED.exe') -or
+              $stage.Contains("0.24.7.0") -or
+              -not $stage.Contains('CELIKOM_STAGE_INSTALLER') -or
+              -not $stage.Contains('CELIKOM_STAGE_FILE_VERSION')) {
+            throw 'W136_STALE_STAGE_INSTALLER_WORKFLOW'
+          }
+          Write-Output 'W136_STAGE_WORKFLOW_CURRENT_VERSION_PASS'
       - name: W110 crash-independent watchdog health and rollback simulation
         run: dotnet run --project windows-companion/w15/Celikom.UpdateSupervisor.Tests/Celikom.UpdateSupervisor.Tests.csproj -c Release
       - name: W110 unsigned production helper refuses automatic recovery
