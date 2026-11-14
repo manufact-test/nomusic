@@ -82,6 +82,29 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.toString()',part)
         self.assertNotIn('chain.proceed(new Object',part)
 
+    def test_private_exact_dex_gate_pins_reflection_signatures_and_resume_stages(self):
+        contract=(Path(__file__).resolve().parent /
+                  "a1_private_postlogin_contract.py").read_text(encoding="utf-8")
+        for snippet in (
+            '("LeY5$a;", "emit")',
+            '"Lkotlin/coroutines/Continuation;"',
+            '("LqY5;", "if")',
+            '"Lcom/yandex/passport/api/n0;"',
+            '"LOe2;"',
+            '("LnY5;", "invokeSuspend")',
+            '("LnY5;", "I", "continue")',
+            '("LqY5$a$a;", "LqY5$a;")',
+            '("LqY5$a$b;", "LqY5$a;")',
+            '("LqY5$a$c;", "LqY5$a;")',
+            '("LEd5;", "this")',
+            '("LiE6;", "public")',
+            '("Lol0;", "if")',
+            'previous_is_resume_label',
+            'ordered_and_labelled and {1, 2, 3} <= literals',
+            '"coroutine_resume_stage_contract_exact": True'):
+            self.assertIn(snippet,contract)
+        self.assertIn('observer_contract = _private_login_observer_contract(dexes)',contract)
+
     def test_no_result_spoofing_or_forced_navigation(self):
         s=self.code
         part=s[s.index('private synchronized void observeOriginalPostLoginReceipts('):

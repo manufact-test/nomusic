@@ -103,15 +103,158 @@ def required_callsites():
 
     }
 
+
+def _method_shape(dex: Dex, method_id: int):
+    owner, name, proto = dex.method_signature(method_id)
+    proto_count, proto_off = struct.unpack_from("<II", dex.data, 72)
+    if proto >= proto_count or proto_off + proto_count * 12 > len(dex.data):
+        raise DexError("PROTO_BOUND")
+    _, return_idx, params_off = struct.unpack_from(
+        "<III", dex.data, proto_off + proto * 12)
+    params = []
+    if params_off:
+        if params_off + 4 > len(dex.data):
+            raise DexError("TYPE_LIST_BOUND")
+        count = struct.unpack_from("<I", dex.data, params_off)[0]
+        if count > 64 or params_off + 4 + count * 2 > len(dex.data):
+            raise DexError("TYPE_LIST_BOUND")
+        params = [dex.type(struct.unpack_from(
+            "<H", dex.data, params_off + 4 + i * 2)[0])
+            for i in range(count)]
+    return owner, name, dex.type(return_idx), tuple(params)
+
+
+def _private_login_observer_contract(dexes: list[Dex]) -> dict:
+    # Exact reflection signatures used by the passive Android observer.
+    expected_methods = {
+        ("LeY5$a;", "emit"): (
+            "Ljava/lang/Object;",
+            ("Ljava/lang/Object;", "Lkotlin/coroutines/Continuation;")),
+        ("LqY5;", "if"): (
+            "Ljava/lang/Object;",
+            ("LqY5;", "Z", "Lcom/yandex/passport/api/n0;", "LOe2;")),
+        ("LnY5;", "invokeSuspend"): (
+            "Ljava/lang/Object;", ("Ljava/lang/Object;",)),
+    }
+    found = {key: [] for key in expected_methods}
+    field_matches = set()
+    super_matches = set()
+    stage_contract = False
+
+    for dex in dexes:
+        for method_id in range(dex.method_count):
+            owner, name, _ = dex.method_signature(method_id)
+            key = (owner, name)
+            if key in expected_methods:
+                found[key].append(_method_shape(dex, method_id)[2:])
+
+        field_count, field_off = struct.unpack_from("<II", dex.data, 80)
+        if field_count > 500000 or field_off + field_count * 8 > len(dex.data):
+            raise DexError("FIELD_TABLE_BOUND")
+        for index in range(field_count):
+            class_idx, type_idx, name_idx = struct.unpack_from(
+                "<HHI", dex.data, field_off + index * 8)
+            field_matches.add((
+                dex.type(class_idx), dex.type(type_idx), dex.string(name_idx)))
+
+        class_count, class_off = struct.unpack_from("<II", dex.data, 96)
+        if class_count > 500000 or class_off + class_count * 32 > len(dex.data):
+            raise DexError("CLASS_TABLE_BOUND")
+        for index in range(class_count):
+            class_idx, _, super_idx = struct.unpack_from(
+                "<III", dex.data, class_off + index * 32)
+            owner = dex.type(class_idx)
+            if owner in ("LnY5;", "LqY5$a$a;", "LqY5$a$b;", "LqY5$a$c;"):
+                superclass = (dex.type(super_idx)
+                              if super_idx != 0xFFFFFFFF else None)
+                super_matches.add((owner, superclass))
+
+        for method_id, code in dex.code_methods():
+            if dex.method(method_id) != ("LqY5;", "if"):
+                continue
+            instructions = decode_instructions(code)
+            calls = []
+            for index, (pc, opcode, _) in enumerate(instructions):
+                if opcode not in INVOKE_METHOD:
+                    continue
+                target = dex.method(struct.unpack_from("<H", code, pc + 2)[0])
+                if target in (("LEd5;", "this"),
+                              ("LiE6;", "public"),
+                              ("Lol0;", "if")):
+                    previous_is_resume_label = False
+                    for back in (1, 2):
+                        if index < back:
+                            continue
+                        prev_pc, prev_opcode, _ = instructions[index - back]
+                        if not 0x59 <= prev_opcode <= 0x5F:
+                            continue
+                        field_id = struct.unpack_from(
+                            "<H", code, prev_pc + 2)[0]
+                        if field_id >= field_count:
+                            continue
+                        field_base = field_off + field_id * 8
+                        previous_is_resume_label = (
+                            dex.type(struct.unpack_from(
+                                "<H", dex.data, field_base)[0]) == "LnY5;" and
+                            dex.type(struct.unpack_from(
+                                "<H", dex.data, field_base + 2)[0]) == "I" and
+                            dex.string(struct.unpack_from(
+                                "<I", dex.data, field_base + 4)[0]) == "continue")
+                        if previous_is_resume_label:
+                            break
+                    calls.append((target, previous_is_resume_label))
+            expected_order = [("LEd5;", "this"),
+                              ("LiE6;", "public"),
+                              ("Lol0;", "if")]
+            cursor = 0
+            ordered_and_labelled = True
+            for target in expected_order:
+                found_at = next((i for i in range(cursor, len(calls))
+                                 if calls[i][0] == target), None)
+                if found_at is None or not calls[found_at][1]:
+                    ordered_and_labelled = False
+                    break
+                cursor = found_at + 1
+            literals = set()
+            for pc, opcode, _ in instructions:
+                if opcode == 0x12:
+                    word = struct.unpack_from("<H", code, pc)[0]
+                    literal = (word >> 12) & 0xF
+                    literals.add(literal if literal < 8 else literal - 16)
+            stage_contract = ordered_and_labelled and {1, 2, 3} <= literals
+
+    if any(found[key] != [shape] for key, shape in expected_methods.items()):
+        raise DexError("PRIVATE_LOGIN_OBSERVER_SIGNATURE_MISMATCH")
+    required_fields = {("LnY5;", "I", "continue")}
+    required_supers = {
+        ("LnY5;", "LOe2;"),
+        ("LqY5$a$a;", "LqY5$a;"),
+        ("LqY5$a$b;", "LqY5$a;"),
+        ("LqY5$a$c;", "LqY5$a;"),
+    }
+    if not required_fields <= field_matches:
+        raise DexError("PRIVATE_LOGIN_RESUME_FIELD_MISMATCH")
+    if not required_supers <= super_matches or not stage_contract:
+        raise DexError("PRIVATE_LOGIN_RESUME_STAGE_MISMATCH")
+    return {
+        "login_flow_reflection_signature_exact": True,
+        "login_pipeline_reflection_signature_exact": True,
+        "coroutine_resume_stage_contract_exact": True,
+        "owner_auth_payload_accessed": False,
+    }
+
+
 def verify_original(apkbytes: bytes) -> dict:
     requirements = required_callsites()
     matched = set()
+    dexes = []
     with zipfile.ZipFile(io.BytesIO(apkbytes)) as apk:
         files = {f"classes{i if i>1 else ''}.dex" for i in range(1, ORIGINAL_CLASSES+1)}
         if not files <= set(apk.namelist()):
             raise ValueError("PRIVATE_ISSUER_DEX_SET_MISMATCH")
         for dex_name in sorted(files):
             dex = Dex(apk.read(dex_name))
+            dexes.append(dex)
             for idx, code in dex.code_methods():
                 owner, name = dex.method(idx)
                 key = (owner, name)
@@ -123,7 +266,9 @@ def verify_original(apkbytes: bytes) -> dict:
                     matched.add(key)
     if len(matched) != len(requirements):
         raise ValueError("PRIVATE_POSTLOGIN_CONTRACT_INCOMPLETE")
+    observer_contract = _private_login_observer_contract(dexes)
     return {"private_postlogin_contracts_present":len(matched),
+            **observer_contract,
             "original_dex_files":ORIGINAL_CLASSES,
             "owner_token_or_auth_was_accessed":False,
             "owner_login_success_proven":False,
