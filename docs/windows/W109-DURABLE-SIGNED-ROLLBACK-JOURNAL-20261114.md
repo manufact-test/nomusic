@@ -1,5 +1,7 @@
 # W109 — CELIKOM Windows durable rollback journal / 14 November 2026
 
+> **W112 extension:** journal schema 2 now stores previous and target SHA256 identities for the CELIKOM EXE, native host and renderer; W110 refuses legacy schema 1 for automatic action and checks all three installed files before health acceptance or rollback completion. Code `a7dbed8e19c9f23d952f689c1074c6057d0116d0`; CI [43577376444](https://github.com/manufact-test/nomusic/actions/runs/43577376444) and Windows [43577376383](https://github.com/manufact-test/nomusic/actions/runs/43577376383), both SUCCESS. Full contract and remaining production blockers: `docs/windows/W112-EXACT-SIGNED-PAYLOAD-IDENTITY-20261114.md`.
+
 > **Subsequent W110–W111 development:** a separately built internal watchdog and original-account DPAPI fingerprint now extend this journal. Green code @ `be6bda507aeeb68a7046a4ad12c41448d139860a`, CI `43575703455` and `43575703509` SUCCESS. See `docs/windows/W110-W111-INDEPENDENT-SUPERVISOR-SESSION-WITNESS-20261114.md`. **Production recovery is still OFF**, helper not bundled or signed; W109 statements below describe its historical implementation stage.
 
 ## Source and CI

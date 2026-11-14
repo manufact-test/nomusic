@@ -21,10 +21,18 @@
 - External W110 probe compares currently present account fingerprint against the journal, instead of reporting any readable new session as preserved. The supervisor refuses missing witness. CI tests absence, token rotation, installation-id replacement, account switch, encrypted-session corruption, and simulated new account failing health.
 - Witness is a preservation check, not an account secret or new login. No tokens are persisted outside the existing DPAPI store.
 
+## W112: exact signed installed-payload identity
+
+- Latest code `a7dbed8e19c9f23d952f689c1074c6057d0116d0`; Main CI [43577376444](https://github.com/manufact-test/nomusic/actions/runs/43577376444) and Windows integration [43577376383](https://github.com/manufact-test/nomusic/actions/runs/43577376383), both SUCCESS. Backup `backup/windows-main-post-w112-payload-identity-ci-green-20261114`.
+- Signed manifest schema 2 requires `applicationSha256`, `nativeHostSha256`, `rendererSha256`; the installer package hash remains separate. Schema 1 is rejected for new releases.
+- Staging refuses a VerifiedRelease with missing/invalid payload hashes. Journal schema 2 persists previous/target hashes for all three files; W110 refuses legacy schema 1 and checks exact installed EXE + `integration/host.cjs` + `integration/renderer.js` before health acceptance or rollback completion.
+- W15/W110 tests cover malformed/missing hashes, each file tampered, schema 1 rejection and DPAPI persistence. Detailed contract: `docs/windows/W112-EXACT-SIGNED-PAYLOAD-IDENTITY-20261114.md`.
+- This does **not** enable automatic updates: manifest feed/key and Authenticode certificate pin are not provisioned, helper pin remains empty, helper is not bundled/launched, and no real signed install/rollback has been tested.
+
 ## Do NOT misreport / remaining critical blockers
 1. **No active consumer automatic app updater or rollback yet.** W110 helper is NOT included in any installer, NOT launched from production CELIKOM, and the compiled signer-pin gate disables its production operation. No real owner-device crash recovery was attempted.
 2. Production Authenticode signing of installer/companion/helper, independently pinned signer certificate, separate signed-manifest public key, official stable feed and immutable publish must be present before enabling automatic installs.
-3. Bind installed **payload fingerprint** to the signed package manifest. Current W110 checks the installed signed EXE's version/publisher/signing certificate and running path; it does not yet compare the installed EXE bytes with an immutable signed payload hash.
+3. **W112 payload binding is implemented and CI-green:** schema-2 manifest pins app EXE, native host and renderer hashes; W110 verifies all three. Still add the supervisor binary hash when it is included in the installer and release feed.
 4. Connect verified app update staging, independent helper launch, safe idle-playback transaction and bounded consumer checking (startup / ~6 hours). Real Windows CI must prove killed-GUI recovery, logged-in session continuity, native module compatibility and one clean old-version restore before release.
 5. Previous W105–W109 docs and W101/W102 policy still control. Need physical owner PC acceptance for VPN A→B, #52 false green «Ты», #53 Brave load, #54 Big City Life mid-track volume dip, #56 gain, #57 403→206 hiss, #58 original audio pop on VPN switch, startup/diagnostics/tray.
 6. Still **no final signed EXE+ZIP**, no intermediate TEST installer, no mass publishing. Do not request new user credentials, passwords, emails or random secrets. Before every substantial change preserve exact `backup/*`, work solely in `main`, then require both CI gates and owner QA.
