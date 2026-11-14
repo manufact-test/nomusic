@@ -1,9 +1,10 @@
 namespace Celikom.Companion;
 
 /// <summary>
-/// W124: the single production stable-update transaction. It stays disabled
-/// until the build contains real P-256 and Authenticode pins. A signed update
-/// is staged, journaled, supervised and launched only while playback is idle.
+/// W124/W140: the single production stable-update transaction. Signed feed
+/// discovery and package staging run in the background during playback. The
+/// verified package is retained until the existing strict safe-point gate
+/// allows the Supervisor-controlled in-place installation.
 /// </summary>
 public static class StableUpdateInstallCoordinator
 {
@@ -19,6 +20,7 @@ public static class StableUpdateInstallCoordinator
     {
         TrustNotConfigured,
         Deferred,
+        DownloadedWaitingForSafePoint,
         NoUpdate,
         PendingTransaction,
         SupervisorNotReady,
@@ -42,35 +44,98 @@ public static class StableUpdateInstallCoordinator
         if (!StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
             trust is null)
             return new(Outcome.TrustNotConfigured);
-        if (!CanInstall(getContext()))
+
+        // This gate deliberately ignores active playback. Only another
+        // installer/integration operation may suppress background discovery.
+        if (!CanDownload(getContext()))
             return new(Outcome.Deferred);
 
         StableUpdatePackageStager.VerifiedInstaller? staged = null;
         StableUpdateRollbackJournal.Record? record = null;
         var journalPhase = StableUpdateRollbackJournal.Phase.Prepared;
+        var keepPendingPackage = false;
         var root = StableUpdateRollbackJournal.DefaultPrivateRoot;
 
         try
         {
-            var lastKnownGood = await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
-                trust.OfficialOrigin, trust.ManifestPublicKeyDer,
-                trust.SignerCertificateSha256, cancellationToken);
+            // Authenticate the currently installed version and all companion
+            // payloads without downloading its installer. This gives us the
+            // anti-downgrade sequence even before the first LKG bootstrap.
+            var installedRelease =
+                await StableUpdateBootstrapper.FetchInstalledSignedReleaseAsync(
+                    trust.OfficialOrigin, trust.ManifestPublicKeyDer,
+                    trust.SignerCertificateSha256, cancellationToken);
+
+            var lastAcceptedSequence = installedRelease.Sequence;
+            var hasLastKnownGood = false;
+            try
+            {
+                var cached = StableUpdateRollbackJournal.GetLastKnownGood(
+                    root, trust.SignerCertificateSha256);
+                if (cached.Release.Version != AppUpdateManager.RunningVersion ||
+                    cached.Release.Sequence != installedRelease.Sequence)
+                    throw new IOException("STABLE_UPDATE_CURRENT_LKG_MISMATCH");
+                lastAcceptedSequence = cached.Release.Sequence;
+                hasLastKnownGood = true;
+            }
+            catch (IOException e) when (e.Message == "STABLE_ROLLBACK_RECORD_MISSING")
+            {
+                // First signed bootstrap: the immutable current-version
+                // manifest supplies the monotonic sequence until LKG is seeded.
+            }
+
+            if (!CanDownload(getContext()))
+                return new(Outcome.Deferred);
 
             var latest = await StableUpdateManifestFetcher.FetchSignedIfNewerAsync(
                 trust.OfficialOrigin, trust.ManifestPublicKeyDer,
-                AppUpdateManager.RunningVersion, lastKnownGood.Release.Sequence,
+                AppUpdateManager.RunningVersion, lastAcceptedSequence,
                 cancellationToken);
             if (latest is null)
+            {
+                StableUpdatePackageStager.CleanupPendingPackages();
+                // Seed the initial rollback image only when the strict safe
+                // point is available. This never blocks music or installs.
+                if (!hasLastKnownGood && CanInstall(getContext()))
+                {
+                    await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
+                        trust.OfficialOrigin, trust.ManifestPublicKeyDer,
+                        trust.SignerCertificateSha256, cancellationToken);
+                }
                 return new(Outcome.NoUpdate);
+            }
 
-            staged = await StableUpdatePackageStager.FetchVerifiedAsync(
+            if (!CanDownload(getContext()))
+                return new(Outcome.Deferred);
+
+            // The package is fully SHA-256/Authenticode/PE verified before it
+            // enters the durable pending cache. A later pass re-verifies it
+            // against the freshly authenticated latest manifest.
+            staged = await StableUpdatePackageStager.FetchOrReusePendingAsync(
                 latest, trust.SignerCertificateSha256, cancellationToken);
 
-            // A user may start Yandex or CELIKOM while the package downloads.
-            // Recheck before creating a durable transaction or starting helper.
-            var installContext = getContext();
-            if (!CanInstall(installContext))
-                return new(Outcome.Deferred, latest.Version);
+            if (!CanInstall(getContext()))
+            {
+                keepPendingPackage = true;
+                return new(Outcome.DownloadedWaitingForSafePoint, latest.Version,
+                    "STABLE_UPDATE_DOWNLOADED_WAITING_FOR_SAFE_POINT");
+            }
+
+            // Initial LKG bootstrap is intentionally deferred until Yandex is
+            // idle; its download is not allowed to interrupt playback either.
+            var lastKnownGood =
+                await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
+                    trust.OfficialOrigin, trust.ManifestPublicKeyDer,
+                    trust.SignerCertificateSha256, cancellationToken);
+
+            // Bootstrap can take time. If Yandex started meanwhile, retain the
+            // verified pending package and retry only at a later safe point.
+            if (!CanInstall(getContext()))
+            {
+                keepPendingPackage = true;
+                return new(Outcome.DownloadedWaitingForSafePoint, latest.Version,
+                    "STABLE_UPDATE_DOWNLOADED_WAITING_FOR_SAFE_POINT");
+            }
 
             StableUpdatePackageStager.VerifyInstaller(
                 staged.Path, latest, trust.SignerCertificateSha256);
@@ -84,8 +149,12 @@ public static class StableUpdateInstallCoordinator
                 trust.SignerCertificateSha256,
                 AppUpdateManager.RunningVersion,
                 DateTimeOffset.UtcNow,
-                installContext.HasSession,
-                installContext.NativeWasInstalled);
+                getContext().HasSession,
+                getContext().NativeWasInstalled);
+
+            // The durable DPAPI transaction now owns byte-identical verified
+            // previous and target installers. The pending cache can be removed.
+            keepPendingPackage = false;
 
             if (!await StableUpdateSupervisorLauncher.StartAsync(record, cancellationToken))
             {
@@ -101,7 +170,8 @@ public static class StableUpdateInstallCoordinator
             {
                 TryAdvance(record.Id, StableUpdateRollbackJournal.Phase.Prepared,
                     StableUpdateRollbackJournal.Phase.ManualRecovery);
-                return new(Outcome.Deferred, latest.Version);
+                return new(Outcome.Deferred, latest.Version,
+                    "STABLE_UPDATE_SAFE_POINT_LOST_DURING_HANDSHAKE");
             }
 
             StableUpdateRollbackJournal.Advance(
@@ -136,6 +206,8 @@ public static class StableUpdateInstallCoordinator
             if (record is not null)
                 TryAdvance(record.Id, journalPhase,
                     StableUpdateRollbackJournal.Phase.ManualRecovery);
+            else if (staged is not null)
+                keepPendingPackage = true;
             throw;
         }
         catch (Exception e) when (IsPendingTransaction(e))
@@ -143,6 +215,8 @@ public static class StableUpdateInstallCoordinator
             if (record is not null)
                 TryAdvance(record.Id, journalPhase,
                     StableUpdateRollbackJournal.Phase.ManualRecovery);
+            else if (staged is not null)
+                keepPendingPackage = true;
             return new(Outcome.PendingTransaction);
         }
         catch
@@ -150,14 +224,19 @@ public static class StableUpdateInstallCoordinator
             if (record is not null)
                 TryAdvance(record.Id, journalPhase,
                     StableUpdateRollbackJournal.Phase.ManualRecovery);
+            else if (staged is not null)
+                keepPendingPackage = true;
             return new(Outcome.Failed, null, "STABLE_UPDATE_CHECK_FAILED");
         }
         finally
         {
-            if (staged is not null)
-                StableUpdatePackageStager.CleanupVerifiedStage(staged);
+            if (staged is not null && !keepPendingPackage)
+                StableUpdatePackageStager.CleanupStagedPackage(staged);
         }
     }
+
+    private static bool CanDownload(Context context) =>
+        StableUpdateInstallSafety.CanDownload(context.InstallerBusy);
 
     private static bool CanInstall(Context context) =>
         StableUpdateInstallSafety.CanInstall(

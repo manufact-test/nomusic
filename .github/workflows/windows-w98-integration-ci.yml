@@ -110,6 +110,9 @@ jobs:
           $stableManifestVerifierText=Get-Content ..\w15\Celikom.Companion\StableUpdateManifestVerifier.cs -Raw
           $stableManifestFetcherText=Get-Content ..\w15\Celikom.Companion\StableUpdateManifestFetcher.cs -Raw
           $stableCoordinatorText=Get-Content ..\w15\Celikom.Companion\StableUpdateInstallCoordinator.cs -Raw
+          $stablePackageStagerText=Get-Content ..\w15\Celikom.Companion\StableUpdatePackageStager.cs -Raw
+          $stableBootstrapperText=Get-Content ..\w15\Celikom.Companion\StableUpdateBootstrapper.cs -Raw
+          $stableTestsText=Get-Content ..\w15\Celikom.Companion.Tests\Program.cs -Raw
           $mainWindowStableText=Get-Content ..\w15\Celikom.Companion\MainWindow.StableUpdate.cs -Raw
           $appUpdateManagerText=Get-Content ..\w15\Celikom.Companion\AppUpdateManager.cs -Raw
           $detachStart=$nativeHostText.IndexOf('debug.on("detach"', [StringComparison]::Ordinal)
@@ -169,10 +172,25 @@ jobs:
             $stableCoordinatorText.Contains('StableUpdateInstallSafety.CanInstall'),
             $stableCoordinatorText.Contains('StableUpdateRollbackJournal.Phase.Prepared'),
             $stableCoordinatorText.Contains('StableUpdateRollbackJournal.Phase.InstallerStarted'),
+            $stableCoordinatorText.Contains('StableUpdateInstallSafety.CanDownload'),
+            $stableCoordinatorText.Contains('StableUpdatePackageStager.FetchOrReusePendingAsync'),
+            $stableCoordinatorText.Contains('Outcome.DownloadedWaitingForSafePoint'),
+            $stablePackageStagerText.Contains('GetPendingPackagePath'),
+            $stablePackageStagerText.Contains('CleanupPendingPackages'),
+            $stableBootstrapperText.Contains('FetchInstalledSignedReleaseAsync'),
+            $stableTestsText.Contains('CanDownload(installerBusy: false)'),
             $mainWindowStableText.Contains('Interval = 30 * 60 * 1000'),
             $mainWindowStableText.Contains('StableUpdateInstallCoordinator.CheckAndInstallAsync'),
             $appUpdateManagerText.Contains('LaunchVerifiedSigned')
           )
+          $downloadGateIndex=$stableCoordinatorText.IndexOf('StableUpdateInstallSafety.CanDownload', [StringComparison]::Ordinal)
+          $manifestIndex=$stableCoordinatorText.IndexOf('StableUpdateManifestFetcher.FetchSignedIfNewerAsync', [StringComparison]::Ordinal)
+          $stageIndex=$stableCoordinatorText.IndexOf('StableUpdatePackageStager.FetchOrReusePendingAsync', [StringComparison]::Ordinal)
+          $installGateIndex=$stableCoordinatorText.IndexOf('CanInstall(getContext())', [StringComparison]::Ordinal)
+          if ($downloadGateIndex -lt 0 -or $manifestIndex -le $downloadGateIndex -or
+              $stageIndex -le $manifestIndex -or $installGateIndex -le $stageIndex) {
+            throw 'W140_DOWNLOAD_MUST_PRECEDE_SAFE_INSTALL_GATE'
+          }
           Write-Host "W103_W23_GUARD_CHECKS=$($guardChecks -join ',')"
           if ($guardChecks -contains $false) {
             throw 'W103_W23_INTEGRATION_GUARDS_MISSING'

@@ -102,6 +102,18 @@ try
         nextBytes.Length, nextHash, rollbackAt.AddDays(7), false, "",
         ApplicationSha256: nextAppHash, NativeHostSha256: nextHostHash,
         RendererSha256: nextRendererHash, SupervisorSha256: nextSupervisorHash);
+    var pendingCacheRoot = Path.Combine(rollbackFixtureRoot, "pending-cache");
+    var pendingTargetPath = StableUpdatePackageStager.GetPendingPackagePath(
+        pendingCacheRoot, targetRelease);
+    var pendingDifferentHashPath = StableUpdatePackageStager.GetPendingPackagePath(
+        pendingCacheRoot, targetRelease with { Sha256 = prevHash });
+    Test(pendingTargetPath.StartsWith(
+             Path.GetFullPath(pendingCacheRoot) + Path.DirectorySeparatorChar,
+             StringComparison.OrdinalIgnoreCase) &&
+         pendingTargetPath.EndsWith(
+             $"CELIKOM-0.24.37-41-{nextHash}.exe", StringComparison.Ordinal) &&
+         pendingTargetPath != pendingDifferentHashPath,
+         "W140 pending package cache is bound to exact signed version, sequence and SHA-256");
     var testSignerPin = new string('b', 64);
     var verifiedImages = 0;
     void VerifySyntheticSetup(string file,
@@ -628,6 +640,9 @@ try
          !StableUpdateInstallSafety.CanInstall(false, false, false, false) &&
          !StableUpdateInstallSafety.CanInstall(false, false, true, true),
          "W105 never interrupt Yandex audio or install with unknown playback state");
+    Test(StableUpdateInstallSafety.CanDownload(installerBusy: false) &&
+         !StableUpdateInstallSafety.CanDownload(installerBusy: true),
+         "W140 signed feed discovery and package download remain available during playback, but defer during installer work");
 
     // W101: signed stable update contracts are read-only and fail closed.
     // No unattended updater is enabled while signing/rollback gates are missing.

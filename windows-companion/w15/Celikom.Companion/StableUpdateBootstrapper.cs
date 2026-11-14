@@ -10,6 +10,8 @@ namespace Celikom.Companion;
 /// </summary>
 public static class StableUpdateBootstrapper
 {
+    private static readonly SemaphoreSlim BootstrapGate = new(1, 1);
+
     public sealed record InstalledPayloadPaths(
         string Application, string NativeHost, string Renderer, string Supervisor)
     {
@@ -32,8 +34,14 @@ public static class StableUpdateBootstrapper
         }
     }
 
-    public static async Task<StableUpdateRollbackJournal.CachedSignedPackage>
-        EnsureInitialLastKnownGoodAsync(
+    /// <summary>
+    /// Verifies the exact signed manifest and all four installed payloads for
+    /// the running version. This lightweight identity check allows the app to
+    /// discover/download a newer package while Yandex is playing; it does not
+    /// seed rollback state or launch an installer.
+    /// </summary>
+    public static async Task<StableUpdateManifestVerifier.VerifiedRelease>
+        FetchInstalledSignedReleaseAsync(
             Uri officialOrigin, byte[] pinnedPublicKey,
             string pinnedSignerCertificateSha256,
             CancellationToken cancellationToken = default)
@@ -46,8 +54,52 @@ public static class StableUpdateBootstrapper
             throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
 
         var installed = InstalledPayloadPaths.CurrentProcess();
-        // The running assembly version is authoritative here; the signed
-        // manifest then binds the exact executable and all companion payloads.
+        var installedVersion = AppUpdateManager.RunningVersion;
+        if (installedVersion.Major < 0 || installedVersion.Minor < 0 ||
+            installedVersion.Build < 0)
+            throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_INSTALLED_IDENTITY_INVALID");
+
+        var release = await StableUpdateManifestFetcher.FetchSignedVersionAsync(
+            officialOrigin, pinnedPublicKey, installedVersion, cancellationToken);
+        if (!SameVersion(release.Version, installedVersion))
+            throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_VERSION_MISMATCH");
+        VerifyInstalledPayloads(release, installed);
+        return release;
+    }
+
+    public static async Task<StableUpdateRollbackJournal.CachedSignedPackage>
+        EnsureInitialLastKnownGoodAsync(
+            Uri officialOrigin, byte[] pinnedPublicKey,
+            string pinnedSignerCertificateSha256,
+            CancellationToken cancellationToken = default)
+    {
+        await BootstrapGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await EnsureInitialLastKnownGoodCoreAsync(
+                officialOrigin, pinnedPublicKey, pinnedSignerCertificateSha256,
+                cancellationToken);
+        }
+        finally
+        {
+            BootstrapGate.Release();
+        }
+    }
+
+    private static async Task<StableUpdateRollbackJournal.CachedSignedPackage>
+        EnsureInitialLastKnownGoodCoreAsync(
+            Uri officialOrigin, byte[] pinnedPublicKey,
+            string pinnedSignerCertificateSha256,
+            CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+            throw new IOException("STABLE_ROLLBACK_WINDOWS_ONLY");
+        if (pinnedSignerCertificateSha256 is not { Length: 64 } ||
+            !Regex.IsMatch(pinnedSignerCertificateSha256,
+                "^[a-f0-9]{64}$", RegexOptions.CultureInvariant))
+            throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
+
+        var installed = InstalledPayloadPaths.CurrentProcess();
         var installedVersion = AppUpdateManager.RunningVersion;
         if (installedVersion.Major < 0 || installedVersion.Minor < 0 ||
             installedVersion.Build < 0)

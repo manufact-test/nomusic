@@ -68,6 +68,144 @@ public static class StableUpdatePackageStager
     }
 
     /// <summary>
+    /// Downloads or reuses the exact authenticated package in a durable,
+    /// user-scoped pending cache. The manifest is re-fetched and verified on
+    /// every scheduler pass; the cached EXE is always rechecked before reuse.
+    /// </summary>
+    public static async Task<VerifiedInstaller> FetchOrReusePendingAsync(
+        StableUpdateManifestVerifier.VerifiedRelease release,
+        string pinnedSignerCertSha256,
+        CancellationToken cancellationToken = default)
+    {
+        EnsurePendingDirectory();
+        var pendingRoot = PendingRoot;
+        var pendingPath = GetPendingPackagePath(pendingRoot, release);
+
+        if (File.Exists(pendingPath))
+        {
+            try
+            {
+                VerifyInstaller(pendingPath, release, pinnedSignerCertSha256);
+                CleanupPendingPackages(pendingPath);
+                return new VerifiedInstaller(pendingPath, release.Version,
+                    release.Sequence, release.Sha256);
+            }
+            catch
+            {
+                TryDeletePendingFile(pendingPath);
+            }
+        }
+
+        var downloaded = await FetchVerifiedAsync(
+            release, pinnedSignerCertSha256, cancellationToken);
+        try
+        {
+            EnsurePendingDirectory();
+            File.Move(downloaded.Path, pendingPath, overwrite: true);
+            VerifyInstaller(pendingPath, release, pinnedSignerCertSha256);
+            CleanupPendingPackages(pendingPath);
+            return new VerifiedInstaller(pendingPath, release.Version,
+                release.Sequence, release.Sha256);
+        }
+        catch
+        {
+            TryDeletePendingFile(pendingPath);
+            throw;
+        }
+        finally
+        {
+            CleanupVerifiedStage(downloaded);
+        }
+    }
+
+    internal static string GetPendingPackagePath(
+        string root, StableUpdateManifestVerifier.VerifiedRelease release)
+    {
+        if (string.IsNullOrWhiteSpace(root) || release is null ||
+            release.Version.Major < 0 || release.Version.Minor < 0 ||
+            release.Version.Build < 0 || release.Sequence <= 0 ||
+            !CertFingerprint.IsMatch(release.Sha256 ?? ""))
+            throw new IOException("STABLE_UPDATE_PENDING_IDENTITY_INVALID");
+
+        var name = $"CELIKOM-{release.Version.ToString(3)}-{release.Sequence}-" +
+            release.Sha256.ToLowerInvariant() + ".exe";
+        return Path.Combine(Path.GetFullPath(root), name);
+    }
+
+    /// <summary>Remove stale cached update packages after an authenticated no-update result.</summary>
+    public static void CleanupPendingPackages() => CleanupPendingPackages(null);
+
+    private static void CleanupPendingPackages(string? keepPath)
+    {
+        try
+        {
+            var root = PendingRoot;
+            if (!Directory.Exists(root) ||
+                File.GetAttributes(root).HasFlag(FileAttributes.ReparsePoint))
+                return;
+            var keep = string.IsNullOrWhiteSpace(keepPath)
+                ? "" : Path.GetFullPath(keepPath);
+            foreach (var file in Directory.EnumerateFiles(
+                root, "CELIKOM-*.exe", SearchOption.TopDirectoryOnly))
+            {
+                if (keep.Length > 0 &&
+                    string.Equals(Path.GetFullPath(file), keep,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+                TryDeletePendingFile(file);
+            }
+        }
+        catch { /* Cache cleanup must never turn a valid update into a launch. */ }
+    }
+
+    internal static void CleanupStagedPackage(VerifiedInstaller installer)
+    {
+        if (installer is null) return;
+        try
+        {
+            var root = Path.GetFullPath(PendingRoot) + Path.DirectorySeparatorChar;
+            var path = Path.GetFullPath(installer.Path);
+            if (path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                TryDeletePendingFile(path);
+                return;
+            }
+        }
+        catch { }
+        CleanupStage(installer.Path);
+    }
+
+    private static string PendingRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CELIKOM", "Windows", "StableUpdates", "Pending");
+
+    private static void EnsurePendingDirectory()
+    {
+        var local = Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(local))
+            throw new IOException("STABLE_UPDATE_LOCAL_DATA_ROOT_MISSING");
+        var current = Path.GetFullPath(local);
+        foreach (var segment in new[] { "CELIKOM", "Windows", "StableUpdates", "Pending" })
+        {
+            current = Path.Combine(current, segment);
+            Directory.CreateDirectory(current);
+            if (File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException("STABLE_UPDATE_PENDING_REPARSE_POINT");
+        }
+    }
+
+    private static void TryDeletePendingFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path); // Also removes a file reparse point itself, never its target.
+        }
+        catch { }
+    }
+
+    /// <summary>
     /// Recheck immediately before any eventual installer launch. Never trust
     /// a staged path just because it passed at an earlier moment.
     /// </summary>
@@ -237,6 +375,10 @@ public static class StableUpdatePackageStager
 /// </summary>
 public static class StableUpdateInstallSafety
 {
+    // Feed checks and verified package downloads are background work. Only
+    // the final installer launch is gated by the live Yandex/playback state.
+    public static bool CanDownload(bool installerBusy) => !installerBusy;
+
     public static bool CanInstall(
         bool bridgeEnabled, bool yandexProcessRunning,
         bool playbackStateKnown, bool installerBusy) =>
