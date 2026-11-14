@@ -141,7 +141,7 @@ try {
                 continue;
             }
             if ($currentCount !== (int) $beforeCount)
-                throw new RuntimeException('database-row-count-changed');
+                throw new RuntimeException('database-row-count-changed-' . str_replace('_', '-', $table));
         }
         foreach (['promo_codes','promo_redemptions','promo_attempt_buckets', 'windows_gain_variants', 'support_tickets', 'support_messages'] as $table) {
             if (array_key_exists($table,$baseline['tables'])) continue;

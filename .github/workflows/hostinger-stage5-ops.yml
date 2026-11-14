@@ -6,7 +6,9 @@ on:
     branches: [main]
     paths:
       - .github/scripts/hostinger-stage5.sh
+      - .github/scripts/hostinger-stage5-remote.php
       - .github/deploy/hostinger-stage5-request.json
+      - .github/workflows/hostinger-stage5-ops.yml
 
 permissions:
   contents: read

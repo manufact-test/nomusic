@@ -2,9 +2,7 @@ name: CELIKOM W90 all boosted Windows tracks LIVE READ-ONLY inventory
 on:
   push:
     branches:
-      - experiment/windows-w90-boosted-tracks-gain-parity-20261113
-      - experiment/windows-w92-audio-volume-stall-witness-20261113
-      - experiment/windows-w98-integrated-gain-and-original-vpn-20261113
+      - main
     paths:
       - .github/workflows/windows-w90-live-gain-audit-readonly.yml
   workflow_dispatch:
