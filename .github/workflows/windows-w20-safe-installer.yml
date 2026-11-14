@@ -83,13 +83,17 @@ jobs:
           if (-not (Test-Path $compiler)) { throw 'W20_INNO_COMPILER_NOT_FOUND' }
           & $compiler windows-companion/w20/installer/CELIKOM.iss
           if ($LASTEXITCODE -ne 0) { throw 'W20_INSTALLER_COMPILE_FAILED' }
+      - name: Resolve current CELIKOM installer name and version from source
+        shell: pwsh
+        run: |
+          & ./windows-companion/w20/stage-package-identity.ps1 -RequireBuilt
       - name: Validate updater ZIP selection, PE version and anti-downgrade
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installer = 'windows-companion/w20/output/CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED.exe'
+          $installer = $env:CELIKOM_STAGE_INSTALLER
           $meta = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $installer))
-          if ($meta.FileVersion.Trim() -ne '0.24.7.0' -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
+          if ($meta.FileVersion.Trim() -ne $env:CELIKOM_STAGE_FILE_VERSION -or $meta.ProductName.Trim() -ne 'CELIKOM' -or $meta.CompanyName.Trim() -ne 'CELIKOM') {
             throw "W32_INSTALLER_PE_VERSION_MISMATCH: version=$($meta.FileVersion) product=$($meta.ProductName) company=$($meta.CompanyName)"
           }
           $package = Join-Path $env:RUNNER_TEMP 'CELIKOM-W32-test-package.zip'
@@ -117,7 +121,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\CELIKOM.Companion.exe'
           $unins = Join-Path $env:LOCALAPPDATA 'Programs\CELIKOM\unins000.exe'
-          $installer = 'windows-companion/w20/output/CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED.exe'
+          $installer = $env:CELIKOM_STAGE_INSTALLER
           $yandexDir = Join-Path $env:LOCALAPPDATA 'Programs\YandexMusic'
           if (Test-Path $exe) { throw 'W20_DIRTY_INSTALL_RUNNER' }
           if (Test-Path $yandexDir) { throw 'W20_RUNNER_YANDEX_PREEXISTS' }
@@ -157,13 +161,13 @@ jobs:
       - name: Report internal package fingerprint
         shell: pwsh
         run: |
-          $hash = (Get-FileHash windows-companion/w20/output/CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED.exe -Algorithm SHA256).Hash
+          $hash = (Get-FileHash -LiteralPath $env:CELIKOM_STAGE_INSTALLER -Algorithm SHA256).Hash
           Write-Output "W20_INTERNAL_UNSIGNED_SHA256=$hash"
           Write-Output 'W24 INTERNAL: installer and restoration; native audible playback NOT YET ACCEPTED'
       - name: Retain INTERNAL staging build, not a release
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED
-          path: windows-companion/w20/output/CELIKOM-W56-SIGNED-QUERY-GUARD-UNSIGNED.exe
+          name: CELIKOM-Windows-internal-stage-${{ github.sha }}
+          path: ${{ env.CELIKOM_STAGE_INSTALLER }}
           if-no-files-found: error
           retention-days: 10
