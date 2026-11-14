@@ -191,6 +191,10 @@ public final class ExitCallsiteWitness extends XposedModule {
         mediaExtractorObservedSources = new java.util.ArrayList<>();
     private final java.util.concurrent.atomic.AtomicInteger mediaReaderIdentityMatches =
         new java.util.concurrent.atomic.AtomicInteger();
+    // Only finite source/read/extractor categories are kept in memory.
+    // Export on explicit owner action; never write from the audio readAt hot path.
+    // This is NOT audible replacement, current-track identity or grant proof.
+    private static final StageBAudioEvidence STAGE_B_AUDIO = new StageBAudioEvidence();
 
     private void rememberMediaExtractorSource(Object obj) {
         if (obj == null) return;
@@ -2418,6 +2422,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 // Candidate index is stable: exact sorted signed-2025 class table.
                 // Never emit the real class name, object identity, or media data.
                 final String privateReaderKind=i==0 ? "CANDIDATE_0":"CANDIDATE_1";
+                final int privateReaderIndex=i;
                 if (!className.matches("[A-Za-z0-9_$.]{2,180}")) break;
                 Class<?> impl=Class.forName(className,false,appLoader);
                 if (!android.media.MediaDataSource.class.isAssignableFrom(impl)) break;
@@ -2434,8 +2439,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 emit("MEDIA_DS_SOURCE","MEDIA_DATA_SOURCE",privateReaderKind);
                                 emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","ENTER");
                             }
-                            if (readerWasPassedToExtractor(chain.getThisObject())
-                                    && mediaReaderIdentityMatches.incrementAndGet()<=8)
+                            boolean sameSource = readerWasPassedToExtractor(chain.getThisObject());
+                            STAGE_B_AUDIO.onReader(privateReaderIndex, sameSource);
+                            if (sameSource && mediaReaderIdentityMatches.incrementAndGet()<=8)
                                 emit("MEDIA_DS_EXTRACTOR_LINK","MEDIA_DATA_SOURCE",privateReaderKind);
                         } catch (Throwable ignored) { }
                         Object result;
@@ -2444,12 +2450,15 @@ public final class ExitCallsiteWitness extends XposedModule {
                             result=chain.proceed();
                         } catch (Throwable failure) {
                             try {
+                                STAGE_B_AUDIO.onReadException();
                                 if (count<=12)
                                     emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","THROW");
                             } catch (Throwable ignored) { }
                             throw failure;
                         }
                         try {
+                            STAGE_B_AUDIO.onReadReturn(
+                                result instanceof Integer ? (Integer) result : Integer.MIN_VALUE);
                             if (count<=12)
                                 emit("MEDIA_DS_READ","MEDIA_DATA_SOURCE","RETURN");
                         } catch (Throwable ignored) { }
@@ -2494,6 +2503,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                             category="CANDIDATE_0";
                         else if (expectedClasses[1].equals(source.getClass().getName()))
                             category="CANDIDATE_1";
+                        STAGE_B_AUDIO.onExtractorSource(
+                            "CANDIDATE_0".equals(category) ? 0
+                                : "CANDIDATE_1".equals(category) ? 1 : -1);
                         if ("CANDIDATE_0".equals(category) || "CANDIDATE_1".equals(category))
                             rememberMediaExtractorSource(source);
                         if (count<=8) {
@@ -3869,6 +3881,14 @@ public final class ExitCallsiteWitness extends XposedModule {
                 byte[] buffer = new byte[8192];
                 int read;
                 while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                // The audio observer deliberately NEVER writes on readAt().
+                // Only explicit export captures bounded, privacy-safe counters
+                // from the current in-memory clone MAIN process. These do not
+                // prove playback, exact track identity or CELIKOM replacement.
+                for (String summary : STAGE_B_AUDIO.exportLines()) {
+                    output.write(summary.getBytes(StandardCharsets.UTF_8));
+                    output.write('\n');
+                }
                 // The :passport process has its own private bounded log: no
                 // cross-process file writes/locks and no account data collected.
                 File passport = new File(context.getFilesDir(), PASSPORT_DIAGNOSTIC_FILE);

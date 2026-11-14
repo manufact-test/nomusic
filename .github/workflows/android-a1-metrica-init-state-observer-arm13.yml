@@ -99,6 +99,7 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_metrica_manifest_preserved_detail_control.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_persistent_owner_signer.py
