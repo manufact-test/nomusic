@@ -8,6 +8,8 @@ The publisher-signed APK is downloaded and inspected only in ephemeral CI.
 """
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import os
 import re
@@ -19,13 +21,19 @@ HERE = Path(__file__).resolve().parent
 sys_path = HERE.parents[1] / "tools" / "android-native-gate1"
 import sys
 sys.path.insert(0, str(sys_path))
+sys.path.insert(0, str(HERE / "ci"))
 
 from inspect_android_host import Dex, DexError, DEX_MAX
+from uptodown_2025_gpr_ephemeral_verify import (
+    unbundle_candidate, verify_split_set
+)
 from trace_native_callers import uleb, INVOKES
 from audit_native_register_bridge import (
     instructions, invoke_registers, move_object_registers
 )
-import clone_native_splits_ephemeral as exact
+PINNED_XAPK_BYTES = 45961661
+PINNED_XAPK_SHA256 = "8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053"
+PUBLISHER_VERSION = "2025.10.4 #120.1gpr"
 
 MODEL = "Lru/yandex/music/data/audio/o;"
 WRAPPER = "LtCa;"
@@ -373,30 +381,36 @@ def inspect_signed(apks):
     }
 
 
-def run():
+def run(xapk: Path):
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise RuntimeError("EPHEMERAL_CI_ONLY")
+    if not xapk.is_file() or xapk.stat().st_size != PINNED_XAPK_BYTES:
+        raise ValueError("PINNED_2025_XAPK_SIZE_MISMATCH")
+    digest = hashlib.sha256(xapk.read_bytes()).hexdigest()
+    if digest != PINNED_XAPK_SHA256:
+        raise ValueError("PINNED_2025_XAPK_SHA_MISMATCH")
     with tempfile.TemporaryDirectory(prefix="celikom-native-selected-item-audit-") as temp:
         folder = Path(temp)
-        archive = folder / "publisher-original.xapk"
-        size, digest = exact.gpr.download(archive)
-        if size != 60433885 or digest != exact.ARCHIVE_SHA:
-            raise ValueError("PINNED_PUBLISHER_ARCHIVE_MISMATCH")
-        apks = exact.gpr.split_apks(archive, folder)
+        apks = unbundle_candidate(xapk, folder)
         if len(apks) != 5:
-            raise ValueError("FIVE_SIGNED_SPLITS_REQUIRED")
-        exact.gpr.inspect_publisher(apks)
+            raise ValueError("FIVE_2025_SIGNED_SPLITS_REQUIRED")
+        publisher = verify_split_set(apks)
         report = inspect_signed(apks)
     return {
         **report,
-        "publisher_version": "2026.10.3 #170gpr",
+        "publisher_version": PUBLISHER_VERSION,
+        "publisher_signature_verification": publisher,
+        "pinned_archive_sha256_verified": True,
         "no_login_no_user_media_no_decoder_mutation": True,
     }
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--xapk", required=True, type=Path)
+    args = parser.parse_args()
     try:
-        print(json.dumps(run(), sort_keys=True, ensure_ascii=False))
+        print(json.dumps(run(args.xapk), sort_keys=True, ensure_ascii=False))
     except (RuntimeError, ValueError, DexError, OSError, zipfile.BadZipFile) as exc:
         print(json.dumps({
             "verdict": "SIGNED_NATIVE_SELECTED_ITEM_AUDIT_INCOMPLETE",

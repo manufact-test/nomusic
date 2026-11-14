@@ -9,6 +9,15 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(parse_types("(ILjava/lang/String;[B[[JDLru/yandex/music/data/audio/o;)V"),
             ["I", "Ljava/lang/String;", "[B", "[[J", "D", MODEL])
 
+    def test_pinned_input_is_the_exact_2025_owner_asset(self):
+        from audit_native_selected_item_handoff import (
+            PINNED_XAPK_BYTES, PINNED_XAPK_SHA256, PUBLISHER_VERSION
+        )
+        self.assertEqual(PINNED_XAPK_BYTES, 45961661)
+        self.assertEqual(PINNED_XAPK_SHA256,
+            "8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053")
+        self.assertEqual(PUBLISHER_VERSION, "2025.10.4 #120.1gpr")
+
     def test_descriptor_builder_is_exact(self):
         self.assertEqual(DESCRIPTOR_BUILDER,
             ("Lcom/yandex/music/shared/player/download2/o;", "while"))
