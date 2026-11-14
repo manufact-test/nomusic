@@ -193,6 +193,18 @@ Check(await incompleteEngine.TickAsync(start.AddMinutes(21)) ==
       limitedLaunch.LaunchCount == 0,
       "failed restore health never triggers another install loop");
 
+if (OperatingSystem.IsWindows())
+{
+    var handshakeId = Guid.NewGuid();
+    await using var readyPipe = StableUpdateSupervisorHandshake.CreateServer(handshakeId);
+    using var handshakeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    var signal = StableUpdateSupervisorHandshake.SignalReadyAsync(
+        handshakeId, handshakeTimeout.Token);
+    var ready = await StableUpdateSupervisorHandshake.WaitForReadyAsync(
+        readyPipe, handshakeTimeout.Token);
+    await signal;
+    Check(ready, "W122 same-user named-pipe handshake proves the Supervisor has validated its ticket before installer launch");
+}
 Console.WriteLine("W110_INDEPENDENT_SUPERVISOR_CONTRACT_PASS " + checks);
 
 sealed class FakeJournal(StableUpdateRollbackJournal.Record initial) : ISupervisorJournal

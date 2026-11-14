@@ -43,6 +43,12 @@ public static class StableUpdateRollbackJournal
         "CELIKOM", "Windows", "StableRollback");
     private const string PreviousName = "previous-signed-setup.exe";
     private const string TargetName = "target-signed-setup.exe";
+    public static string GetSnapshotDirectory(string privateRoot, Guid transaction)
+    {
+        if (transaction == Guid.Empty)
+            throw new IOException("STABLE_ROLLBACK_TRANSACTION_INVALID");
+        return Path.Combine(FullRoot(privateRoot), transaction.ToString("N"));
+    }
     private static readonly byte[] Purpose =
         System.Text.Encoding.UTF8.GetBytes("CELIKOM.Windows.StableRollback.W109.v1");
 

@@ -104,6 +104,9 @@ jobs:
           $recoverySource=Get-Content transient-source-recovery.mjs -Raw
           $mainWindowText=Get-Content ..\w15\Celikom.Companion\MainWindow.cs -Raw
           $startGateText=Get-Content ..\w15\Celikom.Companion\PlaybackStartGate.cs -Raw
+          $supervisorLauncherText=Get-Content ..\w15\Celikom.Companion\StableUpdateSupervisorLauncher.cs -Raw
+          $supervisorProgramText=Get-Content ..\w15\Celikom.UpdateSupervisor\Program.cs -Raw
+          $supervisorTestsText=Get-Content ..\w15\Celikom.UpdateSupervisor.Tests\Program.cs -Raw
           $guardChecks=@(
             $nativeHostText.Contains('maxTotalBufferSize: 2 * 1024 * 1024'),
             $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
@@ -120,7 +123,12 @@ jobs:
             $recoverySource.Contains('job.phase === "reload"'),
             (([regex]::Matches($mainWindowText, 'PlaybackStartGate\.CanAcceptStart\(')).Count -ge 2),
             $mainWindowText.Contains('_compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…"'),
-            $startGateText.Contains('!compactStarting')
+            $startGateText.Contains('!compactStarting'),
+            $supervisorLauncherText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync'),
+            $supervisorLauncherText.Contains('record.State != StableUpdateRollbackJournal.Phase.Prepared'),
+            $supervisorLauncherText.Contains('Process.Start'),
+            $supervisorProgramText.Contains('StableUpdateSupervisorHandshake.SignalReadyAsync'),
+            $supervisorTestsText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync')
           )
           Write-Host "W103_W23_GUARD_CHECKS=$($guardChecks -join ',')"
           if ($guardChecks -contains $false) {

@@ -40,13 +40,35 @@ internal static class Program
             new WindowsSupervisorHealthProbe(productionSignerCertificateSha256),
             new WindowsSignedRollbackLauncher());
 
-        // Independent of the GUI: this process remains alive while the
-        // original CELIKOM executable is replaced or crashes.
+        // Validate that the engine can read and classify the durable ticket
+        // before acknowledging readiness to the GUI launcher.
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(35));
         try
         {
+            var first = await engine.TickAsync(DateTimeOffset.UtcNow, timeout.Token);
+            if (first is UpdateSupervisorEngine.Step.Completed or
+                UpdateSupervisorEngine.Step.NewApplicationHealthy or
+                UpdateSupervisorEngine.Step.PreviousVersionRestored)
+                return 0;
+            if (first == UpdateSupervisorEngine.Step.ManualRecovery)
+                return 5;
+            if (first is not (UpdateSupervisorEngine.Step.Waiting or
+                UpdateSupervisorEngine.Step.NewApplicationSeen))
+                return 7;
+
+            // The same-user main app waits for this signal before it advances
+            // Prepared -> InstallerStarted and launches the signed installer.
+            using var readyTimeout = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+            readyTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+            if (!await StableUpdateSupervisorHandshake.SignalReadyAsync(
+                transaction, readyTimeout.Token))
+                return 9;
+
+            // Independent of the GUI: this process remains alive while the
+            // original CELIKOM executable is replaced or crashes.
             while (!timeout.Token.IsCancellationRequested)
             {
+                await Task.Delay(TimeSpan.FromSeconds(2), timeout.Token);
                 var result = await engine.TickAsync(DateTimeOffset.UtcNow, timeout.Token);
                 if (result is UpdateSupervisorEngine.Step.Completed or
                     UpdateSupervisorEngine.Step.NewApplicationHealthy or
@@ -54,7 +76,6 @@ internal static class Program
                     return 0;
                 if (result == UpdateSupervisorEngine.Step.ManualRecovery)
                     return 5;
-                await Task.Delay(TimeSpan.FromSeconds(2), timeout.Token);
             }
             return 6; // unresolved transaction kept for explicit recovery
         }
