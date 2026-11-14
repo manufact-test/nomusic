@@ -105,3 +105,15 @@ The Entry receiver-side result event now has an independent 48-event quota rathe
 ## NAV13 quota-fix CI update — 14 Nov 2026
 
 Quota-fix clone-alone rerun #43581508098 completed SUCCESS with native clone MAIN stable 75s, `ORIGINAL_KEY_PERSISTED`, `ONBOARDING_WRITER_HOOK=REGISTERED`, and no uncaught exception. This is not a Passport login and does not establish Activity result delivery or `Success(userInfo)`. Paired run #43581508085 and source-test run #43581718989 were still in progress at this checkpoint.
+
+
+## NAV13 Android 13 dispatch signature — corrected and registered
+
+The initial four-parameter Activity.dispatchActivityResult lookup was invalid on Android 13. API 33's actual framework method is dispatchActivityResult(String,int,int,Intent,String reason). The observer now resolves that exact five-parameter signature, reads only result-code argument 2, and never inspects the other arguments. The producer-side setResult witness now filters to PASSPORT_ACTIVITY and uses an independent bounded counter.
+
+The runner has a hard runtime gate for ACTIVITY_RESULT_DELIVERY_HOOK=REGISTERED; it cannot report a native pass if the observer failed to register. Corrected source: b565dc4d050f463397312c8f409b2450cc8bbc79.
+
+- #43582980401 clone-only: SUCCESS; result-delivery hook REGISTERED, onboarding writer hook REGISTERED, original master key persisted, stable 75s.
+- #43582980390 publisher-first paired: SUCCESS; result-delivery hook REGISTERED, onboarding writer hook REGISTERED, original master key persisted; original Yandex installed first and remained installed; publisher stable 75s before clone; clone stable 25/25. METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO.
+
+No Passport flow was run, so result delivery and Success(userInfo) remain unobserved at runtime. No APK, OTP, account mutation or owner handset activity. Disposable CI signer only. Stage A NO-GO / Stage B LOCKED.

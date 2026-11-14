@@ -124,3 +124,20 @@ Source commit `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073` added a separate bounde
 ## NAV13 quota-fix CI update — 14 Nov 2026
 
 Quota-fix clone-alone rerun #43581508098 has now completed SUCCESS: fresh native ARM13 clone MAIN remained stable for 75s, original SDK master key persisted, onboarding writer hook registered, and no uncaught exception/IllegalStateException was observed. This is a clone-alone differential gate only (publisher intentionally absent), not a Passport login or product pass. Paired quota-fix run #43581508085 was still in its 75s publisher-first test; source-test run #43581718989 was booting native ARM13. 
+
+
+## NAV13 Android 13 receiver-hook correction and verified CI — 14 Nov 2026
+
+The first receiver-side observer used the four-argument Activity.dispatchActivityResult(String,int,int,Intent) signature. The strict runtime registration gate correctly reported NO_HOOK in #43582369283/#43582369302. Root cause: Android 13 API 33 declares the framework method with a fifth String reason parameter. The implementation now hooks the exact five-argument method and reads only argument index 2 (the result-code category); it does not inspect who, request code, Intent, extras, or reason. Android 13 AOSP source confirms the five-argument signature.
+
+The Passport-side setResult producer observer now has its own counter and is filtered to actual PASSPORT_ACTIVITY instances, so unrelated Activity result calls cannot consume its quota.
+
+The native runner now parses ACTIVITY_RESULT_DELIVERY_HOOK and requires REGISTERED for both clone-only and publisher-first paired verdicts. Source contract tests cover the exact API 33 signature, read-only argument handling, independent counters, and runtime-gate presence.
+
+Verified on corrected source b565dc4d050f463397312c8f409b2450cc8bbc79:
+- Clone-only #43582980401 — SUCCESS; ACTIVITY_RESULT_DELIVERY_HOOK=REGISTERED, ONBOARDING_WRITER_HOOK=REGISTERED, ORIGINAL_KEY_PERSISTED, clone MAIN stable 75s, no uncaught exception.
+- Publisher-first paired #43582980390 — SUCCESS; same three registration/key results, original Yandex's 16 splits installed first and remained installed, publisher stable 75s before clone, clone stable 25/25, no uncaught exception. Verdict: METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO.
+
+These are startup/lifecycle and hook-registration checks only. No Passport login/OTP ran, no ACTIVITY_RESULT_DELIVERY callback was observed, and no POSTLOGIN_PUBLISH, POSTLOGIN_CONSUME, or POSTLOGIN_MAIN_ROUTE event was produced. No APK was exported; owner handset untouched; signer remains disposable per CI run. Stage A NO-GO; Stage B LOCKED.
+
+Exact source backup backup/android-a1-nav12-final-handoff-r3-20261114 is synchronized with the working branch.

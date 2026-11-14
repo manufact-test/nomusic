@@ -219,3 +219,20 @@ Do not start B42 integration until the onboarding exit is understood and the int
 ## NAV13 quota-fix CI update — 14 Nov 2026
 
 Quota-fix clone-alone rerun #43581508098 completed SUCCESS: 75s native ARM13 clone stability, original master key persisted, onboarding writer hook registered, no uncaught exception. It is not an auth/login/product acceptance test. Paired quota-fix #43581508085 and source-test #43581718989 remained in progress at this checkpoint.
+
+
+## Latest handoff — NAV13 Android 13 receiver hook now registers (14 Nov 2026)
+
+Working branch: experiment/android-a1-metrica-init-state-observer-arm13-20261112  
+Current source: b565dc4d050f463397312c8f409b2450cc8bbc79  
+Exact backup: backup/android-a1-nav12-final-handoff-r3-20261114 (same HEAD)
+
+The first receiver observer used a four-argument Activity result method signature and correctly failed the new runtime gate. Android 13 API 33's actual Activity.dispatchActivityResult signature has five parameters: String, int, int, Intent, String reason. Corrected the hook to the five-argument signature; only result-code argument 2 is read. The Passport producer observer now filters strictly to Passport Activities and has an independent bounded counter.
+
+Corrected native CI:
+- #43582980401 clone-only — SUCCESS; receiver hook REGISTERED, onboarding writer hook REGISTERED, original master key persisted, 75s stable.
+- #43582980390 publisher-first paired — SUCCESS; receiver hook REGISTERED, onboarding writer hook REGISTERED, original master key persisted, publisher installed first and stable 75s before clone, clone stable 25/25; no uncaught exception. Verdict is diagnostic startup/lifecycle pass, not audio/product acceptance.
+
+Still not proven: no Passport login ran in CI. Actual result delivery, Success(userInfo), FragmentManager consumption and Main routing remain unobserved on the owner's existing account. No APK exported; no OTP or owner-device action; no data/onboarding mutation. CI signer remains disposable.
+
+Next work: continue exact post-login route/DEX investigation and preserve read-only instrumentation. Before any owner delivery, provision a dedicated persistent A1 signing identity; never reuse Test.50's production signer without explicit approval. Once signer and diagnostic bundle are ready, one bounded owner-device login is the only way to collect the missing runtime receipt. Keep Stage A NO-GO / Stage B LOCKED. Do not request OTP again until that controlled test is explicitly ready.
