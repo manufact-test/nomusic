@@ -332,7 +332,7 @@ test("W132 VPN A-to-B revalidation keeps a source-left original track untouched"
   assert.equal(player.state.playerState.status.value,"playing");
 
   const codes=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
-  assert.ok(codes.includes("SOURCE_LEFT_CURRENT_ALREADY_ORIGINAL"));
+  assert.ok(codes.includes("SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED"));
   assert.ok(codes.includes("NATIVE_ORIGINAL_SOURCE_NO_RELOAD"));
   assert.ok(!codes.includes("NATIVE_ORIGINAL_SOURCE_RESTORE"));
   assert.ok(!codes.includes("NATIVE_REPLACEMENT_SOURCE_RELOAD"));
