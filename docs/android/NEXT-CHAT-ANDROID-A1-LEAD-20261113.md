@@ -211,3 +211,6 @@ Do not start B42 integration until the onboarding exit is understood and the int
 
 
 > **NAV13 QUOTA FIX:** The receiver-side Entry result delivery observer now has an independent 48-event counter (not shared with Activity finish observations), commit `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073`. CI reruns #43581508098 paired and #43581508085 clone-alone; inspect before any handoff. Backup branch remains exact at current HEAD.
+
+
+> **NAV13 TEST COVERAGE UPDATE:** The standalone clone-only gate #43581081611 is SUCCESS but no real Entry/Passport flow ran, so receiver-side result delivery remains unobserved. Independent 48-event quota fix `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073`; regression source test `468fa14e8a6328e021968143afa8e00712c6ec73`. Check #43581081486, #43581508098, #43581508085, #43581718989. No APK/OTP/owner action. Stage A NO-GO, Stage B LOCKED.

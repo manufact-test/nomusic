@@ -91,3 +91,12 @@ Added `Activity.dispatchActivityResult(String,int,int,Intent)` observer in clone
 ## NAV13 hardening
 
 The Entry receiver-side result event now has an independent 48-event quota rather than sharing the generic Activity-finish quota, preventing unrelated finishes from exhausting the diagnostic budget. Fix: `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073`. CI #43581508098 paired and #43581508085 clone-alone.
+
+
+## NAV13 latest CI and source contract
+
+- #43581081611 clone-only completed SUCCESS; this validates idle clone startup only, not Passport login or Entry result delivery.
+- #43581081486 paired publisher-first remained in progress.
+- Quota hardening commit `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073` gives Entry delivery its own 48-event counter.
+- Added source-contract regression test in `468fa14e8a6328e021968143afa8e00712c6ec73`; it checks exact Android dispatch signature, receiver filter, separate quota, and read-only behavior.
+- #43581508098/#43581508085 and source-test run #43581718989 were still running/queued. No owner login evidence yet.

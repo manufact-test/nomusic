@@ -114,3 +114,8 @@ The prior `ACTIVITY_RESULT` hook observes only the Passport Activity calling `se
 ## NAV13 follow-up hardening — independent event quota
 
 Review found the Entry result-delivery observer initially shared the generic Activity-finish counter. That could allow unrelated finishes to consume the result-delivery observation budget before the decisive callback. Corrected in `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073`: delivery now has its own independent atomic quota (48), preserving the event even during a noisy login flow. No event semantics or app behavior changed. New paired/clone-alone ARM13 runs: #43581508098 and #43581508085.
+
+
+## NAV13 receiver-side Activity result observer — current checkpoint
+
+Source commit `1f2f0a77243bc9ba3b6dd7169eb7f86fad626073` added a separate bounded counter for Entry receiver-side delivery so unrelated Activity finish events cannot consume its quota. Source contract test was added in `468fa14e8a6328e021968143afa8e00712c6ec73`, asserting exact framework signature, receiver filtering, independent bound, and no result/Intent/payload mutation. Standalone clone-only NAV13 CI #43581081611 completed SUCCESS, but this is only a fresh clone startup/lifecycle check: no Passport/Entry login was performed, so it does not establish result-delivery hook invocation. Paired run #43581081486 and quota-fix reruns #43581508098/#43581508085 were still in progress; new source-test run #43581718989 was queued at handoff. Keep Stage A NO-GO and Stage B LOCKED. Do not export APK or request owner test until CI is green and stable signing + explicit test readiness are addressed.
