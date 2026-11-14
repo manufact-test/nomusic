@@ -9,7 +9,7 @@
 - Code checkpoint: `d80495370ff8f442b6993c688783c24547caa24f`
 - Exact backup: `backup/android-a1-track-exo-continuity-pre-ci-20261115` @ `d80495370ff8f442b6993c688783c24547caa24f`
 - Read-only signed DEX audit: [#43648001634](https://github.com/manufact-test/nomusic/actions/runs/43648001634) — SUCCESS; static candidates only, not playback proof.
-- Latest clone-only ARM13 run: [#43649573590](https://github.com/manufact-test/nomusic/actions/runs/43649573590), commit `d8049537`. Java regression tests, scoped-module build, private XAPK verification, DEX classifier and test-tool preparation passed. At handoff the fresh Android 13 ARM guest was booting; the no-suppression 75-second standalone clone stage was still pending. Check the run's final conclusion before continuing; do not duplicate it.
+- Latest clone-only ARM13 run: [#43649573590](https://github.com/manufact-test/nomusic/actions/runs/43649573590), commit `d8049537` — **SUCCESS**. Java regression tests, scoped-module build, private XAPK verification, DEX classifier, fresh Android 13 ARM guest and no-suppression 75-second standalone clone stage all passed. Clone lifecycle was stable **25/25**. This is strictly `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`: publisher original was intentionally absent, no account or audio was tested, owner phone was untouched, Stage A remains **NO-GO**. The four new Track/source hooks all reported `REGISTERED`, but this only proves hook installation; no runtime Track→Exo identity counters or current album/edition proof were produced. Do not call this a CELIKOM audio pass.
 - Older failures #43648828954 and #43649323267 were caused by stale test expectations. Fixes are in `d80495370ff8f442b6993c688783c24547caa24f`; do not report those older failures as the current run result.
 
 ## Static findings
@@ -54,7 +54,7 @@ Key files:
 
 ## Next work
 
-1. Check the final result and logs of [#43649573590](https://github.com/manufact-test/nomusic/actions/runs/43649573590). If active, wait; do not start a duplicate.
+1. Run [#43649573590](https://github.com/manufact-test/nomusic/actions/runs/43649573590) is complete and green; do not rerun it without a source change.
 2. On the next owner diagnostic, check registration events `AUDIO_NATIVE_TRACK_FLOW_HOOK`, `AUDIO_NATIVE_TRACK_REQUEST_HOOK`, `AUDIO_NATIVE_TRACK_WRAPPER_HOOK`, `AUDIO_NATIVE_MAIN_SOURCE_HOOK`.
 3. Check counters `FLOW_TRACK_SAME_OBJECT`, `TRACK_WRAPPER_LINK`, `WRAPPER_DESCRIPTOR_LINK`, `TRACK_DESCRIPTOR_FACTORY_LINK`, `TRACK_FACTORY_SOURCE_LINK`, `TRACK_SOURCE_OPEN_LINK`, `TRACK_SOURCE_READ_LINK`. Localize a broken hop; do not expand blind hook sweeps.
 4. If no diagnostic is supplied yet, continue source/CI analysis autonomously and wait for the owner to send it.
@@ -62,3 +62,26 @@ Key files:
 ## Owner constraints
 
 This is a laboratory research branch, not a release branch. Do not distribute or request installation of an observer APK. Do not disable Play Protect, disturb the original Yandex install, change Test.50/frozen A1, Windows, extension, backend/API/DB or production. Keep the one native Yandex player architecture. Work in large blocks; avoid step-by-step manual chores and unnecessary reports.
+
+
+## Первое сообщение следующему чату
+
+Скопировать целиком:
+
+> Привет! Ты принимаешь **CELIKOM Android A1** как ведущий разработчик. Продолжай существующую работу, ничего не начинай с нуля и не меняй согласованную архитектуру.
+>
+> **GitHub:** `manufact-test/nomusic`
+>
+> **Единственная активная исследовательская ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
+>
+> **Кодовый checkpoint:** `d80495370ff8f442b6993c688783c24547caa24f`
+>
+> **Точный резерв кода:** `backup/android-a1-track-exo-continuity-pre-ci-20261115`
+>
+> Сначала прочитай `docs/android/NEXT-CHAT.md` и `docs/android/NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md`.
+>
+> CI [#43649573590](https://github.com/manufact-test/nomusic/actions/runs/43649573590) завершился SUCCESS: no-suppression clone-only Android 13 75s, 25/25 стабильных наблюдений; все четыре Track/source hooks зарегистрировались. Но original publisher был намеренно отсутствовал, аудио и аккаунт не тестировались, поэтому это НЕ product pass, Stage A остаётся NO-GO.
+>
+> Текущая задача — read-only runtime identity witness native Track Flow → `Gp0.new` → `tCa` → основной Yandex Exo descriptor/source path. Статическая цепочка найдена, runtime identity и реальная подмена ещё НЕ доказаны. В следующей диагностике проверь registration events и counters полной цепочки. В статусе `AUDIO_STAGE_B_STATUS` пока честно остаётся `CELIKOM_REPLACEMENT / NOT_CONNECTED`.
+>
+> Не выдавай лабораторный APK за рабочую версию и не проси владельца ничего устанавливать. Не трогай Test.50, frozen A1, Windows, extension или backend. Если владелец пришлёт диагностику — сначала разбери её, не заставляй его выполнять лишние ручные шаги. Работай крупными блоками и продолжай самостоятельно.
