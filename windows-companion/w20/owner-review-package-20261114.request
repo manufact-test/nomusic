@@ -1,0 +1,8 @@
+CELIKOM Windows — one existing product, main-only first owner review
+Requested build: 0.24.37
+Purpose: one owner acceptance installer EXE and ZIP from the actual main source.
+Scope: privately retained GitHub artifact only; never publish to stable feed, Hostinger, or customers.
+Signing: internal UNSIGNED owner review. Production auto-updater stays dormant until real approved trust pins.
+Acceptance: user PC audio/entitlement/VPN/403/gain and startup checks are still required.
+Do not run production deployment, change Yandex, or alter Android/browser/server code.
+The one-time path trigger must not fire on ordinary code/docs pushes.
