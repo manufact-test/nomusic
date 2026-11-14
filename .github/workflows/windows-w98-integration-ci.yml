@@ -129,9 +129,11 @@ jobs:
         shell: pwsh
         run: |
           $source = Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
-          $after = $source.Split('private async Task CompleteApplicationUpdateAsync()')
-          if ($after.Count -ne 2) { throw 'W108_UPDATER_ENTRY_MISSING' }
-          $body = $after[1].Split('private static string DescribeIntegrationFailure')[0]
+          $begin = $source.IndexOf('private async Task CompleteApplicationUpdateAsync()', [StringComparison]::Ordinal)
+          if ($begin -lt 0) { throw 'W108_UPDATER_ENTRY_MISSING' }
+          $end = $source.IndexOf('private static string DescribeIntegrationFailure', $begin, [StringComparison]::Ordinal)
+          if ($end -le $begin) { throw 'W108_UPDATER_END_MISSING' }
+          $body = $source.Substring($begin, $end - $begin)
           if ($body.Contains('Process.Start(') -or $body.Contains('APP_UPDATE_COMPLETED')) {
             throw 'W108_POST_UPDATE_AUTOPLAY_OR_FALSE_HEALTH'
           }
