@@ -183,7 +183,7 @@ jobs:
             $mainWindowStableText.Contains('StableUpdateInstallCoordinator.CheckAndInstallAsync'),
             $appUpdateManagerText.Contains('LaunchVerifiedSigned')
           )
-          $downloadGateIndex=$stableCoordinatorText.IndexOf('StableUpdateInstallSafety.CanDownload', [StringComparison]::Ordinal)
+          $downloadGateIndex=$stableCoordinatorText.IndexOf('if (!CanDownload(getContext()))', [StringComparison]::Ordinal)
           $manifestIndex=$stableCoordinatorText.IndexOf('StableUpdateManifestFetcher.FetchSignedIfNewerAsync', [StringComparison]::Ordinal)
           $stageIndex=$stableCoordinatorText.IndexOf('StableUpdatePackageStager.FetchOrReusePendingAsync', [StringComparison]::Ordinal)
           $installGateIndex=$stableCoordinatorText.IndexOf('if (!CanInstall(getContext()))', $stageIndex, [StringComparison]::Ordinal)
