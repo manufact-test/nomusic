@@ -412,9 +412,12 @@ if __name__ == "__main__":
     try:
         print(json.dumps(run(args.xapk), sort_keys=True, ensure_ascii=False))
     except (RuntimeError, ValueError, DexError, OSError, zipfile.BadZipFile) as exc:
+        reason = str(exc)
+        safe_code = reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason) else None
         print(json.dumps({
             "verdict": "SIGNED_NATIVE_SELECTED_ITEM_AUDIT_INCOMPLETE",
             "error_class_only": type(exc).__name__,
+            "safe_error_code": safe_code,
             "active_selected_item_proven": False,
             "no_vendor_binary_exported": True,
         }))
