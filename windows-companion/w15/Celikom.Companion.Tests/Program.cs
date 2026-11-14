@@ -1971,9 +1971,9 @@ try
           historic.Contains("|NATIVE_ORIGINAL_SOURCE_NO_RELOAD|track=123") &&
           historic.Contains("|NATIVE_UNKNOWN_SOURCE_NO_RELOAD|track=124") &&
           historic.Contains("|NATIVE_REPLACEMENT_SOURCE_RELOAD|track=125") &&
-          historic.Contains("|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=125"),
+          historic.Contains("|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=125") &&
          !historic.Contains("token=") && !historic.Contains("password="),
-        "W75 archived incidents never carry polling chatter or credentials");
+        "W75/W135 archived incidents preserve source decisions without polling chatter or credentials");
     var savedPast = DateTimeOffset.UtcNow.AddHours(-3).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
     File.WriteAllText(Path.Combine(archiveDir, "incident-events.log"),
         savedPast + "|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED\n");
