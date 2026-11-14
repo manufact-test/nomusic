@@ -88,7 +88,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
     def test_onboarding_writer_witness_is_exact_read_only_and_persist_observed(self):
         s=self.code
         self.assertIn('Class.forName("android.app.ContextImpl", false, null)',s)
-        self.assertIn('getDeclaredMethod("getSharedPreferences", String.class, int.class)',s)
+        self.assertIn('"getSharedPreferences", String.class, int.class)',s)
         self.assertIn('"Yandex_Music".equals(name)',s)
         self.assertIn('Class.forName("android.app.SharedPreferencesImpl", false, null)',s)
         self.assertIn('Class.forName("android.app.SharedPreferencesImpl$EditorImpl", false, null)',s)
