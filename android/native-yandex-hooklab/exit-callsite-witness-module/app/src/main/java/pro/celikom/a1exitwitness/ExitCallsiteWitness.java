@@ -3115,11 +3115,11 @@ public final class ExitCallsiteWitness extends XposedModule {
             emit("POSTLOGIN_HOOK", "ENTRY", "NO_LOADER");
             return;
         }
-        // Original 2025 qY5 coroutine: classify only the finite state label
-        // and terminal result subtype. The continuation label is an int, not
-        // an account/token; never read its captured fields or the result body.
-        // This distinguishes missing-token, user-info and sync boundaries
-        // without faking a login or calling the vendor coroutine ourselves.
+        // Original 2025 qY5 coroutine: observe the stage and terminal subtype.
+        // At token-resume only, classify the return object's TYPE and a fixed
+        // failure-family enum; never serialize, copy, log, or modify any token,
+        // account, error message, userInfo, or callback payload.
+        // No synthetic login or invocation of the vendor coroutine is allowed.
         if (!postLoginPipelineHooked) {
             try {
                 Class<?> owner = Class.forName("qY5", false, loader);
