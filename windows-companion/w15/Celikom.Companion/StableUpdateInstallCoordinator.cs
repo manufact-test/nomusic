@@ -78,7 +78,7 @@ public static class StableUpdateInstallCoordinator
             record = StableUpdateRollbackJournal.PrepareSigned(
                 root,
                 lastKnownGood.Release,
-                lastKnownGood.Path,
+                lastKnownGood.InstallerPath,
                 latest,
                 staged.Path,
                 trust.SignerCertificateSha256,
