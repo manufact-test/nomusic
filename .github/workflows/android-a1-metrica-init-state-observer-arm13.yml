@@ -13,6 +13,7 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_private_postlogin_contract.py'
       - 'android/native-yandex-hooklab/ci/owner_phone_diagnostic_artifact.py'
       - 'android/native-yandex-hooklab/ci/test_owner_phone_diagnostic_artifact.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
       - 'android/native-yandex-hooklab/device-audio-trial/**'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/**'
@@ -91,6 +92,7 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_postlogin_receipt_witness.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py

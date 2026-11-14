@@ -549,6 +549,7 @@ def run(xapk):
             "preserves_publisher_metrica_manifest_components_in_clone":True,
             "readonly_no_metrica_fatal_suppression":True,
             "diagnostic_only_not_product_or_releasable":True,
+            "owner_apk_signer_provenance":"DISPOSABLE_PER_CI_RUN",
             "own_readonly_witness_module_embedded":True,
             "test_order":"PUBLISHER_FIRST_CLONE_SECOND",
             "publisher_app_and_clone_can_be_concurrently_installed":False,

@@ -35,6 +35,13 @@ def export_after_native_acceptance(source_apk, report: dict, runner_temp) -> dic
     if not accepted:
         raise ValueError("DIAGNOSTIC_EXPORT_NATIVE_ACCEPTANCE_REQUIRED")
 
+    # The current lab generates a new, unrelated Android signing key per run.
+    # A successful idle CI may never export that APK to a phone containing
+    # earlier user data; an in-place update requires the SAME long-lived signer.
+    if (report.get("owner_apk_signer_provenance") != "PERSISTENT_OWNER_SIGNER"
+            or report.get("owner_apk_signer_verified") is not True):
+        raise ValueError("DIAGNOSTIC_EXPORT_STABLE_SIGNER_REQUIRED")
+
     source = Path(source_apk)
     if source.is_symlink() or not source.is_file():
         raise ValueError("DIAGNOSTIC_EXPORT_SOURCE_INVALID")

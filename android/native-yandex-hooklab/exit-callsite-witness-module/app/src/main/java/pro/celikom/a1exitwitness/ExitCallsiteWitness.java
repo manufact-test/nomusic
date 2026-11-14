@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V9_POSTLOGIN_ROUTE_PREF_WITNESS";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V10_POSTLOGIN_RECEIPT_WITNESS";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -113,6 +113,18 @@ public final class ExitCallsiteWitness extends XposedModule {
     private final java.util.concurrent.atomic.AtomicInteger ownAccountCtorRemaps =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger ownAccountQueryRemaps =
+        new java.util.concurrent.atomic.AtomicInteger();
+    // Real AccountManager result categories only. Never retain, print or
+    // transmit master-token contents, password, names, uid or extras.
+    private boolean ownedPasswordReturnHooked;
+    private final java.util.concurrent.atomic.AtomicInteger ownedPasswordReturnEvents =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private boolean postLoginPublishHooked;
+    private boolean postLoginConsumeHooked;
+    private boolean postLoginNativeRouteHooked;
+    private final java.util.concurrent.atomic.AtomicInteger postLoginHookAttempts =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger postLoginStageEvents =
         new java.util.concurrent.atomic.AtomicInteger();
     private boolean passportDiagnosticCallbacksReady;
     private final java.util.concurrent.atomic.AtomicInteger passportCrashCaptured = new java.util.concurrent.atomic.AtomicInteger();
@@ -282,6 +294,44 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
     }
 
+
+    /**
+     * The original 2025 Passport account-store code invokes
+     * AccountManager.getPassword(account) to recover its own encrypted master
+     * token. Observe existence only on clone-owned accounts. In particular,
+     * REAL AccountManager return/exception stays completely unchanged.
+     */
+    private synchronized void observeOwnedPasswordReturn() {
+        if (ownedPasswordReturnHooked) return;
+        try {
+            Method m = AccountManager.class.getDeclaredMethod("getPassword", Account.class);
+            hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object candidate = chain.getArg(0);
+                    boolean ours = candidate instanceof Account
+                        && OWN_ACCOUNT_TYPE.equals(((Account) candidate).type);
+                    Object result;
+                    try {
+                        result = chain.proceed();
+                    } catch (Throwable failure) {
+                        if (ours && ownedPasswordReturnEvents.incrementAndGet() <= 16)
+                            emit("MASTER_TOKEN_READ", isPassportProcess() ? "PASSPORT" : "MAIN",
+                                "THREW");
+                        throw failure;
+                    }
+                    if (ours && ownedPasswordReturnEvents.incrementAndGet() <= 16)
+                        emit("MASTER_TOKEN_READ", isPassportProcess() ? "PASSPORT" : "MAIN",
+                            result instanceof String && !((String) result).isEmpty()
+                                ? "PRESENT" : "NULL_OR_EMPTY");
+                    return result;
+                });
+            ownedPasswordReturnHooked = true;
+            emit("MASTER_TOKEN_HOOK", "ANDROID", "REGISTERED");
+        } catch (Throwable ignored) {
+            emit("MASTER_TOKEN_HOOK", "ANDROID", "NO_HOOK");
+        }
+    }
+
     private synchronized void installCloneAccountTypeBridge() {
         String process;
         try { process=Application.getProcessName(); }
@@ -397,6 +447,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 authenticatorTypesHooked=true;
             } catch (Throwable ignored) { }
         }
+        observeOwnedPasswordReturn();
         emit("ACCOUNT_BRIDGE", "REGISTERED",
             accountCtorHooked && accountQueryHooked && accountAddHooked
                 ? "BOTH_PLUS_ADD_OBS" : accountCtorHooked && accountQueryHooked
@@ -2634,6 +2685,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
                 @Override public void onActivityCreated(Activity activity, Bundle state) {
                     logActivityPhase(activity,"CREATED");
+                    observeOriginalPostLoginReceipts(activity);
                 }
                 @Override public void onActivityStarted(Activity activity) {
                     logActivityPhase(activity,"STARTED");
@@ -2713,6 +2765,104 @@ public final class ExitCallsiteWitness extends XposedModule {
             emit("ONBOARDING_PREF",activityFamily(activity),state);
         } catch (Throwable ignored) {
             emit("ONBOARDING_PREF",activityFamily(activity),"UNAVAILABLE");
+        }
+    }
+
+
+    /**
+     * Exact immutable 2025.10.4 publisher result chain, read-only:
+     * ZX5.if(WS3) -> hT3.try(Bundle,String) -> YS3.if(lw4,boolean).
+     * Strict, version-pinned method signatures; no payload/extras/token reads.
+     * Only armed in clone MAIN when a real Entry Activity is created.
+     * There is NO synthetic Success(userInfo), preference write or launch.
+     */
+    private synchronized void observeOriginalPostLoginReceipts(Activity activity) {
+        if (activity == null || !PACKAGE.equals(Application.getProcessName())
+                || !"ENTRY_ACTIVITY".equals(activityFamily(activity))
+                || (postLoginPublishHooked && postLoginConsumeHooked
+                    && postLoginNativeRouteHooked)
+                || postLoginHookAttempts.incrementAndGet() > 3) return;
+        ClassLoader loader = activity.getClassLoader();
+        if (loader == null) {
+            emit("POSTLOGIN_HOOK", "ENTRY", "NO_LOADER");
+            return;
+        }
+        if (!postLoginPublishHooked) {
+            try {
+                Class<?> receiver = Class.forName("ZX5", false, loader);
+                Class<?> resultType = Class.forName("WS3", false, loader);
+                Method m = receiver.getDeclaredMethod("if", resultType);
+                hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            if (postLoginStageEvents.incrementAndGet() <= 32) {
+                                Object event = chain.getArg(0);
+                                // Exact type comparison only: no String from the event.
+                                String kind = event != null
+                                    && "WS3$b".equals(event.getClass().getName())
+                                    ? "REAL_USERINFO_SUCCESS" : "OTHER_RESULT";
+                                emit("POSTLOGIN_PUBLISH", "ENTRY", kind);
+                            }
+                        } catch (Throwable ignored) { }
+                        return chain.proceed();
+                    });
+                postLoginPublishHooked = true;
+                emit("POSTLOGIN_HOOK", "PUBLISH", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("POSTLOGIN_HOOK", "PUBLISH", "NO_HOOK");
+            }
+        }
+        if (!postLoginConsumeHooked) {
+            try {
+                Class<?> receiver = Class.forName("hT3", false, loader);
+                Method m = receiver.getDeclaredMethod("try", Bundle.class, String.class);
+                hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            Object key = chain.getArg(1);
+                            if ("EntryScreenCloseLoginKey".equals(key)
+                                    && postLoginStageEvents.incrementAndGet() <= 32)
+                                emit("POSTLOGIN_CONSUME", "ENTRY", "RESULT_KEY_DELIVERED");
+                        } catch (Throwable ignored) { }
+                        return chain.proceed();
+                    });
+                postLoginConsumeHooked = true;
+                emit("POSTLOGIN_HOOK", "CONSUME", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("POSTLOGIN_HOOK", "CONSUME", "NO_HOOK");
+            }
+        }
+        if (!postLoginNativeRouteHooked) {
+            try {
+                Class<?> receiver = Class.forName("YS3", false, loader);
+                Class<?> info = Class.forName("lw4", false, loader);
+                Method m = receiver.getDeclaredMethod("if", info, boolean.class);
+                hook(m).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        boolean tracked = false;
+                        try {
+                            if (postLoginStageEvents.incrementAndGet() <= 32) {
+                                Object flag = chain.getArg(1);
+                                emit("POSTLOGIN_MAIN_ROUTE", "ENTRY",
+                                    Boolean.TRUE.equals(flag) ? "MAIN_REQUESTED"
+                                        : "OTHER_ROUTE");
+                                tracked = true;
+                            }
+                        } catch (Throwable ignored) { }
+                        try {
+                            Object result = chain.proceed();
+                            if (tracked) emit("POSTLOGIN_MAIN_ROUTE", "ENTRY", "RETURN");
+                            return result;
+                        } catch (Throwable failure) {
+                            if (tracked) emit("POSTLOGIN_MAIN_ROUTE", "ENTRY", "THREW");
+                            throw failure;
+                        }
+                    });
+                postLoginNativeRouteHooked = true;
+                emit("POSTLOGIN_HOOK", "NATIVE_ROUTE", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("POSTLOGIN_HOOK", "NATIVE_ROUTE", "NO_HOOK");
+            }
         }
     }
 
