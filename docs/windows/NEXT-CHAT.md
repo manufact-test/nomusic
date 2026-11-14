@@ -16,7 +16,7 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code/test HEAD: `5a40357d28f1a1cc4f467a16bfaaaf38aa530b3f` (W135 durable owner-diagnostic retention for ORIGINAL / UNKNOWN / ACTIVE_REPLACEMENT decisions and exact current decoder proof). The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
+- Current Windows code/test/workflow HEAD: `152d07123bff4cebd71118141c766c8c62651c5a` (W136 one-product installer metadata/staging repair). The most recent Windows runtime implementation remains W135 `3045a9deaa7f87e031313741b64f4f9fbdd6e5c5`. The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
 - Last Windows app implementation commit: `3045a9deaa7f87e031313741b64f4f9fbdd6e5c5` (W135 source-decision incident retention); W135 regression-test/final code-test HEAD: `5a40357d28f1a1cc4f467a16bfaaaf38aa530b3f`; W134 regression-test commit: `d6c091fb109baeaa1690b15ca3f90d7c914a279a`; W133 runtime commit: `d548ed0af0f3717669c1fbcd903fc4f626428c7e`; W133 regression-test commit: `d79c20f37ce7428fca0e1abf1bdf3b0ad1a05832`; W132 test: `c02cd4988292598f81e857062279d0179253a42a`; W131 runtime/test: `5fb5f32d0364d476889bf56d0f8e8fc0e38d71b2` / `2f41091d1af072483ed5c79782958002b0ee2101`; W127 implementation/test: `4fe42d745b6708524c65eb4f9855e026f314fefa` / `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`; W130 host/test: `5acbcc2af1a6cee85ef96bc81ce45d56d2f90726` / `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
 - Exact pre-W128 CI policy backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`.
 - Exact pre-W130 diagnostics backup: `backup/windows-main-pre-w130-cdp-property-observability-20261114` @ `312d61a62fb4abcb779df539503adf4226818185`.
@@ -31,6 +31,17 @@
 - The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
 
 ## Current state — what is and is not done
+
+## W136 — unblock the one existing CELIKOM Windows package-validation pipeline
+
+- **Source/workflow-only fix; no installer built or published.** The old manually dispatched W20 packaging check expected a W56 executable and PE version 0.24.7, while the current application + Inno installer are 0.24.36. A future owner acceptance packaging run would fail even when the correct binary was built.
+- Added `windows-companion/w20/stage-package-identity.ps1`: validates that the current Inno AppVersion/VersionInfoVersion exactly match the current GUI project version, validates the existing narrow internal updater-compatible filename, and only when `-RequireBuilt` is explicitly used checks the compiled installer and exports its actual name/version to later workflow steps.
+- `.github/workflows/windows-w20-safe-installer.yml` now uses that exact current filename/version for the ZIP contract, install/uninstall smoke and private stage artifact rather than stale W56 paths. `Celikom.Companion.Tests/Program.cs` ZIP fixture now validates the real current assembly version and updater filename contract rather than hardcoded W100.
+- Main Windows integration CI runs the metadata parity check **without building an installer** and rejects reintroduction of obsolete W56 paths.
+- Exact pre-W136 backup `backup/windows-main-pre-w136-stage-pipeline-current-version-20261114` @ `b7789299e901cf2218520f724043057744ef05ec`. W136 code/workflow HEAD `152d07123bff4cebd71118141c766c8c62651c5a`.
+- Main CI [43616078527](https://github.com/manufact-test/nomusic/actions/runs/43616078527) — **SUCCESS**; Windows integration [43616078592](https://github.com/manufact-test/nomusic/actions/runs/43616078592) — **SUCCESS**, including the new W136 source/installer identity gate, W15, Supervisor, GUI and original-source/VPN/audio tests.
+- The W20 installer stage workflow remains **manual/internal** and was NOT dispatched. It does not create another product. First user acceptance package remains subject to W119's one-final-EXE+ZIP contract. Production update feed / approved P-256 key / Authenticode signer fingerprint are still absent; never substitute fake values or silently publish unsigned production updates.
+
 
 # W127 — Reconcile current-decoder proof after queue identity race — 14 November 2026
 
