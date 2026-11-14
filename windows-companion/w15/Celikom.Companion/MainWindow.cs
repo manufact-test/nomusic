@@ -523,7 +523,12 @@ public sealed partial class MainWindow : Form
 
     private async void StartAction(object? sender, EventArgs e)
     {
-        if (!_bridgeStarted || _integrationBusy || _compactStarting || _closing) return;
+        var switchAvailable = _bridgeStarted && _api.IsLoggedIn &&
+            _nativeInstallState == NativeInstallState.Active &&
+            _installedModule.MatchesApplication;
+        if (!PlaybackStartGate.CanAcceptStart(
+            _bridgeStarted, _integrationBusy, _updatingApplication,
+            _compactStarting, switchAvailable, _bridge.Enabled, _closing)) return;
         if (!_api.IsLoggedIn)
         {
             _compactAccountOpen = true;
@@ -547,6 +552,7 @@ public sealed partial class MainWindow : Form
         _compactStartupText = "Проверяем Яндекс.Музыку…";
         RenderCompact();
         LayoutCompact();
+        UpdateSafe(); // disable duplicate Start clicks while host/entitlement checks are pending
         try
         {
             // Shown/Activated may still be scanning Yandex. Join that exact
@@ -1454,8 +1460,9 @@ public sealed partial class MainWindow : Form
             _installedModule.MatchesApplication;
         var sourceVerified = PlaybackSourceEvidence.Verified(switchAvailable && _bridge.Enabled, state, sourcePresence);
         var mappingPending = PlaybackSourceEvidence.MappedButUnverified(switchAvailable && _bridge.Enabled, state, sourcePresence);
-        _start.Enabled = _bridgeStarted && !_integrationBusy && !_updatingApplication &&
-            (!switchAvailable || !_bridge.Enabled);
+        _start.Enabled = PlaybackStartGate.CanAcceptStart(
+            _bridgeStarted, _integrationBusy, _updatingApplication,
+            _compactStarting, switchAvailable, _bridge.Enabled, _closing);
         _stop.Enabled = switchAvailable && (_bridge.Enabled || _resumeAfterNetworkFailure);
         _connectionMark.ForeColor = sourceVerified
             ? Accent : ColorTranslator.FromHtml("#858B8E");
@@ -1465,7 +1472,8 @@ public sealed partial class MainWindow : Form
             sourceVerified ? "Источник выбран" :
             mappingPending ? "Ожидаем подтверждения" : "Сервис включён";
         _connectionState.ForeColor = sourceVerified ? Accent : Secondary;
-        _switchHint.Text = !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
+        _switchHint.Text = _compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…" :
+            !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? "Проверяем связь для возобновления подмены" : "Подмена выключена") :
             sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :

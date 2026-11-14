@@ -1035,6 +1035,15 @@ try
         moduleMatches:false).Message.Contains("Старт"),
         "W87 repair instruction references the real Start button");
 
+    Test(PlaybackStartGate.CanAcceptStart(true, false, false, false, false, false, false) &&
+         !PlaybackStartGate.CanAcceptStart(true, false, false, true, false, false, false) &&
+         !PlaybackStartGate.CanAcceptStart(true, true, false, false, false, false, false) &&
+         !PlaybackStartGate.CanAcceptStart(true, false, true, false, false, false, false) &&
+         !PlaybackStartGate.CanAcceptStart(true, false, false, false, true, true, false) &&
+         !PlaybackStartGate.CanAcceptStart(false, false, false, false, false, false, false) &&
+         !PlaybackStartGate.CanAcceptStart(true, false, false, false, false, false, true),
+        "W121 Start gate blocks duplicate clicks while pending, integration/update busy, already enabled or closing");
+
     // W75: a temporary /auth/me failure must never hide an already
     // verified owner's diagnostics button, but never authorizes export.
     var temporaryError = new HttpRequestException("synthetic unreachable");
