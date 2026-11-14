@@ -4,7 +4,7 @@
 - Product: the one existing CELIKOM Windows application.
 - Working branch: `main` only.
 - Audit basis: W127 code/test HEAD `7e4c8268cba30f781a3fa091d9657718ec463b66` plus the documentation-only commits currently on `main`.
-- This is a read-only code audit. No application code, installer, permissions, or runtime behavior was changed.
+- The initial review was read-only. A CI-only regression guard was then added; no application code, installer, permissions, or runtime behavior was changed.
 
 ## Files reviewed
 
@@ -30,6 +30,21 @@
 4. `StableUpdateSupervisorLauncher` starts the Supervisor as a same-user child process with `UseShellExecute=false`.
 5. The Inno installer declares `PrivilegesRequired=lowest` and installs under `%LOCALAPPDATA%\Programs\CELIKOM`. The release gate explicitly checks both constraints.
 6. The companion project does not declare a custom `ApplicationManifest` or an explicit administrator execution level in its project file.
+
+## CI regression guard
+
+Added a Windows Integration CI step in `.github/workflows/windows-w98-integration-ci.yml` that:
+- rejects an explicit `Verb="runas"` in the reviewed CELIKOM launch paths;
+- checks that the app updater uses ordinary shell execution and the Supervisor uses a same-user child process;
+- requires the Inno installer to remain `PrivilegesRequired=lowest` under `%LOCALAPPDATA%\Programs\CELIKOM`;
+- rejects an explicit administrator manifest setting in the companion project.
+
+Exact pre-guard backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`.
+CI guard commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`.
+Main CI [43604761393](https://github.com/manufact-test/nomusic/actions/runs/43604761393) — **SUCCESS**.
+Windows integration CI [43604761386](https://github.com/manufact-test/nomusic/actions/runs/43604761386) — **SUCCESS**; the new `W128 CELIKOM launch paths stay non-elevated` step passed.
+
+The guard protects the reviewed launch paths against a future explicit elevation regression. It cannot identify or suppress a prompt raised by Yandex, Windows, a driver, or another third-party process.
 
 ## What remains unknown
 
