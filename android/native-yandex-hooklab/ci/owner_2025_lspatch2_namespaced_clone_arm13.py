@@ -58,6 +58,37 @@ KNOWN_SIGNATURE_PERMISSIONS={
 # original provider and signature-protected permission declarations.
 GLOBAL_PROVIDER="com.yandex.preinstallsatellite.appmetrica.provider"
 
+# The original Passport SDK forms these own-content-provider authorities at
+# runtime from Context.getPackageName(). The generic hash-only provider rewrite
+# broke that SDK contract: its client looked up an authority that the cloned
+# Manifest did not declare and received a null ContentProviderClient.
+# These are CELIKOM-owned, package-specific authorities, never publisher ones.
+PASSPORT_OWN_PROVIDER_PREFIXES = {
+    "com.yandex.passport.internal.provider.InternalProvider":
+        "com.yandex.passport.internal.provider.",
+    "com.yandex.passport.internal.authsdk.AuthSdkProvider":
+        "com.yandex.passport.authsdk.provider.",
+    "com.yandex.passport.internal.sso.SsoContentProvider":
+        "com.yandex.passport.internal.sso.",
+}
+
+
+def _own_passport_provider_authority(component, current):
+    """Exact original SDK-generated own authority, with fail-closed input."""
+    prefix = PASSPORT_OWN_PROVIDER_PREFIXES.get(component)
+    if prefix is None:
+        return None
+    original = prefix + ORIGINAL
+    previous_hashed = (DEST + ".provider."
+                       + hashlib.sha256(original.encode("utf-8")).hexdigest()[:16])
+    expected = prefix + DEST
+    if not current or ";" in current or current.startswith("@"):
+        stop("PASSPORT_OWN_PROVIDER_SINGLE_LITERAL_REQUIRED")
+    if current not in (original, previous_hashed, expected):
+        stop("PASSPORT_OWN_PROVIDER_SOURCE_AUTHORITY_MISMATCH")
+    return expected
+
+
 
 def require_guest():
     if (os.getenv("GITHUB_ACTIONS")!="true"
@@ -260,6 +291,7 @@ def patch_manifest(data):
     root=ET.fromstring(raw)
     permissions_removed=0
     providers_rewritten=0
+    passport_providers_seen=set()
     for entry in list(root):
         if entry.tag=="permission":
             name=entry.attrib.get(ANDROID+"name","")
@@ -275,9 +307,19 @@ def patch_manifest(data):
         # This provider's authority is a resource reference, not an independent
         # literal. Keep the reference; the own-outer clone string is updated
         # separately and must equal the Android SyncAdapter authority.
-        if provider.attrib.get(ANDROID+"name","").endswith(".core.sync.SyncProvider"):
+        name=provider.attrib.get(ANDROID+"name","")
+        if name.endswith(".core.sync.SyncProvider"):
             if not auth.startswith("@"):
                 stop("PASSPORT_SYNC_PROVIDER_RESOURCE_REFERENCE_REQUIRED")
+            continue
+        passport_own=_own_passport_provider_authority(name,auth)
+        if passport_own is not None:
+            if name in passport_providers_seen:
+                stop("PASSPORT_OWN_PROVIDER_DUPLICATE_COMPONENT")
+            passport_providers_seen.add(name)
+            if passport_own != auth:
+                providers_rewritten+=1
+                provider.set(ANDROID+"authorities",passport_own)
             continue
         values=auth.split(";")
         # ALL provider authorities must be globally unique for Android
@@ -292,6 +334,7 @@ def patch_manifest(data):
     return ET.tostring(root,encoding="utf-8",xml_declaration=True),{
         "source_scoped_provider_rewrites":stats["provider_authorities"],
         "global_appmetrica_provider_rewrites":providers_rewritten,
+        "passport_sdk_own_provider_components_seen":len(passport_providers_seen),
         "duplicate_publisher_permission_declarations_removed":permissions_removed,
         "optional_metrica_components_excluded":0,
     }
@@ -324,6 +367,12 @@ def name_one(apk,editor,root,index,keystore):
     if not payload.lstrip().startswith(b"<"):
         stop("NAMESPACED_DECODED_MANIFEST_NOT_XML")
     changed,stats=patch_manifest(payload)
+    # Publisher base has exactly three named Passport content providers. They
+    # MUST be present under the unique CELIKOM package authority, otherwise
+    # getToken's ContentResolver lookup returns null after successful Passport.
+    is_base=apk_name(apk).get("split","")==""
+    if stats["passport_sdk_own_provider_components_seen"]!=(3 if is_base else 0):
+        stop("PASSPORT_OWN_PROVIDER_COMPONENT_SET_MISMATCH")
     manifest.write_bytes(changed)
     output=root/("clone-rebuilt-"+str(index)+".apk")
     built=cmd(["java","-Xmx3g","-jar",str(editor),"b","-t","xml",
