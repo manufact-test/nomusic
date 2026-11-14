@@ -104,3 +104,8 @@ It does **not** establish whether `getPassword` returned a master token, whether
 6. Resolve dedicated persistent A1 signing before any owner delivery. Stage A remains NO-GO; Stage B remains LOCKED. Only consider one bounded owner test after a proven fix, stable signer and explicit readiness.
 
 **Stage A: NO-GO. Stage B: LOCKED.** The fresh-install key write is technically proven; the owner's post-login loop is not fixed or owner-verified.
+
+
+## NAV13 — actual Activity result delivery witness (14 Nov 2026)
+
+The prior `ACTIVITY_RESULT` hook observes only the Passport Activity calling `setResult(OK)`; that is the producer side and does not prove Entry received the result. NAV13 adds a clone-MAIN-only, read-only hook on the Android framework `Activity.dispatchActivityResult(String,int,int,Intent)`. It filters strictly to the clone's real `EntryScreenActivity` receiver and records only `RESULT_OK|RESULT_CANCELED|OTHER`. It never reads `who`, request code, Intent, extras, token or payload and does not alter the result. Registration emits `ACTIVITY_RESULT_DELIVERY_HOOK=REGISTERED|NO_HOOK`; a real delivery emits `ACTIVITY_RESULT_DELIVERY/ENTRY_ACTIVITY/<category>`. This is the next discriminator before the existing genuine Music `Success(userInfo)` publisher hook. Source commit `9e723f3d404f1e78ac9fbf72a699a24cfaf7db1a`; exact source backup `backup/android-a1-nav12-final-handoff-r3-20261114` is advanced to the same commit. Android13 CI runs #43581081486 (paired) and #43581081611 (clone-alone) were queued at handoff; check both before any owner-facing APK or claim. This remains diagnostic-only, no APK export, no OTP, no account/data mutation.

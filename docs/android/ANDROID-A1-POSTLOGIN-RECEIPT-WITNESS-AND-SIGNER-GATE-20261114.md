@@ -81,3 +81,8 @@ Both owner NAV8 and NAV9 APKs had different outer signing certificates, because 
 Private exact-original static contract CI, module Gradle compile and publisher-first Android13 startup are required. These do **not** reproduce real Passport login, callback receipt or playback. Until a stable owner signer and a genuine session-return fix exist, deliver **no new APK**, request **no repeated OTP**, and leave Stage A **NO-GO**, Stage B **LOCKED**. User's saved NAV9 diagnostic and baseline remain in Library.
 
 Source rollback: `backup/android-a1-nav9-pre-token-callback-witness-20261114` @ `50fc7caaaad250df4b1f5539c60f1ee7083cc70b`. 
+
+
+## NAV13 — Entry result receiver-side witness
+
+Added `Activity.dispatchActivityResult(String,int,int,Intent)` observer in clone MAIN, filtered to exact `EntryScreenActivity`. It logs only the result category, with no Intent or extras inspection. This closes the gap between the already observed Passport-side `setResult(OK)` producer and actual framework delivery to Entry. Hook registration and Android13 compatibility are gated in paired run #43581081486 and clone-alone run #43581081611. Source: `9e723f3d404f1e78ac9fbf72a699a24cfaf7db1a`; rollback backup `backup/android-a1-nav12-final-handoff-r3-20261114`.
