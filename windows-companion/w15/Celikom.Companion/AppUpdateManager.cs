@@ -168,11 +168,12 @@ public static class AppUpdateManager
         // Invoke the installed application's normal Inno AppId upgrade path,
         // never the uninstaller. The installer restarts the new app with
         // --complete-update via a custom explicit-upgrade Inno parameter.
-        if (Process.Start(new ProcessStartInfo(path)
+        using var process = Process.Start(new ProcessStartInfo(path)
         {
             UseShellExecute = true,
             Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS /CELIKOMAPPUPDATE=1"
-        }) is null)
+        });
+        if (process is null)
             throw new IOException("UPDATE_LAUNCH_FAILED");
     }
 }
