@@ -108,6 +108,16 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.startActivity(',part)
         self.assertIn('NAV_V12_ONBOARDING_WRITER_WITNESS',s)
 
+    def test_passport_set_result_observer_has_independent_quota(self):
+        s=self.code
+        self.assertIn('activityResultProducerObservations =',s)
+        start=s.index('private synchronized boolean observePassportResultDelivery(')
+        end=s.index('private synchronized boolean observeEntryActivityResultDelivery()',start)
+        part=s[start:end]
+        self.assertIn('activityResultProducerObservations.incrementAndGet()<=32',part)
+        self.assertNotIn('activityFinishesLogged.incrementAndGet()',part)
+        self.assertIn('return chain.proceed();',part)
+
     def test_entry_result_delivery_is_receiver_side_readonly_and_independently_bounded(self):
         s=self.code
         self.assertIn('private boolean activityResultDeliveryHooked;',s)

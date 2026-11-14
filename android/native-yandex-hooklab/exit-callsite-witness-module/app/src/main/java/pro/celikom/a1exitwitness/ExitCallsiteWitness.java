@@ -108,6 +108,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean authenticatorTypesHooked;
     private boolean activityResultHooked;
     private boolean activityResultDeliveryHooked;
+    private final java.util.concurrent.atomic.AtomicInteger activityResultProducerObservations =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger activityResultDeliveryObservations =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger accountSnapshots =
@@ -3285,7 +3287,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                             Object receiver=chain.getThisObject();
                             if (receiver instanceof Activity
                                     && PACKAGE.equals(((Activity)receiver).getPackageName())
-                                    && activityFinishesLogged.incrementAndGet()<=32) {
+                                    && activityResultProducerObservations.incrementAndGet()<=32) {
                                 Object result=chain.getArg(0);
                                 String category=!(result instanceof Integer)
                                     ? "UNKNOWN" : ((Integer)result)==Activity.RESULT_OK
