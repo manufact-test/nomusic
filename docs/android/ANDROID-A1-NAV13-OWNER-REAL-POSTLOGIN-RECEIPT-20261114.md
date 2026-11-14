@@ -100,3 +100,20 @@ No new owner APK was exported. No owner phone was changed. No OTP was requested.
 **Next useful proof requires one controlled real owner login with this diagnostic code**, only after the owner explicitly confirms readiness. Before preparing or delivering an APK, verify the persistent signer against the currently installed diagnostic clone; do not assume an in-place update is possible. If signer differs, only the CELIKOM diagnostic clone may need a controlled reinstall; never uninstall or clear data for original Yandex. One login attempt is enough. Never request or collect the OTP itself.
 
 Stage A **NO-GO**, Stage B **LOCKED** until a genuine `WS3$b Success(userInfo)`, native Main route and actual music playback are proven.
+
+
+## 14 Nov 2026 — owner diagnostic APK exported after NAV13 native acceptance
+
+Correction to the earlier status above: a private owner diagnostic APK HAS now been exported. The earlier statements "no new owner APK was exported" and "before preparing or delivering an APK" are superseded by this addendum.
+
+- Native publisher-first Android13 workflow #43604192249: SUCCESS.
+- Exact source under test: `cb6f5b6b00fa35b0c66d499e4e795229d198daae`; workflow head `bf3c67c96d4e723bae09e64bdc3e1b5edd4b6eb6`.
+- Real Entry Activity created in native smoke; FLOW and PIPELINE observers REGISTERED. Token read/decrypt, Android result delivery and onboarding writer observers REGISTERED. Original master key persisted. Publisher-first original + clone coexistence passed; original 75s stable before/after, clone 25/25 lifecycle samples.
+- Persistent signer verified: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
+- APK SHA-256 `6e62b17aad4b9d7633a22880cceea02d39029cbe22bb663a7b302b5e9a8bc722`, 71,446,508 bytes. Certificate independently read from APK and matched the pinned owner fingerprint.
+- Artifact #14117891265, run #43604192249; ZIP SHA-256 `dc6a1df7c421d785aba80cc96df3cef4bf9de35cb317e2853533d56e8cd89a27`.
+- Library files: `/CELIKOM/CELIKOM-A1-NAV13-Entry-PostLogin-Diagnostic-20261114.apk` and `/CELIKOM/NAV13-Инструкция-реального-входа-CELIKOM-A1-20261114.txt`.
+- `owner_phone_touched=false`; no real owner Passport login, OTP or audio playback was run. Verdict is still `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, Stage A NO-GO / Stage B LOCKED.
+- Installed old clone signer remains unverified, so install mode is explicitly `FRESH_INSTALL_AUTHORIZED`. Delete only old CELIKOM diagnostic clone; preserve ordinary Yandex and its data. One genuine login reproduction and one TXT export are now the next required owner-side proof.
+
+A one-time GitHub Actions dispatcher was used so the owner did not need to click Run workflow. It dispatched the existing workflow with the two previously approved one-time export/fresh-clone inputs and removed its own temporary helper files afterward. Backup before dispatch: `backup/android-a1-pre-one-shot-owner-diagnostic-dispatch-20261114` @ `37fd2f806afc8cd1e1739ef5c17d3f1e5381101b`; backup after cleanup: `backup/android-a1-nav13-owner-diagnostic-apk-43604192249-20261114` @ `8ab403e5c9d927af158bf606c17cbe387bcd2b46`.
