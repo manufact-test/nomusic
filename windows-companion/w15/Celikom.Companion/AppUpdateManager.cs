@@ -125,10 +125,50 @@ public static class AppUpdateManager
     {
         if (!CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: false))
             throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
+        LaunchInstallerProcess(item.Path);
+    }
+
+    internal static void LaunchVerifiedSigned(
+        string verifiedPath,
+        StableUpdateManifestVerifier.VerifiedRelease release,
+        string pinnedSignerCertificateSha256)
+    {
+        if (!StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
+            trust is null ||
+            !string.Equals(trust.SignerCertificateSha256, pinnedSignerCertificateSha256,
+                StringComparison.OrdinalIgnoreCase))
+            throw new IOException("STABLE_UPDATE_TRUST_NOT_CONFIGURED");
+
+        var record = StableUpdateRollbackJournal.Read(
+            StableUpdateRollbackJournal.DefaultPrivateRoot);
+        var expectedPath = StableUpdateRollbackJournal.GetTargetInstallerPath(
+            StableUpdateRollbackJournal.DefaultPrivateRoot, record.Id);
+        if (record.Schema != 2 ||
+            record.State != StableUpdateRollbackJournal.Phase.InstallerStarted ||
+            record.RollbackAttempts != 0 ||
+            !string.Equals(Path.GetFullPath(verifiedPath), Path.GetFullPath(expectedPath),
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.TargetVersion, release.Version.ToString(4), StringComparison.Ordinal) ||
+            record.TargetSequence != release.Sequence ||
+            record.TargetSize != release.PackageSize ||
+            !string.Equals(record.TargetSha256, release.Sha256, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.SignerSha256, pinnedSignerCertificateSha256,
+                StringComparison.OrdinalIgnoreCase))
+            throw new IOException("STABLE_UPDATE_TARGET_NOT_JOURNALED");
+
+        StableUpdatePackageStager.VerifyInstaller(
+            verifiedPath, release, pinnedSignerCertificateSha256);
+        if (!CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: false))
+            throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
+        LaunchInstallerProcess(verifiedPath);
+    }
+
+    private static void LaunchInstallerProcess(string path)
+    {
         // Invoke the installed application's normal Inno AppId upgrade path,
         // never the uninstaller. The installer restarts the new app with
         // --complete-update via a custom explicit-upgrade Inno parameter.
-        if (Process.Start(new ProcessStartInfo(item.Path)
+        if (Process.Start(new ProcessStartInfo(path)
         {
             UseShellExecute = true,
             Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS /CELIKOMAPPUPDATE=1"

@@ -143,6 +143,7 @@ public sealed partial class MainWindow : Form
             catch (InvalidOperationException) { /* Window is shutting down. */ }
         };
         NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+        InitializeStableUpdateScheduler();
 
         Text = "CELIKOM"; // version is shown in the compact popup footer, not clipped in titlebar
         // ApplicationIcon is built from the SAME official extension "C" mark.
@@ -241,6 +242,11 @@ public sealed partial class MainWindow : Form
                 await RefreshHostAsync();
         };
         FormClosing += ClosingAsync;
+        FormClosed += (_, _) =>
+        {
+            _stableUpdatePulse.Stop();
+            _stableUpdatePulse.Dispose();
+        };
         Shown += async (_, _) =>
         {
             RenderCompact();
@@ -271,10 +277,13 @@ public sealed partial class MainWindow : Form
             if (_backgroundStartup)
                 await ResumeSavedPlaybackAsync();
 
-            // W117: seed/verify the signed rollback base only when the complete
-            // production trust tuple is embedded. Runs off the UI thread and
-            // never launches an installer or touches Yandex playback.
-            _ = Task.Run(BootstrapStableRollbackIfConfiguredAsync);
+            // The stable updater remains dormant until the production P-256
+            // and Authenticode trust tuple is embedded in this build.
+            if (StableUpdateTrustConfiguration.TryGetProduction(out _))
+            {
+                _stableUpdatePulse.Start();
+                _ = CheckStableUpdateIfSafeAsync();
+            }
         };
         Activated += (_, _) =>
         {
@@ -1305,28 +1314,6 @@ public sealed partial class MainWindow : Form
                 ? "APP_UPDATE_NATIVE_VERSION_MATCHED"
                 : "APP_UPDATE_NATIVE_CHECK_PENDING");
             UpdateSafe();
-        }
-    }
-
-    private async Task BootstrapStableRollbackIfConfiguredAsync()
-    {
-        if (!StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
-            trust is null ||
-            !AppUpdateManager.CanLaunchWithoutPlaybackInterrupt(_bridge.Enabled))
-            return;
-
-        try
-        {
-            await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
-                trust.OfficialOrigin, trust.ManifestPublicKeyDer,
-                trust.SignerCertificateSha256).ConfigureAwait(false);
-            DiagnosticLog.Record("STABLE_ROLLBACK_BOOTSTRAP_READY");
-        }
-        catch
-        {
-            // Keep startup and playback unaffected. Exported diagnostics get
-            // only this fixed allowlisted code, never exception text or URLs.
-            DiagnosticLog.Record("STABLE_ROLLBACK_BOOTSTRAP_UNAVAILABLE");
         }
     }
 

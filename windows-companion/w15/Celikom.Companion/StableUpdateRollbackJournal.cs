@@ -49,6 +49,11 @@ public static class StableUpdateRollbackJournal
             throw new IOException("STABLE_ROLLBACK_TRANSACTION_INVALID");
         return Path.Combine(FullRoot(privateRoot), transaction.ToString("N"));
     }
+
+    public static string GetTargetInstallerPath(string privateRoot, Guid transaction) =>
+        Path.Combine(GetSnapshotDirectory(privateRoot, transaction), TargetName);
+
+    public static bool IsAllowedTransition(Phase from, Phase to) => Allowed(from, to);
     private static readonly byte[] Purpose =
         System.Text.Encoding.UTF8.GetBytes("CELIKOM.Windows.StableRollback.W109.v1");
 
@@ -505,6 +510,7 @@ public static class StableUpdateRollbackJournal
         (Phase.Prepared, Phase.ManualRecovery) => true,
         (Phase.InstallerStarted, Phase.NewAppObserved) => true,
         (Phase.InstallerStarted, Phase.RollbackNeeded) => true,
+        (Phase.InstallerStarted, Phase.ManualRecovery) => true,
         (Phase.NewAppObserved, Phase.RollbackNeeded) => true,
         (Phase.RollbackNeeded, Phase.RollbackStarted) => true,
         (Phase.RollbackStarted, Phase.ManualRecovery) => true,

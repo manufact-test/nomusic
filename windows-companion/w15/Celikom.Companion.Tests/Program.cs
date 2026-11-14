@@ -668,6 +668,23 @@ try
                 currentSequenceDocument, currentSequenceSignature, pub, signedFeedOrigin,
                 new Version(0, 24, 36, 0), 41, signedFeedNow) is null,
             "W123 authenticated equal sequence is a normal no-update result");
+        bool stableUpdateContextRead = false;
+        var stableUpdateDisabled = await StableUpdateInstallCoordinator.CheckAndInstallAsync(() =>
+        {
+            stableUpdateContextRead = true;
+            return new StableUpdateInstallCoordinator.Context(
+                BridgeEnabled: false, YandexProcessRunning: false,
+                PlaybackStateKnown: true, InstallerBusy: false,
+                HasSession: false, NativeWasInstalled: false);
+        });
+        Test(stableUpdateDisabled.Outcome == StableUpdateInstallCoordinator.Outcome.TrustNotConfigured &&
+             !stableUpdateContextRead,
+            "W124 production updater stays dormant and performs no work while trust pins are empty");
+        Test(StableUpdateRollbackJournal.IsAllowedTransition(
+                StableUpdateRollbackJournal.Phase.InstallerStarted,
+                StableUpdateRollbackJournal.Phase.ManualRecovery),
+            "W124 failed installer launch can move the supervisor journal to ManualRecovery");
+
         bool equalSequenceBadSignatureRejected = false;
         try
         {

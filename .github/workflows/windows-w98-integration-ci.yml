@@ -109,6 +109,9 @@ jobs:
           $supervisorTestsText=Get-Content ..\w15\Celikom.UpdateSupervisor.Tests\Program.cs -Raw
           $stableManifestVerifierText=Get-Content ..\w15\Celikom.Companion\StableUpdateManifestVerifier.cs -Raw
           $stableManifestFetcherText=Get-Content ..\w15\Celikom.Companion\StableUpdateManifestFetcher.cs -Raw
+          $stableCoordinatorText=Get-Content ..\w15\Celikom.Companion\StableUpdateInstallCoordinator.cs -Raw
+          $mainWindowStableText=Get-Content ..\w15\Celikom.Companion\MainWindow.StableUpdate.cs -Raw
+          $appUpdateManagerText=Get-Content ..\w15\Celikom.Companion\AppUpdateManager.cs -Raw
           $guardChecks=@(
             $nativeHostText.Contains('maxTotalBufferSize: 2 * 1024 * 1024'),
             $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
@@ -132,7 +135,14 @@ jobs:
             $supervisorProgramText.Contains('StableUpdateSupervisorHandshake.SignalReadyAsync'),
             $supervisorTestsText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync'),
             $stableManifestVerifierText.Contains('VerifyIfNewer'),
-            $stableManifestFetcherText.Contains('FetchSignedIfNewerWithClientAsync')
+            $stableManifestFetcherText.Contains('FetchSignedIfNewerWithClientAsync'),
+            $stableCoordinatorText.Contains('StableUpdateSupervisorLauncher.StartAsync'),
+            $stableCoordinatorText.Contains('StableUpdateManifestFetcher.FetchSignedIfNewerAsync'),
+            $stableCoordinatorText.Contains('StableUpdateInstallSafety.CanInstall'),
+            $stableCoordinatorText.Contains('StableUpdateRollbackJournal.Phase.Prepared, StableUpdateRollbackJournal.Phase.InstallerStarted'),
+            $mainWindowStableText.Contains('Interval = 30 * 60 * 1000'),
+            $mainWindowStableText.Contains('StableUpdateInstallCoordinator.CheckAndInstallAsync'),
+            $appUpdateManagerText.Contains('LaunchVerifiedSigned')
           )
           Write-Host "W103_W23_GUARD_CHECKS=$($guardChecks -join ',')"
           if ($guardChecks -contains $false) {
