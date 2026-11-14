@@ -1,0 +1,45 @@
+name: CELIKOM A1 one-time NAV16 signed Passport failure diagnostic dispatch
+on:
+  push:
+    branches:
+      - experiment/android-a1-metrica-init-state-observer-arm13-20261112
+    paths:
+      - .github/a1-nav16-passport-error.once
+permissions:
+  actions: write
+  contents: write
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch existing fully gated owner-signed diagnostic workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: experiment/android-a1-metrica-init-state-observer-arm13-20261112
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run android-a1-metrica-init-state-observer-arm13.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TARGET_BRANCH" \
+            -f export_diagnostic_apk=true \
+            -f authorize_fresh_clone_install=true
+          echo "A1_NAV16_PASSPORT_ERROR_DISPATCH_ACCEPTED"
+      - name: Remove only this temporary dispatcher and trigger
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: experiment/android-a1-metrica-init-state-observer-arm13-20261112
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            .github/workflows/a1-nav16-passport-error-dispatch-once.yml \
+            .github/a1-nav16-passport-error.once; do
+            sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$TARGET_BRANCH" --jq .sha)"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/contents/$path" \
+              -f message="chore(android-a1): remove one-time NAV16 dispatch helper" \
+              -f sha="$sha" \
+              -f branch="$TARGET_BRANCH" >/dev/null
+          done
+          echo "A1_NAV16_PASSPORT_ERROR_TEMP_HELPERS_REMOVED"
