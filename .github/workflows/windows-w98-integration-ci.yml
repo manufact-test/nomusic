@@ -220,6 +220,13 @@ jobs:
             throw 'W136_STALE_STAGE_INSTALLER_WORKFLOW'
           }
           Write-Output 'W136_STAGE_WORKFLOW_CURRENT_VERSION_PASS'
+          if (-not $stage.Contains('W137_SINGLE_INSTALLER_EXE_ZIP_AND_SHA256_PASS') -or
+              -not $stage.Contains('W137_STAGE_ZIP_MUST_CONTAIN_EXACTLY_ONE_ROOT_INSTALLER') -or
+              -not $stage.Contains('SHA256SUMS.txt') -or
+              -not $stage.Contains('CELIKOM_STAGE_ZIP')) {
+            throw 'W137_EXE_ZIP_PACKAGE_AND_CHECKSUM_GATE_MISSING'
+          }
+          Write-Output 'W137_ONE_EXE_ZIP_STAGE_CONTRACT_PASS'
       - name: W110 crash-independent watchdog health and rollback simulation
         run: dotnet run --project windows-companion/w15/Celikom.UpdateSupervisor.Tests/Celikom.UpdateSupervisor.Tests.csproj -c Release
       - name: W110 unsigned production helper refuses automatic recovery
