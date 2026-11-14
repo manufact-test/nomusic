@@ -327,23 +327,29 @@ def wrapper_constructor_input_flow(dex: Dex, method, flags: int, code_off: int):
                 })
             pending_result = None
             if callee[2].endswith(")Ljava/lang/String;"):
-                if callee[0] == MODEL and regs and regs[0] in model_aliases:
+                model_arg_positions = [
+                    index for index, register in enumerate(regs)
+                    if register in model_aliases
+                ]
+                inputs = [provenance[r] for r in regs if r in provenance]
+                if model_arg_positions:
                     pending_result = {
-                        "kind": "NATIVE_TRACK_ACCESSOR",
-                        "method": callee[1],
+                        "kind": "NATIVE_TRACK_MODEL_DERIVED_STRING",
+                        "producer_owner": callee[0],
+                        "producer_method": callee[1],
+                        "model_argument_positions": model_arg_positions,
+                        "input_kinds": sorted({v.get("kind", "UNKNOWN") for v in inputs}),
                         "model_receiver_in_same_method": True,
                     }
-                else:
-                    inputs = [provenance[r] for r in regs if r in provenance]
-                    if inputs:
-                        pending_result = {
-                            "kind": "DERIVED_STRING",
-                            "producer_owner": callee[0],
-                            "producer_method": callee[1],
-                            "input_kinds": sorted({v.get("kind", "UNKNOWN") for v in inputs}),
-                            "model_receiver_in_same_method": any(
-                                v.get("model_receiver_in_same_method", False) for v in inputs),
-                        }
+                elif inputs:
+                    pending_result = {
+                        "kind": "DERIVED_STRING",
+                        "producer_owner": callee[0],
+                        "producer_method": callee[1],
+                        "input_kinds": sorted({v.get("kind", "UNKNOWN") for v in inputs}),
+                        "model_receiver_in_same_method": any(
+                            v.get("model_receiver_in_same_method", False) for v in inputs),
+                    }
         elif op == 0x0c:  # move-result-object
             dest = words[0] >> 8
             if pending_result is not None:
