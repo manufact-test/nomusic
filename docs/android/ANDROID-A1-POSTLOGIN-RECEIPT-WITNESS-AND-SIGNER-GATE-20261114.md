@@ -1,3 +1,9 @@
+## Confirmed Android 13 runtime key initialization — 14 Nov 2026
+
+The **clone-alone** fresh native ARM Android 13 [workflow #43574754576](https://github.com/manufact-test/nomusic/actions/runs/43574754576) completed **SUCCESS** with the new explicit runtime assertion; the JSON verdict includes `"master_key_init_runtime_status": "ORIGINAL_KEY_PERSISTED"`. This proves that the clone MAIN's original 2025 Passport `v.try()` wrote the key on an actual fresh Android13 container. No token, no owner account and no OTP were involved. The original/clone publisher-first paired gate is [#43574754550](https://github.com/manufact-test/nomusic/actions/runs/43574754550); do not call it SUCCESS before verifying it.
+
+This is a **meaningful technical repair of first-run key-ordering**, but neither a demonstrated fix of the owner's already-observed login loop nor a product release. User data on NAV9 remains untouched; no binary exported because the old NAV9 ephemeral signature cannot be updated. Stage A NO-GO; Stage B LOCKED.
+
 # CELIKOM A1 — bounded original login receipt witness (14 Nov 2026)
 
 ## What is implemented, not claimed
