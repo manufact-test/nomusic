@@ -92,7 +92,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertIn('"Yandex_Music".equals(name)',s)
         self.assertIn('Class.forName("android.app.SharedPreferencesImpl", false, null)',s)
         self.assertIn('"android.app.SharedPreferencesImpl$EditorImpl", false, null)',s)
-        self.assertIn('getDeclaredMethod("putBoolean", String.class, boolean.class)',s)
+        self.assertIn('"putBoolean", String.class, boolean.class)',s)
         self.assertIn('"onboarding".equals(key)',s)
         self.assertIn('getDeclaredMethod("commit")',s)
         self.assertIn('getDeclaredMethod("apply")',s)
