@@ -2,15 +2,16 @@
 
 Repository: `manufact-test/nomusic`.
 **ONE active product line:** `main`; last green **code** @ `1ad2c63e78746db49ca8bca5e0c3c8bee2cbc48b`, followed by this documentation-only handoff (verify current GitHub HEAD).
-Exact post-W57 green rollback: `backup/windows-main-post-w57-ci-green-20261114` at the same SHA.
+Historical post-W57 green rollback: `backup/windows-main-post-w57-ci-green-20261114` @ `7a4768ecc7366abeb0358337f83e514e85cd8d53` (NOT the current W108 rollback). Latest W108 green backup is listed below.
 Previous W54 rollback: `backup/windows-main-post-w54-gain-witness-20261114` @ `b045c640783e2708f5a887c5aa7eafbcf2febc50`.
 No new `experiment/*` branches. Before each substantial change create exact `backup/*`, and avoid touching Android, extension, private original media or unrelated server logic.
 
 **Read first:**
 1. `docs/windows/W102-SINGLE-PRODUCTION-LINE-YANDEX-15MIN-AND-WORK-ORDER-20261113.md`
 2. `docs/windows/W101-CELIKOM-WINDOWS-AUTO-UPDATE-AND-ROLLBACK-POLICY-20261113.md`
-3. `docs/windows/NEXT-CHAT.md` (this file)
-4. GitHub issues #52, #53, #54, #56, #57, #58; read actual code before changing.
+3. `docs/windows/W105-W108-STABLE-UPDATER-TRUST-AND-NO-AUTOPLAY-20261114.md`
+4. `docs/windows/NEXT-CHAT.md` (this file)
+5. GitHub issues #52, #53, #54, #56, #57, #58; read actual code before changing.
 
 **Exact CI proof at takeover:**
 - Main CI [43523524721](https://github.com/manufact-test/nomusic/actions/runs/43523524721) — SUCCESS.
