@@ -3129,10 +3129,15 @@ public final class ExitCallsiteWitness extends XposedModule {
                 Class<?> resumed = Class.forName("nY5", false, loader);
                 Field stateField = resumed.getDeclaredField("continue");
                 stateField.setAccessible(true);
-                // Exact original nY5.invokeSuspend writes its result into
-                // private:Object before resuming qY5. Inspect ONLY type.
+                // Exact signed original: nY5.private holds zW8, NOT the
+                // direct token or failure. qY5.if first reads zW8.default
+                // at its resume site before checking String vs zW8$b.
+                // Read only class identity; NEVER read or emit a token value.
                 Field tokenResumeResult = resumed.getDeclaredField("private");
                 tokenResumeResult.setAccessible(true);
+                Class<?> tokenEnvelope = Class.forName("zW8", false, loader);
+                Field tokenEnvelopePayload = tokenEnvelope.getDeclaredField("default");
+                tokenEnvelopePayload.setAccessible(true);
                 Class<?> tokenFailure = Class.forName("zW8$b", false, loader);
                 Field tokenFailureCause = tokenFailure.getDeclaredField("default");
                 tokenFailureCause.setAccessible(true);
@@ -3161,20 +3166,27 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 && postLoginTokenOutcomeEvents.incrementAndGet() <= 12) {
                             try {
                                 Object frame = chain.getArg(3);
-                                Object reply = tokenResumeResult.get(frame);
-                                boolean isFailure = reply != null
-                                    && tokenFailure.isInstance(reply);
-                                String category = reply == null ? "NULL" :
-                                    isFailure ? "FAILURE" :
-                                    reply instanceof String ? "STRING_RESULT" :
-                                    "OTHER_NONFAILURE_RESULT";
-                                emit("LOGIN_TOKEN_OUTCOME", "ENTRY", category);
-                                if (isFailure) {
-                                    Object cause = tokenFailureCause.get(reply);
-                                    emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",
-                                        cause instanceof Throwable
-                                            ? tokenRequestErrorCategory((Throwable) cause)
-                                            : "NO_THROWABLE");
+                                Object envelope = tokenResumeResult.get(frame);
+                                if (!tokenEnvelope.isInstance(envelope)) {
+                                    emit("LOGIN_TOKEN_OUTCOME", "ENTRY", "UNEXPECTED_ENVELOPE");
+                                } else {
+                                    // The field contains a real token String or
+                                    // the SDK failure object. Only inspect type.
+                                    Object payload = tokenEnvelopePayload.get(envelope);
+                                    boolean isFailure = payload != null
+                                        && tokenFailure.isInstance(payload);
+                                    String category = payload == null ? "WRAPPED_NULL" :
+                                        isFailure ? "WRAPPED_FAILURE" :
+                                        payload instanceof String ? "WRAPPED_STRING" :
+                                        "WRAPPED_OTHER";
+                                    emit("LOGIN_TOKEN_OUTCOME", "ENTRY", category);
+                                    if (isFailure) {
+                                        Object cause = tokenFailureCause.get(payload);
+                                        emit("LOGIN_TOKEN_ERROR_KIND", "ENTRY",
+                                            cause instanceof Throwable
+                                                ? tokenRequestErrorCategory((Throwable) cause)
+                                                : "NO_THROWABLE");
+                                    }
                                 }
                             } catch (Throwable ignored) {
                                 emit("LOGIN_TOKEN_OUTCOME", "ENTRY", "UNAVAILABLE");
