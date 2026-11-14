@@ -40,3 +40,4 @@
 - CI for the final documentation HEAD is pending at handoff; do not claim W114a green until both Main CI and Windows integration complete successfully.
 - This fixes rollback payload verification only. It does not provision production signing keys, launch the helper from the app, publish a live feed or enable automatic updates.
 
+- Additional journal consistency guard: schema-2 `ReadRecord` now rejects missing/invalid previous or target Supervisor SHA-256 values immediately, rather than returning a record that only the engine later refuses. This aligns durable journal validation with W114's four-file payload contract. Code commit: `59a84955308ec73f3a4e3b8dad1282002eb4f3ed`.
