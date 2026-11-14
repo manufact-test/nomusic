@@ -41,3 +41,5 @@
 - This fixes rollback payload verification only. It does not provision production signing keys, launch the helper from the app, publish a live feed or enable automatic updates.
 
 - Additional journal consistency guard: schema-2 `ReadRecord` now rejects missing/invalid previous or target Supervisor SHA-256 values immediately, rather than returning a record that only the engine later refuses. This aligns durable journal validation with W114's four-file payload contract. Code commit: `59a84955308ec73f3a4e3b8dad1282002eb4f3ed`.
+
+- W114a regression coverage expanded: separate W15 cases now reject a previous release missing `SupervisorSha256` and a target release missing `SupervisorSha256`; this verifies both sides of the rollback pair fail closed before journal creation. Test commit: `0540673c68fdd2fca1bc32acda74496de6fe09e6`. Exact pre-test backup: `backup/windows-main-pre-w114a-supervisor-missing-hash-tests-20261114` @ `faf417f29db5a97cb4faded53663d07c4da64f1d`.
