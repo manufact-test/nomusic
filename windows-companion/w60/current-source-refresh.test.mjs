@@ -140,7 +140,8 @@ test("W63 exact current song yields safe title artist duration without control m
   const p=new h.NativeYandexPlayback();
   void p.state;
   assert.deepEqual(r.currentTrack(),{
-    id:"34483761",title:"Раскол",artist:"Исполнитель",durationMs:178000
+    id:"34483761",title:"Раскол",artist:"Исполнитель",durationMs:178000,
+    playbackState:"PLAYING"
   });
   assert.deepEqual(p.calls,[]);
   p.snapshot.queueState.currentEntity.value.entity.data.meta.title=
@@ -162,7 +163,8 @@ test("W66 song and artist metadata keep uppercase D, digits and Unicode intact",
   void p.state;
   assert.deepEqual(r.currentTrack(),{
     id:"34483761",title:"Город и Туман",
-    artist:"kavabanga Depo kolibri",durationMs:178000
+    artist:"kavabanga Depo kolibri",durationMs:178000,
+    playbackState:"PLAYING"
   });
   meta.title="TRITIA 10AGE 02468 ABCDFHJLNPRTVXZ";
   meta.artists=[{name:"中文 русский DÉPÔ 0123456789"}];
@@ -189,5 +191,20 @@ test("W77: exact current ID guard rejects async stale track before source reload
   assert.deepEqual(p.calls,[]);
   assert.equal(await r.request("103624638"),true);
   assert.deepEqual(p.calls,["QUALITY_CHANGE"]);
+  r.dispose();
+});
+
+test("W141 stopped current entity is explicit but cannot trigger a reload",async()=>{
+  const h=harness({status:"stopped",trackId:"34483761"}),r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  const p=new h.NativeYandexPlayback();
+  void p.state;
+  assert.equal(r.currentTrackId(),"34483761");
+  assert.deepEqual(r.currentTrack(),{
+    id:"34483761",title:"Раскол",artist:"Исполнитель",
+    durationMs:178000,playbackState:"STOPPED"
+  });
+  assert.equal(await r.request(),false);
+  assert.deepEqual(p.calls,[]);
   r.dispose();
 });
