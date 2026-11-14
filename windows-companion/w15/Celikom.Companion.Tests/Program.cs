@@ -381,7 +381,7 @@ try
     File.WriteAllBytes(bootstrapSupervisor, bootstrapSupervisorBytes);
     string HashBytes(byte[] bytes) =>
         Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-    var bootstrapRelease = new StableUpdateManifestVerifier.VerifiedRelease(
+    var seededRelease = new StableUpdateManifestVerifier.VerifiedRelease(
         new Version(0, 24, 36, 0), 40,
         new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.36/CELIKOM-Windows-0.24.36.exe"),
         previousBytes.Length, prevHash, rollbackAt.AddDays(-10), false, "",
@@ -390,7 +390,7 @@ try
         RendererSha256: HashBytes(bootstrapRendererBytes),
         SupervisorSha256: HashBytes(bootstrapSupervisorBytes));
     var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-        bootstrapRoot, bootstrapRelease, previousSetup, testSignerPin,
+        bootstrapRoot, seededRelease, previousSetup, testSignerPin,
         new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
         bootstrapRenderer, bootstrapSupervisor, rollbackAt,
         VerifySyntheticSetup,
@@ -402,8 +402,8 @@ try
          seeded.RollbackAttempts == 0 &&
          seeded.PreviousVersion == "0.0.0.0" &&
          seeded.PreviousSequence == 0 &&
-         seededPackage.Release.Version == bootstrapRelease.Version &&
-         seededPackage.Release.Sequence == bootstrapRelease.Sequence &&
+         seededPackage.Release.Version == seededRelease.Version &&
+         seededPackage.Release.Sequence == seededRelease.Sequence &&
          Path.GetFileName(seededPackage.InstallerPath) == "target-signed-setup.exe" &&
          File.ReadAllBytes(seededPackage.InstallerPath).SequenceEqual(previousBytes),
          "W116 first signed install seeds an exact durable LKG package without inventing a previous release");
@@ -414,7 +414,7 @@ try
     {
         StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
             Path.Combine(rollbackFixtureRoot, "rollback-bootstrap-tampered"),
-            bootstrapRelease, previousSetup, testSignerPin,
+            seededRelease, previousSetup, testSignerPin,
             new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
             bootstrapRenderer, bootstrapSupervisor, rollbackAt,
             VerifySyntheticSetup,
@@ -430,7 +430,7 @@ try
     try
     {
         StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-            bootstrapRoot, bootstrapRelease, previousSetup, testSignerPin,
+            bootstrapRoot, seededRelease, previousSetup, testSignerPin,
             new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
             bootstrapRenderer, bootstrapSupervisor, rollbackAt,
             VerifySyntheticSetup,
@@ -443,7 +443,7 @@ try
 
     var seedNext = StableUpdateRollbackJournal.PrepareCore(
         bootstrapRoot, seededPackage.Release, seededPackage.InstallerPath,
-        targetRelease, nextSetup, testSignerPin, bootstrapRelease.Version,
+        targetRelease, nextSetup, testSignerPin, seededRelease.Version,
         rollbackAt.AddHours(1), hasSession: false, nativeWasInstalled: false,
         VerifySyntheticSetup);
     Test(seedNext.State == StableUpdateRollbackJournal.Phase.Prepared &&
