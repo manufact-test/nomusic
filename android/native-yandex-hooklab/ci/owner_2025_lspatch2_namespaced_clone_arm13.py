@@ -461,7 +461,7 @@ def _activity_result_delivery_hook_status(raw_logcat: str) -> str:
     if not isinstance(raw_logcat, str):
         return "UNAVAILABLE"
     statuses = re.findall(
-        r'CELIKOM_A1_EXIT_WITNESS[^\\n]{0,700}event=ACTIVITY_RESULT_DELIVERY_HOOK;origin=ANDROID;error=(REGISTERED|NO_HOOK)(?:;|\\s)',
+        r'CELIKOM_A1_EXIT_WITNESS[^\n]{0,700}event=ACTIVITY_RESULT_DELIVERY_HOOK;origin=ANDROID;error=(REGISTERED|NO_HOOK)(?:;|\s)',
         raw_logcat)
     if "REGISTERED" in statuses:
         return "REGISTERED"
@@ -701,7 +701,7 @@ def run(xapk):
         raw_logcat=guest("logcat","-v","threadtime","-d",timeout=55).stdout
         report["master_key_init_runtime_status"]=_fresh_master_key_init_status(raw_logcat)
         report["onboarding_writer_hook_status"]=_onboarding_writer_hook_status(raw_logcat)
-            report["activity_result_delivery_hook_status"]=_activity_result_delivery_hook_status(raw_logcat)
+        report["activity_result_delivery_hook_status"]=_activity_result_delivery_hook_status(raw_logcat)
         report["scoped_own_readonly_witness"]=scoped_metrica_witness(
             guest("dumpsys","activity","exit-info",DEST,timeout=45).stdout,
             raw_logcat,

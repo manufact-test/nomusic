@@ -108,6 +108,13 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.startActivity(',part)
         self.assertIn('NAV_V12_ONBOARDING_WRITER_WITNESS',s)
 
+    def test_native_gate_requires_receiver_hook_registration(self):
+        runner=(Path(__file__).resolve().parent /
+                "owner_2025_lspatch2_namespaced_clone_arm13.py").read_text(encoding="utf-8")
+        self.assertIn("def _activity_result_delivery_hook_status(",runner)
+        self.assertIn('report["activity_result_delivery_hook_status"]=_activity_result_delivery_hook_status(raw_logcat)',runner)
+        self.assertGreaterEqual(runner.count('report["activity_result_delivery_hook_status"] == "REGISTERED"'),2)
+
     def test_passport_set_result_observer_has_independent_quota(self):
         s=self.code
         self.assertIn('activityResultProducerObservations =',s)
