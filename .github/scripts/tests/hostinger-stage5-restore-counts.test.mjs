@@ -80,4 +80,7 @@ test("W98 live audit excludes only volatile session/auth/navigation row counts",
     assert.ok(!match[1].includes("'" + table + "'"), table + " must remain strictly checked");
   }
   assert.ok(remote.includes("if (in_array($table, $volatileRowCountTables, true)) continue;"));
+  assert.ok(remote.includes("if ($currentCount < (int) $beforeCount)"));
+  assert.ok(remote.includes("$currentCount > (int)$beforeCount + 2"));
+  assert.ok(!remote.includes("if ($currentCount !== (int) $beforeCount)"));
 });

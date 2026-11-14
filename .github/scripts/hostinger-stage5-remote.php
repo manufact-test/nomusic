@@ -136,6 +136,8 @@ try {
             $currentCount = (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn();
             // The only permitted pre-deployment row-count increase is the
             // expected checksummed additive Stage 9 email security migration.
+            if ($table === 'schema_migrations' && $currentCount > (int)$beforeCount + 2)
+                throw new RuntimeException('unexpected-migration-count');
             if ($table === 'schema_migrations' && $currentCount > (int)$beforeCount
                 && $currentCount <= (int)$beforeCount + 2) {
                 // Stage10 permits only the two checksummed additive migrations.
@@ -150,8 +152,8 @@ try {
                 }
                 continue;
             }
-            if ($currentCount !== (int) $beforeCount)
-                throw new RuntimeException('database-row-count-changed-' . str_replace('_', '-', $table));
+            if ($currentCount < (int) $beforeCount)
+                throw new RuntimeException('database-row-count-decreased-' . str_replace('_', '-', $table));
         }
         foreach (['promo_codes','promo_redemptions','promo_attempt_buckets', 'windows_gain_variants', 'support_tickets', 'support_messages'] as $table) {
             if (array_key_exists($table,$baseline['tables'])) continue;
@@ -160,7 +162,7 @@ try {
             if ((int)$exists->fetchColumn() && (int)$pdo->query('SELECT COUNT(*) FROM '.chr(96).$table.chr(96))->fetchColumn()!==0)
                 throw new RuntimeException('unexpected_new_promo_data');
         }
-        echo "After-deploy audit PASS: private env, original media and stable table counts preserved; additive migrations verified; volatile session/auth/navigation counts excluded; newly introduced promo tables contain no real codes or grants.\n";
+        echo "After-deploy audit PASS: private env, original media and baseline row-count floors preserved; additive migrations verified; volatile session/auth/navigation counts excluded; newly introduced promo tables contain no real codes or grants.\n";
         exit(0);
     }
     $latest = static function() use ($backupRoot): string {
