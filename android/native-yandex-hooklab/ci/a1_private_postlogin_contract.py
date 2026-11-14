@@ -230,7 +230,11 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
 
     if any(found[key] != [shape] for key, shape in expected_methods.items()):
         raise DexError("PRIVATE_LOGIN_OBSERVER_SIGNATURE_MISMATCH")
-    required_fields = {("LnY5;", "I", "continue")}
+    required_fields = {
+        ("LnY5;", "I", "continue"),
+        ("LnY5;", "Ljava/lang/Object;", "private"),
+        ("LzW8$b;", "Ljava/lang/Throwable;", "default"),
+    }
     required_supers = {
         ("LnY5;", "LOe2;"),
         ("LqY5$a$a;", "LqY5$a;"),
