@@ -18,6 +18,11 @@ final class StageBAudioEvidence {
     // Up to 16 real descriptor objects weakly held, reference (==) only.
     // Neither source identity, URL nor track fields are ever serialized.
     private final ArrayList<WeakReference<Object>> nativeDescriptors = new ArrayList<>();
+    private final ArrayList<WeakReference<Object>> exoSourceInstances = new ArrayList<>();
+    private final AtomicLong exoSourceReadProbeBudget = new AtomicLong();
+    private final AtomicLong exoSourceInstancesCreated = new AtomicLong();
+    private final AtomicLong exoSourceInstancesOpened = new AtomicLong();
+    private final AtomicLong exoSourceInstancesRead = new AtomicLong();
     private final AtomicLong exoDescriptorResults = new AtomicLong();
     private final AtomicLong exoFactorySameDescriptor = new AtomicLong();
     private final AtomicLong exoFactoryResults = new AtomicLong();
@@ -69,6 +74,46 @@ final class StageBAudioEvidence {
             }
         }
     }
+
+    private static boolean firstAtMost(AtomicLong count, int limit) {
+        for (;;) {
+            long old = count.get();
+            if (old >= limit) return false;
+            if (count.compareAndSet(old, old+1)) return true;
+        }
+    }
+
+    synchronized void onExoSourceInstanceCreated(Object source) {
+        if (source == null) return;
+        for (int i=exoSourceInstances.size()-1;i>=0;i--) {
+            Object item = exoSourceInstances.get(i).get();
+            if (item == source) return;
+            if (item == null) exoSourceInstances.remove(i);
+        }
+        if (exoSourceInstances.size()>=16) exoSourceInstances.remove(0);
+        exoSourceInstances.add(new WeakReference<>(source));
+        mark(exoSourceInstancesCreated);
+    }
+
+    private synchronized boolean sameExoSource(Object source) {
+        if (source == null) return false;
+        for (WeakReference<Object> item:exoSourceInstances)
+            if (item.get()==source) return true;
+        return false;
+    }
+
+    void onExoSourceInstanceOpen(Object source) {
+        if (sameExoSource(source)) mark(exoSourceInstancesOpened);
+    }
+
+    void onExoSourceInstanceRead(Object source,int count) {
+        // At most the first 16 nonzero reads inspect a bounded weak list.
+        // Subsequent readAt hot-path callbacks do not scan objects or log.
+        if (count > 0 && firstAtMost(exoSourceReadProbeBudget,16)
+                && sameExoSource(source))
+            mark(exoSourceInstancesRead);
+    }
+
     void onExoOpen() { mark(exoOpenResults); }
     void onExoReadResult(int result) {
         if (result > 0) mark(exoPositiveReads);
@@ -134,6 +179,9 @@ final class StageBAudioEvidence {
             event("EXO_IO_FAILURE", exoFailures),
             event("EXO_DESCRIPTOR_BUILT", exoDescriptorResults),
             event("EXO_SAME_DESCRIPTOR", exoFactorySameDescriptor),
+            event("EXO_SOURCE_INSTANCE", exoSourceInstancesCreated),
+            event("EXO_INSTANCE_OPENED", exoSourceInstancesOpened),
+            event("EXO_INSTANCE_READ", exoSourceInstancesRead),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }

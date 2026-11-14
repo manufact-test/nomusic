@@ -14,7 +14,7 @@ from clone_main_crash_buffer import main_exit_pids, LOG
 EVENTS={"ARMED","HI2_EXCEPTION","METRICA_EXCEPTION","APP_CONTEXT","LOADEDAPK_RESDIR","OWN_RES_ROUTE","MEDIA_DS_HOOK","MEDIA_DS_READ","MEDIA_DS_SOURCE","MEDIA_DS_EXTRACTOR_LINK","MEDIA_EXTRACTOR_HOOK","MEDIA_EXTRACTOR_SOURCE","MEDIA_EXTRACTOR_CALL",
         "AUDIO_FILEINFO_HOOK","AUDIO_DOWNLOADINFO_HOOK","AUDIO_EXO_FACTORY_HOOK",
         "AUDIO_EXO_OPEN_HOOK","AUDIO_EXO_READ_HOOK","AUDIO_EXO_DESCRIPTOR_HOOK",
-        "AUDIO_EXO_DATASOURCE_HOOK","UNCAUGHT",
+        "AUDIO_EXO_DATASOURCE_HOOK","AUDIO_EXO_SOURCE_INSTANCE_HOOK","UNCAUGHT",
         "FATAL_HOOK","FATAL_DISPATCH","METRICA_DETAIL","FATAL_DETAIL",
         "LAB_METRICA_FAILOPEN","PREFIX_HOOK","APP_LIFECYCLE",
          "METRICA_ACTIVATE","METRICA_CONTEXT","METRICA_LOADER","METRICA_PHASE",
@@ -180,7 +180,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
         if (event in ("AUDIO_FILEINFO_HOOK","AUDIO_DOWNLOADINFO_HOOK",
                       "AUDIO_EXO_FACTORY_HOOK","AUDIO_EXO_OPEN_HOOK",
                       "AUDIO_EXO_READ_HOOK","AUDIO_EXO_DESCRIPTOR_HOOK",
-                      "AUDIO_EXO_DATASOURCE_HOOK")
+                      "AUDIO_EXO_DATASOURCE_HOOK","AUDIO_EXO_SOURCE_INSTANCE_HOOK")
                 and len(audio_source_hooks)<24):
             audio_source_hooks.append((event,origin,error))
         if len(seen)<250:
@@ -302,6 +302,7 @@ def scoped_metrica_witness(exit_info:str,logcat:str,
                 ("AUDIO_DOWNLOADINFO_HOOK","DOWNLOADINFO_DTO"),
                 ("AUDIO_EXO_FACTORY_HOOK","EXO_FACTORY"),
                 ("AUDIO_EXO_DESCRIPTOR_HOOK","EXO_DESCRIPTOR"),
+                ("AUDIO_EXO_SOURCE_INSTANCE_HOOK","EXO_DATASOURCE"),
                 ("AUDIO_EXO_OPEN_HOOK","EXO_DATASOURCE"),
                 ("AUDIO_EXO_READ_HOOK","EXO_DATASOURCE"))
         },

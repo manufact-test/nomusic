@@ -183,6 +183,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactDirectDownloadGetterWitnessReady;
     private boolean exactExoFactoryWitnessReady;
     private boolean exactExoDescriptorWitnessReady;
+    private boolean exactExoSourceInstanceHookReady;
     private boolean exactExoDataOpenWitnessReady;
     private boolean exactExoDataReadWitnessReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
@@ -2658,6 +2659,32 @@ public final class ExitCallsiteWitness extends XposedModule {
             }
         }
 
+        // This exact pinned-2025 factory constructs the native Exo source
+        // instance subsequently used for open/read. The construction result
+        // is observed only by Java object identity; never replaced.
+        if (!exactExoSourceInstanceHookReady) {
+            try {
+                Class<?> factory = Class.forName(
+                    "com.yandex.music.shared.player.download2.exo.RetryingBalancingDataSource$b",
+                    false, loader);
+                Method make = factory.getDeclaredMethod("for");
+                make.setAccessible(true);
+                hook(make).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result = chain.proceed(); // exact vendor factory once
+                        try {
+                            if (result != null)
+                                STAGE_B_AUDIO.onExoSourceInstanceCreated(result);
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                exactExoSourceInstanceHookReady = true;
+                emit("AUDIO_EXO_SOURCE_INSTANCE_HOOK", "EXO_DATASOURCE", "REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_EXO_SOURCE_INSTANCE_HOOK", "EXO_DATASOURCE", "NO_HOOK");
+            }
+        }
+
         if (!exactExoDataOpenWitnessReady || !exactExoDataReadWitnessReady) {
             try {
                 Class<?> source = Class.forName(
@@ -2671,7 +2698,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                         .intercept(chain -> {
                             try {
                                 Object result = chain.proceed(); // single real open
-                                try { STAGE_B_AUDIO.onExoOpen(); }
+                                try {
+                                    STAGE_B_AUDIO.onExoOpen();
+                                    STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject());
+                                }
                                 catch (Throwable ignored) { }
                                 return result;
                             } catch (Throwable failure) {
@@ -2692,9 +2722,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                             try {
                                 Object result = chain.proceed(); // single real read
                                 try {
-                                    STAGE_B_AUDIO.onExoReadResult(
-                                        result instanceof Integer
-                                            ? (Integer) result : Integer.MIN_VALUE);
+                                    int bytes = result instanceof Integer
+                                        ? (Integer) result : Integer.MIN_VALUE;
+                                    STAGE_B_AUDIO.onExoReadResult(bytes);
+                                    STAGE_B_AUDIO.onExoSourceInstanceRead(
+                                        chain.getThisObject(), bytes);
                                 } catch (Throwable ignored) { }
                                 return result;
                             } catch (Throwable failure) {
