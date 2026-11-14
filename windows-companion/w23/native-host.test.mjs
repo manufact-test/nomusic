@@ -9,7 +9,7 @@ const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null,
   grantOverride = null, grantSequence = [], currentTrack = null, clock = Date,
-  rendererStatus = "ORIGINAL", cpuUsage = null } = {})
+  rendererStatus = "ORIGINAL", cpuUsage = null } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
   let drained = false, pump = () => {}, timerIntervalMs = 0;
