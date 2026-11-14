@@ -3133,6 +3133,44 @@ public final class ExitCallsiteWitness extends XposedModule {
                 default: return "PASSPORT_API_OTHER_CLASS";
             }
         }
+        if ("com.yandex.passport.data.exceptions.a".equals(name))
+            return "PASSPORT_DATA_EXC_A";
+        if ("com.yandex.passport.data.exceptions.b".equals(name))
+            return "PASSPORT_DATA_EXC_B";
+        if ("com.yandex.passport.data.exceptions.c".equals(name))
+            return "PASSPORT_DATA_EXC_C";
+        if ("com.yandex.passport.data.exceptions.d".equals(name))
+            return "PASSPORT_DATA_EXC_D";
+        if ("com.yandex.passport.data.exceptions.e".equals(name))
+            return "PASSPORT_DATA_EXC_E";
+        if ("com.yandex.passport.data.exceptions.f".equals(name))
+            return "PASSPORT_DATA_EXC_F";
+        if ("com.yandex.passport.data.exceptions.g".equals(name))
+            return "PASSPORT_DATA_EXC_G";
+        if ("com.yandex.passport.data.exceptions.h".equals(name))
+            return "PASSPORT_DATA_EXC_H";
+        if ("com.yandex.passport.data.exceptions.i".equals(name))
+            return "PASSPORT_DATA_EXC_I";
+        if ("com.yandex.passport.internal.core.accounts.s".equals(name))
+            return "PASSPORT_INTERNAL_ACCOUNTS_S";
+        if ("com.yandex.passport.internal.core.accounts.v$a".equals(name))
+            return "PASSPORT_INTERNAL_ACCOUNTS_V_A";
+        if ("com.yandex.passport.internal.link_auth.c".equals(name))
+            return "PASSPORT_INTERNAL_LINK_AUTH_C";
+        if ("com.yandex.passport.internal.sloth.credentialmanager.a$a".equals(name))
+            return "PASSPORT_INTERNAL_CREDENTIAL_A_A";
+        if ("com.yandex.passport.internal.sso.p".equals(name))
+            return "PASSPORT_INTERNAL_SSO_P";
+        if ("com.yandex.passport.internal.ui.social.gimap.b".equals(name))
+            return "PASSPORT_INTERNAL_GIMAP_B";
+        if ("com.yandex.passport.legacy.lx.p$a".equals(name))
+            return "PASSPORT_LEGACY_LX_P_A";
+        if ("com.yandex.passport.sloth.A".equals(name))
+            return "PASSPORT_SLOTH_UPPER_A";
+        if ("com.yandex.passport.sloth.command.d".equals(name))
+            return "PASSPORT_SLOTH_COMMAND_D";
+        if ("com.yandex.passport.sloth.d".equals(name))
+            return "PASSPORT_SLOTH_LOWER_D";
         if ("com.yandex.passport.common.exception.a".equals(name))
             return "PASSPORT_COMMON_A";
         if ("com.yandex.passport.common.exception.b".equals(name))
