@@ -196,8 +196,15 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
                 by_pc.get(0xA0) == 0x1F
                 and dex.type(struct.unpack_from("<H", code, 0xA0+2)[0]) == "LzW8;"
                 and by_pc.get(0xA4) == 0x54
-                and dex.field(struct.unpack_from("<H", code, 0xA4+2)[0]) ==
-                    ("LzW8;", "default")
+                and (lambda fid: (
+                    fid < field_count and
+                    dex.type(struct.unpack_from("<H", dex.data,
+                        field_off+fid*8)[0]) == "LzW8;" and
+                    dex.type(struct.unpack_from("<H", dex.data,
+                        field_off+fid*8+2)[0]) == "Ljava/lang/Object;" and
+                    dex.string(struct.unpack_from("<I", dex.data,
+                        field_off+fid*8+4)[0]) == "default"
+                ))(struct.unpack_from("<H", code, 0xA4+2)[0])
                 and by_pc.get(0xE4) == 0x20
                 and dex.type(struct.unpack_from("<H", code, 0xE4+2)[0]) == "LzW8$b;"
                 and by_pc.get(0xF2) == 0x1F
