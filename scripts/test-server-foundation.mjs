@@ -24,14 +24,19 @@ if (composer.require?.php !== ">=8.3") throw new Error("composer.json does not e
 // This guards future additions as well as Stage11/12 journals.
 const snapshotSource = await readFile(path.join(root, ".github/scripts/hostinger-stage5-remote.php"), "utf8");
 const restoreCheck = await readFile(path.join(root, ".github/scripts/hostinger-stage5.sh"), "utf8");
-if (restoreCheck.includes("(SELECT COUNT(*) FROM windows_gain_variants)=0") ||
-    !restoreCheck.includes("w.replacement_id=37") ||
-    !restoreCheck.includes("t.service_track_id='40371622'") ||
-    !restoreCheck.includes("w.source_sha256=a.sha256") ||
-    !restoreCheck.includes("w.source_version=r.version") ||
-    !restoreCheck.includes("ABS(w.duration_ms-a.duration_ms)<=1500") ||
-    !restoreCheck.includes("w.storage_key=CONCAT('windows-gain/',LEFT(w.sha256,2),'/',w.sha256,'.mp3')")) {
-  throw new Error("Isolated MySQL restore must verify the existing Big City Life Windows gain sidecar");
+const restoreCounts = await readFile(path.join(root, ".github/scripts/hostinger-stage5-restore-counts.mjs"), "utf8");
+if (!snapshotSource.includes("if ($operation === 'restore-counts')") ||
+    !snapshotSource.includes("$manifest['tables']") ||
+    !snapshotSource.includes("'windows_gain_variants'") ||
+    !restoreCheck.includes('{"operation":"restore-counts"}') ||
+    !restoreCheck.includes("hostinger-stage5-restore-counts.mjs") ||
+    !restoreCheck.includes("snapshot table row counts match") ||
+    restoreCheck.includes("w.replacement_id=37") ||
+    restoreCheck.includes("t.service_track_id='40371622'") ||
+    restoreCheck.includes("Big City Life") ||
+    !restoreCounts.includes("REQUIRED_TABLES") ||
+    !restoreCounts.includes("Number.isSafeInteger")) {
+  throw new Error("Isolated MySQL restore must compare every restored table to the private snapshot counts without requiring a future gain sidecar");
 }
 const lists = [...snapshotSource.matchAll(/\$(?:tables|optional)\s*=\s*\[([\s\S]*?)\];/g)];
 const snapshotTables = new Set(lists.flatMap((match) => [...match[1].matchAll(/'([a-z_]+)'/g)].map((name) => name[1])));
