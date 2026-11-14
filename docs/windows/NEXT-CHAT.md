@@ -16,8 +16,8 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code/test HEAD: `74b27a27c8f1560591ed9ae11c17f5fceb0d538e` (W130 safe CDP property-visibility diagnostics). W128 adds a CI-only elevation-policy guard; no app runtime code changed. The live `main` may contain documentation/workflow commits after this code/test SHA; always fetch the live branch before coding.
-- Last Windows app implementation commit: `4fe42d745b6708524c65eb4f9855e026f314fefa`; W127 regression-test commit: `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`; W130 host diagnostic commit: `5acbcc2af1a6cee85ef96bc81ce45d56d2f90726`; final W130 test commit: `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
+- Current Windows code/test HEAD: `2f41091d1af072483ed5c79782958002b0ee2101` (W131 verified source-left stale-mapping invalidation). The live `main` may contain documentation-only commits after this code/test SHA; always fetch the live branch before coding.
+- Last Windows app implementation commit: `5fb5f32d0364d476889bf56d0f8e8fc0e38d71b2` (W131); W131 regression-test commit/current code-test HEAD: `2f41091d1af072483ed5c79782958002b0ee2101`; W127 implementation/test: `4fe42d745b6708524c65eb4f9855e026f314fefa` / `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`; W130 host/test: `5acbcc2af1a6cee85ef96bc81ce45d56d2f90726` / `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
 - Exact pre-W128 CI policy backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`.
 - Exact pre-W130 diagnostics backup: `backup/windows-main-pre-w130-cdp-property-observability-20261114` @ `312d61a62fb4abcb779df539503adf4226818185`.
 - W130 Main CI [43605388622](https://github.com/manufact-test/nomusic/actions/runs/43605388622) and Windows integration CI [43605388482](https://github.com/manufact-test/nomusic/actions/runs/43605388482) — **SUCCESS**.
@@ -52,6 +52,17 @@
 - Main CI [43604761393](https://github.com/manufact-test/nomusic/actions/runs/43604761393) and Windows integration CI [43604761386](https://github.com/manufact-test/nomusic/actions/runs/43604761386) — **SUCCESS**, including the new W128 guard step.
 - This does **not** identify the prompt the owner saw, prove it came from Yandex, or establish that it was harmless. #53 remains OPEN until the prompt publisher/title is known and owner CPU/RAM/GPU evidence is available. Do not grant administrator rights to an unknown prompt.
 - Full audit: `docs/windows/W128-READ-ONLY-ELEVATION-LAUNCH-AUDIT-20261114.md`. No runtime behavior changed and no installer was built.
+
+# W131 — Invalidate stale source mapping after verified decoder source-left — 14 November 2026
+
+- When passive CDP has proved that the current decoder left its previously verified CELIKOM signed source, the renderer now clears that track's stale mapped-source marker immediately. This happens before checking whether CELIKOM is still enabled, so a racing VPN/entitlement state-off transition cannot issue a redundant `QUALITY_CHANGE` reload of a track already returned to Yandex original.
+- If CELIKOM remains enabled, the existing bounded recovery path is preserved and can reapply a fresh authenticated grant. No entitlement bypass or player architecture change.
+- Regression test verifies source-left followed immediately by state-off causes no second reload and preserves playing state/position. Existing W99 recovery still passes.
+- Exact pre-W131 backup: `backup/windows-main-pre-w131-source-left-map-invalidation-20261114` @ `9eb710d1227f56419d6e9f35b34b44b7941ef8ae`.
+- Runtime commit: `5fb5f32d0364d476889bf56d0f8e8fc0e38d71b2`; test/current code-test HEAD: `2f41091d1af072483ed5c79782958002b0ee2101`.
+- Main CI [43606490844](https://github.com/manufact-test/nomusic/actions/runs/43606490844) and Windows integration CI [43606490908](https://github.com/manufact-test/nomusic/actions/runs/43606490908) — **SUCCESS**.
+- **#58 remains OPEN** pending real owner-PC VPN A→B playback acceptance; this fixes a redundant CELIKOM reload after a verified source-left event, not every possible Yandex/network audio pop.
+- Full record: `docs/windows/W131-VERIFIED-SOURCE-LEFT-STALE-MAPPING-INVALIDATION-20261114.md`. No installer was built.
 
 # W130 — Safe CDP property-visibility diagnostics — 14 November 2026
 
