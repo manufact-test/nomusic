@@ -4,7 +4,9 @@ import { createHash, generateKeyPairSync, verify as verifyBytes } from "node:cry
 import { mkdtemp, writeFile, readFile, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildStableManifestArtifacts } from "../windows-stable-manifest.mjs";
+import {
+  buildStableManifestArtifacts, writeStableManifestArtifacts
+} from "../windows-stable-manifest.mjs";
 
 const now = new Date();
 const publishedAt = now.toISOString();
@@ -63,6 +65,25 @@ test("W113 creates exact schema-2 manifest and P-256 DER signature for installed
   assert.equal(verifyBytes("sha256", result.document, {
     key: f.expectedPublicKeyDer, format: "der", type: "spki", dsaEncoding: "der"
   }, result.signature), true);
+
+  const output = join(f.root, "stable-feed");
+  await writeStableManifestArtifacts(output, result);
+  const versionManifest = join(output, version, "manifest.json");
+  const versionSignature = join(output, version, "manifest.json.sig");
+  assert.deepEqual(await readFile(versionManifest), result.document);
+  assert.equal(verifyBytes("sha256", await readFile(versionManifest), {
+    key: f.expectedPublicKeyDer, format: "der", type: "spki", dsaEncoding: "der"
+  }, await readFile(versionSignature)), true);
+  assert.deepEqual(await readFile(join(output, "latest.json")), result.document);
+
+  // ECDSA signatures may be randomized. An existing immutable version record
+  // is reusable only when its document is identical and its old signature is valid.
+  await writeStableManifestArtifacts(output, result);
+  const changedDocument = Buffer.from(result.document.toString("utf8").replace(
+    '"notes": "Verified release"', '"notes": "Changed release"'));
+  await assert.rejects(() => writeStableManifestArtifacts(output, {
+    ...result, document: changedDocument
+  }), /W113_VERSIONED_RELEASE_IMMUTABLE/);
 });
 
 test("W113 signature is bound to exact JSON bytes", async t => {

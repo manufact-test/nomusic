@@ -1,8 +1,9 @@
 import {
-  createHash, createPrivateKey, createPublicKey, sign as signBytes, timingSafeEqual
+  createHash, createPrivateKey, createPublicKey, sign as signBytes,
+  verify as verifyBytes, timingSafeEqual
 } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, mkdir, readFile, writeFile, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile, rename, rm, link } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -134,6 +135,69 @@ async function atomicWrite(filePath, bytes) {
   }
 }
 
+async function writeImmutable(filePath, bytes) {
+  const destination = resolve(filePath);
+  await mkdir(dirname(destination), { recursive: true });
+  const temporary = destination + ".tmp-" + process.pid + "-" + Math.random().toString(16).slice(2);
+  try {
+    await writeFile(temporary, bytes, { flag: "wx", mode: 0o644 });
+    try {
+      await link(temporary, destination);
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      const info = await lstat(destination).catch(() => null);
+      if (!info?.isFile() || info.isSymbolicLink() ||
+          !(await readFile(destination)).equals(bytes))
+        fail("W113_VERSIONED_RELEASE_IMMUTABLE");
+    }
+  } finally {
+    await rm(temporary, { force: true }).catch(() => {});
+  }
+}
+
+export async function writeStableManifestArtifacts(outputDirectory, result) {
+  if (!result?.manifest || !Buffer.isBuffer(result.document) ||
+      !Buffer.isBuffer(result.signature) || !Buffer.isBuffer(result.publicKeyDer))
+    fail("W113_ARTIFACTS_INVALID");
+  const version = result.manifest.version;
+  if (typeof version !== "string" || !VERSION_RE.test(version))
+    fail("W113_VERSION_INVALID");
+  const versionDirectory = resolve(outputDirectory, version);
+  const manifestPath = resolve(versionDirectory, "manifest.json");
+  const signaturePath = resolve(versionDirectory, "manifest.json.sig");
+  const existingManifestInfo = await lstat(manifestPath).catch(() => null);
+  const existingSignatureInfo = await lstat(signaturePath).catch(() => null);
+  if (existingManifestInfo || existingSignatureInfo) {
+    if (!existingManifestInfo?.isFile() || existingManifestInfo.isSymbolicLink() ||
+        !existingSignatureInfo?.isFile() || existingSignatureInfo.isSymbolicLink())
+      fail("W113_VERSIONED_RELEASE_IMMUTABLE");
+    const existingManifest = await readFile(manifestPath);
+    const existingSignature = await readFile(signaturePath);
+    let signatureValid = false;
+    try {
+      signatureValid = verifyBytes("sha256", existingManifest, {
+        key: result.publicKeyDer, format: "der", type: "spki", dsaEncoding: "der"
+      }, existingSignature);
+    } catch { signatureValid = false; }
+    if (!existingManifest.equals(result.document) || !signatureValid)
+      fail("W113_VERSIONED_RELEASE_IMMUTABLE");
+  } else {
+    await mkdir(versionDirectory, { recursive: true });
+    await writeImmutable(manifestPath, result.document);
+    try {
+      await writeImmutable(signaturePath, result.signature);
+    } catch (error) {
+      await rm(manifestPath, { force: true }).catch(() => {});
+      throw error;
+    }
+  }
+  const output = resolve(outputDirectory);
+  await mkdir(output, { recursive: true });
+  await atomicWrite(resolve(output, "latest.json"), result.document);
+  await atomicWrite(resolve(output, "latest.json.sig"), result.signature);
+  await atomicWrite(resolve(output, "manifest-public-key.der"), result.publicKeyDer);
+}
+
 function parseArgs(args) {
   const values = new Map();
   const flags = new Set(["--mandatory"]);
@@ -178,10 +242,7 @@ async function main() {
   });
 
   const output = resolve(args.get("--output-dir"));
-  await mkdir(output, { recursive: true });
-  await atomicWrite(resolve(output, "latest.json"), result.document);
-  await atomicWrite(resolve(output, "latest.json.sig"), result.signature);
-  await atomicWrite(resolve(output, "manifest-public-key.der"), result.publicKeyDer);
+  await writeStableManifestArtifacts(output, result);
   console.log("W113_SCHEMA2_MANIFEST_GENERATED version=" + result.manifest.version +
     " sequence=" + result.manifest.sequence + " package_sha256=" + result.packageSha256);
 }
