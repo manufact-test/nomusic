@@ -16,9 +16,11 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code/test HEAD: `7e4c8268cba30f781a3fa091d9657718ec463b66` (W127 current-decoder/queue-identity ordering fix and regression test). W128 adds a CI-only elevation-policy guard; no app runtime code changed. The live `main` may contain documentation/workflow commits after this code/test SHA; always fetch the live branch before coding.
-- Last Windows app implementation commit: `4fe42d745b6708524c65eb4f9855e026f314fefa`; W127 regression-test commit: `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`.
+- Current Windows code/test HEAD: `74b27a27c8f1560591ed9ae11c17f5fceb0d538e` (W130 safe CDP property-visibility diagnostics). W128 adds a CI-only elevation-policy guard; no app runtime code changed. The live `main` may contain documentation/workflow commits after this code/test SHA; always fetch the live branch before coding.
+- Last Windows app implementation commit: `4fe42d745b6708524c65eb4f9855e026f314fefa`; W127 regression-test commit: `7e4c8268cba30f781a3fa091d9657718ec463b66`; W128 CI policy commit: `cedcc45e5151afa62c1b292a7f4e2220226b6ac3`; W130 host diagnostic commit: `5acbcc2af1a6cee85ef96bc81ce45d56d2f90726`; final W130 test commit: `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
 - Exact pre-W128 CI policy backup: `backup/windows-main-pre-w129-elevation-policy-guard-20261114` @ `911983107f257ec761f6c5c6666eec4748db3fd9`.
+- Exact pre-W130 diagnostics backup: `backup/windows-main-pre-w130-cdp-property-observability-20261114` @ `312d61a62fb4abcb779df539503adf4226818185`.
+- W130 Main CI [43605388622](https://github.com/manufact-test/nomusic/actions/runs/43605388622) and Windows integration CI [43605388482](https://github.com/manufact-test/nomusic/actions/runs/43605388482) — **SUCCESS**.
 - Exact pre-W127 rollback snapshot: `backup/windows-main-pre-w127-current-decoder-witness-race-20261114` @ `4b7d2277d98986d8d4ab0ed9ba42a76fc25da810`.
 - W127 Main CI [43603865004](https://github.com/manufact-test/nomusic/actions/runs/43603865004) and Windows integration CI [43603864999](https://github.com/manufact-test/nomusic/actions/runs/43603864999) — **SUCCESS**.
 - Previous exact green W126 rollback snapshot: `backup/windows-main-post-w126-ci-green-20261114` @ `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
@@ -50,6 +52,18 @@
 - Main CI [43604761393](https://github.com/manufact-test/nomusic/actions/runs/43604761393) and Windows integration CI [43604761386](https://github.com/manufact-test/nomusic/actions/runs/43604761386) — **SUCCESS**, including the new W128 guard step.
 - This does **not** identify the prompt the owner saw, prove it came from Yandex, or establish that it was harmless. #53 remains OPEN until the prompt publisher/title is known and owner CPU/RAM/GPU evidence is available. Do not grant administrator rights to an unknown prompt.
 - Full audit: `docs/windows/W128-READ-ONLY-ELEVATION-LAUNCH-AUDIT-20261114.md`. No runtime behavior changed and no installer was built.
+
+# W130 — Safe CDP property-visibility diagnostics — 14 November 2026
+
+- The previous owner export could not distinguish "CDP Media attached but no player-property events" from "player-property events arrived but Yandex did not expose `kUrl`".
+- The passive host now records `PLAYER_CDP_PROPERTIES_SEEN` and `PLAYER_CDP_URL_PROPERTY_SEEN` based only on property names. It never logs the URL value, token, SID or other player-property values.
+- The owner TXT export and automatic support snapshot expose `NativeDecoderPropertiesObserved` and `NativeDecoderUrlPropertyObserved`. Both event codes are retained in bounded incident history.
+- The export explicitly says these booleans only show Media-domain field availability. They do not prove current-track identity, decoder selection or audible replacement.
+- Regression tests cover properties without `kUrl`, subsequent `kUrl` presence, secret-free diagnostics, durable event retention and both export formats.
+- Exact pre-W130 backup: `backup/windows-main-pre-w130-cdp-property-observability-20261114` @ `312d61a62fb4abcb779df539503adf4226818185`; code/test HEAD: `74b27a27c8f1560591ed9ae11c17f5fceb0d538e`.
+- Main CI [43605388622](https://github.com/manufact-test/nomusic/actions/runs/43605388622) and Windows integration CI [43605388482](https://github.com/manufact-test/nomusic/actions/runs/43605388482) — **SUCCESS**.
+- **#52 remains OPEN.** These are diagnostic visibility flags only. W127's strict current-track/signed-decoder proof remains unchanged, and actual playback acceptance still requires the owner's PC.
+- Full record: `docs/windows/W130-SAFE-CDP-PROPERTY-VISIBILITY-DIAGNOSTICS-20261114.md`. No installer was built.
 
 # W120 — Native-host performance evidence without changing playback cadence — 14 November 2026
 
