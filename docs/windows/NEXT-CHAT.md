@@ -16,11 +16,11 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code HEAD: `d083218b4adb0b7fb1d1321d09b56245ab40fbd1` (W125 CDP decoder-witness invalidation on detach). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
-- Last Windows-specific implementation commit: `d083218b4adb0b7fb1d1321d09b56245ab40fbd1`.
-- Exact green rollback snapshot: `backup/windows-main-post-w125-ci-green-20261114` @ `d083218b4adb0b7fb1d1321d09b56245ab40fbd1`.
-- W125 Main CI [43601333189](https://github.com/manufact-test/nomusic/actions/runs/43601333189) and Windows integration CI [43601333191](https://github.com/manufact-test/nomusic/actions/runs/43601333191) — **SUCCESS**.
-- Exact pre-W125 backup: `backup/windows-main-pre-w125-decoder-detach-invalidation-20261114` @ `efbd6a1b1965472d8ad29519621a09d45a8651da`.
+- Current Windows code HEAD: `ed41f613640f55c8de4a027a8f6f12ac31a15093` (W126 single bounded activation for first install/upgrade). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
+- Last Windows-specific implementation commit: `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
+- Exact green rollback snapshot: `backup/windows-main-post-w126-ci-green-20261114` @ `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
+- W126 Main CI [43601959568](https://github.com/manufact-test/nomusic/actions/runs/43601959568) and Windows integration CI [43601959593](https://github.com/manufact-test/nomusic/actions/runs/43601959593) — **SUCCESS**.
+- Exact pre-W126 backup: `backup/windows-main-pre-w126-single-start-activation-20261114` @ `2488e38ebfae605c78d9e3f511d6fca0901c5cc2`.
 - W120 Main CI [43596984190](https://github.com/manufact-test/nomusic/actions/runs/43596984190) — **SUCCESS**; Windows integration [43596984195](https://github.com/manufact-test/nomusic/actions/runs/43596984195) — **SUCCESS**.
 - W121 Main CI [43597478523](https://github.com/manufact-test/nomusic/actions/runs/43597478523) — **SUCCESS**; Windows integration [43597478531](https://github.com/manufact-test/nomusic/actions/runs/43597478531) — **SUCCESS**.
 - The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
@@ -109,6 +109,28 @@ This addresses the duplicate-click race in the first/repeated Start flow. It doe
 
 This is required for a real periodic stable updater: a current manifest must not be misclassified as a broken feed. It does not fetch from a production origin, launch an installer or activate the Supervisor. Production trust values remain empty. No installer was built.
 
+# W126 — Single bounded entitlement activation for first install/upgrade — 14 November 2026
+
+- Repository: `manufact-test/nomusic`; only working branch: `main`.
+- Exact pre-W126 code backup: `backup/windows-main-pre-w126-single-start-activation-20261114` @ `2488e38ebfae605c78d9e3f511d6fca0901c5cc2`.
+- W126 final code HEAD: `ed41f613640f55c8de4a027a8f6f12ac31a15093`.
+- Exact green rollback snapshot: `backup/windows-main-post-w126-ci-green-20261114` @ the W126 code HEAD.
+- Main CI [43601959568](https://github.com/manufact-test/nomusic/actions/runs/43601959568) and Windows integration CI [43601959593](https://github.com/manufact-test/nomusic/actions/runs/43601959593) — **SUCCESS**.
+
+## Changes
+
+1. First Start now checks the native integration state before sending activation. If the native module must be installed/upgraded, it goes directly to the existing consented `ConnectYandexAsync` transaction. It no longer POSTs activation once in `StartAction` and a second time after consent in `ConnectYandexAsync`.
+2. `ConnectYandexAsync` now uses `StartupActivationRecovery.ActivateAsync`: at most one bounded retry for transient transport/temporary server errors, only while the same Start generation and account remain active. 401/403 and 429 are not retried.
+3. After the fresh activation response, the compact access label/account confirmation/timestamp are updated and any older read-only preview is invalidated before the native install/upgrade continues.
+4. A failed bounded network retry is handled as an entitlement/network failure, not mislabeled as native integration damage. It does not trigger the native-failure Yandex catalog refresh or a misleading install-failure modal.
+5. Integration CI guards the order of the native readiness gate versus activation, the retry helper in the install path, and the post-activation account label update.
+
+## Safety / scope
+
+- The native integration still requires the existing explicit consent and existing signed native installer path. No new architecture, native patching strategy, or product variant was introduced.
+- Server activation remains idempotent; this change removes the unnecessary duplicate request rather than changing trial/subscription policy.
+- CI validates code paths only. No installer was built and no owner-PC install/audio test was requested.
+
 # W125 — Invalidate current-decoder proof when CDP detaches — 14 November 2026
 
 - Repository: `manufact-test/nomusic`; only working branch: `main`.
@@ -163,7 +185,7 @@ Windows integration CI now checks that the detach handler invalidates the witnes
 
 
 ### Implemented and CI-validated infrastructure
-W122 adds the transaction-scoped current-user Supervisor READY handshake and immutable snapshot launch bridge. W123 adds signed no-update polling semantics. W124 wires both into a single fail-closed stable update coordinator, the 30-minute scheduler, journaled signed staging and final verified installer launch. W125 invalidates the current-decoder proof immediately if CDP detaches, preventing stale green playback claims. The updater path remains dormant until production trust pins are provisioned.
+W122 adds the transaction-scoped current-user Supervisor READY handshake and immutable snapshot launch bridge. W123 adds signed no-update polling semantics. W124 wires both into a single fail-closed stable update coordinator, the 30-minute scheduler, journaled signed staging and final verified installer launch. W125 invalidates the current-decoder proof immediately if CDP detaches, preventing stale green playback claims. W126 removes the duplicate first-install activation POST and applies bounded transient retry to the consented native install path. The updater path remains dormant until production trust pins are provisioned.
 W105–W118 contain signed-package validation, SHA-256/Authenticode checks, DPAPI rollback journal, previous/target package retention, independent Supervisor health witness, schema-2 exact payload identity, signed manifest generation, immutable version manifests, initial LKG bootstrap and shared fail-closed trust configuration. W20 verifies the existing installer definition contains exactly:
 - existing CELIKOM app EXE;
 - `integration/host.cjs`;
