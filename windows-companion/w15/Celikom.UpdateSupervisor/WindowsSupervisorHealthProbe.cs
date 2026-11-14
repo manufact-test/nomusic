@@ -21,16 +21,16 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
     private static readonly string InstalledExe = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Programs", "CELIKOM", "CELIKOM.Companion.exe");
-    private static readonly string SessionFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "CELIKOM", "Windows", "session.dpapi");
-
     public async Task<StableUpdateRollbackJournal.HealthEvidence> CheckAsync(
-        Version expected, CancellationToken cancellationToken)
+        Version expected, string originalSessionFingerprint,
+        CancellationToken cancellationToken)
     {
         var installedAndRunning = IsExpectedSignedProcess(expected);
-        var session = LoadExistingSessionReadOnly();
-        var sessionReadable = session != null;
+        // A fresh session.dpapi is decryptable but is NOT preserved login.
+        var session = SignedUpdateSessionIdentity.ReadExisting();
+        var sessionPreserved = originalSessionFingerprint.Length == 64 &&
+            string.Equals(SignedUpdateSessionIdentity.Fingerprint(session),
+                originalSessionFingerprint, StringComparison.Ordinal);
         var bridgeReady = installedAndRunning && session is not null &&
             await CheckAuthenticatedBridgeAsync(session.BridgeToken, cancellationToken);
         var nativeReady = false;
@@ -49,7 +49,7 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
             }
         }
         return new StableUpdateRollbackJournal.HealthEvidence(
-            installedAndRunning, bridgeReady, sessionReadable, nativeReady);
+            installedAndRunning, bridgeReady, sessionPreserved, nativeReady);
     }
 
     public bool SafeForRollback()
@@ -118,30 +118,6 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
         {
             return false;
         }
-    }
-
-    private static SecretRecord? LoadExistingSessionReadOnly()
-    {
-        try
-        {
-            // Never call LoadOrCreate() from a supervisor: it would silently
-            // generate a new login and falsely report user data as preserved.
-            if (!File.Exists(SessionFile) ||
-                new FileInfo(SessionFile).Length is < 32 or > 64_000)
-                return null;
-            var raw = ProtectedData.Unprotect(File.ReadAllBytes(SessionFile), null,
-                DataProtectionScope.CurrentUser);
-            try
-            {
-                var record = JsonSerializer.Deserialize<SecretRecord>(raw);
-                return record is not null &&
-                    Guid.TryParseExact(record.InstallationId, "D", out _) &&
-                    SessionStore.IsHexToken(record.BridgeToken) ? record : null;
-            }
-            finally { CryptographicOperations.ZeroMemory(raw); }
-        }
-        catch (Exception e) when (e is IOException or CryptographicException or
-            JsonException or UnauthorizedAccessException) { return null; }
     }
 
     private static async Task<bool> CheckAuthenticatedBridgeAsync(
