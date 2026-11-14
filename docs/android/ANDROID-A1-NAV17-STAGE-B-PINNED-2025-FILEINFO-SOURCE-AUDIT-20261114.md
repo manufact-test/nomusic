@@ -65,3 +65,23 @@ The original `NativePrePrepareAdmission` and `NativeReplacementLifecycle` still 
 ## 14 Nov — exact authenticated CELIKOM grant cannot be track-only
 
 The portable `NativeGrantContract.Grant` had only `trackId`, approved/entitled, URL/expiry/MIME; this allowed a structurally valid **different-album/edition grant** for the same Yandex track through the model. Fixed model to require server-attested **exact albumId and editionId**, positive replacement `version`, numeric `durationMs` matching the trusted native selected item within 2 seconds, in addition to the existing signed URL/entitlement/MIME/expiry checks. The lifecycle's `offerValidated` now takes the native source duration and compares the grant against the **same candidate triple**. Null, cross-album, wrong edition, no version and length mismatch => ORIGINAL. Updated both native CI paths to run additional `NativeGrantContractTest` and lifecycle negative grants. This is an **offline structural MODEL**; source boundary still read-only, server identity rows require validation/deploy, no live CELIKOM sign-in or audio source swap claimed.
+
+## 14 Nov — VERIFIED green Stage B source witness / identity model checkpoint
+
+**Exact code commit** `650647524125398fda485a45102fb16ea8effe12`, protected exact source reserve
+`backup/android-a1-stage-b-seven-exo-hooks-triple-grant-both-arm13-green-20261114` at that SHA. Immutable owner NAV17
+`backup/android-a1-nav17-owner-real-userinfo-main-music-audible-20261114` remains at `d4c0887028b2bfbad7ed59f63ec88a4770f3595d`.
+
+Native Android 13 ARM64+ARMv7 emulator **standalone clone-only #43643451084 SUCCESS**, **publisher-first paired #43643451101 SUCCESS**:
+- Both clone MAIN 25/25 stable; original genuine publisher installed first and retained in paired; no AppMetrica fatal suppression.
+- **All seven exact source hooks REGISTERED** in both independent native runs:
+  `AUDIO_FILEINFO_HOOK`, `AUDIO_DOWNLOADINFO_HOOK`, `AUDIO_EXO_DESCRIPTOR_HOOK`,
+  `AUDIO_EXO_FACTORY_HOOK`, `AUDIO_EXO_SOURCE_INSTANCE_HOOK`,
+  `AUDIO_EXO_OPEN_HOOK`, `AUDIO_EXO_READ_HOOK`.
+- The native module always calls original methods unchanged and only observes private descriptors with bounded weak same-object identity; exported TXT receives aggregate finite counters on the owner's explicit request. Source hot path never writes to disk.
+- Native Java admission/lifecycle/validated grant suites passed on both runs: `NativePrePrepareAdmissionTest` 35,039 assertions, `NativeReplacementLifecycleTest` 30,034 assertions, `NativeGrantContractTest` 49 assertions. These ensure exact track/album/edition, server grant version/duration, session URL structure, one prepare, Next/radio/Stop/seek fallbacks, and same-generation stale replies in pure models.
+- Owner persistent signer verified in paired path; publisher SHA/provenance unchanged. No owner handset accessed or user-login attempted.
+
+**Critical interpretation:** ARM13 CI is startup-only. The 25/25 and hook-registration flags DO NOT prove the actual song has passed through the source, no track/album/edition has been attested at the same active native decoder, no authenticated CELIKOM resolve is attached to native source, no alternate bytes are loaded, no seek/play/pause on a real replacement is tested. `audio_or_account_tested=false`; owner acoustic release **NO-GO**. Do not generate or present a test APK as though substitution works.
+
+**Next focused block:** identify current player-selected native item with trusted trackId+albumId+editionId+durationMs and queue/generation, prove it is the **same source descriptor/instance** as ExoFactory→open/read (not lookahead prefetch), then connect independent CELIKOM session + approved exact backend grant (nullable album/edition server fields must be populated and validated), protected HEAD/Range, and only then safe single-Exo source swap with original fallback. No second MediaPlayer and no touching NAV17 Passport, Windows or main. 
