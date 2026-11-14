@@ -173,55 +173,46 @@ def _private_login_observer_contract(dexes: list[Dex]) -> dict:
             if dex.method(method_id) != ("LqY5;", "if"):
                 continue
             instructions = decode_instructions(code)
-            calls = []
-            for index, (pc, opcode, _) in enumerate(instructions):
-                if opcode not in INVOKE_METHOD:
-                    continue
-                target = dex.method(struct.unpack_from("<H", code, pc + 2)[0])
-                if target in (("LEd5;", "this"),
-                              ("LiE6;", "public"),
-                              ("Lol0;", "if")):
-                    previous_is_resume_label = False
-                    for back in (1, 2):
-                        if index < back:
-                            continue
-                        prev_pc, prev_opcode, _ = instructions[index - back]
-                        if not 0x59 <= prev_opcode <= 0x5F:
-                            continue
-                        field_id = struct.unpack_from(
-                            "<H", code, prev_pc + 2)[0]
-                        if field_id >= field_count:
-                            continue
-                        field_base = field_off + field_id * 8
-                        previous_is_resume_label = (
-                            dex.type(struct.unpack_from(
-                                "<H", dex.data, field_base)[0]) == "LnY5;" and
-                            dex.type(struct.unpack_from(
-                                "<H", dex.data, field_base + 2)[0]) == "I" and
-                            dex.string(struct.unpack_from(
-                                "<I", dex.data, field_base + 4)[0]) == "continue")
-                        if previous_is_resume_label:
-                            break
-                    calls.append((target, previous_is_resume_label))
-            expected_order = [("LEd5;", "this"),
-                              ("LiE6;", "public"),
-                              ("Lol0;", "if")]
-            cursor = 0
-            ordered_and_labelled = True
-            for target in expected_order:
-                found_at = next((i for i in range(cursor, len(calls))
-                                 if calls[i][0] == target), None)
-                if found_at is None or not calls[found_at][1]:
-                    ordered_and_labelled = False
-                    break
-                cursor = found_at + 1
-            literals = set()
-            for pc, opcode, _ in instructions:
-                if opcode == 0x12:
-                    word = struct.unpack_from("<H", code, pc)[0]
-                    literal = (word >> 12) & 0xF
-                    literals.add(literal if literal < 8 else literal - 16)
-            stage_contract = ordered_and_labelled and {1, 2, 3} <= literals
+            by_pc = {pc: opcode for pc, opcode, _ in instructions}
+            continue_ids = []
+            for field_id in range(field_count):
+                field_base = field_off + field_id * 8
+                if (dex.type(struct.unpack_from("<H", dex.data, field_base)[0]) == "LnY5;" and
+                    dex.type(struct.unpack_from("<H", dex.data, field_base + 2)[0]) == "I" and
+                    dex.string(struct.unpack_from("<I", dex.data, field_base + 4)[0]) == "continue"):
+                    continue_ids.append(field_id)
+            stage_contract = len(continue_ids) == 1
+            if stage_contract:
+                continue_id = continue_ids[0]
+                # These exact byte offsets are pinned to the issuer XAPK hash above.
+                # Each continuation label is stored immediately before its original
+                # suspend call: 1=token request, 2=userInfo request, 3=sync.
+                expected_sites = (
+                    (0x4A, 0xCE, 0xD2, 1, 6, ("LEd5;", "this")),
+                    (0x00, 0x106, 0x10A, 2, 0, ("LiE6;", "public")),
+                    (0x48, 0x14C, 0x154, 3, 5, ("Lol0;", "if")),
+                )
+                for const_pc, iput_pc, call_pc, label, register, target in expected_sites:
+                    if (by_pc.get(const_pc) != 0x12 or
+                        by_pc.get(iput_pc) != 0x59 or
+                        by_pc.get(call_pc) not in INVOKE_METHOD or
+                        not const_pc < iput_pc < call_pc):
+                        stage_contract = False
+                        break
+                    const_word = struct.unpack_from("<H", code, const_pc)[0]
+                    const_reg = (const_word >> 8) & 0xF
+                    const_value = (const_word >> 12) & 0xF
+                    if const_value >= 8:
+                        const_value -= 16
+                    iput_word = struct.unpack_from("<H", code, iput_pc)[0]
+                    iput_reg = (iput_word >> 8) & 0xF
+                    field_id = struct.unpack_from("<H", code, iput_pc + 2)[0]
+                    method_id = struct.unpack_from("<H", code, call_pc + 2)[0]
+                    if (const_reg != register or const_value != label or
+                        iput_reg != register or field_id != continue_id or
+                        dex.method(method_id) != target):
+                        stage_contract = False
+                        break
 
     if any(found[key] != [shape] for key, shape in expected_methods.items()):
         raise DexError("PRIVATE_LOGIN_OBSERVER_SIGNATURE_MISMATCH")
