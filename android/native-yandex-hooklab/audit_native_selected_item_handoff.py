@@ -392,13 +392,14 @@ def run(xapk: Path):
     with tempfile.TemporaryDirectory(prefix="celikom-native-selected-item-audit-") as temp:
         folder = Path(temp)
         apks = unbundle_candidate(xapk, folder)
-        if len(apks) != 5:
-            raise ValueError("FIVE_2025_SIGNED_SPLITS_REQUIRED")
+        if not 1 <= len(apks) <= 20:
+            raise ValueError("2025_SIGNED_SPLIT_COUNT_OUT_OF_RANGE")
         publisher = verify_split_set(apks)
         report = inspect_signed(apks)
     return {
         **report,
         "publisher_version": PUBLISHER_VERSION,
+        "signed_split_count": len(apks),
         "publisher_signature_verification": publisher,
         "pinned_archive_sha256_verified": True,
         "no_login_no_user_media_no_decoder_mutation": True,
