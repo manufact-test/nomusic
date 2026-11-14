@@ -1188,6 +1188,7 @@ public sealed partial class MainWindow : Form
         _updatingApplication = true;
         UpdateSafe();
         AppUpdateManager.StagedInstaller? staged = null;
+        var installerLaunched = false;
         try
         {
             DiagnosticLog.Record("APP_UPDATE_FILE_SELECTED");
@@ -1207,6 +1208,7 @@ public sealed partial class MainWindow : Form
                 throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
             AppUpdateManager.MarkPending(staged.Version);
             AppUpdateManager.Launch(staged);
+            installerLaunched = true;
             DiagnosticLog.Record("APP_UPDATE_INSTALLER_LAUNCHED");
             Close();
         }
@@ -1214,7 +1216,9 @@ public sealed partial class MainWindow : Form
             System.IO.InvalidDataException or System.ComponentModel.Win32Exception or
             InvalidOperationException or ArgumentException)
         {
-            AppUpdateManager.ClearPending();
+            // Do not revoke a valid ticket if the installer is already running:
+            // only clear a ticket when the launch itself was refused.
+            if (!installerLaunched) AppUpdateManager.ClearPending();
             DiagnosticLog.Record("APP_UPDATE_FAILED");
             var message = ex.Message switch
             {
