@@ -584,6 +584,14 @@ public sealed partial class MainWindow : Form
                 return;
             }
 
+            if (_nativeInstallState != NativeInstallState.Active ||
+                !_installedModule.MatchesApplication)
+            {
+                _compactStarting = false;
+                _compactStartupText = "";
+                await ConnectYandexAsync(sender, e);
+                return;
+            }
             _compactStartupText = "Проверяем пробный период или подписку…";
             RenderCompact();
             LayoutCompact();
@@ -602,14 +610,6 @@ public sealed partial class MainWindow : Form
                 _compactStarting = false;
                 _compactStartupText = "Доступ завершён. Активируй промокод или подписку.";
                 DiagnosticLog.Record("START_ENTITLEMENT_DENIED");
-                return;
-            }
-            if (_nativeInstallState != NativeInstallState.Active ||
-                !_installedModule.MatchesApplication)
-            {
-                _compactStarting = false;
-                _compactStartupText = "";
-                await ConnectYandexAsync(sender, e);
                 return;
             }
             if (!OpenYandexIfNeeded())
@@ -1038,16 +1038,20 @@ public sealed partial class MainWindow : Form
         _integrationBusy = true;
         var generation = ++_compactStartEpoch;
         var account = _api.Settings;
+        bool StillSameConnection() => generation == _compactStartEpoch &&
+            !_closing && !IsDisposed && _api.IsLoggedIn &&
+            _api.Settings.InstallationId == account.InstallationId &&
+            string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase);
         _compactStartupText = "Проверяем пробный период или подписку…";
         RenderCompact();
         LayoutCompact();
         UpdateSafe();
         try
         {
-            var access = await _api.ActivatePlaybackAsync();
-            if (generation != _compactStartEpoch || _closing || !_api.IsLoggedIn ||
-                _api.Settings.InstallationId != account.InstallationId ||
-                _api.Settings.Email != account.Email) return;
+            var access = await StartupActivationRecovery.ActivateAsync(
+                ct => _api.ActivatePlaybackAsync(ct), StillSameConnection,
+                code => DiagnosticLog.Record(code));
+            if (!StillSameConnection()) return;
             if (!PlaybackEntitlement.Allowed(access, DateTimeOffset.UtcNow))
             {
                 _bridge.SetEnabled(false);

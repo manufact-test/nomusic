@@ -118,6 +118,21 @@ jobs:
             throw 'W125_DECODER_DETACH_GUARD_BOUNDS_INVALID'
           }
           $detachHandler=$nativeHostText.Substring($detachStart, $detachEnd - $detachStart)
+          $startActionStart=$mainWindowText.IndexOf('private async void StartAction(', [StringComparison]::Ordinal)
+          $startActionEnd=$mainWindowText.IndexOf('private bool OpenYandexIfNeeded()', $startActionStart, [StringComparison]::Ordinal)
+          $connectStart=$mainWindowText.IndexOf('private async Task ConnectYandexAsync(', [StringComparison]::Ordinal)
+          $connectEnd=$mainWindowText.IndexOf('private async void RestoreYandexAsync(', $connectStart, [StringComparison]::Ordinal)
+          if ($startActionStart -lt 0 -or $startActionEnd -le $startActionStart -or
+              $connectStart -lt 0 -or $connectEnd -le $connectStart) {
+            throw 'W126_START_ACTIVATION_GUARD_BOUNDS_INVALID'
+          }
+          $startActionBody=$mainWindowText.Substring($startActionStart, $startActionEnd - $startActionStart)
+          $connectBody=$mainWindowText.Substring($connectStart, $connectEnd - $connectStart)
+          $nativeGateIndex=$startActionBody.IndexOf('if (_nativeInstallState != NativeInstallState.Active', [StringComparison]::Ordinal)
+          $activationIndex=$startActionBody.IndexOf('StartupActivationRecovery.ActivateAsync', [StringComparison]::Ordinal)
+          if ($nativeGateIndex -lt 0 -or $activationIndex -le $nativeGateIndex) {
+            throw 'W126_FIRST_INSTALL_MUST_USE_SINGLE_CONNECT_ACTIVATION'
+          }
           $guardChecks=@(
             $nativeHostText.Contains('maxTotalBufferSize: 2 * 1024 * 1024'),
             $nativeHostText.Contains('NATIVE_ORIGINAL_SOURCE_NO_RELOAD'),
@@ -137,6 +152,8 @@ jobs:
             $recoverySource.Contains('job.phase === "reload"'),
             (([regex]::Matches($mainWindowText, 'PlaybackStartGate\.CanAcceptStart\(')).Count -ge 2),
             $mainWindowText.Contains('_compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…"'),
+            $connectBody.Contains('StartupActivationRecovery.ActivateAsync'),
+            -not $connectBody.Contains('var access = await _api.ActivatePlaybackAsync()'),
             $startGateText.Contains('!compactStarting'),
             $supervisorLauncherText.Contains('StableUpdateSupervisorHandshake.WaitForReadyAsync'),
             $supervisorLauncherText.Contains('record.State != StableUpdateRollbackJournal.Phase.Prepared'),
