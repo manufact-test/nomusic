@@ -107,6 +107,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean accountAddHooked;
     private boolean authenticatorTypesHooked;
     private boolean activityResultHooked;
+    private boolean activityResultDeliveryHooked;
     private final java.util.concurrent.atomic.AtomicInteger accountSnapshots =
         new java.util.concurrent.atomic.AtomicInteger();
     // Independent event quotas: a long login cannot exhaust the budget
@@ -538,6 +539,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         count += observeOwnActivityLaunch("startActivityForResult",
             new Class<?>[]{Intent.class,int.class,Bundle.class}) ? 1 : 0;
         count += observePassportResultDelivery() ? 1 : 0;
+        count += observeEntryActivityResultDelivery() ? 1 : 0;
         count += observeLoginResultNewIntent() ? 1 : 0;
         count += observeHi2IllegalStateConstructor() ? 1 : 0;
         count += observeFatalDispatches();
@@ -3300,6 +3302,45 @@ public final class ExitCallsiteWitness extends XposedModule {
         emit("ACTIVITY_RESULT_HOOK","ANDROID",
             registered==2 ? "BOTH" : registered==1 ? "PARTIAL" : "NO_HOOK");
         return registered>0;
+    }
+
+    /**
+     * Observe framework delivery of an Activity result to the real Entry host.
+     * setResult() in Passport is only the producer side; this hook records the
+     * receiver-side dispatch category without inspecting who, request code,
+     * Intent, extras or any authentication payload.
+     */
+    private synchronized boolean observeEntryActivityResultDelivery() {
+        if (activityResultDeliveryHooked) return true;
+        try {
+            Method method = Activity.class.getDeclaredMethod(
+                "dispatchActivityResult", String.class, int.class, int.class, Intent.class);
+            method.setAccessible(true);
+            hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        Object receiver = chain.getThisObject();
+                        if (receiver instanceof Activity
+                                && PACKAGE.equals(((Activity) receiver).getPackageName())
+                                && "ENTRY_ACTIVITY".equals(activityFamily((Activity) receiver))
+                                && activityFinishesLogged.incrementAndGet() <= 48) {
+                            Object raw = chain.getArg(2);
+                            String category = !(raw instanceof Integer) ? "UNKNOWN"
+                                : ((Integer) raw) == Activity.RESULT_OK ? "OK"
+                                : ((Integer) raw) == Activity.RESULT_CANCELED
+                                    ? "CANCELED" : "OTHER";
+                            emit("ACTIVITY_RESULT_DELIVERY", "ENTRY_ACTIVITY", category);
+                        }
+                    } catch (Throwable ignored) { }
+                    return chain.proceed();
+                });
+            activityResultDeliveryHooked = true;
+            emit("ACTIVITY_RESULT_DELIVERY_HOOK", "ANDROID", "REGISTERED");
+            return true;
+        } catch (Throwable ignored) {
+            emit("ACTIVITY_RESULT_DELIVERY_HOOK", "ANDROID", "NO_HOOK");
+            return false;
+        }
     }
 
     private boolean observeOwnActivityFinish(String methodName) {
