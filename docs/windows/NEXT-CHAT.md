@@ -16,9 +16,10 @@
 
 - Repository: `manufact-test/nomusic`.
 - Code baseline before the W119 documentation-only update: `2c12ea50797d8c395e4a2e169c9000d897dffb11`.
-- Current Windows code HEAD: `62ff2b67f869607e20e9d8899113f391eab80c7e` (W121 Start-action gate). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
-- Last Windows-specific implementation commit: `62ff2b67f869607e20e9d8899113f391eab80c7e`.
-- Exact green rollback snapshot: `backup/windows-main-post-w121-ci-green-20261114` @ `62ff2b67f869607e20e9d8899113f391eab80c7e`.
+- Current Windows code HEAD: `7622b8034a47526547d406ed4ec5988afc0569b5` (W122 Supervisor readiness launcher). Always fetch live `main` before coding; the latest main HEAD may be a documentation-only commit after this code SHA.
+- Last Windows-specific implementation commit: `7622b8034a47526547d406ed4ec5988afc0569b5`.
+- Exact green rollback snapshot: `backup/windows-main-post-w122-ci-green-20261114` @ `7622b8034a47526547d406ed4ec5988afc0569b5`.
+- W122 Main CI [43598267910](https://github.com/manufact-test/nomusic/actions/runs/43598267910) and Windows integration CI [43598267928](https://github.com/manufact-test/nomusic/actions/runs/43598267928) — **SUCCESS**.
 - W120 Main CI [43596984190](https://github.com/manufact-test/nomusic/actions/runs/43596984190) — **SUCCESS**; Windows integration [43596984195](https://github.com/manufact-test/nomusic/actions/runs/43596984195) — **SUCCESS**.
 - W121 Main CI [43597478523](https://github.com/manufact-test/nomusic/actions/runs/43597478523) — **SUCCESS**; Windows integration [43597478531](https://github.com/manufact-test/nomusic/actions/runs/43597478531) — **SUCCESS**.
 - The W119 contract and earlier Android A1 work are preserved; this continuation changed only Windows companion code/tests and Windows documentation.
@@ -66,8 +67,32 @@ W23 tests cover unchanged-state deduplication, fixed CPU-threshold recording and
 
 This addresses the duplicate-click race in the first/repeated Start flow. It does **not** close the broader first-run/reboot/autostart owner acceptance, and it does not change audio, native installation, VPN or updater behavior. No installer was built.
 
+# W122 — Trusted Supervisor readiness handshake and immutable helper snapshot — 14 November 2026
+
+- Repository: `manufact-test/nomusic`; only working branch: `main`.
+- Exact pre-W122 code backup: `backup/windows-main-pre-w122-supervisor-handshake-20261114` @ `7d0d6e162e8a51c169db05fc232674d6de93f4d2`.
+- W122 implementation commit: `7622b8034a47526547d406ed4ec5988afc0569b5`.
+- Exact green rollback snapshot: `backup/windows-main-post-w122-ci-green-20261114` @ the W122 commit.
+- Main CI [43598267910](https://github.com/manufact-test/nomusic/actions/runs/43598267910) and Windows integration CI [43598267928](https://github.com/manufact-test/nomusic/actions/runs/43598267928) — **SUCCESS**.
+
+## Changes
+
+1. Added `StableUpdateSupervisorHandshake`: a transaction-GUID named pipe restricted to the current Windows user.
+2. The Supervisor first reads and validates the DPAPI journal, checks production trust and its own signed image, performs its first engine tick, then sends READY. It does not acknowledge an unreadable or unsafe transaction.
+3. Added `StableUpdateSupervisorLauncher.StartAsync(record)`. It accepts only a schema-2 `Prepared` transaction with matching pinned signer and previous Supervisor hash; it copies the old signed Supervisor EXE into that transaction's immutable snapshot directory, starts it from there with the existing `--supervise <guid>` contract, and waits up to eight seconds for READY.
+4. The helper runs from the snapshot copy, so the future installer can replace the installed `CELIKOM.UpdateSupervisor.exe` without locking the image that is actively monitoring rollback.
+5. Added a stable journal snapshot-path helper and a Windows named-pipe handshake regression test.
+
+## Safety boundary / what is not yet complete
+
+- The future update coordinator must not advance `Prepared → InstallerStarted` or launch the signed installer unless `StartAsync` returns true.
+- Production feed origin, P-256 public key and Authenticode signer fingerprint remain intentionally empty. The launcher returns false while production trust is unconfigured; no keys, URLs or certificates were invented.
+- **This is the trusted launch bridge, not the completed automatic updater.** There is still no MainWindow/update-coordinator callsite that fetches a newer release, prepares the journal, launches the Supervisor and then starts the installer. That is the next implementation block.
+- No installer was built and no user installation was requested.
+
 
 ### Implemented and CI-validated infrastructure
+W122 adds the transaction-scoped current-user Supervisor READY handshake and immutable snapshot launch bridge. It is still dormant: there is no stable update coordinator callsite and production trust pins remain empty.
 W105–W118 contain signed-package validation, SHA-256/Authenticode checks, DPAPI rollback journal, previous/target package retention, independent Supervisor health witness, schema-2 exact payload identity, signed manifest generation, immutable version manifests, initial LKG bootstrap and shared fail-closed trust configuration. W20 verifies the existing installer definition contains exactly:
 - existing CELIKOM app EXE;
 - `integration/host.cjs`;
@@ -88,7 +113,7 @@ This is meaningful implementation progress, **not a production-ready automatic u
 - W120 adds privacy-safe Electron main-process CPU evidence and removes repeated identical renderer-state deliveries; #53 root cause remains unproven until owner diagnostics and a Task Manager CPU/RAM/GPU capture are available.
 - W121 blocks duplicate Start clicks during pending host/entitlement checks and shows a small progress hint. First/repeated connection, reboot, tray and autostart still need one grouped owner-PC acceptance pass.
 - #52 source truth, #54 Big City Life volume, #56 real gain loudness/headroom, #57 audible 403→206 recovery and #58 original-track VPN continuity still need owner-side evidence; do not mark them fixed from CI.
-- Automatic updater is not production-ready: production P-256 pin, Authenticode signer pin and official HTTPS feed origin are empty/unprovisioned; no confirmed live signed-feed publisher, signed latest-manifest consumer, trusted Supervisor launch callsite, update coordinator/scheduler/notices or real production-signed crash/one-shot rollback test.
+- Automatic updater is not production-ready: production P-256 pin, Authenticode signer pin and official HTTPS feed origin are empty/unprovisioned. W122 provides the trusted Supervisor launcher/READY handshake, but no update coordinator callsite, signed latest-manifest consumer, scheduler/notices or production-signed crash/one-shot rollback test exists yet.
 - No final Windows EXE+ZIP has been built or delivered.
 
 ### Legacy installer naming — do not misinterpret it
@@ -108,7 +133,7 @@ The current Inno script still has historical `AppVersion=0.24.36` and `OutputBas
 10. Autostart/tray: correct Windows startup, tray, reconnect and failure recovery.
 11. Yandex update detection: at least every 30 minutes, preferably faster.
 12. Signed updater: finish signature, SHA-256, Authenticode and package-substitution protection.
-13. Supervisor: connect it to the existing CELIKOM product.
+13. Supervisor: W122 adds the signed helper snapshot and READY launcher; still needs the stable update coordinator/MainWindow callsite and end-to-end install wiring.
 14. Automatic one-shot rollback: restore last working version after failure while preserving account/DPAPI/native/user data.
 15. Production update delivery: real keys/certificates, official HTTPS origin, signed manifests and reliable delivery.
 16. Integrated verification: update, forced failure, rollback, account/native/Yandex safeguards and full regressions.
@@ -260,7 +285,7 @@ The W117/W118 implementation records immediately above this point are historical
 6. #57 signed 403→206 hiss/pop — W103 now gives 150 ms post-prime CDP confirmation chance before reload; approved decoder already playing cancels pending reload only. No proof means bounded reload proceeds. CI green, owner acoustic test pending. Do not force a production 403.
 7. #58 «Моя волна» and other original tracks pop under VPN change — original/unknown no-reload guards CI green, acoustic test pending.
 
-**Other open work:** W121 now blocks duplicate Start clicks while the first host/entitlement check is pending. The broader first/second/third launch, reboot, tray and autostart behavior still needs grouped owner-PC acceptance. W120 keeps diagnostics useful after transient state failure and adds a privacy-safe CPU incident; owner diagnostic export after disconnect still needs acceptance. Initial popup, false outdated-module message and W87/W88 default tray autorun are implemented in code; runtime acceptance remains open. Yandex release detection uses the 15-minute catalog refresh and the app's existing refresh path; do not weaken the cadence or CDP recovery without objective profiling. W101 signed automatic in-app stable update and safe rollback are **not implemented**; current updater is manual/staff only.
+**Other open work:** W121 now blocks duplicate Start clicks while the first host/entitlement check is pending. The broader first/second/third launch, reboot, tray and autostart behavior still needs grouped owner-PC acceptance. W120 keeps diagnostics useful after transient state failure and adds a privacy-safe CPU incident; owner diagnostic export after disconnect still needs acceptance. Initial popup, false outdated-module message and W87/W88 default tray autorun are implemented in code; runtime acceptance remains open. Yandex release detection uses the 15-minute catalog refresh and the app's existing refresh path; do not weaken the cadence or CDP recovery without objective profiling. W122 supplies the Supervisor READY launcher but not the update coordinator callsite. W101 signed automatic in-app stable update and safe rollback remain **not implemented**; current updater is manual/staff only.
 
 **Next work order:** after current audio blockers and one owner-accepted integrated Windows build, provision the schema-2 release trust pins/feed and connect the already bundled Supervisor through a trusted same-user launch callsite; prove real signed crash recovery and stable automatic updates per W101. Verify W104 bridge/start failure recheck on owner's PC; run CI after changes; make **one** coherent final Windows EXE + ZIP and link it only when successfully built and independently verified. Do not send partial TEST installers or ask for new secrets/accounts/emails. The user expects big completed chunks and a short status, not endless theory. Mass release only after owner QA. No final package has been delivered and nothing was installed on user's PC from this handoff.
 
