@@ -3,45 +3,53 @@
 **This top block is authoritative.** Everything under the historical archive is retained for technical history only. Do not follow its old task status, old first messages, or superseded setup instructions.
 
 - Repository: `manufact-test/nomusic`; only working branch: `main`.
-- Current `main` HEAD before this documentation update: `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
-- Current code/release-workflow checkpoint: `44a3e55ed9e70a4f2aa4b3ac562c122575f0a189` (one-shot marker trigger included).
-- W155 application code: `c1afdd5fc9b3ec90bb760857bf584dc494d7774e`; W156 package/release code: `23a4ec4a232139b9cfea986dec629d1d9b8776dd`.
-- Exact backup before this documentation handoff: `backup/windows-main-pre-final-handoff-docs-20261115` @ `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
-- Latest Main CI `43736028010` and Windows integration CI `43736027854`: **SUCCESS** on `0a2df7d5`.
-- Tasks 1–4 (W151–W154) are complete at code/test/CI level. They are not owner-PC accepted; perform one grouped W154 acceptance only after the final package.
-- Task 5 implementation is complete at code/test/CI level. The runtime audit is closed. Do not reopen it or invent further updater changes.
-- The approved owner helper is `.github/scripts/windows-stable-provision-key.ps1`. It uses built-in Windows PowerShell 5.1, Windows CNG, Notepad and browser only. No Node.js, GitHub CLI, PowerShell 7, package manager, token or password is required on the owner PC.
-- **Remaining path only:** one bounded repository preflight; one owner-side local P-256 key generation and protected Environment secret upload; one marker commit to trigger the protected release workflow; one signed unpublished Draft Release containing exactly one EXE, one ZIP and SHA256SUMS; then one grouped W154 owner acceptance.
-- Do not commit `.github/release/owner-bootstrap-0.24.38.trigger` until the owner confirms the secret is saved; committing it triggers the workflow immediately.
-- The only owner secret is `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` in protected Environment `windows-stable-production`. Require an authorized reviewer and deployment branch policy allowing only `main`. Never ask for the private PEM, password or token in chat. The workflow derives the public pin; no public-key variable is required.
-- Target bootstrap version: **0.24.38**. Defaults: sequence `1`, automatic 7-day UTC expiry, `publish_to_production=false`. The workflow creates an unpublished Draft Release; do not publish the draft or production feed.
-- DNS/TLS and production-feed publication remain intentionally deferred until infrastructure migration. The bootstrap contains the public P-256 pin and future origin. After DNS/TLS + signed feed are activated, all subsequent updates must be automatic.
-- No final EXE/ZIP has been built or delivered. Owner remains on 0.24.37; no owner installation/acceptance has happened.
-- **No other work is authorized.** Do not revisit Tasks 1–4, #53/#54/#56/#57/#58, broad audits, speculative fixes, Android, browser extension or unrelated server code. #52 stays open until owner-PC acceptance.
+- Final release source commit: `bc59e0c7e4db749d616b318beb89369245811b44`.
+- Final documentation checkpoint before this handoff update: `2a6c0ac10b8d65c54128e1417753c03a32c3d100`.
+- Exact backup before final release documentation updates: `backup/windows-main-pre-final-release-docs-20261115` @ `bc59e0c7e4db749d616b318beb89369245811b44`.
+- Final protected release workflow run `43741752502`: **SUCCESS**. Main CI `43741752582` and Windows integration CI `43741752579`: **SUCCESS** on the final release source commit.
+- Tasks 1–5 are complete at code/test/CI level. Do not reopen runtime work or repeat audits. Tasks 1–4 still require one grouped owner-PC acceptance using W154.
+- Owner-side P-256 provisioning is complete. The private key is stored only in the protected GitHub Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` in `windows-stable-production`. The workflow-derived public pin matched the owner's public fingerprint. Never request or expose the PEM, password or token.
+- The first release attempt exposed a UTC expiry precision mismatch. The workflow was corrected to use canonical UTC ISO-8601 milliseconds, a backup was made, and the one-shot marker was updated once. The corrected release run passed; version `0.24.38`, sequence `1` and `publish_to_production=false` were preserved.
+- **The single final bootstrap exists as an unpublished Draft Release:** [CELIKOM Windows 0.24.38 owner bootstrap](https://github.com/manufact-test/nomusic/releases/tag/untagged-bbca3439fe7aad5bf6dd), release ID `446239144`, tag `celikom-windows-v0.24.38-owner-bootstrap`.
+- The Draft Release contains exactly three verified assets:
+  - [CELIKOM-Windows-0.24.38.exe](https://github.com/manufact-test/nomusic/releases/download/untagged-bbca3439fe7aad5bf6dd/CELIKOM-Windows-0.24.38.exe)
+  - [CELIKOM-Windows-0.24.38.zip](https://github.com/manufact-test/nomusic/releases/download/untagged-bbca3439fe7aad5bf6dd/CELIKOM-Windows-0.24.38.zip)
+  - [SHA256SUMS.txt](https://github.com/manufact-test/nomusic/releases/download/untagged-bbca3439fe7aad5bf6dd/SHA256SUMS.txt)
+- The EXE is 85,140,627 bytes; ZIP is 84,660,767 bytes; SHA256SUMS is 198 bytes. The package helper verified exactly one root-level EXE inside the ZIP and a matching content SHA-256. The protected workflow verified the exact asset set and sizes. No public Actions artifact was uploaded.
+- **Only remaining work:** owner downloads the single final package, verifies the checksum, installs 0.24.38 over 0.24.37, and performs one grouped W154 acceptance. No intermediate packages or further engineering work.
+- DNS/TLS and signed production-feed activation remain deliberately deferred. Keep the Draft Release unpublished. Do not claim production automatic updates until DNS/TLS and the signed feed are live.
+- No other work is authorized. Do not revisit Tasks 1–5, historical Issues #53/#54/#56/#57/#58, broad audits, Android, browser extension or unrelated code. #52 remains open until owner-PC acceptance.
 
 ## Current first message for the next chat
 
-Привет! Продолжаем CELIKOM Windows как ведущий разработчик. Работай только в `manufact-test/nomusic`, только ветка `main`. Ничего не начинай с нуля и не меняй архитектуру.
+Привет! Принимай CELIKOM Windows строго на этапе **единственной финальной owner-PC приёмки**. Никакой новой разработки и никаких новых сборок.
 
-Сначала получи live HEAD и последние CI. Затем прочитай W119, W150, W155, W156, W154 и этот NEXT-CHAT. W150 задаёт scope, W119 — постоянные правила продукта. Исторический архив ниже не является списком новых задач.
+**Репозиторий:** `manufact-test/nomusic`  
+**Единственная рабочая ветка:** `main`  
+**Последний release source commit:** `bc59e0c7e4db749d616b318beb89369245811b44`  
+**Последний документационный checkpoint перед этим handoff:** `2a6c0ac10b8d65c54128e1417753c03a32c3d100`  
+**Точный backup перед финальными release-документами:** `backup/windows-main-pre-final-release-docs-20261115` @ `bc59e0c7e4db749d616b318beb89369245811b44`.
 
-**Текущий статус:**
-- W151–W154 (Tasks 1–4) завершены по коду/тестам/CI. Не возвращайся к ним. Owner-PC acceptance будет один раз по W154 после финальной сборки.
-- W155 runtime audit завершён: конкретных пробелов не найдено. Не повторяй аудит и не придумывай улучшения.
-- W156 release workflow и PowerShell-only provisioning реализованы. Current release-workflow checkpoint: `44a3e55ed9e70a4f2aa4b3ac562c122575f0a189`. Последний проверенный main/doc HEAD: `0a2df7d5d104854c492dc7114ec6c4175a195df8`; Main CI `43736028010` и Windows integration CI `43736027854` — SUCCESS.
-- Целевая версия — 0.24.38. Release workflow defaults: sequence 1, expiry 7 дней автоматически, `publish_to_production=false`. Он создаёт один неопубликованный Draft Release: EXE, ZIP с этим EXE в корне и SHA256SUMS.
-- Точный backup перед документационной передачей: `backup/windows-main-pre-final-handoff-docs-20261115` @ `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
+Сначала проверь live HEAD и прочитай W119, W150, W154, W155, W156 и этот NEXT-CHAT. Исторический архив ниже не является текущим планом.
 
-**Делай только это, без побочных задач:**
-1. Выполни один короткий preflight текущего release workflow, key helper, version alignment и protected Environment contract. Не повторяй широкие аудиты и не меняй рабочий код без конкретного доказанного дефекта.
-2. Когда всё готово, попроси владельца выполнить одну консолидированную операцию: скачать raw `.github/scripts/windows-stable-provision-key.ps1`, запустить встроенным Windows PowerShell 5.1 и сохранить созданный PEM как Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` в `windows-stable-production`. Скрипт сам откроет GitHub Environment и Notepad. Владелец присылает только строку успеха и публичный fingerprint. Никогда не проси PEM, пароль или токен.
-3. Только после подтверждения, что secret сохранён, создай точный backup и одним commit добавь marker `.github/release/owner-bootstrap-0.24.38.trigger` в `main`. Это автоматически запускает protected workflow. Если GitHub запросит Environment approval, владелец подтверждает его.
-4. Дождись CI/workflow и проверь, что создан ровно один Draft Release с одним EXE, одним ZIP и SHA256SUMS. Не загружай публичный Actions artifact. Не нажимай Publish и не включай production feed.
-5. Выдай одну финальную сборку и один групповой W154 acceptance plan. Не делай промежуточных сборок. Не объявляй автоматические production-обновления действующими до миграции DNS/TLS и подписанного feed.
+**Что завершено:**
+- Tasks 1–5 завершены по коду/тестам/CI. Не открывай их снова и не делай аудит ради аудита.
+- P-256 ключ создан владельцем и сохранён только в Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM`; публичный fingerprint успешно совпал. Никогда не проси PEM.
+- Исправлена точность UTC expiry; финальный protected release workflow `43741752502` — SUCCESS.
+- Main CI `43741752582` и Windows integration CI `43741752579` — SUCCESS на release source commit.
+- Одна финальная версия `0.24.38`, sequence `1`, уже собрана и подписана P-256. Draft Release ID `446239144` создан и остаётся неопубликованным.
+- В Draft ровно EXE, ZIP с одним тем же EXE в корне и `SHA256SUMS.txt`. Успешный workflow проверил точный набор файлов и размеры; упаковщик сверил хеш содержимого ZIP с исходным EXE.
+- Production feed не публиковался. DNS/TLS не активированы.
 
-**Жёсткие правила:** не останавливайся после каждого маленького этапа, не присылай длинные отчёты и не спрашивай разрешение на каждое действие. Работай крупными последовательными блоками до реального внешнего блокера. Не придумывай дополнительные задачи, не трогай Android/extension, не открывай старые Issues #53/#54/#56/#57/#58. Никакой Authenticode/PFX, никакого отключения SmartScreen/Defender/UAC, никаких промежуточных EXE/ZIP.
+**Единственная задача теперь — W154 owner acceptance:**
+1. Направь владельца на [Draft Release](https://github.com/manufact-test/nomusic/releases/tag/untagged-bbca3439fe7aad5bf6dd). Для установки используй EXE; ZIP и SHA256SUMS также приложены.
+2. Владелец устанавливает 0.24.38 поверх 0.24.37 тем же AppId, затем выполняет один групповой план W154: сохранность сессии/DPAPI/настроек/native integration; current-player/UI truth и Next/My Wave; VPN A→B для replacement/original/My Wave с прослушиванием pop/click и crossfade; autostart/tray и сохранение OS OFF; Stop/entitlement safety; diagnostics authorization после disconnect.
+3. Фиксируй только реальные результаты владельца. Не объявляй пункты принятыми до его проверки. Если найдётся конкретная регрессия — исправляй только её в рамках подтверждённого scope, с точным backup и CI.
+4. Пункт W154 №7 (проверка production updater/feed и rollback) отложен до будущей активации DNS/TLS и подписанного production feed. Не включай публикацию сейчас и не утверждай, что автоматические production-обновления уже работают.
 
-Единственный ручной шаг для владельца — bootstrap поверх 0.24.37. После будущей активации DNS/TLS и signed feed все следующие обновления для пользователей должны проходить автоматически.
+**Запрещено:** промежуточные сборки; изменение архитектуры; повторные широкие аудиты; Authenticode/PFX; обход SmartScreen/Defender/UAC; публикация Draft или production feed; Android/extension; Issues #53/#54/#56/#57/#58; любые несогласованные задачи. Не проси владельца повторно настраивать Environment или передавать секреты. Работай кратко и конкретно, крупными блоками.
+
+Единственный результат, который теперь нужен — завершённая проверка одного финального bootstrap по W154.
 
 ---
 
