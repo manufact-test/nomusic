@@ -328,7 +328,7 @@ def typed_parameter_registers(dex, method, flags, code_off, target_type):
     return found
 
 
-def inspect_candidate_owner_methods(apks, candidate_owners):
+def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
     """Inspect one bounded method/caller edge for shared Track owner classes.
 
     Only signatures, type descriptors, invoke categories and typed field
@@ -344,9 +344,9 @@ def inspect_candidate_owner_methods(apks, candidate_owners):
             "methods_returning_track": 0,
             "methods_returning_album": 0,
             "methods_returning_wrapper": 0,
-            "methods_read_track_field_on_this": 0,
-            "methods_read_album_field_on_this": 0,
-            "methods_read_wrapper_field_on_this": 0,
+            "methods_with_track_field_read_on_this": 0,
+            "methods_with_album_field_read_on_this": 0,
+            "methods_with_wrapper_field_read_on_this": 0,
             "methods_calling_track_model": 0,
             "methods_calling_album_model": 0,
             "methods_calling_player_api": 0,
@@ -362,15 +362,25 @@ def inspect_candidate_owner_methods(apks, candidate_owners):
         owner: {
             "call_site_count": 0,
             "distinct_caller_method_count": 0,
-            "caller_accepts_track_count": 0,
-            "caller_accepts_album_count": 0,
-            "caller_accepts_wrapper_count": 0,
-            "target_accepts_track_count": 0,
-            "target_accepts_album_count": 0,
-            "target_accepts_wrapper_count": 0,
-            "same_track_parameter_register_to_target_track_parameter_count": 0,
-            "same_album_parameter_register_to_target_album_parameter_count": 0,
-            "same_wrapper_parameter_register_to_target_wrapper_parameter_count": 0,
+            "caller_accepts_track_parameter_call_site_count": 0,
+            "caller_accepts_album_parameter_call_site_count": 0,
+            "caller_accepts_wrapper_parameter_call_site_count": 0,
+            "target_accepts_track_parameter_call_site_count": 0,
+            "target_accepts_album_parameter_call_site_count": 0,
+            "target_accepts_wrapper_parameter_call_site_count": 0,
+            "same_track_parameter_alias_to_target_track_parameter_count": 0,
+            "same_track_field_alias_to_target_track_parameter_count": 0,
+            "same_album_parameter_alias_to_target_album_parameter_count": 0,
+            "same_album_field_alias_to_target_album_parameter_count": 0,
+            "same_wrapper_parameter_alias_to_target_wrapper_parameter_count": 0,
+            "same_wrapper_field_alias_to_target_wrapper_parameter_count": 0,
+            "caller_owner_has_track_field_call_site_count": 0,
+            "caller_owner_has_album_field_call_site_count": 0,
+            "caller_owner_has_wrapper_field_call_site_count": 0,
+            "caller_owner_has_collection_field_call_site_count": 0,
+            "caller_owner_has_numeric_field_call_site_count": 0,
+            "caller_owner_has_player_api_field_call_site_count": 0,
+            "caller_owner_has_source_like_field_call_site_count": 0,
             "caller_method_keys": set(),
         }
         for owner in sorted(candidate_owners)
@@ -382,7 +392,7 @@ def inspect_candidate_owner_methods(apks, candidate_owners):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("TRACK_SHARED_OWNER_DEX_LIMIT")
@@ -407,22 +417,16 @@ def inspect_candidate_owner_methods(apks, candidate_owners):
                         )
                         method_roles = set()
                         for _ordinal, op, words in ins:
-                            if 0x52 <= op <= 0x58:
+                            if op == 0x54:  # iget-object: inspect only the declared type
                                 _field_owner, _field_name, field_type = field_id(dex, words[1])
                                 receiver = (words[0] >> 12) & 15
                                 if receiver == this_register:
                                     if field_type == MODEL:
-                                        summary["methods_read_track_field_on_this"] = (
-                                            summary["methods_read_track_field_on_this"] + 1
-                                        )
+                                        method_roles.add("read_track_field")
                                     elif field_type == ALBUM_MODEL:
-                                        summary["methods_read_album_field_on_this"] = (
-                                            summary["methods_read_album_field_on_this"] + 1
-                                        )
+                                        method_roles.add("read_album_field")
                                     elif field_type == WRAPPER:
-                                        summary["methods_read_wrapper_field_on_this"] = (
-                                            summary["methods_read_wrapper_field_on_this"] + 1
-                                        )
+                                        method_roles.add("read_wrapper_field")
                             if op not in INVOKES:
                                 continue
                             callee = dex.method(words[1])
@@ -442,6 +446,9 @@ def inspect_candidate_owner_methods(apks, candidate_owners):
                             if callee[1] in ("collect", "collectLatest", "launchIn", "emit"):
                                 method_roles.add("flow")
                         role_keys = {
+                            "read_track_field": "methods_with_track_field_read_on_this",
+                            "read_album_field": "methods_with_album_field_read_on_this",
+                            "read_wrapper_field": "methods_with_wrapper_field_read_on_this",
                             "track_model": "methods_calling_track_model",
                             "album_model": "methods_calling_album_model",
                             "player": "methods_calling_player_api",
@@ -453,45 +460,147 @@ def inspect_candidate_owner_methods(apks, candidate_owners):
                         for role in method_roles:
                             summary[role_keys[role]] += 1
 
-                    caller_track_regs = typed_parameter_registers(
+                    # Bounded straight-line aliases from typed parameters and
+                    # typed fields on this. Branches clear all provenance.
+                    track_param_aliases = typed_parameter_registers(
                         dex, method, flags, code_off, MODEL
                     )
-                    caller_album_regs = typed_parameter_registers(
+                    album_param_aliases = typed_parameter_registers(
                         dex, method, flags, code_off, ALBUM_MODEL
                     )
-                    caller_wrapper_regs = typed_parameter_registers(
+                    wrapper_param_aliases = typed_parameter_registers(
                         dex, method, flags, code_off, WRAPPER
                     )
-                    for op_index, op, words in ins:
-                        if op not in INVOKES:
+                    track_field_aliases = set()
+                    album_field_aliases = set()
+                    wrapper_field_aliases = set()
+                    caller_profile = classify_track_owner_profile(
+                        class_profiles.get(owner, {})
+                    )
+                    for _ordinal, op, words in ins:
+                        if op in INVOKES:
+                            callee = dex.method(words[1])
+                            target_owner = callee[0]
+                            if target_owner in candidate_owners:
+                                target_params = parse_types(callee[2])
+                                is_static = op in (0x71, 0x77)
+                                target_types = (
+                                    target_params if is_static
+                                    else [target_owner] + target_params
+                                )
+                                regs = invoke_registers(op, words)
+                                row = inbound[target_owner]
+                                row["call_site_count"] += 1
+                                row["caller_method_keys"].add(method)
+                                row["caller_accepts_track_parameter_call_site_count"] += (
+                                    MODEL in parse_types(method[2])
+                                )
+                                row["caller_accepts_album_parameter_call_site_count"] += (
+                                    ALBUM_MODEL in parse_types(method[2])
+                                )
+                                row["caller_accepts_wrapper_parameter_call_site_count"] += (
+                                    WRAPPER in parse_types(method[2])
+                                )
+                                row["target_accepts_track_parameter_call_site_count"] += (
+                                    MODEL in target_params
+                                )
+                                row["target_accepts_album_parameter_call_site_count"] += (
+                                    ALBUM_MODEL in target_params
+                                )
+                                row["target_accepts_wrapper_parameter_call_site_count"] += (
+                                    WRAPPER in target_params
+                                )
+                                row["caller_owner_has_track_field_call_site_count"] += (
+                                    caller_profile["has_track_field"]
+                                )
+                                row["caller_owner_has_album_field_call_site_count"] += (
+                                    caller_profile["has_album_field"]
+                                )
+                                row["caller_owner_has_wrapper_field_call_site_count"] += (
+                                    caller_profile["has_wrapper_field"]
+                                )
+                                row["caller_owner_has_collection_field_call_site_count"] += (
+                                    caller_profile["has_collection_field"]
+                                )
+                                row["caller_owner_has_numeric_field_call_site_count"] += (
+                                    caller_profile["has_numeric_field"]
+                                )
+                                row["caller_owner_has_player_api_field_call_site_count"] += (
+                                    caller_profile["has_player_api_field"]
+                                )
+                                row["caller_owner_has_source_like_field_call_site_count"] += (
+                                    caller_profile["has_source_like_field"]
+                                )
+                                if len(regs) == len(target_types):
+                                    for index, typ in enumerate(target_types):
+                                        register = regs[index]
+                                        if typ == MODEL:
+                                            if register in track_param_aliases:
+                                                row["same_track_parameter_alias_to_target_track_parameter_count"] += 1
+                                            if register in track_field_aliases:
+                                                row["same_track_field_alias_to_target_track_parameter_count"] += 1
+                                        elif typ == ALBUM_MODEL:
+                                            if register in album_param_aliases:
+                                                row["same_album_parameter_alias_to_target_album_parameter_count"] += 1
+                                            if register in album_field_aliases:
+                                                row["same_album_field_alias_to_target_album_parameter_count"] += 1
+                                        elif typ == WRAPPER:
+                                            if register in wrapper_param_aliases:
+                                                row["same_wrapper_parameter_alias_to_target_wrapper_parameter_count"] += 1
+                                            if register in wrapper_field_aliases:
+                                                row["same_wrapper_field_alias_to_target_wrapper_parameter_count"] += 1
                             continue
-                        callee = dex.method(words[1])
-                        target_owner = callee[0]
-                        if target_owner not in candidate_owners:
-                            continue
-                        target_params = parse_types(callee[2])
-                        is_static = op in (0x71, 0x77)
-                        target_types = (
-                            target_params if is_static else [target_owner] + target_params
-                        )
-                        regs = invoke_registers(op, words)
-                        row = inbound[target_owner]
-                        row["call_site_count"] += 1
-                        row["caller_method_keys"].add(method)
-                        row["caller_accepts_track_count"] += bool(caller_track_regs)
-                        row["caller_accepts_album_count"] += bool(caller_album_regs)
-                        row["caller_accepts_wrapper_count"] += bool(caller_wrapper_regs)
-                        row["target_accepts_track_count"] += MODEL in target_params
-                        row["target_accepts_album_count"] += ALBUM_MODEL in target_params
-                        row["target_accepts_wrapper_count"] += WRAPPER in target_params
-                        if len(regs) == len(target_types):
-                            for index, typ in enumerate(target_types):
-                                if typ == MODEL and regs[index] in caller_track_regs:
-                                    row["same_track_parameter_register_to_target_track_parameter_count"] += 1
-                                elif typ == ALBUM_MODEL and regs[index] in caller_album_regs:
-                                    row["same_album_parameter_register_to_target_album_parameter_count"] += 1
-                                elif typ == WRAPPER and regs[index] in caller_wrapper_regs:
-                                    row["same_wrapper_parameter_register_to_target_wrapper_parameter_count"] += 1
+                        if op == 0x54:  # typed iget-object; never inspect its value
+                            dest = (words[0] >> 8) & 15
+                            receiver = (words[0] >> 12) & 15
+                            _field_owner, _field_name, field_type = field_id(dex, words[1])
+                            for aliases in (
+                                track_field_aliases, album_field_aliases,
+                                wrapper_field_aliases
+                            ):
+                                aliases.discard(dest)
+                            this_register = (
+                                None if flags & ACC_STATIC
+                                else dex.u16(code_off) - dex.u16(code_off + 2)
+                            )
+                            if receiver == this_register:
+                                if field_type == MODEL:
+                                    track_field_aliases.add(dest)
+                                elif field_type == ALBUM_MODEL:
+                                    album_field_aliases.add(dest)
+                                elif field_type == WRAPPER:
+                                    wrapper_field_aliases.add(dest)
+                        elif op in (0x07, 0x08, 0x09):
+                            move = move_object_registers(op, words)
+                            if move:
+                                dest, source = move
+                                for aliases in (
+                                    track_param_aliases, album_param_aliases,
+                                    wrapper_param_aliases, track_field_aliases,
+                                    album_field_aliases, wrapper_field_aliases
+                                ):
+                                    was_alias = source in aliases
+                                    aliases.discard(dest)
+                                    if was_alias:
+                                        aliases.add(dest)
+                        elif op == 0x1f:  # check-cast preserves the reference
+                            pass
+                        else:
+                            dest = written_register(op, words)
+                            if dest is not None:
+                                for aliases in (
+                                    track_param_aliases, album_param_aliases,
+                                    wrapper_param_aliases, track_field_aliases,
+                                    album_field_aliases, wrapper_field_aliases
+                                ):
+                                    aliases.discard(dest)
+                            if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+                                for aliases in (
+                                    track_param_aliases, album_param_aliases,
+                                    wrapper_param_aliases, track_field_aliases,
+                                    album_field_aliases, wrapper_field_aliases
+                                ):
+                                    aliases.clear()
     for owner, row in inbound.items():
         row["distinct_caller_method_count"] = len(row.pop("caller_method_keys"))
     return {
@@ -503,7 +612,6 @@ def inspect_candidate_owner_methods(apks, candidate_owners):
             {"owner": owner, **inbound[owner]} for owner in sorted(candidate_owners)
         ],
     }
-
 
 def summarize_boundary_callsite_census(rows, class_profiles=None):
     class_profiles = class_profiles or {}
@@ -1510,7 +1618,7 @@ def inspect_signed(apks):
     candidate_owner_rows = candidate_owner_descriptors(class_profiles)
     candidate_owner_set = {row["owner"] for row in candidate_owner_rows}
     candidate_owner_method_census = inspect_candidate_owner_methods(
-        apks, candidate_owner_set
+        apks, candidate_owner_set, class_profiles
     )
     if dex_count != 6:
         raise ValueError("SIGNED_SIX_DEX_REQUIRED")
