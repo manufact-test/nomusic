@@ -857,11 +857,11 @@ class SelectedItemAuditTests(unittest.TestCase):
             (9,0x0e,[0x000e])
         ]
         target=("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;")
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
-             patch("audit_native_selected_item_handoff.field_id",return_value=target):
-            result=trace_track_value_to_exact_field_store(
-                FakeDex(),method,0x8,100,target
-            )
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            with patch("audit_native_selected_item_handoff.field_id",return_value=target):
+                result=trace_track_value_to_exact_field_store(
+                    FakeDex(),method,0x8,100,target
+                )
         self.assertTrue(result["control_flow_graph_built"])
         self.assertTrue(result["branch_seen"])
         self.assertTrue(result["same_track_parameter_store_candidate"])
