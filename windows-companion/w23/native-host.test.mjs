@@ -7,7 +7,7 @@ import { EventEmitter } from "node:events";
 const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 
 async function runHost(url, { queue = [], token = "b".repeat(64),
-  debuggerDriver = null, stateOverride = null,
+  debuggerDriver = null, stateOverride = null, tokenFileStats = null,
   grantOverride = null, grantSequence = [], currentTrack = null, clock = Date,
   rendererStatus = "ORIGINAL", cpuUsage = null,
   secondaryTrack = null, primaryAudible = null } = {}) {
@@ -39,7 +39,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   const fakeFs = {
     mkdirSync: () => {},
     statSync: file => file.endsWith("native-bridge.key")
-      ? {mtimeMs:1,ctimeMs:1,size:64}
+      ? (tokenFileStats ?? {mtimeMs:1,ctimeMs:1,size:64})
       : (()=>{throw Object.assign(new Error("NOT_FOUND"),{code:"ENOENT"});})(),
     readFileSync: file => {
       if (file.includes("renderer.js")) return "window.__celikomBridgeNativeDrain=()=>[];";
@@ -1197,4 +1197,92 @@ test("W147 current native silence overrides a stale audio-state-changed true eve
     "native silence cannot be overridden by a stale audio event");
   assert.ok(beats.every(x=>x.source==="UNKNOWN"),
     "silence or media event never proves a CELIKOM decoder");
+});
+
+test("W151 current queue change in the same audible renderer publishes only the new track", async()=>{
+  let now=Date.now();
+  class Clock extends Date { static now(){return now;} }
+  const currentTrack={
+    id:"123",title:"Зима",artist:"CENTR",durationMs:180000,
+    playbackState:"PLAYING"
+  };
+  const r=await runHost("musicapplication://desktop/",{
+    currentTrack,primaryAudible:true,clock:Clock,rendererStatus:"NATIVE_CONNECTED"
+  });
+  const before=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(before.length>=1);
+  assert.equal(before.at(-1).trackId,"123");
+  currentTrack.id="456";
+  currentTrack.title="Вечно молодой";
+  currentTrack.artist="Смысловые Галлюцинации";
+  currentTrack.durationMs=210000;
+  now+=2400;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,50));
+  const after=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(after.length>before.length);
+  assert.equal(after.at(-1).trackId,"456");
+  assert.equal(after.at(-1).title,"Вечно молодой");
+  assert.equal(after.at(-1).artist,"Смысловые Галлюцинации");
+  assert.equal(after.at(-1).source,"UNKNOWN",
+    "previous track's source proof must not transfer to the new queue entity");
+  assert.equal(after.at(-1).playbackState,"PLAYING");
+  assert.ok(after.at(-1).sequence>before.at(-1).sequence);
+});
+
+test("W151 a republished companion capability immediately rebinds an already-playing Yandex player", async()=>{
+  let now=Date.now();
+  class Clock extends Date { static now(){return now;} }
+  const tokenFileStats={mtimeMs:1,ctimeMs:1,size:64};
+  const currentTrack={
+    id:"789",title:"Триагрутрика",artist:"Триагрутрика",
+    durationMs:210000,playbackState:"PLAYING"
+  };
+  const r=await runHost("musicapplication://desktop/",{
+    currentTrack,primaryAudible:true,clock:Clock,tokenFileStats,
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  const before=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(before.length>=1);
+  assert.equal(before.at(-1).trackId,"789");
+  tokenFileStats.mtimeMs+=1;
+  tokenFileStats.ctimeMs+=1;
+  now+=1200;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,50));
+  const after=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(after.length>before.length,
+    "a new capability-file generation forces a current-player heartbeat");
+  assert.equal(after.at(-1).trackId,"789");
+  assert.equal(after.at(-1).playbackState,"PLAYING");
+  assert.ok(after.at(-1).sequence>before.at(-1).sequence);
+});
+
+test("W151 re-enabling the bridge immediately reconciles an already-playing current player", async()=>{
+  let now=Date.now();
+  class Clock extends Date { static now(){return now;} }
+  const state={enabled:false,signedIn:true,apiOrigin:"https://api.celikom.example"};
+  const currentTrack={
+    id:"456",title:"Вечно молодой",artist:"Смысловые Галлюцинации",
+    durationMs:210000,playbackState:"PLAYING"
+  };
+  const r=await runHost("musicapplication://desktop/",{
+    currentTrack,primaryAudible:true,clock:Clock,stateOverride:state
+  });
+  const before=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  state.enabled=true;
+  now+=350;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,50));
+  const after=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(after.length>before.length,
+    "an OFF-to-ON state transition bypasses the normal heartbeat delay");
+  assert.equal(after.at(-1).trackId,"456");
+  assert.equal(after.at(-1).playbackState,"PLAYING");
 });

@@ -26,6 +26,7 @@ const logged = new Set();
 const recent = [];
 let tokenCache = "", tokenCacheAt = 0;
 let tokenCacheMtime = -1, tokenCacheCtime = -1, tokenCacheSize = -1;
+let tokenFileRevision = 0;
 const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT_MISS",
   "GRANT_DELIVERED", "GRANT_DELIVERY_FAILED", "LOCAL_RESOLVE_REPLY",
   "RESOLVE_BRIDGE_FAILURE", "RESOLVE_TRANSIENT", "NATIVE_FILEINFO_REQUEST", "NATIVE_FILEINFO_OK",
@@ -153,6 +154,7 @@ const busy = new WeakSet();
 const lastStateAt = new WeakMap();
 const lastStatus = new WeakMap();
 const lastNativeState = new WeakMap();
+const lastTokenRevision = new WeakMap();
 const lastDeliveredState = new WeakMap();
 const lastDiagPoll = new WeakMap();
 // W141: one actual audible Yandex window owns playback identity; a hidden
@@ -232,8 +234,11 @@ function readToken() {
     tokenCacheMtime = mtime;
     tokenCacheCtime = ctime;
     tokenCacheSize = size;
+    tokenFileRevision++;
     return tokenCache;
   } catch {
+    if (tokenCache || tokenCacheMtime !== -1 || tokenCacheCtime !== -1 ||
+        tokenCacheSize !== -1) tokenFileRevision++;
     tokenCache = "";
     tokenCacheMtime = -1;
     tokenCacheCtime = -1;
@@ -334,16 +339,19 @@ async function relayState(view, token, now) {
   // W61: short bounded local-only state poll to reduce time from UI click
   // to the native source refresh. Per-view tick is serialized (busy WeakSet)
   // and this never speeds up the actual Yandex media source download.
-  if (now - (lastStateAt.get(view) || 0) < 300) return;
+  if (now - (lastStateAt.get(view) || 0) < 300) return false;
   lastStateAt.set(view, now);
+  let justEnabled = false;
   const state = await localRequest(token, "/v1/state");
   const stateAvailable = !!state && typeof state === "object" && !Array.isArray(state);
   if (stateAvailable) {
     note("LOCAL_STATE_OK");
-    const active = state.enabled === true;
-    if (lastNativeState.get(view) !== active) {
+    const active = state.enabled === true && state.signedIn === true;
+    const previousActive = lastNativeState.get(view);
+    if (previousActive !== active) {
       lastNativeState.set(view, active);
       note(active ? "STATE_ENABLED" : "STATE_DISABLED");
+      justEnabled = active;
     }
   } else {
     // A failed poll invalidates the cached disabled state too. Keep the next
@@ -352,7 +360,7 @@ async function relayState(view, token, now) {
     note("STATE_UNREACHABLE");
   }
   const safeState = {
-    enabled: stateAvailable && state.enabled === true,
+    enabled: stateAvailable && state.enabled === true && state.signedIn === true,
     signedIn: stateAvailable && state.signedIn === true,
     apiOrigin: stateAvailable && typeof state.apiOrigin === "string"
       ? state.apiOrigin.slice(0, 256) : ""
@@ -362,9 +370,13 @@ async function relayState(view, token, now) {
     nativeExpectedAudio.delete(view);
     verifiedDecoderSource.delete(view);
     nativeMediaHttpSuccess.delete(view);
+    if (!safeState.enabled || !safeState.signedIn ||
+        (previousOrigin !== undefined && previousOrigin !== safeState.apiOrigin))
+      nativeDecoderPlayers.delete(view);
   }
   nativeAudioOrigins.set(view, safeState.apiOrigin);
   await deliverState(view, safeState);
+  return justEnabled;
 }
 async function relayGrant(view, token, request) {
   if (!request || typeof request !== "object" ||
@@ -405,8 +417,34 @@ async function tick(view) {
     if (!await inject(view)) return;
     const token = readToken();
     if (!token) {
+      lastTokenRevision.delete(view);
+      lastStateAt.delete(view);
+      lastStatus.delete(view);
+      lastNativeState.delete(view);
+      lastDeliveredState.delete(view);
+      nativeAudioOrigins.set(view, "");
+      nativeExpectedAudio.delete(view);
+      verifiedDecoderSource.delete(view);
+      nativeMediaHttpSuccess.delete(view);
+      nativeDecoderPlayers.delete(view);
       await deliverState(view, {enabled:false,signedIn:false,apiOrigin:""});
       return;
+    }
+    const tokenRevision = tokenFileRevision;
+    const previousTokenRevision = lastTokenRevision.get(view);
+    const companionSessionChanged = previousTokenRevision !== undefined &&
+      previousTokenRevision !== tokenRevision;
+    lastTokenRevision.set(view, tokenRevision);
+    if (companionSessionChanged) {
+      lastStateAt.delete(view);
+      lastStatus.delete(view);
+      lastNativeState.delete(view);
+      lastDeliveredState.delete(view);
+      nativeAudioOrigins.set(view, "");
+      nativeExpectedAudio.delete(view);
+      verifiedDecoderSource.delete(view);
+      nativeMediaHttpSuccess.delete(view);
+      nativeDecoderPlayers.delete(view);
     }
     note("BOOTSTRAP_KEY_PRESENT");
     const now = Date.now();
@@ -418,13 +456,13 @@ async function tick(view) {
           if (Array.isArray(event) && event.length === 2)
             note(event[0], event[1]);
     }
-    await relayState(view, token, now);
+    const bridgeJustEnabled = await relayState(view, token, now);
     const queue = await execute(view,
       ";(window.__celikomBridgeNativeDrain?.()||[])");
     if (Array.isArray(queue)) {
       await Promise.all(queue.slice(0, 6).map(item => relayGrant(view, token, item)));
     }
-    if (now - (lastStatus.get(view)?.at || 0) > 2200) {
+    if (bridgeJustEnabled || now - (lastStatus.get(view)?.at || 0) > 2200) {
       // A failed *prefetched* file-info may be played long afterwards.
       // Check the observed current Yandex queue entity before assuming the
       // old source is still good. Recovery may reload that entity only.
@@ -526,7 +564,7 @@ async function tick(view) {
       lastStatus.set(view,current);
       const chosen = choosePlaybackView();
       const selectedGeneration = selectionGeneration;
-      if (chosen === view && (!previous ||
+      if (chosen === view && (!previous || bridgeJustEnabled ||
           status !== previous.value || trackId !== previous.trackId ||
           title !== previous.title || artist !== previous.artist ||
           durationMs !== previous.durationMs || source !== previous.source ||

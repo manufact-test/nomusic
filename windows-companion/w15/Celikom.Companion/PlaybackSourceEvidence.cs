@@ -13,4 +13,9 @@ public static class PlaybackSourceEvidence
     public static bool MappedButUnverified(bool enabled, string? status, string? presence) =>
         enabled && presence == "approved" &&
         (status == "NATIVE_MAPPING_ACCEPTED" || status == "SDK_MAPPING_ACCEPTED");
+
+    // A renderer's ORIGINAL hint or a missing replacement grant is not proof.
+    // Only a dedicated native current-decoder verification may identify original audio.
+    public static bool OriginalVerified(bool enabled, string? status, string? source) =>
+        enabled && status == "NATIVE_ORIGINAL_SOURCE_VERIFIED" && source == "ORIGINAL";
 }

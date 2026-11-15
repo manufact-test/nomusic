@@ -57,7 +57,7 @@ public static class UserFacingPlaybackHealth
             if (source == "ACTIVE_REPLACEMENT" &&
                 nativeStatus == "NATIVE_SOURCE_VERIFIED")
                 return new(Severity.Good, "Подмена активна · версия CELIKOM");
-            if (source == "ORIGINAL")
+            if (source == "ORIGINAL" && nativeStatus == "NATIVE_ORIGINAL_SOURCE_VERIFIED")
                 return new(Severity.Neutral, presence == "approved"
                     ? "Играет оригинал. Версия CELIKOM доступна."
                     : "Играет оригинал.");
@@ -76,11 +76,11 @@ public static class UserFacingPlaybackHealth
     {
         if (!serviceEnabled) return new(Severity.Neutral, "");
         if (nativeStatus == "NATIVE_SOURCE_FAILED")
-            return new(Severity.Error, "Подмена не загрузилась. Играет оригинал.");
+            return new(Severity.Error, "Подмена не подтвердилась. Источник текущего трека неизвестен.");
         if (nativeStatus == "HOST_ERROR")
             return new(Severity.Error, "Не удалось подключить модуль Яндекса.");
-        if (nativeStatus == "ORIGINAL" && versionPresence == "approved")
-            return new(Severity.Neutral, "Сейчас играет оригинал. Версия CELIKOM доступна.");
+        if (nativeStatus == "NATIVE_ORIGINAL_SOURCE_VERIFIED" && versionPresence == "approved")
+            return new(Severity.Neutral, "Оригинальный источник подтверждён. Версия CELIKOM доступна.");
         // RESOLVING, NATIVE_RECOVERING, UNAVAILABLE, accepted mapping, and
         // silence in a steady song are normal/transient. Keep the UI quiet;
         // retain raw status in local diagnostics for investigation.

@@ -290,7 +290,7 @@ public sealed class BridgeServer : IAsyncDisposable
             if (beat == null || beat.Status is not ("OFF" or "UNAVAILABLE" or "ORIGINAL" or
                   "RESOLVING" or "SDK_MAPPING_ACCEPTED" or "HOST_ERROR" or
                   "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
-                  "NATIVE_SOURCE_VERIFIED" or
+                  "NATIVE_SOURCE_VERIFIED" or "NATIVE_ORIGINAL_SOURCE_VERIFIED" or
                   "NATIVE_RECOVERING" or "NATIVE_SOURCE_FAILED"))
                 return Results.BadRequest();
             var accepted = false;
@@ -328,7 +328,8 @@ public sealed class BridgeServer : IAsyncDisposable
                         _lastStatus = beat.Status;
                         _lastSource = beat.Status == "NATIVE_SOURCE_VERIFIED" &&
                             beat.Source == "ACTIVE_REPLACEMENT" ? "ACTIVE_REPLACEMENT" :
-                            beat.Source == "ORIGINAL" ? "ORIGINAL" : "UNKNOWN";
+                            PlaybackSourceEvidence.OriginalVerified(
+                                _enabled, beat.Status, beat.Source) ? "ORIGINAL" : "UNKNOWN";
                         _lastPlaybackState = beat.PlaybackState is "PLAYING" or "PAUSED" or "STOPPED"
                             ? beat.PlaybackState : "UNKNOWN";
                         _lastHeartbeatAt = DateTimeOffset.UtcNow;

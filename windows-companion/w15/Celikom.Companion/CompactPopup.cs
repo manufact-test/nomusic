@@ -276,7 +276,7 @@ public sealed partial class MainWindow
         _compactTrack.BackColor = Paper;
         _compactTrack.AutoEllipsis = false;
         _compactTrack.Font = new Font("Segoe UI", 9F);
-        _compactTrack.Text = "Запустите трек в Яндекс Музыке";
+        _compactTrack.Text = "Подмена выключена.";
         _compactTrackArtist.ForeColor = Secondary;
         _compactTrackArtist.Font = new Font("Segoe UI", 8.5F);
         _compactTrackArtist.Text = "";
@@ -629,9 +629,8 @@ public sealed partial class MainWindow
         _start.Text = "Старт";
         var nativeStatus = _bridge.LastStatus;
         var heartbeatFresh = _bridge.HasFreshHeartbeat;
-        if (_compactStarting && _bridge.Enabled &&
-            nativeStatus is "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
-                "NATIVE_SOURCE_VERIFIED" or "ORIGINAL" or "RESOLVING")
+        if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
+            _bridge.Enabled, heartbeatFresh))
         {
             ++_compactStartEpoch;
             _compactStarting = false;
@@ -641,8 +640,7 @@ public sealed partial class MainWindow
         // The only large-text message in the compact UI is actual startup.
         // Checking accounts, host preflight and warnings are internal states.
         _compactStartup.Text = _compactStarting && _bridge.Enabled
-            ? heartbeatFresh ? "Ожидаем подтверждения плеера…"
-                : "Ожидаем данные Яндекс.Музыки…" : "";
+            ? CompactPlaybackPresentation.ConnectingMessage : "";
         _compactStartup.ForeColor = Accent;
 
         var id = _bridge.LastSong;
@@ -656,11 +654,10 @@ public sealed partial class MainWindow
         }
         else
         {
-            _compactTrack.Text = _bridge.Enabled
-                ? heartbeatFresh && _bridge.LastPlaybackState == "STOPPED"
-                    ? "Воспроизведение остановлено"
-                    : "Ожидаем текущий трек"
-                : "Запустите трек в Яндекс Музыке";
+            _compactTrack.Text = CompactPlaybackPresentation.TrackPlaceholder(
+                _bridge.Enabled, heartbeatFresh, _bridge.LastPlaybackState,
+                _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
+                _api.IsLoggedIn);
             _compactTrackArtist.Text = "";
         }
 
@@ -727,8 +724,9 @@ public sealed partial class MainWindow
         var mappingOnly = heartbeatFresh && _bridge.LastPlaybackState == "PLAYING" &&
             PlaybackSourceEvidence.MappedButUnverified(
                 _bridge.Enabled, nativeStatus, _compactPresenceStatus);
-        var originalPlaying = heartbeatFresh && _bridge.Enabled &&
-            _bridge.LastSource == "ORIGINAL" &&
+        var originalPlaying = heartbeatFresh &&
+            PlaybackSourceEvidence.OriginalVerified(
+                _bridge.Enabled, nativeStatus, _bridge.LastSource) &&
             _bridge.LastPlaybackState == "PLAYING";
         _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
             hostHint.Length > 0 ? hostHint :

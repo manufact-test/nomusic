@@ -110,6 +110,10 @@ public sealed partial class MainWindow : Form
     // after a subscription expires or the network becomes unavailable.
     private readonly System.Windows.Forms.Timer _entitlementPulse = new()
         { Interval = 15000 };
+    // Track changes are event-driven; this pulse only expires a lost 12-second UI lease.
+    private readonly System.Windows.Forms.Timer _playbackUiPulse = new()
+        { Interval = 1000 };
+    private bool _lastPlaybackUiHeartbeatFresh;
     private readonly System.Windows.Forms.Timer _yandexVersionDebounce = new()
         { Interval = 1500 };
     private FileSystemWatcher? _yandexInstallWatcher;
@@ -126,7 +130,7 @@ public sealed partial class MainWindow : Form
         _bridge = new BridgeServer(_api, _store);
         _bridge.Changed += () =>
         {
-            UpdateSafe();
+            RefreshPlaybackUi();
             if (_bridge.Enabled &&
                 YandexFailureRecheckGate.IsNativeHandshakePresent(_bridge.LastStatus))
                 _failureRecheckGate.ConfirmNativeHealthy();
@@ -220,15 +224,7 @@ public sealed partial class MainWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized) Hide(); };
         _entitlementPulse.Tick += (_, _) =>
         {
-            // W141: host can vanish without a final heartbeat on VPN or exit.
-            // Expire the previous track from the popup using the existing
-            // low-frequency UI timer; no additional player/media polling.
-            if (!_closing && _bridge.Enabled && !_bridge.HasFreshHeartbeat)
-            {
-                RenderCompact();
-                LayoutCompact();
-                UpdateSafe();
-            }
+            // Entitlement revalidation cadence is independent of the current-player UI lease.
             if (!_closing && (_bridge.Enabled || _resumeAfterNetworkFailure) && _api.IsLoggedIn)
                 _ = RefreshCompactAccessAsync(force: true);
             // Yandex's own updater can replace an ACTIVE native pair while
@@ -244,6 +240,12 @@ public sealed partial class MainWindow : Form
                 WindowsLaunchSettings.MayResume(_api.Settings, Application.ExecutablePath))
                 _ = ResumeSavedPlaybackAsync();
         };
+        _playbackUiPulse.Tick += (_, _) =>
+        {
+            var fresh = _bridge.HasFreshHeartbeat;
+            if (fresh != _lastPlaybackUiHeartbeatFresh)
+                RefreshPlaybackUi();
+        };
         _yandexVersionDebounce.Tick += async (_, _) =>
         {
             _yandexVersionDebounce.Stop();
@@ -253,6 +255,8 @@ public sealed partial class MainWindow : Form
         FormClosing += ClosingAsync;
         FormClosed += (_, _) =>
         {
+            _playbackUiPulse.Stop();
+            _playbackUiPulse.Dispose();
             _stableUpdatePulse.Stop();
             _stableUpdatePulse.Dispose();
         };
@@ -279,6 +283,7 @@ public sealed partial class MainWindow : Form
             _ = Task.Run(BootstrapStableRollbackIfConfiguredAsync);
             await StartBridgeAsync();
             _entitlementPulse.Start();
+            _playbackUiPulse.Start();
             await RefreshHostAsync();
             if (_finishApplicationUpdate) await CompleteApplicationUpdateAsync();
             if (_api.IsLoggedIn)
@@ -630,7 +635,7 @@ public sealed partial class MainWindow : Form
             _bridge.SetEnabled(true);
             WindowsLaunchSettings.RememberPlayback(account, enabled: true);
             _compactStarting = true;
-            _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
+            _compactStartupText = CompactPlaybackPresentation.ConnectingMessage;
             _ = MonitorStartupAsync(generation);
         }
         catch (Exception error)
@@ -694,13 +699,13 @@ public sealed partial class MainWindow : Form
 
     private async Task MonitorStartupAsync(int generation)
     {
-        // The Yandex application may genuinely need time to initialize its
-        // Electron renderer. Show bounded guidance, never fake percentages.
+        // The current player may already be running. Wait for its native
+        // heartbeat, then report missing data without assuming Yandex is launching.
         await Task.Delay(TimeSpan.FromSeconds(22));
         if (generation != _compactStartEpoch || _closing || !_compactStarting ||
             !_bridge.Enabled || IsDisposed) return;
         _compactStarting = false;
-        _compactStartupText = "Яндекс запускается дольше обычного. Проверь его окно.";
+        _compactStartupText = CompactPlaybackPresentation.StartupTimeoutMessage;
         // Only a missing native handshake merits a forced Yandex version
         // recheck. Normal original playback and per-track source errors do not.
         if (YandexFailureRecheckGate.IsMissingStartupHandshake(_bridge.LastStatus))
@@ -1476,6 +1481,27 @@ public sealed partial class MainWindow : Form
         }
     }
 
+    // Bridge heartbeats arrive on the local HTTP worker. Marshal accepted
+    // current-player state to the UI and refresh both surfaces from one lease.
+    private void RefreshPlaybackUi()
+    {
+        if (_closing || IsDisposed || !IsHandleCreated) return;
+        if (InvokeRequired)
+        {
+            try { BeginInvoke(new Action(RefreshPlaybackUi)); }
+            catch (InvalidOperationException) { /* Window is shutting down. */ }
+            return;
+        }
+
+        _lastPlaybackUiHeartbeatFresh = _bridge.HasFreshHeartbeat;
+        if (_compactReady)
+        {
+            RenderCompact();
+            LayoutCompact();
+        }
+        UpdateSafe();
+    }
+
     private void UpdateSafe(bool preserveAccountStatus = false)
     {
         if (_closing || IsDisposed) return;
@@ -1505,7 +1531,8 @@ public sealed partial class MainWindow : Form
             _bridge.LastPlaybackState == "PLAYING" &&
             PlaybackSourceEvidence.Verified(switchAvailable && _bridge.Enabled, state, sourcePresence);
         var originalPlaying = heartbeatFresh &&
-            _bridge.LastSource == "ORIGINAL" && _bridge.LastPlaybackState == "PLAYING";
+            PlaybackSourceEvidence.OriginalVerified(_bridge.Enabled, state, _bridge.LastSource) &&
+            _bridge.LastPlaybackState == "PLAYING";
         var playbackState = _bridge.LastPlaybackState;
         var paused = heartbeatFresh && _bridge.Enabled && playbackState == "PAUSED";
         var stopped = heartbeatFresh && _bridge.Enabled && playbackState == "STOPPED";
@@ -1650,6 +1677,7 @@ public sealed partial class MainWindow : Form
         _yandexInstallWatcher = null;
         _yandexVersionDebounce.Stop();
         _yandexVersionDebounce.Dispose();
+        _playbackUiPulse.Stop();
         _entitlementPulse.Stop();
         _entitlementPulse.Dispose();
         _tray.Visible = false;

@@ -1016,6 +1016,7 @@ try
     Test(YandexFailureRecheckGate.IsNativeHandshakePresent("ORIGINAL") &&
          YandexFailureRecheckGate.IsNativeHandshakePresent("NATIVE_CONNECTED") &&
          YandexFailureRecheckGate.IsNativeHandshakePresent("NATIVE_SOURCE_FAILED") &&
+         YandexFailureRecheckGate.IsNativeHandshakePresent("NATIVE_ORIGINAL_SOURCE_VERIFIED") &&
          !YandexFailureRecheckGate.IsNativeHandshakePresent("HOST_ERROR"),
         "W104 native heartbeat presence is separate from successful alternative playback");
     failureGate.ConfirmNativeHealthy();
@@ -1067,11 +1068,10 @@ try
         .Level == UserFacingPlaybackHealth.Severity.Error,
         "W82 genuinely unsupported official Yandex build remains actionable");
     Test(UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Level ==
-        UserFacingPlaybackHealth.Severity.Error,
-        "W82 explicit failed track replacement remains red");
-    Test(UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Message
-        .Contains("оригинал"),
-        "W82 explicit song error correctly distinguishes working original playback");
+        UserFacingPlaybackHealth.Severity.Error &&
+         !UserFacingPlaybackHealth.Track("NATIVE_SOURCE_FAILED", true, "approved").Message
+            .Contains("оригинал"),
+        "W151 failed replacement never invents that the original is playing");
     Test(UserFacingPlaybackHealth.Track("NATIVE_MAPPING_ACCEPTED", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 normal audio source accepted has no false warning");
@@ -1088,6 +1088,13 @@ try
          !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
          !PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_SOURCE_VERIFIED", "approved"),
          "W89 only exact current decoder proof while enabled with approved version may paint green");
+    Test(PlaybackSourceEvidence.OriginalVerified(true,
+             "NATIVE_ORIGINAL_SOURCE_VERIFIED", "ORIGINAL") &&
+         !PlaybackSourceEvidence.OriginalVerified(true, "ORIGINAL", "ORIGINAL") &&
+         !PlaybackSourceEvidence.OriginalVerified(true, "NATIVE_CONNECTED", "ORIGINAL") &&
+         !PlaybackSourceEvidence.OriginalVerified(false,
+             "NATIVE_ORIGINAL_SOURCE_VERIFIED", "ORIGINAL"),
+         "W151 original source requires explicit current-decoder verification");
     Test(UserFacingPlaybackHealth.Track("HOST_ERROR", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Error,
         "W82 explicitly reported host failure remains visible");
@@ -1106,6 +1113,35 @@ try
              "approved", "UNKNOWN", "PLAYING").Level ==
          UserFacingPlaybackHealth.Severity.Neutral,
          "W141 only native decoder proof may activate green replacement status");
+    Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_ORIGINAL_SOURCE_VERIFIED", true,
+             "approved", "ORIGINAL", "PLAYING").Message.Contains("оригинал") &&
+         !UserFacingPlaybackHealth.CurrentTrack("NATIVE_CONNECTED", true,
+             "approved", "ORIGINAL", "PLAYING").Message.Contains("оригинал"),
+         "W151 renderer ORIGINAL hint alone never claims current original playback");
+    Test(CompactPlaybackPresentation.StartupComplete(true, true) &&
+         !CompactPlaybackPresentation.StartupComplete(true, false) &&
+         !CompactPlaybackPresentation.StartupComplete(false, true),
+         "W151 startup completes only on a fresh enabled current-player lease");
+    Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             true, false, true).Contains("Восстанавливаем") &&
+         !CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             true, false, true).Contains("Запустите трек"),
+         "W151 reconnect state never tells the owner to launch an already-playing track");
+    Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             false, false, true).Contains("Нажми «Старт»") &&
+         !CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             false, false, true).Contains("Запустите трек"),
+         "W151 disabled bridge asks to connect CELIKOM, not to start a music track");
+    Test(CompactPlaybackPresentation.TrackPlaceholder(true, true, "PAUSED",
+             false, false, true) == "Пауза" &&
+         CompactPlaybackPresentation.TrackPlaceholder(true, true, "STOPPED",
+             false, false, true) == "Воспроизведение остановлено" &&
+         CompactPlaybackPresentation.TrackPlaceholder(true, true, "PLAYING",
+             false, false, true).Contains("Играет"),
+         "W151 compact UI preserves PLAYING/PAUSED/STOPPED when metadata is unavailable");
+    Test(!CompactPlaybackPresentation.StartupTimeoutMessage.Contains("запускается") &&
+         !CompactPlaybackPresentation.StartupTimeoutMessage.Contains("Запустите трек"),
+         "W151 startup timeout never assumes the already-running Yandex player is launching");
     Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
              "approved", "UNKNOWN", "PAUSED").Message == "Пауза." &&
          UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
@@ -1118,8 +1154,10 @@ try
     Test(UserFacingPlaybackHealth.Track("RESOLVING", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 normal resolving status is not a customer warning");
-    Test(UserFacingPlaybackHealth.Track("ORIGINAL", true, "approved").Message.Contains("оригинал"),
-        "W82 known original source is surfaced quietly, not alarm");
+    Test(!UserFacingPlaybackHealth.Track("ORIGINAL", true, "approved").Message.Contains("оригинал") &&
+         UserFacingPlaybackHealth.Track("NATIVE_ORIGINAL_SOURCE_VERIFIED", true, "approved")
+             .Message.Contains("оригинал"),
+        "W151 only explicit original-source proof is surfaced quietly");
     Test(UserFacingPlaybackHealth.Track("OFF", false, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 explicitly stopped service is not a failure");
@@ -1698,6 +1736,8 @@ try
         var token = pairJson.RootElement.GetProperty("bridgeToken").GetString();
         Test(SessionStore.IsHexToken(token), "isolated bridge token issued");
         bridge.SetEnabled(true);
+        var acceptedHeartbeatNotifications = 0;
+        bridge.Changed += () => acceptedHeartbeatNotifications++;
         async Task<HttpResponseMessage> SendW141Heartbeat(object beat)
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, "/v1/heartbeat");
@@ -1716,7 +1756,8 @@ try
             Test(beat1.IsSuccessStatusCode && bridge.HasFreshHeartbeat &&
                  bridge.LastSong == "123" &&
                  bridge.LastSource == "ACTIVE_REPLACEMENT" &&
-                 bridge.LastPlaybackState == "PLAYING",
+                 bridge.LastPlaybackState == "PLAYING" &&
+                 acceptedHeartbeatNotifications == 1,
                  "W141 current signed decoder track and state reach the GUI bridge");
         using (var outOfOrder = await SendW141Heartbeat(new {
             trackId = "999", status = "ORIGINAL",
@@ -1725,7 +1766,8 @@ try
             instanceId = "w23-current-1", sequence = 1
         }))
             Test(outOfOrder.IsSuccessStatusCode &&
-                 bridge.LastSong == "123" && bridge.LastSource == "ACTIVE_REPLACEMENT",
+                 bridge.LastSong == "123" && bridge.LastSource == "ACTIVE_REPLACEMENT" &&
+                 acceptedHeartbeatNotifications == 1,
                  "W141 late previous-track heartbeat cannot overwrite current track");
         using (var next = await SendW141Heartbeat(new {
             trackId = "456", status = "NATIVE_CONNECTED",
@@ -1735,7 +1777,8 @@ try
         }))
             Test(next.IsSuccessStatusCode && bridge.LastSong == "456" &&
                  bridge.LastSource == "UNKNOWN" &&
-                 bridge.LastPlaybackState == "PLAYING",
+                 bridge.LastPlaybackState == "PLAYING" &&
+                 acceptedHeartbeatNotifications == 2,
                  "W141 next track replaces previous metadata without source invention");
         // W142: a restarted native host may take over the UI, but an
         // in-flight heartbeat from its retired predecessor never may.
@@ -1744,7 +1787,8 @@ try
             title = "Новый трек", source = "UNKNOWN", playbackState = "PLAYING",
             instanceId = "w23-current-2", sequence = 1
         }))
-            Test(restarted.IsSuccessStatusCode && bridge.LastSong == "789",
+            Test(restarted.IsSuccessStatusCode && bridge.LastSong == "789" &&
+                 acceptedHeartbeatNotifications == 3,
                  "W142 newer native process takes over current-player lease");
         using (var retiredLate = await SendW141Heartbeat(new {
             trackId = "123", status = "NATIVE_SOURCE_VERIFIED",
@@ -1752,14 +1796,31 @@ try
             instanceId = "w23-current-1", sequence = 999
         }))
             Test(retiredLate.IsSuccessStatusCode && bridge.LastSong == "789" &&
-                 bridge.LastSource == "UNKNOWN",
+                 bridge.LastSource == "UNKNOWN" && acceptedHeartbeatNotifications == 3,
                  "W142 retired native process cannot resurrect stale green song");
         using (var lateLegacy = await SendW141Heartbeat(new {
             trackId = "999", status = "ORIGINAL",
             title = "Зима", artist = "CENTR", durationMs = 180000
         }))
-            Test(lateLegacy.IsSuccessStatusCode && bridge.LastSong == "789",
+            Test(lateLegacy.IsSuccessStatusCode && bridge.LastSong == "789" &&
+                 acceptedHeartbeatNotifications == 3,
                  "W141 legacy messages cannot overwrite sequenced host state");
+        using (var unverifiedOriginal = await SendW141Heartbeat(new {
+            trackId = "789", status = "NATIVE_CONNECTED",
+            title = "Новый трек", source = "ORIGINAL", playbackState = "PLAYING",
+            instanceId = "w23-current-2", sequence = 2
+        }))
+            Test(unverifiedOriginal.IsSuccessStatusCode && bridge.LastSong == "789" &&
+                 bridge.LastSource == "UNKNOWN" && acceptedHeartbeatNotifications == 4,
+                 "W151 unverified ORIGINAL source hint remains UNKNOWN");
+        using (var verifiedOriginal = await SendW141Heartbeat(new {
+            trackId = "789", status = "NATIVE_ORIGINAL_SOURCE_VERIFIED",
+            title = "Новый трек", source = "ORIGINAL", playbackState = "PLAYING",
+            instanceId = "w23-current-2", sequence = 3
+        }))
+            Test(verifiedOriginal.IsSuccessStatusCode && bridge.LastSong == "789" &&
+                 bridge.LastSource == "ORIGINAL" && acceptedHeartbeatNotifications == 5,
+                 "W151 only explicit native original-source proof reaches the GUI");
         foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
         {
             using (var nativePreflight = new HttpRequestMessage(HttpMethod.Options, "/v1/state"))

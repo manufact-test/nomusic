@@ -13,7 +13,8 @@ public sealed class YandexFailureRecheckGate
 
     public static bool IsNativeHandshakePresent(string? status) =>
         status is "ORIGINAL" or "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
-            "NATIVE_SOURCE_VERIFIED" or "NATIVE_RECOVERING" or "NATIVE_SOURCE_FAILED";
+            "NATIVE_SOURCE_VERIFIED" or "NATIVE_ORIGINAL_SOURCE_VERIFIED" or
+            "NATIVE_RECOVERING" or "NATIVE_SOURCE_FAILED";
 
     public static bool IsNativeHostFailure(string? status) =>
         string.Equals(status, "HOST_ERROR", StringComparison.Ordinal);
