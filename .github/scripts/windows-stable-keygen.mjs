@@ -1,5 +1,5 @@
 import {generateKeyPairSync,createHash} from "node:crypto";
-import {mkdir,writeFile,lstat,readdir} from "node:fs/promises";
+import {mkdir,writeFile,lstat,readdir,rename,rm} from "node:fs/promises";
 import {resolve,join} from "node:path";
 import {pathToFileURL} from "node:url";
 
