@@ -3,6 +3,8 @@ namespace Celikom.Companion;
 public static class CompactPlaybackPresentation
 {
     public const string ConnectingMessage = "Подключаем CELIKOM к текущему плееру…";
+    public const string NetworkRecoveryMessage =
+        "Проверяем соединение в фоне. Текущий звук не переключаем.";
     public const string StartupTimeoutMessage =
         "Не удалось получить данные текущего плеера. Проверь окно Яндекс.Музыки и подключение CELIKOM.";
 
@@ -15,7 +17,7 @@ public static class CompactPlaybackPresentation
     {
         if (!bridgeEnabled)
         {
-            if (recoveryPending) return "Восстанавливаем связь с текущим плеером…";
+            if (recoveryPending) return NetworkRecoveryMessage;
             if (connectionPending) return ConnectingMessage;
             return signedIn
                 ? "Подмена выключена. Нажми «Старт», чтобы подключить текущий плеер."

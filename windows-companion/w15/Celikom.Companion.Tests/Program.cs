@@ -1306,7 +1306,7 @@ try
              false, false, true, true) == "Подключитесь к Яндекс Музыке" &&
          UserFacingPlaybackHealth.CurrentTrack("UNAVAILABLE", true,
              "none", "UNKNOWN", "UNKNOWN", true).Message ==
-             "Подключитесь к Яндекс Музыке.",
+             "Подключитесь к Яндекс Музыке",
          "W157 missing Yandex player has an actionable connection message instead of stale-player waiting");
     Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
              "approved", "ACTIVE_REPLACEMENT", "PLAYING").Level ==
@@ -1325,10 +1325,11 @@ try
          !CompactPlaybackPresentation.StartupComplete(false, true),
          "W151 startup completes only on a fresh enabled current-player lease");
     Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
-             true, false, true).Contains("Восстанавливаем") &&
-         !CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
-             true, false, true).Contains("Запустите трек"),
-         "W151 reconnect state never tells the owner to launch an already-playing track");
+             true, false, true) == CompactPlaybackPresentation.NetworkRecoveryMessage &&
+         CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("в фоне") &&
+         CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("не переключаем") &&
+         !CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("Восстанавливаем"),
+         "W157 VPN recovery is described as background server checking without implying an audio source switch");
     Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
              false, false, true).Contains("Нажми «Старт»") &&
          !CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",

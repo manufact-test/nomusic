@@ -701,13 +701,14 @@ public sealed partial class MainWindow
             !_installedModule.MatchesApplication;
         var hostHint = hostNeedsStart
             ? "Нажми «Старт», чтобы обновить модуль CELIKOM." : "";
+        var networkRecoveryPending = !_bridge.Enabled && _resumeAfterNetworkFailure;
         var trackProblem = trackHealth.Level == UserFacingPlaybackHealth.Severity.Error;
         // Exactly one small actionable message. No yellow, no duplicated
         // "not confirmed" banner while music is playing normally.
         // A message left over from an earlier failed Start must never
         // override a currently enabled and playing native bridge.
-        var actionProblem = !_bridge.Enabled && !_compactStarting &&
-            IsCompactActionError(_compactStartupText);
+        var actionProblem = !_bridge.Enabled && !_resumeAfterNetworkFailure &&
+            !_compactStarting && IsCompactActionError(_compactStartupText);
         var problemText = hostProblem ? hostHealth.Message :
             trackProblem ? trackHealth.Message :
             actionProblem ? _compactStartupText : "";
@@ -730,6 +731,7 @@ public sealed partial class MainWindow
             _bridge.LastPlaybackState == "PLAYING";
         _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
             hostHint.Length > 0 ? hostHint :
+            networkRecoveryPending ? CompactPlaybackPresentation.NetworkRecoveryMessage :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
             activelyReplacing ? "Подмена активна · версия CELIKOM" :
             originalPlaying ? trackHealth.Message :
@@ -748,6 +750,7 @@ public sealed partial class MainWindow
             };
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
             hostHint.Length > 0 ? Secondary :
+            networkRecoveryPending ? Secondary :
             originalPlaying ? Secondary :
             activelyReplacing ? Accent :
             mappingOnly ? Secondary :
