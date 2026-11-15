@@ -7,7 +7,7 @@ from audit_native_selected_item_handoff import (
     classify_boundary_call, boundary_callsite_census,
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
-    trace_identity_method
+    trace_identity_method, select_next_identity_method_refs
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -310,6 +310,25 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(len(calls),1)
         self.assertIn("RETURNED_FROM_METHOD",calls[0]["identity_arguments"][0]["origins"])
 
+    def test_identity_method_trace_proves_same_field_object_returned(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:1}[offset]
+        method=("LHolder;", "current", "()"+MODEL)
+        ins=[
+            (0,0x54,[0x3154,0]),
+            (1,0x11,[0x0111])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LHolder;","hidden",MODEL)):
+            trace=trace_identity_method(FakeDex(),method,0,100)
+        returned=[row for row in trace["events"] if row["kind"]=="RETURN_TYPED_IDENTITY"]
+        self.assertEqual(len(returned),1)
+        self.assertEqual(returned[0]["identity_type"],"TRACK")
+        self.assertIn("FIELD_READ_FROM_THIS",returned[0]["origins"])
+
     def test_identity_method_trace_clears_aliases_at_branch(self):
         from unittest.mock import patch
         class FakeDex:
@@ -332,6 +351,27 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(trace["branch_seen_aliases_cleared"])
         self.assertFalse(any(row["kind"]=="CALL_WITH_TYPED_IDENTITY"
                              for row in trace["events"]))
+
+    def test_next_identity_hop_skips_already_traced_and_external_owners(self):
+        from audit_native_selected_item_handoff import select_next_identity_method_refs
+        traces=[{
+            "events":[
+                {
+                    "kind":"CALL_WITH_TYPED_IDENTITY",
+                    "callee":{"owner":"LNext;","method":"accept","signature":f"({MODEL})V"},
+                    "identity_arguments":[{"identity_type":"TRACK"}]
+                },
+                {
+                    "kind":"CALL_WITH_TYPED_IDENTITY",
+                    "callee":{"owner":"Lkotlin/jvm/internal/Intrinsics;","method":"check","signature":"()V"},
+                    "identity_arguments":[{"identity_type":"TRACK"}]
+                }
+            ]
+        }]
+        profiles={"LNext;":{"static_types":set(),"instance_types":set(),
+                            "interfaces":set(),"superclass":None}}
+        refs=select_next_identity_method_refs(traces,{("LCurrent;","run","()V")},profiles)
+        self.assertEqual(refs,[("LNext;","accept",f"({MODEL})V")])
 
     def test_edition_generation_markers_are_exact_and_bounded(self):
         self.assertIn("edition", EDITION_MARKERS)

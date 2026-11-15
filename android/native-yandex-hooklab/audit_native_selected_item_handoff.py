@@ -914,6 +914,19 @@ def trace_identity_method(dex, method, flags, code_off, candidate_owners=None):
                 })
             continue
 
+        if op == 0x11:  # return-object: prove exact returned alias, not just signature
+            source_register = words[0] >> 8
+            for tracked_type, label in tracked_types.items():
+                origins = aliases[tracked_type].get(source_register)
+                if origins:
+                    add_event({
+                        "ordinal": ordinal,
+                        "kind": "RETURN_TYPED_IDENTITY",
+                        "identity_type": label,
+                        "origins": sorted(origins),
+                    })
+            continue
+
         if op in (0x07, 0x08, 0x09):
             move = move_object_registers(op, words)
             if move:
@@ -952,7 +965,9 @@ def trace_identity_method(dex, method, flags, code_off, candidate_owners=None):
     }
 
 
-def inspect_candidate_identity_method_traces(apks, focus_refs, candidate_owners):
+def inspect_candidate_identity_method_traces(
+    apks, focus_refs, candidate_owners, require_all=True
+):
     focus = set(focus_refs)
     traces = []
     found = set()
@@ -973,9 +988,32 @@ def inspect_candidate_identity_method_traces(apks, focus_refs, candidate_owners)
                     traces.append(trace_identity_method(
                         dex, method, flags, code_off, candidate_owners
                     ))
-    if found != focus:
+    missing = sorted(focus - found)
+    if missing and require_all:
         raise ValueError("TRACK_IDENTITY_FOCUS_METHODS_NOT_ALL_DEFINED")
-    return traces
+    return {"traces": traces, "missing_method_refs": missing}
+
+
+def select_next_identity_method_refs(traces, already_traced, class_profiles):
+    known = set(already_traced)
+    refs = set()
+    for trace in traces:
+        for event in trace.get("events", []):
+            if event.get("kind") != "CALL_WITH_TYPED_IDENTITY":
+                continue
+            if not any(
+                arg.get("identity_type") in ("TRACK", "TRACK_WRAPPER", "ALBUM")
+                for arg in event.get("identity_arguments", [])
+            ):
+                continue
+            callee = event["callee"]
+            target = (callee["owner"], callee["method"], callee["signature"])
+            if target in known or callee["owner"] not in class_profiles:
+                continue
+            refs.add(target)
+    if len(refs) > 64:
+        raise ValueError("TRACK_IDENTITY_NEXT_HOP_METHOD_LIMIT")
+    return sorted(refs)
 
 
 def summarize_boundary_callsite_census(rows, class_profiles=None):
@@ -1988,8 +2026,17 @@ def inspect_signed(apks):
     candidate_identity_focus_refs = select_candidate_identity_focus_refs(
         candidate_owner_method_census
     )
-    candidate_identity_method_traces = inspect_candidate_identity_method_traces(
-        apks, candidate_identity_focus_refs, candidate_owner_set
+    candidate_identity_trace_result = inspect_candidate_identity_method_traces(
+        apks, candidate_identity_focus_refs, candidate_owner_set, require_all=True
+    )
+    candidate_identity_method_traces = candidate_identity_trace_result["traces"]
+    next_identity_hop_focus_refs = select_next_identity_method_refs(
+        candidate_identity_method_traces,
+        candidate_identity_focus_refs,
+        class_profiles
+    )
+    next_identity_hop_trace_result = inspect_candidate_identity_method_traces(
+        apks, next_identity_hop_focus_refs, candidate_owner_set, require_all=False
     )
     if dex_count != 6:
         raise ValueError("SIGNED_SIX_DEX_REQUIRED")
@@ -2227,6 +2274,13 @@ def inspect_signed(apks):
         "track_album_shared_owner_candidates": candidate_owner_rows,
         "track_shared_owner_method_census": candidate_owner_method_census,
         "candidate_identity_focus_method_traces": candidate_identity_method_traces,
+        "next_identity_hop_focus_method_refs": [
+            {"owner": x[0], "method": x[1], "signature": x[2]}
+            for x in next_identity_hop_focus_refs
+        ],
+        "next_identity_hop_method_traces": next_identity_hop_trace_result["traces"],
+        "next_identity_hop_missing_method_refs":
+            next_identity_hop_trace_result["missing_method_refs"],
         "boundary_callsite_identity_census":
             summarize_boundary_callsite_census(boundary_callsite_rows, class_profiles),
         "same_basic_block_model_parameter_flows": model_flow_candidates,
