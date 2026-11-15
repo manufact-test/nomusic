@@ -23,7 +23,9 @@ from audit_native_selected_item_handoff import (
     classify_coroutine_entry_direct_upstream_call,
     class_instantiation_and_flow_collect_sites,
     summarize_flow_entry_class_profiles,
-    logical_invoke_argument_rows
+    logical_invoke_argument_rows,
+    local_primitive_register_origin,
+    constructor_int_parameter_field_store_census
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -1101,6 +1103,38 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual([x["class"] for x in ctor_rows],["LDp0;","LBC3;"])
         self.assertEqual(ctor_rows[0]["argument_positions"],[0])
         self.assertEqual(ctor_rows[1]["argument_positions"],[0])
+
+    def test_primitive_flow_selector_origin_follows_move_and_decodes_const4(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+        method=("LCaller;","run","()V")
+        # const/4 v1, #1; move v2, v1
+        ins=[(0,0x12,[0x112]),(1,0x01,[0x2101])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            result=local_primitive_register_origin(
+                FakeDex(),method,0x8,100,ins,2,2
+            )
+        self.assertEqual(result,{"kind":"CONST_INT","value":1})
+
+    def test_constructor_int_parameter_store_reports_only_typed_field_identity(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+        method=("LMode;","<init>","(I)V")
+        # iput v1, v0, field@0; return-void
+        ins=[(0,0x59,[0x1059,0]),(1,0x0e,[0x000e])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LMode;","default","I")):
+            rows=constructor_int_parameter_field_store_census(
+                FakeDex(),method,0,100
+            )
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]["source_int_parameter_indices"],[0])
+        self.assertTrue(rows[0]["receiver_is_this"])
 
     def test_flow_argument_rows_can_skip_expensive_origins_without_losing_types(self):
         from unittest.mock import patch

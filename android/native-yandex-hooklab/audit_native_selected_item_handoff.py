@@ -5041,6 +5041,151 @@ def local_object_register_origin(dex, method, flags, code_off, ins, before_ordin
     return {"kind":"UNRESOLVED_LOCAL_REGISTER"}
 
 
+def local_primitive_register_origin(dex, method, flags, code_off, ins, before_ordinal, register):
+    """Bounded origin for primitive integer branch selectors; values are code constants only."""
+    current=register
+    lower=max(-1,before_ordinal-33)
+    for index in range(before_ordinal-1,lower,-1):
+        _pc,op,words=ins[index]
+        if op in (0x01,0x02,0x03):
+            if op==0x01:
+                dest=(words[0]>>8)&15
+                source=(words[0]>>12)&15
+            elif op==0x02:
+                dest=(words[0]>>8)&0xff
+                source=words[1]
+            else:
+                dest=words[1]
+                source=words[2]
+            if dest==current:
+                current=source
+                continue
+        if op in (0x12,0x13,0x14,0x15):
+            if op==0x12:
+                dest=(words[0]>>8)&15
+                value=(words[0]>>12)&15
+                if value&8:
+                    value-=16
+            elif op==0x13:
+                dest=(words[0]>>8)&0xff
+                value=words[1]
+                if value&0x8000:
+                    value-=0x10000
+            elif op==0x14:
+                dest=(words[0]>>8)&0xff
+                value=words[1]|(words[2]<<16)
+                if value&0x80000000:
+                    value-=0x100000000
+            else:
+                dest=(words[0]>>8)&0xff
+                value=words[1]<<16
+                if value&0x80000000:
+                    value-=0x100000000
+            if dest==current:
+                return {"kind":"CONST_INT","value":value}
+        if 0x52<=op<=0x58:
+            dest=(words[0]>>8)&15
+            if dest==current:
+                owner,name,typ=field_id(dex,words[1])
+                if typ=="I":
+                    return {"kind":"INSTANCE_INT_FIELD_READ","owner":owner,
+                            "field":name,"type":typ}
+                return {"kind":"OTHER_WRITE"}
+        if 0x60<=op<=0x66:
+            dest=(words[0]>>8)&0xff
+            if dest==current:
+                owner,name,typ=field_id(dex,words[1])
+                if typ=="I":
+                    return {"kind":"STATIC_INT_FIELD_READ","owner":owner,
+                            "field":name,"type":typ}
+                return {"kind":"OTHER_WRITE"}
+        if op==0x0a:
+            dest=(words[0]>>8)&0xff
+            if dest==current:
+                if index>0 and ins[index-1][1] in INVOKES:
+                    callee=dex.method(ins[index-1][2][1])
+                    return {"kind":"INVOKE_INT_RESULT","owner":callee[0],
+                            "method":callee[1],"signature":callee[2]}
+                return {"kind":"MOVE_RESULT_INT_UNRESOLVED"}
+        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            return {"kind":"BRANCH_BOUNDARY"}
+        if written_register(op,words)==current:
+            return {"kind":"OTHER_WRITE"}
+    registers_size=dex.u16(code_off)
+    ins_size=dex.u16(code_off+2)
+    if ins_size>registers_size:
+        raise DexError("FLOW_INT_ARGUMENT_ORIGIN_INS_SIZE")
+    param_reg=registers_size-ins_size
+    if not flags&ACC_STATIC:
+        if current==param_reg:
+            return {"kind":"THIS_PARAMETER","type":method[0]}
+        param_reg+=1
+    for position,typ in enumerate(parse_types(method[2])):
+        if current==param_reg:
+            return {"kind":"METHOD_PARAMETER","index":position,"type":typ}
+        param_reg+=2 if typ in ("J","D") else 1
+    return {"kind":"UNRESOLVED_LOCAL_REGISTER"}
+
+
+def constructor_int_parameter_field_store_census(dex, method, flags, code_off):
+    """Find constructor int parameters stored into int fields by bounded register moves."""
+    if method[1]!="<init>":
+        return []
+    registers_size=dex.u16(code_off)
+    ins_size=dex.u16(code_off+2)
+    if ins_size>registers_size:
+        raise DexError("FLOW_MODE_CTOR_INS_SIZE")
+    param_reg=registers_size-ins_size
+    if not flags&ACC_STATIC:
+        param_reg+=1
+    aliases={}
+    for index,typ in enumerate(parse_types(method[2])):
+        if typ=="I":
+            aliases[param_reg]={index}
+        param_reg+=2 if typ in ("J","D") else 1
+    rows=[]
+    for ordinal,(_pc,op,words) in enumerate(instructions(dex,code_off)):
+        if op in (0x01,0x02,0x03):
+            if op==0x01:
+                dest=(words[0]>>8)&15
+                source=(words[0]>>12)&15
+            elif op==0x02:
+                dest=(words[0]>>8)&0xff
+                source=words[1]
+            else:
+                dest=words[1]
+                source=words[2]
+            if source in aliases:
+                aliases[dest]=set(aliases[source])
+            else:
+                aliases.pop(dest,None)
+            continue
+        if op==0x59:
+            value=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            owner,name,typ=field_id(dex,words[1])
+            if typ=="I" and value in aliases:
+                rows.append({"field_owner":owner,"field":name,"field_type":typ,
+                             "source_int_parameter_indices":sorted(aliases[value]),
+                             "receiver_is_this":receiver==(
+                                 registers_size-ins_size if not flags&ACC_STATIC else -1
+                             ),"ordinal":ordinal})
+        elif op==0x67:
+            value=words[0]>>8
+            owner,name,typ=field_id(dex,words[1])
+            if typ=="I" and value in aliases:
+                rows.append({"field_owner":owner,"field":name,"field_type":typ,
+                             "source_int_parameter_indices":sorted(aliases[value]),
+                             "static_field":True,"ordinal":ordinal})
+        else:
+            dest=written_register(op,words)
+            if dest is not None:
+                aliases.pop(dest,None)
+        if len(rows)>16:
+            raise ValueError("FLOW_MODE_CTOR_FIELD_STORE_LIMIT")
+    return rows
+
+
 def logical_invoke_argument_rows(
     dex, method, flags, code_off, ins, ordinal, op, words, trace_origins=True
 ):
@@ -5066,6 +5211,10 @@ def logical_invoke_argument_rows(
             row["origin"]=local_object_register_origin(
                 dex,method,flags,code_off,ins,ordinal,register
             )
+        elif trace_origins and typ=="I":
+            row["origin"]=local_primitive_register_origin(
+                dex,method,flags,code_off,ins,ordinal,register
+            )
         rows.append(row)
         word_index+=2 if typ in ("J","D") else 1
     return rows
@@ -5078,7 +5227,8 @@ def summarize_flow_entry_class_profiles(class_profiles):
         "LGl4;","LHl4;","Ljm4;","Lam4;","LzC3;","LAC3;",
         "LBC3;","LO6;","LBy4;","Lvp0;","LzD7;","LBD7;",
         "LAp0;","Lxp0;","LUK6;","LDb1;","LC3a;","LgE6;",
-        "LDw8;","LAD7;","YMApplication;"
+        "LDw8;","LAD7;","LzE7;","Lnn4;","Lhw9;","LcE6;",
+        "LAE7;","Lup0;","LAy4;","YMApplication;"
     )
     rows=[]
     for owner in targets:
@@ -5100,6 +5250,15 @@ def summarize_flow_entry_class_profiles(class_profiles):
     return rows
 
 
+FLOW_RESEARCH_METHOD_REF_OWNERS = {
+    "LDp0;","Lwp0;","Lyp0;","LBy4;","Lvp0;","LBD7;","LzD7;",
+    "LC3a;","LgE6;","Lhw9;","LcE6;","LzE7;","Lnn4;",
+    "LDw8;","LAD7;","LAE7;","Lup0;","LAy4;","LAp0;",
+    "Lxp0;","LUK6;","LDb1;","LBC3;","LzC3;","LAC3;"
+}
+FLOW_MODE_CONSTRUCTOR_OWNERS = {"LBy4;","Lvp0;","Lyp0;","LzC3;"}
+
+
 FLOW_ARGUMENT_ORIGIN_TARGETS = {
     ("Ljm4;","for"), ("Lwp0;","<init>"), ("Lwp0;","collect"),
     ("Lyp0;","<init>"), ("Lyp0;","collect"), ("Lwp0$a;","<init>"),
@@ -5107,6 +5266,7 @@ FLOW_ARGUMENT_ORIGIN_TARGETS = {
     ("LBC3;","<init>"), ("LzC3;","<init>"), ("LAC3;","<init>"),
     ("LBy4;","<init>"), ("LBy4;","collect"),
     ("Lvp0;","<init>"), ("Lvp0;","collect"),
+    ("Lyp0;","<init>"), ("LzC3;","<init>"),
     ("LzD7;","if"), ("LBD7;","if"),
     ("LDw8;","emit"), ("LAD7;","emit"),
     ("LUK6;","emit"), ("LDb1;","emit"), ("Lxp0;","emit"),
@@ -5119,7 +5279,8 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, cod
     targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;", "Lam4;",
                "Lwp0;", "Lyp0;", "LzC3;", "LAC3;", "LBC3;", "LO6;", "LBy4;",
                "Lvp0;", "LzD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;",
-               "LC3a;", "LgE6;", "LDw8;", "LAD7;"}
+               "LC3a;", "LgE6;", "LDw8;", "LAD7;",
+               "LzE7;", "Lnn4;", "LAE7;", "Lup0;", "LAy4;"}
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
@@ -5230,6 +5391,8 @@ def inspect_signed(apks):
     focused_method_traces = []
     flow_dispatcher_instantiation_sites = []
     flow_dispatcher_class_fields = {}
+    flow_related_method_refs = set()
+    flow_mode_constructor_store_rows = []
     fp0_resume_null_track_arg = False
     fp0_coroutine_method_definitions = {}
     raa_resume_same_continuation = False
@@ -5251,6 +5414,8 @@ def inspect_signed(apks):
         ("LDw8;", "<init>"), ("LDw8;", "emit"),
         ("LAD7;", "<init>"), ("LAD7;", "emit"),
         ("LUK6;", "emit"), ("LDb1;", "emit"), ("Lxp0;", "emit"),
+        ("LzE7;", "collect"), ("Lnn4;", "collect"),
+        ("LAE7;", "emit"), ("Lup0;", "emit"), ("LAy4;", "emit"),
         ("LBD7;", "if"), ("LAp0;", "<init>"), ("LAp0;", "emit"),
         ("LO6;", "native"),
         ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
@@ -5310,6 +5475,8 @@ def inspect_signed(apks):
                                      "LAC3;", "LBC3;", "LO6;", "LBy4;", "Lvp0;",
                                      "LzD7;", "LBD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;",
                                      "LC3a;", "LgE6;", "LDw8;", "LAD7;",
+                                     "LzE7;", "Lnn4;", "Lhw9;", "LcE6;",
+                                     "LAE7;", "Lup0;", "LAy4;",
                                      "Lcom/yandex/music/shared/player/download2/o$c;",
                                      "LRAa;"):
                     if target_class in defined:
@@ -5319,6 +5486,8 @@ def inspect_signed(apks):
                         ]
                 for i in range(dex.method_count):
                     method = dex.method(i)
+                    if method[0] in FLOW_RESEARCH_METHOD_REF_OWNERS:
+                        flow_related_method_refs.add(method)
                     if method[0] == MODEL:
                         model_referenced_methods.append(method)
                     if method[0] == WRAPPER:
@@ -5337,6 +5506,16 @@ def inspect_signed(apks):
                     if method[0] == "LGl4;":
                         flow_source_interface_methods.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method[0] in FLOW_MODE_CONSTRUCTOR_OWNERS and method[1]=="<init>":
+                        mode_stores=constructor_int_parameter_field_store_census(
+                            dex,method,flags,code_off
+                        )
+                        if mode_stores:
+                            flow_mode_constructor_store_rows.append({
+                                "method":{"owner":method[0],"name":method[1],
+                                          "signature":method[2]},
+                                "int_parameter_field_stores":mode_stores
+                            })
                     if method in (
                         ("LGp0;", "new",
                          "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"),
@@ -5742,6 +5921,11 @@ def inspect_signed(apks):
         "selected_item_source_target_callers": target_callers,
         "flow_dispatcher_class_fields": flow_dispatcher_class_fields,
         "flow_entry_class_profiles":summarize_flow_entry_class_profiles(class_profiles),
+        "flow_related_method_refs":[
+            {"owner":x[0],"method":x[1],"signature":x[2]}
+            for x in sorted(flow_related_method_refs)[:MAX_METHODS]
+        ],
+        "flow_mode_constructor_int_field_stores":flow_mode_constructor_store_rows,
         "flow_source_interface_methods": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in sorted(flow_source_interface_methods)[:MAX_METHODS]
