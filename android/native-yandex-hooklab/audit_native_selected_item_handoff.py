@@ -2784,6 +2784,11 @@ def trace_native_track_coroutine_continuation(
                     "wrapper_argument_origins":sorted(
                         set().union(*(origins[i] for i,t in enumerate(target_types) if t==WRAPPER))
                     ),
+                    "wrapper_instance_passed":any(
+                        any(tag.startswith("WRAPPER_") or tag=="NEW_TRACK_WRAPPER"
+                            for tag in origins[i])
+                        for i,t in enumerate(target_types) if t==WRAPPER
+                    ),
                     "continuation_argument_origins":sorted(
                         set().union(*(origins[i] for i,t in enumerate(target_types) if t==continuation_owner))
                     ),
