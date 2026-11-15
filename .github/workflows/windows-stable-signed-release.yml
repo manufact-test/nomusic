@@ -30,6 +30,8 @@ concurrency:
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     environment: windows-stable-production
     runs-on: windows-2022
     timeout-minutes: 50
@@ -127,7 +129,82 @@ jobs:
             Remove-Item $key,$pub -Force -ErrorAction SilentlyContinue
             Remove-Item Env:MANIFEST_PRIVATE_PEM -ErrorAction SilentlyContinue
           }
+      - name: Create unpublished owner-only draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_VERSION
+          $tag = "celikom-windows-v$version-owner-bootstrap"
+          $out = Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
+          $exeName = "CELIKOM-Windows-$version.exe"
+          $zipName = "CELIKOM-Windows-$version.zip"
+          $exe = Join-Path (Join-Path $out $version) $exeName
+          $zip = Join-Path $out $zipName
+          $checksums = Join-Path $out 'SHA256SUMS.txt'
+          foreach ($file in @($exe, $zip, $checksums)) {
+            if (!(Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw 'W156_DRAFT_RELEASE_ASSET_MISSING'
+            }
+          }
+          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw 'W156_DRAFT_RELEASE_TAG_ALREADY_EXISTS'
+          }
+          $notes = @(
+            'DRAFT - unpublished one-time owner bootstrap package.'
+            'Visible only to repository users with push access while this release remains a draft.'
+            'Do not publish this draft. Owner installation and the grouped W154 acceptance are still required.'
+            'The production feed is not published by this workflow run.'
+            ''
+            "Version: $version"
+            "Source commit: $env:GITHUB_SHA"
+          ) -join "`n"
+          gh release create $tag $exe $zip $checksums --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "CELIKOM Windows $version - owner bootstrap (DRAFT)" --notes $notes --draft
+          if ($LASTEXITCODE -ne 0) {
+            throw 'W156_DRAFT_RELEASE_CREATE_FAILED'
+          }
+          $releaseJson = gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets,url
+          if ($LASTEXITCODE -ne 0) {
+            throw 'W156_DRAFT_RELEASE_VERIFY_FAILED'
+          }
+          $release = ($releaseJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+          if ($release.isDraft -ne $true -or $release.tagName -cne $tag) {
+            throw 'W156_DRAFT_RELEASE_MUST_REMAIN_UNPUBLISHED'
+          }
+          $expectedNames = @($exeName, $zipName, 'SHA256SUMS.txt') | Sort-Object
+          $actualNames = @($release.assets | ForEach-Object { [string]$_.name } | Sort-Object)
+          if (Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames) {
+            throw 'W156_DRAFT_RELEASE_ASSET_SET_MISMATCH'
+          }
+          foreach ($asset in $release.assets) {
+            if ($asset.name -ceq $exeName) { $localPath = $exe }
+            elseif ($asset.name -ceq $zipName) { $localPath = $zip }
+            elseif ($asset.name -ceq 'SHA256SUMS.txt') { $localPath = $checksums }
+            else { throw 'W156_DRAFT_RELEASE_ASSET_UNKNOWN' }
+            $localSize = (Get-Item -LiteralPath $localPath).Length
+            if ([int64]$asset.size -ne [int64]$localSize) {
+              throw 'W156_DRAFT_RELEASE_ASSET_SIZE_MISMATCH'
+            }
+          }
+          @(
+            "## CELIKOM Windows $version - draft release ready"
+            ''
+            'State: DRAFT - not published'
+            "Tag: $tag"
+            "Release: $($release.url)"
+            ''
+            'Assets:'
+            "- $exeName"
+            "- $zipName"
+            '- SHA256SUMS.txt'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # The Actions artifact is needed only by the separately approved live-feed
+      # publisher. The owner bootstrap uses the unpublished draft release above.
       - uses: actions/upload-artifact@v4
+        if: inputs.publish_to_production == true
         with:
           name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
           path: ${{ runner.temp }}/celikom-stable-ready
@@ -137,6 +214,8 @@ jobs:
   publish:
     needs: prepare
     if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true
+    permissions:
+      contents: read
     concurrency:
       group: celikom-windows-stable-production
       cancel-in-progress: false
