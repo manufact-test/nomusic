@@ -1,3 +1,23 @@
+# IN-PROGRESS CHECKPOINT — 15 Nov 2026, LSW6 / LOW6 identity trace
+
+**Latest CI-green code:** `b250aba2ca5e7555995099683736be572f0ef578`, CI [#43738914218](https://github.com/manufact-test/nomusic/actions/runs/43738914218) SUCCESS, 80/80.  
+**Current research HEAD:** `70495580be8a123cb3a209375fa233c7ee4879ae`.  
+**Current CI:** [#43739559516](https://github.com/manufact-test/nomusic/actions/runs/43739559516) — still in progress at handoff.  
+**Pre-CI code backup:** `backup/android-a1-low6-track-identity-pre-ci-20261115` @ `70495580be8a123cb3a209375fa233c7ee4879ae`.  
+**Last fully documented CI-green handoff:** `backup/android-a1-ldt0-track-final-handoff-20261115`.
+
+The only code change after the last green checkpoint adds read-only exact identity traces for:
+- `LSW6.if(Track, boolean)`
+- `LOW6.<init>(..., Track, ...)`
+
+No runtime hook, APK, original app, account or media behavior was changed. The 80 local tests completed successfully before the signed-DEX scan began; the full signed-DEX scan has not yet reported its final result.
+
+**Next action:** check CI #43739559516 to completion and inspect only `selected_track_path_identity_traces` plus `selected_track_path_missing_method_refs`. Do not start another broad audit. If the run fails, preserve the CI-green `b250aba2` checkpoint and diagnose only the failure. If it succeeds, decide from the exact Track identity events whether either method reaches a player/source/decoder boundary; then update this handoff with the result.
+
+All gates remain false until proven: `active_selected_item_proven=false`; `same_native_item_to_decoder_proven=false`. Stage A NAV17 remains owner-confirmed PASS; Stage B replacement is NOT CONNECTED / NO-GO. No release APK.
+
+---
+
 # SUPERSEDING CURRENT STATE — 15 Nov 2026, LDT0 Track/Flow split
 
 **Current code checkpoint:** `b250aba2ca5e7555995099683736be572f0ef578`  
