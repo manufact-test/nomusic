@@ -2742,8 +2742,14 @@ def trace_native_track_coroutine_continuation(
                 raw_row={
                     "pc":pc,"field_slot":words[1],
                     "field_owner":field_owner,
+                    "receiver_register":receiver,
                     "receiver_origins":sorted(receiver_origins),
-                    "source_origins":sorted(value_origins)
+                    "source_register":value,
+                    "source_origins":sorted(value_origins),
+                    "register_origin_state":{
+                        str(reg):sorted(origins)
+                        for reg,origins in sorted(state.items())
+                    }
                 }
                 if raw_row not in raw_track_field_store_sites:
                     raw_track_field_store_sites.append(raw_row)
