@@ -12,9 +12,10 @@ Authority: this is the latest owner-reported follow-up. It supersedes the previo
 - Exact backup branch created before documentation changes: `backup/windows-main-pre-w157-owner-vpn-ui-findings-20261115` @ `b636fe61be9b1d210e4a10a056d506af1643e630`.
 - Last documented release-source checkpoint: `bc59e0c7e4db749d616b318beb89369245811b44`.
 - The earlier 0.24.38 bootstrap exists as an unpublished Draft Release. It predates the new owner findings and must not be treated as a fix for them.
-- The owner has performed additional live tests and reported the observations below. The exact installed/tested version was not stated in this message; do not guess it.
-- Diagnostics have been promised by the owner but have not yet been supplied in this handoff. No diagnostic files have been reviewed here.
-- At the initial documentation-only W157 checkpoint, no application code was changed and no new build was produced. Subsequent W157 implementation is recorded in §7 below; diagnostic files remain outstanding.
+- The owner has performed additional live tests and reported the observations below.
+- W54 diagnostics were supplied and are available in ChatGPT Library: `Вставленный текст(20261115-181400).txt`, `Вставленный текст(20261115-181616).txt`, plus a duplicate second capture `Вставленный текст(20261115-181902).txt`.
+- The diagnostic package identifies app `0.24.38.0`, native module `0.24.29`, and unknown Yandex version. See [W54 analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md).
+- At the initial documentation-only W157 checkpoint, no application code was changed and no new build was produced. Subsequent W157 implementation is recorded in §7; W54 analysis is recorded in §8.
 
 ## 2. New owner observations
 
@@ -70,20 +71,22 @@ Required behavior:
 
 ### D. Diagnostics
 
-- Owner intends to send diagnostic files separately.
-- When they arrive, inspect them and correlate timestamps/events with items A–C.
-- Until then, do not claim that diagnostics were checked, invent log findings, or block independent code inspection on files that have not yet been provided.
-- Use diagnostics to confirm or reject a specific hypothesis, not as a reason to open unrelated investigations.
+- W54 diagnostics have already been received and reviewed from ChatGPT Library; do not ask the owner to resend them.
+- The first capture was generated at 18:13:51 UTC; the second VPN capture at 18:16:12 UTC; the 18:19:02 file is a duplicate of the second.
+- The second capture shows source held during VPN suspension, followed by current-source revalidation and replacement-source reload after entitlement recovery. Exact event sequence and limitations are recorded in [W54 analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md).
+- W54 does not prove audible playback or the audible pop: its summary explicitly says replacement-audible proof is unavailable and no PLAYER_AUDIO_AUDIBLE event was observed.
+- The W54 logs do not include a separate Yandex-process-close test. Keep owner-PC verification for that case pending.
+- Use these diagnostics to close the exact no-`kUrl` VPN gap; do not broaden the investigation.
 
 ## 3. Strict execution order
 
 Complete each item to implementation + targeted tests + CI-ready state before moving to the next. Do not mix tasks or start unrelated work.
 
-1. **Yandex close/lifecycle state:** fix prompt detection of a closed Yandex player, stale song clearing and the user-facing connect instruction.
-2. **VPN audio continuity:** stop the unnecessary source handoff when the current replacement is still playing; recover backend connectivity independently; preserve fast reconnect. Only recover audio after verified actual audio/source loss.
-3. **UI consistency:** correct the confirmed text/color/status mappings for these states, without redesigning the interface.
-4. **Diagnostics correlation:** when the owner supplies diagnostics, inspect only the relevant evidence and reconcile it with items 1–3. Do not invent extra tasks.
-5. **Verification:** add focused regression tests for each fix, run the relevant Windows test suites and both required CI workflows. CI does not replace the owner's audible/manual acceptance.
+1. **Yandex close/lifecycle state:** implementation and focused CI tests are complete. Owner-PC timing/behavior check remains pending.
+2. **VPN audio continuity:** the exact-`kUrl` preservation path passes tests, but W54 proves the owner's Yandex build does not expose `kUrl`. Add a same-origin transient-recovery hold for an unchanged already-mapped current track without claiming exact source verification. Only verified current-player/source loss may trigger audio recovery; preserve manual Stop/logout/denial/origin-change/track-change safeguards and fast reconnect.
+3. **UI consistency:** the confirmed closed-player/VPN status priority is corrected. Other reported text/color issues need concrete examples; no redesign.
+4. **Diagnostics correlation:** W54 has been received and reviewed. Follow [W54 analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md); no additional diagnostic upload is currently required.
+5. **Verification:** add a regression for the no-`kUrl` case plus current-track change and fail-closed cases; run the relevant Windows test suites and both required CI workflows. CI does not replace the owner's audible/manual acceptance.
 6. **One consolidated build:** only after items 1–5 are complete, prepare and send exactly one new Windows version for owner testing. No intermediate EXE/ZIP/installers and no premature release. Use the existing approved release/updater pipeline; do not repeat key provisioning or redesign it.
 
 The owner wants the developer to continue through the ordered work without stopping for small progress reports. Stop only when actual owner-side testing/input is required or when the complete consolidated build is ready.
@@ -101,7 +104,7 @@ The owner wants the developer to continue through the ordered work without stopp
 ## 5. Definition of done
 
 - Closing Yandex promptly clears the current song and shows a clear instruction to connect/open Yandex Music.
-- A VPN/network interruption does not cause an audio-source switch while the exact current CELIKOM replacement continues playing.
+- A same-origin VPN/network interruption does not cause an audio-source switch for an unchanged already-mapped current track on both Yandex builds that expose CDP `kUrl` and builds that do not. Source truth remains UNKNOWN unless exact decoder proof exists.
 - If actual audio loss occurs, recovery is based on verified current-player/current-decoder state and does not create redundant handoffs.
 - UI texts and colors match the real connection, player, playback and source states.
 - Relevant diagnostics, when supplied, are checked and findings recorded without expanding scope.
@@ -176,8 +179,21 @@ The initial W157 intake prompt below is historical and predates the implementati
 
 ### Still outstanding
 
-- The owner-promised diagnostic files have **not** been supplied or reviewed. Do not claim otherwise. When received, correlate only with the three W157 tasks.
-- Owner-PC verification of prompt Yandex closure and audible VPN continuity remains pending. CI does not establish that the audible pop is gone on the owner's machine.
+- W54 owner diagnostics have been received and reviewed; see §8 and `W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md`. No resend is needed.
+- The exact-`kUrl` VPN preservation path is implemented and tested, but W54 reports `NativeDecoderUrlPropertyObserved=false`; the actual owner configuration therefore still triggers current-source revalidation/reload after VPN recovery. The no-`kUrl` path is the next required code/test task.
+- Owner-PC verification of prompt Yandex closure and audible VPN continuity remains pending. W54 does not prove audible output; CI cannot prove that the audible pop is gone.
 - No new installer/package was built. The old unpublished 0.24.38 Draft predates W157 and must not be published or delivered as the fix.
-- After diagnostics correlation and any necessary targeted correction, run both CI workflows on the final source and prepare exactly one consolidated Windows package. No intermediate builds.
+- After the no-`kUrl` correction, run both CI workflows on the final source and prepare exactly one consolidated Windows package. No intermediate builds.
+
+
+## 8. W54 diagnostic findings and remaining VPN gap
+
+See the standalone [W54 diagnostic analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md). The key correction is that the logs are present in ChatGPT Library and were missed by the previous handoff; they are not missing from the owner's submission.
+
+- W54 second capture: network suspension at 18:15:14.643, source held at 18:15:15.250, entitlement recovered at 18:15:19.745, then `NATIVE_CURRENT_SOURCE_REVALIDATE` at 18:15:20.848 and `NATIVE_REPLACEMENT_SOURCE_RELOAD` at 18:15:20.850 for the same current track.
+- A second cycle: suspension at 18:15:30.634, source held at 18:15:31.029, recovery at 18:15:42.781, revalidation at 18:15:43.103, replacement reload at 18:15:43.105 and reload success at 18:15:44.028.
+- The diagnostic reports `NativeDecoderUrlPropertyObserved=false`. Current host preservation requires `currentDecoderPlayer`, which requires a matching signed `kUrl` plus `kIsPlaying`; therefore the host cannot set `preserveCurrentSource` in this real configuration. Existing W157 tests exercise the case where `kUrl` exists, not this case.
+- Next code task: add a narrowly scoped no-`kUrl` hold for the same current track if it was already mapped before a same-origin transient VPN suspension. The renderer must independently confirm that the current track ID is unchanged and that it was mapped. Do not promote this to verified replacement or green UI. A changed track, manual Stop, logout, denial, API-origin change or actual player/source-loss evidence must retain the existing recovery/cleanup behavior.
+- Add explicit tests for the no-`kUrl` route, changed track and fail-closed conditions before claiming VPN continuity complete.
+- Audible limitation: W54 says `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING` and `PlayerAudibleEventObserved=false`. This confirms the internal revalidation/reload sequence, not the actual sound waveform or pop.
 

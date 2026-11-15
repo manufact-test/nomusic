@@ -1,84 +1,77 @@
-# CELIKOM Windows — CURRENT HANDOFF / W157 OWNER FOLLOW-UP / 15 NOVEMBER 2026
+# CELIKOM Windows — CURRENT HANDOFF / W54 DIAGNOSTICS / W157 / 15 NOVEMBER 2026
 
-**This is the authoritative current handoff.** It supersedes the previous top block that said only W154 owner acceptance remained. Everything below the W157 first-message block is historical context unless W157 explicitly references it.
+**This is the authoritative current handoff.** It supersedes the earlier note that diagnostics had not been supplied and the claim that VPN continuity was fully fixed. Read this block and the W54 analysis before doing more work.
 
 - Repository: `manufact-test/nomusic`; only working branch: `main`.
-- Documentation baseline before W157: `b636fe61be9b1d210e4a10a056d506af1643e630`.
-- Exact pre-update backup: `backup/windows-main-pre-w157-owner-vpn-ui-findings-20261115` @ `b636fe61be9b1d210e4a10a056d506af1643e630`.
-- Last pre-W157 documented release-source checkpoint: `bc59e0c7e4db749d616b318beb89369245811b44` (the old 0.24.38 Draft is not a fix for W157).
-- Current W157 application-source HEAD: `67fd6a7386715a15dee83447c0c497084deb7034`.
-- Exact latest code backup before the documentation update: `backup/windows-main-pre-w157-docs-update-20261115` @ `67fd6a7386715a15dee83447c0c497084deb7034`.
-- Earlier rollback checkpoint before the retired-host VPN fix: `backup/windows-main-pre-w157-retired-host-preserve-20261115` @ `40d653f1259f2561015af770a0b5aae9f5a92f66`.
-- Latest Main CI `43753821690` and Windows integration CI `43753821682`: **SUCCESS** on the current W157 source HEAD.
-- Focused regression evidence: W23 native-host tests `142/142`; W22/W23/W60 suite `360/360`; W15 native contract `411`; W21 recovery `41`; W24 builder `20`; GUI compile with warnings as errors: **SUCCESS**.
-- W157 is the current owner-approved follow-up: [W157 owner findings and sequential plan](W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md).
-- W154 remains the prior regression/acceptance baseline, amended to point to W157. W150 remains architectural and workflow context; its previous "only owner acceptance remains" status is superseded.
-- Earlier 0.24.38 bootstrap remains an unpublished Draft and predates these findings. Do not publish it or claim it fixes the new issues.
-- Owner's exact tested version was not stated in the new report. Do not guess.
-- Diagnostics are expected from the owner but have not yet been supplied/reviewed.
-- W157 implementation is now present on `main`: Yandex process/renderer destruction clears the current-player lease; same-origin VPN recovery retains exact signed decoder evidence and the retired-host fence; player-unavailable UI text now outranks a simultaneous network-recovery banner.
-- The implementation has focused regression coverage and both required CI workflows are green. This is code/test/CI evidence only, **not owner-PC or audible acceptance**.
-- Owner diagnostics have still not been supplied or reviewed. Do not invent diagnostic findings.
-- No new installer or release has been built. The old 0.24.38 Draft remains unpublished and predates W157.
+- Current application-source checkpoint: `67fd6a7386715a15dee83447c0c497084deb7034`.
+- Exact backup before recording the W54 diagnostic findings: `backup/windows-main-pre-w54-diagnostic-correction-20261115` @ `f32ccbfd20d7e7bf227f6c63cc30eea0e74d6298`.
+- Earlier code backup before the retired-host VPN fence: `backup/windows-main-pre-w157-retired-host-preserve-20261115` @ `40d653f1259f2561015af770a0b5aae9f5a92f66`.
+- Pre-W157 documented release source: `bc59e0c7e4db749d616b318beb89369245811b44`. The old unpublished 0.24.38 Draft is not a W157 fix and must not be published or delivered.
+- W157 code-source Main CI `43753821690` and Windows integration CI `43753821682`: **SUCCESS** on `67fd6a7386715a15dee83447c0c497084deb7034`. These results verify the exact-`kUrl` preservation path and lifecycle/UI tests, but do not close the W54 no-`kUrl` gap below.
+- Existing focused evidence: W23 native-host `142/142`; W22/W23/W60 `360/360`; W15 native contract `411`; W21 `41`; W24 `20`; GUI compile with warnings as errors: **SUCCESS**.
+- Owner diagnostics were **already supplied** and are available in ChatGPT Library. Do not ask the owner to resend them:
+  - `Вставленный текст(20261115-181400).txt` — W54, generated 18:13:51 UTC, 48,352 bytes.
+  - `Вставленный текст(20261115-181616).txt` — W54, generated 18:16:12 UTC, 65,778 bytes; contains the VPN route test.
+  - `Вставленный текст(20261115-181902).txt` — duplicate of the second W54 capture.
+- Diagnostic analysis: [W54 owner diagnostic analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md).
+- W157 owner scope: [W157 follow-up](W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md). W154 remains the previous acceptance baseline, and W150 remains architecture/workflow context.
+- Tested package reported by W54: app `0.24.38.0`, native module `0.24.29`; Yandex version is unknown.
+- **Important correction:** W54 proves the app logs `NATIVE_ROUTE_RECOVERY_SOURCE_HELD` during the VPN outage, then after recovery performs `NATIVE_CURRENT_SOURCE_REVALIDATE` and `NATIVE_REPLACEMENT_SOURCE_RELOAD` for the same current track. The current W157 code only skips this reload when the exact CDP decoder witness is available. W54 reports `NativeDecoderUrlPropertyObserved=false`; therefore the actual owner configuration is not covered by the passing exact-`kUrl` test. VPN continuity is **not complete**.
+- W54 does **not** prove audible playback or the pop: it reports `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING` and `PlayerAudibleEventObserved=false`. The owner's direct listening observation remains the audible evidence.
+- Yandex process/renderer destruction handling and the clear `Подключитесь к Яндекс Музыке` UI state are implemented and CI-verified; owner-PC verification remains pending.
+- Confirmed UI priority for unavailable Yandex versus VPN recovery is corrected. Broader text/color defects still need concrete owner examples; do not redesign.
+- No new installer/package has been built. Do not build until the no-`kUrl` VPN continuity gap is fixed, tested, and both CI workflows pass.
 
-## W157 implementation status — 15 November 2026
+## Current implementation status
 
-1. **Yandex lifecycle — implemented and CI-verified.** The companion now watches the Yandex process lifecycle; the native host reports selected-renderer destruction immediately; the bridge clears the stale song/lease and retires the exited host instance. The UI says `Подключитесь к Яндекс Музыке` rather than waiting for a stale-player timeout.
-2. **VPN continuity — implemented and CI-verified.** During same-origin transient VPN recovery, the native host retains the exact signed-grant/current-decoder witness. If the exact decoder is still playing, re-enable does not issue a redundant current-source refresh. Fast route recheck remains unchanged. Retired host IDs survive the transient disable so a late packet from the exited Yandex process cannot restore a stale song.
-3. **UI truth — implemented for confirmed W157 states.** A closed Yandex player now takes priority over a simultaneous VPN-recovery banner in the track/status surfaces. Network recovery remains a separate background status. Unverified or unavailable sources remain neutral; no green replacement state is inferred.
-4. **Diagnostics — pending.** The owner has not yet supplied the promised files; none have been reviewed. When received, correlate only with the W157 lifecycle, VPN and UI findings.
-5. **Verification — SUCCESS.** Main CI `43753821690`; Windows integration CI `43753821682`; W23 native-host tests `142/142`; W22/W23/W60 `360/360`; W15 native contract `411`; W21 recovery `41`; W24 builder `20`; GUI compile with warnings as errors.
-6. **Build/release — not started.** No intermediate package was created. The unpublished 0.24.38 Draft predates these changes and must not be published or sent as the W157 fix. One consolidated Windows version remains for after diagnostics correlation and any necessary final corrections.
-
-Owner-PC playback and audible VPN acceptance remain outstanding. CI cannot prove the absence of an audible pop on the owner's machine.
-
-## Current ordered work — do not mix tasks
-
-1. **Yandex fully closed — code/test/CI complete.** Process/renderer destruction clears the stale song and prompts `Подключитесь к Яндекс Музыке`. Owner-PC timing/behavior check remains pending.
-2. **VPN reconnect — code/test/CI complete.** Exact still-playing signed decoder evidence is preserved through same-origin VPN recovery; no redundant source refresh occurs while it remains active. Fast route recheck is unchanged. Audible owner-PC acceptance remains pending.
-3. **UI consistency — confirmed W157 states corrected.** Player-unavailable text now outranks a simultaneous network-recovery banner; unknown/unavailable source colors remain neutral. Any other specific UI defects must be grounded in the owner's diagnostics, not guessed.
-4. **Diagnostics — pending.** Inspect the owner's files when supplied and correlate only with items 1–3. Do not claim they were reviewed before receipt.
-5. **Verification — current source passed.** Focused regressions and both required Windows CI workflows are green on source checkpoint `67fd6a7386715a15dee83447c0c497084deb7034`. Repeat only if diagnostics require a code correction.
-6. **One new Windows version — not started.** Build exactly one consolidated package after diagnostics correlation and any necessary targeted corrections. No intermediate packages.
+1. **Yandex lifecycle — code/test/CI complete; owner-PC check pending.** Selected renderer/process destruction clears the stale track and lease and prompts `Подключитесь к Яндекс Музыке`.
+2. **VPN continuity — incomplete.** Exact-`kUrl` decoder preservation passes tests. W54 shows the real Yandex build does not expose `kUrl`, so the current predicate fails and revalidation/reload still occurs. Add a narrowly scoped same-origin recovery path for an unchanged current track that had already been mapped, without claiming source verification or showing green status. Only actual source/player loss should permit audio recovery. Preserve logout, manual Stop, denial, origin-change and track-change safeguards.
+3. **UI — partially complete.** Closed-player state priority and neutral unknown-source presentation are corrected. Do not claim all reported text/color inconsistencies are fixed without concrete evidence.
+4. **Diagnostics — received and reviewed.** W54 is summarized in the linked analysis. It is a VPN capture; it does not include proof of audible output or a separate Yandex-close test.
+5. **Next engineering task:** add a regression for same-origin VPN recovery when CDP `kUrl` is unavailable, fix only that path, preserve exact current-track identity and source-truth safeguards, then run focused tests and both Windows CI workflows.
+6. **One consolidated Windows build:** only after the W54 gap is closed and all checks pass. No intermediate packages.
 
 ## Hard constraints
 
 - Work only on `main`; create an exact backup before substantial code changes.
 - Preserve the existing single Windows product and architecture. Do not create a second player.
 - Do not touch Android, browser extension, server/backend, or original Yandex files.
-- Do not reopen completed W155/W156 updater/P-256 work, key provisioning, autostart/tray, or historical Issues unless a specific W157 regression proves it necessary.
+- Do not reopen completed updater/P-256, key provisioning, autostart/tray or historical Issues unless a specific W157 regression proves it necessary.
 - No UI redesign, broad audit, speculative fixes, intermediate installers, or unrelated work.
 - Do not publish the old 0.24.38 Draft or production feed.
-- Continue in large blocks without pausing for tiny reports. Stop only for actual owner input/manual validation or when the single consolidated new build is ready.
+- Keep source status neutral unless exact source verification exists. Do not weaken the security/source-verification rules to make the UI green.
+- Continue in large blocks without pausing for tiny reports. Stop only for actual owner input/manual validation or when the single consolidated build is ready.
 
 ## Current first message for the next chat
 
-Привет! Принимай **CELIKOM Windows** как ведущий разработчик. Продолжай существующую работу строго с текущего состояния. Ничего не начинай с нуля и не меняй архитектуру.
+Привет! Продолжай **CELIKOM Windows** как ведущий разработчик. Ничего не начинай с нуля и не меняй архитектуру.
 
 **GitHub:** `manufact-test/nomusic`  
 **Единственная рабочая ветка:** `main`  
-**Текущий W157 source checkpoint:** `67fd6a7386715a15dee83447c0c497084deb7034`  
-**Точный backup перед последним documentation update:** `backup/windows-main-pre-w157-docs-update-20261115` @ `67fd6a7386715a15dee83447c0c497084deb7034`  
-**Предыдущий code backup перед retired-host VPN fence:** `backup/windows-main-pre-w157-retired-host-preserve-20261115` @ `40d653f1259f2561015af770a0b5aae9f5a92f66`  
-**Pre-W157 documented release source:** `bc59e0c7e4db749d616b318beb89369245811b44` — старый Draft 0.24.38 не использовать.
+**Текущий source checkpoint:** `67fd6a7386715a15dee83447c0c497084deb7034`  
+**Точный backup перед фиксацией W54 findings:** `backup/windows-main-pre-w54-diagnostic-correction-20261115` @ `f32ccbfd20d7e7bf227f6c63cc30eea0e74d6298`  
+**Предыдущий code backup:** `backup/windows-main-pre-w157-retired-host-preserve-20261115` @ `40d653f1259f2561015af770a0b5aae9f5a92f66`
 
-Последние CI на текущем HEAD: Main CI `43753821690` SUCCESS; Windows integration CI `43753821682` SUCCESS. W23 native-host — 142/142, W22/W23/W60 — 360/360, W15 native contract — 411, W21 — 41, W24 — 20; GUI compile with warnings as errors — SUCCESS.
+Сначала прочитай этот верхний блок, затем `docs/windows/W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md`, `docs/windows/W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md`, W150 и W154. W54-файлы уже есть в ChatGPT Library — **не проси владельца присылать их повторно**.
 
-Сначала прочитай актуальный верхний блок `docs/windows/NEXT-CHAT.md`, затем `docs/windows/W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md`, `docs/windows/W150-OWNER-CONFIRMED-SCOPE-AND-SEQUENTIAL-WORK-ORDER-20261115.md` и `docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md`. Старые handoff-блоки ниже — история, не текущий план.
+**Что показывают W54:**
+- App `0.24.38.0`, native module `0.24.29`.
+- В 18:15:15 VPN-сессия остановлена, но источник помечен `NATIVE_ROUTE_RECOVERY_SOURCE_HELD`.
+- После восстановления в 18:15:20 выполняются `NATIVE_CURRENT_SOURCE_REVALIDATE` и `NATIVE_REPLACEMENT_SOURCE_RELOAD`.
+- В 18:15:31 и 18:15:43 эта последовательность повторяется.
+- `NativeDecoderUrlPropertyObserved=false`. Поэтому нынешний W157 тест с точным CDP `kUrl` не покрывает реальную конфигурацию владельца.
+- Сам файл не доказывает слышимый pop: `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING`.
 
-**Что уже сделано:**
-- Yandex process/renderer lifecycle clears stale current-player state and shows `Подключитесь к Яндекс Музыке`.
-- VPN recovery retains the exact signed current decoder while it is still playing; no redundant source refresh is requested in that case. Fast route recheck remains intact.
-- Retired Yandex host IDs remain blocked across transient VPN disable; late old-process heartbeats cannot restore a stale song.
-- Confirmed W157 UI state priority is corrected; unavailable Yandex is not hidden by a simultaneous VPN recovery banner.
+**Следующая задача — только VPN no-kUrl gap:**
+1. Разобрать `relayState` в `windows-companion/w23/host.cjs` и повторное включение в `renderer-entry.mjs`.
+2. Добавить безопасное удержание уже mapped текущего трека при same-origin transient VPN recovery, даже когда Yandex не отдаёт CDP `kUrl`. Сохранять реальную identity текущего трека. Не утверждать, что источник проверен, и не включать зелёный статус.
+3. Не удерживать старый трек при Next/смене current track. Не обходить manual Stop, logout, denial, API-origin change и реальную потерю текущего player/source. Если loss доказан — разрешён штатный recovery.
+4. Добавить тесты именно для случая без `kUrl`, плюс проверки track change и отказных состояний. Затем оба CI.
+5. После закрытия этого gap — один итоговый Windows build. Никаких промежуточных пакетов.
 
-**Что осталось:**
-1. Владелец ещё не прислал диагностические файлы. Когда придут — сверить только с W157 lifecycle/VPN/UI задачами; не выдумывать результаты.
-2. Если диагностика выявит относящуюся к этим задачам проблему — исправить точечно и повторить тесты/оба CI.
-3. Подготовить одну итоговую Windows-версию после диагностики и необходимых исправлений. Промежуточные сборки запрещены.
-4. Передать один пакет владельцу для реальной проверки закрытия Яндекса и VPN-переключения со звуком. Не объявлять audible acceptance по результатам CI.
+Yandex lifecycle и player-unavailable UI уже реализованы и прошли CI; owner-PC проверка остаётся. Не трогай Android, расширение, backend, архитектуру, updater/P-256, autostart/tray и старые Issues. Не публикуй старый Draft 0.24.38. Не делай лишних аудитов и не объявляй VPN исправленным до теста no-`kUrl` сценария.
 
-Не трогай Android, расширение, сервер, архитектуру, updater/P-256, autostart/tray и старые Issues. Не публикуй старый Draft 0.24.38 и production feed. Не ослабляй проверки текущего плеера/декодера. Работай крупными блоками без коротких остановок.
+Работай крупными блоками без коротких отчётов. Остановись только при реальной необходимости моей ручной проверки или когда одна итоговая версия готова.
 
 ---
 
