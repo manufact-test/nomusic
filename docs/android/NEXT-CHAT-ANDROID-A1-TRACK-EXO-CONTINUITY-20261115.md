@@ -1,3 +1,36 @@
+# SUPERSEDING RESULT — 15 Nov 2026, LJK1 exact field + LBK1 handoffs (CI GREEN)
+
+**Code checkpoint:** `a4cd35290de8d5ff706a6ad7b740294d94c29af4`.  
+**CI:** [#43741676839](https://github.com/manufact-test/nomusic/actions/runs/43741676839) **SUCCESS, 84/84 tests**, exact publisher-signed 2025 original verified (16 splits / 6 DEX).  
+**Exact green code backup:** `backup/android-a1-ljk1-exact-field-ci-green-20261115` @ `a4cd35290de8d5ff706a6ad7b740294d94c29af4`.  
+**Pre-CI retry backup:** `backup/android-a1-ljk1-exact-field-and-lbk1-handoffs-ci-retry-20261115` @ same code SHA.
+
+## New signed-DEX findings
+
+- `LJK1.<init>` stores the incoming Track parameter into exactly one Track-typed instance field on `this`.
+- Four methods owned by `LJK1` read that exact same field on `this`: `break()`, `case()`, `if()`, `new()`.
+- Those methods pass the exact field-read Track reference onward to `LGK1$a`:
+  - `try(Context, Track)`
+  - `case(Track)`
+  - `else(Track)`
+  - `goto(Track)`
+- `LJK1.<init>` itself also passes the original Track parameter to four `LBK1` method references returning Flow: `try(Track)`, `this(Track)`, `for(Track)`, `new(Track)`.
+- All five observed `LBK1` references in scope are unresolved as concrete method bodies in the pinned DEX (including `break(Track)` from `LOW6`). `LSV6.else` and `LSW6.if` are also unresolved. Do not infer their behavior.
+
+No field names or values were emitted. These are static identity-preserving handoffs only; active selected playback and same-native-item-to-decoder are still not proven.
+
+## Next bounded investigation
+
+Inspect the exact contracts and direct implementers for `LBK1` and `LGK1$a`:
+1. Establish whether each owner is an interface/abstract class and enumerate only its direct implementers.
+2. For the four exact `LGK1$a` method signatures and four exact `LBK1` Track-to-Flow signatures, inspect only concrete implementations on those implementers (including superclass implementations where needed).
+3. Trace the same Track parameter into an exact player/source/decoder boundary. If the interface has no concrete implementation in the signed DEX, record that as a closed boundary and do not fan out into unrelated classes.
+4. Keep runtime and decoder gates false until the same native item is directly linked to the active player/source/decoder path.
+
+No runtime hooks, APK modifications, login, account/media access or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # CURRENT CHECKPOINT — 15 Nov 2026, LJK1 exact Track field + LBK1 recipients
 
 **Code under CI:** `a4cd35290de8d5ff706a6ad7b740294d94c29af4`.  
