@@ -1,20 +1,21 @@
-# W155 — CELIKOM Windows P-256 updater: current owner handoff
+# W155 — CELIKOM Windows P-256 updater and final owner package handoff
 
 Date: 15 November 2026  
-Repository: manufact-test/nomusic  
-Only working branch: main  
+Repository: `manufact-test/nomusic`  
+Only working branch: `main`  
 Authority: W119 product/architecture rules + W150 owner-approved scope and order.
 
-## 1. Latest exact checkpoint
+## 1. Latest verified checkpoint
 
-- Application-code checkpoint: **c1afdd5fc9b3ec90bb760857bf584dc494d7774e**.
-- Exact backup created before this handoff: **backup/windows-main-w155-owner-handoff-20261115** at the same SHA.
-- Pre-Task-5 rollback point: backup/windows-main-pre-task5-signed-updater-20261115 @ 2864989bad9520738951cc28806feab6bc0d69c1.
-- This checkpoint contains 65 commits after the previous 4abcfd5 checkpoint. The commits are W155 updater hardening and its regression coverage; no new product or branch was introduced.
-- **Main CI:** run 43726310918 — SUCCESS on c1afdd5.
-- **Windows integration CI (no installer):** run 43726310792 — SUCCESS on c1afdd5.
-- **W155 signed-release verification:** 27/27 tests passed, including offline Hostinger promotion rehearsal, signed-baseline race rejection, oversized-package rejection, symlink rejection, exact origin/key constraints and publisher path guards.
-- No installer was built. The two documentation updates after this checkpoint may move main HEAD; the next chat must fetch live main HEAD and latest checks before any code change.
+- W155 application-code checkpoint: `c1afdd5fc9b3ec90bb760857bf584dc494d7774e`.
+- Exact W155 backup: `backup/windows-main-w155-owner-handoff-20261115` at that SHA.
+- Final owner release-version checkpoint before this documentation update: `718861a6b9a1ee3e01c190f49d7d7b75a3062465`.
+- Exact backup before the 0.24.38 version block: `backup/windows-main-pre-final-owner-release-02438-20261115` at `e3714f8c169ff95a59c6a973e6cdeed8bd2f9bde`.
+- Target one-time bootstrap version: **0.24.38**. GUI, Supervisor and Inno installer metadata are aligned.
+- Main CI run `43728931911`: **SUCCESS** on `718861a6`.
+- Windows integration CI run `43728931891`: **SUCCESS** on `718861a6`.
+- W155 signed-release verification: 27/27 at the W155 code checkpoint. The current Windows CI also passes the P-256 key-provisioning script parse, owner EXE/ZIP fixture, GUI/Supervisor compile and the full existing Windows integration suite.
+- No final EXE/ZIP has been built or delivered.
 
 ## 2. Completed earlier work — do not reopen
 
@@ -23,49 +24,72 @@ W152 Task 2: VPN A→B reconnect path and avoidance of redundant original/replac
 W153 Task 3: autostart/tray behavior and persistence of deliberate Windows StartupApproved OFF.  
 W154 Task 4: consolidated regression coverage and one grouped owner acceptance plan.
 
-W151–W154 are code/test/CI-ready. **They are not owner-PC accepted yet.** The only owner test pass is the single grouped plan in docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md, to be run on the one final build. Do not make intermediate installers or ask the owner to test each small patch.
+W151–W154 are code/test/CI-ready. **They are not owner-PC accepted yet.** The only owner test pass is the single grouped plan in `docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md`, to be run on the one final build. Do not make intermediate installers or ask the owner to test each small patch.
 
-## 3. W155 — what is now implemented
+## 3. W155 — updater implementation
 
-- CELIKOM-owned P-256 signed manifest trust replaces the obsolete commercial Authenticode/PFX design. Future fixed origin: https://celikom.com/. Only the public P-256 SPKI pin is embedded in a reviewed release build; ordinary source defaults fail closed.
-- Signed manifest remains **schema 2**. Required fields and JSON shape are checked explicitly; the URL must match the exact immutable versioned CELIKOM installer path. Do not confuse this with the separate **schema 3 DPAPI rollback journal**.
+- CELIKOM-owned P-256 signed manifest trust replaces the obsolete commercial Authenticode/PFX design. Future fixed origin: `https://celikom.com/`. Only the public P-256 SPKI pin is embedded in a reviewed release build; ordinary source defaults fail closed.
+- Signed manifest is schema 2. The separate DPAPI rollback journal is schema 3.
 - Package and embedded payload SHA-256 checks, product/version identity checks, bounded file reads, and re-verification of cached/staged artifacts are in place.
-- The schema 3 DPAPI journal binds the transaction to the manifest-key fingerprint and carries sequence/size/hash identity. Corrupt or mismatched journal data is rejected; rollback sequence replay is prevented.
-- Independent Supervisor journal reads are bound to the exact transaction and pinned manifest key. Final installer launch is bound to the journaled transaction, signed payload hashes and expected package path. An abandoned Prepared transaction expires to ManualRecovery without launching an installer.
-- Verified-image copy/launch boundaries, reparse-point ancestry and rollback image integrity have additional guards and regression coverage.
-- Protected release tooling now includes offline P-256 key generation/provisioning, manifest and release verification, bounded signed-feed preflight, and guarded Hostinger publication. The publisher uses same-filesystem staging/atomic promotion and refuses changed prior feed bytes, unsafe paths and symlinks.
-- The protected workflow has an explicit production-publish gate. Fixture/offline publication rehearsal is covered by CI; it did not publish to celikom.com.
+- The DPAPI journal binds the transaction to the manifest-key fingerprint and carries sequence/size/hash identity. Corrupt or mismatched journal data is rejected; rollback sequence replay is prevented.
+- Independent Supervisor journal reads are bound to the exact transaction and pinned manifest key. Final installer launch is bound to the journaled transaction, signed payload hashes and expected package path.
+- Verified-image copy/launch boundaries, reparse-point ancestry and rollback image integrity have focused guards and regression coverage.
+- Protected release tooling includes offline P-256 key generation/provisioning, manifest and release verification, bounded signed-feed preflight, and guarded Hostinger publication. Publication uses same-filesystem staging/atomic promotion and refuses changed prior feed bytes, unsafe paths and symlinks.
+- Production publication is gated separately and remains OFF. No feed has been published.
 
-## 4. Exact remaining work — stay inside W155
+## 4. W155 runtime-chain audit — complete
 
-Do not start a new broad investigation. Continue with one bounded final pass through the actual runtime chain:
+The bounded real caller-chain audit is complete; no concrete runtime gap was found, so no Windows application-code patch was needed. The verified path is recorded in `W156-W155-RUNTIME-CHAIN-AUDIT-AND-P256-PROVISIONING-20261115.md`:
 
-1. Follow the real call path from signed manifest fetch/verification → package staging and cache reuse → InstallCoordinator → AppUpdateManager launch → independent Supervisor READY/health → one-shot rollback. Confirm the new transaction/key/hash bindings are used by the real callers and that rollback cannot loop or execute a substituted image.
-2. Patch only a concrete gap found in that path; add its focused regression test. Do not rework already-green keygen, manifest, publisher or path-hardening areas without a failing test or demonstrated defect.
-3. Run both Main CI and Windows integration CI on the resulting exact code HEAD. Keep release fixture tests green. CI is not proof of a live production update or owner-PC acceptance.
-4. Finish the owner-safe provisioning instructions: generate the P-256 private key on an owner-controlled machine and upload it directly to the protected GitHub Actions environment secret. Never ask for PEM in chat, print it, commit it, or place it in repository-level secrets. Embed only the public key in the final reviewed release build.
-5. Only after Task 5 is code/test/CI-ready, proceed to Task 6: build **exactly one** final CELIKOM Windows EXE+ZIP for manual bootstrap over installed 0.24.37. Then the owner performs the single grouped W154 acceptance.
+manifest fetch/verification → package/cache/staging → DPAPI transaction → Supervisor READY → installer boundary → independent health → one-shot rollback.
 
-## 5. Not done — do not claim otherwise
+Do not repeat this audit or expand into new research without a concrete failure.
 
-- No owner private signing key has been provisioned to the protected GitHub environment.
-- No production signed feed has been published; celikom.com DNS/TLS/feed activation remains deferred until infrastructure migration.
-- No new EXE/ZIP has been built or delivered; no owner installation or owner-PC audio/UI acceptance has happened.
-- CI success and offline publisher rehearsal do not prove a live update, Windows publisher identity, SmartScreen acceptance or a field rollback.
+## 5. W156 final owner EXE+ZIP packaging — implemented and CI-tested
 
-## 6. Permanent guardrails
+- Protected workflow: `.github/workflows/windows-stable-signed-release.yml`.
+- It embeds only the protected environment's public P-256 pin into the release build; private PEM is read from the protected environment secret and removed from the runner workspace after signing.
+- The workflow builds the installer with the already-committed version, signs/verifies the schema-2 manifest and payload hashes, then runs `.github/scripts/windows-stable-owner-package.ps1`.
+- For version 0.24.38, the output is exactly one `CELIKOM-Windows-0.24.38.exe`, one `CELIKOM-Windows-0.24.38.zip` containing that EXE as its sole root entry, and `SHA256SUMS.txt`.
+- The package helper refuses overwrite, validates the ZIP entry and byte-for-byte SHA-256 equality, and writes checksums only after successful verification.
+- The helper is covered by Main CI contract tests and a Windows PowerShell fixture. The release workflow contract includes the helper. Both CI workflows passed on `718861a6`.
+- The workflow's production publish input defaults to `false`; leave it false. This creates an owner bootstrap artifact only and does not publish to `celikom.com`.
 
-- Work only on main. Before each substantial code block, create and verify an exact backup.
+**Artifact visibility note:** `manufact-test/nomusic` is a public GitHub repository. GitHub Actions artifacts are downloadable by anyone with repository read access; do not describe this artifact as private. The artifact contains no private signing key—only the installer, ZIP, signed manifest material and public key. If owner-only distribution is required, stop before dispatch and arrange separate private storage; no such storage is currently configured.
+
+## 6. One remaining owner action — provision P-256 once
+
+Run this once on the trusted Windows PC, from the updated repository root:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .github/scripts/windows-stable-provision-key.ps1
+```
+
+Prerequisites: PowerShell 7+, Node.js 24, GitHub CLI authenticated with admin access, and the protected `windows-stable-production` environment with at least one required reviewer and a custom deployment policy allowing exactly `main`.
+
+The script checks the environment and refuses unsafe policy, generates P-256 locally only when no key exists, stores the private PEM outside the repository under `%LOCALAPPDATA%\CELIKOM\StableManifestKey` with ACL restricted to the current user and SYSTEM, sets the public origin/key/deploy-root variables, and uploads the PEM only as the environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM`. It prints only the public fingerprint.
+
+Send back only the success line and public fingerprint. **Never send the PEM in chat, issue, commit or artifact.** Keep an encrypted offline backup of the private key.
+
+After successful provisioning, run the protected workflow on `main` with:
+- version: `0.24.38`
+- sequence: `1`
+- expiry: a valid UTC ISO timestamp within 30 days
+- `publish_to_production: false`
+
+The workflow requires the protected environment approval. Download its one artifact after success; it contains the single EXE, ZIP and checksums.
+
+## 7. Not done — do not claim otherwise
+
+- Owner-side P-256 private-key provisioning has not yet been run.
+- No final EXE/ZIP has been built or delivered; no owner installation or owner-PC acceptance has happened.
+- `celikom.com` DNS/TLS and public feed activation remain deferred. No production feed has been published.
+- CI and offline fixtures do not prove production update delivery, Windows publisher identity, SmartScreen acceptance, owner-PC installation or a real field rollback.
+
+## 8. Permanent guardrails
+
+- Work only on `main`. Before each substantial code block, create and verify an exact backup.
 - Preserve one CELIKOM Windows product and the approved architecture. No Windows TEST product, experimental branches, Android/extension work or unrelated historical Issues #53, #54, #56, #57, #58. #52 remains open until owner-PC source-truth acceptance.
 - Do not bypass SmartScreen, Defender, Smart App Control or UAC; do not request elevated execution.
 - Preserve the 15-minute Yandex compatibility cache, fast VPN reconnect, strict current-decoder source proof, account/DPAPI state, original Yandex backup, native integration and user settings.
-- No intermediate installers, no tiny-step owner chores, no unnecessary exploratory detours. Finish one bounded block, verify it, then move forward.
-
-
-## 7. Final runtime-chain audit — W156
-
-The bounded W155 runtime-chain audit is complete. No concrete runtime gap was found, so no application-code patch was made. The actual caller chain, transaction/key/hash propagation, Supervisor READY/health and one-shot rollback are recorded in `docs/windows/W156-W155-RUNTIME-CHAIN-AUDIT-AND-P256-PROVISIONING-20261115.md`.
-
-The owner-side provisioning script is ready: `.github/scripts/windows-stable-provision-key.ps1`. Run it once from the repository root on the trusted Windows PC using PowerShell 7+, Node 24 and authenticated GitHub CLI. It validates the protected `windows-stable-production` environment, required reviewer and main-only policy; generates a P-256 keypair locally; stores the private PEM outside the repository with restricted ACL; sets the three public environment variables; and uploads only `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` as an environment secret. The exact command, prerequisites and handling rules are in W156. Never send the private PEM in chat.
-
-**W155 code/test/CI work is complete, but production trust is not provisioned.** No production feed, final EXE/ZIP, owner installation or owner-PC acceptance exists yet. Task 6 remains one final pinned EXE+ZIP after owner-side key provisioning; the current W20 internal stage is not an approved final build path because it does not embed the P-256 pin. The protected `windows-stable-signed-release.yml` path must produce the single EXE, one-root-entry ZIP and SHA-256 checksums with production publication OFF.
+- No intermediate installers, no repeated broad audits, no unnecessary improvements. Finish the one approved owner package, then use the grouped W154 acceptance.
