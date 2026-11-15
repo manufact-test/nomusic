@@ -1596,6 +1596,10 @@ class SelectedItemAuditTests(unittest.TestCase):
                             "signature":"(Ljava/lang/Object;)V"},
                   "native_track_argument_positions":[]}
              ]},
+            {"method":{"owner":"Lou3;","name":"else",
+                       "signature":"(Lru/yandex/music/data/audio/o;)V"},
+             "native_model_parameters":[{"index":0,"register":1}],
+             "instructions":[]},
             {"method":{"owner":"LGp0;","name":"new",
                        "signature":"(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"},
              "native_model_parameters":[{"index":0,"register":1}],
