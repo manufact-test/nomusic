@@ -24,3 +24,17 @@ test("W156 ZIP and owner checksums are not promoted into the production feed", (
   assert.doesNotMatch(publisher, /CELIKOM-Windows-.*\.zip/);
   assert.doesNotMatch(publisher, /owner-bootstrap/);
 });
+
+test("W156 owner bootstrap is stored in an unpublished draft release, not a public Actions artifact", () => {
+  assert.match(releaseWorkflow, /permissions:\s*\n\s+contents:\s+write/);
+  assert.match(releaseWorkflow, /Create unpublished owner-only draft release/);
+  assert.match(releaseWorkflow, /gh release create .*--draft/);
+  assert.match(releaseWorkflow, /gh release view .*--json isDraft,tagName,assets,url/);
+  assert.match(releaseWorkflow, /W156_DRAFT_RELEASE_MUST_REMAIN_UNPUBLISHED/);
+  assert.match(releaseWorkflow, /W156_DRAFT_RELEASE_ASSET_SET_MISMATCH/);
+  const artifactStart = releaseWorkflow.indexOf("- uses: actions/upload-artifact@v4");
+  const publishStart = releaseWorkflow.indexOf("\n\n  publish:");
+  assert.ok(artifactStart >= 0 && publishStart > artifactStart);
+  const artifactBlock = releaseWorkflow.slice(artifactStart, publishStart);
+  assert.match(artifactBlock, /if: inputs\.publish_to_production == true/);
+});
