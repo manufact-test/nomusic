@@ -5984,6 +5984,275 @@ def safe_object_register_origin(origin):
     return {key: origin[key] for key in allowed if key in origin}
 
 
+
+
+def dex_type_assignable_to(actual_type, expected_type, class_profiles):
+    """Resolve only signed class/interface ancestry for one exact type pair."""
+    if actual_type == expected_type:
+        return True
+    if not isinstance(actual_type, str) or not actual_type.startswith("L"):
+        return False
+    pending = [actual_type]
+    visited = set()
+    while pending:
+        current = pending.pop()
+        if current == expected_type:
+            return True
+        if current in visited:
+            continue
+        visited.add(current)
+        if len(visited) > 128:
+            raise ValueError("DEX_TYPE_ASSIGNABILITY_LIMIT")
+        profile = class_profiles.get(current, {})
+        superclass = profile.get("superclass")
+        if superclass and superclass != "Ljava/lang/Object;":
+            pending.append(superclass)
+        pending.extend(profile.get("interfaces", ()))
+    return False
+
+
+def trace_exact_object_receiver_call_cfg(
+    dex, method, flags, code_off, target_method, tracked_type, class_profiles
+):
+    """Must-alias trace to one exact invoke receiver across all reachable CFG paths.
+
+    Tracks only object references assignable to tracked_type. It never reads
+    field values, media, strings, URLs, account state, or audio. Different
+    allocations retain different instruction-site identities.
+    """
+    if not isinstance(tracked_type, str) or not tracked_type.startswith("L"):
+        raise ValueError("RECEIVER_TRACE_TYPE_INVALID")
+    cfg = build_dex_control_flow(dex, code_off)
+    by_pc = cfg["by_pc"]
+    successors = cfg["successors"]
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise DexError("RECEIVER_TRACE_INVALID_INS_SIZE")
+    initial_registers = {}
+    parameter_register = registers_size - ins_size
+    if not (flags & ACC_STATIC):
+        if dex_type_assignable_to(method[0], tracked_type, class_profiles):
+            initial_registers[parameter_register] = frozenset({
+                f"TYPED_THIS:{method[0]}"
+            })
+        parameter_register += 1
+    for index, parameter_type in enumerate(parse_types(method[2])):
+        if dex_type_assignable_to(parameter_type, tracked_type, class_profiles):
+            initial_registers[parameter_register] = frozenset({
+                f"TYPED_PARAMETER:{parameter_type}@{index}"
+            })
+        parameter_register += 2 if parameter_type in ("J", "D") else 1
+    initial_state = {
+        "registers": initial_registers,
+        "pending_return": None,
+    }
+
+    def state_key(state):
+        return (
+            tuple(
+                (register, tuple(sorted(origins)))
+                for register, origins in sorted(state["registers"].items())
+            ),
+            state["pending_return"],
+        )
+
+    incoming = {cfg["entry"]: {state_key(initial_state): initial_state}}
+    work = [(cfg["entry"], state_key(initial_state))]
+    processed = 0
+    wide_ops = (
+        {0x04, 0x05, 0x06, 0x0b, 0x16, 0x17, 0x18, 0x19,
+         0x45, 0x53, 0x61, 0x7d, 0x7e, 0x80, 0x82, 0x85, 0x87,
+         0x88, 0x8a}
+        | set(range(0x9b, 0xa6))
+        | set(range(0xab, 0xb0))
+        | set(range(0xbb, 0xc6))
+        | set(range(0xcb, 0xd0))
+    )
+
+    def transfer(state, pc, op, words):
+        registers = {
+            register: set(origins)
+            for register, origins in state["registers"].items()
+        }
+        pending_return = None
+
+        def clear(register):
+            registers.pop(register, None)
+
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            result_type = callee[2].split(")", 1)[1]
+            if result_type.startswith(("L", "[")):
+                origin = (
+                    "RETURNED_FROM_METHOD:"
+                    + callee[0] + "|" + callee[1] + "|" + callee[2]
+                    + "@" + str(pc)
+                )
+                pending_return = origin
+            return {
+                "registers": {
+                    register: frozenset(origins)
+                    for register, origins in registers.items() if origins
+                },
+                "pending_return": pending_return,
+            }
+
+        if op == 0x0c:  # move-result-object
+            destination = words[0] >> 8
+            clear(destination)
+            if state["pending_return"]:
+                registers[destination] = {state["pending_return"]}
+            return {
+                "registers": {
+                    register: frozenset(origins)
+                    for register, origins in registers.items() if origins
+                },
+                "pending_return": None,
+            }
+
+        if op == 0x22:  # new-instance
+            destination = (words[0] >> 8) & 0xff
+            object_type = dex.descriptor(words[1])
+            clear(destination)
+            if dex_type_assignable_to(object_type, tracked_type, class_profiles):
+                registers[destination] = {
+                    f"NEW_INSTANCE:{object_type}@{pc}"
+                }
+        elif op == 0x54:  # iget-object; type and receiver only
+            destination = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            receiver_origins = registers.get(receiver, set())
+            clear(destination)
+            if (
+                dex_type_assignable_to(field_type, tracked_type, class_profiles)
+                and receiver_origins
+            ):
+                category = (
+                    "FIELD_READ_FROM_THIS"
+                    if any(origin.startswith("TYPED_THIS:") for origin in receiver_origins)
+                    else "FIELD_READ_FROM_TYPED_RECEIVER"
+                )
+                registers[destination] = {
+                    f"{category}:{field_type}@{pc}"
+                }
+        elif op == 0x62:  # sget-object; type only
+            destination = (words[0] >> 8) & 0xff
+            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            clear(destination)
+            if dex_type_assignable_to(field_type, tracked_type, class_profiles):
+                registers[destination] = {
+                    f"STATIC_FIELD_READ:{field_type}@{pc}"
+                }
+        elif op in (0x07, 0x08, 0x09):  # move-object
+            move = move_object_registers(op, words)
+            if move:
+                destination, source = move
+                origins = set(registers.get(source, ()))
+                clear(destination)
+                if origins:
+                    registers[destination] = origins
+        elif op == 0x1f:  # check-cast preserves object identity
+            register = (words[0] >> 8) & 0xff
+            cast_type = dex.descriptor(words[1])
+            if (
+                register in registers
+                and dex_type_assignable_to(cast_type, tracked_type, class_profiles)
+            ):
+                registers[register].add(f"CHECK_CAST:{cast_type}@{pc}")
+        elif op == 0x5b:  # iput-object does not mutate source identity
+            pass
+        else:
+            destination = written_register(op, words)
+            if destination is not None:
+                clear(destination)
+                if op in wide_ops:
+                    clear(destination + 1)
+        return {
+            "registers": {
+                register: frozenset(origins)
+                for register, origins in registers.items() if origins
+            },
+            "pending_return": None,
+        }
+
+    while work:
+        pc, key = work.pop()
+        processed += 1
+        if processed > 200000:
+            raise ValueError("RECEIVER_TRACE_CFG_DATAFLOW_LIMIT")
+        state = incoming[pc][key]
+        op, words = by_pc[pc]
+        output = transfer(state, pc, op, words)
+        output_key = state_key(output)
+        for next_pc in successors.get(pc, ()):
+            bucket = incoming.setdefault(next_pc, {})
+            if output_key in bucket:
+                continue
+            if len(bucket) >= 128:
+                raise ValueError("RECEIVER_TRACE_CFG_PATH_STATE_LIMIT")
+            bucket[output_key] = output
+            work.append((next_pc, output_key))
+
+    callsites = []
+    for pc in sorted(cfg["reachable"]):
+        op, words = by_pc[pc]
+        if op not in INVOKES or dex.method(words[1]) != target_method:
+            continue
+        registers = invoke_registers(op, words)
+        states = list(incoming.get(pc, {}).values())
+        if not registers or not states:
+            continue
+        receiver_register = registers[0]
+        path_origins = [
+            sorted(state["registers"].get(receiver_register, ()))
+            for state in states
+        ]
+        common = set(path_origins[0]) if path_origins else set()
+        for origins in path_origins[1:]:
+            common.intersection_update(origins)
+        callsites.append({
+            "pc": pc,
+            "invoke_kind": invoke_kind_name(op),
+            "receiver_register": receiver_register,
+            "declared_receiver_type": target_method[0],
+            "receiver_origins_common_to_all_paths": sorted(common),
+            "receiver_origins_by_path": path_origins[:32],
+            "incoming_path_state_count": len(states),
+            "receiver_identity_proven_on_all_paths": bool(common),
+            "exact_lya_instance_proven_on_all_paths": any(
+                origin.startswith("NEW_INSTANCE:LyEa;@") for origin in common
+            ),
+            "runtime_dispatch_to_lya_proven": False,
+        })
+        if len(callsites) > 8:
+            raise ValueError("RECEIVER_TRACE_CALLSITE_LIMIT")
+
+    return {
+        "method": {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        },
+        "target": {
+            "owner": target_method[0],
+            "method": target_method[1],
+            "signature": target_method[2],
+        },
+        "tracked_type": tracked_type,
+        "callsite_count": len(callsites),
+        "callsites": callsites,
+        "reachable_instruction_count": len(cfg["reachable"]),
+        "branch_count": len(cfg["branches"]),
+        "dataflow_instruction_visits": processed,
+        "runtime_dispatch_or_active_selected_item_inferred": False,
+        "private_field_names_or_values_disclosed": False,
+        "field_values_or_media_read": False,
+    }
+
+
+
 def inspect_lya_track_holder(apks, class_profiles):
     """Trace only LyEa's Track field and the two LCK1 LaC7.if() coroutine callsites."""
     owner = "LyEa;"
@@ -5995,6 +6264,8 @@ def inspect_lya_track_holder(apks, class_profiles):
     track_field_refs = set()
     lya_if_traces = []
     provider_traces = []
+    lya_constructor_refs = set()
+    lya_constructor_track_field_store_traces = []
 
     # Find the exact Track field read by LyEa.if(), plus the one known LaC7 provider.
     for apk in apks:
@@ -6067,6 +6338,22 @@ def inspect_lya_track_holder(apks, class_profiles):
                         if len(field_writer_rows) >= 32:
                             raise ValueError("LYA_TRACK_FIELD_WRITER_METHOD_LIMIT")
                         writer_method_refs.add(method)
+                        if method[0] == owner and method[1] == "<init>" and MODEL in parse_types(method[2]):
+                            lya_constructor_refs.add(method)
+                            for target_field in sorted(track_field_refs):
+                                store_trace = trace_track_value_to_exact_field_store(
+                                    dex, method, flags, code_off, target_field
+                                )
+                                lya_constructor_track_field_store_traces.append({
+                                    "method": {
+                                        "owner": method[0], "name": method[1],
+                                        "signature": method[2],
+                                    },
+                                    "target_field_type": target_field[2],
+                                    "trace": store_trace,
+                                })
+                                if len(lya_constructor_track_field_store_traces) > 8:
+                                    raise ValueError("LYA_CONSTRUCTOR_FIELD_TRACE_LIMIT")
                         trace = trace_identity_method(
                             dex, method, flags, code_off,
                             candidate_owners=set(),
@@ -6100,6 +6387,29 @@ def inspect_lya_track_holder(apks, class_profiles):
                             candidate_owners=set(),
                             capture_unproven_calls=True,
                             extra_identity_types={"LaC7;"},
+                        )
+                        ins = list(instructions(dex, code_off))
+                        receiver_argument_origins = []
+                        for call_ordinal in exact_interface_calls:
+                            _call_pc, call_op, call_words = ins[call_ordinal]
+                            argument_rows = logical_invoke_argument_rows(
+                                dex, method, flags, code_off, ins,
+                                call_ordinal, call_op, call_words,
+                                trace_origins=True,
+                            )
+                            if argument_rows:
+                                receiver_row = argument_rows[0]
+                                receiver_argument_origins.append({
+                                    "callsite_ordinal": call_ordinal,
+                                    "receiver_register": receiver_row["register"],
+                                    "declared_receiver_type": receiver_row["type"],
+                                    "local_origin": safe_object_register_origin(
+                                        receiver_row.get("origin")
+                                    ),
+                                })
+                        receiver_cfg_trace = trace_exact_object_receiver_call_cfg(
+                            dex, method, flags, code_off,
+                            interface_method, "LaC7;", class_profiles
                         )
                         receiver_field_refs = set(exact_instance_field_read_refs(
                             dex, method, flags, code_off, "LaC7;"
@@ -6151,6 +6461,8 @@ def inspect_lya_track_holder(apks, class_profiles):
                                        "signature": interface_method[2]},
                             "callsite_ordinals": exact_interface_calls,
                             "receiver_field_read_count": len(receiver_field_refs),
+                            "receiver_argument_origins": receiver_argument_origins,
+                            "receiver_cfg_trace": receiver_cfg_trace,
                             "receiver_identity_call_events": [
                                 {
                                     "ordinal": event.get("ordinal"),
@@ -6223,6 +6535,60 @@ def inspect_lya_track_holder(apks, class_profiles):
                                 ),
                             })
 
+    # Inspect only direct constructor calls for the exact LyEa constructor
+    # that writes the Track field returned by LyEa.if().
+    lya_constructor_call_sites = []
+    if lya_constructor_refs:
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                        continue
+                    if entry.file_size > DEX_MAX:
+                        raise ValueError("LYA_CONSTRUCTOR_CALLSITE_DEX_LIMIT")
+                    dex = Dex(archive.read(entry.filename))
+                    for caller, caller_flags, caller_code_off in method_definitions_with_flags(dex):
+                        ins = list(instructions(dex, caller_code_off))
+                        for ordinal, (pc, op, words) in enumerate(ins):
+                            if op not in INVOKES:
+                                continue
+                            callee = dex.method(words[1])
+                            if callee not in lya_constructor_refs:
+                                continue
+                            argument_rows = logical_invoke_argument_rows(
+                                dex, caller, caller_flags, caller_code_off,
+                                ins, ordinal, op, words, trace_origins=True
+                            )
+                            receiver_row = argument_rows[0] if argument_rows else None
+                            track_row = next((
+                                row for row in argument_rows if row["type"] == MODEL
+                            ), None)
+                            lya_constructor_call_sites.append({
+                                "caller": {
+                                    "owner": caller[0], "name": caller[1],
+                                    "signature": caller[2],
+                                },
+                                "target": {
+                                    "owner": callee[0], "name": callee[1],
+                                    "signature": callee[2],
+                                },
+                                "pc": pc,
+                                "invoke_kind": invoke_kind_name(op),
+                                "receiver_origin": safe_object_register_origin(
+                                    receiver_row.get("origin") if receiver_row else None
+                                ),
+                                "track_argument_origin": safe_object_register_origin(
+                                    track_row.get("origin") if track_row else None
+                                ),
+                                "track_argument_is_caller_track_parameter": bool(
+                                    track_row
+                                    and track_row.get("origin", {}).get("kind") == "METHOD_PARAMETER"
+                                    and track_row.get("origin", {}).get("type") == MODEL
+                                ),
+                            })
+                            if len(lya_constructor_call_sites) > 64:
+                                raise ValueError("LYA_CONSTRUCTOR_CALLSITE_LIMIT")
+
     return {
         "owner": owner,
         "owner_defined_in_signed_dex": owner in class_profiles,
@@ -6234,6 +6600,9 @@ def inspect_lya_track_holder(apks, class_profiles):
         "lya_if_method_traces": lya_if_traces,
         "exact_track_field_writer_method_count": len(field_writer_rows),
         "exact_track_field_writers": field_writer_rows,
+        "lya_constructor_track_field_store_traces": lya_constructor_track_field_store_traces,
+        "lya_constructor_callsite_count": len(lya_constructor_call_sites),
+        "lya_constructor_call_sites": lya_constructor_call_sites,
         "lck1_interface_callsite_count": len(lck1_interface_call_sites),
         "lck1_interface_call_sites": lck1_interface_call_sites,
         "lck1_constructor_field_link_count": len(lck1_constructor_field_links),

@@ -29,7 +29,8 @@ from audit_native_selected_item_handoff import (
     summarize_flow_interface_implementers,
     summarize_flow_mode_branch_census,
     exact_track_return_owner_scope,
-    exact_parameter_field_store_refs, local_object_register_origin
+    exact_parameter_field_store_refs, local_object_register_origin,
+    dex_type_assignable_to, trace_exact_object_receiver_call_cfg
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -2284,6 +2285,121 @@ class SelectedItemAuditTests(unittest.TestCase):
             with self.subTest(signature=signature):
                 with self.assertRaises(ValueError):
                     parse_types(signature)
+
+
+
+    def test_receiver_cfg_proves_same_lya_allocation_across_both_branch_paths(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5, 102:1}[offset]
+            def descriptor(self, index):
+                return "LyEa;"
+            def method(self, index):
+                return ("LaC7;", "if", f"(){MODEL}")
+        method=("LFlow;", "emit", "()V")
+        target=("LaC7;", "if", f"(){MODEL}")
+        ins=[
+            (0,0x22,[0x0022,0]),       # new-instance v0, LyEa
+            (2,0x38,[0x0138,4]),       # if-eqz v1, branch to pc 6
+            (4,0x07,[0x0207]),         # move-object v2, v0
+            (5,0x28,[0x0228]),         # goto pc 7
+            (6,0x07,[0x0207]),         # move-object v2, v0
+            (7,0x72,[0x0272,0]),       # invoke-interface {v2}, LaC7.if()
+            (10,0x0e,[0x000e]),
+        ]
+        profiles={
+            "LyEa;":{"superclass":"Ljava/lang/Object;","interfaces":{"LaC7;"}},
+            "LaC7;":{"superclass":"Ljava/lang/Object;","interfaces":set()},
+        }
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[2]):
+            trace=trace_exact_object_receiver_call_cfg(
+                FakeDex(),method,0,100,target,"LaC7;",profiles
+            )
+        self.assertEqual(trace["callsite_count"],1)
+        call=trace["callsites"][0]
+        self.assertTrue(call["receiver_identity_proven_on_all_paths"])
+        self.assertTrue(call["exact_lya_instance_proven_on_all_paths"])
+        self.assertIn("NEW_INSTANCE:LyEa;@0",
+                      call["receiver_origins_common_to_all_paths"])
+        self.assertFalse(call["runtime_dispatch_to_lya_proven"])
+
+    def test_receiver_cfg_rejects_different_lya_allocations_at_branch_join(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5, 102:1}[offset]
+            def descriptor(self, index):
+                return "LyEa;"
+            def method(self, index):
+                return ("LaC7;", "if", f"(){MODEL}")
+        method=("LFlow;", "emit", "()V")
+        target=("LaC7;", "if", f"(){MODEL}")
+        ins=[
+            (0,0x22,[0x0022,0]),       # new-instance v0, LyEa
+            (2,0x38,[0x0138,4]),       # if-eqz v1, branch to pc 6
+            (4,0x07,[0x0207]),         # first path keeps v0
+            (5,0x28,[0x0528]),         # goto pc 10
+            (6,0x22,[0x0322,0]),       # second path creates another LyEa
+            (8,0x07,[0x3207]),         # move-object v2, v3
+            (9,0x28,[0x0128]),         # goto pc 10
+            (10,0x72,[0x0272,0]),      # invoke-interface {v2}, LaC7.if()
+            (13,0x0e,[0x000e]),
+        ]
+        profiles={
+            "LyEa;":{"superclass":"Ljava/lang/Object;","interfaces":{"LaC7;"}},
+            "LaC7;":{"superclass":"Ljava/lang/Object;","interfaces":set()},
+        }
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[2]):
+            trace=trace_exact_object_receiver_call_cfg(
+                FakeDex(),method,0,100,target,"LaC7;",profiles
+            )
+        call=trace["callsites"][0]
+        self.assertFalse(call["receiver_identity_proven_on_all_paths"])
+        self.assertFalse(call["exact_lya_instance_proven_on_all_paths"])
+        self.assertIn("NEW_INSTANCE:LyEa;@0",str(call["receiver_origins_by_path"]))
+        self.assertIn("NEW_INSTANCE:LyEa;@6",str(call["receiver_origins_by_path"]))
+
+    def test_receiver_cfg_identifies_exact_provider_return_origin(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:1}[offset]
+            def method(self, index):
+                if index == 0:
+                    return ("LzA9;", "if", "()LaC7;")
+                return ("LaC7;", "if", f"(){MODEL}")
+        method=("LFlow;", "emit", "()V")
+        target=("LaC7;", "if", f"(){MODEL}")
+        ins=[
+            (0,0x6e,[0x006e,0]),       # invoke-virtual provider
+            (3,0x0c,[0x000c]),         # move-result-object v0
+            (4,0x72,[0x0072,1]),       # invoke-interface {v0}, LaC7.if()
+            (7,0x0e,[0x000e]),
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",side_effect=[[3],[0]]):
+            trace=trace_exact_object_receiver_call_cfg(
+                FakeDex(),method,0,100,target,"LaC7;",{}
+            )
+        call=trace["callsites"][0]
+        self.assertTrue(call["receiver_identity_proven_on_all_paths"])
+        self.assertEqual(
+            call["receiver_origins_common_to_all_paths"],
+            ["RETURNED_FROM_METHOD:LzA9;|if|()LaC7;@0"]
+        )
+
+    def test_dex_type_assignability_uses_only_declared_signed_ancestry(self):
+        profiles={
+            "LyEa;":{"superclass":"Ljava/lang/Object;","interfaces":{"LaC7;"}},
+            "LaC7;":{"superclass":"Ljava/lang/Object;","interfaces":set()},
+            "LOther;":{"superclass":"Ljava/lang/Object;","interfaces":set()},
+        }
+        self.assertTrue(dex_type_assignable_to("LyEa;","LaC7;",profiles))
+        self.assertFalse(dex_type_assignable_to("LOther;","LaC7;",profiles))
+
 
 if __name__ == "__main__":
     unittest.main()
