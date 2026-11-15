@@ -105,7 +105,7 @@ done
   echo W155_SEQUENCE_NOT_INCREASING; exit 2; }
 
 (cd "$tmp"; sha256sum "$exe" manifest.json manifest.json.sig latest.json latest.json.sig > SHA256SUMS.txt)
-ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; test -d '$root'; test ! -L '$root'; test -d '/home/u235811320/domains/celikom.com'; test ! -L '/home/u235811320/domains/celikom.com'; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; done; mkdir -p \"\$dest\"; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
+ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; test -d '$root'; test ! -L '$root'; test -d '/home/u235811320/domains/celikom.com'; test ! -L '/home/u235811320/domains/celikom.com'; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; fi; done; mkdir -p \"\$dest\"; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; test ! -L '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
 stage_created=1
 for file in "$exe" manifest.json manifest.json.sig latest.json latest.json.sig SHA256SUMS.txt; do
   scp -P 65002 -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
@@ -131,12 +131,17 @@ for d in "/home" "/home/u235811320" "/home/u235811320/domains" \
   "/home/u235811320/domains/celikom.com" "$root" "$root/CELIKOM" \
   "$root/CELIKOM/Windows" "$root/CELIKOM/Windows/Updates" \
   "$dest" "$dest/$version"; do
-  if [[ -e "$d" && ( -L "$d" || ! -d "$d" ) ]]; then
-    echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3
+  if [[ -e "$d" || -L "$d" ]]; then
+    if [[ -L "$d" || ! -d "$d" ]]; then
+      echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3
+    fi
   fi
 done
 mkdir -p "$dest/$version"
-if [[ -e "$dest/latest.json" || -e "$dest/latest.json.sig" ]]; then
+[[ -d "$dest/$version" && ! -L "$dest/$version" ]] || {
+  echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }
+if [[ -e "$dest/latest.json" || -L "$dest/latest.json" ||
+      -e "$dest/latest.json.sig" || -L "$dest/latest.json.sig" ]]; then
   [[ -f "$dest/latest.json" && -f "$dest/latest.json.sig" &&
      ! -L "$dest/latest.json" && ! -L "$dest/latest.json.sig" ]] || {
     echo W155_EXISTING_LATEST_BROKEN; exit 3; }
@@ -154,7 +159,7 @@ else
     echo W155_EXISTING_LATEST_DISAPPEARED; exit 3; }
 fi
 for file in "$exe" manifest.json manifest.json.sig; do
-  if [[ -e "$dest/$version/$file" ]]; then
+  if [[ -e "$dest/$version/$file" || -L "$dest/$version/$file" ]]; then
     [[ -f "$dest/$version/$file" && ! -L "$dest/$version/$file" ]] &&
       cmp -s "$stage/$file" "$dest/$version/$file" || {
       echo W155_IMMUTABLE_RELEASE_CONFLICT; exit 3; }
