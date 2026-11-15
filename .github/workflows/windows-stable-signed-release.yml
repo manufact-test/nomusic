@@ -4,16 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version already committed to main, newer than 0.24.37
+        description: Version already committed to main
         required: true
+        default: '0.24.38'
         type: string
       sequence:
         description: Strictly increasing signed release sequence
         required: true
+        default: '1'
         type: string
       expires_at:
-        description: Manifest expiry in UTC (within 30 days)
-        required: true
+        description: Leave blank to use an automatic 7-day UTC expiry
+        required: false
+        default: ''
         type: string
       publish_to_production:
         description: Publish only after celikom.com DNS, TLS and feed are live
@@ -67,11 +70,400 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_EXPIRES)) {
+            $env:RELEASE_EXPIRES = [DateTimeOffset]::UtcNow.AddDays(7).ToString(
+              "yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+            "RELEASE_EXPIRES=$env:RELEASE_EXPIRES" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+          if ($env:RELEASE_EXPIRES -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z
+              $env:RELEASE_SEQUENCE -notmatch '^[1-9][0-9]{0,14}$' -or
+              [version]$env:RELEASE_VERSION -le [version]'0.24.37') {
+            throw 'W155_VERSION_OR_SEQUENCE_INVALID'
+          }
+          $gui=[xml](Get-Content windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -Raw)
+          $supervisor=[xml](Get-Content windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj -Raw)
+          $iss=Get-Content windows-companion/w20/installer/CELIKOM.iss -Raw
+          if ($gui.Project.PropertyGroup.Version -ne $env:RELEASE_VERSION -or
+              $supervisor.Project.PropertyGroup.Version -ne $env:RELEASE_VERSION -or
+              !$iss.Contains("AppVersion=$env:RELEASE_VERSION") -or
+              !$iss.Contains("VersionInfoVersion=$env:RELEASE_VERSION.0")) {
+            throw 'W155_RELEASE_VERSION_MUST_BE_COMMITTED_TO_MAIN'
+          }
+          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-key-public.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_CONTRACT_FAILED' }
+          node .github/scripts/windows-stable-trust-embed.mjs windows-companion/w15/Celikom.Companion/StableUpdateTrustConfiguration.cs
+          if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_TRUST_EMBED_FAILED' }
+      - name: Build native and Windows binaries without Authenticode or PFX
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Push-Location windows-companion/w23
+          try {
+            npm install --no-audit --no-fund --no-package-lock
+            if ($LASTEXITCODE -ne 0) { throw 'W155_NPM_FAILED' }
+            npm run build
+            if ($LASTEXITCODE -ne 0) { throw 'W155_NATIVE_FAILED' }
+          } finally { Pop-Location }
+          foreach ($project in @('Celikom.Companion','Celikom.UpdateSupervisor')) {
+            dotnet publish "windows-companion/w15/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+            if ($LASTEXITCODE -ne 0) { throw 'W155_DOTNET_PUBLISH_FAILED' }
+          }
+          $compiler=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          if (!(Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W155_INNO_INSTALL_FAILED' }
+          }
+          if (!(Test-Path $compiler)) { throw 'W155_INNO_MISSING' }
+          $base="CELIKOM-Windows-$env:RELEASE_VERSION"
+          & $compiler "/F$base" windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W155_INNO_BUILD_FAILED' }
+          $installer="windows-companion/w20/output/$base.exe"
+          if (!(Test-Path $installer)) { throw 'W155_EXACT_INSTALLER_MISSING' }
+          "CELIKOM_STABLE_INSTALLER=$installer" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Sign exact manifest with protected P-256 key and verify payload hashes
+        shell: pwsh
+        env:
+          MANIFEST_PRIVATE_PEM: ${{ secrets.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W155_P256_PRIVATE_KEY_NOT_CONFIGURED' }
+          $key=Join-Path $env:RUNNER_TEMP 'stable-private.pem'
+          $pub=Join-Path $env:RUNNER_TEMP 'stable-public.der'
+          $out=Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
+          try {
+            [IO.File]::WriteAllText($key,$env:MANIFEST_PRIVATE_PEM,[Text.UTF8Encoding]::new($false))
+            [IO.File]::WriteAllBytes($pub,[Convert]::FromBase64String($env:CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64))
+            Remove-Item Env:MANIFEST_PRIVATE_PEM
+            node .github/scripts/windows-stable-manifest.mjs --package "$env:CELIKOM_STABLE_INSTALLER" --application windows-companion/w20/publish/CELIKOM.Companion.exe --native-host windows-companion/w23/dist/host.cjs --renderer windows-companion/w23/dist/renderer.js --supervisor windows-companion/w20/publish/CELIKOM.UpdateSupervisor.exe --version "$env:RELEASE_VERSION" --sequence "$env:RELEASE_SEQUENCE" --origin "$env:CELIKOM_STABLE_ORIGIN" --private-key-file "$key" --pinned-public-key-der "$pub" --output-dir "$out" --expires-at "$env:RELEASE_EXPIRES"
+            if ($LASTEXITCODE -ne 0) { throw 'W155_MANIFEST_SIGNING_FAILED' }
+            Copy-Item "$env:CELIKOM_STABLE_INSTALLER" (Join-Path $out "$env:RELEASE_VERSION")
+            node .github/scripts/windows-stable-release-verify.mjs "$out" "$env:RELEASE_VERSION" "$env:RELEASE_SEQUENCE"
+            if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_VERIFICATION_FAILED' }
+            & .github/scripts/windows-stable-owner-package.ps1 -ReleaseDirectory "$out" -Version "$env:RELEASE_VERSION"
+            if ($LASTEXITCODE -ne 0) { throw 'W156_OWNER_EXE_ZIP_PACKAGING_FAILED' }
+          } finally {
+            Remove-Item $key,$pub -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:MANIFEST_PRIVATE_PEM -ErrorAction SilentlyContinue
+          }
+      - name: Create unpublished owner-only draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_VERSION
+          $tag = "celikom-windows-v$version-owner-bootstrap"
+          $out = Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
+          $exeName = "CELIKOM-Windows-$version.exe"
+          $zipName = "CELIKOM-Windows-$version.zip"
+          $exe = Join-Path (Join-Path $out $version) $exeName
+          $zip = Join-Path $out $zipName
+          $checksums = Join-Path $out 'SHA256SUMS.txt'
+          foreach ($file in @($exe, $zip, $checksums)) {
+            if (!(Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw 'W156_DRAFT_RELEASE_ASSET_MISSING'
+            }
+          }
+          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw 'W156_DRAFT_RELEASE_TAG_ALREADY_EXISTS'
+          }
+          $notes = @(
+            'DRAFT - unpublished one-time owner bootstrap package.'
+            'Visible only to repository users with push access while this release remains a draft.'
+            'Do not publish this draft. Owner installation and the grouped W154 acceptance are still required.'
+            'The production feed is not published by this workflow run.'
+            ''
+            "Version: $version"
+            "Source commit: $env:GITHUB_SHA"
+          ) -join "`n"
+          gh release create $tag $exe $zip $checksums --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "CELIKOM Windows $version - owner bootstrap (DRAFT)" --notes $notes --draft
+          if ($LASTEXITCODE -ne 0) {
+            throw 'W156_DRAFT_RELEASE_CREATE_FAILED'
+          }
+          $releaseJson = gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets,url
+          if ($LASTEXITCODE -ne 0) {
+            throw 'W156_DRAFT_RELEASE_VERIFY_FAILED'
+          }
+          $release = ($releaseJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+          if ($release.isDraft -ne $true -or $release.tagName -cne $tag) {
+            throw 'W156_DRAFT_RELEASE_MUST_REMAIN_UNPUBLISHED'
+          }
+          $expectedNames = @($exeName, $zipName, 'SHA256SUMS.txt') | Sort-Object
+          $actualNames = @($release.assets | ForEach-Object { [string]$_.name } | Sort-Object)
+          if (Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames) {
+            throw 'W156_DRAFT_RELEASE_ASSET_SET_MISMATCH'
+          }
+          foreach ($asset in $release.assets) {
+            if ($asset.name -ceq $exeName) { $localPath = $exe }
+            elseif ($asset.name -ceq $zipName) { $localPath = $zip }
+            elseif ($asset.name -ceq 'SHA256SUMS.txt') { $localPath = $checksums }
+            else { throw 'W156_DRAFT_RELEASE_ASSET_UNKNOWN' }
+            $localSize = (Get-Item -LiteralPath $localPath).Length
+            if ([int64]$asset.size -ne [int64]$localSize) {
+              throw 'W156_DRAFT_RELEASE_ASSET_SIZE_MISMATCH'
+            }
+          }
+          @(
+            "## CELIKOM Windows $version - draft release ready"
+            ''
+            'State: DRAFT - not published'
+            "Tag: $tag"
+            "Release: $($release.url)"
+            ''
+            'Assets:'
+            "- $exeName"
+            "- $zipName"
+            '- SHA256SUMS.txt'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # The Actions artifact is needed only by the separately approved live-feed
+      # publisher. The owner bootstrap uses the unpublished draft release above.
+      - uses: actions/upload-artifact@v4
+        if: inputs.publish_to_production == true
+        with:
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
+          path: ${{ runner.temp }}/celikom-stable-ready
+          if-no-files-found: error
+          retention-days: 5
+
+  publish:
+    needs: prepare
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true
+    permissions:
+      contents: read
+    concurrency:
+      group: celikom-windows-stable-production
+      cancel-in-progress: false
+    environment: windows-stable-production
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      CELIKOM_STABLE_ORIGIN: https://celikom.com
+      CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64: ${{ needs.prepare.outputs.public_key_der_base64 }}
+      CELIKOM_STABLE_DEPLOY_ROOT: ${{ vars.CELIKOM_STABLE_DEPLOY_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
+          path: ${{ runner.temp }}/celikom-stable-ready
+      - name: Publish exact P-256 signed immutable release then latest on approved HTTPS
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          bash -n .github/scripts/windows-stable-publish-hostinger.sh
+          bash .github/scripts/windows-stable-publish-hostinger.sh \
+            "$RUNNER_TEMP/celikom-stable-ready" \
+            '${{ inputs.version }}' '${{ inputs.sequence }}'
+) {
+            throw 'W155_RELEASE_EXPIRY_MUST_BE_UTC_ISO'
+          }
+          $expiry = [DateTimeOffset]::ParseExact($env:RELEASE_EXPIRES,
+            "yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AssumeUniversal)
+          $now = [DateTimeOffset]::UtcNow
+          if ($expiry -le $now -or $expiry -gt $now.AddDays(30)) {
+            throw 'W155_RELEASE_EXPIRY_OUTSIDE_30_DAY_WINDOW'
+          }
           if ($env:CELIKOM_STABLE_ORIGIN -ne 'https://celikom.com' -or
               !$env:CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64) {
             throw 'W155_PRODUCTION_P256_TRUST_NOT_PROVISIONED'
           }
-          if ($env:RELEASE_VERSION -notmatch '^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,5}$' -or
+          if ($env:RELEASE_VERSION -notmatch '^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,5}
+              $env:RELEASE_SEQUENCE -notmatch '^[1-9][0-9]{0,14}$' -or
+              [version]$env:RELEASE_VERSION -le [version]'0.24.37') {
+            throw 'W155_VERSION_OR_SEQUENCE_INVALID'
+          }
+          $gui=[xml](Get-Content windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -Raw)
+          $supervisor=[xml](Get-Content windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj -Raw)
+          $iss=Get-Content windows-companion/w20/installer/CELIKOM.iss -Raw
+          if ($gui.Project.PropertyGroup.Version -ne $env:RELEASE_VERSION -or
+              $supervisor.Project.PropertyGroup.Version -ne $env:RELEASE_VERSION -or
+              !$iss.Contains("AppVersion=$env:RELEASE_VERSION") -or
+              !$iss.Contains("VersionInfoVersion=$env:RELEASE_VERSION.0")) {
+            throw 'W155_RELEASE_VERSION_MUST_BE_COMMITTED_TO_MAIN'
+          }
+          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-key-public.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_CONTRACT_FAILED' }
+          node .github/scripts/windows-stable-trust-embed.mjs windows-companion/w15/Celikom.Companion/StableUpdateTrustConfiguration.cs
+          if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_TRUST_EMBED_FAILED' }
+      - name: Build native and Windows binaries without Authenticode or PFX
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Push-Location windows-companion/w23
+          try {
+            npm install --no-audit --no-fund --no-package-lock
+            if ($LASTEXITCODE -ne 0) { throw 'W155_NPM_FAILED' }
+            npm run build
+            if ($LASTEXITCODE -ne 0) { throw 'W155_NATIVE_FAILED' }
+          } finally { Pop-Location }
+          foreach ($project in @('Celikom.Companion','Celikom.UpdateSupervisor')) {
+            dotnet publish "windows-companion/w15/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
+            if ($LASTEXITCODE -ne 0) { throw 'W155_DOTNET_PUBLISH_FAILED' }
+          }
+          $compiler=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
+          if (!(Test-Path $compiler)) {
+            choco install innosetup -y --no-progress --limit-output
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W155_INNO_INSTALL_FAILED' }
+          }
+          if (!(Test-Path $compiler)) { throw 'W155_INNO_MISSING' }
+          $base="CELIKOM-Windows-$env:RELEASE_VERSION"
+          & $compiler "/F$base" windows-companion/w20/installer/CELIKOM.iss
+          if ($LASTEXITCODE -ne 0) { throw 'W155_INNO_BUILD_FAILED' }
+          $installer="windows-companion/w20/output/$base.exe"
+          if (!(Test-Path $installer)) { throw 'W155_EXACT_INSTALLER_MISSING' }
+          "CELIKOM_STABLE_INSTALLER=$installer" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Sign exact manifest with protected P-256 key and verify payload hashes
+        shell: pwsh
+        env:
+          MANIFEST_PRIVATE_PEM: ${{ secrets.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W155_P256_PRIVATE_KEY_NOT_CONFIGURED' }
+          $key=Join-Path $env:RUNNER_TEMP 'stable-private.pem'
+          $pub=Join-Path $env:RUNNER_TEMP 'stable-public.der'
+          $out=Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
+          try {
+            [IO.File]::WriteAllText($key,$env:MANIFEST_PRIVATE_PEM,[Text.UTF8Encoding]::new($false))
+            [IO.File]::WriteAllBytes($pub,[Convert]::FromBase64String($env:CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64))
+            Remove-Item Env:MANIFEST_PRIVATE_PEM
+            node .github/scripts/windows-stable-manifest.mjs --package "$env:CELIKOM_STABLE_INSTALLER" --application windows-companion/w20/publish/CELIKOM.Companion.exe --native-host windows-companion/w23/dist/host.cjs --renderer windows-companion/w23/dist/renderer.js --supervisor windows-companion/w20/publish/CELIKOM.UpdateSupervisor.exe --version "$env:RELEASE_VERSION" --sequence "$env:RELEASE_SEQUENCE" --origin "$env:CELIKOM_STABLE_ORIGIN" --private-key-file "$key" --pinned-public-key-der "$pub" --output-dir "$out" --expires-at "$env:RELEASE_EXPIRES"
+            if ($LASTEXITCODE -ne 0) { throw 'W155_MANIFEST_SIGNING_FAILED' }
+            Copy-Item "$env:CELIKOM_STABLE_INSTALLER" (Join-Path $out "$env:RELEASE_VERSION")
+            node .github/scripts/windows-stable-release-verify.mjs "$out" "$env:RELEASE_VERSION" "$env:RELEASE_SEQUENCE"
+            if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_VERIFICATION_FAILED' }
+            & .github/scripts/windows-stable-owner-package.ps1 -ReleaseDirectory "$out" -Version "$env:RELEASE_VERSION"
+            if ($LASTEXITCODE -ne 0) { throw 'W156_OWNER_EXE_ZIP_PACKAGING_FAILED' }
+          } finally {
+            Remove-Item $key,$pub -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:MANIFEST_PRIVATE_PEM -ErrorAction SilentlyContinue
+          }
+      - name: Create unpublished owner-only draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_VERSION
+          $tag = "celikom-windows-v$version-owner-bootstrap"
+          $out = Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
+          $exeName = "CELIKOM-Windows-$version.exe"
+          $zipName = "CELIKOM-Windows-$version.zip"
+          $exe = Join-Path (Join-Path $out $version) $exeName
+          $zip = Join-Path $out $zipName
+          $checksums = Join-Path $out 'SHA256SUMS.txt'
+          foreach ($file in @($exe, $zip, $checksums)) {
+            if (!(Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw 'W156_DRAFT_RELEASE_ASSET_MISSING'
+            }
+          }
+          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw 'W156_DRAFT_RELEASE_TAG_ALREADY_EXISTS'
+          }
+          $notes = @(
+            'DRAFT - unpublished one-time owner bootstrap package.'
+            'Visible only to repository users with push access while this release remains a draft.'
+            'Do not publish this draft. Owner installation and the grouped W154 acceptance are still required.'
+            'The production feed is not published by this workflow run.'
+            ''
+            "Version: $version"
+            "Source commit: $env:GITHUB_SHA"
+          ) -join "`n"
+          gh release create $tag $exe $zip $checksums --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "CELIKOM Windows $version - owner bootstrap (DRAFT)" --notes $notes --draft
+          if ($LASTEXITCODE -ne 0) {
+            throw 'W156_DRAFT_RELEASE_CREATE_FAILED'
+          }
+          $releaseJson = gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets,url
+          if ($LASTEXITCODE -ne 0) {
+            throw 'W156_DRAFT_RELEASE_VERIFY_FAILED'
+          }
+          $release = ($releaseJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+          if ($release.isDraft -ne $true -or $release.tagName -cne $tag) {
+            throw 'W156_DRAFT_RELEASE_MUST_REMAIN_UNPUBLISHED'
+          }
+          $expectedNames = @($exeName, $zipName, 'SHA256SUMS.txt') | Sort-Object
+          $actualNames = @($release.assets | ForEach-Object { [string]$_.name } | Sort-Object)
+          if (Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames) {
+            throw 'W156_DRAFT_RELEASE_ASSET_SET_MISMATCH'
+          }
+          foreach ($asset in $release.assets) {
+            if ($asset.name -ceq $exeName) { $localPath = $exe }
+            elseif ($asset.name -ceq $zipName) { $localPath = $zip }
+            elseif ($asset.name -ceq 'SHA256SUMS.txt') { $localPath = $checksums }
+            else { throw 'W156_DRAFT_RELEASE_ASSET_UNKNOWN' }
+            $localSize = (Get-Item -LiteralPath $localPath).Length
+            if ([int64]$asset.size -ne [int64]$localSize) {
+              throw 'W156_DRAFT_RELEASE_ASSET_SIZE_MISMATCH'
+            }
+          }
+          @(
+            "## CELIKOM Windows $version - draft release ready"
+            ''
+            'State: DRAFT - not published'
+            "Tag: $tag"
+            "Release: $($release.url)"
+            ''
+            'Assets:'
+            "- $exeName"
+            "- $zipName"
+            '- SHA256SUMS.txt'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # The Actions artifact is needed only by the separately approved live-feed
+      # publisher. The owner bootstrap uses the unpublished draft release above.
+      - uses: actions/upload-artifact@v4
+        if: inputs.publish_to_production == true
+        with:
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
+          path: ${{ runner.temp }}/celikom-stable-ready
+          if-no-files-found: error
+          retention-days: 5
+
+  publish:
+    needs: prepare
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true
+    permissions:
+      contents: read
+    concurrency:
+      group: celikom-windows-stable-production
+      cancel-in-progress: false
+    environment: windows-stable-production
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      CELIKOM_STABLE_ORIGIN: https://celikom.com
+      CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64: ${{ needs.prepare.outputs.public_key_der_base64 }}
+      CELIKOM_STABLE_DEPLOY_ROOT: ${{ vars.CELIKOM_STABLE_DEPLOY_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
+          path: ${{ runner.temp }}/celikom-stable-ready
+      - name: Publish exact P-256 signed immutable release then latest on approved HTTPS
+        shell: bash
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          bash -n .github/scripts/windows-stable-publish-hostinger.sh
+          bash .github/scripts/windows-stable-publish-hostinger.sh \
+            "$RUNNER_TEMP/celikom-stable-ready" \
+            '${{ inputs.version }}' '${{ inputs.sequence }}'
+ -or
               $env:RELEASE_SEQUENCE -notmatch '^[1-9][0-9]{0,14}$' -or
               [version]$env:RELEASE_VERSION -le [version]'0.24.37') {
             throw 'W155_VERSION_OR_SEQUENCE_INVALID'

@@ -27,6 +27,10 @@ test("W155 release derives the public pin from the protected private key", () =>
   assert.match(releaseWorkflow, /CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM/);
   assert.match(releaseWorkflow, /windows-stable-key-public\.mjs/);
   assert.doesNotMatch(releaseWorkflow, /vars\.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64/);
+  assert.match(releaseWorkflow, /default: '0\.24\.38'/);
+  assert.match(releaseWorkflow, /default: '1'/);
+  assert.match(releaseWorkflow, /Leave blank to use an automatic 7-day UTC expiry/);
+  assert.match(releaseWorkflow, /UtcNow\.AddDays\(7\)/);
 });
 
 test("W155 private signing key is not exposed to build or publish jobs", () => {
