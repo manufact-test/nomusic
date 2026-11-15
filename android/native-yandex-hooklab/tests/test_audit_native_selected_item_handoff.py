@@ -858,15 +858,15 @@ class SelectedItemAuditTests(unittest.TestCase):
         resume=("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
         initial_ins=[
             (0,0x22,[0x0022,1]),
-            (1,0x70,[0x0070,2]),
-            (2,0x5b,[0x0600,3]),
-            (3,0x54,[0x0154,3]),
-            (4,0x54,[0x1254,4]),
-            (5,0x22,[0x0322,5]),
-            (6,0x70,[0x0070,6]),
-            (7,0x71,[0x0071,7])
+            (2,0x70,[0x0070,2,0]),
+            (5,0x5b,[0x0600,3]),
+            (7,0x54,[0x0154,3]),
+            (9,0x54,[0x1254,4]),
+            (11,0x22,[0x0322,5]),
+            (13,0x70,[0x0070,6,0]),
+            (16,0x71,[0x0071,7,0])
         ]
-        resume_ins=[(0,0x71,[0x0071,8])]
+        resume_ins=[(0,0x71,[0x0071,8,0])]
         fields={
             3:("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;"),
             4:("Lru/yandex/music/data/audio/o;","hiddenString","Ljava/lang/String;")
@@ -881,9 +881,11 @@ class SelectedItemAuditTests(unittest.TestCase):
                 FakeDex(),initial,0x8,100,resume,0,200
             )
         self.assertEqual(result["track_parameter_capture_store_candidates"][0]["field_slot"],3)
+        self.assertTrue(result["track_parameter_capture_store_candidates"][0]["same_original_track_parameter"])
         self.assertTrue(result["same_field_slot_store_to_resume_read_candidates"])
         self.assertTrue(result["resume_continuation_call_sites"][0]["invokeSuspend_this_passed_as_continuation"])
         self.assertTrue(result["continuation_field_track_to_opaque_wrapper_candidate"])
+        self.assertTrue(result["control_flow_graph_built"])
         self.assertTrue(result["wrapper_continuation_handoff_sites"][0]["wrapper_instance_passed"])
         self.assertFalse(result["coroutine_runtime_resume_dispatch_proven"])
         self.assertNotIn("hiddenTrack",str(result))
@@ -904,10 +906,10 @@ class SelectedItemAuditTests(unittest.TestCase):
         initial=("LGp0;","new","(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
         resume=("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
         initial_ins=[
-            (0,0x22,[0x0022,1]),(1,0x70,[0x0070,2]),
-            (2,0x5b,[0x0600,3]),(3,0x54,[0x0154,9])
+            (0,0x22,[0x0022,1]),(2,0x70,[0x0070,2,0]),
+            (5,0x5b,[0x0600,3]),(7,0x54,[0x0154,9])
         ]
-        resume_ins=[(0,0x71,[0x0071,8])]
+        resume_ins=[(0,0x71,[0x0071,8,0])]
         fields={
             3:("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;"),
             9:("LFp0;","otherTrack","Lru/yandex/music/data/audio/o;")

@@ -2418,318 +2418,461 @@ def inspect_renderer_buffer_field_writers(apks, caller_definitions, sink_targets
 
 
 
+def signed_branch_offset(value, bits):
+    sign=1 << (bits-1)
+    return value-(1 << bits) if value&sign else value
+
+
+def build_dex_control_flow(dex, code_off):
+    """Build bounded DEX instruction successors, including switch payload targets."""
+    ins=list(instructions(dex,code_off))
+    if not ins or len(ins)>20000:
+        raise ValueError("TRACK_COROUTINE_CFG_INSTRUCTION_LIMIT")
+    by_pc={pc:(op,words) for pc,op,words in ins}
+    if len(by_pc)!=len(ins):
+        raise ValueError("TRACK_COROUTINE_CFG_DUPLICATE_PC")
+    real_pcs={
+        pc for pc,(op,words) in by_pc.items()
+        if not (op==0 and ((words[0]>>8)&0xff) in (1,2,3))
+    }
+    successors={}
+    branches=[]
+    exits={0x0e,0x0f,0x10,0x11,0x27}
+    for pc in sorted(real_pcs):
+        op,words=by_pc[pc]
+        next_pc=pc+len(words)
+        fallthrough=[next_pc] if next_pc in real_pcs else []
+        targets=[]
+        if op==0x28:
+            targets=[pc+signed_branch_offset((words[0]>>8)&0xff,8)]
+        elif op==0x29:
+            targets=[pc+signed_branch_offset(words[1],16)]
+        elif op==0x2a:
+            raw=words[1]|(words[2]<<16)
+            targets=[pc+signed_branch_offset(raw,32)]
+        elif 0x32<=op<=0x3d:
+            targets=[pc+signed_branch_offset(words[1],16)]
+        elif op in (0x2b,0x2c):
+            raw=words[1]|(words[2]<<16)
+            payload_pc=pc+signed_branch_offset(raw,32)
+            payload=by_pc.get(payload_pc)
+            if payload is None or payload[0]!=0:
+                raise ValueError("TRACK_COROUTINE_CFG_SWITCH_PAYLOAD_MISSING")
+            payload_words=payload[1]
+            tag=(payload_words[0]>>8)&0xff
+            count=payload_words[1]
+            if tag==1:
+                target_start=4
+            elif tag==2:
+                target_start=2+2*count
+            else:
+                raise ValueError("TRACK_COROUTINE_CFG_SWITCH_PAYLOAD_TYPE")
+            for n in range(count):
+                at=target_start+2*n
+                raw_target=payload_words[at]|(payload_words[at+1]<<16)
+                targets.append(pc+signed_branch_offset(raw_target,32))
+        elif op in exits:
+            successors[pc]=[]
+            continue
+        all_targets=fallthrough+targets
+        if any(target not in real_pcs for target in all_targets):
+            raise ValueError("TRACK_COROUTINE_CFG_TARGET_INVALID")
+        successors[pc]=sorted(set(all_targets))
+        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            branches.append({
+                "pc":pc,"op":op,"target_pcs":sorted(set(targets)),
+                "fallthrough_pcs":fallthrough
+            })
+    entry=min(real_pcs)
+    reachable=set()
+    pending=[entry]
+    while pending:
+        pc=pending.pop()
+        if pc in reachable:
+            continue
+        reachable.add(pc)
+        pending.extend(successors.get(pc,()))
+        if len(reachable)>20000:
+            raise ValueError("TRACK_COROUTINE_CFG_REACHABLE_LIMIT")
+    return {
+        "instructions":ins,
+        "by_pc":by_pc,
+        "successors":successors,
+        "reachable":reachable,
+        "branches":branches,
+        "entry":entry
+    }
+
+
+def merge_coroutine_states(left, right):
+    """Keep only aliases that are identical on every incoming CFG path."""
+    merged={}
+    for reg in left["registers"].keys() & right["registers"].keys():
+        common=left["registers"][reg] & right["registers"][reg]
+        if common:
+            merged[reg]=frozenset(common)
+    pending=left["pending_return"] if left["pending_return"]==right["pending_return"] else None
+    return {"registers":merged,"pending_return":pending}
+
+
 def trace_native_track_coroutine_continuation(
     dex, initial_method, initial_flags, initial_code_off,
     resume_method, resume_flags, resume_code_off
 ):
-    """Separate original Track-parameter identity from Track re-read on continuation."""
+    """Branch-sensitive identity trace for the exact coroutine method."""
     continuation_owner="LFp0;"
     continuation_type="LOe2;"
     string_type="Ljava/lang/String;"
+    wrapper_ctor=(WRAPPER,"<init>","(Ljava/lang/String;)V")
+    coroutine_resume_call=(
+        "LGp0;","new",
+        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"
+    )
     track_regs=typed_parameter_registers(
         dex,initial_method,initial_flags,initial_code_off,MODEL
     )
-    cont_regs=typed_parameter_registers(
+    continuation_regs=typed_parameter_registers(
         dex,initial_method,initial_flags,initial_code_off,continuation_type
     )
-    if len(track_regs)!=1 or len(cont_regs)!=1:
+    owner_regs=typed_parameter_registers(
+        dex,initial_method,initial_flags,initial_code_off,initial_method[0]
+    )
+    if len(track_regs)!=1 or len(continuation_regs)!=1 or len(owner_regs)!=1:
         raise ValueError("TRACK_COROUTINE_PARAMETER_SHAPE")
-    ins=list(instructions(dex,initial_code_off))
-    if len(ins)>20000:
-        raise ValueError("TRACK_COROUTINE_INSTRUCTION_LIMIT")
+
+    cfg=build_dex_control_flow(dex,initial_code_off)
+    by_pc=cfg["by_pc"]
+    successors=cfg["successors"]
+    initial_registers={
+        next(iter(track_regs)):frozenset({"ORIGINAL_TRACK_PARAMETER"}),
+        next(iter(continuation_regs)):frozenset({"INPUT_CONTINUATION_PARAMETER"}),
+        next(iter(owner_regs)):frozenset({"CAPTURE_OWNER_PARAMETER"})
+    }
+    incoming={
+        cfg["entry"]:{
+            "registers":initial_registers,
+            "pending_return":None
+        }
+    }
+    work=[cfg["entry"]]
+    processed=0
     wide_ops=(
         {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
          0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
         |set(range(0x9b,0xa6))|set(range(0xab,0xb0))
         |set(range(0xbb,0xc6))|set(range(0xcb,0xd0))
     )
-    track_parameter_aliases=set(track_regs)
-    track_aliases=set(track_regs)
-    continuation_aliases=set(cont_regs)
-    continuation_instances=set()
-    continuation_track_aliases=set()
-    track_string_aliases=set()
-    parameter_track_string_aliases=set()
-    continuation_track_string_aliases=set()
-    wrapper_aliases=set()
-    parameter_track_wrapper_aliases=set()
-    continuation_track_wrapper_aliases=set()
-    capture_stores=[]
-    track_reads=[]
-    track_string_reads=[]
-    wrapper_ctors=[]
-    wrapper_handoffs=[]
-    suspend_handoffs=[]
-    branch_seen=False
-    track_parameter_register=next(iter(track_regs))
-    parameter_register_writes=[]
-    branch_sites=[]
 
-    def clear(reg):
-        for aliases in (
-            track_parameter_aliases,track_aliases,continuation_aliases,
-            continuation_instances,continuation_track_aliases,
-            track_string_aliases,parameter_track_string_aliases,
-            continuation_track_string_aliases,wrapper_aliases,
-            parameter_track_wrapper_aliases,continuation_track_wrapper_aliases
-        ):
-            aliases.discard(reg)
+    def transfer(state,op,words):
+        regs={r:set(v) for r,v in state["registers"].items()}
+        pending_return=state["pending_return"]
 
-    def signed16(value):
-        return value-0x10000 if value&0x8000 else value
-
-    for ordinal,(_pc,op,words) in enumerate(ins):
-        dest_for_write=written_register(op,words)
-        if dest_for_write==track_parameter_register or (
-            dest_for_write is not None and op in wide_ops
-            and dest_for_write+1==track_parameter_register
-        ):
-            parameter_register_writes.append({
-                "ordinal":ordinal,"op":op,
-                "wide_second_register":(
-                    dest_for_write+1==track_parameter_register
-                    if dest_for_write is not None and op in wide_ops else False
-                )
-            })
-        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
-            offset=None
-            if op==0x28:
-                raw=(words[0]>>8)&0xff
-                offset=raw-0x100 if raw&0x80 else raw
-            elif op in (0x29,0x2b,0x2c) or 0x32<=op<=0x3d:
-                offset=signed16(words[1]) if len(words)>1 else None
-            elif op==0x2a and len(words)>2:
-                raw=words[1]|(words[2]<<16)
-                offset=raw-0x100000000 if raw&0x80000000 else raw
-            branch_sites.append({
-                "ordinal":ordinal,"pc":_pc,"op":op,
-                "relative_target_offset":offset,
-                "target_pc":_pc+offset if offset is not None else None
-            })
+        def clear(reg):
+            regs.pop(reg,None)
 
         if op in INVOKES:
             callee=dex.method(words[1])
-            regs=invoke_registers(op,words)
-            params=parse_types(callee[2])
-            target_types=expand_invoke_register_types(
-                callee[0],params,op in (0x71,0x77)
+            args=invoke_registers(op,words)
+            if callee==wrapper_ctor and len(args)==2:
+                receiver,string_reg=args
+                string_origins=regs.get(string_reg,set())
+                wrapper_origins=set()
+                if "ORIGINAL_TRACK_PARAMETER_STRING" in string_origins:
+                    wrapper_origins.add("WRAPPER_FROM_ORIGINAL_TRACK_PARAMETER")
+                if "CONTINUATION_FIELD_TRACK_STRING" in string_origins:
+                    wrapper_origins.add("WRAPPER_FROM_CONTINUATION_FIELD_TRACK")
+                if "CAPTURE_OWNER_TRACK_FIELD_STRING" in string_origins:
+                    wrapper_origins.add("WRAPPER_FROM_CAPTURE_OWNER_TRACK_FIELD")
+                if wrapper_origins:
+                    regs.setdefault(receiver,set()).update(wrapper_origins)
+            result_type=callee[2].split(")",1)[1]
+            pending_return=(
+                result_type if result_type in (
+                    MODEL,WRAPPER,continuation_type,string_type
+                ) else None
             )
-            if callee==(continuation_owner,"<init>","(LGp0;LOe2;)V"):
-                if regs and regs[0] in continuation_instances:
-                    suspend_handoffs.append({
-                        "ordinal":ordinal,"new_continuation_constructor_receiver":True
-                    })
-            if callee==("LHp0;","const","(LOe2;)Ljava/lang/Object;"):
-                if regs and regs[-1] in continuation_instances:
-                    suspend_handoffs.append({
-                        "ordinal":ordinal,"same_continuation_passed_to_suspend_helper":True
-                    })
-            if callee==(WRAPPER,"<init>","(Ljava/lang/String;)V"):
-                if len(regs)==2 and regs[0] in wrapper_aliases:
-                    from_parameter=regs[1] in parameter_track_string_aliases
-                    from_continuation=regs[1] in continuation_track_string_aliases
-                    wrapper_ctors.append({
-                        "ordinal":ordinal,
-                        "wrapper_is_constructed_from_original_track_parameter":from_parameter,
-                        "wrapper_is_constructed_from_continuation_track_field":from_continuation
-                    })
-                    if from_parameter:
-                        parameter_track_wrapper_aliases.add(regs[0])
-                    if from_continuation:
-                        continuation_track_wrapper_aliases.add(regs[0])
-            if callee[0]=="Lou3;" and callee[1]=="new" and len(regs)==len(target_types):
-                wrapper_pos=[i for i,t in enumerate(target_types) if t==WRAPPER]
-                cont_pos=[i for i,t in enumerate(target_types) if t==continuation_owner]
-                wrapper_handoffs.append({
-                    "ordinal":ordinal,
-                    "wrapper_instance_passed":any(regs[i] in wrapper_aliases for i in wrapper_pos),
-                    "original_track_parameter_derived_wrapper_passed":any(
-                        regs[i] in parameter_track_wrapper_aliases for i in wrapper_pos
-                    ),
-                    "continuation_track_field_derived_wrapper_passed":any(
-                        regs[i] in continuation_track_wrapper_aliases for i in wrapper_pos
-                    ),
-                    "same_continuation_passed":any(
-                        regs[i] in continuation_aliases or regs[i] in continuation_instances
-                        for i in cont_pos
-                    ),
-                    "target":{"owner":callee[0],"method":callee[1],"signature":callee[2]}
-                })
-            continue
+            return {"registers":{r:frozenset(v) for r,v in regs.items() if v},
+                    "pending_return":pending_return}
 
+        if op==0x0c:  # move-result-object
+            dest=words[0]>>8
+            clear(dest)
+            if pending_return==MODEL:
+                regs[dest]={"UNLINKED_TRACK_RETURN"}
+            elif pending_return==WRAPPER:
+                regs[dest]={"UNLINKED_WRAPPER_RETURN"}
+            elif pending_return==continuation_type:
+                regs[dest]={"UNLINKED_CONTINUATION_RETURN"}
+            elif pending_return==string_type:
+                regs[dest]={"UNLINKED_STRING_RETURN"}
+            pending_return=None
+            return {"registers":{r:frozenset(v) for r,v in regs.items() if v},
+                    "pending_return":None}
+
+        pending_return=None
         if op==0x22:  # new-instance
             dest=(words[0]>>8)&0xff
+            clear(dest)
             typ=dex.descriptor(words[1])
-            clear(dest)
             if typ==continuation_owner:
-                continuation_instances.add(dest)
-                continuation_aliases.add(dest)
+                regs[dest]={"NEW_LFp0_CONTINUATION"}
             elif typ==WRAPPER:
-                wrapper_aliases.add(dest)
-            continue
-
-        if op==0x54:  # iget-object; never disclose field values
-            dest=(words[0]>>8)&15
-            receiver=(words[0]>>12)&15
-            owner,_name,typ=field_id(dex,words[1])
-            clear(dest)
-            if owner==continuation_owner and typ==MODEL and (
-                receiver in continuation_aliases or receiver in continuation_instances
-            ):
-                track_aliases.add(dest)
-                continuation_track_aliases.add(dest)
-                track_reads.append({
-                    "ordinal":ordinal,"field_slot":words[1],
-                    "value_register":dest,"receiver_register":receiver,
-                    "same_continuation_receiver":True
-                })
-            elif owner==MODEL and typ==string_type and receiver in track_aliases:
-                track_string_aliases.add(dest)
-                from_parameter=receiver in track_parameter_aliases
-                from_continuation=receiver in continuation_track_aliases
-                if from_parameter:
-                    parameter_track_string_aliases.add(dest)
-                if from_continuation:
-                    continuation_track_string_aliases.add(dest)
-                track_string_reads.append({
-                    "ordinal":ordinal,"field_slot":words[1],
-                    "value_register":dest,"receiver_register":receiver,
-                    "receiver_is_original_track_parameter":from_parameter,
-                    "receiver_is_continuation_track_field":from_continuation,
-                    "field_value_disclosed":False
-                })
-            continue
-
-        if op==0x5b:  # iput-object
-            value=(words[0]>>8)&15
-            receiver=(words[0]>>12)&15
-            owner,_name,typ=field_id(dex,words[1])
-            if owner==continuation_owner and typ==MODEL and receiver in continuation_instances:
-                capture_stores.append({
-                    "ordinal":ordinal,"field_slot":words[1],
-                    "value_register":value,"receiver_register":receiver,
-                    "same_original_track_parameter_stored":value in track_parameter_aliases,
-                    "same_continuation_field_track_stored":value in continuation_track_aliases,
-                    "same_new_LFp0_instance":True
-                })
-            continue
-
-        if op in (0x07,0x08,0x09):  # move-object preserves reference identity
+                regs[dest]={"NEW_TRACK_WRAPPER"}
+        elif op in (0x07,0x08,0x09):
             move=move_object_registers(op,words)
             if move:
                 dest,source=move
-                origins={
-                    "parameter":source in track_parameter_aliases,
-                    "track":source in track_aliases,
-                    "continuation":source in continuation_aliases,
-                    "instance":source in continuation_instances,
-                    "continuation_track":source in continuation_track_aliases,
-                    "string":source in track_string_aliases,
-                    "parameter_string":source in parameter_track_string_aliases,
-                    "continuation_string":source in continuation_track_string_aliases,
-                    "wrapper":source in wrapper_aliases,
-                    "parameter_wrapper":source in parameter_track_wrapper_aliases,
-                    "continuation_wrapper":source in continuation_track_wrapper_aliases
-                }
+                origins=set(regs.get(source,set()))
                 clear(dest)
-                if origins["parameter"]:
-                    track_parameter_aliases.add(dest); track_aliases.add(dest)
-                if origins["track"]: track_aliases.add(dest)
-                if origins["continuation"]: continuation_aliases.add(dest)
-                if origins["instance"]:
-                    continuation_instances.add(dest); continuation_aliases.add(dest)
-                if origins["continuation_track"]:
-                    continuation_track_aliases.add(dest); track_aliases.add(dest)
-                if origins["string"]: track_string_aliases.add(dest)
-                if origins["parameter_string"]:
-                    parameter_track_string_aliases.add(dest); track_string_aliases.add(dest)
-                if origins["continuation_string"]:
-                    continuation_track_string_aliases.add(dest); track_string_aliases.add(dest)
-                if origins["wrapper"]: wrapper_aliases.add(dest)
-                if origins["parameter_wrapper"]:
-                    parameter_track_wrapper_aliases.add(dest); wrapper_aliases.add(dest)
-                if origins["continuation_wrapper"]:
-                    continuation_track_wrapper_aliases.add(dest); wrapper_aliases.add(dest)
-            continue
+                if origins:
+                    regs[dest]=origins
+        elif op==0x1f:  # check-cast preserves the exact reference
+            reg=words[0]>>8
+            typ=dex.descriptor(words[1])
+            origins=regs.get(reg,set())
+            if typ==continuation_owner and "INPUT_CONTINUATION_PARAMETER" in origins:
+                regs.setdefault(reg,set()).add("REUSED_LFp0_CONTINUATION")
+        elif op==0x54:  # iget-object; never read the field value
+            dest=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            field_owner,_field_name,field_type=field_id(dex,words[1])
+            receiver_origins=regs.get(receiver,set())
+            clear(dest)
+            if field_type==MODEL:
+                if field_owner==continuation_owner and (
+                    "NEW_LFp0_CONTINUATION" in receiver_origins
+                    or "REUSED_LFp0_CONTINUATION" in receiver_origins
+                ):
+                    regs[dest]={"CONTINUATION_FIELD_TRACK"}
+                elif "CAPTURE_OWNER_PARAMETER" in receiver_origins:
+                    regs[dest]={"CAPTURE_OWNER_TRACK_FIELD"}
+                elif "ORIGINAL_TRACK_PARAMETER" in receiver_origins:
+                    regs[dest]={"TRACK_MEMBER_FIELD_VALUE"}
+                elif "CONTINUATION_FIELD_TRACK" in receiver_origins:
+                    regs[dest]={"CONTINUATION_TRACK_MEMBER_FIELD_VALUE"}
+                elif "UNLINKED_TRACK_RETURN" in receiver_origins:
+                    regs[dest]={"UNLINKED_TRACK_MEMBER_FIELD_VALUE"}
+            elif field_type==string_type:
+                if "ORIGINAL_TRACK_PARAMETER" in receiver_origins:
+                    regs[dest]={"ORIGINAL_TRACK_PARAMETER_STRING"}
+                elif "CONTINUATION_FIELD_TRACK" in receiver_origins:
+                    regs[dest]={"CONTINUATION_FIELD_TRACK_STRING"}
+                elif "CAPTURE_OWNER_TRACK_FIELD" in receiver_origins:
+                    regs[dest]={"CAPTURE_OWNER_TRACK_FIELD_STRING"}
+        elif op==0x5b:  # iput-object; no mutation to register identity
+            pass
+        else:
+            dest=written_register(op,words)
+            if dest is not None:
+                clear(dest)
+                if op in wide_ops:
+                    clear(dest+1)
+        return {"registers":{r:frozenset(v) for r,v in regs.items() if v},
+                "pending_return":pending_return}
 
-        if op==0x1f:  # check-cast preserves continuation object identity
-            dest=(words[0]>>8)&0xff
-            if dest in continuation_aliases:
-                continuation_instances.add(dest)
-            continue
+    # Monotone must-alias dataflow. At a join, a register survives only if
+    # every reachable predecessor carries the same exact origin category.
+    while work:
+        pc=work.pop()
+        processed+=1
+        if processed>200000:
+            raise ValueError("TRACK_COROUTINE_CFG_DATAFLOW_LIMIT")
+        op,words=by_pc[pc]
+        out=transfer(incoming[pc],op,words)
+        for target in successors.get(pc,()):
+            old=incoming.get(target)
+            if old is None:
+                incoming[target]=out
+                work.append(target)
+            else:
+                merged=merge_coroutine_states(old,out)
+                if merged!=old:
+                    incoming[target]=merged
+                    work.append(target)
+
+    stores=[]
+    reads=[]
+    string_reads=[]
+    wrapper_ctors=[]
+    wrapper_handoffs=[]
+    parameter_writes=[]
+    reachable_branches=[
+        row for row in cfg["branches"]
+        if row["pc"] in cfg["reachable"]
+    ]
+    for pc in sorted(cfg["reachable"]):
+        op,words=by_pc[pc]
+        state=incoming[pc]["registers"]
+        if op==0x5b:
+            value=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            field_owner,_field_name,field_type=field_id(dex,words[1])
+            receiver_origins=state.get(receiver,frozenset())
+            value_origins=state.get(value,frozenset())
+            if field_owner==continuation_owner and field_type==MODEL and (
+                "NEW_LFp0_CONTINUATION" in receiver_origins
+                or "REUSED_LFp0_CONTINUATION" in receiver_origins
+            ):
+                stores.append({
+                    "pc":pc,"field_slot":words[1],
+                    "source_origins":sorted(value_origins),
+                    "receiver_origins":sorted(receiver_origins),
+                    "same_original_track_parameter":(
+                        "ORIGINAL_TRACK_PARAMETER" in value_origins
+                    ),
+                    "same_continuation_field_track":(
+                        "CONTINUATION_FIELD_TRACK" in value_origins
+                    ),
+                    "same_capture_owner_track_field":(
+                        "CAPTURE_OWNER_TRACK_FIELD" in value_origins
+                    ),
+                    "source_is_unlinked_track_return":(
+                        "UNLINKED_TRACK_RETURN" in value_origins
+                    )
+                })
+        elif op==0x54:
+            dest=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            field_owner,_field_name,field_type=field_id(dex,words[1])
+            receiver_origins=state.get(receiver,frozenset())
+            if field_owner==continuation_owner and field_type==MODEL and (
+                "NEW_LFp0_CONTINUATION" in receiver_origins
+                or "REUSED_LFp0_CONTINUATION" in receiver_origins
+            ):
+                reads.append({
+                    "pc":pc,"field_slot":words[1],
+                    "value_register":dest,
+                    "receiver_origins":sorted(receiver_origins)
+                })
+            elif field_type==string_type:
+                string_origin=(
+                    "ORIGINAL_TRACK_PARAMETER_STRING"
+                    if "ORIGINAL_TRACK_PARAMETER" in receiver_origins else
+                    "CONTINUATION_FIELD_TRACK_STRING"
+                    if "CONTINUATION_FIELD_TRACK" in receiver_origins else
+                    "CAPTURE_OWNER_TRACK_FIELD_STRING"
+                    if "CAPTURE_OWNER_TRACK_FIELD" in receiver_origins else None
+                )
+                if string_origin:
+                    string_reads.append({
+                        "pc":pc,"field_slot":words[1],
+                        "receiver_origins":sorted(receiver_origins),
+                        "string_origin":string_origin,
+                        "field_value_disclosed":False
+                    })
+        elif op in INVOKES:
+            callee=dex.method(words[1])
+            args=invoke_registers(op,words)
+            if callee==wrapper_ctor and len(args)==2:
+                wrapper_ctors.append({
+                    "pc":pc,
+                    "wrapper_receiver_origins":sorted(state.get(args[0],frozenset())),
+                    "string_argument_origins":sorted(state.get(args[1],frozenset()))
+                })
+            if callee[0]=="Lou3;" and callee[1]=="new":
+                params=parse_types(callee[2])
+                target_types=expand_invoke_register_types(
+                    callee[0],params,op in (0x71,0x77)
+                )
+                origins=[
+                    state.get(reg,frozenset())
+                    for reg in args
+                ]
+                wrapper_handoffs.append({
+                    "pc":pc,
+                    "target":{"owner":callee[0],"method":callee[1],"signature":callee[2]},
+                    "wrapper_argument_origins":sorted(
+                        set().union(*(origins[i] for i,t in enumerate(target_types) if t==WRAPPER))
+                    ),
+                    "continuation_argument_origins":sorted(
+                        set().union(*(origins[i] for i,t in enumerate(target_types) if t==continuation_owner))
+                    ),
+                    "original_track_parameter_derived_wrapper_passed":any(
+                        "WRAPPER_FROM_ORIGINAL_TRACK_PARAMETER" in origins[i]
+                        for i,t in enumerate(target_types) if t==WRAPPER
+                    ),
+                    "continuation_field_derived_wrapper_passed":any(
+                        "WRAPPER_FROM_CONTINUATION_FIELD_TRACK" in origins[i]
+                        for i,t in enumerate(target_types) if t==WRAPPER
+                    ),
+                    "capture_owner_field_derived_wrapper_passed":any(
+                        "WRAPPER_FROM_CAPTURE_OWNER_TRACK_FIELD" in origins[i]
+                        for i,t in enumerate(target_types) if t==WRAPPER
+                    ),
+                    "same_continuation_passed":any(
+                        "NEW_LFp0_CONTINUATION" in origins[i]
+                        or "REUSED_LFp0_CONTINUATION" in origins[i]
+                        for i,t in enumerate(target_types) if t==continuation_owner
+                    )
+                })
 
         dest=written_register(op,words)
-        if dest is not None:
-            clear(dest)
-            if op in wide_ops:
-                clear(dest+1)
-        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
-            branch_seen=True
+        if dest is not None and dest in track_regs:
+            parameter_writes.append({
+                "pc":pc,"op":op,
+                "wide_second_register":op in wide_ops and dest+1 in track_regs
+            })
 
+    matching_reads=[
+        read for read in reads
+        if any(store["field_slot"]==read["field_slot"] for store in stores)
+    ]
     resume_this=None if resume_flags&ACC_STATIC else (
         dex.u16(resume_code_off)-dex.u16(resume_code_off+2)
     )
     resume_calls=[]
     for ordinal,(_pc,op,words) in enumerate(instructions(dex,resume_code_off)):
-        if op not in INVOKES or dex.method(words[1])!=(
-            "LGp0;","new",
-            "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"
-        ):
+        if op not in INVOKES or dex.method(words[1])!=coroutine_resume_call:
             continue
         regs=invoke_registers(op,words)
         resume_calls.append({
             "ordinal":ordinal,"this_register":resume_this,
             "continuation_argument_register":regs[2] if len(regs)==3 else None,
-            "invokeSuspend_this_passed_as_continuation":len(regs)==3 and regs[2]==resume_this
+            "invokeSuspend_this_passed_as_continuation":(
+                len(regs)==3 and regs[2]==resume_this
+            )
         })
 
-    matching_reads=[r for r in track_reads if any(
-        store["field_slot"]==r["field_slot"] for store in capture_stores
-    )]
-    parameter_capture=any(
-        store["same_original_track_parameter_stored"] for store in capture_stores
-    )
-    continuation_self_write=any(
-        store["same_continuation_field_track_stored"] for store in capture_stores
-    )
-    parameter_wrapper=any(
-        row["wrapper_is_constructed_from_original_track_parameter"]
-        for row in wrapper_ctors
-    ) and any(
-        row["original_track_parameter_derived_wrapper_passed"]
-        for row in wrapper_handoffs
-    )
+    direct_capture=any(x["same_original_track_parameter"] for x in stores)
+    continuation_self_write=any(x["same_continuation_field_track"] for x in stores)
+    owner_field_capture=any(x["same_capture_owner_track_field"] for x in stores)
+    original_wrapper=any(
+        "WRAPPER_FROM_ORIGINAL_TRACK_PARAMETER" in x["wrapper_receiver_origins"]
+        for x in wrapper_ctors
+    ) and any(x["original_track_parameter_derived_wrapper_passed"] for x in wrapper_handoffs)
     continuation_wrapper=any(
-        row["wrapper_is_constructed_from_continuation_track_field"]
-        for row in wrapper_ctors
-    ) and any(
-        row["continuation_track_field_derived_wrapper_passed"]
-        for row in wrapper_handoffs
-    )
+        "CONTINUATION_FIELD_TRACK_STRING" in x["string_argument_origins"]
+        for x in wrapper_ctors
+    ) and any(x["continuation_field_derived_wrapper_passed"] for x in wrapper_handoffs)
+    owner_wrapper=any(
+        "CAPTURE_OWNER_TRACK_FIELD_STRING" in x["string_argument_origins"]
+        for x in wrapper_ctors
+    ) and any(x["capture_owner_field_derived_wrapper_passed"] for x in wrapper_handoffs)
+
     return {
         "initial_method":{"owner":initial_method[0],"method":initial_method[1],"signature":initial_method[2]},
         "resume_method":{"owner":resume_method[0],"method":resume_method[1],"signature":resume_method[2]},
         "track_parameter_registers":sorted(track_regs),
-        "track_parameter_register_write_sites":parameter_register_writes,
-        "branch_sites":branch_sites,
-        "track_parameter_capture_store_candidates":capture_stores,
-        "continuation_track_field_reads":track_reads,
+        "track_parameter_register_write_sites":parameter_writes,
+        "control_flow_graph_built":True,
+        "reachable_instruction_count":len(cfg["reachable"]),
+        "dataflow_instruction_visits":processed,
+        "branch_sites":reachable_branches,
+        "track_parameter_capture_store_candidates":stores,
+        "continuation_track_field_reads":reads,
         "same_field_slot_store_to_resume_read_candidates":matching_reads,
-        "track_string_field_read_sites":track_string_reads,
+        "track_string_field_read_sites":string_reads,
         "opaque_wrapper_constructor_sites":wrapper_ctors,
         "wrapper_continuation_handoff_sites":wrapper_handoffs,
-        "continuation_suspend_helper_handoffs":suspend_handoffs,
         "resume_continuation_call_sites":resume_calls,
-        "original_track_parameter_to_continuation_field_candidate":bool(
-            parameter_capture and matching_reads and any(
-                x["invokeSuspend_this_passed_as_continuation"] for x in resume_calls
-            )
-        ),
-        "continuation_field_self_write_candidate":bool(continuation_self_write and matching_reads),
-        "original_track_parameter_to_opaque_wrapper_candidate":parameter_wrapper,
+        "original_track_parameter_to_continuation_field_candidate":direct_capture,
+        "continuation_field_self_write_candidate":continuation_self_write and bool(matching_reads),
+        "capture_owner_track_field_to_continuation_candidate":owner_field_capture,
+        "original_track_parameter_to_opaque_wrapper_candidate":original_wrapper,
         "continuation_field_track_to_opaque_wrapper_candidate":continuation_wrapper,
-        "branches_seen":branch_seen,
-        "control_flow_feasibility_proven":False,
+        "capture_owner_track_field_to_opaque_wrapper_candidate":owner_wrapper,
+        "branches_seen":bool(reachable_branches),
+        "branch_path_predicates_evaluated":False,
         "coroutine_runtime_resume_dispatch_proven":False,
         "private_field_names_or_values_disclosed":False,
         "track_field_values_or_media_read":False
