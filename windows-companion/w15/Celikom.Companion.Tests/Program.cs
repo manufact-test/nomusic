@@ -1880,14 +1880,25 @@ try
         bridge.SetEnabled(true);
         Test(bridge.NativeNetworkRecoveryPending,
             "W152 network recovery marker survives bridge re-enable until native heartbeat");
+        bridge.SetNativeNetworkRecoveryPending(true); // A second VPN route supersedes the first.
+        using (var staleRouteBeat = await SendW141Heartbeat(new {
+            trackId = "123", status = "NATIVE_CONNECTED",
+            title = "Ты", artist = "13 карат", durationMs = 190000,
+            source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-route-resume-1", sequence = 1
+        }))
+            Test(staleRouteBeat.IsSuccessStatusCode && bridge.NativeNetworkRecoveryPending,
+                "W152 an older heartbeat cannot release a newer VPN route hold");
+        bridge.SetEnabled(false);
+        bridge.SetEnabled(true);
         using (var resumed = await SendW141Heartbeat(new {
             trackId = "123", status = "NATIVE_CONNECTED",
             title = "Ты", artist = "13 карат", durationMs = 190000,
             source = "UNKNOWN", playbackState = "PLAYING",
-            instanceId = "w23-route-resume", sequence = 1
+            instanceId = "w23-route-resume-2", sequence = 1
         }))
             Test(resumed.IsSuccessStatusCode && !bridge.NativeNetworkRecoveryPending,
-                "W152 first fresh heartbeat releases the held VPN recovery marker");
+                "W152 first fresh heartbeat after the latest route releases the hold");
         bridge.SetEnabled(false);
         using (var response = await Request("/v1/resolve?track_id=123", HttpMethod.Get, token: token))
             Test((await response.Content.ReadAsStringAsync()).Contains("\"found\":false"),

@@ -132,7 +132,8 @@ public sealed class BridgeServer : IAsyncDisposable
         lock (_gate)
         {
             _nativeNetworkRecoveryPending = pending;
-            if (!pending) _nativeNetworkRecoveryAwaitingHeartbeat = false;
+            // A newer route signal invalidates any earlier re-enable handshake.
+            _nativeNetworkRecoveryAwaitingHeartbeat = false;
         }
     }
 
