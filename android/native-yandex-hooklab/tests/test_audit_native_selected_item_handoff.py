@@ -922,7 +922,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                 FakeDex(),initial,0x8,100,resume,0,200
             )
         self.assertFalse(result["same_field_slot_store_to_resume_read_candidates"])
-        self.assertFalse(result["track_capture_to_resume_same_field_candidate"])
+        self.assertFalse(result["original_track_parameter_to_continuation_field_candidate"])
 
     def test_renderer_field_census_marks_same_field_only_as_candidate(self):
         from unittest.mock import patch
