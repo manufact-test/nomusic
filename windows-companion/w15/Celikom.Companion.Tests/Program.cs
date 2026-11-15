@@ -2199,6 +2199,9 @@ try
         bridge.SetEnabled(false);
         Test(!bridge.PlayerUnavailable,
              "W157 explicit stop clears unavailable state even if the bridge is already disabled");
+        bridge.SetEnabled(true);
+        Test(bridge.Enabled,
+             "W157 lifecycle test restores the active bridge for following integration checks");
 
         foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
         {
