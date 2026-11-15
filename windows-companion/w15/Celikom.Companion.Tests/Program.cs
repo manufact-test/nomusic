@@ -1037,6 +1037,18 @@ try
     Test(UserFacingPlaybackHealth.Track("NATIVE_RECOVERING", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 normal transient source recovery is not a customer warning");
+    Test(BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-5),
+             DateTimeOffset.UtcNow) &&
+         !BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-20),
+             DateTimeOffset.UtcNow),
+         "W141 expired native heartbeats cannot keep previous track alive");
+    Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
+             "approved", "ACTIVE_REPLACEMENT", "PLAYING").Level ==
+         UserFacingPlaybackHealth.Severity.Good &&
+         UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
+             "approved", "UNKNOWN", "PLAYING").Level ==
+         UserFacingPlaybackHealth.Severity.Neutral,
+         "W141 only native decoder proof may activate green replacement status");
     Test(UserFacingPlaybackHealth.Track("RESOLVING", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 normal resolving status is not a customer warning");
@@ -1620,6 +1632,51 @@ try
         var token = pairJson.RootElement.GetProperty("bridgeToken").GetString();
         Test(SessionStore.IsHexToken(token), "isolated bridge token issued");
         bridge.SetEnabled(true);
+        async Task<HttpResponseMessage> SendW141Heartbeat(object beat)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "/v1/heartbeat");
+            req.Headers.TryAddWithoutValidation("Origin", "musicapplication://desktop");
+            req.Headers.TryAddWithoutValidation("X-Celikom-Bridge-Token", token);
+            req.Headers.TryAddWithoutValidation("X-Celikom-Native-Host", "1");
+            req.Content = JsonContent.Create(beat);
+            return await http.SendAsync(req);
+        }
+        using (var beat1 = await SendW141Heartbeat(new {
+            trackId = "123", status = "NATIVE_SOURCE_VERIFIED",
+            title = "Ты", artist = "13 карат", durationMs = 190000,
+            source = "ACTIVE_REPLACEMENT", playbackState = "PLAYING",
+            instanceId = "w23-current-1", sequence = 1
+        }))
+            Test(beat1.IsSuccessStatusCode && bridge.HasFreshHeartbeat &&
+                 bridge.LastSong == "123" &&
+                 bridge.LastSource == "ACTIVE_REPLACEMENT" &&
+                 bridge.LastPlaybackState == "PLAYING",
+                 "W141 current signed decoder track and state reach the GUI bridge");
+        using (var outOfOrder = await SendW141Heartbeat(new {
+            trackId = "999", status = "ORIGINAL",
+            title = "Зима", artist = "CENTR", durationMs = 180000,
+            source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-current-1", sequence = 1
+        }))
+            Test(outOfOrder.IsSuccessStatusCode &&
+                 bridge.LastSong == "123" && bridge.LastSource == "ACTIVE_REPLACEMENT",
+                 "W141 late previous-track heartbeat cannot overwrite current track");
+        using (var next = await SendW141Heartbeat(new {
+            trackId = "456", status = "NATIVE_CONNECTED",
+            title = "Вечно молодой", artist = "Смысловые Галлюцинации",
+            durationMs = 210000, source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-current-1", sequence = 2
+        }))
+            Test(next.IsSuccessStatusCode && bridge.LastSong == "456" &&
+                 bridge.LastSource == "UNKNOWN" &&
+                 bridge.LastPlaybackState == "PLAYING",
+                 "W141 next track replaces previous metadata without source invention");
+        using (var lateLegacy = await SendW141Heartbeat(new {
+            trackId = "999", status = "ORIGINAL",
+            title = "Зима", artist = "CENTR", durationMs = 180000
+        }))
+            Test(lateLegacy.IsSuccessStatusCode && bridge.LastSong == "456",
+                 "W141 legacy messages cannot overwrite sequenced host state");
         foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
         {
             using (var nativePreflight = new HttpRequestMessage(HttpMethod.Options, "/v1/state"))
@@ -1667,6 +1724,9 @@ try
                 "audio grant never exposes API credentials");
         }
         bridge.SetEnabled(false);
+        Test(!bridge.HasFreshHeartbeat && bridge.LastSong == "" &&
+             bridge.LastSource == "UNKNOWN" && bridge.LastPlaybackState == "UNKNOWN",
+             "W141 Stop immediately invalidates previous current-player evidence");
         using (var response = await Request("/v1/resolve?track_id=123", HttpMethod.Get, token: token))
             Test((await response.Content.ReadAsStringAsync()).Contains("\"found\":false"),
                 "stop disables future source replacement");
