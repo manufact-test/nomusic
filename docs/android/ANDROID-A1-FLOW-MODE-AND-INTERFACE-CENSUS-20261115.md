@@ -1,3 +1,13 @@
+# SUPERSEDING RESULT — LaC7 / LCK1 bounded caller audit, CI #144
+
+- The broad LaC7 interface census produced many unrelated callers; it is now explicitly superseded and must not be repeated.
+- The only relevant callsites in the selected LCK1 path are \`LCK1$c$a.emit\` and \`LCK1$h$a.emit\`, each calling \`LaC7.if(): Track\`.
+- For both exact callsites, receiver identity remains unresolved across the branch boundary. No exact receiver-field read matched a constructor store from a LaC7 parameter.
+- \`LzA9.if()LaC7;\` is a common return-origin at 26 unrelated callsites, but no code-bearing definition was found under that exact signature. It is not evidence that the returned implementation is \`LyEa\`.
+- Next: inspect only the two exact LCK1 emit methods, their exact constructors/field refs, and \`LzA9.if\` only if those constructors directly reach it.
+
+CI #144 SUCCESS, 97/97. Code checkpoint \`592ed5c2aa162bfb7e7ef659fbe6d0146703d461\`; backup \`backup/android-a1-lya-exact-field-lck1-receiver-ci-green-20261115\`. No runtime hooks or playback behavior changed.
+
 # SUPERSEDING RESULT — LaC7 owner resolution, 15 Nov 2026
 
 **Repository:** `manufact-test/nomusic`  

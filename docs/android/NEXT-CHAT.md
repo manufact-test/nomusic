@@ -1,3 +1,43 @@
+# SUPERSEDING CHECKPOINT — CI #144, LyEa exact field and LCK1 receiver audit
+
+**Repository:** \`manufact-test/nomusic\`  
+**Only working branch:** \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`  
+**Code checkpoint:** \`592ed5c2aa162bfb7e7ef659fbe6d0146703d461\`  
+**CI #144:** SUCCESS, 97/97 tests — run \`43750484557\`. Exact issuer-signed 2025 original, six DEX, read-only.  
+**Exact green backup:** \`backup/android-a1-lya-exact-field-lck1-receiver-ci-green-20261115\` @ \`592ed5c2aa162bfb7e7ef659fbe6d0146703d461\`.  
+**Runtime hooks:** unchanged. No APK built, patched, installed, or released.
+
+## Proven in this pass
+
+- \`LyEa.if(): Track\` reads exactly one Track-typed instance field from \`this\` and returns that same object.
+- Exactly one signed-DEX write to that same field was found. It is in \`LyEa.<init>(Track, ...)\`.
+- The constructor signature accepts a Track parameter, but the identity tracer did **not** prove that the exact Track parameter is the value written to the field. Its exact field-store event had no Track identity origin. Do not infer parameter-to-field identity from the signature alone.
+- Exactly two relevant \`LaC7.if(): Track\` callsites are in \`LCK1$c$a.emit\` and \`LCK1$h$a.emit\`.
+- In both, the receiver origin is still unresolved. The exact field-read/constructor-parameter link was not established.
+- \`LzA9.if()LaC7;\` appears as a common interface-object origin at 26 other callsites, but no code-bearing method definition was found under that exact signature in the signed DEX. It is not proven to return \`LyEa\`.
+- The earlier broad scan found many unrelated \`LaC7.if\` callsites. Do not repeat that census.
+
+## Gates — still closed
+
+\`active_selected_item_proven=false\`  
+\`same_native_item_to_decoder_proven=false\`  
+\`runtime_dispatch_to_lya_proven=false\`
+
+Stage B is not complete. The audit is structural only; it does not prove that the Track is the currently selected playing item or that it reaches the native decoder/audio sink.
+
+## Next bounded pass — only these exact points
+
+1. Inspect the source register of the single \`LyEa.<init>\` write to its Track field. Prove whether it is the constructor's Track parameter or another origin. Do not read/export field values.
+2. Trace the receiver used by the two exact LCK1 \`LaC7.if()\` callsites across their local branch boundary. Limit the scan to \`LCK1$c$a.emit\`, \`LCK1$h$a.emit\`, their exact constructors, and the exact field refs they use. Track only object identity and type; include the concrete LaC7 implementer types where needed.
+3. Inspect \`LzA9.if()LaC7;\` declaration/implementation only if one of those exact LCK1 constructor paths reaches it. Do not inspect its 26 unrelated callers.
+4. If this does not produce one bounded identity chain from the actual selected Track to the LCK1 receiver, close this candidate and return to the existing native audio-sink caller audit (\`LcLb.O\` / \`Lbd6.O\`). No further broad interface or class census.
+
+## Unchanged safety and scope
+
+Keep NAV17 auth, original Yandex, account, playback, and data untouched. Do not change Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend/API/DB, or production. No generic runtime hooks, no second player/decoder/AudioTrack, no private field values, Track/Album names or IDs, URLs, DataSpec, tokens, account data, or audio bytes. Do not suppress vendor exceptions or alter vendor method behavior. Do not request owner action unless a specific necessary read-only measurement is first identified.
+
+---
+
 # SUPERSEDING RESULT — LaC7 owner resolution, 15 Nov 2026
 
 **Repository:** `manufact-test/nomusic`  

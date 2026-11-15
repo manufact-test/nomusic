@@ -1,3 +1,13 @@
+# SUPERSEDING RESULT — LyEa Track field identity, CI #144
+
+- \`LyEa.if(): Track\` reads one exact Track-typed instance field from \`this\` and returns that same object.
+- Exactly one write to that field was found, in \`LyEa.<init>(Track, ...)\`.
+- The constructor does accept a Track parameter, but the audit did not prove that the exact parameter is the value stored. The identity-store event was empty. This must be resolved from the exact source register; do not infer from the constructor signature.
+- No active-selected-item identity or decoder/audio-sink identity is established.
+- Next: inspect only the source register at this single field write. If the Track parameter is not proven, close this LyEa route and return to the existing audio-sink caller audit.
+
+CI #144 SUCCESS, 97/97. Code checkpoint \`592ed5c2aa162bfb7e7ef659fbe6d0146703d461\`; backup \`backup/android-a1-lya-exact-field-lck1-receiver-ci-green-20261115\`. Read-only; runtime hooks unchanged.
+
 # SUPERSEDING RESULT — LaC7 owner resolution, 15 Nov 2026
 
 **Repository:** `manufact-test/nomusic`  
