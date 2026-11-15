@@ -188,15 +188,17 @@ function choosePlaybackView() {
       .sort((a,b)=>b.at-a.at);
     if (ranked[0].at > 0 && ranked[0].at-ranked[1].at >= 350)
       choice = ranked[0].view;
-  } else if (selectedPlaybackView && eligible.includes(selectedPlaybackView)) {
-    choice = selectedPlaybackView;
   } else if (eligible.length === 1) choice = eligible[0];
   else if (eligible.length > 1) {
+    // A newly started silent/paused session outranks an old retained view.
+    // This resolves My Wave / Next switching before audio-state-changed fires.
     const recent = eligible.map(view => ({view,at:activity(view).startedAt}))
       .filter(x=>x.at>0 && Date.now()-x.at<15000)
       .sort((a,b)=>b.at-a.at);
     if (recent.length && (recent.length === 1 || recent[0].at-recent[1].at>=500))
       choice = recent[0].view;
+    else if (selectedPlaybackView && eligible.includes(selectedPlaybackView))
+      choice = selectedPlaybackView;
   }
   if (selectedPlaybackView !== choice) {
     selectedPlaybackView = choice;
