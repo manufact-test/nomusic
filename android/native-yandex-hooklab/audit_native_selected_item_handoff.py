@@ -2543,6 +2543,34 @@ def trace_native_track_coroutine_continuation(
     if len(track_regs)!=1 or len(continuation_regs)!=1 or len(owner_regs)!=1:
         raise ValueError("TRACK_COROUTINE_PARAMETER_SHAPE")
 
+    resume_ins=list(instructions(dex,resume_code_off))
+    resume_null_track_callsite=False
+    resume_call_witnesses=[]
+    for resume_index,(_resume_pc,resume_op,resume_words) in enumerate(resume_ins):
+        if resume_op not in INVOKES or dex.method(resume_words[1])!=(
+            "LGp0;","new",
+            "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"
+        ):
+            continue
+        resume_args=invoke_registers(resume_op,resume_words)
+        track_arg_register=resume_args[1] if len(resume_args)==3 else None
+        explicit_null=(
+            track_arg_register is not None and resume_index>0
+            and const4_zero_to_register(
+                resume_ins[resume_index-1][1],
+                resume_ins[resume_index-1][2],
+                track_arg_register
+            )
+        )
+        resume_call_witnesses.append({
+            "ordinal":resume_index,
+            "track_argument_register":track_arg_register,
+            "track_argument_is_explicit_null":explicit_null
+        })
+    resume_null_track_callsite=bool(resume_call_witnesses) and all(
+        row["track_argument_is_explicit_null"] for row in resume_call_witnesses
+    )
+
     cfg=build_dex_control_flow(dex,initial_code_off)
     by_pc=cfg["by_pc"]
     successors=cfg["successors"]
@@ -2643,6 +2671,12 @@ def trace_native_track_coroutine_continuation(
             origins=regs.get(reg,set())
             if typ==continuation_owner and "INPUT_CONTINUATION_PARAMETER" in origins:
                 regs.setdefault(reg,set()).add("REUSED_LFp0_CONTINUATION")
+                if resume_null_track_callsite:
+                    for track_register in track_regs:
+                        track_origins=regs.get(track_register,set())
+                        if "ORIGINAL_TRACK_PARAMETER" in track_origins:
+                            track_origins.discard("ORIGINAL_TRACK_PARAMETER")
+                            track_origins.add("NULL_TRACK_ARGUMENT_ON_EXACT_Fp0_RESUME")
         elif op==0x54:  # iget-object; never read the field value
             dest=(words[0]>>8)&15
             receiver=(words[0]>>12)&15
@@ -2901,13 +2935,20 @@ def trace_native_track_coroutine_continuation(
         dex.u16(resume_code_off)-dex.u16(resume_code_off+2)
     )
     resume_calls=[]
-    for ordinal,(_pc,op,words) in enumerate(instructions(dex,resume_code_off)):
+    for ordinal,(_pc,op,words) in enumerate(resume_ins):
         if op not in INVOKES or dex.method(words[1])!=coroutine_resume_call:
             continue
         regs=invoke_registers(op,words)
+        null_witness=next(
+            (row for row in resume_call_witnesses if row["ordinal"]==ordinal),None
+        )
         resume_calls.append({
             "ordinal":ordinal,"this_register":resume_this,
             "continuation_argument_register":regs[2] if len(regs)==3 else None,
+            "track_argument_register":regs[1] if len(regs)==3 else None,
+            "track_argument_is_explicit_null":bool(
+                null_witness and null_witness["track_argument_is_explicit_null"]
+            ),
             "invokeSuspend_this_passed_as_continuation":(
                 len(regs)==3 and regs[2]==resume_this
             )
@@ -2917,7 +2958,7 @@ def trace_native_track_coroutine_continuation(
     continuation_self_write=any(x["same_continuation_field_track"] for x in stores)
     owner_field_capture=any(x["same_capture_owner_track_field"] for x in stores)
     original_wrapper=any(
-        "WRAPPER_FROM_ORIGINAL_TRACK_PARAMETER" in x["wrapper_receiver_origins"]
+        "ORIGINAL_TRACK_PARAMETER_STRING" in x["string_argument_origins"]
         for x in wrapper_ctors
     ) and any(x["original_track_parameter_derived_wrapper_passed"] for x in wrapper_handoffs)
     continuation_wrapper_slots={
@@ -2957,6 +2998,7 @@ def trace_native_track_coroutine_continuation(
         "opaque_wrapper_constructor_sites":wrapper_ctors,
         "wrapper_continuation_handoff_sites":wrapper_handoffs,
         "resume_continuation_call_sites":resume_calls,
+        "resume_track_argument_explicit_null":resume_null_track_callsite,
         "original_track_parameter_to_continuation_field_candidate":direct_capture,
         "all_observed_store_paths_same_original_track_parameter":(
             bool(stores) and all(x["same_original_track_parameter"] for x in stores)

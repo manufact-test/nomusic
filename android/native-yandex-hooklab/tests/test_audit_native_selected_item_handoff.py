@@ -867,7 +867,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             (13,0x70,[0x0070,6,0]),
             (16,0x71,[0x0071,7,0])
         ]
-        resume_ins=[(0,0x71,[0x0071,8,0])]
+        resume_ins=[(0,0x12,[0x0012]),(1,0x71,[0x0071,8,0])]
         fields={
             3:("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;"),
             4:("Lru/yandex/music/data/audio/o;","hiddenString","Ljava/lang/String;")
@@ -886,6 +886,8 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(result["same_field_slot_store_to_resume_read_candidates"])
         self.assertTrue(result["resume_continuation_call_sites"][0]["invokeSuspend_this_passed_as_continuation"])
         self.assertTrue(result["continuation_field_track_to_opaque_wrapper_candidate"])
+        self.assertTrue(result["resume_track_argument_explicit_null"])
+        self.assertTrue(result["resume_continuation_call_sites"][0]["track_argument_is_explicit_null"])
         self.assertTrue(result["control_flow_graph_built"])
         self.assertTrue(result["wrapper_continuation_handoff_sites"][0]["wrapper_instance_passed"])
         self.assertFalse(result["coroutine_runtime_resume_dispatch_proven"])
