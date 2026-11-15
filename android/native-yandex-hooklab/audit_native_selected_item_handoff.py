@@ -799,10 +799,11 @@ def select_candidate_identity_focus_refs(census):
 
 def trace_identity_method(
     dex, method, flags, code_off, candidate_owners=None,
-    capture_unproven_calls=False
+    capture_unproven_calls=False, focus_targets=None
 ):
-    """Trace only typed Track/Album/wrapper object aliases in one exact method."""
+    """Trace only typed Track/Album/wrapper aliases and exact focus callsites."""
     candidate_owners = candidate_owners or set()
+    focus_targets = set(focus_targets or ())
     tracked_types = {
         MODEL: "TRACK",
         ALBUM_MODEL: "ALBUM",
@@ -862,7 +863,9 @@ def trace_identity_method(
                                 "origins": sorted(origins),
                             })
             role = None
-            if (callee[0], callee[1]) == DESCRIPTOR_BUILDER:
+            if callee in focus_targets:
+                role = "AUDIO_OUTPUT_METHOD_DISPATCH"
+            elif (callee[0], callee[1]) == DESCRIPTOR_BUILDER:
                 role = "NATIVE_SOURCE_DESCRIPTOR"
             elif (callee[0], callee[1]) in SOURCE_METHODS:
                 role = "NATIVE_SOURCE_OR_DOWNLOAD_METHOD"
@@ -1894,6 +1897,342 @@ def inspect_audio_buffer_sink_caller_traces(apks, dispatch_report, class_profile
             owner_profiles[key] for key in sorted(owner_profiles)
         ],
         "runtime_dispatch_or_current_item_inferred": False,
+        "media_values_or_audio_read": False,
+    }
+
+
+def audio_output_dispatch_contracts(focus_methods, class_profiles):
+    """Build exact direct/interface/superclass method references for sink methods.
+
+    This is a bounded static dispatch census. It does not infer the runtime
+    receiver or claim that any caller is the active playback path.
+    """
+    focus_methods = sorted(set(focus_methods))
+    if len(focus_methods) > 16:
+        raise ValueError("AUDIO_OUTPUT_DISPATCH_FOCUS_LIMIT")
+    contracts = {}
+    owner_profiles = []
+
+    def add_contract(target, kind, implementation):
+        row = contracts.setdefault(target, {
+            "contract_kinds": set(),
+            "possible_implementations": set(),
+        })
+        row["contract_kinds"].add(kind)
+        row["possible_implementations"].add(implementation)
+
+    for implementation in focus_methods:
+        owner, name, signature = implementation
+        pending = [owner]
+        visited = set()
+        interface_owners = set()
+        superclass_owners = set()
+        while pending:
+            current = pending.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            if len(visited) > 128:
+                raise ValueError("AUDIO_OUTPUT_DISPATCH_HIERARCHY_LIMIT")
+            profile = class_profiles.get(current)
+            if not profile:
+                continue
+            for interface in profile.get("interfaces", ()):
+                if interface not in interface_owners:
+                    interface_owners.add(interface)
+                    pending.append(interface)
+            superclass = profile.get("superclass")
+            if superclass and superclass != "Ljava/lang/Object;":
+                if superclass not in superclass_owners:
+                    superclass_owners.add(superclass)
+                    pending.append(superclass)
+
+        add_contract(
+            implementation, "DIRECT_CLASS_METHOD_REFERENCE", implementation
+        )
+        for interface in interface_owners:
+            add_contract(
+                (interface, name, signature),
+                "INTERFACE_METHOD_CONTRACT",
+                implementation,
+            )
+        for superclass in superclass_owners:
+            add_contract(
+                (superclass, name, signature),
+                "SUPERCLASS_VIRTUAL_CANDIDATE",
+                implementation,
+            )
+
+        profile = class_profiles.get(owner, {})
+        shape = classify_track_owner_profile(profile)
+        all_types = set(profile.get("instance_types", ())) | set(
+            profile.get("static_types", ())
+        )
+        relevant_types = sorted(
+            typ for typ in all_types
+            if any(marker in typ.lower() for marker in (
+                "track", "album", "wrapper", "media", "source", "data",
+                "audio", "codec", "buffer", "uri", "player", "flow",
+                "collection", "list", "queue"
+            ))
+        )
+        owner_profiles.append({
+            "owner": owner,
+            "profile_present": bool(profile),
+            "superclass": profile.get("superclass"),
+            "interfaces": sorted(profile.get("interfaces", ())),
+            "relevant_field_types": relevant_types,
+            "has_track_field": shape["has_track_field"],
+            "has_album_field": shape["has_album_field"],
+            "has_wrapper_field": shape["has_wrapper_field"],
+            "has_audio_track_field": shape["has_audio_track_field"],
+            "has_media_codec_field": shape["has_media_codec_field"],
+            "has_decoder_field": shape["has_decoder_field"],
+            "has_source_like_field": shape["has_source_like_field"],
+            "has_kotlin_flow_field": shape["has_kotlin_flow_field"],
+            "has_collection_field": shape["has_collection_field"],
+            "has_playback_state_field": shape["has_playback_state_field"],
+            "has_player_api_field": shape["has_player_api_field"],
+            "implements_player_api": shape["implements_player_api"],
+        })
+    if len(contracts) > 128:
+        raise ValueError("AUDIO_OUTPUT_DISPATCH_CONTRACT_LIMIT")
+    return contracts, owner_profiles
+
+
+def invoke_kind_name(op):
+    if op in (0x71, 0x77):
+        return "STATIC"
+    if op in (0x6f, 0x75):
+        return "SUPER"
+    if op in (0x70, 0x76):
+        return "DIRECT"
+    if op in (0x72, 0x78):
+        return "INTERFACE"
+    if op in (0x6e, 0x74):
+        return "VIRTUAL"
+    return "OTHER_INVOKE"
+
+
+def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
+    focus_methods = [
+        (row["owner"], row["method"], row["signature"])
+        for row in sink_report.get("focus_methods", [])
+    ]
+    contracts, owner_profiles = audio_output_dispatch_contracts(
+        focus_methods, class_profiles
+    )
+    target_refs = set(contracts)
+    callsites = []
+    caller_definitions = {}
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("AUDIO_OUTPUT_DISPATCH_DEX_LIMIT")
+                dex = Dex(archive.read(entry.filename))
+                for caller, flags, code_off in method_definitions_with_flags(dex):
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        target = dex.method(words[1])
+                        contract = contracts.get(target)
+                        if not contract:
+                            continue
+                        kinds = contract["contract_kinds"]
+                        eligible = []
+                        if "DIRECT_CLASS_METHOD_REFERENCE" in kinds:
+                            eligible.append("DIRECT_CLASS_METHOD_REFERENCE")
+                        if (
+                            "INTERFACE_METHOD_CONTRACT" in kinds
+                            and op in (0x72, 0x78)
+                        ):
+                            eligible.append("INTERFACE_METHOD_CONTRACT")
+                        if (
+                            "SUPERCLASS_VIRTUAL_CANDIDATE" in kinds
+                            and op in (0x6e, 0x74)
+                        ):
+                            eligible.append("SUPERCLASS_VIRTUAL_CANDIDATE")
+                        if not eligible:
+                            continue
+                        if len(callsites) >= 512:
+                            raise ValueError("AUDIO_OUTPUT_DISPATCH_CALLSITE_LIMIT")
+                        regs = invoke_registers(op, words)
+                        params = parse_types(target[2])
+                        is_static = op in (0x71, 0x77)
+                        register_types = expand_invoke_register_types(
+                            target[0], params, is_static
+                        )
+                        caller_shape = classify_track_owner_profile(
+                            class_profiles.get(caller[0], {})
+                        )
+                        caller_signature = method_signature_type_profile(caller)
+                        if (
+                            caller_signature["accepts_track"]
+                            or caller_signature["accepts_album"]
+                            or caller_signature["accepts_track_wrapper"]
+                            or caller_shape["has_track_field"]
+                            or caller_shape["has_album_field"]
+                            or caller_shape["has_wrapper_field"]
+                        ):
+                            caller_role = "TRACK_IDENTITY_BEARING_METHOD_CANDIDATE"
+                        elif "download2" in caller[0].lower() or "download2" in caller[2].lower():
+                            caller_role = "DOWNLOAD_PACKAGE_METHOD_CANDIDATE"
+                        elif (
+                            caller_shape["has_decoder_field"]
+                            or caller_shape["has_media_codec_field"]
+                            or caller_shape["has_audio_track_field"]
+                        ):
+                            caller_role = "DECODER_OR_AUDIO_RENDERER_METHOD_CANDIDATE"
+                        elif (
+                            caller_shape["has_player_api_field"]
+                            or caller_shape["implements_player_api"]
+                        ):
+                            caller_role = "PLAYER_API_METHOD_CANDIDATE"
+                        else:
+                            caller_role = "UNCLASSIFIED_METHOD"
+                        all_types = set(
+                            class_profiles.get(caller[0], {}).get("instance_types", ())
+                        ) | set(
+                            class_profiles.get(caller[0], {}).get("static_types", ())
+                        )
+                        relevant_types = sorted(
+                            typ for typ in all_types
+                            if any(marker in typ.lower() for marker in (
+                                "track", "album", "wrapper", "media", "source",
+                                "data", "audio", "codec", "buffer", "uri",
+                                "player", "flow", "collection", "list", "queue"
+                            ))
+                        )
+                        callsites.append({
+                            "caller": {
+                                "owner": caller[0],
+                                "method": caller[1],
+                                "signature": caller[2],
+                            },
+                            "target_reference": {
+                                "owner": target[0],
+                                "method": target[1],
+                                "signature": target[2],
+                            },
+                            "contract_match_kinds": sorted(eligible),
+                            "possible_sink_implementations": [
+                                {"owner": row[0], "method": row[1], "signature": row[2]}
+                                for row in sorted(contract["possible_implementations"])
+                            ],
+                            "ordinal": ordinal,
+                            "invoke_kind": invoke_kind_name(op),
+                            "argument_registers": regs,
+                            "argument_register_types": register_types,
+                            "caller_signature_types": caller_signature,
+                            "caller_role_candidate": caller_role,
+                            "caller_owner_profile": {
+                                "superclass": class_profiles.get(caller[0], {}).get("superclass"),
+                                "interfaces": sorted(
+                                    class_profiles.get(caller[0], {}).get("interfaces", ())
+                                ),
+                                "relevant_field_types": relevant_types,
+                                "has_track_field": caller_shape["has_track_field"],
+                                "has_album_field": caller_shape["has_album_field"],
+                                "has_wrapper_field": caller_shape["has_wrapper_field"],
+                                "has_audio_track_field": caller_shape["has_audio_track_field"],
+                                "has_media_codec_field": caller_shape["has_media_codec_field"],
+                                "has_decoder_field": caller_shape["has_decoder_field"],
+                                "has_source_like_field": caller_shape["has_source_like_field"],
+                                "has_kotlin_flow_field": caller_shape["has_kotlin_flow_field"],
+                                "has_collection_field": caller_shape["has_collection_field"],
+                                "has_playback_state_field": caller_shape["has_playback_state_field"],
+                                "has_player_api_field": caller_shape["has_player_api_field"],
+                                "implements_player_api": caller_shape["implements_player_api"],
+                            },
+                        })
+                        caller_definitions[caller] = (dex, flags, code_off)
+                        if len(caller_definitions) > 256:
+                            raise ValueError("AUDIO_OUTPUT_DISPATCH_CALLER_METHOD_LIMIT")
+
+    traces = {}
+    for caller, (dex, flags, code_off) in caller_definitions.items():
+        traces[caller] = trace_identity_method(
+            dex, caller, flags, code_off,
+            candidate_owners=set(),
+            focus_targets=target_refs,
+        )
+
+    identity_flow_count = 0
+    for row in callsites:
+        caller = (
+            row["caller"]["owner"],
+            row["caller"]["method"],
+            row["caller"]["signature"],
+        )
+        trace = traces[caller]
+        call_event = next((
+            event for event in trace["events"]
+            if event.get("ordinal") == row["ordinal"]
+            and event.get("role") == "AUDIO_OUTPUT_METHOD_DISPATCH"
+        ), None)
+        identity_arguments = (
+            call_event.get("identity_arguments", []) if call_event else []
+        )
+        if identity_arguments:
+            identity_flow_count += 1
+        prior_identity_events = [
+            {
+                "kind": event["kind"],
+                "ordinal": event["ordinal"],
+                "identity_type": event.get("identity_type"),
+                "origins": event.get("origins"),
+                "receiver_is_this": event.get("receiver_is_this"),
+            }
+            for event in trace["events"]
+            if event.get("ordinal", -1) < row["ordinal"]
+            and event.get("kind") in (
+                "FIELD_READ_TYPED_IDENTITY",
+                "MOVE_RESULT_TYPED_IDENTITY",
+                "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                "STATIC_FIELD_STORE_TYPED_IDENTITY",
+                "RETURN_TYPED_IDENTITY",
+            )
+        ]
+        row["track_album_wrapper_identity_passed_to_audio_sink"] = bool(
+            identity_arguments
+        )
+        row["identity_arguments_to_audio_sink"] = identity_arguments
+        row["typed_identity_events_before_call"] = prior_identity_events
+        row["branch_aliases_cleared_in_caller"] = trace[
+            "branch_seen_aliases_cleared"
+        ]
+
+    return {
+        "focus_methods": [
+            {"owner": row[0], "method": row[1], "signature": row[2]}
+            for row in focus_methods
+        ],
+        "focus_owner_profiles": owner_profiles,
+        "dispatch_contract_target_count": len(contracts),
+        "dispatch_contract_targets": [
+            {
+                "owner": target[0],
+                "method": target[1],
+                "signature": target[2],
+                "contract_kinds": sorted(contract["contract_kinds"]),
+                "possible_sink_implementations": [
+                    {"owner": row[0], "method": row[1], "signature": row[2]}
+                    for row in sorted(contract["possible_implementations"])
+                ],
+            }
+            for target, contract in sorted(contracts.items())
+        ],
+        "callsite_count": len(callsites),
+        "distinct_caller_method_count": len(caller_definitions),
+        "identity_flow_to_audio_sink_callsite_count": identity_flow_count,
+        "callsites": callsites,
+        "runtime_receiver_dispatch_proven": False,
+        "active_selected_item_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "field_names_or_values_disclosed": False,
         "media_values_or_audio_read": False,
     }
 
@@ -2959,6 +3298,9 @@ def inspect_signed(apks):
     audio_buffer_sink_caller_traces = inspect_audio_buffer_sink_caller_traces(
         apks, decoder_owner_dispatch_contracts, class_profiles
     )
+    audio_output_dispatch_census = inspect_audio_output_dispatch_callers(
+        apks, audio_buffer_sink_caller_traces, class_profiles
+    )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -3164,6 +3506,7 @@ def inspect_signed(apks):
             inspect_boundary_caller_inbound_methods(apks, boundary_callsite_rows, class_profiles),
         "decoder_owner_dispatch_contracts": decoder_owner_dispatch_contracts,
         "audio_buffer_sink_caller_traces": audio_buffer_sink_caller_traces,
+        "audio_output_dispatch_census": audio_output_dispatch_census,
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,

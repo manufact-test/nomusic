@@ -10,7 +10,8 @@ from audit_native_selected_item_handoff import (
     trace_identity_method, select_next_identity_method_refs,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
     select_exact_interface_contracts, select_audio_output_focus_methods,
-    trace_byte_buffer_parameter, expand_invoke_register_types
+    trace_byte_buffer_parameter, expand_invoke_register_types,
+    audio_output_dispatch_contracts
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -394,6 +395,54 @@ class SelectedItemAuditTests(unittest.TestCase):
             ("Laudio/Output;","write","(J)V"),
         ])
 
+    def test_audio_output_dispatch_contracts_follow_exact_interface_and_superclass_shapes(self):
+        focus=("LImpl;","write","(Ljava/nio/ByteBuffer;JI)Z")
+        profiles={
+            "LImpl;":{
+                "static_types":set(),"instance_types":{"Ljava/nio/ByteBuffer;"},
+                "interfaces":{"LApi;"},"superclass":"LBase;"
+            },
+            "LApi;":{
+                "static_types":set(),"instance_types":set(),
+                "interfaces":{"LParentApi;"},"superclass":"Ljava/lang/Object;"
+            },
+            "LParentApi;":{
+                "static_types":set(),"instance_types":set(),
+                "interfaces":set(),"superclass":"Ljava/lang/Object;"
+            },
+            "LBase;":{
+                "static_types":set(),"instance_types":set(),
+                "interfaces":set(),"superclass":"Ljava/lang/Object;"
+            }
+        }
+        contracts, owners=audio_output_dispatch_contracts([focus],profiles)
+        self.assertIn(focus,contracts)
+        self.assertIn(("LApi;","write",focus[2]),contracts)
+        self.assertIn(("LParentApi;","write",focus[2]),contracts)
+        self.assertIn(("LBase;","write",focus[2]),contracts)
+        self.assertEqual(
+            contracts[("LApi;","write",focus[2])]["contract_kinds"],
+            {"INTERFACE_METHOD_CONTRACT"}
+        )
+        self.assertEqual(
+            contracts[("LBase;","write",focus[2])]["contract_kinds"],
+            {"SUPERCLASS_VIRTUAL_CANDIDATE"}
+        )
+        self.assertNotIn(("LApi;","write","(Ljava/nio/ByteBuffer;)Z"),contracts)
+        self.assertEqual(owners[0]["owner"],"LImpl;")
+        self.assertFalse(owners[0]["has_track_field"])
+
+    def test_audio_output_dispatch_contracts_fail_closed_on_large_hierarchy(self):
+        profiles={"LImpl;":{
+            "static_types":set(),"instance_types":set(),
+            "interfaces":{f"LApi{i};" for i in range(130)},
+            "superclass":None
+        }}
+        with self.assertRaises(ValueError):
+            audio_output_dispatch_contracts(
+                [("LImpl;","write","()V")],profiles
+            )
+
     def test_method_signature_type_profile_is_type_only(self):
         from audit_native_selected_item_handoff import method_signature_type_profile
         profile=method_signature_type_profile((
@@ -637,6 +686,28 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(len(calls),1)
         self.assertTrue(calls[0]["target_accepts_track_parameter"])
         self.assertFalse(calls[0]["identity_proven"])
+
+    def test_identity_method_trace_marks_exact_audio_output_dispatch_with_track_identity(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:3,102:1}[offset]
+            def method(self, index):
+                return ("LApi;","write",f"({MODEL})V")
+        method=("LCaller;","render",f"({MODEL})V")
+        target=("LApi;","write",f"({MODEL})V")
+        ins=[(0,0x72,[0x0072,0])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,2]):
+            trace=trace_identity_method(
+                FakeDex(),method,0x8,100,focus_targets={target}
+            )
+        calls=[row for row in trace["events"]
+               if row["kind"]=="CALL_WITH_TYPED_IDENTITY"]
+        self.assertEqual(len(calls),1)
+        self.assertEqual(calls[0]["role"],"AUDIO_OUTPUT_METHOD_DISPATCH")
+        self.assertEqual(calls[0]["identity_arguments"][0]["identity_type"],"TRACK")
+        self.assertEqual(calls[0]["identity_arguments"][0]["argument_position"],1)
 
     def test_identity_method_trace_clears_aliases_at_branch(self):
         from unittest.mock import patch
