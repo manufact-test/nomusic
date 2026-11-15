@@ -620,11 +620,12 @@ public static class StableUpdateRollbackJournal
                   !ValidSha(record.TargetSupervisorSha256))) ||
                 !Version.TryParse(record.PreviousVersion, out var previous) ||
                 !Version.TryParse(record.TargetVersion, out var target) ||
-                previous >= target || record.PreviousSequence >= record.TargetSequence ||
+                previous >= target || record.PreviousSequence < 0 ||
+                record.TargetSequence <= 0 ||
+                record.PreviousSequence >= record.TargetSequence ||
                 record.RollbackAttempts is < 0 or > 1 ||
                 record.PreviousSize is < 10_000 or > 125_000_000 ||
-                record.TargetSize != 0 &&
-                    (record.TargetSize is < 10_000 or > 125_000_000) ||
+                record.TargetSize is < 10_000 or > 125_000_000 ||
                 record.DeadlineUnix <= 0 ||
                 !Enum.IsDefined(record.State) ||
                 record.State == Phase.Seeded &&
