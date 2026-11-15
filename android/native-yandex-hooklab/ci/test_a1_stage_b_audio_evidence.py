@@ -292,6 +292,13 @@ public final class StageBAudioEvidenceTest {
         readGate.onExoSourceInstanceOpenAttempt(gs);
         readGate.onExoSourceInstanceOpen(gs);
         readGate.onExoSourceInstanceRead(gs,9);
+        // Even a later, overlapping failed retry revokes the earlier success.
+        readGate.onExoSourceInstanceOpenFailure(gs);
+        readGate.onExoSourceInstanceRead(gs,7);
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        readGate.onExoSourceInstanceOpenAttempt(gs);
+        readGate.onExoSourceInstanceOpen(gs);
+        readGate.onExoSourceInstanceRead(gs,7);
         // A genuinely different source instance counts as a second one.
         Object gd3=new Object(),gf3=new Object(),gs3=new Object();
         readGate.enterNativeMainSourceRequest(gw,null);
@@ -413,6 +420,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceClose(", code)
+        self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenFailure(", code)
         self.assertIn('source.getDeclaredMethod("close")', code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceRead(", code)
         self.assertIn("STAGE_B_AUDIO.onExoOpen()", code)

@@ -502,6 +502,14 @@ final class StageBAudioEvidence {
         }
     }
 
+    void onExoSourceInstanceOpenFailure(Object source) {
+        // A late or overlapping failed open must revoke previous success.
+        synchronized(this) {
+            NativeTrackSourceLink link=findBySource(source);
+            if (link!=null) link.sourceOpened=false;
+        }
+    }
+
     void onExoSourceInstanceClose(Object source) {
         // Fail closed before the unmodified vendor close(), even if it throws.
         synchronized(this) {

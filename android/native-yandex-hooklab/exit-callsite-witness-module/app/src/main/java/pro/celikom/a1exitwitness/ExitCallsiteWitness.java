@@ -2882,8 +2882,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 catch (Throwable ignored) { }
                                 return result;
                             } catch (Throwable failure) {
-                                try { STAGE_B_AUDIO.onExoFailure(); }
-                                catch (Throwable ignored) { }
+                                try {
+                                    STAGE_B_AUDIO.onExoSourceInstanceOpenFailure(
+                                        chain.getThisObject());
+                                    STAGE_B_AUDIO.onExoFailure();
+                                } catch (Throwable ignored) { }
                                 throw failure; // real original failure, no suppression
                             }
                         });
