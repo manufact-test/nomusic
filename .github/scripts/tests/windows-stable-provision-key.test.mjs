@@ -13,6 +13,8 @@ test("W155 key provisioning requires a protected main-only environment", () => {
   assert.match(provision, /W155_ENVIRONMENT_MUST_ALLOW_ONLY_MAIN/);
   assert.match(provision, /CELIKOM_STABLE_DEPLOY_ROOT/);
   assert.match(provision, /W155_NODE_24_REQUIRED/);
+  assert.equal((provision.match(/W155_REPOSITORY_OR_ENVIRONMENT_INVALID/g) ?? []).length, 1);
+  assert.equal((provision.match(/W155_POWERSHELL_7_REQUIRED/g) ?? []).length, 1);
   assert.match(provision, /Assert-NoReparseAncestors \$repoRoot/);
   assert.match(provision, /Assert-NoReparseAncestors \$keyRoot/);
 });
