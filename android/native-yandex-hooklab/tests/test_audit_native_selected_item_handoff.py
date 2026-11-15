@@ -31,6 +31,20 @@ from audit_native_selected_item_handoff import (
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
+    def test_selected_track_path_focus_stays_on_exact_low6_recipients(self):
+        from audit_native_selected_item_handoff import SELECTED_TRACK_PATH_METHODS
+        self.assertEqual(SELECTED_TRACK_PATH_METHODS, {
+            ("LSW6;", "if", "(Lru/yandex/music/data/audio/o;Z)LvU6;"),
+            ("LOW6;", "<init>",
+             "(LSV6;Lru/yandex/music/data/audio/o;ZLkotlinx/coroutines/CoroutineScope;"
+             "Landroid/content/Context;LGK1$a;LNW6$a;)V"),
+            ("LTv9;", "if",
+             "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
+             "Lru/yandex/music/data/audio/o;Z)LJK1;"),
+            ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
+            ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+        })
+
     def test_method_descriptor_parser_handles_objects_arrays_and_wide_values(self):
         self.assertEqual(parse_types("(ILjava/lang/String;[B[[JDLru/yandex/music/data/audio/o;)V"),
             ["I", "Ljava/lang/String;", "[B", "[[J", "D", MODEL])
