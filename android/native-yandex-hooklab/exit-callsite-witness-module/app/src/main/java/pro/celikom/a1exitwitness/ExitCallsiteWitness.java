@@ -189,6 +189,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoDataCloseWitnessReady;
     private boolean nativeTrackAlbumHookAttempted;
     private boolean nativeTrackAlbumHookReady;
+    private boolean nativeTrackAlbumCopyHookAttempted;
+    private boolean nativeTrackAlbumCopyHookReady;
     private boolean nativeTrackFlowHookReady;
     private boolean nativeTrackRequestHookReady;
     private boolean nativeTrackContinuationHookReady;
@@ -2662,6 +2664,31 @@ public final class ExitCallsiteWitness extends XposedModule {
                 emit("AUDIO_NATIVE_TRACK_ALBUM_HOOK","TRACK_ALBUM","REGISTERED");
             } catch (Throwable ignored) {
                 emit("AUDIO_NATIVE_TRACK_ALBUM_HOOK","TRACK_ALBUM","NO_HOOK");
+            }
+        }
+        if (!nativeTrackAlbumCopyHookAttempted) {
+            nativeTrackAlbumCopyHookAttempted=true;
+            try {
+                Class<?> track=Class.forName("ru.yandex.music.data.audio.o",false,loader);
+                Class<?> album=Class.forName("ru.yandex.music.data.audio.Album",false,loader);
+                Class<?> format=Class.forName("fCa",false,loader);
+                Method copy=track.getDeclaredMethod("new",track,long.class,album,
+                    java.util.List.class,format,int.class);
+                copy.setAccessible(true);
+                hook(copy).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed(); // exact original copy path once
+                        try {
+                            if (result!=null && track.isInstance(result))
+                                STAGE_B_AUDIO.onNativeTrackAlbumConstructed(
+                                    result,chain.getArg(2));
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                nativeTrackAlbumCopyHookReady=true;
+                emit("AUDIO_NATIVE_TRACK_ALBUM_COPY_HOOK","TRACK_ALBUM_COPY","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_TRACK_ALBUM_COPY_HOOK","TRACK_ALBUM_COPY","NO_HOOK");
             }
         }
         if (!nativeTrackFlowHookReady) {

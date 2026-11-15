@@ -212,6 +212,19 @@ def model_parameter_registers(dex: Dex, method, flags: int, code_off: int):
     return found
 
 
+def is_native_track_album_copy_method(method) -> bool:
+    """Exact signed Track copy shape: Track + Album inputs, Track result."""
+    if method[0] != MODEL or method[1] != "new":
+        return False
+    params = parse_types(method[2])
+    result = method[2].split(")",1)[1]
+    return (
+        result == MODEL
+        and params.count(MODEL) == 1
+        and params.count(ALBUM_MODEL) == 1
+    )
+
+
 def album_constructor_argument_store(dex: Dex, method, flags: int, code_off: int):
     """Summarize Track-constructor Album-argument usage without exposing symbols."""
     if method[0] != MODEL or method[1] != "<init>" or flags & ACC_STATIC:
@@ -920,6 +933,26 @@ def inspect_signed(apks):
         ],
         "native_track_model_accessor_field_reads": model_accessor_field_reads[:MAX_METHODS],
         "native_album_model": ALBUM_MODEL if album_defined else None,
+        "native_track_album_copy_method_static": {
+            "copy_methods_with_track_and_album_inputs_and_track_result": sum(
+                is_native_track_album_copy_method(method) for method in model_methods),
+            "copy_methods_reading_track_album_field": sum(
+                is_native_track_album_copy_method(method)
+                and any(row["signature"] == method[2]
+                        and row["field_type"] == ALBUM_MODEL
+                        for row in model_accessor_field_reads)
+                for method in model_methods),
+            "proven": (
+                sum(is_native_track_album_copy_method(method)
+                    for method in model_methods) == 1
+                and sum(is_native_track_album_copy_method(method)
+                        and any(row["signature"] == method[2]
+                                and row["field_type"] == ALBUM_MODEL
+                                for row in model_accessor_field_reads)
+                        for method in model_methods) == 1
+            ),
+            "private_method_and_field_names_disclosed": False,
+        },
         "native_track_album_reference_static": {
             "track_album_typed_field_count": sum(
                 typ == ALBUM_MODEL for typ in model_fields.values()),

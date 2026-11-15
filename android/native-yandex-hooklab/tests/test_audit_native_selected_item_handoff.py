@@ -64,6 +64,15 @@ class SelectedItemAuditTests(unittest.TestCase):
             result=album_constructor_argument_store(FakeDex(),method,0,100)
         self.assertFalse(result["stores_same_album_argument_on_track"])
 
+    def test_track_album_copy_method_requires_exact_track_and_album_inputs(self):
+        from audit_native_selected_item_handoff import is_native_track_album_copy_method, ALBUM_MODEL
+        good=(MODEL,"new",f"({MODEL}J{ALBUM_MODEL}Ljava/util/List;LfCa;I){MODEL}")
+        bad=(MODEL,"new",f"({MODEL}JLjava/lang/String;Ljava/util/List;LfCa;I){MODEL}")
+        wrong_return=(MODEL,"new",f"({MODEL}J{ALBUM_MODEL}Ljava/util/List;LfCa;I)V")
+        self.assertTrue(is_native_track_album_copy_method(good))
+        self.assertFalse(is_native_track_album_copy_method(bad))
+        self.assertFalse(is_native_track_album_copy_method(wrong_return))
+
     def test_exact_zero_const4_does_not_confuse_nonzero_or_other_register(self):
         from audit_native_selected_item_handoff import const4_zero_to_register
         self.assertTrue(const4_zero_to_register(0x12, [0x0012], 0))
