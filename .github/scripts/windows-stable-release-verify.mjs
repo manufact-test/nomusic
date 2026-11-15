@@ -1,5 +1,5 @@
 import {createHash,createPublicKey,verify} from "node:crypto";
-import {readFile,stat} from "node:fs/promises";
+import {readFile,lstat} from "node:fs/promises";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
@@ -28,25 +28,43 @@ export async function verifyPreparedStableRelease(directory,{origin,version,
   }catch{bad("KEY_INVALID");}
   const app="CELIKOM-Windows-"+version+".exe";
   const root=resolve(directory),versionRoot=join(root,version);
-  const [latest,latestSig,immutable,immutableSig,packageBytes,info]=await Promise.all([
+  const [latest,latestSig,immutable,immutableSig,packageBytes,info,
+    publicKeyBytes,publicKeyInfo]=await Promise.all([
     readFile(join(root,"latest.json")),readFile(join(root,"latest.json.sig")),
     readFile(join(versionRoot,"manifest.json")),readFile(join(versionRoot,"manifest.json.sig")),
-    readFile(join(versionRoot,app)),stat(join(versionRoot,app))
+    readFile(join(versionRoot,app)),lstat(join(versionRoot,app)),
+    readFile(join(root,"manifest-public-key.der")),lstat(join(root,"manifest-public-key.der"))
   ]);
   if(latest.length>16384||immutable.length>16384||
      latestSig.length<64||latestSig.length>80||
      immutableSig.length<64||immutableSig.length>80||
-     info.size<10000||info.size>125000000)bad("BOUNDS_INVALID");
+     !info.isFile()||info.isSymbolicLink()||
+     info.size<10000||info.size>125000000||
+     !publicKeyInfo.isFile()||publicKeyInfo.isSymbolicLink()||
+     !publicKeyBytes.equals(Buffer.from(pinnedPublicKeyDerBase64,"base64")))
+    bad("BOUNDS_OR_PUBLIC_KEY_FILE_INVALID");
   if(!latest.equals(immutable))bad("MANIFEST_PAIR_MISMATCH");
   if(!verify("sha256",latest,{key:publicKey,dsaEncoding:"der"},latestSig)||
      !verify("sha256",immutable,{key:publicKey,dsaEncoding:"der"},immutableSig))
     bad("SIGNATURE_INVALID");
   let data;
   try{data=JSON.parse(latest.toString("utf8"));}catch{bad("JSON_INVALID");}
+  const published=typeof data.publishedAt==="string"&&data.publishedAt.endsWith("Z")
+    ? Date.parse(data.publishedAt) : NaN;
+  const expires=typeof data.expiresAt==="string"&&data.expiresAt.endsWith("Z")
+    ? Date.parse(data.expiresAt) : NaN;
+  const now=Date.now();
+  if(!Number.isFinite(published)||!Number.isFinite(expires)||
+     new Date(published).toISOString()!==data.publishedAt||
+     new Date(expires).toISOString()!==data.expiresAt||
+     published>now+5*60_000||expires<=now||expires<=published||
+     expires>published+30*86_400_000)bad("MANIFEST_LIFETIME_INVALID");
   if(data.schema!==2||data.channel!=="stable"||data.publisher!=="CELIKOM"||
      data.version!==version||data.sequence!==sequence||
      data.packageUrl!==url.origin+"/CELIKOM/Windows/Updates/stable/"+version+"/"+app||
      data.packageSize!==info.size||data.sha256!==sha(packageBytes)||
+     data.minimumVersion!==null||typeof data.mandatory!=="boolean"||
+     typeof data.notes!=="string"||data.notes.length>240||
      ![data.applicationSha256,data.nativeHostSha256,data.rendererSha256,
        data.supervisorSha256].every(x=>typeof x==="string"&&hex64.test(x))||
      data.rollback!==null)bad("MANIFEST_POLICY_INVALID");

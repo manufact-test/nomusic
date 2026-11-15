@@ -15,7 +15,7 @@ origin="$CELIKOM_STABLE_ORIGIN"; root="$CELIKOM_STABLE_DEPLOY_ROOT"
 node .github/scripts/windows-stable-release-verify.mjs "$release_dir" "$version" "$sequence"
 exe="CELIKOM-Windows-$version.exe"
 tmp="$(mktemp -d)"
-remote_root="/home/u235811320/.celikom-stable-stage-$GITHUB_RUN_ID"
+remote_root="$root/CELIKOM/Windows/Updates/stable/.incoming-$GITHUB_RUN_ID"
 target='u235811320@92.113.19.189'
 stage_created=0
 ssh_remote() {
@@ -46,7 +46,7 @@ cp "$release_dir/$version/manifest.json.sig" "$tmp/manifest.json.sig"
 cp "$release_dir/latest.json" "$tmp/latest.json"
 cp "$release_dir/latest.json.sig" "$tmp/latest.json.sig"
 (cd "$tmp"; sha256sum "$exe" manifest.json manifest.json.sig latest.json latest.json.sig > SHA256SUMS.txt)
-ssh_remote "set -eu; test -d '$root'; test ! -L '$root'; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'"
+ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; for d in \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; done; mkdir -p \"\$dest\"; for d in \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
 stage_created=1
 for file in "$exe" manifest.json manifest.json.sig latest.json latest.json.sig SHA256SUMS.txt; do
   scp -P 65002 -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
@@ -57,6 +57,7 @@ ssh_remote "bash -s -- '$root' '$remote_root' '$version' '$sequence' '$exe'" <<'
 set -euo pipefail
 root="$1"; stage="$2"; version="$3"; seq="$4"; exe="$5"
 dest="$root/CELIKOM/Windows/Updates/stable"
+[[ -d "$stage" && ! -L "$stage" ]] || { echo W155_RELEASE_STAGE_UNSAFE; exit 3; }
 (cd "$stage"; sha256sum -c SHA256SUMS.txt)
 for d in "$root" "$root/CELIKOM" "$root/CELIKOM/Windows" \
   "$root/CELIKOM/Windows/Updates" "$dest" "$dest/$version"; do

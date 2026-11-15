@@ -15,7 +15,10 @@ async function fixture(t){
   const app="CELIKOM-Windows-"+version+".exe",bytes=Buffer.alloc(11000,0x52);
   const data={schema:2,channel:"stable",publisher:"CELIKOM",version,sequence,
     packageUrl:origin+"/CELIKOM/Windows/Updates/stable/"+version+"/"+app,
-    packageSize:bytes.length,sha256:sha(bytes),rollback:null,
+    packageSize:bytes.length,sha256:sha(bytes),
+    publishedAt:new Date(Date.now()-60_000).toISOString(),
+    expiresAt:new Date(Date.now()+7*86_400_000).toISOString(),
+    minimumVersion:null,mandatory:false,notes:"",rollback:null,
     applicationSha256:"1".repeat(64),nativeHostSha256:"2".repeat(64),
     rendererSha256:"3".repeat(64),supervisorSha256:"4".repeat(64)};
   const doc=Buffer.from(JSON.stringify(data)),signature=sign("sha256",doc,{key:pair.privateKey,dsaEncoding:"der"});
@@ -23,7 +26,8 @@ async function fixture(t){
     writeFile(join(versionRoot,app),bytes),
     writeFile(join(versionRoot,"manifest.json"),doc),
     writeFile(join(versionRoot,"manifest.json.sig"),signature),
-    writeFile(join(root,"latest.json"),doc),writeFile(join(root,"latest.json.sig"),signature)
+    writeFile(join(root,"latest.json"),doc),writeFile(join(root,"latest.json.sig"),signature),
+    writeFile(join(root,"manifest-public-key.der"),Buffer.from(publicKey,"base64"))
   ]);
   return {root,versionRoot,doc,publicKey,pair,app,data};
 }
@@ -54,4 +58,42 @@ test("W155 refuses wrong pinned release identity and wrong domain",async t=>{
       origin:wrongOrigin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
     }),/ORIGIN_INVALID/);
   }
+});
+
+
+test("W155 expired signed release is rejected before publication",async t=>{
+  const f=await fixture(t);
+  const expired={...f.data,
+    publishedAt:"2026-11-01T00:00:00.000Z",
+    expiresAt:"2026-11-02T00:00:00.000Z"};
+  const doc=Buffer.from(JSON.stringify(expired));
+  const signature=sign("sha256",doc,{key:f.pair.privateKey,dsaEncoding:"der"});
+  await Promise.all([
+    writeFile(join(f.versionRoot,"manifest.json"),doc),
+    writeFile(join(f.versionRoot,"manifest.json.sig"),signature),
+    writeFile(join(f.root,"latest.json"),doc),
+    writeFile(join(f.root,"latest.json.sig"),signature)
+  ]);
+  await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
+    origin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
+  }),/MANIFEST_LIFETIME_INVALID/);
+});
+
+test("W155 release public-key sidecar must match the build-pinned P-256 key",async t=>{
+  const f=await fixture(t);
+  const other=generateKeyPairSync("ec",{namedCurve:"prime256v1"}).publicKey
+    .export({format:"der",type:"spki"});
+  await writeFile(join(f.root,"manifest-public-key.der"),other);
+  await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
+    origin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
+  }),/BOUNDS_OR_PUBLIC_KEY_FILE_INVALID/);
+});
+
+test("W155 publisher stages beside stable feed so latest promotion is same-filesystem atomic",async()=>{
+  const publisher=await readFile(
+    new URL("../windows-stable-publish-hostinger.sh",import.meta.url),"utf8");
+  assert.match(publisher,/remote_root="\\$root\\/CELIKOM\\/Windows\\/Updates\\/stable\\/\\.incoming-\\$GITHUB_RUN_ID"/);
+  assert.match(publisher,/W155_RELEASE_STAGE_UNSAFE/);
+  assert.match(publisher,/mv -f "\\$stage\\/latest\\.json" "\\$dest\\/latest\\.json"/);
+  assert.match(publisher,/mv -f "\\$stage\\/latest\\.json\\.sig" "\\$dest\\/latest\\.json\\.sig"/);
 });
