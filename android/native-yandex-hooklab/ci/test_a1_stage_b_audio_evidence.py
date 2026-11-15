@@ -24,9 +24,9 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 40);
-        for (int i=0;i<39;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[39].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 42);
+        for (int i=0;i<41;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[41].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
         Object factory=new Object(), source=new Object();
@@ -65,7 +65,8 @@ public final class StageBAudioEvidenceTest {
         for(int i=0;i<names.length;i++) bucket(links,21+i,names[i],i==1?"FEW":"ONE");
         bucket(links,31,"NATIVE_TRACK_WRAPPER_CONSTRUCTED","FEW");
         bucket(links,32,"NATIVE_MAIN_SOURCE_ENTER","FEW");
-        check(links[39].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        bucket(links,40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        check(links[41].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         // A nested missing argument/collected weak ref must never borrow its
         // outer track or wrapper. Scope accounting survives null arguments.
@@ -237,6 +238,44 @@ public final class StageBAudioEvidenceTest {
         mainResume.exitNativeMainSourceRequest();
         bucket(mainResume.exportLines(),38,"MAIN_CONTINUATION_CONFLICT","ONE");
         bucket(mainResume.exportLines(),26,"WRAPPER_DESCRIPTOR_LINK","ONE");
+
+        // A positive read BEFORE a linked source's successful open() must
+        // never be mistaken for complete Track -> descriptor -> source proof.
+        StageBAudioEvidence readGate=new StageBAudioEvidence();
+        Object gt=new Object(), gw=new Object(), gd=new Object();
+        Object gf=new Object(), gs=new Object();
+        readGate.onNativeTrackFlowEmission(gt);
+        readGate.enterNativeTrackSourceRequest(gt,null);
+        readGate.onNativeTrackWrapperCreated(gw);
+        readGate.exitNativeTrackSourceRequest();
+        readGate.enterNativeMainSourceRequest(gw,null);
+        readGate.onNativeExoDescriptorBuiltForCurrentWrapper(gd);
+        readGate.exitNativeMainSourceRequest();
+        readGate.onExoFactoryCreated(gd,gf);
+        readGate.onExoSourceInstanceCreated(gs,gf);
+        readGate.onExoSourceInstanceRead(gs,512); // NEVER proof before open
+        bucket(readGate.exportLines(),30,"TRACK_SOURCE_READ_LINK","NONE");
+        bucket(readGate.exportLines(),39,"TRACK_SOURCE_UNOPENED_READ","ONE");
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","NONE");
+        readGate.onExoSourceInstanceOpen(gs);
+        readGate.onExoSourceInstanceRead(gs,512);
+        readGate.onExoSourceInstanceRead(gs,512);
+        bucket(readGate.exportLines(),30,"TRACK_SOURCE_READ_LINK","FEW");
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        // Rebinding a new descriptor/factory to the SAME source object
+        // requires a fresh open before its positive read becomes evidence.
+        Object gd2=new Object(), gf2=new Object();
+        readGate.enterNativeMainSourceRequest(gw,null);
+        readGate.onNativeExoDescriptorBuiltForCurrentWrapper(gd2);
+        readGate.exitNativeMainSourceRequest();
+        readGate.onExoFactoryCreated(gd2,gf2);
+        readGate.onExoSourceInstanceCreated(gs,gf2);
+        readGate.onExoSourceInstanceRead(gs,512);
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        bucket(readGate.exportLines(),39,"TRACK_SOURCE_UNOPENED_READ","FEW");
+        readGate.onExoSourceInstanceOpen(gs);
+        readGate.onExoSourceInstanceRead(gs,512);
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","FEW");
 
         Object different=new Object();
         e.onExoSourceInstanceCreated(different);

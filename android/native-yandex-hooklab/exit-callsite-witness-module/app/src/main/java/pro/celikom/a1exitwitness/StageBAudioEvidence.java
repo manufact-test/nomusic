@@ -50,6 +50,10 @@ final class StageBAudioEvidence {
         WeakReference<Object> descriptor;
         WeakReference<Object> factoryResult;
         WeakReference<Object> sourceInstance;
+        // A positive read is only attributable after open() succeeded on
+        // THIS source and THIS lineage. Never rely on aggregate read counts.
+        boolean sourceOpened;
+        boolean sourceReadAfterOpen;
     }
     private static final class TrackContinuationLink {
         WeakReference<Object> continuation;
@@ -87,7 +91,10 @@ final class StageBAudioEvidence {
     private final AtomicLong trackFactorySourceLinks = new AtomicLong();
     private final AtomicLong trackSourceOpenLinks = new AtomicLong();
     private final AtomicLong trackSourceReadLinks = new AtomicLong();
+    private final AtomicLong trackSourceUnopenedReads = new AtomicLong();
+    private final AtomicLong trackSourceDistinctPositiveReads = new AtomicLong();
     private final AtomicLong trackSourceReadProbeBudget = new AtomicLong();
+    private final AtomicLong trackSourceUnopenedProbeBudget = new AtomicLong();
 
     // Bounded without storing URLs, media bytes, offsets or returned sizes.
     private static void mark(AtomicLong bucket) {
@@ -239,6 +246,8 @@ final class StageBAudioEvidence {
         link.descriptor=null;
         link.factoryResult=null;
         link.sourceInstance=null;
+        link.sourceOpened=false;
+        link.sourceReadAfterOpen=false;
         mark(nativeTrackWrapperLinks);
     }
 
@@ -318,6 +327,8 @@ final class StageBAudioEvidence {
             link.descriptor=new WeakReference<>(descriptor);
             link.factoryResult=null;
             link.sourceInstance=null;
+            link.sourceOpened=false;
+            link.sourceReadAfterOpen=false;
             mark(wrapperDescriptorLinks);
         }
     }
@@ -424,6 +435,8 @@ final class StageBAudioEvidence {
         if (link!=null && factoryResult!=null) {
             link.factoryResult=new WeakReference<>(factoryResult);
             link.sourceInstance=null;
+            link.sourceOpened=false;
+            link.sourceReadAfterOpen=false;
             mark(trackDescriptorFactoryLinks);
         }
     }
@@ -453,6 +466,8 @@ final class StageBAudioEvidence {
         NativeTrackSourceLink link=findByFactory(factoryObject);
         if (link!=null && source!=null) {
             link.sourceInstance=new WeakReference<>(source);
+            link.sourceOpened=false;
+            link.sourceReadAfterOpen=false;
             mark(trackFactorySourceLinks);
         }
     }
@@ -467,21 +482,39 @@ final class StageBAudioEvidence {
     void onExoSourceInstanceOpen(Object source) {
         if (sameExoSource(source)) mark(exoSourceInstancesOpened);
         synchronized(this) {
-            if (findBySource(source)!=null) mark(trackSourceOpenLinks);
+            NativeTrackSourceLink link=findBySource(source);
+            if (link!=null) {
+                // Called after the original vendor open() returned normally.
+                link.sourceOpened=true;
+                mark(trackSourceOpenLinks);
+            }
         }
     }
 
     void onExoSourceInstanceRead(Object source,int count) {
-        // At most the first 16 nonzero reads inspect a bounded weak list.
-        // Subsequent readAt hot-path callbacks do not scan objects or log.
+        // Privacy-safe, bounded first reads only. No buffers, offsets,
+        // DataSpec, titles, URLs, content or vendor toString() are inspected.
         if (count > 0 && firstAtMost(exoSourceReadProbeBudget,16)
                 && sameExoSource(source))
             mark(exoSourceInstancesRead);
-        if (count > 0 && trackSourceReadProbeBudget.get()<16) {
+        if (count > 0 && (trackSourceReadProbeBudget.get()<16
+                         || trackSourceUnopenedProbeBudget.get()<16)) {
             synchronized(this) {
-                if (findBySource(source)!=null
-                        && firstAtMost(trackSourceReadProbeBudget,16))
-                    mark(trackSourceReadLinks);
+                NativeTrackSourceLink link=findBySource(source);
+                if (link==null) return;
+                if (link.sourceOpened) {
+                    if (firstAtMost(trackSourceReadProbeBudget,16)) {
+                        mark(trackSourceReadLinks);
+                        if (!link.sourceReadAfterOpen) {
+                            link.sourceReadAfterOpen=true;
+                            mark(trackSourceDistinctPositiveReads);
+                        }
+                    }
+                } else if (firstAtMost(trackSourceUnopenedProbeBudget,16)) {
+                    // A positive read without our observed successful open
+                    // is an UNVERIFIED source/lineage, not chain proof.
+                    mark(trackSourceUnopenedReads);
+                }
             }
         }
     }
@@ -572,6 +605,8 @@ final class StageBAudioEvidence {
             event("NATIVE_MAIN_CONTINUATION_CONSTRUCTED", mainContinuationConstructed),
             event("MAIN_CONTINUATION_RECOVERED", mainContinuationRecovered),
             event("MAIN_CONTINUATION_CONFLICT", mainContinuationConflict),
+            event("TRACK_SOURCE_UNOPENED_READ", trackSourceUnopenedReads),
+            event("TRACK_SOURCE_DISTINCT_POSITIVE_READ", trackSourceDistinctPositiveReads),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }
