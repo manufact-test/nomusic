@@ -1198,6 +1198,12 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(
             result["LBK1;"]["direct_implementers"],["LFlowImpl;"]
         )
+        implementer_profile=next(
+            row for row in result["LBK1;"]["implementer_profiles"]
+            if row["owner"]=="LFlowImpl;"
+        )
+        self.assertEqual(implementer_profile["superclass"],"LFlowBase;")
+        self.assertFalse(implementer_profile["is_abstract"])
         self.assertEqual(
             result["LBK1;"]["implementation_owners"],
             {"LFlowBase;":["LFlowImpl;"],"LFlowImpl;":["LFlowImpl;"]}
@@ -1211,6 +1217,20 @@ class SelectedItemAuditTests(unittest.TestCase):
                 "LGK1$a;":["LCallbackImpl;"],
                 "LCallbackImpl;":["LCallbackImpl;"]
             }
+        )
+
+    def test_selected_track_exact_field_constructor_set_is_pinned(self):
+        from audit_native_selected_item_handoff import (
+            SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS,
+            SELECTED_TRACK_PATH_METHODS
+        )
+        expected_owners={"LJK1;","LCK1$a;","LCK1$c;","LCK1$l;"}
+        self.assertEqual(
+            set(SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS),expected_owners
+        )
+        self.assertTrue(
+            set(SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS.values())
+            <= SELECTED_TRACK_PATH_METHODS
         )
 
     def test_flow_interface_implementer_census_is_direct_and_bounded(self):
