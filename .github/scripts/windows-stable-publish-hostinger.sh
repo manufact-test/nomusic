@@ -103,7 +103,7 @@ done
   echo W155_SEQUENCE_NOT_INCREASING; exit 2; }
 
 (cd "$tmp"; sha256sum "$exe" manifest.json manifest.json.sig latest.json latest.json.sig > SHA256SUMS.txt)
-ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; done; mkdir -p \"\$dest\"; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
+ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; test -d '$root'; test ! -L '$root'; test -d '/home/u235811320/domains/celikom.com'; test ! -L '/home/u235811320/domains/celikom.com'; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; done; mkdir -p \"\$dest\"; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
 stage_created=1
 for file in "$exe" manifest.json manifest.json.sig latest.json latest.json.sig SHA256SUMS.txt; do
   scp -P 65002 -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
@@ -119,6 +119,10 @@ expected_old_sequence="$6"; expected_old_manifest_sha="$7"; expected_old_signatu
    "$expected_old_signature_sha" =~ ^[a-f0-9]{64}$ ]] || {
   echo W155_EXPECTED_OLD_LATEST_INVALID; exit 3; }
 dest="$root/CELIKOM/Windows/Updates/stable"
+[[ -d "$root" && ! -L "$root" &&
+   -d "/home/u235811320/domains/celikom.com" &&
+   ! -L "/home/u235811320/domains/celikom.com" ]] || {
+  echo W155_DEPLOY_ROOT_MISSING_OR_UNSAFE; exit 3; }
 [[ -d "$stage" && ! -L "$stage" ]] || { echo W155_RELEASE_STAGE_UNSAFE; exit 3; }
 (cd "$stage"; sha256sum -c SHA256SUMS.txt)
 for d in "/home" "/home/u235811320" "/home/u235811320/domains" \
