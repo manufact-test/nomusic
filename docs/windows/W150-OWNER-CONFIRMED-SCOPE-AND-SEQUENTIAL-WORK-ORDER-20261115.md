@@ -83,17 +83,17 @@ Work required:
 - Do not blindly reset an existing OFF choice to ON.
 - Owner's actual machine state is not known until final consolidated acceptance.
 
-### Task 4 — one consolidated regression pass and one owner package
+### Task 4 — one consolidated regression pass and final acceptance preparation
 
 After Tasks 1–3 are individually code/test/CI-ready:
 
 - Review startup/reopen, existing Yandex reconciliation, current track/source transitions, stop/pause, VPN reconnect, tray/autostart and diagnostics after disconnect.
-- Re-run the relevant Windows integration tests and both CI workflows on the final source.
+- Re-run the relevant Windows integration tests and both CI workflows on the final application source.
 - Preserve the existing Yandex vendor-update detection cadence of 15 minutes; do not accidentally change it.
-- Build exactly one coherent owner EXE+ZIP from `main`, with matching GUI/Supervisor/installer versions and hashes. No intermediate installers or Windows TEST product.
-- Deliver the package and one concise grouped owner test plan. Owner performs the consolidated local listening/GUI check; collect only the resulting actual defects and then fix those.
+- Prepare one concise grouped owner test plan and confirm that the source is ready for the final release pipeline.
+- **Do not build or deliver an owner installer yet.** No intermediate installer/package is allowed. The only owner EXE+ZIP is produced once, after the final P-256 updater work in Task 5 is integrated.
 
-### Task 5 — automatic updater, P-256 trust and production feed (LAST)
+### Task 5 — automatic updater, P-256 trust and production feed (LAST ENGINEERING TASK)
 
 The owner explicitly changed the order: complete the application fixes first; do the updater/key/release work only after Tasks 1–4 are ready.
 
@@ -103,16 +103,25 @@ Approved design:
 - No company/legal-entity identity attached to CELIKOM for this purpose.
 - Keep the existing Windows installation warning experience: if Windows shows the current unknown-app warning, the user can choose `More info → Run anyway`. Do not make this worse, do not suppress Windows security, do not ask users to disable Defender/SmartScreen/Smart App Control, and do not implement a security bypass.
 - Use CELIKOM's own P-256 signed schema-2 update manifest. Embed only the public key in the client. Keep the private key outside the repository and out of chat/logs; store it in protected GitHub Actions secret/HSM for release signing.
-- Verify exact product/version/sequence, signed manifest, package SHA-256 and size, and all expected payload identities before staging/install. Authenticode is **not** a required CELIKOM updater trust pin in this approved design.
+- Verify exact product/version/sequence, signed manifest, package size and SHA-256, and all expected payload identities before staging/install. Authenticode is **not** a required CELIKOM updater trust pin in this approved design.
 - Preserve the existing safe-point download/install behavior, independent Supervisor READY handshake, DPAPI transaction, account/session/settings/native integration and one-shot automatic rollback.
-- Installed 0.24.37 has no production P-256 pin. Therefore a one-time trusted manual bootstrap is unavoidable: owner installs the first coherent package containing the new public pin. After that, subsequent releases must be detected, downloaded, verified, staged and installed automatically without manual website downloads.
+- Installed 0.24.37 has no production P-256 pin. Therefore a one-time trusted manual bootstrap is unavoidable: owner installs the one final coherent package containing the new public pin. After that, subsequent releases must be detected, downloaded, verified, staged and installed automatically without manual website downloads.
 - Domain `celikom.com` is already purchased and is the fixed future production origin: `https://celikom.com`. DNS, TLS and public feed deployment are intentionally deferred until the product/infrastructure migration is complete. Prepare the code/config now, but do not attempt to publish to a non-existent HTTPS endpoint or change DNS early.
-- W148's current workflow still contains PFX/Authenticode certificate/fingerprint gates. That scaffold is **not the final approved design** and must be refactored in this last task. Do not run it or ask the owner to buy a certificate.
+- W148's current workflow still contains PFX/Authenticode certificate/fingerprint gates. That scaffold is **not the final approved design** and must be refactored in this task. Do not run it or ask the owner to buy a certificate.
 - Prepare one safe local key-provisioning script/command for the owner to run once only if required by GitHub's protected-secret permissions. Generate the private key on a trusted owner-controlled machine; use authenticated GitHub CLI to upload the secret without displaying the PEM. The assistant must never ask the owner to paste the private key into chat.
 - Test the updater end-to-end on the owner's PC after the bootstrap: detect → download during playback → verify → wait for safe point → Supervisor READY → in-place install → health check → forced one-shot rollback test. Preserve account, DPAPI, settings, native integration and music continuity.
 - Windows may still apply its own policy to unsigned executables. Keep the current warning experience; never promise that P-256 manifest trust creates a Windows-verified publisher or bypasses SmartScreen/SAC. If a particular Windows policy blocks execution, report it honestly; never ask users to turn protection off.
 
 Production updater is not currently operational. W148 scripts/workflow are only scaffolding; no production P-256 secret/pin, HTTPS feed or owner bootstrap has been completed.
+
+### Task 6 — build and deliver the single final owner package
+
+Only after Tasks 1–5 are complete:
+
+- Build exactly one coherent owner EXE+ZIP from `main`, with matching GUI/Supervisor/installer versions and hashes.
+- Ensure the final package includes the P-256 public pin and the future production origin `https://celikom.com`; the updater remains safely dormant until the domain's DNS/TLS/feed is actually live.
+- Deliver the one-time bootstrap package to the owner for installation over 0.24.37 with the same AppId. Verify account/session, DPAPI secrets, settings and native integration are preserved.
+- After migration activates DNS/TLS and the signed feed, verify a subsequent release updates automatically. No repeated manual downloads.
 
 ## 3. Explicitly excluded from this work order
 
@@ -134,7 +143,7 @@ These Issues must not be silently closed or deleted; they simply are not current
 - Complete the current task end-to-end (implementation + targeted tests + CI) before starting the next task.
 - Do not pause for tiny reports or ask the owner to test each intermediate patch. Do not build intermediate installers.
 - Keep concise progress updates: task, actual code/test status, remaining blocker. Never claim done based only on CI.
-- One final owner package after Tasks 1–4; the updater/key/feed is the last engineering block.
+- The updater/key/feed is the last engineering block; build the single owner package only after it is integrated (Task 6).
 - The owner should not have to repeat the requirements in this document.
 
 ## 5. First message for the next chat
