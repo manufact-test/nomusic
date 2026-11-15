@@ -3851,6 +3851,65 @@ def classify_native_track_coroutine_callsite(
     }
 
 
+def summarize_coroutine_new_instance_ancestry(callsite_census, class_profiles):
+    """Verify declared class inheritance of callsite-constructed continuations."""
+    prefix="NEW_INSTANCE_TYPE:"
+    candidates={}
+    for row in callsite_census.get("call_sites",[]):
+        caller=row["caller"]
+        for path in row["argument_origin_trace"]["continuation_argument_origin_paths"]:
+            for origin in path:
+                if not origin.startswith(prefix):
+                    continue
+                descriptor=origin[len(prefix):]
+                if not descriptor.startswith("L") or len(descriptor)>256:
+                    raise ValueError("COROUTINE_NEW_INSTANCE_DESCRIPTOR_INVALID")
+                candidates.setdefault(descriptor,[]).append({
+                    "caller":caller,
+                    "ordinal":row["ordinal"]
+                })
+    if len(candidates)>32:
+        raise ValueError("COROUTINE_NEW_INSTANCE_CLASS_LIMIT")
+    rows=[]
+    for descriptor in sorted(candidates):
+        chain=[]
+        current=descriptor
+        visited={current}
+        for _ in range(16):
+            profile=class_profiles.get(current)
+            if profile is None:
+                break
+            parent=profile.get("superclass")
+            if parent is None:
+                break
+            if parent in visited:
+                raise ValueError("COROUTINE_NEW_INSTANCE_HIERARCHY_CYCLE")
+            chain.append(parent)
+            visited.add(parent)
+            current=parent
+        else:
+            raise ValueError("COROUTINE_NEW_INSTANCE_HIERARCHY_LIMIT")
+        rows.append({
+            "new_instance_type":descriptor,
+            "class_defined_in_signed_dex":descriptor in class_profiles,
+            "superclass_chain":chain,
+            "derives_from_LFp0_base_continuation":("LFp0;" in chain),
+            "derives_from_LOe2_continuation":("LOe2;" in chain),
+            "observed_call_sites":candidates[descriptor],
+            "constructor_receives_original_continuation_proven":False,
+            "same_active_selected_track_proven":False
+        })
+    return {
+        "new_instance_class_count":len(rows),
+        "new_instance_classes":rows,
+        "every_new_instance_derives_from_LOe2":(
+            bool(rows) and all(row["derives_from_LOe2_continuation"] for row in rows)
+        ),
+        "runtime_continuation_identity_proven":False,
+        "private_fields_values_or_media_disclosed":False
+    }
+
+
 def inspect_native_track_coroutine_callers(apks, target_method):
     """Census every direct signed-DEX caller of the exact coroutine method."""
     call_sites=[]
@@ -5261,6 +5320,9 @@ def inspect_signed(apks):
     native_track_coroutine_callsite_census=inspect_native_track_coroutine_callers(
         apks,initial_ref
     )
+    native_track_coroutine_new_instance_ancestry=summarize_coroutine_new_instance_ancestry(
+        native_track_coroutine_callsite_census,class_profiles
+    )
     initial_def=fp0_coroutine_method_definitions[initial_ref]
     resume_def=fp0_coroutine_method_definitions[resume_ref]
     native_track_coroutine_continuity=trace_native_track_coroutine_continuation(
@@ -5483,6 +5545,7 @@ def inspect_signed(apks):
         "fp0_resume_track_binding_runtime_proven": False,
         "native_track_coroutine_continuity": native_track_coroutine_continuity,
         "native_track_coroutine_callsite_census": native_track_coroutine_callsite_census,
+        "native_track_coroutine_new_instance_ancestry":native_track_coroutine_new_instance_ancestry,
         "continuation_track_field_writer_census": continuation_track_field_writer_census,
         "raa_resume_exact_same_continuation_static_proven": raa_resume_same_continuation,
         "raa_resume_explicit_null_wrapper_argument_static_proven": raa_resume_null_wrapper,

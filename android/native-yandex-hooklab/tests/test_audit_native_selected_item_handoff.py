@@ -18,7 +18,8 @@ from audit_native_selected_item_handoff import (
     trace_track_value_to_exact_field_store,
     classify_native_track_coroutine_callsite,
     inspect_native_track_coroutine_callers,
-    trace_coroutine_callsite_argument_origins
+    trace_coroutine_callsite_argument_origins,
+    summarize_coroutine_new_instance_ancestry
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -1068,6 +1069,30 @@ class SelectedItemAuditTests(unittest.TestCase):
             "TRACK_FROM_THIS_FIELD_CANDIDATE"
         )
         self.assertNotIn("privateTrack",str(result))
+
+    def test_coroutine_new_instance_ancestry_requires_declared_superclass_chain(self):
+        census={"call_sites":[
+            {"caller":{"owner":"LCaller;","method":"go","signature":"()V"},
+             "ordinal":3,"argument_origin_trace":{
+                 "continuation_argument_origin_paths":[
+                     ["KOTLIN_CONTINUATION_PARAMETER"],
+                     ["NEW_INSTANCE_TYPE:LDp0$a;","UNCLASSIFIED_NEW_INSTANCE_TYPE"]
+                 ]}}
+        ]}
+        profiles={
+            "LDp0$a;":{"superclass":"LOe2;"},
+            "LOe2;":{"superclass":"Ljava/lang/Object;"}
+        }
+        result=summarize_coroutine_new_instance_ancestry(census,profiles)
+        self.assertEqual(result["new_instance_class_count"],1)
+        self.assertTrue(result["every_new_instance_derives_from_LOe2"])
+        self.assertFalse(result["runtime_continuation_identity_proven"])
+        self.assertFalse(result["new_instance_classes"][0][
+            "constructor_receives_original_continuation_proven"
+        ])
+        profiles["LDp0$a;"]["superclass"]="LUnrelated;"
+        result=summarize_coroutine_new_instance_ancestry(census,profiles)
+        self.assertFalse(result["every_new_instance_derives_from_LOe2"])
 
     def test_callsite_origin_trace_labels_untracked_move_object_source(self):
         from unittest.mock import patch
