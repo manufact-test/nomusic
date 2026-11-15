@@ -1,3 +1,7 @@
+# CELIKOM Android A1 — read-only DataSource.open → read → close integrity
+
+**Current status — 15 November 2026:** latest code/static audit checkpoint 90f8ea394e1ac4168aa63f976e17fd18eb24befb; active branch experiment/android-a1-metrica-init-state-observer-arm13-20261112. The current Track/Album identity bridge is described in ANDROID-A1-TRACK-ALBUM-IDENTITY-20261115.md. Publisher-first CI #43703211345 and clone-only CI #43703211359 both succeeded for the runtime hook code, but this is lab registration/stability only. Stage A remains **NO-GO**; audio/current selected Track/edition/decoder are not proven. Historical lifecycle notes follow; newer status above supersedes earlier checkpoint references below.
+
 # CELIKOM Android A1 — read-only DataSource.open → read → close integrity, 15.11.2026
 
 **Сохранено только в исследовательской ветке** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Не выдавать лабораторный код за продукт, не устанавливать на телефон без разрешённой проверки. Stage A = **NO-GO**, CELIKOM replacement = **NOT_CONNECTED**.

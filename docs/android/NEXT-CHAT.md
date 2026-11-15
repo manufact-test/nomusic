@@ -1,393 +1,57 @@
-> **CELIKOM Android A1 — TRACK/ALBUM IDENTITY + EXO SOURCE CONTINUITY — 15.11.2026**
->
-> **Рабочая ветка:** experiment/android-a1-metrica-init-state-observer-arm13-20261112
->
-> **Последний кодовый checkpoint:** a655712d210189f3bc611847235de3ed4d985c1a (read-only Track Album constructor/copy hooks).
->
-> **Последний branch HEAD до обновления этих документов:** 90f8ea394e1ac4168aa63f976e17fd18eb24befb (тот же код + signed DEX static-flow audit/tests).
->
-> **CI SUCCESS:**
-> - [Signed Track/Album static audit #43703523959](https://github.com/manufact-test/nomusic/actions/runs/43703523959): exact Track+Album copy-method shape, Album-argument-to-Track-constructor candidate path.
-> - [Clone-only ARM13 #43703211359](https://github.com/manufact-test/nomusic/actions/runs/43703211359): **25/25**, both Album hooks and all Track/Exo hooks REGISTERED.
-> - [Publisher-first ARM13 #43703211345](https://github.com/manufact-test/nomusic/actions/runs/43703211345): **SUCCESS**, original 16/16 splits and clone co-installed, **25/25**, no suppression.
->
-> **Важно:** verdict METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO; Stage A = **NO-GO**. Current selected Track/Album/edition and decoder are NOT attested; no audio/account playback test was performed. Constructor's direct Album field assignment is not statically proven; see the detailed Album identity document.
->
-> **Точный резерв текущего read-only checkpoint:** backup/android-a1-track-album-publisher-first-ci-green-20261115 @ 90f8ea394e1ac4168aa63f976e17fd18eb24befb.
->
-> **Резерв до большого захода:** backup/android-a1-track-album-reference-pre-large-push-20261115 @ e0740cf224b34d3260822fa2248a8b136feac1e5.
->
-> Сначала прочитать:
-> 1. docs/android/ANDROID-A1-TRACK-ALBUM-IDENTITY-20261115.md
-> 2. docs/android/ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md
-> 3. docs/android/NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md
->
-> **Следующая задача:** доказать identity именно текущего выбранного Track (не prefetch/queue), его edition/generation и связь того же объекта с фактическим decoder input/audio renderer. Не считать Track Flow или DataSource.read доказательством текущего звучащего трека. Не менять архитектуру, Test.50, frozen A1, Windows, extension, backend или оригинальное приложение. Работать read-only; не просить владельца устанавливать APK или выполнять ручные действия, пока это действительно не потребуется.
+# CELIKOM Android A1 — CURRENT HANDOFF
 
----
+**Updated:** 15 November 2026  
+**Repository:** manufact-test/nomusic  
+**Status:** research-only, read-only native identity work. **NOT a product build. Stage A = NO-GO.**
 
+## Active Git state
 
-> **REVISED FAIL-CLOSED REGRESSION CHECKPOINT, 15.11.2026:** `9af55e5909592021f75b69d7b4d1b5cec2252cfc` (только Java regression; исполняемый код по-прежнему `2dc2e1f0`). Исправлено слабое место тестов: теперь отдельные свежие linked-source сценарии требуют `TRACK_SOURCE_READ_LINK=NONE` после `close()`, позднего `open()` failure и source rebind; лишь новый успешный open разрешает `ONE`. Проверить [clone-only CI #43700267919](https://github.com/manufact-test/nomusic/actions/runs/43700267919); publisher-first для **того же исполняемого кода** [#43699883681](https://github.com/manufact-test/nomusic/actions/runs/43699883681), clone-only [#43699883677](https://github.com/manufact-test/nomusic/actions/runs/43699883677). Stage A **NO-GO**, source-binding ≠ current audible track. Актуальная подробная запись в [source lifecycle документе](ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md).
+- **Only active branch:** experiment/android-a1-metrica-init-state-observer-arm13-20261112
+- **Latest code + static-audit checkpoint:** 90f8ea394e1ac4168aa63f976e17fd18eb24befb
+- **Last runtime Java hook change:** a655712d210189f3bc611847235de3ed4d985c1a
+- Current branch HEAD is a documentation-only commit after the code checkpoint above.
+- **Code/CI-green backup:** backup/android-a1-track-album-publisher-first-ci-green-20261115 @ 90f8ea394e1ac4168aa63f976e17fd18eb24befb
+- **Pre-large-push rollback:** backup/android-a1-track-album-reference-pre-large-push-20261115 @ e0740cf224b34d3260822fa2248a8b136feac1e5
+- Final docs/code backup branch: backup/android-a1-track-album-final-handoff-20261115-v2.
 
----
+## What is actually done
 
-> **SOURCE-OPEN FAIL-CLOSED FOLLOW-UP — 15.11.2026.** Последний код `2dc2e1f0ad394f83bed27e2e2d272179e85441cd`, резерв до этого малого исправления `backup/android-a1-source-open-close-pre-failure-reset-20261115` @ `975ec09e`. На случай позднего/перекрывшегося исключения vendor `open()` добавлен отдельный `onExoSourceInstanceOpenFailure`, который отменяет любое старое `sourceOpened` (без подмены исходного исключения). Новые [clone-only CI #43699883677](https://github.com/manufact-test/nomusic/actions/runs/43699883677) и [publisher-first CI #43699883681](https://github.com/manufact-test/nomusic/actions/runs/43699883681): **проверить конечный статус**. Предыдущий `9a22ec1e` green не переносить на этот код. **Stage A NO-GO, audio/current Track/decoder не проверено.**
+1. Added read-only Album identity capture at the two signed Track constructors that each have exactly one Album parameter. The hook calls the original constructor once, then associates the resulting Track object with that Album argument by Java reference identity.
+2. Added a read-only hook on the exact Track copy method. It calls the original method once, then associates its returned Track object with the Album argument.
+3. StageBAudioEvidence carries weak Track/Album references and compares with Java ==. The Track map is bounded to 32 entries; source lineage to 16. Conflicting Track→Album associations revoke the Album link.
+4. Album identity can be followed through Track Flow → wrapper → descriptor → factory → DataSource instance → successful open() → positive read(). A read is linked only to the same source and lineage after successful open. Failed reopen and close revoke open proof. Read-path inspection is capped at 256 callbacks per source/reopen window.
+5. Static signed-DEX audit and regression tests were extended to report Track/Album constructor and copy-method shapes without making an audio/current-track claim.
 
----
+## Verified CI — exact scope
 
-> **НОВЫЙ ANDROID A1 CHECKPOINT 15.11.2026 — DataSource lifecycle (read-only).** [Открытие→чтение→закрытие](ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md): код `9a22ec1e0b0fbd58bcf39e63fe61386514924681`, резерв `backup/android-a1-source-read-after-open-pre-guard-20261115` @ `55d2f554`. Убрали ложное доказательство `read()` без успешного `open()`, добавили дедуп уникальных source объектов, revoke на failed reopen/close, конечный бюджет сканирования в read hot path. Signed exact `close()V` подтверждён [#43698830014](https://github.com/manufact-test/nomusic/actions/runs/43698830014) SUCCESS. **Проверить** итог новых [clone-only CI #43699251424](https://github.com/manufact-test/nomusic/actions/runs/43699251424) и [publisher-first CI #43699251417](https://github.com/manufact-test/nomusic/actions/runs/43699251417); предыдущий green к новому коду не относится. **Stage A NO-GO, audio не проверено.** Остальные передачи ниже исторические.
+- [Signed Track/Album static audit #43703523959](https://github.com/manufact-test/nomusic/actions/runs/43703523959): **SUCCESS**. One Album-typed field on Track; two constructors accept Album but direct same-argument write to Track's own field is **not proven**. One Track+Album→Track copy-method candidate; it reads source Track's Album field, passes the Album argument to a Track constructor and returns a Track. The audit does **not** prove the Album argument is stored on the returned Track. Current selected item is not proven.
+- [Clone-only ARM13 #43703211359](https://github.com/manufact-test/nomusic/actions/runs/43703211359): **SUCCESS**, 25/25 stable observations; both Album hooks and all Track/Exo hooks registered. Publisher intentionally absent in this control.
+- [Publisher-first ARM13 #43703211345](https://github.com/manufact-test/nomusic/actions/runs/43703211345): **SUCCESS**, original publisher 16/16 splits installed, clone co-installed, original remains installed, 25/25 stable observations, no Metrica fatal suppression. Both Album hooks and all Track/Exo hooks registered.
+- All three are lab/CI results only. No owner phone was touched. No audio playback or account test was performed. No product APK was published.
+- Final publisher-first verdict: METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO. stage_a=NO_GO; stage_b_current_player_album_edition_attested=false; audio_or_account_tested=false.
 
----
+## Read these documents first
 
-> **ПОСЛЕДНИЙ ANDROID A1 CHECKPOINT — 15.11.2026, два coroutine resume.** [Точный RAa handoff](ANDROID-A1-RAA-SOURCE-RESUME-IDENTITY-20261115.md), код `2267c64f1df04b31a47f1a6e9d67b367ceea56db`, резерв `backup/android-a1-raa-source-resume-pre-identity-20261115` @ `df872b6d`. Signed static [#43696198020](https://github.com/manufact-test/nomusic/actions/runs/43696198020) SUCCESS: `RAa.invokeSuspend` повторно вызывает download2.o.for с той же continuation и **null wrapper**. Ранее подписанный DEX доказал `Fp0.invokeSuspend → Gp0.new` с null Track. Теперь оба перехода наблюдаются только по bounded weak `==` identity, с отдельными counters и fail closed. Оба Fp0/RAa hooks **REGISTERED**, все шесть hooks видны в ограниченной диагностике; [clone-only #43696449267](https://github.com/manufact-test/nomusic/actions/runs/43696449267) SUCCESS 25/25 и [publisher-first #43696449282](https://github.com/manufact-test/nomusic/actions/runs/43696449282) SUCCESS/NOT_AUDIO (original 16 splits + clone co-install). Точный принятый CI-green резерв `backup/android-a1-fp0-raa-dual-resume-ci-green-20261115` @ `2267c64f`. **Stage A NO-GO, никаких release/audio/substitution утверждений.** Исторические передачи ниже.
+1. docs/android/NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md — focused technical handoff.
+2. docs/android/ANDROID-A1-TRACK-ALBUM-IDENTITY-20261115.md — exact static findings and Album identity observer.
+3. docs/android/ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md — fail-closed Exo source lifecycle.
+4. Historical accumulated notes remain in Git history before this documentation cleanup; they are not the current task list.
 
----
+## Next task — continue, do not restart
 
-> **ТЕКУЩАЯ ANDROID A1 ПЕРЕДАЧА — 15.11.2026, coroutine Fp0.** [Новый точный разбор](ANDROID-A1-FP0-COROUTINE-RESUME-IDENTITY-20261115.md): в подписанном DEX `Fp0.invokeSuspend` действительно возобновляет `Gp0.new` с **тем же continuation** и с **null вместо Track аргумента** (static [#43695462019](https://github.com/manufact-test/nomusic/actions/runs/43695462019) SUCCESS). Read-only код `6e409f9920c8ea0d47bf08d37d9da827bee89b2a` связывает continuation с исходным Flow-Track только по weak reference `==`, fail-closed. Clone-only [#43694941351](https://github.com/manufact-test/nomusic/actions/runs/43694941351) SUCCESS 25/25, publisher-first [#43694941316](https://github.com/manufact-test/nomusic/actions/runs/43694941316) SUCCESS NOT_AUDIO; parser пятого hook обновлён в `495d37e3`, новые CI #43695595723/#43695595735 ещё проверяются. **Stage A NO-GO: реальной подмены и identity аудиопотока нет.** Рабочая ветка та же, резерв до кода `backup/android-a1-track-continuation-pre-identity-20261115`. Все прежние handoff ниже исторические.
+The next developer must continue in the existing branch and prove, using signed DEX analysis and read-only identity hooks:
 
----
+1. Which Track object is the **current selected player item**, distinguishing it from queue, prefetch and download work.
+2. Which exact edition/generation object belongs to that selected Track/Album.
+3. Whether that same identity reaches the actual decoder input/audio renderer, not merely an Exo DataSource read.
 
-> **АКТУАЛЬНЫЙ CHECKPOINT — 15.11.2026.** [Track → Exo identity hardening](ANDROID-A1-TRACK-EXO-IDENTITY-HARDENING-20261115.md): код `f7983590bee3eec38ee8b09fd41859b64192f2df`, резерв `backup/android-a1-track-exo-identity-pre-hardening-20261115`. Clone-only Android 13 ARM CI [#43654168986](https://github.com/manufact-test/nomusic/actions/runs/43654168986) **SUCCESS**, 25/25, Java regression PASS. Исправлены nested null scope, устаревшие связи и совпадение неоднозначных identity; добавлены сырые счётчики для локализации потери. Возможный coroutine suspend/resume перед `tCa` остаётся открытым риском. **Нет доказательства реального audio playback или подмены, Stage A NO-GO.** Publisher-first [#43654169076](https://github.com/manufact-test/nomusic/actions/runs/43654169076) **SUCCESS**: 16/16 original splits и клон одновременно в изолированном ARM13; verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, Stage A `NO_GO`, аудио/аккаунт не тестировали. История ниже.
+Track Flow and positive DataSource reads are not proof of current audible playback. Do not infer edition semantics from obfuscated names or types. Do not mark Stage A ready until current Track + Album + edition + decoder identity and actual audio are demonstrated.
 
----
+## Hard constraints
 
-> **АКТУАЛЬНАЯ ПЕРЕДАЧА — 15.11.2026.** Сначала прочитать [новую передачу Track → Exo](NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md). CI [#43649573590](https://github.com/manufact-test/nomusic/actions/runs/43649573590) завершился SUCCESS: clone-only Android 13 75s, no suppression, стабильные 25/25. Но original publisher был намеренно отсутствовал, аудио/аккаунт не тестировались, Stage A остаётся NO-GO; четыре Track/source hooks зарегистрировались, но runtime identity цепочка не доказана. Активная ветка `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; кодовый checkpoint `d80495370ff8f442b6993c688783c24547caa24f`; точный резерв `backup/android-a1-track-exo-continuity-pre-ci-20261115`. Текущая работа — только read-only runtime identity witness native Track → wrapper → Exo. **Это не доказательство текущего audible playback и не готовая CELIKOM-подмена.** Исторические разделы ниже читать с учётом новой передачи и актуального CI.
-
----
-
-> **ВАЖНО — АКТУАЛЬНОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА (10.11.2026).** Архитектура согласована окончательно: **один APK CELIKOM с нативной Яндекс.Музыкой и одним её аудиодвижком; LSPatch только для закрытого прототипа, после принятия эталона — напомнить владельцу и начать собственный независимый механизм внедрения по согласованию.** WebView/собственный музыкальный UI не выбирать.
->
-> **[ПОЛНОЕ АКТУАЛЬНОЕ ТЗ](CELIKOM-ANDROID-NATIVE-CLONE-MASTER-TZ-20261110.md)** · **[НОВЫЙ ТЕКСТ ПЕРВОГО СООБЩЕНИЯ](NEXT-CHAT-NATIVE-CLONE-20261110.md)** · **[РЕШЕНИЯ ВЛАДЕЛЬЦА](ANDROID-PLAN-A-OWNER-DECISIONS-CHECKPOINT-20261110.md)**.
->
-> Старые заявления ниже о «главном ТЗ» (WebView, собственный API-клиент, отдельный музыкальный плеер, companion) **исторические и не имеют приоритета**. При противоречиях выполнять новое master-ТЗ.
-
----
-
-# АКТУАЛЬНОЕ ТЗ ВЛАДЕЛЬЦА — ПРОДОЛЖИТЬ ПЕРВЫЙ CELIKOM С ЯНДЕКСОМ ВНУТРИ (10.11.2026)
-
-**ВМЕСТО ПРЕЖНИХ ПРОТИВОРЕЧИВЫХ ОПИСАНИЙ ниже сначала прочитать** [полное исправленное ТЗ](ANDROID-PLAN-A-OWN-YANDEX-CLIENT-HANDOFF-20261110.md) и [первое сообщение следующему чату](START-NEXT-CHAT-ANDROID-YANDEX-CLIENT-PLAN-A-20261110.md). **План А: восстановить именно нашу раннюю версию, в которой при открытии CELIKOM Яндекс уже открывался внутри, и продолжить её, используя все собственные Android, Windows, extension и server наработки.** Нужны привычный Яндекс внутри CELIKOM и подмена аудио **в его же плеере**, без собственного музыкального UI, отдельного музыкального плеера или двух потоков. **Не утверждать до проверки, была ли первоначальная реализация WebView или нативным клиентом; найти точный исходник и ограничения по коммитам.** Предыдущий текст «план А — самостоятельный Yandex API client + наш Media3/ExoPlayer» ОТМЕНЁН. Liberty Android не готовая база под заданный UI; изучать технические интерфейсы без копирования GPL-кода. Рабочая документационная ветка `feature/android-yandex-client-plan-a-20261110`; код старых веток и бэкапы не менялись.
-
----
-
-# ВАЖНО — НОВЫЙ УТВЕРЖДЁННЫЙ ПЛАН А (10.11.2026): собственный Android-клиент CELIKOM + каталог Яндекса + ОДИН плеер
-
-**ПЕРВЫМ ДЕЛОМ ОТКРЫТЬ [полное новое ТЗ](ANDROID-PLAN-A-OWN-YANDEX-CLIENT-HANDOFF-20261110.md) и [первое сообщение следующему разработчику](START-NEXT-CHAT-ANDROID-YANDEX-CLIENT-PLAN-A-20261110.md).** Рабочая новая ветка `feature/android-yandex-client-plan-a-20261110`. Владелец ВЫБРАЛ эту архитектуру **как план А**: наш собственный Android интерфейс и один плеер получают разрешённые оригинальные записи, каталог, плейлисты и «Мою волну» Яндекса через пользовательский аккаунт и собственную безопасную интеграцию; наша платная CELIKOM подмена выбирается по trackId ДО play. Имеющийся ниже архив про сторонний companion + официальную установленную Яндекс.Музыку, hooklab, WebView и автономный Media3-only **НЕ ЯВЛЯЕТСЯ текущим ТЗ**. Не возобновлять прежнюю неделю DEX исследования. GPL-исходники Liberty не копировать; изучить интерфейсы, писать самостоятельно; обязательна проверка разрешённого потокового доступа. Отдельно обязательно изучить наши свежие Windows наработки `experiment/windows-stop-lifecycle-20261110`. Исходники/старые ветки не изменены этим handoff. 
-
----
-
-## АКТУАЛЬНАЯ NATIVE ANDROID ТОЧКА (10.11.2026): ПОДМЕНЫ ЕЩЁ НЕТ, НО СЕРЬЁЗНАЯ ОШИБКА HOOK-WITNESS УСТРАНЕНА
-
-- **Только НОВАЯ нативная ветка**, `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Не Test.50, не Test.51, не старое «как эквалайзер», не Windows и не второй плеер.
-- [Большой блок: t()-transaction + точная ocv.i0→ero owner/source цепь](ANDROID-NATIVE-T-TRANSACTION-OCV-LERO-OWNER-20261110.md). В старом наблюдателе `t()` считался успешным ДО того, как исходный Yandex `t()` завершался; мог показывать ложные reader-success после исключения/конкурентного Next. Исправлено: BEGIN→pending reader→только успешный original `chain.proceed()`→COMMIT; ошибка, remove, clock rollback, повторный t, спорные одновременные callback отменяют/не повышают «успех».
-- `NativeOwnerConstructionWitness`: новый ThreadLocal scope exact `ocv.i0()V`, два зарегистрированных `ero` конструктора, совпадение той же Java-ссылки, запрет смешивать поток/реэнтрантность/двух детей. `NativeSourceDispatchWitness.onOwnerChild` требует также тот же `ocv` в `t`, exact `ero`, exact `mb4` и успешные чтения. Логируются только счётчики, никаких URL/треков/ключей/аудио/изменения чужого APK.
-- **[CI #42871291865 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42871291865)**, проверенная версия **`276ab6fc44014c8419c8e31ce4250bf7cf8f451d`**, независимый immutable rollback **`backup/android-native-transaction-owner-observer-ci-green-20261110`**; 20029 синтетических source-t/reader race assertions, 10022 owner-child, остальные JVM/Android module 2/2. **Это не устройство и не аудиотест!**
-- **[Signed #170gpr DEX preflight #42871064983 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42871064983)**: 5 signed APK, 6 DEX, 7/7 методов, 2/2 конструктора `Lero`, 1 поле `Lero→Lmb4`, 1 точный `Locv.i0` и 1 прямой ctor invoke внутри `i0`. Но строгая same-straightline связь new-instance→invoke = 0, поэтому регистрационный доказанный новый объект в одном basic-block НЕ утверждать.
-- **STOP-SHIP:** native Gate 0.1 ранее заблокирован Google Play Protect на основном HONOR и выведен из выдачи/CI upload. Не присылать больше диагностические APK, не обходить Play Protect или подпись Яндекса. Нет разрешённого in-process official Yandex source→actual selected track+edition+generation→decoder-before-prepare bridge; **нет работающей новой подмены и нет основания просить ручную проверку**. Продолжение см. [GO/NO-GO](ANDROID-NATIVE-PUBLISHER-BRIDGE-GO-NOGO-20261110.md). Owner-accepted Test.50 SHA `5d737d203a0b364b0cb4fd6886040b8bd0c6fbd1` отдельно проверен как НЕИЗМЕННЫЙ.
-- Следующий настоящий критерий: разрешённый host, который запускает настоящий Yandex под нормальной Android защитой и доказывает *same current selected player/source* на decoder preprepare. До него никакая правдивая готовая one-player APK не выпускается. Не заменять очередной синтетической моделью.
-
----
-
-## АКТУАЛЬНАЯ ОСТАНОВКА ПО АРХИТЕКТУРЕ (10.11.2026): NATIVE ONE-PLAYER RELEASE = NO-GO
-
-- **[Технический GO/NO-GO и официальные ограничения Android / Media3 / Play Protect](ANDROID-NATIVE-PUBLISHER-BRIDGE-GO-NOGO-20261110.md)**. Это не Test.50 и не Test.51, не Windows, не второй MediaPlayer. Предыдущий эксперимент Native Gate заблокирован Play Protect на HONOR, **STOP-SHIP**, файл помечен в Library `REJECTED_DO_NOT_INSTALL` и его сборка/выдача в CI отключены.
-- В исходной новой нативной ветке исправлен **фактический пропуск создания Lero**: `Locv.i0` может строить `Lero` прямо, минуя `Lkvs.A`; теперь наблюдатель отслеживает оба точных конструктора через `==`, отдельно от фабрики, и связывает с `Lmb4.a/Lha4.open/read/close` при реальном вызове. **[CI signed DEX 1+1 ctor / 7 methods / 1 field — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42866551757)**, **[CI Java regression + Android module — SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42866551803)**. Проверенный исходник `b3752aad5d2b34d1816d323baeb41453ff81c3ba`; backup `backup/android-native-dual-constructor-source-observer-signed-ci-green-20261110`.
-- **НЕ доказаны** реальный native Yandex selected source, текущий `trackId+edition+generation`, decoder descriptor before prepare или установка штатного подписанного Yandex с нашим разрешённым модулем. Стоковый Android sandbox не позволяет произвольному соседнему APK менять private DataSource оригинального Яндекса. MediaSession команды не являются доступом к аудиодекодеру, и сторонний controller может иметь только чтение. Без нового **разрешённого in-process bridge** рабочий Android native one-player APK при заданных условиях не может быть выпущен.
-- **НИЧЕГО НЕ ПРОСИТЬ У ВЛАДЕЛЬЦА УСТАНОВИТЬ** и не предлагать следующий лабораторный APK как working version. Только согласованный новый легитимный механизм интеграции откроет путь к пользовательской QA. Owner Test.50 frozen, HONOR, original Yandex, Windows, extension, production/API/DB не трогать.
-
----
-
-> **STOP-SHIP / НЕ УСТАНАВЛИВАТЬ (10.11.2026).** Владелец проверил `CELIKOM Native Gate 0.1` на HONOR 50: **Google Play Protect заблокировал установку без варианта продолжить**. Это НЕ прошедший пользовательскую проверку APK, несмотря на green CI и корректную криптографическую подпись. Отладочная подпись и объявленный `NotificationListenerService` — потенциально значимые факторы, но **конкретная причина срабатывания не установлена**. Не отключать Play Protect, не искать обход «Установить всё равно», не перекомпилировать для сокрытия детекта, не переустанавливать Яндекс, не просить пользователя повторно устанавливать эту сборку. Задача Native Gate **отклонена**; файл в Library и старый Actions artifact — архивные, НЕ для распространения. CI-этап сборки/загрузки APK отключён. `Test.50`, stable, Windows, HONOR и оригинальный Яндекс не изменялись. Резерв `backup/android-native-before-play-protect-rejection-20261110`. Новая native source-first подмена не готова: продолжаем только законные собственные/изолированные тесты и статический анализ до реального разрешённого selected-decoder witness.\n\n## АРХИВ / ОТКЛОНЕНО Play Protect: MediaSession Gate (10.11.2026)
-
-- **Новая нативная одно-плеерная архитектура**, НЕ Test.50, НЕ Test.51 и НЕ «эквалайзер». Готова отдельная подписанная *диагностическая*, **НЕ аудиоподменяющая** APK `CELIKOM Native Gate` для проверки публичных возможностей уже работающего оригинального Яндекса на HONOR.
-- **[Полный документ, приватность, ручной чек-лист, SHA256](ANDROID-NATIVE-HONOR-PUBLIC-SESSION-GATE-2026-11-10.md)**. [GitHub CI #42863386941 — SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42863386941). Точный проверенный код `f565c5650fcf018ae946597e0fc47b2ecb50bc53`; frozen backup `backup/android-native-public-session-gate-signed-ci-green-20261110`; APK SHA256 `1c4672a72dc1a2f2be030e5edff3600a8a2cbe1c5c3c618d5ffc3063d6cd1bd6`. APK из GitHub Actions извлечена, SHA сверен с build receipt, копия в Library `/CELIKOM/Android/Native/CELIKOM-Native-Gate-0.1-READONLY.apk`.
-- Проверка №1 **без разрешений**: публичный media service binder; №2 **добровольно и только с явным системным широким доступом к уведомлениям**: `MediaSessionManager.getActiveSessions` уже работающего Яндекса и ONLY BOOLEAN platform/Media3 command flags. NotificationListener callbacks пусты; интернета, сохранения данных, треков, паролей/URI, playback команд и подмены источника нет. Android запрещает разрешение — **не обходить** Play Protect/restricted settings. После проверки отозвать доступ. На телефоне ещё не проверено.
-- **Даже CHANGE_MEDIA_ITEMS=true НЕ означает native source-first подмену**. Это всего лишь проверка доступных MediaSession команд. Реальный выбранный decoder/source, `trackId+edition+generation` и альтернативная аудиодорожка пока НЕ доказаны. Путь через исходную нативную архитектуру остаётся NO-GO, пока не появится разрешённый источник до decoder prepare. Отдельный native read-only Lero/Lmb4/Lha4 код/DEX с прежним CI-green сохранён.
-- Основной Яндекс на HONOR, owner-accepted Test.50, Test.51, Windows, расширение, API, DB и production НЕ изменялись.
-
----
-
-## АКТУАЛЬНАЯ NATIVE ANDROID ТОЧКА — source→reader nested execution, CI GREEN (10.11.2026)
-
-- **ЭТО НОВАЯ ОДНОПЛЕЕРНАЯ НАТИВНАЯ РАЗРАБОТКА, НЕ TEST.50, НЕ TEST.51 И НЕ DynamicsProcessing.** Ветка `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Старый Test.50 «как эквалайзер» — независимый принятый эталон; случайная Test.51 не используется.
-- **[Детальный отчёт](ANDROID-NATIVE-SIGNED-LERO-READER-EXECUTION-2026-11-10.md).** Native реальный код `6146109dd77352dbc73563c26dcaf1dfd6ff6c38`, rollback `backup/android-native-lero-lmb4-ha4-signed-readonly-chain-ci-green-20261110`.
-- **[JVM + Android module #42860807834 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42860807834)**; **[signed 5-APK, 6-DEX exact method/field check #42860839260 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42860839260)**: семь точных определений методов `Lkvs.A / Lero.t/remove / Lmb4.a / Lha4.b/read/close` и ОДНО поле `Lero→Lmb4` действительно существуют в оригинале.
-- Код через точную reference identity соединяет factory `Lkvs.A` → `Lero.t` → принадлежащий `Lmb4.a` → реальный `Lha4` open/positive read/close **только если hooks фактически исполнятся в разрешённом host**. 10 000 synthetic cycles, защита от разных объектов/поколений/потоков/exception. **Никакой аудиоподмены в Яндексе пока нет и на HONOR ничего не устанавливалось.**
-- **Жёсткий единственный блокер:** исполняемый разрешённый native ARM Android host, который может доказать *actual selected current track+edition+generation → настоящая decoder source before prepare*. Без этого Xposed-модуль остается наблюдателем, обычный отдельный Android APK не сможет изменить чужой player из sandbox. Не повторять x86 LSPatch/clone/AppMetrica, не подменять это OWN WAV тестами.
-- Отдельно проверено направление ARM TCG без KVM: официальная Android Emulator software `-accel off` **неподдерживаемая и очень медленная**, а публичная лабораторная сборка `lhns/android-arm-tcg` для установки больших APK требует обхода проверки подписи в системном oat. Это **запрещено для CELIKOM**, не использовать как доказательство нормальной защищённой установки Яндекса. Play Protect/DRM/signature не обходить.
-- Owner-accepted Test.50, Test.51, официальный установленный Yandex/HONOR, Windows, расширение, API/БД, production, server НЕ трогать. Никакого «готово» и user APK до доказанной native подмены.
-
----
-
-## ВАЖНО: НОВАЯ НАТИВНАЯ ANDROID ВЕТКА (10.11.2026)
-
-- **ЭТО НЕ Test.50/эквалайзер!** Работа по исходной native-Yandex one-player архитектуре продолжается **только** в `experiment/android-native-yandex-fileinfo-hooklab-20261109`. Случайная Test.51 из другой ветки не относится к этой задаче и не должна переноситься сюда.
-- [Новый read-only runtime-кандидат Lemb factory→t same-instance](ANDROID-NATIVE-LEMB-INSTANCE-RUNTIME-WITNESS-2026-11-10.md): exact `Lkvs.A(zcb,gmb):emb` + восемь `Lemb.t(dmb)/remove` реализаций; наблюдение `==` объекта без URL, звука, токенов и модификации Яндекса. Кодовой SHA `9073ea35d3f5ef2a996b197d237f4265ab0ab564`; CI требует подтверждения после текущего push.
-- Текущий результат **не является работающей подменой**: source factory→t может быть фоновым; не доказаны активный current `trackId+edition+generation`, decoder prepare и разрешённый in-process host. Пока NO-GO к user APK.
-- Исторический, принятый владельцем Android Test.50 и вся прежняя работа с DynamicsProcessing не имеют отношения к этой ветке и запрещены к изменениям. HONOR, Windows, расширение, API/БД, production и официальный APK не трогать.
-
----
-
-## АРХИВ: ОТДЕЛЬНЫЙ ЭКСПЕРИМЕНТ TEST.50 — НЕ ИСПОЛЬЗОВАТЬ ДЛЯ NATIVE (10.11.2026)
-
-- После успешного OWN Android13 MediaPlayer / 12-round race [#42837053639](https://github.com/manufact-test/nomusic/actions/runs/42837053639) подтверждено: на x86_64 Android **только собственные WAV**, не реальная native-Yandex подмена. Выбранный Yandex `Lemb` runtime не установлен.
-- По проверенным старым CI настоящий signed Yandex #170gpr запускается в **Android 11 x86/ARM translation** (baseline [#42621833205](https://github.com/manufact-test/nomusic/actions/runs/42621833205)), но **анонимного живого playback witness нет**. ARM64 macOS эмулятор дважды не загрузился [#42672246229](https://github.com/manufact-test/nomusic/actions/runs/42672246229), hosted ARM64 Linux KVM **нет** [#42792130918](https://github.com/manufact-test/nomusic/actions/runs/42792130918); public MediaSession bind [#42785272172](https://github.com/manufact-test/nomusic/actions/runs/42785272172) **rejected**. Не повторять те же тупиковые CI.
-- Вместо новых DEX циклов открыт отдельный **поведенческий Android Test.50 эксперимент**: `experiment/android-test50-repeated-seek-failopen-20261110`, green SHA `7440d70be0e0584fde12bff2c1fc43725717475e`, backup `backup/android-test50-repeated-seek-failopen-ci-green-20261110`; [CI #42843272827 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42843272827).
-- Полный документ в другой ветке: [ANDROID-TEST50-REPEATED-SEEK-FAILOPEN-EXPERIMENT-2026-11-10.md](https://github.com/manufact-test/nomusic/blob/experiment/android-test50-repeated-seek-failopen-20261110/docs/android/ANDROID-TEST50-REPEATED-SEEK-FAILOPEN-EXPERIMENT-2026-11-10.md).
-- После **двух неуспешных seek за 60 с на одной песне** Test.50-эксперимент откатывает в оригинал до следующего трека; одна неудача допускает прежний retry. Полный Android CI и защитный hash старого seek/ACK прошли. **Не выдан APK и не подтверждён звук на HONOR**, эталон Test.50 `backup/android-test50-exact-source-owner-accepted-20261106` @ `5d737d2` неизменен.
-- Основные Windows, browser, production/API, сервер, DRM/подписи, пользовательский HONOR и установленный официальный Яндекс не трогались. Продолжение без отдельного ARM-хоста — на экспериментальной Test.50 ветке, не в signed-Dex mayflow.
-
----
-
-## НОВЕЙШАЯ CI GREEN — Android 13 real MediaPlayer rapid Start/Stop/Next race PASS (10.11.2026)
-
-- **Точный код:** `50735e6d56481ea0ce3da8fdcb03589cad90608c`; **неизменяемый rollback:** `backup/android-own-api33-rapid-reload-race-pass-20261110`. **Читать первым:** `docs/android/ANDROID-OWN-API33-RAPID-RELOAD-RACE-PASS-2026-11-10.md`.
-- **Реальный Android 13 Google APIs x86_64 emulator / OWN-WAV only / noaudio**: обычный source reload с сохранением Pause/Seek/Next **PASS** и **новый быстрый стресс** 12 round / 48 media-player creates / max1 concurrent / 47 release, 12 B prepared, 6 Paused+Seek **PASS**. CI зафиксировал **`RESULT=PASS CODE=OWN_DECODER_LIFECYCLE` И `RESULT=PASS CODE=OWN_ASYNC_RACE_PASS`** в одном run [#42837053639 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837053639).
-- Починен настоящий баг OWN UI: второй Start/Stop **до `onPrepared`** сбрасывал pending restore position в 0; теперь `restoreSeekMs>0` действует с начала prepareAsync. 36 искусственно вставленных stale-tickets отсекаются generation guard, но **реальное число framework late callbacks не измерено** — не путать.
-- **Android ARMv7 host [#42837003150 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837003150), own scoped module [#42837003307 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42837003307), native research [#42837003096 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42837003096)** на соседнем SHA `31c34b23`; после него менялась **только workflow safety-check** (проверено compare). Оригинальный Yandex/owner Test.50/Windows/API/production НЕ менялся.
-- **Android Yandex runtime selected Lemb / trackId+edition+generation → real decoder preprepare НЕ ДОКАЗАН**. Обычные Android `AudioPlaybackCallback`/MediaSession уведомления не открывают объект DataSource чужого плеера. Android CELIKOM source swap по-прежнему **NO-GO**, не выдавать собственный тестовый APK за готовую подмену.
-
----
-
-## ПРЕДЫДУЩИЙ ПРОВЕРЕННЫЙ ANDROID RUNTIME PASS — API33 OWN MediaPlayer, source reload/Seek/Pause/Next (10.11.2026)
-
-- **CI GREEN код:** `bb26aca9652850c69fbd0896a26bec22601826b0`, **точный immutable backup:** `backup/android-own-api33-real-mediaplayer-source-reload-pass-20261110`, **главный документ:** `docs/android/ANDROID-OWN-API33-MEDIAPLAYER-RUNTIME-PASS-2026-11-10.md`.
-- **Впервые реальные Android 13 native MediaPlayer callbacks в эмуляторе, не JVM модель:** собственный WAV A 440 Hz → Seek 2.2 с → Pause → SAME-TRACK Start alternative A 660 Hz с сохранением Pause и позиции → Resume → Stop, original A 440 Hz с сохранением Playing/позиции → Next B original 330 Hz. Источник выбирается через тот же `OwnSameTrackReloadPlan.decide`; старый плеер сначала release, новый один. На реальном Android CI `RESULT=PASS CODE=OWN_DECODER_LIFECYCLE`.
-- **[Android 13 OWN runtime #42835181030 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181030)**; на том же SHA [OWN ARMv7 host+50 020 tests #42835181029 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181029), [scoped own module #42835181289 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181289), [native-Yandex research build #42835181034 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42835181034).
-- **Жёсткая граница:** Android emulator x86_64 использует только OWN-пакет, WAV и `-noaudio`; не доказывает слышимый звук, Android-Яндекс, выбранный Lemb из 8 реализаций, trackId+edition+generation или декодер Яндекса. Реальная Android CELIKOM-подмена всё ещё **NO-GO**. Original/Test.50/HONOR/Windows/API/production не трогать.
-
----
-
-## ПРЕДЫДУЩАЯ CI GREEN — Windows 0.24.9 audio lessons → OWN Android same-track reload (10.11.2026)
-
-- **Проверенный code SHA:** `a7f83f0ab836bbeeb12538c6a389c9569d326610`; **замороженный rollback:** `backup/android-windows-w60-owned-reload-armv7-arm64-ci-green-20261110`; главный документ: `docs/android/ANDROID-WINDOWS-W63-AUDIO-PARITY-OWNED-RELOAD-2026-11-10.md`.
-- **Наконец сопоставили реальные исходники Windows:** `w22/native-resource-adapter.mjs` + `w60/current-source-refresh.mjs` и свежие W57/W60/W61/W62/W63. Owner audio/Pause/Seek/Next/MyWave/Start/Stop **PASS на Windows 0.24.9**, W63 (0.24.11) пока пользовательский UI-кандидат. Windows работает через проверенный `getFileInfo` и Electron `7123.VE.reloadEntity("QUALITY_CHANGE")`; Android **не имеет доказанного идентичного API**.
-- Из принципов Windows портирован **реально собираемый ARMv7 OWN-only Android стенд:** `OwnSameTrackReloadPlan.java`, новые Start/Stop в `AudioSmokeScreen` для той же 8-секундной искусственной песни A. **Только при смене источника** релиз единственного `MediaPlayer` и создание нового; position/paused восстанавливаются после `prepareAsync→seekTo`, быстрые повторные нажатия защищены revision, Next B остаётся оригиналом. **Не Яндекс!**
-- **CI SUCCESS:** [OWN ARMv7 Android build + safety + 50 020 assertions #42830966825](https://github.com/manufact-test/nomusic/actions/runs/42830966825); [ARM64 Linux JVM test #42831135970](https://github.com/manufact-test/nomusic/actions/runs/42831135970). Нет физического Android-аудио теста и live Yandex decoder evidence, оригинал не меняли.
-- **Windows W56 query guard не переносить на Android:** вызван конкретным Windows `DownloadInfoSource` append `?vsid`; подтверждения такого Android транспорта нет; `NativeGrantContract` правильно отклоняет неподписанные дополнения. Не копировать JS Electron reload, ключи/IV, DRM и URL в неподтверждённый Android путь.
-- **Единственный главнейший blocker:** выбранный live `Lemb` receiver (из восьми вариантов) + тот же current `trackId/edition/generation` → истинный decoder preprepare. Без отдельного ARM Android test host нельзя обещать owner APK. Test.50/HONOR/Windows/production не трогались.
-
----
-
-## ПРЕДЫДУЩАЯ CI GREEN ТОЧКА — строгий source-instance fail-closed на ARM64 (10.11.2026)
-
-- **Исходники и тесты SHA:** `59aa2d14bf32fd0f5eb553c09ec88738d84353a0`; **точный бэкап:** `backup/android-signed-source-instance-failclosed-arm64-ci-green-20261110`. **Главный отчёт:** `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
-- После предыдущего green `3aaab880` поймали дополнительную ошибку исследовательского допуска: после событий `OUT_OF_ORDER` более поздний чистый `open/read/close` мог снова дать `syntheticSequenceComplete=true`. Исправлено: **любое rejected-событие текущего поколения навсегда лишает его статуса complete**; stale-вызовы старых поколений новое не портят. Добавлены регрессии.
-- **[Нативный ARM64 Linux JVM #42828086262 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42828086262)**: 44 480 OWN-ONLY assertions + 27 concurrency checks, 4 800 stale callbacks. **[Read-only Android module #42828086264 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42828086264)**. Signed original Lemb factory source census [#42827236492 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42827236492).
-- `NativeSourceInstanceFence` — чистая локальная Java-модель без подключения к `NativeHookEntry`. Нет live Android ARM runtime decoder proof, selected trackId/edition/generation / Lemb source match, Android аудиоподмена **НЕ** работает; HONOR/Test.50/Windows/production не трогали.
-
----
-
-## ПРЕДЫДУЩИЙ ПРОВЕРЕННЫЙ CI — Lemb source alternatives + exact source-instance generation fence (10.11.2026)
-
-- **CI GREEN SHA:** `3aaab880fff4326b596f63a52a89a0f4d0085fef`; **точный бэкап:** `backup/android-signed-source-instance-arm64-lemb-ci-green-20261110`. **Читать первым:** `docs/android/ANDROID-NATIVE-SOURCE-INSTANCE-ARM64-AND-LEMB-BRANCHES-2026-11-10.md`.
-- Подписанный original #170gpr: **8 concrete Lemb implementations**, 4 direct `Lemb.t/remove` callsites в `Lchg.t/remove`, `Lciv.e`, `Larv.g`. Даже доказанный ранее `Lero→Lwq7→Lmb4` может быть **не выбранным** источником.
-- В factory `Lkvs.A` есть 4 условных типа `Lero/Lojz/Lalt/Lt6f`; в `Locv.i0` — `Lero/Lxq7/Lchg/Lt67`; в `Larv.g` — `Lero/Lt6f`. Показаны типы/ветвления, **не** значения URL/строк и не то, какая ветка сработала на устройстве.
-- Добавлена **исключительно OWN-ONLY** `NativeSourceInstanceFence`: отдельный pure Java контракт точной `Object ==` идентичности selected/owner/reader/loader/task/DataSpec, preprepare-once, поколений Next/Radio, Stop, Seek/reopen, монотонных часов и fail-closed. **К `NativeHookEntry` НЕ подключена, аудио не трогает.**
-- **CI:** [ARM64 Linux JVM #42826864698 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42826864698) (44 478 deterministic + 27 concurrency assertions; 4 800 запоздавших вызовов), [Lemb factories #42827236492 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42827236492), [signed Lemb callers #42826778879 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42826778879), [Android native module #42827236060 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42827236060).
-- **Android Yandex live source selected/predecoder доказательства нет; аудиоподмены нет.** ARM64 Linux — не Android runtime. Перед подключением нужны независимые trusted selected trackId+edition+generation + точно выбранный Lemb и actual decoder prepare в изолированной ARM Android среде. Test.50/HONOR/Windows/production не трогать.
-
----
-
-## ПРЕДЫДУЩИЙ CI GREEN — точный Lero → Lwq7 task → Lmb4 DataSource.open/read/close (10.11.2026)
-
-- **Проверенный SHA:** `f04745f7dcd4455996eadf56dc0be6c52a44c63f`; **замороженный откат:** `backup/android-signed-lero-lmb4-reader-case-ci-green-20261110`.
-- **Читать первым:** `docs/android/ANDROID-NATIVE-SIGNED-LERO-LMB4-EXECUTION-CHAIN-2026-11-10.md`. Signed original 5 APK/6 DEX/230533 bodies: `Lga4.c():Lha4` move-result **в том же basic block** записывается в `Lero.Lha4` и передаётся в `Lmb4.<init>` word1; конструктор кладёт его в точное поле `Lmb4:Lm48`; `Lmb4.a` читает тот же field-ref, cast `Lha4`, вызовы `b(La58)`×2/`read([BII)`/`close()`.
-- В `Lero.t` **проверен actual DEX selector** и захват точного `Lero.this` в `Lwq7.<init>(I,Object)`. Mode **не** входит в 2 explicit packed-switch кейса `Lwq7.e` и выполняет **default fallthrough**, где `Lwq7` считывает то же captured field → `Lero.Lmb4` → `Lmb4.a`. У `Lero.t` есть `execute/get`, но это не runtime-аудио подтверждение.
-- **CI SUCCESS:** [source read #42821377729](https://github.com/manufact-test/nomusic/actions/runs/42821377729), [selector/capture #42822722957](https://github.com/manufact-test/nomusic/actions/runs/42822722957), [exact source field #42823360505](https://github.com/manufact-test/nomusic/actions/runs/42823360505), [Android module #42823360398](https://github.com/manufact-test/nomusic/actions/runs/42823360398) 2/2.
-- **Критическая граница:** точный выбранный `trackId+edition+generation` в живом ExoPlayer и `decoder PREPARE` всё ещё НЕ доказаны. Android replacement audio НЕ работает, runtime hooks/прошивки не тронуты. Следующий этап: отдельный пассивный ARM Android player/source witness. Не повторять x86 LSPatch; не трогать Test.50/HONOR/Windows/production.
-
----
-
-## ПРЕДЫДУЩАЯ CI GREEN ТОЧКА — URI-модель → Lcq7.i0 → Lga4/Lero/Lha4 → DataSource (10.11.2026)
-
-- **Проверенный исходник:** `f327f5b9bcfee028e754f9a803f29ade347cb240`, **rollback:** `backup/android-signed-uri-locv-source-cfg-green-20261110`.
-- **Читать первым:** `docs/android/ANDROID-NATIVE-SIGNED-URI-TO-DATASOURCE-LIFECYCLE-EVIDENCE-2026-11-10.md`. В оригинальном подписанном six-DEX `Locv.i0` читает URI-подобные данные, `Lw4y.z` парсит scheme/host/path/query (значения не экспортированы); результат попадает в coroutine `Llky`, `Lfwm.M` возвращает `Ljgv`, который bounded CFG передаёт `Lcq7.i0` и `Lcq7.D`.
-- У `Lcq7.i0` только 2 прямых вызывающих: `Lo4y.c` и `Locv.i0`. Результат — **обёртка**; реальный `Lga4` извлекается через `iget-object` с условным путём к `Lnro/Lero`. Предыдущий анализатор ошибочно сохранял taint обёртки при `iget-object`; ошибка в DEX 22c nibble-kill исправлена и протестирована.
-- В том же signed DEX: `Lcq7.A` результат → точный primary `Le48`-slot `Lga4`; `Le48.a` результат `Lm48` → argument word 3 `Lha4.<init>`; `Lha4.f` вызывает `Lm48.b(La58)`, `Lha4.read` — `Lv38.read`. `Locv.t/remove` условно вызывают `Locv.i0`, но это **НЕ доказательство live decoder prepare**.
-- **CI:** [source register #42819113120 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42819113120), [actual i0 CFG #42819106641 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42819106641), [taint fix #42817633107 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42817633107), [Android module #42819113420 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42819113420).
-- **ANDROID audio PASS — НЕТ.** Нельзя считать модель соответствующей активному `trackId/edition/generation` или выбранному pre-prepare DataSource. Контракты замены не подключались, HONOR/Test.50/Windows/API/production не трогались.
-
----
-
-## ПРЕДЫДУЩИЙ ПРОВЕРЕННЫЙ КОД — obfuscated DataSource + два Le48-источника (10.11.2026)
-
-- **CI GREEN SHA:** `6b5bfde53d81a29920f32a3c6b13b730b216e669`; **независимый откат:** `backup/android-signed-dual-source-dataspec-open-ci-green-20261110`.
-- **Читать ПЕРВЫМ:** `docs/android/ANDROID-NATIVE-SIGNED-DATASPEC-OPEN-SOURCE-EVIDENCE-2026-11-10.md`. Установлен подписанный DEX DataSource-совместимый контракт Lm48(b(La58):J, getUri, close) + родитель Lv38(read([BII):I), 33 реализации; проверены реальные Lha4.open/read и Lz3f.a→Lm48.b(La58).
-- Lga4.b/c используют secondary Le48, Lga4.d primary Le48; secondary в Lcq7.i0 = Lya4 → Lza4 (открытие/чтение выбрасывает исключение), **primary = Lcq7.A→Luiq** (ленивая фабрика Lm48). Оба источника передаются в Lha4, нельзя их путать. Общее соседство с ExoPlayer **не доказывает** текущий trackId/edition/generation и live decoder PREPARE.
-- **CI:** [field2 #42813687276 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42813687276), [two slots #42814211492 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42814211492), [inherited API #42814967628 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42814967628), [source/open #42815048696 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42815048696), [Android module #42815048701 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42815048701).
-- **Нет Android audio PASS** и точной идентичности FileInfo→текущий экземпляр Lm48 перед prepare. Ничего в player/replacement не подключено; Test.50/HONOR/Windows/API/production не тронуты.
-
----
-
-## PREVIOUS 2026-11-10: REAL SIGNED TYPED FileInfo LINEAGE / CI ALL GREEN
-
-**Verified code:** `78b0437f17888ce49a4c1bea0ba06ca96cb455b9`; **rollback:** `backup/android-signed-typed-dispatch-field-audit-ci-green-20261110`. [Полный отчёт](docs/android/ANDROID-NATIVE-SIGNED-TYPED-DISPATCH-EVIDENCE-2026-11-10.md). Результат: оригинальный signed six-DEX содержит Lhee.a→Lxa7, Lged.a unwrap Leed, Lfqr coroutine→Ldiv, Lygv.r(Ldiv)→Ljgv, её реальные потребители Lcq7/Lo4y/Llvc/Larv. Далее обфусцированные Lga4/Lkq7/Lnro могут взаимодействовать через Le48/Le93.
-
-**ВАЖНОЕ исправление ложноположительного пути:** возможная Larv.g→Lero→Lga4.c→Le48.a→Ldl8.a→Lsu5.invoke→Lro7.y0 цепочка не доказывает audio source. У Le48.a 16 потенциальных реализаций; Lga4.c читает **Le48 field-2**, конструктор кладёт Lzcd в **field-1**, прямые записи field-2 имеют источники Lya4/Lkc6 и неизвестные, Lsu5.invoke имеет 721 opcode и switch (независимые сценарии). Все точные field refs проверены на 230 533 DEX телах. Изолированный ARM decoder PREPARE с текущим trackId+edition+generation НЕ подтверждён. Контракты замены не включать.
-
-**Green CI:** [typed #42808158803](https://github.com/manufact-test/nomusic/actions/runs/42808158803), [post DTO #42808680756](https://github.com/manufact-test/nomusic/actions/runs/42808680756), [typed candidate #42810750855](https://github.com/manufact-test/nomusic/actions/runs/42810750855), [dynamic #42809849405](https://github.com/manufact-test/nomusic/actions/runs/42809849405), [field #42810607588](https://github.com/manufact-test/nomusic/actions/runs/42810607588), [Android hooklab #42810750850](https://github.com/manufact-test/nomusic/actions/runs/42810750850) 2/2. No owner APK, Windows, HONOR, Test.50, API or production touched.
-
----
-
-## НОВЕЙШАЯ ПРОВЕРЕННАЯ ТОЧКА — signed register/CFG + coroutine (10.11.2026)
-
-**Код CI GREEN:** 8b7bc64f89249e5434da739851bececce2adb121. **Бэкап:** backup/android-signed-register-cfg-ci-green-20261110. Исследование оригинального подписанного 6-DEX APK [#42806655214 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/42806655214); сборка модуля и тесты [#42806655152 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42806655152). **Отчёт:** docs/android/ANDROID-NATIVE-SIGNED-REGISTER-COROUTINE-CFG-EVIDENCE-2026-11-10.md.
-
-**Реально найдено:** sw7.y0/z0 → объектный результат → Lxa7.<init> (bounded CFG); Lged.a → Lhee.a → Leed.a / Lta7.c / Lwa7.a, наблюдается возврат объекта. Lfed / Lgee / Lfqr — прямые coroutine invokeSuspend callers; в Lfqr есть collect/emit, но результат не доказан как payload интерфейса. Это только статическая may-flow DEX, НЕ активный decoder source и НЕ Android audio PASS. Android grant/Stop контракты не подключались к настоящему декодеру. Не трогать Test.50/HONOR/официальный Яндекс/Windows/API/production/DRM/подписи.
-
----
-
-# 10.11.2026 — АВТОРИТЕТНАЯ НАВИГАЦИЯ / ПЕРЕДАЧА
-
-**Начинать с** `docs/android/00-NATIVE-HANDOFF-NAVIGATION-2026-11-10.md` и **`docs/android/START-NEXT-CHAT-ANDROID-NATIVE-2026-11-10.md`**. Нижеследующие разделы этого файла являются историей и могут содержать устаревшие слова LATEST и SHA.
-
-**Предыдущий проверенный код:** `d7d3f8b82b6d752ed7837dd9955ccb51df71641d`. **Два CI SUCCESS:** [signed six-DEX bridge scan #42804081064](https://github.com/manufact-test/nomusic/actions/runs/42804081064), [Android module build/tests #42804081053](https://github.com/manufact-test/nomusic/actions/runs/42804081053). Прямой caller `FileInfo→sw7.y0/z0`: `Lhee;->a`. Есть consumer `Lged;->a`, но связка к декодеру НЕ доказана. В оригинальном Android APK статически найдены по два вызывающих метода `MediaSession.setMetadata` и `setPlaybackState`, НЕТ подтверждения их live исполнения на пользовательском треке. Полный отчёт `docs/android/ANDROID-NATIVE-SIGNED-SHARED-CALLER-MEDIASESSION-EVIDENCE-2026-11-10.md`.
-
-**Windows W58:** пользователь ПОДТВЕРДИЛ аудиоподмену, Pause, Seek, Next, Previous, MyWave на Windows 0.24.7; в Android такой замены ещё НЕ БЫЛО. Уже перенесены только чистые модельные контракты для grant/Stop/Next; основной блокер — реальная Android decoder pre-prepare точка. Все рабочие версии/production не тронуты.
-
----
-
-## NEW VERIFIED ANDROID CHECKPOINT — Windows W58 logic carried into source-only Android (2026-11-10)
-
-**GitHub code SHA `e2a3c7c9577ea0a44966d1859296d77e0bae40d7`, CI [#42802150192 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42802150192), backup `backup/android-w58-grant-stop-next-ci-green-20261110`.** Owner Windows 0.24.7 genuinely PASSED audio + Pause/Seek/Next/MyWave. Windows Stop leaves *already delivered* signed audio playing in existing Yandex buffer, but no proven newly mapped track after OFF. Do NOT confuse this UX semantics with an active background hook.
-
-Imported strict native approved signed grant shape/Track ID/expiry/entitlement checks and exact Stop/Next/re-enable epoch fencing into **`NativeGrantContract.java`** and **`NativeReplacementLifecycle.java`** with thousands of simulated races. Important: These are **NOT YET CONNECTED** to a verified real Android decoder; no Android audio replacement tested. The desktop `&celikom_native_query_guard=0` trick was NOT copied because Android URL transformation is unknown. No Windows/production/HONOR/Test.50 changes. Full report: `docs/android/ANDROID-WINDOWS-W58-NATIVE-REUSE-2026-11-10.md`.
-
----
-
-## VERIFIED GREEN CHECKPOINT 2026-11-10 / cross-platform Windows W57
-
-- **Current Android native hooklab code SHA**: 4166b3f5f75df45b717308356995af22e1babc3c. [GitHub Actions CI #42800426147 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42800426147): full synthetic native source, event order and playback-state tests; Android libxposed module debug APK compiles and signature/module metadata validates. **No actual Android Yandex audio hook or source replacement proven**.
-- New passive Android framework MediaSession.setPlaybackState observer tracks published enum and aggregate rapid Play/Pause/Buffering/Error reports. It reads **ONLY public enum** and cannot know track or user intent; multiple MediaSessions and normal user pause can look like quick state flips. Never connect to source replacement or decoder admission.
-- Windows **0.24.7** owner-verified first real audible approved replacement inside real Yandex desktop. Native audio GET 206 (2), 403 (0). W56 root cause is **desktop-specific** vendor-added second ?vsid query corrupting signed source URL sid, fixed without HMAC bypass. Android has no verified equivalent, so DO NOT port the desktop URL padding blindly. Full review at docs/android/ANDROID-WINDOWS-W57-TRANSFERABILITY-2026-11-10.md.
-- **Rollback exact tested code:** backup/android-native-w57-review-playback-state-ci-success-20261110 (same SHA as above); pre-review baseline backup/android-native-before-windows-breakthrough-review-20261110 at 22d5ef25. Do not touch stable Android Test.50, owner's HONOR or Yandex, Windows 0.24.7 or production server. No APK suitable for user installation.
-
----
-## 10.11.2026 IMPORTANT: verified CELIKOM Windows W57 audio breakthrough reviewed
-
-**Windows 0.24.7 real replacement audio heard by owner, real HTTP206, 0 HTTP403.** Desktop Yandex DownloadInfoSource appended its own second ?vsid query to already signed audio URL and Windows team fixed the resultant session-field corruption with a narrow media-only trailing guard. This is DESKTOP Electron-specific; not evidence the native Android player also does that. See docs/android/ANDROID-WINDOWS-W57-TRANSFERABILITY-2026-11-10.md.
-
-Experimental native Android observer has new public playback state *aggregate-only* witness and synthetic JVM tests; no audio source swap and no actual patched native Yandex ARM run yet. Windows accepted baseline, Android Test.50 and HONOR unchanged.
-
----
-## VERIFIED CHECKPOINT: 10.11.2026 — CI SUCCESS / NO NATIVE AUDIO CLAIM
-
-**Latest verified CODE SHA:** `c5f76316f8a00e8b30c2cdae402fe0ec64dfeea2` on `experiment/android-native-yandex-fileinfo-hooklab-20261109`.
-**[CI #42798290760 SUCCESS 2/2](https://github.com/manufact-test/nomusic/actions/runs/42798290760):** pure-Java `NativeEventOrderProbeTest`, Python categorical/redaction tests and existing source/identity tests passed; Android observer APK built, metadata and signing structure verified. A previous CI #42798154589 failed only because its guard still expected an old log phrase; the guard was corrected and entire CI reran green.
-
-**What changed from pre-experiment SHA `1ad5870f`:** pure-Java bounded FileInfo/metadata temporal classifier, native read-only hook observer integration, distinct FileInfo vs MediaSession counter categories, aggregate logs, updated safe emulator log parser and unit tests. There is no source mutation. Every real audio source comparison still requires a physically valid native-Yandex host; metadata temporal proximity is **not** trackId+edition proof. Do not use it in `NativePrePrepareAdmission`.
-
-**Backups:** `backup/android-native-before-temporal-event-probe-20261110` at `1ad5870f`; `backup/android-native-temporal-event-probe-ci-passed-20261110` at `518dd07d`. Owner Test.50 baseline unchanged. No APK for manual Yandex testing, no production, no HONOR changes, no ChromaSync purchase.
-
----
-
-## UPDATE 10.11.2026 — temporal diagnostic CI green + meaningful log summaries
-
-**CI [#42797745570](https://github.com/manufact-test/nomusic/actions/runs/42797745570): SUCCESS 2/2**: >36k synthetic rapid Next/prefetch/privacy assertions, ARM source-only Xposed observer APK compiles and signature metadata passes. NO real Yandex host/runtime or source replacement.
-
-Follow-up fixes: `NativeHookEntry.safeCount` now uses **metadata update** vs **FileInfo conversion** labels correctly, and every 20 metadata updates prints **only aggregate categories** (one nearby source, ambiguous multiple, none, clock discontinuity). `diagnose_emulator.py` recognizes distinct `CONVERSION_WITNESSED`, `METADATA_WITNESSED` and `TEMPORAL_ORDER_AGGREGATE` without exposing raw log lines. New categorical-parser unit tests; no song/account data processed. Snapshot backup `backup/android-native-temporal-event-probe-ci-passed-20261110` (code from green CI).
-
-This does NOT prove the correct track / edition, is NOT plugged into `NativePrePrepareAdmission`, and cannot replace audio. Still requires a verified compatible native ARM Android host, not an x86 test or user HONOR installation.
-
----
-
-## UPDATE 10.11.2026 — Native FileInfo / MediaSession temporal witness (NEWEST)
-
-**Previous checkpoint and rollback:** `backup/android-native-before-temporal-event-probe-20261110` at `1ad5870f05105ffc5f9a105a052aca211ebaa6a7`.
-
-Implemented `NativeEventOrderProbe.java`: a bounded, pure-Java diagnostic, now connected to the existing read-only FileInfo converter hooks (modern and legacy) and platform `MediaSession.setMetadata` observer in `NativeHookEntry`. Every method proceeds unmodified. Classifier records only monotonic event ordering, not absolute timestamps, IDs, editions, URLs, source responses, accounts or metadata values.
-
-Diagnostic categories: one nearby FileInfo (temporal coincidence only), multiple nearby FileInfo (ambiguity/prefetch), metadata without recent FileInfo, clock discontinuity. Source event queue saturates at 2 and is consumed once for each metadata callback. The 12-second window is a provisional upper diagnostic bound, NOT a performance benchmark. `SINGLE_RECENT_FILEINFO_TEMPORAL_ONLY` is explicitly NOT a verified track-to-source match and may never authorize replacement. `NativePrePrepareAdmission` remains disconnected from real native decoder.
-
-`NativeEventOrderProbeTest.java` exercises duplicate metadata, 12,000 Next/radio bursts, 20,000 prefetch events, expiry and clock reversal. Hooklab CI compiles/runs it as well as the Android libxposed module build. No user APK yet: actual runtime Yandex hook and native audio replacement still UNVERIFIED. Owner HONOR, stable Test.50, server and production untouched. ChromaSync paid/manual patcher rejected, no outreach.
-
----
-
-## UPDATE: open-source native playback event evidence (10.11.2026)
-
-Owner personally confirmed ChromaSync Android requires payment and manual patcher; **do not ask for it**, do not claim it free. No candidate outside CELIKOM was installed or paid for.
-
-Checked actual public code, **not marketing alone**:
-- [windyx0/YaMusicLsposed](https://github.com/windyx0/YaMusicLsposed/blob/main/app/src/main/java/io/github/windyx0/yamusiclsposed/MainHook.kt) (MIT): hooks Android framework `android.media.session.MediaSession.setMetadata` from within Yandex process; its sample reads/logs metadata, **we intentionally DO NOT**.
-- [daanqq/YaMusicTabs](https://github.com/daanqq/YaMusicTabs) (source available): modern libxposed `onPackageReady` with the Yandex host classloader to hook native UI. No audio source swap.
-- [errorman-awful/YMDownloaderXposed](https://github.com/errorman-awful/YMDownloaderXposed): public GitHub repository has README/demo, **no Android source**, not a reusable implementation.
-- ChromaSync Android still has only README publicly; exact paywalled module source unavailable.
-
-**Implemented in our native FileInfo module:** passive, version-locked `MediaSession.setMetadata` observer with only throttled integer counter and immutable original call path. Does not inspect MediaMetadata fields, track IDs, titles, URLs, queues, accounts or audio. It can later establish whether a native Android host process emits media metadata changes, *independently* of our already present FileInfo converter counters. A media session event DOES NOT confirm trackId+edition+generation identity or decoder source. Never use it to select alternate audio.
-
-This is a concrete open-source-informed engineering improvement, not a full working native source replacement; must verify module build CI separately and real Yandex runtime only on suitable isolated ARM hardware. Primary HONOR, Test.50, other branches, Windows, extension, server/DB/production unchanged. Backup `backup/android-native-before-open-source-metadata-20261110` before these changes.
-
----
-
-## UPDATE 10.11.2026 — signed native ExoPlayer implementor truth (LATEST)
-
-**Verified code commit:** `fcd7550b86ee93082ff3a8b119e38b29d02482d8`. **Rollback backup:** `backup/android-native-real-media-implementation-evidence-20261110`.
-
-- [Native original media engine CI #42791262439](https://github.com/manufact-test/nomusic/actions/runs/42791262439) **SUCCESS**: standard class `ExoPlayerImpl` absent, `ExoPlayer` interface defined.
-- [Exact DEX type hierarchy #42791641169](https://github.com/manufact-test/nomusic/actions/runs/42791641169) **SUCCESS**: 4 obfuscated concrete implementors `Lfxc;`, `Lro7;`, `Lwxc;`, `Lyzt;`, not necessarily player/decoder for current audio.
-- [Inherited prepare body scan #42791829407](https://github.com/manufact-test/nomusic/actions/runs/42791829407) **SUCCESS**: no `prepare()V` bodies in those classes or their scanned parent chains. **Do not blindly hook named `ExoPlayerImpl.prepare`**.
-- [Existing read-only hooklab #42791829435](https://github.com/manufact-test/nomusic/actions/runs/42791829435) **SUCCESS** module build/synthetic only.
-- [Native AArch64 Linux GitHub runner #42792130918](https://github.com/manufact-test/nomusic/actions/runs/42792130918) **SUCCESS probe** but `/dev/kvm` unavailable; **not** usable native ARM Android guest.
-
-Full bounded evidence `docs/android/ANDROID-NATIVE-REAL-PLAYER-IMPLEMENTOR-EVIDENCE-2026-11-10.md`. All code only on native hooklab branch. No real Yandex source/decoder/runtime hook proven; no Android CELIKOM APK to install. NO Yandex outreach. Primary device/Test.50 untouched. Next requirement remains a safe real native ARM Android test host, then trackId+edition+generation→decoder pre-prepare witness. Do not repeat stale x86/AМetrica experiments.
-
----
-
-# CELIKOM Android — НАЧНИ ЗДЕСЬ (10.11.2026, проверенный текущий статус)
-
-**GitHub:** `manufact-test/nomusic`.
-**Рабочая ветка:** `experiment/android-native-yandex-fileinfo-hooklab-20261109`.
-**Кодовый HEAD, CI SUCCESS:** `18e0d1126187a2c2a26eeb7df7a25de935e19a54`.
-**Точный бэкап исходников с рабочим кодом:** `backup/android-native-hook-classloader-verified-20261110`.
-Любой более новый HEAD после этого — это документационные изменения; сначала проверить ref.
-
-## 1. Что требует владелец. Не менять без его решения
-
-**Один нативный проигрыватель Яндекс Музыки.** Пользователь входит только в самом Яндексе, пользуется родными плейлистами, радио, паузой, перемоткой и Next. CELIKOM выбирает подтверждённый альтернативный аудиоисточник только если он безопасно связывается с *текущими* trackId + edition + generation до decoder prepare. Иначе оригинал. Никакого второго MediaPlayer, WebView, отдельного fake player, чужих OAuth/Passport токенов или обхода DRM/Play Protect/подписей. Разрешённая модель установки в будущем может использовать **совместимую патченную нативную Яндекс Музыку, как ChromaSync**, но не поверх официальной подписи без осознанной смены установки.
-
-**Яндексу ничего не отправлять**. Идею партнёрского письма владелец категорически отверг. Старый `ANDROID-NATIVE-YANDEX-PARTNER-INQUIRY-2026-11-10.md` — только архив, НЕ отправлять.
-
-**Не трогать:** стабильную эталонную Android Test.50 `backup/android-test50-exact-source-owner-accepted-20261108`; Яндекс Музыку и локальные загрузки владельца на HONOR 50; Windows, расширение, API, БД, production. Не предлагать владельцу тесты синтетического APK вместо проверки подмены в настоящем Яндексе.
-
-## 2. Фактическая архитектура конкурента
-
-[ChromaSync-Mobile](https://github.com/Desai0/ChromaSync-Mobile) заявляет native in-process модуль:
-- **Без root:** совместимый оригинальный APK + патчер на устройстве + модуль; может требоваться удаление официального Яндекса из-за разных подписей.
-- **С root:** LSPosed + модуль внутри Яндекса.
-- В публичном Android-репозитории только README. Прямого исходного audio hook нет. Нельзя выдавать README за подтверждённую реализацию или обещать аналогичные результаты.
-- Успех конкурента не делает безопасным наш параллельный клон с другим packageId. Именно этот путь уже потерпел неудачу.
-
-Ещё один исходный пример [daanqq/YaMusicTabs](https://github.com/daanqq/YaMusicTabs) использует modern libxposed `onPackageReady` / classloader для **UI**, не для аудио. Это подтверждает полезность lifecycle-подхода, но не FileInfo->decoder.
-
-## 3. Что реально подтверждено CELIKOM
-
-- **Свой ARMv7 libxposed in-process witness на HONOR:** скрин владельца `Module hook armed=YES`, `onCreate intercepted=YES`, [CI 42643802887](https://github.com/manufact-test/nomusic/actions/runs/42643802887). Это ТОЛЬКО собственное приложение, не Яндекс.
-- **Подписанный издателем Яндекс `2026.10.3 #170gpr`** (5 splits, 6 DEX) запускается в чистом изолированном Android 11 x86 с ARM translation. Из его DEX статически найдены `FileInfoApi/OldFileInfoApi @Query("trackId")` как param 0, `sw7.y0/z0(FileInfoDto,boolean):eed`. Реальная текущая edition+generation к конкретному decoder prepare ещё НЕ доказана.
-- **Параллельный clone другого packageId**: MAIN `EXIT_SELF status 0`, вспомогательный `:AppMetrica` остаётся. Точная причина самозавершения не определена, **это не доказанный anti-tamper или несоответствие подписи**. См. `ANDROID-NATIVE-MAIN-EXIT-AUDIT-2026-11-10.md`.
-- **Same-package LSPatch на x86/ARM-translation AVD**: и с модулем, и без модуля раньше падал в загрузчике `liblspatch.so` / `UnsatisfiedLinkError` ДО нашего hook; [42622523007](https://github.com/manufact-test/nomusic/actions/runs/42622523007), [42622723034](https://github.com/manufact-test/nomusic/actions/runs/42622723034). Это не проверка настоящего ARM. **Не повторять эти x86 тесты.** `.github/workflows/android-native-yandex-emulator.yml` переведён на manual-only.
-- Уже реализованы *синтетические* `NativePrePrepareAdmission`, `NativeSourceGate`, `NativeTrackIdentityGate`: точные edition/generation/ready/expiry проверки. Ни один из них не включён в настоящий decoder.
-
-## 4. Новый реальный код в этой сессии
-
-`android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeHookEntry.java`:
-- После exact-version проверки сохраняет только host Context, а при `onPackageReady` повторно пытается установить **read-only** хуки, если на `Application.attach` split-классы ещё не были готовы.
-- Частично установленные хуки не дублируются: `modernHooked`, `legacyHooked`, `accessorHooked`.
-- `HookSpec.findConversionPair(preferred, fallback)` требует **обе** точные сигнатуры `sw7.y0/z0` из **одного** classloader. Если preferred loader ещё не готов, пробует validated Context loader. Нет смешивания моделей из двух loader и нет fuzzy fallback.
-- `HookSpecTest` проверяет точный version gate, пару, отказ при неподходящем loader и fallback.
-- **[CI #42790028152](https://github.com/manufact-test/nomusic/actions/runs/42790028152) SUCCESS 2/2:** Java-policy и Android libxposed module APK build. Это НЕ тест реального Yandex hook. Исходники в `18e0d1126187a2c2a26eeb7df7a25de935e19a54`, отдельный бэкап `backup/android-native-hook-classloader-verified-20261110`.
-
-**Изменений источника звука нет.** Модуль по-прежнему считает конвертации без чтения trackId, URL, ключей, токенов. НЕ продавать это владельцу как работающий Android CELIKOM.
-
-## 5. Точный следующий рубеж
-
-1. Нужна воспроизводимая **гостевая нативная ARM-среда** с совместимым same-package подготовленным Яндексом и без риска для основной установки; отдельный аппарат/разрешённая cloud ARM с допустимой установкой. Старые x86 AVД/clone нельзя выдавать за ARM proof.
-2. Только после успешного native MAIN UI/login **в Яндексе**, Play Protect и hook witness: получить read-only runtime связь `current trackId + edition + generation -> FileInfoDto -> фактический source/decoder BEFORE prepare`. Не собирать пользовательские токены или чужие аудиопотоки.
-3. Только после такого доказательства связывать `NativePrePrepareAdmission` с реальным нативным входом и затем тестировать «Раскол» `42884423`, «Дым» `39949113`, начало без «пшика», Next, radio, seek/pause. Никаких выдуманных CI green.
-
-**Сейчас** без такого разрешённого native ARM runtime `NO-GO` для установки/теста владельцем; не требовать от него удалить официальный Яндекс и не запускать бесконечные emulator/DEX/AМetrica эксперименты. Если появится настоящий тестовый кандидат, обращаться к владельцу **один раз, только для реальной ручной проверки**, заранее называя риск удаления/подписей.
-
-## 6. Исторические материалы
-
-Старый разросшийся NEXT-CHAT с устаревшими и частично противоречивыми решениями сохранён **только для истории**: `docs/android/ARCHIVE-NEXT-CHAT-ACCUMULATED-20261110.md`.
-
-Контекст: `docs/android/ANDROID-NATIVE-COMPETITOR-PATH-CORRECTION-2026-11-10.md`, `docs/android/ANDROID-NATIVE-LSPATCH-EMULATOR-ROOT-CAUSE-2026-11-09.md`, `docs/android/ANDROID-NATIVE-FINAL-ADMISSION-HANDOFF-2026-11-10.md`. Во всех спорных местах приоритет у настоящего документа и новых подтверждённых результатов CI, не у старых прогнозов.
+- Do not change the agreed A1 architecture, Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend, or original Yandex app/account.
+- Keep this work read-only and fail-closed. Every vendor method must execute exactly once and unchanged; no fatal suppression.
+- Do not create or deliver a product/release APK from this lab work.
+- Do not ask the owner to install anything or perform manual multi-step diagnostics unless a specific owner-side measurement becomes genuinely necessary.
+- Work in large coherent blocks. Avoid unnecessary status reports and one-click-at-a-time instructions.
+- If the owner sends a diagnostics file, inspect the nine Album counters together with Track/Exo open/read/close counters. Distinguish hook registration, no observations, identity conflict and scan exhaustion.

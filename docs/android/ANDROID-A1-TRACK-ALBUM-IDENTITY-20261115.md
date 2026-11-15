@@ -13,7 +13,7 @@
 
 ## Static signed DEX findings
 
-[Audit #43703523959](https://github.com/manufact-test/nomusic/actions/runs/43703523959) **SUCCESS**. The output is deliberately bounded and does not disclose private method/field names.
+[Audit #43703523959](https://github.com/manufact-test/nomusic/actions/runs/43703523959) **SUCCESS**. The new Album summary objects are count-only. The broader legacy audit JSON still includes bounded signed-DEX method/field examples, so keep raw audit logs internal and do not paste the raw dump into public/user-facing text.
 
 1. The native Track model declares one field typed as Album.
 2. Two Track constructors accept exactly one Album-typed argument. Static inspection did **not** prove a direct write of that same argument to the Track instance's Album field (constructors_storing_same_album_argument_on_track = 0). Do not claim the constructor alone proves the model field value.
