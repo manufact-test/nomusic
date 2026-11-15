@@ -93,7 +93,7 @@ public sealed class BridgeServer : IAsyncDisposable
     private long _lastHeartbeatSequence;
     private DateTimeOffset _lastHeartbeatAt = DateTimeOffset.MinValue;
     private const int HeartbeatFreshnessSeconds = 12;
-    internal static bool IsHeartbeatFresh(DateTimeOffset seenAt, DateTimeOffset now) =>
+    public static bool IsHeartbeatFresh(DateTimeOffset seenAt, DateTimeOffset now) =>
         seenAt != DateTimeOffset.MinValue && now >= seenAt &&
         now - seenAt <= TimeSpan.FromSeconds(HeartbeatFreshnessSeconds);
     private bool IsHeartbeatFreshLocked() =>
