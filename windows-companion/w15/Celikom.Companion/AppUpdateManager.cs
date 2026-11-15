@@ -131,7 +131,7 @@ public static class AppUpdateManager
     }
 
     internal static void LaunchManifestVerified(
-        string verifiedPath,
+        string verifiedPath, Guid expectedTransaction,
         StableUpdateManifestVerifier.VerifiedRelease release,
         string pinnedManifestPublicKeySha256)
     {
@@ -144,18 +144,9 @@ public static class AppUpdateManager
         var record = StableUpdateRollbackJournal.Read(
             StableUpdateRollbackJournal.DefaultPrivateRoot);
         var expectedPath = StableUpdateRollbackJournal.GetTargetInstallerPath(
-            StableUpdateRollbackJournal.DefaultPrivateRoot, record.Id);
-        if (record.Schema != 3 ||
-            record.State != StableUpdateRollbackJournal.Phase.InstallerStarted ||
-            record.RollbackAttempts != 0 ||
-            !string.Equals(Path.GetFullPath(verifiedPath), Path.GetFullPath(expectedPath),
-                StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(record.TargetVersion, release.Version.ToString(4), StringComparison.Ordinal) ||
-            record.TargetSequence != release.Sequence ||
-            record.TargetSize != release.PackageSize ||
-            !string.Equals(record.TargetSha256, release.Sha256, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(record.ManifestPublicKeySha256, pinnedManifestPublicKeySha256,
-                StringComparison.OrdinalIgnoreCase))
+            StableUpdateRollbackJournal.DefaultPrivateRoot, expectedTransaction);
+        if (!IsManifestLaunchRecordValid(record, expectedTransaction,
+                verifiedPath, expectedPath, release, pinnedManifestPublicKeySha256))
             throw new IOException("STABLE_UPDATE_TARGET_NOT_JOURNALED");
 
         StableUpdatePackageStager.VerifyInstaller(
@@ -168,6 +159,37 @@ public static class AppUpdateManager
         if (!CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: false))
             throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
         LaunchInstallerProcess(verifiedPath);
+    }
+
+    internal static bool IsManifestLaunchRecordValid(
+        StableUpdateRollbackJournal.Record record, Guid expectedTransaction,
+        string verifiedPath, string expectedPath,
+        StableUpdateManifestVerifier.VerifiedRelease release,
+        string pinnedManifestPublicKeySha256)
+    {
+        if (record is null || release is null || expectedTransaction == Guid.Empty ||
+            release.RollbackFrom is not null ||
+            record.Schema != 3 || record.Id != expectedTransaction ||
+            record.State != StableUpdateRollbackJournal.Phase.InstallerStarted ||
+            record.RollbackAttempts != 0 ||
+            !string.Equals(Path.GetFullPath(verifiedPath), Path.GetFullPath(expectedPath),
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.TargetVersion, release.Version.ToString(4), StringComparison.Ordinal) ||
+            record.TargetSequence != release.Sequence ||
+            record.TargetSize != release.PackageSize ||
+            !string.Equals(record.TargetSha256, release.Sha256, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.ManifestPublicKeySha256, pinnedManifestPublicKeySha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.TargetApplicationSha256, release.ApplicationSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.TargetNativeHostSha256, release.NativeHostSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.TargetRendererSha256, release.RendererSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.TargetSupervisorSha256, release.SupervisorSha256,
+                StringComparison.OrdinalIgnoreCase))
+            return false;
+        return true;
     }
 
     private static void LaunchInstallerProcess(string path)
