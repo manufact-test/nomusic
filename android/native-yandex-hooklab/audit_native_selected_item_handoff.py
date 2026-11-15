@@ -6032,15 +6032,23 @@ def trace_exact_object_receiver_call_cfg(
     initial_registers = {}
     parameter_register = registers_size - ins_size
     if not (flags & ACC_STATIC):
-        if dex_type_assignable_to(method[0], tracked_type, class_profiles):
-            initial_registers[parameter_register] = frozenset({
-                f"TYPED_THIS:{method[0]}"
-            })
+        this_kind = (
+            "TYPED_THIS" if dex_type_assignable_to(method[0], tracked_type, class_profiles)
+            else "UNREFINED_THIS"
+        )
+        initial_registers[parameter_register] = frozenset({
+            f"{this_kind}:{method[0]}"
+        })
         parameter_register += 1
     for index, parameter_type in enumerate(parse_types(method[2])):
-        if dex_type_assignable_to(parameter_type, tracked_type, class_profiles):
+        if parameter_type.startswith(("L", "[")):
+            parameter_kind = (
+                "TYPED_PARAMETER"
+                if dex_type_assignable_to(parameter_type, tracked_type, class_profiles)
+                else "UNREFINED_PARAMETER"
+            )
             initial_registers[parameter_register] = frozenset({
-                f"TYPED_PARAMETER:{parameter_type}@{index}"
+                f"{parameter_kind}:{parameter_type}@{index}"
             })
         parameter_register += 2 if parameter_type in ("J", "D") else 1
     initial_state = {
@@ -6083,17 +6091,14 @@ def trace_exact_object_receiver_call_cfg(
         if op in INVOKES:
             callee = dex.method(words[1])
             result_type = callee[2].split(")", 1)[1]
-            if dex_type_assignable_to(
-                result_type, tracked_type, class_profiles
-            ):
-                pending_return = (
-                    "RETURNED_FROM_METHOD:"
-                    + callee[0] + "|" + callee[1] + "|" + callee[2]
-                    + "@" + str(pc)
+            if result_type.startswith(("L", "[")):
+                return_kind = (
+                    "RETURNED_FROM_METHOD"
+                    if dex_type_assignable_to(result_type, tracked_type, class_profiles)
+                    else "UNREFINED_OBJECT_RETURN"
                 )
-            elif result_type == "Ljava/lang/Object;":
                 pending_return = (
-                    "UNREFINED_OBJECT_RETURN:"
+                    return_kind + ":"
                     + callee[0] + "|" + callee[1] + "|" + callee[2]
                     + "@" + str(pc)
                 )
@@ -6122,25 +6127,32 @@ def trace_exact_object_receiver_call_cfg(
             destination = (words[0] >> 8) & 0xff
             object_type = dex.descriptor(words[1])
             clear(destination)
-            if dex_type_assignable_to(object_type, tracked_type, class_profiles):
-                registers[destination] = {
-                    f"NEW_INSTANCE:{object_type}@{pc}"
-                }
+            instance_kind = (
+                "NEW_INSTANCE"
+                if dex_type_assignable_to(object_type, tracked_type, class_profiles)
+                else "UNREFINED_NEW_INSTANCE"
+            )
+            registers[destination] = {
+                f"{instance_kind}:{object_type}@{pc}"
+            }
         elif op == 0x54:  # iget-object; type and receiver only
             destination = (words[0] >> 8) & 15
             receiver = (words[0] >> 12) & 15
             _field_owner, _field_name, field_type = field_id(dex, words[1])
             receiver_origins = registers.get(receiver, set())
             clear(destination)
-            if (
-                dex_type_assignable_to(field_type, tracked_type, class_profiles)
-                and receiver_origins
-            ):
-                category = (
-                    "FIELD_READ_FROM_THIS"
-                    if any(origin.startswith("TYPED_THIS:") for origin in receiver_origins)
-                    else "FIELD_READ_FROM_TYPED_RECEIVER"
+            if field_type.startswith(("L", "[")):
+                receiver_is_this = any(
+                    origin.startswith(("TYPED_THIS:", "UNREFINED_THIS:"))
+                    for origin in receiver_origins
                 )
+                category = (
+                    "FIELD_READ_FROM_THIS" if receiver_is_this else
+                    "FIELD_READ_FROM_TYPED_RECEIVER" if receiver_origins else
+                    "FIELD_READ_FROM_UNKNOWN_RECEIVER"
+                )
+                if not dex_type_assignable_to(field_type, tracked_type, class_profiles):
+                    category = "UNREFINED_" + category
                 registers[destination] = {
                     f"{category}:{field_type}@{pc}"
                 }
@@ -6148,9 +6160,14 @@ def trace_exact_object_receiver_call_cfg(
             destination = (words[0] >> 8) & 0xff
             _field_owner, _field_name, field_type = field_id(dex, words[1])
             clear(destination)
-            if dex_type_assignable_to(field_type, tracked_type, class_profiles):
+            if field_type.startswith(("L", "[")):
+                category = (
+                    "STATIC_FIELD_READ"
+                    if dex_type_assignable_to(field_type, tracked_type, class_profiles)
+                    else "UNREFINED_STATIC_FIELD_READ"
+                )
                 registers[destination] = {
-                    f"STATIC_FIELD_READ:{field_type}@{pc}"
+                    f"{category}:{field_type}@{pc}"
                 }
         elif op in (0x07, 0x08, 0x09):  # move-object
             move = move_object_registers(op, words)
@@ -6219,17 +6236,27 @@ def trace_exact_object_receiver_call_cfg(
         common = set(path_origins[0]) if path_origins else set()
         for origins in path_origins[1:]:
             common.intersection_update(origins)
+        common_rows = sorted(common)
+        receiver_type_proven = any(
+            origin.startswith(("TYPED_THIS:", "TYPED_PARAMETER:",
+                               "NEW_INSTANCE:", "RETURNED_FROM_METHOD:",
+                               "FIELD_READ_FROM_THIS:", "FIELD_READ_FROM_TYPED_RECEIVER:",
+                               "FIELD_READ_FROM_UNKNOWN_RECEIVER:",
+                               "STATIC_FIELD_READ:", "CHECK_CAST:"))
+            for origin in common_rows
+        )
         callsites.append({
             "pc": pc,
             "invoke_kind": invoke_kind_name(op),
             "receiver_register": receiver_register,
             "declared_receiver_type": target_method[0],
-            "receiver_origins_common_to_all_paths": sorted(common),
+            "receiver_origins_common_to_all_paths": common_rows,
             "receiver_origins_by_path": path_origins[:32],
             "incoming_path_state_count": len(states),
             "receiver_identity_proven_on_all_paths": bool(common),
+            "receiver_type_proven_on_all_paths": receiver_type_proven,
             "exact_lya_instance_proven_on_all_paths": any(
-                origin.startswith("NEW_INSTANCE:LyEa;@") for origin in common
+                origin.startswith("NEW_INSTANCE:LyEa;@") for origin in common_rows
             ),
             "runtime_dispatch_to_lya_proven": False,
         })
@@ -6610,6 +6637,14 @@ def inspect_lya_track_holder(apks, class_profiles):
         "lya_constructor_track_field_store_traces": lya_constructor_track_field_store_traces,
         "lya_constructor_callsite_count": len(lya_constructor_call_sites),
         "lya_constructor_call_sites": lya_constructor_call_sites,
+        "provider_owner_defined_in_signed_dex": "LzA9;" in class_profiles,
+        "provider_owner_profile": ({
+            "is_interface": bool(class_profiles["LzA9;"].get("is_interface")),
+            "is_abstract": bool(class_profiles["LzA9;"].get("is_abstract")),
+            "superclass": class_profiles["LzA9;"].get("superclass"),
+            "interfaces": sorted(class_profiles["LzA9;"].get("interfaces", ())),
+        } if "LzA9;" in class_profiles else None),
+        "provider_method_body_count": len(provider_traces),
         "lck1_interface_callsite_count": len(lck1_interface_call_sites),
         "lck1_interface_call_sites": lck1_interface_call_sites,
         "lck1_constructor_field_link_count": len(lck1_constructor_field_links),

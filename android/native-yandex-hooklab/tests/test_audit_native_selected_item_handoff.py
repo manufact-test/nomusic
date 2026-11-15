@@ -2401,5 +2401,38 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertFalse(dex_type_assignable_to("LOther;","LaC7;",profiles))
 
 
+
+
+    def test_receiver_cfg_tracks_untyped_parameter_through_exact_interface_cast(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:2, 102:1}[offset]
+            def descriptor(self, index):
+                return "LaC7;"
+            def method(self, index):
+                return ("LaC7;", "if", f"(){MODEL}")
+        method=("LFlow;", "emit", "(Ljava/lang/Object;)V")
+        target=("LaC7;", "if", f"(){MODEL}")
+        ins=[
+            (0,0x1f,[0x011f,0]),       # check-cast v1, LaC7
+            (2,0x72,[0x0172,0,0]),     # invoke-interface {v1}, LaC7.if()
+            (5,0x0e,[0x000e]),
+        ]
+        profiles={"LaC7;":{"superclass":"Ljava/lang/Object;","interfaces":set()}}
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1]):
+            trace=trace_exact_object_receiver_call_cfg(
+                FakeDex(),method,0x8,100,target,"LaC7;",profiles
+            )
+        call=trace["callsites"][0]
+        self.assertTrue(call["receiver_identity_proven_on_all_paths"])
+        self.assertTrue(call["receiver_type_proven_on_all_paths"])
+        self.assertIn("UNREFINED_PARAMETER:Ljava/lang/Object;@0",
+                      call["receiver_origins_common_to_all_paths"])
+        self.assertIn("CHECK_CAST:LaC7;@0",
+                      call["receiver_origins_common_to_all_paths"])
+
+
 if __name__ == "__main__":
     unittest.main()
