@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {generateKeyPairSync,sign,createHash} from "node:crypto";
 import {mkdtemp,mkdir,writeFile,readFile,rm} from "node:fs/promises";
+import {execFileSync} from "node:child_process";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {verifyPreparedStableRelease} from "../windows-stable-release-verify.mjs";
@@ -126,4 +127,19 @@ test("W155 publisher can preserve the sequence floor from an expired but validly
     origin,pinnedPublicKeyDerBase64:f.publicKey
   });
   assert.equal(identity.sequence,sequence);
+});
+
+
+test("W155 remote Hostinger promotion block is valid Bash and bound to verified prior bytes",async()=>{
+  const publisher=await readFile(
+    new URL("../windows-stable-publish-hostinger.sh",import.meta.url),"utf8");
+  assert.ok(publisher.includes("windows-stable-existing-latest.mjs"));
+  assert.ok(publisher.includes("W155_EXISTING_LATEST_BYTES_CHANGED"));
+  assert.ok(publisher.includes("W155_EXISTING_LATEST_CHANGED_DURING_PUBLISH"));
+  const start=publisher.indexOf("<<'REMOTE'\n");
+  const end=publisher.indexOf("\nREMOTE",start+10);
+  assert.ok(start>=0&&end>start);
+  const remote=publisher.slice(start+"<<'REMOTE'\n".length,end);
+  if(process.platform!=="win32")
+    execFileSync("bash",["-n"],{input:remote,stdio:["pipe","pipe","pipe"]});
 });
