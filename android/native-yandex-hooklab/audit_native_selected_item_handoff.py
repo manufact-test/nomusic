@@ -2234,6 +2234,7 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
         )
 
     identity_flow_count = 0
+    byte_buffer_flow_count = 0
     for row in callsites:
         caller = (
             row["caller"]["owner"],
