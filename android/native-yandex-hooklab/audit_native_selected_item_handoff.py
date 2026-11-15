@@ -5332,7 +5332,7 @@ def summarize_flow_entry_class_profiles(class_profiles):
 
 def summarize_flow_interface_implementers(class_profiles):
     """List exact direct implementers of selected source/collector interfaces."""
-    targets=("LzD7;","LC3a;","Lhw9;","LcE6;","LAg1;","Liw9;","LGl4;","LHl4;")
+    targets=("LzD7;","LC3a;","Lhw9;","LcE6;","LAg1;","Liw9;","LGl4;","LHl4;","LBK1;","LGK1$a;")
     rows=[]
     for interface in targets:
         profile=class_profiles.get(interface)
@@ -5340,15 +5340,145 @@ def summarize_flow_interface_implementers(class_profiles):
             owner for owner,entry in class_profiles.items()
             if interface in entry.get("interfaces",())
         )
+        subclasses=sorted(
+            owner for owner,entry in class_profiles.items()
+            if entry.get("superclass")==interface
+        )
         rows.append({
             "interface":interface,
             "defined_in_signed_dex":profile is not None,
             "is_interface":bool(profile and profile.get("is_interface")),
+            "is_abstract":bool(profile and profile.get("is_abstract")),
             "superinterfaces":sorted(profile.get("interfaces",())) if profile else [],
             "direct_implementer_count":len(implementers),
-            "direct_implementers":implementers[:64]
+            "direct_implementers":implementers[:64],
+            "direct_subclass_count":len(subclasses),
+            "direct_subclasses":subclasses[:64]
         })
     return rows
+
+
+def selected_track_interface_implementation_owners(class_profiles, interface_owners):
+    """Resolve only direct implementers/subclasses and their superclass method owners."""
+    result = {}
+    total_implementers = 0
+    total_method_owners = 0
+    for interface in sorted(set(interface_owners)):
+        profile = class_profiles.get(interface)
+        direct_implementers = sorted(
+            owner for owner, entry in class_profiles.items()
+            if interface in entry.get("interfaces", ())
+        )
+        direct_subclasses = sorted(
+            owner for owner, entry in class_profiles.items()
+            if entry.get("superclass") == interface
+        )
+        implementers = direct_implementers if profile and profile.get("is_interface") else direct_subclasses
+        total_implementers += len(implementers)
+        if total_implementers > 64:
+            raise ValueError("SELECTED_TRACK_INTERFACE_IMPLEMENTER_LIMIT")
+        owner_to_implementers = {}
+        for implementer in implementers:
+            current = implementer
+            seen = set()
+            depth = 0
+            while current and current not in seen:
+                seen.add(current)
+                owner_to_implementers.setdefault(current, set()).add(implementer)
+                depth += 1
+                if depth > 16:
+                    raise ValueError("SELECTED_TRACK_INTERFACE_SUPERCLASS_DEPTH")
+                current = class_profiles.get(current, {}).get("superclass")
+            total_method_owners += len(seen)
+            if total_method_owners > 128:
+                raise ValueError("SELECTED_TRACK_INTERFACE_METHOD_OWNER_LIMIT")
+        result[interface] = {
+            "defined_in_signed_dex": profile is not None,
+            "is_interface": bool(profile and profile.get("is_interface")),
+            "is_abstract": bool(profile and profile.get("is_abstract")),
+            "direct_implementers": direct_implementers,
+            "direct_subclasses": direct_subclasses,
+            "implementation_owners": {
+                owner: sorted(owners)
+                for owner, owners in sorted(owner_to_implementers.items())
+            },
+        }
+    return result
+
+
+def inspect_selected_track_interface_implementations(apks, class_profiles, contract_refs):
+    """Trace only exact Track callback/Flow contracts on direct implementers and superclasses."""
+    interface_owners = {"LBK1;", "LGK1$a;"}
+    owner_map = selected_track_interface_implementation_owners(
+        class_profiles, interface_owners
+    )
+    contract_shapes = {
+        owner: {
+            (method[1], method[2])
+            for method in contract_refs if method[0] == owner
+        }
+        for owner in interface_owners
+    }
+    scan_owner_to_interfaces = {}
+    scan_owner_to_implementers = {}
+    for interface, row in owner_map.items():
+        for owner, implementers in row["implementation_owners"].items():
+            scan_owner_to_interfaces.setdefault(owner, set()).add(interface)
+            scan_owner_to_implementers.setdefault((interface, owner), set()).update(implementers)
+    implementation_traces = []
+    if scan_owner_to_interfaces:
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                        continue
+                    if entry.file_size > DEX_MAX:
+                        raise ValueError("SELECTED_TRACK_INTERFACE_DEX_LIMIT")
+                    dex = Dex(archive.read(entry.filename))
+                    for method, flags, code_off in method_definitions_with_flags(dex):
+                        matching_interfaces = [
+                            interface for interface in scan_owner_to_interfaces.get(method[0], ())
+                            if (method[1], method[2]) in contract_shapes[interface]
+                        ]
+                        if not matching_interfaces:
+                            continue
+                        if not (flags & 0x1):  # interface implementations must be public
+                            continue
+                        for interface in sorted(matching_interfaces):
+                            if len(implementation_traces) >= 128:
+                                raise ValueError("SELECTED_TRACK_INTERFACE_TRACE_LIMIT")
+                            implementation_traces.append({
+                                "interface": interface,
+                                "implementer_classes": sorted(
+                                    scan_owner_to_implementers.get((interface, method[0]), ())
+                                ),
+                                "method": {
+                                    "owner": method[0],
+                                    "name": method[1],
+                                    "signature": method[2],
+                                },
+                                "trace": trace_identity_method(
+                                    dex, method, flags, code_off,
+                                    candidate_owners=set()
+                                ),
+                            })
+    return {
+        "interface_contracts": [
+            {
+                "owner": owner,
+                "method_count": len(contract_shapes[owner]),
+                "methods": [
+                    {"name": name, "signature": signature}
+                    for name, signature in sorted(contract_shapes[owner])
+                ],
+            }
+            for owner in sorted(interface_owners)
+        ],
+        "owner_map": owner_map,
+        "implementation_trace_count": len(implementation_traces),
+        "implementation_traces": implementation_traces,
+        "only_exact_track_contract_shapes_scanned": True,
+    }
 
 
 def summarize_flow_mode_branch_census(dex, method, flags, code_off):
@@ -5455,6 +5585,11 @@ SELECTED_TRACK_PATH_METHODS = {
     ("LBK1;", "this", "(Lru/yandex/music/data/audio/o;)LGl4;"),
     ("LBK1;", "for", "(Lru/yandex/music/data/audio/o;)LGl4;"),
     ("LBK1;", "new", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+    # Exact Track callbacks read from the retained LJK1 Track field.
+    ("LGK1$a;", "try", "(Landroid/content/Context;Lru/yandex/music/data/audio/o;)V"),
+    ("LGK1$a;", "case", "(Lru/yandex/music/data/audio/o;)V"),
+    ("LGK1$a;", "else", "(Lru/yandex/music/data/audio/o;)V"),
+    ("LGK1$a;", "goto", "(Lru/yandex/music/data/audio/o;)V"),
     ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
     ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
 }
@@ -5964,6 +6099,11 @@ def inspect_signed(apks):
                 selected_track_path_field_read_traces.append(trace)
         if len(selected_track_path_field_read_traces) > 64:
             raise ValueError("LJK1_TRACK_FIELD_READ_TRACE_LIMIT")
+    selected_track_path_interface_implementation_census = (
+        inspect_selected_track_interface_implementations(
+            apks, class_profiles, SELECTED_TRACK_PATH_METHODS
+        )
+    )
     candidate_owner_rows = candidate_owner_descriptors(class_profiles)
     candidate_owner_set = {row["owner"] for row in candidate_owner_rows}
     candidate_owner_method_census = inspect_candidate_owner_methods(
@@ -6228,6 +6368,7 @@ def inspect_signed(apks):
         "selected_track_path_constructor_track_field_store_count": len(ljk1_track_field_refs),
         "selected_track_path_field_read_method_count": len(selected_track_path_field_read_traces),
         "selected_track_path_field_read_traces": selected_track_path_field_read_traces,
+        "selected_track_path_interface_implementation_census": selected_track_path_interface_implementation_census,
         "selected_track_path_missing_method_refs": [
             {"owner":x[0],"method":x[1],"signature":x[2]}
             for x in selected_track_path_missing_method_refs

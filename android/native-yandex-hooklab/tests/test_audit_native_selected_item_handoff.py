@@ -48,6 +48,10 @@ class SelectedItemAuditTests(unittest.TestCase):
             ("LBK1;", "this", "(Lru/yandex/music/data/audio/o;)LGl4;"),
             ("LBK1;", "for", "(Lru/yandex/music/data/audio/o;)LGl4;"),
             ("LBK1;", "new", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+            ("LGK1$a;", "try", "(Landroid/content/Context;Lru/yandex/music/data/audio/o;)V"),
+            ("LGK1$a;", "case", "(Lru/yandex/music/data/audio/o;)V"),
+            ("LGK1$a;", "else", "(Lru/yandex/music/data/audio/o;)V"),
+            ("LGK1$a;", "goto", "(Lru/yandex/music/data/audio/o;)V"),
             ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
             ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
         })
@@ -1169,16 +1173,59 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(branch["switch_cases"],[{"key":0,"target_pc":5}])
         self.assertFalse(result["branch_feasibility_proven"])
 
+    def test_selected_track_interface_implementation_owner_map_is_exact_and_bounded(self):
+        from audit_native_selected_item_handoff import selected_track_interface_implementation_owners
+        profiles={
+            "LBK1;":{"is_interface":True,"is_abstract":True,"interfaces":set(),
+                     "superclass":"Ljava/lang/Object;"},
+            "LFlowImpl;":{"is_interface":False,"interfaces":{"LBK1;"},
+                          "superclass":"LFlowBase;"},
+            "LFlowBase;":{"is_interface":False,"interfaces":set(),
+                          "superclass":"Ljava/lang/Object;"},
+            "LGK1$a;":{"is_interface":False,"is_abstract":True,"interfaces":set(),
+                       "superclass":"Ljava/lang/Object;"},
+            "LCallbackImpl;":{"is_interface":False,"interfaces":set(),
+                              "superclass":"LGK1$a;"},
+        }
+        result=selected_track_interface_implementation_owners(
+            profiles,{"LBK1;","LGK1$a;"}
+        )
+        self.assertEqual(
+            result["LBK1;"]["direct_implementers"],["LFlowImpl;"]
+        )
+        self.assertEqual(
+            result["LBK1;"]["implementation_owners"],
+            {"LFlowBase;":["LFlowImpl;"],"LFlowImpl;":["LFlowImpl;"]}
+        )
+        self.assertEqual(
+            result["LGK1$a;"]["direct_subclasses"],["LCallbackImpl;"]
+        )
+        self.assertEqual(
+            result["LGK1$a;"]["implementation_owners"],
+            {"LCallbackImpl;":["LCallbackImpl;"]}
+        )
+
     def test_flow_interface_implementer_census_is_direct_and_bounded(self):
         profiles={
             "LzD7;":{"interfaces":set(),"is_interface":True},
             "LImpl;":{"interfaces":{"LzD7;"},"is_interface":False},
-            "LIndirect;":{"interfaces":{"LImpl;"},"is_interface":False}
+            "LIndirect;":{"interfaces":{"LImpl;"},"is_interface":False},
+            "LBK1;":{"interfaces":set(),"is_interface":True,"is_abstract":True},
+            "LFlowImpl;":{"interfaces":{"LBK1;"},"is_interface":False,
+                         "superclass":"Ljava/lang/Object;"},
+            "LGK1$a;":{"interfaces":set(),"is_interface":False,"is_abstract":True},
+            "LCallbackImpl;":{"interfaces":set(),"is_interface":False,
+                              "superclass":"LGK1$a;"}
         }
         rows=summarize_flow_interface_implementers(profiles)
         row=next(x for x in rows if x["interface"]=="LzD7;")
         self.assertTrue(row["is_interface"])
         self.assertEqual(row["direct_implementers"],["LImpl;"])
+        lbk=next(x for x in rows if x["interface"]=="LBK1;")
+        self.assertEqual(lbk["direct_implementers"],["LFlowImpl;"])
+        callback=next(x for x in rows if x["interface"]=="LGK1$a;")
+        self.assertFalse(callback["is_interface"])
+        self.assertEqual(callback["direct_subclasses"],["LCallbackImpl;"])
 
     def test_primitive_flow_selector_origin_follows_move_and_decodes_const4(self):
         from unittest.mock import patch
