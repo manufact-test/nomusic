@@ -1,4 +1,71 @@
-# CELIKOM Windows — CURRENT HANDOFF / 15 NOVEMBER 2026
+# CELIKOM Windows — CURRENT HANDOFF / W157 OWNER FOLLOW-UP / 15 NOVEMBER 2026
+
+**This is the authoritative current handoff.** It supersedes the previous top block that said only W154 owner acceptance remained. Everything below the W157 first-message block is historical context unless W157 explicitly references it.
+
+- Repository: `manufact-test/nomusic`; only working branch: `main`.
+- Documentation baseline before W157: `b636fe61be9b1d210e4a10a056d506af1643e630`.
+- Exact pre-update backup: `backup/windows-main-pre-w157-owner-vpn-ui-findings-20261115` @ `b636fe61be9b1d210e4a10a056d506af1643e630`.
+- Last documented release-source checkpoint: `bc59e0c7e4db749d616b318beb89369245811b44`.
+- W157 is the current owner-approved follow-up: [W157 owner findings and sequential plan](W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md).
+- W154 remains the prior regression/acceptance baseline, amended to point to W157. W150 remains architectural and workflow context; its previous "only owner acceptance remains" status is superseded.
+- Earlier 0.24.38 bootstrap remains an unpublished Draft and predates these findings. Do not publish it or claim it fixes the new issues.
+- Owner's exact tested version was not stated in the new report. Do not guess.
+- Diagnostics are expected from the owner but have not yet been supplied/reviewed.
+- **No application code change, new installer or new release was made in this documentation handoff.** No root cause or fix is claimed.
+
+## Current ordered work — do not mix tasks
+
+1. **Yandex fully closed:** promptly detect process/player destruction, clear the stale song/state, and show a clear instruction such as `Подключитесь к Яндекс Музыке` instead of waiting about 30 seconds and showing `Ожидаем данные текущего плеера`.
+2. **VPN reconnect:** the owner reports the CELIKOM replacement keeps playing during the VPN interruption, but the app later forces an unnecessary `CELIKOM → original → CELIKOM` handoff with an audible pop. Keep server reconnect independent from actual playback/source state. If the exact current replacement decoder is still active, reconnect the server in the background and do not touch audio. Recover audio only after verified actual loss. Preserve fast reconnect.
+3. **UI consistency:** correct confirmed text, color and status mappings for these states. No redesign or unrelated cleanup.
+4. **Diagnostics:** inspect the owner's files when supplied and correlate only with items 1–3. Do not claim they were reviewed before receipt.
+5. **Verification:** focused regressions and both required Windows CI workflows.
+6. **One new Windows version:** only after all preceding tasks are complete. No intermediate packages.
+
+## Hard constraints
+
+- Work only on `main`; create an exact backup before substantial code changes.
+- Preserve the existing single Windows product and architecture. Do not create a second player.
+- Do not touch Android, browser extension, server/backend, or original Yandex files.
+- Do not reopen completed W155/W156 updater/P-256 work, key provisioning, autostart/tray, or historical Issues unless a specific W157 regression proves it necessary.
+- No UI redesign, broad audit, speculative fixes, intermediate installers, or unrelated work.
+- Do not publish the old 0.24.38 Draft or production feed.
+- Continue in large blocks without pausing for tiny reports. Stop only for actual owner input/manual validation or when the single consolidated new build is ready.
+
+## Current first message for the next chat
+
+Привет! Принимай **CELIKOM Windows** как ведущий разработчик. Продолжай существующую работу строго с текущего состояния. Ничего не начинай с нуля и не меняй архитектуру.
+
+**GitHub:** `manufact-test/nomusic`  
+**Единственная рабочая ветка:** `main`  
+**Документационный baseline до W157:** `b636fe61be9b1d210e4a10a056d506af1643e630`  
+**Точный backup:** `backup/windows-main-pre-w157-owner-vpn-ui-findings-20261115` @ `b636fe61be9b1d210e4a10a056d506af1643e630`  
+**Последний документированный release-source checkpoint:** `bc59e0c7e4db749d616b318beb89369245811b44`
+
+Сначала прочитай актуальный верхний блок `docs/windows/NEXT-CHAT.md`, затем `docs/windows/W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md`, `docs/windows/W150-OWNER-CONFIRMED-SCOPE-AND-SEQUENTIAL-WORK-ORDER-20261115.md` и `docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md`. Старые handoff-блоки ниже — история, не текущий план.
+
+**Новые наблюдения владельца:**
+- При переключении VPN CELIKOM ошибочно показывает переподключение, хотя наша версия продолжает играть. После восстановления соединения происходит ненужный скачок «наша версия → оригинал → наша версия» со звуковым артефактом.
+- После полного закрытия Яндекс Музыки старая песня остаётся в интерфейсе примерно 30 секунд; затем появляется непонятное `Ожидаем данные текущего плеера`. Нужно быстро очищать состояние и писать понятное `Подключитесь к Яндекс Музыке`.
+- В интерфейсе есть неправильные тексты, цвета и статусы.
+- Диагностику владелец пришлёт отдельно; пока не утверждай, что она проверена.
+
+**Строгая очередь:**
+1. Закрытие Яндекса: lifecycle, очистка старого трека, правильное сообщение.
+2. VPN: не переключать аудио, если текущая CELIKOM-версия продолжает играть; восстановление сервера — в фоне; сохранить быстрый reconnect.
+3. Исправить только подтверждённые тексты, цвета и статусы.
+4. Когда придут диагностические файлы — сверить их только с этими задачами.
+5. Точечные тесты и оба CI.
+6. После завершения всего — собрать и передать **одну новую версию Windows**.
+
+Не делай промежуточных сборок. Не смешивай задачи и не уходи в дебри. Не трогай Android, расширение, сервер, архитектуру, уже завершённый updater/P-256, autostart/tray и старые Issues. Не публикуй старый Draft 0.24.38 и production feed. Перед существенными изменениями — точный backup. Не ослабляй проверки текущего плеера и декодера.
+
+Продолжай крупными блоками без остановок ради коротких отчётов. Остановись только если нужна моя реальная проверка/помощь или когда одна новая итоговая версия будет готова. Не объявляй исправления завершёнными без тестов и подтверждения.
+
+---
+
+## Historical handoff archive — superseded by W157
+
 
 **This top block is authoritative.** Everything under the historical archive is retained for technical history only. Do not follow its old task status, old first messages, or superseded setup instructions.
 
