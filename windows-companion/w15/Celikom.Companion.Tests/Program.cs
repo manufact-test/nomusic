@@ -2200,8 +2200,8 @@ try
         bridge.SetEnabled(false);
         Test(bridge.PlayerUnavailable && bridge.LastSong == "",
              "W157 process-exit state survives a simultaneous transient network suspension");
-        var beforeLateAfterVpn = acceptedHeartbeatNotifications;
         bridge.SetEnabled(true);
+        var beforeLateAfterVpn = acceptedHeartbeatNotifications;
         using (var lateAfterVpn = await SendW141Heartbeat(new {
             trackId = "999", status = "NATIVE_SOURCE_VERIFIED",
             title = "Запоздавший трек", source = "ACTIVE_REPLACEMENT",
