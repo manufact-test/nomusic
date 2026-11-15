@@ -350,6 +350,29 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(rows[0]["role"],"NATIVE_SOURCE_OR_DOWNLOAD_METHOD")
         self.assertFalse(rows[0]["identity_proven"])
 
+    def test_identity_method_trace_can_census_call_target_after_alias_reset(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:3, 102:1}[offset]
+            def method(self, index):
+                return ("LBuilder;", "build", f"({MODEL})V")
+        method=("LCaller;", "run", f"({MODEL})V")
+        ins=[
+            (0,0x28,[0x0028]),
+            (1,0x6e,[0x006e,0])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,2]):
+            trace=trace_identity_method(
+                FakeDex(),method,0x8,100,capture_unproven_calls=True
+            )
+        calls=[row for row in trace["events"]
+               if row["kind"]=="CALL_TARGET_WITHOUT_IDENTITY"]
+        self.assertEqual(len(calls),1)
+        self.assertTrue(calls[0]["target_accepts_track_parameter"])
+        self.assertFalse(calls[0]["identity_proven"])
+
     def test_identity_method_trace_clears_aliases_at_branch(self):
         from unittest.mock import patch
         class FakeDex:
