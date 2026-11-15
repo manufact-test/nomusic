@@ -480,6 +480,10 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
             break
     return {
         "method": {"owner": method[0], "name": method[1], "signature": method[2]},
+        "this_register": (
+            None if flags & ACC_STATIC
+            else dex.u16(code_off) - dex.u16(code_off + 2)
+        ),
         "native_model_parameters": [{"index": i, "register": r} for i, r in model_params],
         "instructions": rows,
         "literals_or_runtime_values_disclosed": False,
@@ -702,6 +706,35 @@ def inspect_signed(apks):
         raise ValueError("SIGNED_SIX_DEX_REQUIRED")
     if not model_defined:
         raise ValueError("NATIVE_TRACK_MODEL_NOT_DEFINED")
+    fp0_ctor = [
+        t for t in focused_method_traces
+        if t["method"] == {
+            "owner": "LFp0;", "name": "<init>",
+            "signature": "(LGp0;LOe2;)V"
+        }
+    ]
+    fp0_resumes = [
+        t for t in focused_method_traces
+        if t["method"] == {
+            "owner": "LFp0;", "name": "invokeSuspend",
+            "signature": "(Ljava/lang/Object;)Ljava/lang/Object;"
+        }
+    ]
+    if len(fp0_ctor) != 1 or len(fp0_resumes) != 1:
+        raise ValueError("SIGNED_FP0_COROUTINE_SHAPE_UNPROVEN")
+    gp0_resume_calls = [
+        i for i in fp0_resumes[0]["instructions"]
+        if i["op"] == "INVOKE" and i["callee"] == {
+            "owner": "LGp0;", "method": "new",
+            "signature": "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"
+        }
+    ]
+    if (fp0_resumes[0]["this_register"] is None
+            or len(gp0_resume_calls) != 1
+            or len(gp0_resume_calls[0]["argument_registers"]) != 3
+            or gp0_resume_calls[0]["argument_registers"][2]
+               != fp0_resumes[0]["this_register"]):
+        raise ValueError("SIGNED_FP0_SAME_CONTINUATION_RESUME_UNPROVEN")
     model_methods = sorted(set(model_methods))[:MAX_METHODS]
     album_methods = sorted(set(album_methods))[:MAX_METHODS]
     model_referenced_methods = sorted(set(model_referenced_methods))[:MAX_METHODS]
@@ -753,6 +786,8 @@ def inspect_signed(apks):
             t for t in focused_method_traces
             if t["method"]["owner"] == "LFp0;"
         ],
+        "fp0_resume_exact_same_continuation_static_proven": True,
+        "fp0_resume_track_binding_runtime_proven": False,
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
