@@ -57,14 +57,16 @@ feed_identity_verified=0
 latest_url="$origin/CELIKOM/Windows/Updates/stable/latest.json"
 signature_url="$latest_url.sig"
 for attempt in 1 2 3; do
+  # HEAD distinguishes a genuinely absent first feed from a large HTML 404
+  # page; bounded GETs are performed only after both endpoints report 200.
   if ! latest_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
-      --max-filesize 16384 -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json" \
+      -I -H 'Cache-Control: no-cache, no-store' -o /dev/null \
       -w '%{http_code}' "$latest_url")"; then
     sleep 0.2
     continue
   fi
   if ! signature_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
-      --max-filesize 80 -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json.sig" \
+      -I -H 'Cache-Control: no-cache, no-store' -o /dev/null \
       -w '%{http_code}' "$signature_url")"; then
     sleep 0.2
     continue
@@ -74,11 +76,19 @@ for attempt in 1 2 3; do
     break
   fi
   if [[ "$latest_status" == 200 && "$signature_status" == 200 ]]; then
-    if identity="$(node .github/scripts/windows-stable-existing-latest.mjs \
-        "$tmp/old-latest.json" "$tmp/old-latest.json.sig")"; then
-      read -r old_sequence old_manifest_sha old_signature_sha <<< "$identity"
-      feed_identity_verified=1
-      break
+    if latest_get_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
+        --max-filesize 16384 -H 'Cache-Control: no-cache, no-store' \
+        -o "$tmp/old-latest.json" -w '%{http_code}' "$latest_url")" &&
+       signature_get_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
+        --max-filesize 80 -H 'Cache-Control: no-cache, no-store' \
+        -o "$tmp/old-latest.json.sig" -w '%{http_code}' "$signature_url")" &&
+       [[ "$latest_get_status" == 200 && "$signature_get_status" == 200 ]]; then
+      if identity="$(node .github/scripts/windows-stable-existing-latest.mjs \
+          "$tmp/old-latest.json" "$tmp/old-latest.json.sig")"; then
+        read -r old_sequence old_manifest_sha old_signature_sha <<< "$identity"
+        feed_identity_verified=1
+        break
+      fi
     fi
   fi
   sleep 0.2
@@ -93,7 +103,7 @@ done
   echo W155_SEQUENCE_NOT_INCREASING; exit 2; }
 
 (cd "$tmp"; sha256sum "$exe" manifest.json manifest.json.sig latest.json latest.json.sig > SHA256SUMS.txt)
-ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; for d in \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; done; mkdir -p \"\$dest\"; for d in \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
+ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; done; mkdir -p \"\$dest\"; for d in \"/home\" \"/home/u235811320\" \"/home/u235811320/domains\" \"/home/u235811320/domains/celikom.com\" \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
 stage_created=1
 for file in "$exe" manifest.json manifest.json.sig latest.json latest.json.sig SHA256SUMS.txt; do
   scp -P 65002 -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
@@ -111,8 +121,10 @@ expected_old_sequence="$6"; expected_old_manifest_sha="$7"; expected_old_signatu
 dest="$root/CELIKOM/Windows/Updates/stable"
 [[ -d "$stage" && ! -L "$stage" ]] || { echo W155_RELEASE_STAGE_UNSAFE; exit 3; }
 (cd "$stage"; sha256sum -c SHA256SUMS.txt)
-for d in "$root" "$root/CELIKOM" "$root/CELIKOM/Windows" \
-  "$root/CELIKOM/Windows/Updates" "$dest" "$dest/$version"; do
+for d in "/home" "/home/u235811320" "/home/u235811320/domains" \
+  "/home/u235811320/domains/celikom.com" "$root" "$root/CELIKOM" \
+  "$root/CELIKOM/Windows" "$root/CELIKOM/Windows/Updates" \
+  "$dest" "$dest/$version"; do
   if [[ -e "$d" && ( -L "$d" || ! -d "$d" ) ]]; then
     echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3
   fi
