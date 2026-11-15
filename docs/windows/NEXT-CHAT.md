@@ -16,7 +16,7 @@
 - The owner provisioning helper now uses built-in Windows PowerShell 5.1, Windows CNG, Notepad and the browser only. No Node.js, GitHub CLI, PowerShell 7 or extra developer tools are needed. It creates the local keypair and opens the GitHub Environment page for the single secret upload.
 - **No owner action is requested now.** Finish repository-side checks first. When the only remaining blocker is key provisioning, request one consolidated action: run the PowerShell helper and add the PEM as Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` in protected `windows-stable-production`. Never ask for the private PEM, password or token in chat.
 - The protected Environment must have an authorized required reviewer and allow only branch `main`. No public-key variable is needed; the workflow derives the public pin from the private secret. `CELIKOM_STABLE_DEPLOY_ROOT` is only needed for future production-feed publication after migration.
-- **Release workflow defaults:** version `0.24.38`, sequence `1`, blank expiry generates a 7-day UTC expiry, `publish_to_production=false`. Keep publication OFF; do not click Publish release on the resulting draft.
+- **Release workflow defaults:** version `0.24.38`, sequence `1`, blank expiry generates a 7-day UTC expiry, `publish_to_production=false`. After the owner adds the protected key secret, the assistant commits the one-shot marker `.github/release/owner-bootstrap-0.24.38.trigger`; this starts the workflow automatically. The owner only approves the protected environment if requested. Keep publication OFF; do not click Publish release on the resulting draft.
 - **End-user automation contract:** one manual bootstrap install over 0.24.37 is required because that installed version has no P-256 pin. Once the bootstrap is installed and DNS/TLS plus the signed feed are activated, subsequent CELIKOM updates must be detected, verified, downloaded and installed automatically. End users must never need Node.js, GitHub CLI, PowerShell commands, passwords, tokens or signing keys.
 - **Visibility:** the repository itself is public, but GitHub Draft Releases are listed only for users with push access until published. Existing Releases contain two unpublished Android drafts; no Windows 0.24.38 draft exists yet. Public source code remains public.
 - Not done: owner P-256 key provisioning, final EXE/ZIP, owner installation/acceptance, DNS/TLS/feed migration. No production feed has been published.
@@ -34,7 +34,7 @@ W155 runtime-chain audit завершён. W156 release workflow реализо�
 
 Окружение должно иметь required reviewer и разрешать только `main`. Публичный ключ workflow выводит из protected secret автоматически. Production feed остаётся fail-closed и не публикуется до миграции DNS/TLS. Не трогай Android/extension и не открывай #53/#54/#56/#57/#58.
 
-После одного ручного bootstrap over 0.24.37 и активации DNS/TLS + signed feed все последующие обновления для пользователей должны идти автоматически. Не собирай промежуточные пакеты; после ключа создай один Draft Release и проведи одну общую W154-приёмку. Не нажимай Publish release.
+После одного ручного bootstrap over 0.24.37 и активации DNS/TLS + signed feed все последующие обновления для пользователей должны идти автоматически. Не собирай промежуточные пакеты; после подтверждения секрета владельцем добавь one-shot marker commit, дождись protected environment approval и создай один Draft Release. Затем проведи одну общую W154-приёмку. Не нажимай Publish release.
 
 
 ---
