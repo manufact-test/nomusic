@@ -28,7 +28,9 @@ public static class WindowsLaunchSettings
     // Missing approval means Windows' default ON; a malformed/unknown marker
     // fails closed so CELIKOM never silently overrides a user decision.
     public static bool StartupApprovalIsEnabled(byte[]? approval) =>
-        approval is null || (approval.Length >= 12 && approval[0] == 0x02);
+        // Windows has used 0x02/0x06 (and policy variants such as 0x08)
+        // for enabled entries; the low bit is the disabled flag.
+        approval is null || (approval.Length >= 12 && (approval[0] & 0x01) == 0);
 
     private static bool IsStartupApproved()
     {
