@@ -243,7 +243,7 @@ test("W155 local publisher rehearsal promotes a signed release and rejects a cha
     runRemote(nextStage,nextVersion,2,nextApp,1,priorManifestSha,priorSignatureSha);
   }catch(error){
     changedPriorRejected=error.status===3&&
-      String(error.stderr).includes("W155_EXISTING_LATEST_BYTES_CHANGED");
+      (String(error.stdout)+String(error.stderr)).includes("W155_EXISTING_LATEST_BYTES_CHANGED");
   }
   assert.ok(changedPriorRejected,"publisher must refuse a feed changed after its signed preflight");
 
