@@ -1,3 +1,30 @@
+# SUPERSEDING RESULT — 15 Nov 2026, LCK1 predicate/secondary Track source audit (CI GREEN)
+
+**Code checkpoint:** `09b4c989482413c7b0c74bbe49a83ed4b0ea4a7f`.  
+**CI:** [#43745289143](https://github.com/manufact-test/nomusic/actions/runs/43745289143) **SUCCESS, 88/88 tests**, exact publisher-signed 2025 original verified (16 splits / 6 DEX).  
+**Exact green backup:** `backup/android-a1-lck1-predicate-audit-ci-green-20261115` @ `09b4c989482413c7b0c74bbe49a83ed4b0ea4a7f`.
+
+## Predicate results
+
+- `Lv3.throws(Track, Track): boolean` delegates directly to `java.util.Objects.equals(Object, Object)`. This is a pure equality check; close it as a player/source/decoder path.
+- `LwEa.for(Track): boolean` has only the Kotlin non-null parameter check in its body; no outgoing Track call edge.
+- `LHv4.if(Track): boolean` likewise had only parameter validation in the prior bounded trace.
+- `LaC7.if(): Track` is referenced by `LCK1$c$a.emit` as the source of a second Track compared against the exact retained Track, but the exact method reference is unresolved in the pinned signed DEX. Do not infer its behavior.
+
+The branch-sensitive trace still proves that neither inner coroutine passes the original field-backed Track to `LHl4.emit(Object, Continuation)`.
+
+## Next bounded task
+
+Inspect only the exact owner `LaC7;`:
+1. Establish whether the owner is defined in the signed DEX and whether it is an interface/abstract class.
+2. If the exact `if(): Track` method is abstract/unresolved, enumerate only direct implementers/subclasses and trace concrete implementations of that exact signature.
+3. Determine whether the returned Track is sourced from a player/source/decoder state. If no implementation exists in the signed DEX, close this handoff as external/unresolved.
+4. Do not reopen the equality predicate or generic Flow collector branches.
+
+Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`. No runtime hooks, APK modifications, login, account/media access or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # SUPERSEDING RESULT — 15 Nov 2026, branch-sensitive inner Flow identity trace (CI GREEN)
 
 **Verified code checkpoint:** `79e3399dd65806c4017f0077f406fdf0ef0b1265`.  
