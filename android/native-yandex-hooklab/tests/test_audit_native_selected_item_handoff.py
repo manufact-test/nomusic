@@ -1202,7 +1202,10 @@ class SelectedItemAuditTests(unittest.TestCase):
         )
         self.assertEqual(
             result["LGK1$a;"]["implementation_owners"],
-            {"LCallbackImpl;":["LCallbackImpl;"]}
+            {
+                "LGK1$a;":["LCallbackImpl;"],
+                "LCallbackImpl;":["LCallbackImpl;"]
+            }
         )
 
     def test_flow_interface_implementer_census_is_direct_and_bounded(self):
