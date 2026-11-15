@@ -5552,7 +5552,8 @@ def inspect_signed(apks):
         ("Lcom/yandex/music/shared/player/download2/o;", "for"),
         ("Lcom/yandex/music/shared/player/download2/o$c;", "invokeSuspend"),
         ("Lcom/yandex/music/shared/player/download2/o$c;", "<init>"),
-        ("LRAa;", "invokeSuspend"), ("LRAa;", "<init>")
+        ("LRAa;", "invokeSuspend"), ("LRAa;", "<init>"),
+        ("LDT0;", "<init>")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -5793,6 +5794,25 @@ def inspect_signed(apks):
                                         i for i, typ in enumerate(target_types) if typ == WRAPPER
                                     ],
                                 })
+                                if (
+                                    method == (
+                                        "LDT0;", "<init>",
+                                        "(Lru/yandex/music/data/audio/Album;"
+                                        "Lru/yandex/music/data/audio/o;ILNn;Lze2;"
+                                        "Landroid/content/Context;LvF6;LgH6;LmH6;)V"
+                                    )
+                                    and callee == (
+                                        "Ljm4;", "for",
+                                        "(LGl4;Lkotlinx/coroutines/CoroutineScope;"
+                                        "LHl4;)Lk1a;"
+                                    )
+                                ):
+                                    target_callers[-1]["flow_argument_origin_rows"] = (
+                                        logical_invoke_argument_rows(
+                                            dex, method, flags, code_off, ins,
+                                            ordinal, op, words
+                                        )
+                                    )
                         if (callee[0], callee[1]) == DESCRIPTOR_BUILDER:
                             if len(descriptor_builder_callers) < MAX_METHODS:
                                 descriptor_builder_callers.append({
