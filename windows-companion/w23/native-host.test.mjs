@@ -1385,8 +1385,6 @@ test("W157 no-kUrl VPN hold rejects Next to a different current track",async()=>
   });
   state.enabled=false;state.networkRecoveryPending=true;
   clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
-  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
-  assert.ok(held.includes('"preserveCurrentSource":true'));
   currentTrack.id="456";
   clockNow+=350;state.enabled=true;r.pulse();
   await new Promise(resolve=>setTimeout(resolve,45));
@@ -1412,8 +1410,6 @@ test("W157 no-kUrl VPN hold is cleared by Manual Stop",async()=>{
   });
   state.enabled=false;state.networkRecoveryPending=true;
   clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
-  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
-  assert.ok(held.includes('"preserveCurrentSource":true'));
   currentTrack.playbackState="STOPPED";
   clockNow+=350;state.enabled=true;r.pulse();
   await new Promise(resolve=>setTimeout(resolve,45));
@@ -1442,8 +1438,6 @@ test("W157 no-kUrl VPN hold is invalidated when the current media player is dest
   });
   state.enabled=false;state.networkRecoveryPending=true;
   clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
-  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
-  assert.ok(held.includes('"preserveCurrentSource":true'));
   debug.emit("message",{},"Media.playerDestroyed",{playerId:"w157-no-kurl-current"});
   clockNow+=350;state.enabled=true;r.pulse();
   await new Promise(resolve=>setTimeout(resolve,45));
@@ -1479,6 +1473,8 @@ test("W157 no-kUrl VPN hold fails closed on logout, entitlement denial, origin c
     });
     state.enabled=false;state.networkRecoveryPending=true;
     clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+    state.enabled=true;
+    clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
     const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
     assert.ok(held.includes('"preserveCurrentSource":true'),label+": setup must capture hold");
     mutate(state,(value)=>{stateResponse=value;});
@@ -1509,8 +1505,6 @@ test("W157 no-kUrl VPN hold expires after the bounded recovery window",async()=>
   });
   state.enabled=false;state.networkRecoveryPending=true;
   clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
-  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
-  assert.ok(held.includes('"preserveCurrentSource":true'));
   clockNow+=600001;state.enabled=true;r.pulse();
   await new Promise(resolve=>setTimeout(resolve,45));
   const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";

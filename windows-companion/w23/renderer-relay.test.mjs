@@ -786,6 +786,10 @@ test("W157 no-kUrl VPN hold fails closed after Manual Stop or unavailable player
     assert.ok(!r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
       x[0]==="NATIVE_ROUTE_RECOVERY_SOURCE_KEPT"),
       status+": a stopped/invalid player cannot retain the source hold");
+    const pending=r.window.__celikomBridgeNativeDrain();
+    for(const item of pending)
+      r.window.__celikomBridgeNativeReceive(item.requestId,null);
+    await tick();
     assert.deepEqual(player.reloadReasons,[]);
     r.handlers.beforeunload();
   }
