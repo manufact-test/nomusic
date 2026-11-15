@@ -2648,6 +2648,200 @@ def trace_native_track_coroutine_continuation(
     }
 
 
+
+def trace_track_value_to_exact_field_store(dex, method, flags, code_off, target_field):
+    """Track typed/Object-cast Track aliases into one exact private field write."""
+    track_aliases=set(typed_parameter_registers(
+        dex,method,flags,code_off,MODEL
+    ))
+    object_aliases=set(typed_parameter_registers(
+        dex,method,flags,code_off,"Ljava/lang/Object;"
+    ))
+    this_register=None if flags&ACC_STATIC else (
+        dex.u16(code_off)-dex.u16(code_off+2)
+    )
+    ins=list(instructions(dex,code_off))
+    future_writes=[set() for _ in range(len(ins))]
+    later=set()
+    wide_ops=(
+        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
+         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
+        |set(range(0x9b,0xa6))|set(range(0xab,0xb0))
+        |set(range(0xbb,0xc6))|set(range(0xcb,0xd0))
+    )
+    for index in range(len(ins)-1,-1,-1):
+        future_writes[index]=set(later)
+        _pc,op,words=ins[index]
+        dest=written_register(op,words)
+        if dest is not None:
+            later.add(dest)
+            if op in wide_ops: later.add(dest+1)
+    stores=[]
+    pending_track_return=False
+    branch_seen=False
+
+    def clear(reg):
+        track_aliases.discard(reg)
+        object_aliases.discard(reg)
+
+    for ordinal,(_pc,op,words) in enumerate(ins):
+        if op in INVOKES:
+            callee=dex.method(words[1])
+            pending_track_return=callee[2].split(")",1)[1]==MODEL
+            continue
+        if op==0x0c:
+            dest=words[0]>>8
+            clear(dest)
+            if pending_track_return: track_aliases.add(dest)
+            pending_track_return=False
+            continue
+        pending_track_return=False
+        if op==0x54:
+            dest=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            owner,_name,typ=field_id(dex,words[1])
+            clear(dest)
+            if typ==MODEL and receiver==this_register:
+                track_aliases.add(dest)
+            continue
+        if op==0x5b:
+            value=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            if field_id(dex,words[1])==target_field:
+                stores.append({
+                    "ordinal":ordinal,
+                    "source_is_track_parameter_or_field":value in track_aliases,
+                    "source_is_object_parameter_not_yet_cast":value in object_aliases,
+                    "receiver_is_this":receiver==this_register,
+                    "track_source_provenance":(
+                        "TRACK_PARAMETER_OR_TRACK_FIELD"
+                        if value in track_aliases else
+                        "OBJECT_PARAMETER_UNREFINED"
+                        if value in object_aliases else "UNTRACED"
+                    )
+                })
+            continue
+        if op in (0x07,0x08,0x09):
+            move=move_object_registers(op,words)
+            if move:
+                dest,source=move
+                is_track=source in track_aliases
+                is_object=source in object_aliases
+                clear(dest)
+                if is_track: track_aliases.add(dest)
+                if is_object: object_aliases.add(dest)
+            continue
+        if op==0x1f:  # Object -> Track cast retains same reference
+            dest=(words[0]>>8)&0xff
+            if dex.descriptor(words[1])==MODEL and dest in object_aliases:
+                object_aliases.discard(dest)
+                track_aliases.add(dest)
+            continue
+        dest=written_register(op,words)
+        if dest is not None: clear(dest)
+        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            branch_seen=True
+            stable_here=set(range(dex.u16(code_off)))-future_writes[ordinal]
+            track_aliases.intersection_update(stable_here)
+            object_aliases.intersection_update(stable_here)
+    return {
+        "method":{"owner":method[0],"method":method[1],"signature":method[2]},
+        "track_parameter_count":len(typed_parameter_registers(
+            dex,method,flags,code_off,MODEL
+        )),
+        "object_parameter_count":len(typed_parameter_registers(
+            dex,method,flags,code_off,"Ljava/lang/Object;"
+        )),
+        "field_store_sites":stores,
+        "branch_seen":branch_seen,
+        "private_field_name_or_value_disclosed":False
+    }
+
+
+def inspect_continuation_track_field_writers(apks, reference_dex, reference_field_slot):
+    """Find all exact writers to LFp0's Track field across the pinned six DEXes."""
+    target_field=field_id(reference_dex,reference_field_slot)
+    if target_field[0]!="LFp0;" or target_field[2]!=MODEL:
+        raise ValueError("CONTINUATION_TRACK_FIELD_CONTRACT_MISMATCH")
+    writers=[]
+    all_definitions=[]
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):
+                    continue
+                if entry.file_size>DEX_MAX:
+                    raise ValueError("CONTINUATION_TRACK_WRITER_DEX_LIMIT")
+                dex=Dex(archive.read(entry.filename))
+                for method,flags,code_off in method_definitions_with_flags(dex):
+                    if len(all_definitions)>=100000:
+                        raise ValueError("CONTINUATION_TRACK_WRITER_METHOD_LIMIT")
+                    all_definitions.append((dex,method,flags,code_off))
+                    sites=[]
+                    for ordinal,(_pc,op,words) in enumerate(instructions(dex,code_off)):
+                        if op!=0x5b:
+                            continue
+                        if field_id(dex,words[1])!=target_field:
+                            continue
+                        sites.append({
+                            "ordinal":ordinal,
+                            "value_register":(words[0]>>8)&15,
+                            "receiver_register":(words[0]>>12)&15
+                        })
+                    if sites:
+                        if len(writers)>=32:
+                            raise ValueError("CONTINUATION_TRACK_WRITER_OWNER_LIMIT")
+                        trace=trace_track_value_to_exact_field_store(
+                            dex,method,flags,code_off,target_field
+                        )
+                        writers.append({
+                            "method":trace["method"],
+                            "field_store_sites":trace["field_store_sites"],
+                            "track_parameter_count":trace["track_parameter_count"],
+                            "object_parameter_count":trace["object_parameter_count"],
+                            "branch_seen":trace["branch_seen"]
+                        })
+    writer_refs={
+        (row["method"]["owner"],row["method"]["method"],row["method"]["signature"])
+        for row in writers
+    }
+    callsites=[]
+    if writer_refs:
+        for dex,caller,flags,code_off in all_definitions:
+            if caller in writer_refs:
+                continue
+            trace=trace_identity_method(
+                dex,caller,flags,code_off,focus_targets=writer_refs,
+                capture_unproven_calls=True
+            )
+            for event in trace["events"]:
+                if event.get("kind")!="CALL_WITH_TYPED_IDENTITY":
+                    continue
+                callee=event.get("callee",{})
+                target=(callee.get("owner"),callee.get("method"),callee.get("signature"))
+                if target not in writer_refs:
+                    continue
+                if len(callsites)>=64:
+                    raise ValueError("CONTINUATION_TRACK_WRITER_CALLSITE_LIMIT")
+                callsites.append({
+                    "caller":{"owner":caller[0],"method":caller[1],"signature":caller[2]},
+                    "target":callee,
+                    "track_identity_arguments":event.get("identity_arguments",[])
+                })
+    return {
+        "target_is_LFp0_track_typed_field":True,
+        "writer_method_count":len(writers),
+        "writer_methods":writers,
+        "track_identity_callsite_count":len(callsites),
+        "track_identity_callsites":callsites,
+        "same_track_object_capture_into_continuation_field_proven":any(
+            site["source_is_track_parameter_or_field"]
+            for writer in writers for site in writer["field_store_sites"]
+        ) and bool(callsites),
+        "field_names_values_track_ids_or_media_disclosed":False
+    }
+
+
 def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
     focus_methods = [
         (row["owner"], row["method"], row["signature"])
@@ -3987,6 +4181,15 @@ def inspect_signed(apks):
         initial_def[0],initial_ref,initial_def[1],initial_def[2],
         resume_ref,resume_def[1],resume_def[2]
     )
+    continuation_field_slots={
+        row["field_slot"]
+        for row in native_track_coroutine_continuity["continuation_track_field_reads"]
+    }
+    if len(continuation_field_slots)!=1:
+        raise ValueError("CONTINUATION_TRACK_FIELD_SLOT_NOT_UNIQUE")
+    continuation_track_field_writer_census=inspect_continuation_track_field_writers(
+        apks,initial_def[0],next(iter(continuation_field_slots))
+    )
     if dex_count != 6:
         raise ValueError("SIGNED_SIX_DEX_REQUIRED")
     if not model_defined:
@@ -4164,6 +4367,7 @@ def inspect_signed(apks):
         "fp0_resume_explicit_null_track_argument_static_proven": fp0_resume_null_track_arg,
         "fp0_resume_track_binding_runtime_proven": False,
         "native_track_coroutine_continuity": native_track_coroutine_continuity,
+        "continuation_track_field_writer_census": continuation_track_field_writer_census,
         "raa_resume_exact_same_continuation_static_proven": raa_resume_same_continuation,
         "raa_resume_explicit_null_wrapper_argument_static_proven": raa_resume_null_wrapper,
         "raa_resume_wrapper_binding_runtime_proven": False,

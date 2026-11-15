@@ -13,7 +13,8 @@ from audit_native_selected_item_handoff import (
     trace_byte_buffer_parameter, expand_invoke_register_types,
     audio_output_dispatch_contracts, owner_ancestry_profiles,
     trace_renderer_buffer_field_candidates, collect_sink_buffer_field_refs,
-    trace_renderer_buffer_field_writes, trace_native_track_coroutine_continuation
+    trace_renderer_buffer_field_writes, trace_native_track_coroutine_continuation,
+    trace_track_value_to_exact_field_store
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -734,6 +735,53 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(events[0]["same_basic_block_buffer_return_source"]["owner"],"LDecoder;")
         self.assertIsNone(events[1]["same_basic_block_buffer_return_source"])
         self.assertTrue(branch)
+
+    def test_exact_continuation_field_writer_tracks_object_cast_and_same_field(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5,102:2}[offset]
+            def descriptor(self,index):
+                return "Lru/yandex/music/data/audio/o;"
+            def method(self,index):
+                return ("LTarget;","get","()Ljava/lang/Object;")
+        method=("LFp0;","create","(Ljava/lang/Object;LOe2;)V")
+        ins=[
+            (0,0x1f,[0x001f,1]),
+            (1,0x5b,[0x105b,7]),
+            (2,0x0e,[0x000e])
+        ]
+        target=("LFp0;","privateTrack","Lru/yandex/music/data/audio/o;")
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            result=trace_track_value_to_exact_field_store(
+                FakeDex(),method,0,100,target
+            )
+        self.assertTrue(result["field_store_sites"][0]["source_is_track_parameter_or_field"])
+        self.assertEqual(result["field_store_sites"][0]["track_source_provenance"],
+                         "TRACK_PARAMETER_OR_TRACK_FIELD")
+        self.assertNotIn("privateTrack",str(result))
+
+    def test_exact_continuation_field_writer_does_not_accept_unchecked_object(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5,102:2}[offset]
+            def descriptor(self,index):
+                return "Ljava/lang/Object;"
+            def method(self,index):
+                return ("LTarget;","get","()Ljava/lang/Object;")
+        method=("LFp0;","create","(Ljava/lang/Object;LOe2;)V")
+        ins=[(0,0x5b,[0x105b,7]),(1,0x0e,[0x000e])]
+        target=("LFp0;","privateTrack","Lru/yandex/music/data/audio/o;")
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            result=trace_track_value_to_exact_field_store(
+                FakeDex(),method,0,100,target
+            )
+        self.assertFalse(result["field_store_sites"][0]["source_is_track_parameter_or_field"])
+        self.assertTrue(result["field_store_sites"][0]["source_is_object_parameter_not_yet_cast"])
+        self.assertNotIn("privateTrack",str(result))
 
     def test_native_track_coroutine_capture_roundtrip_and_wrapper_identity(self):
         from unittest.mock import patch
