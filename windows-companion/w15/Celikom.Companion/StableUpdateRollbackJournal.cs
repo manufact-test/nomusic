@@ -1,14 +1,14 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace Celikom.Companion;
 
 /// <summary>
-/// W109 durable, user-scoped record of an in-place stable update.
-/// No installer is executed by this class. Production callers must use
-/// PrepareManifestVerified, which checks both manifest-verified packages before retaining a
-/// byte-identical previous installer. This is groundwork for the independent
-/// supervisor, not a substitute for one.
+/// W155 durable, user-scoped DPAPI record for the in-place stable updater.
+/// No installer is executed by this class. Production callers use
+/// PrepareManifestVerified, which verifies and hash-binds both packages before
+/// retaining byte-identical previous and target installers for the independent Supervisor.
 /// </summary>
 public static class StableUpdateRollbackJournal
 {
@@ -138,8 +138,8 @@ public static class StableUpdateRollbackJournal
         var copiedTarget = Path.Combine(snapshot, TargetName);
         try
         {
-            CopyVerifiedImage(previousInstaller, copiedPrevious, previous.PackageSize);
-            CopyVerifiedImage(targetInstaller, copiedTarget, target.PackageSize);
+            CopyVerifiedImage(previousInstaller, copiedPrevious, previous.PackageSize, previous.Sha256);
+            CopyVerifiedImage(targetInstaller, copiedTarget, target.PackageSize, target.Sha256);
             verify(copiedPrevious, previous);
             verify(copiedTarget, target);
             var record = new Record(3, identifier, Phase.Prepared,
@@ -250,7 +250,7 @@ public static class StableUpdateRollbackJournal
         var copiedTarget = Path.Combine(snapshot, TargetName);
         try
         {
-            CopyVerifiedImage(signedInstaller, copiedTarget, release.PackageSize);
+            CopyVerifiedImage(signedInstaller, copiedTarget, release.PackageSize, release.Sha256);
             verify(copiedTarget, release);
             if (!payloadMatches(installedApplicationPath, release.ApplicationSha256) ||
                 !payloadMatches(installedNativeHostPath, release.NativeHostSha256) ||
@@ -492,8 +492,8 @@ public static class StableUpdateRollbackJournal
         if (!File.Exists(previous) ||
             new FileInfo(previous).Attributes.HasFlag(FileAttributes.ReparsePoint))
             throw new IOException("STABLE_ROLLBACK_IMAGE_MISSING");
-        // All fields here came from a previously signature-checked release and
-        // a user-scoped DPAPI-protected record. Recheck bytes and cert on use.
+        // All fields here came from a previously P-256-signature-checked release
+        // and a user-scoped DPAPI-protected record. Recheck bytes on every use.
         var release = new StableUpdateManifestVerifier.VerifiedRelease(
             version, state.PreviousSequence,
             new Uri("https://celikom.invalid/CELIKOM/Windows/Updates/stable/" +
@@ -537,11 +537,26 @@ public static class StableUpdateRollbackJournal
         if (string.IsNullOrWhiteSpace(root))
             throw new IOException("STABLE_ROLLBACK_ROOT_INVALID");
         var path = Path.GetFullPath(root);
-        if (!Path.IsPathFullyQualified(path) ||
-            Directory.Exists(path) &&
-            (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        if (!Path.IsPathFullyQualified(path))
             throw new IOException("STABLE_ROLLBACK_ROOT_INVALID");
+        EnsureNoReparseAncestors(path);
         return path;
+    }
+
+    private static void EnsureNoReparseAncestors(string path)
+    {
+        var current = Path.GetPathRoot(path);
+        if (string.IsNullOrWhiteSpace(current))
+            throw new IOException("STABLE_ROLLBACK_ROOT_INVALID");
+        foreach (var segment in path[current.Length..].Split(
+            new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+            StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if ((Directory.Exists(current) || File.Exists(current)) &&
+                (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("STABLE_ROLLBACK_REPARSE_POINT");
+        }
     }
 
     private static string JournalPath(string root) => Path.Combine(root, TicketName);
@@ -549,8 +564,14 @@ public static class StableUpdateRollbackJournal
     private static FileStream AcquireLock(string root)
     {
         Directory.CreateDirectory(root);
-        return new FileStream(Path.Combine(root, ".stable-update-lock"),
-            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        EnsureNoReparseAncestors(root);
+        var lockPath = Path.Combine(root, ".stable-update-lock");
+        var lockInfo = new FileInfo(lockPath);
+        if (lockInfo.LinkTarget is not null ||
+            lockInfo.Exists && lockInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new IOException("STABLE_ROLLBACK_LOCK_REPARSE_POINT");
+        return new FileStream(lockPath, FileMode.OpenOrCreate,
+            FileAccess.ReadWrite, FileShare.None);
     }
 
     private static Record ReadRecord(string root)
@@ -558,12 +579,31 @@ public static class StableUpdateRollbackJournal
         try
         {
             var file = JournalPath(root);
-            if (!File.Exists(file) || new FileInfo(file).Length is < 32 or > 8192)
+            var info = new FileInfo(file);
+            info.Refresh();
+            if (info.LinkTarget is not null || Directory.Exists(file))
+                throw new IOException("STABLE_ROLLBACK_RECORD_INVALID");
+            if (!info.Exists)
                 throw new IOException("STABLE_ROLLBACK_RECORD_MISSING");
-            var plain = ProtectedData.Unprotect(File.ReadAllBytes(file), Purpose,
+            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+                info.Length is < 32 or > 8192)
+                throw new IOException("STABLE_ROLLBACK_RECORD_INVALID");
+
+            byte[] protectedBytes;
+            using (var input = new FileStream(file, FileMode.Open, FileAccess.Read,
+                FileShare.Read, 4096, FileOptions.SequentialScan))
+            {
+                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0 ||
+                    input.Length is < 32 or > 8192)
+                    throw new IOException("STABLE_ROLLBACK_RECORD_INVALID");
+                protectedBytes = new byte[checked((int)input.Length)];
+                input.ReadExactly(protectedBytes);
+            }
+            var plain = ProtectedData.Unprotect(protectedBytes, Purpose,
                 DataProtectionScope.CurrentUser);
-            var record = JsonSerializer.Deserialize<Record>(plain);
-            CryptographicOperations.ZeroMemory(plain);
+            Record? record;
+            try { record = JsonSerializer.Deserialize<Record>(plain); }
+            finally { CryptographicOperations.ZeroMemory(plain); }
             if (record is null || record.Schema != 3 || record.Id == Guid.Empty ||
                 !ValidSha(record.PreviousSha256) || !ValidSha(record.TargetSha256) ||
                 !ValidSha(record.ManifestPublicKeySha256) ||
@@ -607,25 +647,54 @@ public static class StableUpdateRollbackJournal
     }
 
     private static void CopyVerifiedImage(string sourcePath, string destinationPath,
-        long expectedSize)
+        long expectedSize, string expectedSha256)
     {
         var sourceInfo = new FileInfo(sourcePath);
-        if (!sourceInfo.Exists ||
+        if (!sourceInfo.Exists || sourceInfo.LinkTarget is not null ||
             sourceInfo.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
-            sourceInfo.Length != expectedSize)
+            sourceInfo.Length != expectedSize || !ValidSha(expectedSha256))
             throw new IOException("STABLE_ROLLBACK_IMAGE_INVALID");
+
+        var expected = Convert.FromHexString(expectedSha256);
         using (var source = new FileStream(sourcePath, FileMode.Open,
             FileAccess.Read, FileShare.Read, 65536, FileOptions.SequentialScan))
         using (var output = new FileStream(destinationPath, FileMode.CreateNew,
             FileAccess.Write, FileShare.None, 65536, FileOptions.WriteThrough))
+        using (var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
         {
-            source.CopyTo(output);
-            output.Flush(flushToDisk: true);
+            if (source.Length != expectedSize)
+                throw new IOException("STABLE_ROLLBACK_IMAGE_INVALID");
+            var buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+            long total = 0;
+            try
+            {
+                int read;
+                while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    total += read;
+                    if (total > expectedSize)
+                        throw new IOException("STABLE_ROLLBACK_IMAGE_COPY_SIZE_MISMATCH");
+                    output.Write(buffer, 0, read);
+                    hasher.AppendData(buffer, 0, read);
+                }
+                if (total != expectedSize ||
+                    !CryptographicOperations.FixedTimeEquals(
+                        expected, hasher.GetHashAndReset()))
+                    throw new IOException("STABLE_ROLLBACK_IMAGE_COPY_HASH_MISMATCH");
+                output.Flush(flushToDisk: true);
+            }
+            finally { ArrayPool<byte>.Shared.Return(buffer, clearArray: true); }
         }
+
         var copied = new FileInfo(destinationPath);
-        if (!copied.Exists || copied.Length != expectedSize ||
+        if (!copied.Exists || copied.LinkTarget is not null ||
+            copied.Length != expectedSize ||
             copied.Attributes.HasFlag(FileAttributes.ReparsePoint))
             throw new IOException("STABLE_ROLLBACK_IMAGE_COPY_INVALID");
+        using var copy = new FileStream(destinationPath, FileMode.Open,
+            FileAccess.Read, FileShare.Read, 65536, FileOptions.SequentialScan);
+        if (!CryptographicOperations.FixedTimeEquals(expected, SHA256.HashData(copy)))
+            throw new IOException("STABLE_ROLLBACK_IMAGE_COPY_HASH_MISMATCH");
     }
 
     private static void WriteRecord(string root, Record record)

@@ -6,10 +6,10 @@ using System.Text.RegularExpressions;
 namespace Celikom.Companion;
 
 /// <summary>
-/// W101 trust contract for a future stable updater. This does NOT fetch or
-/// execute packages. No automatic update is enabled until a release-signing
-/// public key is pinned, the package SHA-256 and payload identities are checked, and health/rollback
-/// and idle-playback gates are independently verified.
+/// W155 detached P-256 signed-manifest verifier for the stable updater.
+/// This class does not fetch or execute packages. Production activation remains
+/// fail-closed while ordinary source pins are empty; release builds embed the
+/// approved public SPKI pin and fixed HTTPS origin.
 /// </summary>
 public static class StableUpdateManifestVerifier
 {

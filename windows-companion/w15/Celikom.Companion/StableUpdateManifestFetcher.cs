@@ -4,10 +4,10 @@ using System.Net;
 namespace Celikom.Companion;
 
 /// <summary>
-/// W107: read-only discovery of a cryptographically signed stable manifest.
-/// Does not download an EXE, touch Yandex, enable playback or launch an updater.
-/// Until an audited public signing key is pinned in the shipped application
-/// there is deliberately no automatic call site for this service.
+/// W155: read-only discovery of the P-256 signed stable manifest.
+/// This fetches only the manifest and detached signature; the package stager
+/// separately downloads and verifies the EXE. Production callers are reachable
+/// only when the release build supplies the immutable public-key pin and origin.
 /// </summary>
 public static class StableUpdateManifestFetcher
 {

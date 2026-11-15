@@ -9,7 +9,7 @@ namespace Celikom.Companion;
 /// <summary>
 /// Same-user, transaction-scoped readiness handshake between the GUI and the
 /// independent rollback Supervisor. The helper signals only after it has read
-/// and validated the DPAPI journal, production trust and its own signed image.
+/// and validated the DPAPI journal, production trust and its own manifest-verified image.
 /// </summary>
 public static class StableUpdateSupervisorHandshake
 {

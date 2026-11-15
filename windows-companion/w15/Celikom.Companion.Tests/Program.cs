@@ -117,6 +117,46 @@ try
          "W140 pending package cache is bound to exact signed version, sequence and SHA-256");
     var testManifestPublicKeySha256 = new string('b', 64);
     var verifiedImages = 0;
+
+    // W155: simulate replacement of the source after the caller's verifier
+    // returns but before the durable rollback snapshot is copied.
+    var racedPrevious = Path.Combine(rollbackFixtureRoot, "previous-race.exe");
+    File.WriteAllBytes(racedPrevious, previousBytes);
+    var raceRoot = Path.Combine(rollbackFixtureRoot, "rollback-copy-race");
+    var racedCopyRejected = false;
+    try
+    {
+        StableUpdateRollbackJournal.PrepareCore(
+            raceRoot, previousRelease, racedPrevious, targetRelease, nextSetup,
+            testManifestPublicKeySha256, previousRelease.Version, rollbackAt,
+            hasSession: true, nativeWasInstalled: true,
+            (file, expected) =>
+            {
+                if (string.Equals(Path.GetFullPath(file), Path.GetFullPath(racedPrevious),
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    var changed = previousBytes.ToArray();
+                    changed[0] ^= 0x5A;
+                    File.WriteAllBytes(racedPrevious, changed);
+                }
+            }, sessionIdentitySha256: new string('d', 64));
+    }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_IMAGE_COPY_HASH_MISMATCH")
+    { racedCopyRejected = true; }
+    Test(racedCopyRejected &&
+         !File.Exists(Path.Combine(raceRoot, "stable-update-rollback.dpapi")),
+         "W155 a source replaced after verification cannot enter the DPAPI rollback snapshot");
+
+    var corruptJournalRoot = Path.Combine(rollbackFixtureRoot, "corrupt-journal");
+    Directory.CreateDirectory(corruptJournalRoot);
+    File.WriteAllBytes(Path.Combine(corruptJournalRoot, "stable-update-rollback.dpapi"),
+        new byte[] { 0x01 });
+    var corruptJournalRejected = false;
+    try { StableUpdateRollbackJournal.Read(corruptJournalRoot); }
+    catch (IOException e) when (e.Message == "STABLE_ROLLBACK_RECORD_INVALID")
+    { corruptJournalRejected = true; }
+    Test(corruptJournalRejected,
+        "W155 an existing truncated DPAPI journal is corruption, never an absent first-install record");
     void VerifySyntheticSetup(string file,
         StableUpdateManifestVerifier.VerifiedRelease expected)
     {
