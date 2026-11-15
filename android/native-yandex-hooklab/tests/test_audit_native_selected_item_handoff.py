@@ -28,7 +28,8 @@ from audit_native_selected_item_handoff import (
     constructor_int_parameter_field_store_census,
     summarize_flow_interface_implementers,
     summarize_flow_mode_branch_census,
-    exact_track_return_owner_scope
+    exact_track_return_owner_scope,
+    exact_parameter_field_store_refs, local_object_register_origin
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -138,6 +139,55 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertIn(implementer, result["scan_owner_to_roots"])
         self.assertIn(subclass, result["scan_owner_to_roots"])
         self.assertNotIn(unrelated, result["scan_owner_to_roots"])
+
+    def test_exact_parameter_field_store_refs_tracks_interface_parameter_to_this(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:2}[offset]
+        method=("LWorker;","<init>","(LaC7;)V")
+        target=("LWorker;","hiddenInterface", "LaC7;")
+        ins=[
+            (0,0x07,[0x3107]),  # move-object v1, v3
+            (1,0x5b,[0x215b,0]),  # iput-object v1, v2
+            (2,0x0e,[0x000e]),
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+             patch("audit_native_selected_item_handoff.field_id",return_value=target), \\
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[3]):
+            refs=exact_parameter_field_store_refs(FakeDex(),method,0,100,"LaC7;")
+        self.assertEqual(refs,[target])
+        self.assertNotIn("hiddenInterface",str({"count":len(refs)}))
+
+    def test_exact_parameter_field_store_refs_rejects_wrong_type_receiver_and_branch(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:2}[offset]
+        method=("LWorker;","<init>","(LaC7;)V")
+        wrong_type=("LWorker;","hiddenInterface","LyEa;")
+        exact_type=("LWorker;","hiddenInterface","LaC7;")
+        wrong_receiver=[(0,0x5b,[0x315b,0])]
+        branched=[(0,0x28,[0x0028]),(1,0x5b,[0x235b,0])]
+        with patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[3]), \\
+             patch("audit_native_selected_item_handoff.instructions",side_effect=[[(0,0x5b,[0x215b,0])],wrong_receiver,branched]), \\
+             patch("audit_native_selected_item_handoff.field_id",side_effect=[wrong_type,exact_type,exact_type]):
+            self.assertEqual(exact_parameter_field_store_refs(FakeDex(),method,0,100,"LaC7;"),[])
+            self.assertEqual(exact_parameter_field_store_refs(FakeDex(),method,0,100,"LaC7;"),[])
+            self.assertEqual(exact_parameter_field_store_refs(FakeDex(),method,0,100,"LaC7;"),[])
+
+    def test_local_object_origin_can_report_exact_new_instance_site(self):
+        class FakeDex:
+            def descriptor(self, index):
+                return "LyEa;"
+        method=("LFactory;","create","()V")
+        ins=[(0,0x22,[0x0122,0])]
+        origin=local_object_register_origin(
+            FakeDex(),method,0x8,100,ins,1,1,include_source_ordinal=True
+        )
+        self.assertEqual(origin,{
+            "kind":"NEW_INSTANCE","type":"LyEa;","source_ordinal":0
+        })
 
     def test_method_descriptor_parser_handles_objects_arrays_and_wide_values(self):
         self.assertEqual(parse_types("(ILjava/lang/String;[B[[JDLru/yandex/music/data/audio/o;)V"),
