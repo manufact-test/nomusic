@@ -1,6 +1,6 @@
 # W54 — Owner diagnostic analysis: VPN recovery source reload
 
-> **Outcome:** W54 diagnostics were received and analyzed; W157 no-kUrl continuity is now implemented and CI-verified. The single final owner-stage package `0.24.39.0` is built (artifact `14180750696`). This document remains the evidence analysis; it does not claim owner-PC audible acceptance.
+> **Outcome:** W157 no-kUrl continuity is implemented and CI-verified, but the 16.11.2026 owner retest found one remaining same-track reload after SOURCE_HELD. See the W158 follow-up below. Artifact `0.24.39.0` (14180750696) predates that finding and is not the final accepted build.
 
 Date: 15 November 2026  
 Repository: `manufact-test/nomusic`  
