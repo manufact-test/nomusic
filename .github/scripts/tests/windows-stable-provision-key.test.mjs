@@ -1,51 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import {readFile} from "node:fs/promises";
 
 const provision = await readFile(
   new URL("../windows-stable-provision-key.ps1", import.meta.url), "utf8");
 const releaseWorkflow = await readFile(
   new URL("../../workflows/windows-stable-signed-release.yml", import.meta.url), "utf8");
 
-test("W155 key provisioning requires a protected main-only environment", () => {
-  assert.match(provision, /required_reviewers/);
-  assert.match(provision, /deployment-branch-policies/);
-  assert.match(provision, /W155_ENVIRONMENT_MUST_ALLOW_ONLY_MAIN/);
-  assert.match(provision, /CELIKOM_STABLE_DEPLOY_ROOT/);
-  assert.match(provision, /W155_NODE_24_REQUIRED/);
-  assert.equal((provision.match(/W155_REPOSITORY_OR_ENVIRONMENT_INVALID/g) ?? []).length, 1);
-  assert.equal((provision.match(/W155_POWERSHELL_7_REQUIRED/g) ?? []).length, 1);
-  assert.match(provision, /Assert-NoReparseAncestors \$repoRoot/);
-  assert.match(provision, /Assert-NoReparseAncestors \$keyRoot/);
-  assert.match(provision, /\$currentUserGrant = \$currentUser \+ ":\(OI\)\(CI\)F"/);
-  assert.match(provision, /\/grant:r \$currentUserGrant "SYSTEM:\(OI\)\(CI\)F"/);
-  assert.match(provision, /W155_PRIVATE_KEY_MUST_BE_ENVIRONMENT_SECRET/);
-  assert.match(provision, /gh secret list --repo \$Repository --json name/);
+test("W155 owner key setup uses only built-in Windows PowerShell and GitHub web UI", () => {
+  assert.match(provision, /ECDsaCng/);
+  assert.match(provision, /BEGIN PRIVATE KEY/);
+  assert.match(provision, /manifest-private\.pem/);
+  assert.match(provision, /Set-Acl/);
+  assert.match(provision, /SYSTEM/);
+  assert.match(provision, /settings\/environments\/windows-stable-production/);
+  assert.match(provision, /notepad\.exe/i);
+  assert.doesNotMatch(provision, /\bnode(\.exe)?\b/i);
+  assert.doesNotMatch(provision, /\bgh(\.exe)?\b/i);
+  assert.doesNotMatch(provision, /gh auth|gh secret|gh variable|Invoke-RestMethod|Invoke-WebRequest/);
+  assert.match(provision, /W155_KEYPAIR_ALREADY_EXISTS_DO_NOT_REGENERATE/);
 });
 
-test("W155 existing signing keys are never silently replaced", () => {
-  assert.match(provision, /W155_EXISTING_PRIVATE_SECRET_DO_NOT_OVERWRITE/);
-  assert.match(provision, /W155_EXISTING_PUBLIC_PIN_MISMATCH_REFUSE_KEY_ROTATION/);
-  assert.match(provision, /gh secret set/);
-  assert.doesNotMatch(provision, /gh secret set[^\r\n]*--body/);
+test("W155 release derives the public pin from the protected private key", () => {
+  assert.match(releaseWorkflow, /environment:\s*windows-stable-production/);
+  assert.match(releaseWorkflow, /if:\s*github\.ref == 'refs\/heads\/main'/);
+  assert.match(releaseWorkflow, /CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM/);
+  assert.match(releaseWorkflow, /windows-stable-key-public\.mjs/);
+  assert.doesNotMatch(releaseWorkflow, /vars\.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64/);
 });
 
-test("W155 public trust variables are resumable and precede private-key upload", () => {
-  assert.match(provision, /\[AllowNull\(\)\]\[object\]\$Existing/);
-  const publicPin = provision.indexOf('Set-OrConfirmVar $PublicVariableName');
-  const privateUpload = provision.lastIndexOf("gh secret set ");
-  assert.ok(publicPin >= 0 && privateUpload > publicPin);
-  assert.match(provision, /if \(\$secretExists -and \$publicVar -cne \$publicBase64\)/);
-});
-
-test("W155 SSH deploy credential is scoped to the single publishing step", () => {
+test("W155 private signing key is not exposed to build or publish jobs", () => {
   const publish = releaseWorkflow.slice(releaseWorkflow.indexOf("\n  publish:"));
-  const envStart = publish.indexOf("\n    env:");
-  const stepsStart = publish.indexOf("\n    steps:");
-  assert.ok(envStart >= 0 && stepsStart > envStart);
-  const jobEnvironment = publish.slice(envStart, stepsStart);
-  assert.doesNotMatch(jobEnvironment, /HOSTINGER_SSH_KEY/);
-  const publishStep = publish.slice(publish.indexOf("- name: Publish exact"));
-  assert.match(publishStep,
-    /env:\s*\n\s+HOSTINGER_SSH_KEY:\s+\$\{\{\s*secrets\.HOSTINGER_SSH_KEY\s*\}\}/);
+  assert.doesNotMatch(publish, /CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM/);
+  assert.match(releaseWorkflow, /MANIFEST_PRIVATE_PEM:\s*\$\{\{\s*secrets\.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM\s*\}\}/);
 });

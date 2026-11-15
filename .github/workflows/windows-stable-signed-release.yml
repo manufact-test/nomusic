@@ -35,9 +35,10 @@ jobs:
     environment: windows-stable-production
     runs-on: windows-2022
     timeout-minutes: 50
+    outputs:
+      public_key_der_base64: ${{ steps.derive-public-key.outputs.public_key_der_base64 }}
     env:
-      CELIKOM_STABLE_ORIGIN: ${{ vars.CELIKOM_STABLE_ORIGIN }}
-      CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64: ${{ vars.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64 }}
+      CELIKOM_STABLE_ORIGIN: https://celikom.com
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_SEQUENCE: ${{ inputs.sequence }}
       RELEASE_EXPIRES: ${{ inputs.expires_at }}
@@ -51,6 +52,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Derive public trust pin from protected P-256 private key
+        id: derive-public-key
+        shell: pwsh
+        env:
+          MANIFEST_PRIVATE_PEM: ${{ secrets.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W155_P256_PRIVATE_KEY_NOT_CONFIGURED' }
+          node .github/scripts/windows-stable-key-public.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_PIN_DERIVATION_FAILED' }
+          Remove-Item Env:MANIFEST_PRIVATE_PEM -ErrorAction SilentlyContinue
       - name: Verify fixed P-256 trust, release version and contracts
         shell: pwsh
         run: |
@@ -223,8 +235,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     env:
-      CELIKOM_STABLE_ORIGIN: ${{ vars.CELIKOM_STABLE_ORIGIN }}
-      CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64: ${{ vars.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64 }}
+      CELIKOM_STABLE_ORIGIN: https://celikom.com
+      CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64: ${{ needs.prepare.outputs.public_key_der_base64 }}
       CELIKOM_STABLE_DEPLOY_ROOT: ${{ vars.CELIKOM_STABLE_DEPLOY_ROOT }}
     steps:
       - uses: actions/checkout@v4

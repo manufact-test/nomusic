@@ -31,7 +31,7 @@ jobs:
           coverage: none
       - name: W113/W148 signed stable release and production trust contract
         run: |
-          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
+          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-key-public.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
           bash -n .github/scripts/windows-stable-publish-hostinger.sh
       - name: Validate Hostinger workflow YAML and owner-scoped private gain staging scripts
         run: |
@@ -92,7 +92,7 @@ jobs:
           # invoke the Unix-only zip command from the Windows runner.
           npm run security
           if ($LASTEXITCODE -ne 0) { throw 'W98_SECURITY_AUDIT_FAILED' }
-      - name: Parse protected W155 key provisioning script
+      - name: Validate PowerShell-only W155 key provisioning and owner package scripts
         shell: pwsh
         run: |
           $tokens = $null
@@ -110,6 +110,15 @@ jobs:
           if ($errors.Count -gt 0) {
             $errors | ForEach-Object { Write-Error $_.Message }
             throw 'W156_OWNER_PACKAGE_SCRIPT_PARSE_FAILED'
+          }
+          $testKeyDir = Join-Path $env:LOCALAPPDATA ("CELIKOM-W155-Key-Test-" + [Guid]::NewGuid().ToString("N"))
+          try {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .github/scripts/windows-stable-provision-key.ps1 -KeyDirectory $testKeyDir -NoUi
+            if ($LASTEXITCODE -ne 0) { throw 'W155_POWERSHELL_5_KEY_PROVISION_FAILED' }
+            node .github/scripts/windows-stable-key-public.mjs --verify-file (Join-Path $testKeyDir 'manifest-private.pem') (Join-Path $testKeyDir 'manifest-public.der')
+            if ($LASTEXITCODE -ne 0) { throw 'W155_POWERSHELL_5_P256_DER_OUTPUT_INVALID' }
+          } finally {
+            Remove-Item -LiteralPath $testKeyDir -Recurse -Force -ErrorAction SilentlyContinue
           }
           & .github/scripts/tests/windows-stable-owner-package.test.ps1
       - name: Build W23 native bridge bundle
