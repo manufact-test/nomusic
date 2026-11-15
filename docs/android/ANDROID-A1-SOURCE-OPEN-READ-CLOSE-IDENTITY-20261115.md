@@ -36,3 +36,9 @@
 ## Follow-up: позднее исключение vendor open()
 
 Код `2dc2e1f0ad394f83bed27e2e2d272179e85441cd` добавляет отдельную обработку exception path: `onExoSourceInstanceOpenFailure(source)` вызывается при **реальном** исключении неизменённого `chain.proceed()`, принудительно ставит `sourceOpened=false`. Даже если более ранний конкурентный вызов вернул successful open, поздняя ошибка не даёт засчитать следующие reads. Original throwable немедленно пробрасывается наружу без подавления. Есть Java regression на поздний failure и последующий новый успешный open. Резерв перед исправлением `backup/android-a1-source-open-close-pre-failure-reset-20261115` @ `975ec09e3951f7d668d7de5d74be8450ccc0c2e5`. Проверить результаты [#43699883677](https://github.com/manufact-test/nomusic/actions/runs/43699883677) и [#43699883681](https://github.com/manufact-test/nomusic/actions/runs/43699883681); отсутствие исключений на CI без аудио — **не** текущий playback proof.
+
+## Принципиальная регрессия (дополнение `9af55e5909592021f75b69d7b4d1b5cec2252cfc`)
+
+Исправлены недостаточные прежние Java-тесты: счётчик DISTINCT не мог обнаружить, если `TRACK_SOURCE_READ_LINK` ошибочно увеличился уже после `close` или failed reopen. Теперь **три отдельных Java fixture** создают точные `Track → wrapper → descriptor → factory → source` ссылки; после close, vendor open failure и rebind требуют `TRACK_SOURCE_READ_LINK=NONE` и `TRACK_SOURCE_UNOPENED_READ=ONE`, затем после нового successful `open` требуют `TRACK_SOURCE_READ_LINK=ONE`. Дополнительный тест не меняет наблюдатель/Яндекс, лишь проверяет fail-closed семантику. Clone-only CI [#43700267919](https://github.com/manufact-test/nomusic/actions/runs/43700267919) проверить отдельно.
+
+`2dc2e1f0ad394f83bed27e2e2d272179e85441cd` — последний **исполняемый** код, `9af55e59` — последний Java regression checkpoint. Даже если CI green, ни linked source, ни audio/decoder/current Track реально не проверялись в clone-only.
