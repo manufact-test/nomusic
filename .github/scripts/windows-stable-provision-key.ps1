@@ -97,6 +97,20 @@ if (-not [string]::IsNullOrWhiteSpace(($secretJson -join ""))) {
         ConvertFrom-Json -ErrorAction Stop | ForEach-Object { $_.name })
 }
 $secretExists = $secretNames -contains $PrivateSecretName
+
+# The manifest private key must exist only as an environment secret protected
+# by required reviewers. A repository-level copy would bypass that boundary.
+$repoSecretJson = gh secret list --repo $Repository --json name
+if ($LASTEXITCODE -ne 0) { throw "W155_REPOSITORY_SECRET_LIST_FAILED" }
+$repoSecretNames = @()
+if (-not [string]::IsNullOrWhiteSpace(($repoSecretJson -join ""))) {
+    $repoSecretNames = @(($repoSecretJson -join [Environment]::NewLine) |
+        ConvertFrom-Json -ErrorAction Stop | ForEach-Object { $_.name })
+}
+if ($repoSecretNames -contains $PrivateSecretName) {
+    throw "W155_PRIVATE_KEY_MUST_BE_ENVIRONMENT_SECRET"
+}
+
 $varsJson = gh variable list --repo $Repository --env $EnvironmentName --json name,value
 if ($LASTEXITCODE -ne 0) { throw "W155_VARIABLE_LIST_FAILED" }
 $vars = @()
