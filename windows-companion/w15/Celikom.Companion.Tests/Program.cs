@@ -695,6 +695,12 @@ try
         Test(stableUpdateDisabled.Outcome == StableUpdateInstallCoordinator.Outcome.TrustNotConfigured &&
              !stableUpdateContextRead,
             "W124 production updater stays dormant and performs no work while trust pins are empty");
+        Test(StableUpdatePendingPollPolicy.IntervalMs(false) == 30 * 60 * 1000 &&
+             StableUpdatePendingPollPolicy.IntervalMs(true) == 30 * 1000 &&
+             !StableUpdatePendingPollPolicy.ShouldInspectFeed(true, false) &&
+             StableUpdatePendingPollPolicy.ShouldInspectFeed(true, true) &&
+             StableUpdatePendingPollPolicy.ShouldInspectFeed(false, false),
+             "W145 pending update checks safe point every 30s without repeat network fetch while unsafe");
         Test(StableUpdateRollbackJournal.IsAllowedTransition(
                 StableUpdateRollbackJournal.Phase.InstallerStarted,
                 StableUpdateRollbackJournal.Phase.ManualRecovery),
