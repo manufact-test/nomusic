@@ -596,6 +596,8 @@ def inspect_signed(apks):
     flow_dispatcher_instantiation_sites = []
     flow_dispatcher_class_fields = {}
     fp0_resume_null_track_arg = False
+    raa_resume_same_continuation = False
+    raa_resume_null_wrapper = False
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
@@ -677,6 +679,40 @@ def inspect_signed(apks):
                                     and const4_zero_to_register(
                                         fp0_ins[n-1][1], fp0_ins[n-1][2], registers[1])):
                                 fp0_resume_null_track_arg = True
+                    if (method[0], method[1]) == ("LRAa;", "invokeSuspend"):
+                        # Signed Kotlin continuation replay of download2.o.for.
+                        # The receiver may be copied by an exact move-object.
+                        ins_resume = list(instructions(dex, code_off))
+                        this_reg = dex.u16(code_off) - dex.u16(code_off + 2)
+                        expected = (
+                            "Lcom/yandex/music/shared/player/download2/o;", "for",
+                            "(Lcom/yandex/music/shared/player/download2/o;LqX8$d;"
+                            "LtCa;Lf6a;Ln26;LOe2;)Ljava/lang/Object;"
+                        )
+                        for n, (_, op, words) in enumerate(ins_resume):
+                            if op not in INVOKES or n == 0 or dex.method(words[1]) != expected:
+                                continue
+                            args = invoke_registers(op, words)
+                            prev_move = move_object_registers(
+                                ins_resume[n-1][1], ins_resume[n-1][2])
+                            if (len(args) != 6 or prev_move != (args[5], this_reg)):
+                                continue
+                            raa_resume_same_continuation = True
+                            for k in range(n-2, -1, -1):
+                                prior_op, prior_words = ins_resume[k][1:]
+                                dest = ((prior_words[0] >> 8) & 15
+                                        if prior_op == 0x12
+                                        else written_register(prior_op, prior_words))
+                                if dest != args[2]:
+                                    continue
+                                if (const4_zero_to_register(
+                                        prior_op, prior_words, args[2])
+                                        and not any(
+                                            x[1] in (0x28,0x29,0x2a,0x2b,0x2c)
+                                            or 0x32 <= x[1] <= 0x3d
+                                            for x in ins_resume[k+1:n])):
+                                    raa_resume_null_wrapper = True
+                                break
                     if method[0] not in (MODEL, WRAPPER) and (
                         MODEL in method[2] or WRAPPER in method[2]
                     ):
@@ -820,6 +856,9 @@ def inspect_signed(apks):
         "fp0_resume_exact_same_continuation_static_proven": True,
         "fp0_resume_explicit_null_track_argument_static_proven": fp0_resume_null_track_arg,
         "fp0_resume_track_binding_runtime_proven": False,
+        "raa_resume_exact_same_continuation_static_proven": raa_resume_same_continuation,
+        "raa_resume_explicit_null_wrapper_argument_static_proven": raa_resume_null_wrapper,
+        "raa_resume_wrapper_binding_runtime_proven": False,
         "download2_main_source_coroutine_candidates_only": [
             t for t in focused_method_traces
             if t["method"]["owner"] in (
