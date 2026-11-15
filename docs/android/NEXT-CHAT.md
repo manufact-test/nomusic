@@ -10,6 +10,7 @@
 - Последний кодовый checkpoint: 476bf5ee0751f2ba5851f41a0f2a82e2792cf9e8.
 - CI #151: [SUCCESS, 104/104](https://github.com/manufact-test/nomusic/actions/runs/43756845719), точный publisher-signed Yandex 2025 XAPK, шесть DEX, read-only.
 - Точный резерв зелёного кода: backup/android-a1-renderer-field-cfg-trace-ci-green-20261115 @ 476bf5ee0751f2ba5851f41a0f2a82e2792cf9e8.
+- Полный резерв кода и обновлённой документации: backup/android-a1-renderer-field-cfg-handoff-ci-green-20261115 @ d598555c83e1ae96fc387a031da70d1343b8337a.
 - Последний runtime-hook change: a655712d210189f3bc611847235de3ed4d985c1a. После него runtime hooks не менялись.
 - Последний проход менял только статический анализатор и его unit-тесты. APK не собирался, не патчился, не устанавливался и не выпускался.
 - После кодового checkpoint выполнены только docs-only commits; кодовый checkpoint остаётся указанным выше.
