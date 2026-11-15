@@ -1,3 +1,43 @@
+# SUPERSEDING RESULT — 15 Nov 2026, LBK1 / LGK1$a implementation audit (CI GREEN)
+
+**Code checkpoint:** `7e74639a06e4c6c2913fec3cd1c8c4a2e4ce7a69`.  
+**CI:** [#43742534368](https://github.com/manufact-test/nomusic/actions/runs/43742534368) **SUCCESS, 85/85 tests**, exact publisher-signed 2025 original verified (16 splits / 6 DEX).  
+**Exact green code backup:** `backup/android-a1-lbk1-lgk1-interface-ci-green-20261115` @ `7e74639a06e4c6c2913fec3cd1c8c4a2e4ce7a69`.
+
+## Interface findings
+
+Both owners are defined abstract interfaces in the signed DEX:
+- `LBK1`: 3 direct implementers — `LCK1`, `LSV6`, `LXV6`.
+- `LGK1$a`: 10 direct implementers — `LHK1`, `LOIa`, `LU44`, `LZQ7`, `Lhe9`, `Lle9`, `LoC6`, `LuV2`, `LvG9`, `LyA8`.
+
+42 exact implementation method traces were captured. Key `LBK1` implementation is `LCK1`:
+- `LCK1.break(Track)` passes the same Track to `LUJ5.return(Track): Flow`.
+- `LCK1.for(Track)` constructs `LCK1$a(Track, Continuation)`.
+- `LCK1.new(Track)` constructs `LCK1$c(LC3a, Track)`.
+- `LCK1.try(Track)` constructs `LCK1$l(LD3a, Track)`.
+- `LCK1.this(Track)` passes the same Track to `LHv4.if(Track): boolean`.
+`LXV6` is a delegating implementation whose five methods forward to the corresponding `LBK1` method refs. The exact `LSV6` implementation body was not present in the current bounded method trace; inspect its class shape before deciding whether it is abstract/delegating.
+
+For `LGK1$a`, some implementers only forward the Track to generic Kotlin Function1/Function2 callbacks. More concrete callback paths include:
+- `Lhe9` / `Lle9`: forward Track to three methods on `LVf9`.
+- `LoC6`: forwards Track to `LLB6` methods.
+- `LvG9`: forwards Track to `LpG9` methods.
+These callback paths are secondary to the `LCK1` Flow/coroutine path unless the latter closes.
+
+No field names or values were emitted. Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`.
+
+## Next bounded investigation
+
+Prioritize the exact `LCK1` path:
+1. Trace `LUJ5.return(Track): Flow` and `LHv4.if(Track): boolean`.
+2. Inspect exact constructors `LCK1$a(Track, Continuation)`, `LCK1$c(LC3a, Track)`, `LCK1$l(LD3a, Track)`. Derive the exact Track-typed fields written from each original Track parameter and trace only reads of those exact fields in methods owned by those classes.
+3. Follow only same-Track calls from those exact coroutine bodies toward a source descriptor, player or decoder boundary.
+4. Check `LSV6` flags/superclass and do not fan out into all callback implementers unless the LCK1 path is closed.
+
+No runtime hooks, APK modifications, login, account/media access or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # CURRENT IN-PROGRESS CHECKPOINT — 15 Nov 2026, LBK1 / LGK1$a implementation audit
 
 **Code under CI:** `7e74639a06e4c6c2913fec3cd1c8c4a2e4ce7a69`.  
