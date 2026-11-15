@@ -1186,12 +1186,13 @@ test("W147 current native silence overrides a stale audio-state-changed true eve
   // PLAYING and do not ever claim CELIKOM as the current audio source.
   r.emitView("audio-state-changed",true);
   // Trigger the next current-song heartbeat sample with no player commands.
-  now+=3000;
+  now+=4800;
   r.pulse();
   await new Promise(resolve=>setTimeout(resolve,35));
   const beats=r.network.filter(x=>x.path==="/v1/heartbeat")
     .map(x=>JSON.parse(x.body));
-  assert.ok(beats.length>0);
+  assert.ok(beats.length>=2,
+    "the stale event is checked again on a fresh periodic heartbeat");
   assert.ok(beats.every(x=>x.playbackState!=="PLAYING"),
     "native silence cannot be overridden by a stale audio event");
   assert.ok(beats.every(x=>x.source==="UNKNOWN"),
