@@ -158,3 +158,33 @@ jobs:
           path: ${{ runner.temp }}/celikom-stable-ready
           if-no-files-found: error
           retention-days: 5
+
+  publish:
+    needs: sign
+    if: github.ref == 'refs/heads/main'
+    environment: windows-stable-production
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      CELIKOM_STABLE_ORIGIN: ${{ vars.CELIKOM_STABLE_ORIGIN }}
+      CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64: ${{ vars.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64 }}
+      CELIKOM_STABLE_DEPLOY_ROOT: ${{ vars.CELIKOM_STABLE_DEPLOY_ROOT }}
+      HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-SIGNED-stable-${{ inputs.version }}-${{ github.sha }}
+          path: ${{ runner.temp }}/celikom-stable-ready
+      - name: Publish exact signed immutable release then latest on approved HTTPS
+        shell: bash
+        run: |
+          bash -n .github/scripts/windows-stable-publish-hostinger.sh
+          bash .github/scripts/windows-stable-publish-hostinger.sh \
+            "$RUNNER_TEMP/celikom-stable-ready" \
+            '${{ inputs.version }}' '${{ inputs.sequence }}'
