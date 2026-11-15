@@ -24,9 +24,9 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 42);
-        for (int i=0;i<41;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[41].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 44);
+        for (int i=0;i<43;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[43].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
         Object factory=new Object(), source=new Object();
@@ -66,7 +66,7 @@ public final class StageBAudioEvidenceTest {
         bucket(links,31,"NATIVE_TRACK_WRAPPER_CONSTRUCTED","FEW");
         bucket(links,32,"NATIVE_MAIN_SOURCE_ENTER","FEW");
         bucket(links,40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
-        check(links[41].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(links[43].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         // A nested missing argument/collected weak ref must never borrow its
         // outer track or wrapper. Scope accounting survives null arguments.
@@ -285,6 +285,13 @@ public final class StageBAudioEvidenceTest {
         readGate.onExoSourceInstanceOpen(gs);
         readGate.onExoSourceInstanceRead(gs,2);
         bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        readGate.onExoSourceInstanceClose(gs);
+        readGate.onExoSourceInstanceRead(gs,9);
+        bucket(readGate.exportLines(),41,"TRACK_SOURCE_CLOSE_LINK","ONE");
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        readGate.onExoSourceInstanceOpenAttempt(gs);
+        readGate.onExoSourceInstanceOpen(gs);
+        readGate.onExoSourceInstanceRead(gs,9);
         // A genuinely different source instance counts as a second one.
         Object gd3=new Object(),gf3=new Object(),gs3=new Object();
         readGate.enterNativeMainSourceRequest(gw,null);
@@ -295,6 +302,21 @@ public final class StageBAudioEvidenceTest {
         readGate.onExoSourceInstanceOpen(gs3);
         readGate.onExoSourceInstanceRead(gs3,2);
         bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","FEW");
+        StageBAudioEvidence limited=new StageBAudioEvidence();
+        Object lt=new Object(),lw=new Object(),ld=new Object(),lf=new Object();
+        limited.onNativeTrackFlowEmission(lt);
+        limited.enterNativeTrackSourceRequest(lt,null);
+        limited.onNativeTrackWrapperCreated(lw);
+        limited.exitNativeTrackSourceRequest();
+        limited.enterNativeMainSourceRequest(lw,null);
+        limited.onNativeExoDescriptorBuiltForCurrentWrapper(ld);
+        limited.exitNativeMainSourceRequest();
+        limited.onExoFactoryCreated(ld,lf);
+        limited.onExoSourceInstanceCreated(new Object(),lf);
+        Object unknownSource=new Object();
+        for(int i=0;i<300;i++) limited.onExoSourceInstanceRead(unknownSource,5);
+        bucket(limited.exportLines(),42,"TRACK_SOURCE_READ_SCAN_EXHAUSTED","ONE");
+        bucket(limited.exportLines(),30,"TRACK_SOURCE_READ_LINK","NONE");
 
         Object different=new Object();
         e.onExoSourceInstanceCreated(different);
@@ -390,6 +412,8 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceCreated( result,chain.getThisObject());", " ".join(code.split()))
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(", code)
+        self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceClose(", code)
+        self.assertIn('source.getDeclaredMethod("close")', code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceRead(", code)
         self.assertIn("STAGE_B_AUDIO.onExoOpen()", code)
         self.assertIn("STAGE_B_AUDIO.onExoReadResult(", code)

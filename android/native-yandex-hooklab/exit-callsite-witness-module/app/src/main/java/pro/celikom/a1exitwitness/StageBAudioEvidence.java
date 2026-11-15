@@ -99,6 +99,11 @@ final class StageBAudioEvidence {
     private final AtomicLong trackSourceDistinctPositiveReads = new AtomicLong();
     private final AtomicLong trackSourceReadProbeBudget = new AtomicLong();
     private final AtomicLong trackSourceUnopenedProbeBudget = new AtomicLong();
+    // At most 256 positive read identity scans per linked source window.
+    private final AtomicLong trackSourceReadInspectionBudget = new AtomicLong();
+    private final AtomicLong trackSourceInspectionExhausted = new AtomicLong();
+    private final AtomicLong linkedSourceCloseCalls = new AtomicLong();
+    private volatile boolean hasTrackSourceLink;
 
     // Bounded without storing URLs, media bytes, offsets or returned sizes.
     private static void mark(AtomicLong bucket) {
@@ -472,6 +477,8 @@ final class StageBAudioEvidence {
             link.sourceInstance=new WeakReference<>(source);
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
+            trackSourceReadInspectionBudget.set(0);
+            hasTrackSourceLink=true;
             mark(trackFactorySourceLinks);
         }
     }
@@ -486,9 +493,23 @@ final class StageBAudioEvidence {
     void onExoSourceInstanceOpenAttempt(Object source) {
         synchronized(this) {
             NativeTrackSourceLink link=findBySource(source);
-            if (link!=null) link.sourceOpened=false;
+            if (link!=null) {
+                link.sourceOpened=false;
+                trackSourceReadInspectionBudget.set(0);
+            }
             // An open attempt that throws must revoke earlier proof. A
             // successful attempt separately restores it after proceed().
+        }
+    }
+
+    void onExoSourceInstanceClose(Object source) {
+        // Fail closed before the unmodified vendor close(), even if it throws.
+        synchronized(this) {
+            NativeTrackSourceLink link=findBySource(source);
+            if (link!=null) {
+                link.sourceOpened=false;
+                mark(linkedSourceCloseCalls);
+            }
         }
     }
 
@@ -523,8 +544,13 @@ final class StageBAudioEvidence {
         if (count > 0 && firstAtMost(exoSourceReadProbeBudget,16)
                 && sameExoSource(source))
             mark(exoSourceInstancesRead);
-        if (count > 0 && (trackSourceReadProbeBudget.get()<16
-                         || trackSourceUnopenedProbeBudget.get()<16)) {
+        if (count > 0 && hasTrackSourceLink
+                && (trackSourceReadProbeBudget.get()<16
+                    || trackSourceUnopenedProbeBudget.get()<16)) {
+            if (!firstAtMost(trackSourceReadInspectionBudget,256)) {
+                firstAtMost(trackSourceInspectionExhausted,1);
+                return; // bounded weak-link scan, not indefinite on read()
+            }
             synchronized(this) {
                 NativeTrackSourceLink link=findBySource(source);
                 if (link==null) return;
@@ -633,6 +659,8 @@ final class StageBAudioEvidence {
             event("MAIN_CONTINUATION_CONFLICT", mainContinuationConflict),
             event("TRACK_SOURCE_UNOPENED_READ", trackSourceUnopenedReads),
             event("TRACK_SOURCE_DISTINCT_POSITIVE_READ", trackSourceDistinctPositiveReads),
+            event("TRACK_SOURCE_CLOSE_LINK", linkedSourceCloseCalls),
+            event("TRACK_SOURCE_READ_SCAN_EXHAUSTED", trackSourceInspectionExhausted),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }

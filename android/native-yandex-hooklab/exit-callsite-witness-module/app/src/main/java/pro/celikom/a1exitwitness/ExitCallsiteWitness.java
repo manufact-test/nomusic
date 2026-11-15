@@ -186,6 +186,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoSourceInstanceHookReady;
     private boolean exactExoDataOpenWitnessReady;
     private boolean exactExoDataReadWitnessReady;
+    private boolean exactExoDataCloseWitnessReady;
     private boolean nativeTrackFlowHookReady;
     private boolean nativeTrackRequestHookReady;
     private boolean nativeTrackContinuationHookReady;
@@ -2856,7 +2857,8 @@ public final class ExitCallsiteWitness extends XposedModule {
             }
         }
 
-        if (!exactExoDataOpenWitnessReady || !exactExoDataReadWitnessReady) {
+        if (!exactExoDataOpenWitnessReady || !exactExoDataReadWitnessReady
+                || !exactExoDataCloseWitnessReady) {
             try {
                 Class<?> source = Class.forName(
                     "com.yandex.music.shared.player.download2.exo.RetryingBalancingDataSource",
@@ -2912,6 +2914,22 @@ public final class ExitCallsiteWitness extends XposedModule {
                         });
                     exactExoDataReadWitnessReady = true;
                     emit("AUDIO_EXO_READ_HOOK", "EXO_DATASOURCE", "REGISTERED");
+                }
+                if (!exactExoDataCloseWitnessReady) {
+                    // The exact zero-argument close()V method was verified
+                    // in the publisher-signed 2025.10.4 DEX.
+                    Method close=source.getDeclaredMethod("close");
+                    close.setAccessible(true);
+                    hook(close).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            try {
+                                STAGE_B_AUDIO.onExoSourceInstanceClose(
+                                    chain.getThisObject());
+                            } catch (Throwable ignored) { }
+                            return chain.proceed(); // exactly one original close
+                        });
+                    exactExoDataCloseWitnessReady=true;
+                    emit("AUDIO_EXO_CLOSE_HOOK", "EXO_DATASOURCE", "REGISTERED");
                 }
             } catch (Throwable ignored) {
                 emit("AUDIO_EXO_DATASOURCE_HOOK", "EXO_DATASOURCE", "NO_HOOK");
