@@ -87,7 +87,17 @@ public sealed class BridgeServer : IAsyncDisposable
     private string _lastArtist = "";
     private long _lastDurationMs;
     private string _lastStatus = "NOT_CONNECTED";
+    private string _lastSource = "UNKNOWN";
+    private string _lastPlaybackState = "UNKNOWN";
+    private string _lastHeartbeatInstanceId = "";
+    private long _lastHeartbeatSequence;
     private DateTimeOffset _lastHeartbeatAt = DateTimeOffset.MinValue;
+    private const int HeartbeatFreshnessSeconds = 12;
+    internal static bool IsHeartbeatFresh(DateTimeOffset seenAt, DateTimeOffset now) =>
+        seenAt != DateTimeOffset.MinValue && now >= seenAt &&
+        now - seenAt <= TimeSpan.FromSeconds(HeartbeatFreshnessSeconds);
+    private bool IsHeartbeatFreshLocked() =>
+        _enabled && IsHeartbeatFresh(_lastHeartbeatAt, DateTimeOffset.UtcNow);
     public event Action? Changed;
 
     public BridgeServer(CelikomApi api, SessionStore store)
@@ -98,11 +108,14 @@ public sealed class BridgeServer : IAsyncDisposable
     }
     public bool Enabled { get { lock (_gate) return _enabled; } }
     public string PairCode { get { lock (_gate) return _code; } }
-    public string LastSong { get { lock (_gate) return _lastSong; } }
-    public string LastTrackTitle { get { lock (_gate) return _lastTitle; } }
-    public string LastTrackArtist { get { lock (_gate) return _lastArtist; } }
-    public long LastTrackDurationMs { get { lock (_gate) return _lastDurationMs; } }
-    public string LastStatus { get { lock (_gate) return _lastStatus; } }
+    public string LastSong { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastSong : ""; } }
+    public string LastTrackTitle { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastTitle : ""; } }
+    public string LastTrackArtist { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastArtist : ""; } }
+    public long LastTrackDurationMs { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastDurationMs : 0; } }
+    public string LastStatus { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastStatus : _enabled ? "UNAVAILABLE" : "OFF"; } }
+    public string LastSource { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastSource : "UNKNOWN"; } }
+    public string LastPlaybackState { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastPlaybackState : "UNKNOWN"; } }
+    public bool HasFreshHeartbeat { get { lock (_gate) return IsHeartbeatFreshLocked(); } }
     public DateTimeOffset LastHeartbeatAt { get { lock (_gate) return _lastHeartbeatAt; } }
     public DateTimeOffset CodeExpires { get { lock (_gate) return _codeExpires; } }
     public bool CanResolve => Enabled && _api.IsLoggedIn;
@@ -114,6 +127,10 @@ public sealed class BridgeServer : IAsyncDisposable
             if (_enabled == enabled) return;
             _enabled = enabled;
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
+            _lastSource = "UNKNOWN";
+            _lastPlaybackState = "UNKNOWN";
+            _lastHeartbeatInstanceId = "";
+            _lastHeartbeatSequence = 0;
             _lastHeartbeatAt = DateTimeOffset.MinValue;
             _lastSong = "";
             _lastTitle = "";
@@ -272,20 +289,49 @@ public sealed class BridgeServer : IAsyncDisposable
                   "NATIVE_SOURCE_VERIFIED" or
                   "NATIVE_RECOVERING" or "NATIVE_SOURCE_FAILED"))
                 return Results.BadRequest();
+            var accepted = false;
             lock (_gate)
             {
-                var valid = GrantValidator.IsTrackId(beat.TrackId);
-                _lastSong = valid ? beat.TrackId! : "";
-                // No account data or URLs: strictly bounded display text, local only.
-                _lastTitle = valid ? SafeTrackText(beat.Title) : "";
-                _lastArtist = valid ? SafeTrackText(beat.Artist) : "";
-                _lastDurationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
-                    ? beat.DurationMs.Value : 0;
-                _lastStatus = beat.Status;
-                _lastHeartbeatAt = DateTimeOffset.UtcNow;
+                if (_enabled)
+                {
+                    var sequenced = beat.InstanceId is { Length: >= 8 and <= 80 } &&
+                        beat.InstanceId.All(c => char.IsAsciiLetterOrDigit(c) ||
+                            c is '-' or '_') && beat.Sequence is > 0;
+                    // An old in-flight heartbeat cannot restore a previous
+                    // track after a newer one has already been observed.
+                    if (sequenced &&
+                        (beat.InstanceId != _lastHeartbeatInstanceId ||
+                         beat.Sequence!.Value > _lastHeartbeatSequence))
+                    {
+                        _lastHeartbeatInstanceId = beat.InstanceId!;
+                        _lastHeartbeatSequence = beat.Sequence!.Value;
+                        accepted = true;
+                    }
+                    else if (!sequenced && _lastHeartbeatInstanceId.Length == 0)
+                        accepted = true; // old native host until W141 is installed
+                    if (accepted)
+                    {
+                        var valid = GrantValidator.IsTrackId(beat.TrackId);
+                        _lastSong = valid ? beat.TrackId! : "";
+                        _lastTitle = valid ? SafeTrackText(beat.Title) : "";
+                        _lastArtist = valid ? SafeTrackText(beat.Artist) : "";
+                        _lastDurationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
+                            ? beat.DurationMs.Value : 0;
+                        _lastStatus = beat.Status;
+                        _lastSource = beat.Status == "NATIVE_SOURCE_VERIFIED" &&
+                            beat.Source == "ACTIVE_REPLACEMENT" ? "ACTIVE_REPLACEMENT" :
+                            beat.Source == "ORIGINAL" ? "ORIGINAL" : "UNKNOWN";
+                        _lastPlaybackState = beat.PlaybackState is "PLAYING" or "PAUSED" or "STOPPED"
+                            ? beat.PlaybackState : "UNKNOWN";
+                        _lastHeartbeatAt = DateTimeOffset.UtcNow;
+                    }
+                }
             }
-            DiagnosticLog.Record("HEARTBEAT_" + beat.Status);
-            Changed?.Invoke();
+            if (accepted)
+            {
+                DiagnosticLog.Record("HEARTBEAT_" + beat.Status);
+                Changed?.Invoke();
+            }
             return Results.Json(new { ok = true });
         });
 
@@ -314,5 +360,7 @@ public sealed class BridgeServer : IAsyncDisposable
         value is { Length: <= 180 } && !value.Any(char.IsControl) ? value.Trim() : "";
 
     public sealed record Heartbeat(string? TrackId, string Status,
-        string? Title = null, string? Artist = null, long? DurationMs = null);
+        string? Title = null, string? Artist = null, long? DurationMs = null,
+        string? Source = null, string? PlaybackState = null,
+        string? InstanceId = null, long? Sequence = null);
 }
