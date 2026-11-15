@@ -3,7 +3,8 @@ from audit_native_selected_item_handoff import (
     parse_types, written_register, MODEL, DESCRIPTOR_BUILDER,
     PLAYER_OWNERS, PLAYER_METHODS, MEDIA_SESSION_OWNER,
     MEDIA_SESSION_METADATA_METHODS, MEDIA_SESSION_STATE_METHODS,
-    DECODER_BOUNDARY_METHODS, EDITION_MARKERS, GENERATION_MARKERS
+    DECODER_BOUNDARY_METHODS, EDITION_MARKERS, GENERATION_MARKERS,
+    classify_boundary_call, boundary_callsite_census
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -128,6 +129,40 @@ class SelectedItemAuditTests(unittest.TestCase):
             DECODER_BOUNDARY_METHODS["Landroid/media/MediaExtractor;"])
         self.assertIn("write",
             DECODER_BOUNDARY_METHODS["Landroid/media/AudioTrack;"])
+
+    def test_boundary_call_classifier_is_exact(self):
+        self.assertEqual(classify_boundary_call((
+            MEDIA_SESSION_OWNER, "setMetadata", "(Landroid/media/MediaMetadata;)V"
+        )), "MEDIA_SESSION_METADATA")
+        self.assertEqual(classify_boundary_call((
+            "Landroid/media/MediaCodec;", "queueInputBuffer", "()V"
+        )), "DECODER_BOUNDARY")
+        self.assertIsNone(classify_boundary_call((
+            MEDIA_SESSION_OWNER, "getController", "()V"
+        )))
+
+    def test_boundary_callsite_census_only_counts_prior_typed_field_reads(self):
+        from unittest.mock import patch
+        from audit_native_selected_item_handoff import MODEL
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:2}[offset]
+            def method(self, index):
+                return (MEDIA_SESSION_OWNER, "setMetadata",
+                        "(Landroid/media/MediaMetadata;)V")
+        method=("LPlayerState;", "publish",
+                "(Landroid/media/MediaMetadata;)V")
+        field_read=(0,0x54,[0x2054,0])
+        invoke=(1,0x6e,[0x006e,0])
+        with patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LPlayerState;", "opaque", MODEL)), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[2,1]):
+            before=boundary_callsite_census(FakeDex(),method,0,100,[field_read,invoke])
+            after=boundary_callsite_census(FakeDex(),method,0,100,[invoke,field_read])
+        self.assertEqual(len(before),1)
+        self.assertTrue(before[0]["track_field_read_on_this_before"])
+        self.assertFalse(after[0]["track_field_read_on_this_before"])
 
     def test_edition_generation_markers_are_exact_and_bounded(self):
         self.assertIn("edition", EDITION_MARKERS)

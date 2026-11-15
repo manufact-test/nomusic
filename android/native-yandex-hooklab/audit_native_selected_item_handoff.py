@@ -79,6 +79,108 @@ GENERATION_MARKERS = frozenset({
     "queuegeneration", "queue_generation"
 })
 SEMANTIC_IDENTITY_MARKERS = EDITION_MARKERS | GENERATION_MARKERS
+
+
+def classify_boundary_call(callee):
+    """Return only a fixed public boundary category; never inspect arguments."""
+    if callee[0] == MEDIA_SESSION_OWNER:
+        if callee[1] in MEDIA_SESSION_METADATA_METHODS:
+            return "MEDIA_SESSION_METADATA"
+        if callee[1] in MEDIA_SESSION_STATE_METHODS:
+            return "MEDIA_SESSION_STATE"
+    if (callee[0] in DECODER_BOUNDARY_METHODS
+            and callee[1] in DECODER_BOUNDARY_METHODS[callee[0]]):
+        return "DECODER_BOUNDARY"
+    return None
+
+
+def boundary_callsite_census(dex, method, flags, code_off, ins=None):
+    """Count typed Track/Album state projections before exact public callsites.
+
+    This is method-local structure only. It never reads a field value and does
+    not infer branch, coroutine, virtual receiver, or runtime selection.
+    """
+    if ins is None:
+        ins = list(instructions(dex, code_off))
+    params = parse_types(method[2])
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise DexError("BOUNDARY_CALLSITE_INS_SIZE")
+    this_register = None if (flags & ACC_STATIC) else registers_size - ins_size
+    has_track_parameter = MODEL in params
+    has_album_parameter = ALBUM_MODEL in params
+    track_field_reads = 0
+    album_field_reads = 0
+    track_field_read_on_this = False
+    album_field_read_on_this = False
+    numeric_field_read_on_this = False
+    track_model_method_call = False
+    album_model_method_call = False
+    rows = []
+    for ordinal, (_pc, op, words) in enumerate(ins):
+        if 0x52 <= op <= 0x58:
+            owner, _name, typ = field_id(dex, words[1])
+            receiver = (words[0] >> 12) & 15
+            if typ == MODEL:
+                track_field_reads += 1
+                if receiver == this_register:
+                    track_field_read_on_this = True
+            elif typ == ALBUM_MODEL:
+                album_field_reads += 1
+                if receiver == this_register:
+                    album_field_read_on_this = True
+            elif typ in ("I", "J") and receiver == this_register:
+                numeric_field_read_on_this = True
+        if op not in INVOKES:
+            continue
+        callee = dex.method(words[1])
+        kind = classify_boundary_call(callee)
+        if kind:
+            rows.append({
+                "kind": kind,
+                "caller_key": method,
+                "ordinal": ordinal,
+                "track_parameter_present": has_track_parameter,
+                "album_parameter_present": has_album_parameter,
+                "track_field_reads_before": track_field_reads,
+                "album_field_reads_before": album_field_reads,
+                "track_field_read_on_this_before": track_field_read_on_this,
+                "album_field_read_on_this_before": album_field_read_on_this,
+                "numeric_field_read_on_this_before": numeric_field_read_on_this,
+                "track_model_method_call_before": track_model_method_call,
+                "album_model_method_call_before": album_model_method_call,
+            })
+        if callee[0] == MODEL:
+            track_model_method_call = True
+        elif callee[0] == ALBUM_MODEL:
+            album_model_method_call = True
+    return rows
+
+
+def summarize_boundary_callsite_census(rows):
+    summary = {}
+    flags = (
+        "track_parameter_present", "album_parameter_present",
+        "track_field_read_on_this_before", "album_field_read_on_this_before",
+        "numeric_field_read_on_this_before", "track_model_method_call_before",
+        "album_model_method_call_before"
+    )
+    for row in rows:
+        bucket = summary.setdefault(row["kind"], {
+            "call_site_count": 0,
+            "distinct_caller_method_count": 0,
+            **{key + "_call_site_count": 0 for key in flags}
+        })
+        bucket["call_site_count"] += 1
+        for key in flags:
+            if row[key]:
+                bucket[key + "_call_site_count"] += 1
+    for kind, bucket in summary.items():
+        bucket["distinct_caller_method_count"] = len({
+            row["caller_key"] for row in rows if row["kind"] == kind
+        })
+    return summary
 SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "while"),
     ("Lcom/yandex/music/shared/player/download2/o;", "for"),
@@ -439,11 +541,11 @@ def straight_line_model_flow(dex: Dex, method, flags: int, code_off: int):
                     role = "NATIVE_DESCRIPTOR_BUILDER"
                 elif callee[0] in PLAYER_OWNERS and callee[1] in PLAYER_METHODS:
                     role = "PLAYER_SELECTION_OR_TRANSPORT"
-                elif callee[0] == MEDIA_SESSION_OWNER and callee[1] in MEDIA_SESSION_METADATA_METHODS:
+                elif classify_boundary_call(callee) == "MEDIA_SESSION_METADATA":
                     role = "MEDIA_SESSION_METADATA_PUBLISH"
-                elif callee[0] == MEDIA_SESSION_OWNER and callee[1] in MEDIA_SESSION_STATE_METHODS:
+                elif classify_boundary_call(callee) == "MEDIA_SESSION_STATE":
                     role = "MEDIA_SESSION_STATE_PUBLISH"
-                elif callee[0] in DECODER_BOUNDARY_METHODS and callee[1] in DECODER_BOUNDARY_METHODS[callee[0]]:
+                elif classify_boundary_call(callee) == "DECODER_BOUNDARY":
                     role = "DECODER_INPUT_OR_RENDERER_BOUNDARY"
                 elif callee[0] == MODEL:
                     role = "MODEL_ACCESSOR_OR_METHOD"
@@ -809,6 +911,7 @@ def inspect_signed(apks):
     media_session_method_refs = set()
     decoder_boundary_method_refs = set()
     semantic_marker_counts = {marker: 0 for marker in SEMANTIC_IDENTITY_MARKERS}
+    boundary_callsite_rows = []
     model_flow_candidates = []
     wrapper_methods = set()
     flow_source_interface_methods = set()
@@ -848,10 +951,6 @@ def inspect_signed(apks):
                         semantic_marker_counts["edition"] += 1
                     if "generation" in lowered:
                         semantic_marker_counts["generation"] += 1
-                for string_index in range(dex.string_count):
-                    value = dex.string(string_index)
-                    if value in semantic_marker_counts:
-                        semantic_marker_counts[value] += 1
                 if ("Lcom/yandex/music/shared/player/download2/exo/"
                         "RetryingBalancingDataSource;" in defined):
                     exo_source_defined = True
@@ -994,6 +1093,9 @@ def inspect_signed(apks):
                     if collector_flow and len(flow_dispatcher_instantiation_sites) < MAX_METHODS:
                         flow_dispatcher_instantiation_sites.append(collector_flow)
                     ins = list(instructions(dex, code_off))
+                    boundary_callsite_rows.extend(
+                        boundary_callsite_census(dex, method, flags, code_off, ins)
+                    )
                     model_regs = {r for _, r in model_parameter_registers(
                         dex, method, flags, code_off)}
                     for ordinal, (pc, op, words) in enumerate(ins):
@@ -1239,12 +1341,8 @@ def inspect_signed(apks):
                 track_parameter_boundary_roles.get("DECODER_INPUT_OR_RENDERER_BOUNDARY", 0),
             "track_parameter_to_native_descriptor_call_count":
                 track_parameter_boundary_roles.get("NATIVE_DESCRIPTOR_BUILDER", 0),
-            "explicit_edition_marker_count": sum(
-                semantic_marker_counts.get(marker, 0) for marker in EDITION_MARKERS
-            ),
-            "explicit_generation_marker_count": sum(
-                semantic_marker_counts.get(marker, 0) for marker in GENERATION_MARKERS
-            ),
+            "edition_type_descriptor_count": semantic_marker_counts.get("edition", 0),
+            "generation_type_descriptor_count": semantic_marker_counts.get("generation", 0),
             "track_model_edition_typed_field_count": sum(
                 "edition" in typ.lower() for typ in model_fields.values()
             ),
@@ -1268,6 +1366,8 @@ def inspect_signed(apks):
             "same_native_item_to_decoder_proven": False,
             "branch_and_indirect_dispatch_inferred": False,
         },
+        "boundary_callsite_identity_census":
+            summarize_boundary_callsite_census(boundary_callsite_rows),
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,
