@@ -5923,7 +5923,7 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
     ]
     decoder_calls = [
         target for target in call_targets
-        if classify_boundary_call(target) == "DECODER_BOUNDARY"
+        if classify_boundary_call((target.get("owner"), target.get("method"), target.get("signature"))) == "DECODER_BOUNDARY"
     ]
     source_calls = [
         target for target in call_targets
