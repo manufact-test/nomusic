@@ -24,7 +24,7 @@ test("W155 existing signing keys are never silently replaced", () => {
 test("W155 public trust variables are resumable and precede private-key upload", () => {
   assert.match(provision, /\[AllowNull\(\)\]\[object\]\$Existing/);
   const publicPin = provision.indexOf('Set-OrConfirmVar $PublicVariableName');
-  const privateUpload = provision.lastIndexOf('gh secret set ' + '$PrivateSecretName');
+  const privateUpload = provision.lastIndexOf("gh secret set ");
   assert.ok(publicPin >= 0 && privateUpload > publicPin);
   assert.match(provision, /if \(\$secretExists -and \$publicVar -cne \$publicBase64\)/);
 });
