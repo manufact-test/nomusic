@@ -1317,6 +1317,31 @@ def select_exact_interface_contracts(owner, owner_methods, interfaces, interface
     )
 
 
+def select_audio_output_focus_methods(owner, methods, field_types):
+    if (
+        "Landroid/media/AudioTrack;" not in set(field_types)
+        or owner.startswith("Lru/yandex/speechkit/")
+    ):
+        return []
+    rows = []
+    for method in methods:
+        params = parse_types(method[2])
+        result_type = method[2].split(")", 1)[1]
+        reason = None
+        if method[1] == "<init>":
+            reason = "AUDIO_OUTPUT_CONSTRUCTOR"
+        elif "Ljava/nio/ByteBuffer;" in params:
+            reason = "AUDIO_BUFFER_ENTRY"
+        elif (
+            "Landroid/media/AudioTrack;" in params
+            or result_type == "Landroid/media/AudioTrack;"
+        ):
+            reason = "AUDIO_TRACK_FACTORY_OR_ADAPTER"
+        if reason:
+            rows.append((method, reason))
+    return sorted(rows)
+
+
 def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles):
     owners = sorted({
         row["caller_key"][0]
@@ -1354,6 +1379,22 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
                     method = dex.method(index)
                     if method[0] in interface_owners:
                         interface_method_refs.add(method)
+    focus_reasons = {
+        owner: {
+            method: "DECODER_BOUNDARY" for method in focus_methods[owner]
+        }
+        for owner in owners
+    }
+    for owner in owners:
+        profile = class_profiles.get(owner, {})
+        field_types = set(profile.get("instance_types", ())) | set(
+            profile.get("static_types", ())
+        )
+        for method, reason in select_audio_output_focus_methods(
+            owner, owner_declared_methods[owner], field_types
+        ):
+            focus_methods[owner].add(method)
+            focus_reasons[owner][method] = reason
     contracts = {
         owner: select_exact_interface_contracts(
             owner, focus_methods[owner],
@@ -1438,8 +1479,12 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
                 }
                 for method in methods
             ],
-            "boundary_focus_methods": [
-                {"method": method[1], "signature": method[2]}
+            "dispatch_focus_methods": [
+                {
+                    "method": method[1],
+                    "signature": method[2],
+                    "reason": focus_reasons[owner].get(method, "DECODER_BOUNDARY"),
+                }
                 for method in focus
             ],
             "exact_interface_contracts": [

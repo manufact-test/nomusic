@@ -9,7 +9,7 @@ from audit_native_selected_item_handoff import (
     candidate_owner_descriptors, typed_parameter_registers,
     trace_identity_method, select_next_identity_method_refs,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
-    select_exact_interface_contracts
+    select_exact_interface_contracts, select_audio_output_focus_methods
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -189,6 +189,32 @@ class SelectedItemAuditTests(unittest.TestCase):
             reverse=boundary_callsite_census(FakeDex(),method,0,100,[publish,helper])
         self.assertTrue(rows[0]["track_returning_method_call_before"])
         self.assertFalse(reverse[0]["track_returning_method_call_before"])
+
+    def test_audio_output_focus_includes_constructor_buffer_and_factory_methods(self):
+        methods=[
+            ("LbJ2;","<init>","(LbJ2$c;)V"),
+            ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z"),
+            ("LbJ2;","case","(Lpk0$a;LGi0;ILSr4;)Landroid/media/AudioTrack;"),
+            ("LbJ2;","play","()V"),
+        ]
+        rows=select_audio_output_focus_methods(
+            "LbJ2;",methods,{"Landroid/media/AudioTrack;","Ljava/nio/ByteBuffer;"}
+        )
+        self.assertEqual(
+            [(method[1],reason) for method,reason in rows],
+            [
+                ("<init>","AUDIO_OUTPUT_CONSTRUCTOR"),
+                ("case","AUDIO_TRACK_FACTORY_OR_ADAPTER"),
+                ("native","AUDIO_BUFFER_ENTRY"),
+            ]
+        )
+        self.assertEqual(
+            select_audio_output_focus_methods(
+                "Lru/yandex/speechkit/internal/SoundPlayerHelper;",
+                methods,{"Landroid/media/AudioTrack;"}
+            ),
+            []
+        )
 
     def test_exact_interface_contract_requires_owner_and_full_signature(self):
         owner_methods=[
