@@ -189,6 +189,100 @@ class SelectedItemAuditTests(unittest.TestCase):
             "kind":"NEW_INSTANCE","type":"LyEa;","source_ordinal":0
         })
 
+    def test_trace_identity_method_tracks_extra_instance_into_interface_typed_constructor(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:0}[offset]
+            def descriptor(self, index):
+                return "LyEa;"
+            def method(self, index):
+                return ("LCoroutine;","<init>","(LaC7;)V")
+        method=("LFactory;","create","()V")
+        ins=[
+            (0,0x22,[0x0022,0]),  # new-instance v0, LyEa
+            (1,0x70,[0x0170,1]),  # invoke-direct {v1,v0}, Coroutine.<init>(LaC7;)
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[]), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1,0]):
+            trace=trace_identity_method(
+                FakeDex(),method,ACC_STATIC,100,
+                extra_identity_types={"LyEa;"},
+                capture_unproven_calls=True,
+            )
+        call=next(e for e in trace["events"] if e["kind"]=="CALL_WITH_TYPED_IDENTITY")
+        self.assertEqual(call["identity_arguments"],[{
+            "argument_position":1,
+            "declared_argument_type":"LaC7;",
+            "identity_type":"EXTRA_OBJECT:LyEa;",
+            "origins":["NEW_INSTANCE_AT_0"],
+        }])
+
+    def test_trace_identity_method_tracks_extra_interface_field_into_call(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:1}[offset]
+            def method(self, index):
+                return ("LaC7;","if",f"(){MODEL}")
+        method=("LCoroutine;","emit","()V")
+        ins=[
+            (0,0x54,[0x3154,0]),  # iget-object v1, v3, LaC7 field
+            (1,0x72,[0x0072,0]),  # invoke-interface {v1}, LaC7.if()
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[]), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=("LCoroutine;","hidden","LaC7;")), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1]):
+            trace=trace_identity_method(
+                FakeDex(),method,0,100,
+                extra_identity_types={"LaC7;"},
+                capture_unproven_calls=True,
+            )
+        self.assertTrue(any(
+            e["kind"]=="FIELD_READ_TYPED_IDENTITY"
+            and e["identity_type"]=="EXTRA_OBJECT:LaC7;"
+            and e["receiver_is_this"] is True
+            for e in trace["events"]
+        ))
+        call=next(e for e in trace["events"] if e["kind"]=="CALL_WITH_TYPED_IDENTITY")
+        self.assertEqual(call["identity_arguments"][0]["origins"],["FIELD_READ_FROM_THIS"])
+
+    def test_trace_identity_method_can_trace_track_field_from_other_receiver(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:1}[offset]
+        method=("LyEa;","set","(Ljava/lang/Object;)V")
+        ins=[
+            (0,0x54,[0x1054,0]),  # iget-object v0, v1, other Track field
+            (1,0x5b,[0x315b,1]),  # iput-object v0, v3, this Track field
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[]), \
+             patch("audit_native_selected_item_handoff.field_id",side_effect=[
+                 ("LOther;","source","Lru/yandex/music/data/audio/o;"),
+                 ("LyEa;","target","Lru/yandex/music/data/audio/o;"),
+             ]):
+            trace=trace_identity_method(
+                FakeDex(),method,0,100,
+                track_fields_from_any_receiver=True,
+                capture_unproven_calls=True,
+            )
+        self.assertTrue(any(
+            e["kind"]=="FIELD_READ_TYPED_IDENTITY"
+            and e["identity_type"]=="TRACK"
+            and e["receiver_is_this"] is False
+            for e in trace["events"]
+        ))
+        self.assertTrue(any(
+            e["kind"]=="INSTANCE_FIELD_STORE_TYPED_IDENTITY"
+            and e["identity_type"]=="TRACK"
+            and "FIELD_READ_FROM_OTHER_RECEIVER" in e["origins"]
+            for e in trace["events"]
+        ))
+
     def test_method_descriptor_parser_handles_objects_arrays_and_wide_values(self):
         self.assertEqual(parse_types("(ILjava/lang/String;[B[[JDLru/yandex/music/data/audio/o;)V"),
             ["I", "Ljava/lang/String;", "[B", "[[J", "D", MODEL])

@@ -804,7 +804,8 @@ def select_candidate_identity_focus_refs(census):
 def trace_identity_method(
     dex, method, flags, code_off, candidate_owners=None,
     capture_unproven_calls=False, focus_targets=None,
-    exact_track_field_refs=None
+    exact_track_field_refs=None, extra_identity_types=None,
+    track_fields_from_any_receiver=False
 ):
     """Trace only typed Track/Album/wrapper aliases and exact focus callsites."""
     candidate_owners = candidate_owners or set()
@@ -814,6 +815,10 @@ def trace_identity_method(
         ALBUM_MODEL: "ALBUM",
         WRAPPER: "TRACK_WRAPPER",
     }
+    for extra_type in sorted(set(extra_identity_types or ())):
+        if not isinstance(extra_type, str) or not extra_type.startswith(("L", "[")):
+            raise ValueError("EXTRA_IDENTITY_TYPE_INVALID")
+        tracked_types.setdefault(extra_type, f"EXTRA_OBJECT:{extra_type}")
     aliases = {
         typ: {
             register: {"CALLER_TYPED_PARAMETER"}
@@ -958,6 +963,39 @@ def trace_identity_method(
             continue
 
         pending_return_type = None
+        if op == 0x22:  # new-instance: retain exact object identity, never inspect contents
+            dest = words[0] >> 8
+            object_type = dex.descriptor(words[1])
+            clear_register(dest)
+            if object_type in tracked_types:
+                aliases[object_type][dest] = {f"NEW_INSTANCE_AT_{ordinal}"}
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "NEW_INSTANCE_TYPED_IDENTITY",
+                    "identity_type": tracked_types[object_type],
+                })
+            continue
+
+        if op == 0x62:  # sget-object: type-only static object origin
+            dest = words[0] >> 8
+            field_ref = field_id(dex, words[1])
+            field_type = field_ref[2]
+            clear_register(dest)
+            if (
+                field_type in tracked_types
+                and (
+                    exact_track_field_refs is None
+                    or field_ref in exact_track_field_refs
+                )
+            ):
+                aliases[field_type][dest] = {"STATIC_FIELD_READ"}
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "STATIC_FIELD_READ_TYPED_IDENTITY",
+                    "identity_type": tracked_types[field_type],
+                })
+            continue
+
         if op == 0x54:  # iget-object: inspect type and receiver, never field value
             dest = (words[0] >> 8) & 15
             receiver = (words[0] >> 12) & 15
@@ -965,19 +1003,24 @@ def trace_identity_method(
             _field_owner, _field_name, field_type = field_ref
             clear_register(dest)
             if (
-                receiver == this_register
-                and field_type in tracked_types
+                field_type in tracked_types
+                and (receiver == this_register or track_fields_from_any_receiver)
                 and (
                     exact_track_field_refs is None
                     or field_ref in exact_track_field_refs
                 )
             ):
-                aliases[field_type][dest] = {"FIELD_READ_FROM_THIS"}
+                origin = (
+                    "FIELD_READ_FROM_THIS"
+                    if receiver == this_register
+                    else "FIELD_READ_FROM_OTHER_RECEIVER"
+                )
+                aliases[field_type][dest] = {origin}
                 add_event({
                     "ordinal": ordinal,
                     "kind": "FIELD_READ_TYPED_IDENTITY",
                     "identity_type": tracked_types[field_type],
-                    "receiver_is_this": True,
+                    "receiver_is_this": receiver == this_register,
                 })
             continue
 
@@ -4819,6 +4862,26 @@ def track_parameter_field_store_refs(dex, method, flags: int, code_off: int):
     return sorted(field_refs)
 
 
+def exact_instance_field_read_refs(dex, method, flags, code_off, field_type):
+    """Return exact typed instance fields read from this; field identifiers stay internal."""
+    if not isinstance(field_type, str) or not field_type.startswith(("L", "[")):
+        raise ValueError("EXACT_INSTANCE_FIELD_TYPE_INVALID")
+    if flags & ACC_STATIC:
+        return []
+    this_register = dex.u16(code_off) - dex.u16(code_off + 2)
+    field_refs = set()
+    for _ordinal, op, words in instructions(dex, code_off):
+        if op != 0x54:
+            continue
+        receiver = (words[0] >> 12) & 15
+        if receiver != this_register:
+            continue
+        field_ref = field_id(dex, words[1])
+        if field_ref[2] == field_type:
+            field_refs.add(field_ref)
+    return sorted(field_refs)
+
+
 def exact_parameter_field_store_refs(dex, method, flags, code_off, parameter_type):
     """Return exact fields receiving one typed object parameter on this; names stay internal."""
     if not isinstance(parameter_type, str) or not parameter_type.startswith(("L", "[")):
@@ -5922,229 +5985,266 @@ def safe_object_register_origin(origin):
 
 
 def inspect_lya_track_holder(apks, class_profiles):
-    """Tie LyEa's exact Track field writer/reader to direct constructor and LaC7 callsites."""
+    """Trace only LyEa's Track field and the two LCK1 LaC7.if() coroutine callsites."""
     owner = "LyEa;"
+    lya_if_method = (owner, "if", f"(){MODEL}")
     interface_method = ("LaC7;", "if", f"(){MODEL}")
-    writer_methods = {}
-    writer_fields = set()
-    writer_rows = []
-    exact_if_traces = []
-    owner_profile = class_profiles.get(owner)
+    provider_method = ("LzA9;", "if", "()LaC7;")
+    lck1_owners = {"LCK1$c$a;", "LCK1$h$a;"}
 
-    # First pass: exact Track-parameter field writers and the same-field if():Track reader.
+    track_field_refs = set()
+    lya_if_traces = []
+    provider_traces = []
+
+    # Find the exact Track field read by LyEa.if(), plus the one known LaC7 provider.
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
-                    raise ValueError("LYA_HOLDER_DEX_LIMIT")
+                    raise ValueError("LYA_FOCUS_DEX_LIMIT")
                 dex = Dex(archive.read(entry.filename))
-                owner_definitions = [
-                    row for row in method_definitions_with_flags(dex)
-                    if row[0][0] == owner
-                ]
-                local_fields = set()
-                for method, flags, code_off in owner_definitions:
-                    refs = track_parameter_field_store_refs(
-                        dex, method, flags, code_off
-                    )
-                    if not refs:
-                        continue
-                    if len(writer_rows) >= 16:
-                        raise ValueError("LYA_TRACK_FIELD_WRITER_LIMIT")
-                    writer_methods[method] = True
-                    local_fields.update(refs)
-                    writer_fields.update(refs)
-                    writer_rows.append({
-                        "method": {"owner": method[0], "name": method[1],
-                                   "signature": method[2]},
-                        "is_constructor": method[1] == "<init>",
-                        "track_parameter_count": len(typed_parameter_registers(
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method == lya_if_method:
+                        refs = exact_instance_field_read_refs(
                             dex, method, flags, code_off, MODEL
-                        )),
-                        "track_parameter_field_store_count": len(refs),
-                    })
-                for method, flags, code_off in owner_definitions:
-                    if method[1] != "if" or method[2] != f"(){MODEL}":
-                        continue
-                    if len(exact_if_traces) >= 4:
-                        raise ValueError("LYA_IF_TRACE_LIMIT")
-                    exact_if_traces.append({
-                        "method": {"owner": method[0], "name": method[1],
-                                   "signature": method[2]},
-                        "constructor_or_writer_track_field_count": len(local_fields),
-                        "trace": trace_identity_method(
+                        )
+                        track_field_refs.update(refs)
+                        lya_if_traces.append({
+                            "method": {"owner": method[0], "name": method[1],
+                                       "signature": method[2]},
+                            "exact_track_field_read_count": len(refs),
+                            "trace": trace_identity_method(
+                                dex, method, flags, code_off,
+                                candidate_owners=set(),
+                                capture_unproven_calls=True,
+                                exact_track_field_refs=set(refs),
+                            ),
+                        })
+                    if method == provider_method:
+                        provider_traces.append({
+                            "method": {"owner": method[0], "name": method[1],
+                                       "signature": method[2]},
+                            "trace": trace_identity_method(
+                                dex, method, flags, code_off,
+                                candidate_owners=set(),
+                                capture_unproven_calls=True,
+                                extra_identity_types={"LaC7;", owner},
+                            ),
+                        })
+                        if len(provider_traces) > 4:
+                            raise ValueError("LA_C7_PROVIDER_TRACE_LIMIT")
+
+    # Find every write to that one Track field, regardless of which signed class owns the writer.
+    field_writer_rows = []
+    writer_method_refs = set()
+    lck1_interface_call_sites = []
+    lck1_constructor_refs = set()
+    lck1_constructor_field_links = []
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("LYA_WRITER_SCAN_DEX_LIMIT")
+                dex = Dex(archive.read(entry.filename))
+                definitions = list(method_definitions_with_flags(dex))
+                for method, flags, code_off in definitions:
+                    exact_writes = []
+                    exact_interface_calls = []
+                    for ordinal, (_pc, op, words) in enumerate(instructions(dex, code_off)):
+                        if op == 0x5b and track_field_refs:
+                            if field_id(dex, words[1]) in track_field_refs:
+                                exact_writes.append((ordinal, words))
+                        if method[0] in lck1_owners and op in INVOKES:
+                            if dex.method(words[1]) == interface_method:
+                                exact_interface_calls.append(ordinal)
+
+                    if exact_writes:
+                        if len(field_writer_rows) >= 32:
+                            raise ValueError("LYA_TRACK_FIELD_WRITER_METHOD_LIMIT")
+                        writer_method_refs.add(method)
+                        trace = trace_identity_method(
                             dex, method, flags, code_off,
                             candidate_owners=set(),
                             capture_unproven_calls=True,
-                            exact_track_field_refs=local_fields,
-                        ),
-                    })
-
-    # Second pass: discover only exact writer/interface invokes. Materialize instructions
-    # and run identity tracing only for methods that actually call a Track field writer.
-    writer_call_sites = []
-    interface_call_sites = []
-    for apk in apks:
-        with zipfile.ZipFile(apk) as archive:
-            for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
-                    continue
-                if entry.file_size > DEX_MAX:
-                    raise ValueError("LYA_CALLSITE_DEX_LIMIT")
-                dex = Dex(archive.read(entry.filename))
-                for method, flags, code_off in method_definitions_with_flags(dex):
-                    call_candidates = []
-                    for ordinal, (_pc, op, words) in enumerate(instructions(dex, code_off)):
-                        if op not in INVOKES:
-                            continue
-                        callee = dex.method(words[1])
-                        is_writer = callee in writer_methods
-                        is_interface_call = callee == interface_method
-                        if is_writer or is_interface_call:
-                            call_candidates.append((ordinal, op, words, callee, is_writer))
-                            if len(writer_call_sites) + len(call_candidates) > 64:
-                                raise ValueError("LYA_WRITER_CALLSITE_LIMIT")
-                            if len(interface_call_sites) + len(call_candidates) > 64:
-                                raise ValueError("LYA_INTERFACE_CALLSITE_LIMIT")
-                    if not call_candidates:
-                        continue
-                    ins = list(instructions(dex, code_off))
-                    caller_trace = None
-                    for ordinal, op, words, callee, is_writer in call_candidates:
-                        registers = invoke_registers(op, words)
-                        if not registers:
-                            continue
-                        receiver_origin_raw = local_object_register_origin(
-                            dex, method, flags, code_off, ins, ordinal,
-                            registers[0], include_source_ordinal=True
+                            track_fields_from_any_receiver=True,
                         )
-                        if is_writer:
-                            if caller_trace is None:
-                                caller_trace = trace_identity_method(
-                                    dex, method, flags, code_off,
-                                    candidate_owners=set(),
-                                    capture_unproven_calls=True,
-                                )
-                            matching_event = next((
-                                event for event in caller_trace.get("events", [])
-                                if event.get("ordinal") == ordinal
-                                and event.get("callee") == {
-                                    "owner": callee[0],
-                                    "method": callee[1],
-                                    "signature": callee[2],
+                        write_ordinals = {ordinal for ordinal, _words in exact_writes}
+                        field_writer_rows.append({
+                            "method": {"owner": method[0], "name": method[1],
+                                       "signature": method[2]},
+                            "exact_track_field_write_count": len(exact_writes),
+                            "track_identity_store_events": [
+                                {
+                                    "ordinal": event.get("ordinal"),
+                                    "kind": event.get("kind"),
+                                    "identity_type": event.get("identity_type"),
+                                    "receiver_is_this": event.get("receiver_is_this"),
+                                    "origins": event.get("origins"),
                                 }
-                            ), None)
+                                for event in trace.get("events", [])
+                                if event.get("ordinal") in write_ordinals
+                                and event.get("kind") == "INSTANCE_FIELD_STORE_TYPED_IDENTITY"
+                            ],
+                        })
+
+                    if exact_interface_calls:
+                        if len(lck1_interface_call_sites) >= 4:
+                            raise ValueError("LCK1_LAC7_CALLSITE_LIMIT")
+                        trace = trace_identity_method(
+                            dex, method, flags, code_off,
+                            candidate_owners=set(),
+                            capture_unproven_calls=True,
+                            extra_identity_types={"LaC7;"},
+                        )
+                        receiver_field_refs = set(exact_instance_field_read_refs(
+                            dex, method, flags, code_off, "LaC7;"
+                        ))
+                        call_events = [
+                            event for event in trace.get("events", [])
+                            if event.get("callee") == {
+                                "owner": interface_method[0],
+                                "method": interface_method[1],
+                                "signature": interface_method[2],
+                            }
+                        ]
+                        # The interface receiver field is accepted only when the same field
+                        # is populated from a LaC7-typed constructor parameter.
+                        ancestry = []
+                        current = method[0]
+                        seen = set()
+                        while current and current not in seen and len(ancestry) < 16:
+                            seen.add(current)
+                            ancestry.append(current)
+                            profile = class_profiles.get(current)
+                            current = profile.get("superclass") if profile else None
+                        constructor_links = []
+                        for ctor_method, ctor_flags, ctor_code_off in definitions:
+                            if ctor_method[0] not in ancestry or ctor_method[1] != "<init>":
+                                continue
+                            stored_refs = set(exact_parameter_field_store_refs(
+                                dex, ctor_method, ctor_flags, ctor_code_off, "LaC7;"
+                            ))
+                            matched_refs = stored_refs.intersection(receiver_field_refs)
+                            if matched_refs:
+                                if len(lck1_constructor_refs) >= 32:
+                                    raise ValueError("LCK1_CONSTRUCTOR_REF_LIMIT")
+                                lck1_constructor_refs.add(ctor_method)
+                                link = {
+                                    "constructor": {
+                                        "owner": ctor_method[0], "name": ctor_method[1],
+                                        "signature": ctor_method[2],
+                                    },
+                                    "same_receiver_field_store_count": len(matched_refs),
+                                }
+                                constructor_links.append(link)
+                                lck1_constructor_field_links.append(link)
+                        lck1_interface_call_sites.append({
+                            "caller": {"owner": method[0], "name": method[1],
+                                       "signature": method[2]},
+                            "target": {"owner": interface_method[0],
+                                       "name": interface_method[1],
+                                       "signature": interface_method[2]},
+                            "callsite_ordinals": exact_interface_calls,
+                            "receiver_field_read_count": len(receiver_field_refs),
+                            "receiver_identity_call_events": [
+                                {
+                                    "ordinal": event.get("ordinal"),
+                                    "kind": event.get("kind"),
+                                    "identity_arguments": event.get("identity_arguments", []),
+                                }
+                                for event in call_events
+                            ],
+                            "matching_constructor_field_links": constructor_links,
+                        })
+
+    # Trace only constructor callsites that populate the exact receiver field used by LCK1.
+    lck1_constructor_call_sites = []
+    if lck1_constructor_refs:
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                        continue
+                    dex = Dex(archive.read(entry.filename))
+                    for method, flags, code_off in method_definitions_with_flags(dex):
+                        candidate_calls = []
+                        for ordinal, (_pc, op, words) in enumerate(instructions(dex, code_off)):
+                            if op in INVOKES and dex.method(words[1]) in lck1_constructor_refs:
+                                candidate_calls.append((ordinal, op, words, dex.method(words[1])))
+                        if not candidate_calls:
+                            continue
+                        if len(lck1_constructor_call_sites) + len(candidate_calls) > 32:
+                            raise ValueError("LCK1_CONSTRUCTOR_CALLSITE_LIMIT")
+                        ins = list(instructions(dex, code_off))
+                        trace = trace_identity_method(
+                            dex, method, flags, code_off,
+                            candidate_owners=set(),
+                            capture_unproven_calls=True,
+                            extra_identity_types={"LaC7;", owner},
+                        )
+                        for ordinal, op, words, callee in candidate_calls:
                             argument_rows = logical_invoke_argument_rows(
                                 dex, method, flags, code_off, ins, ordinal, op, words,
                                 trace_origins=False,
                             )
-                            track_argument_rows = [
-                                row for row in argument_rows
-                                if row["type"] == MODEL
+                            interface_args = [
+                                row for row in argument_rows if row["type"] == "LaC7;"
                             ]
-                            writer_call_sites.append({
+                            matching_event = next((
+                                event for event in trace.get("events", [])
+                                if event.get("ordinal") == ordinal
+                                and event.get("callee") == {
+                                    "owner": callee[0], "method": callee[1],
+                                    "signature": callee[2],
+                                }
+                            ), None)
+                            origins = []
+                            for argument in interface_args:
+                                raw_origin = local_object_register_origin(
+                                    dex, method, flags, code_off, ins, ordinal,
+                                    argument["register"], include_source_ordinal=True
+                                )
+                                origins.append(safe_object_register_origin(raw_origin))
+                            lck1_constructor_call_sites.append({
                                 "caller": {"owner": method[0], "name": method[1],
                                            "signature": method[2]},
                                 "target": {"owner": callee[0], "name": callee[1],
                                            "signature": callee[2]},
                                 "ordinal": ordinal,
-                                "invoke_kind": {
-                                    0x6e:"VIRTUAL",0x6f:"SUPER",0x70:"DIRECT",0x71:"STATIC",
-                                    0x72:"INTERFACE",0x74:"VIRTUAL_RANGE",0x75:"SUPER_RANGE",
-                                    0x76:"DIRECT_RANGE",0x77:"STATIC_RANGE",0x78:"INTERFACE_RANGE"
-                                }.get(op, "OTHER_INVOKE"),
-                                "receiver_origin": safe_object_register_origin(receiver_origin_raw),
-                                "track_argument_count": len(track_argument_rows),
-                                "track_identity_arguments": (
+                                "interface_argument_origins": origins,
+                                "constructor_identity_arguments": (
                                     matching_event.get("identity_arguments", [])
                                     if matching_event else []
                                 ),
                             })
-                        else:
-                            interface_call_sites.append({
-                                "caller": {"owner": method[0], "name": method[1],
-                                           "signature": method[2]},
-                                "target": {"owner": callee[0], "name": callee[1],
-                                           "signature": callee[2]},
-                                "ordinal": ordinal,
-                                "invoke_kind": {
-                                    0x6e:"VIRTUAL",0x6f:"SUPER",0x70:"DIRECT",0x71:"STATIC",
-                                    0x72:"INTERFACE",0x74:"VIRTUAL_RANGE",0x75:"SUPER_RANGE",
-                                    0x76:"DIRECT_RANGE",0x77:"STATIC_RANGE",0x78:"INTERFACE_RANGE"
-                                }.get(op, "OTHER_INVOKE"),
-                                "receiver_origin": safe_object_register_origin(receiver_origin_raw),
-                            })
 
-    same_instance_matches = []
-    for writer in writer_call_sites:
-        writer_origin = writer.get("receiver_origin") or {}
-        if writer_origin.get("kind") != "NEW_INSTANCE" or writer_origin.get("type") != owner:
-            continue
-        writer_track_argument_proven = any(
-            arg.get("identity_type") == "TRACK"
-            for arg in writer["track_identity_arguments"]
-        )
-        for interface_call in interface_call_sites:
-            interface_origin = interface_call.get("receiver_origin") or {}
-            if (
-                writer["caller"] == interface_call["caller"]
-                and interface_origin.get("kind") == "NEW_INSTANCE"
-                and interface_origin.get("type") == owner
-                and writer_origin.get("source_ordinal") is not None
-                and writer_origin.get("source_ordinal") == interface_origin.get("source_ordinal")
-                and writer["ordinal"] < interface_call["ordinal"]
-            ):
-                same_instance_matches.append({
-                    "caller": writer["caller"],
-                    "new_instance_source_ordinal": writer_origin["source_ordinal"],
-                    "writer_target": writer["target"],
-                    "interface_call_ordinal": interface_call["ordinal"],
-                    "same_lya_instance_proven": True,
-                    "track_argument_identity_proven_at_writer": writer_track_argument_proven,
-                })
-
-    same_track_field_return = any(
-        any(event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
-            and event.get("identity_type") == "TRACK"
-            and event.get("receiver_is_this") is True
-            for event in row["trace"].get("events", []))
-        and any(event.get("kind") == "RETURN_TYPED_IDENTITY"
-                and event.get("identity_type") == "TRACK"
-                and "FIELD_READ_FROM_THIS" in event.get("origins", [])
-                for event in row["trace"].get("events", []))
-        for row in exact_if_traces
-    )
-    writer_track_argument_proven = any(
-        any(arg.get("identity_type") == "TRACK" for arg in row["track_identity_arguments"])
-        for row in writer_call_sites
-    )
-    full_dispatch_chain_proven = any(
-        row["same_lya_instance_proven"] and row["track_argument_identity_proven_at_writer"]
-        for row in same_instance_matches
-    ) and same_track_field_return
     return {
         "owner": owner,
-        "owner_defined_in_signed_dex": owner_profile is not None,
-        "owner_is_interface": bool(owner_profile and owner_profile.get("is_interface")),
-        "owner_is_abstract": bool(owner_profile and owner_profile.get("is_abstract")),
+        "owner_defined_in_signed_dex": owner in class_profiles,
         "owner_has_track_field": bool(
-            owner_profile and classify_track_owner_profile(owner_profile)["has_track_field"]
+            owner in class_profiles
+            and classify_track_owner_profile(class_profiles[owner])["has_track_field"]
         ),
-        "track_parameter_field_writer_count": len(writer_rows),
-        "track_parameter_field_writers": writer_rows,
-        "exact_if_method_traces": exact_if_traces,
-        "exact_if_reads_and_returns_same_constructor_written_track_field": same_track_field_return,
-        "writer_callsite_count": len(writer_call_sites),
-        "writer_call_sites": writer_call_sites,
-        "writer_callsite_track_identity_proven": writer_track_argument_proven,
-        "laC7_if_callsite_count": len(interface_call_sites),
-        "laC7_if_call_sites": interface_call_sites,
-        "same_lya_instance_directly_proven_at_interface_callsite": bool(same_instance_matches),
-        "same_instance_matches": same_instance_matches,
-        "only_lya_track_writers_and_exact_laC7_if_calls_scanned": True,
-        "runtime_dispatch_proven": full_dispatch_chain_proven,
+        "lya_if_exact_track_field_count": len(track_field_refs),
+        "lya_if_method_traces": lya_if_traces,
+        "exact_track_field_writer_method_count": len(field_writer_rows),
+        "exact_track_field_writers": field_writer_rows,
+        "lck1_interface_callsite_count": len(lck1_interface_call_sites),
+        "lck1_interface_call_sites": lck1_interface_call_sites,
+        "lck1_constructor_field_link_count": len(lck1_constructor_field_links),
+        "lck1_constructor_field_links": lck1_constructor_field_links,
+        "lck1_constructor_callsite_count": len(lck1_constructor_call_sites),
+        "lck1_constructor_call_sites": lck1_constructor_call_sites,
+        "lza9_provider_method_traces": provider_traces,
+        "only_exact_lya_track_field_lck1_calls_and_lza9_provider_scanned": True,
+        "active_selected_item_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "runtime_dispatch_to_lya_proven": False,
     }
 
 
