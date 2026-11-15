@@ -287,6 +287,7 @@ try
          cachedTarget.Release.Sequence == targetRelease.Sequence &&
          cachedTarget.Release.PackageSize == targetRelease.PackageSize &&
          cachedTarget.Release.SupervisorSha256 == nextSupervisorHash &&
+         cachedTarget.LastAcceptedSequence == targetRelease.Sequence &&
          Path.GetFileName(cachedTarget.InstallerPath) == "target-verified-setup.exe" &&
          File.ReadAllBytes(cachedTarget.InstallerPath).SequenceEqual(nextBytes),
          "W115 only a healthy update exposes its exact manifest-verified target installer as last known good");
@@ -418,6 +419,7 @@ try
     Test(restoredLkg.State == StableUpdateRollbackJournal.Phase.Restored &&
          restoredPackage.Release.Version == previousRelease.Version &&
          restoredPackage.Release.Sequence == previousRelease.Sequence &&
+         restoredPackage.LastAcceptedSequence == targetRelease.Sequence &&
          Path.GetFileName(restoredPackage.InstallerPath) == "previous-verified-setup.exe" &&
          File.ReadAllBytes(restoredPackage.InstallerPath).SequenceEqual(previousBytes),
          "W115 a verified rollback restores the previous package as the next last-known-good base");
@@ -695,6 +697,32 @@ try
         var currentSequenceDocument = ManifestBytes(sequence: 41);
         var currentSequenceSignature = releaseKey.SignData(currentSequenceDocument,
             HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+        // W155: after an update is rolled back, its signed sequence remains
+        // consumed even though the previous version becomes the LKG package.
+        // The exact failed release must not be offered again; a later sequence
+        // remains eligible for the restored installation.
+        var replayAfterRollbackDocument = ManifestBytes(
+            version: "0.24.37", sequence: restoredPackage.LastAcceptedSequence);
+        var replayAfterRollback = StableUpdateManifestVerifier.VerifyIfNewer(
+            replayAfterRollbackDocument,
+            releaseKey.SignData(replayAfterRollbackDocument, HashAlgorithmName.SHA256,
+                DSASignatureFormat.Rfc3279DerSequence),
+            pub, signedFeedOrigin, previousRelease.Version,
+            restoredPackage.LastAcceptedSequence, signedFeedNow);
+        var laterAfterRollbackDocument = ManifestBytes(
+            version: "0.24.38", sequence: restoredPackage.LastAcceptedSequence + 1,
+            url: "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/CELIKOM-Windows-0.24.38-SIGNED.exe");
+        var laterAfterRollback = StableUpdateManifestVerifier.VerifyIfNewer(
+            laterAfterRollbackDocument,
+            releaseKey.SignData(laterAfterRollbackDocument, HashAlgorithmName.SHA256,
+                DSASignatureFormat.Rfc3279DerSequence),
+            pub, signedFeedOrigin, previousRelease.Version,
+            restoredPackage.LastAcceptedSequence, signedFeedNow);
+        Test(restoredPackage.Release.Sequence == previousRelease.Sequence &&
+             restoredPackage.LastAcceptedSequence == targetRelease.Sequence &&
+             replayAfterRollback is null &&
+             laterAfterRollback?.Version == new Version(0, 24, 38, 0),
+             "W155 a completed rollback consumes the failed sequence but still accepts a newer signed release");
         Test(StableUpdateManifestVerifier.VerifyIfNewer(
                 currentSequenceDocument, currentSequenceSignature, pub, signedFeedOrigin,
                 new Version(0, 24, 36, 0), 41, signedFeedNow) is null,

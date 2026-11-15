@@ -74,7 +74,8 @@ public static class StableUpdateInstallCoordinator
                 if (cached.Release.Version != AppUpdateManager.RunningVersion ||
                     cached.Release.Sequence != installedRelease.Sequence)
                     throw new IOException("STABLE_UPDATE_CURRENT_LKG_MISMATCH");
-                lastAcceptedSequence = cached.Release.Sequence;
+                lastAcceptedSequence = Math.Max(
+                    cached.LastAcceptedSequence, cached.Release.Sequence);
                 hasLastKnownGood = true;
             }
             catch (IOException e) when (e.Message == "STABLE_ROLLBACK_RECORD_MISSING")

@@ -283,7 +283,8 @@ public static class StableUpdateRollbackJournal
     }
 
     public sealed record CachedVerifiedPackage(
-        string InstallerPath, StableUpdateManifestVerifier.VerifiedRelease Release);
+        string InstallerPath, StableUpdateManifestVerifier.VerifiedRelease Release,
+        long LastAcceptedSequence = 0);
 
     /// <summary>
     /// Returns the currently accepted manifest-verified installer for the next update's
@@ -346,7 +347,10 @@ public static class StableUpdateRollbackJournal
             RendererSha256: rendererHash,
             SupervisorSha256: supervisorHash);
         verify(installer, release);
-        return new CachedVerifiedPackage(installer, release);
+        // The target sequence remains consumed after a successful rollback.
+        // Returning the previous package as LKG must not make the failed
+        // signed target eligible for an endless reinstall/rollback cycle.
+        return new CachedVerifiedPackage(installer, release, state.TargetSequence);
     }
 
     /// <summary>
