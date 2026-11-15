@@ -1,3 +1,9 @@
+# SUPERCEDING ADDENDUM — 15 Nov 2026, renderer field writer xrefs
+
+Current read-only checkpoint: `cfd02607829ef854065331571654c94bef5005ba`, CI [#43716254136](https://github.com/manufact-test/nomusic/actions/runs/43716254136) SUCCESS, 49/49 tests; exact backup `backup/android-a1-renderer-field-writer-census-ci-green-20261115`. Details: `docs/android/ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md`. Three exact ByteBuffer fields and seven writer methods; exact `Lad6.final(I)ByteBuffer` store references in `LcC0.n` and `Lkd6.n`. That is a **static field reference**, not a verified active Track or decoded object at audio sink. All selected identity gates remain false. NAV17 Stage A stays owner-confirmed PASS and Stage B replacement is unconnected. Historical Stage A NO-GO material below is superseded.
+
+---
+
 # CURRENT SUPPLEMENT — 15 Nov 2026, AudioTrack / ByteBuffer checkpoint
 
 ## Superseding technical checkpoint — 15 Nov 2026 (AudioTrack / ByteBuffer)

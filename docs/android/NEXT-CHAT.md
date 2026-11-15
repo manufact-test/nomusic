@@ -4,13 +4,17 @@
 **Repository:** manufact-test/nomusic  
 **Current status:** **Stage A = PASS (NAV17 owner verification); Stage B = IN PROGRESS.** Research-only. CELIKOM replacement source is not connected; this is not a release build.
 
+## Latest renderer writer checkpoint (supersedes older research summaries)
+
+Read `docs/android/ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md` before choosing a new hook or rerunning investigations. Signed audit [#43716254136](https://github.com/manufact-test/nomusic/actions/runs/43716254136) SUCCESS, **49/49 tests**, at `cfd02607829ef854065331571654c94bef5005ba`; exact backup `backup/android-a1-renderer-field-writer-census-ci-green-20261115`. Three typed ByteBuffer fields feed seven exact writer methods. `LcC0.n` / `Lkd6.n` contain `Lad6.final(I)ByteBuffer` → field-write candidates; the same declared fields are read toward virtual audio sink calls. Branches and other writes prevent claiming same runtime object/active selected track. **Stage A NAV17 is owner-confirmed PASS; Stage B has no CELIKOM audio yet.** All selected Track, Album, edition/generation and native decoder linkage gates remain false. No new runtime hook/APK. Ignore historical 'Stage A NO-GO' notes lower in this document: they belong to the pre-NAV17 research epoch.
+
 ## Active Git state
 
 - **Only active working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- **Latest CI-green code checkpoint:** `a9dfbbbcf959da3d5cf265c13a17e8baffcc2c50`
+- **Latest CI-green code checkpoint:** `cfd02607829ef854065331571654c94bef5005ba`
 - **Latest docs handoff:** current working-branch HEAD; final handoff backup branch is `backup/android-a1-stage-b-audio-sink-audit-final-handoff-20261115`.
-- **Static audit CI:** [#43712507031](https://github.com/manufact-test/nomusic/actions/runs/43712507031) SUCCESS; 40/40 tests; signed native selected-item audit completed.
-- **Exact CI-green code backup:** `backup/android-a1-audio-buffer-identity-ci-green-20261115` @ `a9dfbbbcf959da3d5cf265c13a17e8baffcc2c50`
+- **Static audit CI:** [#43716254136](https://github.com/manufact-test/nomusic/actions/runs/43716254136) SUCCESS; 49/49 tests; exact cross-method renderer ByteBuffer field writers verified as static candidates only.
+- **Exact CI-green code backup:** `backup/android-a1-renderer-field-writer-census-ci-green-20261115` @ `cfd02607829ef854065331571654c94bef5005ba` (prior AudioTrack checkpoint `a9dfbbbc` and its backup retained).
 - **Pre-fix rollback:** `backup/android-a1-wide-invoke-map-pre-final-audit-fix-20261115` @ `8e121e50712c2f65f0b703e7beeb91688727b764`
 - **NAV17 owner-known-good baseline:** `backup/android-a1-nav17-owner-real-userinfo-main-music-audible-20261114` @ `d4c0887028b2bfbad7ed59f63ec88a4770f3595d`
 - **Last runtime Java hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`; unchanged by this static-audit pass.
