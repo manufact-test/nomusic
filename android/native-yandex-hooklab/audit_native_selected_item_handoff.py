@@ -5389,6 +5389,9 @@ SELECTED_TRACK_PATH_METHODS = {
     ("LTv9;", "if",
      "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
      "Lru/yandex/music/data/audio/o;Z)LJK1;"),
+    ("LJK1;", "<init>",
+     "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
+     "Lru/yandex/music/data/audio/o;Z)V"),
     ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
     ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
 }
