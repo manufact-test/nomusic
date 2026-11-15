@@ -5379,6 +5379,13 @@ FLOW_MODE_BRANCH_AUDIT_OWNERS = {
 
 FLOW_MODE_CONSTRUCTOR_OWNERS = {"LBy4;","Lvp0;","Lyp0;","LzC3;"}
 
+SELECTED_TRACK_PATH_METHODS = {
+    ("LSW6;", "if", "(Lru/yandex/music/data/audio/o;Z)LvU6;"),
+    ("LOW6;", "<init>",
+     "(LSV6;Lru/yandex/music/data/audio/o;ZLkotlinx/coroutines/CoroutineScope;"
+     "Landroid/content/Context;LGK1$a;LNW6$a;)V"),
+}
+
 
 FLOW_ARGUMENT_ORIGIN_TARGETS = {
     ("Ljm4;","for"), ("Lwp0;","<init>"), ("Lwp0;","collect"),
@@ -5516,6 +5523,7 @@ def inspect_signed(apks):
     flow_related_method_refs = set()
     flow_mode_constructor_store_rows = []
     flow_mode_branch_census = []
+    selected_track_path_method_definitions = {}
     fp0_resume_null_track_arg = False
     fp0_coroutine_method_definitions = {}
     raa_resume_same_continuation = False
@@ -5682,6 +5690,10 @@ def inspect_signed(apks):
                     if (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
                             focused_method_trace(dex, method, flags, code_off))
+                    if method in SELECTED_TRACK_PATH_METHODS:
+                        selected_track_path_method_definitions[method] = (
+                            dex, flags, code_off
+                        )
                     if (method[0], method[1]) == ("LFp0;", "invokeSuspend"):
                         # Inspect only the instruction immediately before the
                         # known exact Gp0.new call. No branch-sensitive taint.
@@ -5824,6 +5836,17 @@ def inspect_signed(apks):
                                     "ordinal": ordinal,
                                     "argument_word_count": len(invoke_registers(op, words)),
                                 })
+    selected_track_path_identity_traces = [
+        trace_identity_method(
+            dex, method, flags, code_off, candidate_owners=set()
+        )
+        for method, (dex, flags, code_off)
+        in sorted(selected_track_path_method_definitions.items())
+    ]
+    selected_track_path_missing_method_refs = sorted(
+        SELECTED_TRACK_PATH_METHODS
+        - set(selected_track_path_method_definitions)
+    )
     candidate_owner_rows = candidate_owner_descriptors(class_profiles)
     candidate_owner_set = {row["owner"] for row in candidate_owner_rows}
     candidate_owner_method_census = inspect_candidate_owner_methods(
@@ -6084,6 +6107,11 @@ def inspect_signed(apks):
         "flow_interface_implementer_census":summarize_flow_interface_implementers(class_profiles),
         "flow_mode_constructor_int_field_stores":flow_mode_constructor_store_rows,
         "flow_mode_branch_census":flow_mode_branch_census,
+        "selected_track_path_identity_traces": selected_track_path_identity_traces,
+        "selected_track_path_missing_method_refs": [
+            {"owner":x[0],"method":x[1],"signature":x[2]}
+            for x in selected_track_path_missing_method_refs
+        ],
         "flow_source_interface_methods": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in sorted(flow_source_interface_methods)[:MAX_METHODS]
