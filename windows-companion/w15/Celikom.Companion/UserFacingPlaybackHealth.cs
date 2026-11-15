@@ -46,9 +46,9 @@ public static class UserFacingPlaybackHealth
         string? presence, string? source, string? playbackState,
         bool playerUnavailable = false)
     {
-        if (!enabled) return new(Severity.Neutral, "");
         if (playerUnavailable)
             return new(Severity.Neutral, "Подключитесь к Яндекс Музыке");
+        if (!enabled) return new(Severity.Neutral, "");
         if (nativeStatus == "HOST_ERROR")
             return new(Severity.Error, "Не удалось подключить модуль Яндекса.");
         if (playbackState == "PAUSED")

@@ -15,6 +15,7 @@ public static class CompactPlaybackPresentation
         string? playbackState, bool recoveryPending, bool connectionPending, bool signedIn,
         bool playerUnavailable = false)
     {
+        if (playerUnavailable) return "Подключитесь к Яндекс Музыке";
         if (!bridgeEnabled)
         {
             if (recoveryPending) return "Данные текущего трека временно недоступны…";
@@ -24,7 +25,6 @@ public static class CompactPlaybackPresentation
                 : "Войди в аккаунт, чтобы подключить CELIKOM.";
         }
 
-        if (playerUnavailable) return "Подключитесь к Яндекс Музыке";
         if (!heartbeatFresh) return "Ожидаем данные текущего плеера…";
         return playbackState switch
         {

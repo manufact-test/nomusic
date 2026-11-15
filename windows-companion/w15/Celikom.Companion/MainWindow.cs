@@ -1606,8 +1606,8 @@ public sealed partial class MainWindow : Form
         _switchHint.Text = _compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…" :
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
-            !_bridge.Enabled ? (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Подмена выключена") :
             _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
+            !_bridge.Enabled ? (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Подмена выключена") :
             !heartbeatFresh ? "Ожидаем актуальные данные текущего плеера." :
             sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
@@ -1635,12 +1635,12 @@ public sealed partial class MainWindow : Form
         }
         // Source labels in both GUI surfaces must be derived from the SAME
         // current-player lease, NOT an old file-info/renderer transition.
-        _song.Text = !_bridge.Enabled
-            ? (_resumeAfterNetworkFailure
-                ? "Данные текущего трека временно недоступны."
-                : "Подмена выключена. Текущий звук может быть в кеше Яндекса.")
-            : _bridge.PlayerUnavailable
-                ? "Подключитесь к Яндекс Музыке"
+        _song.Text = _bridge.PlayerUnavailable
+            ? "Подключитесь к Яндекс Музыке"
+            : !_bridge.Enabled
+                ? (_resumeAfterNetworkFailure
+                    ? "Данные текущего трека временно недоступны."
+                    : "Подмена выключена. Текущий звук может быть в кеше Яндекса.")
             : !heartbeatFresh
                 ? "Ожидаем актуальные данные текущего плеера."
             : paused ? "Воспроизведение на паузе."
@@ -1660,9 +1660,9 @@ public sealed partial class MainWindow : Form
         _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
             : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
+            : _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке"
             : !_bridge.Enabled ?
                 (_resumeAfterNetworkFailure ? "Текущий звук не переключаем." : "Готов к работе")
-            : _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке"
             : sourceVerified ? "Источник CELIKOM выбран плеером. Проверь звук."
             : paused ? "Яндекс.Музыка на паузе."
             : stopped ? "Воспроизведение остановлено."

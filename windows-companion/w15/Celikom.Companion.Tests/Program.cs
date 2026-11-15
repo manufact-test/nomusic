@@ -1306,8 +1306,13 @@ try
              false, false, true, true) == "Подключитесь к Яндекс Музыке" &&
          UserFacingPlaybackHealth.CurrentTrack("UNAVAILABLE", true,
              "none", "UNKNOWN", "UNKNOWN", true).Message ==
+             "Подключитесь к Яндекс Музыке" &&
+         CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             true, false, true, true) == "Подключитесь к Яндекс Музыке" &&
+         UserFacingPlaybackHealth.CurrentTrack("UNAVAILABLE", false,
+             "none", "UNKNOWN", "UNKNOWN", true).Message ==
              "Подключитесь к Яндекс Музыке",
-         "W157 missing Yandex player has an actionable connection message instead of stale-player waiting");
+         "W157 missing Yandex player remains explicit even while VPN/server recovery suspends the bridge");
     Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
              "approved", "ACTIVE_REPLACEMENT", "PLAYING").Level ==
          UserFacingPlaybackHealth.Severity.Good &&

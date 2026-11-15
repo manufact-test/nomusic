@@ -731,6 +731,7 @@ public sealed partial class MainWindow
             _bridge.LastPlaybackState == "PLAYING";
         _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
             hostHint.Length > 0 ? hostHint :
+            _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             networkRecoveryPending ? CompactPlaybackPresentation.NetworkRecoveryMessage :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
             activelyReplacing ? "Подмена активна · версия CELIKOM" :
@@ -738,7 +739,6 @@ public sealed partial class MainWindow
             mappingOnly ? "Источник текущего трека не подтверждён" :
             _bridge.Enabled && _bridge.LastPlaybackState is "PAUSED" or "STOPPED"
                 ? trackHealth.Message :
-            _bridge.Enabled && _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             _bridge.Enabled && !heartbeatFresh ? "Ожидаем текущий плеер" :
             _compactPresenceStatus switch
             {
