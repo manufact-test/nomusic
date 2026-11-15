@@ -57,6 +57,9 @@ jobs:
           composer --working-dir=server validate --strict
           composer --working-dir=server dump-autoload --no-interaction
 
+      - name: Validate W155 final owner EXE and ZIP package contract
+        run: node --test .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
+
       - name: Validate Stage 6 restricted library workflow
         run: |
           node --test .github/scripts/tests/hostinger-library-contract.test.mjs
