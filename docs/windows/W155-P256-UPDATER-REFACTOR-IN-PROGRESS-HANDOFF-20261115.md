@@ -109,12 +109,13 @@ After the secret is saved, send only the script success line and public fingerpr
 
 The first bootstrap installation over 0.24.37 is necessarily manual because that installed version has no P-256 pin. After the bootstrap is installed and DNS/TLS plus the signed feed are activated, subsequent CELIKOM updates must be detected, verified, downloaded and installed automatically. End users must never need Node.js, GitHub CLI, PowerShell commands, passwords, tokens or signing keys.
 
-## 7. Not done — do not claim otherwise
+## 7. Historical pre-release status — superseded by the final execution addendum
 
-- Owner-side P-256 private-key provisioning has not yet been run.
-- No final EXE/ZIP has been built or delivered; no owner installation or owner-PC acceptance has happened.
-- `celikom.com` DNS/TLS and public feed activation remain deferred. No production feed has been published.
-- CI and offline fixtures do not prove production update delivery, Windows publisher identity, SmartScreen acceptance, owner-PC installation or a real field rollback.
+The checklist that originally followed this heading described the state **before** the owner generated the P-256 key and before the final 0.24.38 release. It is intentionally not repeated here because it is obsolete. Use the **Final execution addendum** at the top of this document as the current source of truth:
+- Owner key provisioning and protected Environment secret upload are complete.
+- The one final 0.24.38 EXE+ZIP+SHA256SUMS Draft Release exists and its protected workflow completed SUCCESS.
+- Owner-PC installation and grouped W154 acceptance remain pending.
+- DNS/TLS and signed production-feed activation remain deferred; no production automatic update delivery is claimed.
 
 ## 8. Permanent guardrails
 
