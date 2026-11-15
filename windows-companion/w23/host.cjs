@@ -378,15 +378,17 @@ async function relayState(view, token, now) {
     preserveCurrentTrackId: preserveCurrentSource ? previous.trackId : ""
   };
   const previousOrigin = nativeAudioOrigins.get(view);
+  const originChanged = previousOrigin !== undefined &&
+    previousOrigin !== safeState.apiOrigin;
   const preserveDecoderWitness = safeState.networkRecoveryPending &&
     safeState.signedIn && previousOrigin === safeState.apiOrigin;
   if (!safeState.enabled || !safeState.signedIn || previousOrigin !== safeState.apiOrigin) {
     nativeExpectedAudio.delete(view);
+    verifiedDecoderSource.delete(view);
     nativeMediaHttpSuccess.delete(view);
-    if (!preserveDecoderWitness) {
-      verifiedDecoderSource.delete(view);
+    const retireDecoderPlayers = !safeState.enabled || !safeState.signedIn || originChanged;
+    if (retireDecoderPlayers && !preserveDecoderWitness)
       nativeDecoderPlayers.delete(view);
-    }
   }
   nativeAudioOrigins.set(view, safeState.apiOrigin);
   await deliverState(view, safeState);

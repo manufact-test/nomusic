@@ -1298,6 +1298,8 @@ test("W152 host preserves a source only while the exact current decoder is still
     currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000},
     stateOverride:state
   });
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
   debug.emit("message",{}, "Media.playerPropertiesChanged",{
     playerId:"w152-current-decoder",
     properties:[{name:"kUrl",value:grant.audioUrl},{name:"kIsPlaying",value:"true"}]
