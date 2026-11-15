@@ -924,15 +924,24 @@ class SelectedItemAuditTests(unittest.TestCase):
              patch("audit_native_selected_item_handoff.field_id",return_value=target), \
              patch("audit_native_selected_item_handoff.invoke_registers",
                    side_effect=lambda op,w:{2:[0,5,7],8:[2,0,3]}[w[1]]):
+            cfg=build_dex_control_flow(FakeDex(),100)
             result=trace_native_track_coroutine_continuation(
                 FakeDex(),initial,0x8,100,resume,0,200
             )
+        self.assertEqual(cfg["successors"][5],[7,13])
+        self.assertEqual(cfg["successors"][9],[13])
+        self.assertIn(13,cfg["reachable"])
         self.assertTrue(result["control_flow_graph_built"])
         self.assertEqual(len(result["branch_sites"]),2)
         self.assertTrue(any(
             row["same_original_track_parameter"]
             for row in result["track_parameter_capture_store_candidates"]
-        ))
+        ), repr({
+            "track_registers":result["track_parameter_registers"],
+            "branches":result["branch_sites"],
+            "stores":result["track_parameter_capture_store_candidates"],
+            "reachable":result["reachable_instruction_count"]
+        }))
         self.assertFalse(result["all_observed_store_paths_same_original_track_parameter"])
         self.assertTrue(result["original_track_parameter_to_continuation_field_candidate"])
         self.assertNotIn("privateTrack",str(result))

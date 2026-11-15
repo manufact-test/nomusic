@@ -2444,10 +2444,13 @@ def build_dex_control_flow(dex, code_off):
         fallthrough=[next_pc] if next_pc in real_pcs else []
         targets=[]
         if op==0x28:
+            fallthrough=[]
             targets=[pc+signed_branch_offset((words[0]>>8)&0xff,8)]
         elif op==0x29:
+            fallthrough=[]
             targets=[pc+signed_branch_offset(words[1],16)]
         elif op==0x2a:
+            fallthrough=[]
             raw=words[1]|(words[2]<<16)
             targets=[pc+signed_branch_offset(raw,32)]
         elif 0x32<=op<=0x3d:
