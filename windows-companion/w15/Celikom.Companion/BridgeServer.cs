@@ -189,7 +189,11 @@ public sealed class BridgeServer : IAsyncDisposable
             _lastPlaybackState = "UNKNOWN";
             _lastHeartbeatInstanceId = "";
             _lastHeartbeatSequence = 0;
-            _retiredHeartbeatInstances.Clear();
+            // A transient VPN suspension must not make an exited native-host
+            // instance valid again. Keep its retirement fence until a real
+            // Stop/logout/denial ends the recovery session.
+            if (!_nativeNetworkRecoveryPending)
+                _retiredHeartbeatInstances.Clear();
             _lastHeartbeatAt = DateTimeOffset.MinValue;
             _lastSong = "";
             _lastTitle = "";

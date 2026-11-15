@@ -2200,6 +2200,26 @@ try
         bridge.SetEnabled(false);
         Test(bridge.PlayerUnavailable && bridge.LastSong == "",
              "W157 process-exit state survives a simultaneous transient network suspension");
+        var beforeLateAfterVpn = acceptedHeartbeatNotifications;
+        bridge.SetEnabled(true);
+        using (var lateAfterVpn = await SendW141Heartbeat(new {
+            trackId = "999", status = "NATIVE_SOURCE_VERIFIED",
+            title = "Запоздавший трек", source = "ACTIVE_REPLACEMENT",
+            playbackState = "PLAYING", instanceId = "w23-current-3", sequence = 4
+        }))
+            Test(lateAfterVpn.IsSuccessStatusCode && bridge.PlayerUnavailable &&
+                 bridge.LastSong == "" &&
+                 acceptedHeartbeatNotifications == beforeLateAfterVpn,
+                 "W157 a retired Yandex process remains rejected after VPN recovery re-enables the bridge");
+        using (var freshAfterVpn = await SendW141Heartbeat(new {
+            trackId = "987", status = "NATIVE_CONNECTED",
+            title = "Новый процесс", source = "UNKNOWN",
+            playbackState = "PLAYING", instanceId = "w23-current-4", sequence = 1
+        }))
+            Test(freshAfterVpn.IsSuccessStatusCode && !bridge.PlayerUnavailable &&
+                 bridge.LastSong == "987" &&
+                 acceptedHeartbeatNotifications == beforeLateAfterVpn + 1,
+                 "W157 a genuinely new Yandex process is accepted after VPN recovery");
         bridge.SetNativeNetworkRecoveryPending(false);
         bridge.SetEnabled(false);
         Test(!bridge.PlayerUnavailable,
