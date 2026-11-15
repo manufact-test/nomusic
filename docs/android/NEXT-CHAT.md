@@ -1,3 +1,28 @@
+# CURRENT IN-PROGRESS CHECKPOINT — 15 Nov 2026, LJK1 Track continuation
+
+**Previous CI-green code:** `70075818bb9965a98376f4cca30157a10bf746e8`.  
+**Previous CI:** [#43740254479](https://github.com/manufact-test/nomusic/actions/runs/43740254479) **SUCCESS, 81/81 tests**, exact original 16 signed splits / 6 DEX.  
+**New code HEAD:** `c9f218810392ba19e7c6997ed20ae3e7eaa6d059` — adds only the exact `LJK1.<init>(LBK1, GK1$a, Context, CoroutineScope, Track, boolean)` identity trace and its bounded-scope test.  
+**Exact pre-CI backup:** `backup/android-a1-ljk1-constructor-pre-ci-20261115` @ `c9f218810392ba19e7c6997ed20ae3e7eaa6d059`.  
+**Last green code backup:** `backup/android-a1-low6-recipient-ci-green-20261115` @ `70075818bb9965a98376f4cca30157a10bf746e8`.
+
+## Last confirmed identity chain
+
+`LOW6.<init>(..., Track, ...)` stores the exact incoming Track and passes it to `LTv9.if(..., Track, boolean)`. The defined `LTv9.if` passes the same Track reference to `LJK1.<init>(..., Track, boolean)`.
+
+The other two referenced methods `LSV6.else(Track)` and `LBK1.break(Track)`, as well as the optional `LSW6.if(Track, boolean)`, are not defined in the pinned signed DEX. Do not infer behavior or chase them.
+
+## Current bounded task
+
+The new audit traces only `LJK1.<init>(LBK1, GK1$a, Context, CoroutineScope, Track, boolean)`. On CI success:
+- inspect whether the exact Track parameter is stored on `this` and whether it is passed unchanged to a concrete player/source/decoder boundary;
+- if stored, trace only reads of that exact field from methods on `LJK1`, without disclosing its field name or value;
+- if no relevant identity edge exists, close this branch rather than expanding into generic player APIs/Flow.
+
+The latest code commit is not yet CI-verified at this handoff. No runtime hooks, APK, login, account/media access or vendor behavior change. Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # SUPERSEDING RESULT — 15 Nov 2026, LOW6 recipient trace (CI GREEN)
 
 **Code checkpoint:** `70075818bb9965a98376f4cca30157a10bf746e8`  
