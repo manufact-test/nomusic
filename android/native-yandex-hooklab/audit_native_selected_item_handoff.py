@@ -5382,7 +5382,7 @@ def selected_track_interface_implementation_owners(class_profiles, interface_own
             current = implementer
             seen = set()
             depth = 0
-            while current and current not in seen:
+            while current and current in class_profiles and current not in seen:
                 seen.add(current)
                 owner_to_implementers.setdefault(current, set()).add(implementer)
                 depth += 1
