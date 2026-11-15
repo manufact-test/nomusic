@@ -1,5 +1,13 @@
 # CELIKOM Windows — AUTHORITATIVE CURRENT HANDOFF / 14 November 2026
 
+## W145/W146 latest continuation — 15 November 2026
+
+- **Live Windows code HEAD at this handoff:** `d4a94f63411e328b47aa5fe16b8acfbaf9dcb2a6`, working branch **main only**.
+- W145: exact pre-code backup `backup/windows-main-pre-w145-pending-safe-point-scheduler-20261115` @ `8642b98ba05c27f445d1bb110b78bae1ea09dc4e`, code `6094432757c80d0305a1d49b32868a591b960ea0`. After an authenticated signed package has already been downloaded and verified, the existing stable-update scheduler runs a low-cost safe-point check every 30 seconds, not 30 minutes. While Yandex is running / playback not safe, **no network feed/payload re-fetch** occurs in the short interval. The install coordinator and existing strict gate still re-validate before Supervisor/installer; no audio interruption or bypass of missing production trust. W15 test covers interval and skip policy.
+- W146: exact pre-code backup `backup/windows-main-pre-w146-compact-paused-source-status-20261115` @ `6094432757c80d0305a1d49b32868a591b960ea0`, code `d4a94f63411e328b47aa5fe16b8acfbaf9dcb2a6`. Compact popup renders pending mapping status only if the **fresh current native player state is PLAYING**; PAUSED and STOPPED take precedence. Tests assert no stale green while paused.
+- W142, W143 and W144 both Main CI and Windows integration CI **SUCCESS** (W142 43696125856 / 43696125894; W143 43696396674 / 43696396709; W144 43696528740 / 43696528671). W142–W144 documentation HEAD `8642b98ba05c27f445d1bb110b78bae1ea09dc4e` also both SUCCESS (43696634634 / 43696634618). W145/W146 are newer and require checking latest CI before acceptance.
+- **No live updater yet:** legitimate official HTTPS release origin, protected P-256 private signing key and matching public pin, trusted Authenticode signer fingerprint/certificate, protected package publisher and real owner-PC signed bootstrap/rollback not provisioned. Existing owner-installed unsigned 0.24.37 cannot autoupdate. Never invent anchors or claim this code delivered an update. No installer built, no owner-PC listening verified. All six issues #52 #53 #54 #56 #57 #58 OPEN, W119/W139 authoritative.
+
 ## W142–W144 continuation — 15 November 2026 (latest code)
 
 - Working branch is ONLY `main`; latest W144 code HEAD `18aa813f0cbb83832b3f6f0e8150ada0a5439757`. No new Windows TEST product, installer or release. Do not alter Android or browser extension. All six issues #52 #53 #54 #56 #57 #58 remain OPEN.
