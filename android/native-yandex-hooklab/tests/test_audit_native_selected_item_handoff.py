@@ -64,6 +64,28 @@ class SelectedItemAuditTests(unittest.TestCase):
             result=album_constructor_argument_store(FakeDex(),method,0,100)
         self.assertFalse(result["stores_same_album_argument_on_track"])
 
+    def test_track_album_copy_flow_requires_album_arg_on_new_track_result(self):
+        from unittest.mock import patch
+        from audit_native_selected_item_handoff import track_album_copy_flow, ALBUM_MODEL
+        class FakeDex:
+            def u16(self, offset):
+                return {100:8,102:7}[offset]
+            def descriptor(self, index):
+                return MODEL
+            def method(self, index):
+                return (MODEL,"<init>",f"({ALBUM_MODEL})V")
+        method=(MODEL,"new",f"({MODEL}J{ALBUM_MODEL}Ljava/util/List;LfCa;I){MODEL}")
+        rows=[(0,0x22,[0x0022,0]),(1,0x70,[0x0070,0,0]),(2,0x11,[0x0011])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=rows), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,4]):
+            result=track_album_copy_flow(FakeDex(),method,0x8,100)
+        self.assertTrue(result["album_argument_passed_to_new_track_constructor"])
+        self.assertTrue(result["returns_new_track"])
+        with patch("audit_native_selected_item_handoff.instructions",return_value=rows), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,5]):
+            result=track_album_copy_flow(FakeDex(),method,0x8,100)
+        self.assertFalse(result["album_argument_passed_to_new_track_constructor"])
+
     def test_track_album_copy_method_requires_exact_track_and_album_inputs(self):
         from audit_native_selected_item_handoff import is_native_track_album_copy_method, ALBUM_MODEL
         good=(MODEL,"new",f"({MODEL}J{ALBUM_MODEL}Ljava/util/List;LfCa;I){MODEL}")

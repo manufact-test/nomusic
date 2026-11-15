@@ -225,6 +225,102 @@ def is_native_track_album_copy_method(method) -> bool:
     )
 
 
+def track_album_copy_flow(dex: Dex, method, flags: int, code_off: int):
+    """Trace Album argument/source-Album references into a new Track result."""
+    if not is_native_track_album_copy_method(method):
+        return None
+    params = parse_types(method[2])
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise DexError("ALBUM_COPY_INS_SIZE")
+    register = registers_size - ins_size
+    if not (flags & ACC_STATIC):
+        register += 1
+    track_register = None
+    album_register = None
+    for typ in params:
+        if typ == MODEL:
+            track_register = register
+        if typ == ALBUM_MODEL:
+            album_register = register
+        register += 2 if typ in ("J", "D") else 1
+    if track_register is None or album_register is None:
+        return None
+    track_aliases = {track_register}
+    album_arg_aliases = {album_register}
+    source_album_aliases = set()
+    new_track_aliases = set()
+    out = {
+        "new_track_constructor_calls": 0,
+        "album_argument_passed_to_new_track_constructor": False,
+        "source_track_album_passed_to_new_track_constructor": False,
+        "album_argument_stored_on_new_track": False,
+        "source_track_album_stored_on_new_track": False,
+        "returns_new_track": False,
+        "reads_album_field_from_source_track": False,
+    }
+    for _pc, op, words in instructions(dex, code_off):
+        if op == 0x22:  # new-instance
+            dest = words[0] >> 8
+            desc = dex.descriptor(words[1])
+            for aliases in (track_aliases, album_arg_aliases,
+                            source_album_aliases, new_track_aliases):
+                aliases.discard(dest)
+            if desc == MODEL:
+                new_track_aliases.add(dest)
+        elif op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move is not None:
+                dest, source = move
+                for aliases in (track_aliases, album_arg_aliases,
+                                source_album_aliases, new_track_aliases):
+                    aliases.discard(dest)
+                    if source in aliases:
+                        aliases.add(dest)
+        elif 0x52 <= op <= 0x58:
+            dest = written_register(op, words)
+            receiver = (words[0] >> 12) & 15
+            owner, _name, typ = field_id(dex, words[1])
+            for aliases in (track_aliases, album_arg_aliases,
+                            source_album_aliases, new_track_aliases):
+                aliases.discard(dest)
+            if owner == MODEL and typ == ALBUM_MODEL and receiver in track_aliases:
+                source_album_aliases.add(dest)
+                out["reads_album_field_from_source_track"] = True
+        elif op == 0x5b:  # iput-object
+            value = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            owner, _name, typ = field_id(dex, words[1])
+            if owner == MODEL and typ == ALBUM_MODEL and receiver in new_track_aliases:
+                if value in album_arg_aliases:
+                    out["album_argument_stored_on_new_track"] = True
+                if value in source_album_aliases:
+                    out["source_track_album_stored_on_new_track"] = True
+        elif op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            if callee[0] == MODEL and callee[1] == "<init>" and regs:
+                if regs[0] in new_track_aliases:
+                    out["new_track_constructor_calls"] += 1
+                    if any(reg in album_arg_aliases for reg in regs[1:]):
+                        out["album_argument_passed_to_new_track_constructor"] = True
+                    if any(reg in source_album_aliases for reg in regs[1:]):
+                        out["source_track_album_passed_to_new_track_constructor"] = True
+        elif op == 0x11:  # return-object
+            if (words[0] >> 8) in new_track_aliases:
+                out["returns_new_track"] = True
+        elif op == 0x1f:  # check-cast preserves reference identity
+            pass
+        else:
+            dest = written_register(op, words)
+            if dest is not None:
+                for aliases in (track_aliases, album_arg_aliases,
+                                source_album_aliases, new_track_aliases):
+                    aliases.discard(dest)
+    return out
+
+
 def album_constructor_argument_store(dex: Dex, method, flags: int, code_off: int):
     """Summarize Track-constructor Album-argument usage without exposing symbols."""
     if method[0] != MODEL or method[1] != "<init>" or flags & ACC_STATIC:
@@ -673,6 +769,8 @@ def inspect_signed(apks):
     model_accessor_field_reads = []
     album_accessor_field_reads = []
     track_album_constructor_rows = []
+    track_album_copy_flow_rows = []
+    model_method_definitions = []
     wrapper_constructor_callsites = []
     model_referenced_methods = []
     descriptor_builder_callers = []
@@ -753,6 +851,13 @@ def inspect_signed(apks):
                     if method[0] == "LGl4;":
                         flow_source_interface_methods.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method[0] == MODEL:
+                        model_method_definitions.append((method,flags,code_off))
+                        if is_native_track_album_copy_method(method):
+                            if len(track_album_copy_flow_rows)>=4:
+                                raise ValueError("TRACK_ALBUM_COPY_BOUND")
+                            track_album_copy_flow_rows.append(
+                                track_album_copy_flow(dex,method,flags,code_off))
                     if method[0] == MODEL and method[1] == "<init>":
                         album_row = album_constructor_argument_store(
                             dex, method, flags, code_off)
@@ -942,14 +1047,32 @@ def inspect_signed(apks):
                         and row["field_type"] == ALBUM_MODEL
                         for row in model_accessor_field_reads)
                 for method in model_methods),
-            "proven": (
-                sum(is_native_track_album_copy_method(method)
-                    for method in model_methods) == 1
-                and sum(is_native_track_album_copy_method(method)
-                        and any(row["signature"] == method[2]
-                                and row["field_type"] == ALBUM_MODEL
-                                for row in model_accessor_field_reads)
-                        for method in model_methods) == 1
+            "copy_methods_passing_album_argument_to_track_constructor": sum(
+                bool(row and row["album_argument_passed_to_new_track_constructor"])
+                for row in track_album_copy_flow_rows),
+            "copy_methods_passing_source_track_album_to_track_constructor": sum(
+                bool(row and row["source_track_album_passed_to_new_track_constructor"])
+                for row in track_album_copy_flow_rows),
+            "copy_methods_storing_album_argument_on_new_track": sum(
+                bool(row and row["album_argument_stored_on_new_track"])
+                for row in track_album_copy_flow_rows),
+            "copy_methods_storing_source_track_album_on_new_track": sum(
+                bool(row and row["source_track_album_stored_on_new_track"])
+                for row in track_album_copy_flow_rows),
+            "copy_methods_returning_new_track": sum(
+                bool(row and row["returns_new_track"])
+                for row in track_album_copy_flow_rows),
+            "copy_methods_reading_album_field_from_source_track": sum(
+                bool(row and row["reads_album_field_from_source_track"])
+                for row in track_album_copy_flow_rows),
+            "album_argument_to_returned_track_flow_candidate": (
+                len(track_album_copy_flow_rows) == 1
+                and bool(track_album_copy_flow_rows[0])
+                and (
+                    track_album_copy_flow_rows[0]["album_argument_passed_to_new_track_constructor"]
+                    or track_album_copy_flow_rows[0]["album_argument_stored_on_new_track"]
+                )
+                and track_album_copy_flow_rows[0]["returns_new_track"]
             ),
             "private_method_and_field_names_disclosed": False,
         },
