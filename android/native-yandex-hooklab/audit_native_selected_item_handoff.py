@@ -746,6 +746,238 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
         "runtime_state_or_media_read": False,
     }
 
+def select_candidate_identity_focus_refs(census):
+    refs = set()
+    for site in census.get("identity_link_sites", []):
+        for side in ("caller", "target"):
+            row = site[side]
+            refs.add((row["owner"], row["method"], row["signature"]))
+    for row in census.get("candidate_method_evidence", []):
+        if row["returns_track"] or (
+            row["method"] in ("create", "invokeSuspend")
+            and row["reads_track_album_wrapper_on_this"]
+        ):
+            refs.add((row["owner"], row["method"], row["signature"]))
+    if len(refs) > 64:
+        raise ValueError("TRACK_IDENTITY_FOCUS_METHOD_LIMIT")
+    return sorted(refs)
+
+
+def trace_identity_method(dex, method, flags, code_off, candidate_owners=None):
+    """Trace only typed Track/Album/wrapper object aliases in one exact method."""
+    candidate_owners = candidate_owners or set()
+    tracked_types = {
+        MODEL: "TRACK",
+        ALBUM_MODEL: "ALBUM",
+        WRAPPER: "TRACK_WRAPPER",
+    }
+    aliases = {
+        typ: {
+            register: {"CALLER_TYPED_PARAMETER"}
+            for register in typed_parameter_registers(
+                dex, method, flags, code_off, typ
+            )
+        }
+        for typ in tracked_types
+    }
+    this_register = (
+        None if flags & ACC_STATIC
+        else dex.u16(code_off) - dex.u16(code_off + 2)
+    )
+    events = []
+    pending_return_type = None
+    branch_seen = False
+
+    def clear_register(register):
+        for values in aliases.values():
+            values.pop(register, None)
+
+    def add_event(row):
+        if len(events) >= 128:
+            raise ValueError("TRACK_IDENTITY_METHOD_EVENT_LIMIT")
+        events.append(row)
+
+    for ordinal, op, words in instructions(dex, code_off):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            params = parse_types(callee[2])
+            is_static = op in (0x71, 0x77)
+            target_types = params if is_static else [callee[0]] + params
+            identity_arguments = []
+            if len(regs) == len(target_types):
+                for index, register in enumerate(regs):
+                    declared_type = target_types[index]
+                    for tracked_type, label in tracked_types.items():
+                        origins = aliases[tracked_type].get(register)
+                        if origins:
+                            identity_arguments.append({
+                                "argument_position": index,
+                                "declared_argument_type": declared_type,
+                                "identity_type": label,
+                                "origins": sorted(origins),
+                            })
+            if identity_arguments:
+                role = "OTHER_METHOD"
+                if (callee[0], callee[1]) == DESCRIPTOR_BUILDER:
+                    role = "NATIVE_SOURCE_DESCRIPTOR"
+                elif callee[0] in PLAYER_OWNERS and callee[1] in PLAYER_METHODS:
+                    role = "PLAYER_SELECTION_OR_TRANSPORT"
+                else:
+                    boundary = classify_boundary_call(callee)
+                    if boundary:
+                        role = boundary
+                    elif callee[0] in candidate_owners:
+                        role = "SHARED_TRACK_OWNER_METHOD"
+                    elif callee[1] in ("collect", "collectLatest", "launchIn", "emit"):
+                        role = "FLOW_COLLECT_OR_EMIT"
+                    elif (
+                        callee[0] in {
+                            "Ljava/util/List;", "Ljava/util/Collection;",
+                            "Ljava/util/Queue;", "Ljava/util/Deque;",
+                            "Ljava/util/Set;"
+                        }
+                        and callee[1] in ("add", "addAll", "offer", "put", "set", "remove")
+                    ):
+                        role = "COLLECTION_MUTATION_CANDIDATE"
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "CALL_WITH_TYPED_IDENTITY",
+                    "role": role,
+                    "callee": {
+                        "owner": callee[0],
+                        "method": callee[1],
+                        "signature": callee[2],
+                    },
+                    "identity_arguments": identity_arguments,
+                })
+            result_type = callee[2].split(")", 1)[1]
+            pending_return_type = result_type if result_type in tracked_types else None
+            continue
+
+        if op == 0x0c:  # move-result-object, only the immediately preceding invoke
+            dest = words[0] >> 8
+            clear_register(dest)
+            if pending_return_type:
+                aliases[pending_return_type][dest] = {"RETURNED_FROM_METHOD"}
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "MOVE_RESULT_TYPED_IDENTITY",
+                    "identity_type": tracked_types[pending_return_type],
+                })
+            pending_return_type = None
+            continue
+
+        pending_return_type = None
+        if op == 0x54:  # iget-object: inspect type and receiver, never field value
+            dest = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            clear_register(dest)
+            if receiver == this_register and field_type in tracked_types:
+                aliases[field_type][dest] = {"FIELD_READ_FROM_THIS"}
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "FIELD_READ_TYPED_IDENTITY",
+                    "identity_type": tracked_types[field_type],
+                    "receiver_is_this": True,
+                })
+            continue
+
+        if op == 0x5b:  # iput-object: record type-only storage of a tracked alias
+            value_register = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            field_owner, _field_name, field_type = field_id(dex, words[1])
+            origins = aliases.get(field_type, {}).get(value_register)
+            if origins:
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                    "identity_type": tracked_types[field_type],
+                    "destination_owner": field_owner,
+                    "receiver_is_this": receiver == this_register,
+                    "origins": sorted(origins),
+                })
+            continue
+
+        if op == 0x67:  # sput-object
+            value_register = words[0] >> 8
+            field_owner, _field_name, field_type = field_id(dex, words[1])
+            origins = aliases.get(field_type, {}).get(value_register)
+            if origins:
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "STATIC_FIELD_STORE_TYPED_IDENTITY",
+                    "identity_type": tracked_types[field_type],
+                    "destination_owner": field_owner,
+                    "origins": sorted(origins),
+                })
+            continue
+
+        if op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move:
+                dest, source = move
+                copied = {
+                    typ: set(values[source])
+                    for typ, values in aliases.items()
+                    if source in values
+                }
+                clear_register(dest)
+                for typ, origins in copied.items():
+                    aliases[typ][dest] = origins
+            continue
+
+        if op == 0x1f:  # check-cast preserves the reference
+            continue
+
+        dest = written_register(op, words)
+        if dest is not None:
+            clear_register(dest)
+        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+            branch_seen = True
+            for values in aliases.values():
+                values.clear()
+
+    return {
+        "method": {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        },
+        "events": events,
+        "branch_seen_aliases_cleared": branch_seen,
+        "field_names_or_values_disclosed": False,
+        "strings_urls_dat aspec_account_or_audio_read": False,
+    }
+
+
+def inspect_candidate_identity_method_traces(apks, focus_refs, candidate_owners):
+    focus = set(focus_refs)
+    traces = []
+    found = set()
+    if len(focus) > 64:
+        raise ValueError("TRACK_IDENTITY_TRACE_METHOD_LIMIT")
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("TRACK_IDENTITY_TRACE_DEX_LIMIT")
+                dex = Dex(archive.read(entry.filename))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method not in focus:
+                        continue
+                    found.add(method)
+                    traces.append(trace_identity_method(
+                        dex, method, flags, code_off, candidate_owners
+                    ))
+    if found != focus:
+        raise ValueError("TRACK_IDENTITY_FOCUS_METHODS_NOT_ALL_DEFINED")
+    return traces
+
+
 def summarize_boundary_callsite_census(rows, class_profiles=None):
     class_profiles = class_profiles or {}
     summary = {}
@@ -1753,6 +1985,12 @@ def inspect_signed(apks):
     candidate_owner_method_census = inspect_candidate_owner_methods(
         apks, candidate_owner_set, class_profiles
     )
+    candidate_identity_focus_refs = select_candidate_identity_focus_refs(
+        candidate_owner_method_census
+    )
+    candidate_identity_method_traces = inspect_candidate_identity_method_traces(
+        apks, candidate_identity_focus_refs, candidate_owner_set
+    )
     if dex_count != 6:
         raise ValueError("SIGNED_SIX_DEX_REQUIRED")
     if not model_defined:
@@ -1988,6 +2226,7 @@ def inspect_signed(apks):
             summarize_track_field_owner_inventory(class_profiles),
         "track_album_shared_owner_candidates": candidate_owner_rows,
         "track_shared_owner_method_census": candidate_owner_method_census,
+        "candidate_identity_focus_method_traces": candidate_identity_method_traces,
         "boundary_callsite_identity_census":
             summarize_boundary_callsite_census(boundary_callsite_rows, class_profiles),
         "same_basic_block_model_parameter_flows": model_flow_candidates,

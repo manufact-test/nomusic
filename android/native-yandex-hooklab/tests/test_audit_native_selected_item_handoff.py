@@ -6,7 +6,8 @@ from audit_native_selected_item_handoff import (
     DECODER_BOUNDARY_METHODS, EDITION_MARKERS, GENERATION_MARKERS,
     classify_boundary_call, boundary_callsite_census,
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
-    candidate_owner_descriptors, typed_parameter_registers
+    candidate_owner_descriptors, typed_parameter_registers,
+    trace_identity_method
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -265,6 +266,49 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(typed_parameter_registers(FakeDex(),method,0x8,100,MODEL),{2})
         self.assertEqual(typed_parameter_registers(FakeDex(),method,0x8,100,ALBUM_MODEL),{3})
         self.assertEqual(typed_parameter_registers(FakeDex(),method,0x8,100,WRAPPER),{6})
+
+    def test_identity_method_trace_preserves_track_field_alias_to_call(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:1}[offset]
+            def method(self, index):
+                return ("LTarget;", "consume", f"({MODEL})V")
+        method=("LCaller;", "run", "()V")
+        ins=[(0,0x54,[0x3154,0]),(1,0x6e,[0x006e,0])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LCaller;","hidden",MODEL)), \\
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[0,1]):
+            trace=trace_identity_method(FakeDex(),method,0,100,{"LTarget;"})
+        calls=[row for row in trace["events"] if row["kind"]=="CALL_WITH_TYPED_IDENTITY"]
+        self.assertEqual(len(calls),1)
+        self.assertEqual(calls[0]["identity_arguments"][0]["identity_type"],"TRACK")
+        self.assertIn("FIELD_READ_FROM_THIS",calls[0]["identity_arguments"][0]["origins"])
+
+    def test_identity_method_trace_tracks_returned_track_and_clears_on_branch(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:1}[offset]
+            def method(self, index):
+                if index==0:
+                    return ("LFactory;","get","()"+MODEL)
+                return ("LTarget;","consume",f"({MODEL})V")
+        method=("LCaller;","run","()V")
+        ins=[
+            (0,0x71,[0x0071,0]),
+            (1,0x0c,[0x010c]),
+            (2,0x6e,[0x006e,1])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=[[],[0,1]]):
+            trace=trace_identity_method(FakeDex(),method,0,100)
+        calls=[row for row in trace["events"] if row["kind"]=="CALL_WITH_TYPED_IDENTITY"]
+        self.assertEqual(len(calls),1)
+        self.assertIn("RETURNED_FROM_METHOD",calls[0]["identity_arguments"][0]["origins"])
 
     def test_edition_generation_markers_are_exact_and_bounded(self):
         self.assertIn("edition", EDITION_MARKERS)
