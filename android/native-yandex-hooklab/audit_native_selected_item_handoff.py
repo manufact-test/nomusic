@@ -2450,19 +2450,30 @@ def trace_native_track_coroutine_continuation(
             written.add(dest)
             if op in wide_ops:
                 written.add(dest + 1)
-    stable = set(range(dex.u16(initial_code_off))) - written
+    future_writes = [set() for _ in range(len(ins))]
+    later = set()
+    for index in range(len(ins)-1, -1, -1):
+        future_writes[index] = set(later)
+        _pc, candidate_op, candidate_words = ins[index]
+        candidate_dest = written_register(candidate_op, candidate_words)
+        if candidate_dest is not None:
+            later.add(candidate_dest)
+            if candidate_op in wide_ops:
+                later.add(candidate_dest + 1)
     track_aliases = set(track_regs)
     continuation_aliases = set(cont_regs)
     continuation_instances = set()
     track_string_aliases = set()
     wrapper_aliases = set()
+    track_derived_wrapper_aliases = set()
     capture_stores, track_reads, track_string_reads = [], [], []
     wrapper_ctors, wrapper_handoffs, suspend_handoffs = [], [], []
     branch_seen = False
 
     def clear(reg):
         for aliases in (track_aliases, continuation_aliases, continuation_instances,
-                        track_string_aliases, wrapper_aliases):
+                        track_string_aliases, wrapper_aliases,
+                        track_derived_wrapper_aliases):
             aliases.discard(reg)
 
     for ordinal, (_pc, op, words) in enumerate(ins):
@@ -2489,12 +2500,16 @@ def trace_native_track_coroutine_continuation(
                         "ordinal":ordinal,
                         "wrapper_is_constructed_from_string_field_of_same_track":True
                     })
+                    track_derived_wrapper_aliases.add(regs[0])
             if callee[0]=="Lou3;" and callee[1]=="new" and len(regs)==len(target_types):
                 wrapper_pos=[i for i,t in enumerate(target_types) if t==WRAPPER]
                 cont_pos=[i for i,t in enumerate(target_types) if t==continuation_owner]
                 wrapper_handoffs.append({
                     "ordinal":ordinal,
-                    "track_derived_wrapper_passed":any(regs[i] in wrapper_aliases for i in wrapper_pos),
+                    "wrapper_instance_passed":any(regs[i] in wrapper_aliases for i in wrapper_pos),
+                    "track_derived_wrapper_passed":any(
+                        regs[i] in track_derived_wrapper_aliases for i in wrapper_pos
+                    ),
                     "same_continuation_passed":any(
                         regs[i] in continuation_aliases or regs[i] in continuation_instances
                         for i in cont_pos
@@ -2559,7 +2574,8 @@ def trace_native_track_coroutine_continuation(
                     "continuation":source in continuation_aliases,
                     "instance":source in continuation_instances,
                     "string":source in track_string_aliases,
-                    "wrapper":source in wrapper_aliases
+                    "wrapper":source in wrapper_aliases,
+                    "track_derived_wrapper":source in track_derived_wrapper_aliases
                 }
                 clear(dest)
                 if origins["track"]: track_aliases.add(dest)
@@ -2568,6 +2584,7 @@ def trace_native_track_coroutine_continuation(
                     continuation_instances.add(dest); continuation_aliases.add(dest)
                 if origins["string"]: track_string_aliases.add(dest)
                 if origins["wrapper"]: wrapper_aliases.add(dest)
+                if origins["track_derived_wrapper"]: track_derived_wrapper_aliases.add(dest)
             continue
 
         if op == 0x1f:
@@ -2581,9 +2598,11 @@ def trace_native_track_coroutine_continuation(
             clear(dest)
         if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
             branch_seen=True
+            stable_here=set(range(dex.u16(initial_code_off))) - future_writes[ordinal]
             for aliases in (track_aliases,continuation_aliases,continuation_instances,
-                            track_string_aliases,wrapper_aliases):
-                aliases.intersection_update(stable)
+                            track_string_aliases,wrapper_aliases,
+                            track_derived_wrapper_aliases):
+                aliases.intersection_update(stable_here)
 
     resume_this=None if resume_flags&ACC_STATIC else (
         dex.u16(resume_code_off)-dex.u16(resume_code_off+2)
