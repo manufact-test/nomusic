@@ -1109,7 +1109,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                 return ("LTarget;","for","(LGl4;Lkotlinx/coroutines/CoroutineScope;)V")
         ins=[(0,0x71,[0x0071,1,2,3])]
         with patch("audit_native_selected_item_handoff.invoke_registers",
-                   return_value=[1,2,3]):
+                   return_value=[1,2]):
             rows=logical_invoke_argument_rows(
                 FakeDex(),("LCaller;","run","()V"),0x8,100,ins,0,0x71,ins[0][2],
                 trace_origins=False
