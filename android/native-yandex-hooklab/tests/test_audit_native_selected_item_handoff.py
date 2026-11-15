@@ -8,7 +8,7 @@ from audit_native_selected_item_handoff import (
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
     trace_identity_method, select_next_identity_method_refs,
-    summarize_boundary_callsite_owner_profiles
+    summarize_boundary_callsite_owner_profiles, method_signature_type_profile
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -188,6 +188,18 @@ class SelectedItemAuditTests(unittest.TestCase):
             reverse=boundary_callsite_census(FakeDex(),method,0,100,[publish,helper])
         self.assertTrue(rows[0]["track_returning_method_call_before"])
         self.assertFalse(reverse[0]["track_returning_method_call_before"])
+
+    def test_method_signature_type_profile_is_type_only(self):
+        from audit_native_selected_item_handoff import method_signature_type_profile
+        profile=method_signature_type_profile((
+            "LCaller;","submit",
+            "(Landroidx/media3/common/MediaItem;Landroid/media/MediaMetadata;Landroid/net/Uri;)V"
+        ))
+        self.assertTrue(profile["accepts_media_item"])
+        self.assertTrue(profile["accepts_media_metadata"])
+        self.assertTrue(profile["accepts_uri"])
+        self.assertFalse(profile["accepts_track"])
+        self.assertFalse(profile["accepts_data_source"])
 
     def test_owner_profile_detects_media_item_and_decoder_types_without_values(self):
         from audit_native_selected_item_handoff import classify_track_owner_profile

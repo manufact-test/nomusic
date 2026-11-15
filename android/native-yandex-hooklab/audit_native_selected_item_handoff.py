@@ -142,6 +142,7 @@ def boundary_callsite_census(dex, method, flags, code_off, ins=None):
             rows.append({
                 "kind": kind,
                 "caller_key": method,
+                "target_key": callee,
                 "ordinal": ordinal,
                 "track_parameter_present": has_track_parameter,
                 "album_parameter_present": has_album_parameter,
@@ -1094,9 +1095,24 @@ def summarize_boundary_callsite_owner_profiles(rows, class_profiles=None):
     for row in rows:
         owner = row["caller_key"][0]
         bucket = grouped.setdefault(row["kind"], {})
-        entry = bucket.setdefault(owner, {"call_site_count": 0, "methods": set()})
+        entry = bucket.setdefault(owner, {
+            "call_site_count": 0, "methods": set(), "call_sites": []
+        })
         entry["call_site_count"] += 1
         entry["methods"].add(row["caller_key"])
+        entry["call_sites"].append({
+            "caller": {
+                "owner": row["caller_key"][0],
+                "method": row["caller_key"][1],
+                "signature": row["caller_key"][2],
+            },
+            "target": {
+                "owner": row["target_key"][0],
+                "method": row["target_key"][1],
+                "signature": row["target_key"][2],
+            },
+            "ordinal": row["ordinal"],
+        })
     result = {}
     for kind, owners in grouped.items():
         if len(owners) > 64:
@@ -1108,6 +1124,7 @@ def summarize_boundary_callsite_owner_profiles(rows, class_profiles=None):
                 "owner": owner,
                 "call_site_count": entry["call_site_count"],
                 "distinct_caller_method_count": len(entry["methods"]),
+                "call_sites": entry["call_sites"],
                 "has_track_field": profile["has_track_field"],
                 "has_album_field": profile["has_album_field"],
                 "has_wrapper_field": profile["has_wrapper_field"],
@@ -1179,6 +1196,117 @@ def summarize_boundary_callsite_census(rows, class_profiles=None):
             row["caller_key"] for row in rows if row["kind"] == kind
         })
     return summary
+def method_signature_type_profile(method):
+    params = parse_types(method[2])
+    result = method[2].split(")", 1)[1]
+    lowered_params = [typ.lower() for typ in params]
+    lowered_result = result.lower()
+    def has_marker(values, markers):
+        return any(marker in value for value in values for marker in markers)
+    return {
+        "accepts_track": MODEL in params,
+        "accepts_album": ALBUM_MODEL in params,
+        "accepts_track_wrapper": WRAPPER in params,
+        "returns_track": result == MODEL,
+        "returns_album": result == ALBUM_MODEL,
+        "accepts_media_item": has_marker(lowered_params, ("mediaitem", "playeritem", "trackitem", "queueitem")),
+        "returns_media_item": has_marker((lowered_result,), ("mediaitem", "playeritem", "trackitem", "queueitem")),
+        "accepts_media_source": has_marker(lowered_params, ("mediasource",)),
+        "returns_media_source": has_marker((lowered_result,), ("mediasource",)),
+        "accepts_media_metadata": has_marker(lowered_params, ("mediametadata",)),
+        "returns_media_metadata": has_marker((lowered_result,), ("mediametadata",)),
+        "accepts_playback_state": has_marker(lowered_params, ("playbackstate",)),
+        "returns_playback_state": has_marker((lowered_result,), ("playbackstate",)),
+        "accepts_data_source": has_marker(lowered_params, ("datasource", "mediadatasource")),
+        "returns_data_source": has_marker((lowered_result,), ("datasource", "mediadatasource")),
+        "accepts_uri": has_marker(lowered_params, ("landroid/net/uri;", "ljava/net/uri;")),
+        "returns_uri": has_marker((lowered_result,), ("landroid/net/uri;", "ljava/net/uri;")),
+        "accepts_byte_buffer": "ljava/nio/bytebuffer;" in lowered_params,
+        "accepts_media_format": has_marker(lowered_params, ("mediaformat",)),
+        "accepts_surface": has_marker(lowered_params, ("landroid/view/surface;",)),
+    }
+
+
+def inspect_boundary_caller_inbound_methods(apks, boundary_rows, class_profiles):
+    focus = {row["caller_key"] for row in boundary_rows}
+    if len(focus) > 64:
+        raise ValueError("BOUNDARY_FOCUS_METHOD_LIMIT")
+    inbound = []
+    caller_methods = set()
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("BOUNDARY_INBOUND_DEX_LIMIT")
+                dex = Dex(archive.read(entry.filename))
+                for method, _flags, code_off in method_definitions_with_flags(dex):
+                    caller_profile = classify_track_owner_profile(
+                        class_profiles.get(method[0], {})
+                    )
+                    caller_signature = method_signature_type_profile(method)
+                    for _ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        callee = dex.method(words[1])
+                        if callee not in focus:
+                            continue
+                        if len(inbound) >= 256:
+                            raise ValueError("BOUNDARY_INBOUND_CALLSITE_LIMIT")
+                        caller_methods.add(method)
+                        inbound.append({
+                            "caller": {
+                                "owner": method[0],
+                                "method": method[1],
+                                "signature": method[2],
+                            },
+                            "target": {
+                                "owner": callee[0],
+                                "method": callee[1],
+                                "signature": callee[2],
+                            },
+                            "caller_signature_types": caller_signature,
+                            "target_signature_types": method_signature_type_profile(callee),
+                            "caller_owner_shape": {
+                                key: caller_profile[key] for key in (
+                                    "has_track_field", "has_album_field",
+                                    "has_wrapper_field", "has_collection_field",
+                                    "has_numeric_field", "has_player_api_field",
+                                    "implements_player_api", "has_media_session_field",
+                                    "has_media_item_field", "has_media_source_field",
+                                    "has_media_metadata_field", "has_playback_state_field",
+                                    "has_audio_track_field", "has_media_codec_field",
+                                    "has_media_extractor_field", "has_decoder_field",
+                                    "has_source_like_field", "has_kotlin_flow_field"
+                                )
+                            },
+                        })
+    relevant = [
+        row for row in inbound
+        if (
+            row["caller_signature_types"]["accepts_track"]
+            or row["caller_signature_types"]["accepts_album"]
+            or row["caller_signature_types"]["accepts_track_wrapper"]
+            or row["caller_signature_types"]["accepts_media_item"]
+            or row["caller_signature_types"]["accepts_media_source"]
+            or row["caller_signature_types"]["accepts_data_source"]
+            or row["caller_signature_types"]["accepts_uri"]
+            or any(row["caller_owner_shape"].values())
+        )
+    ]
+    return {
+        "boundary_focus_method_count": len(focus),
+        "inbound_callsite_count": len(inbound),
+        "distinct_inbound_caller_method_count": len(caller_methods),
+        "inbound_callers_with_relevant_typed_state": relevant,
+        "inbound_callers_all": inbound,
+        "field_values_or_media_values_read": False,
+        "urls_dataspec_account_or_audio_read": False,
+        "virtual_dispatch_or_branch_inferred": False,
+    }
+
+
 SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "while"),
     ("Lcom/yandex/music/shared/player/download2/o;", "for"),
@@ -2411,6 +2539,8 @@ def inspect_signed(apks):
             summarize_boundary_callsite_census(boundary_callsite_rows, class_profiles),
         "boundary_callsite_owner_profiles":
             summarize_boundary_callsite_owner_profiles(boundary_callsite_rows, class_profiles),
+        "boundary_caller_inbound_methods":
+            inspect_boundary_caller_inbound_methods(apks, boundary_callsite_rows, class_profiles),
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,
