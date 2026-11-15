@@ -131,3 +131,16 @@ Main CI `43760597485` и Windows Integration CI `43760597507` — SUCCESS. W22/W
 - Ссылка: https://github.com/manufact-test/nomusic/actions/runs/43760955394/artifacts/14180750696
 
 Сборка внутренняя и unsigned; публикации или production feed нет. Старый Draft `0.24.38` запрещён к использованию. Осталась только ручная проверка владельца.
+
+
+## W54 follow-up capture — 16.11.2026, app 0.24.39.0
+
+A second owner diagnostic was supplied as Вставленный текст(20261115-213827).txt (generated 21:38:19 UTC). It identifies app 0.24.39.0, native module 0.24.30, and the same absence of decoder kUrl / exact native media URL proof.
+
+The 15-minute window records 25 route-change events, 5 entitlement network errors/suspensions, 5 recoveries, 19 native recovery pause/resume pairs, 5 SOURCE_HELD events and 4 SOURCE_KEPT events. Crucially, it still contains one same-track failure: track 144530503 is marked NATIVE_ROUTE_RECOVERY_SOURCE_HELD at 21:35:29.013, but after recovery the renderer emits NATIVE_CURRENT_SOURCE_REVALIDATE at 21:35:31.735, NATIVE_REPLACEMENT_SOURCE_RELOAD at 21:35:31.737 and NATIVE_REPLACEMENT_SOURCE_RELOAD_OK at 21:35:32.648. A second route-change event occurred between hold and recovery.
+
+This proves the W157 no-kUrl path is not yet fully field-accepted. The capture does not identify whether preserveCurrentSource / preserveCurrentTrackId was false, the host current-track witness failed, or renderer currentWasMapped was false. The next implementation must instrument the exact rejection reason with privacy-safe fixed codes and correct only the failed guard. Do not assume that a SOURCE_HELD event proves SOURCE_KEPT.
+
+The same capture reports ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING, PlayerAudibleEventObserved=false, NativeDecoderUrlPropertyObserved=false and NativeMediaUrlExactMatchObserved=false. It shows no observed CORS failure, native audio 403, decoder error, CPU/memory spike or event-loop stall. Passive PLAYER_NET_* events remain non-proof of audible playback.
+
+A separate autorun capture, Вставленный текст(20261115-212832).txt, shows WIN_AUTORUN_CONNECTED_IN_TRAY before HOST_LOADED / PLAYER_CDP_READY; the native host becomes visible only after the owner manually presses Stop and Start. Full owner field findings and ordered work are recorded in W158.
