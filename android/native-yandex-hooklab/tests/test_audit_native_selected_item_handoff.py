@@ -5,7 +5,8 @@ from audit_native_selected_item_handoff import (
     MEDIA_SESSION_METADATA_METHODS, MEDIA_SESSION_STATE_METHODS,
     DECODER_BOUNDARY_METHODS, EDITION_MARKERS, GENERATION_MARKERS,
     classify_boundary_call, boundary_callsite_census,
-    summarize_track_field_owner_inventory, summarize_boundary_callsite_census
+    summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
+    candidate_owner_descriptors, typed_parameter_registers
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -229,6 +230,41 @@ class SelectedItemAuditTests(unittest.TestCase):
         }
         result=summarize_boundary_callsite_census([row],profiles)
         self.assertEqual(result["MEDIA_SESSION_METADATA"]["caller_owner_has_track_field_call_site_count"],1)
+
+    def test_candidate_owner_descriptors_only_select_shared_track_shapes(self):
+        from audit_native_selected_item_handoff import ALBUM_MODEL, WRAPPER
+        profiles={
+            "LTrackAlbumOwner;": {
+                "static_types": set(),
+                "instance_types": {MODEL, ALBUM_MODEL},
+                "interfaces": set(), "superclass": None
+            },
+            "LTrackWrapperOwner;": {
+                "static_types": set(),
+                "instance_types": {MODEL, WRAPPER},
+                "interfaces": set(), "superclass": None
+            },
+            "LTrackOnlyOwner;": {
+                "static_types": set(),
+                "instance_types": {MODEL, "Ljava/util/List;"},
+                "interfaces": set(), "superclass": None
+            }
+        }
+        rows=candidate_owner_descriptors(profiles)
+        self.assertEqual([row["owner"] for row in rows],
+                         ["LTrackAlbumOwner;", "LTrackWrapperOwner;"])
+
+    def test_typed_parameter_registers_preserve_exact_reference_registers(self):
+        from audit_native_selected_item_handoff import (
+            ALBUM_MODEL, WRAPPER, typed_parameter_registers
+        )
+        class FakeDex:
+            def u16(self, offset):
+                return {100:7,102:5}[offset]
+        method=("LCaller;","handoff",f"({MODEL}{ALBUM_MODEL}J{WRAPPER})V")
+        self.assertEqual(typed_parameter_registers(FakeDex(),method,0x8,100,MODEL),{2})
+        self.assertEqual(typed_parameter_registers(FakeDex(),method,0x8,100,ALBUM_MODEL),{3})
+        self.assertEqual(typed_parameter_registers(FakeDex(),method,0x8,100,WRAPPER),{6})
 
     def test_edition_generation_markers_are_exact_and_bounded(self):
         self.assertIn("edition", EDITION_MARKERS)
