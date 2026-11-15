@@ -41,6 +41,9 @@ Do not ask the owner to test intermediate builds. The only owner package is the 
 
 ## Status and next order
 
-- Tasks 1–4 are code/test/CI-ready. Tasks 1–3 are **not** owner-PC field-accepted; #52 remains OPEN.
-- No EXE, ZIP, installer or release artifact was built. Owner remains on 0.24.37.
-- Next: W150 Task 5 only — refactor the obsolete W148 PFX/Authenticode scaffold to the approved P-256 signed manifest + SHA-256 updater/feed. No commercial certificate, PFX, security bypass or early DNS/TLS activation. Task 6 is exactly one final EXE+ZIP after Task 5.
+- Tasks 1–4 are code/test/CI-ready. Tasks 1–3 are **not** owner-PC field-accepted; #52 remains OPEN until the current-player/source-truth checks in this plan pass on the final owner build.
+- Task 5 (W155/W156) is complete at code/test/CI level. The protected release workflow produced the single final bootstrap package for **0.24.38**.
+- Final protected release workflow run `43741752502`: **SUCCESS** on source commit `bc59e0c7e4db749d616b318beb89369245811b44`. Main CI `43741752582` and Windows integration CI `43741752579`: **SUCCESS**.
+- The unpublished Draft Release is `celikom-windows-v0.24.38-owner-bootstrap` (release ID `446239144`). It contains exactly one `CELIKOM-Windows-0.24.38.exe`, one `CELIKOM-Windows-0.24.38.zip` and `SHA256SUMS.txt`. The ZIP was checked to contain exactly one EXE at archive root, with content hash equal to the installer. No public Actions artifact was uploaded.
+- Owner remains on 0.24.37 until the manual bootstrap is downloaded and installed. **No owner-PC installation or field acceptance has happened yet.**
+- Next: perform this single grouped W154 owner acceptance using only the 0.24.38 package. Do not build or test intermediate packages. Step 7 (production updater/feed integrity) is deferred until DNS/TLS and the signed production feed are activated. Do not claim production automatic update delivery before then.
