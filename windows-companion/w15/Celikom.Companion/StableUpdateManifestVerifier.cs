@@ -161,10 +161,10 @@ public static class StableUpdateManifestVerifier
             url.Port != officialOrigin.Port ||
             url.UserInfo.Length > 0 || url.Query.Length > 0 || url.Fragment.Length > 0 ||
             url.AbsolutePath.Contains('%') ||
-            !url.AbsolutePath.StartsWith(
-                "/CELIKOM/Windows/Updates/stable/" + target.ToString(3) + "/",
-                StringComparison.Ordinal) ||
-            !url.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            !string.Equals(url.AbsolutePath,
+                "/CELIKOM/Windows/Updates/stable/" + target.ToString(3) +
+                "/CELIKOM-Windows-" + target.ToString(3) + ".exe",
+                StringComparison.Ordinal))
             throw new InvalidDataException("STABLE_MANIFEST_PACKAGE_INVALID");
 
         if (raw.Notes is { Length: > 240 })
