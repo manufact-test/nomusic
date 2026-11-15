@@ -1,3 +1,38 @@
+# SUPERSEDING RESULT — 15 Nov 2026, LCK1 Flow/coroutine field audit (CI GREEN)
+
+**Code checkpoint:** `066778008331584301731f9d430a6713a0e7a02d`.  
+**CI:** [#43743305204](https://github.com/manufact-test/nomusic/actions/runs/43743305204) **SUCCESS, 86/86 tests**, exact publisher-signed 2025 original verified (16 splits / 6 DEX).  
+**Exact green code backup:** `backup/android-a1-lck1-coroutine-field-audit-ci-green-20261115` @ `066778008331584301731f9d430a6713a0e7a02d`.  
+**Previous audit-only run:** [#43743253472](https://github.com/manufact-test/nomusic/actions/runs/43743253472) SUCCESS, 85/85 tests.
+
+## Exact Track field results
+
+Each of these constructors stores the exact incoming Track into exactly one Track-typed field on `this`:
+- `LJK1.<init>`: 1 field store; 4 methods read the exact field.
+- `LCK1$a.<init>(Track, Continuation)`: 1 field store; 2 methods read the exact field.
+- `LCK1$c.<init>(LC3a, Track)`: 1 field store; 1 method reads the exact field.
+- `LCK1$l.<init>(LD3a, Track)`: 1 field store; 1 method reads the exact field.
+
+Key exact same-Track outgoing edges:
+- `LCK1$c.collect()` reads its exact Track field and passes that Track into `LCK1$c$a.<init>(LHl4, Track)`.
+- `LCK1$l.collect()` reads its exact Track field and passes that Track into `LCK1$l$a.<init>(LHl4, Track)`.
+- `LCK1$a.invokeSuspend()` passes the Track into `AbstractMap.containsKey(Object)`; this is a map-membership/filter candidate, not a player/source/decoder edge.
+- `LUJ5.return(Track)` and `LHv4.if(Track)` expose no further Track-identity method handoff in the bounded trace (only parameter validation); do not chase them without new evidence.
+
+Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`.
+
+## Next bounded task
+
+Trace only the two inner coroutine constructors:
+- `LCK1$c$a.<init>(LHl4, Track)`
+- `LCK1$l$a.<init>(LHl4, Track)`
+
+Derive their exact Track field stores from the original Track parameter and scan only methods owned by those exact inner classes for reads of those exact field identities. Follow same-Track calls only toward Flow emission, source descriptor, player or decoder boundaries. Do not expand into generic Flow collectors or unrelated coroutine classes.
+
+No runtime hooks, APK modifications, login, account/media access or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # CURRENT IN-PROGRESS CHECKPOINT — 15 Nov 2026, LCK1 Flow/coroutine Track path
 
 **Code under CI:** `066778008331584301731f9d430a6713a0e7a02d`.  
