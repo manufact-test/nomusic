@@ -598,6 +598,8 @@ def inspect_signed(apks):
     fp0_resume_null_track_arg = False
     raa_resume_same_continuation = False
     raa_resume_null_wrapper = False
+    exo_source_defined = False
+    exo_source_close_void_declared = False
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
@@ -619,6 +621,9 @@ def inspect_signed(apks):
                 dex = Dex(archive.read(entry.filename))
                 dex_count += 1
                 defined = dex.defined_classes()
+                if ("Lcom/yandex/music/shared/player/download2/exo/"
+                        "RetryingBalancingDataSource;" in defined):
+                    exo_source_defined = True
                 if MODEL in defined:
                     if model_defined:
                         raise ValueError("DUPLICATE_NATIVE_TRACK_MODEL")
@@ -659,6 +664,11 @@ def inspect_signed(apks):
                     if method[0] == "LGl4;":
                         flow_source_interface_methods.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method == (
+                        "Lcom/yandex/music/shared/player/download2/exo/"
+                        "RetryingBalancingDataSource;", "close", "()V"
+                    ):
+                        exo_source_close_void_declared = True
                     if (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
                             focused_method_trace(dex, method, flags, code_off))
@@ -859,6 +869,9 @@ def inspect_signed(apks):
         "raa_resume_exact_same_continuation_static_proven": raa_resume_same_continuation,
         "raa_resume_explicit_null_wrapper_argument_static_proven": raa_resume_null_wrapper,
         "raa_resume_wrapper_binding_runtime_proven": False,
+        "exo_source_class_present_in_signed_2025": exo_source_defined,
+        "exo_source_close_void_declared_in_signed_2025":
+            exo_source_close_void_declared,
         "download2_main_source_coroutine_candidates_only": [
             t for t in focused_method_traces
             if t["method"]["owner"] in (
