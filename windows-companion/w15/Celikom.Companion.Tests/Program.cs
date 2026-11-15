@@ -1056,6 +1056,21 @@ try
             try { VerifyManifest(bytes, signature, lastSequence); return false; }
             catch (InvalidDataException) { return true; }
         }
+
+         byte[] ChangeManifestField(string field, object? value, bool remove = false)
+         {
+             using var source = JsonDocument.Parse(signedDocument);
+             var fields = source.RootElement.EnumerateObject()
+                 .Where(property => property.Name != field)
+                 .ToDictionary(property => property.Name, property => property.Value.Clone());
+             if (!remove) fields[field] = JsonSerializer.SerializeToElement(value);
+             return JsonSerializer.SerializeToUtf8Bytes(fields);
+         }
+         Test(Reject(ChangeManifestField("rollback", null, remove: true)) &&
+              Reject(ChangeManifestField("mandatory", null, remove: true)) &&
+              Reject(ChangeManifestField("notes", null)) &&
+              Reject(ChangeManifestField("minimumVersion", "")),
+              "W155 required schema-2 fields, non-null notes and valid minimumVersion are enforced");
         Test(Reject(signedDocument, new byte[70]) &&
              Reject(ManifestBytes(channel: "beta")) &&
              Reject(ManifestBytes(version: "0.24.36")) &&
