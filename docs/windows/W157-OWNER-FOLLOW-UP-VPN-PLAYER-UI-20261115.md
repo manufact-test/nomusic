@@ -110,7 +110,9 @@ The owner wants the developer to continue through the ordered work without stopp
 
 ## 6. First message for the next chat
 
-Copy this as the next chat's first user message:
+The initial W157 intake prompt below is historical and predates the implementation in §7. For any new chat, copy the authoritative current first message from `docs/windows/NEXT-CHAT.md`. It contains the live source checkpoint, exact backups, CI evidence, pending diagnostics and remaining work. Do not reuse the old intake prompt as the current handoff.
+
+### Original W157 intake prompt (historical only)
 
 ---
 
