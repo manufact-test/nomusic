@@ -191,8 +191,24 @@ public sealed class DurableSupervisorJournal(
         value is { Length: 64 } &&
         value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
-    public StableUpdateRollbackJournal.Record Read() =>
-        StableUpdateRollbackJournal.Read(privateRoot);
+    public StableUpdateRollbackJournal.Record Read()
+    {
+        var record = StableUpdateRollbackJournal.Read(privateRoot);
+        return ValidateTrustBinding(record, expectedId, pinnedManifestPublicKeySha256);
+    }
+
+    internal static StableUpdateRollbackJournal.Record ValidateTrustBinding(
+        StableUpdateRollbackJournal.Record record, Guid expectedId,
+        string pinnedManifestPublicKeySha256)
+    {
+        if (record.Id != expectedId)
+            throw new IOException("SUPERVISOR_TRANSACTION_MISMATCH");
+        if (!ValidSha(pinnedManifestPublicKeySha256) ||
+            !string.Equals(record.ManifestPublicKeySha256,
+                pinnedManifestPublicKeySha256, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("SUPERVISOR_MANIFEST_KEY_MISMATCH");
+        return record;
+    }
 
     public void Advance(StableUpdateRollbackJournal.Phase expected,
         StableUpdateRollbackJournal.Phase next) =>
