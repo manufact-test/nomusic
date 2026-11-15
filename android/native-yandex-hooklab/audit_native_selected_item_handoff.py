@@ -1505,18 +1505,17 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
 
 def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
     byte_buffer = "Ljava/nio/ByteBuffer;"
+    byte_buffer_array = "[Ljava/nio/ByteBuffer;"
     aliases = {
         register: {"CALLER_TYPED_PARAMETER"}
         for register in typed_parameter_registers(
             dex, method, flags, code_off, byte_buffer
         )
     }
-    this_register = (
-        None if flags & ACC_STATIC
-        else dex.u16(code_off) - dex.u16(code_off + 2)
-    )
+    array_aliases = set()
     events = []
-    pending_buffer_return = False
+    provenance_events = []
+    pending_object_return_kind = None
     branch_seen = False
     backward_branch_aliases_cleared = False
     switch_branch_aliases_cleared = False
@@ -1552,26 +1551,74 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
                         "CALLER_TYPED_PARAMETER" in row["origins"]
                         for row in origins
                     ),
+                    "byte_buffer_object_proven": bool(origins),
                 })
-            pending_buffer_return = callee[2].split(")", 1)[1] == byte_buffer
+            result_type = callee[2].split(")", 1)[1]
+            if result_type == byte_buffer:
+                pending_object_return_kind = "RETURNED_BYTEBUFFER_FROM_METHOD"
+            elif result_type.startswith(("L", "[")):
+                pending_object_return_kind = "UNKNOWN_OBJECT_RETURN"
+            else:
+                pending_object_return_kind = None
             continue
 
         if op == 0x0c:  # move-result-object
             dest = words[0] >> 8
             aliases.pop(dest, None)
-            if pending_buffer_return:
-                aliases[dest] = {"RETURNED_FROM_METHOD"}
-            pending_buffer_return = False
+            array_aliases.discard(dest)
+            if pending_object_return_kind == "RETURNED_BYTEBUFFER_FROM_METHOD":
+                aliases[dest] = {pending_object_return_kind}
+                provenance_events.append({
+                    "ordinal": ordinal,
+                    "kind": "BYTEBUFFER_RETURNED_FROM_METHOD",
+                })
+            elif pending_object_return_kind == "UNKNOWN_OBJECT_RETURN":
+                aliases[dest] = {pending_object_return_kind}
+            pending_object_return_kind = None
             continue
 
-        pending_buffer_return = False
-        if op == 0x54:  # iget-object: type-only field projection from this
+        pending_object_return_kind = None
+        if op == 0x54:  # iget-object: field type only, any receiver
             dest = (words[0] >> 8) & 15
-            receiver = (words[0] >> 12) & 15
             _field_owner, _field_name, field_type = field_id(dex, words[1])
             aliases.pop(dest, None)
-            if receiver == this_register and field_type == byte_buffer:
-                aliases[dest] = {"FIELD_READ_FROM_THIS"}
+            array_aliases.discard(dest)
+            if field_type == byte_buffer:
+                aliases[dest] = {"BYTEBUFFER_FIELD_READ"}
+                provenance_events.append({
+                    "ordinal": ordinal,
+                    "kind": "BYTEBUFFER_FIELD_READ",
+                })
+            elif field_type == byte_buffer_array:
+                array_aliases.add(dest)
+            continue
+
+        if op == 0x62:  # sget-object
+            dest = (words[0] >> 8) & 15
+            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            aliases.pop(dest, None)
+            array_aliases.discard(dest)
+            if field_type == byte_buffer:
+                aliases[dest] = {"BYTEBUFFER_STATIC_FIELD_READ"}
+                provenance_events.append({
+                    "ordinal": ordinal,
+                    "kind": "BYTEBUFFER_STATIC_FIELD_READ",
+                })
+            elif field_type == byte_buffer_array:
+                array_aliases.add(dest)
+            continue
+
+        if op == 0x46:  # aget-object from a declared ByteBuffer array
+            dest = (words[0] >> 8) & 15
+            array_register = (words[0] >> 12) & 15
+            aliases.pop(dest, None)
+            array_aliases.discard(dest)
+            if array_register in array_aliases:
+                aliases[dest] = {"BYTEBUFFER_ARRAY_ELEMENT_READ"}
+                provenance_events.append({
+                    "ordinal": ordinal,
+                    "kind": "BYTEBUFFER_ARRAY_ELEMENT_READ",
+                })
             continue
 
         if op in (0x07, 0x08, 0x09):
@@ -1579,17 +1626,34 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             if move:
                 dest, source = move
                 origins = set(aliases.get(source, ()))
+                is_array_alias = source in array_aliases
                 aliases.pop(dest, None)
+                array_aliases.discard(dest)
                 if origins:
                     aliases[dest] = origins
+                if is_array_alias:
+                    array_aliases.add(dest)
             continue
 
-        if op == 0x1f:  # check-cast preserves the reference
+        if op == 0x1f:  # check-cast can refine an Object return to ByteBuffer
+            dest = (words[0] >> 8) & 15
+            cast_type = dex.descriptor(words[1])
+            if cast_type == byte_buffer:
+                origins = set(aliases.get(dest, ()))
+                origins.add("CHECK_CAST_TO_BYTEBUFFER")
+                aliases[dest] = origins
+                provenance_events.append({
+                    "ordinal": ordinal,
+                    "kind": "CHECK_CAST_TO_BYTEBUFFER",
+                })
+            elif cast_type == byte_buffer_array:
+                array_aliases.add(dest)
             continue
 
         dest = written_register(op, words)
         if dest is not None:
             aliases.pop(dest, None)
+            array_aliases.discard(dest)
         if op in (0x28, 0x29, 0x2a) or 0x32 <= op <= 0x3d:
             branch_seen = True
             if op == 0x28:  # goto/8
@@ -1606,10 +1670,12 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
                 offset = raw_offset - 0x10000 if raw_offset & 0x8000 else raw_offset
             if offset < 0:
                 aliases.clear()
+                array_aliases.clear()
                 backward_branch_aliases_cleared = True
         elif op in (0x2b, 0x2c):  # switch payload targets are not linear
             branch_seen = True
             aliases.clear()
+            array_aliases.clear()
             switch_branch_aliases_cleared = True
 
     return {
@@ -1622,8 +1688,12 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             typed_parameter_registers(dex, method, flags, code_off, byte_buffer)
         ),
         "events": events,
+        "buffer_provenance_events": provenance_events,
         "same_byte_buffer_parameter_to_audio_sink_proven": any(
             row["same_byte_buffer_parameter_passed"] for row in events
+        ),
+        "byte_buffer_object_to_audio_sink_proven": any(
+            row["byte_buffer_object_proven"] for row in events
         ),
         "branch_seen": branch_seen,
         "backward_branch_aliases_cleared": backward_branch_aliases_cleared,
