@@ -1516,11 +1516,12 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
 def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
     byte_buffer = "Ljava/nio/ByteBuffer;"
     byte_buffer_array = "[Ljava/nio/ByteBuffer;"
+    parameter_registers = typed_parameter_registers(
+        dex, method, flags, code_off, byte_buffer
+    )
     aliases = {
         register: {"CALLER_TYPED_PARAMETER"}
-        for register in typed_parameter_registers(
-            dex, method, flags, code_off, byte_buffer
-        )
+        for register in parameter_registers
     }
     array_aliases = set()
     events = []
@@ -1529,8 +1530,34 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
     branch_seen = False
     backward_branch_aliases_cleared = False
     switch_branch_aliases_cleared = False
+    branch_aliases_pruned = False
+    branch_preserved_parameter_registers = set()
     if ins is None:
-        ins = instructions(dex, code_off)
+        ins = list(instructions(dex, code_off))
+    else:
+        ins = list(ins)
+
+    # A parameter alias can safely survive an arbitrary branch only if its
+    # original register is never written anywhere in this method. Wide writes
+    # also occupy the following register. This deliberately prefers false
+    # negatives over path-insensitive identity claims.
+    wide_destination_ops = (
+        {0x04, 0x05, 0x06, 0x0b, 0x16, 0x17, 0x18, 0x19,
+         0x45, 0x53, 0x61, 0x7d, 0x7e, 0x80, 0x82, 0x85, 0x87,
+         0x88, 0x8a}
+        | set(range(0x9b, 0xa6))
+        | set(range(0xab, 0xb0))
+        | set(range(0xbb, 0xc6))
+        | set(range(0xcb, 0xd0))
+    )
+    potentially_written_registers = set()
+    for _pc, candidate_op, candidate_words in ins:
+        candidate_dest = written_register(candidate_op, candidate_words)
+        if candidate_dest is not None:
+            potentially_written_registers.add(candidate_dest)
+            if candidate_op in wide_destination_ops:
+                potentially_written_registers.add(candidate_dest + 1)
+    stable_parameter_registers = parameter_registers - potentially_written_registers
 
     for ordinal, op, words in ins:
         if op in INVOKES:
@@ -1543,6 +1570,7 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             )
             if callee[0] in ("LbJ2;", "Lpk0;") and callee[1] == "native":
                 origins = []
+                argument_register_map = []
                 if len(regs) == len(target_types):
                     logical_position = -1
                     for register_word_position, (typ, register) in enumerate(
@@ -1551,6 +1579,12 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
                         if typ is None:
                             continue
                         logical_position += 1
+                        argument_register_map.append({
+                            "argument_position": logical_position,
+                            "register_word_position": register_word_position,
+                            "type": typ,
+                            "register": register,
+                        })
                         if typ == byte_buffer and register in aliases:
                             origins.append({
                                 "argument_position": logical_position,
@@ -1564,6 +1598,10 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
                         "method": callee[1],
                         "signature": callee[2],
                     },
+                    "invoke_kind": "STATIC" if is_static else "INSTANCE_OR_INTERFACE",
+                    "argument_registers": regs,
+                    "argument_register_types": target_types,
+                    "argument_register_map": argument_register_map,
                     "buffer_argument_origins": origins,
                     "same_byte_buffer_parameter_passed": any(
                         "CALLER_TYPED_PARAMETER" in row["origins"]
@@ -1674,6 +1712,16 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             array_aliases.discard(dest)
         if op in (0x28, 0x29, 0x2a) or 0x32 <= op <= 0x3d:
             branch_seen = True
+            before_count = len(aliases) + len(array_aliases)
+            aliases = {
+                register: origins
+                for register, origins in aliases.items()
+                if register in stable_parameter_registers
+                and origins == {"CALLER_TYPED_PARAMETER"}
+            }
+            array_aliases.clear()
+            pruned_here = before_count > len(aliases)
+            branch_aliases_pruned = branch_aliases_pruned or pruned_here
             if op == 0x28:  # goto/8
                 raw_offset = (words[0] >> 8) & 0xff
                 offset = raw_offset - 0x100 if raw_offset & 0x80 else raw_offset
@@ -1686,15 +1734,24 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             else:  # if-* 22t
                 raw_offset = words[1] & 0xffff
                 offset = raw_offset - 0x10000 if raw_offset & 0x8000 else raw_offset
-            if offset < 0:
-                aliases.clear()
-                array_aliases.clear()
+            if offset < 0 and pruned_here:
                 backward_branch_aliases_cleared = True
+            branch_preserved_parameter_registers.update(aliases)
         elif op in (0x2b, 0x2c):  # switch payload targets are not linear
             branch_seen = True
-            aliases.clear()
+            before_count = len(aliases) + len(array_aliases)
+            aliases = {
+                register: origins
+                for register, origins in aliases.items()
+                if register in stable_parameter_registers
+                and origins == {"CALLER_TYPED_PARAMETER"}
+            }
             array_aliases.clear()
-            switch_branch_aliases_cleared = True
+            pruned_here = before_count > len(aliases)
+            branch_aliases_pruned = branch_aliases_pruned or pruned_here
+            if pruned_here:
+                switch_branch_aliases_cleared = True
+            branch_preserved_parameter_registers.update(aliases)
 
     return {
         "method": {
@@ -1702,9 +1759,9 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             "method": method[1],
             "signature": method[2],
         },
-        "byte_buffer_parameter_present": bool(
-            typed_parameter_registers(dex, method, flags, code_off, byte_buffer)
-        ),
+        "byte_buffer_parameter_present": bool(parameter_registers),
+        "byte_buffer_parameter_registers": sorted(parameter_registers),
+        "stable_parameter_registers_across_branches": sorted(stable_parameter_registers),
         "events": events,
         "buffer_provenance_events": provenance_events,
         "same_byte_buffer_parameter_to_audio_sink_proven": any(
@@ -1714,14 +1771,16 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             row["byte_buffer_object_proven"] for row in events
         ),
         "branch_seen": branch_seen,
+        "branch_preserved_parameter_registers": sorted(
+            branch_preserved_parameter_registers
+        ),
         "backward_branch_aliases_cleared": backward_branch_aliases_cleared,
         "switch_branch_aliases_cleared": switch_branch_aliases_cleared,
-        "branch_seen_aliases_cleared": (
-            backward_branch_aliases_cleared or switch_branch_aliases_cleared
-        ),
+        "branch_seen_aliases_cleared": branch_aliases_pruned,
         "field_names_or_values_disclosed": False,
         "media_values_or_audio_read": False,
     }
+
 
 
 def inspect_audio_buffer_sink_caller_traces(apks, dispatch_report, class_profiles):
@@ -2782,6 +2841,17 @@ def inspect_signed(apks):
                                 register_types = expand_invoke_register_types(
                                     callee[0], params, is_static
                                 )
+                                native_track_argument_positions = []
+                                if len(regs) == len(register_types):
+                                    logical_position = -1
+                                    for word_position, typ in enumerate(register_types):
+                                        if typ is None:
+                                            continue
+                                        logical_position += 1
+                                        if regs[word_position] in model_regs:
+                                            native_track_argument_positions.append(
+                                                logical_position
+                                            )
                                 target_callers.append({
                                     "caller": {"owner": method[0], "name": method[1],
                                                "signature": method[2]},
@@ -2791,10 +2861,8 @@ def inspect_signed(apks):
                                     "invoke_kind": "STATIC" if is_static else "INSTANCE_OR_OTHER",
                                     "argument_types": target_types,
                                     "argument_register_types": register_types,
-                                    "native_track_argument_positions": [
-                                        i for i, register in enumerate(regs)
-                                        if register in model_regs
-                                    ],
+                                    "native_track_argument_positions":
+                                        native_track_argument_positions,
                                     "track_id_wrapper_argument_positions": [
                                         i for i, typ in enumerate(target_types) if typ == WRAPPER
                                     ],

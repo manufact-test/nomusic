@@ -1,6 +1,6 @@
 import unittest
 from audit_native_selected_item_handoff import (
-    parse_types, written_register, MODEL, DESCRIPTOR_BUILDER,
+    parse_types, written_register, MODEL, WRAPPER, DESCRIPTOR_BUILDER,
     PLAYER_OWNERS, PLAYER_METHODS, MEDIA_SESSION_OWNER,
     MEDIA_SESSION_METADATA_METHODS, MEDIA_SESSION_STATE_METHODS,
     DECODER_BOUNDARY_METHODS, EDITION_MARKERS, GENERATION_MARKERS,
@@ -195,72 +195,116 @@ class SelectedItemAuditTests(unittest.TestCase):
         from unittest.mock import patch
         class FakeDex:
             def u16(self, offset):
-                return {100:2,102:1}[offset]
+                return {100:5,102:1}[offset]
             def method(self, index):
                 return ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z")
         method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
-        ins=[(0,0x71,[0x0071,0])]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,1,2,3,4]):
+        # invoke-static {v4, v0, v1, v2}: ByteBuffer, long-wide, int.
+        ins=[(0,0x71,[0x4071,0,0x2104])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertTrue(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
         self.assertEqual(
             trace["events"][0]["buffer_argument_origins"],
             [{"argument_position":0,"origins":["CALLER_TYPED_PARAMETER"]}]
         )
+        self.assertEqual(trace["events"][0]["invoke_kind"],"STATIC")
 
-    def test_byte_buffer_alias_is_cleared_at_branch(self):
+    def test_byte_buffer_instance_sink_accounts_for_receiver_and_wide_words(self):
         from unittest.mock import patch
         class FakeDex:
             def u16(self, offset):
-                return {100:2,102:1}[offset]
+                return {100:6,102:1}[offset]
             def method(self, index):
                 return ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z")
         method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
-        ins=[(0,0x28,[0xFF28]),(1,0x71,[0x0071,0])]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,1,2,3,4]):
+        # invoke-virtual {v0, v5, v1, v2, v3}: receiver, ByteBuffer, long-wide, int.
+        ins=[(0,0x6e,[0x536e,0,0x2150])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
-        self.assertFalse(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
+        self.assertTrue(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
+        self.assertEqual(
+            trace["events"][0]["buffer_argument_origins"],
+            [{"argument_position":1,"origins":["CALLER_TYPED_PARAMETER"]}]
+        )
+        self.assertEqual(trace["events"][0]["invoke_kind"],"INSTANCE_OR_INTERFACE")
+
+    def test_byte_buffer_alias_survives_backward_branch_only_when_register_is_stable(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5,102:1}[offset]
+            def method(self, index):
+                return ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z")
+        method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
+        # if-eqz at pc 1 can loop to pc 0 or fall through to the sink at pc 3.
+        ins=[
+            (0,0x00,[0]),
+            (1,0x38,[0x0038,0xffff]),
+            (3,0x71,[0x4071,0,0x2104])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
+        self.assertTrue(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
         self.assertTrue(trace["branch_seen"])
-        self.assertTrue(trace["backward_branch_aliases_cleared"])
-        self.assertTrue(trace["branch_seen_aliases_cleared"])
+        self.assertFalse(trace["backward_branch_aliases_cleared"])
+        self.assertFalse(trace["branch_seen_aliases_cleared"])
+        self.assertEqual(trace["branch_preserved_parameter_registers"],[4])
 
     def test_forward_branch_preserves_unchanged_byte_buffer_parameter(self):
         from unittest.mock import patch
         class FakeDex:
             def u16(self, offset):
-                return {100:2,102:1}[offset]
+                return {100:5,102:1}[offset]
             def method(self, index):
                 return ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z")
         method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
-        ins=[(0,0x28,[0x0128]),(1,0x71,[0x0071,0])]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,1,2,3,4]):
+        # Both the conditional target and fall-through arrive at the sink.
+        ins=[
+            (0,0x38,[0x0038,0x0002]),
+            (2,0x71,[0x4071,0,0x2104])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertTrue(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
         self.assertTrue(trace["branch_seen"])
         self.assertFalse(trace["branch_seen_aliases_cleared"])
 
+    def test_branch_drops_parameter_alias_if_its_register_is_written(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5,102:1}[offset]
+            def method(self, index):
+                return ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z")
+        method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
+        # const/4 writes v4, the caller's ByteBuffer parameter register.
+        ins=[
+            (0,0x12,[0x0412]),
+            (1,0x38,[0x0038,0x0002]),
+            (3,0x71,[0x4071,0,0x2104])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
+        self.assertFalse(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
+        self.assertTrue(trace["branch_seen_aliases_cleared"])
+
     def test_byte_buffer_returned_from_method_reaches_audio_sink(self):
         from unittest.mock import patch
         class FakeDex:
             def u16(self, offset):
-                return {100:2,102:0}[offset]
+                return {100:5,102:0}[offset]
             def method(self, index):
                 if index == 0:
                     return ("LCodec;","getOutputBuffer","()Ljava/nio/ByteBuffer;")
                 return ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z")
         method=("LCaller;","write","()V")
         ins=[
-            (0,0x71,[0x0071,0]),
-            (1,0x0c,[0x010c]),
-            (2,0x71,[0x0071,1])
+            (0,0x71,[0x0071,0,0]),
+            (3,0x0c,[0x010c]),
+            (4,0x71,[0x4071,1,0x3201])
         ]
-        def regs(_op, words):
-            return [] if words[1] == 0 else [0,1,2,3,4]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",side_effect=regs):
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertTrue(trace["byte_buffer_object_to_audio_sink_proven"])
         self.assertEqual(
@@ -272,19 +316,17 @@ class SelectedItemAuditTests(unittest.TestCase):
         from unittest.mock import patch
         class FakeDex:
             def u16(self, offset):
-                return {100:2,102:1}[offset]
+                return {100:6,102:1}[offset]
             def method(self, index):
                 return ("LbJ2;","native","(Ljava/nio/ByteBuffer;JI)Z")
         method=("LCaller;","write","(Ljava/lang/Object;)V")
         ins=[
             (0,0x54,[0x1054,0]),
-            (1,0x71,[0x0071,1])
+            (2,0x71,[0x4071,1,0x4320])
         ]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",
-                   return_value=("LHolder;","buffer","Ljava/nio/ByteBuffer;")), \
-             patch("audit_native_selected_item_handoff.invoke_registers",
-                   return_value=[2,0,3,4,5]):
+                   return_value=("LHolder;","buffer","Ljava/nio/ByteBuffer;")):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertTrue(trace["byte_buffer_object_to_audio_sink_proven"])
         self.assertEqual(
