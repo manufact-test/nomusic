@@ -74,3 +74,22 @@ Do not ask the owner to test intermediate builds. The only owner package is the 
 - Download: https://github.com/manufact-test/nomusic/actions/runs/43760955394/artifacts/14180750696
 
 Ровно один internal stage artifact создан. Никаких GitHub Release, production feed или клиентской публикации нет. Старый Draft `0.24.38` не использовать. Окончательное принятие остаётся за ручной проверкой владельца.
+
+
+## W158 addendum — new owner field regressions (16.11.2026)
+
+The previous W154 owner-acceptance plan is supplemented by W158. The 0.24.39.0 owner retest exposed two field failures despite green CI: autorun marks the bridge connected before the native host/player handshake, and one no-kUrl VPN recovery holds then reloads the same current track. The recovery UI also enables Start while automatic recovery is pending and uses a misleading “Подмена приостановлена” message.
+
+Do not send an intermediate build. After W158 implementation and both CI workflows pass, perform one grouped owner acceptance:
+
+1. Reboot with Yandex already running: CELIKOM attaches automatically only after real host/player readiness.
+2. Reboot with Yandex closed, then open it: CELIKOM waits and attaches automatically without launching Yandex and without Stop/Start.
+3. Press Stop before Yandex opens: saved resume intent is cancelled and does not return after reboot.
+4. Switch VPN while a mapped CELIKOM replacement is playing: same unchanged current track is kept without source reload; listen for any pop/click.
+5. Switch VPN while an original track is playing; confirm no false active-replacement state.
+6. Switch Next during recovery; the old track's hold never transfers to the new track.
+7. Simulate actual player/source loss and verify only bounded recovery of the actual current track.
+8. During recovery Start is disabled, Stop remains available, and all labels/colors distinguish service, network, player and source state.
+9. Verify the short “Подмена активна” wording appears only when Windows source verification is satisfied; approved track-version presence alone is not active playback.
+
+The detailed diagnostic evidence, implementation order and test matrix are authoritative in docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md.
