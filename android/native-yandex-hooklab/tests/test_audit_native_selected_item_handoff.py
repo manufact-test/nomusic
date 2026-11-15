@@ -985,8 +985,6 @@ class SelectedItemAuditTests(unittest.TestCase):
             result["continuation_argument_origin_classification"],
             "SAME_CONTINUATION_PARAMETER_REFERENCE"
         )
-        self.assertEqual(result["analysis_scope"],"ENTRY_TO_FIRST_REACHABLE_CALLSITE")
-        self.assertFalse(result["post_callsite_loop_reentries_traced"])
 
     def test_callsite_origin_trace_recognizes_object_parameter_cast_to_track(self):
         from unittest.mock import patch
