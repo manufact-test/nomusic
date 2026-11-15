@@ -350,7 +350,10 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       } else if (nextActive && (!previousActive || originChanged)) {
         const preservedTrack = next?.preserveCurrentSource === true &&
           next?.preserveCurrentTrackId === currentTrackId;
-        if (networkRecoveryPending && preservedTrack) {
+        if (networkRecoveryPending && preservedTrack && currentWasMapped) {
+          // This is a no-reload continuity hold, not source verification.
+          // Keep the existing mapped source untouched; host status remains
+          // UNKNOWN until the native decoder exposes exact signed kUrl proof.
           report("NATIVE_ROUTE_RECOVERY_SOURCE_KEPT", currentTrackId);
         } else {
           report("NATIVE_CURRENT_SOURCE_REVALIDATE", currentTrackId);

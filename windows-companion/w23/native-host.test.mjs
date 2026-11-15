@@ -1325,6 +1325,41 @@ test("W152 host preserves a source only while the exact current decoder is still
   assert.ok(!settledDelivery.includes('"preserveCurrentSource":true'));
 });
 
+test("W157 same-origin VPN recovery holds an already-mapped current track when Yandex hides kUrl",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false};
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+      playbackState:"PLAYING"},
+    stateOverride:state,clock:FakeDate
+  });
+  await new Promise(resolve=>setTimeout(resolve,40));
+
+  state.enabled=false;
+  state.networkRecoveryPending=true;
+  clockNow+=350;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+
+  state.enabled=true;
+  clockNow+=350;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"networkRecoveryPending":true'));
+  assert.ok(resumed.includes('"preserveCurrentSource":true'),
+    "the previously mapped same track is held even when this Yandex build hides kUrl");
+  assert.ok(resumed.includes('"preserveCurrentTrackId":"123"'));
+  assert.ok(!r.diagnostics.includes("PLAYER_CDP_URL_PROPERTY_SEEN"),
+    "no exact CDP kUrl property was supplied in this test");
+});
+
 test("W157 destruction of the selected Yandex renderer immediately clears the current-player heartbeat",async()=>{
   const r=await runHost("musicapplication://desktop/",{
     currentTrack:{id:"123",title:"Старая песня",artist:"Исполнитель",

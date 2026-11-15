@@ -364,10 +364,33 @@ async function relayState(view, token, now) {
   const previous = lastStatus.get(view);
   const networkRecoveryPending = stateAvailable &&
     state.networkRecoveryPending === true;
+  const previousOrigin = nativeAudioOrigins.get(view);
+  const originChanged = previousOrigin !== undefined &&
+    previousOrigin !== state?.apiOrigin;
+  let recoveryHold = nativeRecoveryHolds.get(view);
+  if (!networkRecoveryPending || !stateAvailable || state.signedIn !== true ||
+      typeof state.apiOrigin !== "string" || originChanged ||
+      (recoveryHold && now - recoveryHold.capturedAt >= 600000)) {
+    nativeRecoveryHolds.delete(view);
+    recoveryHold = null;
+  } else if (!recoveryHold && previous &&
+      typeof previous.trackId === "string" &&
+      (previous.value === "NATIVE_MAPPING_ACCEPTED" ||
+       previous.value === "NATIVE_SOURCE_VERIFIED")) {
+    // Capture before the renderer is disabled and its status falls back to
+    // ORIGINAL. The renderer will independently verify the same current ID
+    // and that it had mapped this track before allowing a no-reload hold.
+    recoveryHold = {
+      trackId: previous.trackId,
+      firstSeenAt: previous.firstSeenAt || now,
+      capturedAt: now
+    };
+    nativeRecoveryHolds.set(view, recoveryHold);
+  }
   const preserveCurrentSource = networkRecoveryPending &&
     state.enabled === true && state.signedIn === true &&
-    typeof previous?.trackId === "string" &&
-    !!currentDecoderPlayer(view, previous.trackId, previous.firstSeenAt, now);
+    previousOrigin === state.apiOrigin &&
+    typeof recoveryHold?.trackId === "string";
   const safeState = {
     enabled: stateAvailable && state.enabled === true && state.signedIn === true,
     signedIn: stateAvailable && state.signedIn === true,
@@ -375,11 +398,8 @@ async function relayState(view, token, now) {
       ? state.apiOrigin.slice(0, 256) : "",
     networkRecoveryPending,
     preserveCurrentSource,
-    preserveCurrentTrackId: preserveCurrentSource ? previous.trackId : ""
+    preserveCurrentTrackId: preserveCurrentSource ? recoveryHold.trackId : ""
   };
-  const previousOrigin = nativeAudioOrigins.get(view);
-  const originChanged = previousOrigin !== undefined &&
-    previousOrigin !== safeState.apiOrigin;
   const preserveDecoderWitness = safeState.networkRecoveryPending &&
     safeState.signedIn && previousOrigin === safeState.apiOrigin;
   if ((!safeState.enabled || !safeState.signedIn || originChanged) &&
@@ -615,6 +635,10 @@ async function tick(view) {
 // No media commands, no WebAudio monkeypatches, no URLs/account data logged.
 const playbackWitnesses = new WeakSet();
 const nativeAudioOrigins = new WeakMap();
+// Holds only the last mapped current-track identity across a same-origin
+// transient VPN suspension. This is a no-reload continuity hint, NOT proof
+// that the native decoder is still playing the CELIKOM URL.
+const nativeRecoveryHolds = new WeakMap();
 const nativeExpectedAudio = new WeakMap();
 const nativeMediaHttpSuccess = new WeakMap();
 const nativeNetworkObserversReady = new WeakSet();
@@ -808,6 +832,9 @@ function observeNativePlayback(view) {
           const currentTrackId = lastStatus.get(view)?.trackId;
           downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
           if (!prev.sourceTrackId) {
+            // An explicit current decoder URL change is stronger than the
+            // transient route hold: invalidate it and allow normal recovery.
+            nativeRecoveryHolds.delete(view);
             note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
             sourceLeftCurrent = !!currentTrackId;
           }
@@ -1008,6 +1035,9 @@ function observeNativePlayback(view) {
             downgradeVerifiedPlaybackHeartbeat(view, verified.trackId);
             verifiedDecoderSource.delete(view);
           }
+          // A playing decoder disappearing is actual player-loss evidence,
+          // even on Yandex builds that do not expose kUrl.
+          if (lost?.playing === true) nativeRecoveryHolds.delete(view);
           decoderPlayers.delete(params.playerId);
         }
         if (method === "Media.playerErrorsRaised" &&
@@ -1018,6 +1048,8 @@ function observeNativePlayback(view) {
           const player = typeof params?.playerId === "string" ?
             decoderPlayers.get(params.playerId) : null;
           const currentTrack = lastStatus.get(view)?.trackId;
+          if (player?.playing === true && nativeAudible(view))
+            nativeRecoveryHolds.delete(view);
           if (player?.sourceTrackId && player.sourceTrackId === currentTrack) {
             player.pipelineFailed = true;
             verifiedDecoderSource.delete(view);
