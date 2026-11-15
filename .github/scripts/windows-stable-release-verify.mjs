@@ -41,6 +41,7 @@ export async function verifyPreparedStableRelease(directory,{origin,version,
      !info.isFile()||info.isSymbolicLink()||
      info.size<10000||info.size>125000000||
      !publicKeyInfo.isFile()||publicKeyInfo.isSymbolicLink()||
+     publicKeyInfo.size<64||publicKeyInfo.size>256||
      !publicKeyBytes.equals(Buffer.from(pinnedPublicKeyDerBase64,"base64")))
     bad("BOUNDS_OR_PUBLIC_KEY_FILE_INVALID");
   if(!latest.equals(immutable))bad("MANIFEST_PAIR_MISMATCH");
@@ -49,6 +50,7 @@ export async function verifyPreparedStableRelease(directory,{origin,version,
     bad("SIGNATURE_INVALID");
   let data;
   try{data=JSON.parse(latest.toString("utf8"));}catch{bad("JSON_INVALID");}
+  if(!data||typeof data!=="object"||Array.isArray(data))bad("JSON_INVALID");
   const published=typeof data.publishedAt==="string"&&data.publishedAt.endsWith("Z")
     ? Date.parse(data.publishedAt) : NaN;
   const expires=typeof data.expiresAt==="string"&&data.expiresAt.endsWith("Z")
