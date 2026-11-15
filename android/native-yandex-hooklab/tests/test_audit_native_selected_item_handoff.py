@@ -1080,7 +1080,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LCaller;","call",
                 "(Lru/yandex/music/data/audio/o;LOe2;)V")
         ins=[
-            (0,0x07,[0x1007]),
+            (0,0x07,[0x0107]),
             (1,0x71,[0x0071,9,0]),
             (4,0x0e,[0x000e])
         ]
