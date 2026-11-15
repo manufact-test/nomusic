@@ -22,7 +22,8 @@ from audit_native_selected_item_handoff import (
     summarize_coroutine_new_instance_ancestry,
     classify_coroutine_entry_direct_upstream_call,
     class_instantiation_and_flow_collect_sites,
-    summarize_flow_entry_class_profiles
+    summarize_flow_entry_class_profiles,
+    logical_invoke_argument_rows
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -1100,6 +1101,22 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual([x["class"] for x in ctor_rows],["LDp0;","LBC3;"])
         self.assertEqual(ctor_rows[0]["argument_positions"],[0])
         self.assertEqual(ctor_rows[1]["argument_positions"],[0])
+
+    def test_flow_argument_rows_can_skip_expensive_origins_without_losing_types(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def method(self,index):
+                return ("LTarget;","for","(LGl4;Lkotlinx/coroutines/CoroutineScope;)V")
+        ins=[(0,0x71,[0x0071,1,2,3])]
+        with patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[1,2,3]):
+            rows=logical_invoke_argument_rows(
+                FakeDex(),("LCaller;","run","()V"),0x8,100,ins,0,0x71,ins[0][2],
+                trace_origins=False
+            )
+        self.assertEqual([row["type"] for row in rows],
+                         ["LGl4;","Lkotlinx/coroutines/CoroutineScope;"])
+        self.assertTrue(all("origin" not in row for row in rows))
 
     def test_flow_entry_class_profile_reports_exact_interfaces_without_inference(self):
         profiles={

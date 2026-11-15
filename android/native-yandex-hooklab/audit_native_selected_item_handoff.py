@@ -5041,7 +5041,9 @@ def local_object_register_origin(dex, method, flags, code_off, ins, before_ordin
     return {"kind":"UNRESOLVED_LOCAL_REGISTER"}
 
 
-def logical_invoke_argument_rows(dex, method, flags, code_off, ins, ordinal, op, words):
+def logical_invoke_argument_rows(
+    dex, method, flags, code_off, ins, ordinal, op, words, trace_origins=True
+):
     """Describe logical argument positions and bounded object origins at one invoke."""
     callee=dex.method(words[1])
     registers=invoke_registers(op,words)
@@ -5060,7 +5062,7 @@ def logical_invoke_argument_rows(dex, method, flags, code_off, ins, ordinal, op,
     for logical_position,typ in enumerate(logical_types):
         register=registers[word_index]
         row={"logical_position":logical_position,"type":typ,"register":register}
-        if typ.startswith(("L","[")):
+        if trace_origins and typ.startswith(("L","[")):
             row["origin"]=local_object_register_origin(
                 dex,method,flags,code_off,ins,ordinal,register
             )
@@ -5074,7 +5076,8 @@ def summarize_flow_entry_class_profiles(class_profiles):
     targets=(
         "LDp0;","LDp0$a;","Lwp0;","Lwp0$a;","Lyp0;","LGp0;",
         "LGl4;","LHl4;","Ljm4;","Lam4;","LzC3;","LAC3;",
-        "LBC3;","LO6;","LBy4;","YMApplication;"
+        "LBC3;","LO6;","LBy4;","Lvp0;","LzD7;","LBD7;",
+        "LAp0;","Lxp0;","LUK6;","LDb1;","YMApplication;"
     )
     rows=[]
     for owner in targets:
@@ -5096,10 +5099,21 @@ def summarize_flow_entry_class_profiles(class_profiles):
     return rows
 
 
+FLOW_ARGUMENT_ORIGIN_TARGETS = {
+    ("Ljm4;","for"), ("Lwp0;","<init>"), ("Lwp0;","collect"),
+    ("Lyp0;","<init>"), ("Lyp0;","collect"), ("Lwp0$a;","<init>"),
+    ("LDp0;","<init>"), ("LDp0;","if"), ("LDp0;","emit"),
+    ("LBC3;","<init>"), ("LzC3;","<init>"), ("LAC3;","<init>"),
+    ("LBy4;","collect"), ("Lvp0;","collect"), ("LBD7;","if"),
+    ("LAp0;","emit"), ("LO6;","native")
+}
+
+
 def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, code_off: int):
 
     targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;", "Lam4;",
-               "Lwp0;", "Lyp0;", "LzC3;", "LAC3;", "LBC3;", "LO6;", "LBy4;"}
+               "Lwp0;", "Lyp0;", "LzC3;", "LAC3;", "LBC3;", "LO6;", "LBy4;",
+               "Lvp0;", "LzD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;"}
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
@@ -5134,7 +5148,8 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, cod
                                    "signature": callee[2]},
                         "argument_positions": positions,
                         "argument_rows": logical_invoke_argument_rows(
-                            dex,method,flags,code_off,ins,ordinal,op,words
+                            dex,method,flags,code_off,ins,ordinal,op,words,
+                            trace_origins=(callee[0],callee[1]) in FLOW_ARGUMENT_ORIGIN_TARGETS
                         ),
                         "ordinal": ordinal,
                     })
@@ -5220,7 +5235,12 @@ def inspect_signed(apks):
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
         ("Lwp0;", "collect"), ("Lwp0;", "<init>"), ("Lyp0;", "collect"),
         ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for"),
-        ("LzC3;", "<init>"), ("LAC3;", "<init>"), ("LBC3;", "<init>"),
+        ("LzC3;", "<init>"), ("LzC3;", "collect"),
+        ("LAC3;", "<init>"), ("LAC3;", "collect"),
+        ("LBC3;", "<init>"), ("LBC3;", "collect"),
+        ("LBy4;", "<init>"), ("LBy4;", "collect"),
+        ("Lvp0;", "<init>"), ("Lvp0;", "collect"),
+        ("LBD7;", "if"), ("LAp0;", "<init>"), ("LAp0;", "emit"),
         ("LO6;", "native"),
         ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
         ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>"),
@@ -5276,7 +5296,8 @@ def inspect_signed(apks):
                 for target_class in ("LDp0;", "LDp0$a;", "Lwp0;", "Lwp0$a;",
                                      "Lyp0;", "LGp0;", "Lou3;", "LGl4;", "LHl4;",
                                      "Ljm4;", "Lk1a;", "Lam4;", "LFp0;", "LzC3;",
-                                     "LAC3;", "LBC3;", "LO6;", "LBy4;",
+                                     "LAC3;", "LBC3;", "LO6;", "LBy4;", "Lvp0;",
+                                     "LzD7;", "LBD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;",
                                      "Lcom/yandex/music/shared/player/download2/o$c;",
                                      "LRAa;"):
                     if target_class in defined:
