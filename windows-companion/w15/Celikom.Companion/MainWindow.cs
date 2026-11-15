@@ -220,6 +220,15 @@ public sealed partial class MainWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized) Hide(); };
         _entitlementPulse.Tick += (_, _) =>
         {
+            // W141: host can vanish without a final heartbeat on VPN or exit.
+            // Expire the previous track from the popup using the existing
+            // low-frequency UI timer; no additional player/media polling.
+            if (!_closing && _bridge.Enabled && !_bridge.HasFreshHeartbeat)
+            {
+                RenderCompact();
+                LayoutCompact();
+                UpdateSafe();
+            }
             if (!_closing && (_bridge.Enabled || _resumeAfterNetworkFailure) && _api.IsLoggedIn)
                 _ = RefreshCompactAccessAsync(force: true);
             // Yandex's own updater can replace an ACTIVE native pair while

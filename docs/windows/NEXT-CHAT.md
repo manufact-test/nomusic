@@ -2,6 +2,16 @@
 
 > **READ FIRST.** This is the controlling handoff for CELIKOM Windows. Read `docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md`. If any older W-series note or previous chat conflicts with this top section or W119, follow W119. Older sections below are technical history, not current work orders.
 
+## W140/W141 current continuation — 15 November 2026
+
+- Work only on main. Exact W140 pre-change backup: backup/windows-main-pre-w140-stable-update-download-during-playback-20261115 @ e2c7e3917fae29f14750007a49a541bb97c9c8b4. Exact W141 pre-change backup: backup/windows-main-pre-w141-current-player-sync-20261115 @ bd186871823b76a1208e302298c4efd8296e72d7.
+- W140: signed feed discovery / authenticated current-install inspection and SHA-256 + Authenticode verified downloads are no longer blocked by active playback. Verified installer is held in a local pending cache and rechecked at the next safe install point. Same Supervisor and DPAPI rollback journal are retained. Full Windows CI SUCCESS at bd186871823b76a1208e302298c4efd8296e72d7.
+- W140 remains non-production: StableUpdateTrustConfiguration.cs has no approved official HTTPS origin, P-256 public key or Authenticode signer fingerprint. Owner-review 0.24.37 is unsigned and lacks pins. No actual signed production feed or owner-PC installation/rollback was proven. Never fabricate credentials or declare auto-updates operational. A one-time trusted bootstrap may be necessary. The existing GitHub connector did not allow fetching release secret/environment metadata.
+- W141: native main host selects one authoritative active/audible Yandex view; other webContents cannot overwrite the current song. Renderer player observer exposes explicit PLAYING, PAUSED, STOPPED. Current signed decoder proof is the sole ACTIVE_REPLACEMENT witness; ambiguous sources remain UNKNOWN (ORIGINAL requires further actual decoder attribution). 4-second sequenced native heartbeats refresh stable playback, local bridge discards out-of-order previous-song heartbeats and expires the UI state after 12 seconds. Compact popup/main status use current source evidence rather than mapping-only or stale labels. Existing 15-second UI pulse now refreshes an expired view after a silent host disconnect.
+- W141 CI at 858c68128b09dc5a71cd34868bc123a1a52a3173: both Main CI and Windows integration CI SUCCESS including the added current-player/order/renewal tests. The later UI-lease documentation commit still requires fresh CI verification.
+- No new installer, ZIP or Windows TEST product was created. Do not touch Android, browser extension or original audio. Issues #52 #53 #54 #56 #57 #58 remain OPEN.
+- Outstanding priorities: protected official update trust and atomic signed feed publication; first trusted bootstrap; real owner-PC safe-point update, READY and forced one-shot rollback; strong ORIGINAL/current decoder evidence; Windows restart/VPN current-song truth; VPN audible pop and crossfade/gain/regression checks. Preserve W119/W139 owner contract and existing 15-minute Yandex update watch.
+
 ## Hard product rule — one product, one main version
 
 - There is **one existing CELIKOM Windows product**.
