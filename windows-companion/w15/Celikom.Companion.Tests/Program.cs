@@ -2398,3 +2398,12 @@ sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> reply) : 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken) =>
         Task.FromResult(reply(request));
+}
+
+sealed class AsyncFakeHandler(
+    Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken) =>
+        reply(request, cancellationToken);
+}
