@@ -576,7 +576,7 @@ try
     var updateHash = Convert.ToHexString(SHA256.HashData(updateBytes)).ToLowerInvariant();
     var updateRelease = new StableUpdateManifestVerifier.VerifiedRelease(
         new Version(0, 24, 37, 0), 47,
-        new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37-SIGNED.exe"),
+        new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe"),
         updateBytes.Length, updateHash, DateTimeOffset.UtcNow.AddDays(1),
         false, "Safe updater test",
         ApplicationSha256: new string('a', 64),
@@ -752,7 +752,7 @@ try
             string? rendererHash = null, string? supervisorHash = null) =>
             JsonSerializer.SerializeToUtf8Bytes(new {
                 schema, channel, version, sequence,
-                packageUrl = url ?? "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37-SIGNED.exe",
+                packageUrl = url ?? "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe",
                 packageSize = 500000L,
                 sha256 = new string('a', 64), publisher = "CELIKOM",
                 applicationSha256 = applicationHash ?? new string('1', 64),
@@ -787,7 +787,7 @@ try
             restoredPackage.LastAcceptedSequence, signedFeedNow);
         var laterAfterRollbackDocument = ManifestBytes(
             version: "0.24.38", sequence: restoredPackage.LastAcceptedSequence + 1,
-            url: "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/CELIKOM-Windows-0.24.38-SIGNED.exe");
+            url: "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/CELIKOM-Windows-0.24.38.exe");
         var laterAfterRollback = StableUpdateManifestVerifier.VerifyIfNewer(
             laterAfterRollbackDocument,
             releaseKey.SignData(laterAfterRollbackDocument, HashAlgorithmName.SHA256,
@@ -1068,12 +1068,14 @@ try
              Reject(signedDocument, lastSequence: 42),
              "W101 unsigned, wrong-channel, same-version and replayed updates fail closed");
         Test(Reject(ManifestBytes(url:
-                "https://evil.example/CELIKOM/Windows/Updates/stable/0.24.37/bad.exe")) &&
+                "https://evil.example/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe")) &&
              Reject(ManifestBytes(url:
-                "http://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/bad.exe")) &&
+                "http://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe")) &&
              Reject(ManifestBytes(url:
-                "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/bad.exe")),
-             "W101 package origin, HTTPS and immutable version path are required");
+                "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/CELIKOM-Windows-0.24.37.exe")),
+              Reject(ManifestBytes(url:
+                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/wrong.exe")) &&
+              "W155 package origin, HTTPS, exact version directory and exact product filename are required");
 
         byte[] RollbackManifest(string from = "0.24.36",
             string target = "0.24.35", bool mandatory = true, long sequence = 48) =>
@@ -1081,7 +1083,7 @@ try
             {
                 schema = 2, channel = "stable", version = target, sequence,
                 packageUrl = "https://celikom.example.test/CELIKOM/Windows/Updates/stable/"
-                             + target + "/CELIKOM-Windows-" + target + "-SIGNED.exe",
+                             + target + "/CELIKOM-Windows-" + target + ".exe",
                 packageSize = 500000L, sha256 = new string('a', 64),
                 publisher = "CELIKOM",
                 applicationSha256 = new string('1', 64),
@@ -1103,7 +1105,7 @@ try
              Reject(RollbackManifest(mandatory: false), lastSequence: 47) &&
              Reject(RollbackManifest(sequence: 47), lastSequence: 47) &&
              Reject(ManifestBytes(version: "0.24.35", url:
-                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.35/CELIKOM-Windows-0.24.35-SIGNED.exe")),
+                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.35/CELIKOM-Windows-0.24.35.exe")),
              "W106 wrong source, downgrade without directive, replay and optional rollback fail closed");
     }
 
