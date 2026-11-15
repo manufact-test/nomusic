@@ -1,3 +1,45 @@
+# CURRENT IN-PROGRESS CHECKPOINT — 15 Nov 2026, LBK1 / LGK1$a implementation audit
+
+**Code under CI:** `7e74639a06e4c6c2913fec3cd1c8c4a2e4ce7a69`.  
+**Last green signed-DEX audit:** [#43741676839](https://github.com/manufact-test/nomusic/actions/runs/43741676839) SUCCESS, 84/84 tests, 16 signed splits / 6 DEX.  
+**Current CI:** [#43742534368](https://github.com/manufact-test/nomusic/actions/runs/43742534368) — parser/static tests SUCCESS; exact signed-DEX inspection in progress.  
+**Pre-result code backup:** `backup/android-a1-lbk1-lgk1-implementation-audit-test-correction-20261115` @ `7e74639a06e4c6c2913fec3cd1c8c4a2e4ce7a69`.  
+**Last green code backup:** `backup/android-a1-ljk1-exact-field-ci-green-20261115` @ `a4cd35290de8d5ff706a6ad7b740294d94c29af4`.
+
+## Confirmed chain
+
+- `LOW6.<init>` stores the exact Track and passes it to `LTv9.if`.
+- `LTv9.if` passes the same Track to `LJK1.<init>`.
+- `LJK1.<init>` stores the same Track in exactly one Track-typed field on `this`.
+- Four `LJK1` methods read that exact field and pass the same Track to four `LGK1$a` methods:
+  - `try(Context, Track)`
+  - `case(Track)`
+  - `else(Track)`
+  - `goto(Track)`
+- `LJK1.<init>` also passes the Track to four `LBK1` method refs returning Flow: `try(Track)`, `this(Track)`, `for(Track)`, `new(Track)`. The additional `LBK1.break(Track)` reference comes from `LOW6`.
+- These `LBK1` and `LGK1$a` concrete method refs are now the only next focus.
+
+## Current audit scope
+
+The current commit adds:
+- exact interface/abstract-class profiles for `LBK1` and `LGK1$a`;
+- direct implementers or direct subclasses, plus their in-repository superclass method owners;
+- exact concrete method traces only for the known five `LBK1` Track-to-Flow contracts and four `LGK1$a` Track callback contracts.
+
+The method scan does not expand to unrelated methods/classes. Field names/values, media, URLs and account state are not emitted. CI parser/static tests passed; exact signed-DEX result is still pending.
+
+## Next action after CI #43742534368
+
+Read the interface owner map and exact implementation traces:
+- If concrete implementations pass the same Track to a player/source/decoder boundary, follow only that exact edge.
+- If an interface/abstract class has no in-signed-Dex implementation, trace only the exact constructor callsite that supplies that interface object, if necessary; do not fan out to unrelated implementers.
+- If no direct same-Track path reaches player/source/decoder, close that branch and report the exact boundary.
+- Keep `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false` until direct proof exists.
+
+No runtime hooks, APK modifications, login, account/media access or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # SUPERSEDING RESULT — 15 Nov 2026, LJK1 exact field + LBK1 handoffs (CI GREEN)
 
 **Code checkpoint:** `a4cd35290de8d5ff706a6ad7b740294d94c29af4`.  
