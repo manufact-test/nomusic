@@ -1190,6 +1190,17 @@ try
         "W88 initial clean install enables tray autostart by default");
     Test(!WindowsLaunchSettings.ShouldEnableDefault(true),
         "W88 explicit autostart choice must never be overwritten on later launch");
+    Test(WindowsLaunchSettings.StartupApprovalIsEnabled(null) &&
+         WindowsLaunchSettings.StartupApprovalIsEnabled(
+             new byte[] { 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }),
+         "W153 absent or enabled Windows StartupApproved marker agrees with CELIKOM ON");
+    Test(!WindowsLaunchSettings.StartupApprovalIsEnabled(
+             new byte[] { 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }) &&
+         !WindowsLaunchSettings.StartupApprovalIsEnabled(
+             new byte[] { 0x63, 0x60, 0x60, 0x60, 0x62, 0xF9, 0x8C, 0x76,
+                 0xC5, 0x3B, 0xD9, 0x91 }) &&
+         !WindowsLaunchSettings.StartupApprovalIsEnabled(new byte[] { 0x02 }),
+         "W153 Windows Startup Settings OFF or malformed approval never triggers background resume");
     // W87: Windows login persistence is only a remembered user preference.
     // It can never replace server entitlement or grant access by itself.
     const string loginInstallation = "94e77e24-9abc-4c68-b3c0-a3e7aa1bb516";

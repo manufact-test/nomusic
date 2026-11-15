@@ -14,12 +14,49 @@ namespace Celikom.Companion;
 public static class WindowsLaunchSettings
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string StartupApprovedKey =
+        @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
     private const string SettingsKey = @"Software\CELIKOM\Windows";
     private const string RunName = "CELIKOM";
     private const string StartupChoiceKey = "AutoRunConfigured";
 
     public static bool ShouldEnableDefault(bool hasExplicitChoice) =>
         !hasExplicitChoice;
+
+    // Windows Settings / Task Manager keep the Run value but record an explicit
+    // OFF choice separately in HKCU\...\Explorer\StartupApproved\Run.
+    // Missing approval means Windows' default ON; a malformed/unknown marker
+    // fails closed so CELIKOM never silently overrides a user decision.
+    public static bool StartupApprovalIsEnabled(byte[]? approval) =>
+        approval is null || (approval.Length >= 12 && approval[0] == 0x02);
+
+    private static bool IsStartupApproved()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(StartupApprovedKey);
+            var approval = key?.GetValue(RunName);
+            return approval is null || approval is byte[] bytes &&
+                StartupApprovalIsEnabled(bytes);
+        }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (IOException) { return false; }
+        catch (System.Security.SecurityException) { return false; }
+    }
+
+    private static bool ClearStartupApproval()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(StartupApprovedKey, writable: true);
+            if (key is null) return true;
+            key.DeleteValue(RunName, throwOnMissingValue: false);
+            return true;
+        }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (IOException) { return false; }
+        catch (System.Security.SecurityException) { return false; }
+    }
 
     /// <summary>
     /// First launch registers a quiet Windows login start. A user's later
@@ -53,8 +90,10 @@ public static class WindowsLaunchSettings
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-            return string.Equals(key?.GetValue(RunName) as string,
-                BuildRunCommand(executablePath), StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(key?.GetValue(RunName) as string,
+                BuildRunCommand(executablePath), StringComparison.OrdinalIgnoreCase))
+                return false;
+            return IsStartupApproved();
         }
         catch (UnauthorizedAccessException) { return false; }
         catch (IOException) { return false; }
@@ -68,7 +107,11 @@ public static class WindowsLaunchSettings
             using var key = Registry.CurrentUser.CreateSubKey(RunKey, writable: true);
             if (key is null) return false;
             if (enable)
+            {
                 key.SetValue(RunName, BuildRunCommand(executablePath), RegistryValueKind.String);
+                // Explicit CELIKOM ON also clears a prior Windows Settings OFF.
+                if (!ClearStartupApproval()) return false;
+            }
             else
                 key.DeleteValue(RunName, throwOnMissingValue: false);
             if (IsRunAtLoginEnabled(executablePath) != enable)
