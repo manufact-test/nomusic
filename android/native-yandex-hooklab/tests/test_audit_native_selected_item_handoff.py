@@ -7,7 +7,8 @@ from audit_native_selected_item_handoff import (
     classify_boundary_call, boundary_callsite_census,
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
-    trace_identity_method, select_next_identity_method_refs
+    trace_identity_method, select_next_identity_method_refs,
+    summarize_boundary_callsite_owner_profiles
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -187,6 +188,49 @@ class SelectedItemAuditTests(unittest.TestCase):
             reverse=boundary_callsite_census(FakeDex(),method,0,100,[publish,helper])
         self.assertTrue(rows[0]["track_returning_method_call_before"])
         self.assertFalse(reverse[0]["track_returning_method_call_before"])
+
+    def test_owner_profile_detects_media_item_and_decoder_types_without_values(self):
+        from audit_native_selected_item_handoff import classify_track_owner_profile
+        profile=classify_track_owner_profile({
+            "static_types":set(),
+            "instance_types":{
+                "Landroidx/media3/common/MediaItem;",
+                "Landroid/media/AudioTrack;",
+                "Landroid/media/MediaCodec;",
+                "Landroid/media/MediaMetadata;",
+                "Landroid/media/session/PlaybackState;",
+            },
+            "interfaces":set(),"superclass":None
+        })
+        self.assertTrue(profile["has_media_item_field"])
+        self.assertTrue(profile["has_audio_track_field"])
+        self.assertTrue(profile["has_media_codec_field"])
+        self.assertTrue(profile["has_media_metadata_field"])
+        self.assertTrue(profile["has_playback_state_field"])
+        self.assertTrue(profile["has_decoder_field"])
+
+    def test_boundary_callsite_owner_profiles_group_exact_callers(self):
+        from audit_native_selected_item_handoff import summarize_boundary_callsite_owner_profiles
+        rows=[{
+            "kind":"DECODER_BOUNDARY",
+            "caller_key":("LPlayerCore;","write","()V")
+        },{
+            "kind":"DECODER_BOUNDARY",
+            "caller_key":("LPlayerCore;","flush","()V")
+        }]
+        profiles={
+            "LPlayerCore;":{
+                "static_types":set(),
+                "instance_types":{"Landroid/media/AudioTrack;","Landroidx/media3/common/MediaItem;"},
+                "interfaces":set(),"superclass":None
+            }
+        }
+        result=summarize_boundary_callsite_owner_profiles(rows,profiles)
+        entry=result["DECODER_BOUNDARY"][0]
+        self.assertEqual(entry["call_site_count"],2)
+        self.assertEqual(entry["distinct_caller_method_count"],2)
+        self.assertTrue(entry["has_audio_track_field"])
+        self.assertTrue(entry["has_media_item_field"])
 
     def test_track_field_owner_inventory_separates_player_and_queue_shape(self):
         profiles={

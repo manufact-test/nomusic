@@ -226,11 +226,22 @@ def classify_track_owner_profile(profile):
         "Ljava/util/Queue;", "Ljava/util/Deque;", "Ljava/util/Map;",
         "Ljava/util/ArrayList;", "Ljava/util/LinkedList;"
     }
+    lowered_types = [typ.lower() for typ in all_types]
     source_like = any(
-        "datasource" in typ.lower() or "mediasource" in typ.lower()
-        or "/source/" in typ.lower()
-        for typ in all_types
+        "datasource" in typ or "mediasource" in typ or "/source/" in typ
+        for typ in lowered_types
     )
+    has_media_item = any(
+        "mediaitem" in typ or "playeritem" in typ
+        or "trackitem" in typ or "queueitem" in typ
+        for typ in lowered_types
+    )
+    has_media_source = any("mediasource" in typ for typ in lowered_types)
+    has_media_metadata = any("mediametadata" in typ for typ in lowered_types)
+    has_playback_state = any("playbackstate" in typ for typ in lowered_types)
+    has_audio_track = any("audiotrack" in typ for typ in lowered_types)
+    has_media_codec = any("mediacodec" in typ for typ in lowered_types)
+    has_media_extractor = any("mediaextractor" in typ for typ in lowered_types)
     return {
         "has_track_field": MODEL in instance,
         "has_album_field": ALBUM_MODEL in instance,
@@ -247,7 +258,17 @@ def classify_track_owner_profile(profile):
             interfaces & PLAYER_OWNERS or superclass in PLAYER_OWNERS
         ),
         "has_media_session_field": MEDIA_SESSION_OWNER in all_types,
-        "has_decoder_field": any(typ in DECODER_BOUNDARY_METHODS for typ in all_types),
+        "has_media_item_field": has_media_item,
+        "has_media_source_field": has_media_source,
+        "has_media_metadata_field": has_media_metadata,
+        "has_playback_state_field": has_playback_state,
+        "has_audio_track_field": has_audio_track,
+        "has_media_codec_field": has_media_codec,
+        "has_media_extractor_field": has_media_extractor,
+        "has_decoder_field": (
+            any(typ in DECODER_BOUNDARY_METHODS for typ in all_types)
+            or has_audio_track or has_media_codec or has_media_extractor
+        ),
         "has_source_like_field": source_like,
         "has_kotlin_flow_field": any(
             typ.startswith("Lkotlinx/coroutines/flow/") for typ in all_types
@@ -277,6 +298,10 @@ def summarize_track_field_owner_inventory(class_profiles):
         "track_owner_implements_player_api_count": sum(p["implements_player_api"] for p in track),
         "track_owner_with_media_session_field_count": sum(p["has_media_session_field"] for p in track),
         "track_owner_with_decoder_field_count": sum(p["has_decoder_field"] for p in track),
+        "track_owner_with_media_item_field_count": sum(p["has_media_item_field"] for p in track),
+        "track_owner_with_media_source_field_count": sum(p["has_media_source_field"] for p in track),
+        "track_owner_with_media_metadata_field_count": sum(p["has_media_metadata_field"] for p in track),
+        "track_owner_with_playback_state_field_count": sum(p["has_playback_state_field"] for p in track),
         "track_owner_with_source_like_field_count": sum(p["has_source_like_field"] for p in track),
         "track_owner_with_kotlin_flow_field_count": sum(p["has_kotlin_flow_field"] for p in track),
         "album_owner_with_numeric_field_count": sum(p["has_numeric_field"] for p in album),
@@ -302,6 +327,11 @@ def candidate_owner_descriptors(class_profiles):
             "has_player_api_field": shape["has_player_api_field"],
             "implements_player_api": shape["implements_player_api"],
             "has_source_like_field": shape["has_source_like_field"],
+            "has_media_item_field": shape["has_media_item_field"],
+            "has_media_source_field": shape["has_media_source_field"],
+            "has_media_metadata_field": shape["has_media_metadata_field"],
+            "has_playback_state_field": shape["has_playback_state_field"],
+            "has_decoder_field": shape["has_decoder_field"],
             "instance_field_type_count": len(profile.get("instance_types", ())),
         })
     if len(rows) > 32:
@@ -1058,6 +1088,49 @@ def select_next_identity_method_refs(traces, already_traced, class_profiles):
     return sorted(refs)
 
 
+def summarize_boundary_callsite_owner_profiles(rows, class_profiles=None):
+    class_profiles = class_profiles or {}
+    grouped = {}
+    for row in rows:
+        owner = row["caller_key"][0]
+        bucket = grouped.setdefault(row["kind"], {})
+        entry = bucket.setdefault(owner, {"call_site_count": 0, "methods": set()})
+        entry["call_site_count"] += 1
+        entry["methods"].add(row["caller_key"])
+    result = {}
+    for kind, owners in grouped.items():
+        if len(owners) > 64:
+            raise ValueError("BOUNDARY_CALLER_OWNER_LIMIT")
+        rows_out = []
+        for owner, entry in sorted(owners.items()):
+            profile = classify_track_owner_profile(class_profiles.get(owner, {}))
+            rows_out.append({
+                "owner": owner,
+                "call_site_count": entry["call_site_count"],
+                "distinct_caller_method_count": len(entry["methods"]),
+                "has_track_field": profile["has_track_field"],
+                "has_album_field": profile["has_album_field"],
+                "has_wrapper_field": profile["has_wrapper_field"],
+                "has_collection_field": profile["has_collection_field"],
+                "has_numeric_field": profile["has_numeric_field"],
+                "has_player_api_field": profile["has_player_api_field"],
+                "implements_player_api": profile["implements_player_api"],
+                "has_media_session_field": profile["has_media_session_field"],
+                "has_media_item_field": profile["has_media_item_field"],
+                "has_media_source_field": profile["has_media_source_field"],
+                "has_media_metadata_field": profile["has_media_metadata_field"],
+                "has_playback_state_field": profile["has_playback_state_field"],
+                "has_audio_track_field": profile["has_audio_track_field"],
+                "has_media_codec_field": profile["has_media_codec_field"],
+                "has_media_extractor_field": profile["has_media_extractor_field"],
+                "has_decoder_field": profile["has_decoder_field"],
+                "has_source_like_field": profile["has_source_like_field"],
+                "has_kotlin_flow_field": profile["has_kotlin_flow_field"],
+            })
+        result[kind] = rows_out
+    return result
+
+
 def summarize_boundary_callsite_census(rows, class_profiles=None):
     class_profiles = class_profiles or {}
     summary = {}
@@ -1069,9 +1142,14 @@ def summarize_boundary_callsite_census(rows, class_profiles=None):
         "album_returning_method_call_before"
     )
     owner_flags = (
-        "has_track_field", "has_album_field", "has_player_api_field",
-        "implements_player_api", "has_source_like_field",
-        "has_collection_field", "has_numeric_field"
+        "has_track_field", "has_album_field", "has_wrapper_field",
+        "has_player_api_field", "implements_player_api",
+        "has_media_session_field", "has_media_item_field",
+        "has_media_source_field", "has_media_metadata_field",
+        "has_playback_state_field", "has_audio_track_field",
+        "has_media_codec_field", "has_media_extractor_field",
+        "has_decoder_field", "has_source_like_field",
+        "has_kotlin_flow_field", "has_collection_field", "has_numeric_field"
     )
     for row in rows:
         bucket = summary.setdefault(row["kind"], {
@@ -2331,6 +2409,8 @@ def inspect_signed(apks):
         "next_identity_hop_owner_profiles": next_identity_hop_owner_profiles,
         "boundary_callsite_identity_census":
             summarize_boundary_callsite_census(boundary_callsite_rows, class_profiles),
+        "boundary_callsite_owner_profiles":
+            summarize_boundary_callsite_owner_profiles(boundary_callsite_rows, class_profiles),
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,
