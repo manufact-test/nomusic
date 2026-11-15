@@ -2751,6 +2751,7 @@ def trace_native_track_coroutine_continuation(
     string_reads=[]
     wrapper_ctors=[]
     wrapper_handoffs=[]
+    continuation_handoffs=[]
     parameter_writes=[]
     reachable_branches=[
         row for row in cfg["branches"]
@@ -2761,6 +2762,7 @@ def trace_native_track_coroutine_continuation(
     seen_string_events=set()
     seen_wrapper_ctor_events=set()
     seen_wrapper_handoff_events=set()
+    seen_continuation_handoff_events=set()
     for pc in sorted(cfg["reachable"]):
       op,words=by_pc[pc]
       for path_state in incoming.get(pc,{}).values():
@@ -2915,6 +2917,33 @@ def trace_native_track_coroutine_continuation(
                      tuple(row["continuation_argument_origins"]))
                 if key not in seen_wrapper_handoff_events:
                     seen_wrapper_handoff_events.add(key); wrapper_handoffs.append(row)
+            params=parse_types(callee[2])
+            target_types=expand_invoke_register_types(
+                callee[0],params,op in (0x71,0x77)
+            )
+            for argument_position,argument_type in enumerate(target_types):
+                if argument_type not in (continuation_owner,continuation_type):
+                    continue
+                argument_origins=state.get(args[argument_position],frozenset())
+                is_new="NEW_LFp0_CONTINUATION" in argument_origins
+                is_reused="REUSED_LFp0_CONTINUATION" in argument_origins
+                if not (is_new or is_reused):
+                    continue
+                row={
+                    "pc":pc,
+                    "target":{"owner":callee[0],"method":callee[1],"signature":callee[2]},
+                    "argument_position":argument_position,
+                    "argument_type":argument_type,
+                    "argument_origins":sorted(argument_origins),
+                    "same_new_continuation_object_argument":is_new,
+                    "same_reused_continuation_object_argument":is_reused
+                }
+                key=(pc,callee,argument_position,tuple(row["argument_origins"]))
+                if key not in seen_continuation_handoff_events:
+                    if len(continuation_handoffs)>=64:
+                        raise ValueError("TRACK_COROUTINE_CONTINUATION_HANDOFF_LIMIT")
+                    seen_continuation_handoff_events.add(key)
+                    continuation_handoffs.append(row)
 
         dest=written_register(op,words)
         if dest is not None and dest in track_regs:
@@ -2975,6 +3004,21 @@ def trace_native_track_coroutine_continuation(
         "CAPTURE_OWNER_TRACK_FIELD_STRING" in x["string_argument_origins"]
         for x in wrapper_ctors
     ) and any(x["capture_owner_field_derived_wrapper_passed"] for x in wrapper_handoffs)
+    initial_capture_store_count=sum(
+        row["same_original_track_parameter"]
+        and "NEW_LFp0_CONTINUATION" in row["receiver_origins"]
+        for row in stores
+    )
+    resumed_null_store_count=sum(
+        "NULL_TRACK_ARGUMENT_ON_EXACT_Fp0_RESUME" in row["source_origins"]
+        and "REUSED_LFp0_CONTINUATION" in row["receiver_origins"]
+        for row in stores
+    )
+    resumed_saved_track_store_count=sum(
+        row["same_continuation_field_track"]
+        and "REUSED_LFp0_CONTINUATION" in row["receiver_origins"]
+        for row in stores
+    )
 
     return {
         "initial_method":{"owner":initial_method[0],"method":initial_method[1],"signature":initial_method[2]},
@@ -2996,6 +3040,11 @@ def trace_native_track_coroutine_continuation(
         "track_string_field_read_sites":string_reads,
         "opaque_wrapper_constructor_sites":wrapper_ctors,
         "wrapper_continuation_handoff_sites":wrapper_handoffs,
+        "continuation_argument_handoff_sites":continuation_handoffs,
+        "initial_entry_original_track_to_new_continuation_store_candidate_count":initial_capture_store_count,
+        "resumed_entry_null_track_to_reused_continuation_store_candidate_count":resumed_null_store_count,
+        "resumed_entry_saved_track_to_reused_continuation_store_candidate_count":resumed_saved_track_store_count,
+        "continuation_field_store_to_read_same_object_proven":False,
         "resume_continuation_call_sites":resume_calls,
         "resume_track_argument_explicit_null":resume_null_track_callsite,
         "original_track_parameter_to_continuation_field_candidate":direct_capture,
@@ -3018,147 +3067,224 @@ def trace_native_track_coroutine_continuation(
 
 
 def trace_track_value_to_exact_field_store(dex, method, flags, code_off, target_field):
-    """Trace exact Track-parameter/field aliases to one private field write."""
+    """Trace exact Track aliases to one field write across bounded CFG paths."""
     track_parameter_aliases=set(typed_parameter_registers(
         dex,method,flags,code_off,MODEL
     ))
-    track_aliases=set(track_parameter_aliases)
-    track_field_aliases=set()
-    cast_object_aliases=set()
-    object_aliases=set(typed_parameter_registers(
+    object_parameter_aliases=set(typed_parameter_registers(
         dex,method,flags,code_off,"Ljava/lang/Object;"
     ))
-    returned_track_aliases=set()
+    continuation_parameter_aliases=set(typed_parameter_registers(
+        dex,method,flags,code_off,"LOe2;"
+    ))
     this_register=None if flags&ACC_STATIC else (
         dex.u16(code_off)-dex.u16(code_off+2)
     )
-    ins=list(instructions(dex,code_off))
+    cfg=build_dex_control_flow(dex,code_off)
+    by_pc=cfg["by_pc"]
+    successors=cfg["successors"]
+    initial_registers={}
+    for reg in track_parameter_aliases:
+        initial_registers[reg]=frozenset({"ORIGINAL_TRACK_PARAMETER"})
+    for reg in object_parameter_aliases:
+        initial_registers[reg]=frozenset({"OBJECT_PARAMETER_UNREFINED"})
+    for reg in continuation_parameter_aliases:
+        initial_registers.setdefault(reg,frozenset())
+        initial_registers[reg]=frozenset(
+            set(initial_registers[reg])|{"INPUT_CONTINUATION_PARAMETER"}
+        )
+    if this_register is not None:
+        initial_registers[this_register]=frozenset({"THIS_OBJECT"})
+    initial_state={"registers":initial_registers,"pending_return":None}
+
+    def state_key(state):
+        return (
+            tuple((reg,tuple(sorted(origins)))
+                  for reg,origins in sorted(state["registers"].items())),
+            state["pending_return"]
+        )
+
     wide_ops=(
         {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
          0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
         |set(range(0x9b,0xa6))|set(range(0xab,0xb0))
         |set(range(0xbb,0xc6))|set(range(0xcb,0xd0))
     )
-    stores=[]
-    pending_track_return=False
-    branch_seen=False
 
-    def clear(reg):
-        for aliases in (
-            track_aliases,track_parameter_aliases,track_field_aliases,
-            cast_object_aliases,object_aliases,returned_track_aliases
-        ):
-            aliases.discard(reg)
+    def transfer(state,op,words):
+        regs={r:set(v) for r,v in state["registers"].items()}
+        pending_return=state["pending_return"]
 
-    for ordinal,(_pc,op,words) in enumerate(ins):
+        def clear(reg):
+            regs.pop(reg,None)
+
         if op in INVOKES:
             callee=dex.method(words[1])
-            # A Track-returning call is not assumed to return the same Track
-            # as any parameter. Preserve it only as an unlinked candidate.
-            pending_track_return=callee[2].split(")",1)[1]==MODEL
-            continue
-        if op==0x0c:  # move-result-object
+            result_type=callee[2].split(")",1)[1]
+            pending_return=result_type if result_type==MODEL else None
+            return {
+                "registers":{r:frozenset(v) for r,v in regs.items() if v},
+                "pending_return":pending_return
+            }
+
+        if op==0x0c:  # move-result-object; returned Track is never same as an input by assumption
             dest=words[0]>>8
             clear(dest)
-            if pending_track_return:
-                returned_track_aliases.add(dest)
-            pending_track_return=False
-            continue
-        pending_track_return=False
+            if pending_return==MODEL:
+                regs[dest]={"UNLINKED_TRACK_RETURN_CANDIDATE"}
+            pending_return=None
+            return {
+                "registers":{r:frozenset(v) for r,v in regs.items() if v},
+                "pending_return":None
+            }
 
-        if op==0x54:  # iget-object; field values are never disclosed
-            dest=(words[0]>>8)&15
-            receiver=(words[0]>>12)&15
-            _owner,_name,typ=field_id(dex,words[1])
-            clear(dest)
-            if typ==MODEL and receiver==this_register:
-                track_aliases.add(dest)
-                track_field_aliases.add(dest)
-            continue
-
-        if op==0x5b:  # iput-object
-            value=(words[0]>>8)&15
-            receiver=(words[0]>>12)&15
-            if field_id(dex,words[1])==target_field:
-                from_parameter=value in track_parameter_aliases
-                from_field=value in track_field_aliases
-                from_cast=value in cast_object_aliases
-                from_unlinked_return=value in returned_track_aliases
-                stores.append({
-                    "ordinal":ordinal,
-                    "value_register":value,
-                    "receiver_register":receiver,
-                    "source_is_original_track_parameter":from_parameter,
-                    "source_is_track_field_read_from_this":from_field,
-                    "source_is_track_parameter_or_field":(
-                        value in track_aliases or from_cast
-                    ),
-                    "source_is_object_parameter_not_yet_cast":value in object_aliases,
-                    "source_is_unlinked_track_return_candidate":from_unlinked_return,
-                    "receiver_is_this":receiver==this_register,
-                    "track_source_provenance":(
-                        "SAME_TRACK_PARAMETER_REFERENCE" if from_parameter else
-                        "TRACK_FIELD_REFERENCE" if from_field else
-                        "CAST_OBJECT_PARAMETER_REFERENCE" if from_cast else
-                        "UNLINKED_TRACK_RETURN_CANDIDATE" if from_unlinked_return else
-                        "OBJECT_PARAMETER_UNREFINED" if value in object_aliases else
-                        "UNTRACED"
-                    )
-                })
-            continue
-
-        if op in (0x07,0x08,0x09):  # move-object preserves reference identity
+        pending_return=None
+        if op in (0x07,0x08,0x09):  # move-object preserves exact reference identity
             move=move_object_registers(op,words)
             if move:
                 dest,source=move
-                origins={
-                    "track":source in track_aliases,
-                    "parameter":source in track_parameter_aliases,
-                    "field":source in track_field_aliases,
-                    "cast":source in cast_object_aliases,
-                    "object":source in object_aliases,
-                    "returned":source in returned_track_aliases
-                }
+                origins=set(regs.get(source,set()))
                 clear(dest)
-                if origins["track"]: track_aliases.add(dest)
-                if origins["parameter"]:
-                    track_parameter_aliases.add(dest); track_aliases.add(dest)
-                if origins["field"]:
-                    track_field_aliases.add(dest); track_aliases.add(dest)
-                if origins["cast"]: cast_object_aliases.add(dest)
-                if origins["object"]: object_aliases.add(dest)
-                if origins["returned"]: returned_track_aliases.add(dest)
-            continue
-
-        if op==0x1f:  # Object -> Track cast retains the same object, not an arbitrary Track return
+                if origins:
+                    regs[dest]=origins
+        elif op==0x22:  # new-instance of the exact field owner
             dest=(words[0]>>8)&0xff
-            if dex.descriptor(words[1])==MODEL and dest in object_aliases:
-                object_aliases.discard(dest)
-                cast_object_aliases.add(dest)
-            continue
-
-        dest=written_register(op,words)
-        if dest is not None:
+            typ=dex.descriptor(words[1])
             clear(dest)
-            if op in wide_ops:
-                clear(dest+1)
-        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
-            # Branches do not mutate registers; retain aliases until actual writes.
-            branch_seen=True
+            if typ==target_field[0]:
+                regs[dest]={"NEW_TARGET_FIELD_OWNER"}
+        elif op==0x1f:  # check-cast preserves the same reference
+            reg=(words[0]>>8)&0xff
+            typ=dex.descriptor(words[1])
+            origins=regs.get(reg,set())
+            if typ==MODEL and "OBJECT_PARAMETER_UNREFINED" in origins:
+                origins.add("CAST_OBJECT_PARAMETER_REFERENCE")
+            if typ==target_field[0] and "INPUT_CONTINUATION_PARAMETER" in origins:
+                origins.add("REUSED_TARGET_FIELD_OWNER")
+        elif op==0x54:  # iget-object; record only type/identity category, never value
+            dest=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            owner,name,field_type=field_id(dex,words[1])
+            receiver_origins=regs.get(receiver,set())
+            clear(dest)
+            if field_type==MODEL:
+                if (owner,name,field_type)==target_field and (
+                    "NEW_TARGET_FIELD_OWNER" in receiver_origins
+                    or "REUSED_TARGET_FIELD_OWNER" in receiver_origins
+                    or "THIS_OBJECT" in receiver_origins
+                ):
+                    regs[dest]={"TARGET_FIELD_TRACK_READ_CANDIDATE"}
+                elif receiver==this_register:
+                    regs[dest]={"TRACK_FIELD_READ_FROM_THIS"}
+        elif op==0x5b:  # iput-object does not change source-register identity
+            pass
+        else:
+            dest=written_register(op,words)
+            if dest is not None:
+                clear(dest)
+                if op in wide_ops:
+                    clear(dest+1)
+        return {
+            "registers":{r:frozenset(v) for r,v in regs.items() if v},
+            "pending_return":pending_return
+        }
+
+    incoming={cfg["entry"]:{state_key(initial_state):initial_state}}
+    work=[(cfg["entry"],state_key(initial_state))]
+    processed=0
+    while work:
+        pc,key=work.pop()
+        processed+=1
+        if processed>200000:
+            raise ValueError("TRACK_FIELD_WRITER_CFG_DATAFLOW_LIMIT")
+        state=incoming[pc][key]
+        op,words=by_pc[pc]
+        out=transfer(state,op,words)
+        out_key=state_key(out)
+        for target in successors.get(pc,()):
+            bucket=incoming.setdefault(target,{})
+            if out_key in bucket:
+                continue
+            if len(bucket)>=128:
+                raise ValueError("TRACK_FIELD_WRITER_CFG_PATH_STATE_LIMIT")
+            bucket[out_key]=out
+            work.append((target,out_key))
+
+    ordinal_by_pc={pc:index for index,(pc,_op,_words) in enumerate(cfg["instructions"])}
+    stores=[]
+    seen=set()
+    for pc in sorted(cfg["reachable"]):
+        op,words=by_pc[pc]
+        if op!=0x5b or field_id(dex,words[1])!=target_field:
+            continue
+        value=(words[0]>>8)&15
+        receiver=(words[0]>>12)&15
+        for path_state in incoming.get(pc,{}).values():
+            state=path_state["registers"]
+            source_origins=state.get(value,frozenset())
+            receiver_origins=state.get(receiver,frozenset())
+            from_parameter="ORIGINAL_TRACK_PARAMETER" in source_origins
+            from_field="TRACK_FIELD_READ_FROM_THIS" in source_origins
+            from_cast="CAST_OBJECT_PARAMETER_REFERENCE" in source_origins
+            from_target_field="TARGET_FIELD_TRACK_READ_CANDIDATE" in source_origins
+            from_return="UNLINKED_TRACK_RETURN_CANDIDATE" in source_origins
+            from_object="OBJECT_PARAMETER_UNREFINED" in source_origins
+            row={
+                "pc":pc,
+                "ordinal":ordinal_by_pc.get(pc),
+                "source_is_original_track_parameter":from_parameter,
+                "source_is_track_field_read_from_this":from_field,
+                "source_is_track_parameter_or_field":from_parameter or from_field or from_cast,
+                "source_is_object_parameter_not_yet_cast":from_object,
+                "source_is_unlinked_track_return_candidate":from_return,
+                "source_is_target_field_track_read_candidate":from_target_field,
+                "receiver_is_this":receiver==this_register,
+                "receiver_is_target_field_owner":(
+                    "NEW_TARGET_FIELD_OWNER" in receiver_origins
+                    or "REUSED_TARGET_FIELD_OWNER" in receiver_origins
+                ),
+                "source_origins":sorted(source_origins),
+                "receiver_origins":sorted(receiver_origins),
+                "track_source_provenance":(
+                    "SAME_TRACK_PARAMETER_REFERENCE" if from_parameter else
+                    "TRACK_FIELD_REFERENCE" if from_field else
+                    "CAST_OBJECT_PARAMETER_REFERENCE" if from_cast else
+                    "TARGET_FIELD_TRACK_READ_CANDIDATE" if from_target_field else
+                    "UNLINKED_TRACK_RETURN_CANDIDATE" if from_return else
+                    "OBJECT_PARAMETER_UNREFINED" if from_object else
+                    "UNTRACED"
+                )
+            }
+            key=(pc,tuple(row["source_origins"]),tuple(row["receiver_origins"]))
+            if key not in seen:
+                seen.add(key)
+                stores.append(row)
 
     return {
         "method":{"owner":method[0],"method":method[1],"signature":method[2]},
-        "track_parameter_count":len(typed_parameter_registers(
-            dex,method,flags,code_off,MODEL
-        )),
-        "object_parameter_count":len(typed_parameter_registers(
-            dex,method,flags,code_off,"Ljava/lang/Object;"
-        )),
+        "track_parameter_count":len(track_parameter_aliases),
+        "object_parameter_count":len(object_parameter_aliases),
         "field_store_sites":stores,
-        "branch_seen":branch_seen,
+        "same_track_parameter_store_candidate":any(
+            row["source_is_original_track_parameter"] for row in stores
+        ),
+        "all_observed_store_paths_same_original_track_parameter":(
+            bool(stores) and all(row["source_is_original_track_parameter"] for row in stores)
+        ),
+        "branch_seen":bool(cfg["branches"]),
+        "control_flow_graph_built":True,
+        "reachable_instruction_count":len(cfg["reachable"]),
+        "dataflow_instruction_visits":processed,
+        "max_path_states_at_instruction":max(
+            (len(states) for states in incoming.values()),default=0
+        ),
+        "exception_handler_edges_included":False,
+        "branch_path_predicates_evaluated":False,
         "control_flow_feasibility_proven":False,
         "private_field_name_or_value_disclosed":False
     }
+
+
 
 
 

@@ -839,6 +839,46 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(result["field_store_sites"][0]["source_is_object_parameter_not_yet_cast"])
         self.assertNotIn("privateTrack",str(result))
 
+    def test_exact_continuation_field_writer_preserves_track_on_one_cfg_branch(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:3}[offset]
+            def descriptor(self,index):
+                return {1:"LFp0;"}[index]
+        method=("LGp0;","new",
+                "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)V")
+        ins=[
+            (0,0x22,[0x0022,1]),
+            (2,0x38,[0x0338,4]),
+            (4,0x5b,[0x025b,7]),
+            (6,0x12,[0x0212]),
+            (7,0x5b,[0x025b,7]),
+            (9,0x0e,[0x000e])
+        ]
+        target=("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;")
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            result=trace_track_value_to_exact_field_store(
+                FakeDex(),method,0x8,100,target
+            )
+        self.assertTrue(result["control_flow_graph_built"])
+        self.assertTrue(result["branch_seen"])
+        self.assertTrue(result["same_track_parameter_store_candidate"])
+        self.assertFalse(result["all_observed_store_paths_same_original_track_parameter"])
+        self.assertTrue(any(
+            row["source_is_original_track_parameter"]
+            and row["receiver_is_target_field_owner"]
+            for row in result["field_store_sites"]
+        ))
+        self.assertTrue(any(
+            not row["source_is_original_track_parameter"]
+            for row in result["field_store_sites"]
+        ))
+        self.assertFalse(result["control_flow_feasibility_proven"])
+        self.assertFalse(result["exception_handler_edges_included"])
+        self.assertNotIn("hiddenTrack",str(result))
+
     def test_native_track_coroutine_capture_roundtrip_and_wrapper_identity(self):
         from unittest.mock import patch
         class FakeDex:
@@ -891,6 +931,15 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(result["control_flow_graph_built"])
         self.assertTrue(result["wrapper_continuation_handoff_sites"][0]["wrapper_instance_passed"])
         self.assertFalse(result["coroutine_runtime_resume_dispatch_proven"])
+        self.assertFalse(result["continuation_field_store_to_read_same_object_proven"])
+        self.assertGreaterEqual(
+            result["initial_entry_original_track_to_new_continuation_store_candidate_count"],1
+        )
+        self.assertTrue(any(
+            row["same_new_continuation_object_argument"]
+            and row["target"]["owner"]=="Lou3;"
+            for row in result["continuation_argument_handoff_sites"]
+        ))
         self.assertNotIn("hiddenTrack",str(result))
         self.assertNotIn("hiddenString",str(result))
 
