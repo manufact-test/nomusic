@@ -1,66 +1,67 @@
 # АКТУАЛЬНЫЙ HANDOFF — CELIKOM Android A1, 15.11.2026
 
-**Эта точка supersedes старые инструкции ниже, в которых предлагается снова исследовать LyEa / LaC7 / LCK1.**
+**Этот блок supersedes старые инструкции ниже. Не возвращаться к закрытой LyEa-ветке и не повторять уже выполненные аудиты.**
 
 ## Контрольная точка
 
 - Продукт: **CELIKOM Android**, мобильное приложение. Не Windows и не браузерное расширение.
-- Репозиторий: `manufact-test/nomusic`.
-- Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Последний кодовый checkpoint: `815abcb4f9f43224506392b67efc07b3e34cf26b`.
-- CI #148: [SUCCESS, 102/102](https://github.com/manufact-test/nomusic/actions/runs/43753653243), pinned publisher-signed Yandex 2025 XAPK, шесть DEX, read-only.
-- Точный резерв зелёного кода: `backup/android-a1-lya-route-closed-ci-green-20261115` @ `815abcb4f9f43224506392b67efc07b3e34cf26b`.
-- Последний runtime-hook change: `a655712d210189f3bc611847235de3ed4d985c1a`. После него runtime hooks не менялись.
+- Репозиторий: manufact-test/nomusic.
+- Единственная рабочая ветка: experiment/android-a1-metrica-init-state-observer-arm13-20261112.
+- Последний кодовый checkpoint: 476bf5ee0751f2ba5851f41a0f2a82e2792cf9e8.
+- CI #151: [SUCCESS, 104/104](https://github.com/manufact-test/nomusic/actions/runs/43756845719), точный publisher-signed Yandex 2025 XAPK, шесть DEX, read-only.
+- Точный резерв зелёного кода: backup/android-a1-renderer-field-cfg-trace-ci-green-20261115 @ 476bf5ee0751f2ba5851f41a0f2a82e2792cf9e8.
+- Последний runtime-hook change: a655712d210189f3bc611847235de3ed4d985c1a. После него runtime hooks не менялись.
 - Последний проход менял только статический анализатор и его unit-тесты. APK не собирался, не патчился, не устанавливался и не выпускался.
+- Документационный HEAD после этого handoff будет отдельным commit; кодовый checkpoint остаётся указанным выше.
 
-## Закрытая ветка LyEa / LaC7 / LCK1 — больше не возвращаться
+## Закрытая ветка LyEa / LaC7 / LCK1
 
-CI #148 завершил эту проверку:
+CI #148 закрыл LyEa-кандидат как неподтверждённый маршрут. Не возвращаться к LyEa, LaC7 implementers/callers, LCK1 или unrelated LzA9 callers. Общая receiver identity не доказана; LzA9 exact method остаётся abstract interface без найденного тела.
 
-1. `LyEa.if(): Track` возвращает объект из собственного Track-поля.
-2. Единственная запись в поле находится в полном конструкторе `LyEa`; ограниченный trace связывает записываемое значение с исходным Track-параметром конструктора. Это подтверждает происхождение поля, но **не** доказывает, что Track является текущим выбранным/играющим.
-3. Найдены два прямых вызова полного конструктора: делегирование из перегруженного конструктора с тем же Track-параметром и фабричный путь `LyEa.try(...)`, передающий Track, прочитанный из поля другого экземпляра.
-4. Нужные вызовы `LaC7.if(): Track` остаются только в `LCK1$c$a.emit` и `LCK1$h$a.emit`. В каждом по четыре входных CFG-состояния. Общей идентичности receiver нет; два пути остаются без доказанного происхождения, два связаны с результатом `LzA9.if()LaC7;`.
-5. `LzA9;` присутствует в подписанном DEX как abstract interface; конкретного тела точного `if(): LaC7` не найдено (`provider_method_body_count=0`). Диспетчеризация на `LyEa` не доказана.
+## Renderer ByteBuffer CFG — точный результат
 
-**Решение:** закрыть LyEa-кандидат как неподтверждённый. Не добавлять новые обходы CFG, не сканировать заново реализации LaC7, не исследовать посторонние вызовы LzA9, не возвращаться к LCK1. Не тратить новые CI на попытки «дожать» эту ветку.
+CI #151 добавил branch-sensitive trace только для LcC0.n(JJ)Z и Lkd6.n(JJ)Z. Разные CFG-состояния и альтернативные записи не объединяются.
+
+- LcC0.n: Lad6.final result at pc 193 → field slot 2 store at pc 197 → same-this field read at pc 266 → virtual O call at pc 293. Второй call: тот же source/store → read pc 331 → O call pc 353.
+- Lkd6.n: Lad6.final result at pc 170 → field slot 3 store at pc 174 → same-this field read at pc 232 → virtual O call at pc 259. Второй call: тот же source/store → read pc 282 → O call pc 304.
+- Для каждого из четырёх sink-related callsites есть два distinct incoming CFG identity states: один сохраняет точную ссылку Lad6.final → field store → field read → virtual O call; второй приходит к тому же field read без доказанного writer origin в этом method.
+- Следовательно, same Lad6 reference is proven only on one of two states per callsite. same_lad6_final_field_reference_on_every_state=false. Не объявлять цепочку непрерывной на всех ветках.
+- Более поздние неизвестные записи в slot 2 / slot 3 находятся после этих callsites и не смешиваются с ними.
+- O-вызовы являются virtual references с возможными sink implementations LcLb.O / Lbd6.O. Их ByteBuffer parameter → LbJ2.native(ByteBuffer, long, int) уже доказан, но runtime virtual dispatch на эти реализации не доказан.
+- CFG trace не включает exception edges и не моделирует внешние field mutations/reentrant calls. Это method-local static identity, не доказательство активного playback.
+
+Подробности и PCs: ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md.
+
+## Текущий выбранный Track/Album — точный блокер
+
+Уже имеющийся bounded signed-DEX census, без повторного сканирования:
+
+- Прямых Track-parameter callsites в Player selection, MediaSession state/metadata, native descriptor или decoder boundary: 0.
+- Среди 267 Track-field owners нет класса с Player API, MediaSession, decoder, MediaSource/source-like или Kotlin Flow field.
+- 16 shared Track/Album или Track/wrapper owner candidates дали 44 method summaries и 16 inbound-caller summaries. Ни один из этих methods не вызывает Player API, MediaSession, decoder boundary или source descriptor.
+- Два object-identity handoffs ведут только к конструкторам вспомогательных объектов: Track parameter → Track/Album constructor; Track + wrapper fields → continuation constructor. Ни один не устанавливает current selected Track.
+- На Track/Album не найдено Edition/Generation type descriptor или typed/named field. Edition/generation identity остаётся неизвестной.
+
+**Точный разрыв:** нет доказанного владельца именно текущего выбранного Track/Album и нет identity edge от такого владельца к decoder/render path. Очередь, prefetch, download и constructor candidates не считать playback.
 
 ## Статус продукта
 
 - Stage A / NAV17: PASS по подтверждению владельца — нативный Яндекс, аккаунт, альбомы, Моя волна и оригинальное воспроизведение работают. Не ломать и не переигрывать.
-- Stage B: **NOT CONNECTED / NO-GO**. CELIKOM-версии ещё не подключены к нативному декодеру и не звучат. Этот исследовательский checkpoint не является релизом.
-- `active_selected_item_proven=false`, `same_native_item_to_decoder_proven=false`, `same_track_album_edition_generation_owner_proven=false`, `codec_output_object_to_audio_sink_proven=false`.
+- Stage B: **NOT CONNECTED / NO-GO**. CELIKOM-версии ещё не подключены к нативному декодеру и не звучат.
+- active_selected_item_proven=false.
+- same_native_item_to_decoder_proven=false.
+- same_track_album_edition_generation_owner_proven=false.
+- codec_output_object_to_audio_sink_proven=false.
 
-## Единственный следующий маршрут — существующий native audio sink
+## Следующее действие
 
-Сначала прочитать `docs/android/ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md`. Нужные факты уже установлены; повторно их не аудировать:
+Не добавлять runtime hooks, не менять APK/vendor-код и не расширять статический поиск на соседние классы. Не повторять writer census, shared-owner census, LyEa audit или CI.
 
-- `LcLb.O(..., ByteBuffer, ...)` и `Lbd6.O(..., ByteBuffer, ...)` передают тот же ByteBuffer-параметр в `LbJ2.native(ByteBuffer, long, int)`.
-- Известны три ByteBuffer field slots и семь writer methods: `LRF2.final(I)V`, `LcC0.S()V`, `LcC0.n(JJ)Z`, `LcC0.o()Z`, `Lkd6.S()V`, `Lkd6.n(JJ)Z`, `Lkd6.o()Z`.
-- В `LcC0.n(JJ)Z` и `Lkd6.n(JJ)Z` уже найдены точные вызовы `Lad6.final(I)ByteBuffer` и записи результата в соответствующие поля. В этих методах есть ветвления и альтернативные записи; непрерывная identity до sink пока не доказана.
-- `LcC0.o()` / `Lkd6.o()` и `LRF2.final()` — альтернативные источники для другого слота. Не смешивать их с основной цепочкой.
-
-**Сделать только один следующий узкий проход:**
-1. Проследить в `LcC0.n(JJ)Z` и `Lkd6.n(JJ)Z` один конкретный ByteBuffer reference: от результата `Lad6.final(I)`, через точную запись/чтение поля, до вызова `LcLb.O` / `Lbd6.O`. Каждую ветку и альтернативную запись считать отдельной неопределённостью. Не считать совпадение типа или поля доказательством одной runtime-ссылки.
-2. Если exact identity в этом коротком участке не доказывается, зафиксировать конкретный разрыв и перейти к поиску владельца **текущего выбранного Track** через уже имеющиеся player-selection / media-session / decoder boundary ссылки. Очередь, prefetch, download и подготовка следующего трека не являются текущим playback.
-3. Связать Track + Album + edition/generation с тем же decoder/render path только через bounded Java object identity. Никаких выводов по именам классов, числам, строкам, времени или совпадению типов.
-4. Только после доказательства всей цепочки подключать существующий CELIKOM resolve/entitlement contract до decoder input с неизменным native fallback. До этого — никаких runtime hooks и изменений APK.
-
-## Правила экономии времени
-
-- Не начинать новый проект/архитектуру и не менять согласованный one-player native Yandex подход.
-- Не создавать новый audit framework. Использовать текущий анализатор и уже полученные результаты.
-- Не запускать CI после каждой мелкой правки и не добавлять тесты ради роста счётчика. Тестировать только изменённую логику одним узким набором; полный CI — после законченного блока.
-- Не повторять уже доказанные проверки, не расширять поиск на соседние классы «на всякий случай».
-- Не присылать промежуточные отчёты каждые несколько минут. Работать большим блоком и сохраняться после законченного результата.
-- Не просить владельца о ручной проверке, пока не найден конкретный продуктовый APK/измерение, которое действительно требует его участия.
+Продолжать только при появлении конкретного identity-bearing witness текущего выбранного Track на точном Player selection callsite, который позволит связать тот же Track + Album + edition/generation с уже найденным decoder/render path. До такого witness — зафиксировать блокер и остановиться. Не просить владельца о ручных действиях без точного необходимого read-only измерения.
 
 ## Жёсткие границы
 
-Не трогать оригинальный Яндекс, NAV17 auth/account, Test.50, frozen A1/LSPatch baseline, Windows, браузерное расширение, backend/API/DB и production. Не читать и не экспортировать значения приватных полей, названия/ID треков и альбомов, URL, DataSpec, токены, данные аккаунта или аудиобайты. Не менять поведение vendor methods, не подавлять исключения, не добавлять второй плеер/декодер/AudioTrack. Только read-only исследование до доказательства цепочки.
-
----
-
+Не трогать оригинальный Яндекс, NAV17 auth/account, Test.50, frozen A1/LSPatch baseline, Windows, браузерное расширение, backend/API/DB и production. Не читать/экспортировать значения приватных полей, названия/ID треков и альбомов, URL, DataSpec, токены, данные аккаунта или аудиобайты. Не менять поведение vendor methods, не подавлять исключения, не добавлять второй плеер/декодер/AudioTrack.
 # SUPERSEDING CHECKPOINT — CI #144, LyEa exact field and LCK1 receiver audit
 
 **Repository:** \`manufact-test/nomusic\`  

@@ -26,19 +26,16 @@
 - `same_track_album_edition_generation_owner_proven=false`
 - `codec_output_object_to_audio_sink_proven=false`
 
-## Next work — existing renderer field-writer path only
+## Follow-up — renderer CFG identity and selected-owner result (CI #151)
 
-See `ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md`. Do not repeat its completed census.
+See ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md for the full trace.
 
-Known:
-- `LcLb.O` and `Lbd6.O` pass the same ByteBuffer parameter into `LbJ2.native(ByteBuffer, long, int)`.
-- Three ByteBuffer field slots, seven writer methods have already been identified.
-- `LcC0.n(JJ)Z` and `Lkd6.n(JJ)Z` contain exact `Lad6.final(I)ByteBuffer` return-to-field-store references, but branches and alternative writes prevent claiming one continuous runtime buffer identity.
+- The exact Lad6.final result is linked through slot 2 / slot 3 field store and same-this field read to each corresponding virtual O callsite on one incoming CFG state.
+- Each of the four virtual O callsites has a second incoming CFG state whose field-read value has no proven in-method writer origin. Full path identity is therefore not established.
+- LcLb.O / Lbd6.O parameter-to-LbJ2.native remains proven; runtime virtual dispatch remains unproven.
+- The existing selected-state and shared-owner census finds no current selected Track/Album owner connected to Player, MediaSession, descriptor or decoder boundaries. Edition/Generation remains unidentified.
 
-Next bounded action: trace only the exact buffer reference through `LcC0.n` / `Lkd6.n`, field write/read and sink call. Treat alternate stores and branch paths as unresolved unless identity is preserved on every path. Then locate the actual current selected Track/Album owner and connect that same item to the decoder/render path. Explicitly exclude queue/prefetch/download.
-
-Do not create new analyzer infrastructure or run repeated broad tests. Use existing evidence, make one focused change only if necessary, and run focused tests only for changed logic. No runtime hooks or APK changes until the full selected-item-to-decoder chain is proven.
-
+**Decision:** the native buffer path is only partially proven; the current selected Track/Album bridge is the exact blocker. Stage B remains NOT CONNECTED / NO-GO. Do not widen the scan, add runtime hooks or modify APK/vendor code. Wait for a concrete identity-bearing witness at an exact Player selection callsite.
 ## Safety/scope
 
 Read-only and fail-closed. No original Yandex/account changes, no NAV17/Test.50/frozen A1/LSPatch changes, no Windows/extension/backend/production changes, no field values, media identifiers, URLs, DataSpec, tokens, account data, or audio bytes. No vendor behavior changes, exception suppression, second player/decoder/AudioTrack, or owner manual work without a concrete necessary measurement.

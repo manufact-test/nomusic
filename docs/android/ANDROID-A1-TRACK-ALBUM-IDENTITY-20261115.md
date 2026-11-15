@@ -136,3 +136,31 @@ This does **not** prove that no indirect player-state path exists: cross-method 
 4. Edition/generation remains unproven. Numeric fields and collection fields are not semantic evidence.
 
 Stage A remains **NO-GO**. No runtime hooks changed, no APK was built/published, no owner phone/account was touched, and no audio playback was tested.
+
+
+## Superseding follow-up: shared-owner one-hop census and renderer CFG — 15.11.2026
+
+**Latest code checkpoint:** 476bf5ee0751f2ba5851f41a0f2a82e2792cf9e8.
+**CI #151:** SUCCESS, 104/104 tests — [run 43756845719](https://github.com/manufact-test/nomusic/actions/runs/43756845719).
+**Code backup:** backup/android-a1-renderer-field-cfg-trace-ci-green-20261115 @ 476bf5ee0751f2ba5851f41a0f2a82e2792cf9e8.
+**Runtime hooks:** unchanged; last change remains a655712d210189f3bc611847235de3ed4d985c1a.
+
+### Shared owner result
+
+The existing bounded signed-DEX census covered 16 shared Track/Album or Track/wrapper owner candidates, 44 method summaries and 16 inbound-caller summaries. No candidate method calls Player API, MediaSession, decoder boundary or native source descriptor. Two typed identity handoffs were found, but both lead only to auxiliary constructors:
+- a Track parameter is passed to a Track/Album constructor;
+- a Track plus wrapper fields are passed to a continuation constructor.
+
+Neither handoff proves the currently selected Track or connects to the renderer. Do not repeat the 16-owner census.
+
+### Renderer CFG result
+
+- LcC0.n: source pc 193 → slot 2 store pc 197 → reads pc 266 / 331 → virtual O calls pc 293 / 353. Each call has two incoming identity states; one preserves the Lad6.final reference, one has no proven writer origin.
+- Lkd6.n: source pc 170 → slot 3 store pc 174 → reads pc 232 / 282 → virtual O calls pc 259 / 304. Same one-of-two state result.
+- The field-reference path is method-local and partial. Runtime virtual dispatch, active selected item, and Track/Album identity to decoder are not proven.
+
+### Exact blocker and decision
+
+The current selected Track/Album owner is still missing. The static report has zero direct Track-parameter links to Player selection, MediaSession, native descriptor or decoder boundaries; zero Track-field owners with Player API, MediaSession, decoder or source-like fields; and no Edition/Generation type or field on Track/Album.
+
+Stage B remains **NOT CONNECTED / NO-GO**. No new runtime hook, APK or vendor change. Do not expand the static scan or ask for manual owner steps without an exact necessary read-only witness.
