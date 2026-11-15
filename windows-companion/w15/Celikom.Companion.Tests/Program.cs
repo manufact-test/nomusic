@@ -287,9 +287,9 @@ try
          cachedTarget.Release.Sequence == targetRelease.Sequence &&
          cachedTarget.Release.PackageSize == targetRelease.PackageSize &&
          cachedTarget.Release.SupervisorSha256 == nextSupervisorHash &&
-         Path.GetFileName(cachedTarget.InstallerPath) == "target-signed-setup.exe" &&
+         Path.GetFileName(cachedTarget.InstallerPath) == "target-verified-setup.exe" &&
          File.ReadAllBytes(cachedTarget.InstallerPath).SequenceEqual(nextBytes),
-         "W115 only a healthy update exposes its exact signed target installer as last known good");
+         "W115 only a healthy update exposes its exact manifest-verified target installer as last known good");
 
     var cachedTargetBytes = File.ReadAllBytes(cachedTarget.InstallerPath);
     var damagedTargetBytes = cachedTargetBytes.ToArray();
@@ -328,8 +328,8 @@ try
          StableUpdateRollbackJournal.Read(acceptedRoot).Id == nextTransaction.Id &&
          !Directory.Exists(acceptedSnapshot) &&
          Directory.Exists(nextSnapshot) &&
-         File.Exists(Path.Combine(nextSnapshot, "previous-signed-setup.exe")) &&
-         File.Exists(Path.Combine(nextSnapshot, "target-signed-setup.exe")),
+         File.Exists(Path.Combine(nextSnapshot, "previous-verified-setup.exe")) &&
+         File.Exists(Path.Combine(nextSnapshot, "target-verified-setup.exe")),
          "W115 durable new transaction rotates the obsolete snapshot only after copying both verified installers");
     Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(11)) ==
          StableUpdateRollbackJournal.Decision.RequestRollback,
@@ -418,7 +418,7 @@ try
     Test(restoredLkg.State == StableUpdateRollbackJournal.Phase.Restored &&
          restoredPackage.Release.Version == previousRelease.Version &&
          restoredPackage.Release.Sequence == previousRelease.Sequence &&
-         Path.GetFileName(restoredPackage.InstallerPath) == "previous-signed-setup.exe" &&
+         Path.GetFileName(restoredPackage.InstallerPath) == "previous-verified-setup.exe" &&
          File.ReadAllBytes(restoredPackage.InstallerPath).SequenceEqual(previousBytes),
          "W115 a verified rollback restores the previous package as the next last-known-good base");
 
@@ -462,7 +462,7 @@ try
          seeded.PreviousSequence == 0 &&
          seededPackage.Release.Version == seededRelease.Version &&
          seededPackage.Release.Sequence == seededRelease.Sequence &&
-         Path.GetFileName(seededPackage.InstallerPath) == "target-signed-setup.exe" &&
+         Path.GetFileName(seededPackage.InstallerPath) == "target-verified-setup.exe" &&
          File.ReadAllBytes(seededPackage.InstallerPath).SequenceEqual(previousBytes),
          "W116 first signed install seeds an exact durable LKG package without inventing a previous release");
 
@@ -507,7 +507,7 @@ try
     Test(seedNext.State == StableUpdateRollbackJournal.Phase.Prepared &&
          !Directory.Exists(seededSnapshot) &&
          File.Exists(Path.Combine(bootstrapRoot, seedNext.Id.ToString("N"),
-             "previous-signed-setup.exe")),
+             "previous-verified-setup.exe")),
          "W116 first seeded package becomes the exact previous installer for the first signed update");
 
     var dpapiJournal = Path.Combine(rollbackRoot, "stable-update-rollback.dpapi");
@@ -2398,13 +2398,3 @@ sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> reply) : 
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken) =>
         Task.FromResult(reply(request));
-}
-
-sealed class AsyncFakeHandler(
-    Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
-{
-    protected override Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request, CancellationToken cancellationToken) =>
-        reply(request, cancellationToken);
-}
-
