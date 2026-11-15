@@ -1544,7 +1544,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method = ("LMG7;", "<init>", "(LD3a;)V")
         instructions_fixture = [(0, 0x5b, [0x235b, 0])]
         with patch("audit_native_selected_item_handoff.instructions",
-                   return_value=instructions_fixture), \\
+                   return_value=instructions_fixture), \
              patch("audit_native_selected_item_handoff.field_id",
                    return_value=("LMG7;", "privateFlowField", "LD3a;")):
             trace = focused_method_trace(FakeDex(), method, 0, 100)
