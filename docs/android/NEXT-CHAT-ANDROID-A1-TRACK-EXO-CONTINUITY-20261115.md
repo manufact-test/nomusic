@@ -1,3 +1,40 @@
+# SUPERSEDING RESULT — LaC7 owner resolution, 15 Nov 2026
+
+**Repository:** `manufact-test/nomusic`  
+**Working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
+**Code checkpoint:** `f860ab79d98bda49469a5ce7f9a4d4005c7976b2`  
+**CI:** [#43747724142](https://github.com/manufact-test/nomusic/actions/runs/43747724142) — SUCCESS, 91/91 tests; exact issuer-signed 2025 original, six DEX inspected read-only.  
+**Exact green backup:** `backup/android-a1-lac7-owner-audit-ci-green-20261115` @ `f860ab79d98bda49469a5ce7f9a4d4005c7976b2`.  
+**Runtime hooks:** unchanged; no APK built, patched, or released.
+
+## LaC7 result
+
+- `LaC7;` is defined in the signed DEX as an abstract interface.
+- It has 8 direct implementers and no direct subclasses: `LIz4;`, `LOG8;`, `LWo4;`, `LaC7$a;`, `LbC9;`, `Lc6b;`, `LyEa;`, `Lyw9;`.
+- Seven concrete `if(): Track` method bodies were found in the scoped implementers/ancestry.
+- Only `LyEa.if(): Track` produced a typed identity trace: it reads a Track-typed field from `this` and returns that same object.
+- `LyEa` has a Track-typed field, but its owner profile does not establish Player, MediaSource, decoder, or active-playback ownership.
+- No runtime dispatch from the LCK1 callsite to `LyEa` is proven. The other six method bodies produced no typed Track identity event in this tracer; do not infer their return source from that absence.
+
+**Gates remain:** `active_selected_item_proven=false`, `same_native_item_to_decoder_proven=false`, `runtime_dispatch_proven=false`. This is a candidate only, not a Stage B success.
+
+## Next bounded task — LyEa only
+
+1. Inspect the exact `LyEa` constructor(s) accepting Track and prove whether the same Track parameter is stored into the field later returned by `LyEa.if()`. Keep field names and values out of the report.
+2. Find only direct `new-instance LyEa` / constructor callsites. Trace the Track argument's object identity to its immediate origin and classify the owner by exact type/field/call contracts.
+3. Inspect the exact LCK1 callsite to `LaC7.if(): Track`. Determine whether its receiver can be proven to be the same `LyEa` object. A class implementing the interface is not proof of runtime dispatch.
+4. If the LyEa instance and Track cannot be tied to the active selected item, close this route as an unproven candidate and return to the already documented bounded audio-sink caller audit. Do not broaden to all eight implementations again.
+
+## After closing LyEa
+
+Continue from the existing native sink path: callers of `LcLb.O` and `Lbd6.O`; distinguish active playback from queue/prefetch/download; connect Track/Album to the sink only through bounded Java object identity; establish edition/generation for that same item; then prove the same identity at decoder/audio renderer. Only after that may the existing CELIKOM resolve/entitlement contract be connected before decoder input with the original native fallback.
+
+## Unchanged hard constraints
+
+Read-only and fail-closed. No generic runtime hooks, APK changes/builds/releases, login, account/media access, field values, Track/Album names or IDs, URLs, DataSpec, tokens, or audio bytes. No vendor method behavior changes or exception suppression. Do not touch NAV17, original Yandex, Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend/API/DB, or production. Do not request owner action unless a concrete necessary read-only measurement is first identified.
+
+---
+
 # CURRENT RESTORE POINT — 15 Nov 2026, CELIKOM Android A1
 
 **Repository:** `manufact-test/nomusic`  
