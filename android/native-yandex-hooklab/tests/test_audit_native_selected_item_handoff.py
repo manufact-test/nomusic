@@ -12,7 +12,8 @@ from audit_native_selected_item_handoff import (
     select_exact_interface_contracts, select_audio_output_focus_methods,
     trace_byte_buffer_parameter, expand_invoke_register_types,
     audio_output_dispatch_contracts, owner_ancestry_profiles,
-    trace_renderer_buffer_field_candidates
+    trace_renderer_buffer_field_candidates, collect_sink_buffer_field_refs,
+    trace_renderer_buffer_field_writes
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -687,6 +688,52 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(len(calls),1)
         self.assertTrue(calls[0]["target_accepts_track_parameter"])
         self.assertFalse(calls[0]["identity_proven"])
+
+    def test_reader_field_identity_matches_only_actual_sink_buffer_argument(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def method(self, index):
+                return ("LRenderer;", "output", "(Ljava/nio/ByteBuffer;)Z")
+        method=("LRenderer;", "consume", "()Z")
+        target=("LRenderer;", "output", "(Ljava/nio/ByteBuffer;)Z")
+        ins=[
+            (0,0x54,[0x2154,3]), # field 3 -> v1 from this v2
+            (1,0x54,[0x2254,4]), # unrelated field 4 -> v2
+            (2,0x6e,[0x006e,0])
+        ]
+        fields={
+            3:("LOwner;","privateOne","Ljava/nio/ByteBuffer;"),
+            4:("LOwner;","privateTwo","Ljava/nio/ByteBuffer;")
+        }
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",side_effect=lambda d,i: fields[i]), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,1]):
+            result=collect_sink_buffer_field_refs(FakeDex(),method,0,100,{target})
+        self.assertEqual(result,{fields[3]})
+
+    def test_writer_buffer_return_provenance_is_basic_block_only(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def method(self, index):
+                return ("LDecoder;", "take", "(I)Ljava/nio/ByteBuffer;")
+        method=("LRenderer;", "read", "()V")
+        target=("LRenderer;","privateBuffer","Ljava/nio/ByteBuffer;")
+        ins=[
+            (0,0x6e,[0x006e,0]),
+            (1,0x0c,[0x000c]),
+            (2,0x5b,[0x105b,7]),
+            (3,0x28,[0x0028]),
+            (4,0x5b,[0x105b,7])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            events,branch=trace_renderer_buffer_field_writes(
+                FakeDex(),method,0,100,{target}
+            )
+        self.assertEqual(len(events),2)
+        self.assertEqual(events[0]["same_basic_block_buffer_return_source"]["owner"],"LDecoder;")
+        self.assertIsNone(events[1]["same_basic_block_buffer_return_source"])
+        self.assertTrue(branch)
 
     def test_renderer_field_census_marks_same_field_only_as_candidate(self):
         from unittest.mock import patch

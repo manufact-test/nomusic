@@ -2242,6 +2242,181 @@ def trace_renderer_buffer_field_candidates(dex, method, flags, code_off, sink_ta
     }
 
 
+
+def collect_sink_buffer_field_refs(dex, method, flags, code_off, sink_targets):
+    """Collect exact ByteBuffer field refs handed to a sink, in memory only."""
+    byte_buffer = "Ljava/nio/ByteBuffer;"
+    aliases = {}
+    refs = set()
+    for _ordinal, (_pc, op, words) in enumerate(instructions(dex, code_off)):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            if callee in sink_targets:
+                regs = invoke_registers(op, words)
+                types = expand_invoke_register_types(
+                    callee[0], parse_types(callee[2]), op in (0x71, 0x77)
+                )
+                if len(regs) == len(types):
+                    refs.update(
+                        aliases[reg] for typ, reg in zip(types, regs)
+                        if typ == byte_buffer and reg in aliases
+                    )
+            continue
+        if op == 0x54:  # iget-object
+            dest = (words[0] >> 8) & 15
+            field_ref = field_id(dex, words[1])
+            aliases.pop(dest, None)
+            if field_ref[2] == byte_buffer:
+                aliases[dest] = field_ref
+            continue
+        if op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move:
+                dest, source = move
+                old = aliases.get(source)
+                aliases.pop(dest, None)
+                if old:
+                    aliases[dest] = old
+            continue
+        if op == 0x1f:
+            continue
+        dest = written_register(op, words)
+        if dest is not None:
+            aliases.pop(dest, None)
+        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+            aliases.clear()
+    return refs
+
+
+def trace_renderer_buffer_field_writes(dex, method, flags, code_off, target_fields):
+    """Same-basic-block ByteBuffer provenance at exact iput-object sites."""
+    aliases = {}
+    pending_source = None
+    events = []
+    branch_seen = False
+    for ordinal, (_pc, op, words) in enumerate(instructions(dex, code_off)):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            return_type = callee[2].split(")", 1)[1]
+            pending_source = {
+                "owner": callee[0], "method": callee[1], "signature": callee[2]
+            } if return_type == "Ljava/nio/ByteBuffer;" else None
+            continue
+        if op == 0x0c:
+            dest = words[0] >> 8
+            aliases.pop(dest, None)
+            if pending_source:
+                aliases[dest] = pending_source
+            pending_source = None
+            continue
+        pending_source = None
+        if op == 0x5b:
+            source_reg = (words[0] >> 8) & 15
+            ref = field_id(dex, words[1])
+            if ref in target_fields:
+                if len(events) >= 128:
+                    raise ValueError("RENDERER_BUFFER_WRITER_METHOD_LIMIT")
+                events.append({
+                    "ordinal": ordinal,
+                    "target_field_ref": ref,
+                    "same_basic_block_buffer_return_source": aliases.get(source_reg),
+                    "same_runtime_object_to_sink_proven": False,
+                })
+            continue
+        if op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move:
+                dest, src = move
+                origin = aliases.get(src)
+                aliases.pop(dest, None)
+                if origin:
+                    aliases[dest] = origin
+            continue
+        if op == 0x1f:
+            continue
+        dest = written_register(op, words)
+        if dest is not None:
+            aliases.pop(dest, None)
+        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+            branch_seen = True
+            aliases.clear()
+    return events, branch_seen
+
+
+def inspect_renderer_buffer_field_writers(apks, caller_definitions, sink_targets):
+    """Find exact xrefs to renderer ByteBuffer fields across bounded methods.
+
+    Distinguishes same declared field from same runtime object; the latter
+    cannot be established by field xrefs, so it remains explicitly false.
+    """
+    reader_fields = set()
+    for method, (dex, flags, code_off) in caller_definitions.items():
+        reader_fields.update(
+            collect_sink_buffer_field_refs(
+                dex, method, flags, code_off, sink_targets
+            )
+        )
+    if len(reader_fields) > 32:
+        raise ValueError("RENDERER_BUFFER_READER_FIELD_LIMIT")
+    slots = {
+        field_ref: index + 1 for index, field_ref in
+        enumerate(sorted(reader_fields))
+    }
+    rows = []
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("RENDERER_BUFFER_WRITER_DEX_LIMIT")
+                dex = Dex(archive.read(entry.filename))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    # Bounded exact reference scan: skip methods with no
+                    # matching ByteBuffer field writes without tracing values.
+                    matching = False
+                    for _pc, op, words in instructions(dex, code_off):
+                        if op == 0x5b and field_id(dex, words[1]) in reader_fields:
+                            matching = True
+                            break
+                    if not matching:
+                        continue
+                    if len(rows) >= 128:
+                        raise ValueError("RENDERER_BUFFER_WRITER_OWNER_LIMIT")
+                    events, branch_seen = trace_renderer_buffer_field_writes(
+                        dex, method, flags, code_off, reader_fields
+                    )
+                    rows.append({
+                        "method": {
+                            "owner": method[0], "method": method[1],
+                            "signature": method[2],
+                        },
+                        "field_store_sites": [
+                            {
+                                "ordinal": event["ordinal"],
+                                "same_declared_buffer_field_slot":
+                                    slots[event["target_field_ref"]],
+                                "same_basic_block_buffer_return_source":
+                                    event["same_basic_block_buffer_return_source"],
+                                "same_runtime_object_to_sink_proven": False,
+                            }
+                            for event in events
+                        ],
+                        "branch_or_switch_seen": branch_seen,
+                        "is_active_playback_writer_proven": False,
+                    })
+    return {
+        "reader_field_slot_count": len(reader_fields),
+        "exact_field_writer_method_count": len(rows),
+        "exact_field_writer_methods": rows,
+        "same_field_reference_is_not_same_java_object": True,
+        "active_selected_item_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "private_field_names_or_values_disclosed": False,
+        "media_bytes_read": False,
+    }
+
+
 def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
     focus_methods = [
         (row["owner"], row["method"], row["signature"])
@@ -2396,6 +2571,9 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
             dex, caller, flags, code_off, target_refs
         )
 
+    renderer_field_writer_census = inspect_renderer_buffer_field_writers(
+        apks, caller_definitions, target_refs
+    )
     identity_flow_count = 0
     byte_buffer_flow_count = 0
     for row in callsites:
@@ -2527,6 +2705,7 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
         "renderer_field_candidate_traces": [
             renderer_field_traces[caller] for caller in sorted(renderer_field_traces)
         ],
+        "renderer_field_writer_census": renderer_field_writer_census,
         "codec_output_object_to_audio_sink_proven": False,
         "ancestry_track_field_owner_count": len(ancestry_track_owners),
         "ancestry_album_field_owner_count": len(ancestry_album_owners),
