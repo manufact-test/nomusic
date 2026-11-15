@@ -48,6 +48,11 @@ public sealed class UpdateSupervisorEngine(
             case StableUpdateRollbackJournal.Phase.ManualRecovery:
                 return Step.ManualRecovery;
             case StableUpdateRollbackJournal.Phase.Prepared:
+                if (now.ToUnixTimeSeconds() >= state.DeadlineUnix)
+                {
+                    journal.Advance(state.State, StableUpdateRollbackJournal.Phase.ManualRecovery);
+                    return Step.ManualRecovery;
+                }
                 return Step.Waiting;
             case StableUpdateRollbackJournal.Phase.InstallerStarted:
             {
