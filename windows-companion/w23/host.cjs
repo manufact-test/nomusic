@@ -176,8 +176,11 @@ function activity(view) {
 // Selection and playback-state reporting must use the same native evidence.
 function nativeAudible(view) {
   try {
-    if (typeof view.isCurrentlyAudible === "function" &&
-        view.isCurrentlyAudible() === true) return true;
+    if (typeof view.isCurrentlyAudible === "function") {
+      const current = view.isCurrentlyAudible();
+      // Both true AND false are fresher than a retained historic event.
+      if (typeof current === "boolean") return current;
+    }
   } catch {}
   return activity(view).audible === true;
 }

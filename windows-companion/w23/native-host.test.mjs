@@ -10,14 +10,15 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null,
   grantOverride = null, grantSequence = [], currentTrack = null, clock = Date,
   rendererStatus = "ORIGINAL", cpuUsage = null,
-  secondaryTrack = null, primaryAudible = false } = {}) {
+  secondaryTrack = null, primaryAudible = null } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
   let drained = false, pump = () => {}, timerIntervalMs = 0;
   const viewEvents = new Map();
   const view = {
     isDestroyed: () => false,
-    isCurrentlyAudible: () => primaryAudible,
+    ...(typeof primaryAudible === "boolean"
+      ? {isCurrentlyAudible: () => primaryAudible} : {}),
     getURL: () => url,
     debugger: debuggerDriver,
     on: (name, handler) => { const handlers = viewEvents.get(name) || []; handlers.push(handler); viewEvents.set(name, handlers); },
@@ -1169,4 +1170,31 @@ test("W144 native audible property confirms currently PLAYING Yandex even before
     "Electron native audible property is sufficient even before audio-state-changed");
   assert.equal(state.source,"UNKNOWN",
     "audible native player alone does not falsely prove CELIKOM replacement");
+});
+
+
+test("W147 current native silence overrides a stale audio-state-changed true event", async()=>{
+  const r=await runHost("musicapplication://desktop/",{
+    currentTrack:{id:"456",title:"Вечно молодой",artist:"Смысловые Галлюцинации",
+      playbackState:"PLAYING",durationMs:210000},
+    rendererStatus:"NATIVE_CONNECTED",primaryAudible:false
+  });
+  // Emulate a delayed event from the previous playing state. The synchronous
+  // native WebContents property already reports silence, so do not revive
+  // PLAYING and do not ever claim CELIKOM as the current audio source.
+  r.emitView("audio-state-changed",true);
+  let shifted=Date.now();
+  class Clock extends Date { static now(){return shifted;} }
+  // The original host uses the real clock. A bounded timer pulse is enough
+  // to trigger the next W141 status sample without sending any commands.
+  await new Promise(resolve=>setTimeout(resolve,60));
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,35));
+  const beats=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body));
+  assert.ok(beats.length>0);
+  assert.ok(beats.every(x=>x.playbackState!=="PLAYING"),
+    "native silence cannot be overridden by a stale audio event");
+  assert.ok(beats.every(x=>x.source==="UNKNOWN"),
+    "silence or media event never proves a CELIKOM decoder");
 });
