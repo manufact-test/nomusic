@@ -5103,7 +5103,8 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, cod
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
-    for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
+    ins = list(instructions(dex, code_off))
+    for ordinal, (pc, op, words) in enumerate(ins):
         if op == 0x22:  # new-instance; invalidate every old type alias in the destination
             target = dex.descriptor(words[1])
             dest = words[0] >> 8
