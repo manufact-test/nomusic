@@ -15,7 +15,9 @@ from audit_native_selected_item_handoff import (
     audio_output_dispatch_contracts, owner_ancestry_profiles,
     trace_renderer_buffer_field_candidates, collect_sink_buffer_field_refs,
     trace_renderer_buffer_field_writes, trace_native_track_coroutine_continuation,
-    trace_track_value_to_exact_field_store
+    trace_track_value_to_exact_field_store,
+    classify_native_track_coroutine_callsite,
+    inspect_native_track_coroutine_callers
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
