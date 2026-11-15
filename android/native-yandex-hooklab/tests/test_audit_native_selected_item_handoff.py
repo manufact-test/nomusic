@@ -919,11 +919,12 @@ class SelectedItemAuditTests(unittest.TestCase):
             (0,0x12,[0x0212]),
             (1,0x71,[0x0071,9,0])
         ]
-        with patch("audit_native_selected_item_handoff.invoke_registers",
-                   return_value=[0,2,3]):
-            result=classify_native_track_coroutine_callsite(
-                FakeDex(),caller,0x8,100,ins,1,target
-            )
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            with patch("audit_native_selected_item_handoff.invoke_registers",
+                       return_value=[0,2,3]):
+                result=classify_native_track_coroutine_callsite(
+                    FakeDex(),caller,0x8,100,ins,1,target
+                )
         self.assertEqual(result["track_argument_source"],"EXPLICIT_NULL")
         self.assertTrue(result["track_argument_register_overwritten_before_call"])
         self.assertFalse(result["track_argument_register_is_track_parameter"] is False)
@@ -998,11 +999,11 @@ class SelectedItemAuditTests(unittest.TestCase):
             (5,0x0e,[0x000e])
         ]
         field=("LCaller;","privateTrack",MODEL)
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
-             patch("audit_native_selected_item_handoff.field_id",return_value=field):
-            result=trace_coroutine_callsite_argument_origins(
-                FakeDex(),method,0,100,2,1,3
-            )
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            with patch("audit_native_selected_item_handoff.field_id",return_value=field):
+                result=trace_coroutine_callsite_argument_origins(
+                    FakeDex(),method,0,100,2,1,3
+                )
         self.assertEqual(
             result["track_argument_origin_classification"],
             "TRACK_FROM_THIS_FIELD_CANDIDATE"
