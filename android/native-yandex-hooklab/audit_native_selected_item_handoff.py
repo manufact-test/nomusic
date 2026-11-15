@@ -3396,6 +3396,298 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
     }
 
 
+def trace_coroutine_callsite_argument_origins(
+    dex, method, flags, code_off, callsite_pc, track_register, continuation_register
+):
+    """Trace only object-reference categories reaching one exact coroutine callsite."""
+    continuation_owner="LFp0;"
+    continuation_type="LOe2;"
+    track_parameters=set(typed_parameter_registers(
+        dex,method,flags,code_off,MODEL
+    ))
+    object_parameters=set(typed_parameter_registers(
+        dex,method,flags,code_off,"Ljava/lang/Object;"
+    ))
+    continuation_parameters=set(typed_parameter_registers(
+        dex,method,flags,code_off,continuation_type
+    ))
+    this_register=None if flags&ACC_STATIC else (
+        dex.u16(code_off)-dex.u16(code_off+2)
+    )
+    initial_registers={}
+    for reg in track_parameters:
+        initial_registers[reg]=frozenset({"ORIGINAL_TRACK_PARAMETER"})
+    for reg in object_parameters:
+        initial_registers[reg]=frozenset(
+            set(initial_registers.get(reg,frozenset()))|{"OBJECT_PARAMETER"}
+        )
+    for reg in continuation_parameters:
+        initial_registers[reg]=frozenset(
+            set(initial_registers.get(reg,frozenset()))|{"INPUT_CONTINUATION_PARAMETER"}
+        )
+    if this_register is not None:
+        initial_registers[this_register]=frozenset(
+            set(initial_registers.get(this_register,frozenset()))|{"THIS_OBJECT"}
+        )
+    initial_state={"registers":initial_registers,"pending_return":None}
+    cfg=build_dex_control_flow(dex,code_off)
+    by_pc=cfg["by_pc"]
+    successors=cfg["successors"]
+
+    def state_key(state):
+        return (
+            tuple((reg,tuple(sorted(origins)))
+                  for reg,origins in sorted(state["registers"].items())),
+            state["pending_return"]
+        )
+
+    wide_ops=(
+        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
+         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
+        |set(range(0x9b,0xa6))|set(range(0xab,0xb0))
+        |set(range(0xbb,0xc6))|set(range(0xcb,0xd0))
+    )
+
+    def const_zero_register(op,words):
+        if op==0x12:
+            literal=(words[0]>>12)&15
+            if literal&8:
+                literal-=16
+            return ((words[0]>>8)&15) if literal==0 else None
+        if op==0x13:
+            literal=words[1]
+            if literal&0x8000:
+                literal-=0x10000
+            return ((words[0]>>8)&0xff) if literal==0 else None
+        if op==0x14:
+            literal=words[1]|(words[2]<<16)
+            return ((words[0]>>8)&0xff) if literal==0 else None
+        if op==0x15:
+            return ((words[0]>>8)&0xff) if words[1]==0 else None
+        return None
+
+    def transfer(state,op,words):
+        regs={r:set(v) for r,v in state["registers"].items()}
+        pending=state["pending_return"]
+
+        def clear(reg):
+            regs.pop(reg,None)
+
+        if op in INVOKES:
+            callee=dex.method(words[1])
+            result_type=callee[2].split(")",1)[1]
+            pending=(
+                result_type if result_type in (
+                    MODEL,"Ljava/lang/Object;",continuation_owner,continuation_type
+                ) else None
+            )
+            return {
+                "registers":{r:frozenset(v) for r,v in regs.items() if v},
+                "pending_return":pending
+            }
+
+        if op==0x0c:  # move-result-object
+            dest=(words[0]>>8)&0xff
+            clear(dest)
+            if pending==MODEL:
+                regs[dest]={"UNLINKED_TRACK_RETURN_CANDIDATE"}
+            elif pending=="Ljava/lang/Object;":
+                regs[dest]={"UNLINKED_OBJECT_RETURN_CANDIDATE"}
+            elif pending in (continuation_owner,continuation_type):
+                regs[dest]={"UNLINKED_CONTINUATION_RETURN_CANDIDATE"}
+            pending=None
+        elif op in (0x07,0x08,0x09):  # move-object keeps Java reference identity
+            move=move_object_registers(op,words)
+            if move:
+                dest,source=move
+                origins=set(regs.get(source,set()))
+                clear(dest)
+                if origins:
+                    regs[dest]=origins
+            pending=None
+        elif op==0x22:  # new-instance
+            dest=(words[0]>>8)&0xff
+            typ=dex.descriptor(words[1])
+            clear(dest)
+            if typ==MODEL:
+                regs[dest]={"NEW_TRACK_OBJECT"}
+            elif typ==continuation_owner:
+                regs[dest]={"NEW_LFp0_CONTINUATION"}
+            pending=None
+        elif op==0x1f:  # check-cast preserves exact object identity
+            reg=(words[0]>>8)&0xff
+            typ=dex.descriptor(words[1])
+            origins=regs.get(reg,set())
+            if typ==MODEL:
+                if "OBJECT_PARAMETER" in origins:
+                    origins.add("OBJECT_PARAMETER_CAST_TO_TRACK")
+                if "UNLINKED_OBJECT_RETURN_CANDIDATE" in origins:
+                    origins.add("UNLINKED_OBJECT_RETURN_CAST_TO_TRACK")
+                if "UNLINKED_COLLECTION_OBJECT_READ_CANDIDATE" in origins:
+                    origins.add("COLLECTION_ELEMENT_CAST_TO_TRACK")
+            elif typ==continuation_owner and "INPUT_CONTINUATION_PARAMETER" in origins:
+                origins.add("REUSED_LFp0_CONTINUATION")
+            pending=None
+        elif op==0x54:  # iget-object; only type and receiver identity are inspected
+            dest=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            _owner,_name,field_type=field_id(dex,words[1])
+            receiver_origins=regs.get(receiver,set())
+            clear(dest)
+            if field_type==MODEL:
+                if "THIS_OBJECT" in receiver_origins:
+                    regs[dest]={"TRACK_FROM_THIS_FIELD"}
+                elif (
+                    "INPUT_CONTINUATION_PARAMETER" in receiver_origins
+                    or "REUSED_LFp0_CONTINUATION" in receiver_origins
+                    or "NEW_LFp0_CONTINUATION" in receiver_origins
+                ):
+                    regs[dest]={"TRACK_FROM_CONTINUATION_FIELD"}
+                elif "OBJECT_PARAMETER" in receiver_origins:
+                    regs[dest]={"TRACK_FROM_OBJECT_PARAMETER_FIELD"}
+                else:
+                    regs[dest]={"TRACK_FROM_OTHER_FIELD"}
+            elif field_type in (continuation_owner,continuation_type):
+                regs[dest]={"CONTINUATION_FROM_FIELD"}
+            pending=None
+        elif op==0x62:  # sget-object
+            dest=(words[0]>>8)&0xff
+            _owner,_name,field_type=field_id(dex,words[1])
+            clear(dest)
+            if field_type==MODEL:
+                regs[dest]={"TRACK_FROM_STATIC_FIELD"}
+            elif field_type in (continuation_owner,continuation_type):
+                regs[dest]={"CONTINUATION_FROM_STATIC_FIELD"}
+            pending=None
+        elif op==0x46:  # aget-object is a collection element, not Track identity proof
+            dest=(words[0]>>8)&0xff
+            clear(dest)
+            regs[dest]={"UNLINKED_COLLECTION_OBJECT_READ_CANDIDATE"}
+            pending=None
+        elif op in (0x12,0x13,0x14,0x15):
+            dest=const_zero_register(op,words)
+            if dest is not None:
+                clear(dest)
+                regs[dest]={"NULL_CONSTANT"}
+            else:
+                dest=written_register(op,words)
+                if dest is not None:
+                    clear(dest)
+            pending=None
+        elif op in (0x5b,0x67):  # field stores do not change source-register identity
+            pending=None
+        else:
+            dest=written_register(op,words)
+            if dest is not None:
+                clear(dest)
+                if op in wide_ops:
+                    clear(dest+1)
+            pending=None
+        return {
+            "registers":{r:frozenset(v) for r,v in regs.items() if v},
+            "pending_return":pending
+        }
+
+    incoming={cfg["entry"]:{state_key(initial_state):initial_state}}
+    work=[(cfg["entry"],state_key(initial_state))]
+    processed=0
+    while work:
+        pc,key=work.pop()
+        processed+=1
+        if processed>200000:
+            raise ValueError("COROUTINE_CALLSITE_ORIGIN_VISIT_LIMIT")
+        state=incoming[pc][key]
+        op,words=by_pc[pc]
+        out=transfer(state,op,words)
+        out_key=state_key(out)
+        for target in successors.get(pc,()):
+            bucket=incoming.setdefault(target,{})
+            if out_key in bucket:
+                continue
+            if len(bucket)>=128:
+                raise ValueError("COROUTINE_CALLSITE_ORIGIN_PATH_STATE_LIMIT")
+            bucket[out_key]=out
+            work.append((target,out_key))
+
+    states=incoming.get(callsite_pc,{})
+    track_paths=sorted({
+        tuple(sorted(state["registers"].get(track_register,frozenset({"UNCLASSIFIED"}))))
+        for state in states.values()
+    })
+    continuation_paths=sorted({
+        tuple(sorted(state["registers"].get(
+            continuation_register,frozenset({"UNCLASSIFIED"})
+        )))
+        for state in states.values()
+    })
+
+    def all_paths_have(paths,tag):
+        return bool(paths) and all(tag in path for path in paths)
+
+    if not states:
+        track_class="UNREACHABLE_CALLSITE"
+    elif all_paths_have(track_paths,"ORIGINAL_TRACK_PARAMETER"):
+        track_class="SAME_TRACK_PARAMETER_REFERENCE"
+    elif all_paths_have(track_paths,"OBJECT_PARAMETER_CAST_TO_TRACK"):
+        track_class="SAME_OBJECT_AS_OBJECT_PARAMETER_AFTER_CAST"
+    elif all_paths_have(track_paths,"TRACK_FROM_THIS_FIELD"):
+        track_class="TRACK_FROM_THIS_FIELD_CANDIDATE"
+    elif all_paths_have(track_paths,"TRACK_FROM_CONTINUATION_FIELD"):
+        track_class="TRACK_FROM_CONTINUATION_FIELD_CANDIDATE"
+    elif all_paths_have(track_paths,"TRACK_FROM_OBJECT_PARAMETER_FIELD"):
+        track_class="TRACK_FROM_OBJECT_PARAMETER_FIELD_CANDIDATE"
+    elif all_paths_have(track_paths,"TRACK_FROM_STATIC_FIELD"):
+        track_class="TRACK_FROM_STATIC_FIELD_CANDIDATE"
+    elif all_paths_have(track_paths,"UNLINKED_TRACK_RETURN_CANDIDATE") or all_paths_have(
+        track_paths,"UNLINKED_OBJECT_RETURN_CAST_TO_TRACK"
+    ) or all_paths_have(track_paths,"COLLECTION_ELEMENT_CAST_TO_TRACK"):
+        track_class="UNLINKED_TRACK_SOURCE_CANDIDATE"
+    elif all_paths_have(track_paths,"NULL_CONSTANT"):
+        track_class="EXPLICIT_NULL"
+    elif all_paths_have(track_paths,"NEW_TRACK_OBJECT"):
+        track_class="NEW_TRACK_OBJECT"
+    else:
+        track_class="PATH_DEPENDENT_OR_UNCLASSIFIED"
+
+    if not states:
+        continuation_class="UNREACHABLE_CALLSITE"
+    elif all_paths_have(continuation_paths,"INPUT_CONTINUATION_PARAMETER"):
+        continuation_class="SAME_CONTINUATION_PARAMETER_REFERENCE"
+    elif all_paths_have(continuation_paths,"THIS_OBJECT"):
+        continuation_class="CALLER_THIS_REFERENCE"
+    elif all_paths_have(continuation_paths,"REUSED_LFp0_CONTINUATION"):
+        continuation_class="REUSED_CONTINUATION_OBJECT_CANDIDATE"
+    elif all_paths_have(continuation_paths,"NEW_LFp0_CONTINUATION"):
+        continuation_class="NEW_CONTINUATION_OBJECT"
+    elif all_paths_have(continuation_paths,"CONTINUATION_FROM_FIELD"):
+        continuation_class="CONTINUATION_FROM_FIELD_CANDIDATE"
+    elif all_paths_have(continuation_paths,"CONTINUATION_FROM_STATIC_FIELD"):
+        continuation_class="CONTINUATION_FROM_STATIC_FIELD_CANDIDATE"
+    elif all_paths_have(continuation_paths,"UNLINKED_CONTINUATION_RETURN_CANDIDATE"):
+        continuation_class="UNLINKED_CONTINUATION_RETURN_CANDIDATE"
+    elif all_paths_have(continuation_paths,"NULL_CONSTANT"):
+        continuation_class="EXPLICIT_NULL"
+    else:
+        continuation_class="PATH_DEPENDENT_OR_UNCLASSIFIED"
+
+    return {
+        "callsite_reachable":bool(states),
+        "path_state_count":len(states),
+        "track_argument_origin_classification":track_class,
+        "track_argument_origin_paths":[list(path) for path in track_paths],
+        "continuation_argument_origin_classification":continuation_class,
+        "continuation_argument_origin_paths":[list(path) for path in continuation_paths],
+        "reachable_instruction_count":len(cfg["reachable"]),
+        "dataflow_instruction_visits":processed,
+        "max_path_states_at_instruction":max(
+            (len(bucket) for bucket in incoming.values()),default=0
+        ),
+        "branch_path_predicates_evaluated":False,
+        "exception_handler_edges_included":False,
+        "private_field_names_values_or_media_disclosed":False
+    }
+
+
 def classify_native_track_coroutine_callsite(
     dex, caller, flags, code_off, ins, ordinal, target_method
 ):
@@ -3479,6 +3771,9 @@ def classify_native_track_coroutine_callsite(
         and not continuation_register_overwritten
         and explicit_null
     )
+    argument_origin_trace=trace_coroutine_callsite_argument_origins(
+        dex,caller,flags,code_off,_pc,track_reg,continuation_reg
+    )
     return {
         "caller":{"owner":caller[0],"method":caller[1],"signature":caller[2]},
         "ordinal":ordinal,
@@ -3490,7 +3785,8 @@ def classify_native_track_coroutine_callsite(
         "continuation_argument_is_caller_this":continuation_is_this,
         "continuation_argument_is_typed_parameter":continuation_is_parameter,
         "continuation_argument_register_overwritten_before_call":continuation_register_overwritten,
-        "exact_resume_callsite":exact_resume
+        "exact_resume_callsite":exact_resume,
+        "argument_origin_trace":argument_origin_trace
     }
 
 
@@ -3531,6 +3827,18 @@ def inspect_native_track_coroutine_callers(apks, target_method):
         ),
         "track_parameter_register_candidate_callsite_count":sum(
             row["track_argument_source"]=="TRACK_PARAMETER_REGISTER_UNCHANGED_CANDIDATE"
+            for row in call_sites
+        ),
+        "same_track_parameter_dataflow_callsite_count":sum(
+            row["argument_origin_trace"]["track_argument_origin_classification"]
+            =="SAME_TRACK_PARAMETER_REFERENCE" for row in call_sites
+        ),
+        "object_parameter_cast_to_track_callsite_count":sum(
+            row["argument_origin_trace"]["track_argument_origin_classification"]
+            =="SAME_OBJECT_AS_OBJECT_PARAMETER_AFTER_CAST" for row in call_sites
+        ),
+        "track_field_origin_candidate_callsite_count":sum(
+            "TRACK_FROM_" in row["argument_origin_trace"]["track_argument_origin_classification"]
             for row in call_sites
         ),
         "explicit_null_track_callsite_count":sum(
