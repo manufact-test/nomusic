@@ -44,6 +44,17 @@ Check(await engine.TickAsync(start) == UpdateSupervisorEngine.Step.Waiting &&
       installer.LaunchCount == 0,
       "staged old installer is not touched before update launch");
 
+var abandonedPrepared = new FakeJournal(
+    NewRecord(StableUpdateRollbackJournal.Phase.Prepared));
+var abandonedLauncher = new FakeLauncher();
+var abandonedEngine = new UpdateSupervisorEngine(guid, abandonedPrepared,
+    new FakeProbe(), abandonedLauncher);
+Check(await abandonedEngine.TickAsync(start.AddMinutes(11)) ==
+        UpdateSupervisorEngine.Step.ManualRecovery &&
+      abandonedPrepared.Current.State == StableUpdateRollbackJournal.Phase.ManualRecovery &&
+      abandonedLauncher.LaunchCount == 0,
+      "W155 an abandoned READY transaction expires safely instead of leaving a permanent pending ticket");
+
 journal.Current = journal.Current with { State = StableUpdateRollbackJournal.Phase.InstallerStarted };
 Check(await engine.TickAsync(start.AddMinutes(1)) == UpdateSupervisorEngine.Step.Waiting &&
       installer.LaunchCount == 0,
