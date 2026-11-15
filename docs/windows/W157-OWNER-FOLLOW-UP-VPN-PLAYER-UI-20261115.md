@@ -238,3 +238,17 @@ See the standalone [W54 diagnostic analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261
 Пакет содержит ровно один installer EXE, ZIP с тем же EXE и SHA256 manifest. Workflow stage-only; GitHub Release и production feed не создавались. Старый Draft `0.24.38` не использовать.
 
 **Осталось только:** ручная проверка владельца на ПК. До неё runtime acceptance не подтверждён.
+
+
+## W158 owner follow-up — 16.11.2026 (supersedes W157 field-acceptance status)
+
+The owner tested the W157 owner-stage build 0.24.39.0 / native 0.24.30 and supplied three screenshots plus two diagnostic captures. W157 CI success remains valid, but the previous “only owner-PC manual acceptance remains” status is superseded by the following observed field regressions:
+
+- Autorun logs WIN_AUTORUN_CONNECTED_IN_TRAY before HOST_LOADED / PLAYER_CDP_READY. The owner must press Stop then Start after reboot before the native player attaches.
+- During VPN recovery, Start becomes enabled even though automatic recovery is pending. The Stop button should remain available, but Start must be disabled until recovery completes or the user explicitly stops.
+- The diagnostic records one NATIVE_ROUTE_RECOVERY_SOURCE_HELD for track 144530503 followed by NATIVE_CURRENT_SOURCE_REVALIDATE and NATIVE_REPLACEMENT_SOURCE_RELOAD for the same track. The no-kUrl hold therefore remains not fully field-accepted.
+- UI copy incorrectly says “Подмена приостановлена” during a transient network failure even when the current source may still be held and playing. The approved version-presence label is long and can be mistaken for active playback.
+
+The owner also reports that CELIKOM replacement audio often continues through VPN changes; do not force an audio handoff just because entitlement connectivity changes. Keep source truth conservative: “Подмена активна” only with the existing exact Windows source proof. The short label must not be used to turn a no-kUrl continuity hint into proof.
+
+The authoritative ordered scope, exact log sequence, code findings and test matrix are now in docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md. The existing 0.24.39.0 artifact predates these findings and is not the final accepted build. Do not produce intermediate packages.
