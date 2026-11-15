@@ -13,7 +13,9 @@ W119 still controls the product architecture and working rules (one product, `ma
 
 **The developer must finish one task to code/test/CI-ready state before moving to the next. Do not hop between tasks, reopen unrelated old tickets, or invent extra work from the repository's historical OPEN Issues.** The owner should receive one consolidated build only after all agreed code work is complete.
 
-## Current execution status — 15 November 2026 (final release completed; owner acceptance remains)
+> **Latest owner addendum — W157 (15 Nov 2026):** New live observations after the W154/W155/W156 work are recorded in [W157](W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md). W157 is now the active, narrow follow-up and supersedes the old status below that only W154 owner acceptance remained. Work only the W157 items, in its exact order: Yandex close/lifecycle truth → VPN audio continuity → confirmed UI text/color/status corrections → diagnostics when supplied → focused tests/CI → one consolidated new build. Do not reopen the completed updater/P-256, autostart/tray or unrelated historical issues. The older W150 scope remains architectural/working-rule context, not permission to restart all earlier tasks.
+
+## Current execution status — 15 November 2026 (historical status, superseded by W157)
 
 - **Tasks 1–4 are complete at code/test/CI level** under W151–W154. They are not owner-PC accepted; the owner performs one grouped W154 acceptance using the single final package.
 - **Task 5 is complete at code/test/CI level** under W155/W156: P-256 signed schema-2 manifest, SHA-256 package/payload verification, DPAPI transaction, independent Supervisor READY/health/one-shot rollback, protected release workflow and owner-package helper are in place. Do not reopen the runtime audit or add speculative code.
