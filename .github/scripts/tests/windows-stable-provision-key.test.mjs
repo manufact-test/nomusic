@@ -12,6 +12,8 @@ test("W155 key provisioning requires a protected main-only environment", () => {
   assert.match(provision, /deployment-branch-policies/);
   assert.match(provision, /W155_ENVIRONMENT_MUST_ALLOW_ONLY_MAIN/);
   assert.match(provision, /CELIKOM_STABLE_DEPLOY_ROOT/);
+  assert.match(provision, /Assert-NoReparseAncestors \$repoRoot/);
+  assert.match(provision, /Assert-NoReparseAncestors \$keyRoot/);
 });
 
 test("W155 existing signing keys are never silently replaced", () => {
