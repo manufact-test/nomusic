@@ -2189,6 +2189,17 @@ try
                  bridge.LastSong == "654" &&
                  acceptedHeartbeatNotifications == closeNotifications + 4,
                  "W157 the same live host may publish a new renderer after its unavailable heartbeat");
+
+        bridge.MarkPlayerUnavailable(retireNativeHostInstance: true);
+        bridge.SetNativeNetworkRecoveryPending(true);
+        bridge.SetEnabled(false);
+        Test(bridge.PlayerUnavailable && bridge.LastSong == "",
+             "W157 process-exit state survives a simultaneous transient network suspension");
+        bridge.SetNativeNetworkRecoveryPending(false);
+        bridge.SetEnabled(false);
+        Test(!bridge.PlayerUnavailable,
+             "W157 explicit stop clears unavailable state even if the bridge is already disabled");
+
         foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
         {
             using (var nativePreflight = new HttpRequestMessage(HttpMethod.Options, "/v1/state"))

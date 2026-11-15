@@ -168,7 +168,12 @@ public sealed class BridgeServer : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_enabled == enabled) return;
+            if (_enabled == enabled)
+            {
+                if (!enabled && !_nativeNetworkRecoveryPending)
+                    _playerUnavailable = false;
+                return;
+            }
             var wasEnabled = _enabled;
             _enabled = enabled;
             if (enabled && !wasEnabled && _nativeNetworkRecoveryPending)
@@ -176,7 +181,8 @@ public sealed class BridgeServer : IAsyncDisposable
             if (!enabled)
             {
                 _nativeNetworkRecoveryAwaitingHeartbeat = false;
-                _playerUnavailable = false;
+                if (!_nativeNetworkRecoveryPending)
+                    _playerUnavailable = false;
             }
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
             _lastSource = "UNKNOWN";
