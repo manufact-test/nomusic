@@ -4,7 +4,8 @@ from audit_native_selected_item_handoff import (
     PLAYER_OWNERS, PLAYER_METHODS, MEDIA_SESSION_OWNER,
     MEDIA_SESSION_METADATA_METHODS, MEDIA_SESSION_STATE_METHODS,
     DECODER_BOUNDARY_METHODS, EDITION_MARKERS, GENERATION_MARKERS,
-    classify_boundary_call, boundary_callsite_census
+    classify_boundary_call, boundary_callsite_census,
+    summarize_track_field_owner_inventory, summarize_boundary_callsite_census
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -184,6 +185,50 @@ class SelectedItemAuditTests(unittest.TestCase):
             reverse=boundary_callsite_census(FakeDex(),method,0,100,[publish,helper])
         self.assertTrue(rows[0]["track_returning_method_call_before"])
         self.assertFalse(reverse[0]["track_returning_method_call_before"])
+
+    def test_track_field_owner_inventory_separates_player_and_queue_shape(self):
+        profiles={
+            "LPlayerState;": {
+                "static_types": set(),
+                "instance_types": {
+                    MODEL, "Lru/yandex/music/data/audio/Album;", "LtCa;",
+                    "Ljava/util/List;", "J", "Landroidx/media3/common/Player;"
+                },
+                "interfaces": set(), "superclass": None
+            },
+            "LDownloadState;": {
+                "static_types": set(),
+                "instance_types": {MODEL, "Ljava/util/List;"},
+                "interfaces": set(), "superclass": None
+            }
+        }
+        result=summarize_track_field_owner_inventory(profiles)
+        self.assertEqual(result["track_instance_field_owner_count"],2)
+        self.assertEqual(result["track_and_album_same_owner_count"],1)
+        self.assertEqual(result["track_and_wrapper_same_owner_count"],1)
+        self.assertEqual(result["track_owner_with_player_api_field_count"],1)
+        self.assertEqual(result["track_owner_with_collection_field_count"],2)
+        self.assertEqual(result["track_owner_with_numeric_field_count"],1)
+
+    def test_boundary_census_joins_caller_owner_track_state_without_reading_values(self):
+        profiles={
+            "LPlayerState;": {
+                "static_types": set(), "instance_types": {MODEL},
+                "interfaces": set(), "superclass": None
+            }
+        }
+        row={
+            "kind":"MEDIA_SESSION_METADATA",
+            "caller_key":("LPlayerState;","publish","()V"),
+            "track_parameter_present":False,"album_parameter_present":False,
+            "track_field_read_on_this_before":False,"album_field_read_on_this_before":False,
+            "numeric_field_read_on_this_before":False,"track_model_method_call_before":False,
+            "album_model_method_call_before":False,"track_returning_method_call_before":False,
+            "album_returning_method_call_before":False,"track_field_reads_before":0,
+            "album_field_reads_before":0
+        }
+        result=summarize_boundary_callsite_census([row],profiles)
+        self.assertEqual(result["MEDIA_SESSION_METADATA"]["caller_owner_has_track_field_call_site_count"],1)
 
     def test_edition_generation_markers_are_exact_and_bounded(self):
         self.assertIn("edition", EDITION_MARKERS)

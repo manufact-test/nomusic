@@ -167,7 +167,125 @@ def boundary_callsite_census(dex, method, flags, code_off, ins=None):
     return rows
 
 
-def summarize_boundary_callsite_census(rows):
+def declared_field_inventory(dex: Dex):
+    """Read declared field *types* and class relations; never read field values."""
+    profiles = {}
+    for class_index in range(dex.class_count):
+        base = dex.class_offset + class_index * 32
+        owner = dex.descriptor(dex.u32(base))
+        data_off = dex.u32(base + 24)
+        static_types = []
+        instance_types = []
+        if data_off:
+            static_fields, pos = uleb(dex, data_off)
+            instance_fields, pos = uleb(dex, pos)
+            direct_methods, pos = uleb(dex, pos)
+            virtual_methods, pos = uleb(dex, pos)
+            if max(static_fields, instance_fields, direct_methods, virtual_methods) > 100000:
+                raise ValueError("CLASS_FIELD_INVENTORY_LIMIT")
+            for count, target in ((static_fields, static_types),
+                                  (instance_fields, instance_types)):
+                previous = 0
+                for _ in range(count):
+                    delta, pos = uleb(dex, pos)
+                    previous += delta
+                    _access_flags, pos = uleb(dex, pos)
+                    field_owner, _field_name, field_type = field_id(dex, previous)
+                    if field_owner != owner:
+                        raise DexError("FIELD_INVENTORY_OWNER_MISMATCH")
+                    target.append(field_type)
+        superclass_index = dex.u32(base + 8)
+        superclass = (
+            None if superclass_index == 0xffffffff
+            else dex.descriptor(superclass_index)
+        )
+        interfaces = set()
+        interfaces_off = dex.u32(base + 12)
+        if interfaces_off:
+            interface_count = dex.u32(interfaces_off)
+            if interface_count > 256:
+                raise ValueError("CLASS_INTERFACE_LIMIT")
+            for index in range(interface_count):
+                interfaces.add(dex.descriptor(dex.u16(interfaces_off + 4 + index * 2)))
+        profiles[owner] = {
+            "static_types": set(static_types),
+            "instance_types": set(instance_types),
+            "superclass": superclass,
+            "interfaces": interfaces,
+        }
+    return profiles
+
+
+def classify_track_owner_profile(profile):
+    instance = set(profile.get("instance_types", ()))
+    interfaces = set(profile.get("interfaces", ()))
+    superclass = profile.get("superclass")
+    all_types = instance | set(profile.get("static_types", ()))
+    collection_types = {
+        "Ljava/util/List;", "Ljava/util/Collection;", "Ljava/util/Set;",
+        "Ljava/util/Queue;", "Ljava/util/Deque;", "Ljava/util/Map;",
+        "Ljava/util/ArrayList;", "Ljava/util/LinkedList;"
+    }
+    source_like = any(
+        "datasource" in typ.lower() or "mediasource" in typ.lower()
+        or "/source/" in typ.lower()
+        for typ in all_types
+    )
+    return {
+        "has_track_field": MODEL in instance,
+        "has_album_field": ALBUM_MODEL in instance,
+        "has_wrapper_field": WRAPPER in instance,
+        "has_numeric_field": bool(all_types & {
+            "I", "J", "Ljava/lang/Integer;", "Ljava/lang/Long;"
+        }),
+        "has_collection_field": any(
+            typ in collection_types or typ.startswith("[")
+            for typ in all_types
+        ),
+        "has_player_api_field": bool(all_types & PLAYER_OWNERS),
+        "implements_player_api": bool(
+            interfaces & PLAYER_OWNERS or superclass in PLAYER_OWNERS
+        ),
+        "has_media_session_field": MEDIA_SESSION_OWNER in all_types,
+        "has_decoder_field": any(typ in DECODER_BOUNDARY_METHODS for typ in all_types),
+        "has_source_like_field": source_like,
+        "has_kotlin_flow_field": any(
+            typ.startswith("Lkotlinx/coroutines/flow/") for typ in all_types
+        ),
+    }
+
+
+def summarize_track_field_owner_inventory(class_profiles):
+    classified = [
+        classify_track_owner_profile(profile)
+        for profile in class_profiles.values()
+    ]
+    track = [profile for profile in classified if profile["has_track_field"]]
+    album = [profile for profile in classified if profile["has_album_field"]]
+    return {
+        "track_instance_field_owner_count": len(track),
+        "album_instance_field_owner_count": len(album),
+        "track_and_album_same_owner_count": sum(
+            p["has_track_field"] and p["has_album_field"] for p in classified
+        ),
+        "track_and_wrapper_same_owner_count": sum(
+            p["has_track_field"] and p["has_wrapper_field"] for p in classified
+        ),
+        "track_owner_with_numeric_field_count": sum(p["has_numeric_field"] for p in track),
+        "track_owner_with_collection_field_count": sum(p["has_collection_field"] for p in track),
+        "track_owner_with_player_api_field_count": sum(p["has_player_api_field"] for p in track),
+        "track_owner_implements_player_api_count": sum(p["implements_player_api"] for p in track),
+        "track_owner_with_media_session_field_count": sum(p["has_media_session_field"] for p in track),
+        "track_owner_with_decoder_field_count": sum(p["has_decoder_field"] for p in track),
+        "track_owner_with_source_like_field_count": sum(p["has_source_like_field"] for p in track),
+        "track_owner_with_kotlin_flow_field_count": sum(p["has_kotlin_flow_field"] for p in track),
+        "album_owner_with_numeric_field_count": sum(p["has_numeric_field"] for p in album),
+        "album_owner_with_collection_field_count": sum(p["has_collection_field"] for p in album),
+    }
+
+
+def summarize_boundary_callsite_census(rows, class_profiles=None):
+    class_profiles = class_profiles or {}
     summary = {}
     flags = (
         "track_parameter_present", "album_parameter_present",
@@ -176,13 +294,19 @@ def summarize_boundary_callsite_census(rows):
         "album_model_method_call_before", "track_returning_method_call_before",
         "album_returning_method_call_before"
     )
+    owner_flags = (
+        "has_track_field", "has_album_field", "has_player_api_field",
+        "implements_player_api", "has_source_like_field",
+        "has_collection_field", "has_numeric_field"
+    )
     for row in rows:
         bucket = summary.setdefault(row["kind"], {
             "call_site_count": 0,
             "distinct_caller_method_count": 0,
             "track_field_read_before_call_site_count": 0,
             "album_field_read_before_call_site_count": 0,
-            **{key + "_call_site_count": 0 for key in flags}
+            **{key + "_call_site_count": 0 for key in flags},
+            **{"caller_owner_" + key + "_call_site_count": 0 for key in owner_flags}
         })
         bucket["call_site_count"] += 1
         for key in flags:
@@ -192,6 +316,12 @@ def summarize_boundary_callsite_census(rows):
             bucket["track_field_read_before_call_site_count"] += 1
         if row["album_field_reads_before"]:
             bucket["album_field_read_before_call_site_count"] += 1
+        owner_profile = classify_track_owner_profile(
+            class_profiles.get(row["caller_key"][0], {})
+        )
+        for key in owner_flags:
+            if owner_profile[key]:
+                bucket["caller_owner_" + key + "_call_site_count"] += 1
     for kind, bucket in summary.items():
         bucket["distinct_caller_method_count"] = len({
             row["caller_key"] for row in rows if row["kind"] == kind
@@ -927,6 +1057,7 @@ def inspect_signed(apks):
     media_session_method_refs = set()
     decoder_boundary_method_refs = set()
     semantic_marker_counts = {marker: 0 for marker in SEMANTIC_IDENTITY_MARKERS}
+    class_profiles = {}
     boundary_callsite_rows = []
     model_flow_candidates = []
     wrapper_methods = set()
@@ -961,6 +1092,10 @@ def inspect_signed(apks):
                 dex = Dex(archive.read(entry.filename))
                 dex_count += 1
                 defined = dex.defined_classes()
+                for owner, profile in declared_field_inventory(dex).items():
+                    if owner in class_profiles:
+                        raise ValueError("DUPLICATE_CLASS_FIELD_INVENTORY")
+                    class_profiles[owner] = profile
                 for descriptor in defined:
                     lowered = descriptor.lower()
                     if "edition" in lowered:
@@ -1382,8 +1517,10 @@ def inspect_signed(apks):
             "same_native_item_to_decoder_proven": False,
             "branch_and_indirect_dispatch_inferred": False,
         },
+        "native_track_field_owner_inventory":
+            summarize_track_field_owner_inventory(class_profiles),
         "boundary_callsite_identity_census":
-            summarize_boundary_callsite_census(boundary_callsite_rows),
+            summarize_boundary_callsite_census(boundary_callsite_rows, class_profiles),
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,
