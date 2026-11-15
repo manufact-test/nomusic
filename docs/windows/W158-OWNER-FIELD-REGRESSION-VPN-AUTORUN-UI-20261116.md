@@ -27,6 +27,13 @@ Files supplied with the 16 November owner report:
 
 The owner reports that CELIKOM replacement audio often continues playing through VPN changes. In some runs there is no audible interruption at all. In other runs, when CELIKOM changes its displayed state and reports recovery, an unnecessary source transition produces a click/pop. Do not treat a UI/server disconnect as proof that the current audio source stopped.
 
+### Screenshot-by-screenshot notes
+
+1. The first image shows the player/track metadata (Ау — 10AGE, Ramil'), but the header says “Ожидаем” and the source line says “Источник текущего трека не подтверждён”. Keep that neutral unless the exact source can be proven; do not infer active replacement from the song title alone.
+2. The second image shows the connection-loss/recovery state. Start is visually enabled/green even though the UI says the connection is unavailable and automatic recovery is running. The message says “Нет связи. Подмена приостановлена; повторим проверку автоматически.” This is the wrong action state and potentially misleading audio wording.
+3. The third image shows “Сервис включён” plus the green “Версия песни CELIKOM доступна для подмены”. The latter is the approved version-presence result, not proof that the current Yandex decoder is playing that version. Keep service-enabled and replacement-active separate.
+
+
 ## Diagnostic findings
 
 ### 1. VPN route recovery is still not clean
