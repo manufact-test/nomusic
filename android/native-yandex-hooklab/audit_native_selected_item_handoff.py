@@ -817,39 +817,53 @@ def trace_identity_method(dex, method, flags, code_off, candidate_owners=None):
                                 "identity_type": label,
                                 "origins": sorted(origins),
                             })
+            role = None
+            if (callee[0], callee[1]) == DESCRIPTOR_BUILDER:
+                role = "NATIVE_SOURCE_DESCRIPTOR"
+            elif (callee[0], callee[1]) in SOURCE_METHODS:
+                role = "NATIVE_SOURCE_OR_DOWNLOAD_METHOD"
+            elif callee[0] in PLAYER_OWNERS and callee[1] in PLAYER_METHODS:
+                role = "PLAYER_SELECTION_OR_TRANSPORT"
+            else:
+                boundary = classify_boundary_call(callee)
+                if boundary:
+                    role = boundary
+                elif callee[0] in candidate_owners:
+                    role = "SHARED_TRACK_OWNER_METHOD"
+                elif callee[1] in ("collect", "collectLatest", "launchIn", "emit"):
+                    role = "FLOW_COLLECT_OR_EMIT"
+                elif (
+                    callee[0] in {
+                        "Ljava/util/List;", "Ljava/util/Collection;",
+                        "Ljava/util/Queue;", "Ljava/util/Deque;",
+                        "Ljava/util/Set;"
+                    }
+                    and callee[1] in ("add", "addAll", "offer", "put", "set", "remove")
+                ):
+                    role = "COLLECTION_MUTATION_CANDIDATE"
             if identity_arguments:
-                role = "OTHER_METHOD"
-                if (callee[0], callee[1]) == DESCRIPTOR_BUILDER:
-                    role = "NATIVE_SOURCE_DESCRIPTOR"
-                elif callee[0] in PLAYER_OWNERS and callee[1] in PLAYER_METHODS:
-                    role = "PLAYER_SELECTION_OR_TRANSPORT"
-                else:
-                    boundary = classify_boundary_call(callee)
-                    if boundary:
-                        role = boundary
-                    elif callee[0] in candidate_owners:
-                        role = "SHARED_TRACK_OWNER_METHOD"
-                    elif callee[1] in ("collect", "collectLatest", "launchIn", "emit"):
-                        role = "FLOW_COLLECT_OR_EMIT"
-                    elif (
-                        callee[0] in {
-                            "Ljava/util/List;", "Ljava/util/Collection;",
-                            "Ljava/util/Queue;", "Ljava/util/Deque;",
-                            "Ljava/util/Set;"
-                        }
-                        and callee[1] in ("add", "addAll", "offer", "put", "set", "remove")
-                    ):
-                        role = "COLLECTION_MUTATION_CANDIDATE"
                 add_event({
                     "ordinal": ordinal,
                     "kind": "CALL_WITH_TYPED_IDENTITY",
-                    "role": role,
+                    "role": role or "OTHER_METHOD",
                     "callee": {
                         "owner": callee[0],
                         "method": callee[1],
                         "signature": callee[2],
                     },
                     "identity_arguments": identity_arguments,
+                })
+            elif role:
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "CALL_TARGET_ROLE_WITHOUT_IDENTITY",
+                    "role": role,
+                    "callee": {
+                        "owner": callee[0],
+                        "method": callee[1],
+                        "signature": callee[2],
+                    },
+                    "identity_proven": False,
                 })
             result_type = callee[2].split(")", 1)[1]
             pending_return_type = result_type if result_type in tracked_types else None
@@ -1009,6 +1023,11 @@ def select_next_identity_method_refs(traces, already_traced, class_profiles):
             callee = event["callee"]
             target = (callee["owner"], callee["method"], callee["signature"])
             if target in known or callee["owner"] not in class_profiles:
+                continue
+            if callee["owner"].startswith((
+                "Ljava/", "Ljavax/", "Lkotlin/", "Lkotlinx/",
+                "Landroid/", "Landroidx/", "Lorg/"
+            )):
                 continue
             refs.add(target)
     if len(refs) > 64:

@@ -329,6 +329,27 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(returned[0]["identity_type"],"TRACK")
         self.assertIn("FIELD_READ_FROM_THIS",returned[0]["origins"])
 
+    def test_identity_method_trace_classifies_source_call_without_identity(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:2, 102:1}[offset]
+            def method(self, index):
+                return ("LGp0;", "new", "()Ljava/lang/Object;")
+        method=("LCaller;", "run", "()V")
+        ins=[
+            (0,0x28,[0x0028]),
+            (1,0x71,[0x0071,0])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[]):
+            trace=trace_identity_method(FakeDex(),method,0,100)
+        rows=[row for row in trace["events"]
+              if row["kind"]=="CALL_TARGET_ROLE_WITHOUT_IDENTITY"]
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]["role"],"NATIVE_SOURCE_OR_DOWNLOAD_METHOD")
+        self.assertFalse(rows[0]["identity_proven"])
+
     def test_identity_method_trace_clears_aliases_at_branch(self):
         from unittest.mock import patch
         class FakeDex:
@@ -368,8 +389,12 @@ class SelectedItemAuditTests(unittest.TestCase):
                 }
             ]
         }]
-        profiles={"LNext;":{"static_types":set(),"instance_types":set(),
-                            "interfaces":set(),"superclass":None}}
+        profiles={
+            "LNext;":{"static_types":set(),"instance_types":set(),
+                      "interfaces":set(),"superclass":None},
+            "Lkotlin/jvm/internal/Intrinsics;":{"static_types":set(),
+                "instance_types":set(),"interfaces":set(),"superclass":None}
+        }
         refs=select_next_identity_method_refs(traces,{("LCurrent;","run","()V")},profiles)
         self.assertEqual(refs,[("LNext;","accept",f"({MODEL})V")])
 
