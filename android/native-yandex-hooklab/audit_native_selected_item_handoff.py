@@ -3931,9 +3931,6 @@ def inspect_signed(apks):
     candidate_identity_focus_refs = select_candidate_identity_focus_refs(
         candidate_owner_method_census
     )
-    candidate_identity_focus_refs = sorted(set(candidate_identity_focus_refs) | {
-        ("Lou3;", "new", "(LtCa;LFp0;)Ljava/lang/Object;")
-    })
     candidate_identity_trace_result = inspect_candidate_identity_method_traces(
         apks, candidate_identity_focus_refs, candidate_owner_set, require_all=True
     )
