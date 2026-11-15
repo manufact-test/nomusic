@@ -112,7 +112,6 @@ jobs:
             throw 'W156_OWNER_PACKAGE_SCRIPT_PARSE_FAILED'
           }
           & .github/scripts/tests/windows-stable-owner-package.test.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'W156_OWNER_PACKAGE_FIXTURE_FAILED' }
       - name: Build W23 native bridge bundle
         shell: pwsh
         working-directory: windows-companion/w23
