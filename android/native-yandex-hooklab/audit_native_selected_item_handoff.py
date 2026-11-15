@@ -5398,6 +5398,16 @@ def selected_track_interface_implementation_owners(class_profiles, interface_own
             "is_abstract": bool(profile and profile.get("is_abstract")),
             "direct_implementers": direct_implementers,
             "direct_subclasses": direct_subclasses,
+            "implementer_profiles": [
+                {
+                    "owner": implementer,
+                    "is_interface": bool(class_profiles.get(implementer, {}).get("is_interface")),
+                    "is_abstract": bool(class_profiles.get(implementer, {}).get("is_abstract")),
+                    "superclass": class_profiles.get(implementer, {}).get("superclass"),
+                    "interfaces": sorted(class_profiles.get(implementer, {}).get("interfaces", ())),
+                }
+                for implementer in implementers
+            ],
             "implementation_owners": {
                 owner: sorted(owners)
                 for owner, owners in sorted(owner_to_implementers.items())
@@ -5590,8 +5600,38 @@ SELECTED_TRACK_PATH_METHODS = {
     ("LGK1$a;", "case", "(Lru/yandex/music/data/audio/o;)V"),
     ("LGK1$a;", "else", "(Lru/yandex/music/data/audio/o;)V"),
     ("LGK1$a;", "goto", "(Lru/yandex/music/data/audio/o;)V"),
+    # Exact LCK1 Flow branches and their Track-bearing coroutine constructors.
+    ("LUJ5;", "return", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+    ("LHv4;", "if", "(Lru/yandex/music/data/audio/o;)Z"),
+    ("LCK1$a;", "<init>", "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)V"),
+    ("LCK1$c;", "<init>", "(LC3a;Lru/yandex/music/data/audio/o;)V"),
+    ("LCK1$l;", "<init>", "(LD3a;Lru/yandex/music/data/audio/o;)V"),
     ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
     ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+}
+
+TRACK_FIELD_READ_SCAN_OWNERS = {
+    "LJK1;", "LCK1$a;", "LCK1$c;", "LCK1$l;"
+}
+
+SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS = {
+    "LJK1;": (
+        "LJK1;", "<init>",
+        "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
+        "Lru/yandex/music/data/audio/o;Z)V"
+    ),
+    "LCK1$a;": (
+        "LCK1$a;", "<init>",
+        "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)V"
+    ),
+    "LCK1$c;": (
+        "LCK1$c;", "<init>",
+        "(LC3a;Lru/yandex/music/data/audio/o;)V"
+    ),
+    "LCK1$l;": (
+        "LCK1$l;", "<init>",
+        "(LD3a;Lru/yandex/music/data/audio/o;)V"
+    ),
 }
 
 
@@ -5903,11 +5943,11 @@ def inspect_signed(apks):
                         selected_track_path_method_definitions[method] = (
                             dex, flags, code_off
                         )
-                    if method[0] == "LJK1;":
+                    if method[0] in TRACK_FIELD_READ_SCAN_OWNERS:
                         if method in selected_track_path_owner_method_definitions:
-                            raise ValueError("DUPLICATE_LJK1_METHOD_DEFINITION")
+                            raise ValueError("DUPLICATE_TRACK_FIELD_READ_METHOD_DEFINITION")
                         if len(selected_track_path_owner_method_definitions) >= 128:
-                            raise ValueError("LJK1_METHOD_SCAN_LIMIT")
+                            raise ValueError("TRACK_FIELD_READ_METHOD_SCAN_LIMIT")
                         selected_track_path_owner_method_definitions[method] = (
                             dex, flags, code_off
                         )
@@ -6064,41 +6104,59 @@ def inspect_signed(apks):
         SELECTED_TRACK_PATH_METHODS
         - set(selected_track_path_method_definitions)
     )
-    ljk1_constructor_ref = (
-        "LJK1;", "<init>",
-        "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
-        "Lru/yandex/music/data/audio/o;Z)V"
-    )
-    ljk1_constructor_definition = selected_track_path_method_definitions.get(
-        ljk1_constructor_ref
-    )
-    ljk1_track_field_refs = (
-        track_parameter_field_store_refs(
-            ljk1_constructor_definition[0], ljk1_constructor_ref,
-            ljk1_constructor_definition[1], ljk1_constructor_definition[2]
+    selected_track_path_exact_field_read_census = []
+    for owner, constructor_ref in sorted(
+        SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS.items()
+    ):
+        constructor_definition = selected_track_path_method_definitions.get(
+            constructor_ref
         )
-        if ljk1_constructor_definition else []
-    )
-    if len(ljk1_track_field_refs) > 8:
-        raise ValueError("LJK1_TRACK_FIELD_REF_LIMIT")
-    selected_track_path_field_read_traces = []
-    if ljk1_track_field_refs:
-        exact_ljk1_track_fields = set(ljk1_track_field_refs)
-        for method, (dex, flags, code_off) in sorted(
-            selected_track_path_owner_method_definitions.items()
-        ):
-            trace = trace_identity_method(
-                dex, method, flags, code_off, candidate_owners=set(),
-                exact_track_field_refs=exact_ljk1_track_fields
+        field_refs = (
+            track_parameter_field_store_refs(
+                constructor_definition[0], constructor_ref,
+                constructor_definition[1], constructor_definition[2]
             )
-            if any(
-                event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
-                and event.get("identity_type") == "TRACK"
-                for event in trace.get("events", [])
+            if constructor_definition else []
+        )
+        if len(field_refs) > 8:
+            raise ValueError("TRACK_FIELD_READ_OWNER_FIELD_REF_LIMIT")
+        field_read_traces = []
+        if field_refs:
+            exact_fields = set(field_refs)
+            for method, (dex, flags, code_off) in sorted(
+                selected_track_path_owner_method_definitions.items()
             ):
-                selected_track_path_field_read_traces.append(trace)
-        if len(selected_track_path_field_read_traces) > 64:
-            raise ValueError("LJK1_TRACK_FIELD_READ_TRACE_LIMIT")
+                if method[0] != owner:
+                    continue
+                trace = trace_identity_method(
+                    dex, method, flags, code_off, candidate_owners=set(),
+                    exact_track_field_refs=exact_fields
+                )
+                if any(
+                    event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+                    and event.get("identity_type") == "TRACK"
+                    for event in trace.get("events", [])
+                ):
+                    field_read_traces.append(trace)
+            if len(field_read_traces) > 64:
+                raise ValueError("TRACK_FIELD_READ_OWNER_TRACE_LIMIT")
+        selected_track_path_exact_field_read_census.append({
+            "owner": owner,
+            "constructor_defined": constructor_definition is not None,
+            "constructor_track_field_store_count": len(field_refs),
+            "field_read_method_count": len(field_read_traces),
+            "field_read_traces": field_read_traces,
+        })
+    ljk1_field_read_row = next(
+        row for row in selected_track_path_exact_field_read_census
+        if row["owner"] == "LJK1;"
+    )
+    ljk1_track_field_refs_count = ljk1_field_read_row[
+        "constructor_track_field_store_count"
+    ]
+    selected_track_path_field_read_traces = ljk1_field_read_row[
+        "field_read_traces"
+    ]
     selected_track_path_interface_implementation_census = (
         inspect_selected_track_interface_implementations(
             apks, class_profiles, SELECTED_TRACK_PATH_METHODS
@@ -6365,9 +6423,10 @@ def inspect_signed(apks):
         "flow_mode_constructor_int_field_stores":flow_mode_constructor_store_rows,
         "flow_mode_branch_census":flow_mode_branch_census,
         "selected_track_path_identity_traces": selected_track_path_identity_traces,
-        "selected_track_path_constructor_track_field_store_count": len(ljk1_track_field_refs),
+        "selected_track_path_constructor_track_field_store_count": ljk1_track_field_refs_count,
         "selected_track_path_field_read_method_count": len(selected_track_path_field_read_traces),
         "selected_track_path_field_read_traces": selected_track_path_field_read_traces,
+        "selected_track_path_exact_field_read_census": selected_track_path_exact_field_read_census,
         "selected_track_path_interface_implementation_census": selected_track_path_interface_implementation_census,
         "selected_track_path_missing_method_refs": [
             {"owner":x[0],"method":x[1],"signature":x[2]}
