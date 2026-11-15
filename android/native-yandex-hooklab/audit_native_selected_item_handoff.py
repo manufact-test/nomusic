@@ -601,7 +601,10 @@ def inspect_signed(apks):
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
         ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for"),
         ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
-        ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>")
+        ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>"),
+        ("Lcom/yandex/music/shared/player/download2/o;", "for"),
+        ("Lcom/yandex/music/shared/player/download2/o$c;", "invokeSuspend"),
+        ("Lcom/yandex/music/shared/player/download2/o$c;", "<init>")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -634,7 +637,8 @@ def inspect_signed(apks):
                     album_methods, reads = class_member_field_reads(dex, ALBUM_MODEL)
                     album_accessor_field_reads.extend(reads)
                 for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;",
-                                     "LGl4;", "Ljm4;", "Lk1a;", "Lam4;", "LFp0;"):
+                                     "LGl4;", "Ljm4;", "Lk1a;", "Lam4;", "LFp0;",
+                                     "Lcom/yandex/music/shared/player/download2/o$c;"):
                     if target_class in defined:
                         flow_dispatcher_class_fields[target_class] = [
                             {"field": name, "type": typ}
@@ -814,6 +818,13 @@ def inspect_signed(apks):
         "fp0_resume_exact_same_continuation_static_proven": True,
         "fp0_resume_explicit_null_track_argument_static_proven": fp0_resume_null_track_arg,
         "fp0_resume_track_binding_runtime_proven": False,
+        "download2_main_source_coroutine_candidates_only": [
+            t for t in focused_method_traces
+            if t["method"]["owner"] in (
+                "Lcom/yandex/music/shared/player/download2/o;",
+                "Lcom/yandex/music/shared/player/download2/o$c;"
+            ) and t["method"]["name"] in ("for", "invokeSuspend", "<init>")
+        ],
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
