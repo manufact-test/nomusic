@@ -32,3 +32,7 @@
 3. Нет owner diagnostics после этого изменения; не требовать от владельца сборки, установки или ручных работ. Если сам пришлёт диагностику — первым делом разбирать счётчики; отличать **NOT_SEEN**, **NO_HOOK**, **NONE**, **SCAN_EXHAUSTED**.
 4. Никаких изменений Test.50, frozen A1, Windows, расширения, backend, оригинальной Яндекс.Музыки/аккаунтов. Не считать Stage A готовым до реального аудио и подтверждения current source.
 
+
+## Follow-up: позднее исключение vendor open()
+
+Код `2dc2e1f0ad394f83bed27e2e2d272179e85441cd` добавляет отдельную обработку exception path: `onExoSourceInstanceOpenFailure(source)` вызывается при **реальном** исключении неизменённого `chain.proceed()`, принудительно ставит `sourceOpened=false`. Даже если более ранний конкурентный вызов вернул successful open, поздняя ошибка не даёт засчитать следующие reads. Original throwable немедленно пробрасывается наружу без подавления. Есть Java regression на поздний failure и последующий новый успешный open. Резерв перед исправлением `backup/android-a1-source-open-close-pre-failure-reset-20261115` @ `975ec09e3951f7d668d7de5d74be8450ccc0c2e5`. Проверить результаты [#43699883677](https://github.com/manufact-test/nomusic/actions/runs/43699883677) и [#43699883681](https://github.com/manufact-test/nomusic/actions/runs/43699883681); отсутствие исключений на CI без аудио — **не** текущий playback proof.
