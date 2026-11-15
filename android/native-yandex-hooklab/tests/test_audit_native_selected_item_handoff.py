@@ -27,7 +27,8 @@ from audit_native_selected_item_handoff import (
     local_primitive_register_origin,
     constructor_int_parameter_field_store_census,
     summarize_flow_interface_implementers,
-    summarize_flow_mode_branch_census
+    summarize_flow_mode_branch_census,
+    exact_track_return_owner_scope
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -65,6 +66,78 @@ class SelectedItemAuditTests(unittest.TestCase):
             ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
             ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
         })
+
+    def test_laC7_interface_scope_uses_only_direct_implementers_and_their_ancestry(self):
+        owner = "LaC7;"
+        implementer = "LImpl;"
+        base = "LBase;"
+        unrelated = "LOther;"
+        profiles = {
+            owner: {"is_interface": True, "is_abstract": True,
+                    "superclass": None, "interfaces": set(),
+                    "instance_types": set(), "static_types": set()},
+            implementer: {"is_interface": False, "is_abstract": False,
+                          "superclass": base, "interfaces": {owner},
+                          "instance_types": set(), "static_types": set()},
+            base: {"is_interface": False, "is_abstract": False,
+                   "superclass": "Ljava/lang/Object;", "interfaces": set(),
+                   "instance_types": set(), "static_types": set()},
+            unrelated: {"is_interface": False, "is_abstract": False,
+                        "superclass": "Ljava/lang/Object;", "interfaces": set(),
+                        "instance_types": set(), "static_types": set()},
+        }
+        result = exact_track_return_owner_scope(profiles, owner)
+        self.assertEqual(result["direct_implementers"], [implementer])
+        self.assertEqual(result["direct_subclasses"], [])
+        self.assertEqual(
+            set(result["scan_owner_to_roots"]),
+            {owner, implementer, base},
+        )
+        self.assertNotIn(unrelated, result["scan_owner_to_roots"])
+
+    def test_laC7_abstract_class_scope_uses_only_direct_subclasses(self):
+        owner = "LaC7;"
+        child = "LChild;"
+        unrelated = "LOther;"
+        profiles = {
+            owner: {"is_interface": False, "is_abstract": True,
+                    "superclass": "Ljava/lang/Object;", "interfaces": set(),
+                    "instance_types": set(), "static_types": set()},
+            child: {"is_interface": False, "is_abstract": False,
+                    "superclass": owner, "interfaces": set(),
+                    "instance_types": set(), "static_types": set()},
+            unrelated: {"is_interface": False, "is_abstract": False,
+                        "superclass": "Ljava/lang/Object;", "interfaces": set(),
+                        "instance_types": set(), "static_types": set()},
+        }
+        result = exact_track_return_owner_scope(profiles, owner)
+        self.assertEqual(result["candidate_root_kind"], "DIRECT_CLASS_SUBCLASSES")
+        self.assertEqual(result["candidate_roots"], [owner, child])
+        self.assertIn(child, result["scan_owner_to_roots"])
+        self.assertNotIn(unrelated, result["scan_owner_to_roots"])
+
+    def test_laC7_missing_owner_scope_checks_only_signed_referenced_relations(self):
+        owner = "LaC7;"
+        implementer = "LImpl;"
+        subclass = "LChild;"
+        unrelated = "LOther;"
+        profiles = {
+            implementer: {"is_interface": False, "is_abstract": False,
+                          "superclass": "Ljava/lang/Object;", "interfaces": {owner},
+                          "instance_types": set(), "static_types": set()},
+            subclass: {"is_interface": False, "is_abstract": False,
+                       "superclass": owner, "interfaces": set(),
+                       "instance_types": set(), "static_types": set()},
+            unrelated: {"is_interface": False, "is_abstract": False,
+                        "superclass": "Ljava/lang/Object;", "interfaces": set(),
+                        "instance_types": set(), "static_types": set()},
+        }
+        result = exact_track_return_owner_scope(profiles, owner)
+        self.assertFalse(result["owner_defined_in_signed_dex"])
+        self.assertEqual(result["candidate_roots"], [implementer, subclass])
+        self.assertIn(implementer, result["scan_owner_to_roots"])
+        self.assertIn(subclass, result["scan_owner_to_roots"])
+        self.assertNotIn(unrelated, result["scan_owner_to_roots"])
 
     def test_method_descriptor_parser_handles_objects_arrays_and_wide_values(self):
         self.assertEqual(parse_types("(ILjava/lang/String;[B[[JDLru/yandex/music/data/audio/o;)V"),

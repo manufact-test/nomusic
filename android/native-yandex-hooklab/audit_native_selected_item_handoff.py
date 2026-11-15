@@ -5751,6 +5751,115 @@ def inspect_selected_track_interface_implementations(apks, class_profiles, contr
     }
 
 
+def exact_track_return_owner_scope(class_profiles, owner="LaC7;"):
+    """Resolve only the exact Track-return owner, direct implementers/subclasses and their ancestry."""
+    profile = class_profiles.get(owner)
+    direct_implementers = sorted(
+        candidate for candidate, entry in class_profiles.items()
+        if owner in entry.get("interfaces", ())
+    )
+    direct_subclasses = sorted(
+        candidate for candidate, entry in class_profiles.items()
+        if entry.get("superclass") == owner
+    )
+    if len(direct_implementers) + len(direct_subclasses) > 64:
+        raise ValueError("TRACK_RETURN_OWNER_DIRECT_RELATION_LIMIT")
+
+    if profile and profile.get("is_interface"):
+        candidate_roots = direct_implementers
+        candidate_root_kind = "DIRECT_INTERFACE_IMPLEMENTERS"
+    elif profile:
+        candidate_roots = direct_subclasses
+        candidate_root_kind = "DIRECT_CLASS_SUBCLASSES"
+    else:
+        candidate_roots = sorted(set(direct_implementers + direct_subclasses))
+        candidate_root_kind = "OWNER_UNDEFINED_REFERENCED_RELATIONS"
+
+    roots = ([owner] if profile else []) + candidate_roots
+    scan_owner_to_roots = {}
+    ancestry_by_owner = {}
+    for root in roots:
+        for row in owner_ancestry_profiles(root, class_profiles):
+            ancestry_by_owner[row["owner"]] = row
+            scan_owner_to_roots.setdefault(row["owner"], set()).add(root)
+    if len(scan_owner_to_roots) > 128:
+        raise ValueError("TRACK_RETURN_OWNER_METHOD_OWNER_LIMIT")
+
+    return {
+        "owner": owner,
+        "owner_defined_in_signed_dex": profile is not None,
+        "owner_is_interface": bool(profile and profile.get("is_interface")),
+        "owner_is_abstract": bool(profile and profile.get("is_abstract")),
+        "owner_superclass": profile.get("superclass") if profile else None,
+        "owner_interfaces": sorted(profile.get("interfaces", ())) if profile else [],
+        "direct_implementer_count": len(direct_implementers),
+        "direct_implementers": direct_implementers,
+        "direct_subclass_count": len(direct_subclasses),
+        "direct_subclasses": direct_subclasses,
+        "candidate_root_kind": candidate_root_kind,
+        "candidate_roots": roots,
+        "ancestry_profiles": [
+            ancestry_by_owner[key] for key in sorted(ancestry_by_owner)
+        ],
+        "scan_owner_to_roots": {
+            key: sorted(value) for key, value in sorted(scan_owner_to_roots.items())
+        },
+    }
+
+
+def inspect_exact_track_return_owner_implementations(apks, class_profiles):
+    """Trace only concrete if():Track bodies on LaC7, its ancestry and direct implementations."""
+    owner = "LaC7;"
+    method_name = "if"
+    signature = f"(){MODEL}"
+    scope = exact_track_return_owner_scope(class_profiles, owner)
+    scan_owners = set(scope["scan_owner_to_roots"])
+    method_bodies = []
+    if scan_owners:
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                        continue
+                    if entry.file_size > DEX_MAX:
+                        raise ValueError("TRACK_RETURN_OWNER_DEX_LIMIT")
+                    dex = Dex(archive.read(entry.filename))
+                    for method, flags, code_off in method_definitions_with_flags(dex):
+                        if (
+                            method[0] not in scan_owners
+                            or method[1] != method_name
+                            or method[2] != signature
+                        ):
+                            continue
+                        if len(method_bodies) >= 64:
+                            raise ValueError("TRACK_RETURN_OWNER_METHOD_BODY_LIMIT")
+                        method_bodies.append({
+                            "method": {
+                                "owner": method[0],
+                                "name": method[1],
+                                "signature": method[2],
+                            },
+                            "candidate_roots": scope["scan_owner_to_roots"][method[0]],
+                            "trace": trace_identity_method(
+                                dex, method, flags, code_off,
+                                candidate_owners=set(),
+                                capture_unproven_calls=True,
+                            ),
+                        })
+    return {
+        **scope,
+        "exact_method_signature": signature,
+        "concrete_method_body_count": len(method_bodies),
+        "concrete_method_bodies": method_bodies,
+        "concrete_body_declared_on_owner": any(
+            row["method"]["owner"] == owner for row in method_bodies
+        ),
+        "concrete_body_found_in_scoped_signed_owners": bool(method_bodies),
+        "only_exact_if_return_track_signature_scanned": True,
+        "runtime_dispatch_proven": False,
+    }
+
+
 def summarize_flow_mode_branch_census(dex, method, flags, code_off):
     """Map DEX branch selectors to field/parameter origins and exact branch targets."""
     cfg=build_dex_control_flow(dex,code_off)
@@ -6457,6 +6566,9 @@ def inspect_signed(apks):
             apks, class_profiles, SELECTED_TRACK_PATH_METHODS
         )
     )
+    laC7_track_return_owner_audit = (
+        inspect_exact_track_return_owner_implementations(apks, class_profiles)
+    )
     candidate_owner_rows = candidate_owner_descriptors(class_profiles)
     candidate_owner_set = {row["owner"] for row in candidate_owner_rows}
     candidate_owner_method_census = inspect_candidate_owner_methods(
@@ -6724,6 +6836,7 @@ def inspect_signed(apks):
         "selected_track_path_exact_field_read_census": selected_track_path_exact_field_read_census,
         "selected_track_path_inner_flow_cfg_traces": selected_track_path_inner_flow_cfg_traces,
         "selected_track_path_interface_implementation_census": selected_track_path_interface_implementation_census,
+        "laC7_track_return_owner_audit": laC7_track_return_owner_audit,
         "selected_track_path_missing_method_refs": [
             {"owner":x[0],"method":x[1],"signature":x[2]}
             for x in selected_track_path_missing_method_refs
