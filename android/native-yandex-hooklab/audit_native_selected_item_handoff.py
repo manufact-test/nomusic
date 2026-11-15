@@ -5935,7 +5935,7 @@ def inspect_lya_track_holder(apks, class_profiles):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("LYA_HOLDER_DEX_LIMIT")
@@ -5951,6 +5951,8 @@ def inspect_lya_track_holder(apks, class_profiles):
                     )
                     if not refs:
                         continue
+                    if len(writer_rows) >= 16:
+                        raise ValueError("LYA_TRACK_FIELD_WRITER_LIMIT")
                     writer_methods[method] = True
                     local_fields.update(refs)
                     writer_fields.update(refs)
@@ -5966,6 +5968,8 @@ def inspect_lya_track_holder(apks, class_profiles):
                 for method, flags, code_off in owner_definitions:
                     if method[1] != "if" or method[2] != f"(){MODEL}":
                         continue
+                    if len(exact_if_traces) >= 4:
+                        raise ValueError("LYA_IF_TRACE_LIMIT")
                     exact_if_traces.append({
                         "method": {"owner": method[0], "name": method[1],
                                    "signature": method[2]},
@@ -5978,51 +5982,60 @@ def inspect_lya_track_holder(apks, class_profiles):
                         ),
                     })
 
-    # Second pass: only callsites to LyEa's exact field-writer methods and LaC7.if():Track.
+    # Second pass: discover only exact writer/interface invokes. Materialize instructions
+    # and run identity tracing only for methods that actually call a Track field writer.
     writer_call_sites = []
     interface_call_sites = []
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("LYA_CALLSITE_DEX_LIMIT")
                 dex = Dex(archive.read(entry.filename))
                 for method, flags, code_off in method_definitions_with_flags(dex):
-                    ins = list(instructions(dex, code_off))
-                    caller_trace = None
-                    for ordinal, (_pc, op, words) in enumerate(ins):
+                    call_candidates = []
+                    for ordinal, (_pc, op, words) in enumerate(instructions(dex, code_off)):
                         if op not in INVOKES:
                             continue
                         callee = dex.method(words[1])
                         is_writer = callee in writer_methods
                         is_interface_call = callee == interface_method
-                        if not is_writer and not is_interface_call:
-                            continue
+                        if is_writer or is_interface_call:
+                            call_candidates.append((ordinal, op, words, callee, is_writer))
+                            if len(writer_call_sites) + len(call_candidates) > 64:
+                                raise ValueError("LYA_WRITER_CALLSITE_LIMIT")
+                            if len(interface_call_sites) + len(call_candidates) > 64:
+                                raise ValueError("LYA_INTERFACE_CALLSITE_LIMIT")
+                    if not call_candidates:
+                        continue
+                    ins = list(instructions(dex, code_off))
+                    caller_trace = None
+                    for ordinal, op, words, callee, is_writer in call_candidates:
                         registers = invoke_registers(op, words)
                         if not registers:
                             continue
-                        if caller_trace is None:
-                            caller_trace = trace_identity_method(
-                                dex, method, flags, code_off,
-                                candidate_owners=set(),
-                                capture_unproven_calls=True,
-                            )
-                        matching_event = next((
-                            event for event in caller_trace.get("events", [])
-                            if event.get("ordinal") == ordinal
-                            and event.get("callee") == {
-                                "owner": callee[0],
-                                "method": callee[1],
-                                "signature": callee[2],
-                            }
-                        ), None)
                         receiver_origin_raw = local_object_register_origin(
                             dex, method, flags, code_off, ins, ordinal,
                             registers[0], include_source_ordinal=True
                         )
                         if is_writer:
+                            if caller_trace is None:
+                                caller_trace = trace_identity_method(
+                                    dex, method, flags, code_off,
+                                    candidate_owners=set(),
+                                    capture_unproven_calls=True,
+                                )
+                            matching_event = next((
+                                event for event in caller_trace.get("events", [])
+                                if event.get("ordinal") == ordinal
+                                and event.get("callee") == {
+                                    "owner": callee[0],
+                                    "method": callee[1],
+                                    "signature": callee[2],
+                                }
+                            ), None)
                             argument_rows = logical_invoke_argument_rows(
                                 dex, method, flags, code_off, ins, ordinal, op, words,
                                 trace_origins=False,
@@ -6049,7 +6062,7 @@ def inspect_lya_track_holder(apks, class_profiles):
                                     if matching_event else []
                                 ),
                             })
-                        if is_interface_call:
+                        else:
                             interface_call_sites.append({
                                 "caller": {"owner": method[0], "name": method[1],
                                            "signature": method[2]},
@@ -6069,6 +6082,10 @@ def inspect_lya_track_holder(apks, class_profiles):
         writer_origin = writer.get("receiver_origin") or {}
         if writer_origin.get("kind") != "NEW_INSTANCE" or writer_origin.get("type") != owner:
             continue
+        writer_track_argument_proven = any(
+            arg.get("identity_type") == "TRACK"
+            for arg in writer["track_identity_arguments"]
+        )
         for interface_call in interface_call_sites:
             interface_origin = interface_call.get("receiver_origin") or {}
             if (
@@ -6085,28 +6102,28 @@ def inspect_lya_track_holder(apks, class_profiles):
                     "writer_target": writer["target"],
                     "interface_call_ordinal": interface_call["ordinal"],
                     "same_lya_instance_proven": True,
+                    "track_argument_identity_proven_at_writer": writer_track_argument_proven,
                 })
 
-    exact_if_events = [
-        event
-        for row in exact_if_traces
-        for event in row["trace"].get("events", [])
-    ]
-    same_track_field_return = (
-        bool(writer_fields)
-        and any(event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
-                and event.get("identity_type") == "TRACK"
-                and event.get("receiver_is_this") is True
-                for event in exact_if_events)
+    same_track_field_return = any(
+        any(event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+            and event.get("identity_type") == "TRACK"
+            and event.get("receiver_is_this") is True
+            for event in row["trace"].get("events", []))
         and any(event.get("kind") == "RETURN_TYPED_IDENTITY"
                 and event.get("identity_type") == "TRACK"
                 and "FIELD_READ_FROM_THIS" in event.get("origins", [])
-                for event in exact_if_events)
+                for event in row["trace"].get("events", []))
+        for row in exact_if_traces
     )
     writer_track_argument_proven = any(
         any(arg.get("identity_type") == "TRACK" for arg in row["track_identity_arguments"])
         for row in writer_call_sites
     )
+    full_dispatch_chain_proven = any(
+        row["same_lya_instance_proven"] and row["track_argument_identity_proven_at_writer"]
+        for row in same_instance_matches
+    ) and same_track_field_return
     return {
         "owner": owner,
         "owner_defined_in_signed_dex": owner_profile is not None,
@@ -6127,7 +6144,7 @@ def inspect_lya_track_holder(apks, class_profiles):
         "same_lya_instance_directly_proven_at_interface_callsite": bool(same_instance_matches),
         "same_instance_matches": same_instance_matches,
         "only_lya_track_writers_and_exact_laC7_if_calls_scanned": True,
-        "runtime_dispatch_proven": bool(same_instance_matches and same_track_field_return),
+        "runtime_dispatch_proven": full_dispatch_chain_proven,
     }
 
 
