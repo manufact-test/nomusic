@@ -860,7 +860,12 @@ def trace_identity_method(
                     logical_position += 1
                     for tracked_type, label in tracked_types.items():
                         origins = aliases[tracked_type].get(register)
-                        if origins:
+                        # Object identity cannot flow into a primitive DEX parameter.
+                        # Rejecting primitive targets prevents stale-register false positives.
+                        if origins and (
+                            declared_type.startswith("L")
+                            or declared_type.startswith("[")
+                        ):
                             identity_arguments.append({
                                 "argument_position": logical_position,
                                 "declared_argument_type": declared_type,

@@ -1868,6 +1868,23 @@ class SelectedItemAuditTests(unittest.TestCase):
             self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
             self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
 
+    def test_identity_method_trace_rejects_track_alias_in_primitive_argument(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:2,102:1}[offset]
+            def method(self, index):
+                return ("LApi;","accept","(I)V")
+        method=("LWorker;","run",f"({MODEL})V")
+        ins=[(0,0x71,[0x0171,0])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1]):
+            result=trace_identity_method(FakeDex(),method,0x8,100)
+        self.assertFalse(any(
+            row["kind"]=="CALL_WITH_TYPED_IDENTITY"
+            for row in result["events"]
+        ))
+
     def test_identity_method_trace_reads_only_the_exact_selected_track_field(self):
         from unittest.mock import patch
         class FakeDex:
