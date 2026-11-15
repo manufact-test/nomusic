@@ -13,7 +13,7 @@ from audit_native_selected_item_handoff import (
     trace_byte_buffer_parameter, expand_invoke_register_types,
     audio_output_dispatch_contracts, owner_ancestry_profiles,
     trace_renderer_buffer_field_candidates, collect_sink_buffer_field_refs,
-    trace_renderer_buffer_field_writes
+    trace_renderer_buffer_field_writes, trace_native_track_coroutine_continuation
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -734,6 +734,92 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(events[0]["same_basic_block_buffer_return_source"]["owner"],"LDecoder;")
         self.assertIsNone(events[1]["same_basic_block_buffer_return_source"])
         self.assertTrue(branch)
+
+    def test_native_track_coroutine_capture_roundtrip_and_wrapper_identity(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:8,102:3,200:4,202:1}[offset]
+            def descriptor(self, index):
+                return {1:"LFp0;",5:"LtCa;"}[index]
+            def method(self, index):
+                return {
+                    2:("LFp0;","<init>","(LGp0;LOe2;)V"),
+                    6:("LtCa;","<init>","(Ljava/lang/String;)V"),
+                    7:("Lou3;","new","(LtCa;LFp0;)Ljava/lang/Object;"),
+                    8:("LGp0;","new",
+                       "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+                }[index]
+        initial=("LGp0;","new",
+                 "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        resume=("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
+        initial_ins=[
+            (0,0x22,[0x0022,1]),
+            (1,0x70,[0x0070,2]),
+            (2,0x5b,[0x0600,3]),
+            (3,0x54,[0x0154,3]),
+            (4,0x54,[0x1254,4]),
+            (5,0x22,[0x0322,5]),
+            (6,0x70,[0x0070,6]),
+            (7,0x71,[0x0071,7])
+        ]
+        resume_ins=[(0,0x71,[0x0071,8])]
+        fields={
+            3:("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;"),
+            4:("Lru/yandex/music/data/audio/o;","hiddenString","Ljava/lang/String;")
+        }
+        with patch("audit_native_selected_item_handoff.instructions",
+                   side_effect=lambda d,c: initial_ins if c==100 else resume_ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   side_effect=lambda d,i: fields[i]), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=lambda op,w:{2:[0,5,7],6:[3,2],7:[3,0],8:[2,0,3]}[w[1]]):
+            result=trace_native_track_coroutine_continuation(
+                FakeDex(),initial,0x8,100,resume,0,200
+            )
+        self.assertEqual(result["track_parameter_capture_stores"][0]["field_slot"],3)
+        self.assertTrue(result["same_field_slot_store_to_resume_read_candidates"])
+        self.assertTrue(result["resume_continuation_call_sites"][0]["invokeSuspend_this_passed_as_continuation"])
+        self.assertTrue(result["track_to_opaque_wrapper_candidate"])
+        self.assertTrue(result["wrapper_continuation_handoff_sites"][0]["track_derived_wrapper_passed"])
+        self.assertFalse(result["coroutine_runtime_resume_dispatch_proven"])
+        self.assertNotIn("hiddenTrack",str(result))
+        self.assertNotIn("hiddenString",str(result))
+
+    def test_native_track_coroutine_does_not_match_different_continuation_field(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:8,102:3,200:4,202:1}[offset]
+            def descriptor(self,index):
+                return {1:"LFp0;"}
+            def method(self,index):
+                return {
+                    2:("LFp0;","<init>","(LGp0;LOe2;)V"),
+                    8:("LGp0;","new","(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+                }[index]
+        initial=("LGp0;","new","(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        resume=("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
+        initial_ins=[
+            (0,0x22,[0x0022,1]),(1,0x70,[0x0070,2]),
+            (2,0x5b,[0x0600,3]),(3,0x54,[0x0154,9])
+        ]
+        resume_ins=[(0,0x71,[0x0071,8])]
+        fields={
+            3:("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;"),
+            9:("LFp0;","otherTrack","Lru/yandex/music/data/audio/o;")
+        }
+        with patch("audit_native_selected_item_handoff.instructions",
+                   side_effect=lambda d,c: initial_ins if c==100 else resume_ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   side_effect=lambda d,i: fields[i]), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=lambda op,w:{2:[0,5,7],8:[2,0,3]}[w[1]]):
+            result=trace_native_track_coroutine_continuation(
+                FakeDex(),initial,0x8,100,resume,0,200
+            )
+        self.assertFalse(result["same_field_slot_store_to_resume_read_candidates"])
+        self.assertFalse(result["track_capture_to_resume_same_field_candidate"])
 
     def test_renderer_field_census_marks_same_field_only_as_candidate(self):
         from unittest.mock import patch

@@ -2417,6 +2417,218 @@ def inspect_renderer_buffer_field_writers(apks, caller_definitions, sink_targets
     }
 
 
+
+def trace_native_track_coroutine_continuation(
+    dex, initial_method, initial_flags, initial_code_off,
+    resume_method, resume_flags, resume_code_off
+):
+    """Trace exact Track capture/read field references across LFp0 continuation."""
+    continuation_owner = "LFp0;"
+    continuation_type = "LOe2;"
+    string_type = "Ljava/lang/String;"
+    track_regs = typed_parameter_registers(
+        dex, initial_method, initial_flags, initial_code_off, MODEL
+    )
+    cont_regs = typed_parameter_registers(
+        dex, initial_method, initial_flags, initial_code_off, continuation_type
+    )
+    if len(track_regs) != 1 or len(cont_regs) != 1:
+        raise ValueError("TRACK_COROUTINE_PARAMETER_SHAPE")
+    ins = list(instructions(dex, initial_code_off))
+    if len(ins) > 20000:
+        raise ValueError("TRACK_COROUTINE_INSTRUCTION_LIMIT")
+    wide_ops = (
+        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
+         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
+        | set(range(0x9b,0xa6)) | set(range(0xab,0xb0))
+        | set(range(0xbb,0xc6)) | set(range(0xcb,0xd0))
+    )
+    written = set()
+    for _pc, op, words in ins:
+        dest = written_register(op, words)
+        if dest is not None:
+            written.add(dest)
+            if op in wide_ops:
+                written.add(dest + 1)
+    stable = set(range(dex.u16(initial_code_off))) - written
+    track_aliases = set(track_regs)
+    continuation_aliases = set(cont_regs)
+    continuation_instances = set()
+    track_string_aliases = set()
+    wrapper_aliases = set()
+    capture_stores, track_reads, track_string_reads = [], [], []
+    wrapper_ctors, wrapper_handoffs, suspend_handoffs = [], [], []
+    branch_seen = False
+
+    def clear(reg):
+        for aliases in (track_aliases, continuation_aliases, continuation_instances,
+                        track_string_aliases, wrapper_aliases):
+            aliases.discard(reg)
+
+    for ordinal, (_pc, op, words) in enumerate(ins):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            params = parse_types(callee[2])
+            target_types = expand_invoke_register_types(
+                callee[0], params, op in (0x71,0x77)
+            )
+            if callee == (continuation_owner,"<init>","(LGp0;LOe2;)V"):
+                if regs and regs[0] in continuation_instances:
+                    suspend_handoffs.append({
+                        "ordinal":ordinal,"new_continuation_constructor_receiver":True
+                    })
+            if callee == ("LHp0;","const","(LOe2;)Ljava/lang/Object;"):
+                if regs and regs[-1] in continuation_instances:
+                    suspend_handoffs.append({
+                        "ordinal":ordinal,"same_continuation_passed_to_suspend_helper":True
+                    })
+            if callee == (WRAPPER,"<init>","(Ljava/lang/String;)V"):
+                if len(regs)==2 and regs[0] in wrapper_aliases and regs[1] in track_string_aliases:
+                    wrapper_ctors.append({
+                        "ordinal":ordinal,
+                        "wrapper_is_constructed_from_string_field_of_same_track":True
+                    })
+            if callee[0]=="Lou3" and callee[1]=="new" and len(regs)==len(target_types):
+                wrapper_pos=[i for i,t in enumerate(target_types) if t==WRAPPER]
+                cont_pos=[i for i,t in enumerate(target_types) if t==continuation_owner]
+                wrapper_handoffs.append({
+                    "ordinal":ordinal,
+                    "track_derived_wrapper_passed":any(regs[i] in wrapper_aliases for i in wrapper_pos),
+                    "same_continuation_passed":any(
+                        regs[i] in continuation_aliases or regs[i] in continuation_instances
+                        for i in cont_pos
+                    ),
+                    "target":{"owner":callee[0],"method":callee[1],"signature":callee[2]}
+                })
+            continue
+
+        if op == 0x22:  # new-instance
+            dest=(words[0]>>8)&0xff
+            typ=dex.descriptor(words[1])
+            clear(dest)
+            if typ==continuation_owner:
+                continuation_instances.add(dest)
+                continuation_aliases.add(dest)
+            elif typ==WRAPPER:
+                wrapper_aliases.add(dest)
+            continue
+
+        if op == 0x54:  # iget-object; never read the value itself
+            dest=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            owner,_name,typ=field_id(dex,words[1])
+            clear(dest)
+            if owner==continuation_owner and typ==MODEL and (
+                receiver in continuation_aliases or receiver in continuation_instances
+            ):
+                track_aliases.add(dest)
+                track_reads.append({
+                    "ordinal":ordinal,"field_slot":words[1],
+                    "same_continuation_receiver":True
+                })
+            elif owner==MODEL and typ==string_type and receiver in track_aliases:
+                track_string_aliases.add(dest)
+                track_string_reads.append({
+                    "ordinal":ordinal,"field_slot":words[1],
+                    "receiver_is_same_track_object_from_continuation":True,
+                    "field_value_disclosed":False
+                })
+            continue
+
+        if op == 0x5b:  # iput-object
+            value=(words[0]>>8)&15
+            receiver=(words[0]>>12)&15
+            owner,_name,typ=field_id(dex,words[1])
+            if owner==continuation_owner and typ==MODEL and (
+                value in track_aliases and receiver in continuation_instances
+            ):
+                capture_stores.append({
+                    "ordinal":ordinal,"field_slot":words[1],
+                    "same_track_parameter_object_stored":True,
+                    "same_new_LFp0_instance":True
+                })
+            continue
+
+        if op in (0x07,0x08,0x09):
+            move=move_object_registers(op,words)
+            if move:
+                dest,source=move
+                origins={
+                    "track":source in track_aliases,
+                    "continuation":source in continuation_aliases,
+                    "instance":source in continuation_instances,
+                    "string":source in track_string_aliases,
+                    "wrapper":source in wrapper_aliases
+                }
+                clear(dest)
+                if origins["track"]: track_aliases.add(dest)
+                if origins["continuation"]: continuation_aliases.add(dest)
+                if origins["instance"]:
+                    continuation_instances.add(dest); continuation_aliases.add(dest)
+                if origins["string"]: track_string_aliases.add(dest)
+                if origins["wrapper"]: wrapper_aliases.add(dest)
+            continue
+
+        if op == 0x1f:
+            dest=(words[0]>>8)&0xff
+            if dest in continuation_aliases:
+                continuation_instances.add(dest)
+            continue
+
+        dest=written_register(op,words)
+        if dest is not None:
+            clear(dest)
+        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            branch_seen=True
+            for aliases in (track_aliases,continuation_aliases,continuation_instances,
+                            track_string_aliases,wrapper_aliases):
+                aliases.intersection_update(stable)
+
+    resume_this=None if resume_flags&ACC_STATIC else (
+        dex.u16(resume_code_off)-dex.u16(resume_code_off+2)
+    )
+    resume_calls=[]
+    for ordinal,(_pc,op,words) in enumerate(instructions(dex,resume_code_off)):
+        if op not in INVOKES or dex.method(words[1])!=(
+            "LGp0;","new",
+            "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"
+        ):
+            continue
+        regs=invoke_registers(op,words)
+        resume_calls.append({
+            "ordinal":ordinal,"this_register":resume_this,
+            "continuation_argument_register":regs[2] if len(regs)==3 else None,
+            "invokeSuspend_this_passed_as_continuation":len(regs)==3 and regs[2]==resume_this
+        })
+    matching_reads=[r for r in track_reads if any(
+        s["field_slot"]==r["field_slot"] for s in capture_stores
+    )]
+    return {
+        "initial_method":{"owner":initial_method[0],"method":initial_method[1],"signature":initial_method[2]},
+        "resume_method":{"owner":resume_method[0],"method":resume_method[1],"signature":resume_method[2]},
+        "track_parameter_capture_stores":capture_stores,
+        "continuation_track_field_reads":track_reads,
+        "same_field_slot_store_to_resume_read_candidates":matching_reads,
+        "track_string_field_read_sites":track_string_reads,
+        "opaque_wrapper_constructor_sites":wrapper_ctors,
+        "wrapper_continuation_handoff_sites":wrapper_handoffs,
+        "continuation_suspend_helper_handoffs":suspend_handoffs,
+        "resume_continuation_call_sites":resume_calls,
+        "track_capture_to_resume_same_field_candidate":bool(
+            capture_stores and matching_reads and any(
+                x["invokeSuspend_this_passed_as_continuation"] for x in resume_calls
+            )
+        ),
+        "track_to_opaque_wrapper_candidate":bool(track_string_reads and wrapper_ctors),
+        "branches_seen":branch_seen,
+        "control_flow_feasibility_proven":False,
+        "coroutine_runtime_resume_dispatch_proven":False,
+        "private_field_names_or_values_disclosed":False,
+        "track_field_values_or_media_read":False
+    }
+
+
 def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
     focus_methods = [
         (row["owner"], row["method"], row["signature"])
@@ -3470,6 +3682,7 @@ def inspect_signed(apks):
     flow_dispatcher_instantiation_sites = []
     flow_dispatcher_class_fields = {}
     fp0_resume_null_track_arg = False
+    fp0_coroutine_method_definitions = {}
     raa_resume_same_continuation = False
     raa_resume_null_wrapper = False
     exo_source_defined = False
@@ -3480,6 +3693,7 @@ def inspect_signed(apks):
         ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for"),
         ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
         ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>"),
+        ("Lou3;", "new"),
         ("Lcom/yandex/music/shared/player/download2/o;", "for"),
         ("Lcom/yandex/music/shared/player/download2/o$c;", "invokeSuspend"),
         ("Lcom/yandex/music/shared/player/download2/o$c;", "<init>"),
@@ -3557,6 +3771,13 @@ def inspect_signed(apks):
                     if method[0] == "LGl4;":
                         flow_source_interface_methods.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method in (
+                        ("LGp0;", "new",
+                         "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"),
+                        ("LFp0;", "invokeSuspend",
+                         "(Ljava/lang/Object;)Ljava/lang/Object;")
+                    ):
+                        fp0_coroutine_method_definitions[method] = (dex, flags, code_off)
                     if method[0] == MODEL:
                         model_method_definitions.append((method,flags,code_off))
                         if is_native_track_album_copy_method(method):
@@ -3710,6 +3931,9 @@ def inspect_signed(apks):
     candidate_identity_focus_refs = select_candidate_identity_focus_refs(
         candidate_owner_method_census
     )
+    candidate_identity_focus_refs = sorted(set(candidate_identity_focus_refs) | {
+        ("Lou3;", "new", "(LtCa;LFp0;)Ljava/lang/Object;")
+    })
     candidate_identity_trace_result = inspect_candidate_identity_method_traces(
         apks, candidate_identity_focus_refs, candidate_owner_set, require_all=True
     )
@@ -3727,6 +3951,26 @@ def inspect_signed(apks):
         {"owner": owner, **classify_track_owner_profile(class_profiles.get(owner, {}))}
         for owner in sorted({row[0] for row in next_identity_hop_focus_refs})
     ]
+    coroutine_refs = {
+        ("LGp0;", "new",
+         "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"),
+        ("LFp0;", "invokeSuspend",
+         "(Ljava/lang/Object;)Ljava/lang/Object;")
+    }
+    if set(fp0_coroutine_method_definitions) != coroutine_refs:
+        raise ValueError("TRACK_COROUTINE_CONTINUATION_METHODS_NOT_DEFINED")
+    if len({id(row[0]) for row in fp0_coroutine_method_definitions.values()}) != 1:
+        raise ValueError("TRACK_COROUTINE_CONTINUATION_CROSS_DEX_UNPROVEN")
+    initial_ref=("LGp0;", "new",
+        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+    resume_ref=("LFp0;", "invokeSuspend",
+        "(Ljava/lang/Object;)Ljava/lang/Object;")
+    initial_def=fp0_coroutine_method_definitions[initial_ref]
+    resume_def=fp0_coroutine_method_definitions[resume_ref]
+    native_track_coroutine_continuity=trace_native_track_coroutine_continuation(
+        initial_def[0],initial_ref,initial_def[1],initial_def[2],
+        resume_ref,resume_def[1],resume_def[2]
+    )
     if dex_count != 6:
         raise ValueError("SIGNED_SIX_DEX_REQUIRED")
     if not model_defined:
@@ -3903,6 +4147,7 @@ def inspect_signed(apks):
         "fp0_resume_exact_same_continuation_static_proven": True,
         "fp0_resume_explicit_null_track_argument_static_proven": fp0_resume_null_track_arg,
         "fp0_resume_track_binding_runtime_proven": False,
+        "native_track_coroutine_continuity": native_track_coroutine_continuity,
         "raa_resume_exact_same_continuation_static_proven": raa_resume_same_continuation,
         "raa_resume_explicit_null_wrapper_argument_static_proven": raa_resume_null_wrapper,
         "raa_resume_wrapper_binding_runtime_proven": False,
