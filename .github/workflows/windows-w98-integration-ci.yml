@@ -31,7 +31,7 @@ jobs:
           coverage: none
       - name: W113/W148 signed stable release and production trust contract
         run: |
-          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs
+          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
           bash -n .github/scripts/windows-stable-publish-hostinger.sh
       - name: Validate Hostinger workflow YAML and owner-scoped private gain staging scripts
         run: |
@@ -104,6 +104,15 @@ jobs:
             $errors | ForEach-Object { Write-Error $_.Message }
             throw 'W155_PROVISION_SCRIPT_PARSE_FAILED'
           }
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD '.github/scripts/windows-stable-owner-package.ps1'),
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'W156_OWNER_PACKAGE_SCRIPT_PARSE_FAILED'
+          }
+          & .github/scripts/tests/windows-stable-owner-package.test.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'W156_OWNER_PACKAGE_FIXTURE_FAILED' }
       - name: Build W23 native bridge bundle
         shell: pwsh
         working-directory: windows-companion/w23
