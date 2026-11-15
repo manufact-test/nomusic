@@ -736,6 +736,61 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertIsNone(events[1]["same_basic_block_buffer_return_source"])
         self.assertTrue(branch)
 
+    def test_track_parameter_register_survives_branch_until_actual_write(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5,102:2}[offset]
+            def descriptor(self,index):
+                return "Lru/yandex/music/data/audio/o;"
+            def method(self,index):
+                return ("LTarget;","get","()Ljava/lang/Object;")
+        method=("LGp0;","new","(Lru/yandex/music/data/audio/o;LOe2;)V")
+        ins=[
+            (0,0x28,[0x0028]),
+            (1,0x5b,[0x135b,7]),
+            (2,0x12,[0x0012])
+        ]
+        target=("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;")
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            result=trace_track_value_to_exact_field_store(
+                FakeDex(),method,ACC_STATIC,100,target
+            )
+        site=result["field_store_sites"][0]
+        self.assertTrue(result["branch_seen"])
+        self.assertTrue(site["source_is_original_track_parameter"])
+        self.assertEqual(site["track_source_provenance"],"SAME_TRACK_PARAMETER_REFERENCE")
+        self.assertFalse(result["control_flow_feasibility_proven"])
+        self.assertNotIn("hiddenTrack",str(result))
+
+    def test_track_return_value_is_not_mistaken_for_same_parameter_identity(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5,102:2}[offset]
+            def descriptor(self,index):
+                return "Lru/yandex/music/data/audio/o;"
+            def method(self,index):
+                return ("LTarget;","get","()Lru/yandex/music/data/audio/o;")
+        method=("LGp0;","new","(LOe2;)V")
+        ins=[
+            (0,0x71,[0x0071,9]),
+            (1,0x0c,[0x020c]),
+            (2,0x5b,[0x125b,7])
+        ]
+        target=("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;")
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            result=trace_track_value_to_exact_field_store(
+                FakeDex(),method,ACC_STATIC,100,target
+            )
+        site=result["field_store_sites"][0]
+        self.assertFalse(site["source_is_original_track_parameter"])
+        self.assertTrue(site["source_is_unlinked_track_return_candidate"])
+        self.assertEqual(site["track_source_provenance"],"UNLINKED_TRACK_RETURN_CANDIDATE")
+        self.assertNotIn("hiddenTrack",str(result))
+
     def test_exact_continuation_field_writer_tracks_object_cast_and_same_field(self):
         from unittest.mock import patch
         class FakeDex:
@@ -759,7 +814,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             )
         self.assertTrue(result["field_store_sites"][0]["source_is_track_parameter_or_field"])
         self.assertEqual(result["field_store_sites"][0]["track_source_provenance"],
-                         "TRACK_PARAMETER_OR_TRACK_FIELD")
+                         "CAST_OBJECT_PARAMETER_REFERENCE")
         self.assertNotIn("privateTrack",str(result))
 
     def test_exact_continuation_field_writer_does_not_accept_unchecked_object(self):

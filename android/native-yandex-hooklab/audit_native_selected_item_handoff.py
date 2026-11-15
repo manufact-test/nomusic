@@ -2437,29 +2437,6 @@ def trace_native_track_coroutine_continuation(
     ins = list(instructions(dex, initial_code_off))
     if len(ins) > 20000:
         raise ValueError("TRACK_COROUTINE_INSTRUCTION_LIMIT")
-    wide_ops = (
-        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
-         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
-        | set(range(0x9b,0xa6)) | set(range(0xab,0xb0))
-        | set(range(0xbb,0xc6)) | set(range(0xcb,0xd0))
-    )
-    written = set()
-    for _pc, op, words in ins:
-        dest = written_register(op, words)
-        if dest is not None:
-            written.add(dest)
-            if op in wide_ops:
-                written.add(dest + 1)
-    future_writes = [set() for _ in range(len(ins))]
-    later = set()
-    for index in range(len(ins)-1, -1, -1):
-        future_writes[index] = set(later)
-        _pc, candidate_op, candidate_words = ins[index]
-        candidate_dest = written_register(candidate_op, candidate_words)
-        if candidate_dest is not None:
-            later.add(candidate_dest)
-            if candidate_op in wide_ops:
-                later.add(candidate_dest + 1)
     track_aliases = set(track_regs)
     continuation_aliases = set(cont_regs)
     continuation_instances = set()
@@ -2597,12 +2574,9 @@ def trace_native_track_coroutine_continuation(
         if dest is not None:
             clear(dest)
         if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            # A branch does not itself mutate registers. Keep aliases until an
+            # actual write is encountered; branch/path feasibility stays unproven.
             branch_seen=True
-            stable_here=set(range(dex.u16(initial_code_off))) - future_writes[ordinal]
-            for aliases in (track_aliases,continuation_aliases,continuation_instances,
-                            track_string_aliases,wrapper_aliases,
-                            track_derived_wrapper_aliases):
-                aliases.intersection_update(stable_here)
 
     resume_this=None if resume_flags&ACC_STATIC else (
         dex.u16(resume_code_off)-dex.u16(resume_code_off+2)
@@ -2650,100 +2624,126 @@ def trace_native_track_coroutine_continuation(
 
 
 def trace_track_value_to_exact_field_store(dex, method, flags, code_off, target_field):
-    """Track typed/Object-cast Track aliases into one exact private field write."""
-    track_aliases=set(typed_parameter_registers(
+    """Trace exact Track-parameter/field aliases to one private field write."""
+    track_parameter_aliases=set(typed_parameter_registers(
         dex,method,flags,code_off,MODEL
     ))
+    track_aliases=set(track_parameter_aliases)
+    track_field_aliases=set()
+    cast_object_aliases=set()
     object_aliases=set(typed_parameter_registers(
         dex,method,flags,code_off,"Ljava/lang/Object;"
     ))
+    returned_track_aliases=set()
     this_register=None if flags&ACC_STATIC else (
         dex.u16(code_off)-dex.u16(code_off+2)
     )
     ins=list(instructions(dex,code_off))
-    future_writes=[set() for _ in range(len(ins))]
-    later=set()
-    wide_ops=(
-        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
-         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
-        |set(range(0x9b,0xa6))|set(range(0xab,0xb0))
-        |set(range(0xbb,0xc6))|set(range(0xcb,0xd0))
-    )
-    for index in range(len(ins)-1,-1,-1):
-        future_writes[index]=set(later)
-        _pc,op,words=ins[index]
-        dest=written_register(op,words)
-        if dest is not None:
-            later.add(dest)
-            if op in wide_ops: later.add(dest+1)
     stores=[]
     pending_track_return=False
     branch_seen=False
 
     def clear(reg):
-        track_aliases.discard(reg)
-        object_aliases.discard(reg)
+        for aliases in (
+            track_aliases,track_parameter_aliases,track_field_aliases,
+            cast_object_aliases,object_aliases,returned_track_aliases
+        ):
+            aliases.discard(reg)
 
     for ordinal,(_pc,op,words) in enumerate(ins):
         if op in INVOKES:
             callee=dex.method(words[1])
+            # A Track-returning call is not assumed to return the same Track
+            # as any parameter. Preserve it only as an unlinked candidate.
             pending_track_return=callee[2].split(")",1)[1]==MODEL
             continue
-        if op==0x0c:
+        if op==0x0c:  # move-result-object
             dest=words[0]>>8
             clear(dest)
-            if pending_track_return: track_aliases.add(dest)
+            if pending_track_return:
+                returned_track_aliases.add(dest)
             pending_track_return=False
             continue
         pending_track_return=False
-        if op==0x54:
+
+        if op==0x54:  # iget-object; field values are never disclosed
             dest=(words[0]>>8)&15
             receiver=(words[0]>>12)&15
-            owner,_name,typ=field_id(dex,words[1])
+            _owner,_name,typ=field_id(dex,words[1])
             clear(dest)
             if typ==MODEL and receiver==this_register:
                 track_aliases.add(dest)
+                track_field_aliases.add(dest)
             continue
-        if op==0x5b:
+
+        if op==0x5b:  # iput-object
             value=(words[0]>>8)&15
             receiver=(words[0]>>12)&15
             if field_id(dex,words[1])==target_field:
+                from_parameter=value in track_parameter_aliases
+                from_field=value in track_field_aliases
+                from_cast=value in cast_object_aliases
+                from_unlinked_return=value in returned_track_aliases
                 stores.append({
                     "ordinal":ordinal,
-                    "source_is_track_parameter_or_field":value in track_aliases,
+                    "value_register":value,
+                    "receiver_register":receiver,
+                    "source_is_original_track_parameter":from_parameter,
+                    "source_is_track_field_read_from_this":from_field,
+                    "source_is_track_parameter_or_field":(
+                        value in track_aliases or from_cast
+                    ),
                     "source_is_object_parameter_not_yet_cast":value in object_aliases,
+                    "source_is_unlinked_track_return_candidate":from_unlinked_return,
                     "receiver_is_this":receiver==this_register,
                     "track_source_provenance":(
-                        "TRACK_PARAMETER_OR_TRACK_FIELD"
-                        if value in track_aliases else
-                        "OBJECT_PARAMETER_UNREFINED"
-                        if value in object_aliases else "UNTRACED"
+                        "SAME_TRACK_PARAMETER_REFERENCE" if from_parameter else
+                        "TRACK_FIELD_REFERENCE" if from_field else
+                        "CAST_OBJECT_PARAMETER_REFERENCE" if from_cast else
+                        "UNLINKED_TRACK_RETURN_CANDIDATE" if from_unlinked_return else
+                        "OBJECT_PARAMETER_UNREFINED" if value in object_aliases else
+                        "UNTRACED"
                     )
                 })
             continue
-        if op in (0x07,0x08,0x09):
+
+        if op in (0x07,0x08,0x09):  # move-object preserves reference identity
             move=move_object_registers(op,words)
             if move:
                 dest,source=move
-                is_track=source in track_aliases
-                is_object=source in object_aliases
+                origins={
+                    "track":source in track_aliases,
+                    "parameter":source in track_parameter_aliases,
+                    "field":source in track_field_aliases,
+                    "cast":source in cast_object_aliases,
+                    "object":source in object_aliases,
+                    "returned":source in returned_track_aliases
+                }
                 clear(dest)
-                if is_track: track_aliases.add(dest)
-                if is_object: object_aliases.add(dest)
+                if origins["track"]: track_aliases.add(dest)
+                if origins["parameter"]:
+                    track_parameter_aliases.add(dest); track_aliases.add(dest)
+                if origins["field"]:
+                    track_field_aliases.add(dest); track_aliases.add(dest)
+                if origins["cast"]: cast_object_aliases.add(dest)
+                if origins["object"]: object_aliases.add(dest)
+                if origins["returned"]: returned_track_aliases.add(dest)
             continue
-        if op==0x1f:  # Object -> Track cast retains same reference
+
+        if op==0x1f:  # Object -> Track cast retains the same object, not an arbitrary Track return
             dest=(words[0]>>8)&0xff
             if dex.descriptor(words[1])==MODEL and dest in object_aliases:
                 object_aliases.discard(dest)
-                track_aliases.add(dest)
+                cast_object_aliases.add(dest)
             continue
+
         dest=written_register(op,words)
-        if dest is not None: clear(dest)
+        if dest is not None:
+            clear(dest)
         if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            # Branches do not mutate registers; retain aliases until actual writes.
             branch_seen=True
-            stable_here=set(range(dex.u16(code_off)))-future_writes[ordinal]
-            track_aliases.intersection_update(stable_here)
-            object_aliases.intersection_update(stable_here)
+
     return {
         "method":{"owner":method[0],"method":method[1],"signature":method[2]},
         "track_parameter_count":len(typed_parameter_registers(
@@ -2754,8 +2754,10 @@ def trace_track_value_to_exact_field_store(dex, method, flags, code_off, target_
         )),
         "field_store_sites":stores,
         "branch_seen":branch_seen,
+        "control_flow_feasibility_proven":False,
         "private_field_name_or_value_disclosed":False
     }
+
 
 
 def inspect_continuation_track_field_writers(apks, reference_dex, reference_field_slot):
@@ -2856,10 +2858,12 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
         "writer_methods":writers,
         "track_identity_callsite_count":len(callsites),
         "track_identity_callsites":callsites,
-        "same_track_object_capture_into_continuation_field_proven":any(
-            site["source_is_track_parameter_or_field"]
+        "same_track_parameter_store_candidate":any(
+            site["source_is_original_track_parameter"]
             for writer in writers for site in writer["field_store_sites"]
-        ) and bool(callsites),
+        ),
+        "same_track_object_capture_into_continuation_field_proven":False,
+        "control_flow_feasibility_proven":False,
         "field_names_values_track_ids_or_media_disclosed":False
     }
 
