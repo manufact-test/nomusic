@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
+using Microsoft.Win32;
 using Celikom.Companion;
 
 int checks = 0;
@@ -1221,6 +1222,92 @@ try
          !WindowsLaunchSettings.ShouldPreserveExistingWindowsOptOut(false,
              new byte[] { 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }),
          "W153 first-launch default never overrides a pre-existing Windows Startup OFF choice");
+    if (OperatingSystem.IsWindows())
+    {
+        const string runKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        const string approvalKeyPath =
+            @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+        const string settingsKeyPath = @"Software\CELIKOM\Windows";
+        const string runName = "CELIKOM";
+        const string choiceName = "AutoRunConfigured";
+
+        static (bool Exists, object? Value, RegistryValueKind Kind) CaptureRegistryValue(
+            string path, string name)
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(path);
+            if (key is null || !key.GetValueNames().Contains(name,
+                StringComparer.OrdinalIgnoreCase))
+                return (false, null, RegistryValueKind.None);
+            return (true, key.GetValue(name, null,
+                RegistryValueOptions.DoNotExpandEnvironmentNames),
+                key.GetValueKind(name));
+        }
+        static void RestoreRegistryValue(string path, string name,
+            (bool Exists, object? Value, RegistryValueKind Kind) snapshot)
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(path, writable: true)
+                ?? throw new InvalidOperationException("W153_REGISTRY_RESTORE_FAILED");
+            if (snapshot.Exists)
+                key.SetValue(name, snapshot.Value!, snapshot.Kind);
+            else
+                key.DeleteValue(name, throwOnMissingValue: false);
+        }
+
+        var oldRun = CaptureRegistryValue(runKeyPath, runName);
+        var oldApproval = CaptureRegistryValue(approvalKeyPath, runName);
+        var oldChoice = CaptureRegistryValue(settingsKeyPath, choiceName);
+        var testExe = Path.Combine(Path.GetTempPath(), "CELIKOM Test",
+            "CELIKOM.Companion.exe");
+        try
+        {
+            RestoreRegistryValue(runKeyPath, runName, (false, null, RegistryValueKind.None));
+            RestoreRegistryValue(approvalKeyPath, runName, (false, null, RegistryValueKind.None));
+            RestoreRegistryValue(settingsKeyPath, choiceName, (false, null, RegistryValueKind.None));
+
+            Test(WindowsLaunchSettings.EnsureFirstLaunchDefault(testExe) &&
+                 WindowsLaunchSettings.IsRunAtLoginEnabled(testExe),
+                "W153 real HKCU first launch creates an enabled quiet Run entry");
+            using (var run = Registry.CurrentUser.OpenSubKey(runKeyPath))
+                Test(run?.GetValue(runName) as string ==
+                     WindowsLaunchSettings.BuildRunCommand(testExe),
+                    "W153 tray state and actual HKCU Run command agree");
+
+            using (var approval = Registry.CurrentUser.CreateSubKey(approvalKeyPath, writable: true))
+                approval!.SetValue(runName,
+                    new byte[] { 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+                    RegistryValueKind.Binary);
+            using (var settings = Registry.CurrentUser.CreateSubKey(settingsKeyPath, writable: true))
+                settings!.DeleteValue(choiceName, throwOnMissingValue: false);
+            Test(!WindowsLaunchSettings.EnsureFirstLaunchDefault(testExe) &&
+                 !WindowsLaunchSettings.IsRunAtLoginEnabled(testExe),
+                "W153 first enrollment preserves a pre-existing Windows Startup OFF choice");
+            using (var settings = Registry.CurrentUser.OpenSubKey(settingsKeyPath))
+                Test(settings?.GetValue(choiceName) is int choice && choice == 1,
+                    "W153 adopted Windows OFF becomes sticky across future launches/upgrades");
+
+            Test(WindowsLaunchSettings.TrySetRunAtLogin(testExe, true) &&
+                 WindowsLaunchSettings.IsRunAtLoginEnabled(testExe),
+                "W153 explicit tray ON removes Windows Startup OFF and enables Run");
+            using (var approval = Registry.CurrentUser.OpenSubKey(approvalKeyPath))
+                Test(approval?.GetValue(runName) is null,
+                    "W153 explicit tray ON clears the OS-level disabled marker");
+
+            Test(WindowsLaunchSettings.TrySetRunAtLogin(testExe, false) &&
+                 !WindowsLaunchSettings.IsRunAtLoginEnabled(testExe) &&
+                 !WindowsLaunchSettings.EnsureFirstLaunchDefault(testExe),
+                "W153 explicit tray OFF survives restart and in-place app upgrade");
+            using (var run = Registry.CurrentUser.OpenSubKey(runKeyPath))
+                Test(run?.GetValue(runName) is null,
+                    "W153 explicit tray OFF removes only CELIKOM's own Run value");
+        }
+        finally
+        {
+            RestoreRegistryValue(runKeyPath, runName, oldRun);
+            RestoreRegistryValue(approvalKeyPath, runName, oldApproval);
+            RestoreRegistryValue(settingsKeyPath, choiceName, oldChoice);
+        }
+    }
+
     // W87: Windows login persistence is only a remembered user preference.
     // It can never replace server entitlement or grant access by itself.
     const string loginInstallation = "94e77e24-9abc-4c68-b3c0-a3e7aa1bb516";
