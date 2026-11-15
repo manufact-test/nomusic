@@ -1,3 +1,34 @@
+# SUPERSEDING RESULT — 15 Nov 2026, LOW6 recipient trace (CI GREEN)
+
+**Code checkpoint:** `70075818bb9965a98376f4cca30157a10bf746e8`  
+**CI:** [#43740254479](https://github.com/manufact-test/nomusic/actions/runs/43740254479) **SUCCESS, 81/81 tests**; exact pinned publisher-signed original verified (16 splits / 6 DEX).  
+**Exact code backup:** `backup/android-a1-low6-recipient-ci-green-20261115` @ `70075818bb9965a98376f4cca30157a10bf746e8`.
+
+## Signed-DEX findings
+
+From `LOW6.<init>(..., Track, ...)`, the same exact incoming Track reference is:
+- stored in a Track-typed instance field on `this`;
+- passed to `LTv9.if(..., Track, boolean)`;
+- passed to method references `LSV6.else(Track)` and `LBK1.break(Track)`.
+
+The pinned signed DEX defines `LTv9.if`, but does **not** define the referenced `LSV6.else`, `LBK1.break`, or `LSW6.if` methods. Those unresolved refs are closed as implementation candidates; do not infer their behavior.
+
+Inside the defined `LTv9.if`, the same Track parameter is passed to:
+`LJK1.<init>(LBK1, GK1$a, Context, CoroutineScope, Track, boolean)`.
+
+This is an exact local object-identity edge, not proof that the object is the active selected player item. The return from `LTv9.if` is `LJK1`; no decoder/source/audio boundary was reached in this bounded trace.
+
+## Exact next hop
+
+Inspect only `LJK1.<init>(LBK1, GK1$a, Context, CoroutineScope, Track, boolean)`:
+1. Verify whether the exact Track parameter is stored on `this` and/or passed unchanged to a concrete player/source/decoder method.
+2. If stored, identify its field internally without exposing field name/value and trace only reads of that exact field from `LJK1` methods.
+3. If no relevant outgoing identity edge exists, close this path; do not expand to generic player APIs or Flow implementers.
+
+Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`. Stage A NAV17 remains owner-confirmed PASS. Stage B replacement remains NOT CONNECTED / NO-GO. No release APK, runtime hook, login or media access.
+
+---
+
 # CURRENT IN-PROGRESS CHECKPOINT — 15 Nov 2026, LOW6 direct Track recipients
 
 **Latest committed code:** `70075818bb9965a98376f4cca30157a10bf746e8`.  
