@@ -278,7 +278,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         ins=[(0,0x54,[0x3154,0]),(1,0x6e,[0x006e,0])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",
-                   return_value=("LCaller;","hidden",MODEL)), \\
+                   return_value=("LCaller;","hidden",MODEL)), \
              patch("audit_native_selected_item_handoff.invoke_registers",
                    return_value=[0,1]):
             trace=trace_identity_method(FakeDex(),method,0,100,{"LTarget;"})
