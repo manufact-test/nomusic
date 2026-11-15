@@ -1,3 +1,39 @@
+# CURRENT IN-PROGRESS CHECKPOINT — 15 Nov 2026, LOW6 direct Track recipients
+
+**Latest committed code:** `70075818bb9965a98376f4cca30157a10bf746e8`.  
+**Previous CI-green signed-DEX result:** [#43739559516](https://github.com/manufact-test/nomusic/actions/runs/43739559516) SUCCESS, 80/80 tests; exact original verified (16 signed splits / 6 DEX).  
+**Current audit CI:** [#43740254479](https://github.com/manufact-test/nomusic/actions/runs/43740254479) — in progress; this commit adds a single bounded hop from the exact Track handoffs observed in `LOW6.<init>`.  
+**Intermediate audit run:** [#43740249574](https://github.com/manufact-test/nomusic/actions/runs/43740249574) was triggered by the parser-only commit immediately before the test-scope commit; prefer final result of #43740254479.  
+**Exact code backup before this audit:** `backup/android-a1-low6-track-identity-pre-ci-20261115` @ `70495580be8a123cb3a209375fa233c7ee4879ae`.  
+**Latest in-progress code backup:** `backup/android-a1-low6-direct-recipient-audit-pending-ci-20261115` @ `70075818bb9965a98376f4cca30157a10bf746e8`.
+
+## Confirmed result from CI #118
+
+The signed-DEX report established that `LOW6.<init>(..., Track, ...)`:
+- stores the exact incoming Track parameter into a Track-typed instance field on `this`;
+- passes that same Track reference to `LTv9.if(..., Track, boolean)`;
+- passes that same Track reference to `LSV6.else(Track)`;
+- passes that same Track reference to `LBK1.break(Track)`, whose declared return type is a Flow interface.
+
+No field names or values were disclosed. The optional `LSW6.if(Track, boolean)` reference was not defined in the pinned signed DEX; do not infer it exists or use it as evidence.
+
+These are exact local object-identity edges only. They do **not** prove active selected playback, player dispatch, decoder input or same-item audio output. Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`.
+
+## Current bounded audit scope
+
+The latest audit adds exact identity traces only for:
+- `LTv9.if(LBK1, GK1$a, Context, CoroutineScope, Track, boolean)`
+- `LSV6.else(Track)`
+- `LBK1.break(Track)`
+
+A regression test pins this exact five-entry focus set (including the optional unresolved LSW6 candidate and LOW6 constructor) so the audit cannot silently expand to generic callsites.
+
+**Next action:** wait for CI #43740254479. On success, inspect only these three method traces. Follow only an exact same-Track call to a concrete player/source/decoder boundary. If no such call is present, close that recipient path and do not fan out into generic Flow or unrelated owners. On failure, retain the prior green checkpoint `70495580` and diagnose only the failing test/audit.
+
+No runtime hooks, APKs, original Yandex/account/media access, or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS. Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # IN-PROGRESS CHECKPOINT — 15 Nov 2026, LSW6 / LOW6 identity trace
 
 **Latest CI-green code:** `b250aba2ca5e7555995099683736be572f0ef578`, CI [#43738914218](https://github.com/manufact-test/nomusic/actions/runs/43738914218) SUCCESS, 80/80.  
