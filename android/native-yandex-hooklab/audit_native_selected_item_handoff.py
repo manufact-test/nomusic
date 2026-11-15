@@ -2810,6 +2810,13 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
         for dex,caller,flags,code_off in all_definitions:
             if caller in writer_refs:
                 continue
+            has_writer_call=False
+            for _pc,op,words in instructions(dex,code_off):
+                if op in INVOKES and dex.method(words[1]) in writer_refs:
+                    has_writer_call=True
+                    break
+            if not has_writer_call:
+                continue
             trace=trace_identity_method(
                 dex,caller,flags,code_off,focus_targets=writer_refs,
                 capture_unproven_calls=True
