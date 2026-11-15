@@ -1,9 +1,10 @@
-CELIKOM Windows — one existing product, W157 final owner review
-Requested build: 0.24.39.0 (native module 0.24.30)
-Purpose: one owner acceptance installer EXE and ZIP from the CI-green main source after VPN no-kUrl continuity closure.
-Requested output: CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe
+CELIKOM Windows — one existing product, W158 final owner review
+Requested build: 0.24.40.0 (native module 0.24.31)
+Purpose: one owner acceptance installer and ZIP from the CI-green W158 application source after false autorun connection, no-kUrl VPN source continuity, Start gate, and compact UI fixes.
+Requested output: CELIKOM-W158-VPN-AUTORUN-SOURCE-UI-02440-UNSIGNED.exe
 Scope: exactly one installer EXE, one ZIP containing that same installer, and SHA256SUMS.txt; privately retained GitHub Actions artifact only.
 Signing: internal UNSIGNED owner review. No production signing, stable feed, Hostinger deployment, customer publication or release.
-Acceptance: owner PC must verify same-track VPN reconnect, Next during outage, Manual Stop, logout/entitlement denial, decoder loss and neutral no-kUrl status.
-Do not use or publish old Draft 0.24.38. Do not change updater/P-256 behavior, Yandex integration, Android, browser extension or backend.
-This single request-file change is the one-time W20 stage trigger; ordinary code/docs pushes must not create installers.
+Source CI success: Main 43769234697; Windows integration 43769234693 on source-bearing main HEAD 7492158509f97564bcb45f5a892cb9b6e529a4d0.
+Owner acceptance only: Windows startup with Yandex absent then opened manually, delayed native handshake, VPN A-to-B same-current track 144530503 sound/Next, true recovery Start/Stop gate, neutral availability vs exact active replacement, Stop/logout/denial/decoder loss protections. No audible acceptance is claimed by CI.
+No Android, browser extension, backend, Yandex original file, updater or P-256 changes.
+This single request-file change is the one-time W20 stage trigger; ordinary source/docs pushes must not create installers.
