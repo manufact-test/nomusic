@@ -134,7 +134,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         }
         result = exact_track_return_owner_scope(profiles, owner)
         self.assertFalse(result["owner_defined_in_signed_dex"])
-        self.assertEqual(result["candidate_roots"], [implementer, subclass])
+        self.assertEqual(result["candidate_roots"], sorted([implementer, subclass]))
         self.assertIn(implementer, result["scan_owner_to_roots"])
         self.assertIn(subclass, result["scan_owner_to_roots"])
         self.assertNotIn(unrelated, result["scan_owner_to_roots"])
