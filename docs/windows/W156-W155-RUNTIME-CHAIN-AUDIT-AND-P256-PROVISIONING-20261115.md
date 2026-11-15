@@ -70,8 +70,11 @@ Keep an encrypted offline backup of the private key. Do not paste, upload to cha
 - `celikom.com` DNS/TLS and public feed are still deliberately deferred.
 - No production feed has been published.
 - No final EXE/ZIP has been built or delivered; no owner-PC installation or field acceptance has happened.
-- The current W20 internal staging workflow does not embed the production P-256 pin and must not be used for the final bootstrap. The protected `windows-stable-signed-release.yml` is the approved trust-embedding build path; Task 6 must package its exact one installer as one root-entry ZIP and include SHA-256 checksums in the same private artifact. Production publication remains explicitly OFF.
-- After the owner provisions the key, complete Task 6 once: build exactly one final EXE+ZIP from `main`, then run the single grouped W154 owner acceptance. Do not create intermediate packages.
+- The current W20 internal staging workflow does not embed the production P-256 pin and must not be used for the final bootstrap. The protected `windows-stable-signed-release.yml` is the approved trust-embedding build path.
+- W156 added the owner-package helper to that workflow. It produces one EXE, one root-entry ZIP containing the same EXE, and SHA256SUMS; the helper and release contract pass Main CI and Windows integration CI.
+- Target bootstrap version is 0.24.38. GUI, Supervisor and Inno metadata are aligned. Main CI run 43728931911 and Windows integration CI run 43728931891 both SUCCESS on checkpoint 718861a6.
+- `manufact-test/nomusic` is public, so Actions artifacts are available to anyone with repository read access. Do not call the artifact private. It contains no private key. If owner-only distribution is required, arrange separate private storage before dispatch.
+- After the owner provisions the key, run `windows-stable-signed-release.yml` on `main` with version 0.24.38, sequence 1, a valid UTC expiry within 30 days, and `publish_to_production=false`. Approve the protected environment, download the one artifact, then run the single grouped W154 owner acceptance. Do not create intermediate packages.
 
 ## 5. Guardrails
 
