@@ -1,5 +1,13 @@
 # CELIKOM Windows — AUTHORITATIVE CURRENT HANDOFF / 14 November 2026
 
+## W148 — P0 production signed-release pipeline prepared, NOT yet deployed (15 November 2026)
+
+- Working branch `main`, W148 pre-change exact backup `backup/windows-main-pre-w148-production-release-pipeline-20261115` @ `18ad2b8b6aa66012f5e2bb61d779d0e2dd51bd10`. Latest W148 code before docs `f70e1c23fe69be5ba3786d845b11459d1064bb5c`.
+- Signed release build/publisher **code** added: public pinned trust injection (source defaults stay empty), offline protected P-256 key generator, schema-2 manifest/package signature verifier, protected **manual** GitHub Actions workflow `windows-stable-signed-release.yml`, real Authenticode PFX/chain/fingerprint gates, immutable Hostinger publisher with exact official-domain HTTPS byte verification. Continuous regression tests wired in Windows integration CI.
+- Owner/infra external dependencies in [GitHub issue #59](https://github.com/manufact-test/nomusic/issues/59), not automatically assigned: approved DNS+TLS and actual Hostinger root for celikom.com, trusted CA code-signing provider/certificate, protected GitHub environment/secrets/manifest private key. Current GitHub connector CANNOT set those admin-managed secrets or issue a real code-signing certificate.
+- Crucial: **production auto-update NOT running**. Current installed unsigned 0.24.37 still has empty pins and needs one trusted signed bootstrap; then next signed release can update automatically. No package built, no deployment, no owner PC install, no real rollback test. W119/W139 constraints intact. Details `docs/windows/W148-PROTECTED-SIGNED-STABLE-RELEASE-PIPELINE-20261115.md`.
+- W148 automated CI may still be running; confirm latest source HEAD after documentation before declaring green. Do not run manual signed-release workflow until real protected secrets/trust/domain are provisioned. All six issues remain OPEN.
+
 ## W147 newest playback-evidence continuation — 15 November 2026
 
 - **Latest native Windows code HEAD before this documentation commit:** `e174551dc086f8812f05840aa8e22d926889ad31`, only on `main`. Exact pre-W147 rollback backup `backup/windows-main-pre-w147-electron-audible-property-precedence-20261115` @ `d63e5505e7300e83cb6307ba9a23866bc3db45a2`.
