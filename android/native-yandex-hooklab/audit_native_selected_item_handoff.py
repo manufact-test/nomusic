@@ -415,6 +415,13 @@ def wrapper_constructor_input_flow(dex: Dex, method, flags: int, code_off: int):
 
 
 
+def const4_zero_to_register(op: int, words, register: int) -> bool:
+    """Exact 11n opcode, dest nibble and *zero* signed nibble, never values."""
+    return (op == 0x12 and len(words) == 1
+            and ((words[0] >> 8) & 0x0f) == register
+            and ((words[0] >> 12) & 0x0f) == 0)
+
+
 def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
     """Bounded opcode-shape trace; never emits literals, values or media data."""
     model_params = model_parameter_registers(dex, method, flags, code_off)
@@ -588,6 +595,7 @@ def inspect_signed(apks):
     focused_method_traces = []
     flow_dispatcher_instantiation_sites = []
     flow_dispatcher_class_fields = {}
+    fp0_resume_null_track_arg = False
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
@@ -646,6 +654,23 @@ def inspect_signed(apks):
                     if (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
                             focused_method_trace(dex, method, flags, code_off))
+                    if (method[0], method[1]) == ("LFp0;", "invokeSuspend"):
+                        # Inspect only the instruction immediately before the
+                        # known exact Gp0.new call. No branch-sensitive taint.
+                        fp0_ins = list(instructions(dex, code_off))
+                        for n, (_, opcode, words) in enumerate(fp0_ins):
+                            if opcode not in INVOKES or n == 0:
+                                continue
+                            callee = dex.method(words[1])
+                            if callee != (
+                                    "LGp0;", "new",
+                                    "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"):
+                                continue
+                            registers = invoke_registers(opcode, words)
+                            if (len(registers) == 3
+                                    and const4_zero_to_register(
+                                        fp0_ins[n-1][1], fp0_ins[n-1][2], registers[1])):
+                                fp0_resume_null_track_arg = True
                     if method[0] not in (MODEL, WRAPPER) and (
                         MODEL in method[2] or WRAPPER in method[2]
                     ):
@@ -787,6 +812,7 @@ def inspect_signed(apks):
             if t["method"]["owner"] == "LFp0;"
         ],
         "fp0_resume_exact_same_continuation_static_proven": True,
+        "fp0_resume_explicit_null_track_argument_static_proven": fp0_resume_null_track_arg,
         "fp0_resume_track_binding_runtime_proven": False,
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [

@@ -23,6 +23,14 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(ALBUM_MODEL, "Lru/yandex/music/data/audio/Album;")
         self.assertNotEqual(ALBUM_MODEL, MODEL)
 
+    def test_exact_zero_const4_does_not_confuse_nonzero_or_other_register(self):
+        from audit_native_selected_item_handoff import const4_zero_to_register
+        self.assertTrue(const4_zero_to_register(0x12, [0x0012], 0))
+        self.assertTrue(const4_zero_to_register(0x12, [0x0112], 1))
+        self.assertFalse(const4_zero_to_register(0x12, [0xF012], 0))
+        self.assertFalse(const4_zero_to_register(0x12, [0x0112], 0))
+        self.assertFalse(const4_zero_to_register(0x13, [0x0013,0], 0))
+
     def test_descriptor_builder_is_exact(self):
         self.assertEqual(DESCRIPTOR_BUILDER,
             ("Lcom/yandex/music/shared/player/download2/o;", "while"))
