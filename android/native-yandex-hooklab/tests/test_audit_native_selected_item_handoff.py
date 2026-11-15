@@ -14,6 +14,7 @@ from audit_native_selected_item_handoff import (
     trace_byte_buffer_parameter, expand_invoke_register_types,
     audio_output_dispatch_contracts, owner_ancestry_profiles,
     trace_renderer_buffer_field_candidates, collect_sink_buffer_field_refs,
+    trace_renderer_buffer_field_identity_cfg,
     trace_renderer_buffer_field_writes, trace_native_track_coroutine_continuation,
     trace_track_value_to_exact_field_store,
     classify_native_track_coroutine_callsite,
@@ -1996,6 +1997,130 @@ class SelectedItemAuditTests(unittest.TestCase):
         refs=result["audio_output_call_candidates"][0]["buffer_reference_candidates"]
         self.assertEqual(refs[0]["prior_codec_return_store_count"],0)
         self.assertFalse(result["same_codec_buffer_to_sink_proven"])
+
+    def test_renderer_cfg_tracks_lad6_return_through_same_field_read_to_sink(self):
+        from unittest.mock import patch
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 6, 102: 1}[offset]
+            def method(self, index):
+                return {
+                    0: ("Lad6;", "final", "(I)Ljava/nio/ByteBuffer;"),
+                    1: ("LBase;", "O", "(Ljava/nio/ByteBuffer;)Z"),
+                }[index]
+
+        field = ("LRenderer;", "privateBuffer", "Ljava/nio/ByteBuffer;")
+        method = ("LRenderer;", "n", "()Z")
+        target = ("LBase;", "O", "(Ljava/nio/ByteBuffer;)Z")
+        by_pc = {
+            0: (0x71, [0x0071, 0, 0]),
+            1: (0x0c, [0x010c]),
+            2: (0x5b, [0x515b, 7]),
+            3: (0x54, [0x2554, 7]),
+            4: (0x6e, [0x006e, 1]),
+        }
+        cfg = {
+            "entry": 0,
+            "by_pc": by_pc,
+            "successors": {0:[1],1:[2],2:[3],3:[4],4:[]},
+            "reachable": set(by_pc),
+            "branches": [],
+        }
+        with patch("audit_native_selected_item_handoff.build_dex_control_flow",
+                   return_value=cfg), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=field), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=lambda op, words: {0:[7],1:[5,2]}[words[1]]), \
+             patch("audit_native_selected_item_handoff.written_register",
+                   return_value=None), \
+             patch("audit_native_selected_item_handoff.move_object_registers",
+                   return_value=None):
+            result = trace_renderer_buffer_field_identity_cfg(
+                FakeDex(), method, 0, 100, {field}, {field: 2}, {target}
+            )
+
+        self.assertEqual(result["trace_status"], "CFG_TRACED")
+        self.assertTrue(result["method_local_identity_proven"])
+        sink = result["sink_calls"][0]
+        self.assertTrue(sink["same_lad6_final_field_reference_on_every_state"])
+        self.assertEqual(sink["lad6_final_identity_state_count"], 1)
+        self.assertEqual(sink["identity_paths"][0]["field_slot"], 2)
+        self.assertEqual(sink["identity_paths"][0]["store_pc"], 2)
+        self.assertEqual(sink["identity_paths"][0]["read_pc"], 3)
+        self.assertEqual(sink["identity_paths"][0]["source_call_pc"], 0)
+        self.assertFalse(result["runtime_virtual_dispatch_to_native_sink_proven"])
+        self.assertNotIn("privateBuffer", str(result))
+
+    def test_renderer_cfg_keeps_alternate_field_writer_branch_separate(self):
+        from unittest.mock import patch
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 6, 102: 1}[offset]
+            def method(self, index):
+                return {
+                    0: ("Lad6;", "final", "(I)Ljava/nio/ByteBuffer;"),
+                    1: ("LBase;", "O", "(Ljava/nio/ByteBuffer;)Z"),
+                    2: ("Lad6;", "class", "(I)Ljava/nio/ByteBuffer;"),
+                }[index]
+
+        field = ("LRenderer;", "privateBuffer", "Ljava/nio/ByteBuffer;")
+        method = ("LRenderer;", "n", "()Z")
+        target = ("LBase;", "O", "(Ljava/nio/ByteBuffer;)Z")
+        by_pc = {
+            0: (0x71, [0x0071, 0, 0]),
+            1: (0x0c, [0x010c]),
+            2: (0x5b, [0x515b, 7]),
+            3: (0x38, [0x0638, 0]),
+            4: (0x54, [0x2554, 7]),
+            5: (0x00, [0x0000]),
+            6: (0x71, [0x0071, 2, 0]),
+            7: (0x0c, [0x030c]),
+            8: (0x5b, [0x535b, 7]),
+            9: (0x54, [0x2554, 7]),
+            10: (0x6e, [0x006e, 1]),
+        }
+        cfg = {
+            "entry": 0,
+            "by_pc": by_pc,
+            "successors": {
+                0:[1],1:[2],2:[3],3:[4,6],4:[5],5:[10],
+                6:[7],7:[8],8:[9],9:[10],10:[],
+            },
+            "reachable": set(by_pc),
+            "branches": [{"pc":3}],
+        }
+        with patch("audit_native_selected_item_handoff.build_dex_control_flow",
+                   return_value=cfg), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=field), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=lambda op, words: {
+                       0:[7],1:[5,2],2:[7]
+                   }[words[1]]), \
+             patch("audit_native_selected_item_handoff.written_register",
+                   return_value=None), \
+             patch("audit_native_selected_item_handoff.move_object_registers",
+                   return_value=None):
+            result = trace_renderer_buffer_field_identity_cfg(
+                FakeDex(), method, 0, 100, {field}, {field: 2}, {target}
+            )
+
+        sink = result["sink_calls"][0]
+        self.assertEqual(sink["distinct_incoming_identity_state_count"], 2)
+        self.assertEqual(sink["lad6_final_identity_state_count"], 1)
+        self.assertEqual(sink["other_or_unresolved_identity_state_count"], 1)
+        self.assertFalse(sink["same_lad6_final_field_reference_on_every_state"])
+        self.assertEqual(len(sink["identity_paths"]), 1)
+        self.assertEqual(len(sink["unresolved_or_alternate_paths"]), 1)
+        self.assertEqual(
+            sink["unresolved_or_alternate_paths"][0]["status"],
+            "ALTERNATE_BYTEBUFFER_RETURN"
+        )
+        self.assertFalse(result["all_sink_callsite_states_match"])
+        self.assertNotIn("privateBuffer", str(result))
 
     def test_owner_ancestry_profiles_include_parent_track_identity_types(self):
         profiles={

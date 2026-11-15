@@ -2659,11 +2659,397 @@ def trace_renderer_buffer_field_writes(dex, method, flags, code_off, target_fiel
     return events, branch_seen
 
 
+def trace_renderer_buffer_field_identity_cfg(
+    dex, method, flags, code_off, target_fields, field_slots, sink_targets
+):
+    """Trace one exact Lad6.final ByteBuffer through a same-instance field to dispatch.
+
+    This is path-sensitive method-local object identity. Different CFG states and
+    alternate stores remain separate. It does not model external writes,
+    re-entrant calls, exception edges, or runtime virtual dispatch.
+    """
+    byte_buffer = "Ljava/nio/ByteBuffer;"
+    lad6_final = ("Lad6;", "final", "(I)Ljava/nio/ByteBuffer;")
+    target_fields = set(target_fields)
+    sink_targets = set(sink_targets)
+    if not target_fields:
+        return {
+            "trace_status": "NO_TARGET_FIELDS",
+            "method_local_identity_proven": False,
+            "private_field_names_or_values_disclosed": False,
+        }
+
+    try:
+        cfg = build_dex_control_flow(dex, code_off)
+    except (DexError, ValueError):
+        return {
+            "trace_status": "CFG_UNAVAILABLE",
+            "method_local_identity_proven": False,
+            "private_field_names_or_values_disclosed": False,
+        }
+
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        return {
+            "trace_status": "INVALID_REGISTER_LAYOUT",
+            "method_local_identity_proven": False,
+            "private_field_names_or_values_disclosed": False,
+        }
+    if flags & ACC_STATIC:
+        return {
+            "trace_status": "NO_INSTANCE_RECEIVER",
+            "method_local_identity_proven": False,
+            "private_field_names_or_values_disclosed": False,
+        }
+
+    this_register = registers_size - ins_size
+    initial_state = {
+        "registers": {this_register: ("THIS",)},
+        "fields": {},
+        "pending_return": None,
+    }
+
+    def state_key(state):
+        register_key = tuple(sorted(
+            (register, repr(alias))
+            for register, alias in state["registers"].items()
+        ))
+        field_key = tuple(sorted(
+            (field_slots[field_ref], repr(value))
+            for field_ref, value in state["fields"].items()
+        ))
+        return register_key, field_key, repr(state["pending_return"])
+
+    def buffer_origin(alias):
+        if not alias:
+            return None
+        if alias[0] == "BUFFER_RETURN":
+            return alias[1]
+        if alias[0] == "FIELD_READ":
+            return alias[4]
+        return None
+
+    def origin_kind(origin):
+        if origin and origin[0] == "LAD6_FINAL":
+            return "LAD6_FINAL"
+        if origin and origin[0] == "OTHER_BYTEBUFFER_RETURN":
+            return "OTHER_BYTEBUFFER_RETURN"
+        return "UNKNOWN"
+
+    store_events = {}
+    read_events = {}
+
+    def remember(bucket, row):
+        bucket[json.dumps(row, sort_keys=True)] = row
+
+    wide_destination_ops = (
+        {0x04, 0x05, 0x06, 0x0b, 0x16, 0x17, 0x18, 0x19,
+         0x45, 0x53, 0x61, 0x7d, 0x7e, 0x80, 0x82, 0x85, 0x87,
+         0x88, 0x8a}
+        | set(range(0x9b, 0xa6))
+        | set(range(0xab, 0xb0))
+        | set(range(0xbb, 0xc6))
+        | set(range(0xcb, 0xd0))
+    )
+
+    def transfer(state, pc, op, words):
+        registers = dict(state["registers"])
+        fields = dict(state["fields"])
+        pending_return = None
+
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            if callee[2].split(")", 1)[1] == byte_buffer:
+                origin = (
+                    ("LAD6_FINAL", pc)
+                    if callee == lad6_final
+                    else ("OTHER_BYTEBUFFER_RETURN", pc)
+                )
+                pending_return = ("BUFFER_RETURN", origin)
+        elif op == 0x0c:  # move-result-object
+            destination = words[0] >> 8
+            registers.pop(destination, None)
+            if state["pending_return"] is not None:
+                registers[destination] = state["pending_return"]
+        elif op == 0x22:  # new-instance; distinct from this
+            destination = (words[0] >> 8) & 0xff
+            registers[destination] = ("NEW_INSTANCE", pc)
+        elif op == 0x54:  # iget-object
+            destination = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            field_ref = field_id(dex, words[1])
+            registers.pop(destination, None)
+            if field_ref in target_fields and field_ref[2] == byte_buffer:
+                receiver_alias = registers.get(receiver)
+                if receiver_alias == ("THIS",):
+                    stored = fields.get(field_ref)
+                    if stored is None:
+                        origin, store_pc = None, None
+                    else:
+                        origin, store_pc = stored
+                    registers[destination] = (
+                        "FIELD_READ", field_ref, store_pc, pc, origin
+                    )
+                    remember(read_events, {
+                        "pc": pc,
+                        "field_slot": field_slots[field_ref],
+                        "receiver_kind": "THIS",
+                        "store_pc": store_pc,
+                        "value_origin": origin_kind(origin),
+                        "source_call_pc": origin[1] if origin else None,
+                    })
+                else:
+                    receiver_kind = (
+                        "OTHER_NEW_INSTANCE"
+                        if receiver_alias and receiver_alias[0] == "NEW_INSTANCE"
+                        else "UNKNOWN_MAY_ALIAS"
+                    )
+                    registers[destination] = (
+                        "FIELD_READ_UNKNOWN_RECEIVER", field_ref, None, pc, None
+                    )
+                    remember(read_events, {
+                        "pc": pc,
+                        "field_slot": field_slots[field_ref],
+                        "receiver_kind": receiver_kind,
+                        "store_pc": None,
+                        "value_origin": "UNKNOWN",
+                        "source_call_pc": None,
+                    })
+        elif op == 0x5b:  # iput-object; field identifiers remain internal
+            value_register = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            field_ref = field_id(dex, words[1])
+            if field_ref in target_fields and field_ref[2] == byte_buffer:
+                receiver_alias = registers.get(receiver)
+                value_origin = buffer_origin(registers.get(value_register))
+                if receiver_alias == ("THIS",):
+                    fields[field_ref] = (value_origin, pc)
+                    receiver_kind = "THIS"
+                elif receiver_alias and receiver_alias[0] == "NEW_INSTANCE":
+                    receiver_kind = "OTHER_NEW_INSTANCE"
+                else:
+                    # An unresolved receiver may alias this; invalidate the
+                    # current field value rather than carrying a false proof.
+                    fields[field_ref] = (None, pc)
+                    receiver_kind = "UNKNOWN_MAY_ALIAS"
+                remember(store_events, {
+                    "pc": pc,
+                    "field_slot": field_slots[field_ref],
+                    "receiver_kind": receiver_kind,
+                    "value_origin": origin_kind(value_origin),
+                    "source_call_pc": (
+                        value_origin[1] if value_origin else None
+                    ),
+                })
+        elif op in (0x07, 0x08, 0x09):  # move-object
+            move = move_object_registers(op, words)
+            if move:
+                destination, source = move
+                origin = registers.get(source)
+                registers.pop(destination, None)
+                if origin is not None:
+                    registers[destination] = origin
+        elif op == 0x1f:  # check-cast preserves identity
+            pass
+        else:
+            destination = written_register(op, words)
+            if destination is not None:
+                registers.pop(destination, None)
+                if op in wide_destination_ops:
+                    registers.pop(destination + 1, None)
+
+        return {
+            "registers": registers,
+            "fields": fields,
+            "pending_return": pending_return,
+        }
+
+    incoming = {
+        cfg["entry"]: {state_key(initial_state): initial_state}
+    }
+    work = [(cfg["entry"], state_key(initial_state))]
+    processed = 0
+    while work:
+        pc, key = work.pop()
+        processed += 1
+        if processed > 200000:
+            raise ValueError("RENDERER_BUFFER_CFG_DATAFLOW_LIMIT")
+        state = incoming[pc][key]
+        op, words = cfg["by_pc"][pc]
+        output = transfer(state, pc, op, words)
+        output_key = state_key(output)
+        for next_pc in cfg["successors"].get(pc, ()):
+            bucket = incoming.setdefault(next_pc, {})
+            if output_key in bucket:
+                continue
+            if len(bucket) >= 128:
+                raise ValueError("RENDERER_BUFFER_CFG_PATH_STATE_LIMIT")
+            bucket[output_key] = output
+            work.append((next_pc, output_key))
+
+    sink_calls = []
+    for pc in sorted(cfg["reachable"]):
+        op, words = cfg["by_pc"][pc]
+        if op not in INVOKES:
+            continue
+        callee = dex.method(words[1])
+        if callee not in sink_targets:
+            continue
+        registers = invoke_registers(op, words)
+        argument_types = expand_invoke_register_types(
+            callee[0], parse_types(callee[2]), op in (0x71, 0x77)
+        )
+        states = sorted(
+            incoming.get(pc, {}).values(),
+            key=state_key,
+        )
+        path_rows = []
+        matched_state_count = 0
+        if len(registers) == len(argument_types):
+            for state_index, state in enumerate(states):
+                state_matched = False
+                for argument_position, (argument_type, register) in enumerate(
+                    zip(argument_types, registers)
+                ):
+                    if argument_type != byte_buffer:
+                        continue
+                    alias = state["registers"].get(register)
+                    row = {
+                        "state_index": state_index,
+                        "argument_position": argument_position,
+                        "status": "UNRESOLVED",
+                        "field_slot": None,
+                        "source_call_pc": None,
+                        "store_pc": None,
+                        "read_pc": None,
+                        "sink_pc": pc,
+                    }
+                    if alias and alias[0] == "FIELD_READ":
+                        field_ref, store_pc, read_pc, origin = (
+                            alias[1], alias[2], alias[3], alias[4]
+                        )
+                        row["field_slot"] = field_slots[field_ref]
+                        row["store_pc"] = store_pc
+                        row["read_pc"] = read_pc
+                        if origin:
+                            row["source_call_pc"] = origin[1]
+                            row["status"] = (
+                                "LAD6_FINAL_FIELD_REFERENCE"
+                                if origin[0] == "LAD6_FINAL"
+                                else "ALTERNATE_BYTEBUFFER_RETURN"
+                            )
+                        else:
+                            row["status"] = "UNKNOWN_OR_OVERWRITTEN_FIELD_VALUE"
+                    elif alias and alias[0] == "FIELD_READ_UNKNOWN_RECEIVER":
+                        row["status"] = "FIELD_READ_RECEIVER_UNRESOLVED"
+                        row["field_slot"] = field_slots.get(alias[1])
+                        row["read_pc"] = alias[3]
+                    elif alias and alias[0] == "BUFFER_RETURN":
+                        row["status"] = "DIRECT_RETURN_NOT_FIELD_BRIDGE"
+                        origin = alias[1]
+                        row["source_call_pc"] = origin[1]
+                    path_rows.append(row)
+                    if row["status"] == "LAD6_FINAL_FIELD_REFERENCE":
+                        state_matched = True
+                if state_matched:
+                    matched_state_count += 1
+        else:
+            path_rows = [{
+                "state_index": index,
+                "status": "INVOKE_REGISTER_MAP_UNRESOLVED",
+                "sink_pc": pc,
+            } for index, _state in enumerate(states)]
+
+        unmatched_state_count = max(0, len(states) - matched_state_count)
+        matching_rows = [
+            row for row in path_rows
+            if row.get("status") == "LAD6_FINAL_FIELD_REFERENCE"
+        ]
+        source_call_pcs = sorted({
+            row["source_call_pc"] for row in matching_rows
+            if row.get("source_call_pc") is not None
+        })
+        field_slots_seen = sorted({
+            row["field_slot"] for row in matching_rows
+            if row.get("field_slot") is not None
+        })
+        sink_calls.append({
+            "sink_pc": pc,
+            "target": {
+                "owner": callee[0],
+                "method": callee[1],
+                "signature": callee[2],
+            },
+            "invoke_kind": invoke_kind_name(op),
+            "distinct_incoming_identity_state_count": len(states),
+            "lad6_final_identity_state_count": matched_state_count,
+            "other_or_unresolved_identity_state_count": unmatched_state_count,
+            "same_lad6_final_field_reference_on_every_state": (
+                bool(states) and matched_state_count == len(states)
+            ),
+            "same_source_callsite_pc_on_every_matching_state": (
+                bool(matching_rows) and len(source_call_pcs) == 1
+            ),
+            "field_slots_on_matching_states": field_slots_seen,
+            "identity_paths": matching_rows[:64],
+            "unresolved_or_alternate_paths": [
+                row for row in path_rows
+                if row.get("status") != "LAD6_FINAL_FIELD_REFERENCE"
+            ][:64],
+            "path_details_truncated": len(path_rows) > 128,
+        })
+
+    return {
+        "trace_status": "CFG_TRACED",
+        "method": {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        },
+        "tracked_source_method": {
+            "owner": lad6_final[0],
+            "method": lad6_final[1],
+            "signature": lad6_final[2],
+        },
+        "branch_count": len(cfg["branches"]),
+        "reachable_instruction_count": len(cfg["reachable"]),
+        "processed_identity_states": processed,
+        "field_store_sites": sorted(
+            store_events.values(),
+            key=lambda row: (row["pc"], row["field_slot"], row["receiver_kind"])
+        ),
+        "field_read_sites": sorted(
+            read_events.values(),
+            key=lambda row: (row["pc"], row["field_slot"], row["receiver_kind"])
+        ),
+        "sink_callsite_count": len(sink_calls),
+        "sink_calls": sink_calls,
+        "method_local_identity_proven": any(
+            row["lad6_final_identity_state_count"] > 0 for row in sink_calls
+        ),
+        "all_sink_callsite_states_match": (
+            bool(sink_calls)
+            and all(
+                row["same_lad6_final_field_reference_on_every_state"]
+                for row in sink_calls
+            )
+        ),
+        "exception_handler_edges_included": False,
+        "external_field_mutation_or_reentrant_calls_modeled": False,
+        "runtime_virtual_dispatch_to_native_sink_proven": False,
+        "active_selected_item_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "private_field_names_or_values_disclosed": False,
+        "audio_bytes_read": False,
+    }
+
+
 def inspect_renderer_buffer_field_writers(apks, caller_definitions, sink_targets):
     """Find exact xrefs to renderer ByteBuffer fields across bounded methods.
 
-    Distinguishes same declared field from same runtime object; the latter
-    cannot be established by field xrefs, so it remains explicitly false.
+    Distinguishes same declared field from same runtime object; only the two
+    requested renderer methods receive the branch-sensitive CFG identity trace.
     """
     reader_fields = set()
     for method, (dex, flags, code_off) in caller_definitions.items():
@@ -2679,6 +3065,11 @@ def inspect_renderer_buffer_field_writers(apks, caller_definitions, sink_targets
         enumerate(sorted(reader_fields))
     }
     rows = []
+    cfg_traces = []
+    cfg_methods = {
+        ("LcC0;", "n", "(JJ)Z"),
+        ("Lkd6;", "n", "(JJ)Z"),
+    }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -2688,8 +3079,6 @@ def inspect_renderer_buffer_field_writers(apks, caller_definitions, sink_targets
                     raise ValueError("RENDERER_BUFFER_WRITER_DEX_LIMIT")
                 dex = Dex(archive.read(entry.filename))
                 for method, flags, code_off in method_definitions_with_flags(dex):
-                    # Bounded exact reference scan: skip methods with no
-                    # matching ByteBuffer field writes without tracing values.
                     matching = False
                     for _pc, op, words in instructions(dex, code_off):
                         if op == 0x5b and field_id(dex, words[1]) in reader_fields:
@@ -2721,18 +3110,24 @@ def inspect_renderer_buffer_field_writers(apks, caller_definitions, sink_targets
                         "branch_or_switch_seen": branch_seen,
                         "is_active_playback_writer_proven": False,
                     })
+                    if method in cfg_methods:
+                        cfg_traces.append(
+                            trace_renderer_buffer_field_identity_cfg(
+                                dex, method, flags, code_off,
+                                reader_fields, slots, sink_targets
+                            )
+                        )
     return {
         "reader_field_slot_count": len(reader_fields),
         "exact_field_writer_method_count": len(rows),
         "exact_field_writer_methods": rows,
+        "exact_lad6_final_cfg_identity_traces": cfg_traces,
         "same_field_reference_is_not_same_java_object": True,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,
         "private_field_names_or_values_disclosed": False,
         "media_bytes_read": False,
     }
-
-
 
 def signed_branch_offset(value, bits):
     sign=1 << (bits-1)
