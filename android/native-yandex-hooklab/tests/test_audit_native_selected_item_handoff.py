@@ -1877,7 +1877,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                 return ("LApi;","accept","(I)V")
         method=("LWorker;","run",f"({MODEL})V")
         ins=[(0,0x71,[0x0171,0])]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1]):
             result=trace_identity_method(FakeDex(),method,0x8,100)
         self.assertFalse(any(
