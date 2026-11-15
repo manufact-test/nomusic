@@ -164,6 +164,27 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(before[0]["track_field_read_on_this_before"])
         self.assertFalse(after[0]["track_field_read_on_this_before"])
 
+    def test_boundary_census_detects_track_returning_helper_before_publish(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:1}[offset]
+            def method(self, index):
+                if index == 0:
+                    return ("LPlayerState;", "current",
+                            "()Lru/yandex/music/data/audio/o;")
+                return (MEDIA_SESSION_OWNER, "setMetadata",
+                        "(Landroid/media/MediaMetadata;)V")
+        method=("LPlayerState;", "publish", "()V")
+        helper=(0,0x6e,[0x006e,0])
+        publish=(1,0x6e,[0x006e,1])
+        with patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=[[3],[3,2]]):
+            rows=boundary_callsite_census(FakeDex(),method,0,100,[helper,publish])
+            reverse=boundary_callsite_census(FakeDex(),method,0,100,[publish,helper])
+        self.assertTrue(rows[0]["track_returning_method_call_before"])
+        self.assertFalse(reverse[0]["track_returning_method_call_before"])
+
     def test_edition_generation_markers_are_exact_and_bounded(self):
         self.assertIn("edition", EDITION_MARKERS)
         self.assertIn("playbackgeneration", GENERATION_MARKERS)

@@ -117,6 +117,8 @@ def boundary_callsite_census(dex, method, flags, code_off, ins=None):
     numeric_field_read_on_this = False
     track_model_method_call = False
     album_model_method_call = False
+    track_returning_method_call = False
+    album_returning_method_call = False
     rows = []
     for ordinal, (_pc, op, words) in enumerate(ins):
         if 0x52 <= op <= 0x58:
@@ -150,7 +152,14 @@ def boundary_callsite_census(dex, method, flags, code_off, ins=None):
                 "numeric_field_read_on_this_before": numeric_field_read_on_this,
                 "track_model_method_call_before": track_model_method_call,
                 "album_model_method_call_before": album_model_method_call,
+                "track_returning_method_call_before": track_returning_method_call,
+                "album_returning_method_call_before": album_returning_method_call,
             })
+        return_type = callee[2].split(")", 1)[1]
+        if return_type == MODEL:
+            track_returning_method_call = True
+        elif return_type == ALBUM_MODEL:
+            album_returning_method_call = True
         if callee[0] == MODEL:
             track_model_method_call = True
         elif callee[0] == ALBUM_MODEL:
@@ -164,18 +173,25 @@ def summarize_boundary_callsite_census(rows):
         "track_parameter_present", "album_parameter_present",
         "track_field_read_on_this_before", "album_field_read_on_this_before",
         "numeric_field_read_on_this_before", "track_model_method_call_before",
-        "album_model_method_call_before"
+        "album_model_method_call_before", "track_returning_method_call_before",
+        "album_returning_method_call_before"
     )
     for row in rows:
         bucket = summary.setdefault(row["kind"], {
             "call_site_count": 0,
             "distinct_caller_method_count": 0,
+            "track_field_read_before_call_site_count": 0,
+            "album_field_read_before_call_site_count": 0,
             **{key + "_call_site_count": 0 for key in flags}
         })
         bucket["call_site_count"] += 1
         for key in flags:
             if row[key]:
                 bucket[key + "_call_site_count"] += 1
+        if row["track_field_reads_before"]:
+            bucket["track_field_read_before_call_site_count"] += 1
+        if row["album_field_reads_before"]:
+            bucket["album_field_read_before_call_site_count"] += 1
     for kind, bucket in summary.items():
         bucket["distinct_caller_method_count"] = len({
             row["caller_key"] for row in rows if row["kind"] == kind
