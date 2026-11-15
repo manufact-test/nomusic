@@ -1768,7 +1768,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             (1,0x5b,[0x215b,0]),  # iput-object v1, v2
             (2,0x0e,[0x000e])
         ]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",return_value=target):
             refs=track_parameter_field_store_refs(FakeDex(),method,0,100)
         self.assertEqual(refs,[target])
@@ -1784,7 +1784,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         target=("LJK1;","hiddenTrack",MODEL)
         wrong_receiver=[(0,0x5b,[0x315b,0])]
         branched=[(0,0x28,[0x0028]),(1,0x5b,[0x235b,0])]
-        with patch("audit_native_selected_item_handoff.instructions",side_effect=[wrong_receiver,branched]), \\
+        with patch("audit_native_selected_item_handoff.instructions",side_effect=[wrong_receiver,branched]), \
              patch("audit_native_selected_item_handoff.field_id",return_value=target):
             self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
             self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
@@ -1799,8 +1799,8 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LJK1;","render","()V")
         exact=("LJK1;","hiddenTrack",MODEL)
         ins=[(0,0x54,[0x3254,0]),(1,0x71,[0x0071,0])]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
-             patch("audit_native_selected_item_handoff.field_id",return_value=exact), \\
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=exact), \
              patch("audit_native_selected_item_handoff.invoke_registers",return_value=[2]):
             accepted=trace_identity_method(
                 FakeDex(),method,0,100,exact_track_field_refs={exact}
