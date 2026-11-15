@@ -21,6 +21,20 @@ public final class StageBAudioEvidenceTest {
         check(rows[index].equals("event=AUDIO_STAGE_B_SUMMARY;origin="+category+
             ";error="+value+";thread=OTHER"));
     }
+    static StageBAudioEvidence exactLinked(Object track,Object wrapper,Object descriptor,
+            Object factory,Object source) {
+        StageBAudioEvidence evidence=new StageBAudioEvidence();
+        evidence.onNativeTrackFlowEmission(track);
+        evidence.enterNativeTrackSourceRequest(track,null);
+        evidence.onNativeTrackWrapperCreated(wrapper);
+        evidence.exitNativeTrackSourceRequest();
+        evidence.enterNativeMainSourceRequest(wrapper,null);
+        evidence.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
+        evidence.exitNativeMainSourceRequest();
+        evidence.onExoFactoryCreated(descriptor,factory);
+        evidence.onExoSourceInstanceCreated(source,factory);
+        return evidence;
+    }
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
@@ -309,6 +323,53 @@ public final class StageBAudioEvidenceTest {
         readGate.onExoSourceInstanceOpen(gs3);
         readGate.onExoSourceInstanceRead(gs3,2);
         bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","FEW");
+        // Ensure close() and late open failure MUST revoke READ_LINK, not
+        // just change an unrelated distinct-read counter.
+        Object cTrack=new Object(),cWrapper=new Object(),cDescriptor=new Object();
+        Object cFactory=new Object(),cSource=new Object();
+        StageBAudioEvidence afterClose=exactLinked(
+            cTrack,cWrapper,cDescriptor,cFactory,cSource);
+        afterClose.onExoSourceInstanceOpen(cSource);
+        afterClose.onExoSourceInstanceClose(cSource);
+        afterClose.onExoSourceInstanceRead(cSource,8);
+        bucket(afterClose.exportLines(),30,"TRACK_SOURCE_READ_LINK","NONE");
+        bucket(afterClose.exportLines(),39,"TRACK_SOURCE_UNOPENED_READ","ONE");
+        bucket(afterClose.exportLines(),41,"TRACK_SOURCE_CLOSE_LINK","ONE");
+        afterClose.onExoSourceInstanceOpen(cSource);
+        afterClose.onExoSourceInstanceRead(cSource,8);
+        bucket(afterClose.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
+
+        Object fTrack=new Object(),fWrapper=new Object(),fDescriptor=new Object();
+        Object fFactory=new Object(),fSource=new Object();
+        StageBAudioEvidence failedOpen=exactLinked(
+            fTrack,fWrapper,fDescriptor,fFactory,fSource);
+        failedOpen.onExoSourceInstanceOpen(fSource);
+        failedOpen.onExoSourceInstanceOpenFailure(fSource);
+        failedOpen.onExoSourceInstanceRead(fSource,8);
+        bucket(failedOpen.exportLines(),30,"TRACK_SOURCE_READ_LINK","NONE");
+        bucket(failedOpen.exportLines(),39,"TRACK_SOURCE_UNOPENED_READ","ONE");
+        failedOpen.onExoSourceInstanceOpen(fSource);
+        failedOpen.onExoSourceInstanceRead(fSource,8);
+        bucket(failedOpen.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
+
+        Object bTrack=new Object(),bWrapper=new Object(),bDescriptor=new Object();
+        Object bFactory=new Object(),bSource=new Object();
+        StageBAudioEvidence rebound=exactLinked(
+            bTrack,bWrapper,bDescriptor,bFactory,bSource);
+        rebound.onExoSourceInstanceOpen(bSource);
+        Object newDesc=new Object(),newFactory=new Object();
+        rebound.enterNativeMainSourceRequest(bWrapper,null);
+        rebound.onNativeExoDescriptorBuiltForCurrentWrapper(newDesc);
+        rebound.exitNativeMainSourceRequest();
+        rebound.onExoFactoryCreated(newDesc,newFactory);
+        rebound.onExoSourceInstanceCreated(bSource,newFactory);
+        rebound.onExoSourceInstanceRead(bSource,8);
+        bucket(rebound.exportLines(),30,"TRACK_SOURCE_READ_LINK","NONE");
+        bucket(rebound.exportLines(),39,"TRACK_SOURCE_UNOPENED_READ","ONE");
+        rebound.onExoSourceInstanceOpen(bSource);
+        rebound.onExoSourceInstanceRead(bSource,8);
+        bucket(rebound.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
+
         StageBAudioEvidence limited=new StageBAudioEvidence();
         Object lt=new Object(),lw=new Object(),ld=new Object(),lf=new Object();
         limited.onNativeTrackFlowEmission(lt);
