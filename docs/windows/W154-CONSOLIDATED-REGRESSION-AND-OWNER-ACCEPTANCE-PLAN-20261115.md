@@ -3,6 +3,8 @@
 
 > **Owner follow-up W157 (15 Nov 2026):** Subsequent live owner tests exposed additional issues not covered by this earlier acceptance baseline: (1) VPN reconnect triggers an unnecessary original↔CELIKOM source handoff even while the replacement continues playing; (2) after Yandex is fully closed, the old song remains in the UI for about 30 seconds and then the UI says `Ожидаем данные текущего плеера`; (3) additional text/color/status inconsistencies. These are now active, ordered engineering tasks. **W157 supersedes the earlier statement below that the only remaining work was W154 owner acceptance.** Do not send an intermediate package or ask the owner to repeat the old acceptance plan before the W157 fixes are complete. See [W157](W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md) and the current [NEXT-CHAT](NEXT-CHAT.md).
 
+> **W157 implementation update (15 Nov 2026):** Current source checkpoint `67fd6a7386715a15dee83447c0c497084deb7034`; both required CI workflows pass (`43753821690`, `43753821682`). W15 native contract is 411; W23 native-host is 142/142; W22/W23/W60 is 360/360. Yandex lifecycle clearing, exact-decoder VPN preservation, retired-host heartbeat fencing and confirmed UI state priority are implemented. Owner diagnostics and owner-PC audible acceptance remain outstanding. No new package has been built. Details: W157 §7.
+
 Date: 15 November 2026  
 Repository: manufact-test/nomusic  
 Product: the one existing CELIKOM Windows application  

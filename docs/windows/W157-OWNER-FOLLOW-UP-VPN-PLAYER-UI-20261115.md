@@ -14,7 +14,7 @@ Authority: this is the latest owner-reported follow-up. It supersedes the previo
 - The earlier 0.24.38 bootstrap exists as an unpublished Draft Release. It predates the new owner findings and must not be treated as a fix for them.
 - The owner has performed additional live tests and reported the observations below. The exact installed/tested version was not stated in this message; do not guess it.
 - Diagnostics have been promised by the owner but have not yet been supplied in this handoff. No diagnostic files have been reviewed here.
-- **No application code was changed and no new build was produced as part of W157 documentation.** Root causes remain to be confirmed from code and, when supplied, diagnostics.
+- At the initial documentation-only W157 checkpoint, no application code was changed and no new build was produced. Subsequent W157 implementation is recorded in §7 below; diagnostic files remain outstanding.
 
 ## 2. New owner observations
 
@@ -143,4 +143,39 @@ Copy this as the next chat's first user message:
 Продолжай крупными блоками без остановок ради коротких отчётов. Остановись только если нужна моя реальная проверка/помощь или когда одна новая итоговая версия будет готова. Не объявляй исправления завершёнными без тестов и подтверждения.
 
 ---
+
+
+## 7. W157 implementation progress — 15 November 2026
+
+### Current checkpoint and backups
+
+- Current application-source HEAD: `67fd6a7386715a15dee83447c0c497084deb7034`.
+- Exact backup before this documentation update: `backup/windows-main-pre-w157-docs-update-20261115` @ `67fd6a7386715a15dee83447c0c497084deb7034`.
+- Backup before the retired-host VPN fence change: `backup/windows-main-pre-w157-retired-host-preserve-20261115` @ `40d653f1259f2561015af770a0b5aae9f5a92f66`.
+- Work remains on `main`; no other product or platform was changed.
+
+### Implemented
+
+1. **Yandex lifecycle:** added a process lifecycle tracker and a one-second companion check; the native host reports destruction of the selected renderer with an immediate sequenced `UNAVAILABLE` heartbeat. The bridge clears song/title/artist/duration, source and playback lease, and retires the exited host instance. A genuinely new Yandex host can publish a fresh current player.
+2. **VPN audio continuity:** same-origin transient network suspension retains signed expected-audio and exact decoder evidence. If the exact current signed CELIKOM decoder remains playing, the resumed renderer keeps that source instead of triggering a redundant current-track source refresh. The existing quick route recheck was not slowed or redesigned.
+3. **Retired-host race:** a transient VPN disable no longer clears the retired native-host ID fence. A late heartbeat from a process already declared exited remains rejected after the bridge is re-enabled; a new Yandex process ID is accepted.
+4. **UI priority:** when the player is actually unavailable, `Подключитесь к Яндекс Музыке` now outranks the simultaneous network-recovery text in track/action surfaces. Server recovery remains a separate status. Unavailable/unknown source presentation remains neutral and does not become green.
+
+### Verification
+
+- Main CI run `43753821690`: **SUCCESS** on `67fd6a7386715a15dee83447c0c497084deb7034`.
+- Windows integration CI run `43753821682`: **SUCCESS** on the same commit.
+- W23 native-host tests: `142/142`, no failures.
+- W22/W23/W60 original-source/VPN/403/audio suite: `360/360`, no failures.
+- W15 native contract: `W15_NATIVE_CONTRACT_PASS 411`.
+- W21 recovery contract: `41`; W24 builder: `20`.
+- GUI compilation with warnings as errors: **SUCCESS**.
+- Targeted W157 regressions cover selected-renderer destruction, signed decoder retention across a kUrl refresh, player-unavailable UI during VPN suspension, and rejection of a retired Yandex host after VPN recovery.
+
+### Still outstanding
+
+- The owner-promised diagnostic files have **not** been supplied or reviewed. Do not claim otherwise. When received, correlate only with the three W157 tasks.
+- Owner-PC verification of prompt Yandex closure and audible VPN continuity remains pending. CI does not establish that the audible pop is gone on the owner's machine.
+- No new installer/package was built. The old unpublished 0.24.38 Draft predates W157 and must not be published or delivered as the fix.
+- After diagnostics correlation and any necessary targeted correction, run both CI workflows on the final source and prepare exactly one consolidated Windows package. No intermediate builds.
 
