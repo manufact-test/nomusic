@@ -28,6 +28,7 @@ from audit_native_selected_item_handoff import (
     local_primitive_register_origin,
     constructor_int_parameter_field_store_census,
     summarize_flow_interface_implementers,
+    privacy_safe_focused_method_trace, summarize_current_track_flow_candidate,
     summarize_flow_mode_branch_census,
     exact_track_return_owner_scope,
     exact_parameter_field_store_refs, local_object_register_origin,
@@ -1480,6 +1481,68 @@ class SelectedItemAuditTests(unittest.TestCase):
         callback=next(x for x in rows if x["interface"]=="LGK1$a;")
         self.assertFalse(callback["is_interface"])
         self.assertEqual(callback["direct_subclasses"],["LCallbackImpl;"])
+
+    def test_privacy_safe_focused_flow_trace_omits_private_field_names_and_literals(self):
+        trace = {
+            "method": {"owner":"LImpl;","name":"if","signature":"()LC3a;"},
+            "native_model_parameters": [{"index":0,"register":1}],
+            "instructions": [
+                {"ordinal":1,"op":"FIELD_READ","owner":"LImpl;",
+                 "field":"privateTrackTitle","type":"Ljava/lang/String;",
+                 "receiver_is_native_model":False},
+                {"ordinal":2,"op":"INVOKE",
+                 "callee":{"owner":"LPlayer;","method":"getCurrentTrack",
+                           "signature":"()Lru/yandex/music/data/audio/o;"},
+                 "native_track_argument_positions":[]},
+                {"ordinal":3,"op":"CONST_STRING","destination_register":2,
+                 "literal_disclosed":False},
+                {"ordinal":4,"op":"BRANCH_OR_SWITCH"},
+            ],
+        }
+        result = privacy_safe_focused_method_trace(trace)
+        rendered = str(result)
+        self.assertNotIn("privateTrackTitle", rendered)
+        self.assertEqual(result["native_track_parameter_count"],1)
+        self.assertEqual(result["field_read_type_descriptors"],["Ljava/lang/String;"])
+        self.assertFalse(result["private_field_names_or_values_disclosed"])
+        self.assertEqual(result["events"][1]["callee"]["method"],"getCurrentTrack")
+
+    def test_current_track_flow_candidate_is_exact_and_fail_closed(self):
+        profiles = {
+            "LzD7;":{"interfaces":set(),"is_interface":True,"is_abstract":True},
+            "LMG7;":{"interfaces":{"LzD7;"},"is_interface":False},
+            "LOther;":{"interfaces":set(),"is_interface":False},
+        }
+        traces = [
+            {"method":{"owner":"LMG7;","name":"if","signature":"()LC3a;"},
+             "native_model_parameters":[],
+             "instructions":[
+                 {"ordinal":1,"op":"INVOKE",
+                  "callee":{"owner":"LPlayer;","method":"getCurrentTrack",
+                            "signature":"()Lru/yandex/music/data/audio/o;"},
+                  "native_track_argument_positions":[]}
+             ]},
+            {"method":{"owner":"LDp0;","name":"if",
+                       "signature":"(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"},
+             "native_model_parameters":[{"index":0,"register":1}],
+             "instructions":[]},
+        ]
+        sites = [{
+            "caller":{"owner":"Lru/yandex/music/YMApplication;","name":"onCreate"},
+            "flow_collect_or_emit_calls":[{
+                "class":"LDp0;",
+                "callee":{"owner":"Ljm4;","method":"for",
+                          "signature":"(LGl4;Lkotlinx/coroutines/CoroutineScope;LHl4;)Lk1a;"}
+            }]
+        }]
+        result = summarize_current_track_flow_candidate(profiles,traces,sites)
+        self.assertEqual(result["direct_implementers"],["LMG7;"])
+        self.assertTrue(result["ym_application_on_create_subscribes_ldp0"])
+        self.assertEqual(result["direct_player_api_call_count"],1)
+        self.assertFalse(result["same_track_reference_from_flow_to_lgp0_new_proven"])
+        self.assertFalse(result["current_selected_track_proven"])
+        self.assertFalse(result["same_native_item_to_decoder_proven"])
+        self.assertNotIn("privateTrackTitle",str(result))
 
     def test_primitive_flow_selector_origin_follows_move_and_decodes_const4(self):
         from unittest.mock import patch

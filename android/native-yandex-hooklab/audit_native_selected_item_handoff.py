@@ -5824,6 +5824,139 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
 
 
 
+
+def privacy_safe_focused_method_trace(trace):
+    """Keep exact call/branch/type evidence while omitting private field names and literals."""
+    events = []
+    field_types = set()
+    for row in trace.get("instructions", ()):
+        op = row.get("op")
+        if op == "INVOKE":
+            events.append({
+                "ordinal": row.get("ordinal"),
+                "kind": "CALL",
+                "callee": row.get("callee"),
+                "native_track_argument_positions":
+                    row.get("native_track_argument_positions", []),
+            })
+        elif op == "FIELD_READ":
+            field_type = row.get("type")
+            if field_type:
+                field_types.add(field_type)
+            events.append({
+                "ordinal": row.get("ordinal"),
+                "kind": "FIELD_READ",
+                "owner": row.get("owner"),
+                "type": field_type,
+                "receiver_is_native_track": row.get("receiver_is_native_model", False),
+            })
+        elif op == "BRANCH_OR_SWITCH":
+            events.append({
+                "ordinal": row.get("ordinal"),
+                "kind": "BRANCH_OR_SWITCH",
+            })
+        elif op == "RETURN_OBJECT":
+            events.append({
+                "ordinal": row.get("ordinal"),
+                "kind": "RETURN_OBJECT",
+                "source_is_native_track": row.get("source_is_native_track", False),
+            })
+    return {
+        "method": trace.get("method"),
+        "native_track_parameter_count": len(trace.get("native_model_parameters", ())),
+        "field_read_type_descriptors": sorted(field_types),
+        "events": events,
+        "private_field_names_or_values_disclosed": False,
+    }
+
+
+def summarize_current_track_flow_candidate(class_profiles, focused_method_traces,
+                                           flow_dispatcher_sites):
+    """Inspect only the exact LzD7 -> LBy4 -> LDp0 Track-flow candidate."""
+    interface = "LzD7;"
+    implementers = sorted(
+        owner for owner, profile in class_profiles.items()
+        if interface in profile.get("interfaces", ())
+    )
+    if len(implementers) > 8:
+        raise ValueError("CURRENT_TRACK_FLOW_IMPLEMENTER_LIMIT")
+    owners = {"LzD7;", "LBD7;", "LMG7;", "LC3a;", "LBy4;",
+              "LBC3;", "LzC3;", "LAC3;", "LDp0;", "LGp0;"}
+    traces = [
+        privacy_safe_focused_method_trace(trace)
+        for trace in focused_method_traces
+        if trace.get("method", {}).get("owner") in owners
+    ]
+    if len(traces) > 64:
+        raise ValueError("CURRENT_TRACK_FLOW_METHOD_TRACE_LIMIT")
+    app_subscribes_ldp0 = False
+    for site in flow_dispatcher_sites:
+        caller = site.get("caller", {})
+        if caller.get("owner") != "Lru/yandex/music/YMApplication;" or \
+                caller.get("name") != "onCreate":
+            continue
+        for call in site.get("flow_collect_or_emit_calls", ()):
+            callee = call.get("callee", {})
+            if (call.get("class") == "LDp0;"
+                    and callee.get("owner") == "Ljm4;"
+                    and callee.get("method") == "for"):
+                app_subscribes_ldp0 = True
+                break
+        if app_subscribes_ldp0:
+            break
+
+    call_targets = [
+        event.get("callee")
+        for trace in traces for event in trace.get("events", ())
+        if event.get("kind") == "CALL" and event.get("callee")
+    ]
+    player_calls = [
+        target for target in call_targets
+        if target.get("owner") in PLAYER_OWNERS
+        and target.get("method") in PLAYER_METHODS
+    ]
+    media_session_calls = [
+        target for target in call_targets
+        if classify_boundary_call(target) in (
+            "MEDIA_SESSION_METADATA", "MEDIA_SESSION_STATE"
+        )
+    ]
+    decoder_calls = [
+        target for target in call_targets
+        if classify_boundary_call(target) == "DECODER_BOUNDARY"
+    ]
+    source_calls = [
+        target for target in call_targets
+        if (target.get("owner"), target.get("method")) in SOURCE_METHODS
+    ]
+    return {
+        "scope": "LzD7 interface, its direct implementers, and the exact LBy4/LDp0 Track-flow path",
+        "source_interface": interface,
+        "source_interface_is_abstract": bool(
+            class_profiles.get(interface, {}).get("is_abstract")
+        ),
+        "direct_implementers": implementers,
+        "ym_application_on_create_subscribes_ldp0": app_subscribes_ldp0,
+        "flow_path": [
+            "LzD7.if() -> LC3a Flow",
+            "LBD7.if(LzD7) -> LBy4 Flow",
+            "LBC3 -> LzC3 -> LAC3 -> LO6.native",
+            "Ljm4.for(Flow, CoroutineScope, LDp0 collector)",
+            "LDp0.if(Track) -> LGp0.new(Track)",
+        ],
+        "focused_method_traces": traces,
+        "direct_player_api_call_count": len(player_calls),
+        "direct_media_session_call_count": len(media_session_calls),
+        "direct_decoder_boundary_call_count": len(decoder_calls),
+        "direct_source_descriptor_call_count": len(source_calls),
+        "same_track_reference_from_flow_to_lgp0_new_proven": False,
+        "current_selected_track_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "branch_and_coroutine_resumption_inferred": False,
+        "private_field_names_or_values_disclosed": False,
+        "runtime_state_or_media_read": False,
+    }
+
 def local_object_register_origin(dex, method, flags, code_off, ins, before_ordinal, register, include_source_ordinal=False):
     """Bounded local origin for one object argument; no values or runtime inference."""
     current=register
@@ -6077,9 +6210,9 @@ def summarize_flow_entry_class_profiles(class_profiles):
         "LBC3;","LO6;","LBy4;","Lvp0;","LzD7;","LBD7;",
         "LAp0;","Lxp0;","LUK6;","LDb1;","LC3a;","LgE6;",
         "LDw8;","LAD7;","LzE7;","Lnn4;","Lhw9;","LcE6;",
-        "LAE7;","Lup0;","LAy4;","LJw4;","LPG1;","Lur1;",
+        "LAE7;","Lup0;","LAy4;","LMG7;","LJw4;","LPG1;","Lur1;",
         "Lkh;","Lrm4;","LBC3$a;","LAC3$a;","LsF4;","LyC3;",
-        "Liw9;","LAg1;","YMApplication;"
+        "Liw9;","LAg1;","LMG7;","YMApplication;"
     )
     rows=[]
     for owner in targets:
@@ -7240,7 +7373,7 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, cod
                "Lwp0;", "Lyp0;", "LzC3;", "LAC3;", "LBC3;", "LO6;", "LBy4;",
                "Lvp0;", "LzD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;",
                "LC3a;", "LgE6;", "LDw8;", "LAD7;",
-               "LzE7;", "Lnn4;", "LAE7;", "Lup0;", "LAy4;"}
+               "LzE7;", "Lnn4;", "LAE7;", "Lup0;", "LAy4;", "LMG7;"}
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
@@ -7519,7 +7652,7 @@ def inspect_signed(apks):
                         "RetryingBalancingDataSource;", "close", "()V"
                     ):
                         exo_source_close_void_declared = True
-                    if (method[0], method[1]) in trace_targets:
+                    if method[0] in ("LMG7;", "LC3a;") or (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
                             focused_method_trace(dex, method, flags, code_off))
                     if method in SELECTED_TRACK_PATH_METHODS:
@@ -8027,6 +8160,9 @@ def inspect_signed(apks):
             for x in sorted(flow_related_method_refs)[:MAX_METHODS]
         ],
         "flow_interface_implementer_census":summarize_flow_interface_implementers(class_profiles),
+        "current_track_flow_candidate": summarize_current_track_flow_candidate(
+            class_profiles, focused_method_traces, flow_dispatcher_instantiation_sites
+        ),
         "flow_mode_constructor_int_field_stores":flow_mode_constructor_store_rows,
         "flow_mode_branch_census":flow_mode_branch_census,
         "selected_track_path_identity_traces": selected_track_path_identity_traces,
