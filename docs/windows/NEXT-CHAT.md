@@ -1,14 +1,63 @@
-## W155 — LATEST VERIFIED WINDOWS HANDOFF / 15 November 2026
+## W155 — LATEST VERIFIED CELIKOM WINDOWS HANDOFF / 15 NOVEMBER 2026
 
-**READ THIS BLOCK FIRST; older W155 snapshots below are historical.** Owner stopped the chat and requested an exact preservation/transfer, not a new package. Active branch is `main` ONLY; repository `manufact-test/nomusic`.
+**READ THIS BLOCK FIRST.** Everything below the next W155 heading is historical handoff material; follow this current block and W155/W150 docs where older text differs.
 
-- Last independently checked **application code HEAD**: `4abcfd5ad389363f4b954eaa578615be91140bee`. Exact verified rollback backup: `backup/windows-main-w155-p256-ci-green-owner-handoff-20261115` at the same commit. Baseline before all Task 5 work: `backup/windows-main-pre-task5-signed-updater-20261115` @ `2864989bad9520738951cc28806feab6bc0d69c1`. Documentation-only handoff commit follows this application code.
-- **LATEST CI GREEN ON EXACT CODE SHA:** Main CI `43715919526` SUCCESS; Windows integration CI (no installer) `43715919617` SUCCESS. Former Windows compile failure `CS1501` on `512e18e` was corrected in `4abcfd5`; do not confuse that historical red run with the current green runs. CI green proves automated tests/compilation, **not** full updater security audit, owner-PC acceptance, working DNS/feed or field deployment.
-- **Tasks 1–4** W151 player/UI, W152 VPN recovery, W153 autostart/tray, W154 consolidated regressions and owner QA plan are already code/CI-ready, owner-PC acceptance pending. **Task 5 is the ONLY active engineering work** (W155 updater P-256 + SHA-256 + one-shot rollback + protected workflow). Do not reopen those tasks or unrelated issues. #52 remains pending owner truth acceptance; #53/#54/#56/#57/#58 are out of scope.
-- **Already coded in W155:** fixed future HTTPS origin `https://celikom.com/`, embedded *public* P-256 SPKI pin with default fail-closed source constants; manifest schema 2 signed by P-256; SHA-256 verification of downloaded/cached EXE and expected payloads; manifest-key fingerprint and schema 3 *local DPAPI rollback journal* (not schema 3 manifest); supervisor launch/health/rollback refactor without Authenticode/PFX; release tooling and GitHub workflow without commercial signing, with opt-in `publish_to_production`. Old W148 Authenticode/PFX instructions are superseded by W150.
-- **Exact remaining work, in order:** (1) recheck live main/CI, audit all updater release/manifest/stager/DPAPI/supervisor/app-update callers together, especially trust/key pin, manifest-vs-journal schema, file hashes at every execute, negative unsigned/tampered paths, monotonic anti-downgrade, safe playback point, independent supervisor READY, one-shot rollback and preservation of user settings; (2) expand/fix contract/integration tests and obtain BOTH CI green on every new final code HEAD; (3) dry-run protected key/sign/manifest/publisher steps using fixtures **without publishing or installing**; (4) document real owner-only offline P-256 key generation, protected GitHub secret import and release-only public-pin injection, without asking for or exposing private PEM; (5) only when Task 5 passes engineering and CI, begin **Task 6: exactly one EXE+ZIP** for manual bootstrap over owner 0.24.37, then the single W154 owner QA round.
-- **Still not available/claimed:** owner signing key in protected secrets, live signed feed, DNS/TLS for celikom.com, an installed new Windows build, owner-machine audio/UI QA or a verified field rollback. DNS/TLS/feed activation waits for infrastructure migration. Keep Windows protection enabled; do not bypass SmartScreen, Defender, UAC or request elevated launches.
-- Preserve current Windows architecture, 15-minute Yandex compatibility-cache, quick VPN reconnect, strict decoder source evidence and account/DPAPI/native integration. No Windows TEST, extra working branch, Android or extension changes. No intermediate installers.
+- Repository: manufact-test/nomusic. Only working branch: main.
+- Application-code checkpoint: **c1afdd5fc9b3ec90bb760857bf584dc494d7774e**.
+- Exact backup: **backup/windows-main-w155-owner-handoff-20261115** at c1afdd5fc9b3ec90bb760857bf584dc494d7774e.
+- Main CI run **43726310918 SUCCESS**; Windows integration CI (no installer) run **43726310792 SUCCESS**, both on that exact code SHA.
+- W155 signed-release verification: **27/27 passed**, including offline signed Hostinger promotion rehearsal and changed-baseline refusal. 65 W155 commits were added since the earlier 4abcfd5 checkpoint.
+- W151–W154 are code/test/CI-ready; owner-PC acceptance is still pending and must be one grouped pass using W154 after the final build.
+- W155 now includes P-256 schema-2 manifest trust, exact package URL/required-field validation, schema-3 DPAPI transaction journal, key/transaction/hash binding through Supervisor and final launch, anti-replay, bounded package verification, reparse/symlink guards, offline key provisioning and guarded atomic publisher rehearsal. Details are in docs/windows/W155-P256-UPDATER-REFACTOR-IN-PROGRESS-HANDOFF-20261115.md.
+- **Only remaining engineering scope: finish W155.** Do one bounded review of the actual runtime chain: signed manifest → package/cache verification → staging → InstallCoordinator/AppUpdateManager → independent Supervisor READY/health → one-shot rollback. Check that the implemented transaction/key/hash bindings are actually used by the real callers. Fix only a concrete demonstrated gap; do not repeat broad audits or reopen already-green keygen/publisher/path work.
+- After any code change, both CI workflows must pass on the exact new code HEAD. Keep fixture tests green.
+- Not yet done: protected GitHub environment private signing key, live DNS/TLS/feed for celikom.com, final EXE/ZIP, owner installation or owner-PC acceptance. No production publishing. Task 6 is exactly one final EXE+ZIP only after Task 5 is code/test/CI-ready.
+- Never ask for private PEM in chat, never commit it, and never bypass SmartScreen/Defender/UAC. No Windows TEST product, no experimental branch, no Android/extension work, no unrelated Issues #53/#54/#56/#57/#58. #52 remains pending owner-PC acceptance.
+- Work in large finished blocks, avoid tiny-step questions and unnecessary detours. Do not touch already-green code without a concrete reason. Keep the owner informed briefly and honestly.
+
+## First message for the next chat
+
+Copy this as the first user message:
+
+---
+
+Привет! Продолжаем **CELIKOM Windows**. Ты ведущий разработчик, принимаешь текущую работу и продолжаешь строго с места остановки. Ничего не начинай с нуля, архитектуру не меняй и не расползайся по посторонним задачам.
+
+**Репозиторий:** manufact-test/nomusic  
+**Единственная рабочая ветка:** main  
+**Последний кодовый checkpoint:** c1afdd5fc9b3ec90bb760857bf584dc494d7774e  
+**Точный резерв:** backup/windows-main-w155-owner-handoff-20261115 @ c1afdd5fc9b3ec90bb760857bf584dc494d7774e
+
+Сначала прочитай:
+1. docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md
+2. docs/windows/W150-OWNER-CONFIRMED-SCOPE-AND-SEQUENTIAL-WORK-ORDER-20261115.md
+3. docs/windows/W155-P256-UPDATER-REFACTOR-IN-PROGRESS-HANDOFF-20261115.md
+4. docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md
+5. docs/windows/NEXT-CHAT.md
+
+Перед кодом получи актуальный live HEAD main и последние CI. Документационные коммиты после указанного checkpoint возможны — не считай старый SHA текущим HEAD. Проверь, что резерв существует.
+
+**Что уже сделано:**
+- W151–W154 завершены на уровне кода, тестов и CI. Приёмка на моём ПК ещё не проводилась; она будет одна, после итоговой сборки.
+- W155 получил большой блок доработок. Main CI и Windows integration CI зелёные на checkpoint выше. Release verification — 27/27.
+- Уже закрыты: точный контракт P-256 manifest schema 2, DPAPI journal schema 3, защита от replay/downgrade, привязка Supervisor и финального запуска к transaction/key/payload hashes, bounded package verification, защита от symlink/reparse, offline key provisioning и безопасная проверка publisher.
+- Подробности и точные статусы находятся в W155 handoff.
+
+**Продолжай только W155.** Следующий законченный блок — коротко и предметно проверить реальную цепочку вызовов: signed manifest → package/cache verification → staging → InstallCoordinator/AppUpdateManager → Supervisor READY/health → one-shot rollback. Убедись, что уже реализованные проверки transaction/key/hash действительно проходят через реальные вызывающие методы. Исправляй только конкретный подтверждённый пробел. Не устраивай повторные широкие исследования, не переписывай зелёные участки и не придумывай дополнительные задачи.
+
+После изменений обязательно обе CI-проверки на точном новом HEAD. Не публикуй ничего в production и не собирай промежуточные установщики.
+
+**Дальше по плану:**
+1. Завершить W155 и подготовить безопасную инструкцию для генерации P-256 private key на моей стороне и загрузки прямо в protected GitHub Actions environment. PEM мне в чат присылать не нужно.
+2. Только после полного завершения W155 собрать ровно один финальный EXE+ZIP для установки поверх 0.24.37.
+3. После этого провести один общий тест по W154.
+
+**Запрещено:** Authenticode/PFX, отключение SmartScreen/Defender/UAC, Windows TEST, экспериментальные ветки, Android/extension и старые Issues #53/#54/#56/#57/#58. Домен https://celikom.com уже куплен, но DNS/TLS/feed включаются после миграции инфраструктуры. До этого — только offline/fixture проверки.
+
+Работай крупными законченными блоками, не задавай вопросы по каждому мелкому действию и не заставляй меня вручную выполнять то, что можешь сделать сам. Отчёты короткие: что сделано, что реально осталось, какой следующий блок. Не объявляй задачу завершённой без проверки.
+
+---
+
 
 ## W155 — ACTIVE TASK 5 / P-256 UPDATER HANDOFF (15 November 2026)
 
