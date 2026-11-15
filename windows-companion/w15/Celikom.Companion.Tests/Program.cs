@@ -2222,8 +2222,10 @@ try
                  "W157 a genuinely new Yandex process is accepted after VPN recovery");
         bridge.SetNativeNetworkRecoveryPending(false);
         bridge.SetEnabled(false);
+        bridge.MarkPlayerUnavailable();
+        bridge.SetEnabled(false);
         Test(!bridge.PlayerUnavailable,
-             "W157 explicit stop clears unavailable state even if the bridge is already disabled");
+             "W157 explicit stop clears unavailable state when the bridge is already disabled");
         bridge.SetEnabled(true);
         Test(bridge.Enabled,
              "W157 lifecycle test restores the active bridge for following integration checks");
