@@ -2579,8 +2579,11 @@ def trace_native_track_coroutine_continuation(
                 wrapper_origins=set()
                 if "ORIGINAL_TRACK_PARAMETER_STRING" in string_origins:
                     wrapper_origins.add("WRAPPER_FROM_ORIGINAL_TRACK_PARAMETER")
-                if "CONTINUATION_FIELD_TRACK_STRING" in string_origins:
-                    wrapper_origins.add("WRAPPER_FROM_CONTINUATION_FIELD_TRACK")
+                for origin in string_origins:
+                    if origin.startswith("CONTINUATION_FIELD_TRACK_STRING_SLOT:"):
+                        wrapper_origins.add(
+                            "WRAPPER_FROM_CONTINUATION_FIELD_TRACK_SLOT:"+origin.split(":",1)[1]
+                        )
                 if "CAPTURE_OWNER_TRACK_FIELD_STRING" in string_origins:
                     wrapper_origins.add("WRAPPER_FROM_CAPTURE_OWNER_TRACK_FIELD")
                 if wrapper_origins:
@@ -2643,7 +2646,10 @@ def trace_native_track_coroutine_continuation(
                     "NEW_LFp0_CONTINUATION" in receiver_origins
                     or "REUSED_LFp0_CONTINUATION" in receiver_origins
                 ):
-                    regs[dest]={"CONTINUATION_FIELD_TRACK"}
+                    regs[dest]={
+                        "CONTINUATION_FIELD_TRACK",
+                        "CONTINUATION_FIELD_TRACK_SLOT:"+str(words[1])
+                    }
                 elif "CAPTURE_OWNER_PARAMETER" in receiver_origins:
                     regs[dest]={"CAPTURE_OWNER_TRACK_FIELD"}
                 elif "ORIGINAL_TRACK_PARAMETER" in receiver_origins:
@@ -2656,7 +2662,15 @@ def trace_native_track_coroutine_continuation(
                 if "ORIGINAL_TRACK_PARAMETER" in receiver_origins:
                     regs[dest]={"ORIGINAL_TRACK_PARAMETER_STRING"}
                 elif "CONTINUATION_FIELD_TRACK" in receiver_origins:
-                    regs[dest]={"CONTINUATION_FIELD_TRACK_STRING"}
+                    slots={
+                        origin.split(":",1)[1]
+                        for origin in receiver_origins
+                        if origin.startswith("CONTINUATION_FIELD_TRACK_SLOT:")
+                    }
+                    regs[dest]={
+                        "CONTINUATION_FIELD_TRACK_STRING_SLOT:"+slot
+                        for slot in slots
+                    }
                 elif "CAPTURE_OWNER_TRACK_FIELD" in receiver_origins:
                     regs[dest]={"CAPTURE_OWNER_TRACK_FIELD_STRING"}
         elif op==0x5b:  # iput-object; no mutation to register identity
@@ -2722,6 +2736,8 @@ def trace_native_track_coroutine_continuation(
                     ),
                     "same_continuation_field_track":(
                         "CONTINUATION_FIELD_TRACK" in value_origins
+                        or any(x.startswith("CONTINUATION_FIELD_TRACK_SLOT:")
+                               for x in value_origins)
                     ),
                     "same_capture_owner_track_field":(
                         "CAPTURE_OWNER_TRACK_FIELD" in value_origins
@@ -2797,9 +2813,16 @@ def trace_native_track_coroutine_continuation(
                         for i,t in enumerate(target_types) if t==WRAPPER
                     ),
                     "continuation_field_derived_wrapper_passed":any(
-                        "WRAPPER_FROM_CONTINUATION_FIELD_TRACK" in origins[i]
+                        any(x.startswith("WRAPPER_FROM_CONTINUATION_FIELD_TRACK_SLOT:")
+                            for x in origins[i])
                         for i,t in enumerate(target_types) if t==WRAPPER
                     ),
+                    "continuation_field_wrapper_source_slots":sorted({
+                        x.split(":",1)[1]
+                        for i,t in enumerate(target_types) if t==WRAPPER
+                        for x in origins[i]
+                        if x.startswith("WRAPPER_FROM_CONTINUATION_FIELD_TRACK_SLOT:")
+                    }),
                     "capture_owner_field_derived_wrapper_passed":any(
                         "WRAPPER_FROM_CAPTURE_OWNER_TRACK_FIELD" in origins[i]
                         for i,t in enumerate(target_types) if t==WRAPPER
@@ -2845,10 +2868,17 @@ def trace_native_track_coroutine_continuation(
         "WRAPPER_FROM_ORIGINAL_TRACK_PARAMETER" in x["wrapper_receiver_origins"]
         for x in wrapper_ctors
     ) and any(x["original_track_parameter_derived_wrapper_passed"] for x in wrapper_handoffs)
-    continuation_wrapper=any(
-        "CONTINUATION_FIELD_TRACK_STRING" in x["string_argument_origins"]
-        for x in wrapper_ctors
-    ) and any(x["continuation_field_derived_wrapper_passed"] for x in wrapper_handoffs)
+    continuation_wrapper_slots={
+        origin.split(":",1)[1]
+        for ctor in wrapper_ctors
+        for origin in ctor["string_argument_origins"]
+        if origin.startswith("CONTINUATION_FIELD_TRACK_STRING_SLOT:")
+    } & {
+        slot
+        for handoff in wrapper_handoffs
+        for slot in handoff["continuation_field_wrapper_source_slots"]
+    }
+    continuation_wrapper=bool(continuation_wrapper_slots)
     owner_wrapper=any(
         "CAPTURE_OWNER_TRACK_FIELD_STRING" in x["string_argument_origins"]
         for x in wrapper_ctors
@@ -2875,6 +2905,7 @@ def trace_native_track_coroutine_continuation(
         "capture_owner_track_field_to_continuation_candidate":owner_field_capture,
         "original_track_parameter_to_opaque_wrapper_candidate":original_wrapper,
         "continuation_field_track_to_opaque_wrapper_candidate":continuation_wrapper,
+        "continuation_field_track_to_opaque_wrapper_slots":sorted(continuation_wrapper_slots),
         "capture_owner_track_field_to_opaque_wrapper_candidate":owner_wrapper,
         "branches_seen":bool(reachable_branches),
         "branch_path_predicates_evaluated":False,
@@ -4476,15 +4507,44 @@ def inspect_signed(apks):
         initial_def[0],initial_ref,initial_def[1],initial_def[2],
         resume_ref,resume_def[1],resume_def[2]
     )
-    continuation_field_slots={
+    continuation_field_slots=sorted({
         row["field_slot"]
         for row in native_track_coroutine_continuity["continuation_track_field_reads"]
+    })
+    if not continuation_field_slots or len(continuation_field_slots)>8:
+        raise ValueError("CONTINUATION_TRACK_FIELD_SLOT_SET_INVALID")
+    continuation_field_writer_reports=[
+        {
+            "field_slot":slot,
+            "report":inspect_continuation_track_field_writers(
+                apks,initial_def[0],slot
+            )
+        }
+        for slot in continuation_field_slots
+    ]
+    continuation_track_field_writer_census={
+        "target_is_LFp0_track_typed_field":all(
+            row["report"]["target_is_LFp0_track_typed_field"]
+            for row in continuation_field_writer_reports
+        ),
+        "field_slot_count":len(continuation_field_writer_reports),
+        "field_slot_reports":continuation_field_writer_reports,
+        "writer_method_count":sum(
+            row["report"]["writer_method_count"]
+            for row in continuation_field_writer_reports
+        ),
+        "track_identity_callsite_count":sum(
+            row["report"]["track_identity_callsite_count"]
+            for row in continuation_field_writer_reports
+        ),
+        "same_track_parameter_store_candidate":any(
+            row["report"].get("same_track_parameter_store_candidate",False)
+            for row in continuation_field_writer_reports
+        ),
+        "same_track_object_capture_into_continuation_field_proven":False,
+        "control_flow_feasibility_proven":False,
+        "field_names_values_track_ids_or_media_disclosed":False
     }
-    if len(continuation_field_slots)!=1:
-        raise ValueError("CONTINUATION_TRACK_FIELD_SLOT_NOT_UNIQUE")
-    continuation_track_field_writer_census=inspect_continuation_track_field_writers(
-        apks,initial_def[0],next(iter(continuation_field_slots))
-    )
     if dex_count != 6:
         raise ValueError("SIGNED_SIX_DEX_REQUIRED")
     if not model_defined:

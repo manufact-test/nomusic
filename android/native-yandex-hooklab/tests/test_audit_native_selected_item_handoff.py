@@ -891,6 +891,48 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertNotIn("hiddenTrack",str(result))
         self.assertNotIn("hiddenString",str(result))
 
+    def test_coroutine_cfg_merge_drops_track_alias_when_one_branch_overwrites(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:8,102:3,200:4,202:1}[offset]
+            def descriptor(self,index):
+                return {1:"LFp0;"}
+            def method(self,index):
+                return {
+                    2:("LFp0;","<init>","(LGp0;LOe2;)V"),
+                    8:("LGp0;","new","(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+                }[index]
+        initial=("LGp0;","new","(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        resume=("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
+        initial_ins=[
+            (0,0x22,[0x0022,1]),
+            (2,0x70,[0x0070,2,0]),
+            (5,0x38,[0x0038,8]),
+            (7,0x1a,[0x061a,0]),
+            (9,0x28,[0x0428]),
+            (10,0x00,[0x0000]),
+            (11,0x00,[0x0000]),
+            (12,0x00,[0x0000]),
+            (13,0x5b,[0x0600,3]),
+            (15,0x0e,[0x000e])
+        ]
+        resume_ins=[(0,0x71,[0x0071,8,0])]
+        target=("LFp0;","privateTrack","Lru/yandex/music/data/audio/o;")
+        with patch("audit_native_selected_item_handoff.instructions",
+                   side_effect=lambda d,c: initial_ins if c==100 else resume_ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=target), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=lambda op,w:{2:[0,5,7],8:[2,0,3]}[w[1]]):
+            result=trace_native_track_coroutine_continuation(
+                FakeDex(),initial,0x8,100,resume,0,200
+            )
+        self.assertTrue(result["control_flow_graph_built"])
+        self.assertEqual(len(result["branch_sites"]),2)
+        self.assertFalse(result["track_parameter_capture_store_candidates"][0]["same_original_track_parameter"])
+        self.assertFalse(result["original_track_parameter_to_continuation_field_candidate"])
+        self.assertNotIn("privateTrack",str(result))
+
     def test_native_track_coroutine_does_not_match_different_continuation_field(self):
         from unittest.mock import patch
         class FakeDex:
