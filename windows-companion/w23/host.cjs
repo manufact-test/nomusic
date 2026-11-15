@@ -155,6 +155,58 @@ const lastStatus = new WeakMap();
 const lastNativeState = new WeakMap();
 const lastDeliveredState = new WeakMap();
 const lastDiagPoll = new WeakMap();
+// W141: one actual audible Yandex window owns playback identity; a hidden
+// renderer or a stale window cannot overwrite the owner-facing heartbeat.
+const viewActivity = new WeakMap();
+let selectedPlaybackView = null;
+let selectionGeneration = 0;
+const heartbeatInstanceId = "w23-" + Date.now().toString(36) + "-" +
+  Math.random().toString(36).slice(2, 10);
+let heartbeatSequence = 0;
+const HEARTBEAT_INTERVAL_MS = 4000;
+function activity(view) {
+  let state = viewActivity.get(view);
+  if (!state) {
+    state = { audible: false, startedAt: 0, audibleAt: 0 };
+    viewActivity.set(view, state);
+  }
+  return state;
+}
+function choosePlaybackView() {
+  const eligible = webContents.getAllWebContents().filter(validView);
+  const audible = eligible.filter(view => {
+    try {
+      if (typeof view.isCurrentlyAudible === "function" &&
+          view.isCurrentlyAudible()) return true;
+    } catch {}
+    return activity(view).audible;
+  });
+  let choice = null;
+  if (audible.length === 1) choice = audible[0];
+  else if (audible.length > 1) {
+    const ranked = audible.map(view => ({view,at:activity(view).audibleAt}))
+      .sort((a,b)=>b.at-a.at);
+    if (ranked[0].at > 0 && ranked[0].at-ranked[1].at >= 350)
+      choice = ranked[0].view;
+  } else if (selectedPlaybackView && eligible.includes(selectedPlaybackView)) {
+    choice = selectedPlaybackView;
+  } else if (eligible.length === 1) choice = eligible[0];
+  else if (eligible.length > 1) {
+    const recent = eligible.map(view => ({view,at:activity(view).startedAt}))
+      .filter(x=>x.at>0 && Date.now()-x.at<15000)
+      .sort((a,b)=>b.at-a.at);
+    if (recent.length && (recent.length === 1 || recent[0].at-recent[1].at>=500))
+      choice = recent[0].view;
+  }
+  if (selectedPlaybackView !== choice) {
+    selectedPlaybackView = choice;
+    ++selectionGeneration;
+  }
+  return choice;
+}
+function heartbeatPayload(state) {
+  return {...state, instanceId:heartbeatInstanceId, sequence:++heartbeatSequence};
+}
 
 function readToken() {
   const now = Date.now();
@@ -446,17 +498,43 @@ async function tick(view) {
         Number.isSafeInteger(observed.durationMs) &&
         observed.durationMs >= 1000 && observed.durationMs <= 86400000
           ? observed.durationMs : null;
-      lastStatus.set(view, { value: status, trackId, title, artist, durationMs,
-        at: now, firstSeenAt });
-      if ((status === "NATIVE_CONNECTED" || status === "NATIVE_MAPPING_ACCEPTED" ||
-           status === "NATIVE_SOURCE_VERIFIED" ||
-           status === "NATIVE_RECOVERING" || status === "NATIVE_SOURCE_FAILED" ||
-           status === "ORIGINAL") &&
-          (!previous || status !== previous.value || trackId !== previous.trackId ||
-           title !== previous.title || artist !== previous.artist ||
-           durationMs !== previous.durationMs)) {
-        await localRequest(token, "/v1/heartbeat", "POST",
-          {trackId, status, title, artist, durationMs});
+      // Decoder proof applies only to the exact current queue identity.
+      // A mapping or a successful HTTP 206 alone is NOT replacement proof.
+      const source = decoderConfirmed ? "ACTIVE_REPLACEMENT" : "UNKNOWN";
+      const reportedState = ["PLAYING","PAUSED","STOPPED"].includes(
+        observed?.playbackState) ? observed.playbackState : "UNKNOWN";
+      const playbackState = reportedState === "PLAYING" &&
+        (decoderConfirmed || activity(view).audible)
+          ? "PLAYING" : reportedState === "PAUSED" && !activity(view).audible
+          ? "PAUSED" : reportedState === "STOPPED" && !activity(view).audible
+          ? "STOPPED" : "UNKNOWN";
+      const current = {
+        value:status, trackId, title, artist, durationMs,
+        source, playbackState, at:checkedAt, firstSeenAt,
+        heartbeatAt:previous?.heartbeatAt || 0,
+        selectionGeneration:previous?.selectionGeneration || 0
+      };
+      lastStatus.set(view,current);
+      const chosen = choosePlaybackView();
+      const selectedGeneration = selectionGeneration;
+      if (chosen === view && (!previous ||
+          status !== previous.value || trackId !== previous.trackId ||
+          title !== previous.title || artist !== previous.artist ||
+          durationMs !== previous.durationMs || source !== previous.source ||
+          playbackState !== previous.playbackState ||
+          previous.selectionGeneration !== selectedGeneration ||
+          !previous.heartbeatAt ||
+          checkedAt - previous.heartbeatAt >= HEARTBEAT_INTERVAL_MS)) {
+        // Recheck after sampling; an older window never publishes its track.
+        if (choosePlaybackView() === view &&
+            selectionGeneration === selectedGeneration) {
+          current.heartbeatAt = checkedAt;
+          current.selectionGeneration = selectedGeneration;
+          await localRequest(token, "/v1/heartbeat", "POST", heartbeatPayload({
+            trackId, status, title, artist, durationMs,
+            source, playbackState
+          }));
+        }
       }
     }
   } finally {
@@ -573,15 +651,17 @@ function downgradeVerifiedPlaybackHeartbeat(view, trackId) {
   if (!previous || previous.trackId !== trackId ||
       previous.value !== "NATIVE_SOURCE_VERIFIED") return false;
   const token = readToken();
-  if (!token) return false;
-  // A CDP source/playing invalidation is stronger and faster than the regular
-  // 2.2s status sample. Downgrade only the UI heartbeat; never touch playback.
-  const downgraded = {...previous, value:"NATIVE_MAPPING_ACCEPTED"};
+  if (!token || choosePlaybackView() !== view) return false;
+  // A CDP source/playing invalidation outranks the prior green label.
+  // Only invalidate UI evidence: never touch Yandex audio or its queue.
+  const downgraded = {...previous, value:"NATIVE_MAPPING_ACCEPTED",
+    source:"UNKNOWN", heartbeatAt:Date.now()};
   lastStatus.set(view, downgraded);
-  void localRequest(token, "/v1/heartbeat", "POST", {
+  void localRequest(token, "/v1/heartbeat", "POST", heartbeatPayload({
     trackId, status:downgraded.value,
-    title:previous.title, artist:previous.artist, durationMs:previous.durationMs
-  }).then(result => {
+    title:previous.title, artist:previous.artist, durationMs:previous.durationMs,
+    source:"UNKNOWN", playbackState:previous.playbackState || "UNKNOWN"
+  })).then(result => {
     if (!result && lastStatus.get(view) === downgraded)
       lastStatus.set(view, previous);
   });
@@ -945,6 +1025,7 @@ function observeNativePlayback(view) {
   view.on("media-started-playing", () => {
     if (!validView(view)) return;
     lastStarted = Date.now();
+    activity(view).startedAt = lastStarted;
     note("PLAYER_ENGINE_STARTED");
   });
   view.on("media-paused", () => {
@@ -956,7 +1037,17 @@ function observeNativePlayback(view) {
   });
   view.on("audio-state-changed", (_event, audible) => {
     if (!validView(view) || typeof audible !== "boolean") return;
+    activity(view).audible = audible;
+    if (audible) activity(view).audibleAt = Date.now();
     note(audible ? "PLAYER_AUDIO_AUDIBLE" : "PLAYER_AUDIO_SILENT");
+  });
+  view.on("destroyed", () => {
+    viewActivity.delete(view);
+    if (selectedPlaybackView === view) {
+      selectedPlaybackView = null;
+      ++selectionGeneration;
+    }
+    lastStatus.delete(view);
   });
 }
 
