@@ -225,10 +225,14 @@ class SelectedItemAuditTests(unittest.TestCase):
         from audit_native_selected_item_handoff import summarize_boundary_callsite_owner_profiles
         rows=[{
             "kind":"DECODER_BOUNDARY",
-            "caller_key":("LPlayerCore;","write","()V")
+            "caller_key":("LPlayerCore;","write","()V"),
+            "target_key":("Landroid/media/AudioTrack;","write","()V"),
+            "ordinal":0
         },{
             "kind":"DECODER_BOUNDARY",
-            "caller_key":("LPlayerCore;","flush","()V")
+            "caller_key":("LPlayerCore;","flush","()V"),
+            "target_key":("Landroid/media/AudioTrack;","pause","()V"),
+            "ordinal":1
         }]
         profiles={
             "LPlayerCore;":{
