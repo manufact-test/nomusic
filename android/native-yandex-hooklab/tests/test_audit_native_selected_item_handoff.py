@@ -11,7 +11,7 @@ from audit_native_selected_item_handoff import (
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
     select_exact_interface_contracts, select_audio_output_focus_methods,
     trace_byte_buffer_parameter, expand_invoke_register_types,
-    audio_output_dispatch_contracts
+    audio_output_dispatch_contracts, owner_ancestry_profiles
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -686,6 +686,64 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(len(calls),1)
         self.assertTrue(calls[0]["target_accepts_track_parameter"])
         self.assertFalse(calls[0]["identity_proven"])
+
+    def test_owner_ancestry_profiles_include_parent_track_identity_types(self):
+        profiles={
+            "LRenderer;":{
+                "static_types":set(),"instance_types":{"Landroid/media/MediaCodec;"},
+                "interfaces":{"LRendererApi;"},"superclass":"LBaseRenderer;"
+            },
+            "LBaseRenderer;":{
+                "static_types":set(),"instance_types":{MODEL, "Landroidx/media3/common/MediaItem;"},
+                "interfaces":set(),"superclass":"Ljava/lang/Object;"
+            },
+            "LRendererApi;":{
+                "static_types":set(),"instance_types":set(),
+                "interfaces":set(),"superclass":"Ljava/lang/Object;"
+            }
+        }
+        rows=owner_ancestry_profiles("LRenderer;",profiles)
+        self.assertEqual({row["owner"] for row in rows},
+                         {"LRenderer;","LBaseRenderer;","LRendererApi;"})
+        parent=next(row for row in rows if row["owner"]=="LBaseRenderer;")
+        self.assertTrue(parent["has_track_field"])
+        self.assertTrue(parent["has_media_item_field"])
+
+    def test_byte_buffer_return_from_decoder_can_reach_exact_audio_output_contract(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:3,102:1}[offset]
+            def method(self, index):
+                if index==0:
+                    return ("Landroid/media/MediaCodec;","getOutputBuffer",
+                            "(I)Ljava/nio/ByteBuffer;")
+                return ("LAudioSink;","write",
+                        "(Ljava/nio/ByteBuffer;)Z")
+        method=("LRenderer;","render","()Z")
+        target=("LAudioSink;","write","(Ljava/nio/ByteBuffer;)Z")
+        ins=[
+            (0,0x6e,[0x006e,0]),
+            (1,0x0c,[0x000c]),
+            (2,0x72,[0x0072,1])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=[[2,1],[2,0]]):
+            trace=trace_byte_buffer_parameter(
+                FakeDex(),method,0,100,sink_targets={target}
+            )
+        sink=next(row for row in trace["events"]
+                  if row["kind"]=="AUDIO_BUFFER_SINK_CALL")
+        self.assertTrue(sink["byte_buffer_object_proven"])
+        self.assertEqual(
+            sink["buffer_argument_origins"][0]["origins"],
+            ["RETURNED_BYTEBUFFER_FROM_METHOD"]
+        )
+        self.assertEqual(
+            trace["buffer_provenance_events"][0]["source_method"]["owner"],
+            "Landroid/media/MediaCodec;"
+        )
 
     def test_identity_method_trace_marks_exact_audio_output_dispatch_with_track_identity(self):
         from unittest.mock import patch

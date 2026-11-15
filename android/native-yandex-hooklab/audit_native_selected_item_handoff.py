@@ -1516,7 +1516,8 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
     }
 
 
-def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
+def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None, sink_targets=None):
+    sink_targets = set(sink_targets or ())
     byte_buffer = "Ljava/nio/ByteBuffer;"
     byte_buffer_array = "[Ljava/nio/ByteBuffer;"
     parameter_registers = typed_parameter_registers(
@@ -1530,6 +1531,7 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
     events = []
     provenance_events = []
     pending_object_return_kind = None
+    pending_object_return_method = None
     branch_seen = False
     backward_branch_aliases_cleared = False
     switch_branch_aliases_cleared = False
@@ -1571,7 +1573,10 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             target_types = expand_invoke_register_types(
                 callee[0], params, is_static
             )
-            if callee[0] in ("LbJ2;", "Lpk0;") and callee[1] == "native":
+            if (
+                (callee[0] in ("LbJ2;", "Lpk0;") and callee[1] == "native")
+                or callee in sink_targets
+            ):
                 origins = []
                 argument_register_map = []
                 if len(regs) == len(target_types):
@@ -1615,10 +1620,15 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             result_type = callee[2].split(")", 1)[1]
             if result_type == byte_buffer:
                 pending_object_return_kind = "RETURNED_BYTEBUFFER_FROM_METHOD"
+                pending_object_return_method = {
+                    "owner": callee[0], "method": callee[1], "signature": callee[2]
+                }
             elif result_type.startswith(("L", "[")):
                 pending_object_return_kind = "UNKNOWN_OBJECT_RETURN"
+                pending_object_return_method = None
             else:
                 pending_object_return_kind = None
+                pending_object_return_method = None
             continue
 
         if op == 0x0c:  # move-result-object
@@ -1630,16 +1640,18 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
                 provenance_events.append({
                     "ordinal": ordinal,
                     "kind": "BYTEBUFFER_RETURNED_FROM_METHOD",
+                    "source_method": pending_object_return_method,
                 })
             elif pending_object_return_kind == "UNKNOWN_OBJECT_RETURN":
                 aliases[dest] = {pending_object_return_kind}
             pending_object_return_kind = None
+            pending_object_return_method = None
             continue
 
         pending_object_return_kind = None
         if op == 0x54:  # iget-object: field type only, any receiver
             dest = (words[0] >> 8) & 15
-            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            field_owner, _field_name, field_type = field_id(dex, words[1])
             aliases.pop(dest, None)
             array_aliases.discard(dest)
             if field_type == byte_buffer:
@@ -1647,6 +1659,8 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
                 provenance_events.append({
                     "ordinal": ordinal,
                     "kind": "BYTEBUFFER_FIELD_READ",
+                    "field_owner": field_owner,
+                    "field_type": field_type,
                 })
             elif field_type == byte_buffer_array:
                 array_aliases.add(dest)
@@ -1654,7 +1668,7 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
 
         if op == 0x62:  # sget-object
             dest = (words[0] >> 8) & 15
-            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            field_owner, _field_name, field_type = field_id(dex, words[1])
             aliases.pop(dest, None)
             array_aliases.discard(dest)
             if field_type == byte_buffer:
@@ -1662,6 +1676,8 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
                 provenance_events.append({
                     "ordinal": ordinal,
                     "kind": "BYTEBUFFER_STATIC_FIELD_READ",
+                    "field_owner": field_owner,
+                    "field_type": field_type,
                 })
             elif field_type == byte_buffer_array:
                 array_aliases.add(dest)
@@ -2014,6 +2030,59 @@ def invoke_kind_name(op):
     return "OTHER_INVOKE"
 
 
+
+def owner_ancestry_profiles(owner, class_profiles):
+    """Return bounded type-only field profiles for one owner and its ancestors."""
+    pending = [owner]
+    visited = set()
+    rows = []
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        if len(visited) > 128:
+            raise ValueError("AUDIO_OUTPUT_OWNER_ANCESTRY_LIMIT")
+        profile = class_profiles.get(current)
+        if not profile:
+            continue
+        shape = classify_track_owner_profile(profile)
+        all_types = set(profile.get("instance_types", ())) | set(
+            profile.get("static_types", ())
+        )
+        relevant_types = sorted(
+            typ for typ in all_types
+            if any(marker in typ.lower() for marker in (
+                "track", "album", "wrapper", "media", "source", "data",
+                "audio", "codec", "buffer", "uri", "player", "flow",
+                "collection", "list", "queue"
+            ))
+        )
+        rows.append({
+            "owner": current,
+            "superclass": profile.get("superclass"),
+            "interfaces": sorted(profile.get("interfaces", ())),
+            "relevant_field_types": relevant_types,
+            "has_track_field": shape["has_track_field"],
+            "has_album_field": shape["has_album_field"],
+            "has_wrapper_field": shape["has_wrapper_field"],
+            "has_media_item_field": shape["has_media_item_field"],
+            "has_media_source_field": shape["has_media_source_field"],
+            "has_media_metadata_field": shape["has_media_metadata_field"],
+            "has_playback_state_field": shape["has_playback_state_field"],
+            "has_audio_track_field": shape["has_audio_track_field"],
+            "has_media_codec_field": shape["has_media_codec_field"],
+            "has_decoder_field": shape["has_decoder_field"],
+            "has_player_api_field": shape["has_player_api_field"],
+            "implements_player_api": shape["implements_player_api"],
+        })
+        for interface in profile.get("interfaces", ()):
+            pending.append(interface)
+        superclass = profile.get("superclass")
+        if superclass and superclass != "Ljava/lang/Object;":
+            pending.append(superclass)
+    return rows
+
 def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
     focus_methods = [
         (row["owner"], row["method"], row["signature"])
@@ -2153,11 +2222,15 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
                             raise ValueError("AUDIO_OUTPUT_DISPATCH_CALLER_METHOD_LIMIT")
 
     traces = {}
+    buffer_traces = {}
     for caller, (dex, flags, code_off) in caller_definitions.items():
         traces[caller] = trace_identity_method(
             dex, caller, flags, code_off,
             candidate_owners=set(),
             focus_targets=target_refs,
+        )
+        buffer_traces[caller] = trace_byte_buffer_parameter(
+            dex, caller, flags, code_off, sink_targets=target_refs
         )
 
     identity_flow_count = 0
@@ -2204,6 +2277,54 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
         row["branch_aliases_cleared_in_caller"] = trace[
             "branch_seen_aliases_cleared"
         ]
+        buffer_trace = buffer_traces[caller]
+        buffer_event = next((
+            event for event in buffer_trace["events"]
+            if event.get("ordinal") == row["ordinal"]
+            and event.get("kind") == "AUDIO_BUFFER_SINK_CALL"
+        ), None)
+        buffer_origins = (
+            buffer_event.get("buffer_argument_origins", [])
+            if buffer_event else []
+        )
+        if buffer_event and buffer_event.get("byte_buffer_object_proven"):
+            byte_buffer_flow_count += 1
+        row["byte_buffer_object_proven_to_audio_output"] = bool(
+            buffer_event and buffer_event.get("byte_buffer_object_proven")
+        )
+        row["buffer_argument_origins_to_audio_output"] = [
+            {
+                "argument_position": item["argument_position"],
+                "origins": item["origins"],
+            }
+            for item in buffer_origins
+        ]
+        row["byte_buffer_provenance_events_before_call"] = [
+            event for event in buffer_trace["buffer_provenance_events"]
+            if event.get("ordinal", -1) < row["ordinal"]
+        ]
+        row["byte_buffer_branch_seen_in_caller"] = buffer_trace["branch_seen"]
+
+    caller_owner_profiles = []
+    caller_owners = sorted({row["caller"]["owner"] for row in callsites})
+    ancestry_track_owners = set()
+    ancestry_album_owners = set()
+    ancestry_wrapper_owners = set()
+    for caller_owner in caller_owners:
+        ancestry = owner_ancestry_profiles(caller_owner, class_profiles)
+        ancestry_track_owners.update(
+            row["owner"] for row in ancestry if row["has_track_field"]
+        )
+        ancestry_album_owners.update(
+            row["owner"] for row in ancestry if row["has_album_field"]
+        )
+        ancestry_wrapper_owners.update(
+            row["owner"] for row in ancestry if row["has_wrapper_field"]
+        )
+        caller_owner_profiles.append({
+            "caller_owner": caller_owner,
+            "ancestry": ancestry,
+        })
 
     return {
         "focus_methods": [
@@ -2228,6 +2349,11 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
         "callsite_count": len(callsites),
         "distinct_caller_method_count": len(caller_definitions),
         "identity_flow_to_audio_sink_callsite_count": identity_flow_count,
+        "byte_buffer_object_flow_to_audio_output_callsite_count": byte_buffer_flow_count,
+        "caller_owner_ancestry_profiles": caller_owner_profiles,
+        "ancestry_track_field_owner_count": len(ancestry_track_owners),
+        "ancestry_album_field_owner_count": len(ancestry_album_owners),
+        "ancestry_wrapper_field_owner_count": len(ancestry_wrapper_owners),
         "callsites": callsites,
         "runtime_receiver_dispatch_proven": False,
         "active_selected_item_proven": False,
