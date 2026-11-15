@@ -3529,7 +3529,9 @@ def trace_coroutine_callsite_argument_origins(
             elif typ==continuation_owner:
                 regs[dest]={"NEW_LFp0_CONTINUATION"}
             elif dest in target_registers:
-                regs[dest]={"UNCLASSIFIED_NEW_INSTANCE_TYPE"}
+                if not typ.startswith("L") or len(typ)>256:
+                    raise ValueError("COROUTINE_CALLSITE_NEW_INSTANCE_TYPE_INVALID")
+                regs[dest]={"UNCLASSIFIED_NEW_INSTANCE_TYPE","NEW_INSTANCE_TYPE:"+typ}
             pending=None
         elif op==0x1f:  # check-cast preserves exact object identity
             reg=(words[0]>>8)&0xff
