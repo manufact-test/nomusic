@@ -46,7 +46,7 @@ if ($keyRoot.Equals($repoRoot, [StringComparison]::OrdinalIgnoreCase) -or
 # containing exactly the main branch. Environment existence alone is not enough.
 $envJson = gh api "repos/$Repository/environments/$EnvironmentName"
 if ($LASTEXITCODE -ne 0) { throw "W155_PROTECTED_ENVIRONMENT_REQUIRED" }
-$envConfig = $envJson | ConvertFrom-Json -ErrorAction Stop
+$envConfig = ($envJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
 $reviewRules = @($envConfig.protection_rules | Where-Object {
     $_.type -eq "required_reviewers" -and @($_.reviewers).Count -gt 0
 })
@@ -58,7 +58,7 @@ if ($null -eq $policy -or $policy.protected_branches -ne $false -or
 }
 $branchJson = gh api "repos/$Repository/environments/$EnvironmentName/deployment-branch-policies"
 if ($LASTEXITCODE -ne 0) { throw "W155_DEPLOYMENT_BRANCH_POLICY_UNREADABLE" }
-$branchConfig = $branchJson | ConvertFrom-Json -ErrorAction Stop
+$branchConfig = ($branchJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
 $branches = @($branchConfig.branch_policies)
 if ($branches.Count -ne 1 -or $branches[0].type -ne "branch" -or
     $branches[0].name -ne "main") {
@@ -67,11 +67,18 @@ if ($branches.Count -ne 1 -or $branches[0].type -ne "branch" -or
 
 $secretJson = gh secret list --repo $Repository --env $EnvironmentName --json name
 if ($LASTEXITCODE -ne 0) { throw "W155_SECRET_LIST_FAILED" }
-$secretNames = @($secretJson | ConvertFrom-Json -ErrorAction Stop | ForEach-Object { $_.name })
+$secretNames = @()
+if (-not [string]::IsNullOrWhiteSpace(($secretJson -join ""))) {
+    $secretNames = @(($secretJson -join [Environment]::NewLine) |
+        ConvertFrom-Json -ErrorAction Stop | ForEach-Object { $_.name })
+}
 $secretExists = $secretNames -contains $PrivateSecretName
 $varsJson = gh variable list --repo $Repository --env $EnvironmentName --json name,value
 if ($LASTEXITCODE -ne 0) { throw "W155_VARIABLE_LIST_FAILED" }
-$vars = @($varsJson | ConvertFrom-Json -ErrorAction Stop)
+$vars = @()
+if (-not [string]::IsNullOrWhiteSpace(($varsJson -join ""))) {
+    $vars = @(($varsJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop)
+}
 function Get-Var([string]$Name) {
     $found = @($vars | Where-Object { $_.name -eq $Name } | Select-Object -First 1)
     if ($found.Count -eq 0) { return $null }
@@ -158,7 +165,7 @@ else {
     if ($LASTEXITCODE -ne 0) { throw "W155_GH_SECRET_UPLOAD_FAILED" }
 }
 
-function Set-OrConfirmVar([string]$Name, [string]$Value, [string]$Existing) {
+function Set-OrConfirmVar([string]$Name, [string]$Value, [AllowNull()][string]$Existing) {
     if ($null -ne $Existing) {
         if ($Existing -cne $Value) { throw ("W155_VARIABLE_MISMATCH_" + $Name) }
         return
@@ -172,14 +179,14 @@ Set-OrConfirmVar "CELIKOM_STABLE_DEPLOY_ROOT" $ExpectedDeployRoot $rootVar
 
 $verifiedSecrets = gh secret list --repo $Repository --env $EnvironmentName --json name
 if ($LASTEXITCODE -ne 0) { throw "W155_SECRET_CONFIRMATION_FAILED" }
-$verifiedSecretNames = @($verifiedSecrets | ConvertFrom-Json -ErrorAction Stop |
-    ForEach-Object { $_.name })
+$verifiedSecretNames = @(($verifiedSecrets -join [Environment]::NewLine) |
+    ConvertFrom-Json -ErrorAction Stop | ForEach-Object { $_.name })
 if ($verifiedSecretNames -notcontains $PrivateSecretName) {
     throw "W155_SECRET_CONFIRMATION_FAILED"
 }
 $verifiedVarsJson = gh variable list --repo $Repository --env $EnvironmentName --json name,value
 if ($LASTEXITCODE -ne 0) { throw "W155_VARIABLE_CONFIRMATION_FAILED" }
-$verifiedVars = @($verifiedVarsJson | ConvertFrom-Json -ErrorAction Stop)
+$verifiedVars = @(($verifiedVarsJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop)
 $verifiedOrigin = @($verifiedVars | Where-Object { $_.name -eq "CELIKOM_STABLE_ORIGIN" })[0].value
 $verifiedPublic = @($verifiedVars | Where-Object { $_.name -eq $PublicVariableName })[0].value
 $verifiedRoot = @($verifiedVars | Where-Object { $_.name -eq "CELIKOM_STABLE_DEPLOY_ROOT" })[0].value
