@@ -1,6 +1,31 @@
-> **VALIDATED ANDROID A1 SOURCE LIFECYCLE CHECKPOINT — 15.11.2026.** Исполняемый read-only код `2dc2e1f0ad394f83bed27e2e2d272179e85441cd` проверен [clone-only #43699883677](https://github.com/manufact-test/nomusic/actions/runs/43699883677) **SUCCESS, 25/25**, и [publisher-first #43699883681](https://github.com/manufact-test/nomusic/actions/runs/43699883681) **SUCCESS**, оригинал 16/16 splits + клон одновременно, без suppression, все **6 native track** и **8 source** hooks REGISTERED, включая `AUDIO_EXO_CLOSE_HOOK`. Резерв именно этой зелёной кодовой версии: `backup/android-a1-source-open-read-close-lifecycle-ci-green-20261115` @ `2dc2e1f0`. Отдельный усиленный Java regression checkpoint `9af55e5909592021f75b69d7b4d1b5cec2252cfc`, CI [#43700267919](https://github.com/manufact-test/nomusic/actions/runs/43700267919) — уточнить статус (предварительная Java test step прошла). **Stage A NO-GO: аудио, current Track+album+edition и decoder не подтверждены.** Подробнее: [source lifecycle handoff](ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md).
+> **CELIKOM Android A1 — TRACK/ALBUM IDENTITY + EXO SOURCE CONTINUITY — 15.11.2026**
+>
+> **Рабочая ветка:** experiment/android-a1-metrica-init-state-observer-arm13-20261112
+>
+> **Последний кодовый checkpoint:** a655712d210189f3bc611847235de3ed4d985c1a (read-only Track Album constructor/copy hooks).
+>
+> **Последний branch HEAD до обновления этих документов:** 90f8ea394e1ac4168aa63f976e17fd18eb24befb (тот же код + signed DEX static-flow audit/tests).
+>
+> **CI SUCCESS:**
+> - [Signed Track/Album static audit #43703523959](https://github.com/manufact-test/nomusic/actions/runs/43703523959): exact Track+Album copy-method shape, Album-argument-to-Track-constructor candidate path.
+> - [Clone-only ARM13 #43703211359](https://github.com/manufact-test/nomusic/actions/runs/43703211359): **25/25**, both Album hooks and all Track/Exo hooks REGISTERED.
+> - [Publisher-first ARM13 #43703211345](https://github.com/manufact-test/nomusic/actions/runs/43703211345): **SUCCESS**, original 16/16 splits and clone co-installed, **25/25**, no suppression.
+>
+> **Важно:** verdict METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO; Stage A = **NO-GO**. Current selected Track/Album/edition and decoder are NOT attested; no audio/account playback test was performed. Constructor's direct Album field assignment is not statically proven; see the detailed Album identity document.
+>
+> **Точный резерв текущего read-only checkpoint:** backup/android-a1-track-album-publisher-first-ci-green-20261115 @ 90f8ea394e1ac4168aa63f976e17fd18eb24befb.
+>
+> **Резерв до большого захода:** backup/android-a1-track-album-reference-pre-large-push-20261115 @ e0740cf224b34d3260822fa2248a8b136feac1e5.
+>
+> Сначала прочитать:
+> 1. docs/android/ANDROID-A1-TRACK-ALBUM-IDENTITY-20261115.md
+> 2. docs/android/ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md
+> 3. docs/android/NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md
+>
+> **Следующая задача:** доказать identity именно текущего выбранного Track (не prefetch/queue), его edition/generation и связь того же объекта с фактическим decoder input/audio renderer. Не считать Track Flow или DataSource.read доказательством текущего звучащего трека. Не менять архитектуру, Test.50, frozen A1, Windows, extension, backend или оригинальное приложение. Работать read-only; не просить владельца устанавливать APK или выполнять ручные действия, пока это действительно не потребуется.
 
 ---
+
 
 > **REVISED FAIL-CLOSED REGRESSION CHECKPOINT, 15.11.2026:** `9af55e5909592021f75b69d7b4d1b5cec2252cfc` (только Java regression; исполняемый код по-прежнему `2dc2e1f0`). Исправлено слабое место тестов: теперь отдельные свежие linked-source сценарии требуют `TRACK_SOURCE_READ_LINK=NONE` после `close()`, позднего `open()` failure и source rebind; лишь новый успешный open разрешает `ONE`. Проверить [clone-only CI #43700267919](https://github.com/manufact-test/nomusic/actions/runs/43700267919); publisher-first для **того же исполняемого кода** [#43699883681](https://github.com/manufact-test/nomusic/actions/runs/43699883681), clone-only [#43699883677](https://github.com/manufact-test/nomusic/actions/runs/43699883677). Stage A **NO-GO**, source-binding ≠ current audible track. Актуальная подробная запись в [source lifecycle документе](ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md).
 

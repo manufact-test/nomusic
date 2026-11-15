@@ -51,3 +51,15 @@
 - Подробный fail-closed Java fixture дополнен отдельными fresh linkage cases в коммите `9af55e5909592021f75b69d7b4d1b5cec2252cfc` (исполняемый observer не менялся). [Проверка clone-only #43700267919](https://github.com/manufact-test/nomusic/actions/runs/43700267919) на момент записи была ещё не завершена, Java regression phase уже прошла. Нельзя считать этот run SUCCESS до итогового статуса.
 
 Даже все зелёные tests являются **регистрацией и лабораторной устойчивостью**, не product pass: нет допущенного current selected Track, exact album/edition/generation decoder pre-prepare и реального audio DataSource.read в воспроизведении.
+
+
+## Track/Album identity follow-up — 15.11.2026
+
+Подробная новая передача: docs/android/ANDROID-A1-TRACK-ALBUM-IDENTITY-20261115.md.
+
+- Signed DEX audit [#43703523959](https://github.com/manufact-test/nomusic/actions/runs/43703523959) SUCCESS: Track model has one Album-typed field; two constructors accept an Album argument. Direct same-object write from constructor argument into Track's own Album field was **not** proven. One exact Track copy method accepts Track+Album, reads the source Track's Album field, passes an Album argument to a Track constructor and returns a Track; static flow is explicitly a **candidate**, not proof for every branch.
+- Runtime hooks AUDIO_NATIVE_TRACK_ALBUM_HOOK and AUDIO_NATIVE_TRACK_ALBUM_COPY_HOOK both REGISTERED in clone-only and publisher-first ARM13 CI.
+- StageBAudioEvidence carries only weak Track/Album references with Java ==, bounded maps; no field reflection, album values, titles, IDs, URLs, account values, tokens or audio bytes. It propagates the constructor/copy-associated Album identity through Track Flow → wrapper → descriptor → factory → DataSource → successful open → positive read.
+- New summary rows: TRACK_ALBUM_CONSTRUCTOR_LINK, FLOW_TRACK_ALBUM_LINK, TRACK_WRAPPER_ALBUM_LINK, TRACK_DESCRIPTOR_ALBUM_LINK, TRACK_FACTORY_ALBUM_LINK, TRACK_SOURCE_ALBUM_LINK, TRACK_SOURCE_ALBUM_OPEN_LINK, TRACK_SOURCE_ALBUM_READ_LINK, TRACK_ALBUM_IDENTITY_CONFLICT. Summary length is now 53 rows; final AUDIO_STAGE_B_STATUS row is index 52.
+- Both [clone-only #43703211359](https://github.com/manufact-test/nomusic/actions/runs/43703211359) and [publisher-first #43703211345](https://github.com/manufact-test/nomusic/actions/runs/43703211345) SUCCESS. Verdict is METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO; current Track/Album/edition is not attested and audio was not tested. Stage A remains NO-GO.
+- The Album identity counters are diagnostic candidates only. Track Flow may represent queue/prefetch, not current audible selection. No edition/generation semantics or same-object decoder input path has been proven.
