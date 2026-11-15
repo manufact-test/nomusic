@@ -119,7 +119,11 @@ public static class StableUpdateManifestVerifier
         try
         {
             raw = JsonSerializer.Deserialize<Manifest>(document,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = false });
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = false,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
         }
         catch (JsonException)
         {
