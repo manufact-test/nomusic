@@ -525,6 +525,7 @@ public sealed partial class MainWindow : Form
         if (!_api.IsLoggedIn || !(_bridge.Enabled || _resumeAfterNetworkFailure))
         {
             _networkRouteRecheckPending = false;
+            _bridge.SetNativeNetworkRecoveryPending(false);
             return;
         }
         if (_compactAccessBusy) return; // in-flight finally will retry
