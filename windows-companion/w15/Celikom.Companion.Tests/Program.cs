@@ -1068,15 +1068,16 @@ try
              Reject(signedDocument, lastSequence: 42),
              "W101 unsigned, wrong-channel, same-version and replayed updates fail closed");
         Test(Reject(ManifestBytes(url:
-                "https://evil.example/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe")) &&
-             Reject(ManifestBytes(url:
-                "http://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe")) &&
-             Reject(ManifestBytes(url:
-                "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/CELIKOM-Windows-0.24.37.exe")),
+                 "https://evil.example/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe")) &&
               Reject(ManifestBytes(url:
-                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/wrong.exe")) &&
+                 "http://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/CELIKOM-Windows-0.24.37.exe")) &&
+              Reject(ManifestBytes(url:
+                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.38/CELIKOM-Windows-0.24.37.exe")) &&
+              Reject(ManifestBytes(url:
+                 "https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.37/wrong.exe")),
               "W155 package origin, HTTPS, exact version directory and exact product filename are required");
 
+        
         byte[] RollbackManifest(string from = "0.24.36",
             string target = "0.24.35", bool mandatory = true, long sequence = 48) =>
             JsonSerializer.SerializeToUtf8Bytes(new
