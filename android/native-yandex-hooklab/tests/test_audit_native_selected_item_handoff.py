@@ -903,6 +903,34 @@ class SelectedItemAuditTests(unittest.TestCase):
                          "TYPED_CONTINUATION_PARAMETER_REGISTER")
         self.assertFalse(result["exact_resume_callsite"])
 
+    def test_coroutine_callsite_classifier_recognizes_kotlin_continuation_parameter(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+            def method(self,index):
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        caller=("LCaller;","call",
+                "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)V")
+        target=("LGp0;","new",
+                "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        ins=[(0,0x71,[0x0071,9,0])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            with patch("audit_native_selected_item_handoff.invoke_registers",
+                       return_value=[0,2,3]):
+                result=classify_native_track_coroutine_callsite(
+                    FakeDex(),caller,0x8,100,ins,0,target
+                )
+        self.assertEqual(
+            result["continuation_argument_source"],
+            "TYPED_CONTINUATION_PARAMETER_REGISTER"
+        )
+        self.assertEqual(
+            result["argument_origin_trace"]["continuation_argument_origin_classification"],
+            "SAME_CONTINUATION_PARAMETER_REFERENCE"
+        )
+
     def test_coroutine_callsite_classifier_rejects_overwritten_track_parameter_register(self):
         from unittest.mock import patch
         class FakeDex:
@@ -985,6 +1013,37 @@ class SelectedItemAuditTests(unittest.TestCase):
             "SAME_OBJECT_AS_OBJECT_PARAMETER_AFTER_CAST"
         )
         self.assertFalse(result["private_field_names_values_or_media_disclosed"])
+
+    def test_callsite_origin_trace_preserves_kotlin_continuation_through_cast_and_move(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+            def descriptor(self,index):
+                return "LOe2;"
+            def method(self,index):
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        method=("LCaller;","if",
+                "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)V")
+        ins=[
+            (0,0x1f,[0x031f,1]),
+            (2,0x07,[0x3107]),
+            (3,0x71,[0x0071,9,0]),
+            (6,0x0e,[0x000e])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            result=trace_coroutine_callsite_argument_origins(
+                FakeDex(),method,0x8,100,3,2,1
+            )
+        self.assertEqual(
+            result["continuation_argument_origin_classification"],
+            "SAME_CONTINUATION_PARAMETER_REFERENCE"
+        )
+        self.assertIn(
+            "CONTINUATION_PARAMETER_CAST_TO_OE2",
+            result["continuation_argument_origin_paths"][0]
+        )
 
     def test_callsite_origin_trace_marks_track_field_read_as_candidate(self):
         from unittest.mock import patch

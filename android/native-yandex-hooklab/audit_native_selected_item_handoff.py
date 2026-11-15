@@ -3414,6 +3414,9 @@ def trace_coroutine_callsite_argument_origins(
     continuation_parameters=set(typed_parameter_registers(
         dex,method,flags,code_off,continuation_type
     ))
+    kotlin_continuation_parameters=set(typed_parameter_registers(
+        dex,method,flags,code_off,"Lkotlin/coroutines/Continuation;"
+    ))
     this_register=None if flags&ACC_STATIC else (
         dex.u16(code_off)-dex.u16(code_off+2)
     )
@@ -3427,6 +3430,10 @@ def trace_coroutine_callsite_argument_origins(
     for reg in continuation_parameters:
         initial_registers[reg]=frozenset(
             set(initial_registers.get(reg,frozenset()))|{"INPUT_CONTINUATION_PARAMETER"}
+        )
+    for reg in kotlin_continuation_parameters:
+        initial_registers[reg]=frozenset(
+            set(initial_registers.get(reg,frozenset()))|{"KOTLIN_CONTINUATION_PARAMETER"}
         )
     if this_register is not None:
         initial_registers[this_register]=frozenset(
@@ -3528,8 +3535,13 @@ def trace_coroutine_callsite_argument_origins(
                     origins.add("UNLINKED_OBJECT_RETURN_CAST_TO_TRACK")
                 if "UNLINKED_COLLECTION_OBJECT_READ_CANDIDATE" in origins:
                     origins.add("COLLECTION_ELEMENT_CAST_TO_TRACK")
-            elif typ==continuation_owner and "INPUT_CONTINUATION_PARAMETER" in origins:
+            elif typ==continuation_owner and (
+                "INPUT_CONTINUATION_PARAMETER" in origins
+                or "KOTLIN_CONTINUATION_PARAMETER" in origins
+            ):
                 origins.add("REUSED_LFp0_CONTINUATION")
+            elif typ==continuation_type and "KOTLIN_CONTINUATION_PARAMETER" in origins:
+                origins.add("CONTINUATION_PARAMETER_CAST_TO_OE2")
             pending=None
         elif op==0x54:  # iget-object; only type and receiver identity are inspected
             dest=(words[0]>>8)&15
@@ -3676,7 +3688,11 @@ def trace_coroutine_callsite_argument_origins(
 
     if not states:
         continuation_class="UNREACHABLE_CALLSITE"
-    elif all_paths_have(continuation_paths,"INPUT_CONTINUATION_PARAMETER"):
+    elif (
+        all_paths_have(continuation_paths,"INPUT_CONTINUATION_PARAMETER")
+        or all_paths_have(continuation_paths,"KOTLIN_CONTINUATION_PARAMETER")
+        or all_paths_have(continuation_paths,"CONTINUATION_PARAMETER_CAST_TO_OE2")
+    ):
         continuation_class="SAME_CONTINUATION_PARAMETER_REFERENCE"
     elif all_paths_have(continuation_paths,"THIS_OBJECT"):
         continuation_class="CALLER_THIS_REFERENCE"
@@ -3738,9 +3754,11 @@ def classify_native_track_coroutine_callsite(
     track_parameters=typed_parameter_registers(
         dex,caller,flags,code_off,MODEL
     )
-    continuation_parameters=typed_parameter_registers(
+    continuation_parameters=set(typed_parameter_registers(
         dex,caller,flags,code_off,"LOe2;"
-    )
+    ))|set(typed_parameter_registers(
+        dex,caller,flags,code_off,"Lkotlin/coroutines/Continuation;"
+    ))
     this_register=None if flags&ACC_STATIC else (
         dex.u16(code_off)-dex.u16(code_off+2)
     )
