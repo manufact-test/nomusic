@@ -17,6 +17,8 @@ test("W155 key provisioning requires a protected main-only environment", () => {
   assert.equal((provision.match(/W155_POWERSHELL_7_REQUIRED/g) ?? []).length, 1);
   assert.match(provision, /Assert-NoReparseAncestors \$repoRoot/);
   assert.match(provision, /Assert-NoReparseAncestors \$keyRoot/);
+  assert.match(provision, /W155_PRIVATE_KEY_MUST_BE_ENVIRONMENT_SECRET/);
+  assert.match(provision, /gh secret list --repo \$Repository --json name/);
 });
 
 test("W155 existing signing keys are never silently replaced", () => {
