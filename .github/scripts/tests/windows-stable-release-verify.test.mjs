@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {generateKeyPairSync,sign,createHash} from "node:crypto";
-import {mkdtemp,mkdir,writeFile,readFile,rm} from "node:fs/promises";
+import {mkdtemp,mkdir,writeFile,readFile,rm,truncate,symlink} from "node:fs/promises";
 import {execFileSync} from "node:child_process";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -97,7 +97,7 @@ test("W155 publisher stages beside stable feed so latest promotion is same-files
   assert.ok(publisher.includes('remote_root="$root/CELIKOM/Windows/Updates/stable/.incoming-$GITHUB_RUN_ID"'));
   assert.ok(publisher.includes("W155_RELEASE_STAGE_UNSAFE"));
   assert.ok(publisher.includes('mv -f "$stage/latest.json" "$dest/latest.json"'));
-  assert.ok(publisher.includes('mv -f "$stage/latest.json" "$dest/latest.json"'));
+  assert.ok(publisher.includes('mv -f "$stage/latest.json.sig" "$dest/latest.json.sig"'));
 });
 
 
@@ -146,4 +146,26 @@ test("W155 remote Hostinger promotion block is valid Bash and bound to verified 
   const remote=publisher.slice(start+"<<'REMOTE'\n".length,end);
   if(process.platform!=="win32")
     execFileSync("bash",["-n"],{input:remote,stdio:["pipe","pipe","pipe"]});
+});
+
+
+test("W155 oversized release package is rejected from file metadata before hashing",async t=>{
+  const f=await fixture(t);
+  await truncate(join(f.versionRoot,f.app),125_000_001);
+  await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
+    origin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
+  }),/PACKAGE_FILE_INVALID/);
+});
+
+test("W155 release verifier rejects a symlinked installer package",async t=>{
+  if(process.platform==="win32")return t.skip("Windows symlink creation is privilege-dependent");
+  const f=await fixture(t);
+  const packagePath=join(f.versionRoot,f.app);
+  const outside=join(f.root,"outside.exe");
+  await writeFile(outside,Buffer.alloc(11000,0x52));
+  await rm(packagePath);
+  await symlink(outside,packagePath);
+  await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
+    origin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
+  }),/PACKAGE_FILE_INVALID/);
 });
