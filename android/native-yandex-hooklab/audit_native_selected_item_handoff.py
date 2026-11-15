@@ -54,6 +54,31 @@ PLAYER_METHODS = {
     "addMediaItem", "addMediaItems", "replaceMediaItem",
     "removeMediaItem", "clearMediaItems", "seekTo", "play", "pause",
 }
+MEDIA_SESSION_OWNER = "Landroid/media/session/MediaSession;"
+MEDIA_SESSION_METADATA_METHODS = frozenset({"setMetadata"})
+MEDIA_SESSION_STATE_METHODS = frozenset({
+    "setPlaybackState", "setQueue", "setQueueTitle", "setActive"
+})
+DECODER_BOUNDARY_METHODS = {
+    "Landroid/media/MediaExtractor;": frozenset({
+        "setDataSource", "readSampleData", "advance", "selectTrack",
+        "getTrackCount", "getTrackFormat"
+    }),
+    "Landroid/media/MediaCodec;": frozenset({
+        "configure", "start", "queueInputBuffer", "queueSecureInputBuffer",
+        "releaseOutputBuffer"
+    }),
+    "Landroid/media/AudioTrack;": frozenset({"write", "play", "pause"}),
+    "Landroid/media/MediaPlayer;": frozenset({
+        "setDataSource", "prepare", "prepareAsync", "start"
+    }),
+}
+EDITION_MARKERS = frozenset({"edition", "editionid", "edition_id"})
+GENERATION_MARKERS = frozenset({
+    "generation", "playbackgeneration", "playback_generation",
+    "queuegeneration", "queue_generation"
+})
+SEMANTIC_IDENTITY_MARKERS = EDITION_MARKERS | GENERATION_MARKERS
 SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "while"),
     ("Lcom/yandex/music/shared/player/download2/o;", "for"),
@@ -414,6 +439,12 @@ def straight_line_model_flow(dex: Dex, method, flags: int, code_off: int):
                     role = "NATIVE_DESCRIPTOR_BUILDER"
                 elif callee[0] in PLAYER_OWNERS and callee[1] in PLAYER_METHODS:
                     role = "PLAYER_SELECTION_OR_TRANSPORT"
+                elif callee[0] == MEDIA_SESSION_OWNER and callee[1] in MEDIA_SESSION_METADATA_METHODS:
+                    role = "MEDIA_SESSION_METADATA_PUBLISH"
+                elif callee[0] == MEDIA_SESSION_OWNER and callee[1] in MEDIA_SESSION_STATE_METHODS:
+                    role = "MEDIA_SESSION_STATE_PUBLISH"
+                elif callee[0] in DECODER_BOUNDARY_METHODS and callee[1] in DECODER_BOUNDARY_METHODS[callee[0]]:
+                    role = "DECODER_INPUT_OR_RENDERER_BOUNDARY"
                 elif callee[0] == MODEL:
                     role = "MODEL_ACCESSOR_OR_METHOD"
                 elif callee[0] == WRAPPER:
@@ -775,6 +806,9 @@ def inspect_signed(apks):
     model_referenced_methods = []
     descriptor_builder_callers = []
     player_method_refs = set()
+    media_session_method_refs = set()
+    decoder_boundary_method_refs = set()
+    semantic_marker_counts = {marker: 0 for marker in SEMANTIC_IDENTITY_MARKERS}
     model_flow_candidates = []
     wrapper_methods = set()
     flow_source_interface_methods = set()
@@ -808,6 +842,16 @@ def inspect_signed(apks):
                 dex = Dex(archive.read(entry.filename))
                 dex_count += 1
                 defined = dex.defined_classes()
+                for descriptor in defined:
+                    lowered = descriptor.lower()
+                    if "edition" in lowered:
+                        semantic_marker_counts["edition"] += 1
+                    if "generation" in lowered:
+                        semantic_marker_counts["generation"] += 1
+                for string_index in range(dex.string_count):
+                    value = dex.string(string_index)
+                    if value in semantic_marker_counts:
+                        semantic_marker_counts[value] += 1
                 if ("Lcom/yandex/music/shared/player/download2/exo/"
                         "RetryingBalancingDataSource;" in defined):
                     exo_source_defined = True
@@ -848,6 +892,15 @@ def inspect_signed(apks):
                         wrapper_methods.add(method)
                     if method[0] in PLAYER_OWNERS and method[1] in PLAYER_METHODS:
                         player_method_refs.add(method)
+                    if method[0] == MEDIA_SESSION_OWNER and (
+                        method[1] in MEDIA_SESSION_METADATA_METHODS
+                        or method[1] in MEDIA_SESSION_STATE_METHODS
+                    ):
+                        media_session_method_refs.add(method)
+                    if method[0] in DECODER_BOUNDARY_METHODS and (
+                        method[1] in DECODER_BOUNDARY_METHODS[method[0]]
+                    ):
+                        decoder_boundary_method_refs.add(method)
                     if method[0] == "LGl4;":
                         flow_source_interface_methods.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
@@ -1018,6 +1071,15 @@ def inspect_signed(apks):
     model_referenced_methods = sorted(set(model_referenced_methods))[:MAX_METHODS]
     wrapper_methods = sorted(wrapper_methods)[:MAX_METHODS]
     player_method_refs = sorted(player_method_refs)[:MAX_METHODS]
+    media_session_method_refs = sorted(set(media_session_method_refs))[:MAX_METHODS]
+    decoder_boundary_method_refs = sorted(set(decoder_boundary_method_refs))[:MAX_METHODS]
+    track_parameter_boundary_roles = {}
+    for flow in model_flow_candidates:
+        for event in flow.get("straight_line_events", []):
+            role = event.get("role", "UNKNOWN")
+            track_parameter_boundary_roles[role] = (
+                track_parameter_boundary_roles.get(role, 0) + 1
+            )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -1157,6 +1219,55 @@ def inspect_signed(apks):
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in player_method_refs
         ],
+        "selected_state_static_summary": {
+            "media_session_metadata_method_reference_count": sum(
+                x[1] in MEDIA_SESSION_METADATA_METHODS
+                for x in media_session_method_refs
+            ),
+            "media_session_state_method_reference_count": sum(
+                x[1] in MEDIA_SESSION_STATE_METHODS
+                for x in media_session_method_refs
+            ),
+            "decoder_boundary_method_reference_count": len(decoder_boundary_method_refs),
+            "track_parameter_to_player_selection_call_count":
+                track_parameter_boundary_roles.get("PLAYER_SELECTION_OR_TRANSPORT", 0),
+            "track_parameter_to_media_session_metadata_call_count":
+                track_parameter_boundary_roles.get("MEDIA_SESSION_METADATA_PUBLISH", 0),
+            "track_parameter_to_media_session_state_call_count":
+                track_parameter_boundary_roles.get("MEDIA_SESSION_STATE_PUBLISH", 0),
+            "track_parameter_to_decoder_boundary_call_count":
+                track_parameter_boundary_roles.get("DECODER_INPUT_OR_RENDERER_BOUNDARY", 0),
+            "track_parameter_to_native_descriptor_call_count":
+                track_parameter_boundary_roles.get("NATIVE_DESCRIPTOR_BUILDER", 0),
+            "explicit_edition_marker_count": sum(
+                semantic_marker_counts.get(marker, 0) for marker in EDITION_MARKERS
+            ),
+            "explicit_generation_marker_count": sum(
+                semantic_marker_counts.get(marker, 0) for marker in GENERATION_MARKERS
+            ),
+            "track_model_edition_typed_field_count": sum(
+                "edition" in typ.lower() for typ in model_fields.values()
+            ),
+            "album_model_edition_typed_field_count": sum(
+                "edition" in typ.lower() for typ in album_fields.values()
+            ),
+            "track_model_edition_named_field_count": sum(
+                name.lower() in EDITION_MARKERS for name in model_fields
+            ),
+            "album_model_edition_named_field_count": sum(
+                name.lower() in EDITION_MARKERS for name in album_fields
+            ),
+            "track_model_generation_named_field_count": sum(
+                name.lower() in GENERATION_MARKERS for name in model_fields
+            ),
+            "album_model_generation_named_field_count": sum(
+                name.lower() in GENERATION_MARKERS for name in album_fields
+            ),
+            "same_track_album_edition_generation_owner_proven": False,
+            "active_selected_item_proven": False,
+            "same_native_item_to_decoder_proven": False,
+            "branch_and_indirect_dispatch_inferred": False,
+        },
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,

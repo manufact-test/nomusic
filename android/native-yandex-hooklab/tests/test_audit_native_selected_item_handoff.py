@@ -1,7 +1,9 @@
 import unittest
 from audit_native_selected_item_handoff import (
     parse_types, written_register, MODEL, DESCRIPTOR_BUILDER,
-    PLAYER_OWNERS, PLAYER_METHODS
+    PLAYER_OWNERS, PLAYER_METHODS, MEDIA_SESSION_OWNER,
+    MEDIA_SESSION_METADATA_METHODS, MEDIA_SESSION_STATE_METHODS,
+    DECODER_BOUNDARY_METHODS, EDITION_MARKERS, GENERATION_MARKERS
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -114,6 +116,24 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertIn("setMediaItem", PLAYER_METHODS)
         self.assertIn("getCurrentMediaItem", PLAYER_METHODS)
         self.assertNotIn("getTitle", PLAYER_METHODS)
+
+    def test_media_session_and_decoder_boundaries_are_explicitly_classified(self):
+        self.assertEqual(MEDIA_SESSION_OWNER,
+            "Landroid/media/session/MediaSession;")
+        self.assertIn("setMetadata", MEDIA_SESSION_METADATA_METHODS)
+        self.assertIn("setPlaybackState", MEDIA_SESSION_STATE_METHODS)
+        self.assertIn("queueInputBuffer",
+            DECODER_BOUNDARY_METHODS["Landroid/media/MediaCodec;"])
+        self.assertIn("readSampleData",
+            DECODER_BOUNDARY_METHODS["Landroid/media/MediaExtractor;"])
+        self.assertIn("write",
+            DECODER_BOUNDARY_METHODS["Landroid/media/AudioTrack;"])
+
+    def test_edition_generation_markers_are_exact_and_bounded(self):
+        self.assertIn("edition", EDITION_MARKERS)
+        self.assertIn("playbackgeneration", GENERATION_MARKERS)
+        self.assertNotIn("url", EDITION_MARKERS | GENERATION_MARKERS)
+        self.assertNotIn("token", EDITION_MARKERS | GENERATION_MARKERS)
 
     def test_common_destination_registers_are_invalidated(self):
         self.assertEqual(written_register(0x0c, [0x030c]), 3)
