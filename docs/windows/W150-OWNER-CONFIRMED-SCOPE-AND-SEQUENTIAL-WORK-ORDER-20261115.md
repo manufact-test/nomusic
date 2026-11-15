@@ -13,6 +13,17 @@ W119 still controls the product architecture and working rules (one product, `ma
 
 **The developer must finish one task to code/test/CI-ready state before moving to the next. Do not hop between tasks, reopen unrelated old tickets, or invent extra work from the repository's historical OPEN Issues.** The owner should receive one consolidated build only after all agreed code work is complete.
 
+## Current execution status — 15 November 2026 (supersedes stale "first active task" wording below)
+
+- **Tasks 1–4 are complete at code/test/CI level** under W151–W154. They are not owner-PC accepted; the owner performs one grouped acceptance from W154 only after the final package exists.
+- **Task 5 implementation is complete at code/test/CI level** under W155/W156: P-256 signed schema-2 manifest, SHA-256 package/payload verification, DPAPI transaction, independent Supervisor READY/health/one-shot rollback, protected release workflow and final package helper are in place. Do not reopen the runtime audit or add speculative code.
+- The PowerShell-only key provisioning helper and automatic one-shot release trigger are also implemented and Windows-CI tested. Current release-workflow checkpoint: `44a3e55ed9e70a4f2aa4b3ac562c122575f0a189`.
+- Latest Main CI `43736028010` and Windows integration CI `43736027854` are **SUCCESS** on documentation HEAD `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
+- **Only remaining engineering/release path:** final bounded preflight; one owner-side local P-256 key generation + one protected Environment secret upload; one marker commit to trigger the protected workflow; one signed unpublished Draft Release containing exactly one EXE, one ZIP and SHA256SUMS; then one grouped W154 owner acceptance. No intermediate packages.
+- Do not commit the marker before the owner confirms the secret is saved: the marker immediately triggers the release workflow.
+- DNS/TLS and production-feed publication remain deliberately deferred until infrastructure migration. Do not publish a production feed now. The bootstrap installs the public pin; after the future feed is activated, all subsequent updates must be automatic.
+- No other task is authorized. Do not revisit Tasks 1–4, historical Issues, broad audits, unrelated code, Android or the browser extension. The only owner interaction is one consolidated key-provisioning step when repository-side preflight is complete.
+
 ## 1. Exact repository baseline and backup
 
 - Current `main` HEAD when W150 was authored: `0524158177beeedb50bff85d59ae573d90c19823`.
@@ -108,11 +119,11 @@ Approved design:
 - Installed 0.24.37 has no production P-256 pin. Therefore a one-time trusted manual bootstrap is unavoidable: owner installs the one final coherent package containing the new public pin. After that, subsequent releases must be detected, downloaded, verified, staged and installed automatically without manual website downloads.
 - Domain `celikom.com` is already purchased and is the fixed future production origin: `https://celikom.com`. DNS, TLS and public feed deployment are intentionally deferred until the product/infrastructure migration is complete. Prepare the code/config now, but do not attempt to publish to a non-existent HTTPS endpoint or change DNS early.
 - W148's current workflow still contains PFX/Authenticode certificate/fingerprint gates. That scaffold is **not the final approved design** and must be refactored in this task. Do not run it or ask the owner to buy a certificate.
-- Prepare one safe local key-provisioning script/command for the owner to run once only if required by GitHub's protected-secret permissions. Generate the private key on a trusted owner-controlled machine; use authenticated GitHub CLI to upload the secret without displaying the PEM. The assistant must never ask the owner to paste the private key into chat.
+- Prepare one safe local key-provisioning script for the owner to run once only if required by GitHub's protected-secret permissions. The approved helper is `.github/scripts/windows-stable-provision-key.ps1`: it uses built-in Windows PowerShell 5.1, Windows CNG, Notepad and the browser only; no Node.js, GitHub CLI, PowerShell 7, package manager, token or password is required. It creates the P-256 key locally with a user/SYSTEM-only directory ACL and opens the protected GitHub Environment page. The owner adds the PEM once as Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM`. Never ask the owner to paste or send the PEM in chat.
 - Before migration, validate updater logic with automated/local fixtures only; do not claim production feed delivery. Test the updater end-to-end on the owner's PC only after the domain's DNS/TLS and signed feed are live: detect → download during playback → verify → wait for safe point → Supervisor READY → in-place install → health check → forced one-shot rollback test. Preserve account, DPAPI, settings, native integration and music continuity.
 - Windows may still apply its own policy to unsigned executables. Keep the current warning experience; never promise that P-256 manifest trust creates a Windows-verified publisher or bypasses SmartScreen/SAC. If a particular Windows policy blocks execution, report it honestly; never ask users to turn protection off.
 
-Production updater is not currently operational. W148 scripts/workflow are only scaffolding; no production P-256 secret/pin, HTTPS feed or owner bootstrap has been completed.
+The W155 updater runtime and W156 protected release pipeline are implemented and code/test/CI-ready, but production updating is not yet operational: the owner has not provisioned the P-256 private key, no signed bootstrap EXE/ZIP has been built or installed, and DNS/TLS/feed migration is intentionally deferred. Do not call the updater production-live until those external steps are complete.
 
 ### Task 6 — build and deliver the single final owner package
 
@@ -148,7 +159,8 @@ These Issues must not be silently closed or deleted; they simply are not current
 
 ## 5. First message for the next chat
 
-Copy the following as the first user message in the next chat:
+Copy the current first message from the authoritative top section of `docs/windows/NEXT-CHAT.md`. Do not use the archived first message below this heading in older handoffs.
+
 
 ---
 

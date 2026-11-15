@@ -7,19 +7,26 @@ Authority: W119 product/architecture rules + W150 owner-approved scope and order
 
 ## 1. Latest verified checkpoint
 
+- Current `main` documentation HEAD before this handoff update: `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
+- Current code/release-workflow checkpoint: `44a3e55ed9e70a4f2aa4b3ac562c122575f0a189` (includes the one-shot marker path trigger).
 - W155 application-code checkpoint: `c1afdd5fc9b3ec90bb760857bf584dc494d7774e`.
-- Exact W155 backup: `backup/windows-main-w155-owner-handoff-20261115` at that SHA.
 - W156 owner-package/draft-release code checkpoint: `23a4ec4a232139b9cfea986dec629d1d9b8776dd`.
 - PowerShell-only P-256 key provisioning and runtime public-pin derivation: `b165dc51d934db88cc18aaa0d68fed0c8dd82748`.
-- Final workflow-input defaults and release-workflow YAML repair: `bbf964512513cbf9e1942f6598534521c3b7aa69`.
+- Exact backup before this documentation handoff: `backup/windows-main-pre-final-handoff-docs-20261115` @ `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
+- Earlier exact W155 backup: `backup/windows-main-w155-owner-handoff-20261115` @ `c1afdd5fc9b3ec90bb760857bf584dc494d7774e`.
 - Exact backup before the PowerShell-only provisioning block: `backup/windows-main-pre-powershell-only-p256-provision-20261115` @ `7c516ad69dbad3f56781a56cd9f7b4ae8c3d7870`.
-- Exact backup before release-workflow repair: `backup/windows-main-pre-release-workflow-repair-20261115` @ `6c921032e7dd0d05718e150d9665eab52ba02c23`.
-- Exact backup before this documentation update: `backup/windows-main-pre-powershell-owner-handoff-docs-20261115` @ `bbf964512513cbf9e1942f6598534521c3b7aa69`.
-- Target one-time bootstrap version: **0.24.38**. GUI, Supervisor and Inno installer metadata are aligned.
-- Main CI run `43735322258`: **SUCCESS** on `bbf96451`.
-- Windows integration CI run `43735322290`: **SUCCESS** on `bbf96451`.
-- W155 signed-release verification: 27/27 at the W155 code checkpoint. Latest Windows integration also passes the Windows PowerShell 5.1 P-256 key-generation smoke test, verifies the generated PKCS#8/SPKI pair, parses the protected release workflow, and runs the full Windows integration suite.
-- No final EXE/ZIP has been built or delivered.
+- Exact backup before the one-shot trigger: `backup/windows-main-pre-one-shot-owner-bootstrap-trigger-20261115` @ `9bfe7ebe9357980508da0e4caf7442ab7f094cea`.
+- Target bootstrap version: **0.24.38**. GUI, UpdateSupervisor and Inno installer metadata are aligned.
+- Main CI run `43736028010`: **SUCCESS**. Windows integration CI run `43736027854`: **SUCCESS** on `0a2df7d5`.
+- W151–W154 Tasks 1–4 are code/test/CI-ready, not owner-PC accepted. One grouped acceptance only, using W154 after the final package.
+- W155 runtime-chain audit is complete. Do not repeat it or invent additional updater improvements.
+- W156 release workflow derives the P-256 public pin from the protected private-key secret, builds exactly one EXE and one ZIP, and creates an unpublished Draft Release with SHA256SUMS. The one-shot marker path is `.github/release/owner-bootstrap-0.24.38.trigger`. Production publication defaults OFF.
+- Owner helper: built-in Windows PowerShell 5.1 + Windows CNG + Notepad + browser only. It creates the local keypair and opens GitHub Environment settings. No Node.js, GitHub CLI, PowerShell 7, package manager, token or password is needed on the owner PC.
+- **No owner action until final repository-side preflight is complete.** Then request one consolidated operation: run the helper and save the private PEM as Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` in protected `windows-stable-production`. Never ask for the PEM, password or token in chat.
+- The protected Environment must have an authorized required reviewer and allow only branch `main`. The workflow derives the public key from the secret; no public-key variable is needed. `CELIKOM_STABLE_DEPLOY_ROOT` is not needed for the owner bootstrap.
+- After the owner confirms the secret is saved, commit the one-shot marker. This automatically triggers the protected workflow; the owner only approves the Environment if GitHub requests it. Defaults: version `0.24.38`, sequence `1`, automatic 7-day UTC expiry, `publish_to_production=false`.
+- Not done: owner key provisioning, final EXE/ZIP, owner installation and grouped acceptance. DNS/TLS/feed migration remains deferred. No production feed has been published.
+- Never use Authenticode/PFX, bypass SmartScreen/Defender/UAC, publish the production feed early, create a TEST product/branch, touch Android/extension, or reopen excluded #53/#54/#56/#57/#58. #52 remains open until owner-PC acceptance.
 
 ## 2. Completed earlier work — do not reopen
 
@@ -57,7 +64,7 @@ Do not repeat this audit or expand into new research without a concrete failure.
 - The workflow builds the installer with the already-committed version, signs/verifies the schema-2 manifest and payload hashes, then runs `.github/scripts/windows-stable-owner-package.ps1`.
 - For version 0.24.38, the output is exactly one `CELIKOM-Windows-0.24.38.exe`, one `CELIKOM-Windows-0.24.38.zip` containing that EXE as its sole root entry, and `SHA256SUMS.txt`.
 - The package helper refuses overwrite, validates the ZIP entry and byte-for-byte SHA-256 equality, and writes checksums only after successful verification.
-- The helper is covered by Main CI contract tests and a Windows PowerShell fixture. The release workflow contract includes the helper. Both CI workflows passed on package checkpoint `23a4ec4a` and latest documentation HEAD `b876e26b`.
+- The helper is covered by Main CI contract tests and a Windows PowerShell fixture. The release workflow contract includes the helper. Both CI workflows passed on package checkpoint `23a4ec4a`; latest release-workflow CI also passed on `44a3e55e` and latest documentation CI passed on `0a2df7d5`.
 - The workflow defaults are version `0.24.38`, sequence `1`, blank expiry (automatically set to a 7-day UTC expiry), and `publish_to_production=false`; leave production publication OFF. With this setting the workflow creates the unpublished GitHub Draft Release `celikom-windows-v0.24.38-owner-bootstrap` containing exactly one EXE, one ZIP and `SHA256SUMS.txt`. It does not publish the draft or the `celikom.com` feed.
 - The draft remains visible only to repository users with push access until it is published. The repository source itself remains public. The Actions artifact upload step is skipped when `publish_to_production=false`; it runs only for the separately approved live-feed publication path.
 
@@ -65,13 +72,13 @@ Do not repeat this audit or expand into new research without a concrete failure.
 
 ## 6. One-time owner key provisioning — no extra software
 
-**No owner action is requested until the repository-side work is complete.** The production updater remains fail-closed and no feed is published.
+**No owner action is requested until the final bounded repository-side preflight is complete.** The production updater remains fail-closed and no feed is published.
 
 The owner-facing helper is now `.github/scripts/windows-stable-provision-key.ps1`. It was executed in Windows integration CI under **Windows PowerShell 5.1** and its generated PKCS#8 private key / SPKI public key pair was verified. It uses built-in Windows PowerShell, Windows CNG, Notepad and the browser only. It does **not** require Node.js, GitHub CLI, PowerShell 7, a package manager, tokens or passwords.
 
 Raw script: [windows-stable-provision-key.ps1](https://raw.githubusercontent.com/manufact-test/nomusic/main/.github/scripts/windows-stable-provision-key.ps1)
 
-When this becomes the only remaining external prerequisite, the one consolidated owner action is:
+When this becomes the only remaining external prerequisite, request one consolidated owner operation:
 
 1. Download the raw script above to the Windows **Downloads** folder.
 2. Open the built-in Windows PowerShell (not as Administrator) and run:

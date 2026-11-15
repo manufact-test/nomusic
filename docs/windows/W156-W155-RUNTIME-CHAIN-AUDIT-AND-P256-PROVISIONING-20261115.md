@@ -7,17 +7,15 @@ Authority: W119 + W150 + W155.
 
 ## 1. Result
 
-**W155 runtime implementation is code/test/CI-ready.** The final bounded call-path audit found no concrete implementation gap requiring another runtime patch. No Windows application code was changed by this audit.
+**W155 runtime implementation, W156 package workflow and owner provisioning route are code/test/CI-ready.** The final bounded caller-chain audit found no concrete implementation gap requiring another runtime patch. No Windows application-code change is needed.
 
-- W155 code checkpoint: `c1afdd5fc9b3ec90bb760857bf584dc494d7774e`.
-- Exact rollback backup: `backup/windows-main-w155-owner-handoff-20261115` at that SHA.
+- Current `main` documentation HEAD before this handoff update: `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
+- Current code/release-workflow checkpoint with the one-shot trigger: `44a3e55ed9e70a4f2aa4b3ac562c122575f0a189`.
+- W155 application-code checkpoint: `c1afdd5fc9b3ec90bb760857bf584dc494d7774e`.
 - W156 package/draft-release checkpoint: `23a4ec4a232139b9cfea986dec629d1d9b8776dd`.
-- PowerShell-only provisioning / derived P-256 public pin checkpoint: `b165dc51d934db88cc18aaa0d68fed0c8dd82748`.
-- Current release-workflow checkpoint: `bbf964512513cbf9e1942f6598534521c3b7aa69`.
-- Exact backup before the provisioning change: `backup/windows-main-pre-powershell-only-p256-provision-20261115` @ `7c516ad69dbad3f56781a56cd9f7b4ae8c3d7870`.
-- Exact backup before release-workflow repair: `backup/windows-main-pre-release-workflow-repair-20261115` @ `6c921032e7dd0d05718e150d9665eab52ba02c23`.
-- Main CI run `43735322258`: **SUCCESS** on `bbf96451`.
-- Windows integration CI run `43735322290`: **SUCCESS** on `bbf96451`.
+- Exact backup before this documentation handoff: `backup/windows-main-pre-final-handoff-docs-20261115` @ `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
+- Main CI run `43736028010`: **SUCCESS**. Windows integration CI run `43736027854`: **SUCCESS** on `0a2df7d5`.
+- The Windows integration CI includes the Windows PowerShell 5.1 P-256 key-generation smoke test, verifies the generated PKCS#8/SPKI pair, parses the protected release workflow and runs the full Windows integration suite.
 
 CI proves code and regression contracts only. It does not prove production feed delivery, owner-PC installation, Windows trust UI, or real rollback.
 
@@ -48,13 +46,13 @@ The GitHub Environment `windows-stable-production` must have at least one author
 
 ## 4. Remaining external/release work
 
-- Owner-side private-key provisioning has **not** yet been run.
+- Owner-side private-key provisioning has **not** yet been run; it is the only required owner-side prerequisite before the one-shot bootstrap build.
 - `celikom.com` DNS/TLS and public feed are still deliberately deferred.
 - No production feed has been published.
 - No final EXE/ZIP has been built or delivered; no owner-PC installation or field acceptance has happened.
 - The current W20 internal staging workflow does not embed the production P-256 pin and must not be used for the final bootstrap. The protected `windows-stable-signed-release.yml` is the approved trust-embedding build path.
 - W156 added the owner-package helper to that workflow. It produces one EXE, one root-entry ZIP containing the same EXE, and SHA256SUMS; the helper and release contract pass Main CI and Windows integration CI.
-- Target bootstrap version is 0.24.38. GUI, Supervisor and Inno metadata are aligned. Main CI run 43735322258 and Windows integration CI run 43735322290 both SUCCESS on release-workflow checkpoint bbf96451.
+- Target bootstrap version is 0.24.38. GUI, Supervisor and Inno metadata are aligned. Main CI run 43736028010 and Windows integration CI run 43736027854 both SUCCESS on documentation HEAD 0a2df7d5; the marker-trigger release workflow checkpoint is 44a3e55e.
 - Repository visibility was rechecked: `manufact-test/nomusic` is public. Existing Releases are two unpublished Android test drafts; there is no Windows 0.24.38 release yet.
 - The first workflow version incorrectly sent the owner package to a public Actions artifact. This has been corrected: with `publish_to_production=false`, the workflow creates the Draft Release `celikom-windows-v0.24.38-owner-bootstrap` with exactly `CELIKOM-Windows-0.24.38.exe`, `CELIKOM-Windows-0.24.38.zip` and `SHA256SUMS.txt`. GitHub draft releases are listed only for users with push access; the public repository itself remains public. The Actions artifact upload step is skipped for this owner-bootstrap path.
 - Main CI run `43730538279` and Windows integration CI run `43730538242`: **SUCCESS** on code checkpoint `23a4ec4a232139b9cfea986dec629d1d9b8776dd`, including the new draft-release contract test.
