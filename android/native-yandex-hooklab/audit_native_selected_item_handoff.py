@@ -5430,7 +5430,7 @@ def inspect_selected_track_interface_implementations(apks, class_profiles, contr
         for apk in apks:
             with zipfile.ZipFile(apk) as archive:
                 for entry in archive.infolist():
-                    if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                         continue
                     if entry.file_size > DEX_MAX:
                         raise ValueError("SELECTED_TRACK_INTERFACE_DEX_LIMIT")
