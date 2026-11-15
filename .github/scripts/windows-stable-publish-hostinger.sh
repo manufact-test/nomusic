@@ -173,7 +173,7 @@ REMOTE
 for file in "$exe" manifest.json manifest.json.sig latest.json latest.json.sig; do
   case "$file" in latest.json|latest.json.sig) suffix="$file";;
     *) suffix="$version/$file";; esac
-  curl --fail --silent --show-error --max-time 30 \
+  curl --fail --silent --show-error --connect-timeout 15 --max-time 180 \
     "$origin/CELIKOM/Windows/Updates/stable/$suffix" -o "$tmp/checked-$file"
   cmp -s "$tmp/$file" "$tmp/checked-$file" || {
     echo W155_OFFICIAL_HTTPS_PUBLICATION_MISMATCH; exit 4; }
