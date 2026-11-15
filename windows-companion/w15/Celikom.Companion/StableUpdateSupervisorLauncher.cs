@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace Celikom.Companion;
 
@@ -28,15 +30,27 @@ public static class StableUpdateSupervisorHandshake
             1, 1);
 
     public static async Task<bool> WaitForReadyAsync(
-        NamedPipeServerStream server, CancellationToken cancellationToken)
+        NamedPipeServerStream server, int expectedClientProcessId,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(server);
+        if (expectedClientProcessId <= 0) return false;
         await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
+        // CurrentUserOnly prevents cross-user access; the PID check also
+        // prevents another process in the same Windows account from spoofing
+        // the READY byte before the launched Supervisor connects.
+        if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out var clientProcessId) ||
+            clientProcessId != (uint)expectedClientProcessId)
+            return false;
         var marker = new byte[1];
         var read = await server.ReadAsync(marker.AsMemory(0, 1), cancellationToken)
             .ConfigureAwait(false);
         return read == 1 && marker[0] == ReadyMarker;
     }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetNamedPipeClientProcessId(
+        SafePipeHandle pipe, out uint clientProcessId);
 
     public static async Task<bool> SignalReadyAsync(
         Guid transaction, CancellationToken cancellationToken)
@@ -124,7 +138,7 @@ public static class StableUpdateSupervisorLauncher
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(8));
             var ready = await StableUpdateSupervisorHandshake.WaitForReadyAsync(
-                server, timeout.Token).ConfigureAwait(false);
+                server, process.Id, timeout.Token).ConfigureAwait(false);
             if (!ready || process.HasExited)
             {
                 TryStop(process);

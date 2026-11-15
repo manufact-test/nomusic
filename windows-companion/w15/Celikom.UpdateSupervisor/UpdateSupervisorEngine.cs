@@ -116,7 +116,7 @@ public sealed class UpdateSupervisorEngine(
                 journal.BeginRollback(now);
                 try
                 {
-                    launcher.Launch(previousInstaller);
+                    launcher.Launch(previousInstaller, state.PreviousSha256, state.PreviousSize);
                     return Step.RollbackLaunched;
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or
@@ -180,7 +180,7 @@ public interface ISupervisorHealthProbe
 
 public interface ISupervisorRollbackLauncher
 {
-    void Launch(string verifiedPreviousInstaller);
+    void Launch(string verifiedPreviousInstaller, string expectedSha256, long expectedSize);
 }
 
 public sealed class DurableSupervisorJournal(

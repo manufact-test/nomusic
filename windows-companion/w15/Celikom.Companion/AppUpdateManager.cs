@@ -10,8 +10,10 @@ namespace Celikom.Companion;
 /// An Inno Setup EXE is staged out of a single-exe GitHub artifact ZIP and
 /// installed over the existing AppId/InstallDir. Never uninstalls CELIKOM,
 /// deletes the owner's encrypted account, or accesses Yandex audio files.
-/// Only local CELIKOM update artifacts can be selected; binaries are currently
-/// INTERNAL and UNSIGNED, so authenticity is not cryptographically guaranteed.
+/// The legacy manual Stage/Launch path accepts internal unsigned packages and
+/// does not claim cryptographic authenticity. The stable updater does not use
+/// that path: it calls LaunchManifestVerified only after P-256 manifest and
+/// SHA-256 package verification.
 /// </summary>
 public static class AppUpdateManager
 {

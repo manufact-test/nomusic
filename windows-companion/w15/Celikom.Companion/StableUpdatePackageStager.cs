@@ -10,10 +10,9 @@ using Celikom.NativeInstaller;
 namespace Celikom.Companion;
 
 /// <summary>
-/// W105: verified offline staging for a future signed stable updater.
-/// Deliberately NOT wired to app launch: the public production signing key,
-/// signed release feed, independent crash rollback and safe-install scheduler
-/// must all be shipped and tested before unattended activation.
+/// W155: verified staging for the single production stable updater.
+/// Production activation remains fail-closed until a release build embeds
+/// the approved P-256 public key and official feed origin.
 /// </summary>
 public static class StableUpdatePackageStager
 {
@@ -37,6 +36,9 @@ public static class StableUpdatePackageStager
             throw new IOException("STABLE_UPDATE_WINDOWS_ONLY");
         RequirePayloadIdentity(release);
 
+        // This also verifies every CELIKOM/Windows/StableUpdates ancestor
+        // against reparse-point substitution before creating a staging folder.
+        EnsurePendingDirectory();
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CELIKOM", "Windows", "StableUpdates");
@@ -272,8 +274,12 @@ public static class StableUpdatePackageStager
             throw new IOException("STABLE_UPDATE_PACKAGE_INVALID");
         var expectedHash = DecodeExpectedHash(release.Sha256);
         Directory.CreateDirectory(root);
+        if (File.GetAttributes(root).HasFlag(FileAttributes.ReparsePoint))
+            throw new IOException("STABLE_UPDATE_STAGE_ROOT_REPARSE_POINT");
         var stagingDir = Path.Combine(root, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stagingDir);
+        if (File.GetAttributes(stagingDir).HasFlag(FileAttributes.ReparsePoint))
+            throw new IOException("STABLE_UPDATE_STAGE_DIRECTORY_REPARSE_POINT");
         var part = Path.Combine(stagingDir, "package.part");
         var output = Path.Combine(stagingDir, "CELIKOM-stable.exe");
         try

@@ -58,6 +58,8 @@ Check(await engine.TickAsync(start.AddMinutes(11)) == UpdateSupervisorEngine.Ste
 probe.Safe = true;
 Check(await engine.TickAsync(start.AddMinutes(12)) == UpdateSupervisorEngine.Step.RollbackLaunched &&
       installer.LaunchCount == 1 && journal.VerifyCount == 1 &&
+      installer.LastExpectedSha256 == new string('a', 64) &&
+      installer.LastExpectedSize == 40_000 &&
       journal.Current.RollbackAttempts == 1 &&
       journal.Current.DeadlineUnix == start.AddMinutes(22).ToUnixTimeSeconds(),
       "manifest-verified previous setup executes once after safe-stop checks; own health deadline");
@@ -201,9 +203,41 @@ if (OperatingSystem.IsWindows())
     var signal = StableUpdateSupervisorHandshake.SignalReadyAsync(
         handshakeId, handshakeTimeout.Token);
     var ready = await StableUpdateSupervisorHandshake.WaitForReadyAsync(
-        readyPipe, handshakeTimeout.Token);
+        readyPipe, Environment.ProcessId, handshakeTimeout.Token);
     await signal;
-    Check(ready, "W122 same-user named-pipe handshake proves the Supervisor has validated its ticket before installer launch");
+    Check(ready, "W122 READY is accepted only from the exact launched Supervisor process");
+
+    var spoofId = Guid.NewGuid();
+    await using var spoofPipe = StableUpdateSupervisorHandshake.CreateServer(spoofId);
+    using var spoofTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    var spoofSignal = StableUpdateSupervisorHandshake.SignalReadyAsync(
+        spoofId, spoofTimeout.Token);
+    var spoofReady = await StableUpdateSupervisorHandshake.WaitForReadyAsync(
+        spoofPipe, Environment.ProcessId + 1, spoofTimeout.Token);
+    await spoofSignal;
+    Check(!spoofReady, "W155 a different same-user process cannot spoof Supervisor READY");
+
+    var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    var rollbackTestRoot = Path.Combine(local, "CELIKOM", "Windows", "StableRollback");
+    var rollbackTestDirectory = Path.Combine(rollbackTestRoot, Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(rollbackTestDirectory);
+    var tamperedInstaller = Path.Combine(rollbackTestDirectory, "previous-verified-setup.exe");
+    var tamperedBytes = new byte[12_000];
+    File.WriteAllBytes(tamperedInstaller, tamperedBytes);
+    var tamperedLaunchRejected = false;
+    try
+    {
+        new WindowsVerifiedRollbackLauncher().Launch(
+            tamperedInstaller, new string('0', 64), tamperedBytes.Length);
+    }
+    catch (IOException e) when (e.Message == "SUPERVISOR_ROLLBACK_IMAGE_HASH_MISMATCH")
+    { tamperedLaunchRejected = true; }
+    finally
+    {
+        try { Directory.Delete(rollbackTestDirectory, recursive: true); } catch { }
+    }
+    Check(tamperedLaunchRejected,
+        "W155 rollback launcher re-hashes the exact previous EXE immediately before process creation");
 }
 Console.WriteLine("W110_INDEPENDENT_SUPERVISOR_CONTRACT_PASS " + checks);
 
@@ -298,9 +332,13 @@ sealed class FakeLauncher : ISupervisorRollbackLauncher
 {
     public int LaunchCount { get; private set; }
     public bool ThrowOnLaunch { get; set; }
-    public void Launch(string verifiedPreviousInstaller)
+    public string? LastExpectedSha256 { get; private set; }
+    public long LastExpectedSize { get; private set; }
+    public void Launch(string verifiedPreviousInstaller, string expectedSha256, long expectedSize)
     {
         LaunchCount++;
+        LastExpectedSha256 = expectedSha256;
+        LastExpectedSize = expectedSize;
         if (ThrowOnLaunch) throw new IOException("INNO_ROLLBACK_REFUSED");
     }
 }

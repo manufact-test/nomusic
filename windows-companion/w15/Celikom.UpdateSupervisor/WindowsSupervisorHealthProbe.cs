@@ -191,10 +191,11 @@ public sealed class WindowsSupervisorHealthProbe : ISupervisorHealthProbe
 
 public sealed class WindowsVerifiedRollbackLauncher : ISupervisorRollbackLauncher
 {
-    public void Launch(string verifiedPreviousInstaller)
+    public void Launch(string verifiedPreviousInstaller, string expectedSha256, long expectedSize)
     {
-        // The caller MUST have just passed the full DPAPI journal and package SHA-256
-        // verifier. This class refuses unrelated names, roots or symlinks.
+        // Re-hash at the final execution boundary. Keep the read-only handle
+        // open through CreateProcess so the verified image cannot be swapped
+        // between the hash check and Windows opening the installer image.
         var root = Path.GetFullPath(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CELIKOM", "Windows", "StableRollback"));
@@ -202,13 +203,26 @@ public sealed class WindowsVerifiedRollbackLauncher : ISupervisorRollbackLaunche
         if (!file.StartsWith(root + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(file) != "previous-verified-setup.exe" ||
-            !File.Exists(file) || new FileInfo(file).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            !File.Exists(file) || new FileInfo(file).Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+            expectedSha256 is not { Length: 64 } || expectedSha256.Any(c => !Uri.IsHexDigit(c)) ||
+            expectedSize is < 10_000 or > 125_000_000)
             throw new IOException("SUPERVISOR_INSTALLER_PATH_INVALID");
-        if (Process.Start(new ProcessStartInfo(file)
+
+        using var image = new FileStream(file, FileMode.Open, FileAccess.Read,
+            FileShare.Read, 65536, FileOptions.SequentialScan);
+        if (image.Length != expectedSize)
+            throw new IOException("SUPERVISOR_ROLLBACK_IMAGE_SIZE_MISMATCH");
+        var expected = Convert.FromHexString(expectedSha256);
+        var actual = SHA256.HashData(image);
+        if (!CryptographicOperations.FixedTimeEquals(expected, actual))
+            throw new IOException("SUPERVISOR_ROLLBACK_IMAGE_HASH_MISMATCH");
+
+        using var process = Process.Start(new ProcessStartInfo(file)
         {
             UseShellExecute = true,
             Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS /CELIKOMAPPUPDATE=1"
-        }) is null)
+        });
+        if (process is null)
             throw new IOException("SUPERVISOR_ROLLBACK_LAUNCH_FAILED");
     }
 }
