@@ -51,6 +51,13 @@ final class StageBAudioEvidence {
         WeakReference<Object> factoryResult;
         WeakReference<Object> sourceInstance;
     }
+    private static final class TrackContinuationLink {
+        WeakReference<Object> continuation;
+        WeakReference<Object> track;
+        boolean conflicted;
+    }
+    // Exact Fp0 continuation instances only; no reads of Track or coroutine fields.
+    private final ArrayList<TrackContinuationLink> trackContinuations = new ArrayList<>();
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
@@ -61,6 +68,9 @@ final class StageBAudioEvidence {
     private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
     private final AtomicLong nativeTrackWrapperConstructed = new AtomicLong();
     private final AtomicLong nativeMainSourceEnters = new AtomicLong();
+    private final AtomicLong nativeTrackContinuationConstructed = new AtomicLong();
+    private final AtomicLong trackContinuationRecovered = new AtomicLong();
+    private final AtomicLong trackContinuationConflict = new AtomicLong();
     private final AtomicLong wrapperMainSourceRequests = new AtomicLong();
     private final AtomicLong wrapperDescriptorLinks = new AtomicLong();
     private final AtomicLong trackDescriptorFactoryLinks = new AtomicLong();
@@ -125,10 +135,64 @@ final class StageBAudioEvidence {
         return false;
     }
 
-    void enterNativeTrackSourceRequest(Object track) {
-        pushScope(activeTrackScopes,track);
+    private TrackContinuationLink findTrackContinuation(Object continuation) {
+        if (continuation == null) return null;
+        for (int i=trackContinuations.size()-1;i>=0;i--) {
+            TrackContinuationLink link=trackContinuations.get(i);
+            if (link.continuation==null || link.continuation.get()==null) {
+                trackContinuations.remove(i);
+                continue;
+            }
+            if (link.continuation.get()==continuation) return link;
+        }
+        return null;
+    }
+
+    synchronized void onNativeTrackContinuationConstructed(Object continuation) {
+        Object track=currentScope(activeTrackScopes);
+        if (continuation==null || track==null || !wasNativeTrackFlowItem(track))
+            return;
+        TrackContinuationLink prior=findTrackContinuation(continuation);
+        if (prior!=null) {
+            // A continuation reused for a different track is permanently
+            // ambiguous for its lifetime, even if called again with null.
+            if (prior.track==null || prior.track.get()!=track) {
+                prior.conflicted=true;
+                prior.track=null;
+                mark(trackContinuationConflict);
+            }
+            return;
+        }
+        if (trackContinuations.size()>=16) trackContinuations.remove(0);
+        TrackContinuationLink link=new TrackContinuationLink();
+        link.continuation=new WeakReference<>(continuation);
+        link.track=new WeakReference<>(track);
+        trackContinuations.add(link);
+        mark(nativeTrackContinuationConstructed);
+    }
+
+    synchronized void enterNativeTrackSourceRequest(Object track, Object continuation) {
+        Object scopedTrack=track;
+        TrackContinuationLink link=findTrackContinuation(continuation);
+        if (link!=null) {
+            Object remembered=link.track==null ? null : link.track.get();
+            if (link.conflicted || remembered==null) {
+                scopedTrack=null;
+            } else if (track==null) {
+                // Generated coroutine resume may pass null as its track arg.
+                // Recover ONLY by exact instance == of a prior Fp0 constructor.
+                scopedTrack=remembered;
+                mark(trackContinuationRecovered);
+            } else if (track!=remembered) {
+                scopedTrack=null;
+                link.conflicted=true;
+                link.track=null;
+                mark(trackContinuationConflict);
+            }
+        }
+        pushScope(activeTrackScopes,scopedTrack); // balanced even for null
         mark(nativeTrackSourceRequests);
-        if (track != null && wasNativeTrackFlowItem(track))
+        if (scopedTrack!=null && wasNativeTrackFlowItem(scopedTrack))
             mark(flowTrackSourceSameObject);
     }
 
@@ -435,6 +499,9 @@ final class StageBAudioEvidence {
             event("TRACK_SOURCE_READ_LINK", trackSourceReadLinks),
             event("NATIVE_TRACK_WRAPPER_CONSTRUCTED", nativeTrackWrapperConstructed),
             event("NATIVE_MAIN_SOURCE_ENTER", nativeMainSourceEnters),
+            event("NATIVE_TRACK_CONTINUATION_CONSTRUCTED", nativeTrackContinuationConstructed),
+            event("TRACK_CONTINUATION_RECOVERED", trackContinuationRecovered),
+            event("TRACK_CONTINUATION_CONFLICT", trackContinuationConflict),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }

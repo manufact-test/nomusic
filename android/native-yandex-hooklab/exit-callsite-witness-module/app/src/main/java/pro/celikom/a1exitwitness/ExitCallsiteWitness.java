@@ -188,6 +188,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoDataReadWitnessReady;
     private boolean nativeTrackFlowHookReady;
     private boolean nativeTrackRequestHookReady;
+    private boolean nativeTrackContinuationHookReady;
     private boolean nativeTrackWrapperHookReady;
     private boolean nativeMainSourceHookReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
@@ -2639,6 +2640,33 @@ public final class ExitCallsiteWitness extends XposedModule {
                 emit("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW","NO_HOOK");
             }
         }
+        if (!nativeTrackContinuationHookReady) {
+            try {
+                // Signed 2025.10.4 Gp0.new invokes Fp0.<init>(Gp0,Oe2)
+                // before its potentially suspending Hp0.const call.
+                Class<?> owner=Class.forName("Fp0",false,loader);
+                java.lang.reflect.Constructor<?> constructor=
+                    owner.getDeclaredConstructor(
+                        Class.forName("Gp0",false,loader),
+                        Class.forName("Oe2",false,loader));
+                constructor.setAccessible(true);
+                hook(constructor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed(); // exactly one original ctor
+                        try {
+                            STAGE_B_AUDIO.onNativeTrackContinuationConstructed(
+                                chain.getThisObject());
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                nativeTrackContinuationHookReady=true;
+                emit("AUDIO_NATIVE_TRACK_CONTINUATION_HOOK",
+                     "TRACK_CONTINUATION","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_TRACK_CONTINUATION_HOOK",
+                     "TRACK_CONTINUATION","NO_HOOK");
+            }
+        }
         if (!nativeTrackRequestHookReady) {
             try {
                 Class<?> owner=Class.forName("Gp0",false,loader);
@@ -2649,7 +2677,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(request).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         Object selectedTrack=chain.getArg(1);
-                        try { STAGE_B_AUDIO.enterNativeTrackSourceRequest(selectedTrack); }
+                        try {
+                            STAGE_B_AUDIO.enterNativeTrackSourceRequest(
+                                selectedTrack,chain.getArg(2));
+                        }
                         catch (Throwable ignored) { }
                         try {
                             return chain.proceed();

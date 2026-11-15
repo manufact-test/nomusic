@@ -24,9 +24,9 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 34);
-        for (int i=0;i<33;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[33].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 37);
+        for (int i=0;i<36;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[36].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
         Object factory=new Object(), source=new Object();
@@ -34,10 +34,10 @@ public final class StageBAudioEvidenceTest {
         Object wrongDescriptor=new Object(), wrongFactory=new Object(), wrongSource=new Object();
 
         e.onNativeTrackFlowEmission(track);
-        e.enterNativeTrackSourceRequest(track);
+        e.enterNativeTrackSourceRequest(track,null);
         e.onNativeTrackWrapperCreated(wrapper);
         e.exitNativeTrackSourceRequest();
-        e.enterNativeTrackSourceRequest(unselectedTrack);
+        e.enterNativeTrackSourceRequest(unselectedTrack,null);
         e.onNativeTrackWrapperCreated(unselectedWrapper);
         e.exitNativeTrackSourceRequest();
         e.enterNativeMainSourceRequest(wrapper);
@@ -65,7 +65,7 @@ public final class StageBAudioEvidenceTest {
         for(int i=0;i<names.length;i++) bucket(links,21+i,names[i],i==1?"FEW":"ONE");
         bucket(links,31,"NATIVE_TRACK_WRAPPER_CONSTRUCTED","FEW");
         bucket(links,32,"NATIVE_MAIN_SOURCE_ENTER","FEW");
-        check(links[33].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(links[36].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         // A nested missing argument/collected weak ref must never borrow its
         // outer track or wrapper. Scope accounting survives null arguments.
@@ -73,8 +73,8 @@ public final class StageBAudioEvidenceTest {
         Object nt=new Object(), nw=new Object(), nd=new Object();
         Object nf=new Object(), ns=new Object();
         nested.onNativeTrackFlowEmission(nt);
-        nested.enterNativeTrackSourceRequest(nt);
-        nested.enterNativeTrackSourceRequest(null);
+        nested.enterNativeTrackSourceRequest(nt,null);
+        nested.enterNativeTrackSourceRequest(null,null);
         nested.onNativeTrackWrapperCreated(new Object());
         nested.exitNativeTrackSourceRequest();
         nested.onNativeTrackWrapperCreated(nw);
@@ -99,7 +99,7 @@ public final class StageBAudioEvidenceTest {
         Object rd1=new Object(), rd2=new Object(), rf1=new Object(), rf2=new Object();
         Object rs1=new Object(), rs2=new Object();
         reset.onNativeTrackFlowEmission(rt);
-        reset.enterNativeTrackSourceRequest(rt);
+        reset.enterNativeTrackSourceRequest(rt,null);
         reset.onNativeTrackWrapperCreated(rw1);
         reset.exitNativeTrackSourceRequest();
         reset.enterNativeMainSourceRequest(rw1);
@@ -109,7 +109,7 @@ public final class StageBAudioEvidenceTest {
         reset.onExoSourceInstanceCreated(rs1,rf1);
         reset.onExoSourceInstanceOpen(rs1);
         reset.onExoSourceInstanceRead(rs1,1);
-        reset.enterNativeTrackSourceRequest(rt);
+        reset.enterNativeTrackSourceRequest(rt,null);
         reset.onNativeTrackWrapperCreated(rw2);
         reset.exitNativeTrackSourceRequest();
         reset.onExoSourceInstanceOpen(rs1);
@@ -134,10 +134,10 @@ public final class StageBAudioEvidenceTest {
         Object cd=new Object(),cf=new Object(),cs=new Object();
         collision.onNativeTrackFlowEmission(ct1);
         collision.onNativeTrackFlowEmission(ct2);
-        collision.enterNativeTrackSourceRequest(ct1);
+        collision.enterNativeTrackSourceRequest(ct1,null);
         collision.onNativeTrackWrapperCreated(cw1);
         collision.exitNativeTrackSourceRequest();
-        collision.enterNativeTrackSourceRequest(ct2);
+        collision.enterNativeTrackSourceRequest(ct2,null);
         collision.onNativeTrackWrapperCreated(cw2);
         collision.exitNativeTrackSourceRequest();
         collision.enterNativeMainSourceRequest(cw1);
@@ -152,6 +152,48 @@ public final class StageBAudioEvidenceTest {
         collision.onExoSourceInstanceRead(cs,1);
         bucket(collision.exportLines(),27,"TRACK_DESCRIPTOR_FACTORY_LINK","NONE");
         bucket(collision.exportLines(),30,"TRACK_SOURCE_READ_LINK","NONE");
+
+        // The pinned Kotlin Fp0 continuation is created before suspension.
+        // A second Gp0.new invocation on resume may have a null track arg.
+        StageBAudioEvidence resumed=new StageBAudioEvidence();
+        Object rt0=new Object(), continuation0=new Object(), wrapped0=new Object();
+        resumed.onNativeTrackFlowEmission(rt0);
+        resumed.enterNativeTrackSourceRequest(rt0,null);
+        resumed.onNativeTrackContinuationConstructed(continuation0);
+        resumed.exitNativeTrackSourceRequest(); // coroutine suspended
+        resumed.enterNativeTrackSourceRequest(null,new Object());
+        resumed.onNativeTrackWrapperCreated(new Object()); // unknown resume FAIL
+        resumed.exitNativeTrackSourceRequest();
+        resumed.enterNativeTrackSourceRequest(null,continuation0);
+        resumed.onNativeTrackWrapperCreated(wrapped0);
+        resumed.exitNativeTrackSourceRequest();
+        bucket(resumed.exportLines(),33,"NATIVE_TRACK_CONTINUATION_CONSTRUCTED","ONE");
+        bucket(resumed.exportLines(),34,"TRACK_CONTINUATION_RECOVERED","ONE");
+        bucket(resumed.exportLines(),35,"TRACK_CONTINUATION_CONFLICT","NONE");
+        bucket(resumed.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
+        // Explicit different selected Track with the same Fp0 must revoke
+        // continuation identity permanently, including subsequent null args.
+        Object rt1=new Object();
+        resumed.onNativeTrackFlowEmission(rt1);
+        resumed.enterNativeTrackSourceRequest(rt1,continuation0);
+        resumed.onNativeTrackWrapperCreated(new Object());
+        resumed.exitNativeTrackSourceRequest();
+        resumed.enterNativeTrackSourceRequest(null,continuation0);
+        resumed.onNativeTrackWrapperCreated(new Object());
+        resumed.exitNativeTrackSourceRequest();
+        bucket(resumed.exportLines(),35,"TRACK_CONTINUATION_CONFLICT","ONE");
+        bucket(resumed.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
+        // Reentrancy: a null inner resumed continuation must mask outer Track.
+        StageBAudioEvidence masked=new StageBAudioEvidence();
+        Object mt=new Object();
+        masked.onNativeTrackFlowEmission(mt);
+        masked.enterNativeTrackSourceRequest(mt,null);
+        masked.enterNativeTrackSourceRequest(null,new Object());
+        masked.onNativeTrackWrapperCreated(new Object());
+        masked.exitNativeTrackSourceRequest();
+        masked.onNativeTrackWrapperCreated(new Object());
+        masked.exitNativeTrackSourceRequest();
+        bucket(masked.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
 
         Object different=new Object();
         e.onExoSourceInstanceCreated(different);
@@ -235,7 +277,10 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoDescriptorBuilt(result)", code)
         self.assertIn("STAGE_B_AUDIO.onNativeExoDescriptorBuiltForCurrentWrapper(result)", code)
         self.assertIn("STAGE_B_AUDIO.onNativeTrackFlowEmission(chain.getArg(0))", code)
-        self.assertIn("STAGE_B_AUDIO.enterNativeTrackSourceRequest(selectedTrack)", code)
+        self.assertIn("STAGE_B_AUDIO.enterNativeTrackSourceRequest(", code)
+        self.assertIn("selectedTrack,chain.getArg(2)", code)
+        self.assertIn("STAGE_B_AUDIO.onNativeTrackContinuationConstructed(", code)
+        self.assertIn('Class.forName("Fp0",false,loader)', code)
         self.assertIn("STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.enterNativeMainSourceRequest(chain.getArg(2))", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceCreated( result,chain.getThisObject());", " ".join(code.split()))
