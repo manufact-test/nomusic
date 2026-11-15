@@ -1,3 +1,50 @@
+# CELIKOM Windows — актуальная передача W157 (15.11.2026)
+
+**Состояние:** VPN no-kUrl continuity завершена в коде и прошла обе CI. Остался один внутренний owner-stage пакет и ручная проверка на ПК владельца.
+
+## Источник истины
+- Репозиторий: `manufact-test/nomusic`
+- Единственная рабочая ветка: `main`
+- Проверенный source checkpoint: `2948c38343cc8fba0027fe2c1a38b104b38a80ca`
+- Версия приложения для итогового пакета: `0.24.39.0`
+- Native module: `0.24.30`
+- Точный backup кода: `backup/windows-main-post-w157-no-kurl-ci-green-20261115` @ `2948c38343cc8fba0027fe2c1a38b104b38a80ca`
+- Backup до W157: `backup/windows-main-pre-w157-no-kurl-guard-matrix-20261115` @ `dce5d79ea505e40dc901c08da206712df07ef730`
+
+## Что закрыто
+- no-kUrl hold хранит только ID ранее сопоставленного текущего трека.
+- Host при входе в восстановленное состояние повторно проверяет текущий ID и PLAYING/PAUSED.
+- Renderer независимо проверяет ID, прежний mapping и состояние плеера.
+- Next, Manual Stop, уничтожение декодера, logout, entitlement denial, смена/некорректность API origin, недоступное состояние и истечение 10 минут закрывают hold.
+- После потери источника старый hold не создаётся повторно; повторный hold разрешается только после свежего SOURCE_MAPPED текущего трека.
+- Continuity hint не является доказательством подмены. Heartbeat остаётся `source=UNKNOWN`, зелёный статус из no-kUrl hold не возникает.
+- Реальная потеря источника проходит штатное ограниченное восстановление актуального трека.
+
+## Подтверждённые CI
+- Main CI `43760597485` — SUCCESS.
+- Windows Integration CI `43760597507` — SUCCESS.
+- W22/W23/W60 — 151/151; все адресные W157-тесты прошли.
+- W23 native bridge bundle, W20 installer allowlist и W136 version identity — PASS.
+- Версия `0.24.39.0` и native module `0.24.30` синхронизированы. Изменялись только version metadata и соответствующая CI-проверка; updater/P-256 логика не менялась.
+
+## Единственный оставшийся шаг
+Собрать ровно один внутренний W20 owner-stage пакет из `main`:
+- EXE: `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`
+- ZIP: `CELIKOM-Windows-0.24.39.zip`
+- `SHA256SUMS.txt`
+- Только приватный GitHub Actions artifact, без Release, production feed, Hostinger или публикации клиентам.
+- Не создавать промежуточные EXE/ZIP/установщики и не запускать второй build.
+
+**Старый Draft 0.24.38 не публиковать и не передавать владельцу как исправление.** Диагностика W54 уже получена и разобрана — повторно её не запрашивать.
+
+## Ручная проверка владельца
+После получения единственного пакета проверить быстрый VPN reconnect на том же треке, Next во время outage, Manual Stop, logout/entitlement denial и восстановление после потери текущего плеера. No-kUrl hold не должен показывать подтверждённую подмену или зелёный статус. До этой проверки не заявлять о runtime acceptance.
+
+## Ограничения
+Только CELIKOM Windows. Не трогать Android, браузерное расширение, backend, updater/P-256, autostart/tray, UI redesign или архитектуру.
+
+---
+
 # CELIKOM Windows — CURRENT HANDOFF / W54 NO-kUrl VPN FIX / 15 NOVEMBER 2026
 
 **This is the authoritative current handoff.** Continue from the current source and the one remaining narrow VPN task. W54 diagnostics have already been received and reviewed; do not ask the owner to resend them.

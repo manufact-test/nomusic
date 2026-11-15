@@ -51,3 +51,10 @@ Do not ask the owner to test intermediate builds. The only owner package is the 
 - The unpublished Draft Release is `celikom-windows-v0.24.38-owner-bootstrap` (release ID `446239144`). It contains exactly one `CELIKOM-Windows-0.24.38.exe`, one `CELIKOM-Windows-0.24.38.zip` and `SHA256SUMS.txt`. The ZIP was checked to contain exactly one EXE at archive root, with content hash equal to the installer. No public Actions artifact was uploaded.
 - Owner remains on 0.24.37 until the manual bootstrap is downloaded and installed. **No owner-PC installation or field acceptance has happened yet.**
 - Next: perform this single grouped W154 owner acceptance using only the 0.24.38 package. Do not build or test intermediate packages. Step 7 (production updater/feed integrity) is deferred until DNS/TLS and the signed production feed are activated. Do not claim production automatic update delivery before then.
+
+
+## W157 release correction — 15.11.2026
+
+Старый Draft `0.24.38` не является исправлением VPN no-kUrl и не должен публиковаться или передаваться владельцу. После завершения W157 source checkpoint `2948c38343cc8fba0027fe2c1a38b104b38a80ca` прошёл Main CI `43760597485` и Windows Integration CI `43760597507` — оба SUCCESS.
+
+Единственный owner-stage пакет готовится как app `0.24.39.0` / native module `0.24.30`, имя установщика `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`. Допустим только приватный GitHub Actions artifact с одним EXE, одним ZIP и SHA256 manifest. Release, production feed и клиентская публикация запрещены до ручной проверки владельца.

@@ -100,3 +100,17 @@ W54 confirms the internal event sequence of source hold followed by revalidation
 W54 is a VPN diagnostic, not a separate test of fully closing Yandex Music. The Yandex lifecycle fix remains subject to owner-PC confirmation.
 
 No new installer/package was built from this diagnostic review. The unpublished 0.24.38 Draft must not be published or sent as the W157 fix.
+
+
+## Дополнение W157 — результат реализации 15.11.2026
+
+Диагностика владельца подтверждала отсутствие CDP `kUrl`; повторная диагностика не требуется. No-kUrl hold оставлен исключительно как continuity hint по ID ранее сопоставленного трека.
+
+Реализация завершена на checkpoint `2948c38343cc8fba0027fe2c1a38b104b38a80ca`:
+- Host повторно проверяет текущий Yandex ID и PLAYING/PAUSED при восстановлении.
+- Renderer независимо сверяет тот же ID, playback state и наличие прежнего mapping.
+- Next, Manual Stop, уничтожение декодера, logout, entitlement denial, смена/некорректность origin, unavailable state и 10-minute timeout закрывают hold.
+- Hold не возобновляется после потери источника до свежего mapping текущего трека.
+- Источник не маркируется подтверждённым: heartbeat `UNKNOWN`, ложного зелёного статуса нет.
+
+Main CI `43760597485` и Windows Integration CI `43760597507` — SUCCESS. W22/W23/W60 — 151/151; адресные W157-тесты прошли. Итоговая версия для owner-stage пакета: app `0.24.39.0`, native module `0.24.30`. Старый Draft `0.24.38` не публиковать.

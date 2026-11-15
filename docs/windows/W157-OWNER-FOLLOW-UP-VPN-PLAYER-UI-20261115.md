@@ -200,3 +200,19 @@ See the standalone [W54 diagnostic analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261
 - Remaining: add no-`kUrl`-specific regression coverage for Next/current-track change, manual Stop and player destruction, logout, denial, API-origin change, invalid/unavailable state, recovery timeout, and bounded recovery after actual source loss. Then rerun both CI workflows.
 - Audible limitation: W54 says `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING` and `PlayerAudibleEventObserved=false`. This confirms the internal revalidation/reload sequence, not the actual sound waveform or pop.
 
+
+
+## W157 closure — 15.11.2026
+
+**Результат:** VPN no-kUrl continuity закрыта в коде. Рабочий checkpoint `2948c38343cc8fba0027fe2c1a38b104b38a80ca`; exact backup `backup/windows-main-post-w157-no-kurl-ci-green-20261115` на том же SHA.
+
+- Host принимает hold только при совпадении текущего Yandex track ID с последним mapped ID и состоянии PLAYING/PAUSED.
+- При восстановлении после outage host повторно читает текущий плеер; Next, Stop, уничтожение player и недоступное состояние сбрасывают hold.
+- Renderer отдельно сверяет текущий ID, PLAYING/PAUSED и `adapter.hasMappedTrack()`.
+- Hold блокируется после logout, entitlement denial, origin change, invalid/unavailable state, потери декодера и timeout; повторное разрешение — только после свежего `SOURCE_MAPPED` для текущего трека.
+- TTL hold — 10 минут. Он не подтверждает фактический audio source: heartbeat остаётся `UNKNOWN`, зелёный статус не выдаётся.
+- Реальная потеря источника использует существующий bounded refresh актуального трека.
+
+**Проверки:** Main CI `43760597485` SUCCESS; Windows Integration CI `43760597507` SUCCESS; W22/W23/W60 — 151/151. Все адресные W157-тесты, W20 installer allowlist и W136 metadata contract прошли.
+
+**Пакет:** версия приложения `0.24.39.0`, native module `0.24.30`; один внутренний owner-stage EXE+ZIP+SHA256. Старый Draft `0.24.38` запрещён к публикации. Ручная проверка владельца ещё не выполнена.
