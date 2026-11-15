@@ -789,7 +789,8 @@ try
                 supervisorSha256 = supervisorHash ?? new string('4', 64),
                 publishedAt = "2026-11-14T00:00:00Z",
                 expiresAt = "2026-11-20T00:00:00Z",
-                minimumVersion = "0.24.20", mandatory = false, notes = "Safe update"
+                minimumVersion = "0.24.20", mandatory = false, notes = "Safe update",
+                rollback = (object?)null
             });
         StableUpdateManifestVerifier.VerifiedRelease VerifyManifest(byte[] bytes,
             byte[]? signature = null, long previousSequence = 41) =>
