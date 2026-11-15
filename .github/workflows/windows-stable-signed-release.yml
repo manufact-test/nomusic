@@ -1,4 +1,4 @@
-name: CELIKOM Windows protected signed stable release (manual)
+name: CELIKOM Windows P-256 signed stable release (manual)
 
 on:
   workflow_dispatch:
@@ -15,6 +15,11 @@ on:
         description: Manifest expiry in UTC (within 30 days)
         required: true
         type: string
+      publish_to_production:
+        description: Publish only after celikom.com DNS, TLS and feed are live
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -23,7 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sign:
+  prepare:
     if: github.ref == 'refs/heads/main'
     environment: windows-stable-production
     runs-on: windows-2022
@@ -31,7 +36,6 @@ jobs:
     env:
       CELIKOM_STABLE_ORIGIN: ${{ vars.CELIKOM_STABLE_ORIGIN }}
       CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64: ${{ vars.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64 }}
-      CELIKOM_STABLE_SIGNER_SHA256: ${{ vars.CELIKOM_STABLE_SIGNER_SHA256 }}
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_SEQUENCE: ${{ inputs.sequence }}
       RELEASE_EXPIRES: ${{ inputs.expires_at }}
@@ -45,14 +49,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Verify immutable public trust, version and test release contracts
+      - name: Verify fixed P-256 trust, release version and contracts
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
+          if ($env:CELIKOM_STABLE_ORIGIN -ne 'https://celikom.com' -or
+              !$env:CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64) {
+            throw 'W155_PRODUCTION_P256_TRUST_NOT_PROVISIONED'
+          }
           if ($env:RELEASE_VERSION -notmatch '^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,5}$' -or
               $env:RELEASE_SEQUENCE -notmatch '^[1-9][0-9]{0,14}$' -or
               [version]$env:RELEASE_VERSION -le [version]'0.24.37') {
-            throw 'W148_VERSION_OR_SEQUENCE_INVALID'
+            throw 'W155_VERSION_OR_SEQUENCE_INVALID'
           }
           $gui=[xml](Get-Content windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -Raw)
           $supervisor=[xml](Get-Content windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj -Raw)
@@ -61,107 +69,72 @@ jobs:
               $supervisor.Project.PropertyGroup.Version -ne $env:RELEASE_VERSION -or
               !$iss.Contains("AppVersion=$env:RELEASE_VERSION") -or
               !$iss.Contains("VersionInfoVersion=$env:RELEASE_VERSION.0")) {
-            throw 'W148_RELEASE_VERSION_MUST_BE_COMMITTED_TO_MAIN'
+            throw 'W155_RELEASE_VERSION_MUST_BE_COMMITTED_TO_MAIN'
           }
           node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs
-          if ($LASTEXITCODE -ne 0) { throw 'W148_RELEASE_CONTRACT_FAILED' }
+          if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_CONTRACT_FAILED' }
           node .github/scripts/windows-stable-trust-embed.mjs windows-companion/w15/Celikom.Companion/StableUpdateTrustConfiguration.cs
-          if ($LASTEXITCODE -ne 0) { throw 'W148_PRODUCTION_TRUST_MISSING' }
-      - name: Build native and Windows binaries, sign actual payload and installer
+          if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_TRUST_EMBED_FAILED' }
+      - name: Build native and Windows binaries without Authenticode or PFX
         shell: pwsh
-        env:
-          STABLE_PFX: ${{ secrets.CELIKOM_STABLE_PFX_BASE64 }}
-          STABLE_PFX_PASSWORD: ${{ secrets.CELIKOM_STABLE_PFX_PASSWORD }}
         run: |
           $ErrorActionPreference='Stop'
-          if (!$env:STABLE_PFX -or !$env:STABLE_PFX_PASSWORD) {
-            throw 'W148_TRUSTED_AUTHENTICODE_CREDENTIALS_MISSING'
-          }
-          $pfx=Join-Path $env:RUNNER_TEMP 'celikom-stable-signing.pfx'
-          [IO.File]::WriteAllBytes($pfx,[Convert]::FromBase64String($env:STABLE_PFX))
-          $cert=[Security.Cryptography.X509Certificates.X509Certificate2]::new(
-            $pfx,$env:STABLE_PFX_PASSWORD,
-            [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
-          try {
-            $fingerprint=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($cert.RawData)).ToLowerInvariant()
-            $chain=[Security.Cryptography.X509Certificates.X509Chain]::new()
-            try { $trusted=$chain.Build($cert) } finally { $chain.Dispose() }
-            $eku=@($cert.Extensions | Where-Object {
-              $_ -is [Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]
-            } | ForEach-Object { $_.EnhancedKeyUsages | ForEach-Object { $_.Value } })
-            if (!$trusted -or !$cert.HasPrivateKey -or $cert.NotAfter -le [datetime]::UtcNow -or
-                $fingerprint -ne $env:CELIKOM_STABLE_SIGNER_SHA256.ToLowerInvariant() -or
-                $eku -notcontains '1.3.6.1.5.5.7.3.3') {
-              throw 'W148_SIGNER_NOT_TRUSTED_OR_PINNED'
-            }
-          } finally { $cert.Dispose() }
-          $sdk=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
-          $sign=Get-ChildItem $sdk -Filter signtool.exe -Recurse -ErrorAction Stop |
-            Where-Object { $_.FullName -match '\\x64\\' } |
-            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-          if (!$sign) { throw 'W148_SIGNTOOL_MISSING' }
           Push-Location windows-companion/w23
           try {
             npm install --no-audit --no-fund --no-package-lock
-            if ($LASTEXITCODE -ne 0) { throw 'W148_NPM_FAILED' }
+            if ($LASTEXITCODE -ne 0) { throw 'W155_NPM_FAILED' }
             npm run build
-            if ($LASTEXITCODE -ne 0) { throw 'W148_NATIVE_FAILED' }
+            if ($LASTEXITCODE -ne 0) { throw 'W155_NATIVE_FAILED' }
           } finally { Pop-Location }
           foreach ($project in @('Celikom.Companion','Celikom.UpdateSupervisor')) {
             dotnet publish "windows-companion/w15/$project/$project.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o windows-companion/w20/publish
-            if ($LASTEXITCODE -ne 0) { throw 'W148_DOTNET_PUBLISH_FAILED' }
-            $file=if($project -eq 'Celikom.Companion'){'CELIKOM.Companion.exe'}else{'CELIKOM.UpdateSupervisor.exe'}
-            $path="windows-companion/w20/publish/$file"
-            & $sign sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfx /p $env:STABLE_PFX_PASSWORD $path
-            if ($LASTEXITCODE -ne 0) { throw 'W148_APP_SIGNATURE_FAILED' }
-            & $sign verify /pa /all $path
-            if ($LASTEXITCODE -ne 0) { throw 'W148_APP_SIGNATURE_UNTRUSTED' }
+            if ($LASTEXITCODE -ne 0) { throw 'W155_DOTNET_PUBLISH_FAILED' }
           }
           $compiler=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'
           if (!(Test-Path $compiler)) {
             choco install innosetup -y --no-progress --limit-output
-            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W148_INNO_INSTALL_FAILED' }
+            if ($LASTEXITCODE -notin @(0,3010)) { throw 'W155_INNO_INSTALL_FAILED' }
           }
-          if (!(Test-Path $compiler)) { throw 'W148_INNO_MISSING' }
+          if (!(Test-Path $compiler)) { throw 'W155_INNO_MISSING' }
           $base="CELIKOM-Windows-$env:RELEASE_VERSION"
           & $compiler "/F$base" windows-companion/w20/installer/CELIKOM.iss
-          if ($LASTEXITCODE -ne 0) { throw 'W148_INNO_BUILD_FAILED' }
+          if ($LASTEXITCODE -ne 0) { throw 'W155_INNO_BUILD_FAILED' }
           $installer="windows-companion/w20/output/$base.exe"
-          if (!(Test-Path $installer)) { throw 'W148_EXACT_INSTALLER_MISSING' }
-          & $sign sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfx /p $env:STABLE_PFX_PASSWORD $installer
-          if ($LASTEXITCODE -ne 0) { throw 'W148_INSTALLER_SIGNATURE_FAILED' }
-          & $sign verify /pa /all $installer
-          if ($LASTEXITCODE -ne 0) { throw 'W148_INSTALLER_NOT_TRUSTED' }
-          "CELIKOM_SIGNED_INSTALLER=$installer" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          Remove-Item $pfx -Force
-      - name: Sign exact manifest and validate immutable version package
+          if (!(Test-Path $installer)) { throw 'W155_EXACT_INSTALLER_MISSING' }
+          "CELIKOM_STABLE_INSTALLER=$installer" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Sign exact manifest with protected P-256 key and verify payload hashes
         shell: pwsh
         env:
           MANIFEST_PRIVATE_PEM: ${{ secrets.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM }}
         run: |
           $ErrorActionPreference='Stop'
-          if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W148_P256_PRIVATE_KEY_NOT_CONFIGURED' }
+          if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W155_P256_PRIVATE_KEY_NOT_CONFIGURED' }
           $key=Join-Path $env:RUNNER_TEMP 'stable-private.pem'
           $pub=Join-Path $env:RUNNER_TEMP 'stable-public.der'
-          [IO.File]::WriteAllText($key,$env:MANIFEST_PRIVATE_PEM)
-          [IO.File]::WriteAllBytes($pub,[Convert]::FromBase64String($env:CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64))
           $out=Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
-          node .github/scripts/windows-stable-manifest.mjs --package "$env:CELIKOM_SIGNED_INSTALLER" --application windows-companion/w20/publish/CELIKOM.Companion.exe --native-host windows-companion/w23/dist/host.cjs --renderer windows-companion/w23/dist/renderer.js --supervisor windows-companion/w20/publish/CELIKOM.UpdateSupervisor.exe --version "$env:RELEASE_VERSION" --sequence "$env:RELEASE_SEQUENCE" --origin "$env:CELIKOM_STABLE_ORIGIN" --private-key-file "$key" --pinned-public-key-der "$pub" --output-dir "$out" --expires-at "$env:RELEASE_EXPIRES"
-          if ($LASTEXITCODE -ne 0) { throw 'W148_MANIFEST_SIGNING_FAILED' }
-          Copy-Item "$env:CELIKOM_SIGNED_INSTALLER" (Join-Path $out "$env:RELEASE_VERSION")
-          node .github/scripts/windows-stable-release-verify.mjs "$out" "$env:RELEASE_VERSION" "$env:RELEASE_SEQUENCE"
-          if ($LASTEXITCODE -ne 0) { throw 'W148_RELEASE_VERIFICATION_FAILED' }
-          Remove-Item $key,$pub,(Join-Path $out 'manifest-public-key.der') -Force
+          try {
+            [IO.File]::WriteAllText($key,$env:MANIFEST_PRIVATE_PEM,[Text.UTF8Encoding]::new($false))
+            [IO.File]::WriteAllBytes($pub,[Convert]::FromBase64String($env:CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64))
+            Remove-Item Env:MANIFEST_PRIVATE_PEM
+            node .github/scripts/windows-stable-manifest.mjs --package "$env:CELIKOM_STABLE_INSTALLER" --application windows-companion/w20/publish/CELIKOM.Companion.exe --native-host windows-companion/w23/dist/host.cjs --renderer windows-companion/w23/dist/renderer.js --supervisor windows-companion/w20/publish/CELIKOM.UpdateSupervisor.exe --version "$env:RELEASE_VERSION" --sequence "$env:RELEASE_SEQUENCE" --origin "$env:CELIKOM_STABLE_ORIGIN" --private-key-file "$key" --pinned-public-key-der "$pub" --output-dir "$out" --expires-at "$env:RELEASE_EXPIRES"
+            if ($LASTEXITCODE -ne 0) { throw 'W155_MANIFEST_SIGNING_FAILED' }
+            Copy-Item "$env:CELIKOM_STABLE_INSTALLER" (Join-Path $out "$env:RELEASE_VERSION")
+            node .github/scripts/windows-stable-release-verify.mjs "$out" "$env:RELEASE_VERSION" "$env:RELEASE_SEQUENCE"
+            if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_VERIFICATION_FAILED' }
+          } finally {
+            Remove-Item $key,$pub -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:MANIFEST_PRIVATE_PEM -ErrorAction SilentlyContinue
+          }
       - uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Windows-SIGNED-stable-${{ inputs.version }}-${{ github.sha }}
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
           path: ${{ runner.temp }}/celikom-stable-ready
           if-no-files-found: error
           retention-days: 5
 
   publish:
-    needs: sign
-    if: github.ref == 'refs/heads/main'
+    needs: prepare
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true
     environment: windows-stable-production
     runs-on: ubuntu-22.04
     timeout-minutes: 20
@@ -179,9 +152,9 @@ jobs:
           node-version: '24'
       - uses: actions/download-artifact@v4
         with:
-          name: CELIKOM-Windows-SIGNED-stable-${{ inputs.version }}-${{ github.sha }}
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
           path: ${{ runner.temp }}/celikom-stable-ready
-      - name: Publish exact signed immutable release then latest on approved HTTPS
+      - name: Publish exact P-256 signed immutable release then latest on approved HTTPS
         shell: bash
         run: |
           bash -n .github/scripts/windows-stable-publish-hostinger.sh

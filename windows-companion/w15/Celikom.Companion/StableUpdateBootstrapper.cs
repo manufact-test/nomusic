@@ -3,8 +3,8 @@ using System.Text.RegularExpressions;
 namespace Celikom.Companion;
 
 /// <summary>
-/// W116 first-install bootstrap. It downloads only the signed installer for
-/// the exact currently installed version, verifies the Authenticode signer and
+/// W116 first-install bootstrap. It downloads only the manifest-verified installer for
+/// the exact currently installed version, verifies the signed manifest and
 /// every installed payload byte, and seeds a durable LKG cache. It never
 /// launches an installer, changes Yandex, or interrupts playback.
 /// </summary>
@@ -41,18 +41,12 @@ public static class StableUpdateBootstrapper
     /// seed rollback state or launch an installer.
     /// </summary>
     public static async Task<StableUpdateManifestVerifier.VerifiedRelease>
-        FetchInstalledSignedReleaseAsync(
+        FetchInstalledManifestReleaseAsync(
             Uri officialOrigin, byte[] pinnedPublicKey,
-            string pinnedSignerCertificateSha256,
             CancellationToken cancellationToken = default)
     {
         if (!OperatingSystem.IsWindows())
             throw new IOException("STABLE_ROLLBACK_WINDOWS_ONLY");
-        if (pinnedSignerCertificateSha256 is not { Length: 64 } ||
-            !Regex.IsMatch(pinnedSignerCertificateSha256,
-                "^[a-f0-9]{64}$", RegexOptions.CultureInvariant))
-            throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
-
         var installed = InstalledPayloadPaths.CurrentProcess();
         var installedVersion = AppUpdateManager.RunningVersion;
         if (installedVersion.Major < 0 || installedVersion.Minor < 0 ||
@@ -67,17 +61,17 @@ public static class StableUpdateBootstrapper
         return release;
     }
 
-    public static async Task<StableUpdateRollbackJournal.CachedSignedPackage>
+    public static async Task<StableUpdateRollbackJournal.CachedVerifiedPackage>
         EnsureInitialLastKnownGoodAsync(
             Uri officialOrigin, byte[] pinnedPublicKey,
-            string pinnedSignerCertificateSha256,
+            string manifestPublicKeySha256,
             CancellationToken cancellationToken = default)
     {
         await BootstrapGate.WaitAsync(cancellationToken);
         try
         {
             return await EnsureInitialLastKnownGoodCoreAsync(
-                officialOrigin, pinnedPublicKey, pinnedSignerCertificateSha256,
+                officialOrigin, pinnedPublicKey, manifestPublicKeySha256,
                 cancellationToken);
         }
         finally
@@ -86,18 +80,18 @@ public static class StableUpdateBootstrapper
         }
     }
 
-    private static async Task<StableUpdateRollbackJournal.CachedSignedPackage>
+    private static async Task<StableUpdateRollbackJournal.CachedVerifiedPackage>
         EnsureInitialLastKnownGoodCoreAsync(
             Uri officialOrigin, byte[] pinnedPublicKey,
-            string pinnedSignerCertificateSha256,
+            string manifestPublicKeySha256,
             CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows())
             throw new IOException("STABLE_ROLLBACK_WINDOWS_ONLY");
-        if (pinnedSignerCertificateSha256 is not { Length: 64 } ||
-            !Regex.IsMatch(pinnedSignerCertificateSha256,
+        if (manifestPublicKeySha256 is not { Length: 64 } ||
+            !Regex.IsMatch(manifestPublicKeySha256,
                 "^[a-f0-9]{64}$", RegexOptions.CultureInvariant))
-            throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
+            throw new IOException("STABLE_ROLLBACK_MANIFEST_KEY_UNPINNED");
 
         var installed = InstalledPayloadPaths.CurrentProcess();
         var installedVersion = AppUpdateManager.RunningVersion;
@@ -109,7 +103,7 @@ public static class StableUpdateBootstrapper
         try
         {
             var existing = StableUpdateRollbackJournal.GetLastKnownGood(
-                root, pinnedSignerCertificateSha256);
+                root, manifestPublicKeySha256);
             VerifyInstalledPayloads(existing.Release, installed);
             if (!SameVersion(existing.Release.Version, installedVersion))
                 throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_INSTALLED_VERSION_MISMATCH");
@@ -127,15 +121,15 @@ public static class StableUpdateBootstrapper
             throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_VERSION_MISMATCH");
 
         var staged = await StableUpdatePackageStager.FetchVerifiedAsync(
-            release, pinnedSignerCertificateSha256, cancellationToken);
+            release, cancellationToken);
         try
         {
-            StableUpdateRollbackJournal.SeedInitialLastKnownGoodSigned(
-                root, release, staged.Path, pinnedSignerCertificateSha256,
+            StableUpdateRollbackJournal.SeedInitialLastKnownGoodVerified(
+                root, release, staged.Path, manifestPublicKeySha256,
                 installed.Application, installed.NativeHost,
                 installed.Renderer, installed.Supervisor);
             var seeded = StableUpdateRollbackJournal.GetLastKnownGood(
-                root, pinnedSignerCertificateSha256);
+                root, manifestPublicKeySha256);
             VerifyInstalledPayloads(seeded.Release, installed);
             return seeded;
         }

@@ -6,7 +6,7 @@ namespace Celikom.Companion;
 /// <summary>
 /// W109 durable, user-scoped record of an in-place stable update.
 /// No installer is executed by this class. Production callers must use
-/// PrepareSigned, which checks both signed packages before retaining a
+/// PrepareManifestVerified, which checks both manifest-verified packages before retaining a
 /// byte-identical previous installer. This is groundwork for the independent
 /// supervisor, not a substitute for one.
 /// </summary>
@@ -21,13 +21,13 @@ public static class StableUpdateRollbackJournal
     public enum Decision { Wait, AcceptNewVersion, RequestRollback, ManualRecovery }
 
     public sealed record HealthEvidence(
-        bool ExactSignedNewExe, bool BridgeResponds,
+        bool ExactVerifiedNewExe, bool BridgeResponds,
         bool SessionPreserved, bool NativeIntegrationConsistent);
 
     public sealed record Record(
         int Schema, Guid Id, Phase State, string PreviousVersion,
         string TargetVersion, string PreviousSha256, string TargetSha256,
-        string SignerSha256, long PreviousSize, long PreviousSequence,
+        string ManifestPublicKeySha256, long PreviousSize, long PreviousSequence,
         long TargetSequence, long DeadlineUnix, int RollbackAttempts,
         bool ExpectedSession, bool NativeWasInstalled,
         string SessionIdentitySha256 = "",
@@ -41,8 +41,8 @@ public static class StableUpdateRollbackJournal
     public static string DefaultPrivateRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "CELIKOM", "Windows", "StableRollback");
-    private const string PreviousName = "previous-signed-setup.exe";
-    private const string TargetName = "target-signed-setup.exe";
+    private const string PreviousName = "previous-verified-setup.exe";
+    private const string TargetName = "target-verified-setup.exe";
     public static string GetSnapshotDirectory(string privateRoot, Guid transaction)
     {
         if (transaction == Guid.Empty)
@@ -55,18 +55,18 @@ public static class StableUpdateRollbackJournal
 
     public static bool IsAllowedTransition(Phase from, Phase to) => Allowed(from, to);
     private static readonly byte[] Purpose =
-        System.Text.Encoding.UTF8.GetBytes("CELIKOM.Windows.StableRollback.W109.v1");
+        System.Text.Encoding.UTF8.GetBytes("CELIKOM.Windows.StableRollback.W109.v2");
 
     /// <summary>
-    /// Validates both signed installers before writing a transaction.
+    /// Validates both manifest-verified installers before writing a transaction.
     /// A prior installed app is NOT automatically a trusted rollback package:
-    /// retain a separate verified signed installer with the correct version.
+    /// retain a separate verified manifest-verified installer with the correct version.
     /// </summary>
-    public static Record PrepareSigned(
+    public static Record PrepareManifestVerified(
         string privateRoot, StableUpdateManifestVerifier.VerifiedRelease previous,
         string previousInstaller,
         StableUpdateManifestVerifier.VerifiedRelease target, string targetInstaller,
-        string pinnedSignerSha256, Version runningVersion,
+        string pinnedManifestPublicKeySha256, Version runningVersion,
         DateTimeOffset now, bool hasSession, bool nativeWasInstalled)
     {
         // Capture the EXISTING account/installation identity before the
@@ -77,20 +77,20 @@ public static class StableUpdateRollbackJournal
         if (hasSession && identity is null)
             throw new IOException("STABLE_ROLLBACK_EXISTING_SESSION_UNREADABLE");
         return PrepareCore(privateRoot, previous, previousInstaller, target,
-            targetInstaller, pinnedSignerSha256, runningVersion, now,
+            targetInstaller, pinnedManifestPublicKeySha256, runningVersion, now,
             hasSession, nativeWasInstalled,
             StableUpdatePackageStager.VerifyInstaller, identity ?? "");
     }
 
     // CI-only verifier seam; real entry point above always calls the full
-    // SHA256 + Authenticode + signer pin + PE identity verifier.
+    // SHA256 + manifest SHA-256 + PE identity verifier.
     internal static Record PrepareCore(
         string privateRoot, StableUpdateManifestVerifier.VerifiedRelease previous,
         string previousInstaller,
         StableUpdateManifestVerifier.VerifiedRelease target, string targetInstaller,
-        string pinnedSignerSha256, Version runningVersion,
+        string pinnedManifestPublicKeySha256, Version runningVersion,
         DateTimeOffset now, bool hasSession, bool nativeWasInstalled,
-        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify,
+        Action<string, StableUpdateManifestVerifier.VerifiedRelease> verify,
         string sessionIdentitySha256 = "")
     {
         RequireWindows();
@@ -104,7 +104,7 @@ public static class StableUpdateRollbackJournal
             target.Sequence <= previous.Sequence ||
             target.RollbackFrom != null || previous.RollbackFrom != null ||
             !ValidSha(previous.Sha256) || !ValidSha(target.Sha256) ||
-            !ValidSha(pinnedSignerSha256) ||
+            !ValidSha(pinnedManifestPublicKeySha256) ||
             !ValidSha(previous.ApplicationSha256) || !ValidSha(target.ApplicationSha256) ||
             !ValidSha(previous.NativeHostSha256) || !ValidSha(target.NativeHostSha256) ||
             !ValidSha(previous.RendererSha256) || !ValidSha(target.RendererSha256) ||
@@ -114,8 +114,8 @@ public static class StableUpdateRollbackJournal
             previous.Sequence <= 0 || target.Sequence <= 0 ||
             now > target.ExpiresAt)
             throw new IOException("STABLE_ROLLBACK_PLAN_INVALID");
-        verify(previousInstaller, previous, pinnedSignerSha256);
-        verify(targetInstaller, target, pinnedSignerSha256);
+        verify(previousInstaller, previous);
+        verify(targetInstaller, target);
         var root = FullRoot(privateRoot);
         Directory.CreateDirectory(root);
         using var exclusive = AcquireLock(root);
@@ -140,11 +140,11 @@ public static class StableUpdateRollbackJournal
         {
             CopyVerifiedImage(previousInstaller, copiedPrevious, previous.PackageSize);
             CopyVerifiedImage(targetInstaller, copiedTarget, target.PackageSize);
-            verify(copiedPrevious, previous, pinnedSignerSha256);
-            verify(copiedTarget, target, pinnedSignerSha256);
-            var record = new Record(2, identifier, Phase.Prepared,
+            verify(copiedPrevious, previous);
+            verify(copiedTarget, target);
+            var record = new Record(3, identifier, Phase.Prepared,
                 previous.Version.ToString(4), target.Version.ToString(4),
-                previous.Sha256, target.Sha256, pinnedSignerSha256,
+                previous.Sha256, target.Sha256, pinnedManifestPublicKeySha256,
                 previous.PackageSize, previous.Sequence, target.Sequence,
                 now.AddMinutes(10).ToUnixTimeSeconds(), 0,
                 hasSession, nativeWasInstalled, sessionIdentitySha256,
@@ -187,16 +187,16 @@ public static class StableUpdateRollbackJournal
 
     /// <summary>
     /// Seeds the first signed rollback package for this exact installed build.
-    /// The signed immutable manifest, Authenticode pin and installed payload
+    /// The signed immutable manifest, manifest public-key fingerprint and installed payload
     /// hashes must all agree. This does not run an installer or touch Yandex.
     /// </summary>
-    public static Record SeedInitialLastKnownGoodSigned(
+    public static Record SeedInitialLastKnownGoodVerified(
         string privateRoot, StableUpdateManifestVerifier.VerifiedRelease release,
-        string signedInstaller, string pinnedSignerSha256,
+        string signedInstaller, string pinnedManifestPublicKeySha256,
         string installedApplicationPath, string installedNativeHostPath,
         string installedRendererPath, string installedSupervisorPath) =>
         SeedInitialLastKnownGoodCore(privateRoot, release, signedInstaller,
-            pinnedSignerSha256, AppUpdateManager.RunningVersion,
+            pinnedManifestPublicKeySha256, AppUpdateManager.RunningVersion,
             installedApplicationPath, installedNativeHostPath,
             installedRendererPath, installedSupervisorPath, DateTimeOffset.UtcNow,
             StableUpdatePackageStager.VerifyInstaller,
@@ -204,18 +204,18 @@ public static class StableUpdateRollbackJournal
 
     internal static Record SeedInitialLastKnownGoodCore(
         string privateRoot, StableUpdateManifestVerifier.VerifiedRelease release,
-        string signedInstaller, string pinnedSignerSha256, Version runningVersion,
+        string signedInstaller, string pinnedManifestPublicKeySha256, Version runningVersion,
         string installedApplicationPath, string installedNativeHostPath,
         string installedRendererPath, string installedSupervisorPath,
         DateTimeOffset now,
-        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify,
+        Action<string, StableUpdateManifestVerifier.VerifiedRelease> verify,
         Func<string, string, bool> payloadMatches)
     {
         RequireWindows();
         if (release is null || release.Version != runningVersion ||
             release.Sequence <= 0 || release.RollbackFrom != null ||
             release.PackageSize is < 10_000 or > 125_000_000 ||
-            !ValidSha(release.Sha256) || !ValidSha(pinnedSignerSha256) ||
+            !ValidSha(release.Sha256) || !ValidSha(pinnedManifestPublicKeySha256) ||
             !ValidSha(release.ApplicationSha256) ||
             !ValidSha(release.NativeHostSha256) ||
             !ValidSha(release.RendererSha256) ||
@@ -231,7 +231,7 @@ public static class StableUpdateRollbackJournal
             !release.PackageUri.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_PLAN_INVALID");
 
-        verify(signedInstaller, release, pinnedSignerSha256);
+        verify(signedInstaller, release);
         if (!payloadMatches(installedApplicationPath, release.ApplicationSha256) ||
             !payloadMatches(installedNativeHostPath, release.NativeHostSha256) ||
             !payloadMatches(installedRendererPath, release.RendererSha256) ||
@@ -251,7 +251,7 @@ public static class StableUpdateRollbackJournal
         try
         {
             CopyVerifiedImage(signedInstaller, copiedTarget, release.PackageSize);
-            verify(copiedTarget, release, pinnedSignerSha256);
+            verify(copiedTarget, release);
             if (!payloadMatches(installedApplicationPath, release.ApplicationSha256) ||
                 !payloadMatches(installedNativeHostPath, release.NativeHostSha256) ||
                 !payloadMatches(installedRendererPath, release.RendererSha256) ||
@@ -261,9 +261,9 @@ public static class StableUpdateRollbackJournal
             // Seeded is deliberately not an update transaction. Previous*
             // fields are a strict 0.0.0.0/sequence-0 sentinel; the target image
             // is the exact currently installed signed release.
-            var record = new Record(2, identifier, Phase.Seeded,
+            var record = new Record(3, identifier, Phase.Seeded,
                 "0.0.0.0", release.Version.ToString(4),
-                release.Sha256, release.Sha256, pinnedSignerSha256,
+                release.Sha256, release.Sha256, pinnedManifestPublicKeySha256,
                 release.PackageSize, 0, release.Sequence,
                 now.AddYears(10).ToUnixTimeSeconds(), 0,
                 false, false, "",
@@ -282,34 +282,34 @@ public static class StableUpdateRollbackJournal
         }
     }
 
-    public sealed record CachedSignedPackage(
+    public sealed record CachedVerifiedPackage(
         string InstallerPath, StableUpdateManifestVerifier.VerifiedRelease Release);
 
     /// <summary>
-    /// Returns the currently accepted signed installer for the next update's
+    /// Returns the currently accepted manifest-verified installer for the next update's
     /// rollback base. Healthy means the target is current; Restored means the
     /// previous package was successfully restored. In-progress or failed
     /// transactions never seed a future rollback.
     /// </summary>
-    public static CachedSignedPackage GetLastKnownGood(
-        string privateRoot, string pinnedSignerSha256) =>
-        GetLastKnownGoodCore(privateRoot, pinnedSignerSha256,
+    public static CachedVerifiedPackage GetLastKnownGood(
+        string privateRoot, string pinnedManifestPublicKeySha256) =>
+        GetLastKnownGoodCore(privateRoot, pinnedManifestPublicKeySha256,
             StableUpdatePackageStager.VerifyInstaller);
 
-    internal static CachedSignedPackage GetLastKnownGoodCore(
-        string privateRoot, string pinnedSignerSha256,
-        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify)
+    internal static CachedVerifiedPackage GetLastKnownGoodCore(
+        string privateRoot, string pinnedManifestPublicKeySha256,
+        Action<string, StableUpdateManifestVerifier.VerifiedRelease> verify)
     {
         RequireWindows();
-        if (!ValidSha(pinnedSignerSha256))
+        if (!ValidSha(pinnedManifestPublicKeySha256))
             throw new IOException("STABLE_ROLLBACK_SIGNER_UNPINNED");
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
-        if (state.Schema != 2 || state.RollbackAttempts is < 0 or > 1 ||
+        if (state.Schema != 3 || state.RollbackAttempts is < 0 or > 1 ||
             (state.State is Phase.Seeded or Phase.Healthy) && state.RollbackAttempts != 0 ||
             state.State == Phase.Restored && state.RollbackAttempts != 1 ||
-            !string.Equals(state.SignerSha256, pinnedSignerSha256,
+            !string.Equals(state.ManifestPublicKeySha256, pinnedManifestPublicKeySha256,
                 StringComparison.OrdinalIgnoreCase) ||
             state.State is not (Phase.Seeded or Phase.Healthy or Phase.Restored))
             throw new IOException("STABLE_ROLLBACK_LAST_KNOWN_GOOD_NOT_READY");
@@ -345,8 +345,8 @@ public static class StableUpdateRollbackJournal
             NativeHostSha256: nativeHostHash,
             RendererSha256: rendererHash,
             SupervisorSha256: supervisorHash);
-        verify(installer, release, pinnedSignerSha256);
-        return new CachedSignedPackage(installer, release);
+        verify(installer, release);
+        return new CachedVerifiedPackage(installer, release);
     }
 
     /// <summary>
@@ -360,7 +360,7 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var current = ReadRecord(root);
-        if (current.Schema != 2 || current.Id != expectedId ||
+        if (current.Schema != 3 || current.Id != expectedId ||
             current.State != expectedPhase || !Allowed(expectedPhase, nextPhase))
             throw new IOException("STABLE_ROLLBACK_TRANSITION_DENIED");
         var attempts = current.RollbackAttempts +
@@ -374,7 +374,7 @@ public static class StableUpdateRollbackJournal
 
     /// <summary>
     /// W110: mark the ONLY automatic rollback attempt before launching the
-    /// prior signed installer. Restarting this helper cannot grant a second
+    /// prior manifest-verified installer. Restarting this helper cannot grant a second
     /// attempt. The old-version health timeout starts at rollback launch,
     /// not at the original update's preparation time.
     /// </summary>
@@ -384,7 +384,7 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
-        if (state.Schema != 2 || state.Id != id ||
+        if (state.Schema != 3 || state.Id != id ||
             state.State != Phase.RollbackNeeded || state.RollbackAttempts != 0)
             throw new IOException("STABLE_ROLLBACK_ALREADY_ATTEMPTED");
         var next = state with
@@ -421,9 +421,9 @@ public static class StableUpdateRollbackJournal
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
-        if (state.Schema != 2 || state.Id != id ||
+        if (state.Schema != 3 || state.Id != id ||
             state.State != Phase.RollbackStarted || state.RollbackAttempts != 1 ||
-            !evidence.ExactSignedNewExe || !evidence.BridgeResponds ||
+            !evidence.ExactVerifiedNewExe || !evidence.BridgeResponds ||
             (state.ExpectedSession && !evidence.SessionPreserved) ||
             (state.NativeWasInstalled && !evidence.NativeIntegrationConsistent))
             throw new IOException("STABLE_ROLLBACK_RESTORE_NOT_PROVEN");
@@ -435,7 +435,7 @@ public static class StableUpdateRollbackJournal
     public static Decision Decide(Record record, HealthEvidence evidence,
         DateTimeOffset now)
     {
-        if (record.Schema != 2 || record.Id == Guid.Empty ||
+        if (record.Schema != 3 || record.Id == Guid.Empty ||
             record.RollbackAttempts is < 0 or > 1)
             return Decision.ManualRecovery;
         if (record.State is Phase.Healthy or Phase.Restored)
@@ -446,7 +446,7 @@ public static class StableUpdateRollbackJournal
             return record.RollbackAttempts == 0
                 ? Decision.RequestRollback : Decision.ManualRecovery;
         if (record.State == Phase.Prepared) return Decision.Wait;
-        var allHealthy = evidence.ExactSignedNewExe && evidence.BridgeResponds &&
+        var allHealthy = evidence.ExactVerifiedNewExe && evidence.BridgeResponds &&
             (!record.ExpectedSession || evidence.SessionPreserved) &&
             (!record.NativeWasInstalled || evidence.NativeIntegrationConsistent);
         // Never certify an update from an installer launch alone: a separate
@@ -458,28 +458,28 @@ public static class StableUpdateRollbackJournal
     }
 
     /// <summary>
-    /// Re-verify the locally cached LAST KNOWN GOOD signed installer at the
+    /// Re-verify the locally cached LAST KNOWN GOOD manifest-verified installer at the
     /// moment an eventual supervisor requests rollback. It must not execute
     /// stale, substituted, unsigned or wrong-version bytes.
     /// </summary>
     public static string VerifiedPreviousInstaller(
-        string privateRoot, Guid transaction, string pinnedSignerSha256)
+        string privateRoot, Guid transaction, string pinnedManifestPublicKeySha256)
     {
         return VerifiedPreviousInstallerCore(privateRoot, transaction,
-            pinnedSignerSha256, StableUpdatePackageStager.VerifyInstaller);
+            pinnedManifestPublicKeySha256, StableUpdatePackageStager.VerifyInstaller);
     }
 
     internal static string VerifiedPreviousInstallerCore(
-        string privateRoot, Guid transaction, string pinnedSignerSha256,
-        Action<string, StableUpdateManifestVerifier.VerifiedRelease, string> verify)
+        string privateRoot, Guid transaction, string pinnedManifestPublicKeySha256,
+        Action<string, StableUpdateManifestVerifier.VerifiedRelease> verify)
     {
         RequireWindows();
         var root = FullRoot(privateRoot);
         using var exclusive = AcquireLock(root);
         var state = ReadRecord(root);
-        if (state.Schema != 2 || state.Id != transaction ||
+        if (state.Schema != 3 || state.Id != transaction ||
             state.State != Phase.RollbackNeeded || state.RollbackAttempts != 0 ||
-            !string.Equals(state.SignerSha256, pinnedSignerSha256,
+            !string.Equals(state.ManifestPublicKeySha256, pinnedManifestPublicKeySha256,
                 StringComparison.OrdinalIgnoreCase) ||
             !Version.TryParse(state.PreviousVersion, out var version) ||
             !ValidSha(state.PreviousSha256))
@@ -500,7 +500,7 @@ public static class StableUpdateRollbackJournal
             NativeHostSha256: state.PreviousNativeHostSha256,
             RendererSha256: state.PreviousRendererSha256,
             SupervisorSha256: state.PreviousSupervisorSha256);
-        verify(previous, release, pinnedSignerSha256);
+        verify(previous, release);
         return previous;
     }
 
@@ -560,12 +560,12 @@ public static class StableUpdateRollbackJournal
                 DataProtectionScope.CurrentUser);
             var record = JsonSerializer.Deserialize<Record>(plain);
             CryptographicOperations.ZeroMemory(plain);
-            if (record is null || record.Schema is not (1 or 2) || record.Id == Guid.Empty ||
+            if (record is null || record.Schema != 3 || record.Id == Guid.Empty ||
                 !ValidSha(record.PreviousSha256) || !ValidSha(record.TargetSha256) ||
-                !ValidSha(record.SignerSha256) ||
+                !ValidSha(record.ManifestPublicKeySha256) ||
                 (record.ExpectedSession && !ValidSha(record.SessionIdentitySha256) ||
                  !record.ExpectedSession && record.SessionIdentitySha256 != "") ||
-                (record.Schema == 2 &&
+                (record.Schema == 3 &&
                  (!ValidSha(record.PreviousApplicationSha256) ||
                   !ValidSha(record.TargetApplicationSha256) ||
                   !ValidSha(record.PreviousNativeHostSha256) ||

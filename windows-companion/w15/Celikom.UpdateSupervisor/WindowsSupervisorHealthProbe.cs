@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Celikom.Companion;
 using Celikom.NativeInstaller;
@@ -15,8 +14,7 @@ namespace Celikom.UpdateSupervisor;
 /// current-user DPAPI session and matching native integration. No account
 /// network calls, Yandex startup or media changes.
 /// </summary>
-public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
-    : ISupervisorHealthProbe
+public sealed class WindowsSupervisorHealthProbe : ISupervisorHealthProbe
 {
     private static readonly string InstallRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -37,7 +35,7 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
         CancellationToken cancellationToken)
     {
         // The manifest pins the exact bytes of all files copied by Inno Setup.
-        var installedAndRunning = IsExpectedSignedProcess(expected,
+        var installedAndRunning = IsExpectedProcess(expected,
             expectedApplicationSha256, expectedNativeHostSha256,
             expectedRendererSha256, expectedSupervisorSha256);
         // A fresh session.dpapi is decryptable but is NOT preserved login.
@@ -81,7 +79,7 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
             UnauthorizedAccessException) { return false; }
     }
 
-    private bool IsExpectedSignedProcess(Version expected,
+    private bool IsExpectedProcess(Version expected,
         string applicationSha256, string nativeHostSha256, string rendererSha256,
         string supervisorSha256)
     {
@@ -90,8 +88,8 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
                 nativeHostSha256, 32_000_000) ||
             !StableUpdatePayloadVerifier.MatchesFile(InstalledRenderer,
                 rendererSha256, 32_000_000) ||
-            !IsExpectedSignedExecutable(InstalledExe, expected, applicationSha256) ||
-            !IsExpectedSignedExecutable(InstalledSupervisor, expected, supervisorSha256))
+            !IsExpectedExecutable(InstalledExe, expected, applicationSha256) ||
+            !IsExpectedExecutable(InstalledSupervisor, expected, supervisorSha256))
             return false;
         try
         {
@@ -114,29 +112,20 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
         return false;
     }
 
-    private bool IsExpectedSignedExecutable(string path, Version expected,
+    private static bool IsExpectedExecutable(string path, Version expected,
         string expectedApplicationSha256)
     {
         try
         {
-            if (!StableUpdatePayloadVerifier.MatchesFile(path,
-                    expectedApplicationSha256) ||
-                !NativeHostSignature.IsValid(path))
+            if (!StableUpdatePayloadVerifier.MatchesFile(path, expectedApplicationSha256))
                 return false;
             var pe = FileVersionInfo.GetVersionInfo(path);
-            if (!Version.TryParse(pe.FileVersion?.Trim(), out var version) ||
-                version != expected ||
-                !string.Equals(pe.CompanyName?.Trim(), "CELIKOM", StringComparison.Ordinal) ||
-                !string.Equals(pe.ProductName?.Trim(), "CELIKOM", StringComparison.Ordinal))
-                return false;
-#pragma warning disable SYSLIB0057
-            using var signer = X509Certificate.CreateFromSignedFile(path);
-#pragma warning restore SYSLIB0057
-            var installedCert = SHA256.HashData(signer.GetRawCertData());
-            var pinnedCert = Convert.FromHexString(pinnedSignerSha256);
-            return CryptographicOperations.FixedTimeEquals(installedCert, pinnedCert);
+            return Version.TryParse(pe.FileVersion?.Trim(), out var version) &&
+                version == expected &&
+                string.Equals(pe.CompanyName?.Trim(), "CELIKOM", StringComparison.Ordinal) &&
+                string.Equals(pe.ProductName?.Trim(), "CELIKOM", StringComparison.Ordinal);
         }
-        catch (Exception e) when (e is IOException or Win32Exception or CryptographicException or
+        catch (Exception e) when (e is IOException or Win32Exception or
             ArgumentException or UnauthorizedAccessException or InvalidOperationException)
         {
             return false;
@@ -200,19 +189,19 @@ public sealed class WindowsSupervisorHealthProbe(string pinnedSignerSha256)
     }
 }
 
-public sealed class WindowsSignedRollbackLauncher : ISupervisorRollbackLauncher
+public sealed class WindowsVerifiedRollbackLauncher : ISupervisorRollbackLauncher
 {
-    public void Launch(string signedPreviousInstaller)
+    public void Launch(string verifiedPreviousInstaller)
     {
-        // The caller MUST have just passed the full journal and Authenticode
+        // The caller MUST have just passed the full DPAPI journal and package SHA-256
         // verifier. This class refuses unrelated names, roots or symlinks.
         var root = Path.GetFullPath(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CELIKOM", "Windows", "StableRollback"));
-        var file = Path.GetFullPath(signedPreviousInstaller);
+        var file = Path.GetFullPath(verifiedPreviousInstaller);
         if (!file.StartsWith(root + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase) ||
-            Path.GetFileName(file) != "previous-signed-setup.exe" ||
+            Path.GetFileName(file) != "previous-verified-setup.exe" ||
             !File.Exists(file) || new FileInfo(file).Attributes.HasFlag(FileAttributes.ReparsePoint))
             throw new IOException("SUPERVISOR_INSTALLER_PATH_INVALID");
         if (Process.Start(new ProcessStartInfo(file)

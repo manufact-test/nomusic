@@ -17,7 +17,8 @@ function fail(code) { throw new Error(code); }
 function validateOrigin(value) {
   let url;
   try { url = new URL(value); } catch { fail("W113_OFFICIAL_ORIGIN_INVALID"); }
-  if (url.protocol !== "https:" || !url.hostname || url.username || url.password ||
+  if (url.protocol !== "https:" || url.hostname !== "celikom.com" ||
+      url.port !== "" || url.username || url.password ||
       url.pathname !== "/" || url.search || url.hash)
     fail("W113_OFFICIAL_ORIGIN_INVALID");
   return url;

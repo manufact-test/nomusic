@@ -19,14 +19,14 @@ using (var trustKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
 {
     var publicKeyDer = trustKey.ExportSubjectPublicKeyInfo();
     var publicKeyBase64 = Convert.ToBase64String(publicKeyDer);
-    var trustPin = new string('b', 64);
+    var keyFingerprint = Convert.ToHexString(SHA256.HashData(publicKeyDer)).ToLowerInvariant();
     Test(StableUpdateTrustConfiguration.TryCreate(
-            "https://updates.example.invalid/", publicKeyBase64, trustPin, out var trust) &&
+            "https://celikom.com/", publicKeyBase64, out var trust) &&
          trust is not null &&
-         trust.OfficialOrigin.AbsoluteUri == "https://updates.example.invalid/" &&
-         trust.SignerCertificateSha256 == trustPin &&
+         trust.OfficialOrigin.AbsoluteUri == "https://celikom.com/" &&
+         trust.ManifestPublicKeySha256 == keyFingerprint &&
          trust.ManifestPublicKeyDer.SequenceEqual(publicKeyDer),
-         "W117 accepts only a complete HTTPS/P-256/signer trust tuple");
+         "W117 accepts the fixed HTTPS origin and pinned P-256 manifest key");
     if (trust is not null)
     {
         var exposed = trust.ManifestPublicKeyDer;
@@ -35,27 +35,27 @@ using (var trustKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
             "W117 callers cannot mutate the pinned public-key bytes");
     }
     Test(!StableUpdateTrustConfiguration.TryCreate(
-            "http://updates.example.invalid/", publicKeyBase64, trustPin, out _) &&
+            "http://celikom.com/", publicKeyBase64, out _) &&
          !StableUpdateTrustConfiguration.TryCreate(
-            "https://updates.example.invalid/feed/", publicKeyBase64, trustPin, out _) &&
+            "https://celikom.com/feed/", publicKeyBase64, out _) &&
          !StableUpdateTrustConfiguration.TryCreate(
-            "https://user@updates.example.invalid/", publicKeyBase64, trustPin, out _),
-         "W117 rejects HTTP, non-origin paths and URL user-info");
+            "https://user@celikom.com/", publicKeyBase64, out _) &&
+         !StableUpdateTrustConfiguration.TryCreate(
+            "https://updates.celikom.com/", publicKeyBase64, out _) &&
+         !StableUpdateTrustConfiguration.TryCreate(
+            "https://celikom.com:8443/", publicKeyBase64, out _),
+         "W117 rejects HTTP, subdomains, ports, paths and URL user-info");
     Test(!StableUpdateTrustConfiguration.TryCreate(
-            "https://updates.example.invalid/", "not-base64", trustPin, out _) &&
+            "https://celikom.com/", "not-base64", out _) &&
          !StableUpdateTrustConfiguration.TryCreate(
-            "https://updates.example.invalid/", Convert.ToBase64String(new byte[80]), trustPin, out _),
+            "https://celikom.com/", Convert.ToBase64String(new byte[80]), out _),
          "W117 rejects malformed/non-EC public-key material");
-    Test(!StableUpdateTrustConfiguration.TryCreate(
-            "https://updates.example.invalid/", publicKeyBase64, new string('b', 63), out _),
-         "W117 rejects incomplete Authenticode signer fingerprints");
 }
 using (var nonP256 = ECDsa.Create(ECCurve.NamedCurves.nistP384))
 {
     Test(!StableUpdateTrustConfiguration.TryCreate(
-            "https://updates.example.invalid/",
-            Convert.ToBase64String(nonP256.ExportSubjectPublicKeyInfo()),
-            new string('b', 64), out _),
+            "https://celikom.com/",
+            Convert.ToBase64String(nonP256.ExportSubjectPublicKeyInfo()), out _),
          "W117 rejects a non-P-256 manifest public key");
 }
 var folder = Path.Combine(Path.GetTempPath(), "celikom-w15-contract-" + Guid.NewGuid().ToString("N"));
@@ -64,10 +64,10 @@ try
     Test(!AppUpdateManager.CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: true),
         "W108 manual in-place update must not interrupt active CELIKOM playback");
 
-    // W109: snapshot the exact previous signed installer and journal the
+    // W109: snapshot the exact previous manifest-verified installer and journal the
     // single rollback attempt before a new app can be accepted as healthy.
-    // Test verifier is intentionally synthetic; PrepareSigned in production
-    // always requires Authenticode, pinned signer + exact PE checks.
+    // Test verifier is intentionally synthetic; PrepareManifestVerified in production
+    // always requires the signed manifest hash + exact PE checks.
     var rollbackFixtureRoot = Path.Combine(Path.GetTempPath(),
         "celikom-w109-contract-" + Guid.NewGuid().ToString("N"));
     var rollbackRoot = Path.Combine(rollbackFixtureRoot, "rollback-vault");
@@ -115,13 +115,12 @@ try
              $"CELIKOM-0.24.37-41-{nextHash}.exe", StringComparison.Ordinal) &&
          pendingTargetPath != pendingDifferentHashPath,
          "W140 pending package cache is bound to exact signed version, sequence and SHA-256");
-    var testSignerPin = new string('b', 64);
+    var testManifestPublicKeySha256 = new string('b', 64);
     var verifiedImages = 0;
     void VerifySyntheticSetup(string file,
-        StableUpdateManifestVerifier.VerifiedRelease expected, string signerPin)
+        StableUpdateManifestVerifier.VerifiedRelease expected)
     {
-        Test(signerPin == testSignerPin &&
-             new FileInfo(file).Length == expected.PackageSize &&
+        Test(new FileInfo(file).Length == expected.PackageSize &&
              Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file)))
                 .Equals(expected.Sha256, StringComparison.OrdinalIgnoreCase),
              "W109 verified rollback snapshot/installer matches signed manifest hash");
@@ -134,12 +133,12 @@ try
     }
     var tx = StableUpdateRollbackJournal.PrepareCore(
         rollbackRoot, previousRelease, previousSetup, targetRelease, nextSetup,
-        testSignerPin, previousRelease.Version, rollbackAt,
+        testManifestPublicKeySha256, previousRelease.Version, rollbackAt,
         hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
         sessionIdentitySha256: new string('d', 64));
     Test(tx.State == StableUpdateRollbackJournal.Phase.Prepared &&
          tx.RollbackAttempts == 0 && verifiedImages == 4 &&
-         tx.SessionIdentitySha256 == new string('d', 64) && tx.Schema == 2 &&
+         tx.SessionIdentitySha256 == new string('d', 64) && tx.Schema == 3 &&
          tx.PreviousApplicationSha256 == prevAppHash &&
          tx.TargetApplicationSha256 == nextAppHash &&
          tx.PreviousNativeHostSha256 == prevHostHash &&
@@ -154,7 +153,7 @@ try
     try
     {
         StableUpdateRollbackJournal.GetLastKnownGoodCore(
-            rollbackRoot, testSignerPin, VerifySyntheticSetup);
+            rollbackRoot, testManifestPublicKeySha256, VerifySyntheticSetup);
     }
     catch (IOException e) when (e.Message == "STABLE_ROLLBACK_LAST_KNOWN_GOOD_NOT_READY")
     { prematureLastKnownGoodDenied = true; }
@@ -167,7 +166,7 @@ try
         StableUpdateRollbackJournal.PrepareCore(
             Path.Combine(rollbackFixtureRoot, "missing-payload"),
             previousRelease with { ApplicationSha256 = "" }, previousSetup,
-            targetRelease, nextSetup, testSignerPin, previousRelease.Version,
+            targetRelease, nextSetup, testManifestPublicKeySha256, previousRelease.Version,
             rollbackAt, true, true, VerifySyntheticSetup,
             sessionIdentitySha256: new string('d', 64));
     }
@@ -182,7 +181,7 @@ try
         StableUpdateRollbackJournal.PrepareCore(
             Path.Combine(rollbackFixtureRoot, "missing-previous-supervisor"),
             previousRelease with { SupervisorSha256 = "" }, previousSetup,
-            targetRelease, nextSetup, testSignerPin, previousRelease.Version,
+            targetRelease, nextSetup, testManifestPublicKeySha256, previousRelease.Version,
             rollbackAt, true, true, VerifySyntheticSetup,
             sessionIdentitySha256: new string('d', 64));
     }
@@ -198,7 +197,7 @@ try
             Path.Combine(rollbackFixtureRoot, "missing-target-supervisor"),
             previousRelease, previousSetup,
             targetRelease with { SupervisorSha256 = "" }, nextSetup,
-            testSignerPin, previousRelease.Version, rollbackAt, true, true,
+            testManifestPublicKeySha256, previousRelease.Version, rollbackAt, true, true,
             VerifySyntheticSetup,
             sessionIdentitySha256: new string('d', 64));
     }
@@ -211,7 +210,7 @@ try
     try
     {
         StableUpdateRollbackJournal.PrepareCore(rollbackRoot, previousRelease,
-            previousSetup, targetRelease, nextSetup, testSignerPin,
+            previousSetup, targetRelease, nextSetup, testManifestPublicKeySha256,
             previousRelease.Version, rollbackAt, true, true, VerifySyntheticSetup,
             sessionIdentitySha256: new string('d', 64));
     }
@@ -222,7 +221,7 @@ try
         StableUpdateRollbackJournal.Phase.Prepared,
         StableUpdateRollbackJournal.Phase.InstallerStarted);
     var noneHealthy = new StableUpdateRollbackJournal.HealthEvidence(
-        ExactSignedNewExe: true, BridgeResponds: false,
+        ExactVerifiedNewExe: true, BridgeResponds: false,
         SessionPreserved: false, NativeIntegrationConsistent: false);
     Test(StableUpdateRollbackJournal.Decide(tx, noneHealthy, rollbackAt.AddMinutes(1)) ==
          StableUpdateRollbackJournal.Decision.Wait &&
@@ -264,7 +263,7 @@ try
     var acceptedRoot = Path.Combine(rollbackFixtureRoot, "rollback-happy");
     var accepted = StableUpdateRollbackJournal.PrepareCore(
         acceptedRoot, previousRelease, previousSetup, targetRelease, nextSetup,
-        testSignerPin, previousRelease.Version, rollbackAt,
+        testManifestPublicKeySha256, previousRelease.Version, rollbackAt,
         hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
         sessionIdentitySha256: new string('d', 64));
     accepted = StableUpdateRollbackJournal.Advance(acceptedRoot, accepted.Id,
@@ -283,7 +282,7 @@ try
              StableUpdateRollbackJournal.Phase.Healthy,
          "W109 only explicitly verified signed app health closes transaction");
     var cachedTarget = StableUpdateRollbackJournal.GetLastKnownGoodCore(
-        acceptedRoot, testSignerPin, VerifySyntheticSetup);
+        acceptedRoot, testManifestPublicKeySha256, VerifySyntheticSetup);
     Test(cachedTarget.Release.Version == targetRelease.Version &&
          cachedTarget.Release.Sequence == targetRelease.Sequence &&
          cachedTarget.Release.PackageSize == targetRelease.PackageSize &&
@@ -300,7 +299,7 @@ try
     try
     {
         StableUpdateRollbackJournal.GetLastKnownGoodCore(
-            acceptedRoot, testSignerPin, VerifySyntheticSetup);
+            acceptedRoot, testManifestPublicKeySha256, VerifySyntheticSetup);
     }
     catch (Exception e) when (e is IOException ||
         e.Message.StartsWith("W15_TEST_FAILED", StringComparison.Ordinal))
@@ -320,7 +319,7 @@ try
     var nextTransaction = StableUpdateRollbackJournal.PrepareCore(
         acceptedRoot, cachedTarget.Release, cachedTarget.InstallerPath,
         thirdRelease, previousSetup,
-        testSignerPin, targetRelease.Version, rollbackAt.AddHours(1),
+        testManifestPublicKeySha256, targetRelease.Version, rollbackAt.AddHours(1),
         hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
         sessionIdentitySha256: new string('d', 64));
     var nextSnapshot = Path.Combine(acceptedRoot, nextTransaction.Id.ToString("N"));
@@ -340,7 +339,7 @@ try
         StableUpdateRollbackJournal.Phase.RollbackNeeded);
     var beforeReverify = verifiedImages;
     var retained = StableUpdateRollbackJournal.VerifiedPreviousInstallerCore(
-        rollbackRoot, tx.Id, testSignerPin, VerifySyntheticSetup);
+        rollbackRoot, tx.Id, testManifestPublicKeySha256, VerifySyntheticSetup);
     Test(File.Exists(retained) && verifiedImages == beforeReverify + 1,
         "W109 previous installer re-verified immediately before rollback");
     var corrupted = File.ReadAllBytes(retained);
@@ -350,7 +349,7 @@ try
     try
     {
         StableUpdateRollbackJournal.VerifiedPreviousInstallerCore(
-            rollbackRoot, tx.Id, testSignerPin, VerifySyntheticSetup);
+            rollbackRoot, tx.Id, testManifestPublicKeySha256, VerifySyntheticSetup);
     }
     catch (Exception e) when (e.Message.StartsWith("W15_TEST_FAILED",
         StringComparison.Ordinal) || e is IOException)
@@ -400,7 +399,7 @@ try
     var restoredLkgRoot = Path.Combine(rollbackFixtureRoot, "rollback-restored-lkg");
     var restoredLkg = StableUpdateRollbackJournal.PrepareCore(
         restoredLkgRoot, previousRelease, previousSetup, targetRelease, nextSetup,
-        testSignerPin, previousRelease.Version, rollbackAt,
+        testManifestPublicKeySha256, previousRelease.Version, rollbackAt,
         hasSession: true, nativeWasInstalled: true, VerifySyntheticSetup,
         sessionIdentitySha256: new string('d', 64));
     restoredLkg = StableUpdateRollbackJournal.Advance(restoredLkgRoot, restoredLkg.Id,
@@ -415,7 +414,7 @@ try
         restoredLkgRoot, restoredLkg.Id,
         new StableUpdateRollbackJournal.HealthEvidence(true, true, true, true));
     var restoredPackage = StableUpdateRollbackJournal.GetLastKnownGoodCore(
-        restoredLkgRoot, testSignerPin, VerifySyntheticSetup);
+        restoredLkgRoot, testManifestPublicKeySha256, VerifySyntheticSetup);
     Test(restoredLkg.State == StableUpdateRollbackJournal.Phase.Restored &&
          restoredPackage.Release.Version == previousRelease.Version &&
          restoredPackage.Release.Sequence == previousRelease.Sequence &&
@@ -449,14 +448,14 @@ try
         RendererSha256: HashBytes(bootstrapRendererBytes),
         SupervisorSha256: HashBytes(bootstrapSupervisorBytes));
     var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-        bootstrapRoot, seededRelease, previousSetup, testSignerPin,
+        bootstrapRoot, seededRelease, previousSetup, testManifestPublicKeySha256,
         new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
         bootstrapRenderer, bootstrapSupervisor, rollbackAt,
         VerifySyntheticSetup,
         (file, hash) => StableUpdatePayloadVerifier.MatchesFile(file, hash));
     var seededSnapshot = Path.Combine(bootstrapRoot, seeded.Id.ToString("N"));
     var seededPackage = StableUpdateRollbackJournal.GetLastKnownGoodCore(
-        bootstrapRoot, testSignerPin, VerifySyntheticSetup);
+        bootstrapRoot, testManifestPublicKeySha256, VerifySyntheticSetup);
     Test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
          seeded.RollbackAttempts == 0 &&
          seeded.PreviousVersion == "0.0.0.0" &&
@@ -473,7 +472,7 @@ try
     {
         StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
             Path.Combine(rollbackFixtureRoot, "rollback-bootstrap-tampered"),
-            seededRelease, previousSetup, testSignerPin,
+            seededRelease, previousSetup, testManifestPublicKeySha256,
             new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
             bootstrapRenderer, bootstrapSupervisor, rollbackAt,
             VerifySyntheticSetup,
@@ -489,7 +488,7 @@ try
     try
     {
         StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-            bootstrapRoot, seededRelease, previousSetup, testSignerPin,
+            bootstrapRoot, seededRelease, previousSetup, testManifestPublicKeySha256,
             new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
             bootstrapRenderer, bootstrapSupervisor, rollbackAt,
             VerifySyntheticSetup,
@@ -502,7 +501,7 @@ try
 
     var seedNext = StableUpdateRollbackJournal.PrepareCore(
         bootstrapRoot, seededPackage.Release, seededPackage.InstallerPath,
-        targetRelease, nextSetup, testSignerPin, seededRelease.Version,
+        targetRelease, nextSetup, testManifestPublicKeySha256, seededRelease.Version,
         rollbackAt.AddHours(1), hasSession: false, nativeWasInstalled: false,
         VerifySyntheticSetup);
     Test(seedNext.State == StableUpdateRollbackJournal.Phase.Prepared &&
@@ -589,29 +588,45 @@ try
         bool missingPayloadRejected = false;
         try
         {
-            StableUpdatePackageStager.VerifyInstaller(untrusted,
-                updateRelease with { RendererSha256 = "" }, new string('a', 64));
+            StableUpdatePackageStager.VerifyInstallerCore(untrusted,
+                updateRelease with { RendererSha256 = "" }, _ => (updateRelease.Version.ToString(), "CELIKOM", "CELIKOM"));
         }
         catch (IOException e) when (e.Message == "STABLE_UPDATE_PAYLOAD_IDENTITY_MISSING")
         { missingPayloadRejected = true; }
         Test(missingPayloadRejected,
             "W112 staged installer is never considered verified without all signed payload hashes");
 
-        bool unsignedRejected = false;
-        try { StableUpdatePackageStager.VerifyInstaller(
-                untrusted, updateRelease, new string('a', 64)); }
-        catch (IOException e) when (e.Message == "STABLE_UPDATE_AUTHENTICODE_INVALID")
-        { unsignedRejected = true; }
-        Test(unsignedRejected, "W105 unsigned fixture must fail Authenticode even with signed-feed hash");
+        bool manifestPackageAccepted = false;
+        try
+        {
+            StableUpdatePackageStager.VerifyInstallerCore(
+                untrusted, updateRelease,
+                _ => (updateRelease.Version.ToString(4), "CELIKOM", "CELIKOM"));
+            manifestPackageAccepted = true;
+        }
+        catch (IOException) { }
+        Test(manifestPackageAccepted,
+            "W155 exact manifest SHA-256 + PE identity accepts package without Authenticode");
+        bool wrongPeIdentityRejected = false;
+        try
+        {
+            StableUpdatePackageStager.VerifyInstallerCore(
+                untrusted, updateRelease,
+                _ => ("9.9.9.9", "OTHER", "OTHER"));
+        }
+        catch (IOException e) when (e.Message == "STABLE_UPDATE_PE_IDENTITY_INVALID")
+        { wrongPeIdentityRejected = true; }
+        Test(wrongPeIdentityRejected,
+            "W155 manifest hash cannot override a wrong PE product/version identity");
         var tamperedBytes = (byte[])updateBytes.Clone();
         tamperedBytes[3] ^= 1;
         File.WriteAllBytes(untrusted, tamperedBytes);
         bool tamperRejected = false;
-        try { StableUpdatePackageStager.VerifyInstaller(
-                untrusted, updateRelease, new string('a', 64)); }
+        try { StableUpdatePackageStager.VerifyInstallerCore(
+                untrusted, updateRelease, _ => (updateRelease.Version.ToString(), "CELIKOM", "CELIKOM")); }
         catch (IOException e) when (e.Message == "STABLE_UPDATE_SHA256_MISMATCH")
         { tamperRejected = true; }
-        Test(tamperRejected, "W105 post-stage byte tamper is rejected before launch");
+        Test(tamperRejected, "W155 post-stage byte tamper is rejected before launch");
     }
     using (var badClient = new HttpClient(new FakeHandler(req =>
         new HttpResponseMessage(HttpStatusCode.OK)

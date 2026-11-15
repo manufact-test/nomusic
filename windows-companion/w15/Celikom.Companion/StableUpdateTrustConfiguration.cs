@@ -3,49 +3,46 @@ using System.Security.Cryptography;
 namespace Celikom.Companion;
 
 /// <summary>
-/// One immutable, build-pinned trust tuple shared by the GUI and independent
-/// update supervisor. The manifest private key is NEVER included here.
-/// Empty production values deliberately disable every automatic update path.
+/// Immutable build-pinned trust for the CELIKOM stable updater.
+/// Only the P-256 public key is embedded in the client. The private signing
+/// key stays in protected release infrastructure. Empty values fail closed.
 /// </summary>
 public sealed class StableUpdateTrustConfiguration
 {
-    // These are public trust identifiers, not secrets. Populate only after
-    // the owner approves the official feed and production signing identities.
-    // The P-256 signing PRIVATE key remains in protected release infrastructure.
+    // Public production identifiers are embedded only in the final bootstrap.
+    // Never commit a private key or a temporary/staging origin here.
     private const string ProductionFeedOrigin = "";
     private const string ProductionManifestPublicKeyDerBase64 = "";
-    private const string ProductionSignerCertificateSha256 = "";
 
     private readonly byte[] _manifestPublicKeyDer;
 
     public Uri OfficialOrigin { get; }
-    public string SignerCertificateSha256 { get; }
+    public string ManifestPublicKeySha256 { get; }
     public byte[] ManifestPublicKeyDer => (byte[])_manifestPublicKeyDer.Clone();
 
-    private StableUpdateTrustConfiguration(
-        Uri officialOrigin, byte[] manifestPublicKeyDer, string signerCertificateSha256)
+    private StableUpdateTrustConfiguration(Uri officialOrigin, byte[] manifestPublicKeyDer)
     {
         OfficialOrigin = officialOrigin;
         _manifestPublicKeyDer = (byte[])manifestPublicKeyDer.Clone();
-        SignerCertificateSha256 = signerCertificateSha256;
+        ManifestPublicKeySha256 = Convert.ToHexString(
+            SHA256.HashData(_manifestPublicKeyDer)).ToLowerInvariant();
     }
 
     public static bool TryGetProduction(out StableUpdateTrustConfiguration? configuration) =>
         TryCreate(ProductionFeedOrigin, ProductionManifestPublicKeyDerBase64,
-            ProductionSignerCertificateSha256, out configuration);
+            out configuration);
 
     internal static bool TryCreate(
         string? feedOrigin, string? manifestPublicKeyDerBase64,
-        string? signerCertificateSha256,
         out StableUpdateTrustConfiguration? configuration)
     {
         configuration = null;
         if (string.IsNullOrWhiteSpace(feedOrigin) ||
             string.IsNullOrWhiteSpace(manifestPublicKeyDerBase64) ||
-            signerCertificateSha256 is not { Length: 64 } ||
-            !signerCertificateSha256.All(Uri.IsHexDigit) ||
             !Uri.TryCreate(feedOrigin, UriKind.Absolute, out var origin) ||
-            origin.Scheme != Uri.UriSchemeHttps || origin.UserInfo.Length != 0 ||
+            origin.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(origin.IdnHost, "celikom.com", StringComparison.OrdinalIgnoreCase) ||
+            !origin.IsDefaultPort || origin.UserInfo.Length != 0 ||
             origin.Query.Length != 0 || origin.Fragment.Length != 0 ||
             origin.AbsolutePath != "/" || string.IsNullOrWhiteSpace(origin.Host))
             return false;
@@ -69,8 +66,7 @@ public sealed class StableUpdateTrustConfiguration
             return false;
         }
 
-        configuration = new StableUpdateTrustConfiguration(
-            origin, publicKeyDer, signerCertificateSha256.ToLowerInvariant());
+        configuration = new StableUpdateTrustConfiguration(origin, publicKeyDer);
         return true;
     }
 }

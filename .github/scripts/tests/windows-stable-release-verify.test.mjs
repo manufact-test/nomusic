@@ -27,7 +27,7 @@ async function fixture(t){
   ]);
   return {root,versionRoot,doc,publicKey,pair,app,data};
 }
-test("W148 signed stable release verifies exact immutable/latest pair and package",async t=>{
+test("W155 P-256 signed stable release verifies exact immutable/latest pair and package",async t=>{
   const f=await fixture(t);
   const r=await verifyPreparedStableRelease(f.root,{
     origin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
@@ -41,15 +41,17 @@ test("W148 tampering with the signed latest JSON fails before any deployment",as
     origin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
   }),/MANIFEST_PAIR_MISMATCH/);
 });
-test("W148 refuses wrong pinned release identity and wrong domain",async t=>{
+test("W155 refuses wrong pinned release identity and wrong domain",async t=>{
   const f=await fixture(t);
   const other=generateKeyPairSync("ec",{namedCurve:"prime256v1"}).publicKey
     .export({format:"der",type:"spki"}).toString("base64");
   await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
     origin,version,sequence,pinnedPublicKeyDerBase64:other
   }),/SIGNATURE_INVALID/);
-  await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
-    origin:"https://darkred-camel-588676.hostingersite.com",version,sequence,
-    pinnedPublicKeyDerBase64:f.publicKey
-  }),/ORIGIN_INVALID/);
+  for (const wrongOrigin of ["https://darkred-camel-588676.hostingersite.com",
+    "https://updates.celikom.com","https://www.celikom.com"]) {
+    await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
+      origin:wrongOrigin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
+    }),/ORIGIN_INVALID/);
+  }
 });

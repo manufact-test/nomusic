@@ -53,7 +53,7 @@ public static class StableUpdateSupervisorHandshake
 }
 
 /// <summary>
-/// Launches the previously installed, signed Supervisor from the immutable
+/// Launches the previously installed, manifest-verified Supervisor from the immutable
 /// transaction snapshot so Inno Setup can replace the installed helper file.
 /// The update installer must never run unless this process acknowledges READY.
 /// </summary>
@@ -68,13 +68,13 @@ public static class StableUpdateSupervisorLauncher
         if (!OperatingSystem.IsWindows() ||
             !StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
             trust is null ||
-            record.Schema != 2 || record.Id == Guid.Empty ||
+            record.Schema != 3 || record.Id == Guid.Empty ||
             record.State != StableUpdateRollbackJournal.Phase.Prepared ||
             record.RollbackAttempts != 0 ||
             !ValidSha(record.PreviousSupervisorSha256) ||
             !ValidSha(record.TargetSupervisorSha256) ||
-            !ValidSha(record.SignerSha256) ||
-            !string.Equals(record.SignerSha256, trust.SignerCertificateSha256,
+            !ValidSha(record.ManifestPublicKeySha256) ||
+            !string.Equals(record.ManifestPublicKeySha256, trust.ManifestPublicKeySha256,
                 StringComparison.OrdinalIgnoreCase))
             return false;
 

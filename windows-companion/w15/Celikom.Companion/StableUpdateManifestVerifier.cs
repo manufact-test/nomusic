@@ -8,7 +8,7 @@ namespace Celikom.Companion;
 /// <summary>
 /// W101 trust contract for a future stable updater. This does NOT fetch or
 /// execute packages. No automatic update is enabled until a release-signing
-/// public key is pinned, the EXE is Authenticode-signed, and health/rollback
+/// public key is pinned, the package SHA-256 and payload identities are checked, and health/rollback
 /// and idle-playback gates are independently verified.
 /// </summary>
 public static class StableUpdateManifestVerifier

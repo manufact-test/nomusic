@@ -12,7 +12,7 @@ var guid = Guid.NewGuid();
 
 StableUpdateRollbackJournal.Record NewRecord(
     StableUpdateRollbackJournal.Phase phase) =>
-    new(2, guid, phase, "0.24.36.0", "0.24.37.0",
+    new(3, guid, phase, "0.24.36.0", "0.24.37.0",
         new string('a', 64), new string('b', 64),
         new string('c', 64), 40_000, 42, 43,
         start.AddMinutes(10).ToUnixTimeSeconds(), 0,
@@ -33,7 +33,7 @@ var signedNoNative = new StableUpdateRollbackJournal.HealthEvidence(true, true, 
 var signedNoBridge = new StableUpdateRollbackJournal.HealthEvidence(true, false, true, true);
 
 // W110 is independently testable even when the GUI executable crashes.
-// A failed new process queues a rollback only after the signed transaction's
+// A failed new process queues a rollback only after the manifest-verified transaction's
 // deadline, not just because a user hasn't clicked Start yet.
 var journal = new FakeJournal(NewRecord(StableUpdateRollbackJournal.Phase.Prepared));
 var probe = new FakeProbe { Evidence = notReady };
@@ -60,7 +60,7 @@ Check(await engine.TickAsync(start.AddMinutes(12)) == UpdateSupervisorEngine.Ste
       installer.LaunchCount == 1 && journal.VerifyCount == 1 &&
       journal.Current.RollbackAttempts == 1 &&
       journal.Current.DeadlineUnix == start.AddMinutes(22).ToUnixTimeSeconds(),
-      "signed previous setup executes once after safe-stop checks; own health deadline");
+      "manifest-verified previous setup executes once after safe-stop checks; own health deadline");
 Check(await engine.TickAsync(start.AddMinutes(13)) == UpdateSupervisorEngine.Step.Waiting,
       "rollback installer start is not mistaken for actual restored health");
 probe.Evidence = valid;
@@ -72,7 +72,7 @@ Check(await engine.TickAsync(start.AddMinutes(14)) ==
         UpdateSupervisorEngine.Step.PreviousVersionRestored &&
       journal.Current.State == StableUpdateRollbackJournal.Phase.Restored &&
       installer.LaunchCount == 1,
-      "previous signed version and bridge/session/native evidence complete recovery");
+      "previous manifest-verified version and bridge/session/native evidence complete recovery");
 Check(await engine.TickAsync(start.AddMinutes(15)) == UpdateSupervisorEngine.Step.Completed &&
       installer.LaunchCount == 1,
       "finished recovery cannot launch installer again");
@@ -88,10 +88,10 @@ Check(await good.TickAsync(start.AddSeconds(5)) ==
       "actual signed running target EXE is observed before any success marking");
 goodProbe.Evidence = signedNoNative;
 Check(await good.TickAsync(start.AddSeconds(6)) == UpdateSupervisorEngine.Step.Waiting,
-      "running signed target without native module is NOT healthy");
+      "running manifest-verified target without native module is NOT healthy");
 goodProbe.Evidence = signedNoBridge;
 Check(await good.TickAsync(start.AddSeconds(7)) == UpdateSupervisorEngine.Step.Waiting,
-      "running signed target without authenticated local bridge is NOT healthy");
+      "running manifest-verified target without authenticated local bridge is NOT healthy");
 goodProbe.Evidence = valid;
 goodProbe.ObservedNativeHostSha256 = new string('f', 64);
 Check(await good.TickAsync(start.AddSeconds(8)) == UpdateSupervisorEngine.Step.Waiting,
@@ -245,7 +245,7 @@ sealed class FakeJournal(StableUpdateRollbackJournal.Record initial) : ISupervis
 
     public void ConfirmPreviousHealthy(StableUpdateRollbackJournal.HealthEvidence evidence)
     {
-        if (!evidence.ExactSignedNewExe || !evidence.BridgeResponds ||
+        if (!evidence.ExactVerifiedNewExe || !evidence.BridgeResponds ||
             !evidence.SessionPreserved || !evidence.NativeIntegrationConsistent)
             throw new IOException("OLD_APP_NOT_HEALTHY");
         Current = Current with { State = StableUpdateRollbackJournal.Phase.Restored };
@@ -277,7 +277,7 @@ sealed class FakeProbe : ISupervisorHealthProbe
         CancellationToken cancellationToken) =>
         Task.FromResult(Evidence with
         {
-            ExactSignedNewExe = Evidence.ExactSignedNewExe &&
+            ExactVerifiedNewExe = Evidence.ExactVerifiedNewExe &&
                 string.Equals(ObservedSupervisorSha256, expectedSupervisorSha256,
                     StringComparison.Ordinal) &&
                 string.Equals(ObservedApplicationSha256, expectedApplicationSha256,
@@ -298,7 +298,7 @@ sealed class FakeLauncher : ISupervisorRollbackLauncher
 {
     public int LaunchCount { get; private set; }
     public bool ThrowOnLaunch { get; set; }
-    public void Launch(string signedPreviousInstaller)
+    public void Launch(string verifiedPreviousInstaller)
     {
         LaunchCount++;
         if (ThrowOnLaunch) throw new IOException("INNO_ROLLBACK_REFUSED");

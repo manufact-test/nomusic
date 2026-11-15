@@ -128,14 +128,14 @@ public static class AppUpdateManager
         LaunchInstallerProcess(item.Path);
     }
 
-    internal static void LaunchVerifiedSigned(
+    internal static void LaunchManifestVerified(
         string verifiedPath,
         StableUpdateManifestVerifier.VerifiedRelease release,
-        string pinnedSignerCertificateSha256)
+        string pinnedManifestPublicKeySha256)
     {
         if (!StableUpdateTrustConfiguration.TryGetProduction(out var trust) ||
             trust is null ||
-            !string.Equals(trust.SignerCertificateSha256, pinnedSignerCertificateSha256,
+            !string.Equals(trust.ManifestPublicKeySha256, pinnedManifestPublicKeySha256,
                 StringComparison.OrdinalIgnoreCase))
             throw new IOException("STABLE_UPDATE_TRUST_NOT_CONFIGURED");
 
@@ -143,7 +143,7 @@ public static class AppUpdateManager
             StableUpdateRollbackJournal.DefaultPrivateRoot);
         var expectedPath = StableUpdateRollbackJournal.GetTargetInstallerPath(
             StableUpdateRollbackJournal.DefaultPrivateRoot, record.Id);
-        if (record.Schema != 2 ||
+        if (record.Schema != 3 ||
             record.State != StableUpdateRollbackJournal.Phase.InstallerStarted ||
             record.RollbackAttempts != 0 ||
             !string.Equals(Path.GetFullPath(verifiedPath), Path.GetFullPath(expectedPath),
@@ -152,12 +152,12 @@ public static class AppUpdateManager
             record.TargetSequence != release.Sequence ||
             record.TargetSize != release.PackageSize ||
             !string.Equals(record.TargetSha256, release.Sha256, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(record.SignerSha256, pinnedSignerCertificateSha256,
+            !string.Equals(record.ManifestPublicKeySha256, pinnedManifestPublicKeySha256,
                 StringComparison.OrdinalIgnoreCase))
             throw new IOException("STABLE_UPDATE_TARGET_NOT_JOURNALED");
 
         StableUpdatePackageStager.VerifyInstaller(
-            verifiedPath, release, pinnedSignerCertificateSha256);
+            verifiedPath, release);
         if (!CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: false))
             throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
         LaunchInstallerProcess(verifiedPath);

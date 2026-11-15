@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
 using Celikom.NativeInstaller;
 
@@ -22,22 +21,20 @@ public static class StableUpdatePackageStager
         string Path, Version Version, long Sequence, string Sha256);
 
     private const long MaxBytes = 125_000_000;
-    private static readonly Regex CertFingerprint = new(
+    private static readonly Regex Sha256Pattern = new(
         "^[a-fA-F0-9]{64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>
-    /// Network stage is only an untrusted download until WinVerifyTrust,
+    /// Network stage is only an untrusted download until the signed manifest,
     /// pinned signer certificate, PE metadata and bytes pass VerifyInstaller.
     /// Caller must supply a release produced by verified signed-manifest parsing.
     /// </summary>
     public static async Task<VerifiedInstaller> FetchVerifiedAsync(
         StableUpdateManifestVerifier.VerifiedRelease release,
-        string pinnedSignerCertSha256, CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         if (!OperatingSystem.IsWindows())
             throw new IOException("STABLE_UPDATE_WINDOWS_ONLY");
-        if (!CertFingerprint.IsMatch(pinnedSignerCertSha256 ?? ""))
-            throw new IOException("STABLE_UPDATE_SIGNER_UNPINNED");
         RequirePayloadIdentity(release);
 
         var root = Path.Combine(
@@ -56,7 +53,7 @@ public static class StableUpdatePackageStager
         var downloaded = await DownloadUntrustedAsync(release, root, client, cancellationToken);
         try
         {
-            VerifyInstaller(downloaded, release, pinnedSignerCertSha256!);
+            VerifyInstaller(downloaded, release);
             return new VerifiedInstaller(downloaded, release.Version,
                 release.Sequence, release.Sha256);
         }
@@ -74,7 +71,6 @@ public static class StableUpdatePackageStager
     /// </summary>
     public static async Task<VerifiedInstaller> FetchOrReusePendingAsync(
         StableUpdateManifestVerifier.VerifiedRelease release,
-        string pinnedSignerCertSha256,
         CancellationToken cancellationToken = default)
     {
         EnsurePendingDirectory();
@@ -85,7 +81,7 @@ public static class StableUpdatePackageStager
         {
             try
             {
-                VerifyInstaller(pendingPath, release, pinnedSignerCertSha256);
+                VerifyInstaller(pendingPath, release);
                 CleanupPendingPackages(pendingPath);
                 return new VerifiedInstaller(pendingPath, release.Version,
                     release.Sequence, release.Sha256);
@@ -97,12 +93,12 @@ public static class StableUpdatePackageStager
         }
 
         var downloaded = await FetchVerifiedAsync(
-            release, pinnedSignerCertSha256, cancellationToken);
+            release, cancellationToken);
         try
         {
             EnsurePendingDirectory();
             File.Move(downloaded.Path, pendingPath, overwrite: true);
-            VerifyInstaller(pendingPath, release, pinnedSignerCertSha256);
+            VerifyInstaller(pendingPath, release);
             CleanupPendingPackages(pendingPath);
             return new VerifiedInstaller(pendingPath, release.Version,
                 release.Sequence, release.Sha256);
@@ -125,7 +121,7 @@ public static class StableUpdatePackageStager
         if (string.IsNullOrWhiteSpace(root) || release is null ||
             release.Version.Major < 0 || release.Version.Minor < 0 ||
             release.Version.Build < 0 || release.Sequence <= 0 ||
-            !CertFingerprint.IsMatch(sha256))
+            !Sha256Pattern.IsMatch(sha256))
             throw new IOException("STABLE_UPDATE_PENDING_IDENTITY_INVALID");
 
         var name = $"CELIKOM-{release.Version.ToString(3)}-{release.Sequence}-" +
@@ -211,22 +207,37 @@ public static class StableUpdatePackageStager
     /// a staged path just because it passed at an earlier moment.
     /// </summary>
     public static void VerifyInstaller(
-        string stagedPath, StableUpdateManifestVerifier.VerifiedRelease release,
-        string pinnedSignerCertSha256)
+        string stagedPath, StableUpdateManifestVerifier.VerifiedRelease release)
     {
         if (!OperatingSystem.IsWindows())
             throw new IOException("STABLE_UPDATE_WINDOWS_ONLY");
-        if (release is null || !CertFingerprint.IsMatch(pinnedSignerCertSha256 ?? ""))
-            throw new IOException("STABLE_UPDATE_SIGNER_UNPINNED");
+        VerifyInstallerCore(stagedPath, release, path =>
+        {
+            var meta = FileVersionInfo.GetVersionInfo(path);
+            return (meta.FileVersion, meta.CompanyName, meta.ProductName);
+        });
+    }
+
+    // The signed P-256 manifest authenticates the exact package bytes. PE
+    // metadata is an additional product/version guard, not a publisher claim.
+    internal static void VerifyInstallerCore(
+        string stagedPath, StableUpdateManifestVerifier.VerifiedRelease release,
+        Func<string, (string? FileVersion, string? CompanyName, string? ProductName)> readIdentity)
+    {
+        ArgumentNullException.ThrowIfNull(readIdentity);
+        if (release is null)
+            throw new IOException("STABLE_UPDATE_RELEASE_INVALID");
         RequirePayloadIdentity(release);
         if (!File.Exists(stagedPath))
             throw new IOException("STABLE_UPDATE_FILE_MISSING");
 
         var file = new FileInfo(stagedPath);
         if (file.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+            !string.Equals(file.Extension, ".exe", StringComparison.OrdinalIgnoreCase) ||
             file.Length != release.PackageSize ||
             file.Length is < 10_000 or > MaxBytes)
             throw new IOException("STABLE_UPDATE_SIZE_INVALID");
+
         var expectedHash = DecodeExpectedHash(release.Sha256);
         using (var stream = new FileStream(stagedPath, FileMode.Open,
             FileAccess.Read, FileShare.Read, 65536, FileOptions.SequentialScan))
@@ -236,27 +247,7 @@ public static class StableUpdatePackageStager
                 throw new IOException("STABLE_UPDATE_SHA256_MISMATCH");
         }
 
-        // WinVerifyTrust checks a trusted Authenticode signature, not just
-        // the presence of a certificate in the EXE resources. The signer
-        // certificate must separately match a build-time trusted SHA256 pin.
-        if (!NativeHostSignature.IsValid(stagedPath))
-            throw new IOException("STABLE_UPDATE_AUTHENTICODE_INVALID");
-        try
-        {
-#pragma warning disable SYSLIB0057
-            using var signer = X509Certificate.CreateFromSignedFile(stagedPath);
-#pragma warning restore SYSLIB0057
-            var certHash = SHA256.HashData(signer.GetRawCertData());
-            var pinned = Convert.FromHexString(pinnedSignerCertSha256!);
-            if (!CryptographicOperations.FixedTimeEquals(certHash, pinned))
-                throw new IOException("STABLE_UPDATE_SIGNER_MISMATCH");
-        }
-        catch (CryptographicException)
-        {
-            throw new IOException("STABLE_UPDATE_SIGNER_INVALID");
-        }
-
-        var meta = FileVersionInfo.GetVersionInfo(stagedPath);
+        var meta = readIdentity(stagedPath);
         if (!Version.TryParse(meta.FileVersion?.Trim(), out var version) ||
             !SameVersion(version, release.Version) ||
             !string.Equals(meta.CompanyName?.Trim(), "CELIKOM", StringComparison.Ordinal) ||
@@ -334,16 +325,16 @@ public static class StableUpdatePackageStager
     private static void RequirePayloadIdentity(
         StableUpdateManifestVerifier.VerifiedRelease release)
     {
-        if (!CertFingerprint.IsMatch(release.ApplicationSha256 ?? "") ||
-            !CertFingerprint.IsMatch(release.NativeHostSha256 ?? "") ||
-            !CertFingerprint.IsMatch(release.RendererSha256 ?? "") ||
-            !CertFingerprint.IsMatch(release.SupervisorSha256 ?? ""))
+        if (!Sha256Pattern.IsMatch(release.ApplicationSha256 ?? "") ||
+            !Sha256Pattern.IsMatch(release.NativeHostSha256 ?? "") ||
+            !Sha256Pattern.IsMatch(release.RendererSha256 ?? "") ||
+            !Sha256Pattern.IsMatch(release.SupervisorSha256 ?? ""))
             throw new IOException("STABLE_UPDATE_PAYLOAD_IDENTITY_MISSING");
     }
 
     private static byte[] DecodeExpectedHash(string sha256)
     {
-        if (sha256 is null || !CertFingerprint.IsMatch(sha256))
+        if (sha256 is null || !Sha256Pattern.IsMatch(sha256))
             throw new IOException("STABLE_UPDATE_SHA256_INVALID");
         return Convert.FromHexString(sha256);
     }

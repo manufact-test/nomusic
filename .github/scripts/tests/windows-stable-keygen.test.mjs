@@ -6,7 +6,7 @@ import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {createOfflineStableManifestKeypair} from "../windows-stable-keygen.mjs";
 
-test("W148 offline P256 generator never prints or commits a private key",async t=>{
+test("W155 offline P256 generator never prints or commits a private key",async t=>{
  const root=await mkdtemp(join(tmpdir(),"celikom-keygen-"));
  t.after(()=>rm(root,{recursive:true,force:true}));
  const dir=join(root,"fresh");

@@ -11,7 +11,7 @@ import {
 const now = new Date();
 const publishedAt = now.toISOString();
 const expiresAt = new Date(now.getTime() + 7 * 86_400_000).toISOString();
-const origin = "https://darkred-camel-588676.hostingersite.com";
+const origin = "https://celikom.com";
 const version = "0.24.37";
 
 async function fixture(t) {
@@ -125,6 +125,10 @@ test("W113 rejects non-P256 keys, malformed origin, version and sequence", async
   }), /W113_SIGNING_KEY_NOT_P256/);
   await assert.rejects(() => buildStableManifestArtifacts({
     ...common, origin: "http://example.com",
+    signingPrivateKeyPem: f.signingPrivateKeyPem
+  }), /W113_OFFICIAL_ORIGIN_INVALID/);
+  await assert.rejects(() => buildStableManifestArtifacts({
+    ...common, origin: "https://updates.celikom.com",
     signingPrivateKeyPem: f.signingPrivateKeyPem
   }), /W113_OFFICIAL_ORIGIN_INVALID/);
   await assert.rejects(() => buildStableManifestArtifacts({

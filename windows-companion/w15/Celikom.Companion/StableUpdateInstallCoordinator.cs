@@ -62,16 +62,15 @@ public static class StableUpdateInstallCoordinator
             // payloads without downloading its installer. This gives us the
             // anti-downgrade sequence even before the first LKG bootstrap.
             var installedRelease =
-                await StableUpdateBootstrapper.FetchInstalledSignedReleaseAsync(
-                    trust.OfficialOrigin, trust.ManifestPublicKeyDer,
-                    trust.SignerCertificateSha256, cancellationToken);
+                await StableUpdateBootstrapper.FetchInstalledManifestReleaseAsync(
+                    trust.OfficialOrigin, trust.ManifestPublicKeyDer, cancellationToken);
 
             var lastAcceptedSequence = installedRelease.Sequence;
             var hasLastKnownGood = false;
             try
             {
                 var cached = StableUpdateRollbackJournal.GetLastKnownGood(
-                    root, trust.SignerCertificateSha256);
+                    root, trust.ManifestPublicKeySha256);
                 if (cached.Release.Version != AppUpdateManager.RunningVersion ||
                     cached.Release.Sequence != installedRelease.Sequence)
                     throw new IOException("STABLE_UPDATE_CURRENT_LKG_MISMATCH");
@@ -100,7 +99,7 @@ public static class StableUpdateInstallCoordinator
                 {
                     await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
                         trust.OfficialOrigin, trust.ManifestPublicKeyDer,
-                        trust.SignerCertificateSha256, cancellationToken);
+                        trust.ManifestPublicKeySha256, cancellationToken);
                 }
                 return new(Outcome.NoUpdate);
             }
@@ -108,11 +107,11 @@ public static class StableUpdateInstallCoordinator
             if (!CanDownload(getContext()))
                 return new(Outcome.Deferred);
 
-            // The package is fully SHA-256/Authenticode/PE verified before it
+            // The package is fully manifest-SHA-256/PE verified before it
             // enters the durable pending cache. A later pass re-verifies it
             // against the freshly authenticated latest manifest.
             staged = await StableUpdatePackageStager.FetchOrReusePendingAsync(
-                latest, trust.SignerCertificateSha256, cancellationToken);
+                latest, cancellationToken);
 
             if (!CanInstall(getContext()))
             {
@@ -126,7 +125,7 @@ public static class StableUpdateInstallCoordinator
             var lastKnownGood =
                 await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
                     trust.OfficialOrigin, trust.ManifestPublicKeyDer,
-                    trust.SignerCertificateSha256, cancellationToken);
+                    trust.ManifestPublicKeySha256, cancellationToken);
 
             // Bootstrap can take time. If Yandex started meanwhile, retain the
             // verified pending package and retry only at a later safe point.
@@ -138,15 +137,15 @@ public static class StableUpdateInstallCoordinator
             }
 
             StableUpdatePackageStager.VerifyInstaller(
-                staged.Path, latest, trust.SignerCertificateSha256);
+                staged.Path, latest);
 
-            record = StableUpdateRollbackJournal.PrepareSigned(
+            record = StableUpdateRollbackJournal.PrepareManifestVerified(
                 root,
                 lastKnownGood.Release,
                 lastKnownGood.InstallerPath,
                 latest,
                 staged.Path,
-                trust.SignerCertificateSha256,
+                trust.ManifestPublicKeySha256,
                 AppUpdateManager.RunningVersion,
                 DateTimeOffset.UtcNow,
                 getContext().HasSession,
@@ -182,13 +181,13 @@ public static class StableUpdateInstallCoordinator
             var targetInstaller = StableUpdateRollbackJournal.GetTargetInstallerPath(
                 root, record.Id);
             StableUpdatePackageStager.VerifyInstaller(
-                targetInstaller, latest, trust.SignerCertificateSha256);
+                targetInstaller, latest);
 
             try
             {
                 AppUpdateManager.MarkPending(latest.Version);
-                AppUpdateManager.LaunchVerifiedSigned(
-                    targetInstaller, latest, trust.SignerCertificateSha256);
+                AppUpdateManager.LaunchManifestVerified(
+                    targetInstaller, latest, trust.ManifestPublicKeySha256);
             }
             catch
             {

@@ -3,7 +3,7 @@ import {readFile,stat} from "node:fs/promises";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import {resolve} from "node:path";
-function bad(code){throw new Error("W148_STABLE_RELEASE_"+code);}
+function bad(code){throw new Error("W155_STABLE_RELEASE_"+code);}
 function sha(bytes){return createHash("sha256").update(bytes).digest("hex");}
 const hex64=/^[a-f0-9]{64}$/;
 const versionRe=/^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,5}$/;
@@ -60,6 +60,6 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
     origin:process.env.CELIKOM_STABLE_ORIGIN,
     pinnedPublicKeyDerBase64:process.env.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64
   });
-  console.log("W148_STABLE_RELEASE_VERIFIED version="+res.version+
+  console.log("W155_STABLE_RELEASE_VERIFIED version="+res.version+
     " sequence="+res.sequence+" package_sha256="+res.packageSha256);
 }

@@ -20,7 +20,7 @@ public sealed class UpdateSupervisorEngine(
         var state = journal.Read();
         if (state.Id != expectedTransaction)
             throw new IOException("SUPERVISOR_TRANSACTION_MISMATCH");
-        if (state.Schema != 2)
+        if (state.Schema != 3)
             throw new IOException("SUPERVISOR_TRANSACTION_SCHEMA_UNSUPPORTED");
         if (!ValidSha(state.TargetApplicationSha256) ||
             !ValidSha(state.TargetNativeHostSha256) ||
@@ -52,7 +52,7 @@ public sealed class UpdateSupervisorEngine(
                     state.SessionIdentitySha256, state.TargetApplicationSha256,
                     state.TargetNativeHostSha256, state.TargetRendererSha256,
                     state.TargetSupervisorSha256, ct);
-                if (health.ExactSignedNewExe)
+                if (health.ExactVerifiedNewExe)
                 {
                     journal.Advance(state.State, StableUpdateRollbackJournal.Phase.NewAppObserved);
                     return Step.NewApplicationSeen;
@@ -133,7 +133,7 @@ public sealed class UpdateSupervisorEngine(
                     state.SessionIdentitySha256, state.PreviousApplicationSha256,
                     state.PreviousNativeHostSha256, state.PreviousRendererSha256,
                     state.PreviousSupervisorSha256, ct);
-                if (health.ExactSignedNewExe && health.BridgeResponds &&
+                if (health.ExactVerifiedNewExe && health.BridgeResponds &&
                     (!state.ExpectedSession || health.SessionPreserved) &&
                     (!state.NativeWasInstalled || health.NativeIntegrationConsistent))
                 {
@@ -180,11 +180,11 @@ public interface ISupervisorHealthProbe
 
 public interface ISupervisorRollbackLauncher
 {
-    void Launch(string signedPreviousInstaller);
+    void Launch(string verifiedPreviousInstaller);
 }
 
 public sealed class DurableSupervisorJournal(
-    string privateRoot, Guid expectedId, string pinnedSignerSha256)
+    string privateRoot, Guid expectedId, string pinnedManifestPublicKeySha256)
     : ISupervisorJournal
 {
     private static bool ValidSha(string? value) =>
@@ -212,5 +212,5 @@ public sealed class DurableSupervisorJournal(
 
     public string VerifiedPreviousInstaller() =>
         StableUpdateRollbackJournal.VerifiedPreviousInstaller(
-            privateRoot, expectedId, pinnedSignerSha256);
+            privateRoot, expectedId, pinnedManifestPublicKeySha256);
 }

@@ -249,14 +249,14 @@ jobs:
           Write-Output 'W137_ONE_EXE_ZIP_STAGE_CONTRACT_PASS'
       - name: W110 crash-independent watchdog health and rollback simulation
         run: dotnet run --project windows-companion/w15/Celikom.UpdateSupervisor.Tests/Celikom.UpdateSupervisor.Tests.csproj -c Release
-      - name: W110 unsigned production helper refuses automatic recovery
+      - name: W110 unprovisioned production helper refuses automatic recovery
         shell: pwsh
         run: |
           dotnet run --no-build --project windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj -c Release -- --supervise 11111111111111111111111111111111
           if ($LASTEXITCODE -ne 3) {
-            throw "W110_FAIL_CLOSED_PRODUCTION_SIGNER_PIN_MISSING"
+            throw "W110_FAIL_CLOSED_PRODUCTION_MANIFEST_TRUST_MISSING"
           }
-          Write-Output 'W110_PRODUCTION_ROLLBACK_DISABLED_UNTIL_SIGNING_PASS'
+          Write-Output 'W110_PRODUCTION_ROLLBACK_DISABLED_UNTIL_P256_TRUST_PASS'
           exit 0
       - name: W117 production trust and startup bootstrap remain fail-closed
         shell: pwsh
@@ -264,10 +264,22 @@ jobs:
           $trust = Get-Content windows-companion/w15/Celikom.Companion/StableUpdateTrustConfiguration.cs -Raw
           $main = Get-Content windows-companion/w15/Celikom.Companion/MainWindow.cs -Raw
           $supervisor = Get-Content windows-companion/w15/Celikom.UpdateSupervisor/Program.cs -Raw
+          $releaseWorkflow = Get-Content .github/workflows/windows-stable-signed-release.yml -Raw
+          $provisionScript = Get-Content .github/scripts/windows-stable-provision-key.ps1 -Raw
+          [void][ScriptBlock]::Create($provisionScript)
+          if ($releaseWorkflow.Contains('CELIKOM_STABLE_PFX') -or
+              $releaseWorkflow.Contains('signtool') -or
+              $releaseWorkflow.Contains('CELIKOM_STABLE_SIGNER_SHA256')) {
+            throw 'W155_RELEASE_PIPELINE_MUST_NOT_REQUIRE_AUTHENTICODE_OR_PFX'
+          }
+          if (-not $releaseWorkflow.Contains('publish_to_production') -or
+              -not $releaseWorkflow.Contains('default: false')) {
+            throw 'W155_PRODUCTION_PUBLICATION_MUST_BE_EXPLICITLY_OPT_IN'
+          }
           if (-not $trust.Contains('private const string ProductionFeedOrigin = "";') -or
               -not $trust.Contains('private const string ProductionManifestPublicKeyDerBase64 = "";') -or
-              -not $trust.Contains('private const string ProductionSignerCertificateSha256 = "";')) {
-            throw 'W117_PRODUCTION_TRUST_MUST_REMAIN_UNPROVISIONED'
+              $trust.Contains('ProductionSignerCertificateSha256') ) {
+            throw 'W117_PRODUCTION_P256_TRUST_MUST_REMAIN_UNPROVISIONED'
           }
           if (-not $main.Contains('Task.Run(BootstrapStableRollbackIfConfiguredAsync)') -or
               -not $main.Contains('StableUpdateTrustConfiguration.TryGetProduction') -or
