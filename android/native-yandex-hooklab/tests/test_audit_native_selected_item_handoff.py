@@ -1224,7 +1224,9 @@ class SelectedItemAuditTests(unittest.TestCase):
             SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS,
             SELECTED_TRACK_PATH_METHODS
         )
-        expected_owners={"LJK1;","LCK1$a;","LCK1$c;","LCK1$l;"}
+        expected_owners={
+            "LJK1;","LCK1$a;","LCK1$c;","LCK1$l;","LCK1$c$a;","LCK1$l$a;"
+        }
         self.assertEqual(
             set(SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS),expected_owners
         )

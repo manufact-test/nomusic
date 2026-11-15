@@ -5606,12 +5606,15 @@ SELECTED_TRACK_PATH_METHODS = {
     ("LCK1$a;", "<init>", "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)V"),
     ("LCK1$c;", "<init>", "(LC3a;Lru/yandex/music/data/audio/o;)V"),
     ("LCK1$l;", "<init>", "(LD3a;Lru/yandex/music/data/audio/o;)V"),
+    # Exact inner Flow coroutine constructors receiving the retained Track.
+    ("LCK1$c$a;", "<init>", "(LHl4;Lru/yandex/music/data/audio/o;)V"),
+    ("LCK1$l$a;", "<init>", "(LHl4;Lru/yandex/music/data/audio/o;)V"),
     ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
     ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
 }
 
 TRACK_FIELD_READ_SCAN_OWNERS = {
-    "LJK1;", "LCK1$a;", "LCK1$c;", "LCK1$l;"
+    "LJK1;", "LCK1$a;", "LCK1$c;", "LCK1$l;", "LCK1$c$a;", "LCK1$l$a;"
 }
 
 SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS = {
@@ -5631,6 +5634,14 @@ SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS = {
     "LCK1$l;": (
         "LCK1$l;", "<init>",
         "(LD3a;Lru/yandex/music/data/audio/o;)V"
+    ),
+    "LCK1$c$a;": (
+        "LCK1$c$a;", "<init>",
+        "(LHl4;Lru/yandex/music/data/audio/o;)V"
+    ),
+    "LCK1$l$a;": (
+        "LCK1$l$a;", "<init>",
+        "(LHl4;Lru/yandex/music/data/audio/o;)V"
     ),
 }
 
