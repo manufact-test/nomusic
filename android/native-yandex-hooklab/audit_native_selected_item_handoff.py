@@ -5917,7 +5917,7 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
     ]
     media_session_calls = [
         target for target in call_targets
-        if classify_boundary_call(target) in (
+        if classify_boundary_call((target.get("owner"), target.get("method"), target.get("signature"))) in (
             "MEDIA_SESSION_METADATA", "MEDIA_SESSION_STATE"
         )
     ]
