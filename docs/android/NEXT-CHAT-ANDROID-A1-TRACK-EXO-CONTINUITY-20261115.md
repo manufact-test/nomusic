@@ -1,3 +1,40 @@
+# CURRENT IN-PROGRESS CHECKPOINT — 15 Nov 2026, LCK1 Flow/coroutine Track path
+
+**Code under CI:** `066778008331584301731f9d430a6713a0e7a02d`.  
+**Prior green interface audit:** [#43742534368](https://github.com/manufact-test/nomusic/actions/runs/43742534368) SUCCESS, 85/85 tests, 16 signed splits / 6 DEX.  
+**Current CI:** [#43743305204](https://github.com/manufact-test/nomusic/actions/runs/43743305204) — static tests/install phase; signed-DEX scan pending.  
+**Previous code-only CI:** [#43743253472](https://github.com/manufact-test/nomusic/actions/runs/43743253472) — same implementation before the extra scope regression test; signed-DEX scan in progress.  
+**Pre-CI backup:** `backup/android-a1-lck1-flow-coroutine-field-audit-pre-ci-20261115` @ `066778008331584301731f9d430a6713a0e7a02d`.  
+**Previous green backup:** `backup/android-a1-lbk1-lgk1-interface-ci-green-20261115` @ `7e74639a06e4c6c2913fec3cd1c8c4a2e4ce7a69`.
+
+## Confirmed interface handoff
+
+Both `LBK1` and `LGK1$a` are abstract interfaces in the signed original. `LBK1` has direct implementers `LCK1`, `LSV6`, `LXV6`; `LGK1$a` has 10 direct implementers. 42 exact method traces were captured.
+
+The primary `LCK1` methods pass the same Track into:
+- `LUJ5.return(Track): Flow`
+- `LCK1$a.<init>(Track, Continuation)`
+- `LCK1$c.<init>(LC3a, Track)`
+- `LCK1$l.<init>(LD3a, Track)`
+- `LHv4.if(Track): boolean`
+
+`LXV6` delegates its five methods back to the `LBK1` interface refs. `LSV6` is a direct implementer but its exact concrete method bodies were not found in the prior bounded trace; the current owner profile output now includes its abstract/interface/superclass shape.
+
+## Current bounded scope
+
+The current code traces only the five exact LCK1 outgoing method refs and derives Track-typed fields written from the exact original Track parameter in constructors of `LJK1`, `LCK1$a`, `LCK1$c`, `LCK1$l`. It then scans only methods owned by those four classes for reads of those exact field identities. No field names/values are disclosed.
+
+Next, read the report for:
+- `LUJ5.return` and `LHv4.if` traces;
+- constructor field-store counts and exact field-read method traces for each of the three LCK1 coroutine classes;
+- `LSV6` implementer class shape.
+
+If a coroutine reads the exact Track field and passes it to a concrete source/player/decoder boundary, follow only that edge. If it reaches only generic Flow construction, trace only the exact continuation/coroutine method that carries the same Track. Do not expand into unrelated implementers or generic player APIs.
+
+Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`. No runtime hooks, APK modifications, login, account/media access or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # SUPERSEDING RESULT — 15 Nov 2026, LBK1 / LGK1$a implementation audit (CI GREEN)
 
 **Code checkpoint:** `7e74639a06e4c6c2913fec3cd1c8c4a2e4ce7a69`.  
