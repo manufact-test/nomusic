@@ -37,8 +37,9 @@ class SelectedItemAuditTests(unittest.TestCase):
              patch("audit_native_selected_item_handoff.field_id",
                    return_value=(MODEL,"hidden",ALBUM_MODEL)):
             result=album_constructor_argument_store(FakeDex(),method,0,100)
-        self.assertEqual(result,{"album_parameter_index":0,
-                                 "stores_same_album_argument_on_track":True})
+        self.assertEqual(result["album_parameter_index"],0)
+        self.assertTrue(result["stores_same_album_argument_on_track"])
+        self.assertEqual(result["album_argument_field_write_receiver_alias_count"],1)
 
         moved=[(0,0x07,[0x0307]),(1,0x5b,[0x205b,0]),(2,0x0e,[0x000e])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=moved), \

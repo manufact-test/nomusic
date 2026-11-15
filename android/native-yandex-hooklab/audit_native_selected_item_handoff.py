@@ -213,11 +213,7 @@ def model_parameter_registers(dex: Dex, method, flags: int, code_off: int):
 
 
 def album_constructor_argument_store(dex: Dex, method, flags: int, code_off: int):
-    """Prove an Album constructor argument is stored on THIS Track instance.
-
-    Only object-register identity is followed. No Album or Track field values
-    are decoded, serialized or returned.
-    """
+    """Summarize Track-constructor Album-argument usage without exposing symbols."""
     if method[0] != MODEL or method[1] != "<init>" or flags & ACC_STATIC:
         return None
     params = parse_types(method[2])
@@ -236,9 +232,28 @@ def album_constructor_argument_store(dex: Dex, method, flags: int, code_off: int
         return None
     album_index, album_register = album_params[0]
     aliases = {album_register}
-    stored_on_this = False
+    out = {
+        "album_parameter_index": album_index,
+        "stores_same_album_argument_on_track": False,
+        "album_argument_invoke_count": 0,
+        "album_argument_passed_to_track_method_count": 0,
+        "album_argument_passed_to_other_method_count": 0,
+        "album_typed_field_write_count": 0,
+        "album_typed_field_write_on_this_count": 0,
+        "album_argument_field_write_receiver_alias_count": 0,
+        "album_argument_returned": False,
+    }
     for _pc, op, words in instructions(dex, code_off):
-        if op in (0x07, 0x08, 0x09):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            if any(reg in aliases for reg in regs):
+                out["album_argument_invoke_count"] += 1
+                if callee[0] == MODEL:
+                    out["album_argument_passed_to_track_method_count"] += 1
+                else:
+                    out["album_argument_passed_to_other_method_count"] += 1
+        elif op in (0x07, 0x08, 0x09):
             move = move_object_registers(op, words)
             if move is not None:
                 dest, source = move
@@ -246,15 +261,22 @@ def album_constructor_argument_store(dex: Dex, method, flags: int, code_off: int
                     aliases.add(dest)
                 else:
                     aliases.discard(dest)
-        elif op == 0x5b:  # iput-object
+        elif op == 0x5b:
             value_register = (words[0] >> 8) & 15
             receiver_register = (words[0] >> 12) & 15
             owner, _name, typ = field_id(dex, words[1])
-            if (owner == MODEL and typ == ALBUM_MODEL
-                    and receiver_register == this_register
-                    and value_register in aliases):
-                stored_on_this = True
-        elif op == 0x1f:  # check-cast preserves the object reference
+            if typ == ALBUM_MODEL:
+                out["album_typed_field_write_count"] += 1
+                if receiver_register == this_register:
+                    out["album_typed_field_write_on_this_count"] += 1
+                if value_register in aliases:
+                    out["album_argument_field_write_receiver_alias_count"] += 1
+                    if owner == MODEL and receiver_register == this_register:
+                        out["stores_same_album_argument_on_track"] = True
+        elif op == 0x11:
+            if (words[0] >> 8) in aliases:
+                out["album_argument_returned"] = True
+        elif op == 0x1f:
             pass
         else:
             dest = written_register(op, words)
@@ -262,10 +284,7 @@ def album_constructor_argument_store(dex: Dex, method, flags: int, code_off: int
                 aliases.discard(dest)
             if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
                 aliases.clear()
-    return {
-        "album_parameter_index": album_index,
-        "stores_same_album_argument_on_track": stored_on_this,
-    }
+    return out
 
 
 def straight_line_model_flow(dex: Dex, method, flags: int, code_off: int):
@@ -907,6 +926,24 @@ def inspect_signed(apks):
             "constructors_with_one_album_argument": len(track_album_constructor_rows),
             "constructors_storing_same_album_argument_on_track": sum(
                 row["stores_same_album_argument_on_track"]
+                for row in track_album_constructor_rows),
+            "constructors_passing_album_argument_to_track_methods": sum(
+                row["album_argument_passed_to_track_method_count"] > 0
+                for row in track_album_constructor_rows),
+            "constructors_passing_album_argument_to_other_methods": sum(
+                row["album_argument_passed_to_other_method_count"] > 0
+                for row in track_album_constructor_rows),
+            "constructors_with_album_typed_field_write_on_this": sum(
+                row["album_typed_field_write_on_this_count"] > 0
+                for row in track_album_constructor_rows),
+            "constructors_returning_album_argument": sum(
+                row["album_argument_returned"] for row in track_album_constructor_rows),
+            "total_album_argument_method_passes": sum(
+                row["album_argument_invoke_count"] for row in track_album_constructor_rows),
+            "total_album_typed_field_writes": sum(
+                row["album_typed_field_write_count"] for row in track_album_constructor_rows),
+            "total_album_argument_field_write_receiver_aliases": sum(
+                row["album_argument_field_write_receiver_alias_count"]
                 for row in track_album_constructor_rows),
             "proven": (
                 sum(typ == ALBUM_MODEL for typ in model_fields.values()) == 1
