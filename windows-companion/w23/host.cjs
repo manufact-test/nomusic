@@ -1113,11 +1113,19 @@ function observeNativePlayback(view) {
   });
   view.on("destroyed", () => {
     viewActivity.delete(view);
-    if (selectedPlaybackView === view) {
+    const wasSelected = selectedPlaybackView === view;
+    if (wasSelected) {
       selectedPlaybackView = null;
       ++selectionGeneration;
     }
     lastStatus.delete(view);
+    if (wasSelected && choosePlaybackView() === null) {
+      const token = readToken();
+      if (token) void localRequest(token, "/v1/heartbeat", "POST", heartbeatPayload({
+        trackId:null, status:"UNAVAILABLE", title:"", artist:"",
+        durationMs:null, source:"UNKNOWN", playbackState:"UNKNOWN"
+      }));
+    }
   });
 }
 

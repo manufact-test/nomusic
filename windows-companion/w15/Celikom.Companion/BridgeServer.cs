@@ -72,6 +72,7 @@ public sealed class BridgeServer : IAsyncDisposable
     private bool _enabled;
     private bool _nativeNetworkRecoveryPending;
     private bool _nativeNetworkRecoveryAwaitingHeartbeat;
+    private bool _playerUnavailable;
     // High-frequency native state checks used to flood diagnostics every
     // ~370 ms, rotating out the exact failure the owner was trying to report.
     private long _lastNativeStateDiagUtcTicks;
@@ -123,6 +124,7 @@ public sealed class BridgeServer : IAsyncDisposable
     public string LastSource { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastSource : "UNKNOWN"; } }
     public string LastPlaybackState { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastPlaybackState : "UNKNOWN"; } }
     public bool HasFreshHeartbeat { get { lock (_gate) return IsHeartbeatFreshLocked(); } }
+    public bool PlayerUnavailable { get { lock (_gate) return _playerUnavailable; } }
     public DateTimeOffset LastHeartbeatAt { get { lock (_gate) return _lastHeartbeatAt; } }
     public DateTimeOffset CodeExpires { get { lock (_gate) return _codeExpires; } }
     public bool CanResolve => Enabled && _api.IsLoggedIn;
@@ -137,6 +139,31 @@ public sealed class BridgeServer : IAsyncDisposable
         }
     }
 
+    public void MarkPlayerUnavailable(bool retireNativeHostInstance = false)
+    {
+        lock (_gate)
+        {
+            _playerUnavailable = true;
+            if (retireNativeHostInstance && _lastHeartbeatInstanceId.Length > 0)
+            {
+                _retiredHeartbeatInstances.Add(_lastHeartbeatInstanceId);
+                _lastHeartbeatInstanceId = "";
+                _lastHeartbeatSequence = 0;
+            }
+            _lastSong = "";
+            _lastTitle = "";
+            _lastArtist = "";
+            _lastDurationMs = 0;
+            _lastStatus = "UNAVAILABLE";
+            _lastSource = "UNKNOWN";
+            _lastPlaybackState = "UNKNOWN";
+            _lastHeartbeatAt = DateTimeOffset.MinValue;
+        }
+        if (retireNativeHostInstance)
+            DiagnosticLog.Record("YANDEX_PROCESS_UNAVAILABLE");
+        Changed?.Invoke();
+    }
+
     public void SetEnabled(bool enabled)
     {
         lock (_gate)
@@ -146,7 +173,11 @@ public sealed class BridgeServer : IAsyncDisposable
             _enabled = enabled;
             if (enabled && !wasEnabled && _nativeNetworkRecoveryPending)
                 _nativeNetworkRecoveryAwaitingHeartbeat = true;
-            if (!enabled) _nativeNetworkRecoveryAwaitingHeartbeat = false;
+            if (!enabled)
+            {
+                _nativeNetworkRecoveryAwaitingHeartbeat = false;
+                _playerUnavailable = false;
+            }
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
             _lastSource = "UNKNOWN";
             _lastPlaybackState = "UNKNOWN";
@@ -345,6 +376,7 @@ public sealed class BridgeServer : IAsyncDisposable
                         _lastDurationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
                             ? beat.DurationMs.Value : 0;
                         _lastStatus = beat.Status;
+                        _playerUnavailable = beat.Status == "UNAVAILABLE" && !valid;
                         _lastSource = beat.Status == "NATIVE_SOURCE_VERIFIED" &&
                             beat.Source == "ACTIVE_REPLACEMENT" ? "ACTIVE_REPLACEMENT" :
                             PlaybackSourceEvidence.OriginalVerified(

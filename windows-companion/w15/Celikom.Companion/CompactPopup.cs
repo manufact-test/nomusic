@@ -657,7 +657,7 @@ public sealed partial class MainWindow
             _compactTrack.Text = CompactPlaybackPresentation.TrackPlaceholder(
                 _bridge.Enabled, heartbeatFresh, _bridge.LastPlaybackState,
                 _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
-                _api.IsLoggedIn);
+                _api.IsLoggedIn, _bridge.PlayerUnavailable);
             _compactTrackArtist.Text = "";
         }
 
@@ -693,7 +693,7 @@ public sealed partial class MainWindow
             _nativeInstallState, _hostReport, _installedModule.MatchesApplication);
         var trackHealth = UserFacingPlaybackHealth.CurrentTrack(nativeStatus,
             _bridge.Enabled, _compactPresenceStatus, _bridge.LastSource,
-            _bridge.LastPlaybackState);
+            _bridge.LastPlaybackState, _bridge.PlayerUnavailable);
         var hostProblem = hostHealth.Level is UserFacingPlaybackHealth.Severity.Error or
             UserFacingPlaybackHealth.Severity.Warning;
         var hostNeedsStart = !_bridge.Enabled && !_compactStarting && !_autoReconnectBusy &&
@@ -736,6 +736,7 @@ public sealed partial class MainWindow
             mappingOnly ? "Источник текущего трека не подтверждён" :
             _bridge.Enabled && _bridge.LastPlaybackState is "PAUSED" or "STOPPED"
                 ? trackHealth.Message :
+            _bridge.Enabled && _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             _bridge.Enabled && !heartbeatFresh ? "Ожидаем текущий плеер" :
             _compactPresenceStatus switch
             {

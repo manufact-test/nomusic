@@ -43,9 +43,12 @@ public static class UserFacingPlaybackHealth
     // transition health. Silence, cached mapping and network bytes alone never
     // prove either replacement or original audio.
     public static Health CurrentTrack(string? nativeStatus, bool enabled,
-        string? presence, string? source, string? playbackState)
+        string? presence, string? source, string? playbackState,
+        bool playerUnavailable = false)
     {
         if (!enabled) return new(Severity.Neutral, "");
+        if (playerUnavailable)
+            return new(Severity.Neutral, "Подключитесь к Яндекс Музыке.");
         if (nativeStatus == "HOST_ERROR")
             return new(Severity.Error, "Не удалось подключить модуль Яндекса.");
         if (playbackState == "PAUSED")

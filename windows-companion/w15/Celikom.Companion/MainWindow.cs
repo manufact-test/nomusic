@@ -113,6 +113,9 @@ public sealed partial class MainWindow : Form
     // Track changes are event-driven; this pulse only expires a lost 12-second UI lease.
     private readonly System.Windows.Forms.Timer _playbackUiPulse = new()
         { Interval = 1000 };
+    private readonly System.Windows.Forms.Timer _yandexProcessPulse = new()
+        { Interval = 1000 };
+    private readonly YandexProcessLifecycleTracker _yandexProcessLifecycle = new();
     private bool _lastPlaybackUiHeartbeatFresh;
     private readonly System.Windows.Forms.Timer _yandexVersionDebounce = new()
         { Interval = 1500 };
@@ -246,6 +249,19 @@ public sealed partial class MainWindow : Form
             if (fresh != _lastPlaybackUiHeartbeatFresh)
                 RefreshPlaybackUi();
         };
+        _yandexProcessPulse.Tick += (_, _) =>
+        {
+            var running = TryGetYandexProcessRunning();
+            if (!running.HasValue) return;
+            if (_yandexProcessLifecycle.Observe(running.Value) &&
+                (_bridge.Enabled || _resumeAfterNetworkFailure))
+            {
+                ++_compactStartEpoch;
+                _compactStarting = false;
+                _compactStartupText = "";
+                _bridge.MarkPlayerUnavailable(retireNativeHostInstance: true);
+            }
+        };
         _yandexVersionDebounce.Tick += async (_, _) =>
         {
             _yandexVersionDebounce.Stop();
@@ -257,6 +273,8 @@ public sealed partial class MainWindow : Form
         {
             _playbackUiPulse.Stop();
             _playbackUiPulse.Dispose();
+            _yandexProcessPulse.Stop();
+            _yandexProcessPulse.Dispose();
             _stableUpdatePulse.Stop();
             _stableUpdatePulse.Dispose();
         };
@@ -284,6 +302,7 @@ public sealed partial class MainWindow : Form
             await StartBridgeAsync();
             _entitlementPulse.Start();
             _playbackUiPulse.Start();
+            _yandexProcessPulse.Start();
             await RefreshHostAsync();
             if (_finishApplicationUpdate) await CompleteApplicationUpdateAsync();
             if (_api.IsLoggedIn)
@@ -672,13 +691,27 @@ public sealed partial class MainWindow : Form
         }
     }
 
-    private bool OpenYandexIfNeeded()
+    private static bool? TryGetYandexProcessRunning()
     {
         try
         {
-            if (Process.GetProcessesByName("Яндекс Музыка").Length != 0) return true;
+            var processes = Process.GetProcessesByName("Яндекс Музыка");
+            try { return processes.Length != 0; }
+            finally
+            {
+                foreach (var process in processes) process.Dispose();
+            }
         }
-        catch { /* Try normal launch. */ }
+        catch { return null; }
+    }
+
+    private bool OpenYandexIfNeeded()
+    {
+        if (TryGetYandexProcessRunning() == true)
+        {
+            _yandexProcessLifecycle.Observe(true);
+            return true;
+        }
 
         // A manual Start is already explicit consent to open the normal
         // official Yandex window after a successful entitlement check.
@@ -687,7 +720,11 @@ public sealed partial class MainWindow : Form
             var exe = Path.Combine(NativeIntegrationManager.DefaultYandexDirectory,
                 "Яндекс Музыка.exe");
             if (File.Exists(exe))
-                Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+            {
+                using var launched = Process.Start(new ProcessStartInfo(exe)
+                    { UseShellExecute = true });
+                if (launched is not null) _yandexProcessLifecycle.Observe(true);
+            }
             else
                 Process.Start(new ProcessStartInfo("yandexmusic://") { UseShellExecute = true });
             return true;
@@ -1499,6 +1536,12 @@ public sealed partial class MainWindow : Form
             return;
         }
 
+        if (_bridge.PlayerUnavailable && _compactStarting)
+        {
+            ++_compactStartEpoch;
+            _compactStarting = false;
+            _compactStartupText = "";
+        }
         _lastPlaybackUiHeartbeatFresh = _bridge.HasFreshHeartbeat;
         if (_compactReady)
         {
@@ -1553,6 +1596,7 @@ public sealed partial class MainWindow : Form
         _connectionState.Text = !connected ? "Войти в аккаунт" :
             !switchAvailable ? "Нужно подключить" :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? "Нет связи" : "Выключен") :
+            _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             !heartbeatFresh ? "Нет данных плеера" :
             sourceVerified ? "Подмена активна" :
             originalPlaying ? "Играет оригинал" :
@@ -1563,6 +1607,7 @@ public sealed partial class MainWindow : Form
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? "Проверяем связь для возобновления подмены" : "Подмена выключена") :
+            _bridge.PlayerUnavailable ? "Открой Яндекс.Музыку, чтобы продолжить." :
             !heartbeatFresh ? "Ожидаем актуальные данные текущего плеера." :
             sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
@@ -1592,6 +1637,8 @@ public sealed partial class MainWindow : Form
         // current-player lease, NOT an old file-info/renderer transition.
         _song.Text = !_bridge.Enabled
             ? "Подмена выключена. Текущий звук может быть в кеше Яндекса."
+            : _bridge.PlayerUnavailable
+                ? "Подключитесь к Яндекс Музыке."
             : !heartbeatFresh
                 ? "Ожидаем актуальные данные текущего плеера."
             : paused ? "Воспроизведение на паузе."
@@ -1613,6 +1660,7 @@ public sealed partial class MainWindow : Form
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
             : !_bridge.Enabled ?
                 (_resumeAfterNetworkFailure ? "Нет связи. Ожидаем восстановления." : "Готов к работе")
+            : _bridge.PlayerUnavailable ? "Открой Яндекс.Музыку, чтобы продолжить."
             : sourceVerified ? "Источник CELIKOM выбран плеером. Проверь звук."
             : paused ? "Яндекс.Музыка на паузе."
             : stopped ? "Воспроизведение остановлено."
@@ -1684,6 +1732,7 @@ public sealed partial class MainWindow : Form
         _yandexVersionDebounce.Stop();
         _yandexVersionDebounce.Dispose();
         _playbackUiPulse.Stop();
+        _yandexProcessPulse.Stop();
         _entitlementPulse.Stop();
         _entitlementPulse.Dispose();
         _tray.Visible = false;

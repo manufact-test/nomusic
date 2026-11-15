@@ -1288,11 +1288,26 @@ try
     Test(UserFacingPlaybackHealth.Track("NATIVE_RECOVERING", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 normal transient source recovery is not a customer warning");
+    var yandexLifecycle = new YandexProcessLifecycleTracker();
+    Test(!yandexLifecycle.Observe(false) &&
+         !yandexLifecycle.Observe(false) &&
+         !yandexLifecycle.Observe(true) &&
+         yandexLifecycle.Observe(false) &&
+         !yandexLifecycle.Observe(false) &&
+         !yandexLifecycle.Observe(true) &&
+         yandexLifecycle.Observe(false),
+         "W157 only an observed Yandex process exit marks the player unavailable, once per lifecycle");
     Test(BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-5),
              DateTimeOffset.UtcNow) &&
          !BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-20),
              DateTimeOffset.UtcNow),
          "W141 expired native heartbeats cannot keep previous track alive");
+    Test(CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
+             false, false, true, true) == "Подключитесь к Яндекс Музыке" &&
+         UserFacingPlaybackHealth.CurrentTrack("UNAVAILABLE", true,
+             "none", "UNKNOWN", "UNKNOWN", true).Message ==
+             "Подключитесь к Яндекс Музыке.",
+         "W157 missing Yandex player has an actionable connection message instead of stale-player waiting");
     Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
              "approved", "ACTIVE_REPLACEMENT", "PLAYING").Level ==
          UserFacingPlaybackHealth.Severity.Good &&
@@ -2130,6 +2145,49 @@ try
             Test(verifiedOriginal.IsSuccessStatusCode && bridge.LastSong == "789" &&
                  bridge.LastSource == "ORIGINAL" && acceptedHeartbeatNotifications == 5,
                  "W151 only explicit native original-source proof reaches the GUI");
+
+        var closeNotifications = acceptedHeartbeatNotifications;
+        bridge.MarkPlayerUnavailable(retireNativeHostInstance: true);
+        Test(bridge.PlayerUnavailable && !bridge.HasFreshHeartbeat &&
+             bridge.LastSong == "" && bridge.LastTrackTitle == "" &&
+             bridge.LastStatus == "UNAVAILABLE" &&
+             acceptedHeartbeatNotifications == closeNotifications + 1,
+             "W157 process exit immediately clears current-player metadata and lease");
+        using (var lateAfterExit = await SendW141Heartbeat(new {
+            trackId = "789", status = "NATIVE_SOURCE_VERIFIED",
+            title = "Новый трек", source = "ACTIVE_REPLACEMENT",
+            playbackState = "PLAYING", instanceId = "w23-current-2", sequence = 4
+        }))
+            Test(lateAfterExit.IsSuccessStatusCode && bridge.PlayerUnavailable &&
+                 bridge.LastSong == "" && acceptedHeartbeatNotifications == closeNotifications + 1,
+                 "W157 a late packet from the exited native process cannot restore its old song");
+        using (var reopened = await SendW141Heartbeat(new {
+            trackId = "321", status = "NATIVE_CONNECTED",
+            title = "Новый сеанс", source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-current-3", sequence = 1
+        }))
+            Test(reopened.IsSuccessStatusCode && !bridge.PlayerUnavailable &&
+                 bridge.LastSong == "321" && acceptedHeartbeatNotifications == closeNotifications + 2,
+                 "W157 a new Yandex process can publish its fresh current player");
+        using (var noPlayer = await SendW141Heartbeat(new {
+            trackId = (string?)null, status = "UNAVAILABLE",
+            source = "UNKNOWN", playbackState = "UNKNOWN",
+            instanceId = "w23-current-3", sequence = 2
+        }))
+            Test(noPlayer.IsSuccessStatusCode && bridge.PlayerUnavailable &&
+                 bridge.HasFreshHeartbeat && bridge.LastSong == "" &&
+                 bridge.LastPlaybackState == "UNKNOWN" &&
+                 acceptedHeartbeatNotifications == closeNotifications + 3,
+                 "W157 native renderer destruction immediately clears the current-player lease");
+        using (var resumedPlayer = await SendW141Heartbeat(new {
+            trackId = "654", status = "NATIVE_CONNECTED",
+            title = "Возобновлённый сеанс", source = "UNKNOWN",
+            playbackState = "PLAYING", instanceId = "w23-current-3", sequence = 3
+        }))
+            Test(resumedPlayer.IsSuccessStatusCode && !bridge.PlayerUnavailable &&
+                 bridge.LastSong == "654" &&
+                 acceptedHeartbeatNotifications == closeNotifications + 4,
+                 "W157 the same live host may publish a new renderer after its unavailable heartbeat");
         foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
         {
             using (var nativePreflight = new HttpRequestMessage(HttpMethod.Options, "/v1/state"))

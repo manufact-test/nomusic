@@ -10,7 +10,8 @@ public static class CompactPlaybackPresentation
         bridgeEnabled && heartbeatFresh;
 
     public static string TrackPlaceholder(bool bridgeEnabled, bool heartbeatFresh,
-        string? playbackState, bool recoveryPending, bool connectionPending, bool signedIn)
+        string? playbackState, bool recoveryPending, bool connectionPending, bool signedIn,
+        bool playerUnavailable = false)
     {
         if (!bridgeEnabled)
         {
@@ -21,6 +22,7 @@ public static class CompactPlaybackPresentation
                 : "Войди в аккаунт, чтобы подключить CELIKOM.";
         }
 
+        if (playerUnavailable) return "Подключитесь к Яндекс Музыке";
         if (!heartbeatFresh) return "Ожидаем данные текущего плеера…";
         return playbackState switch
         {

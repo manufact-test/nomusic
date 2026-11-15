@@ -14,9 +14,10 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
   let drained = false, pump = () => {}, timerIntervalMs = 0;
+  let viewDestroyed = false;
   const viewEvents = new Map();
   const view = {
-    isDestroyed: () => false,
+    isDestroyed: () => viewDestroyed,
     ...(typeof primaryAudible === "boolean"
       ? {isCurrentlyAudible: () => primaryAudible} : {}),
     getURL: () => url,
@@ -119,6 +120,7 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   return {diagnostics,evaluated,network,tokenReads,timerIntervalMs,pulse:() => pump(),
     pushQueue: items => { queue.push(...items); drained=false; },
     emitView: (name,...args) => {
+      if (name === "destroyed") viewDestroyed = true;
       for(const handler of viewEvents.get(name) || []) handler({},...args);
     },
     witnessCount: name => (viewEvents.get(name)||[]).length
@@ -1321,4 +1323,28 @@ test("W152 host preserves a source only while the exact current decoder is still
   const settledDelivery=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
   assert.ok(settledDelivery.includes('"networkRecoveryPending":false'));
   assert.ok(!settledDelivery.includes('"preserveCurrentSource":true'));
+});
+
+test("W157 destruction of the selected Yandex renderer immediately clears the current-player heartbeat",async()=>{
+  const r=await runHost("musicapplication://desktop/",{
+    currentTrack:{id:"123",title:"Старая песня",artist:"Исполнитель",
+      durationMs:180000,playbackState:"PLAYING"},
+    primaryAudible:true,rendererStatus:"NATIVE_CONNECTED",
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  const before=r.network.filter(x=>x.path==="/v1/heartbeat").map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(before.length>=1);
+  assert.equal(before.at(-1).trackId,"123");
+  r.emitView("destroyed");
+  await new Promise(resolve=>setTimeout(resolve,40));
+  const after=r.network.filter(x=>x.path==="/v1/heartbeat").map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(after.length>before.length);
+  const unavailable=after.at(-1);
+  assert.equal(unavailable.status,"UNAVAILABLE");
+  assert.equal(unavailable.trackId,null);
+  assert.equal(unavailable.title,"");
+  assert.equal(unavailable.artist,"");
+  assert.equal(unavailable.source,"UNKNOWN");
+  assert.equal(unavailable.playbackState,"UNKNOWN");
+  assert.ok(unavailable.sequence>before.at(-1).sequence);
 });
