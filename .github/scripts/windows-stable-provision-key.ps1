@@ -33,6 +33,26 @@ if ($LASTEXITCODE -ne 0) { throw "W155_GH_AUTH_REQUIRED" }
 
 $repoRoot = [IO.Path]::GetFullPath((Get-Location).Path).TrimEnd('\')
 $keyRoot = [IO.Path]::GetFullPath($KeyDirectory)
+function Assert-NoReparseAncestors([string]$Path) {
+    $full = [IO.Path]::GetFullPath($Path)
+    $root = [IO.Path]::GetPathRoot($full)
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        throw "W155_KEY_DIRECTORY_PATH_UNSAFE"
+    }
+    $current = $root
+    foreach ($segment in ($full.Substring($root.Length) -split '[\\/]')) {
+        if ([string]::IsNullOrWhiteSpace($segment)) { continue }
+        $current = [IO.Path]::Combine($current, $segment)
+        if (Test-Path -LiteralPath $current) {
+            $entry = Get-Item -LiteralPath $current -Force
+            if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "W155_KEY_DIRECTORY_REPARSE_ANCESTOR"
+            }
+        }
+    }
+}
+Assert-NoReparseAncestors $repoRoot
+Assert-NoReparseAncestors $keyRoot
 if ($keyRoot.Equals($repoRoot, [StringComparison]::OrdinalIgnoreCase) -or
     $keyRoot.StartsWith($repoRoot + [IO.Path]::DirectorySeparatorChar,
         [StringComparison]::OrdinalIgnoreCase) -or $keyRoot.StartsWith('\\') -or
