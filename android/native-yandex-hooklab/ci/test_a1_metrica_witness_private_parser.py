@@ -769,6 +769,7 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                ("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST"),
                ("AUDIO_NATIVE_TRACK_CONTINUATION_HOOK","TRACK_CONTINUATION"),
                ("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER"),
+               ("AUDIO_NATIVE_MAIN_CONTINUATION_HOOK","MAIN_CONTINUATION"),
                ("AUDIO_NATIVE_MAIN_SOURCE_HOOK","MAIN_SOURCE")]
         good="".join(log(431,f"event={event};origin={origin};error=REGISTERED;thread=MAIN")
                      for event,origin in parts)
@@ -786,6 +787,8 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         parsed=scoped_metrica_witness(EXIT,rows)
         self.assertEqual(parsed["stage_b_native_track_source_hooks"][
             "AUDIO_NATIVE_TRACK_CONTINUATION_HOOK"],"NOT_SEEN")
+        self.assertEqual(parsed["stage_b_native_track_source_hooks"][
+            "AUDIO_NATIVE_MAIN_CONTINUATION_HOOK"],"NOT_SEEN")
         self.assertNotIn("private.url",str(parsed))
 
     def test_stage_b_missing_registration_fail_closed(self):

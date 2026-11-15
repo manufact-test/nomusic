@@ -58,6 +58,13 @@ final class StageBAudioEvidence {
     }
     // Exact Fp0 continuation instances only; no reads of Track or coroutine fields.
     private final ArrayList<TrackContinuationLink> trackContinuations = new ArrayList<>();
+    private static final class MainSourceContinuationLink {
+        WeakReference<Object> continuation;
+        WeakReference<Object> wrapper;
+        boolean conflicted;
+    }
+    private final ArrayList<MainSourceContinuationLink> mainSourceContinuations =
+        new ArrayList<>();
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
@@ -71,6 +78,9 @@ final class StageBAudioEvidence {
     private final AtomicLong nativeTrackContinuationConstructed = new AtomicLong();
     private final AtomicLong trackContinuationRecovered = new AtomicLong();
     private final AtomicLong trackContinuationConflict = new AtomicLong();
+    private final AtomicLong mainContinuationConstructed = new AtomicLong();
+    private final AtomicLong mainContinuationRecovered = new AtomicLong();
+    private final AtomicLong mainContinuationConflict = new AtomicLong();
     private final AtomicLong wrapperMainSourceRequests = new AtomicLong();
     private final AtomicLong wrapperDescriptorLinks = new AtomicLong();
     private final AtomicLong trackDescriptorFactoryLinks = new AtomicLong();
@@ -232,10 +242,63 @@ final class StageBAudioEvidence {
         mark(nativeTrackWrapperLinks);
     }
 
-    void enterNativeMainSourceRequest(Object wrapper) {
-        pushScope(activeWrapperScopes,wrapper);
+    private MainSourceContinuationLink findMainSourceContinuation(Object continuation) {
+        if (continuation==null) return null;
+        for (int i=mainSourceContinuations.size()-1;i>=0;i--) {
+            MainSourceContinuationLink link=mainSourceContinuations.get(i);
+            if (link.continuation==null || link.continuation.get()==null) {
+                mainSourceContinuations.remove(i);
+                continue;
+            }
+            if (link.continuation.get()==continuation) return link;
+        }
+        return null;
+    }
+
+    synchronized void onNativeMainContinuationConstructed(Object continuation) {
+        Object wrapper=currentScope(activeWrapperScopes);
+        if (continuation==null || wrapper==null || !hasWrapperLink(wrapper)) return;
+        MainSourceContinuationLink prior=findMainSourceContinuation(continuation);
+        if (prior!=null) {
+            if (prior.wrapper==null || prior.wrapper.get()!=wrapper) {
+                prior.conflicted=true;
+                prior.wrapper=null;
+                mark(mainContinuationConflict);
+            }
+            return;
+        }
+        if (mainSourceContinuations.size()>=16) mainSourceContinuations.remove(0);
+        MainSourceContinuationLink link=new MainSourceContinuationLink();
+        link.continuation=new WeakReference<>(continuation);
+        link.wrapper=new WeakReference<>(wrapper);
+        mainSourceContinuations.add(link);
+        mark(mainContinuationConstructed);
+    }
+
+    synchronized void enterNativeMainSourceRequest(Object wrapper,Object continuation) {
+        Object scopedWrapper=wrapper;
+        MainSourceContinuationLink link=findMainSourceContinuation(continuation);
+        if (link!=null) {
+            Object remembered=link.wrapper==null ? null : link.wrapper.get();
+            if (link.conflicted || remembered==null) {
+                scopedWrapper=null;
+            } else if (wrapper==null) {
+                // Signed RAa.invokeSuspend re-enters o.for with null wrapper,
+                // and the SAME RAa continuation. No vendor fields are read.
+                scopedWrapper=remembered;
+                mark(mainContinuationRecovered);
+            } else if (wrapper!=remembered) {
+                scopedWrapper=null;
+                link.conflicted=true;
+                link.wrapper=null;
+                mark(mainContinuationConflict);
+            }
+        }
+        pushScope(activeWrapperScopes,scopedWrapper);
         mark(nativeMainSourceEnters);
-        if (wrapper!=null && hasWrapperLink(wrapper))
+        // Direct exact argument and recovered coroutine identity are distinct.
+        if (scopedWrapper!=null && scopedWrapper==wrapper
+                && hasWrapperLink(scopedWrapper))
             mark(wrapperMainSourceRequests);
     }
 
@@ -506,6 +569,9 @@ final class StageBAudioEvidence {
             event("NATIVE_TRACK_CONTINUATION_CONSTRUCTED", nativeTrackContinuationConstructed),
             event("TRACK_CONTINUATION_RECOVERED", trackContinuationRecovered),
             event("TRACK_CONTINUATION_CONFLICT", trackContinuationConflict),
+            event("NATIVE_MAIN_CONTINUATION_CONSTRUCTED", mainContinuationConstructed),
+            event("MAIN_CONTINUATION_RECOVERED", mainContinuationRecovered),
+            event("MAIN_CONTINUATION_CONFLICT", mainContinuationConflict),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }

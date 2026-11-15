@@ -24,9 +24,9 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 37);
-        for (int i=0;i<36;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[36].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 40);
+        for (int i=0;i<39;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[39].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
         Object factory=new Object(), source=new Object();
@@ -40,11 +40,11 @@ public final class StageBAudioEvidenceTest {
         e.enterNativeTrackSourceRequest(unselectedTrack,null);
         e.onNativeTrackWrapperCreated(unselectedWrapper);
         e.exitNativeTrackSourceRequest();
-        e.enterNativeMainSourceRequest(wrapper);
+        e.enterNativeMainSourceRequest(wrapper,null);
         e.onExoDescriptorBuilt(descriptor);
         e.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
         e.exitNativeMainSourceRequest();
-        e.enterNativeMainSourceRequest(unselectedWrapper);
+        e.enterNativeMainSourceRequest(unselectedWrapper,null);
         e.onExoDescriptorBuilt(wrongDescriptor);
         e.onNativeExoDescriptorBuiltForCurrentWrapper(wrongDescriptor);
         e.exitNativeMainSourceRequest();
@@ -65,7 +65,7 @@ public final class StageBAudioEvidenceTest {
         for(int i=0;i<names.length;i++) bucket(links,21+i,names[i],i==1?"FEW":"ONE");
         bucket(links,31,"NATIVE_TRACK_WRAPPER_CONSTRUCTED","FEW");
         bucket(links,32,"NATIVE_MAIN_SOURCE_ENTER","FEW");
-        check(links[36].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(links[39].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         // A nested missing argument/collected weak ref must never borrow its
         // outer track or wrapper. Scope accounting survives null arguments.
@@ -80,8 +80,8 @@ public final class StageBAudioEvidenceTest {
         nested.onNativeTrackWrapperCreated(nw);
         nested.exitNativeTrackSourceRequest();
         bucket(nested.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
-        nested.enterNativeMainSourceRequest(nw);
-        nested.enterNativeMainSourceRequest(null);
+        nested.enterNativeMainSourceRequest(nw,null);
+        nested.enterNativeMainSourceRequest(null,null);
         nested.onNativeExoDescriptorBuiltForCurrentWrapper(new Object());
         nested.exitNativeMainSourceRequest();
         nested.onNativeExoDescriptorBuiltForCurrentWrapper(nd);
@@ -102,7 +102,7 @@ public final class StageBAudioEvidenceTest {
         reset.enterNativeTrackSourceRequest(rt,null);
         reset.onNativeTrackWrapperCreated(rw1);
         reset.exitNativeTrackSourceRequest();
-        reset.enterNativeMainSourceRequest(rw1);
+        reset.enterNativeMainSourceRequest(rw1,null);
         reset.onNativeExoDescriptorBuiltForCurrentWrapper(rd1);
         reset.exitNativeMainSourceRequest();
         reset.onExoFactoryCreated(rd1,rf1);
@@ -118,7 +118,7 @@ public final class StageBAudioEvidenceTest {
         bucket(reset.exportLines(),29,"TRACK_SOURCE_OPEN_LINK","ONE");
         bucket(reset.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
         bucket(reset.exportLines(),27,"TRACK_DESCRIPTOR_FACTORY_LINK","ONE");
-        reset.enterNativeMainSourceRequest(rw2);
+        reset.enterNativeMainSourceRequest(rw2,null);
         reset.onNativeExoDescriptorBuiltForCurrentWrapper(rd2);
         reset.exitNativeMainSourceRequest();
         reset.onExoFactoryCreated(rd2,rf2);
@@ -140,10 +140,10 @@ public final class StageBAudioEvidenceTest {
         collision.enterNativeTrackSourceRequest(ct2,null);
         collision.onNativeTrackWrapperCreated(cw2);
         collision.exitNativeTrackSourceRequest();
-        collision.enterNativeMainSourceRequest(cw1);
+        collision.enterNativeMainSourceRequest(cw1,null);
         collision.onNativeExoDescriptorBuiltForCurrentWrapper(cd);
         collision.exitNativeMainSourceRequest();
-        collision.enterNativeMainSourceRequest(cw2);
+        collision.enterNativeMainSourceRequest(cw2,null);
         collision.onNativeExoDescriptorBuiltForCurrentWrapper(cd);
         collision.exitNativeMainSourceRequest();
         collision.onExoFactoryCreated(cd,cf);
@@ -195,6 +195,48 @@ public final class StageBAudioEvidenceTest {
         masked.onNativeTrackWrapperCreated(new Object());
         masked.exitNativeTrackSourceRequest();
         bucket(masked.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
+
+        // RAa resumes the pinned main source builder with null wrapper,
+        // but with the identical RAa instance as final continuation argument.
+        StageBAudioEvidence mainResume=new StageBAudioEvidence();
+        Object mtrack=new Object(), mwrapper=new Object(), mra=new Object();
+        Object mdesc=new Object(), mfactory=new Object(), msource=new Object();
+        mainResume.onNativeTrackFlowEmission(mtrack);
+        mainResume.enterNativeTrackSourceRequest(mtrack,null);
+        mainResume.onNativeTrackWrapperCreated(mwrapper);
+        mainResume.exitNativeTrackSourceRequest();
+        mainResume.enterNativeMainSourceRequest(mwrapper,null);
+        mainResume.onNativeMainContinuationConstructed(mra);
+        mainResume.exitNativeMainSourceRequest(); // original source coroutine suspended
+        mainResume.enterNativeMainSourceRequest(null,new Object());
+        mainResume.onNativeExoDescriptorBuiltForCurrentWrapper(new Object());
+        mainResume.exitNativeMainSourceRequest(); // foreign resume, not linked
+        mainResume.enterNativeMainSourceRequest(null,mra);
+        mainResume.onNativeExoDescriptorBuiltForCurrentWrapper(mdesc);
+        mainResume.exitNativeMainSourceRequest();
+        mainResume.onExoFactoryCreated(mdesc,mfactory);
+        mainResume.onExoSourceInstanceCreated(msource,mfactory);
+        mainResume.onExoSourceInstanceOpen(msource);
+        mainResume.onExoSourceInstanceRead(msource,8);
+        bucket(mainResume.exportLines(),36,"NATIVE_MAIN_CONTINUATION_CONSTRUCTED","ONE");
+        bucket(mainResume.exportLines(),37,"MAIN_CONTINUATION_RECOVERED","ONE");
+        bucket(mainResume.exportLines(),38,"MAIN_CONTINUATION_CONFLICT","NONE");
+        bucket(mainResume.exportLines(),25,"WRAPPER_MAIN_SOURCE","ONE");
+        bucket(mainResume.exportLines(),26,"WRAPPER_DESCRIPTOR_LINK","ONE");
+        bucket(mainResume.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
+        Object mtrackOther=new Object(), mwrapperOther=new Object();
+        mainResume.onNativeTrackFlowEmission(mtrackOther);
+        mainResume.enterNativeTrackSourceRequest(mtrackOther,null);
+        mainResume.onNativeTrackWrapperCreated(mwrapperOther);
+        mainResume.exitNativeTrackSourceRequest();
+        mainResume.enterNativeMainSourceRequest(mwrapperOther,mra);
+        mainResume.onNativeExoDescriptorBuiltForCurrentWrapper(new Object());
+        mainResume.exitNativeMainSourceRequest();
+        mainResume.enterNativeMainSourceRequest(null,mra);
+        mainResume.onNativeExoDescriptorBuiltForCurrentWrapper(new Object());
+        mainResume.exitNativeMainSourceRequest();
+        bucket(mainResume.exportLines(),38,"MAIN_CONTINUATION_CONFLICT","ONE");
+        bucket(mainResume.exportLines(),26,"WRAPPER_DESCRIPTOR_LINK","ONE");
 
         Object different=new Object();
         e.onExoSourceInstanceCreated(different);
@@ -283,7 +325,10 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onNativeTrackContinuationConstructed(", code)
         self.assertIn('Class.forName("Fp0",false,loader)', code)
         self.assertIn("STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject())", code)
-        self.assertIn("STAGE_B_AUDIO.enterNativeMainSourceRequest(chain.getArg(2))", code)
+        self.assertIn("STAGE_B_AUDIO.enterNativeMainSourceRequest(", code)
+        self.assertIn("chain.getArg(2),chain.getArg(5)", code)
+        self.assertIn("STAGE_B_AUDIO.onNativeMainContinuationConstructed(", code)
+        self.assertIn('Class.forName("RAa",false,loader)', code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceCreated( result,chain.getThisObject());", " ".join(code.split()))
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceRead(", code)

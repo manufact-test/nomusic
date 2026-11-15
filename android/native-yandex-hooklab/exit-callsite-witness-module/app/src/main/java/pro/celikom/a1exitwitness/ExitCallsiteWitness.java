@@ -190,6 +190,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean nativeTrackRequestHookReady;
     private boolean nativeTrackContinuationHookReady;
     private boolean nativeTrackWrapperHookReady;
+    private boolean nativeMainContinuationHookReady;
     private boolean nativeMainSourceHookReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
         new java.util.concurrent.atomic.AtomicInteger();
@@ -2714,6 +2715,32 @@ public final class ExitCallsiteWitness extends XposedModule {
                 emit("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER","NO_HOOK");
             }
         }
+        if (!nativeMainContinuationHookReady) {
+            try {
+                // Issuer-signed 2025.10.4 download2.o.for invokes
+                // RAa.<init>(download2.o,Oe2) before coroutine suspension.
+                Class<?> continuation=Class.forName("RAa",false,loader);
+                java.lang.reflect.Constructor<?> ctor=continuation.getDeclaredConstructor(
+                    Class.forName("com.yandex.music.shared.player.download2.o",false,loader),
+                    Class.forName("Oe2",false,loader));
+                ctor.setAccessible(true);
+                hook(ctor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed(); // original ctor exactly once
+                        try {
+                            STAGE_B_AUDIO.onNativeMainContinuationConstructed(
+                                chain.getThisObject());
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                nativeMainContinuationHookReady=true;
+                emit("AUDIO_NATIVE_MAIN_CONTINUATION_HOOK",
+                     "MAIN_CONTINUATION","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_MAIN_CONTINUATION_HOOK",
+                     "MAIN_CONTINUATION","NO_HOOK");
+            }
+        }
         if (!nativeMainSourceHookReady) {
             try {
                 Class<?> owner=Class.forName(
@@ -2728,7 +2755,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 mainSource.setAccessible(true);
                 hook(mainSource).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
-                        try { STAGE_B_AUDIO.enterNativeMainSourceRequest(chain.getArg(2)); }
+                        try {
+                            STAGE_B_AUDIO.enterNativeMainSourceRequest(
+                                chain.getArg(2),chain.getArg(5));
+                        }
                         catch (Throwable ignored) { }
                         try {
                             return chain.proceed();
