@@ -1,6 +1,6 @@
 # CELIKOM Windows — актуальная передача W157 (15.11.2026)
 
-**Состояние:** VPN no-kUrl continuity завершена в коде и прошла обе CI. Остался один внутренний owner-stage пакет и ручная проверка на ПК владельца.
+**Состояние:** VPN no-kUrl continuity завершена, обе CI прошли, единственный owner-stage пакет `0.24.39.0` собран. Осталась только ручная проверка на ПК владельца.
 
 ## Источник истины
 - Репозиторий: `manufact-test/nomusic`
@@ -50,9 +50,9 @@
 
 ---
 
-# CELIKOM Windows — CURRENT HANDOFF / W54 NO-kUrl VPN FIX / 15 NOVEMBER 2026
+# Historical handoff — pre-W157 (superseded by the authoritative W157 handoff above)
 
-**This is the authoritative current handoff.** Continue from the current source and the one remaining narrow VPN task. W54 diagnostics have already been received and reviewed; do not ask the owner to resend them.
+> **Historical only.** The checkpoints, partial implementation status, and "no package has been built" instructions in this section are superseded by the W157 closure above. Do not follow the old next-step instructions. W54 diagnostics were already received and reviewed; do not ask the owner to resend them.
 
 - Repository: `manufact-test/nomusic`; only working branch: `main`.
 - Current application-source checkpoint: `23538cab793be9d1381790d4c304db3cd4d4b417`.

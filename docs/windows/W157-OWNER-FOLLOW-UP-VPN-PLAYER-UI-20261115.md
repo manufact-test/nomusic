@@ -1,5 +1,7 @@
 # W157 — Owner follow-up: VPN source handoff, Yandex lifecycle and UI truth
 
+> **Final status (15.11.2026):** no-kUrl continuity is implemented and CI-verified; one owner-stage package `0.24.39.0` is built (artifact `14180750696`). Only owner-PC manual acceptance remains. Earlier intermediate checkpoint notes below are historical; the final result is recorded in the last section.
+
 Date: 15 November 2026  
 Repository: `manufact-test/nomusic`  
 Only working branch: `main`  
