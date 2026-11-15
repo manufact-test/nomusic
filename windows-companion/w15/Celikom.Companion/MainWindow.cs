@@ -1637,7 +1637,7 @@ public sealed partial class MainWindow : Form
         // current-player lease, NOT an old file-info/renderer transition.
         _song.Text = !_bridge.Enabled
             ? (_resumeAfterNetworkFailure
-                ? CompactPlaybackPresentation.NetworkRecoveryMessage
+                ? "Данные текущего трека временно недоступны."
                 : "Подмена выключена. Текущий звук может быть в кеше Яндекса.")
             : _bridge.PlayerUnavailable
                 ? "Подключитесь к Яндекс Музыке"
@@ -1661,7 +1661,7 @@ public sealed partial class MainWindow : Form
             : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
             : !_bridge.Enabled ?
-                (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Готов к работе")
+                (_resumeAfterNetworkFailure ? "Текущий звук не переключаем." : "Готов к работе")
             : _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке"
             : sourceVerified ? "Источник CELIKOM выбран плеером. Проверь звук."
             : paused ? "Яндекс.Музыка на паузе."

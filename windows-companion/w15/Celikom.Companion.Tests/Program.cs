@@ -1325,7 +1325,7 @@ try
          !CompactPlaybackPresentation.StartupComplete(false, true),
          "W151 startup completes only on a fresh enabled current-player lease");
     Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
-             true, false, true) == CompactPlaybackPresentation.NetworkRecoveryMessage &&
+             true, false, true) == "Данные текущего трека временно недоступны…" &&
          CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("в фоне") &&
          CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("не переключаем") &&
          !CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("Восстанавливаем"),

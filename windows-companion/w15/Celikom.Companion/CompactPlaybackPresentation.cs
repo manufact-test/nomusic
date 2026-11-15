@@ -17,7 +17,7 @@ public static class CompactPlaybackPresentation
     {
         if (!bridgeEnabled)
         {
-            if (recoveryPending) return NetworkRecoveryMessage;
+            if (recoveryPending) return "Данные текущего трека временно недоступны…";
             if (connectionPending) return ConnectingMessage;
             return signedIn
                 ? "Подмена выключена. Нажми «Старт», чтобы подключить текущий плеер."
