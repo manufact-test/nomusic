@@ -91,6 +91,9 @@ public sealed class BridgeServer : IAsyncDisposable
     private string _lastPlaybackState = "UNKNOWN";
     private string _lastHeartbeatInstanceId = "";
     private long _lastHeartbeatSequence;
+    // Prevent a delayed heartbeat from a retired native host instance from
+    // taking control of the owner's current song after a newer host takes over.
+    private readonly HashSet<string> _retiredHeartbeatInstances = new(StringComparer.Ordinal);
     private DateTimeOffset _lastHeartbeatAt = DateTimeOffset.MinValue;
     private const int HeartbeatFreshnessSeconds = 12;
     public static bool IsHeartbeatFresh(DateTimeOffset seenAt, DateTimeOffset now) =>
@@ -131,6 +134,7 @@ public sealed class BridgeServer : IAsyncDisposable
             _lastPlaybackState = "UNKNOWN";
             _lastHeartbeatInstanceId = "";
             _lastHeartbeatSequence = 0;
+            _retiredHeartbeatInstances.Clear();
             _lastHeartbeatAt = DateTimeOffset.MinValue;
             _lastSong = "";
             _lastTitle = "";
@@ -300,9 +304,13 @@ public sealed class BridgeServer : IAsyncDisposable
                     // An old in-flight heartbeat cannot restore a previous
                     // track after a newer one has already been observed.
                     if (sequenced &&
+                        !_retiredHeartbeatInstances.Contains(beat.InstanceId!) &&
                         (beat.InstanceId != _lastHeartbeatInstanceId ||
                          beat.Sequence!.Value > _lastHeartbeatSequence))
                     {
+                        if (_lastHeartbeatInstanceId.Length > 0 &&
+                            beat.InstanceId != _lastHeartbeatInstanceId)
+                            _retiredHeartbeatInstances.Add(_lastHeartbeatInstanceId);
                         _lastHeartbeatInstanceId = beat.InstanceId!;
                         _lastHeartbeatSequence = beat.Sequence!.Value;
                         accepted = true;

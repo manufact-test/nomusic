@@ -1506,7 +1506,10 @@ public sealed partial class MainWindow : Form
             PlaybackSourceEvidence.Verified(switchAvailable && _bridge.Enabled, state, sourcePresence);
         var originalPlaying = heartbeatFresh &&
             _bridge.LastSource == "ORIGINAL" && _bridge.LastPlaybackState == "PLAYING";
-        var mappingPending = heartbeatFresh &&
+        var playbackState = _bridge.LastPlaybackState;
+        var paused = heartbeatFresh && _bridge.Enabled && playbackState == "PAUSED";
+        var stopped = heartbeatFresh && _bridge.Enabled && playbackState == "STOPPED";
+        var mappingPending = heartbeatFresh && playbackState == "PLAYING" &&
             PlaybackSourceEvidence.MappedButUnverified(switchAvailable && _bridge.Enabled, state, sourcePresence);
         _start.Enabled = PlaybackStartGate.CanAcceptStart(
             _bridgeStarted, _integrationBusy, _updatingApplication,
@@ -1520,6 +1523,7 @@ public sealed partial class MainWindow : Form
             !heartbeatFresh ? "Нет данных плеера" :
             sourceVerified ? "Подмена активна" :
             originalPlaying ? "Играет оригинал" :
+            paused ? "Пауза" : stopped ? "Остановлено" :
             mappingPending ? "Ожидаем подтверждения" : "Сервис включён";
         _connectionState.ForeColor = sourceVerified ? Accent : Secondary;
         _switchHint.Text = _compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…" :
@@ -1529,6 +1533,8 @@ public sealed partial class MainWindow : Form
             !heartbeatFresh ? "Ожидаем актуальные данные текущего плеера." :
             sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
+            paused ? "Воспроизведение на паузе." :
+            stopped ? "Воспроизведение остановлено." :
             mappingPending ? "Подмена подготовлена, но источник в плеере ещё не подтверждён." :
             "Сервис включён. Источник текущего трека неизвестен.";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
@@ -1549,21 +1555,24 @@ public sealed partial class MainWindow : Form
             try { _nativeToken?.Publish(_api.Settings.BridgeToken); }
             catch { _status.Text = "Ошибка локального подключения CELIKOM."; }
         }
-        _song.Text = state switch
-        {
-            "SDK_MAPPING_ACCEPTED" => "Подмена подготовлена. Ждём подтверждения источника плеером.",
-            "NATIVE_CONNECTED" => "Яндекс подключён. Замена текущей песни не подтверждена.",
-            "NATIVE_MAPPING_ACCEPTED" => "Подмена подготовлена. Плеер ещё не подтвердил источник CELIKOM.",
-            "NATIVE_SOURCE_VERIFIED" => "Плеер выбрал поток CELIKOM. Проверь звук.",
-            "NATIVE_RECOVERING" => "Восстанавливаем подмену…",
-            "NATIVE_SOURCE_FAILED" => "Подмена этой песни не загрузилась.",
-            "RESOLVING" => "Ищем одобренную версию песни…",
-            "ORIGINAL" => "Сейчас играет оригинальная версия.",
-            "OFF" => "Подмена выключена. Текущий звук может быть в кеше Яндекса.",
-            "UNAVAILABLE" => "Ожидаем текущую песню Яндекса.",
-            "HOST_ERROR" => "Ошибка подключения к модулю Яндекса.",
-            _ => "Модуль Яндекса пока не подключён."
-        };
+        // Source labels in both GUI surfaces must be derived from the SAME
+        // current-player lease, NOT an old file-info/renderer transition.
+        _song.Text = !_bridge.Enabled
+            ? "Подмена выключена. Текущий звук может быть в кеше Яндекса."
+            : !heartbeatFresh
+                ? "Ожидаем актуальные данные текущего плеера."
+            : paused ? "Воспроизведение на паузе."
+            : stopped ? "Воспроизведение остановлено."
+            : sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук."
+            : originalPlaying ? "Играет оригинальная версия."
+            : playbackState == "PLAYING"
+                ? "Трек играет. Источник текущего трека не подтверждён."
+            : state switch
+            {
+                "HOST_ERROR" => "Ошибка подключения к модулю Яндекса.",
+                "NATIVE_SOURCE_FAILED" => "Не удалось подтвердить источник текущего трека.",
+                _ => "Ожидаем подтверждения текущего плеера."
+            };
         _song.ForeColor = sourceVerified ? Accent :
             state == "NATIVE_SOURCE_FAILED" ? ColorTranslator.FromHtml("#D36A6A") : Secondary;
         _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
@@ -1572,6 +1581,8 @@ public sealed partial class MainWindow : Form
             : !_bridge.Enabled ?
                 (_resumeAfterNetworkFailure ? "Нет связи. Ожидаем восстановления." : "Готов к работе")
             : sourceVerified ? "Источник CELIKOM выбран плеером. Проверь звук."
+            : paused ? "Яндекс.Музыка на паузе."
+            : stopped ? "Воспроизведение остановлено."
             : mappingPending ? "Подмена подготовлена. Ожидаем подтверждения плеера."
             : "CELIKOM включён. Подмена текущей песни не подтверждена.";
         _hostStatus.Text = _hostReport?.Status switch

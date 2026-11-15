@@ -1671,11 +1671,28 @@ try
                  bridge.LastSource == "UNKNOWN" &&
                  bridge.LastPlaybackState == "PLAYING",
                  "W141 next track replaces previous metadata without source invention");
+        // W142: a restarted native host may take over the UI, but an
+        // in-flight heartbeat from its retired predecessor never may.
+        using (var restarted = await SendW141Heartbeat(new {
+            trackId = "789", status = "NATIVE_CONNECTED",
+            title = "Новый трек", source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-current-2", sequence = 1
+        }))
+            Test(restarted.IsSuccessStatusCode && bridge.LastSong == "789",
+                 "W142 newer native process takes over current-player lease");
+        using (var retiredLate = await SendW141Heartbeat(new {
+            trackId = "123", status = "NATIVE_SOURCE_VERIFIED",
+            title = "Ты", source = "ACTIVE_REPLACEMENT", playbackState = "PLAYING",
+            instanceId = "w23-current-1", sequence = 999
+        }))
+            Test(retiredLate.IsSuccessStatusCode && bridge.LastSong == "789" &&
+                 bridge.LastSource == "UNKNOWN",
+                 "W142 retired native process cannot resurrect stale green song");
         using (var lateLegacy = await SendW141Heartbeat(new {
             trackId = "999", status = "ORIGINAL",
             title = "Зима", artist = "CENTR", durationMs = 180000
         }))
-            Test(lateLegacy.IsSuccessStatusCode && bridge.LastSong == "456",
+            Test(lateLegacy.IsSuccessStatusCode && bridge.LastSong == "789",
                  "W141 legacy messages cannot overwrite sequenced host state");
         foreach (var nativeOrigin in new[] { "null", "musicapplication://desktop" })
         {
