@@ -7578,6 +7578,10 @@ def inspect_signed(apks):
     flow_source_interface_methods = set()
     target_callers = []
     focused_method_traces = []
+    # One exact, read-only hop from LDp0.if(Track); keep outside the broad Flow trace.
+    lou3_else_ref = ("Lou3;", "else", "(Lru/yandex/music/data/audio/o;)V")
+    lou3_else_exact_trace = None
+    lou3_else_instruction_count = None
     flow_dispatcher_instantiation_sites = []
     flow_dispatcher_class_fields = {}
     flow_related_method_refs = set()
@@ -7748,6 +7752,15 @@ def inspect_signed(apks):
                         "RetryingBalancingDataSource;", "close", "()V"
                     ):
                         exo_source_close_void_declared = True
+                    if method == lou3_else_ref:
+                        if lou3_else_exact_trace is not None:
+                            raise ValueError("LOU3_ELSE_EXACT_DUPLICATE_DEFINITION")
+                        lou3_else_instruction_count = sum(
+                            1 for _ in instructions(dex, code_off)
+                        )
+                        lou3_else_exact_trace = privacy_safe_focused_method_trace(
+                            focused_method_trace(dex, method, flags, code_off)
+                        )
                     if method[0] in ("LMG7;", "LMG7$a;", "LC3a;", "LD3a;") or (method[0] in ("LAF7;", "LWM7;", "LyG7;") and (method[1] == "<init>" or any(t in method[2] for t in ("LD3a;", "Liw9;", "Lru/yandex/music/data/audio/o;")))) or (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
                             focused_method_trace(dex, method, flags, code_off))
@@ -8259,6 +8272,22 @@ def inspect_signed(apks):
         "current_track_flow_candidate": summarize_current_track_flow_candidate(
             class_profiles, focused_method_traces, flow_dispatcher_instantiation_sites
         ),
+        "lou3_else_exact_method": {
+            "target": {"owner": lou3_else_ref[0], "method": lou3_else_ref[1],
+                       "signature": lou3_else_ref[2]},
+            "body_found": lou3_else_exact_trace is not None,
+            "instruction_count": lou3_else_instruction_count,
+            # The existing tracer stops after 180 relevant rows. Never declare
+            # absence of downstream calls when the exact body exceeds that bound.
+            "complete_for_absence_claim": (
+                lou3_else_instruction_count is not None
+                and lou3_else_instruction_count <= 180
+            ),
+            "trace": lou3_else_exact_trace,
+            "current_player_identity_proven": False,
+            "same_native_item_to_decoder_proven": False,
+            "original_media_or_private_values_read": False,
+        },
         "flow_mode_constructor_int_field_stores":flow_mode_constructor_store_rows,
         "flow_mode_branch_census":flow_mode_branch_census,
         "selected_track_path_identity_traces": selected_track_path_identity_traces,
