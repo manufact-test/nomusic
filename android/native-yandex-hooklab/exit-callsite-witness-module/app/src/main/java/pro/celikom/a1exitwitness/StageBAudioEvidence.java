@@ -54,10 +54,17 @@ final class StageBAudioEvidence {
         WeakReference<Object> descriptor;
         WeakReference<Object> factoryResult;
         WeakReference<Object> sourceInstance;
+        WeakReference<Object> albumInstance;
         // A positive read is only attributable after open() succeeded on
         // THIS source and THIS lineage. Never rely on aggregate read counts.
         boolean sourceOpened;
         boolean sourceReadAfterOpen;
+        boolean sourceAlbumReadAfterOpen;
+    }
+    private static final class TrackAlbumLink {
+        WeakReference<Object> track;
+        WeakReference<Object> album;
+        boolean conflicted;
     }
     private static final class TrackContinuationLink {
         WeakReference<Object> continuation;
@@ -74,10 +81,20 @@ final class StageBAudioEvidence {
     private final ArrayList<MainSourceContinuationLink> mainSourceContinuations =
         new ArrayList<>();
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
+    private final ArrayList<TrackAlbumLink> nativeTrackAlbumLinks = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeWrapperScopes = new ThreadLocal<>();
     private final AtomicLong nativeTrackFlowEmits = new AtomicLong();
+    private final AtomicLong nativeTrackAlbumConstructorLinks = new AtomicLong();
+    private final AtomicLong nativeTrackAlbumFlowLinks = new AtomicLong();
+    private final AtomicLong nativeTrackAlbumConflicts = new AtomicLong();
+    private final AtomicLong trackWrapperAlbumLinks = new AtomicLong();
+    private final AtomicLong trackDescriptorAlbumLinks = new AtomicLong();
+    private final AtomicLong trackFactoryAlbumLinks = new AtomicLong();
+    private final AtomicLong trackSourceAlbumLinks = new AtomicLong();
+    private final AtomicLong trackSourceAlbumOpenLinks = new AtomicLong();
+    private final AtomicLong trackSourceAlbumReadLinks = new AtomicLong();
     private final AtomicLong nativeTrackSourceRequests = new AtomicLong();
     private final AtomicLong flowTrackSourceSameObject = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
@@ -143,9 +160,61 @@ final class StageBAudioEvidence {
         if (stack.isEmpty()) local.remove();
     }
 
+    private Object findTrackAlbum(Object track) {
+        if (track==null) return null;
+        TrackAlbumLink match=null;
+        for (int i=nativeTrackAlbumLinks.size()-1;i>=0;i--) {
+            TrackAlbumLink link=nativeTrackAlbumLinks.get(i);
+            Object linkedTrack=link.track==null ? null : link.track.get();
+            if (linkedTrack==null) {
+                nativeTrackAlbumLinks.remove(i);
+                continue;
+            }
+            if (linkedTrack==track) {
+                if (match!=null) return null;
+                match=link;
+            }
+        }
+        return match==null || match.conflicted || match.album==null
+            ? null : match.album.get();
+    }
+
+    synchronized void onNativeTrackAlbumConstructed(Object track,Object album) {
+        if (track==null || album==null) return;
+        for (int i=nativeTrackAlbumLinks.size()-1;i>=0;i--) {
+            TrackAlbumLink link=nativeTrackAlbumLinks.get(i);
+            Object linkedTrack=link.track==null ? null : link.track.get();
+            if (linkedTrack==null) {
+                nativeTrackAlbumLinks.remove(i);
+                continue;
+            }
+            if (linkedTrack==track) {
+                if (link.conflicted || link.album==null || link.album.get()!=album) {
+                    link.conflicted=true;
+                    link.album=null;
+                    mark(nativeTrackAlbumConflicts);
+                    for (NativeTrackSourceLink source:nativeTrackSourceLinks) {
+                        if (source.track!=null && source.track.get()==track) {
+                            source.albumInstance=null;
+                            source.sourceAlbumReadAfterOpen=false;
+                        }
+                    }
+                }
+                return;
+            }
+        }
+        if (nativeTrackAlbumLinks.size()>=32) nativeTrackAlbumLinks.remove(0);
+        TrackAlbumLink link=new TrackAlbumLink();
+        link.track=new WeakReference<>(track);
+        link.album=new WeakReference<>(album);
+        nativeTrackAlbumLinks.add(link);
+        mark(nativeTrackAlbumConstructorLinks);
+    }
+
     synchronized void onNativeTrackFlowEmission(Object track) {
         if (track == null) return;
         mark(nativeTrackFlowEmits);
+        if (findTrackAlbum(track)!=null) mark(nativeTrackAlbumFlowLinks);
         for (int i=nativeTrackFlowItems.size()-1;i>=0;i--) {
             if (nativeTrackFlowItems.get(i).get()==null)
                 nativeTrackFlowItems.remove(i);
@@ -249,6 +318,9 @@ final class StageBAudioEvidence {
             link.track=new WeakReference<>(track);
             nativeTrackSourceLinks.add(link);
         }
+        Object album=findTrackAlbum(track);
+        link.albumInstance=album==null ? null : new WeakReference<>(album);
+        if (album!=null) mark(trackWrapperAlbumLinks);
         // Reconstructing a wrapper creates a new lineage generation. Old
         // descriptor/factory/source links must never be inherited by it.
         link.wrapper=new WeakReference<>(wrapper);
@@ -257,6 +329,7 @@ final class StageBAudioEvidence {
         link.sourceInstance=null;
         link.sourceOpened=false;
         link.sourceReadAfterOpen=false;
+        link.sourceAlbumReadAfterOpen=false;
         mark(nativeTrackWrapperLinks);
     }
 
@@ -338,6 +411,9 @@ final class StageBAudioEvidence {
             link.sourceInstance=null;
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
+            link.sourceAlbumReadAfterOpen=false;
+            if (link.albumInstance!=null && link.albumInstance.get()!=null)
+                mark(trackDescriptorAlbumLinks);
             mark(wrapperDescriptorLinks);
         }
     }
@@ -446,6 +522,9 @@ final class StageBAudioEvidence {
             link.sourceInstance=null;
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
+            link.sourceAlbumReadAfterOpen=false;
+            if (link.albumInstance!=null && link.albumInstance.get()!=null)
+                mark(trackFactoryAlbumLinks);
             mark(trackDescriptorFactoryLinks);
         }
     }
@@ -477,8 +556,11 @@ final class StageBAudioEvidence {
             link.sourceInstance=new WeakReference<>(source);
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
+            link.sourceAlbumReadAfterOpen=false;
             trackSourceReadInspectionBudget.set(0);
             hasTrackSourceLink=true;
+            if (link.albumInstance!=null && link.albumInstance.get()!=null)
+                mark(trackSourceAlbumLinks);
             mark(trackFactorySourceLinks);
         }
     }
@@ -495,6 +577,7 @@ final class StageBAudioEvidence {
             NativeTrackSourceLink link=findBySource(source);
             if (link!=null) {
                 link.sourceOpened=false;
+                link.sourceAlbumReadAfterOpen=false;
                 trackSourceReadInspectionBudget.set(0);
             }
             // An open attempt that throws must revoke earlier proof. A
@@ -528,6 +611,9 @@ final class StageBAudioEvidence {
             if (link!=null) {
                 // Called after the original vendor open() returned normally.
                 link.sourceOpened=true;
+                link.sourceAlbumReadAfterOpen=false;
+                if (link.albumInstance!=null && link.albumInstance.get()!=null)
+                    mark(trackSourceAlbumOpenLinks);
                 mark(trackSourceOpenLinks);
             }
         }
@@ -568,6 +654,12 @@ final class StageBAudioEvidence {
                         if (!link.sourceReadAfterOpen) {
                             link.sourceReadAfterOpen=true;
                             markDistinctLinkedReadSource(source);
+                        }
+                        if (!link.sourceAlbumReadAfterOpen
+                                && link.albumInstance!=null
+                                && link.albumInstance.get()!=null) {
+                            link.sourceAlbumReadAfterOpen=true;
+                            mark(trackSourceAlbumReadLinks);
                         }
                     }
                 } else if (firstAtMost(trackSourceUnopenedProbeBudget,16)) {
@@ -669,6 +761,15 @@ final class StageBAudioEvidence {
             event("TRACK_SOURCE_DISTINCT_POSITIVE_READ", trackSourceDistinctPositiveReads),
             event("TRACK_SOURCE_CLOSE_LINK", linkedSourceCloseCalls),
             event("TRACK_SOURCE_READ_SCAN_EXHAUSTED", trackSourceInspectionExhausted),
+            event("TRACK_ALBUM_CONSTRUCTOR_LINK", nativeTrackAlbumConstructorLinks),
+            event("FLOW_TRACK_ALBUM_LINK", nativeTrackAlbumFlowLinks),
+            event("TRACK_WRAPPER_ALBUM_LINK", trackWrapperAlbumLinks),
+            event("TRACK_DESCRIPTOR_ALBUM_LINK", trackDescriptorAlbumLinks),
+            event("TRACK_FACTORY_ALBUM_LINK", trackFactoryAlbumLinks),
+            event("TRACK_SOURCE_ALBUM_LINK", trackSourceAlbumLinks),
+            event("TRACK_SOURCE_ALBUM_OPEN_LINK", trackSourceAlbumOpenLinks),
+            event("TRACK_SOURCE_ALBUM_READ_LINK", trackSourceAlbumReadLinks),
+            event("TRACK_ALBUM_IDENTITY_CONFLICT", nativeTrackAlbumConflicts),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }

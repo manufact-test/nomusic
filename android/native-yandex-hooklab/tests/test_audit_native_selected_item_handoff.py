@@ -49,7 +49,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             result=album_constructor_argument_store(FakeDex(),method,0,100)
         self.assertTrue(result["stores_same_album_argument_on_track"])
 
-        wrong_receiver=[(0,0x5b,[0x105b,0]),(1,0x0e,[0x000e])]
+        wrong_receiver=[(0,0x5b,[0x135b,0]),(1,0x0e,[0x000e])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=wrong_receiver), \
              patch("audit_native_selected_item_handoff.field_id",
                    return_value=(MODEL,"hidden",ALBUM_MODEL)):
