@@ -2305,7 +2305,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             (4,0x07,[0x0207]),         # move-object v2, v0
             (5,0x28,[0x0228]),         # goto pc 7
             (6,0x07,[0x0207]),         # move-object v2, v0
-            (7,0x72,[0x0272,0]),       # invoke-interface {v2}, LaC7.if()
+            (7,0x72,[0x0272,0,0]),     # invoke-interface {v2}, LaC7.if()
             (10,0x0e,[0x000e]),
         ]
         profiles={
@@ -2344,7 +2344,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             (6,0x22,[0x0322,0]),       # second path creates another LyEa
             (8,0x07,[0x3207]),         # move-object v2, v3
             (9,0x28,[0x0128]),         # goto pc 10
-            (10,0x72,[0x0272,0]),      # invoke-interface {v2}, LaC7.if()
+            (10,0x72,[0x0272,0,0]),    # invoke-interface {v2}, LaC7.if()
             (13,0x0e,[0x000e]),
         ]
         profiles={
@@ -2374,9 +2374,9 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LFlow;", "emit", "()V")
         target=("LaC7;", "if", f"(){MODEL}")
         ins=[
-            (0,0x6e,[0x006e,0]),       # invoke-virtual provider
+            (0,0x6e,[0x006e,0,0]),     # invoke-virtual provider
             (3,0x0c,[0x000c]),         # move-result-object v0
-            (4,0x72,[0x0072,1]),       # invoke-interface {v0}, LaC7.if()
+            (4,0x72,[0x0072,1,0]),     # invoke-interface {v0}, LaC7.if()
             (7,0x0e,[0x000e]),
         ]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
