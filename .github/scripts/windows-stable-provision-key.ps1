@@ -19,6 +19,10 @@ $PrivateSecretName = "CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM"
 $PublicVariableName = "CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64"
 
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw "W155_POWERSHELL_7_REQUIRED" }
+$nodeVersion = (& node --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v24\.') {
+    throw "W155_NODE_24_REQUIRED"
+}
 if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or
     $EnvironmentName -notmatch '^[A-Za-z0-9_.-]+$') {
     throw "W155_REPOSITORY_OR_ENVIRONMENT_INVALID"
