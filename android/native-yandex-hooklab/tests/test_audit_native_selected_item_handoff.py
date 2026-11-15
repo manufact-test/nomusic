@@ -11,7 +11,8 @@ from audit_native_selected_item_handoff import (
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
     select_exact_interface_contracts, select_audio_output_focus_methods,
     trace_byte_buffer_parameter, expand_invoke_register_types,
-    audio_output_dispatch_contracts, owner_ancestry_profiles
+    audio_output_dispatch_contracts, owner_ancestry_profiles,
+    trace_renderer_buffer_field_candidates
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -686,6 +687,70 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(len(calls),1)
         self.assertTrue(calls[0]["target_accepts_track_parameter"])
         self.assertFalse(calls[0]["identity_proven"])
+
+    def test_renderer_field_census_marks_same_field_only_as_candidate(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5, 102:1}[offset]
+            def method(self, index):
+                if index == 0:
+                    return ("LDecoder;","take","(I)Ljava/nio/ByteBuffer;")
+                return ("LBase;","O","(Ljava/nio/ByteBuffer;)Z")
+        target=("LBase;","O","(Ljava/nio/ByteBuffer;)Z")
+        method=("LRenderer;","render","()Z")
+        ins=[
+            (0,0x6e,[0x006e,0]),
+            (1,0x0c,[0x000c]),
+            (2,0x5b,[0x405b,7]),
+            (3,0x54,[0x4154,7]),
+            (4,0x6e,[0x006e,1])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions", return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LRenderer;","secretBuffer","Ljava/nio/ByteBuffer;")), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=[[2,1],[4,1]]):
+            result=trace_renderer_buffer_field_candidates(
+                FakeDex(),method,0,100,{target}
+            )
+        stores=result["codec_return_to_this_buffer_field_store_candidates"]
+        self.assertEqual(len(stores),1)
+        refs=result["audio_output_call_candidates"][0]["buffer_reference_candidates"]
+        self.assertEqual(refs[0]["prior_codec_return_store_count"],1)
+        self.assertFalse(refs[0]["same_runtime_buffer_proven"])
+        self.assertFalse(result["same_codec_buffer_to_sink_proven"])
+        self.assertNotIn("secretBuffer",str(result))
+
+    def test_renderer_field_census_does_not_match_different_receiver_or_field(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5,102:1}[offset]
+            def method(self, index):
+                if index == 0:
+                    return ("LDecoder;","take","(I)Ljava/nio/ByteBuffer;")
+                return ("LBase;","O","(Ljava/nio/ByteBuffer;)Z")
+        target=("LBase;","O","(Ljava/nio/ByteBuffer;)Z")
+        method=("LRenderer;","render","()Z")
+        ins=[
+            (0,0x6e,[0x006e,0]),
+            (1,0x0c,[0x000c]),
+            (2,0x5b,[0x405b,7]),
+            (3,0x54,[0x4154,8]),
+            (4,0x6e,[0x006e,1])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions", return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LRenderer;","secretBuffer","Ljava/nio/ByteBuffer;")), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=[[2,1],[4,1]]):
+            result=trace_renderer_buffer_field_candidates(
+                FakeDex(),method,0,100,{target}
+            )
+        refs=result["audio_output_call_candidates"][0]["buffer_reference_candidates"]
+        self.assertEqual(refs[0]["prior_codec_return_store_count"],0)
+        self.assertFalse(result["same_codec_buffer_to_sink_proven"])
 
     def test_owner_ancestry_profiles_include_parent_track_identity_types(self):
         profiles={

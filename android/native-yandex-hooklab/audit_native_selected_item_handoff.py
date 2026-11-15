@@ -2083,6 +2083,165 @@ def owner_ancestry_profiles(owner, class_profiles):
             pending.append(superclass)
     return rows
 
+
+def trace_renderer_buffer_field_candidates(dex, method, flags, code_off, sink_targets):
+    """Record same-method ByteBuffer field references, not runtime identity.
+
+    A codec-return -> field store -> field read -> sink pattern is a structural
+    candidate only. Branches, external writes, and active renderer selection
+    are deliberately NOT modeled. Never read field values or report names.
+    """
+    byte_buffer = "Ljava/nio/ByteBuffer;"
+    targets = set(sink_targets)
+    ins = list(instructions(dex, code_off))
+    if len(ins) > 20000:
+        raise ValueError("RENDERER_BUFFER_METHOD_INSTRUCTION_LIMIT")
+    register_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > register_size:
+        raise ValueError("RENDERER_BUFFER_BAD_REGISTER_SIZE")
+    this_reg = None if (flags & ACC_STATIC) else register_size - ins_size
+    values = {}
+    stores = []
+    calls = []
+    pending = None
+    branch_seen = False
+
+    def put(reg, value=None):
+        values.pop(reg, None)
+        if value is not None:
+            values[reg] = value
+
+    for ordinal, (_pc, op, words) in enumerate(ins):
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            if callee in targets:
+                regs = invoke_registers(op, words)
+                types = expand_invoke_register_types(
+                    callee[0], parse_types(callee[2]), op in (0x71, 0x77)
+                )
+                refs = []
+                if len(regs) == len(types):
+                    for typ, reg in zip(types, regs):
+                        if typ != byte_buffer:
+                            continue
+                        origin = values.get(reg)
+                        if origin and origin[0] == "FIELD_READ":
+                            _, field_index, read_receiver, read_ordinal = origin
+                            matching_stores = [
+                                item for item in stores
+                                if item["field_index"] == field_index
+                                and item["receiver_is_this"] and read_receiver
+                                and item["ordinal"] < read_ordinal < ordinal
+                            ]
+                            refs.append({
+                                "kind": "SAME_THIS_FIELD_REFERENCE_CANDIDATE",
+                                "read_ordinal": read_ordinal,
+                                "prior_codec_return_store_count": len(
+                                    matching_stores
+                                ),
+                                "source_methods": sorted({
+                                    (
+                                        item["source_method"]["owner"],
+                                        item["source_method"]["method"],
+                                        item["source_method"]["signature"]
+                                    )
+                                    for item in matching_stores
+                                }),
+                                "same_runtime_buffer_proven": False,
+                            })
+                        elif origin:
+                            refs.append({
+                                "kind": origin[0],
+                                "same_runtime_buffer_proven": False,
+                            })
+                calls.append({
+                    "ordinal": ordinal,
+                    "target": {
+                        "owner": callee[0], "method": callee[1],
+                        "signature": callee[2],
+                    },
+                    "buffer_reference_candidates": refs,
+                    "same_codec_buffer_to_sink_proven": False,
+                })
+            return_type = callee[2].split(")", 1)[1]
+            pending = (
+                {"owner": callee[0], "method": callee[1],
+                 "signature": callee[2]}
+                if return_type == byte_buffer else None
+            )
+            continue
+        if op == 0x0c:  # move-result-object
+            put(words[0] >> 8, ("CODEC_BUFFER_RETURN", pending) if pending else None)
+            pending = None
+            continue
+        pending = None
+        if op == 0x5b:  # iput-object, record only exact typed buffer fields
+            val = (words[0] >> 8) & 15
+            recv = (words[0] >> 12) & 15
+            field_owner, _private_name, field_type = field_id(dex, words[1])
+            origin = values.get(val)
+            if (field_type == byte_buffer and recv == this_reg
+                    and origin and origin[0] == "CODEC_BUFFER_RETURN"):
+                if len(stores) >= 128:
+                    raise ValueError("RENDERER_BUFFER_FIELD_STORE_LIMIT")
+                stores.append({
+                    "field_index": words[1],
+                    "ordinal": ordinal,
+                    "field_owner": field_owner,
+                    "receiver_is_this": True,
+                    "source_method": origin[1],
+                })
+            continue
+        if op == 0x54:  # iget-object
+            dest = (words[0] >> 8) & 15
+            recv = (words[0] >> 12) & 15
+            _owner, _private_name, field_type = field_id(dex, words[1])
+            put(
+                dest,
+                ("FIELD_READ", words[1], recv == this_reg, ordinal)
+                if field_type == byte_buffer else None
+            )
+            continue
+        if op in (0x07, 0x08, 0x09):  # move-object
+            move = move_object_registers(op, words)
+            if move:
+                dest, src = move
+                put(dest, values.get(src))
+            continue
+        if op == 0x1f:  # check-cast does not change object identity
+            continue
+        dest = written_register(op, words)
+        if dest is not None:
+            put(dest)
+        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+            branch_seen = True
+            # A linear pass cannot carry aliases across possible paths.
+            # Preserve structural field STORE rows only as candidates.
+            values.clear()
+
+    return {
+        "method": {
+            "owner": method[0], "method": method[1], "signature": method[2]
+        },
+        "codec_return_to_this_buffer_field_store_candidates": [
+            {
+                "ordinal": item["ordinal"],
+                "field_owner": item["field_owner"],
+                "field_type": byte_buffer,
+                "source_method": item["source_method"],
+            }
+            for item in stores
+        ],
+        "audio_output_call_candidates": calls,
+        "branches_unresolved": branch_seen,
+        "same_codec_buffer_to_sink_proven": False,
+        "same_selected_track_to_decoder_proven": False,
+        "private_field_names_or_values_disclosed": False,
+        "audio_bytes_read": False,
+    }
+
+
 def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
     focus_methods = [
         (row["owner"], row["method"], row["signature"])
@@ -2223,6 +2382,7 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
 
     traces = {}
     buffer_traces = {}
+    renderer_field_traces = {}
     for caller, (dex, flags, code_off) in caller_definitions.items():
         traces[caller] = trace_identity_method(
             dex, caller, flags, code_off,
@@ -2231,6 +2391,9 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
         )
         buffer_traces[caller] = trace_byte_buffer_parameter(
             dex, caller, flags, code_off, sink_targets=target_refs
+        )
+        renderer_field_traces[caller] = trace_renderer_buffer_field_candidates(
+            dex, caller, flags, code_off, target_refs
         )
 
     identity_flow_count = 0
@@ -2305,6 +2468,15 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
             if event.get("ordinal", -1) < row["ordinal"]
         ]
         row["byte_buffer_branch_seen_in_caller"] = buffer_trace["branch_seen"]
+        renderer_trace = renderer_field_traces[caller]
+        field_event = next((
+            event for event in renderer_trace["audio_output_call_candidates"]
+            if event["ordinal"] == row["ordinal"]
+        ), None)
+        row["renderer_field_identity_candidates"] = (
+            field_event["buffer_reference_candidates"] if field_event else []
+        )
+        row["same_codec_buffer_to_audio_output_proven"] = False
 
     caller_owner_profiles = []
     caller_owners = sorted({row["caller"]["owner"] for row in callsites})
@@ -2352,6 +2524,10 @@ def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
         "identity_flow_to_audio_sink_callsite_count": identity_flow_count,
         "byte_buffer_object_flow_to_audio_output_callsite_count": byte_buffer_flow_count,
         "caller_owner_ancestry_profiles": caller_owner_profiles,
+        "renderer_field_candidate_traces": [
+            renderer_field_traces[caller] for caller in sorted(renderer_field_traces)
+        ],
+        "codec_output_object_to_audio_sink_proven": False,
         "ancestry_track_field_owner_count": len(ancestry_track_owners),
         "ancestry_album_field_owner_count": len(ancestry_album_owners),
         "ancestry_wrapper_field_owner_count": len(ancestry_wrapper_owners),
