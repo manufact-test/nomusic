@@ -1,3 +1,44 @@
+# CURRENT RESTORE POINT — 15 Nov 2026, CELIKOM Android A1
+
+**Repository:** `manufact-test/nomusic`  
+**Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
+**Branch HEAD before this documentation update:** `e159fc02ad4b746647d417b065daa5791cdcf315` (three documentation-only commits ahead of the code checkpoint below; no code changes after the green audit).  
+**Latest code checkpoint:** `09b4c989482413c7b0c74bbe49a83ed4b0ea4a7f`.  
+**Exact green code backup:** `backup/android-a1-lck1-predicate-audit-ci-green-20261115` @ `09b4c989482413c7b0c74bbe49a83ed4b0ea4a7f`.  
+**Latest CI:** [#43745289143](https://github.com/manufact-test/nomusic/actions/runs/43745289143) — SUCCESS, 88/88 tests; exact publisher-signed 2025 original, 16 splits / 6 DEX.  
+**Last runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`; subsequent work was read-only static audit and documentation.
+
+## Product status — preserve these boundaries
+
+- **Stage A = PASS on NAV17:** owner confirmed real Yandex account, albums, My Wave and original-track playback. This success must not be disturbed.
+- **Stage B = NOT CONNECTED / NO-GO:** CELIKOM replacement audio is not connected or audible. No release APK from this research branch.
+- Gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`.
+
+## Latest LCK1 result
+
+- `Lv3.throws(Track, Track)` delegates to `Objects.equals`; close it as a pure equality predicate.
+- `LwEa.for(Track)` contains only the Kotlin non-null parameter check.
+- `LHv4.if(Track)` was already bounded to parameter validation only.
+- Neither inner coroutine proves passing the original field-backed Track to `LHl4.emit`.
+- `LaC7.if(): Track` is the only remaining narrow reference: it supplies a second Track for comparison, but its exact owner/method resolution is not yet established.
+
+## Next bounded task — do only this
+
+1. Inspect the exact signed-DEX owner `LaC7;`: defined or absent, interface/class, abstract or concrete, superclass and interfaces.
+2. If the exact `if(): Track` body is absent/abstract/inherited, enumerate only direct implementers or subclasses and trace only concrete implementations of that exact signature (including the nearest inherited method owner where needed).
+3. Determine whether the returned Track is structurally sourced from player/current-source/decoder state. Do not infer this from names or type similarity.
+4. If no concrete implementation exists in the pinned signed DEX, close this path as external/unresolved and return to the previously identified native audio sink caller path. Do not reopen closed LCK1 predicates or generic Flow collectors.
+
+## After closing LaC7
+
+Resume only the existing bounded audio-sink route: callers into `LcLb.O` and `Lbd6.O`; distinguish active playback from queue/prefetch/download; connect Track/Album to the sink only by bounded Java object identity; establish edition/generation for that same item; require the same identity at decoder/audio renderer. Only after that may the existing CELIKOM resolve/entitlement contract be connected before decoder input, with the original native fallback.
+
+## Hard constraints
+
+Read-only and fail-closed until the chain is proven. No generic runtime hooks, APK changes/builds/releases, login, account/media access, field-value/ID/name/URL/DataSpec/token/audio-byte reads, vendor behavior changes, or exception suppression. Do not touch NAV17, original Yandex, Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend/API/DB or production. Do not ask the owner for manual steps unless a concrete, necessary read-only measurement has first been identified. Work in large bounded blocks and preserve exact backups.
+
+---
+
 # SUPERSEDING RESULT — 15 Nov 2026, LCK1 predicate/secondary Track source audit (CI GREEN)
 
 **Code checkpoint:** `09b4c989482413c7b0c74bbe49a83ed4b0ea4a7f`.  
