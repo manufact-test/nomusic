@@ -8,6 +8,7 @@ from audit_native_selected_item_handoff import (
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
     trace_identity_method, select_next_identity_method_refs,
+    build_dex_control_flow,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
     select_exact_interface_contracts, select_audio_output_focus_methods,
     trace_byte_buffer_parameter, expand_invoke_register_types,
