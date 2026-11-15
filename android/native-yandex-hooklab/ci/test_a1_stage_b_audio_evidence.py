@@ -169,6 +169,7 @@ public final class StageBAudioEvidenceTest {
         resumed.exitNativeTrackSourceRequest();
         bucket(resumed.exportLines(),33,"NATIVE_TRACK_CONTINUATION_CONSTRUCTED","ONE");
         bucket(resumed.exportLines(),34,"TRACK_CONTINUATION_RECOVERED","ONE");
+        bucket(resumed.exportLines(),23,"FLOW_TRACK_SAME_OBJECT","ONE");
         bucket(resumed.exportLines(),35,"TRACK_CONTINUATION_CONFLICT","NONE");
         bucket(resumed.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
         // Explicit different selected Track with the same Fp0 must revoke

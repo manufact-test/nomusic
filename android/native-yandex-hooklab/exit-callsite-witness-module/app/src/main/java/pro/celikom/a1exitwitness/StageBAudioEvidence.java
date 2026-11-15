@@ -192,7 +192,11 @@ final class StageBAudioEvidence {
         }
         pushScope(activeTrackScopes,scopedTrack); // balanced even for null
         mark(nativeTrackSourceRequests);
-        if (scopedTrack!=null && wasNativeTrackFlowItem(scopedTrack))
+        // This counter means the exact Track object was an actual Gp0.new
+        // argument. A recovered Fp0 continuation is a different evidence
+        // category and must NEVER inflate FLOW_TRACK_SAME_OBJECT.
+        if (scopedTrack!=null && scopedTrack==track
+                && wasNativeTrackFlowItem(scopedTrack))
             mark(flowTrackSourceSameObject);
     }
 
