@@ -4978,16 +4978,138 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
 
 
 
-def class_instantiation_and_flow_collect_sites(dex: Dex, method, code_off: int):
-    targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;", "Lam4;"}
+def local_object_register_origin(dex, method, flags, code_off, ins, before_ordinal, register):
+    """Bounded local origin for one object argument; no values or runtime inference."""
+    current=register
+    lower=max(-1,before_ordinal-33)
+    for index in range(before_ordinal-1,lower,-1):
+        _pc,op,words=ins[index]
+        if op in (0x07,0x08,0x09):
+            dest,source=move_object_registers(op,words)
+            if dest==current:
+                current=source
+                continue
+        if op==0x22:
+            dest=words[0]>>8
+            if dest==current:
+                return {"kind":"NEW_INSTANCE","type":dex.descriptor(words[1])}
+        if op==0x54:
+            dest=(words[0]>>8)&15
+            if dest==current:
+                owner,name,typ=field_id(dex,words[1])
+                receiver=(words[0]>>12)&15
+                return {"kind":"INSTANCE_FIELD_READ","owner":owner,
+                        "field":name,"type":typ,
+                        "receiver_is_this":receiver==(
+                            dex.u16(code_off)-dex.u16(code_off+2)
+                            if not flags&ACC_STATIC else -1
+                        )}
+        if op==0x62:
+            dest=words[0]>>8
+            if dest==current:
+                owner,name,typ=field_id(dex,words[1])
+                return {"kind":"STATIC_FIELD_READ","owner":owner,
+                        "field":name,"type":typ}
+        if op==0x0c:
+            dest=words[0]>>8
+            if dest==current:
+                if index>0 and ins[index-1][1] in INVOKES:
+                    callee=dex.method(ins[index-1][2][1])
+                    return {"kind":"INVOKE_RESULT","owner":callee[0],
+                            "method":callee[1],"signature":callee[2],
+                            "return_type":callee[2].split(")",1)[1]}
+                return {"kind":"MOVE_RESULT_OBJECT_UNRESOLVED"}
+        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            return {"kind":"BRANCH_BOUNDARY"}
+        if written_register(op,words)==current:
+            return {"kind":"OTHER_WRITE"}
+    registers_size=dex.u16(code_off)
+    ins_size=dex.u16(code_off+2)
+    if ins_size>registers_size:
+        raise DexError("FLOW_ARGUMENT_ORIGIN_INS_SIZE")
+    param_reg=registers_size-ins_size
+    this_reg=None
+    if not flags&ACC_STATIC:
+        this_reg=param_reg
+        param_reg+=1
+    if current==this_reg and this_reg is not None:
+        return {"kind":"THIS_PARAMETER","type":method[0]}
+    for position,typ in enumerate(parse_types(method[2])):
+        if current==param_reg:
+            return {"kind":"METHOD_PARAMETER","index":position,"type":typ}
+        param_reg+=2 if typ in ("J","D") else 1
+    return {"kind":"UNRESOLVED_LOCAL_REGISTER"}
+
+
+def logical_invoke_argument_rows(dex, method, flags, code_off, ins, ordinal, op, words):
+    """Describe logical argument positions and bounded object origins at one invoke."""
+    callee=dex.method(words[1])
+    registers=invoke_registers(op,words)
+    is_static=op in (0x71,0x77)
+    logical_types=(
+        list(parse_types(callee[2])) if is_static
+        else [callee[0]]+list(parse_types(callee[2]))
+    )
+    expanded=expand_invoke_register_types(
+        callee[0],parse_types(callee[2]),is_static
+    )
+    if len(expanded)!=len(registers):
+        raise DexError("FLOW_ARGUMENT_REGISTER_ARITY_MISMATCH")
+    rows=[]
+    word_index=0
+    for logical_position,typ in enumerate(logical_types):
+        register=registers[word_index]
+        row={"logical_position":logical_position,"type":typ,"register":register}
+        if typ.startswith(("L","[")):
+            row["origin"]=local_object_register_origin(
+                dex,method,flags,code_off,ins,ordinal,register
+            )
+        rows.append(row)
+        word_index+=2 if typ in ("J","D") else 1
+    return rows
+
+
+def summarize_flow_entry_class_profiles(class_profiles):
+    """Expose exact signed class relations/types only; do not infer active playback."""
+    targets=(
+        "LDp0;","LDp0$a;","Lwp0;","Lwp0$a;","Lyp0;","LGp0;",
+        "LGl4;","LHl4;","Ljm4;","Lam4;","LzC3;","LAC3;",
+        "LBC3;","LO6;","LBy4;","YMApplication;"
+    )
+    rows=[]
+    for owner in targets:
+        profile=class_profiles.get(owner)
+        if profile is None:
+            rows.append({"owner":owner,"defined_in_signed_dex":False})
+            continue
+        interfaces=sorted(profile.get("interfaces",()))
+        rows.append({
+            "owner":owner,
+            "defined_in_signed_dex":True,
+            "superclass":profile.get("superclass"),
+            "interfaces":interfaces,
+            "implements_flow_source_directly":"LGl4;" in interfaces,
+            "implements_flow_collector_directly":"LHl4;" in interfaces,
+            "instance_field_type_descriptors":sorted(profile.get("instance_types",())),
+            "static_field_type_descriptors":sorted(profile.get("static_types",()))
+        })
+    return rows
+
+
+def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, code_off: int):
+
+    targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;", "Lam4;",
+               "Lwp0;", "Lyp0;", "LzC3;", "LAC3;", "LBC3;", "LO6;", "LBy4;"}
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
     for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
-        if op == 0x22:  # new-instance
+        if op == 0x22:  # new-instance; invalidate every old type alias in the destination
             target = dex.descriptor(words[1])
+            dest = words[0] >> 8
+            for known in targets:
+                aliases[known].discard(dest)
             if target in targets:
-                dest = words[0] >> 8
                 aliases[target].add(dest)
                 instantiated.append({"class": target, "register": dest, "ordinal": ordinal})
         elif op in (0x07, 0x08, 0x09):
@@ -5010,6 +5132,9 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, code_off: int):
                         "callee": {"owner": callee[0], "method": callee[1],
                                    "signature": callee[2]},
                         "argument_positions": positions,
+                        "argument_rows": logical_invoke_argument_rows(
+                            dex,method,flags,code_off,ins,ordinal,op,words
+                        ),
                         "ordinal": ordinal,
                     })
         elif 0x59 <= op <= 0x5f:  # iput*: capture only the destination field identity
@@ -5092,7 +5217,10 @@ def inspect_signed(apks):
     trace_targets = {
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
+        ("Lwp0;", "collect"), ("Lwp0;", "<init>"), ("Lyp0;", "collect"),
         ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for"),
+        ("LzC3;", "<init>"), ("LAC3;", "<init>"), ("LBC3;", "<init>"),
+        ("LO6;", "native"),
         ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
         ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>"),
         ("Lou3;", "new"),
@@ -5144,8 +5272,10 @@ def inspect_signed(apks):
                             raise ValueError("ALBUM_FIELD_LIMIT")
                     album_methods, reads = class_member_field_reads(dex, ALBUM_MODEL)
                     album_accessor_field_reads.extend(reads)
-                for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;",
-                                     "LGl4;", "Ljm4;", "Lk1a;", "Lam4;", "LFp0;",
+                for target_class in ("LDp0;", "LDp0$a;", "Lwp0;", "Lwp0$a;",
+                                     "Lyp0;", "LGp0;", "Lou3;", "LGl4;", "LHl4;",
+                                     "Ljm4;", "Lk1a;", "Lam4;", "LFp0;", "LzC3;",
+                                     "LAC3;", "LBC3;", "LO6;", "LBy4;",
                                      "Lcom/yandex/music/shared/player/download2/o$c;",
                                      "LRAa;"):
                     if target_class in defined:
@@ -5266,7 +5396,7 @@ def inspect_signed(apks):
                         if wrapper_flow and len(wrapper_constructor_callsites) < MAX_METHODS:
                             wrapper_constructor_callsites.append(wrapper_flow)
                     collector_flow = class_instantiation_and_flow_collect_sites(
-                        dex, method, code_off)
+                        dex, method, flags, code_off)
                     if collector_flow and len(flow_dispatcher_instantiation_sites) < MAX_METHODS:
                         flow_dispatcher_instantiation_sites.append(collector_flow)
                     ins = list(instructions(dex, code_off))
@@ -5577,6 +5707,7 @@ def inspect_signed(apks):
         "track_id_wrapper_constructor_callsites": wrapper_constructor_callsites,
         "selected_item_source_target_callers": target_callers,
         "flow_dispatcher_class_fields": flow_dispatcher_class_fields,
+        "flow_entry_class_profiles":summarize_flow_entry_class_profiles(class_profiles),
         "flow_source_interface_methods": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in sorted(flow_source_interface_methods)[:MAX_METHODS]

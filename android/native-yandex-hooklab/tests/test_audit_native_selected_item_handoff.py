@@ -20,7 +20,9 @@ from audit_native_selected_item_handoff import (
     inspect_native_track_coroutine_callers,
     trace_coroutine_callsite_argument_origins,
     summarize_coroutine_new_instance_ancestry,
-    classify_coroutine_entry_direct_upstream_call
+    classify_coroutine_entry_direct_upstream_call,
+    class_instantiation_and_flow_collect_sites,
+    summarize_flow_entry_class_profiles
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -1070,6 +1072,48 @@ class SelectedItemAuditTests(unittest.TestCase):
             "TRACK_FROM_THIS_FIELD_CANDIDATE"
         )
         self.assertNotIn("privateTrack",str(result))
+
+    def test_flow_instantiation_census_invalidates_reused_register_on_new_instance(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def descriptor(self,index):
+                return {1:"LDp0;",2:"LBC3;"}[index]
+            def method(self,index):
+                return {
+                    10:("LDp0;","<init>","(LGp0;)V"),
+                    11:("LBC3;","<init>","(LBy4;)V")
+                }[index]
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+        method=("LCaller;","start","()V")
+        ins=[
+            (0,0x22,[0x0122,1]),
+            (1,0x70,[0x0070,10,1,2]),
+            (2,0x22,[0x0122,2]),
+            (3,0x70,[0x0070,11,1,2])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1,2]):
+            result=class_instantiation_and_flow_collect_sites(FakeDex(),method,0x8,100)
+        ctor_rows=[x for x in result["flow_collect_or_emit_calls"]
+                   if x["callee"]["method"]=="<init>"]
+        self.assertEqual([x["class"] for x in ctor_rows],["LDp0;","LBC3;"])
+        self.assertEqual(ctor_rows[0]["argument_positions"],[0])
+        self.assertEqual(ctor_rows[1]["argument_positions"],[0])
+
+    def test_flow_entry_class_profile_reports_exact_interfaces_without_inference(self):
+        profiles={
+            "LDp0;":{"superclass":"Ljava/lang/Object;","interfaces":{"LHl4;"},
+                     "instance_types":{"LGp0;"},"static_types":set()},
+            "Lwp0;":{"superclass":"Lyp0;","interfaces":set(),
+                     "instance_types":{"LGp0;"},"static_types":set()}
+        }
+        rows=summarize_flow_entry_class_profiles(profiles)
+        by_owner={row["owner"]:row for row in rows}
+        self.assertTrue(by_owner["LDp0;"]["implements_flow_collector_directly"])
+        self.assertFalse(by_owner["LDp0;"]["implements_flow_source_directly"])
+        self.assertEqual(by_owner["Lwp0;"]["superclass"],"Lyp0;")
+        self.assertFalse(by_owner["Lwp0;"]["defined_in_signed_dex"] is False)
 
     def test_coroutine_upstream_callsite_census_never_promotes_type_to_playback(self):
         caller=("LCaller;","load",
