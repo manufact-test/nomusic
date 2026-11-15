@@ -1,3 +1,34 @@
+# SUPERSEDING RESULT — 15 Nov 2026, branch-sensitive inner Flow identity trace (CI GREEN)
+
+**Verified code checkpoint:** `79e3399dd65806c4017f0077f406fdf0ef0b1265`.  
+**CI:** [#43744778789](https://github.com/manufact-test/nomusic/actions/runs/43744778789) **SUCCESS, 88/88 tests**, exact publisher-signed 2025 original verified (16 splits / 6 DEX).  
+**Exact green backup:** `backup/android-a1-inner-flow-cfg-track-identity-ci-green-20261115` @ `79e3399dd65806c4017f0077f406fdf0ef0b1265`.  
+**Previous green:** [#43744526981](https://github.com/manufact-test/nomusic/actions/runs/43744526981) SUCCESS, 87/87 tests; primitive argument false-positive guard verified.
+
+## Branch-sensitive result
+
+A bounded control-flow must-alias trace followed the exact Track field through all incoming branch states in the two inner Flow lambdas.
+
+- `LCK1$c$a.emit`: reads the exact retained Track field; calls `Lv3.throws(Track, Track): boolean` with the field-backed Track as one argument. A separate `LaC7.if(): Track` call returns another Track. The subsequent `LHl4.emit(Object, Continuation)` call does **not** receive a proven alias of the original field-backed Track.
+- `LCK1$l$a.emit`: reads the exact retained Track field; passes it to `LHv4.if(Track): boolean` and `LwEa.for(Track): boolean`. The subsequent `LHl4.emit(Object, Continuation)` call does **not** receive a proven alias of the original field-backed Track.
+
+Thus neither inner coroutine proves emission of the original Track into the Flow collector. This branch is a predicate/filter path, not a proven player/source/decoder handoff. Do not describe it as playback or infer the collector's emitted value.
+
+The audit now preserves aliases across branches only when the same exact origin is present on every incoming path. It rejects the proof if even one branch overwrites the register. Primitive DEX parameters are also excluded from object-identity evidence.
+
+## Next bounded task
+
+Inspect only:
+- `LaC7.if(): Track` — exact source of the second Track returned in the LCK1$c$a predicate path;
+- `Lv3.throws(Track, Track): boolean`;
+- `LwEa.for(Track): boolean`.
+
+`LHv4.if(Track)` was already traced and had no further same-Track call edge beyond parameter validation. If the three remaining methods only compare/filter Track metadata and do not reach a player/source/decoder boundary, close this entire LCK1 Flow branch and return to the previously identified native audio-output buffer path. Do not expand into generic Flow collectors or unrelated classes.
+
+Current gates remain `active_selected_item_proven=false` and `same_native_item_to_decoder_proven=false`. No runtime hooks, APK modifications, login, account/media access or vendor behavior changes. NAV17 Stage A remains owner-confirmed PASS; Stage B replacement remains NOT CONNECTED / NO-GO.
+
+---
+
 # SUPERSEDING RESULT — 15 Nov 2026, LCK1 Flow/coroutine field audit (CI GREEN)
 
 **Code checkpoint:** `066778008331584301731f9d430a6713a0e7a02d`.  
