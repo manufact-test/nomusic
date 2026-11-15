@@ -751,7 +751,8 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                ("AUDIO_EXO_DESCRIPTOR_HOOK","EXO_DESCRIPTOR"),
                ("AUDIO_EXO_SOURCE_INSTANCE_HOOK","EXO_DATASOURCE"),
                ("AUDIO_EXO_OPEN_HOOK","EXO_DATASOURCE"),
-               ("AUDIO_EXO_READ_HOOK","EXO_DATASOURCE")]
+               ("AUDIO_EXO_READ_HOOK","EXO_DATASOURCE"),
+               ("AUDIO_EXO_CLOSE_HOOK","EXO_DATASOURCE")]
         good="".join(log(431,f"event={event};origin={origin};error=REGISTERED;thread=MAIN")
                      for event,origin in parts)
         false=log(999,"event=AUDIO_EXO_FACTORY_HOOK;origin=EXO_FACTORY;error=NO_HOOK;thread=MAIN")
