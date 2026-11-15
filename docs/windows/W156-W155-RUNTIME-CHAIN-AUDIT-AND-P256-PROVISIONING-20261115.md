@@ -44,19 +44,19 @@ No owner action is requested while repository-side work remains. The approved lo
 
 The GitHub Environment `windows-stable-production` must have at least one authorized required reviewer and a deployment branch policy allowing exactly `main`. Verify those settings in the GitHub UI before adding the secret. Do not weaken or bypass the protection.
 
-## 4. Remaining external/release work
+## 4. Final release result and remaining owner acceptance
 
-- Owner-side private-key provisioning has **not** yet been run; it is the only required owner-side prerequisite before the one-shot bootstrap build.
-- `celikom.com` DNS/TLS and public feed are still deliberately deferred.
-- No production feed has been published.
-- No final EXE/ZIP has been built or delivered; no owner-PC installation or field acceptance has happened.
-- The current W20 internal staging workflow does not embed the production P-256 pin and must not be used for the final bootstrap. The protected `windows-stable-signed-release.yml` is the approved trust-embedding build path.
-- W156 added the owner-package helper to that workflow. It produces one EXE, one root-entry ZIP containing the same EXE, and SHA256SUMS; the helper and release contract pass Main CI and Windows integration CI.
-- Target bootstrap version is 0.24.38. GUI, Supervisor and Inno metadata are aligned. Main CI run 43736028010 and Windows integration CI run 43736027854 both SUCCESS on documentation HEAD 0a2df7d5; the marker-trigger release workflow checkpoint is 44a3e55e.
-- Repository visibility was rechecked: `manufact-test/nomusic` is public. Existing Releases are two unpublished Android test drafts; there is no Windows 0.24.38 release yet.
-- The first workflow version incorrectly sent the owner package to a public Actions artifact. This has been corrected: with `publish_to_production=false`, the workflow creates the Draft Release `celikom-windows-v0.24.38-owner-bootstrap` with exactly `CELIKOM-Windows-0.24.38.exe`, `CELIKOM-Windows-0.24.38.zip` and `SHA256SUMS.txt`. GitHub draft releases are listed only for users with push access; the public repository itself remains public. The Actions artifact upload step is skipped for this owner-bootstrap path.
-- Main CI run `43730538279` and Windows integration CI run `43730538242`: **SUCCESS** on code checkpoint `23a4ec4a232139b9cfea986dec629d1d9b8776dd`, including the new draft-release contract test.
-- After the owner adds the one protected Environment secret using the PowerShell-only procedure, the assistant commits the one-shot marker `.github/release/owner-bootstrap-0.24.38.trigger` to `main`. The path-filtered workflow starts automatically with version 0.24.38, sequence 1, automatic 7-day UTC expiry and `publish_to_production=false`; the owner only approves the protected environment if GitHub requests it. It creates the unpublished Draft Release; then run the single grouped W154 owner acceptance. Do not click Run workflow manually, publish the draft or create intermediate packages.
+- Owner-side P-256 key provisioning is **complete**. The private key is stored only in the protected Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` under `windows-stable-production`. The workflow derived the public pin and matched the owner's public fingerprint. Never request or expose the private PEM.
+- The first protected release attempt failed only because the generated expiry timestamp omitted the milliseconds required by canonical `Date.toISOString()`. The workflow now generates/parses UTC timestamps with exactly three fractional digits. A precise backup was kept before the fix, and the existing one-shot marker was updated once to trigger the corrected workflow; no version or sequence change was made.
+- Final release workflow run `43741752502`: **SUCCESS** on source commit `bc59e0c7e4db749d616b318beb89369245811b44`. Main CI run `43741752582` and Windows integration CI run `43741752579`: **SUCCESS**.
+- Final bootstrap: Draft Release `celikom-windows-v0.24.38-owner-bootstrap`, release ID `446239144`, version `0.24.38`, sequence `1`, automatic seven-day UTC expiry, `publish_to_production=false`.
+- GitHub verified exactly these three Draft Release assets:
+  - `CELIKOM-Windows-0.24.38.exe` — 85,140,627 bytes.
+  - `CELIKOM-Windows-0.24.38.zip` — 84,660,767 bytes.
+  - `SHA256SUMS.txt` — 198 bytes.
+- The owner-package helper verifies that the ZIP has exactly one entry named `CELIKOM-Windows-0.24.38.exe` at the archive root, that its length and SHA-256 match the installer, and that the checksum file records the EXE and ZIP hashes. The successful protected workflow and release contract also verify the exact three-asset set and asset sizes. The public Actions artifact upload was skipped.
+- **Only remaining work:** the owner downloads and installs this single bootstrap over 0.24.37, then completes the one grouped W154 acceptance. No intermediate packages or additional engineering tasks.
+- `celikom.com` DNS/TLS and signed production-feed activation remain deliberately deferred. Keep this release as an unpublished Draft; no production feed was published and no production automatic update delivery is claimed.
 
 ## 5. Guardrails
 
