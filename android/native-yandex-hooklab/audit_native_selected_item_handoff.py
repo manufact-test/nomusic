@@ -3485,7 +3485,8 @@ def trace_coroutine_callsite_argument_origins(
             result_type=callee[2].split(")",1)[1]
             pending=(
                 result_type if result_type in (
-                    MODEL,"Ljava/lang/Object;",continuation_owner,continuation_type
+                    MODEL,"Ljava/lang/Object;",continuation_owner,continuation_type,
+                    "Lkotlin/coroutines/Continuation;"
                 ) else None
             )
             return {
@@ -3500,7 +3501,9 @@ def trace_coroutine_callsite_argument_origins(
                 regs[dest]={"UNLINKED_TRACK_RETURN_CANDIDATE"}
             elif pending=="Ljava/lang/Object;":
                 regs[dest]={"UNLINKED_OBJECT_RETURN_CANDIDATE"}
-            elif pending in (continuation_owner,continuation_type):
+            elif pending in (
+                continuation_owner,continuation_type,"Lkotlin/coroutines/Continuation;"
+            ):
                 regs[dest]={"UNLINKED_CONTINUATION_RETURN_CANDIDATE"}
             pending=None
         elif op in (0x07,0x08,0x09):  # move-object keeps Java reference identity
@@ -3539,6 +3542,11 @@ def trace_coroutine_callsite_argument_origins(
                 origins.add("REUSED_LFp0_CONTINUATION")
             elif typ==continuation_type and "KOTLIN_CONTINUATION_PARAMETER" in origins:
                 origins.add("CONTINUATION_PARAMETER_CAST_TO_OE2")
+            elif typ in (continuation_type,"Lkotlin/coroutines/Continuation;"):
+                if "OBJECT_PARAMETER" in origins:
+                    origins.add("OBJECT_PARAMETER_CAST_TO_CONTINUATION")
+                if "UNLINKED_OBJECT_RETURN_CANDIDATE" in origins:
+                    origins.add("UNLINKED_OBJECT_RETURN_CAST_TO_CONTINUATION")
             pending=None
         elif op==0x54:  # iget-object; only type and receiver identity are inspected
             dest=(words[0]>>8)&15
@@ -3559,7 +3567,9 @@ def trace_coroutine_callsite_argument_origins(
                     regs[dest]={"TRACK_FROM_OBJECT_PARAMETER_FIELD"}
                 else:
                     regs[dest]={"TRACK_FROM_OTHER_FIELD"}
-            elif field_type in (continuation_owner,continuation_type):
+            elif field_type in (
+                continuation_owner,continuation_type,"Lkotlin/coroutines/Continuation;"
+            ):
                 regs[dest]={"CONTINUATION_FROM_FIELD"}
             pending=None
         elif op==0x62:  # sget-object
@@ -3568,7 +3578,9 @@ def trace_coroutine_callsite_argument_origins(
             clear(dest)
             if field_type==MODEL:
                 regs[dest]={"TRACK_FROM_STATIC_FIELD"}
-            elif field_type in (continuation_owner,continuation_type):
+            elif field_type in (
+                continuation_owner,continuation_type,"Lkotlin/coroutines/Continuation;"
+            ):
                 regs[dest]={"CONTINUATION_FROM_STATIC_FIELD"}
             pending=None
         elif op==0x46:  # aget-object is a collection element, not Track identity proof
@@ -3679,8 +3691,17 @@ def trace_coroutine_callsite_argument_origins(
         continuation_class="CONTINUATION_FROM_FIELD_CANDIDATE"
     elif all_paths_have(continuation_paths,"CONTINUATION_FROM_STATIC_FIELD"):
         continuation_class="CONTINUATION_FROM_STATIC_FIELD_CANDIDATE"
-    elif all_paths_have(continuation_paths,"UNLINKED_CONTINUATION_RETURN_CANDIDATE"):
-        continuation_class="UNLINKED_CONTINUATION_RETURN_CANDIDATE"
+    elif all_paths_have(continuation_paths,"CONTINUATION_FROM_FIELD"):
+        continuation_class="CONTINUATION_FROM_FIELD_CANDIDATE"
+    elif all_paths_have(continuation_paths,"CONTINUATION_FROM_STATIC_FIELD"):
+        continuation_class="CONTINUATION_FROM_STATIC_FIELD_CANDIDATE"
+    elif all_paths_have(continuation_paths,"OBJECT_PARAMETER_CAST_TO_CONTINUATION"):
+        continuation_class="SAME_OBJECT_AS_OBJECT_PARAMETER_AFTER_CAST_TO_CONTINUATION"
+    elif (
+        all_paths_have(continuation_paths,"UNLINKED_CONTINUATION_RETURN_CANDIDATE")
+        or all_paths_have(continuation_paths,"UNLINKED_OBJECT_RETURN_CAST_TO_CONTINUATION")
+    ):
+        continuation_class="UNLINKED_CONTINUATION_SOURCE_CANDIDATE"
     elif all_paths_have(continuation_paths,"NULL_CONSTANT"):
         continuation_class="EXPLICIT_NULL"
     else:

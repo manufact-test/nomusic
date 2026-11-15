@@ -1069,6 +1069,59 @@ class SelectedItemAuditTests(unittest.TestCase):
         )
         self.assertNotIn("privateTrack",str(result))
 
+    def test_callsite_origin_trace_marks_continuation_field_read_as_candidate(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+            def method(self,index):
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        method=("LCaller;","call","(Lkotlin/coroutines/Continuation;)V")
+        ins=[
+            (0,0x54,[0x2154,7]),
+            (2,0x71,[0x0071,9,0]),
+            (5,0x0e,[0x000e])
+        ]
+        field=("LCaller;","privateContinuation","Lkotlin/coroutines/Continuation;")
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            with patch("audit_native_selected_item_handoff.field_id",return_value=field):
+                result=trace_coroutine_callsite_argument_origins(
+                    FakeDex(),method,0,100,2,0,1
+                )
+        self.assertEqual(
+            result["continuation_argument_origin_classification"],
+            "CONTINUATION_FROM_FIELD_CANDIDATE"
+        )
+        self.assertNotIn("privateContinuation",str(result))
+
+    def test_callsite_origin_trace_marks_continuation_return_as_unlinked(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:3,102:1}[offset]
+            def method(self,index):
+                if index==8:
+                    return ("LHelper;","continuation",
+                            "()Lkotlin/coroutines/Continuation;")
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        method=("LCaller;","call","(LOe2;)V")
+        ins=[
+            (0,0x71,[0x0071,8,0]),
+            (3,0x0c,[0x010c]),
+            (4,0x71,[0x0071,9,0]),
+            (7,0x0e,[0x000e])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            result=trace_coroutine_callsite_argument_origins(
+                FakeDex(),method,0x8,100,4,0,1
+            )
+        self.assertEqual(
+            result["continuation_argument_origin_classification"],
+            "UNLINKED_CONTINUATION_SOURCE_CANDIDATE"
+        )
+
     def test_callsite_origin_trace_marks_returned_track_as_unlinked(self):
         from unittest.mock import patch
         class FakeDex:
