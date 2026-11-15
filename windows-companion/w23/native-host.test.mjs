@@ -1288,22 +1288,26 @@ test("W151 re-enabling the bridge immediately reconciles an already-playing curr
 });
 
 test("W152 host preserves a source only while the exact current decoder is still playing",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
   const grant=w52Grant("139","123");
   const {debug}=w52Debugger();
   const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
     networkRecoveryPending:true};
   const r=await runHost("musicapplication://desktop/",{
     queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,
-    grantOverride:grant,
+    grantOverride:grant,rendererStatus:"NATIVE_MAPPING_ACCEPTED",
     currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000},
-    stateOverride:state
+    stateOverride:state,clock:FakeDate
   });
-  r.pulse();
-  await new Promise(resolve=>setTimeout(resolve,60));
   debug.emit("message",{}, "Media.playerPropertiesChanged",{
     playerId:"w152-current-decoder",
     properties:[{name:"kUrl",value:grant.audioUrl},{name:"kIsPlaying",value:"true"}]
   });
+  clockNow+=2600;
   r.pulse();
   await new Promise(resolve=>setTimeout(resolve,60));
   const stateDelivery=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
