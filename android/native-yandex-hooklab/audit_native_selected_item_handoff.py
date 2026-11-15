@@ -2778,15 +2778,18 @@ def trace_native_track_coroutine_continuation(
                 if key not in seen_read_events:
                     seen_read_events.add(key); reads.append(row)
             elif field_type==string_type:
-                string_origin=(
-                    "ORIGINAL_TRACK_PARAMETER_STRING"
-                    if "ORIGINAL_TRACK_PARAMETER" in receiver_origins else
-                    "CONTINUATION_FIELD_TRACK_STRING"
-                    if "CONTINUATION_FIELD_TRACK" in receiver_origins else
-                    "CAPTURE_OWNER_TRACK_FIELD_STRING"
-                    if "CAPTURE_OWNER_TRACK_FIELD" in receiver_origins else None
+                string_origins=[]
+                if "ORIGINAL_TRACK_PARAMETER" in receiver_origins:
+                    string_origins.append("ORIGINAL_TRACK_PARAMETER_STRING")
+                string_origins.extend(
+                    x.replace("CONTINUATION_FIELD_TRACK_SLOT:",
+                              "CONTINUATION_FIELD_TRACK_STRING_SLOT:")
+                    for x in receiver_origins
+                    if x.startswith("CONTINUATION_FIELD_TRACK_SLOT:")
                 )
-                if string_origin:
+                if "CAPTURE_OWNER_TRACK_FIELD" in receiver_origins:
+                    string_origins.append("CAPTURE_OWNER_TRACK_FIELD_STRING")
+                for string_origin in string_origins:
                     row={
                         "pc":pc,"field_slot":words[1],
                         "receiver_origins":sorted(receiver_origins),
