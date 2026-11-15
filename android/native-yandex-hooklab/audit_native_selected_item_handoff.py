@@ -1062,6 +1062,261 @@ def trace_identity_method(
     }
 
 
+def trace_exact_track_field_method_cfg(
+    dex, method, flags, code_off, exact_track_field_refs
+):
+    """Branch-sensitive must-alias trace from one exact Track field to method calls."""
+    cfg = build_dex_control_flow(dex, code_off)
+    by_pc = cfg["by_pc"]
+    successors = cfg["successors"]
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise DexError("EXACT_TRACK_CFG_INVALID_INS_SIZE")
+    initial_registers = {}
+    if not (flags & ACC_STATIC):
+        initial_registers[registers_size - ins_size] = frozenset({"OWNER_THIS"})
+    for register in typed_parameter_registers(
+        dex, method, flags, code_off, MODEL
+    ):
+        initial_registers[register] = frozenset({"TRACK_PARAMETER"})
+    initial_state = {"registers": initial_registers, "pending_return": None}
+
+    def state_key(state):
+        return (
+            tuple(
+                (register, tuple(sorted(origins)))
+                for register, origins in sorted(state["registers"].items())
+            ),
+            state["pending_return"],
+        )
+
+    incoming = {
+        cfg["entry"]: {state_key(initial_state): initial_state}
+    }
+    work = [(cfg["entry"], state_key(initial_state))]
+    processed = 0
+    wide_ops = (
+        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
+         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
+        | set(range(0x9b,0xa6)) | set(range(0xab,0xb0))
+        | set(range(0xbb,0xc6)) | set(range(0xcb,0xd0))
+    )
+
+    def transfer(state, op, words):
+        registers = {
+            register: set(origins)
+            for register, origins in state["registers"].items()
+        }
+        pending_return = None
+
+        def clear(register):
+            registers.pop(register, None)
+
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            result_type = callee[2].split(")", 1)[1]
+            pending_return = result_type if result_type == MODEL else None
+        elif op == 0x0c:  # move-result-object
+            destination = words[0] >> 8
+            clear(destination)
+            if state["pending_return"] == MODEL:
+                registers[destination] = {"TRACK_RETURNED_FROM_METHOD"}
+        elif op == 0x54:  # iget-object
+            destination = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            field_ref = field_id(dex, words[1])
+            receiver_origins = registers.get(receiver, set())
+            clear(destination)
+            if (
+                field_ref in exact_track_field_refs
+                and "OWNER_THIS" in receiver_origins
+            ):
+                registers[destination] = {"TRACK_FROM_EXACT_FIELD"}
+        elif op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move is not None:
+                destination, source = move
+                origins = set(registers.get(source, set()))
+                clear(destination)
+                if origins:
+                    registers[destination] = origins
+        elif op == 0x1f:  # check-cast preserves object identity
+            pass
+        elif op == 0x5b:  # iput-object does not mutate the source register
+            pass
+        else:
+            destination = written_register(op, words)
+            if destination is not None:
+                clear(destination)
+                if op in wide_ops:
+                    clear(destination + 1)
+
+        return {
+            "registers": {
+                register: frozenset(origins)
+                for register, origins in registers.items() if origins
+            },
+            "pending_return": pending_return,
+        }
+
+    while work:
+        pc, key = work.pop()
+        processed += 1
+        if processed > 200000:
+            raise ValueError("EXACT_TRACK_CFG_DATAFLOW_LIMIT")
+        state = incoming[pc][key]
+        op, words = by_pc[pc]
+        output = transfer(state, op, words)
+        output_key = state_key(output)
+        for target in successors.get(pc, ()):
+            bucket = incoming.setdefault(target, {})
+            if output_key in bucket:
+                continue
+            if len(bucket) >= 128:
+                raise ValueError("EXACT_TRACK_CFG_PATH_STATE_LIMIT")
+            bucket[output_key] = output
+            work.append((target, output_key))
+
+    def common_origins(states, register):
+        if not states:
+            return set()
+        common = set(states[0]["registers"].get(register, ()))
+        for state in states[1:]:
+            common.intersection_update(state["registers"].get(register, ()))
+        return common
+
+    events = []
+    seen_events = set()
+
+    def add_event(event):
+        key = json.dumps(event, sort_keys=True)
+        if key in seen_events:
+            return
+        if len(events) >= 256:
+            raise ValueError("EXACT_TRACK_CFG_EVENT_LIMIT")
+        seen_events.add(key)
+        events.append(event)
+
+    tracked_labels = {
+        "TRACK_FROM_EXACT_FIELD": "TRACK",
+        "TRACK_PARAMETER": "TRACK",
+        "TRACK_RETURNED_FROM_METHOD": "TRACK_RETURNED_FROM_METHOD",
+    }
+    for pc in sorted(cfg["reachable"]):
+        op, words = by_pc[pc]
+        states = list(incoming.get(pc, {}).values())
+        if not states:
+            continue
+        if op == 0x54:
+            destination = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            field_ref = field_id(dex, words[1])
+            if (
+                field_ref in exact_track_field_refs
+                and "OWNER_THIS" in common_origins(states, receiver)
+            ):
+                add_event({
+                    "pc": pc,
+                    "kind": "FIELD_READ_TYPED_IDENTITY",
+                    "identity_type": "TRACK",
+                    "receiver_is_this_on_all_paths": True,
+                })
+            continue
+        if op not in INVOKES:
+            continue
+        callee = dex.method(words[1])
+        registers = invoke_registers(op, words)
+        params = parse_types(callee[2])
+        is_static = op in (0x71, 0x77)
+        target_types = expand_invoke_register_types(
+            callee[0], params, is_static
+        )
+        identity_arguments = []
+        if len(registers) == len(target_types):
+            logical_position = -1
+            for declared_type, register in zip(target_types, registers):
+                if declared_type is None:
+                    continue
+                logical_position += 1
+                if not (declared_type.startswith("L") or declared_type.startswith("[")):
+                    continue
+                origins = common_origins(states, register)
+                for origin, label in tracked_labels.items():
+                    if origin in origins:
+                        identity_arguments.append({
+                            "argument_position": logical_position,
+                            "declared_argument_type": declared_type,
+                            "identity_type": label,
+                            "origins": [origin],
+                            "same_exact_track_field_identity": (
+                                origin == "TRACK_FROM_EXACT_FIELD"
+                            ),
+                        })
+        role = None
+        if callee == DESCRIPTOR_BUILDER:
+            role = "NATIVE_SOURCE_DESCRIPTOR"
+        elif (callee[0], callee[1]) in SOURCE_METHODS:
+            role = "NATIVE_SOURCE_OR_DOWNLOAD_METHOD"
+        elif callee[0] in PLAYER_OWNERS and callee[1] in PLAYER_METHODS:
+            role = "PLAYER_SELECTION_OR_TRANSPORT"
+        else:
+            role = classify_boundary_call(callee)
+            if not role and callee[1] in ("collect", "collectLatest", "launchIn", "emit"):
+                role = "FLOW_COLLECT_OR_EMIT"
+        if identity_arguments:
+            add_event({
+                "pc": pc,
+                "kind": "CALL_WITH_TYPED_IDENTITY",
+                "callee": {
+                    "owner": callee[0],
+                    "method": callee[1],
+                    "signature": callee[2],
+                },
+                "identity_arguments": identity_arguments,
+                "role": role or "OTHER_METHOD",
+                "identity_is_common_to_all_incoming_paths": True,
+            })
+        elif role:
+            add_event({
+                "pc": pc,
+                "kind": "CALL_TARGET_ROLE_WITHOUT_IDENTITY",
+                "callee": {
+                    "owner": callee[0],
+                    "method": callee[1],
+                    "signature": callee[2],
+                },
+                "role": role,
+                "identity_proven": False,
+            })
+        result_type = callee[2].split(")", 1)[1]
+        if result_type == MODEL:
+            add_event({
+                "pc": pc,
+                "kind": "CALL_RETURNING_TYPED_IDENTITY",
+                "identity_type": "TRACK",
+                "callee": {
+                    "owner": callee[0],
+                    "method": callee[1],
+                    "signature": callee[2],
+                },
+            })
+
+    return {
+        "method": {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        },
+        "events": events,
+        "reachable_instruction_count": len(cfg["reachable"]),
+        "branch_count": len(cfg["branches"]),
+        "path_state_count": sum(len(states) for states in incoming.values()),
+        "field_names_or_values_disclosed": False,
+        "strings_urls_dataspec_account_or_audio_read": False,
+    }
+
+
 def inspect_candidate_identity_method_traces(
     apks, focus_refs, candidate_owners, require_all=True,
     capture_unproven_calls=False
@@ -6121,6 +6376,7 @@ def inspect_signed(apks):
         - set(selected_track_path_method_definitions)
     )
     selected_track_path_exact_field_read_census = []
+    selected_track_path_exact_field_refs_by_owner = {}
     for owner, constructor_ref in sorted(
         SELECTED_TRACK_PATH_TRACK_FIELD_CONSTRUCTORS.items()
     ):
@@ -6136,6 +6392,7 @@ def inspect_signed(apks):
         )
         if len(field_refs) > 8:
             raise ValueError("TRACK_FIELD_READ_OWNER_FIELD_REF_LIMIT")
+        selected_track_path_exact_field_refs_by_owner[owner] = set(field_refs)
         field_read_traces = []
         if field_refs:
             exact_fields = set(field_refs)
@@ -6163,6 +6420,24 @@ def inspect_signed(apks):
             "field_read_method_count": len(field_read_traces),
             "field_read_traces": field_read_traces,
         })
+    selected_track_path_inner_flow_cfg_traces = []
+    for owner in ("LCK1$c$a;", "LCK1$l$a;"):
+        exact_fields = selected_track_path_exact_field_refs_by_owner.get(owner, set())
+        if not exact_fields:
+            continue
+        for method, (dex, flags, code_off) in sorted(
+            selected_track_path_owner_method_definitions.items()
+        ):
+            if (
+                method[0] == owner
+                and method[1] == "emit"
+                and method[2] == "(Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"
+            ):
+                selected_track_path_inner_flow_cfg_traces.append(
+                    trace_exact_track_field_method_cfg(
+                        dex, method, flags, code_off, exact_fields
+                    )
+                )
     ljk1_field_read_row = next(
         row for row in selected_track_path_exact_field_read_census
         if row["owner"] == "LJK1;"
@@ -6443,6 +6718,7 @@ def inspect_signed(apks):
         "selected_track_path_field_read_method_count": len(selected_track_path_field_read_traces),
         "selected_track_path_field_read_traces": selected_track_path_field_read_traces,
         "selected_track_path_exact_field_read_census": selected_track_path_exact_field_read_census,
+        "selected_track_path_inner_flow_cfg_traces": selected_track_path_inner_flow_cfg_traces,
         "selected_track_path_interface_implementation_census": selected_track_path_interface_implementation_census,
         "selected_track_path_missing_method_refs": [
             {"owner":x[0],"method":x[1],"signature":x[2]}

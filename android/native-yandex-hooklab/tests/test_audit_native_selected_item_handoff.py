@@ -1868,6 +1868,64 @@ class SelectedItemAuditTests(unittest.TestCase):
             self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
             self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
 
+    def test_cfg_track_field_alias_survives_branch_join_only_when_all_paths_preserve_it(self):
+        from unittest.mock import patch
+        from audit_native_selected_item_handoff import trace_exact_track_field_method_cfg
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100:6,102:3}[offset]
+            def method(self, index):
+                return ("LHl4;","emit",
+                        "(Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+
+        method=("LCK1$c$a;","emit",
+                "(Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+        field=("LCK1$c$a;","hiddenTrack",MODEL)
+        ins=[
+            (0,0x54,[0x3054,0]),  # iget-object v0, v3, exact Track field
+            (1,0x38,[0x0038,0]),  # branch; both paths join at pc 4
+            (2,0x00,[0x0000]),
+            (3,0x00,[0x0000]),
+            (4,0x72,[0x0072,0,0]),  # FlowCollector.emit(Object, Continuation)
+            (5,0x0e,[0x000e]),
+        ]
+        by_pc={pc:(op,words) for pc,op,words in ins}
+        cfg={
+            "instructions":ins,"by_pc":by_pc,
+            "successors":{0:[1],1:[2,3],2:[4],3:[4],4:[5],5:[]},
+            "reachable":{0,1,2,3,4,5},"branches":[{"pc":1}],"entry":0
+        }
+        overwritten=list(ins)
+        overwritten[2]=(2,0x12,[0x0012])  # one path overwrites Track register v0
+        overwritten_by_pc={pc:(op,words) for pc,op,words in overwritten}
+        overwritten_cfg={
+            "instructions":overwritten,"by_pc":overwritten_by_pc,
+            "successors":{0:[1],1:[2,3],2:[4],3:[4],4:[5],5:[]},
+            "reachable":{0,1,2,3,4,5},"branches":[{"pc":1}],"entry":0
+        }
+        with patch("audit_native_selected_item_handoff.build_dex_control_flow",
+                   side_effect=[cfg,overwritten_cfg]):
+            with patch("audit_native_selected_item_handoff.field_id",
+                       return_value=field):
+                with patch("audit_native_selected_item_handoff.invoke_registers",
+                           return_value=[1,0,2]):
+                    preserved=trace_exact_track_field_method_cfg(
+                        FakeDex(),method,0,100,{field}
+                    )
+                    lost=trace_exact_track_field_method_cfg(
+                        FakeDex(),method,0,100,{field}
+                    )
+        proven=[row for row in preserved["events"]
+                if row["kind"]=="CALL_WITH_TYPED_IDENTITY"]
+        rejected=[row for row in lost["events"]
+                  if row["kind"]=="CALL_WITH_TYPED_IDENTITY"]
+        self.assertEqual(len(proven),1)
+        self.assertEqual(proven[0]["callee"]["owner"],"LHl4;")
+        self.assertTrue(proven[0]["identity_arguments"][0]["same_exact_track_field_identity"])
+        self.assertEqual(rejected,[])
+        self.assertGreaterEqual(preserved["branch_count"],1)
+
     def test_identity_method_trace_rejects_track_alias_in_primitive_argument(self):
         from unittest.mock import patch
         class FakeDex:
