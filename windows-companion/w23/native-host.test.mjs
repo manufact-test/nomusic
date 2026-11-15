@@ -1174,20 +1174,19 @@ test("W144 native audible property confirms currently PLAYING Yandex even before
 
 
 test("W147 current native silence overrides a stale audio-state-changed true event", async()=>{
+  let now=Date.now();
+  class Clock extends Date { static now(){return now;} }
   const r=await runHost("musicapplication://desktop/",{
     currentTrack:{id:"456",title:"Вечно молодой",artist:"Смысловые Галлюцинации",
       playbackState:"PLAYING",durationMs:210000},
-    rendererStatus:"NATIVE_CONNECTED",primaryAudible:false
+    rendererStatus:"NATIVE_CONNECTED",primaryAudible:false,clock:Clock
   });
   // Emulate a delayed event from the previous playing state. The synchronous
   // native WebContents property already reports silence, so do not revive
   // PLAYING and do not ever claim CELIKOM as the current audio source.
   r.emitView("audio-state-changed",true);
-  let shifted=Date.now();
-  class Clock extends Date { static now(){return shifted;} }
-  // The original host uses the real clock. A bounded timer pulse is enough
-  // to trigger the next W141 status sample without sending any commands.
-  await new Promise(resolve=>setTimeout(resolve,60));
+  // Trigger the next current-song heartbeat sample with no player commands.
+  now+=3000;
   r.pulse();
   await new Promise(resolve=>setTimeout(resolve,35));
   const beats=r.network.filter(x=>x.path==="/v1/heartbeat")
