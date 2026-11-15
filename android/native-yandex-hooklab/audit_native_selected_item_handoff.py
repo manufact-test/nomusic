@@ -5077,7 +5077,8 @@ def summarize_flow_entry_class_profiles(class_profiles):
         "LDp0;","LDp0$a;","Lwp0;","Lwp0$a;","Lyp0;","LGp0;",
         "LGl4;","LHl4;","Ljm4;","Lam4;","LzC3;","LAC3;",
         "LBC3;","LO6;","LBy4;","Lvp0;","LzD7;","LBD7;",
-        "LAp0;","Lxp0;","LUK6;","LDb1;","YMApplication;"
+        "LAp0;","Lxp0;","LUK6;","LDb1;","LC3a;","LgE6;",
+        "LDw8;","LAD7;","YMApplication;"
     )
     rows=[]
     for owner in targets:
@@ -5104,7 +5105,11 @@ FLOW_ARGUMENT_ORIGIN_TARGETS = {
     ("Lyp0;","<init>"), ("Lyp0;","collect"), ("Lwp0$a;","<init>"),
     ("LDp0;","<init>"), ("LDp0;","if"), ("LDp0;","emit"),
     ("LBC3;","<init>"), ("LzC3;","<init>"), ("LAC3;","<init>"),
-    ("LBy4;","collect"), ("Lvp0;","collect"), ("LBD7;","if"),
+    ("LBy4;","<init>"), ("LBy4;","collect"),
+    ("Lvp0;","<init>"), ("Lvp0;","collect"),
+    ("LzD7;","if"), ("LBD7;","if"),
+    ("LDw8;","emit"), ("LAD7;","emit"),
+    ("LUK6;","emit"), ("LDb1;","emit"), ("Lxp0;","emit"),
     ("LAp0;","emit"), ("LO6;","native")
 }
 
@@ -5113,7 +5118,8 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, cod
 
     targets = {"LDp0;", "Lwp0$a;", "LGp0;", "Lou3;", "LGl4;", "Ljm4;", "Lk1a;", "Lam4;",
                "Lwp0;", "Lyp0;", "LzC3;", "LAC3;", "LBC3;", "LO6;", "LBy4;",
-               "Lvp0;", "LzD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;"}
+               "Lvp0;", "LzD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;",
+               "LC3a;", "LgE6;", "LDw8;", "LAD7;"}
     aliases = {name: set() for name in targets}
     instantiated = []
     collected = []
@@ -5240,6 +5246,11 @@ def inspect_signed(apks):
         ("LBC3;", "<init>"), ("LBC3;", "collect"),
         ("LBy4;", "<init>"), ("LBy4;", "collect"),
         ("Lvp0;", "<init>"), ("Lvp0;", "collect"),
+        ("LzD7;", "<init>"), ("LzD7;", "if"),
+        ("LC3a;", "collect"), ("LgE6;", "collect"),
+        ("LDw8;", "<init>"), ("LDw8;", "emit"),
+        ("LAD7;", "<init>"), ("LAD7;", "emit"),
+        ("LUK6;", "emit"), ("LDb1;", "emit"), ("Lxp0;", "emit"),
         ("LBD7;", "if"), ("LAp0;", "<init>"), ("LAp0;", "emit"),
         ("LO6;", "native"),
         ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
@@ -5298,6 +5309,7 @@ def inspect_signed(apks):
                                      "Ljm4;", "Lk1a;", "Lam4;", "LFp0;", "LzC3;",
                                      "LAC3;", "LBC3;", "LO6;", "LBy4;", "Lvp0;",
                                      "LzD7;", "LBD7;", "LAp0;", "Lxp0;", "LUK6;", "LDb1;",
+                                     "LC3a;", "LgE6;", "LDw8;", "LAD7;",
                                      "Lcom/yandex/music/shared/player/download2/o$c;",
                                      "LRAa;"):
                     if target_class in defined:
