@@ -1503,6 +1503,226 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
     }
 
 
+def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
+    byte_buffer = "Ljava/nio/ByteBuffer;"
+    aliases = {
+        register: {"CALLER_TYPED_PARAMETER"}
+        for register in typed_parameter_registers(
+            dex, method, flags, code_off, byte_buffer
+        )
+    }
+    this_register = (
+        None if flags & ACC_STATIC
+        else dex.u16(code_off) - dex.u16(code_off + 2)
+    )
+    events = []
+    pending_buffer_return = False
+    branch_seen = False
+    if ins is None:
+        ins = instructions(dex, code_off)
+
+    for ordinal, op, words in ins:
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            regs = invoke_registers(op, words)
+            params = parse_types(callee[2])
+            is_static = op in (0x71, 0x77)
+            target_types = params if is_static else [callee[0]] + params
+            if callee[0] in ("LbJ2;", "Lpk0;") and callee[1] == "native":
+                origins = []
+                if len(regs) == len(target_types):
+                    for position, (typ, register) in enumerate(zip(target_types, regs)):
+                        if typ == byte_buffer and register in aliases:
+                            origins.append({
+                                "argument_position": position,
+                                "origins": sorted(aliases[register]),
+                            })
+                events.append({
+                    "ordinal": ordinal,
+                    "kind": "AUDIO_BUFFER_SINK_CALL",
+                    "target": {
+                        "owner": callee[0],
+                        "method": callee[1],
+                        "signature": callee[2],
+                    },
+                    "buffer_argument_origins": origins,
+                    "same_byte_buffer_parameter_passed": any(
+                        "CALLER_TYPED_PARAMETER" in row["origins"]
+                        for row in origins
+                    ),
+                })
+            pending_buffer_return = callee[2].split(")", 1)[1] == byte_buffer
+            continue
+
+        if op == 0x0c:  # move-result-object
+            dest = words[0] >> 8
+            aliases.pop(dest, None)
+            if pending_buffer_return:
+                aliases[dest] = {"RETURNED_FROM_METHOD"}
+            pending_buffer_return = False
+            continue
+
+        pending_buffer_return = False
+        if op == 0x54:  # iget-object: type-only field projection from this
+            dest = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            aliases.pop(dest, None)
+            if receiver == this_register and field_type == byte_buffer:
+                aliases[dest] = {"FIELD_READ_FROM_THIS"}
+            continue
+
+        if op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move:
+                dest, source = move
+                origins = set(aliases.get(source, ()))
+                aliases.pop(dest, None)
+                if origins:
+                    aliases[dest] = origins
+            continue
+
+        if op == 0x1f:  # check-cast preserves the reference
+            continue
+
+        dest = written_register(op, words)
+        if dest is not None:
+            aliases.pop(dest, None)
+        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+            branch_seen = True
+            aliases.clear()
+
+    return {
+        "method": {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        },
+        "byte_buffer_parameter_present": bool(
+            typed_parameter_registers(dex, method, flags, code_off, byte_buffer)
+        ),
+        "events": events,
+        "same_byte_buffer_parameter_to_audio_sink_proven": any(
+            row["same_byte_buffer_parameter_passed"] for row in events
+        ),
+        "branch_seen_aliases_cleared": branch_seen,
+        "field_names_or_values_disclosed": False,
+        "media_values_or_audio_read": False,
+    }
+
+
+def inspect_audio_buffer_sink_caller_traces(apks, dispatch_report, class_profiles):
+    focus = set()
+    for owner_row in dispatch_report.get("owners", []):
+        if owner_row.get("owner") != "LbJ2;":
+            continue
+        for callsite in owner_row.get("incoming_callsites", []):
+            target = callsite.get("target", {})
+            if target.get("method") != "native" or target.get("owner") not in (
+                "LbJ2;", "Lpk0;"
+            ):
+                continue
+            caller = callsite["caller"]
+            focus.add((caller["owner"], caller["method"], caller["signature"]))
+    if len(focus) > 16:
+        raise ValueError("AUDIO_BUFFER_SINK_CALLER_FOCUS_LIMIT")
+    traces = []
+    found = set()
+    upstream = []
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("AUDIO_BUFFER_SINK_CALLER_DEX_LIMIT")
+                dex = Dex(archive.read(entry.filename))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    ins = list(instructions(dex, code_off))
+                    if method in focus:
+                        found.add(method)
+                        traces.append(trace_byte_buffer_parameter(
+                            dex, method, flags, code_off, ins
+                        ))
+                    for ordinal, op, words in ins:
+                        if op not in INVOKES:
+                            continue
+                        target = dex.method(words[1])
+                        if target not in focus:
+                            continue
+                        if len(upstream) >= 256:
+                            raise ValueError("AUDIO_BUFFER_SINK_UPSTREAM_CALLSITE_LIMIT")
+                        profile = classify_track_owner_profile(
+                            class_profiles.get(method[0], {})
+                        )
+                        upstream.append({
+                            "caller": {
+                                "owner": method[0],
+                                "method": method[1],
+                                "signature": method[2],
+                            },
+                            "target": {
+                                "owner": target[0],
+                                "method": target[1],
+                                "signature": target[2],
+                            },
+                            "ordinal": ordinal,
+                            "caller_signature_types": method_signature_type_profile(method),
+                            "caller_owner_shape": {
+                                key: profile[key] for key in (
+                                    "has_track_field", "has_album_field",
+                                    "has_wrapper_field", "has_media_item_field",
+                                    "has_media_source_field", "has_media_metadata_field",
+                                    "has_playback_state_field", "has_player_api_field",
+                                    "implements_player_api", "has_media_session_field",
+                                    "has_audio_track_field", "has_media_codec_field",
+                                    "has_decoder_field", "has_source_like_field",
+                                    "has_kotlin_flow_field", "has_collection_field",
+                                )
+                            },
+                        })
+    missing = sorted(focus - found)
+    if missing:
+        raise ValueError("AUDIO_BUFFER_SINK_CALLER_METHODS_NOT_ALL_DEFINED")
+    owner_profiles = {}
+    for row in upstream:
+        owner = row["caller"]["owner"]
+        if owner in owner_profiles:
+            continue
+        profile = class_profiles.get(owner, {})
+        types = set(profile.get("instance_types", ())) | set(
+            profile.get("static_types", ())
+        )
+        owner_profiles[owner] = {
+            "owner": owner,
+            "superclass": profile.get("superclass"),
+            "interfaces": sorted(profile.get("interfaces", ())),
+            "relevant_field_types": sorted(
+                typ for typ in types
+                if any(marker in typ.lower() for marker in (
+                    "track", "album", "wrapper", "media", "source",
+                    "data", "audio", "codec", "buffer", "uri",
+                    "player", "flow", "collection", "list", "queue"
+                ))
+            ),
+        }
+    return {
+        "focus_method_count": len(focus),
+        "focus_methods": [
+            {"owner": row[0], "method": row[1], "signature": row[2]}
+            for row in sorted(focus)
+        ],
+        "buffer_identity_traces": traces,
+        "upstream_callsite_count": len(upstream),
+        "upstream_callers": upstream,
+        "upstream_caller_owner_profiles": [
+            owner_profiles[key] for key in sorted(owner_profiles)
+        ],
+        "runtime_dispatch_or_current_item_inferred": False,
+        "media_values_or_audio_read": False,
+    }
+
+
 SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "while"),
     ("Lcom/yandex/music/shared/player/download2/o;", "for"),
@@ -2534,6 +2754,12 @@ def inspect_signed(apks):
             track_parameter_boundary_roles[role] = (
                 track_parameter_boundary_roles.get(role, 0) + 1
             )
+    decoder_owner_dispatch_contracts = inspect_decoder_owner_dispatch_contracts(
+        apks, boundary_callsite_rows, class_profiles
+    )
+    audio_buffer_sink_caller_traces = inspect_audio_buffer_sink_caller_traces(
+        apks, decoder_owner_dispatch_contracts, class_profiles
+    )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -2737,8 +2963,8 @@ def inspect_signed(apks):
             summarize_boundary_callsite_owner_profiles(boundary_callsite_rows, class_profiles),
         "boundary_caller_inbound_methods":
             inspect_boundary_caller_inbound_methods(apks, boundary_callsite_rows, class_profiles),
-        "decoder_owner_dispatch_contracts":
-            inspect_decoder_owner_dispatch_contracts(apks, boundary_callsite_rows, class_profiles),
+        "decoder_owner_dispatch_contracts": decoder_owner_dispatch_contracts,
+        "audio_buffer_sink_caller_traces": audio_buffer_sink_caller_traces,
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,
