@@ -287,7 +287,10 @@ class SelectedItemAuditTests(unittest.TestCase):
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertFalse(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
-        self.assertTrue(trace["branch_seen_aliases_cleared"])
+        self.assertTrue(trace["branch_seen"])
+        self.assertFalse(trace["branch_seen_aliases_cleared"])
+        self.assertEqual(trace["parameter_registers_written"],[4])
+        self.assertEqual(trace["stable_parameter_registers_across_branches"],[])
 
     def test_byte_buffer_returned_from_method_reaches_audio_sink(self):
         from unittest.mock import patch

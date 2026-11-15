@@ -1761,6 +1761,9 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
         },
         "byte_buffer_parameter_present": bool(parameter_registers),
         "byte_buffer_parameter_registers": sorted(parameter_registers),
+        "parameter_registers_written": sorted(
+            parameter_registers & potentially_written_registers
+        ),
         "stable_parameter_registers_across_branches": sorted(stable_parameter_registers),
         "events": events,
         "buffer_provenance_events": provenance_events,
