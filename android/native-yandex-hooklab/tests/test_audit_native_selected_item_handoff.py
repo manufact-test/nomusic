@@ -2380,7 +2380,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             (7,0x0e,[0x000e]),
         ]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",side_effect=[[3],[0]]):
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0]):
             trace=trace_exact_object_receiver_call_cfg(
                 FakeDex(),method,0,100,target,"LaC7;",{}
             )

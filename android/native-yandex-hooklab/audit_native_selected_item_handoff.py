@@ -6083,13 +6083,20 @@ def trace_exact_object_receiver_call_cfg(
         if op in INVOKES:
             callee = dex.method(words[1])
             result_type = callee[2].split(")", 1)[1]
-            if result_type.startswith(("L", "[")):
-                origin = (
+            if dex_type_assignable_to(
+                result_type, tracked_type, class_profiles
+            ):
+                pending_return = (
                     "RETURNED_FROM_METHOD:"
                     + callee[0] + "|" + callee[1] + "|" + callee[2]
                     + "@" + str(pc)
                 )
-                pending_return = origin
+            elif result_type == "Ljava/lang/Object;":
+                pending_return = (
+                    "UNREFINED_OBJECT_RETURN:"
+                    + callee[0] + "|" + callee[1] + "|" + callee[2]
+                    + "@" + str(pc)
+                )
             return {
                 "registers": {
                     register: frozenset(origins)
