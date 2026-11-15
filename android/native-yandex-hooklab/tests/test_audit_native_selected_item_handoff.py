@@ -748,7 +748,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LFp0;","create","(Ljava/lang/Object;LOe2;)V")
         ins=[
             (0,0x1f,[0x041f,1]),
-            (1,0x5b,[0x435b,7]),
+            (1,0x5b,[0x345b,7]),
             (2,0x0e,[0x000e])
         ]
         target=("LFp0;","privateTrack","Lru/yandex/music/data/audio/o;")
@@ -766,13 +766,13 @@ class SelectedItemAuditTests(unittest.TestCase):
         from unittest.mock import patch
         class FakeDex:
             def u16(self, offset):
-                return {100:5,102:2}[offset]
+                return {100:6,102:3}[offset]
             def descriptor(self,index):
                 return "Ljava/lang/Object;"
             def method(self,index):
                 return ("LTarget;","get","()Ljava/lang/Object;")
         method=("LFp0;","create","(Ljava/lang/Object;LOe2;)V")
-        ins=[(0,0x5b,[0x435b,7]),(1,0x0e,[0x000e])]
+        ins=[(0,0x5b,[0x345b,7]),(1,0x0e,[0x000e])]
         target=("LFp0;","privateTrack","Lru/yandex/music/data/audio/o;")
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",return_value=target):
