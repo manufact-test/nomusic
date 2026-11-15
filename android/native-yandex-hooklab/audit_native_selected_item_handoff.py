@@ -1334,7 +1334,7 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("DECODER_CONTRACT_DEX_LIMIT")
@@ -1366,7 +1366,7 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 dex = Dex(archive.read(entry.filename))
                 for caller, _flags, code_off in method_definitions_with_flags(dex):
