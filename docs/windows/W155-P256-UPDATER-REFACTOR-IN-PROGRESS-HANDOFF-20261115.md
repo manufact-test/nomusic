@@ -60,3 +60,12 @@ Do not start a new broad investigation. Continue with one bounded final pass thr
 - Do not bypass SmartScreen, Defender, Smart App Control or UAC; do not request elevated execution.
 - Preserve the 15-minute Yandex compatibility cache, fast VPN reconnect, strict current-decoder source proof, account/DPAPI state, original Yandex backup, native integration and user settings.
 - No intermediate installers, no tiny-step owner chores, no unnecessary exploratory detours. Finish one bounded block, verify it, then move forward.
+
+
+## 7. Final runtime-chain audit — W156
+
+The bounded W155 runtime-chain audit is complete. No concrete runtime gap was found, so no application-code patch was made. The actual caller chain, transaction/key/hash propagation, Supervisor READY/health and one-shot rollback are recorded in `docs/windows/W156-W155-RUNTIME-CHAIN-AUDIT-AND-P256-PROVISIONING-20261115.md`.
+
+The owner-side provisioning script is ready: `.github/scripts/windows-stable-provision-key.ps1`. Run it once from the repository root on the trusted Windows PC using PowerShell 7+, Node 24 and authenticated GitHub CLI. It validates the protected `windows-stable-production` environment, required reviewer and main-only policy; generates a P-256 keypair locally; stores the private PEM outside the repository with restricted ACL; sets the three public environment variables; and uploads only `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` as an environment secret. The exact command, prerequisites and handling rules are in W156. Never send the private PEM in chat.
+
+**W155 code/test/CI work is complete, but production trust is not provisioned.** No production feed, final EXE/ZIP, owner installation or owner-PC acceptance exists yet. Task 6 remains one final pinned EXE+ZIP after owner-side key provisioning; the current W20 internal stage is not an approved final build path because it does not embed the P-256 pin. The protected `windows-stable-signed-release.yml` path must produce the single EXE, one-root-entry ZIP and SHA-256 checksums with production publication OFF.
