@@ -28,7 +28,8 @@ from audit_native_selected_item_handoff import (
     local_primitive_register_origin,
     constructor_int_parameter_field_store_census,
     summarize_flow_interface_implementers,
-    privacy_safe_focused_method_trace, summarize_current_track_flow_candidate,
+    privacy_safe_flow_class_profile, privacy_safe_focused_method_trace,
+    summarize_current_track_flow_candidate,
     summarize_flow_mode_branch_census,
     exact_track_return_owner_scope,
     exact_parameter_field_store_refs, local_object_register_origin,
@@ -1482,6 +1483,21 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertFalse(callback["is_interface"])
         self.assertEqual(callback["direct_subclasses"],["LCallbackImpl;"])
 
+    def test_privacy_safe_flow_class_profile_converts_sets_to_type_only_lists(self):
+        profile = {
+            "superclass":"Ljava/lang/Object;",
+            "interfaces":{"LGl4;","LzD7;"},
+            "is_interface":False,
+            "is_abstract":False,
+            "instance_types":{"LD3a;","Liw9;"},
+            "static_types":set(),
+        }
+        result = privacy_safe_flow_class_profile(profile)
+        self.assertEqual(result["interfaces"],["LGl4;","LzD7;"])
+        self.assertEqual(result["instance_field_type_descriptors"],["LD3a;","Liw9;"])
+        self.assertEqual(result["static_field_type_descriptors"],[])
+        self.assertNotIn("field_names",result)
+
     def test_privacy_safe_focused_flow_trace_omits_private_field_names_and_literals(self):
         trace = {
             "method": {"owner":"LImpl;","name":"if","signature":"()LC3a;"},
@@ -1552,6 +1568,8 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertFalse(result["current_selected_track_proven"])
         self.assertFalse(result["same_native_item_to_decoder_proven"])
         self.assertNotIn("privateTrackTitle",str(result))
+        import json
+        json.dumps(result, sort_keys=True)
 
     def test_primitive_flow_selector_origin_follows_move_and_decodes_const4(self):
         from unittest.mock import patch

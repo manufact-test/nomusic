@@ -5852,6 +5852,21 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
 
 
 
+
+def privacy_safe_flow_class_profile(profile):
+    """Convert a signed-Dex class profile to JSON-safe type-only metadata."""
+    if not profile:
+        return {"defined_in_signed_dex": False}
+    return {
+        "defined_in_signed_dex": True,
+        "superclass": profile.get("superclass"),
+        "interfaces": sorted(profile.get("interfaces", ())),
+        "is_interface": bool(profile.get("is_interface")),
+        "is_abstract": bool(profile.get("is_abstract")),
+        "instance_field_type_descriptors": sorted(profile.get("instance_types", ())),
+        "static_field_type_descriptors": sorted(profile.get("static_types", ())),
+    }
+
 def privacy_safe_focused_method_trace(trace):
     """Keep exact call/branch/type evidence while omitting private field names and literals."""
     events = []
@@ -5982,9 +5997,11 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
             class_profiles.get(interface, {}).get("is_abstract")
         ),
         "direct_implementers": implementers,
-        "flow_object_profile": class_profiles.get("LD3a;", {}),
+        "flow_object_profile": privacy_safe_flow_class_profile(
+            class_profiles.get("LD3a;")
+        ),
         "implementation_dependency_profiles": {
-            owner: class_profiles.get(owner, {})
+            owner: privacy_safe_flow_class_profile(class_profiles.get(owner))
             for owner in ("LAF7;", "LWM7;", "LyG7;", "LMG7;", "LMG7$a;")
         },
         "ym_application_on_create_subscribes_ldp0": app_subscribes_ldp0,
