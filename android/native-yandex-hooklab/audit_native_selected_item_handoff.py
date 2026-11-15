@@ -3395,6 +3395,167 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
         "field_names_values_track_ids_or_media_disclosed":False
     }
 
+
+def classify_native_track_coroutine_callsite(
+    dex, caller, flags, code_off, ins, ordinal, target_method
+):
+    """Classify exact typed Track/Continuation argument registers at one direct call."""
+    if ordinal<0 or ordinal>=len(ins):
+        raise ValueError("TRACK_COROUTINE_CALLSITE_ORDINAL")
+    _pc,op,words=ins[ordinal]
+    if op not in INVOKES or dex.method(words[1])!=target_method:
+        raise ValueError("TRACK_COROUTINE_CALLSITE_TARGET_MISMATCH")
+    args=invoke_registers(op,words)
+    params=parse_types(target_method[2])
+    target_types=expand_invoke_register_types(
+        target_method[0],params,op in (0x71,0x77)
+    )
+    if len(args)!=len(target_types):
+        raise ValueError("TRACK_COROUTINE_CALLSITE_REGISTER_MAP")
+    track_positions=[i for i,typ in enumerate(target_types) if typ==MODEL]
+    continuation_positions=[i for i,typ in enumerate(target_types) if typ=="LOe2;"]
+    if len(track_positions)!=1 or len(continuation_positions)!=1:
+        raise ValueError("TRACK_COROUTINE_CALLSITE_TYPED_ARGUMENT_SHAPE")
+    track_reg=args[track_positions[0]]
+    continuation_reg=args[continuation_positions[0]]
+    track_parameters=typed_parameter_registers(
+        dex,caller,flags,code_off,MODEL
+    )
+    continuation_parameters=typed_parameter_registers(
+        dex,caller,flags,code_off,"LOe2;"
+    )
+    this_register=None if flags&ACC_STATIC else (
+        dex.u16(code_off)-dex.u16(code_off+2)
+    )
+    wide_ops=(
+        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
+         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
+        |set(range(0x9b,0xa6))|set(range(0xab,0xb0))
+        |set(range(0xbb,0xc6))|set(range(0xcb,0xd0))
+    )
+
+    def written_before(register):
+        for _prior_pc,prior_op,prior_words in ins[:ordinal]:
+            dest=written_register(prior_op,prior_words)
+            if dest==register or (
+                dest is not None and prior_op in wide_ops and dest+1==register
+            ):
+                return True
+        return False
+
+    track_register_is_parameter=track_reg in track_parameters
+    track_register_overwritten=written_before(track_reg)
+    continuation_is_this=(
+        this_register is not None and continuation_reg==this_register
+    )
+    continuation_is_parameter=continuation_reg in continuation_parameters
+    continuation_register_overwritten=written_before(continuation_reg)
+    previous=ins[ordinal-1] if ordinal>0 else None
+    explicit_null=bool(
+        previous and const4_zero_to_register(previous[1],previous[2],track_reg)
+    )
+    track_source=(
+        "EXPLICIT_NULL" if explicit_null else
+        "TRACK_PARAMETER_REGISTER_OVERWRITTEN"
+        if track_register_is_parameter and track_register_overwritten else
+        "TRACK_PARAMETER_REGISTER_UNCHANGED_CANDIDATE"
+        if track_register_is_parameter else
+        "UNCLASSIFIED"
+    )
+    continuation_source=(
+        "CALLER_THIS_REGISTER_OVERWRITTEN"
+        if continuation_is_this and continuation_register_overwritten else
+        "CALLER_THIS_REGISTER_CANDIDATE"
+        if continuation_is_this else
+        "TYPED_CONTINUATION_PARAMETER_REGISTER_OVERWRITTEN"
+        if continuation_is_parameter and continuation_register_overwritten else
+        "TYPED_CONTINUATION_PARAMETER_REGISTER"
+        if continuation_is_parameter else
+        "UNCLASSIFIED"
+    )
+    exact_resume=(
+        caller==("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
+        and continuation_is_this
+        and not continuation_register_overwritten
+        and explicit_null
+    )
+    return {
+        "caller":{"owner":caller[0],"method":caller[1],"signature":caller[2]},
+        "ordinal":ordinal,
+        "track_argument_source":track_source,
+        "track_argument_is_explicit_null":explicit_null,
+        "track_argument_register_is_track_parameter":track_register_is_parameter,
+        "track_argument_register_overwritten_before_call":track_register_overwritten,
+        "continuation_argument_source":continuation_source,
+        "continuation_argument_is_caller_this":continuation_is_this,
+        "continuation_argument_is_typed_parameter":continuation_is_parameter,
+        "continuation_argument_register_overwritten_before_call":continuation_register_overwritten,
+        "exact_resume_callsite":exact_resume
+    }
+
+
+def inspect_native_track_coroutine_callers(apks, target_method):
+    """Census every direct signed-DEX caller of the exact coroutine method."""
+    call_sites=[]
+    scanned_method_count=0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):
+                    continue
+                if entry.file_size>DEX_MAX:
+                    raise ValueError("TRACK_COROUTINE_CALLER_DEX_LIMIT")
+                dex=Dex(archive.read(entry.filename))
+                for caller,flags,code_off in method_definitions_with_flags(dex):
+                    scanned_method_count+=1
+                    if scanned_method_count>500000:
+                        raise ValueError("TRACK_COROUTINE_CALLER_METHOD_LIMIT")
+                    ins=list(instructions(dex,code_off))
+                    for ordinal,(_pc,op,words) in enumerate(ins):
+                        if op not in INVOKES or dex.method(words[1])!=target_method:
+                            continue
+                        if len(call_sites)>=128:
+                            raise ValueError("TRACK_COROUTINE_CALLER_SITE_LIMIT")
+                        call_sites.append(classify_native_track_coroutine_callsite(
+                            dex,caller,flags,code_off,ins,ordinal,target_method
+                        ))
+    this_calls=[
+        row for row in call_sites
+        if row["continuation_argument_is_caller_this"]
+    ]
+    return {
+        "scanned_method_count":scanned_method_count,
+        "direct_callsite_count":len(call_sites),
+        "exact_resume_callsite_count":sum(
+            row["exact_resume_callsite"] for row in call_sites
+        ),
+        "track_parameter_register_candidate_callsite_count":sum(
+            row["track_argument_source"]=="TRACK_PARAMETER_REGISTER_UNCHANGED_CANDIDATE"
+            for row in call_sites
+        ),
+        "explicit_null_track_callsite_count":sum(
+            row["track_argument_is_explicit_null"] for row in call_sites
+        ),
+        "continuation_this_callsite_count":len(this_calls),
+        "continuation_typed_parameter_callsite_count":sum(
+            row["continuation_argument_is_typed_parameter"] for row in call_sites
+        ),
+        "unclassified_track_argument_callsite_count":sum(
+            row["track_argument_source"]=="UNCLASSIFIED" for row in call_sites
+        ),
+        "unclassified_continuation_argument_callsite_count":sum(
+            row["continuation_argument_source"]=="UNCLASSIFIED"
+            for row in call_sites
+        ),
+        "only_direct_this_continuation_callsite_is_exact_resume":(
+            bool(this_calls) and all(row["exact_resume_callsite"] for row in this_calls)
+        ),
+        "call_sites":call_sites,
+        "track_values_or_private_fields_disclosed":False
+    }
+
+
+
 def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
     focus_methods = [
         (row["owner"], row["method"], row["signature"])
@@ -4728,6 +4889,9 @@ def inspect_signed(apks):
         "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
     resume_ref=("LFp0;", "invokeSuspend",
         "(Ljava/lang/Object;)Ljava/lang/Object;")
+    native_track_coroutine_callsite_census=inspect_native_track_coroutine_callers(
+        apks,initial_ref
+    )
     initial_def=fp0_coroutine_method_definitions[initial_ref]
     resume_def=fp0_coroutine_method_definitions[resume_ref]
     native_track_coroutine_continuity=trace_native_track_coroutine_continuation(
@@ -4949,6 +5113,7 @@ def inspect_signed(apks):
         "fp0_resume_explicit_null_track_argument_static_proven": fp0_resume_null_track_arg,
         "fp0_resume_track_binding_runtime_proven": False,
         "native_track_coroutine_continuity": native_track_coroutine_continuity,
+        "native_track_coroutine_callsite_census": native_track_coroutine_callsite_census,
         "continuation_track_field_writer_census": continuation_track_field_writer_census,
         "raa_resume_exact_same_continuation_static_proven": raa_resume_same_continuation,
         "raa_resume_explicit_null_wrapper_argument_static_proven": raa_resume_null_wrapper,

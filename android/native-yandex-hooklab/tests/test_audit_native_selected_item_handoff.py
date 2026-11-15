@@ -850,6 +850,82 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(result["field_store_sites"][0]["source_is_object_parameter_not_yet_cast"])
         self.assertNotIn("privateTrack",str(result))
 
+    def test_coroutine_callsite_classifier_recognizes_resume_this_and_null_track(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:3,102:2}[offset]
+            def method(self,index):
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        caller=("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
+        target=("LGp0;","new",
+                "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        ins=[(0,0x12,[0x0212]),(1,0x71,[0x0071,9,0])]
+        with patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[0,2,1]):
+            result=classify_native_track_coroutine_callsite(
+                FakeDex(),caller,0,100,ins,1,target
+            )
+        self.assertEqual(result["track_argument_source"],"EXPLICIT_NULL")
+        self.assertEqual(result["continuation_argument_source"],
+                         "CALLER_THIS_REGISTER_CANDIDATE")
+        self.assertTrue(result["exact_resume_callsite"])
+
+    def test_coroutine_callsite_classifier_separates_initial_track_parameter(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:2}[offset]
+            def method(self,index):
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        caller=("LCaller;","call",
+                "(Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        target=("LGp0;","new",
+                "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        ins=[(0,0x71,[0x0071,9,0])]
+        with patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[0,2,3]):
+            result=classify_native_track_coroutine_callsite(
+                FakeDex(),caller,0x8,100,ins,0,target
+            )
+        self.assertEqual(
+            result["track_argument_source"],
+            "TRACK_PARAMETER_REGISTER_UNCHANGED_CANDIDATE"
+        )
+        self.assertEqual(result["continuation_argument_source"],
+                         "TYPED_CONTINUATION_PARAMETER_REGISTER")
+        self.assertFalse(result["exact_resume_callsite"])
+
+    def test_coroutine_callsite_classifier_rejects_overwritten_track_parameter_register(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:2}[offset]
+            def method(self,index):
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        caller=("LCaller;","call",
+                "(Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        target=("LGp0;","new",
+                "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        ins=[
+            (0,0x12,[0x0212]),
+            (1,0x71,[0x0071,9,0])
+        ]
+        with patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[0,2,3]):
+            result=classify_native_track_coroutine_callsite(
+                FakeDex(),caller,0x8,100,ins,1,target
+            )
+        self.assertEqual(
+            result["track_argument_source"],
+            "TRACK_PARAMETER_REGISTER_OVERWRITTEN"
+        )
+        self.assertTrue(result["track_argument_register_overwritten_before_call"])
+        self.assertFalse(result["exact_resume_callsite"])
+
     def test_exact_continuation_field_writer_preserves_track_on_one_cfg_branch(self):
         from unittest.mock import patch
         class FakeDex:
