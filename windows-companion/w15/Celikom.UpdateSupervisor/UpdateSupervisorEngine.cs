@@ -1,4 +1,7 @@
 using Celikom.Companion;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("Celikom.UpdateSupervisor.Tests")]
 
 namespace Celikom.UpdateSupervisor;
 
