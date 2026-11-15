@@ -1512,7 +1512,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["native_track_parameter_count"],1)
         self.assertEqual(result["events"][2]["kind"],"FIELD_WRITE")
         self.assertEqual(result["events"][2]["value_origin"]["type"],"LD3a;")
-        self.assertEqual(result["field_read_type_descriptors"],["Ljava/lang/String;"])
+        self.assertEqual(result["field_read_type_descriptors"],["LD3a;","Ljava/lang/String;"])
         self.assertFalse(result["private_field_names_or_values_disclosed"])
         self.assertEqual(result["events"][1]["callee"]["method"],"getCurrentTrack")
 
