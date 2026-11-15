@@ -803,7 +803,8 @@ def select_candidate_identity_focus_refs(census):
 
 def trace_identity_method(
     dex, method, flags, code_off, candidate_owners=None,
-    capture_unproven_calls=False, focus_targets=None
+    capture_unproven_calls=False, focus_targets=None,
+    exact_track_field_refs=None
 ):
     """Trace only typed Track/Album/wrapper aliases and exact focus callsites."""
     candidate_owners = candidate_owners or set()
@@ -955,9 +956,17 @@ def trace_identity_method(
         if op == 0x54:  # iget-object: inspect type and receiver, never field value
             dest = (words[0] >> 8) & 15
             receiver = (words[0] >> 12) & 15
-            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            field_ref = field_id(dex, words[1])
+            _field_owner, _field_name, field_type = field_ref
             clear_register(dest)
-            if receiver == this_register and field_type in tracked_types:
+            if (
+                receiver == this_register
+                and field_type in tracked_types
+                and (
+                    exact_track_field_refs is None
+                    or field_ref in exact_track_field_refs
+                )
+            ):
                 aliases[field_type][dest] = {"FIELD_READ_FROM_THIS"}
                 add_event({
                     "ordinal": ordinal,
@@ -4501,6 +4510,55 @@ def written_register(op: int, words):
     return None
 
 
+def track_parameter_field_store_refs(dex, method, flags: int, code_off: int):
+    """Return exact Track-typed fields receiving the original Track parameter on this.
+
+    Field identifiers stay internal to the audit. Callers may use the returned
+    refs to constrain later reads, but must not disclose field names or values.
+    """
+    aliases = set(typed_parameter_registers(
+        dex, method, flags, code_off, MODEL
+    ))
+    if not aliases:
+        return []
+    this_register = (
+        None if flags & ACC_STATIC
+        else dex.u16(code_off) - dex.u16(code_off + 2)
+    )
+    if this_register is None:
+        return []
+    field_refs = set()
+    for _ordinal, op, words in instructions(dex, code_off):
+        if op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move is not None:
+                dest, source = move
+                had_alias = source in aliases
+                aliases.discard(dest)
+                if had_alias:
+                    aliases.add(dest)
+            continue
+        if op == 0x5b:  # iput-object: exact Track parameter into an instance field
+            value_register = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            field_ref = field_id(dex, words[1])
+            if (
+                receiver == this_register
+                and field_ref[2] == MODEL
+                and value_register in aliases
+            ):
+                field_refs.add(field_ref)
+            continue
+        if op == 0x1f:  # check-cast preserves object identity
+            continue
+        destination = written_register(op, words)
+        if destination is not None:
+            aliases.discard(destination)
+        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+            aliases.clear()
+    return sorted(field_refs)
+
+
 def model_parameter_registers(dex: Dex, method, flags: int, code_off: int):
     params = parse_types(method[2])
     registers_size = dex.u16(code_off)
@@ -5392,6 +5450,11 @@ SELECTED_TRACK_PATH_METHODS = {
     ("LJK1;", "<init>",
      "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
      "Lru/yandex/music/data/audio/o;Z)V"),
+    # Exact Track recipients called by LJK1.<init>; trace only these references.
+    ("LBK1;", "try", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+    ("LBK1;", "this", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+    ("LBK1;", "for", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+    ("LBK1;", "new", "(Lru/yandex/music/data/audio/o;)LGl4;"),
     ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
     ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
 }
@@ -5534,6 +5597,7 @@ def inspect_signed(apks):
     flow_mode_constructor_store_rows = []
     flow_mode_branch_census = []
     selected_track_path_method_definitions = {}
+    selected_track_path_owner_method_definitions = {}
     fp0_resume_null_track_arg = False
     fp0_coroutine_method_definitions = {}
     raa_resume_same_continuation = False
@@ -5704,6 +5768,14 @@ def inspect_signed(apks):
                         selected_track_path_method_definitions[method] = (
                             dex, flags, code_off
                         )
+                    if method[0] == "LJK1;":
+                        if method in selected_track_path_owner_method_definitions:
+                            raise ValueError("DUPLICATE_LJK1_METHOD_DEFINITION")
+                        if len(selected_track_path_owner_method_definitions) >= 128:
+                            raise ValueError("LJK1_METHOD_SCAN_LIMIT")
+                        selected_track_path_owner_method_definitions[method] = (
+                            dex, flags, code_off
+                        )
                     if (method[0], method[1]) == ("LFp0;", "invokeSuspend"):
                         # Inspect only the instruction immediately before the
                         # known exact Gp0.new call. No branch-sensitive taint.
@@ -5857,6 +5929,41 @@ def inspect_signed(apks):
         SELECTED_TRACK_PATH_METHODS
         - set(selected_track_path_method_definitions)
     )
+    ljk1_constructor_ref = (
+        "LJK1;", "<init>",
+        "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
+        "Lru/yandex/music/data/audio/o;Z)V"
+    )
+    ljk1_constructor_definition = selected_track_path_method_definitions.get(
+        ljk1_constructor_ref
+    )
+    ljk1_track_field_refs = (
+        track_parameter_field_store_refs(
+            ljk1_constructor_definition[0], ljk1_constructor_ref,
+            ljk1_constructor_definition[1], ljk1_constructor_definition[2]
+        )
+        if ljk1_constructor_definition else []
+    )
+    if len(ljk1_track_field_refs) > 8:
+        raise ValueError("LJK1_TRACK_FIELD_REF_LIMIT")
+    selected_track_path_field_read_traces = []
+    if ljk1_track_field_refs:
+        exact_ljk1_track_fields = set(ljk1_track_field_refs)
+        for method, (dex, flags, code_off) in sorted(
+            selected_track_path_owner_method_definitions.items()
+        ):
+            trace = trace_identity_method(
+                dex, method, flags, code_off, candidate_owners=set(),
+                exact_track_field_refs=exact_ljk1_track_fields
+            )
+            if any(
+                event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+                and event.get("identity_type") == "TRACK"
+                for event in trace.get("events", [])
+            ):
+                selected_track_path_field_read_traces.append(trace)
+        if len(selected_track_path_field_read_traces) > 64:
+            raise ValueError("LJK1_TRACK_FIELD_READ_TRACE_LIMIT")
     candidate_owner_rows = candidate_owner_descriptors(class_profiles)
     candidate_owner_set = {row["owner"] for row in candidate_owner_rows}
     candidate_owner_method_census = inspect_candidate_owner_methods(
@@ -6118,6 +6225,9 @@ def inspect_signed(apks):
         "flow_mode_constructor_int_field_stores":flow_mode_constructor_store_rows,
         "flow_mode_branch_census":flow_mode_branch_census,
         "selected_track_path_identity_traces": selected_track_path_identity_traces,
+        "selected_track_path_constructor_track_field_store_count": len(ljk1_track_field_refs),
+        "selected_track_path_field_read_method_count": len(selected_track_path_field_read_traces),
+        "selected_track_path_field_read_traces": selected_track_path_field_read_traces,
         "selected_track_path_missing_method_refs": [
             {"owner":x[0],"method":x[1],"signature":x[2]}
             for x in selected_track_path_missing_method_refs

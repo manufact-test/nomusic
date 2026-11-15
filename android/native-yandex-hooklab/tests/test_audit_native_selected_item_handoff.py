@@ -44,6 +44,10 @@ class SelectedItemAuditTests(unittest.TestCase):
             ("LJK1;", "<init>",
              "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
              "Lru/yandex/music/data/audio/o;Z)V"),
+            ("LBK1;", "try", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+            ("LBK1;", "this", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+            ("LBK1;", "for", "(Lru/yandex/music/data/audio/o;)LGl4;"),
+            ("LBK1;", "new", "(Lru/yandex/music/data/audio/o;)LGl4;"),
             ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
             ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
         })
@@ -1750,6 +1754,74 @@ class SelectedItemAuditTests(unittest.TestCase):
             trace["buffer_provenance_events"][0]["source_method"]["owner"],
             "Landroid/media/MediaCodec;"
         )
+
+    def test_track_parameter_field_store_refs_match_exact_same_track_and_this(self):
+        from unittest.mock import patch
+        from audit_native_selected_item_handoff import track_parameter_field_store_refs
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:2}[offset]
+        method=("LJK1;","<init>",f"({MODEL})V")
+        target=("LJK1;","hiddenTrack",MODEL)
+        ins=[
+            (0,0x07,[0x3107]),  # move-object v1, v3
+            (1,0x5b,[0x215b,0]),  # iput-object v1, v2
+            (2,0x0e,[0x000e])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            refs=track_parameter_field_store_refs(FakeDex(),method,0,100)
+        self.assertEqual(refs,[target])
+        self.assertNotIn("hiddenTrack",str({"count":len(refs)}))
+
+    def test_track_parameter_field_store_refs_reject_other_receiver_and_branch_alias(self):
+        from unittest.mock import patch
+        from audit_native_selected_item_handoff import track_parameter_field_store_refs
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:2}[offset]
+        method=("LJK1;","<init>",f"({MODEL})V")
+        target=("LJK1;","hiddenTrack",MODEL)
+        wrong_receiver=[(0,0x5b,[0x315b,0])]
+        branched=[(0,0x28,[0x0028]),(1,0x5b,[0x235b,0])]
+        with patch("audit_native_selected_item_handoff.instructions",side_effect=[wrong_receiver,branched]), \\
+             patch("audit_native_selected_item_handoff.field_id",return_value=target):
+            self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
+            self.assertEqual(track_parameter_field_store_refs(FakeDex(),method,0,100),[])
+
+    def test_identity_method_trace_reads_only_the_exact_selected_track_field(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4,102:1}[offset]
+            def method(self, index):
+                return ("LApi;","consume",f"({MODEL})V")
+        method=("LJK1;","render","()V")
+        exact=("LJK1;","hiddenTrack",MODEL)
+        ins=[(0,0x54,[0x3254,0]),(1,0x71,[0x0071,0])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+             patch("audit_native_selected_item_handoff.field_id",return_value=exact), \\
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[2]):
+            accepted=trace_identity_method(
+                FakeDex(),method,0,100,exact_track_field_refs={exact}
+            )
+            rejected=trace_identity_method(
+                FakeDex(),method,0,100,
+                exact_track_field_refs={("LJK1;","differentTrack",MODEL)}
+            )
+        self.assertTrue(any(
+            row["kind"]=="FIELD_READ_TYPED_IDENTITY"
+            for row in accepted["events"]
+        ))
+        self.assertTrue(any(
+            row["kind"]=="CALL_WITH_TYPED_IDENTITY"
+            for row in accepted["events"]
+        ))
+        self.assertFalse(any(
+            row["kind"]=="CALL_WITH_TYPED_IDENTITY"
+            for row in rejected["events"]
+        ))
+        self.assertNotIn("hiddenTrack",str(accepted))
 
     def test_identity_method_trace_marks_exact_audio_output_dispatch_with_track_identity(self):
         from unittest.mock import patch
