@@ -111,12 +111,30 @@ public static class StableUpdateManifestFetcher
             throw new InvalidDataException("STABLE_FEED_KEY_NOT_PINNED");
         var manifestUrl = new Uri(officialOrigin, LatestPath);
         var signatureUrl = new Uri(officialOrigin, LatestPath + ".sig");
-        var manifest = await ReadBoundedAsync(client, manifestUrl, ManifestMaxBytes,
-            cancellationToken);
-        var signature = await ReadBoundedAsync(client, signatureUrl, SignatureMaxBytes,
-            cancellationToken);
-        return StableUpdateManifestVerifier.VerifyIfNewer(manifest, signature,
-            pinnedPublicKey, officialOrigin, currentVersion, lastAcceptedSequence, now);
+        // A static HTTPS feed exposes JSON and detached signature as two files.
+        // While a release is being published, a request can span the atomic
+        // promotion of each file. Retry only this specific cryptographic
+        // mismatch, re-fetching BOTH documents. Never accept an unsigned feed,
+        // downgrade, unexpected redirect or malformed payload.
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var manifest = await ReadBoundedAsync(client, manifestUrl, ManifestMaxBytes,
+                cancellationToken);
+            var signature = await ReadBoundedAsync(client, signatureUrl, SignatureMaxBytes,
+                cancellationToken);
+            try
+            {
+                return StableUpdateManifestVerifier.VerifyIfNewer(manifest, signature,
+                    pinnedPublicKey, officialOrigin, currentVersion, lastAcceptedSequence, now);
+            }
+            catch (InvalidDataException e) when (
+                e.Message == "STABLE_MANIFEST_SIGNATURE_INVALID" && attempt < 2)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(150), cancellationToken);
+            }
+        }
+        // The final attempt fails closed in the verifier above.
+        throw new InvalidDataException("STABLE_MANIFEST_SIGNATURE_INVALID");
     }
 
     /// <summary>
@@ -154,6 +172,10 @@ public static class StableUpdateManifestFetcher
         HttpClient client, Uri expected, int maximum, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, expected);
+        // Paired signed-feed retries must not replay a stale cached JSON or
+        // signature from an intermediary after publication.
+        request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue
+            { NoCache = true, NoStore = true };
         using var response = await client.SendAsync(request,
             HttpCompletionOption.ResponseHeadersRead, ct);
         if (response.StatusCode != HttpStatusCode.OK ||

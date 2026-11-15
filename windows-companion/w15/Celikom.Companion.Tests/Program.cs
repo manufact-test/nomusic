@@ -757,6 +757,57 @@ try
                  feed.Sequence == 42 && feed.RollbackFrom == null,
                  "W107 exact-origin signed feed is verified before displaying a version");
         }
+        // W143: the immutable signed pair may be momentarily mixed while
+        // latest.json and latest.json.sig are atomically promoted separately.
+        // Retry is bounded, fetches both files, and never accepts the old sig.
+        int mixedSignatures = 0, mixedManifests = 0;
+        using (var mixedFeedHttp = new HttpClient(new FakeHandler(req =>
+        {
+            var isSignature = req.RequestUri!.AbsolutePath.EndsWith(".sig",
+                StringComparison.Ordinal);
+            var payload = isSignature
+                ? ++mixedSignatures == 1 ? currentSequenceSignature : detachedSignature
+                : signedDocument;
+            if (!isSignature) mixedManifests++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = req,
+                Content = new ByteArrayContent(payload)
+            };
+        })))
+        {
+            var recovered = await StableUpdateManifestFetcher.FetchSignedIfNewerWithClientAsync(
+                signedFeedOrigin, pub, new Version(0, 24, 36, 0), 41,
+                signedFeedNow, mixedFeedHttp);
+            Test(recovered?.Version == new Version(0, 24, 37, 0) &&
+                 mixedSignatures == 2 && mixedManifests == 2,
+                 "W143 publication signature race re-fetches both documents, verifies new pair");
+        }
+        int permanentlyInvalidReads = 0;
+        using (var invalidFeedHttp = new HttpClient(new FakeHandler(req =>
+        {
+            if (req.RequestUri!.AbsolutePath.EndsWith(".sig", StringComparison.Ordinal))
+                permanentlyInvalidReads++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = req,
+                Content = new ByteArrayContent(req.RequestUri!.AbsolutePath.EndsWith(
+                    ".sig", StringComparison.Ordinal) ? currentSequenceSignature : signedDocument)
+            };
+        })))
+        {
+            bool blocked = false;
+            try
+            {
+                await StableUpdateManifestFetcher.FetchSignedIfNewerWithClientAsync(
+                    signedFeedOrigin, pub, new Version(0, 24, 36, 0), 41,
+                    signedFeedNow, invalidFeedHttp);
+            }
+            catch (InvalidDataException e) when (
+                e.Message == "STABLE_MANIFEST_SIGNATURE_INVALID") { blocked = true; }
+            Test(blocked && permanentlyInvalidReads == 3,
+                 "W143 permanently incoherent signed feed fails closed after bounded retries");
+        }
         using (var tamperFeedHttp = new HttpClient(new FakeHandler(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
