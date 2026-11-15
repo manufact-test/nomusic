@@ -1518,6 +1518,8 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
     events = []
     pending_buffer_return = False
     branch_seen = False
+    backward_branch_aliases_cleared = False
+    switch_branch_aliases_cleared = False
     if ins is None:
         ins = instructions(dex, code_off)
 
@@ -1588,9 +1590,27 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
         dest = written_register(op, words)
         if dest is not None:
             aliases.pop(dest, None)
-        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+        if op in (0x28, 0x29, 0x2a) or 0x32 <= op <= 0x3d:
+            branch_seen = True
+            if op == 0x28:  # goto/8
+                raw_offset = (words[0] >> 8) & 0xff
+                offset = raw_offset - 0x100 if raw_offset & 0x80 else raw_offset
+            elif op == 0x29:  # goto/16
+                raw_offset = words[1] & 0xffff
+                offset = raw_offset - 0x10000 if raw_offset & 0x8000 else raw_offset
+            elif op == 0x2a:  # goto/32
+                raw_offset = (words[1] & 0xffff) | ((words[2] & 0xffff) << 16)
+                offset = raw_offset - 0x100000000 if raw_offset & 0x80000000 else raw_offset
+            else:  # if-* 22t
+                raw_offset = words[1] & 0xffff
+                offset = raw_offset - 0x10000 if raw_offset & 0x8000 else raw_offset
+            if offset < 0:
+                aliases.clear()
+                backward_branch_aliases_cleared = True
+        elif op in (0x2b, 0x2c):  # switch payload targets are not linear
             branch_seen = True
             aliases.clear()
+            switch_branch_aliases_cleared = True
 
     return {
         "method": {
@@ -1605,7 +1625,12 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
         "same_byte_buffer_parameter_to_audio_sink_proven": any(
             row["same_byte_buffer_parameter_passed"] for row in events
         ),
-        "branch_seen_aliases_cleared": branch_seen,
+        "branch_seen": branch_seen,
+        "backward_branch_aliases_cleared": backward_branch_aliases_cleared,
+        "switch_branch_aliases_cleared": switch_branch_aliases_cleared,
+        "branch_seen_aliases_cleared": (
+            backward_branch_aliases_cleared or switch_branch_aliases_cleared
+        ),
         "field_names_or_values_disclosed": False,
         "media_values_or_audio_read": False,
     }
