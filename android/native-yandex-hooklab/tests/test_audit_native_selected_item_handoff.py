@@ -1578,37 +1578,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             {"method":{"owner":"LDp0;","name":"if",
                        "signature":"(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"},
              "native_model_parameters":[{"index":0,"register":1}],
-             "instructions":[
-                 {"ordinal":2,"op":"INVOKE",
-                  "callee":{"owner":"Lou3;","method":"else",
-                            "signature":"(Lru/yandex/music/data/audio/o;)V"},
-                  "native_track_argument_positions":[0]},
-                 {"ordinal":3,"op":"INVOKE",
-                  "callee":{"owner":"LGp0;","method":"new",
-                            "signature":"(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"},
-                  "native_track_argument_positions":[1]},
-             ]},
-            {"method":{"owner":"LFG7;","name":"invokeSuspend","signature":"()V"},
-             "native_model_parameters":[],
-             "instructions":[
-                 {"ordinal":1,"op":"INVOKE",
-                  "callee":{"owner":"LD3a;","method":"setValue",
-                            "signature":"(Ljava/lang/Object;)V"},
-                  "native_track_argument_positions":[]}
-             ]},
-            {"method":{"owner":"Lou3;","name":"else",
-                       "signature":"(Lru/yandex/music/data/audio/o;)V"},
-             "native_model_parameters":[{"index":0,"register":1}],
              "instructions":[]},
-            {"method":{"owner":"LGp0;","name":"new",
-                       "signature":"(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"},
-             "native_model_parameters":[{"index":0,"register":1}],
-             "instructions":[
-                 {"ordinal":1,"op":"INVOKE",
-                  "callee":{"owner":"Lcom/yandex/music/shared/player/download2/o;","method":"for",
-                            "signature":"()V"},
-                  "native_track_argument_positions":[]}
-             ]},
         ]
         sites = [{
             "caller":{"owner":"Lru/yandex/music/YMApplication;","name":"onCreate"},
@@ -1622,10 +1592,6 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["direct_implementers"],["LMG7;"])
         self.assertTrue(result["ym_application_on_create_subscribes_ldp0"])
         self.assertEqual(result["direct_player_api_call_count"],1)
-        self.assertEqual(result["direct_source_descriptor_call_count"],1)
-        traced_owners={event["method"]["owner"] for event in result["focused_method_traces"]}
-        self.assertIn("LFG7;",traced_owners)
-        self.assertIn("Lou3;",traced_owners)
         self.assertFalse(result["same_track_reference_from_flow_to_lgp0_new_proven"])
         self.assertFalse(result["current_selected_track_proven"])
         self.assertFalse(result["same_native_item_to_decoder_proven"])

@@ -1,3 +1,35 @@
+# SUPERSEDING STATUS — CELIKOM Android A1, 16.11.2026
+
+**Актуальный handoff:** docs/android/NEXT-CHAT.md.  
+**Актуальная сверка конкурентов и Track Flow:** docs/android/ANDROID-A1-COMPETITOR-AND-TRACK-FLOW-REVIEW-20261116.md.
+
+## Подтверждённая кодовая основа
+
+- CI #161: [SUCCESS, 108/108](https://github.com/manufact-test/nomusic/actions/runs/43763991624).
+- Code checkpoint: 88b81e394ea2d61f0b25a0a5dd38bb41663150f5.
+- Exact backup: backup/android-a1-flow-field-writer-trace-ci-green-20261115 @ 88b81e394ea2d61f0b25a0a5dd38bb41663150f5.
+- Runtime hooks не менялись; последний runtime-hook commit: a655712d210189f3bc611847235de3ed4d985c1a.
+- CI #162/#163 были экспериментом по расширению coroutine trace. #163 прошёл 108 unit-тестов, но read-only signed-DEX анализ остановился с CURRENT_TRACK_FLOW_METHOD_TRACE_LIMIT. Широкое расширение исключено из рабочей основы; не повышать лимит и не повторять.
+
+## Новый bounded Track Flow result
+
+- LzD7 — интерфейс с единственным найденным direct implementer LMG7.
+- YMApplication.onCreate подписывает LDp0 collector.
+- Flow path: LzD7.if() → LC3a Flow → LBD7.if(LzD7) → LBy4 Flow → LBC3/LzC3/LAC3 → LO6.native → Ljm4.for(Flow, CoroutineScope, LDp0 collector) → LDp0.if(Track) → LGp0.new(Track).
+- LMG7.<init> получает два LD3a-typed flow-like объекта из LyG7 и сохраняет их в собственные поля. Это structural observation; не считать их current player state по одному типу.
+- В LDp0.if(Track) виден вызов Lou3.else(Track), но Track читается из coroutine field и его identity origin не доказан.
+- В bounded report: Player API 0, MediaSession 0, decoder boundary 0, source-descriptor references 12.
+- same_track_reference_from_flow_to_lgp0_new_proven=false; current_selected_track_proven=false; same_native_item_to_decoder_proven=false; active_selected_item_proven=false.
+- Track Flow может быть queue/prefetch/download/helper. Current selected Track не доказан. Edition/Generation не найдены.
+
+## Следующий точечный шаг
+
+Проверить только Lou3.else(Track) как конкретный вызов из LDp0.if(Track). Если там нет прямой связи с Player selection/current playback, закрыть весь этот Flow как нерелевантный для текущего воспроизведения. Не расширять аудит на соседние coroutine classes и не поднимать лимиты.
+
+Stage B остаётся NOT CONNECTED / NO-GO. Не добавлять hooks и не собирать APK до доказанной identity chain.
+
+---
+
 # CELIKOM Android A1 — Track/Album identity bridge
 
 **Дата:** 15 ноября 2026  

@@ -5099,11 +5099,6 @@ SOURCE_METHODS = {
     ("Lcq7;", "i0"), ("Lga4;", "d"), ("Ljm4;", "for"),
     ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
 }
-DOWNLOAD_SOURCE_METHODS = {
-    DESCRIPTOR_BUILDER,
-    ("Lcom/yandex/music/shared/player/download2/o;", "for"),
-    ("Lcom/yandex/music/shared/player/download2/o;", "if"),
-}
 MAX_DEX = 6
 MAX_FIELDS = 80
 MAX_METHODS = 160
@@ -5975,8 +5970,7 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
         raise ValueError("CURRENT_TRACK_FLOW_IMPLEMENTER_LIMIT")
     owners = {"LzD7;", "LBD7;", "LMG7;", "LMG7$a;", "LC3a;", "LD3a;",
               "LAF7;", "LWM7;", "LyG7;", "LBy4;", "LBC3;", "LzC3;",
-              "LAC3;", "LDp0;", "LGp0;", "LDG7;", "LEG7;", "LFG7;",
-              "LGG7;", "LDG7$a;", "LEG7$a;", "LFG7$a;", "LGG7$a;", "Lou3;"}
+              "LAC3;", "LDp0;", "LGp0;"}
     traces = [
         privacy_safe_focused_method_trace(trace)
         for trace in focused_method_traces
@@ -6022,7 +6016,7 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
     ]
     source_calls = [
         target for target in call_targets
-        if (target.get("owner"), target.get("method")) in DOWNLOAD_SOURCE_METHODS
+        if (target.get("owner"), target.get("method")) in SOURCE_METHODS
     ]
     return {
         "scope": "LzD7 interface, its direct implementers, and the exact LBy4/LDp0 Track-flow path",
@@ -6036,11 +6030,7 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
         ),
         "implementation_dependency_profiles": {
             owner: privacy_safe_flow_class_profile(class_profiles.get(owner))
-            for owner in (
-                "LAF7;", "LWM7;", "LyG7;", "LMG7;", "LMG7$a;",
-                "LDG7;", "LEG7;", "LFG7;", "LGG7;",
-                "LDG7$a;", "LEG7$a;", "LFG7$a;", "LGG7$a;", "Lou3;"
-            )
+            for owner in ("LAF7;", "LWM7;", "LyG7;", "LMG7;", "LMG7$a;")
         },
         "ym_application_on_create_subscribes_ldp0": app_subscribes_ldp0,
         "flow_path": [
@@ -6049,7 +6039,6 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
             "LBC3 -> LzC3 -> LAC3 -> LO6.native",
             "Ljm4.for(Flow, CoroutineScope, LDp0 collector)",
             "LDp0.if(Track) -> LGp0.new(Track)",
-            "LDp0.if(Track) -> Lou3.else(Track)",
         ],
         "focused_method_traces": traces,
         "direct_player_api_call_count": len(player_calls),
@@ -7628,8 +7617,7 @@ def inspect_signed(apks):
         ("LO6;", "native"),
         ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
         ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>"),
-        ("Lou3;", "new"), ("Lou3;", "else"),
-        ("LAF7;", "try"), ("LWM7;", "throw"),
+        ("Lou3;", "new"),
         ("Lcom/yandex/music/shared/player/download2/o;", "for"),
         ("Lcom/yandex/music/shared/player/download2/o$c;", "invokeSuspend"),
         ("Lcom/yandex/music/shared/player/download2/o$c;", "<init>"),
@@ -7760,11 +7748,7 @@ def inspect_signed(apks):
                         "RetryingBalancingDataSource;", "close", "()V"
                     ):
                         exo_source_close_void_declared = True
-                    if method[0] in (
-                            "LMG7;", "LMG7$a;", "LC3a;", "LD3a;", "LyG7;",
-                            "LDG7;", "LEG7;", "LFG7;", "LGG7;",
-                            "LDG7$a;", "LEG7$a;", "LFG7$a;", "LGG7$a;"
-                    ) or (method[0] in ("LAF7;", "LWM7;") and (method[1] == "<init>" or any(t in method[2] for t in ("LD3a;", "Liw9;", "Lru/yandex/music/data/audio/o;")))) or (method[0], method[1]) in trace_targets:
+                    if method[0] in ("LMG7;", "LMG7$a;", "LC3a;", "LD3a;") or (method[0] in ("LAF7;", "LWM7;", "LyG7;") and (method[1] == "<init>" or any(t in method[2] for t in ("LD3a;", "Liw9;", "Lru/yandex/music/data/audio/o;")))) or (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
                             focused_method_trace(dex, method, flags, code_off))
                     if method in SELECTED_TRACK_PATH_METHODS:
