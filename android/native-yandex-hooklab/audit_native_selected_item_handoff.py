@@ -5380,10 +5380,17 @@ FLOW_MODE_BRANCH_AUDIT_OWNERS = {
 FLOW_MODE_CONSTRUCTOR_OWNERS = {"LBy4;","Lvp0;","Lyp0;","LzC3;"}
 
 SELECTED_TRACK_PATH_METHODS = {
+    # LSW6 is retained as an optional candidate; it is not defined in the pinned DEX.
     ("LSW6;", "if", "(Lru/yandex/music/data/audio/o;Z)LvU6;"),
     ("LOW6;", "<init>",
      "(LSV6;Lru/yandex/music/data/audio/o;ZLkotlinx/coroutines/CoroutineScope;"
      "Landroid/content/Context;LGK1$a;LNW6$a;)V"),
+    # Exact Track recipients observed in LOW6.<init>; one bounded hop only.
+    ("LTv9;", "if",
+     "(LBK1;LGK1$a;Landroid/content/Context;Lkotlinx/coroutines/CoroutineScope;"
+     "Lru/yandex/music/data/audio/o;Z)LJK1;"),
+    ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
+    ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
 }
 
 
