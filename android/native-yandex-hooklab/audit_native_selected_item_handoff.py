@@ -2909,15 +2909,20 @@ def trace_renderer_buffer_field_identity_cfg(
         if len(registers) == len(argument_types):
             for state_index, state in enumerate(states):
                 state_matched = False
-                for argument_position, (argument_type, register) in enumerate(
+                logical_argument_position = -1
+                for register_word_position, (argument_type, register) in enumerate(
                     zip(argument_types, registers)
                 ):
+                    if argument_type is None:
+                        continue
+                    logical_argument_position += 1
                     if argument_type != byte_buffer:
                         continue
                     alias = state["registers"].get(register)
                     row = {
                         "state_index": state_index,
-                        "argument_position": argument_position,
+                        "argument_position": logical_argument_position,
+                        "register_word_position": register_word_position,
                         "status": "UNRESOLVED",
                         "field_slot": None,
                         "source_call_pc": None,

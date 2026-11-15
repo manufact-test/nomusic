@@ -2044,6 +2044,8 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["trace_status"], "CFG_TRACED")
         self.assertTrue(result["method_local_identity_proven"])
         sink = result["sink_calls"][0]
+        self.assertEqual(sink["identity_paths"][0]["argument_position"], 1)
+        self.assertEqual(sink["identity_paths"][0]["register_word_position"], 1)
         self.assertTrue(sink["same_lad6_final_field_reference_on_every_state"])
         self.assertEqual(sink["lad6_final_identity_state_count"], 1)
         self.assertEqual(sink["identity_paths"][0]["field_slot"], 2)
