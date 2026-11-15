@@ -1106,6 +1106,15 @@ try
              "approved", "UNKNOWN", "PLAYING").Level ==
          UserFacingPlaybackHealth.Severity.Neutral,
          "W141 only native decoder proof may activate green replacement status");
+    Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
+             "approved", "UNKNOWN", "PAUSED").Message == "Пауза." &&
+         UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
+             "approved", "UNKNOWN", "STOPPED").Message ==
+             "Воспроизведение остановлено." &&
+         UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
+             "approved", "ACTIVE_REPLACEMENT", "PAUSED").Level ==
+             UserFacingPlaybackHealth.Severity.Neutral,
+         "W146 current-player pause/stop cannot inherit mapping or green source status");
     Test(UserFacingPlaybackHealth.Track("RESOLVING", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 normal resolving status is not a customer warning");

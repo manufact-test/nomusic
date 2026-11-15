@@ -721,7 +721,10 @@ public sealed partial class MainWindow
             _bridge.LastPlaybackState == "PLAYING" &&
             PlaybackSourceEvidence.Verified(
                 _bridge.Enabled, nativeStatus, _compactPresenceStatus);
-        var mappingOnly = heartbeatFresh &&
+        // File-info mapping remains a playback hint only while the CURRENT
+        // Yandex player is playing. On pause/stop show the actual playback
+        // state instead of resurrecting an older "pending source" label.
+        var mappingOnly = heartbeatFresh && _bridge.LastPlaybackState == "PLAYING" &&
             PlaybackSourceEvidence.MappedButUnverified(
                 _bridge.Enabled, nativeStatus, _compactPresenceStatus);
         var originalPlaying = heartbeatFresh && _bridge.Enabled &&
