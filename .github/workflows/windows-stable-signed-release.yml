@@ -1,6 +1,11 @@
 name: CELIKOM Windows P-256 signed stable release (manual)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/release/owner-bootstrap-0.24.38.trigger"
   workflow_dispatch:
     inputs:
       version:
@@ -42,9 +47,9 @@ jobs:
       public_key_der_base64: ${{ steps.derive-public-key.outputs.public_key_der_base64 }}
     env:
       CELIKOM_STABLE_ORIGIN: https://celikom.com
-      RELEASE_VERSION: ${{ inputs.version }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence }}
-      RELEASE_EXPIRES: ${{ inputs.expires_at }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.38' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '1' }}
+      RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
     steps:
       - uses: actions/checkout@v4
         with:

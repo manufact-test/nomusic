@@ -28,6 +28,9 @@ test("W155 release derives the public pin from the protected private key", () =>
   assert.match(releaseWorkflow, /windows-stable-key-public\.mjs/);
   assert.doesNotMatch(releaseWorkflow, /vars\.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64/);
   assert.match(releaseWorkflow, /default: '0\.24\.38'/);
+  assert.match(releaseWorkflow, /\.github\/release\/owner-bootstrap-0\.24\.38\.trigger/);
+  assert.match(releaseWorkflow, /inputs\.version \|\| '0\.24\.38'/);
+  assert.match(releaseWorkflow, /inputs\.sequence \|\| '1'/);
   assert.match(releaseWorkflow, /default: '1'/);
   assert.match(releaseWorkflow, /Leave blank to use an automatic 7-day UTC expiry/);
   assert.match(releaseWorkflow, /UtcNow\.AddDays\(7\)/);
