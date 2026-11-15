@@ -14,9 +14,9 @@ export async function verifyPreparedStableRelease(directory,{origin,version,
      !Number.isSafeInteger(sequence)||sequence<=0)bad("VERSION_OR_SEQUENCE_INVALID");
   let url;
   try{url=new URL(origin);}catch{bad("ORIGIN_INVALID");}
-  if(url.protocol!=="https:" || url.username || url.password ||
-     url.pathname!=="/" || url.search || url.hash || url.port ||
-     !/^(?:[a-z0-9-]+\.)*celikom\.com$/i.test(url.hostname))bad("ORIGIN_INVALID");
+  if(url.protocol!=="https:" || url.hostname!=="celikom.com" ||
+     url.username || url.password || url.pathname!=="/" ||
+     url.search || url.hash || url.port)bad("ORIGIN_INVALID");
   let publicKey;
   try{
     const key=Buffer.from(pinnedPublicKeyDerBase64,"base64");
