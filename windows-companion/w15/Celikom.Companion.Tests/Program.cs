@@ -1194,6 +1194,8 @@ try
          WindowsLaunchSettings.StartupApprovalIsEnabled(
              new byte[] { 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }) &&
          WindowsLaunchSettings.StartupApprovalIsEnabled(
+             new byte[] { 0x04, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }) &&
+         WindowsLaunchSettings.StartupApprovalIsEnabled(
              new byte[] { 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }) &&
          WindowsLaunchSettings.StartupApprovalIsEnabled(
              new byte[] { 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }),
