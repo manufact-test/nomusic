@@ -5935,7 +5935,7 @@ def inspect_lya_track_holder(apks, class_profiles):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("LYA_HOLDER_DEX_LIMIT")
@@ -5984,7 +5984,7 @@ def inspect_lya_track_holder(apks, class_profiles):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("LYA_CALLSITE_DEX_LIMIT")
