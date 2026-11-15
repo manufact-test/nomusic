@@ -109,7 +109,7 @@ Approved design:
 - Domain `celikom.com` is already purchased and is the fixed future production origin: `https://celikom.com`. DNS, TLS and public feed deployment are intentionally deferred until the product/infrastructure migration is complete. Prepare the code/config now, but do not attempt to publish to a non-existent HTTPS endpoint or change DNS early.
 - W148's current workflow still contains PFX/Authenticode certificate/fingerprint gates. That scaffold is **not the final approved design** and must be refactored in this task. Do not run it or ask the owner to buy a certificate.
 - Prepare one safe local key-provisioning script/command for the owner to run once only if required by GitHub's protected-secret permissions. Generate the private key on a trusted owner-controlled machine; use authenticated GitHub CLI to upload the secret without displaying the PEM. The assistant must never ask the owner to paste the private key into chat.
-- Test the updater end-to-end on the owner's PC after the bootstrap: detect → download during playback → verify → wait for safe point → Supervisor READY → in-place install → health check → forced one-shot rollback test. Preserve account, DPAPI, settings, native integration and music continuity.
+- Before migration, validate updater logic with automated/local fixtures only; do not claim production feed delivery. Test the updater end-to-end on the owner's PC only after the domain's DNS/TLS and signed feed are live: detect → download during playback → verify → wait for safe point → Supervisor READY → in-place install → health check → forced one-shot rollback test. Preserve account, DPAPI, settings, native integration and music continuity.
 - Windows may still apply its own policy to unsigned executables. Keep the current warning experience; never promise that P-256 manifest trust creates a Windows-verified publisher or bypasses SmartScreen/SAC. If a particular Windows policy blocks execution, report it honestly; never ask users to turn protection off.
 
 Production updater is not currently operational. W148 scripts/workflow are only scaffolding; no production P-256 secret/pin, HTTPS feed or owner bootstrap has been completed.
@@ -121,7 +121,7 @@ Only after Tasks 1–5 are complete:
 - Build exactly one coherent owner EXE+ZIP from `main`, with matching GUI/Supervisor/installer versions and hashes.
 - Ensure the final package includes the P-256 public pin and the future production origin `https://celikom.com`; the updater remains safely dormant until the domain's DNS/TLS/feed is actually live.
 - Deliver the one-time bootstrap package to the owner for installation over 0.24.37 with the same AppId. Verify account/session, DPAPI secrets, settings and native integration are preserved.
-- After migration activates DNS/TLS and the signed feed, verify a subsequent release updates automatically. No repeated manual downloads.
+- The app remains safely dormant until migration activates DNS/TLS and the signed feed. Then verify a subsequent release updates automatically. No repeated manual downloads.
 
 ## 3. Explicitly excluded from this work order
 
