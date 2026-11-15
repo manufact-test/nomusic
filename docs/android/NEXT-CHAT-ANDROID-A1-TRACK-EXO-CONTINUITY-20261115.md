@@ -1,3 +1,35 @@
+# SUPERSEDING CURRENT STATE — 15 Nov 2026, LDT0 Track/Flow split
+
+**Current code checkpoint:** `b250aba2ca5e7555995099683736be572f0ef578`  
+**CI:** [#43738914218](https://github.com/manufact-test/nomusic/actions/runs/43738914218) **SUCCESS, 80/80 tests**; exact pinned original verified (16 signed splits / 6 DEX).  
+**Exact code backup:** `backup/android-a1-ldt0-track-flow-origin-ci-green-20261115` @ the checkpoint above.  
+**Detailed audit:** `docs/android/ANDROID-A1-FLOW-MODE-AND-INTERFACE-CENSUS-20261115.md`.
+
+### Result of the one-callsite follow-up
+
+The only `Ljm4.for(Flow, Scope, Collector)` callsite inside `LDT0.<init>(Album, Track, ...)` is now classified:
+
+- Its Flow argument is the result of `LvF6.case(Album): Flow`. It is Album-derived, not derived from the Track parameter. Close this as a Track-to-Flow candidate.
+- The same constructor separately passes its exact Track parameter to `LSW6.if(Track, boolean)`.
+- It also passes that Track parameter to `LOW6.<init>(..., Track, ...)`.
+- These are exact local Java-reference/register-flow candidates. They do not yet establish player selection, runtime dispatch, decoder input or audio output.
+
+The focused signed-DEX audit remained read-only. CI passed 80/80; no APK, account/media access, runtime hook or vendor behavior change.
+
+### Next exact task — one bounded hop only
+
+Inspect only:
+1. `LSW6.if(Track, boolean)`
+2. `LOW6.<init>(..., Track, ...)`
+
+Follow the same Track parameter through exact field stores and method calls. Determine whether either path reaches a concrete player-selection/transport owner, source descriptor, or the already identified decoder/audio sink. If neither does, close this branch; do not broaden to generic Flow, MediaSession or decoder APIs.
+
+Do not return to the Album-derived `LDT0 → LvF6.case → Ljm4.for` branch.
+
+**Gates remain:** `active_selected_item_proven=false`; `same_native_item_to_decoder_proven=false`; CELIKOM replacement remains NOT CONNECTED. NAV17 Stage A remains owner-confirmed PASS; Stage B remains research-only / NO-GO for replacement. No release APK.
+
+---
+
 # SUPERSEDING CURRENT STATE — 15 Nov 2026, Flow mode audit
 
 **Current branch HEAD:** `7fc62e8d8469804b66ff58d2f17f6055fc51dd4a`  
