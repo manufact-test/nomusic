@@ -1111,7 +1111,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                 return {100:4,102:2}[offset]
         method=("LCaller;","run","()V")
         # const/4 v1, #1; move v2, v1
-        ins=[(0,0x12,[0x112]),(1,0x01,[0x2101])]
+        ins=[(0,0x12,[0x1112]),(1,0x01,[0x1201])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
             result=local_primitive_register_origin(
                 FakeDex(),method,0x8,100,ins,2,2
@@ -1125,7 +1125,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                 return {100:4,102:2}[offset]
         method=("LMode;","<init>","(I)V")
         # iput v1, v0, field@0; return-void
-        ins=[(0,0x59,[0x1059,0]),(1,0x0e,[0x000e])]
+        ins=[(0,0x59,[0x2359,0]),(1,0x0e,[0x000e])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",
                    return_value=("LMode;","default","I")):
