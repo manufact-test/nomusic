@@ -1288,7 +1288,7 @@ test("W151 re-enabling the bridge immediately reconciles an already-playing curr
 });
 
 test("W152 host preserves a source only while the exact current decoder is still playing",async()=>{
-  const grant=w54GainGrant("139",true);
+  const grant=w52Grant("139","123");
   const {debug}=w52Debugger();
   const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
     networkRecoveryPending:true};
