@@ -39,6 +39,35 @@ public static class UserFacingPlaybackHealth
         return new(Severity.Neutral, "Яндекс ещё не подключён.");
     }
 
+    // W141: this is the current-player view, separate from legacy native
+    // transition health. Silence, cached mapping and network bytes alone never
+    // prove either replacement or original audio.
+    public static Health CurrentTrack(string? nativeStatus, bool enabled,
+        string? presence, string? source, string? playbackState)
+    {
+        if (!enabled) return new(Severity.Neutral, "");
+        if (nativeStatus == "HOST_ERROR")
+            return new(Severity.Error, "Не удалось подключить модуль Яндекса.");
+        if (playbackState == "PAUSED")
+            return new(Severity.Neutral, "Пауза.");
+        if (playbackState == "STOPPED")
+            return new(Severity.Neutral, "Воспроизведение остановлено.");
+        if (playbackState == "PLAYING")
+        {
+            if (source == "ACTIVE_REPLACEMENT" &&
+                nativeStatus == "NATIVE_SOURCE_VERIFIED")
+                return new(Severity.Good, "Подмена активна · версия CELIKOM");
+            if (source == "ORIGINAL")
+                return new(Severity.Neutral, presence == "approved"
+                    ? "Играет оригинал. Версия CELIKOM доступна."
+                    : "Играет оригинал.");
+            return new(Severity.Neutral, "Источник текущего трека не подтверждён.");
+        }
+        if (nativeStatus == "NATIVE_SOURCE_FAILED")
+            return new(Severity.Error, "Не удалось подтвердить источник трека.");
+        return new(Severity.Neutral, "Ожидаем данные текущего плеера…");
+    }
+
     // Only explicitly observed failures may become customer-facing errors.
     // An unchanged native status is NOT evidence of disconnection: the host
     // sends heartbeats on transitions, not on every poll of a healthy track.

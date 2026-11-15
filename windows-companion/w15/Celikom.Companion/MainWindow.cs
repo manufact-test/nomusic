@@ -1490,8 +1490,15 @@ public sealed partial class MainWindow : Form
             ? "approved" : "none";
         var switchAvailable = connected && _nativeInstallState == NativeInstallState.Active &&
             _installedModule.MatchesApplication;
-        var sourceVerified = PlaybackSourceEvidence.Verified(switchAvailable && _bridge.Enabled, state, sourcePresence);
-        var mappingPending = PlaybackSourceEvidence.MappedButUnverified(switchAvailable && _bridge.Enabled, state, sourcePresence);
+        var heartbeatFresh = _bridge.HasFreshHeartbeat;
+        var sourceVerified = heartbeatFresh &&
+            _bridge.LastSource == "ACTIVE_REPLACEMENT" &&
+            _bridge.LastPlaybackState == "PLAYING" &&
+            PlaybackSourceEvidence.Verified(switchAvailable && _bridge.Enabled, state, sourcePresence);
+        var originalPlaying = heartbeatFresh &&
+            _bridge.LastSource == "ORIGINAL" && _bridge.LastPlaybackState == "PLAYING";
+        var mappingPending = heartbeatFresh &&
+            PlaybackSourceEvidence.MappedButUnverified(switchAvailable && _bridge.Enabled, state, sourcePresence);
         _start.Enabled = PlaybackStartGate.CanAcceptStart(
             _bridgeStarted, _integrationBusy, _updatingApplication,
             _compactStarting, switchAvailable, _bridge.Enabled, _closing);
@@ -1501,16 +1508,20 @@ public sealed partial class MainWindow : Form
         _connectionState.Text = !connected ? "Войти в аккаунт" :
             !switchAvailable ? "Нужно подключить" :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? "Нет связи" : "Выключен") :
-            sourceVerified ? "Источник выбран" :
+            !heartbeatFresh ? "Нет данных плеера" :
+            sourceVerified ? "Подмена активна" :
+            originalPlaying ? "Играет оригинал" :
             mappingPending ? "Ожидаем подтверждения" : "Сервис включён";
         _connectionState.ForeColor = sourceVerified ? Accent : Secondary;
         _switchHint.Text = _compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…" :
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? "Проверяем связь для возобновления подмены" : "Подмена выключена") :
+            !heartbeatFresh ? "Ожидаем актуальные данные текущего плеера." :
             sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :
+            originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
             mappingPending ? "Подмена подготовлена, но источник в плеере ещё не подтверждён." :
-            "Сервис включён. Замена текущей песни не подтверждена.";
+            "Сервис включён. Источник текущего трека неизвестен.";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {

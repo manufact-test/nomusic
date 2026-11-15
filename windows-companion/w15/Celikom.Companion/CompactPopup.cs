@@ -628,6 +628,7 @@ public sealed partial class MainWindow
         _signedInIdentity.Text = _api.Email;
         _start.Text = "Старт";
         var nativeStatus = _bridge.LastStatus;
+        var heartbeatFresh = _bridge.HasFreshHeartbeat;
         if (_compactStarting && _bridge.Enabled &&
             nativeStatus is "NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
                 "NATIVE_SOURCE_VERIFIED" or "ORIGINAL" or "RESOLVING")
@@ -640,7 +641,8 @@ public sealed partial class MainWindow
         // The only large-text message in the compact UI is actual startup.
         // Checking accounts, host preflight and warnings are internal states.
         _compactStartup.Text = _compactStarting && _bridge.Enabled
-            ? "Идёт загрузка Яндекс.Музыки…" : "";
+            ? heartbeatFresh ? "Ожидаем подтверждения плеера…"
+                : "Ожидаем данные Яндекс.Музыки…" : "";
         _compactStartup.ForeColor = Accent;
 
         var id = _bridge.LastSong;
@@ -654,7 +656,11 @@ public sealed partial class MainWindow
         }
         else
         {
-            _compactTrack.Text = "Запустите трек в Яндекс Музыке";
+            _compactTrack.Text = _bridge.Enabled
+                ? heartbeatFresh && _bridge.LastPlaybackState == "STOPPED"
+                    ? "Воспроизведение остановлено"
+                    : "Ожидаем текущий трек"
+                : "Запустите трек в Яндекс Музыке";
             _compactTrackArtist.Text = "";
         }
 
@@ -688,8 +694,9 @@ public sealed partial class MainWindow
         }
         var hostHealth = UserFacingPlaybackHealth.Host(
             _nativeInstallState, _hostReport, _installedModule.MatchesApplication);
-        var trackHealth = UserFacingPlaybackHealth.Track(_bridge.LastStatus,
-            _bridge.Enabled, _compactPresenceStatus);
+        var trackHealth = UserFacingPlaybackHealth.CurrentTrack(nativeStatus,
+            _bridge.Enabled, _compactPresenceStatus, _bridge.LastSource,
+            _bridge.LastPlaybackState);
         var hostProblem = hostHealth.Level is UserFacingPlaybackHealth.Severity.Error or
             UserFacingPlaybackHealth.Severity.Warning;
         var hostNeedsStart = !_bridge.Enabled && !_compactStarting && !_autoReconnectBusy &&
@@ -709,18 +716,26 @@ public sealed partial class MainWindow
             actionProblem ? _compactStartupText : "";
         // An accepted file-info mapping is not proof of sound. Only a CDP
         // decoder kUrl match for the CURRENT playing track may use green.
-        var activelyReplacing = PlaybackSourceEvidence.Verified(
-            _bridge.Enabled, _bridge.LastStatus, _compactPresenceStatus);
-        var mappingOnly = PlaybackSourceEvidence.MappedButUnverified(
-            _bridge.Enabled, _bridge.LastStatus, _compactPresenceStatus);
-        var originalPlaying = _bridge.Enabled &&
-            _bridge.LastStatus == "ORIGINAL" && _compactPresenceStatus == "approved";
+        var activelyReplacing = heartbeatFresh &&
+            _bridge.LastSource == "ACTIVE_REPLACEMENT" &&
+            _bridge.LastPlaybackState == "PLAYING" &&
+            PlaybackSourceEvidence.Verified(
+                _bridge.Enabled, nativeStatus, _compactPresenceStatus);
+        var mappingOnly = heartbeatFresh &&
+            PlaybackSourceEvidence.MappedButUnverified(
+                _bridge.Enabled, nativeStatus, _compactPresenceStatus);
+        var originalPlaying = heartbeatFresh && _bridge.Enabled &&
+            _bridge.LastSource == "ORIGINAL" &&
+            _bridge.LastPlaybackState == "PLAYING";
         _compactVersionStatus.Text = problemText.Length > 0 ? problemText :
             hostHint.Length > 0 ? hostHint :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
-            originalPlaying ? "Играет оригинал. Версия CELIKOM доступна." :
             activelyReplacing ? "Подмена активна · версия CELIKOM" :
-            mappingOnly ? "Версия CELIKOM передана Яндексу" :
+            originalPlaying ? trackHealth.Message :
+            mappingOnly ? "Источник текущего трека не подтверждён" :
+            _bridge.Enabled && _bridge.LastPlaybackState is "PAUSED" or "STOPPED"
+                ? trackHealth.Message :
+            _bridge.Enabled && !heartbeatFresh ? "Ожидаем текущий плеер" :
             _compactPresenceStatus switch
             {
                 "approved" => "Версия песни CELIKOM доступна для подмены",
