@@ -51,7 +51,7 @@ test("W155 refuses wrong pinned release identity and wrong domain",async t=>{
     .export({format:"der",type:"spki"}).toString("base64");
   await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
     origin,version,sequence,pinnedPublicKeyDerBase64:other
-  }),/SIGNATURE_INVALID/);
+  }),/BOUNDS_OR_PUBLIC_KEY_FILE_INVALID/);
   for (const wrongOrigin of ["https://darkred-camel-588676.hostingersite.com",
     "https://updates.celikom.com","https://www.celikom.com"]) {
     await assert.rejects(()=>verifyPreparedStableRelease(f.root,{
