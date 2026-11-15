@@ -275,6 +275,25 @@ public final class StageBAudioEvidenceTest {
         bucket(readGate.exportLines(),39,"TRACK_SOURCE_UNOPENED_READ","FEW");
         readGate.onExoSourceInstanceOpen(gs);
         readGate.onExoSourceInstanceRead(gs,512);
+        // Rebinding did NOT create a new source instance: distinct == stays 1.
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        // A failed reopen must not inherit the previous positive open proof.
+        readGate.onExoSourceInstanceOpenAttempt(gs);
+        readGate.onExoSourceInstanceRead(gs,2);
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        bucket(readGate.exportLines(),39,"TRACK_SOURCE_UNOPENED_READ","FEW");
+        readGate.onExoSourceInstanceOpen(gs);
+        readGate.onExoSourceInstanceRead(gs,2);
+        bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
+        // A genuinely different source instance counts as a second one.
+        Object gd3=new Object(),gf3=new Object(),gs3=new Object();
+        readGate.enterNativeMainSourceRequest(gw,null);
+        readGate.onNativeExoDescriptorBuiltForCurrentWrapper(gd3);
+        readGate.exitNativeMainSourceRequest();
+        readGate.onExoFactoryCreated(gd3,gf3);
+        readGate.onExoSourceInstanceCreated(gs3,gf3);
+        readGate.onExoSourceInstanceOpen(gs3);
+        readGate.onExoSourceInstanceRead(gs3,2);
         bucket(readGate.exportLines(),40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","FEW");
 
         Object different=new Object();
@@ -370,6 +389,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn('Class.forName("RAa",false,loader)', code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceCreated( result,chain.getThisObject());", " ".join(code.split()))
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
+        self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceRead(", code)
         self.assertIn("STAGE_B_AUDIO.onExoOpen()", code)
         self.assertIn("STAGE_B_AUDIO.onExoReadResult(", code)

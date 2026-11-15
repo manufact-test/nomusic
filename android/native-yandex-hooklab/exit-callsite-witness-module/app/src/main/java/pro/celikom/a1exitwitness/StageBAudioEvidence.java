@@ -19,6 +19,10 @@ final class StageBAudioEvidence {
     // Neither source identity, URL nor track fields are ever serialized.
     private final ArrayList<WeakReference<Object>> nativeDescriptors = new ArrayList<>();
     private final ArrayList<WeakReference<Object>> exoSourceInstances = new ArrayList<>();
+    // True distinct source *instances*, even after rebind/retry. This bounded
+    // weak identity set is independent of track-link generations.
+    private final ArrayList<WeakReference<Object>> distinctLinkedReadSources =
+        new ArrayList<>();
     private final AtomicLong exoSourceReadProbeBudget = new AtomicLong();
     private final AtomicLong exoSourceInstancesCreated = new AtomicLong();
     private final AtomicLong exoSourceInstancesOpened = new AtomicLong();
@@ -479,6 +483,15 @@ final class StageBAudioEvidence {
         return false;
     }
 
+    void onExoSourceInstanceOpenAttempt(Object source) {
+        synchronized(this) {
+            NativeTrackSourceLink link=findBySource(source);
+            if (link!=null) link.sourceOpened=false;
+            // An open attempt that throws must revoke earlier proof. A
+            // successful attempt separately restores it after proceed().
+        }
+    }
+
     void onExoSourceInstanceOpen(Object source) {
         if (sameExoSource(source)) mark(exoSourceInstancesOpened);
         synchronized(this) {
@@ -489,6 +502,19 @@ final class StageBAudioEvidence {
                 mark(trackSourceOpenLinks);
             }
         }
+    }
+
+    private void markDistinctLinkedReadSource(Object source) {
+        if (source==null) return;
+        for (int i=distinctLinkedReadSources.size()-1;i>=0;i--) {
+            Object prior=distinctLinkedReadSources.get(i).get();
+            if (prior==source) return;
+            if (prior==null) distinctLinkedReadSources.remove(i);
+        }
+        if (distinctLinkedReadSources.size()>=16)
+            distinctLinkedReadSources.remove(0);
+        distinctLinkedReadSources.add(new WeakReference<>(source));
+        mark(trackSourceDistinctPositiveReads);
     }
 
     void onExoSourceInstanceRead(Object source,int count) {
@@ -507,7 +533,7 @@ final class StageBAudioEvidence {
                         mark(trackSourceReadLinks);
                         if (!link.sourceReadAfterOpen) {
                             link.sourceReadAfterOpen=true;
-                            mark(trackSourceDistinctPositiveReads);
+                            markDistinctLinkedReadSource(source);
                         }
                     }
                 } else if (firstAtMost(trackSourceUnopenedProbeBudget,16)) {

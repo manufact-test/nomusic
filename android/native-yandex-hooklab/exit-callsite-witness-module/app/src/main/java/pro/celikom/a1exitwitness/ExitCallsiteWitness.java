@@ -2868,6 +2868,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                     hook(open).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
                             try {
+                                STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(
+                                    chain.getThisObject());
+                            } catch (Throwable ignored) { }
+                            try {
                                 Object result = chain.proceed(); // single real open
                                 try {
                                     STAGE_B_AUDIO.onExoOpen();
