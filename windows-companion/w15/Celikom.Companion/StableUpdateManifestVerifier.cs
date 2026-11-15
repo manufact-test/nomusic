@@ -87,11 +87,39 @@ public static class StableUpdateManifestVerifier
             throw new InvalidDataException("STABLE_MANIFEST_SIGNATURE_INVALID");
         }
 
+        JsonDocument parsedDocument;
+        try { parsedDocument = JsonDocument.Parse(document); }
+        catch (JsonException)
+        {
+            throw new InvalidDataException("STABLE_MANIFEST_JSON_INVALID");
+        }
+        using var parsed = parsedDocument;
+        var root = parsed.RootElement;
+        string[] requiredFields =
+        [
+            "schema", "channel", "version", "sequence", "packageUrl",
+            "packageSize", "sha256", "publisher", "publishedAt", "expiresAt",
+            "minimumVersion", "mandatory", "notes", "rollback",
+            "applicationSha256", "nativeHostSha256", "rendererSha256",
+            "supervisorSha256"
+        ];
+        if (root.ValueKind != JsonValueKind.Object ||
+            requiredFields.Any(field => !root.TryGetProperty(field, out _)) ||
+            !root.TryGetProperty("mandatory", out var mandatoryElement) ||
+                mandatoryElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False) ||
+            !root.TryGetProperty("notes", out var notesElement) ||
+                notesElement.ValueKind != JsonValueKind.String ||
+            !root.TryGetProperty("minimumVersion", out var minimumElement) ||
+                minimumElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.String) ||
+            !root.TryGetProperty("rollback", out var rollbackElement) ||
+                rollbackElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.Object))
+            throw new InvalidDataException("STABLE_MANIFEST_JSON_INVALID");
+
         Manifest? raw;
         try
         {
             raw = JsonSerializer.Deserialize<Manifest>(document,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = false });
         }
         catch (JsonException)
         {
@@ -135,7 +163,7 @@ public static class StableUpdateManifestVerifier
             ? rollbackFrom is not null || target != Normalize(runningVersion)
             : rollbackFrom is null && target <= Normalize(runningVersion))
             throw new InvalidDataException("STABLE_MANIFEST_VERSION_INVALID");
-        if (!string.IsNullOrWhiteSpace(raw.MinimumVersion) &&
+        if (raw.MinimumVersion is not null &&
             (!TryVersion(raw.MinimumVersion, out var minimum) ||
              Normalize(runningVersion) < minimum))
             throw new InvalidDataException("STABLE_MANIFEST_MINIMUM_VERSION_INVALID");
@@ -167,7 +195,7 @@ public static class StableUpdateManifestVerifier
                 StringComparison.Ordinal))
             throw new InvalidDataException("STABLE_MANIFEST_PACKAGE_INVALID");
 
-        if (raw.Notes is { Length: > 240 })
+        if (raw.Notes is null or { Length: > 240 })
             throw new InvalidDataException("STABLE_MANIFEST_NOTES_INVALID");
         return new VerifiedRelease(target, raw.Sequence, url, raw.PackageSize,
             raw.Sha256!, expires, raw.Mandatory, raw.Notes ?? "", rollbackFrom,
