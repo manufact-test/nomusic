@@ -588,7 +588,8 @@ def inspect_signed(apks):
         (MODEL, "super"), (ALBUM_MODEL, "if"), ("LGp0;", "new"),
         ("LDp0;", "if"), ("LDp0;", "emit"), ("LDp0;", "<init>"),
         ("Lwp0$a;", "emit"), ("Lwp0$a;", "<init>"), ("Ljm4;", "for"),
-        ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>")
+        ("Lam4;", "invokeSuspend"), ("Lam4;", "<init>"),
+        ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -621,7 +622,7 @@ def inspect_signed(apks):
                     album_methods, reads = class_member_field_reads(dex, ALBUM_MODEL)
                     album_accessor_field_reads.extend(reads)
                 for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;",
-                                     "LGl4;", "Ljm4;", "Lk1a;", "Lam4;"):
+                                     "LGl4;", "Ljm4;", "Lk1a;", "Lam4;", "LFp0;"):
                     if target_class in defined:
                         flow_dispatcher_class_fields[target_class] = [
                             {"field": name, "type": typ}
@@ -748,6 +749,10 @@ def inspect_signed(apks):
         ],
         "flow_dispatcher_instantiation_and_collect_sites": flow_dispatcher_instantiation_sites,
         "focused_native_model_to_wrapper_method_traces": focused_method_traces,
+        "coroutine_fp0_trace_candidates_only": [
+            t for t in focused_method_traces
+            if t["method"]["owner"] == "LFp0;"
+        ],
         "descriptor_builder_callers": descriptor_builder_callers,
         "public_player_selection_method_refs": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
