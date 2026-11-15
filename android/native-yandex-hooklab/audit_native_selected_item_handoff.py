@@ -2713,6 +2713,7 @@ def trace_native_track_coroutine_continuation(
             work.append((target,out_key))
 
     stores=[]
+    raw_track_field_store_sites=[]
     reads=[]
     string_reads=[]
     wrapper_ctors=[]
@@ -2737,6 +2738,15 @@ def trace_native_track_coroutine_continuation(
             field_owner,_field_name,field_type=field_id(dex,words[1])
             receiver_origins=state.get(receiver,frozenset())
             value_origins=state.get(value,frozenset())
+            if field_type==MODEL:
+                raw_row={
+                    "pc":pc,"field_slot":words[1],
+                    "field_owner":field_owner,
+                    "receiver_origins":sorted(receiver_origins),
+                    "source_origins":sorted(value_origins)
+                }
+                if raw_row not in raw_track_field_store_sites:
+                    raw_track_field_store_sites.append(raw_row)
             if field_owner==continuation_owner and field_type==MODEL and (
                 "NEW_LFp0_CONTINUATION" in receiver_origins
                 or "REUSED_LFp0_CONTINUATION" in receiver_origins
@@ -2934,6 +2944,7 @@ def trace_native_track_coroutine_continuation(
         "exception_handler_edges_included":False,
         "branch_sites":reachable_branches,
         "track_parameter_capture_store_candidates":stores,
+        "raw_track_field_store_sites":raw_track_field_store_sites,
         "continuation_track_field_reads":reads,
         "same_field_slot_store_to_resume_read_candidates":matching_reads,
         "track_string_field_read_sites":string_reads,
