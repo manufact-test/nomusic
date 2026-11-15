@@ -380,7 +380,11 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
             "caller_owner_has_collection_field_call_site_count": 0,
             "caller_owner_has_numeric_field_call_site_count": 0,
             "caller_owner_has_player_api_field_call_site_count": 0,
+            "caller_owner_implements_player_api_call_site_count": 0,
+            "caller_owner_has_media_session_field_call_site_count": 0,
+            "caller_owner_has_decoder_field_call_site_count": 0,
             "caller_owner_has_source_like_field_call_site_count": 0,
+            "caller_owner_has_kotlin_flow_field_call_site_count": 0,
             "caller_method_keys": set(),
         }
         for owner in sorted(candidate_owners)
@@ -528,8 +532,20 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                                 row["caller_owner_has_player_api_field_call_site_count"] += (
                                     caller_profile["has_player_api_field"]
                                 )
+                                row["caller_owner_implements_player_api_call_site_count"] += (
+                                    caller_profile["implements_player_api"]
+                                )
+                                row["caller_owner_has_media_session_field_call_site_count"] += (
+                                    caller_profile["has_media_session_field"]
+                                )
+                                row["caller_owner_has_decoder_field_call_site_count"] += (
+                                    caller_profile["has_decoder_field"]
+                                )
                                 row["caller_owner_has_source_like_field_call_site_count"] += (
                                     caller_profile["has_source_like_field"]
+                                )
+                                row["caller_owner_has_kotlin_flow_field_call_site_count"] += (
+                                    caller_profile["has_kotlin_flow_field"]
                                 )
                                 if len(regs) == len(target_types):
                                     for index, typ in enumerate(target_types):
@@ -555,8 +571,9 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                             receiver = (words[0] >> 12) & 15
                             _field_owner, _field_name, field_type = field_id(dex, words[1])
                             for aliases in (
-                                track_field_aliases, album_field_aliases,
-                                wrapper_field_aliases
+                                track_param_aliases, album_param_aliases,
+                                wrapper_param_aliases, track_field_aliases,
+                                album_field_aliases, wrapper_field_aliases
                             ):
                                 aliases.discard(dest)
                             this_register = (
