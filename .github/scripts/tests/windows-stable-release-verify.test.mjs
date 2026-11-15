@@ -238,14 +238,16 @@ test("W155 local publisher rehearsal promotes a signed release and rejects a cha
   await makeStage(nextStage,nextApp,nextBytes,nextDoc,nextSignature);
 
   await writeFile(join(dest,"latest.json"),Buffer.concat([firstDoc,Buffer.from("\n")]));
-  let changedPriorRejected=false;
+  let changedPriorRejected=false,refusalOutput="";
   try{
     runRemote(nextStage,nextVersion,2,nextApp,1,priorManifestSha,priorSignatureSha);
   }catch(error){
+    refusalOutput=String(error.stdout)+String(error.stderr)+String(error.message);
     changedPriorRejected=error.status===3&&
-      (String(error.stdout)+String(error.stderr)).includes("W155_EXISTING_LATEST_BYTES_CHANGED");
+      refusalOutput.includes("W155_EXISTING_LATEST_BYTES_CHANGED");
   }
-  assert.ok(changedPriorRejected,"publisher must refuse a feed changed after its signed preflight");
+  assert.ok(changedPriorRejected,
+    "publisher must refuse a feed changed after its signed preflight; output: "+refusalOutput);
 
   await writeFile(join(dest,"latest.json"),firstDoc);
   assert.match(runRemote(nextStage,nextVersion,2,nextApp,1,priorManifestSha,priorSignatureSha),
