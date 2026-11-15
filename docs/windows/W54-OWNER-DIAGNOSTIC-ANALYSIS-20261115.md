@@ -64,7 +64,7 @@ The second capture reports:
 
 The companion correctly marks the current source as held during the transient network suspension. On re-enable, however, it performs a current-source revalidation and replacement reload for the same current track. This matches the owner's report of an unnecessary post-VPN source transition.
 
-The current host preservation predicate in `windows-companion/w23/host.cjs` calls `currentDecoderPlayer(...)`. That function requires a player whose `kIsPlaying` is true **and** whose `sourceTrackId` was populated by a matching signed CDP `kUrl`. W54 explicitly reports that the Yandex build does not expose `kUrl`. As a result, `preserveCurrentSource` is not set for this owner configuration, and the renderer takes the revalidation/reload branch. The existing W157 regression tests only cover the `kUrl`-available case.
+Before the partial correction in commit `23538cab793be9d1381790d4c304db3cd4d4b417`, the host preservation predicate in `windows-companion/w23/host.cjs` called `currentDecoderPlayer(...)`. That required a player whose `kIsPlaying` was true **and** whose `sourceTrackId` came from a matching signed CDP `kUrl`. W54 reports that the owner's Yandex build does not expose `kUrl`, so the original W157 code could not set `preserveCurrentSource`; the renderer took the revalidation/reload branch. The no-`kUrl` host regression has since been added, but its fail-closed matrix remains to be completed.
 
 This means the W157 exact-decoder path is valid for builds that expose the property, but it does **not** close the actual W54 case. Do not report VPN continuity as complete and do not build the final package yet.
 
