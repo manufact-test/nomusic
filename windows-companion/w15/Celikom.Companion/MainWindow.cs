@@ -1369,7 +1369,7 @@ public sealed partial class MainWindow : Form
         {
             await StableUpdateBootstrapper.EnsureInitialLastKnownGoodAsync(
                 trust.OfficialOrigin, trust.ManifestPublicKeyDer,
-                trust.SignerCertificateSha256).ConfigureAwait(false);
+                trust.ManifestPublicKeySha256).ConfigureAwait(false);
             DiagnosticLog.Record("STABLE_ROLLBACK_BOOTSTRAP_READY");
         }
         catch
