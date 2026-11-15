@@ -3417,6 +3417,7 @@ def trace_coroutine_callsite_argument_origins(
     this_register=None if flags&ACC_STATIC else (
         dex.u16(code_off)-dex.u16(code_off+2)
     )
+    target_registers={track_register,continuation_register}
     initial_registers={}
     for reg in track_parameters:
         initial_registers[reg]=frozenset({"ORIGINAL_TRACK_PARAMETER"})
@@ -3505,6 +3506,8 @@ def trace_coroutine_callsite_argument_origins(
                 continuation_owner,continuation_type,"Lkotlin/coroutines/Continuation;"
             ):
                 regs[dest]={"UNLINKED_CONTINUATION_RETURN_CANDIDATE"}
+            elif dest in target_registers:
+                regs[dest]={"UNCLASSIFIED_MOVE_RESULT_OBJECT_RETURN"}
             pending=None
         elif op in (0x07,0x08,0x09):  # move-object keeps Java reference identity
             move=move_object_registers(op,words)
@@ -3514,6 +3517,8 @@ def trace_coroutine_callsite_argument_origins(
                 clear(dest)
                 if origins:
                     regs[dest]=origins
+                elif dest in target_registers:
+                    regs[dest]={"UNCLASSIFIED_MOVE_OBJECT_SOURCE"}
             pending=None
         elif op==0x22:  # new-instance
             dest=(words[0]>>8)&0xff
@@ -3523,6 +3528,8 @@ def trace_coroutine_callsite_argument_origins(
                 regs[dest]={"NEW_TRACK_OBJECT"}
             elif typ==continuation_owner:
                 regs[dest]={"NEW_LFp0_CONTINUATION"}
+            elif dest in target_registers:
+                regs[dest]={"UNCLASSIFIED_NEW_INSTANCE_TYPE"}
             pending=None
         elif op==0x1f:  # check-cast preserves exact object identity
             reg=(words[0]>>8)&0xff
@@ -3547,6 +3554,9 @@ def trace_coroutine_callsite_argument_origins(
                     origins.add("OBJECT_PARAMETER_CAST_TO_CONTINUATION")
                 if "UNLINKED_OBJECT_RETURN_CANDIDATE" in origins:
                     origins.add("UNLINKED_OBJECT_RETURN_CAST_TO_CONTINUATION")
+            if not origins and reg in target_registers:
+                origins.add("UNCLASSIFIED_CHECK_CAST_SOURCE")
+                regs[reg]=origins
             pending=None
         elif op==0x54:  # iget-object; only type and receiver identity are inspected
             dest=(words[0]>>8)&15
@@ -3571,6 +3581,8 @@ def trace_coroutine_callsite_argument_origins(
                 continuation_owner,continuation_type,"Lkotlin/coroutines/Continuation;"
             ):
                 regs[dest]={"CONTINUATION_FROM_FIELD"}
+            elif dest in target_registers:
+                regs[dest]={"UNCLASSIFIED_TYPED_FIELD_READ"}
             pending=None
         elif op==0x62:  # sget-object
             dest=(words[0]>>8)&0xff
@@ -3582,6 +3594,8 @@ def trace_coroutine_callsite_argument_origins(
                 continuation_owner,continuation_type,"Lkotlin/coroutines/Continuation;"
             ):
                 regs[dest]={"CONTINUATION_FROM_STATIC_FIELD"}
+            elif dest in target_registers:
+                regs[dest]={"UNCLASSIFIED_STATIC_FIELD_READ"}
             pending=None
         elif op==0x46:  # aget-object is a collection element, not Track identity proof
             dest=(words[0]>>8)&0xff
@@ -3597,6 +3611,8 @@ def trace_coroutine_callsite_argument_origins(
                 dest=written_register(op,words)
                 if dest is not None:
                     clear(dest)
+                    if dest in target_registers:
+                        regs[dest]={"UNCLASSIFIED_NONZERO_CONSTANT"}
             pending=None
         elif op in (0x5b,0x67):  # field stores do not change source-register identity
             pending=None
@@ -3604,8 +3620,12 @@ def trace_coroutine_callsite_argument_origins(
             dest=written_register(op,words)
             if dest is not None:
                 clear(dest)
+                if dest in target_registers:
+                    regs[dest]={f"UNCLASSIFIED_REGISTER_WRITE_OPCODE_{op:02x}"}
                 if op in wide_ops:
                     clear(dest+1)
+                    if dest+1 in target_registers:
+                        regs[dest+1]={f"UNCLASSIFIED_WIDE_REGISTER_WRITE_OPCODE_{op:02x}"}
             pending=None
         return {
             "registers":{r:frozenset(v) for r,v in regs.items() if v},

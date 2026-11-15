@@ -1069,6 +1069,34 @@ class SelectedItemAuditTests(unittest.TestCase):
         )
         self.assertNotIn("privateTrack",str(result))
 
+    def test_callsite_origin_trace_labels_untracked_move_object_source(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+            def method(self,index):
+                return ("LGp0;","new",
+                        "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        method=("LCaller;","call",
+                "(Lru/yandex/music/data/audio/o;LOe2;)V")
+        ins=[
+            (0,0x07,[0x1007]),
+            (1,0x71,[0x0071,9,0]),
+            (4,0x0e,[0x000e])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            result=trace_coroutine_callsite_argument_origins(
+                FakeDex(),method,0x8,100,1,2,1
+            )
+        self.assertEqual(
+            result["continuation_argument_origin_classification"],
+            "PATH_DEPENDENT_OR_UNCLASSIFIED"
+        )
+        self.assertIn(
+            "UNCLASSIFIED_MOVE_OBJECT_SOURCE",
+            result["continuation_argument_origin_paths"][0]
+        )
+
     def test_callsite_origin_trace_marks_continuation_field_read_as_candidate(self):
         from unittest.mock import patch
         class FakeDex:
