@@ -22,5 +22,5 @@ test("W155 offline P256 generator never prints or commits a private key",async t
  if(process.platform!=="win32") {
    assert.equal((await lstat(join(dir,"manifest-private.pem"))).mode&0o077,0);
  }
- await assert.rejects(()=>createOfflineStableManifestKeypair(dir),/EEXIST/);
+ await assert.rejects(()=>createOfflineStableManifestKeypair(dir),/W155_KEY_DIR_NOT_EMPTY/);
 });

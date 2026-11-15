@@ -31,7 +31,7 @@ jobs:
           coverage: none
       - name: W113/W148 signed stable release and production trust contract
         run: |
-          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs
+          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs
           bash -n .github/scripts/windows-stable-publish-hostinger.sh
       - name: Validate Hostinger workflow YAML and owner-scoped private gain staging scripts
         run: |

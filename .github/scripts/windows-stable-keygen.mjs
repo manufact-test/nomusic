@@ -1,5 +1,5 @@
 import {generateKeyPairSync,createHash} from "node:crypto";
-import {mkdir,writeFile,lstat} from "node:fs/promises";
+import {mkdir,writeFile,lstat,readdir} from "node:fs/promises";
 import {resolve,join} from "node:path";
 import {pathToFileURL} from "node:url";
 
@@ -10,9 +10,12 @@ import {pathToFileURL} from "node:url";
 export async function createOfflineStableManifestKeypair(output) {
   if(typeof output!=="string" || !output.trim()) throw Error("W155_KEY_DIR_MISSING");
   const dir=resolve(output);
-  await mkdir(dir,{mode:0o700});
+  await mkdir(dir,{mode:0o700}).catch(error=>{
+    if(error?.code!=="EEXIST")throw error;
+  });
   const status=await lstat(dir);
   if(!status.isDirectory()||status.isSymbolicLink())throw Error("W155_KEY_DIR_UNSAFE");
+  if((await readdir(dir)).length!==0)throw Error("W155_KEY_DIR_NOT_EMPTY");
   const {privateKey,publicKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const privatePem=privateKey.export({type:"pkcs8",format:"pem"});
   const der=publicKey.export({type:"spki",format:"der"});
