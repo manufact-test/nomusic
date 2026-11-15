@@ -10,6 +10,8 @@ origin="$CELIKOM_STABLE_ORIGIN"; root="$CELIKOM_STABLE_DEPLOY_ROOT"
   echo W155_ORIGIN_NOT_APPROVED; exit 2; }
 [[ "$root" == "/home/u235811320/domains/celikom.com/public_html" ]] || {
   echo W155_HOSTINGER_ROOT_NOT_APPROVED; exit 2; }
+[[ "$GITHUB_RUN_ID" =~ ^[0-9]{1,20}$ ]] || {
+  echo W155_GITHUB_RUN_ID_INVALID; exit 2; }
 [[ -n "$HOSTINGER_SSH_KEY" && -n "$CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64" ]] || {
   echo W155_DEPLOY_SECRETS_MISSING; exit 2; }
 node .github/scripts/windows-stable-release-verify.mjs "$release_dir" "$version" "$sequence"
