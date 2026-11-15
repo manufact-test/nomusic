@@ -151,7 +151,7 @@ The existing bounded signed-DEX census covered 16 shared Track/Album or Track/wr
 - a Track parameter is passed to a Track/Album constructor;
 - a Track plus wrapper fields are passed to a continuation constructor.
 
-Neither handoff proves the currently selected Track or connects to the renderer. Do not repeat the 16-owner census.
+Neither handoff proves the currently selected Track or connects to the renderer. Do not repeat the 16-owner census. The separate direct Track-to-source coroutine candidate remains download-related, not current playback.
 
 ### Renderer CFG result
 

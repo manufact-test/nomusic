@@ -45,7 +45,7 @@ The same signed-DEX report still has:
 - The only two typed identity handoffs lead to auxiliary constructors, not to a proven current selected item.
 - No Edition/Generation type descriptor or named/typed Edition/Generation field on Track or Album.
 
-The exact missing link is the owner of the currently selected Track/Album and an identity edge from that owner to this decoder/render path. Queue, prefetch, download and helper constructors are not evidence of active playback.
+The exact missing link is the owner of the currently selected Track/Album and an identity edge from that owner to this decoder/render path. Queue, prefetch, download and helper constructors are not evidence of active playback. The known direct Track-to-source coroutine candidate is download-related and is explicitly excluded from the playback chain.
 
 ## Strict interpretation
 
