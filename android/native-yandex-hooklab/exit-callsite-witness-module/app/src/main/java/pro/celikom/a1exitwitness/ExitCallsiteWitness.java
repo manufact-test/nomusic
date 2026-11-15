@@ -2633,22 +2633,26 @@ public final class ExitCallsiteWitness extends XposedModule {
                 Class<?> track=Class.forName("ru.yandex.music.data.audio.o",false,loader);
                 Class<?> album=Class.forName("ru.yandex.music.data.audio.Album",false,loader);
                 Constructor<?>[] constructors=track.getDeclaredConstructors();
-                if (constructors.length!=2)
-                    throw new NoSuchMethodException("SIGNED_TRACK_CONSTRUCTOR_SHAPE");
-                int[] albumArguments=new int[constructors.length];
-                for (int c=0;c<constructors.length;c++) {
-                    Class<?>[] parameters=constructors[c].getParameterTypes();
+                java.util.ArrayList<Constructor<?>> albumConstructors=
+                    new java.util.ArrayList<>();
+                java.util.ArrayList<Integer> albumArguments=new java.util.ArrayList<>();
+                for (Constructor<?> candidate:constructors) {
+                    Class<?>[] parameters=candidate.getParameterTypes();
                     int found=-1,amount=0;
                     for (int i=0;i<parameters.length;i++) {
                         if (parameters[i]==album) { found=i; amount++; }
                     }
+                    if (amount==0) continue; // ignore synthetic non-Album overloads
                     if (amount!=1)
                         throw new NoSuchMethodException("SIGNED_TRACK_ALBUM_ARGUMENT");
-                    albumArguments[c]=found;
+                    albumConstructors.add(candidate);
+                    albumArguments.add(found);
                 }
-                for (int c=0;c<constructors.length;c++) {
-                    final int albumArgumentIndex=albumArguments[c];
-                    Constructor<?> constructor=constructors[c];
+                if (albumConstructors.size()!=2)
+                    throw new NoSuchMethodException("SIGNED_TRACK_ALBUM_CONSTRUCTOR_COUNT");
+                for (int c=0;c<albumConstructors.size();c++) {
+                    final int albumArgumentIndex=albumArguments.get(c);
+                    Constructor<?> constructor=albumConstructors.get(c);
                     constructor.setAccessible(true);
                     hook(constructor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
