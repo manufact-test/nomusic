@@ -212,6 +212,62 @@ def model_parameter_registers(dex: Dex, method, flags: int, code_off: int):
     return found
 
 
+def album_constructor_argument_store(dex: Dex, method, flags: int, code_off: int):
+    """Prove an Album constructor argument is stored on THIS Track instance.
+
+    Only object-register identity is followed. No Album or Track field values
+    are decoded, serialized or returned.
+    """
+    if method[0] != MODEL or method[1] != "<init>" or flags & ACC_STATIC:
+        return None
+    params = parse_types(method[2])
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise DexError("ALBUM_CTOR_INS_SIZE")
+    this_register = registers_size - ins_size
+    register = this_register + 1
+    album_params = []
+    for index, typ in enumerate(params):
+        if typ == ALBUM_MODEL:
+            album_params.append((index, register))
+        register += 2 if typ in ("J", "D") else 1
+    if len(album_params) != 1:
+        return None
+    album_index, album_register = album_params[0]
+    aliases = {album_register}
+    stored_on_this = False
+    for _pc, op, words in instructions(dex, code_off):
+        if op in (0x07, 0x08, 0x09):
+            move = move_object_registers(op, words)
+            if move is not None:
+                dest, source = move
+                if source in aliases:
+                    aliases.add(dest)
+                else:
+                    aliases.discard(dest)
+        elif op == 0x5b:  # iput-object
+            value_register = (words[0] >> 8) & 15
+            receiver_register = (words[0] >> 12) & 15
+            owner, _name, typ = field_id(dex, words[1])
+            if (owner == MODEL and typ == ALBUM_MODEL
+                    and receiver_register == this_register
+                    and value_register in aliases):
+                stored_on_this = True
+        elif op == 0x1f:  # check-cast preserves the object reference
+            pass
+        else:
+            dest = written_register(op, words)
+            if dest is not None:
+                aliases.discard(dest)
+            if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+                aliases.clear()
+    return {
+        "album_parameter_index": album_index,
+        "stores_same_album_argument_on_track": stored_on_this,
+    }
+
+
 def straight_line_model_flow(dex: Dex, method, flags: int, code_off: int):
     model_params = model_parameter_registers(dex, method, flags, code_off)
     if not model_params:
@@ -584,6 +640,7 @@ def inspect_signed(apks):
     album_methods = []
     model_accessor_field_reads = []
     album_accessor_field_reads = []
+    track_album_constructor_rows = []
     wrapper_constructor_callsites = []
     model_referenced_methods = []
     descriptor_builder_callers = []
@@ -664,6 +721,13 @@ def inspect_signed(apks):
                     if method[0] == "LGl4;":
                         flow_source_interface_methods.add(method)
                 for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method[0] == MODEL and method[1] == "<init>":
+                        album_row = album_constructor_argument_store(
+                            dex, method, flags, code_off)
+                        if album_row is not None:
+                            if len(track_album_constructor_rows) >= 8:
+                                raise ValueError("TRACK_ALBUM_CTOR_BOUND")
+                            track_album_constructor_rows.append(album_row)
                     if method == (
                         "Lcom/yandex/music/shared/player/download2/exo/"
                         "RetryingBalancingDataSource;", "close", "()V"
@@ -837,6 +901,21 @@ def inspect_signed(apks):
         ],
         "native_track_model_accessor_field_reads": model_accessor_field_reads[:MAX_METHODS],
         "native_album_model": ALBUM_MODEL if album_defined else None,
+        "native_track_album_reference_static": {
+            "track_album_typed_field_count": sum(
+                typ == ALBUM_MODEL for typ in model_fields.values()),
+            "constructors_with_one_album_argument": len(track_album_constructor_rows),
+            "constructors_storing_same_album_argument_on_track": sum(
+                row["stores_same_album_argument_on_track"]
+                for row in track_album_constructor_rows),
+            "proven": (
+                sum(typ == ALBUM_MODEL for typ in model_fields.values()) == 1
+                and len(track_album_constructor_rows) == 2
+                and all(row["stores_same_album_argument_on_track"]
+                        for row in track_album_constructor_rows)
+            ),
+            "private_field_names_disclosed": False,
+        },
         "native_album_model_field_names_and_types": [
             {"field": name, "type": typ}
             for name, typ in sorted(album_fields.items())

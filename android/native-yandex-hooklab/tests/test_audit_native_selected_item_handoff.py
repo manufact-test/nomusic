@@ -23,6 +23,46 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(ALBUM_MODEL, "Lru/yandex/music/data/audio/Album;")
         self.assertNotEqual(ALBUM_MODEL, MODEL)
 
+    def test_album_constructor_verifier_requires_same_object_stored_on_track(self):
+        from unittest.mock import patch
+        from audit_native_selected_item_handoff import (
+            album_constructor_argument_store, ALBUM_MODEL
+        )
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:2}[offset]
+        method=(MODEL,"<init>",f"({ALBUM_MODEL})V")
+        direct=[(0,0x5b,[0x205b,0]),(1,0x0e,[0x000e])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=direct), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=(MODEL,"hidden",ALBUM_MODEL)):
+            result=album_constructor_argument_store(FakeDex(),method,0,100)
+        self.assertEqual(result,{"album_parameter_index":0,
+                                 "stores_same_album_argument_on_track":True})
+
+        moved=[(0,0x07,[0x0307]),(1,0x5b,[0x205b,0]),(2,0x0e,[0x000e])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=moved), \
+             patch("audit_native_selected_item_handoff.move_object_registers",
+                   side_effect=lambda op,words:(0,3) if op==0x07 else None), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=(MODEL,"hidden",ALBUM_MODEL)):
+            result=album_constructor_argument_store(FakeDex(),method,0,100)
+        self.assertTrue(result["stores_same_album_argument_on_track"])
+
+        wrong_receiver=[(0,0x5b,[0x105b,0]),(1,0x0e,[0x000e])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=wrong_receiver), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=(MODEL,"hidden",ALBUM_MODEL)):
+            result=album_constructor_argument_store(FakeDex(),method,0,100)
+        self.assertFalse(result["stores_same_album_argument_on_track"])
+
+        branched=[(0,0x28,[0x0028]),(1,0x5b,[0x205b,0]),(2,0x0e,[0x000e])]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=branched), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=(MODEL,"hidden",ALBUM_MODEL)):
+            result=album_constructor_argument_store(FakeDex(),method,0,100)
+        self.assertFalse(result["stores_same_album_argument_on_track"])
+
     def test_exact_zero_const4_does_not_confuse_nonzero_or_other_register(self):
         from audit_native_selected_item_handoff import const4_zero_to_register
         self.assertTrue(const4_zero_to_register(0x12, [0x0012], 0))
