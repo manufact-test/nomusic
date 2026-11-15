@@ -4,6 +4,20 @@
 
 **Code checkpoint:** `0de0e4278977f5821ad1de6b0ca879bfa7d110e6`; CI [#43733450288](https://github.com/manufact-test/nomusic/actions/runs/43733450288) **SUCCESS, 71/71 tests**. Exact backup: `backup/android-a1-continuation-hierarchy-ci-green-20261115` @ same SHA. Active branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Prior checkpoint: `backup/android-a1-continuation-new-instance-types-ci-green-20261115` @ `4a15adf7644c2ea1066620c4c0c615522af3a2d3`.
 
+## Latest upstream-entry direct-call census (supersedes earlier code checkpoint)
+
+**Current CI-green code:** `3f6f9d7ed43e782dc9ab63a72531614e70c6cdb8`; [CI #43734257845](https://github.com/manufact-test/nomusic/actions/runs/43734257845) **SUCCESS 72/72**. Exact code backup: `backup/android-a1-coroutine-upstream-direct-census-ci-green-20261115` @ same SHA. All 254,355 signed-DEX methods scanned.
+
+Only **three direct upstream references** were found to the two initial-entry implementations:
+
+1. `LDp0$a.invokeSuspend(Object) -> LDp0.if(Track, Continuation)`, virtual call, ordinal 7.
+2. `LDp0.emit(Object, Continuation) -> LDp0.if(Track, Continuation)`, virtual call, ordinal 1.
+3. `Lwp0$a$a.invokeSuspend(Object) -> Lwp0$a.emit(Object, Continuation)`, virtual call, ordinal 7.
+
+All are coroutine/Flow forwarding or resume sites, not independent evidence of a selected player Track. No direct incoming callsite from a player selection API was established in this exact census. **This absence does not exclude interface-dispatched Flow calls**; virtual/interface runtime dispatch is not proven. Track reference equivalence from the current selected item and `same_native_item_to_decoder_proven` remain false.
+
+Next focus is identifying the upstream Flow producer/collector contract of `LDp0.emit` / `Lwp0$a.emit`, class ownership and source selection; distinguish current playback from prefetch/download. Do not inspect more generic continuation wiring without a concrete tie to active selection.
+
 ## Established from the exact signed DEX
 
 - There are exactly **three direct invocation sites** of `LGp0.new(LGp0; Track; LOe2;)`. This is a direct-call census; virtual/interface dispatch and runtime invocation are not proven by it.
