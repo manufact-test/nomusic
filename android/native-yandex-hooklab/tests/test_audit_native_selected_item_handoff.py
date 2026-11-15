@@ -207,7 +207,7 @@ class SelectedItemAuditTests(unittest.TestCase):
              patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[]), \
              patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1,0]):
             trace=trace_identity_method(
-                FakeDex(),method,ACC_STATIC,100,
+                FakeDex(),method,0x8,100,
                 extra_identity_types={"LyEa;"},
                 capture_unproven_calls=True,
             )
