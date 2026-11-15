@@ -1607,7 +1607,7 @@ public sealed partial class MainWindow : Form
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Подмена выключена") :
-            _bridge.PlayerUnavailable ? "Открой Яндекс.Музыку, чтобы продолжить." :
+            _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             !heartbeatFresh ? "Ожидаем актуальные данные текущего плеера." :
             sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
