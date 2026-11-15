@@ -2489,7 +2489,7 @@ def trace_native_track_coroutine_continuation(
                         "ordinal":ordinal,
                         "wrapper_is_constructed_from_string_field_of_same_track":True
                     })
-            if callee[0]=="Lou3" and callee[1]=="new" and len(regs)==len(target_types):
+            if callee[0]=="Lou3;" and callee[1]=="new" and len(regs)==len(target_types):
                 wrapper_pos=[i for i,t in enumerate(target_types) if t==WRAPPER]
                 cont_pos=[i for i,t in enumerate(target_types) if t==continuation_owner]
                 wrapper_handoffs.append({
