@@ -19,7 +19,8 @@ from audit_native_selected_item_handoff import (
     classify_native_track_coroutine_callsite,
     inspect_native_track_coroutine_callers,
     trace_coroutine_callsite_argument_origins,
-    summarize_coroutine_new_instance_ancestry
+    summarize_coroutine_new_instance_ancestry,
+    classify_coroutine_entry_direct_upstream_call
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -1069,6 +1070,26 @@ class SelectedItemAuditTests(unittest.TestCase):
             "TRACK_FROM_THIS_FIELD_CANDIDATE"
         )
         self.assertNotIn("privateTrack",str(result))
+
+    def test_coroutine_upstream_callsite_census_never_promotes_type_to_playback(self):
+        caller=("LCaller;","load",
+                "(Lru/yandex/music/data/audio/o;)Ljava/lang/Object;")
+        direct=("LDp0;","if",
+                "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+        row=classify_coroutine_entry_direct_upstream_call(caller,direct,7,0x71)
+        self.assertTrue(row["caller_declares_track_parameter"])
+        self.assertTrue(row["target_accepts_typed_track"])
+        self.assertFalse(row["same_track_reference_or_active_playback_proven"])
+        self.assertFalse(row["flow_interface_dispatch_proven"])
+        flow=("Lwp0$a;","emit",
+              "(Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+        row=classify_coroutine_entry_direct_upstream_call(caller,flow,8,0x6e)
+        self.assertTrue(row["target_accepts_object"])
+        self.assertFalse(row["same_track_reference_or_active_playback_proven"])
+        with self.assertRaises(ValueError):
+            classify_coroutine_entry_direct_upstream_call(
+                caller,("LWrong;","emit",flow[2]),9,0x6e
+            )
 
     def test_coroutine_new_instance_ancestry_requires_declared_superclass_chain(self):
         census={"call_sites":[

@@ -3910,9 +3910,42 @@ def summarize_coroutine_new_instance_ancestry(callsite_census, class_profiles):
     }
 
 
+def classify_coroutine_entry_direct_upstream_call(caller, callee, ordinal, op):
+    """Record exact inbound references, not a virtual/Flow runtime dispatch claim."""
+    targets={
+        ("LDp0;","if",
+         "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"),
+        ("Lwp0$a;","emit",
+         "(Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+    }
+    if callee not in targets:
+        raise ValueError("COROUTINE_ENTRY_UPSTREAM_TARGET_MISMATCH")
+    target_params=parse_types(callee[2])
+    caller_params=parse_types(caller[2])
+    return {
+        "caller":{"owner":caller[0],"method":caller[1],"signature":caller[2]},
+        "target":{"owner":callee[0],"method":callee[1],"signature":callee[2]},
+        "ordinal":ordinal,
+        "invoke_kind":invoke_kind_name(op),
+        "caller_declares_track_parameter":MODEL in caller_params,
+        "caller_declares_object_parameter":"Ljava/lang/Object;" in caller_params,
+        "target_accepts_typed_track":MODEL in target_params,
+        "target_accepts_object":"Ljava/lang/Object;" in target_params,
+        "same_track_reference_or_active_playback_proven":False,
+        "flow_interface_dispatch_proven":False
+    }
+
+
 def inspect_native_track_coroutine_callers(apks, target_method):
     """Census every direct signed-DEX caller of the exact coroutine method."""
     call_sites=[]
+    upstream_direct_sites=[]
+    upstream_targets={
+        ("LDp0;","if",
+         "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"),
+        ("Lwp0$a;","emit",
+         "(Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+    }
     scanned_method_count=0
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -3928,7 +3961,18 @@ def inspect_native_track_coroutine_callers(apks, target_method):
                         raise ValueError("TRACK_COROUTINE_CALLER_METHOD_LIMIT")
                     ins=list(instructions(dex,code_off))
                     for ordinal,(_pc,op,words) in enumerate(ins):
-                        if op not in INVOKES or dex.method(words[1])!=target_method:
+                        if op not in INVOKES:
+                            continue
+                        callee=dex.method(words[1])
+                        if callee in upstream_targets:
+                            if len(upstream_direct_sites)>=128:
+                                raise ValueError("COROUTINE_ENTRY_UPSTREAM_DIRECT_SITE_LIMIT")
+                            upstream_direct_sites.append(
+                                classify_coroutine_entry_direct_upstream_call(
+                                    caller,callee,ordinal,op
+                                )
+                            )
+                        if callee!=target_method:
                             continue
                         if len(call_sites)>=128:
                             raise ValueError("TRACK_COROUTINE_CALLER_SITE_LIMIT")
@@ -3942,6 +3986,9 @@ def inspect_native_track_coroutine_callers(apks, target_method):
     return {
         "scanned_method_count":scanned_method_count,
         "direct_callsite_count":len(call_sites),
+        "upstream_entry_direct_callsite_count":len(upstream_direct_sites),
+        "upstream_entry_direct_call_sites":upstream_direct_sites,
+        "upstream_entry_virtual_or_flow_dispatch_proven":False,
         "exact_resume_callsite_count":sum(
             row["exact_resume_callsite"] for row in call_sites
         ),
