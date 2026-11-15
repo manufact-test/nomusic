@@ -888,22 +888,48 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(result["continuation_field_track_to_opaque_wrapper_candidate"])
         self.assertTrue(result["resume_track_argument_explicit_null"])
         self.assertTrue(result["resume_continuation_call_sites"][0]["track_argument_is_explicit_null"])
-        self.assertTrue(result["original_track_parameter_to_opaque_wrapper_candidate"])
-        self.assertTrue(any(
-            row["source_origins"]==["NULL_TRACK_ARGUMENT_ON_EXACT_Fp0_RESUME"]
-            and "REUSED_LFp0_CONTINUATION" in row["receiver_origins"]
-            for row in result["track_parameter_capture_store_candidates"]
-        ))
-        self.assertFalse(any(
-            row["same_original_track_parameter"]
-            and "REUSED_LFp0_CONTINUATION" in row["receiver_origins"]
-            for row in result["track_parameter_capture_store_candidates"]
-        ))
         self.assertTrue(result["control_flow_graph_built"])
         self.assertTrue(result["wrapper_continuation_handoff_sites"][0]["wrapper_instance_passed"])
         self.assertFalse(result["coroutine_runtime_resume_dispatch_proven"])
         self.assertNotIn("hiddenTrack",str(result))
         self.assertNotIn("hiddenString",str(result))
+
+    def test_fp0_resume_null_track_is_not_misreported_as_original_track(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:8,102:3,200:4,202:1}[offset]
+            def descriptor(self,index):
+                return {1:"LFp0;"}[index]
+            def method(self,index):
+                return {
+                    8:("LGp0;","new","(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+                }[index]
+        initial=("LGp0;","new","(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;")
+        resume=("LFp0;","invokeSuspend","(Ljava/lang/Object;)Ljava/lang/Object;")
+        initial_ins=[
+            (0,0x1f,[0x071f,1]),
+            (2,0x5b,[0x7600,3]),
+            (4,0x0e,[0x000e])
+        ]
+        resume_ins=[(0,0x12,[0x0012]),(1,0x71,[0x0071,8,0])]
+        target=("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;")
+        with patch("audit_native_selected_item_handoff.instructions",
+                   side_effect=lambda d,c: initial_ins if c==100 else resume_ins), \
+             patch("audit_native_selected_item_handoff.field_id",return_value=target), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[2,0,3]):
+            result=trace_native_track_coroutine_continuation(
+                FakeDex(),initial,0x8,100,resume,0,200
+            )
+        self.assertTrue(result["resume_track_argument_explicit_null"])
+        self.assertEqual(len(result["track_parameter_capture_store_candidates"]),1)
+        store=result["track_parameter_capture_store_candidates"][0]
+        self.assertIn("REUSED_LFp0_CONTINUATION",store["receiver_origins"])
+        self.assertEqual(store["source_origins"],["NULL_TRACK_ARGUMENT_ON_EXACT_Fp0_RESUME"])
+        self.assertFalse(store["same_original_track_parameter"])
+        self.assertFalse(result["original_track_parameter_to_continuation_field_candidate"])
+        self.assertNotIn("hiddenTrack",str(result))
 
     def test_coroutine_cfg_merge_drops_track_alias_when_one_branch_overwrites(self):
         from unittest.mock import patch
