@@ -337,6 +337,15 @@ async function deliverState(view, safeState) {
   }
   return ok === true;
 }
+function validNativeApiOrigin(value) {
+  if (typeof value !== "string" || value.length > 256) return false;
+  try {
+    const uri = new URL(value);
+    return uri.protocol === "https:" && uri.pathname === "/" &&
+      !uri.username && !uri.password && !uri.search && !uri.hash &&
+      uri.origin === value;
+  } catch { return false; }
+}
 async function relayState(view, token, now) {
   // W61: short bounded local-only state poll to reduce time from UI click
   // to the native source refresh. Per-view tick is serialized (busy WeakSet)
@@ -362,46 +371,89 @@ async function relayState(view, token, now) {
     note("STATE_UNREACHABLE");
   }
   const previous = lastStatus.get(view);
-  const networkRecoveryPending = stateAvailable &&
+  const apiOrigin = stateAvailable && validNativeApiOrigin(state.apiOrigin)
+    ? state.apiOrigin : "";
+  const rawRecoveryPending = stateAvailable &&
     state.networkRecoveryPending === true;
+  const networkRecoveryPending = rawRecoveryPending &&
+    state.signedIn === true && !!apiOrigin;
   const previousOrigin = nativeAudioOrigins.get(view);
   const originChanged = previousOrigin !== undefined &&
-    previousOrigin !== state?.apiOrigin;
+    previousOrigin !== apiOrigin;
   let recoveryHold = nativeRecoveryHolds.get(view);
-  if (!networkRecoveryPending || !stateAvailable || state.signedIn !== true ||
-      typeof state.apiOrigin !== "string" || originChanged ||
-      (recoveryHold && now - recoveryHold.capturedAt >= 600000)) {
+  const recoveryHoldExpired = recoveryHold &&
+    (!Number.isSafeInteger(recoveryHold.capturedAt) ||
+     now < recoveryHold.capturedAt ||
+     now - recoveryHold.capturedAt >= 600000);
+  if (!networkRecoveryPending) {
     nativeRecoveryHolds.delete(view);
     recoveryHold = null;
-  } else if (!recoveryHold && previous &&
-      typeof previous.trackId === "string" &&
+    if (stateAvailable && state.enabled === true && state.signedIn === true &&
+        !!apiOrigin && !originChanged) {
+      nativeRecoveryHoldBlocked.delete(view);
+    } else {
+      // Stop, logout, denial, invalid state and origin changes must not reuse
+      // a stale mapped-track hint on the next transient route transition.
+      nativeRecoveryHoldBlocked.add(view);
+    }
+  } else if (originChanged || recoveryHoldExpired) {
+    nativeRecoveryHolds.delete(view);
+    recoveryHold = null;
+    nativeRecoveryHoldBlocked.add(view);
+  } else if (recoveryHold && justEnabled) {
+    // Validate the actual Yandex player again immediately before allowing the
+    // renderer to keep the old mapping. Next/Stop/player loss all fail closed.
+    const observed = await execute(view,
+      ";window.__celikomBridgeNativeCurrentTrack?.()||null");
+    const observedId = typeof observed?.id === "string" &&
+      /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : null;
+    const canContinue = observed?.playbackState === "PLAYING" ||
+      observed?.playbackState === "PAUSED";
+    if (observedId !== recoveryHold.trackId || !canContinue) {
+      nativeRecoveryHolds.delete(view);
+      recoveryHold = null;
+      nativeRecoveryHoldBlocked.add(view);
+    }
+  } else if (!recoveryHold && !nativeRecoveryHoldBlocked.has(view) &&
+      previous && typeof previous.trackId === "string" &&
       (previous.value === "NATIVE_MAPPING_ACCEPTED" ||
        previous.value === "NATIVE_SOURCE_VERIFIED")) {
-    // Capture before the renderer is disabled and its status falls back to
-    // ORIGINAL. The renderer will independently verify the same current ID
-    // and that it had mapped this track before allowing a no-reload hold.
-    recoveryHold = {
-      trackId: previous.trackId,
-      firstSeenAt: previous.firstSeenAt || now,
-      capturedAt: now
-    };
-    nativeRecoveryHolds.set(view, recoveryHold);
+    // Capture only the exact current entity while its Yandex player still
+    // exists and is PLAYING/PAUSED. This is a continuity hint, never proof.
+    const observed = await execute(view,
+      ";window.__celikomBridgeNativeCurrentTrack?.()||null");
+    const observedId = typeof observed?.id === "string" &&
+      /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : null;
+    const canContinue = observed?.playbackState === "PLAYING" ||
+      observed?.playbackState === "PAUSED";
+    if (observedId === previous.trackId && canContinue) {
+      recoveryHold = {
+        trackId: observedId,
+        firstSeenAt: previous.firstSeenAt || now,
+        capturedAt: now
+      };
+      nativeRecoveryHolds.set(view, recoveryHold);
+    } else {
+      nativeRecoveryHoldBlocked.add(view);
+    }
   }
   const preserveCurrentSource = networkRecoveryPending &&
-    state.enabled === true && state.signedIn === true &&
-    previousOrigin === state.apiOrigin &&
-    typeof recoveryHold?.trackId === "string";
+    state.enabled === true && state.signedIn === true && !!apiOrigin &&
+    previousOrigin === apiOrigin &&
+    typeof recoveryHold?.trackId === "string" &&
+    !nativeRecoveryHoldBlocked.has(view);
   const safeState = {
-    enabled: stateAvailable && state.enabled === true && state.signedIn === true,
+    enabled: stateAvailable && state.enabled === true &&
+      state.signedIn === true && !!apiOrigin,
     signedIn: stateAvailable && state.signedIn === true,
-    apiOrigin: stateAvailable && typeof state.apiOrigin === "string"
-      ? state.apiOrigin.slice(0, 256) : "",
+    apiOrigin,
     networkRecoveryPending,
     preserveCurrentSource,
     preserveCurrentTrackId: preserveCurrentSource ? recoveryHold.trackId : ""
   };
   const preserveDecoderWitness = safeState.networkRecoveryPending &&
-    safeState.signedIn && previousOrigin === safeState.apiOrigin;
+    safeState.signedIn && !!safeState.apiOrigin &&
+    previousOrigin === safeState.apiOrigin;
   if ((!safeState.enabled || !safeState.signedIn || originChanged) &&
       !preserveDecoderWitness) {
     // A same-origin transient VPN suspension is not a source loss. Keep the
@@ -466,6 +518,8 @@ async function tick(view) {
       verifiedDecoderSource.delete(view);
       nativeMediaHttpSuccess.delete(view);
       nativeDecoderPlayers.delete(view);
+      nativeRecoveryHolds.delete(view);
+      nativeRecoveryHoldBlocked.add(view);
       await deliverState(view, {enabled:false,signedIn:false,apiOrigin:""});
       return;
     }
@@ -490,10 +544,17 @@ async function tick(view) {
     if (now - (lastDiagPoll.get(view) || 0) >= 700) {
       lastDiagPoll.set(view, now);
       const events = await execute(view, ";(window.__celikomBridgeNativeDrainDiagnostics?.()||[])");
-      if (Array.isArray(events))
-        for (const event of events.slice(0, 48))
-          if (Array.isArray(event) && event.length === 2)
-            note(event[0], event[1]);
+      if (Array.isArray(events)) {
+        for (const event of events.slice(0, 48)) {
+          if (!Array.isArray(event) || event.length !== 2) continue;
+          if (event[0] === "SOURCE_MAPPED" && typeof event[1] === "string") {
+            const currentId = await execute(view,
+              ";window.__celikomBridgeNativeCurrentTrackId?.()||''");
+            if (currentId === event[1]) nativeRecoveryHoldBlocked.delete(view);
+          }
+          note(event[0], event[1]);
+        }
+      }
     }
     const bridgeJustEnabled = await relayState(view, token, now);
     const queue = await execute(view,
@@ -639,6 +700,7 @@ const nativeAudioOrigins = new WeakMap();
 // transient VPN suspension. This is a no-reload continuity hint, NOT proof
 // that the native decoder is still playing the CELIKOM URL.
 const nativeRecoveryHolds = new WeakMap();
+const nativeRecoveryHoldBlocked = new WeakSet();
 const nativeExpectedAudio = new WeakMap();
 const nativeMediaHttpSuccess = new WeakMap();
 const nativeNetworkObserversReady = new WeakSet();
@@ -835,6 +897,7 @@ function observeNativePlayback(view) {
             // An explicit current decoder URL change is stronger than the
             // transient route hold: invalidate it and allow normal recovery.
             nativeRecoveryHolds.delete(view);
+            nativeRecoveryHoldBlocked.add(view);
             note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
             sourceLeftCurrent = !!currentTrackId;
           }
@@ -1037,7 +1100,10 @@ function observeNativePlayback(view) {
           }
           // A playing decoder disappearing is actual player-loss evidence,
           // even on Yandex builds that do not expose kUrl.
-          if (lost?.playing === true) nativeRecoveryHolds.delete(view);
+          if (lost?.playing === true) {
+            nativeRecoveryHolds.delete(view);
+            nativeRecoveryHoldBlocked.add(view);
+          }
           decoderPlayers.delete(params.playerId);
         }
         if (method === "Media.playerErrorsRaised" &&
@@ -1048,8 +1114,10 @@ function observeNativePlayback(view) {
           const player = typeof params?.playerId === "string" ?
             decoderPlayers.get(params.playerId) : null;
           const currentTrack = lastStatus.get(view)?.trackId;
-          if (player?.playing === true && nativeAudible(view))
+          if (player?.playing === true && nativeAudible(view)) {
             nativeRecoveryHolds.delete(view);
+            nativeRecoveryHoldBlocked.add(view);
+          }
           if (player?.sourceTrackId && player.sourceTrackId === currentTrack) {
             player.pipelineFailed = true;
             verifiedDecoderSource.delete(view);

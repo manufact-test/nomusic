@@ -261,7 +261,9 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   window.__celikomBridgeNativeSetState = next => {
     if (stopped) return;
     const previousActive = adapter.enabled;
-    const currentTrackId = playerSourceRefresh.currentTrackId();
+    const currentTrack = playerSourceRefresh.currentTrack();
+    const currentTrackId = currentTrack?.id || "";
+    const currentPlaybackState = currentTrack?.playbackState || "UNKNOWN";
     const currentWasMapped = currentTrackId ? adapter.hasMappedTrack(currentTrackId) : false;
     let origin = "";
     try {
@@ -349,7 +351,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         }
       } else if (nextActive && (!previousActive || originChanged)) {
         const preservedTrack = next?.preserveCurrentSource === true &&
-          next?.preserveCurrentTrackId === currentTrackId;
+          next?.preserveCurrentTrackId === currentTrackId &&
+          (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED");
         if (networkRecoveryPending && preservedTrack && currentWasMapped) {
           // This is a no-reload continuity hold, not source verification.
           // Keep the existing mapped source untouched; host status remains

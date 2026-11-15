@@ -61,6 +61,8 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
           resp.statusCode = 200;
           resp.resume = () => {};
           callback(resp);
+          const stateValue = typeof stateOverride === "function"
+            ? stateOverride() : stateOverride;
           const value = options.path.startsWith("/v1/resolve")
             ? {found:true,grant:grantSequence.length ? grantSequence.shift() :
               grantOverride ?? {
@@ -68,7 +70,8 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
                 audioUrl:"https://api.celikom.example/api/v1/audio/1?token="+ "a".repeat(64) + "&expires=1800000180",
                 expiresAt:1800000180000,mimeType:"audio/mpeg"
               }}
-            : (stateOverride ?? {enabled:false,signedIn:false,apiOrigin:""});
+            : (typeof stateOverride === "function" ? stateValue :
+              stateOverride ?? {enabled:false,signedIn:false,apiOrigin:""});
           resp.emit("data", Buffer.from(JSON.stringify(value)));
           resp.emit("end");
         });
@@ -1302,7 +1305,8 @@ test("W152 host preserves a source only while the exact current decoder is still
   const r=await runHost("musicapplication://desktop/",{
     queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,
     grantOverride:grant,rendererStatus:"NATIVE_MAPPING_ACCEPTED",
-    currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000},
+    currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+      playbackState:"PLAYING"},
     stateOverride:state,clock:FakeDate
   });
   debug.emit("message",{}, "Media.playerPropertiesChanged",{
@@ -1358,6 +1362,160 @@ test("W157 same-origin VPN recovery holds an already-mapped current track when Y
   assert.ok(resumed.includes('"preserveCurrentTrackId":"123"'));
   assert.ok(!r.diagnostics.includes("PLAYER_CDP_URL_PROPERTY_SEEN"),
     "no exact CDP kUrl property was supplied in this test");
+  const heartbeats=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(heartbeats.length>0);
+  assert.ok(heartbeats.every(x=>x.source==="UNKNOWN"),
+    "a mapped-track continuity hint must never become verified replacement source");
+});
+
+test("W157 no-kUrl VPN hold rejects Next to a different current track",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false};
+  const currentTrack={id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+    playbackState:"PLAYING"};
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",currentTrack,stateOverride:state,
+    primaryAudible:true,clock:FakeDate
+  });
+  state.enabled=false;state.networkRecoveryPending=true;
+  clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(held.includes('"preserveCurrentSource":true'));
+  currentTrack.id="456";
+  clockNow+=350;state.enabled=true;r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"preserveCurrentSource":false'),
+    "the old mapped track ID must not hold a newly selected Next track");
+  assert.ok(resumed.includes('"preserveCurrentTrackId":""'));
+});
+
+test("W157 no-kUrl VPN hold is cleared by Manual Stop",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false};
+  const currentTrack={id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+    playbackState:"PLAYING"};
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",currentTrack,stateOverride:state,
+    primaryAudible:true,clock:FakeDate
+  });
+  state.enabled=false;state.networkRecoveryPending=true;
+  clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(held.includes('"preserveCurrentSource":true'));
+  currentTrack.playbackState="STOPPED";
+  clockNow+=350;state.enabled=true;r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"preserveCurrentSource":false'),
+    "STOPPED is not a current source that may be held across route recovery");
+});
+
+test("W157 no-kUrl VPN hold is invalidated when the current media player is destroyed",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false};
+  const currentTrack={id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+    playbackState:"PLAYING"};
+  const {debug}=w52Debugger();
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",currentTrack,stateOverride:state,
+    debuggerDriver:debug,primaryAudible:true,clock:FakeDate
+  });
+  debug.emit("message",{},"Media.playerPropertiesChanged",{
+    playerId:"w157-no-kurl-current",properties:[{name:"kIsPlaying",value:"true"}]
+  });
+  state.enabled=false;state.networkRecoveryPending=true;
+  clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(held.includes('"preserveCurrentSource":true'));
+  debug.emit("message",{},"Media.playerDestroyed",{playerId:"w157-no-kurl-current"});
+  clockNow+=350;state.enabled=true;r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"preserveCurrentSource":false'),
+    "a destroyed decoder cannot be re-admitted from its stale mapped-track ID");
+});
+
+test("W157 no-kUrl VPN hold fails closed on logout, entitlement denial, origin change and invalid/unavailable state",async()=>{
+  const scenarios=[
+    ["logout", state=>{state.enabled=false;state.signedIn=false;state.networkRecoveryPending=false;}],
+    ["entitlement denial", state=>{state.enabled=false;state.signedIn=true;state.networkRecoveryPending=false;}],
+    ["API origin change", state=>{state.enabled=true;state.signedIn=true;
+      state.apiOrigin="https://api.other.example";state.networkRecoveryPending=true;}],
+    ["invalid API origin", state=>{state.enabled=true;state.signedIn=true;
+      state.apiOrigin="http://invalid.example";state.networkRecoveryPending=true;}],
+    ["unavailable state", (_state,set)=>{set(null);}]
+  ];
+  for(const [label,mutate] of scenarios){
+    let clockNow=Date.now();
+    class FakeDate extends Date {
+      constructor(...args){super(...(args.length?args:[clockNow]));}
+      static now(){return clockNow;}
+    }
+    const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+      networkRecoveryPending:false};
+    let stateResponse=state;
+    const currentTrack={id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+      playbackState:"PLAYING"};
+    const r=await runHost("musicapplication://desktop/",{
+      rendererStatus:"NATIVE_MAPPING_ACCEPTED",currentTrack,
+      stateOverride:()=>stateResponse,primaryAudible:true,clock:FakeDate
+    });
+    state.enabled=false;state.networkRecoveryPending=true;
+    clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+    const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+    assert.ok(held.includes('"preserveCurrentSource":true'),label+": setup must capture hold");
+    mutate(state,(value)=>{stateResponse=value;});
+    clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+    stateResponse={enabled:true,signedIn:true,
+      apiOrigin:label==="API origin change"?"https://api.other.example":"https://api.celikom.example",
+      networkRecoveryPending:true};
+    clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+    const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+    assert.ok(resumed.includes('"preserveCurrentSource":false'),
+      label+": fail-closed state must not restore the old hold");
+  }
+});
+
+test("W157 no-kUrl VPN hold expires after the bounded recovery window",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false};
+  const currentTrack={id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+    playbackState:"PLAYING"};
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",currentTrack,stateOverride:state,
+    primaryAudible:true,clock:FakeDate
+  });
+  state.enabled=false;state.networkRecoveryPending=true;
+  clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  const held=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(held.includes('"preserveCurrentSource":true'));
+  clockNow+=600001;state.enabled=true;r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"preserveCurrentSource":false'),
+    "an expired continuity hint must never be renewed by the same recovery attempt");
 });
 
 test("W157 destruction of the selected Yandex renderer immediately clears the current-player heartbeat",async()=>{
@@ -1398,7 +1556,8 @@ test("W157 same-origin VPN suspension retains exact signed decoder evidence acro
   const r=await runHost("musicapplication://desktop/",{
     queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,
     grantOverride:grant,rendererStatus:"NATIVE_MAPPING_ACCEPTED",
-    currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000},
+    currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000,
+      playbackState:"PLAYING"},
     stateOverride:state,clock:FakeDate
   });
   debug.emit("message",{}, "Media.playerPropertiesChanged",{

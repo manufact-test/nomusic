@@ -695,7 +695,103 @@ test("W152 VPN A-to-B preserves an already-playing exact CELIKOM decoder without
   r.handlers.beforeunload();
 });
 
-test("W152 VPN A-to-B performs only one source refresh when the old decoder did not survive",async()=>{
+test("W157 no-kUrl VPN hold keeps only the same mapped PLAYING current track and stays neutral",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const request=r.window.__celikomBridgeNativeDrain();
+  assert.equal(request.length,1);
+  r.window.__celikomBridgeNativeReceive(request[0].requestId,makeGrant("123"));
+  await first;
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  await tick();
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true,
+    preserveCurrentSource:true,preserveCurrentTrackId:"123"
+  });
+  await tick();
+  assert.deepEqual(player.reloadReasons,[]);
+  assert.ok(r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
+    x[0]==="NATIVE_ROUTE_RECOVERY_SOURCE_KEPT"&&x[1]==="123"));
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_CONNECTED",
+    "the no-kUrl continuity hint must not promote mapping into verified source status");
+  r.handlers.beforeunload();
+});
+
+test("W157 no-kUrl VPN hold cannot carry the previous ID across Next",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const request=r.window.__celikomBridgeNativeDrain();
+  assert.equal(request.length,1);
+  r.window.__celikomBridgeNativeReceive(request[0].requestId,makeGrant("123"));
+  await first;
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  await tick();
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  player.state;
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true,
+    preserveCurrentSource:true,preserveCurrentTrackId:"123"
+  });
+  await tick();
+  const next=r.window.__celikomBridgeNativeDrain();
+  assert.equal(next.length,1);
+  assert.equal(next[0].trackId,"456",
+    "Next must resolve only the new current ID, never reuse the old hold");
+  assert.ok(!r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
+    x[0]==="NATIVE_ROUTE_RECOVERY_SOURCE_KEPT"));
+  r.window.__celikomBridgeNativeReceive(next[0].requestId,null);
+  await tick();
+  assert.deepEqual(player.reloadReasons,[]);
+  r.handlers.beforeunload();
+});
+
+test("W157 no-kUrl VPN hold fails closed after Manual Stop or unavailable player state",async()=>{
+  for(const status of ["stopped","invalid"]){
+    const r=createRenderer({withPlayer:true});
+    const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
+    r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+    void player.state;
+    const first=new r.Resource().getFileInfo({trackId:"123"});
+    await tick();
+    const request=r.window.__celikomBridgeNativeDrain();
+    assert.equal(request.length,1);
+    r.window.__celikomBridgeNativeReceive(request[0].requestId,makeGrant("123"));
+    await first;
+
+    r.window.__celikomBridgeNativeSetState({
+      enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+    });
+    await tick();
+    player.snapshot.playerState.status.value=status;
+    player.state;
+    r.window.__celikomBridgeNativeSetState({
+      enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true,
+      preserveCurrentSource:true,preserveCurrentTrackId:"123"
+    });
+    await tick();
+    assert.ok(!r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
+      x[0]==="NATIVE_ROUTE_RECOVERY_SOURCE_KEPT"),
+      status+": a stopped/invalid player cannot retain the source hold");
+    assert.deepEqual(player.reloadReasons,[]);
+    r.handlers.beforeunload();
+  }
+});
+
+test("W152/W157 no-kUrl source loss uses only one bounded current-track refresh",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:41.5});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
