@@ -1518,7 +1518,7 @@ class SelectedItemAuditTests(unittest.TestCase):
              "native_model_parameters":[],
              "instructions":[
                  {"ordinal":1,"op":"INVOKE",
-                  "callee":{"owner":"LPlayer;","method":"getCurrentTrack",
+                  "callee":{"owner":sorted(PLAYER_OWNERS)[0],"method":sorted(PLAYER_METHODS)[0],
                             "signature":"()Lru/yandex/music/data/audio/o;"},
                   "native_track_argument_positions":[]}
              ]},
