@@ -1,5 +1,7 @@
 # W148 — CELIKOM Windows protected signed stable-release pipeline — 15 November 2026
 
+> **SUPERSEDED FOR PRODUCT POLICY BY W150 (15 Nov 2026).** This file records an earlier implementation scaffold, not the final approved release design. Do not provision or purchase a commercial Authenticode certificate, do not use PFX credentials, and do not make Authenticode signer pins a prerequisite for CELIKOM's own updater. The owner has explicitly chosen to keep the existing Windows warning/“More info → Run anyway” installation experience and use CELIKOM's own P-256 signed-manifest trust plus SHA-256 package verification. The W148 workflow currently still contains the old PFX/Authenticode path and must be refactored in the final updater stage. The domain is already purchased; DNS/TLS and production publication wait until the planned infrastructure migration. See W150 and updated Issue #59.
+
 ## Exact status
 
 - Working branch: `main` only. First W148 exact backup: `backup/windows-main-pre-w148-production-release-pipeline-20261115` @ `18ad2b8b6aa66012f5e2bb61d779d0e2dd51bd10`.

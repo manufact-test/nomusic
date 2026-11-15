@@ -1,5 +1,7 @@
 # W119 — authoritative owner contract and CELIKOM Windows handoff
 
+> **OWNER-APPROVED OVERRIDE — W150 (15 Nov 2026).** For the current work scope and order, follow `docs/windows/W150-OWNER-CONFIRMED-SCOPE-AND-SEQUENTIAL-WORK-ORDER-20261115.md` and the W150 section at the very top of `NEXT-CHAT.md`. W150 supersedes older priority statements below, including W139's earlier "updater first" ordering and W148's commercial Authenticode/PFX provisioning plan. Product architecture and main-only/one-product rules in W119 remain in force. Do not treat unrelated historical open Issues as owner-authorized work.
+
 Date: 14 November 2026  
 Repository: `manufact-test/nomusic`  
 **Product:** the one existing CELIKOM Windows application  
