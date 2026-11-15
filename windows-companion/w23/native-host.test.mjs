@@ -1315,6 +1315,7 @@ test("W152 host preserves a source only while the exact current decoder is still
     "only CDP current signed URL + playing proof may preserve the current source");
   assert.ok(stateDelivery.includes('"preserveCurrentTrackId":"123"'));
   state.networkRecoveryPending=false;
+  clockNow+=350; // let the native state poll leave its 300ms coalescing window
   r.pulse();
   await new Promise(resolve=>setTimeout(resolve,60));
   const settledDelivery=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
