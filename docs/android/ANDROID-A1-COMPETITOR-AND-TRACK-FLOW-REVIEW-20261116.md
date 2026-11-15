@@ -90,14 +90,14 @@ README описывает Android-модуль с LSPatch/LSPosed, локаль�
 - Это ограничение сработало после расширения списка coroutine owners. Vendor binary не экспортирован и не изменён; APK не собирался.
 - Экспериментальное расширение исключено из рабочей основы. Текущий код должен соответствовать checkpoint 88b81e394ea2d61f0b25a0a5dd38bb41663150f5 и backup branch выше.
 
-## 4. Единственный следующий bounded шаг
+## 4. Итог точечной проверки Lou3.else(Track) — CI #165
 
-Проверить только Lou3.else(Track), который вызывается из LDp0.if(Track):
-
-- есть ли прямой вызов Player selection/current playback;
-- либо метод относится к queue, download, analytics или helper path.
-
-Не трассировать все coroutine owners и не поднимать общий method trace limit. Если Lou3.else не даёт прямого current-player identity edge — закрыть этот Flow и остановить статический поиск по нему. Не добавлять hooks, не собирать APK и не просить владельца о ручном тесте без конкретной необходимости.
+- [CI #165](https://github.com/manufact-test/nomusic/actions/runs/43767513234) — SUCCESS; 108/108 tests, read-only six signed DEX.
+- Вызов `Lou3.else(Track)` из `LDp0.if(Track)` подтверждён. Для **этой exact сигнатуры** тело с исполняемым кодом в подписанных DEX **не найдено**: `body_found=false`, `instruction_count=null`, `complete_for_absence_claim=false`.
+- Это **не** доказывает отсутствие работы через interface/abstract/external dispatch. Нельзя классифицировать Lou3 как queue, download или analytics без тела метода.
+- Прямой Player selection/current playback identity edge отсутствует в доказательствах. В соответствии с заранее установленным стоп-правилом весь маршрут `LzD7 → LMG7 → LDp0 → Lou3` закрыт **как недоказанный**, без исследования соседних классов.
+- Кодовый checkpoint: `f1ad3998b81a3c7b12d9ba19ae02c57a6199eecf`. Резерв `backup/android-a1-lou3-exact-method-ci-green-20261116`.
+- Следующий шаг **не** ещё один sweep: нужен подтверждённый current-player identity-bearing callsite, связывающий выбранный Track/Album с decoder source и audio sink. Его пока не установили. Stage B остаётся NO-GO.
 
 ## 5. Статус продукта и ограничения
 

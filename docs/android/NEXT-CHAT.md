@@ -1,74 +1,44 @@
 # АКТУАЛЬНЫЙ HANDOFF — CELIKOM Android A1 — 16.11.2026
 
-**Это единственная актуальная инструкция для следующего чата.** Исторические блоки ниже — архив; их старые задания и checkpoint не выполнять.
+**Это текущая инструкция; все исторические блоки ниже — архив. Не запускать их старые задания.**
 
-## 1. Контрольная точка
+## 1. Точная контрольная точка
 
-- Продукт: CELIKOM Android A1. Не Windows и не браузерное расширение.
-- Репозиторий: manufact-test/nomusic.
-- Единственная рабочая ветка: experiment/android-a1-metrica-init-state-observer-arm13-20261112.
-- Подтверждённая кодовая основа: 88b81e394ea2d61f0b25a0a5dd38bb41663150f5.
-- CI #161: [SUCCESS, 108/108](https://github.com/manufact-test/nomusic/actions/runs/43763991624), точный publisher-signed Yandex 2025 XAPK, шесть DEX, read-only.
-- Точный backup этой зелёной кодовой основы: backup/android-a1-flow-field-writer-trace-ci-green-20261115 @ 88b81e394ea2d61f0b25a0a5dd38bb41663150f5.
-- Дополнительный предыдущий backup: backup/android-a1-current-track-flow-candidate-ci-green-20261115 @ 14fa2c1127d09bf79a56928b53ca36eec73048e1.
-- Последнее изменение runtime hooks: a655712d210189f3bc611847235de3ed4d985c1a. С тех пор runtime hooks не менялись.
-- Последняя актуальная документация добавлена отдельным docs handoff commit. Код в нём восстановлен к содержимому CI #161; экспериментальное расширение #162/#163 в рабочую основу не входит.
-- Никаких APK не собирали, не патчили, не устанавливали и не выпускали.
+- Репозиторий: `manufact-test/nomusic`; единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Последний **CI-green read-only audit code checkpoint**: `f1ad3998b81a3c7b12d9ba19ae02c57a6199eecf`.
+- [CI #165](https://github.com/manufact-test/nomusic/actions/runs/43767513234): **SUCCESS; 108/108 unit-тестов; точный издательский подписанный оригинал 2025, 6 DEX, in-memory audit**, без экспорта/изменения приложения.
+- Новый точный резерв кода: `backup/android-a1-lou3-exact-method-ci-green-20261116` @ `f1ad3998b81a3c7b12d9ba19ae02c57a6199eecf`.
+- Предыдущая зелёная кодовая основа: `88b81e394ea2d61f0b25a0a5dd38bb41663150f5`, CI #161 (108/108); резерв `backup/android-a1-flow-field-writer-trace-ci-green-20261115`.
+- Исходный код приложения и runtime hooks **не менялись**. Последняя правка runtime hooks: `a655712d210189f3bc611847235de3ed4d985c1a`.
+- Последнее изменение касается только существующего read-only анализатора — один точный метод `Lou3.else(Track)`; никаких новых инструментов или тестов.
+- Последний известный docs+code handoff до этой проверки: `backup/android-a1-current-track-flow-handoff-20261116`.
 
-## 2. Последний эксперимент закрыт
+## 2. Результат единственного узкого прохода
 
-- CI #162: [FAIL](https://github.com/manufact-test/nomusic/actions/runs/43764877810) — одна синтетическая проверка ожидала Lou3 в списке trace owners, хотя fixture не содержал этот метод.
-- CI #163: [FAIL](https://github.com/manufact-test/nomusic/actions/runs/43764984192) — после исправления fixture все 108 unit-тестов прошли, но read-only анализ подписанного DEX остановился на защитном лимите CURRENT_TRACK_FLOW_METHOD_TRACE_LIMIT.
-- Это не ошибка приложения и не регрессия оригинального Яндекса. Анализатор корректно завершился fail-closed; оригинальный бинарник не изменён и не экспортирован.
-- Расширение trace на множество coroutine owners откатили. Не повышать лимиты и не повторять этот широкий проход. Рабочая кодовая основа — CI #161 / 88b81e394ea2d61f0b25a0a5dd38bb41663150f5.
+- В `LDp0.if(Track)` подтверждён callsite `Lou3.else(Lru/yandex/music/data/audio/o;)V`.
+- CI #165 проверил **только точную сигнатуру Lou3.else(Track)**. `lou3_else_exact_method.body_found=false`: исполняемое тело этого exact метода **не найдено** среди шести подписанных DEX.
+- `instruction_count=null`; `complete_for_absence_claim=false`. **Не утверждать**, что Lou3 ничего не делает, что он queue/download/analytics или что у него нет непрямой dispatch-реализации: без тела это недоказуемо.
+- Связь через этот callsite с фактическим selected Player state, native decoder или audio sink не доказана. По заранее согласованному критерию **LzD7 → LMG7 → LDp0 → Lou3 закрыт как неподтверждённый путь для current playback**.
+- LyEa/LaC7/LCK1 закрыты ранее; к ним не возвращаться.
+- Общая сверка конкурентов уже завершена, новое исследование конкурентов не требуется.
+- CI #162/#163 не повторять: #163 остановился на защитном `CURRENT_TRACK_FLOW_METHOD_TRACE_LIMIT`; это не регрессия приложения.
 
-## 3. Закрытые направления и результаты конкурентов
+## 3. Текущий продукт и реальный блокер
 
-- LyEa / LaC7 / LCK1 окончательно закрыты как недоказанный маршрут. Не возвращаться.
-- Сверка конкурентов завершена. Итог: docs/android/ANDROID-A1-COMPETITOR-AND-TRACK-FLOW-REVIEW-20261116.md.
-- Самая полезная внешняя подсказка — FkCensor: подмена file-info/download-info на границе getFileInfo/getFileInfoBatch до получения источника плеером. Это desktop/web boundary, не готовый Android hook.
-- ChromaSync Mobile документирует LSPatch/LSPosed и локальный cache, но публичный репозиторий содержит только README; точку подмены по исходникам проверить нельзя.
-- ChromaSync desktop показывает защиту от устаревшего обновления обложки, не аудиоподмену.
-- Windows CDP source/current-track reconciliation полезен только как принцип проверки совпадения текущего трека с реально наблюдаемым decoder source. Прямо переносить его код в Android нельзя.
-- Другие найденные клиенты используют собственный WebView/плеер или отдельную модель воспроизведения; готового Android-native решения для нашей архитектуры не найдено.
+- **Stage A / NAV17: PASS по ручному подтверждению владельца** — нативный Яндекс, аккаунт, альбомы, Моя волна и обычный звук работают. Не трогать.
+- **Stage B: NOT CONNECTED / NO-GO.** CELIKOM-аудио не привязано к нативному decoder и не звучит.
+- `active_selected_item_proven=false`, `same_native_item_to_decoder_proven=false`. Не установлена непрерывная идентичность **фактически выбранный Track + Album / edition/generation → конкретный текущий decoder source → декодированный ByteBuffer → native audio sink**.
+- Данные о Field/Flow/Source/positive read, результаты Source descriptor и ByteBuffer→sink по отдельности **не доказывают**, что это тот же текущий играющий трек.
 
-## 4. Единственный оставшийся Track Flow candidate
+## 4. Дальше — только путь к работающему продукту
 
-Подтверждено в read-only отчёте CI #161:
-
-- LzD7 — интерфейс; найден один прямой implementer LMG7.
-- YMApplication.onCreate подписывает collector LDp0.
-- Бounded flow path: LzD7.if() → LC3a Flow → LBD7.if(LzD7) → LBy4 Flow → LBC3/LzC3/LAC3 → LO6.native → Ljm4.for(Flow, CoroutineScope, LDp0 collector) → LDp0.if(Track) → LGp0.new(Track).
-- В LMG7.<init> из LyG7 читаются и сохраняются два поля descriptor-типа LD3a; LMG7.if() и LMG7.new() возвращают связанные flow-like объекты. Не приписывать им семантику current player или StateFlow только по обфусцированному типу.
-- В LDp0.if(Track) дополнительно виден вызов Lou3.else(Track). Значение Track приходит через coroutine field; точное происхождение этого значения не доказано.
-- В bounded trace: direct Player API = 0, MediaSession = 0, decoder boundary = 0; 12 source-descriptor call references. Эти source/download references не доказывают playback.
-- same_track_reference_from_flow_to_lgp0_new_proven = false.
-- current_selected_track_proven = false.
-- same_native_item_to_decoder_proven = false.
-- active_selected_item_proven = false.
-- Edition/Generation identity не установлена.
-
-**Вывод:** это конкретный Track Flow, но не доказанный current selected Track. Он может обслуживать очередь, prefetch, загрузку или вспомогательную работу. Не выдавать его за playback.
-
-## 5. Следующее действие — один узкий проход, не новая исследовательская программа
-
-1. Проверить только точный метод Lou3.else(Track), вызванный из LDp0.if(Track): выяснить, ведёт ли он прямо к current Player state/selection или к queue/download/analytics/helper path.
-2. Не трассировать все coroutine owners, не сканировать соседние классы, не поднимать лимиты и не повторять полный signed-DEX census.
-3. Если Lou3.else не даёт прямого identity-bearing перехода к Player selection, закрыть этот Track Flow как неподходящий для доказательства current playback и остановить статический поиск по этой ветке.
-4. Дальше работать только с конкретной точкой приложения, где можно доказать текущий выбранный Track. Если такой точки нет — зафиксировать точный блокер и предложить минимальное read-only измерение; не придумывать hooks и не просить владельца устанавливать APK без необходимости.
-5. Новые тесты добавлять только при изменении кода и только на изменённое поведение. Не запускать тестовые серии ради количества. Сначала использовать уже существующие CI и результаты.
-
-## 6. Статус продукта
-
-- Stage A / NAV17: PASS по подтверждению владельца — нативный Яндекс, аккаунт, альбомы, Моя волна и оригинальное воспроизведение работают. Не ломать и не переигрывать.
-- Stage B: NOT CONNECTED / NO-GO. CELIKOM-версия не подключена к нативному декодеру и не звучит.
-- Никаких оснований собирать release APK пока нет.
-
-## 7. Жёсткие границы
-
-Не менять архитектуру. Не трогать оригинальный Яндекс, NAV17 auth/account, Test.50, frozen A1/LSPatch baseline, Windows, браузерное расширение, backend/API/DB и production. Не добавлять runtime hooks до доказанного точного callsite. Не читать/экспортировать значения приватных полей, названия/ID треков и альбомов, URL, DataSpec, токены, данные аккаунта или аудиобайты. Не менять поведение vendor methods, не подавлять исключения, не добавлять второй плеер/декодер/AudioTrack.
-
-Работать крупными осмысленными блоками. Коротко сообщать только результат, реальный блокер и следующий конкретный шаг. Не устраивать новые широкие исследования и не останавливать работу без причины.
+- По закрытому Lou3 и соседним классам статический поиск не продолжать. Не открывать новую широкую программу исследований.
+- Для Stage B нужна **одна конкретная, независимо подтверждённая identity-bearing точка current Player selection** с привязкой к native decoder/source. Пока такой точки нет — это точный блокер, а не повод изобретать hooks.
+- Разрешать одно минимальное read-only измерение только если появится конкретный известный callsite и можно сформулировать проверяемый вопрос. Без этого не просить у владельца APK/телефон/диагностики.
+- Не добавлять runtime hooks, не собирать/патчить APK, не менять vendor behavior или архитектуру до доказанного Track → source → decoder identity.
+- Не повышать лимиты, не вводить новые анализаторы, не повторять censuses, не раздувать тестовые серии и не читать private field values, Track/Album ID/title, URL/DataSpec, аккаунт, токены или аудиобайты.
+- Не трогать Test.50, frozen A1/LSPatch baseline, Windows, браузерное расширение, backend, production.
+- Если нет доказанной точки — сообщить блокер прямо, Stage B оставить NO-GO. Не выдавать структуру типов за реальное воспроизведение.
 
 ---
 
