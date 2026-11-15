@@ -1,3 +1,28 @@
+# SUPERSEDING CURRENT STATE — 15 Nov 2026, Flow mode audit
+
+**Current branch HEAD:** `7fc62e8d8469804b66ff58d2f17f6055fc51dd4a`  
+**CI:** [#43737913160](https://github.com/manufact-test/nomusic/actions/runs/43737913160) **SUCCESS, 80/80 tests**; exact signed original verified (16 splits / 6 DEX).  
+**Exact code backup:** `backup/android-a1-flow-mode-branch-audit-ci-green-20261115` @ `7fc62e8d8469804b66ff58d2f17f6055fc51dd4a`.  
+**Detailed result:** `docs/android/ANDROID-A1-FLOW-MODE-AND-INTERFACE-CENSUS-20261115.md`.
+
+The previous handoff's 72/72 / `3f6f9d7` headline is superseded. Current commit changes only the read-only signed-DEX audit and its tests; no runtime hooks or APKs changed.
+
+### What this pass established
+
+- Exact Flow mode switch keys and target blocks are now mapped for the bounded source classes. The selector comes from an integer constructor argument stored in a field; runtime branch choice is **not** proven.
+- Direct implementer counts for generic Flow/FlowCollector interfaces are too broad to identify the active player path.
+- Of 160 `Ljm4.for(Flow, Scope, Collector)` callsites, exactly one originates in a method accepting both Album and Track: `LDT0.<init>(Album, Track, ...)`. Its Flow argument is not yet proven to derive from that Track.
+- `LzE7.collect` has a separate opaque-object-to-Track branch candidate; branch choice and active playback are unproven.
+- Existing `LDp0.if` / `Lwp0$a.emit` Track-parameter identity results remain valid, but neither proves active selected playback.
+
+### Exact next task
+
+Inspect only `LDT0.<init>` and its `Ljm4.for` callsite. Prove or reject whether the Flow argument derives from the exact Track parameter. If it does not, close this candidate; do not fan out across the other generic Flow callsites. If it does, follow one bounded hop and distinguish active playback from queue/prefetch/download.
+
+**Gates remain:** `active_selected_item_proven=false`, `same_native_item_to_decoder_proven=false`; CELIKOM replacement is not connected. NAV17 Stage A remains owner-confirmed PASS; Stage B remains research-only / NO-GO for replacement. No release APK.
+
+---
+
 # SUPERCEDING ADDENDUM — 15 Nov 2026, renderer field writer xrefs
 
 Current read-only checkpoint: `cfd02607829ef854065331571654c94bef5005ba`, CI [#43716254136](https://github.com/manufact-test/nomusic/actions/runs/43716254136) SUCCESS, 49/49 tests; exact backup `backup/android-a1-renderer-field-writer-census-ci-green-20261115`. Details: `docs/android/ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md`. Three exact ByteBuffer fields and seven writer methods; exact `Lad6.final(I)ByteBuffer` store references in `LcC0.n` and `Lkd6.n`. That is a **static field reference**, not a verified active Track or decoded object at audio sink. All selected identity gates remain false. NAV17 Stage A stays owner-confirmed PASS and Stage B replacement is unconnected. Historical Stage A NO-GO material below is superseded.
