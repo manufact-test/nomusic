@@ -173,3 +173,83 @@ test("W155 release verifier rejects a symlinked installer package",async t=>{
     origin,version,sequence,pinnedPublicKeyDerBase64:f.publicKey
   }),/PACKAGE_FILE_INVALID/);
 });
+
+
+test("W155 local publisher rehearsal promotes a signed release and rejects a changed prior feed",async t=>{
+  if(process.platform==="win32")return t.skip("The remote publisher rehearsal uses POSIX sha256sum and Bash");
+  const f=await fixture(t);
+  const publisher=await readFile(
+    new URL("../windows-stable-publish-hostinger.sh",import.meta.url),"utf8");
+  const start=publisher.indexOf("<<'REMOTE'\n");
+  const end=publisher.indexOf("\nREMOTE",start+10);
+  assert.ok(start>=0&&end>start);
+  let remote=publisher.slice(start+"<<'REMOTE'\n".length,end);
+  const testRoot=join(f.root,"local-deploy-root");
+  await mkdir(testRoot);
+  for(const path of [
+    "/home","/home/u235811320","/home/u235811320/domains",
+    "/home/u235811320/domains/celikom.com"
+  ])remote=remote.replaceAll('"'+path+'"',JSON.stringify(testRoot));
+
+  async function makeStage(stage,app,bytes,doc,signature){
+    await mkdir(stage);
+    await Promise.all([
+      writeFile(join(stage,app),bytes),
+      writeFile(join(stage,"manifest.json"),doc),
+      writeFile(join(stage,"manifest.json.sig"),signature),
+      writeFile(join(stage,"latest.json"),doc),
+      writeFile(join(stage,"latest.json.sig"),signature)
+    ]);
+    const sums=execFileSync("sha256sum",[
+      app,"manifest.json","manifest.json.sig","latest.json","latest.json.sig"
+    ],{cwd:stage,encoding:"utf8"});
+    await writeFile(join(stage,"SHA256SUMS.txt"),sums);
+  }
+  function runRemote(stage,releaseVersion,releaseSequence,app,oldSequence,oldManifestSha,oldSignatureSha){
+    return execFileSync("bash",["-s","--",testRoot,stage,releaseVersion,
+      String(releaseSequence),app,String(oldSequence),oldManifestSha,oldSignatureSha],
+      {input:remote,encoding:"utf8"});
+  }
+
+  const firstBytes=await readFile(join(f.versionRoot,f.app));
+  const firstDoc=Buffer.from(JSON.stringify(f.data,null,2));
+  const firstSignature=sign("sha256",firstDoc,{key:f.pair.privateKey,dsaEncoding:"der"});
+  const firstStage=join(f.root,"stage-first");
+  await makeStage(firstStage,f.app,firstBytes,firstDoc,firstSignature);
+  const zero="0".repeat(64);
+  assert.match(runRemote(firstStage,version,sequence,f.app,0,zero,zero),
+    /W155_SIGNED_STABLE_REMOTE_PUBLISHED/);
+
+  const dest=join(testRoot,"CELIKOM","Windows","Updates","stable");
+  assert.deepEqual(await readFile(join(dest,"latest.json")),firstDoc);
+  assert.deepEqual(await readFile(join(dest,version,f.app)),firstBytes);
+  const priorManifestSha=sha(firstDoc),priorSignatureSha=sha(firstSignature);
+
+  const nextVersion="0.24.39",nextApp="CELIKOM-Windows-"+nextVersion+".exe";
+  const nextBytes=Buffer.alloc(12000,0x53);
+  const nextData={...f.data,version:nextVersion,sequence:2,
+    packageUrl:origin+"/CELIKOM/Windows/Updates/stable/"+nextVersion+"/"+nextApp,
+    packageSize:nextBytes.length,sha256:sha(nextBytes),
+    publishedAt:new Date(Date.now()-30_000).toISOString(),
+    expiresAt:new Date(Date.now()+7*86_400_000).toISOString()};
+  const nextDoc=Buffer.from(JSON.stringify(nextData,null,2));
+  const nextSignature=sign("sha256",nextDoc,{key:f.pair.privateKey,dsaEncoding:"der"});
+  const nextStage=join(f.root,"stage-next");
+  await makeStage(nextStage,nextApp,nextBytes,nextDoc,nextSignature);
+
+  await writeFile(join(dest,"latest.json"),Buffer.concat([firstDoc,Buffer.from("\n")]));
+  let changedPriorRejected=false;
+  try{
+    runRemote(nextStage,nextVersion,2,nextApp,1,priorManifestSha,priorSignatureSha);
+  }catch(error){
+    changedPriorRejected=error.status===3&&
+      String(error.stderr).includes("W155_EXISTING_LATEST_BYTES_CHANGED");
+  }
+  assert.ok(changedPriorRejected,"publisher must refuse a feed changed after its signed preflight");
+
+  await writeFile(join(dest,"latest.json"),firstDoc);
+  assert.match(runRemote(nextStage,nextVersion,2,nextApp,1,priorManifestSha,priorSignatureSha),
+    /W155_SIGNED_STABLE_REMOTE_PUBLISHED/);
+  assert.deepEqual(await readFile(join(dest,"latest.json")),nextDoc);
+  assert.deepEqual(await readFile(join(dest,nextVersion,nextApp)),nextBytes);
+});
