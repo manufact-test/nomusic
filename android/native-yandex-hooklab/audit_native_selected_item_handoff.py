@@ -604,7 +604,8 @@ def inspect_signed(apks):
         ("LFp0;", "invokeSuspend"), ("LFp0;", "<init>"),
         ("Lcom/yandex/music/shared/player/download2/o;", "for"),
         ("Lcom/yandex/music/shared/player/download2/o$c;", "invokeSuspend"),
-        ("Lcom/yandex/music/shared/player/download2/o$c;", "<init>")
+        ("Lcom/yandex/music/shared/player/download2/o$c;", "<init>"),
+        ("LRAa;", "invokeSuspend"), ("LRAa;", "<init>")
     }
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -638,7 +639,8 @@ def inspect_signed(apks):
                     album_accessor_field_reads.extend(reads)
                 for target_class in ("LDp0;", "Lwp0$a;", "LGp0;", "Lou3;",
                                      "LGl4;", "Ljm4;", "Lk1a;", "Lam4;", "LFp0;",
-                                     "Lcom/yandex/music/shared/player/download2/o$c;"):
+                                     "Lcom/yandex/music/shared/player/download2/o$c;",
+                                     "LRAa;"):
                     if target_class in defined:
                         flow_dispatcher_class_fields[target_class] = [
                             {"field": name, "type": typ}
@@ -822,7 +824,8 @@ def inspect_signed(apks):
             t for t in focused_method_traces
             if t["method"]["owner"] in (
                 "Lcom/yandex/music/shared/player/download2/o;",
-                "Lcom/yandex/music/shared/player/download2/o$c;"
+                "Lcom/yandex/music/shared/player/download2/o$c;",
+                "LRAa;"
             ) and t["method"]["name"] in ("for", "invokeSuspend", "<init>")
         ],
         "descriptor_builder_callers": descriptor_builder_callers,
