@@ -146,7 +146,8 @@ if (!$dirInfo.PSIsContainer -or
     throw "W155_KEY_DIRECTORY_UNSAFE"
 }
 $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-& icacls.exe $keyRoot /inheritance:r /grant:r "$($currentUser):(OI)(CI)F" "SYSTEM:(OI)(CI)F" /T /C *> $null
+$currentUserGrant = $currentUser + ":(OI)(CI)F"
+& icacls.exe $keyRoot /inheritance:r /grant:r $currentUserGrant "SYSTEM:(OI)(CI)F" /T /C *> $null
 if ($LASTEXITCODE -ne 0) { throw "W155_PRIVATE_KEY_ACL_HARDENING_FAILED" }
 
 $privatePath = Join-Path $keyRoot "manifest-private.pem"
