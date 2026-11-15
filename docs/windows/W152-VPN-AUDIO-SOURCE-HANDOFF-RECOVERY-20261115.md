@@ -44,3 +44,12 @@ This code-level mechanism is now guarded. It is not a claim that all audible pop
 - Final grouped acceptance must separately test original tracks, ACTIVE_REPLACEMENT tracks and My Wave; confirm fast reconnect remains fast; then test crossfade after recovery.
 - No EXE, ZIP or intermediate installer was built.
 - Next: W150 Task 3 only — verify first-launch autostart ON by default, sticky user OFF, and no automatic Yandex launch/elevation. Existing W150 says these behaviors already appear present; audit before changing code.
+
+
+## W158 owner-PC retest — 16.11.2026 (field regression)
+
+The 0.24.39.0 / native 0.24.30 owner diagnostic now shows that the no-kUrl continuity path is not fully accepted on the owner's Yandex build. For track 144530503, NATIVE_ROUTE_RECOVERY_SOURCE_HELD is followed after entitlement recovery by NATIVE_CURRENT_SOURCE_REVALIDATE and NATIVE_REPLACEMENT_SOURCE_RELOAD for that same track. A second route-change signal occurred during the hold. Four other held/kept cycles did reach SOURCE_KEPT, so this is a narrow recovery-guard/state-ordering gap, not evidence that every VPN transition reloads the source.
+
+Reopen only this specific no-kUrl path. Determine which host/renderer guard prevented SOURCE_KEPT, add privacy-safe fixed reason codes if needed, and preserve the same already-mapped current source when the same track remains PLAYING/PAUSED on the same origin. Keep actual source/player-loss, Next, Stop, logout, denial, origin-change and timeout fail-closed behavior. Do not infer audible continuity from these logs; owner listening acceptance is still required.
+
+See docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md for the exact event sequence and ordered work.
