@@ -5,6 +5,19 @@ Repository: `manufact-test/nomusic`
 Only working branch: `main`  
 Authority: W119 product/architecture rules + W150 owner-approved scope and order.
 
+## Final execution addendum — 15 November 2026
+
+This addendum supersedes the earlier in-progress/owner-action status below.
+
+- W155/W156 implementation and protected release workflow are complete at code/test/CI level. Do not repeat the runtime audit or make additional updater changes.
+- Owner P-256 provisioning is complete. The private key is stored only in the protected GitHub Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` in `windows-stable-production`. Never request, print, copy into chat, or commit the private PEM.
+- The workflow-derived public-key fingerprint matched the owner's local public fingerprint. The first release attempt exposed a timestamp-precision mismatch; the workflow now emits canonical UTC ISO-8601 milliseconds and the one-shot marker was retriggered without changing version or sequence.
+- Final protected release workflow run `43741752502`: **SUCCESS** on source commit `bc59e0c7e4db749d616b318beb89369245811b44`. Main CI `43741752582` and Windows integration CI `43741752579`: **SUCCESS**.
+- The single final bootstrap is Draft Release `celikom-windows-v0.24.38-owner-bootstrap`, release ID `446239144`, version `0.24.38`, sequence `1`. Exactly three assets were verified: `CELIKOM-Windows-0.24.38.exe`, `CELIKOM-Windows-0.24.38.zip`, and `SHA256SUMS.txt`. The ZIP contains exactly one root-level EXE and its entry hash matches the installer. No Actions artifact was uploaded.
+- **Only remaining owner work:** download/install this one package over 0.24.37 and complete the grouped W154 acceptance. No intermediate build is authorized.
+- DNS/TLS and the signed production feed remain deliberately deferred. The Draft Release must remain unpublished; do not claim production automatic updates until DNS/TLS and the signed feed are activated.
+
+
 ## 1. Latest verified checkpoint
 
 - Current `main` documentation HEAD before this handoff update: `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
