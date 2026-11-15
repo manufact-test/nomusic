@@ -132,6 +132,35 @@ catch (IOException e) when (e.Message == "SUPERVISOR_TRANSACTION_MISMATCH")
 { wrongTransactionRejected = true; }
 Check(wrongTransactionRejected, "wrong/replayed transaction cannot be supervised");
 
+var boundRecord = DurableSupervisorJournal.ValidateTrustBinding(
+    NewRecord(StableUpdateRollbackJournal.Phase.Prepared), guid, new string('c', 64));
+Check(boundRecord.Id == guid && boundRecord.ManifestPublicKeySha256 == new string('c', 64),
+    "W155 independent Supervisor binds its journal to the exact pinned manifest key");
+bool wrongManifestKeyRejected = false;
+try
+{
+    DurableSupervisorJournal.ValidateTrustBinding(
+        NewRecord(StableUpdateRollbackJournal.Phase.Prepared) with
+        { ManifestPublicKeySha256 = new string('f', 64) },
+        guid, new string('c', 64));
+}
+catch (IOException e) when (e.Message == "SUPERVISOR_MANIFEST_KEY_MISMATCH")
+{ wrongManifestKeyRejected = true; }
+Check(wrongManifestKeyRejected,
+    "W155 a DPAPI journal from another manifest key cannot pass Supervisor READY");
+
+bool wrongBoundTransactionRejected = false;
+try
+{
+    DurableSupervisorJournal.ValidateTrustBinding(
+        NewRecord(StableUpdateRollbackJournal.Phase.Prepared),
+        Guid.NewGuid(), new string('c', 64));
+}
+catch (IOException e) when (e.Message == "SUPERVISOR_TRANSACTION_MISMATCH")
+{ wrongBoundTransactionRejected = true; }
+Check(wrongBoundTransactionRejected,
+    "W155 Supervisor trust binding rejects a different transaction before health checks");
+
 // No usable signed rollback image? Stop safely, don't download or execute.
 var missing = new FakeJournal(NewRecord(StableUpdateRollbackJournal.Phase.RollbackNeeded))
     { VerifiedPackageAvailable = false };
