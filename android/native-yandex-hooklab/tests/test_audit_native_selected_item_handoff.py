@@ -880,10 +880,10 @@ class SelectedItemAuditTests(unittest.TestCase):
             result=trace_native_track_coroutine_continuation(
                 FakeDex(),initial,0x8,100,resume,0,200
             )
-        self.assertEqual(result["track_parameter_capture_stores"][0]["field_slot"],3)
+        self.assertEqual(result["track_parameter_capture_store_candidates"][0]["field_slot"],3)
         self.assertTrue(result["same_field_slot_store_to_resume_read_candidates"])
         self.assertTrue(result["resume_continuation_call_sites"][0]["invokeSuspend_this_passed_as_continuation"])
-        self.assertTrue(result["track_to_opaque_wrapper_candidate"])
+        self.assertTrue(result["continuation_field_track_to_opaque_wrapper_candidate"])
         self.assertTrue(result["wrapper_continuation_handoff_sites"][0]["wrapper_instance_passed"])
         self.assertFalse(result["coroutine_runtime_resume_dispatch_proven"])
         self.assertNotIn("hiddenTrack",str(result))
