@@ -114,3 +114,18 @@ No new installer/package was built from this diagnostic review. The unpublished 
 - Источник не маркируется подтверждённым: heartbeat `UNKNOWN`, ложного зелёного статуса нет.
 
 Main CI `43760597485` и Windows Integration CI `43760597507` — SUCCESS. W22/W23/W60 — 151/151; адресные W157-тесты прошли. Итоговая версия для owner-stage пакета: app `0.24.39.0`, native module `0.24.30`. Старый Draft `0.24.38` не публиковать.
+
+
+## W157 final package — 15.11.2026
+
+Кодовый checkpoint `2948c38343cc8fba0027fe2c1a38b104b38a80ca` и package source commit `58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191` сохранены в точных backup branches.
+
+- Main CI `43760955385` attempt 2 — SUCCESS.
+- Windows Integration CI `43760955380` — SUCCESS; W22/W23/W60 151/151, все W157 no-kUrl проверки прошли.
+- W20 safe installer stage `43760955394` — SUCCESS.
+- App `0.24.39.0`, native module `0.24.30`.
+- Artifact `14180750696`: один EXE `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`, один ZIP `CELIKOM-Windows-0.24.39.zip`, `SHA256SUMS.txt`.
+- Artifact SHA-256: `b4a76570ded9cbe5640167e2f2258da9ca6a7d0f6f581ba5abbc1c90b5edf695`.
+- Ссылка: https://github.com/manufact-test/nomusic/actions/runs/43760955394/artifacts/14180750696
+
+Сборка внутренняя и unsigned; публикации или production feed нет. Старый Draft `0.24.38` запрещён к использованию. Осталась только ручная проверка владельца.

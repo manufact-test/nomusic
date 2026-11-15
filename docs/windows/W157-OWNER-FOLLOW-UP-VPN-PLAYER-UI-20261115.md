@@ -216,3 +216,23 @@ See the standalone [W54 diagnostic analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261
 **Проверки:** Main CI `43760597485` SUCCESS; Windows Integration CI `43760597507` SUCCESS; W22/W23/W60 — 151/151. Все адресные W157-тесты, W20 installer allowlist и W136 metadata contract прошли.
 
 **Пакет:** версия приложения `0.24.39.0`, native module `0.24.30`; один внутренний owner-stage EXE+ZIP+SHA256. Старый Draft `0.24.38` запрещён к публикации. Ручная проверка владельца ещё не выполнена.
+
+
+## W157 final owner package — 15.11.2026
+
+Итоговый пакет успешно собран из commit `58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191` (code checkpoint `2948c38343cc8fba0027fe2c1a38b104b38a80ca`).
+
+- Main CI `43760955385` attempt 2 — SUCCESS.
+- Windows Integration CI `43760955380` — SUCCESS; W22/W23/W60 151/151, W157 host/renderer cases all passed, additional suite 360/360.
+- W20 safe installer stage `43760955394` — SUCCESS.
+- App `0.24.39.0`; native module `0.24.30`.
+- EXE: `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`.
+- ZIP: `CELIKOM-Windows-0.24.39.zip`.
+- SHA manifest: `SHA256SUMS.txt`.
+- GitHub artifact ID `14180750696`, artifact name `CELIKOM-Windows-internal-stage-58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`.
+- Artifact archive SHA-256: `b4a76570ded9cbe5640167e2f2258da9ca6a7d0f6f581ba5abbc1c90b5edf695`.
+- Download: https://github.com/manufact-test/nomusic/actions/runs/43760955394/artifacts/14180750696
+
+Пакет содержит ровно один installer EXE, ZIP с тем же EXE и SHA256 manifest. Workflow stage-only; GitHub Release и production feed не создавались. Старый Draft `0.24.38` не использовать.
+
+**Осталось только:** ручная проверка владельца на ПК. До неё runtime acceptance не подтверждён.

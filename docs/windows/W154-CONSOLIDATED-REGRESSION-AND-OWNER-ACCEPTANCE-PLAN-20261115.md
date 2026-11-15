@@ -58,3 +58,17 @@ Do not ask the owner to test intermediate builds. The only owner package is the 
 Старый Draft `0.24.38` не является исправлением VPN no-kUrl и не должен публиковаться или передаваться владельцу. После завершения W157 source checkpoint `2948c38343cc8fba0027fe2c1a38b104b38a80ca` прошёл Main CI `43760597485` и Windows Integration CI `43760597507` — оба SUCCESS.
 
 Единственный owner-stage пакет готовится как app `0.24.39.0` / native module `0.24.30`, имя установщика `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`. Допустим только приватный GitHub Actions artifact с одним EXE, одним ZIP и SHA256 manifest. Release, production feed и клиентская публикация запрещены до ручной проверки владельца.
+
+
+## W157 final owner-stage artifact — 15.11.2026
+
+Финальная сборка версии `0.24.39.0` / native module `0.24.30` завершена успешно на source commit `58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`.
+
+- Main CI `43760955385` attempt 2 — SUCCESS.
+- Windows Integration CI `43760955380` — SUCCESS.
+- W20 safe installer stage `43760955394` — SUCCESS.
+- Artifact ID `14180750696`; EXE `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`; ZIP `CELIKOM-Windows-0.24.39.zip`; `SHA256SUMS.txt`.
+- Artifact SHA-256: `b4a76570ded9cbe5640167e2f2258da9ca6a7d0f6f581ba5abbc1c90b5edf695`.
+- Download: https://github.com/manufact-test/nomusic/actions/runs/43760955394/artifacts/14180750696
+
+Ровно один internal stage artifact создан. Никаких GitHub Release, production feed или клиентской публикации нет. Старый Draft `0.24.38` не использовать. Окончательное принятие остаётся за ручной проверкой владельца.

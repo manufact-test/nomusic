@@ -5,10 +5,11 @@
 ## Источник истины
 - Репозиторий: `manufact-test/nomusic`
 - Единственная рабочая ветка: `main`
-- Проверенный source checkpoint: `2948c38343cc8fba0027fe2c1a38b104b38a80ca`
-- Версия приложения для итогового пакета: `0.24.39.0`
-- Native module: `0.24.30`
+- Проверенный code checkpoint: `2948c38343cc8fba0027fe2c1a38b104b38a80ca`
+- Commit, из которого собран итоговый пакет: `58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`
+- Версия приложения: `0.24.39.0`; native module: `0.24.30`
 - Точный backup кода: `backup/windows-main-post-w157-no-kurl-ci-green-20261115` @ `2948c38343cc8fba0027fe2c1a38b104b38a80ca`
+- Точный backup исходника итогового пакета: `backup/windows-main-post-w157-owner-stage-20261115` @ `58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`
 - Backup до W157: `backup/windows-main-pre-w157-no-kurl-guard-matrix-20261115` @ `dce5d79ea505e40dc901c08da206712df07ef730`
 
 ## Что закрыто
@@ -21,24 +22,28 @@
 - Реальная потеря источника проходит штатное ограниченное восстановление актуального трека.
 
 ## Подтверждённые CI
-- Main CI `43760597485` — SUCCESS.
-- Windows Integration CI `43760597507` — SUCCESS.
-- W22/W23/W60 — 151/151; все адресные W157-тесты прошли.
+- Main CI `43760955385` — SUCCESS (attempt 2; повторён только упавший job после отдельного PHP smoke-сбоя).
+- Windows Integration CI `43760955380` — SUCCESS.
+- W22/W23/W60 — 151/151; W157 host/renderer tests прошли.
+- Дополнительный integration suite — 360/360.
 - W23 native bridge bundle, W20 installer allowlist и W136 version identity — PASS.
-- Версия `0.24.39.0` и native module `0.24.30` синхронизированы. Изменялись только version metadata и соответствующая CI-проверка; updater/P-256 логика не менялась.
+- Версия `0.24.39.0` и native module `0.24.30` синхронизированы. Updater/P-256 логика не менялась.
 
-## Единственный оставшийся шаг
-Собрать ровно один внутренний W20 owner-stage пакет из `main`:
-- EXE: `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`
-- ZIP: `CELIKOM-Windows-0.24.39.zip`
-- `SHA256SUMS.txt`
-- Только приватный GitHub Actions artifact, без Release, production feed, Hostinger или публикации клиентам.
-- Не создавать промежуточные EXE/ZIP/установщики и не запускать второй build.
+## Итоговая сборка — готова
+- W20 safe installer stage: run `43760955394` — SUCCESS.
+- GitHub artifact: `CELIKOM-Windows-internal-stage-58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`.
+- Artifact ID: `14180750696`; размер: `169326738` bytes.
+- EXE: `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`.
+- ZIP: `CELIKOM-Windows-0.24.39.zip`.
+- Manifest: `SHA256SUMS.txt`.
+- SHA-256 всего artifact ZIP: `b4a76570ded9cbe5640167e2f2258da9ca6a7d0f6f581ba5abbc1c90b5edf695`.
+- [Открыть сборку и скачать artifact](https://github.com/manufact-test/nomusic/actions/runs/43760955394).
+- Только приватный GitHub Actions artifact: Release и production feed не создавались.
 
 **Старый Draft 0.24.38 не публиковать и не передавать владельцу как исправление.** Диагностика W54 уже получена и разобрана — повторно её не запрашивать.
 
-## Ручная проверка владельца
-После получения единственного пакета проверить быстрый VPN reconnect на том же треке, Next во время outage, Manual Stop, logout/entitlement denial и восстановление после потери текущего плеера. No-kUrl hold не должен показывать подтверждённую подмену или зелёный статус. До этой проверки не заявлять о runtime acceptance.
+## Единственный оставшийся шаг — ручная проверка владельца
+Установить итоговый `0.24.39.0` и проверить быстрый VPN reconnect на том же треке, Next во время outage, Manual Stop, logout/entitlement denial и восстановление после потери текущего плеера. No-kUrl hold не должен показывать подтверждённую подмену или зелёный статус. До этой проверки не заявлять о runtime acceptance.
 
 ## Ограничения
 Только CELIKOM Windows. Не трогать Android, браузерное расширение, backend, updater/P-256, autostart/tray, UI redesign или архитектуру.
