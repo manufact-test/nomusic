@@ -24,8 +24,8 @@ public static class StableUpdatePackageStager
         "^[a-fA-F0-9]{64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>
-    /// Network stage is only an untrusted download until the signed manifest,
-    /// pinned signer certificate, PE metadata and bytes pass VerifyInstaller.
+    /// Network stage is only an untrusted download until the pinned P-256
+    /// manifest signature, package SHA-256, PE metadata and bytes are verified.
     /// Caller must supply a release produced by verified signed-manifest parsing.
     /// </summary>
     public static async Task<VerifiedInstaller> FetchVerifiedAsync(
