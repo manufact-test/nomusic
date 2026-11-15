@@ -83,10 +83,10 @@ Required behavior:
 Complete each item to implementation + targeted tests + CI-ready state before moving to the next. Do not mix tasks or start unrelated work.
 
 1. **Yandex close/lifecycle state:** implementation and focused CI tests are complete. Owner-PC timing/behavior check remains pending.
-2. **VPN audio continuity:** the exact-`kUrl` preservation path passes tests, but W54 proves the owner's Yandex build does not expose `kUrl`. Add a same-origin transient-recovery hold for an unchanged already-mapped current track without claiming exact source verification. Only verified current-player/source loss may trigger audio recovery; preserve manual Stop/logout/denial/origin-change/track-change safeguards and fast reconnect.
+2. **VPN audio continuity — partially implemented:** exact-`kUrl` preservation remains intact. A new no-`kUrl` path captures the prior mapped current-track identity during same-origin transient recovery; renderer suppresses revalidation/reload only if the actual current track ID still matches and the adapter still reports it mapped. This is not source proof and must not produce a green/verified status. The host regression for Yandex hiding `kUrl` passes. Remaining: explicit no-`kUrl` tests for Next/track change, manual Stop/player loss, logout, denial, API-origin change, unavailable/invalid state, recovery timeout and bounded recovery after actual source loss.
 3. **UI consistency:** the confirmed closed-player/VPN status priority is corrected. Other reported text/color issues need concrete examples; no redesign.
 4. **Diagnostics correlation:** W54 has been received and reviewed. Follow [W54 analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md); no additional diagnostic upload is currently required.
-5. **Verification:** add a regression for the no-`kUrl` case plus current-track change and fail-closed cases; run the relevant Windows test suites and both required CI workflows. CI does not replace the owner's audible/manual acceptance.
+5. **Verification:** the first no-`kUrl` host regression is now present and passes. Main CI `43756267555` and Windows integration CI `43756267579` both pass on `23538cab793be9d1381790d4c304db3cd4d4b417`; W23 native-host is `143/143`, W22/W23/W60 is `360/360`. Still add no-`kUrl` fail-closed/track-change regressions, then rerun both CI workflows. CI does not replace the owner's audible/manual acceptance.
 6. **One consolidated build:** only after items 1–5 are complete, prepare and send exactly one new Windows version for owner testing. No intermediate EXE/ZIP/installers and no premature release. Use the existing approved release/updater pipeline; do not repeat key provisioning or redesign it.
 
 The owner wants the developer to continue through the ordered work without stopping for small progress reports. Stop only when actual owner-side testing/input is required or when the complete consolidated build is ready.
@@ -154,36 +154,39 @@ The initial W157 intake prompt below is historical and predates the implementati
 
 ### Current checkpoint and backups
 
-- Current application-source HEAD: `67fd6a7386715a15dee83447c0c497084deb7034`.
-- Exact backup before this documentation update: `backup/windows-main-pre-w157-docs-update-20261115` @ `67fd6a7386715a15dee83447c0c497084deb7034`.
+- Current application-source HEAD: `23538cab793be9d1381790d4c304db3cd4d4b417`.
+- Exact backup of current CI-green code: `backup/windows-main-post-w54-no-kurl-ci-green-20261115` @ `23538cab793be9d1381790d4c304db3cd4d4b417`.
+- Exact backup before the no-`kUrl` code change: `backup/windows-main-pre-w54-no-kurl-fix-20261115` @ `6b1f6bf15dcf8fca6039b394ade2d6fd2de60224`.
 - Backup before the retired-host VPN fence change: `backup/windows-main-pre-w157-retired-host-preserve-20261115` @ `40d653f1259f2561015af770a0b5aae9f5a92f66`.
 - Work remains on `main`; no other product or platform was changed.
 
 ### Implemented
 
 1. **Yandex lifecycle:** added a process lifecycle tracker and a one-second companion check; the native host reports destruction of the selected renderer with an immediate sequenced `UNAVAILABLE` heartbeat. The bridge clears song/title/artist/duration, source and playback lease, and retires the exited host instance. A genuinely new Yandex host can publish a fresh current player.
-2. **VPN audio continuity:** same-origin transient network suspension retains signed expected-audio and exact decoder evidence. If the exact current signed CELIKOM decoder remains playing, the resumed renderer keeps that source instead of triggering a redundant current-track source refresh. The existing quick route recheck was not slowed or redesigned.
+2. **VPN audio continuity:** exact signed decoder evidence is retained when CDP `kUrl` exists. For W54's no-`kUrl` Yandex build, host now retains only the previously mapped current-track identity across same-origin transient recovery; renderer suppresses source revalidation/reload only if the current ID still matches and the adapter still reports it mapped. This is a continuity hint, not decoder/source proof. The existing quick route recheck was not slowed or redesigned. No-`kUrl` fail-closed coverage remains outstanding.
 3. **Retired-host race:** a transient VPN disable no longer clears the retired native-host ID fence. A late heartbeat from a process already declared exited remains rejected after the bridge is re-enabled; a new Yandex process ID is accepted.
 4. **UI priority:** when the player is actually unavailable, `Подключитесь к Яндекс Музыке` now outranks the simultaneous network-recovery text in track/action surfaces. Server recovery remains a separate status. Unavailable/unknown source presentation remains neutral and does not become green.
 
 ### Verification
 
-- Main CI run `43753821690`: **SUCCESS** on `67fd6a7386715a15dee83447c0c497084deb7034`.
-- Windows integration CI run `43753821682`: **SUCCESS** on the same commit.
-- W23 native-host tests: `142/142`, no failures.
+- Main CI run `43756267555`: **SUCCESS** on `23538cab793be9d1381790d4c304db3cd4d4b417`.
+- Windows integration CI run `43756267579`: **SUCCESS** on the same commit.
+- W23 native-host tests: `143/143`, no failures.
 - W22/W23/W60 original-source/VPN/403/audio suite: `360/360`, no failures.
 - W15 native contract: `W15_NATIVE_CONTRACT_PASS 411`.
 - W21 recovery contract: `41`; W24 builder: `20`.
 - GUI compilation with warnings as errors: **SUCCESS**.
-- Targeted W157 regressions cover selected-renderer destruction, signed decoder retention across a kUrl refresh, player-unavailable UI during VPN suspension, and rejection of a retired Yandex host after VPN recovery.
+- Targeted W157 regressions cover selected-renderer destruction, signed decoder retention across a kUrl refresh, player-unavailable UI during VPN suspension, rejection of a retired Yandex host after VPN recovery, and a host-side same-origin VPN hold when Yandex does not expose CDP `kUrl`.
+- The no-`kUrl` host test passes, but the fail-closed matrix for track change, manual Stop/player loss, logout, denial, origin change, invalid state/timeout and actual-source-loss recovery still needs explicit targeted coverage.
 
 ### Still outstanding
 
 - W54 owner diagnostics have been received and reviewed; see §8 and `W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md`. No resend is needed.
-- The exact-`kUrl` VPN preservation path is implemented and tested, but W54 reports `NativeDecoderUrlPropertyObserved=false`; the actual owner configuration therefore still triggers current-source revalidation/reload after VPN recovery. The no-`kUrl` path is the next required code/test task.
+- The no-`kUrl` continuity path is partially implemented: host captures the previously mapped current-track ID during same-origin transient recovery, and renderer only holds if the actual current ID still matches and the adapter still reports it mapped. The new host regression passes. No-`kUrl` fail-closed tests for track change, manual Stop/player loss, logout/denial/origin change, invalid state/timeout and actual-source-loss recovery remain.
 - Owner-PC verification of prompt Yandex closure and audible VPN continuity remains pending. W54 does not prove audible output; CI cannot prove that the audible pop is gone.
 - No new installer/package was built. The old unpublished 0.24.38 Draft predates W157 and must not be published or delivered as the fix.
-- After the no-`kUrl` correction, run both CI workflows on the final source and prepare exactly one consolidated Windows package. No intermediate builds.
+- Current code checkpoint `23538cab793be9d1381790d4c304db3cd4d4b417`; exact checkpoint backup: `backup/windows-main-post-w54-no-kurl-ci-green-20261115`. Main CI `43756267555` and Windows integration CI `43756267579`: SUCCESS. W23 `143/143`; W22/W23/W60 `360/360`.
+- After the remaining no-`kUrl` fail-closed tests/corrections, rerun both CI workflows on the final source and prepare exactly one consolidated Windows package. No intermediate builds.
 
 
 ## 8. W54 diagnostic findings and remaining VPN gap
@@ -193,7 +196,8 @@ See the standalone [W54 diagnostic analysis](W54-OWNER-DIAGNOSTIC-ANALYSIS-20261
 - W54 second capture: network suspension at 18:15:14.643, source held at 18:15:15.250, entitlement recovered at 18:15:19.745, then `NATIVE_CURRENT_SOURCE_REVALIDATE` at 18:15:20.848 and `NATIVE_REPLACEMENT_SOURCE_RELOAD` at 18:15:20.850 for the same current track.
 - A second cycle: suspension at 18:15:30.634, source held at 18:15:31.029, recovery at 18:15:42.781, revalidation at 18:15:43.103, replacement reload at 18:15:43.105 and reload success at 18:15:44.028.
 - The diagnostic reports `NativeDecoderUrlPropertyObserved=false`. Current host preservation requires `currentDecoderPlayer`, which requires a matching signed `kUrl` plus `kIsPlaying`; therefore the host cannot set `preserveCurrentSource` in this real configuration. Existing W157 tests exercise the case where `kUrl` exists, not this case.
-- Next code task: add a narrowly scoped no-`kUrl` hold for the same current track if it was already mapped before a same-origin transient VPN suspension. The renderer must independently confirm that the current track ID is unchanged and that it was mapped. Do not promote this to verified replacement or green UI. A changed track, manual Stop, logout, denial, API-origin change or actual player/source-loss evidence must retain the existing recovery/cleanup behavior.
+- Implemented partially on `23538cab793be9d1381790d4c304db3cd4d4b417`: host stores a short-lived same-origin recovery hold containing only the previous mapped current-track ID; renderer independently checks that the actual current ID still matches and `adapter.hasMappedTrack(currentTrackId)` remains true before suppressing revalidation/reload. The hold is not source proof and must not make the UI green.
+- Remaining: add no-`kUrl`-specific regression coverage for Next/current-track change, manual Stop and player destruction, logout, denial, API-origin change, invalid/unavailable state, recovery timeout, and bounded recovery after actual source loss. Then rerun both CI workflows.
 - Add explicit tests for the no-`kUrl` route, changed track and fail-closed conditions before claiming VPN continuity complete.
 - Audible limitation: W54 says `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING` and `PlayerAudibleEventObserved=false`. This confirms the internal revalidation/reload sequence, not the actual sound waveform or pop.
 

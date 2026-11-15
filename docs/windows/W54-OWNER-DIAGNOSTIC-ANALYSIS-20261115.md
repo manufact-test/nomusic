@@ -68,16 +68,30 @@ The current host preservation predicate in `windows-companion/w23/host.cjs` call
 
 This means the W157 exact-decoder path is valid for builds that expose the property, but it does **not** close the actual W54 case. Do not report VPN continuity as complete and do not build the final package yet.
 
-## Next narrow fix
+## Implementation status after W54 review
 
-Add a same-origin transient VPN recovery path that can hold an already-mapped, unchanged current Yandex track even when CDP `kUrl` is unavailable:
+A first no-`kUrl` continuity path is now implemented on source commit `23538cab793be9d1381790d4c304db3cd4d4b417`:
+
+- Host captures a short-lived hold containing only the prior current-track ID when same-origin transient network recovery begins and the prior host status was `NATIVE_MAPPING_ACCEPTED` or `NATIVE_SOURCE_VERIFIED`.
+- Host does not infer exact source/decoder identity from this hold.
+- Renderer independently requires that the actual current Yandex track ID equals the held ID and that `adapter.hasMappedTrack(currentTrackId)` remains true before suppressing current-source revalidation/reload.
+- A focused host test passes without emitting a CDP `kUrl` property.
+- Main CI `43756267555` and Windows integration CI `43756267579` both pass. W23 native-host is `143/143`; W22/W23/W60 is `360/360`.
+
+This is only a partial fix. It proves the host-side no-`kUrl` hint and the renderer's mapped-track gate in the current test suite, but does not yet establish the complete fail-closed matrix or audible continuity on the owner's PC.
+
+## Remaining narrow work
+
+Continue only the no-`kUrl` VPN recovery task:
 
 - The host may preserve only the previous current track identity and the fact that the track had reached the mapped state; it must not convert this into exact source proof.
 - The renderer must independently confirm that the actual current Yandex track ID is still the same and that it was already mapped before the transient suspension.
 - Preserve the current source without reloading it while the route is being restored. Keep source status UNKNOWN/neutral unless exact decoder proof exists.
 - Track change, selected-player destruction, manual Stop, logout, entitlement denial and API-origin change must not inherit the hold.
 - If actual source/player loss is positively detected, retain the existing bounded current-track recovery behavior.
-- Add explicit no-`kUrl` tests, plus changed-track and fail-closed tests. Then rerun both required Windows CI workflows.
+- Add no-`kUrl`-specific tests for Next/current-track change during the outage; manual Stop and selected-player destruction; logout; entitlement denial; API-origin change; invalid/unavailable state; recovery timeout; and bounded recovery when actual current source/player loss is detected. Existing general tests do not replace explicit coverage of this new hold path.
+- Confirm a changed current track never inherits the old held ID, and the UI/source status remains UNKNOWN/neutral without exact signed decoder proof.
+- If a test exposes a defect, make only that targeted correction. Then rerun both required Windows CI workflows.
 
 ## Evidence limits
 
