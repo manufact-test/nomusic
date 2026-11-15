@@ -10,13 +10,14 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null,
   grantOverride = null, grantSequence = [], currentTrack = null, clock = Date,
   rendererStatus = "ORIGINAL", cpuUsage = null,
-  secondaryTrack = null } = {}) {
+  secondaryTrack = null, primaryAudible = false } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
   let drained = false, pump = () => {}, timerIntervalMs = 0;
   const viewEvents = new Map();
   const view = {
     isDestroyed: () => false,
+    isCurrentlyAudible: () => primaryAudible,
     getURL: () => url,
     debugger: debuggerDriver,
     on: (name, handler) => { const handlers = viewEvents.get(name) || []; handlers.push(handler); viewEvents.set(name, handlers); },
@@ -1150,4 +1151,22 @@ test("W141 unchanged current song refreshes its heartbeat before UI lease expiry
     x.source==="UNKNOWN" && x.instanceId && x.sequence>0));
   assert.ok(after[1].sequence>after[0].sequence,
     "renewal is ordered without changing Yandex state or playback");
+});
+
+
+test("W144 native audible property confirms currently PLAYING Yandex even before event", async()=>{
+  const r=await runHost("musicapplication://desktop/",{
+    currentTrack:{id:"456",title:"Вечно молодой",artist:"Смысловые Галлюцинации",
+      durationMs:210000,playbackState:"PLAYING"},
+    rendererStatus:"NATIVE_CONNECTED",
+    primaryAudible:true
+  });
+  const beat=r.network.filter(x=>x.path==="/v1/heartbeat").at(-1);
+  assert.ok(beat,"current player publishes a heartbeat");
+  const state=JSON.parse(beat.body);
+  assert.equal(state.trackId,"456");
+  assert.equal(state.playbackState,"PLAYING",
+    "Electron native audible property is sufficient even before audio-state-changed");
+  assert.equal(state.source,"UNKNOWN",
+    "audible native player alone does not falsely prove CELIKOM replacement");
 });

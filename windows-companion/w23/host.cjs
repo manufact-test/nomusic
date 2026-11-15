@@ -172,15 +172,18 @@ function activity(view) {
   }
   return state;
 }
+// The Electron property is sometimes available before its event is delivered.
+// Selection and playback-state reporting must use the same native evidence.
+function nativeAudible(view) {
+  try {
+    if (typeof view.isCurrentlyAudible === "function" &&
+        view.isCurrentlyAudible() === true) return true;
+  } catch {}
+  return activity(view).audible === true;
+}
 function choosePlaybackView() {
   const eligible = webContents.getAllWebContents().filter(validView);
-  const audible = eligible.filter(view => {
-    try {
-      if (typeof view.isCurrentlyAudible === "function" &&
-          view.isCurrentlyAudible()) return true;
-    } catch {}
-    return activity(view).audible;
-  });
+  const audible = eligible.filter(nativeAudible);
   let choice = null;
   if (audible.length === 1) choice = audible[0];
   else if (audible.length > 1) {
@@ -505,10 +508,11 @@ async function tick(view) {
       const source = decoderConfirmed ? "ACTIVE_REPLACEMENT" : "UNKNOWN";
       const reportedState = ["PLAYING","PAUSED","STOPPED"].includes(
         observed?.playbackState) ? observed.playbackState : "UNKNOWN";
+      const audibleNow = nativeAudible(view);
       const playbackState = reportedState === "PLAYING" &&
-        (decoderConfirmed || activity(view).audible)
-          ? "PLAYING" : reportedState === "PAUSED" && !activity(view).audible
-          ? "PAUSED" : reportedState === "STOPPED" && !activity(view).audible
+        (decoderConfirmed || audibleNow)
+          ? "PLAYING" : reportedState === "PAUSED" && !audibleNow
+          ? "PAUSED" : reportedState === "STOPPED" && !audibleNow
           ? "STOPPED" : "UNKNOWN";
       const current = {
         value:status, trackId, title, artist, durationMs,
