@@ -1348,3 +1348,53 @@ test("W157 destruction of the selected Yandex renderer immediately clears the cu
   assert.equal(unavailable.playbackState,"UNKNOWN");
   assert.ok(unavailable.sequence>before.at(-1).sequence);
 });
+
+
+test("W157 same-origin VPN suspension retains exact signed decoder evidence across a kUrl refresh",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const grant=w52Grant("139","123");
+  const {debug}=w52Debugger();
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false};
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,
+    grantOverride:grant,rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000},
+    stateOverride:state,clock:FakeDate
+  });
+  debug.emit("message",{}, "Media.playerPropertiesChanged",{
+    playerId:"w157-route-decoder",
+    properties:[{name:"kUrl",value:grant.audioUrl},{name:"kIsPlaying",value:"true"}]
+  });
+  clockNow+=2600;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+
+  state.enabled=false;
+  state.networkRecoveryPending=true;
+  clockNow+=350;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  const suspended=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(suspended.includes('"enabled":false'));
+  assert.ok(suspended.includes('"networkRecoveryPending":true'));
+
+  // Yandex may publish a refreshed kUrl while the bridge is suspended. The
+  // signed expectation must survive so this remains the same CELIKOM source.
+  debug.emit("message",{}, "Media.playerPropertiesChanged",{
+    playerId:"w157-route-decoder",
+    properties:[{name:"kUrl",value:grant.audioUrl},{name:"kIsPlaying",value:"true"}]
+  });
+  state.enabled=true;
+  clockNow+=350;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"preserveCurrentSource":true'),
+    "same-origin re-enable preserves a decoder that is still playing the exact signed CELIKOM source");
+  assert.ok(resumed.includes('"preserveCurrentTrackId":"123"'));
+});

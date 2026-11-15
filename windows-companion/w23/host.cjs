@@ -382,13 +382,16 @@ async function relayState(view, token, now) {
     previousOrigin !== safeState.apiOrigin;
   const preserveDecoderWitness = safeState.networkRecoveryPending &&
     safeState.signedIn && previousOrigin === safeState.apiOrigin;
-  if (!safeState.enabled || !safeState.signedIn || previousOrigin !== safeState.apiOrigin) {
+  if ((!safeState.enabled || !safeState.signedIn || originChanged) &&
+      !preserveDecoderWitness) {
+    // A same-origin transient VPN suspension is not a source loss. Keep the
+    // exact signed-grant and current-decoder evidence so a kUrl refresh during
+    // the outage can still be attributed to the already-playing CELIKOM track.
+    // Manual Stop, logout, denial and origin changes still clear every witness.
     nativeExpectedAudio.delete(view);
     verifiedDecoderSource.delete(view);
     nativeMediaHttpSuccess.delete(view);
-    const retireDecoderPlayers = !safeState.enabled || !safeState.signedIn || originChanged;
-    if (retireDecoderPlayers && !preserveDecoderWitness)
-      nativeDecoderPlayers.delete(view);
+    nativeDecoderPlayers.delete(view);
   }
   nativeAudioOrigins.set(view, safeState.apiOrigin);
   await deliverState(view, safeState);
