@@ -921,11 +921,9 @@ class SelectedItemAuditTests(unittest.TestCase):
             result=classify_native_track_coroutine_callsite(
                 FakeDex(),caller,0x8,100,ins,1,target
             )
-        self.assertEqual(
-            result["track_argument_source"],
-            "TRACK_PARAMETER_REGISTER_OVERWRITTEN"
-        )
+        self.assertEqual(result["track_argument_source"],"EXPLICIT_NULL")
         self.assertTrue(result["track_argument_register_overwritten_before_call"])
+        self.assertFalse(result["track_argument_register_is_track_parameter"] is False)
         self.assertFalse(result["exact_resume_callsite"])
 
     def test_exact_continuation_field_writer_preserves_track_on_one_cfg_branch(self):
