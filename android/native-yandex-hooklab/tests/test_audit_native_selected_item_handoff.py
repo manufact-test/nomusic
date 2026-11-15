@@ -898,7 +898,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             def u16(self, offset):
                 return {100:8,102:3,200:4,202:1}[offset]
             def descriptor(self,index):
-                return {1:"LFp0;"}
+                return {1:"LFp0;"}[index]
             def method(self,index):
                 return {
                     2:("LFp0;","<init>","(LGp0;LOe2;)V"),
@@ -940,11 +940,20 @@ class SelectedItemAuditTests(unittest.TestCase):
             "raw_stores":result["raw_track_field_store_sites"],
             "reachable":result["reachable_instruction_count"]
         }))
-        self.assertTrue(any(
+        self.assertTrue(all(
             "NEW_LFp0_CONTINUATION" in row["receiver_origins"]
             for row in result["raw_track_field_store_sites"]
         ), repr(result["raw_track_field_store_sites"]))
-        self.assertFalse(result["original_track_parameter_to_continuation_field_candidate"])
+        self.assertTrue(any(
+            row["same_original_track_parameter"]
+            for row in result["track_parameter_capture_store_candidates"]
+        ))
+        self.assertTrue(any(
+            not row["same_original_track_parameter"]
+            for row in result["track_parameter_capture_store_candidates"]
+        ))
+        self.assertTrue(result["original_track_parameter_to_continuation_field_candidate"])
+        self.assertFalse(result["all_observed_store_paths_same_original_track_parameter"])
         self.assertNotIn("privateTrack",str(result))
 
     def test_native_track_coroutine_does_not_match_different_continuation_field(self):
