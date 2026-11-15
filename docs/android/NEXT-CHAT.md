@@ -8,7 +8,7 @@
 
 - **Only active working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 - **Latest CI-green code checkpoint:** `a9dfbbbcf959da3d5cf265c13a17e8baffcc2c50`
-- **Latest docs handoff commit:** this file's containing commit (the static-audit code checkpoint remains the SHA above).
+- **Latest docs handoff:** current working-branch HEAD; final handoff backup branch is `backup/android-a1-stage-b-audio-sink-audit-final-handoff-20261115`.
 - **Static audit CI:** [#43712507031](https://github.com/manufact-test/nomusic/actions/runs/43712507031) SUCCESS; 40/40 tests; signed native selected-item audit completed.
 - **Exact CI-green code backup:** `backup/android-a1-audio-buffer-identity-ci-green-20261115` @ `a9dfbbbcf959da3d5cf265c13a17e8baffcc2c50`
 - **Pre-fix rollback:** `backup/android-a1-wide-invoke-map-pre-final-audit-fix-20261115` @ `8e121e50712c2f65f0b703e7beeb91688727b764`
@@ -19,7 +19,7 @@
 
 ## Current Stage B evidence
 
-## Superseding technical checkpoint — 15 Nov 2026 (AudioTrack / ByteBuffer)
+### Superseding technical checkpoint — 15 Nov 2026 (AudioTrack / ByteBuffer)
 
 **Stage A = PASS on NAV17 owner verification. Stage B = IN PROGRESS.** NAV17 opened the owner's real Yandex Music account, showed albums and My Wave, and played original Yandex tracks on the handset. CELIKOM replacement tracks were not present/audible. This research does not change that owner result and does not claim replacement integration.
 
@@ -31,7 +31,7 @@
 
 ### Exact signed-DEX findings
 
-- `LbJ2` implements `Lpk0` and declares typed `AudioTrack` and `ByteBuffer` fields. Its `native(ByteBuffer, long, int)` method is the concrete native audio-buffer entry candidate; the same owner also exposes the AudioTrack construction/control path (`play`, `pause`, `flush`, AudioTrack factory methods).
+- `LbJ2` implements `Lpk0` and declares typed `AudioTrack` and `ByteBuffer` fields. Its method named `native(ByteBuffer, long, int)` is the concrete ByteBuffer entry candidate; the same owner also exposes the AudioTrack construction/control path (`play`, `pause`, `flush`, AudioTrack factory methods).
 - Two direct class callsites pass the caller's exact ByteBuffer parameter to `LbJ2.native`: `LcLb.O(..., ByteBuffer, ...)` at ordinal 43 and `Lbd6.O(..., ByteBuffer, ...)` at ordinal 38. Both use the same caller parameter register (v6); the bounded register-write census found no write to it, and the invoke word map correctly accounts for the wide `long` argument occupying two register words. This is a static same-register provenance result, not runtime playback proof.
 - `LEF2.j()` calls the exact `Lpk0.native(ByteBuffer, long, int)` interface reference and passes a ByteBuffer read from a typed field. `LbJ2` implements `Lpk0`, but the audit does not infer the runtime interface receiver/dispatch or prove that this is the same object as either direct class callsite.
 - Branch handling now preserves a caller ByteBuffer parameter only when its original register is not written anywhere in the method (including the second word of wide writes). Other aliases are discarded at branch joins; the audit deliberately prefers false negatives over path-insensitive identity claims.

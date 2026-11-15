@@ -43,7 +43,7 @@ Inspected live branch source:
 
 ## Superseding technical checkpoint — 15 Nov 2026 (AudioTrack / ByteBuffer)
 
-**Stage A = PASS on NAV17 owner verification. Stage B = IN PROGRESS.** NAV17 opened the owner's real Yandex Music account, showed albums and My Wave, and played original Yandex tracks on the handset. CELIKOM replacement tracks were not present/audible. This research does not change that owner result and does not claim replacement integration.
+**Stage A = PASS on NAV17 owner verification. Stage B = IN PROGRESS.** NAV17 established the real owner flow; the owner reported audible original Yandex playback after login, with albums and My Wave visible. The diagnostic TXT does not independently verify the audio output. CELIKOM replacement tracks were not present/audible. This research does not change that owner result and does not claim replacement integration.
 
 - Static audit code: `a9dfbbbcf959da3d5cf265c13a17e8baffcc2c50`.
 - Audit CI: [#43712507031](https://github.com/manufact-test/nomusic/actions/runs/43712507031) **SUCCESS**, 40/40 focused tests; verdict `SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY`.
