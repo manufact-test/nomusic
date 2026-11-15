@@ -3,32 +3,39 @@
 **This top block is authoritative.** The archived handoff below is retained for history only and is superseded; do not follow its old "first message" or task status.
 
 - Repository: `manufact-test/nomusic`; only working branch: `main`.
-- Current `main` documentation HEAD before this update: `b876e26bb2bca0f18fe5947ebeafdc22925918fc`; W156 package/draft-release code checkpoint: `23a4ec4a232139b9cfea986dec629d1d9b8776dd`.
-- Exact backup before this documentation correction: `backup/windows-main-pre-owner-workflow-clarification-20261115` @ `b876e26bb2bca0f18fe5947ebeafdc22925918fc`.
-- Exact backup before the 0.24.38 version block: `backup/windows-main-pre-final-owner-release-02438-20261115` @ `e3714f8c169ff95a59c6a973e6cdeed8bd2f9bde`.
-- Target one-time bootstrap version: **0.24.38**. GUI, UpdateSupervisor and Inno installer metadata are aligned.
-- Main CI run `43730989562`: SUCCESS. Windows integration CI run `43730989583`: SUCCESS.
+- Current code/release-workflow checkpoint: `bbf964512513cbf9e1942f6598534521c3b7aa69`.
+- W155 application-code checkpoint: `c1afdd5fc9b3ec90bb760857bf584dc494d7774e`; W156 package/draft-release checkpoint: `23a4ec4a232139b9cfea986dec629d1d9b8776dd`.
+- Exact backup before the PowerShell-only P-256 provisioning block: `backup/windows-main-pre-powershell-only-p256-provision-20261115` @ `7c516ad69dbad3f56781a56cd9f7b4ae8c3d7870`.
+- Exact backup before the release-workflow repair: `backup/windows-main-pre-release-workflow-repair-20261115` @ `6c921032e7dd0d05718e150d9665eab52ba02c23`.
+- Exact backup before this documentation update: `backup/windows-main-pre-powershell-owner-handoff-docs-20261115` @ `bbf964512513cbf9e1942f6598534521c3b7aa69`.
+- Target bootstrap version: **0.24.38**. GUI, UpdateSupervisor and Inno installer metadata are aligned.
+- Main CI run `43735322258`: **SUCCESS**. Windows integration CI run `43735322290`: **SUCCESS** on `bbf96451`.
 - W151–W154 are code/test/CI-ready, but owner-PC acceptance is pending. Use the single grouped plan in `docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md` only after the final package.
 - W155 runtime-chain audit is complete; no concrete runtime gap was found. Do not repeat broad audits or add speculative improvements.
-- W156 final package path is implemented and CI-tested: protected P-256 release workflow embeds only the public pin, builds one EXE, creates one ZIP with that EXE as its sole root entry, and writes SHA256SUMS. With `publish_to_production=false`, the workflow creates an unpublished GitHub Draft Release and skips Actions artifact upload. Production publication defaults OFF and must stay OFF.
-- **No owner action is requested now.** The current local provisioning helper `.github/scripts/windows-stable-provision-key.ps1` requires PowerShell 7+, Node.js 24 and GitHub CLI; it is not an approved owner-facing procedure. Do not ask the owner to install these tools or run it. Keep the P-256 private key unprovisioned and the updater fail-closed until a safe minimal one-time provisioning route is genuinely needed.
-- Do not ask for passwords, tokens or private PEM in chat. If owner participation becomes unavoidable after all repository-side work is complete, request one consolidated action and explain it step by step using the existing GitHub UI and built-in Windows capabilities wherever possible.
+- W156 release workflow derives the P-256 public pin from the protected private-key secret, builds exactly one EXE and one ZIP, and creates an unpublished Draft Release with SHA256SUMS. The Actions artifact is skipped for the owner-bootstrap path. Production publication defaults OFF.
+- The owner provisioning helper now uses built-in Windows PowerShell 5.1, Windows CNG, Notepad and the browser only. No Node.js, GitHub CLI, PowerShell 7 or extra developer tools are needed. It creates the local keypair and opens the GitHub Environment page for the single secret upload.
+- **No owner action is requested now.** Finish repository-side checks first. When the only remaining blocker is key provisioning, request one consolidated action: run the PowerShell helper and add the PEM as Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` in protected `windows-stable-production`. Never ask for the private PEM, password or token in chat.
+- The protected Environment must have an authorized required reviewer and allow only branch `main`. No public-key variable is needed; the workflow derives the public pin from the private secret. `CELIKOM_STABLE_DEPLOY_ROOT` is only needed for future production-feed publication after migration.
+- **Release workflow defaults:** version `0.24.38`, sequence `1`, blank expiry generates a 7-day UTC expiry, `publish_to_production=false`. Keep publication OFF; do not click Publish release on the resulting draft.
 - **End-user automation contract:** one manual bootstrap install over 0.24.37 is required because that installed version has no P-256 pin. Once the bootstrap is installed and DNS/TLS plus the signed feed are activated, subsequent CELIKOM updates must be detected, verified, downloaded and installed automatically. End users must never need Node.js, GitHub CLI, PowerShell commands, passwords, tokens or signing keys.
-- **Visibility:** the repository itself is public, but GitHub Draft Releases are listed only for users with push access until published. Existing Releases currently contain two Android drafts; no Windows draft exists yet. The Windows bootstrap workflow creates it after protected key provisioning. Public source code remains public.
-- Not done: protected P-256 key provisioning, final EXE/ZIP, owner installation/acceptance, DNS/TLS/feed migration. No production feed has been published.
+- **Visibility:** the repository itself is public, but GitHub Draft Releases are listed only for users with push access until published. Existing Releases contain two unpublished Android drafts; no Windows 0.24.38 draft exists yet. Public source code remains public.
+- Not done: owner P-256 key provisioning, final EXE/ZIP, owner installation/acceptance, DNS/TLS/feed migration. No production feed has been published.
 - Never use Authenticode/PFX, disable SmartScreen/Defender/UAC, publish the production feed early, create a TEST product/branch, touch Android/extension, or reopen excluded #53/#54/#56/#57/#58. #52 remains open pending owner-PC acceptance.
 
 ## Current first message for the next chat
 
-Привет! Продолжаем CELIKOM Windows. Работай только в `manufact-test/nomusic`, ветка `main`. Сначала получи live HEAD и CI, затем прочитай W119, W150, W155, W156, W154 и этот NEXT-CHAT.
+Привет! Продолжаем CELIKOM Windows. Работай только в `manufact-test/nomusic`, ветка `main`. Сначала проверь live HEAD и последние CI, затем прочитай W119, W150, W155, W156, W154 и этот NEXT-CHAT.
 
-W155 runtime-chain audit завершён; W156 package/draft-release workflow реализован и CI-tested. Целевая версия — 0.24.38. Последние Main CI `43730989562` и Windows integration CI `43730989583` — SUCCESS на документационном HEAD `b876e26b`. Точный backup перед текущим обновлением документации: `backup/windows-main-pre-owner-workflow-clarification-20261115` @ `b876e26bb2bca0f18fe5947ebeafdc22925918fc`.
+W155 runtime-chain audit завершён. W156 release workflow реализован: P-256 public pin выводится из protected Environment secret, итоговая сборка создаёт ровно один EXE, один ZIP и SHA256SUMS в неопубликованном Draft Release. Целевая версия 0.24.38; workflow defaults — sequence 1, expiry автоматически 7 дней, `publish_to_production=false`.
 
-Не начинай новые исследования и не меняй архитектуру. Не проси владельца устанавливать Node.js, GitHub CLI или запускать текущий provisioning helper: он пока не является приемлемой owner-инструкцией. Сейчас owner action не требуется. Продолжай только конкретную оставшуюся работу W155/W156 и проверку release path. P-256 private key остаётся не provisioned, production feed — fail-closed. Если после завершения repository-side work без владельца действительно не обойтись, запроси одну минимальную консолидированную операцию, с понятной пошаговой инструкцией; никогда не проси пароль, токен или PEM в чат.
+Последний проверенный release-workflow checkpoint: `bbf964512513cbf9e1942f6598534521c3b7aa69`. Main CI `43735322258` и Windows integration CI `43735322290` — SUCCESS. Точный backup перед текущей документацией: `backup/windows-main-pre-powershell-owner-handoff-docs-20261115` @ `bbf964512513cbf9e1942f6598534521c3b7aa69`.
 
-После безопасного одноразового bootstrap over 0.24.37 и активации DNS/TLS + signed feed последующие обновления CELIKOM должны полностью выполняться автоматически для пользователей. Для owner bootstrap workflow использовать version 0.24.38, sequence 1, expiry within 30 days, `publish_to_production=false`; он создаёт неопубликованный Draft Release с одним EXE, одним ZIP и SHA256SUMS. Не нажимать Publish release. Затем провести одну общую W154-приёмку.
+Не начинай новые исследования и не меняй архитектуру. Продолжай только конкретные оставшиеся шаги W155/W156. Provisioning helper теперь работает на встроенном Windows PowerShell 5.1 и открывает GitHub Environment settings + Notepad; Node.js, GitHub CLI и PowerShell 7 владельцу не нужны. Не проси владельца действовать, пока repository-side work не завершена. Когда понадобится, запроси одну консолидированную операцию: создать локальный ключ и добавить его как Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` в защищённое `windows-stable-production`. Никогда не проси присылать PEM, пароль или токен в чат.
 
-Никакого Authenticode/PFX, никакого обхода SmartScreen/Defender/UAC, никакой ранней публикации production feed, никаких Android/extension изменений и никаких старых Issues #53/#54/#56/#57/#58. Не собирай промежуточные пакеты.
+Окружение должно иметь required reviewer и разрешать только `main`. Публичный ключ workflow выводит из protected secret автоматически. Production feed остаётся fail-closed и не публикуется до миграции DNS/TLS. Не трогай Android/extension и не открывай #53/#54/#56/#57/#58.
+
+После одного ручного bootstrap over 0.24.37 и активации DNS/TLS + signed feed все последующие обновления для пользователей должны идти автоматически. Не собирай промежуточные пакеты; после ключа создай один Draft Release и проведи одну общую W154-приёмку. Не нажимай Publish release.
+
 
 ---
 
