@@ -536,6 +536,26 @@ try
          File.ReadAllBytes(seededPackage.InstallerPath).SequenceEqual(previousBytes),
          "W116 first signed install seeds an exact durable LKG package without inventing a previous release");
 
+     bool bootstrapWrongPackageNameDenied = false;
+     try
+     {
+         StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+             Path.Combine(rollbackFixtureRoot, "rollback-bootstrap-wrong-name"),
+             seededRelease with
+             {
+                 PackageUri = new Uri("https://celikom.example.test/CELIKOM/Windows/Updates/stable/0.24.36/wrong.exe")
+             },
+             previousSetup, testManifestPublicKeySha256,
+             new Version(0, 24, 36, 0), bootstrapApp, bootstrapHost,
+             bootstrapRenderer, bootstrapSupervisor, rollbackAt,
+             VerifySyntheticSetup,
+             (file, hash) => StableUpdatePayloadVerifier.MatchesFile(file, hash));
+     }
+     catch (IOException e) when (e.Message == "STABLE_ROLLBACK_BOOTSTRAP_PLAN_INVALID")
+     { bootstrapWrongPackageNameDenied = true; }
+     Test(bootstrapWrongPackageNameDenied,
+         "W155 LKG bootstrap rejects any package name other than the exact CELIKOM versioned installer");
+
     bool bootstrapPayloadMismatchDenied = false;
     File.AppendAllText(bootstrapRenderer, "tampered");
     try
