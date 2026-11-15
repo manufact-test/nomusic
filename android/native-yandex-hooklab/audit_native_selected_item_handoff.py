@@ -1324,12 +1324,18 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
     })
     if len(owners) > 16:
         raise ValueError("DECODER_OWNER_CONTRACT_LIMIT")
-    owner_methods = {owner: set() for owner in owners}
+    focus_methods = {owner: set() for owner in owners}
+    for row in boundary_rows:
+        if row["kind"] == "DECODER_BOUNDARY":
+            focus_methods[row["caller_key"][0]].add(row["caller_key"])
+    owner_declared_methods = {owner: set() for owner in owners}
     interface_owners = {
         interface
         for owner in owners
         for interface in class_profiles.get(owner, {}).get("interfaces", ())
     }
+    if len(interface_owners) > 64:
+        raise ValueError("DECODER_INTERFACE_OWNER_LIMIT")
     interface_method_refs = set()
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -1340,22 +1346,24 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
                     raise ValueError("DECODER_CONTRACT_DEX_LIMIT")
                 dex = Dex(archive.read(entry.filename))
                 for method, _flags, _code_off in method_definitions_with_flags(dex):
-                    if method[0] in owner_methods:
-                        owner_methods[method[0]].add(method)
+                    if method[0] in owner_declared_methods:
+                        owner_declared_methods[method[0]].add(method)
+                        if method in focus_methods[method[0]]:
+                            focus_methods[method[0]].add(method)
                 for index in range(dex.method_count):
                     method = dex.method(index)
                     if method[0] in interface_owners:
                         interface_method_refs.add(method)
     contracts = {
         owner: select_exact_interface_contracts(
-            owner, owner_methods[owner],
+            owner, focus_methods[owner],
             class_profiles.get(owner, {}).get("interfaces", ()),
             interface_method_refs
         )
         for owner in owners
     }
     direct_targets = {
-        method for methods in owner_methods.values() for method in methods
+        method for methods in focus_methods.values() for method in methods
     }
     interface_target_owners = {}
     for owner, rows in contracts.items():
@@ -1412,7 +1420,8 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
                 "byte", "long", "integer"
             ))
         )
-        methods = sorted(owner_methods[owner])
+        methods = sorted(owner_declared_methods[owner])
+        focus = sorted(focus_methods[owner])
         if len(methods) > 64:
             raise ValueError("DECODER_OWNER_METHOD_LIMIT")
         result.append({
@@ -1428,6 +1437,10 @@ def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles
                     "signature_types": method_signature_type_profile(method),
                 }
                 for method in methods
+            ],
+            "boundary_focus_methods": [
+                {"method": method[1], "signature": method[2]}
+                for method in focus
             ],
             "exact_interface_contracts": [
                 {"owner": row[0], "method": row[1], "signature": row[2]}
