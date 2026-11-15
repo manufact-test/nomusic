@@ -1,52 +1,85 @@
-# CELIKOM Windows — актуальная передача W157 (15.11.2026)
+# CELIKOM Windows — актуальная передача W158 (16.11.2026)
 
-**Состояние:** VPN no-kUrl continuity завершена, обе CI прошли, единственный owner-stage пакет `0.24.39.0` собран. Осталась только ручная проверка на ПК владельца.
+**Состояние:** W157 code/CI и owner-stage build 0.24.39.0 существуют, но новая проверка владельца выявила два runtime-регресса: ложное «подключено» после autorun и один повторный source reload после VPN hold. UI также неверно разрешает Start во время recovery. Не считать продукт field-accepted. Следующая работа строго по W158.
 
 ## Источник истины
-- Репозиторий: `manufact-test/nomusic`
-- Единственная рабочая ветка: `main`
-- Проверенный code checkpoint: `2948c38343cc8fba0027fe2c1a38b104b38a80ca`
-- Commit, из которого собран итоговый пакет: `58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`
-- Версия приложения: `0.24.39.0`; native module: `0.24.30`
-- Точный backup кода: `backup/windows-main-post-w157-no-kurl-ci-green-20261115` @ `2948c38343cc8fba0027fe2c1a38b104b38a80ca`
-- Точный backup исходника итогового пакета: `backup/windows-main-post-w157-owner-stage-20261115` @ `58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`
-- Backup до W157: `backup/windows-main-pre-w157-no-kurl-guard-matrix-20261115` @ `dce5d79ea505e40dc901c08da206712df07ef730`
 
-## Что закрыто
-- no-kUrl hold хранит только ID ранее сопоставленного текущего трека.
-- Host при входе в восстановленное состояние повторно проверяет текущий ID и PLAYING/PAUSED.
-- Renderer независимо проверяет ID, прежний mapping и состояние плеера.
-- Next, Manual Stop, уничтожение декодера, logout, entitlement denial, смена/некорректность API origin, недоступное состояние и истечение 10 минут закрывают hold.
-- После потери источника старый hold не создаётся повторно; повторный hold разрешается только после свежего SOURCE_MAPPED текущего трека.
-- Continuity hint не является доказательством подмены. Heartbeat остаётся `source=UNKNOWN`, зелёный статус из no-kUrl hold не возникает.
-- Реальная потеря источника проходит штатное ограниченное восстановление актуального трека.
+- Репозиторий: manufact-test/nomusic
+- Единственная рабочая ветка: main
+- Последний подтверждённый application source checkpoint: 2948c38343cc8fba0027fe2c1a38b104b38a80ca
+- Исходник существующего owner-stage пакета: 58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191
+- Версия существующего пакета: 0.24.39.0; native module: 0.24.30
+- Старый W157 Main CI 43760955385 и Windows Integration CI 43760955380 — SUCCESS. Эти результаты не закрывают новые runtime findings.
+- Старый owner-stage artifact 14180750696 / workflow 43760955394 предшествует новым findings; не считать финальной принятой сборкой и не собирать промежуточный пакет.
+- Точный backup перед W158 documentation update: backup/windows-main-pre-w158-owner-vpn-autorun-ui-20261116 @ eec7561aedcc1e33c835d94a75ff0d40474a5d48
+- Полный актуальный порядок задач и диагностические доказательства: docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md
 
-## Подтверждённые CI
-- Main CI `43760955385` — SUCCESS (attempt 2; повторён только упавший job после отдельного PHP smoke-сбоя).
-- Windows Integration CI `43760955380` — SUCCESS.
-- W22/W23/W60 — 151/151; W157 host/renderer tests прошли.
-- Дополнительный integration suite — 360/360.
-- W23 native bridge bundle, W20 installer allowlist и W136 version identity — PASS.
-- Версия `0.24.39.0` и native module `0.24.30` синхронизированы. Updater/P-256 логика не менялась.
+## Что показали новые диагностики
 
-## Итоговая сборка — готова
-- W20 safe installer stage: run `43760955394` — SUCCESS.
-- GitHub artifact: `CELIKOM-Windows-internal-stage-58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191`.
-- Artifact ID: `14180750696`; размер: `169326738` bytes.
-- EXE: `CELIKOM-W157-VPN-NOKURL-CONTINUITY-02439-UNSIGNED.exe`.
-- ZIP: `CELIKOM-Windows-0.24.39.zip`.
-- Manifest: `SHA256SUMS.txt`.
-- SHA-256 всего artifact ZIP: `b4a76570ded9cbe5640167e2f2258da9ca6a7d0f6f581ba5abbc1c90b5edf695`.
-- [Открыть сборку и скачать artifact](https://github.com/manufact-test/nomusic/actions/runs/43760955394).
-- Только приватный GitHub Actions artifact: Release и production feed не создавались.
+1. Autorun: WIN_AUTORUN_CONNECTED_IN_TRAY записан раньше HOST_LOADED / PLAYER_CDP_READY. Нативный хост появился в диагностике только после ручного Stop → Start. Код ResumeSavedPlaybackAsync включает bridge до реального player heartbeat; UI затем блокирует Start.
+2. VPN: за 15 минут — 25 route changes, 5 network errors/suspensions/recoveries, 19 pause/resume пар. Пять раз источник HELD, четыре раза KEPT. Но для track 144530503 после SOURCE_HELD всё равно случились CURRENT_SOURCE_REVALIDATE и REPLACEMENT_SOURCE_RELOAD. Причину отказа no-kUrl hold определить по коду/добавленным reason codes; не угадывать.
+3. UI: Start остаётся доступной при _resumeAfterNetworkFailure, потому что PlaybackStartGate не учитывает recovery pending. Stop должен оставаться доступной.
+4. Текущий текст «Нет связи. Подмена приостановлена…» вводит в заблуждение, если уже загруженный звук продолжает играть. Зелёный «Версия песни CELIKOM доступна для подмены» подтверждает наличие версии, но не активное воспроизведение.
+5. W54 не содержит kUrl / exact native media URL proof и PLAYER_AUDIO_AUDIBLE. Диагностика доказывает внутреннюю последовательность событий, но не waveform. Не заявлять audible continuity без owner listening check.
 
-**Старый Draft 0.24.38 не публиковать и не передавать владельцу как исправление.** Диагностика W54 уже получена и разобрана — повторно её не запрашивать.
+Новые файлы уже разобраны:
+- Вставленный текст(20261115-213827).txt — VPN recovery, app 0.24.39.0 / native 0.24.30.
+- Вставленный текст(20261115-212832).txt — autorun → manual Stop/Start.
+- Три owner screenshots находятся в текущем W158 evidence set.
+**Не проси владельца повторно присылать эти диагностики.**
 
-## Единственный оставшийся шаг — ручная проверка владельца
-Установить итоговый `0.24.39.0` и проверить быстрый VPN reconnect на том же треке, Next во время outage, Manual Stop, logout/entitlement denial и восстановление после потери текущего плеера. No-kUrl hold не должен показывать подтверждённую подмену или зелёный статус. До этой проверки не заявлять о runtime acceptance.
+## Строгий порядок работы
+
+1. **W158.1 — autorun lifecycle.** Разделить сохранённое намерение Start, процесс CELIKOM, bridge, native-host attachment и готовность текущего Yandex player. Не объявлять connected до heartbeat. Если Yandex не запущен, ждать его; при последующем открытии автоматически подключиться. Не запускать Yandex из Windows autorun. Stop отменяет сохранённое намерение.
+2. **W158.2 — no-kUrl VPN source hold.** В host.cjs / renderer-entry.mjs выяснить, почему track 144530503 был HELD, но затем revalidated/reloaded. Сохранить неизменённый mapped current source при same-origin recovery, если тот же трек остаётся PLAYING/PAUSED. Реальная потеря источника, Next, Stop, logout, denial, origin change и timeout остаются fail-closed.
+3. **W158.3 — recovery controls.** Учесть _resumeAfterNetworkFailure в общем Start gate и в StartAction. Во время auto-recovery Start disabled, Stop enabled. Не заставлять владельца делать Stop/Start.
+4. **W158.4 — только подтверждённые UI copy/color fixes.** Короткий текст как в расширении: «Подмена активна» только при существующем exact Windows source verification. Approved presence — лишь «Версия CELIKOM доступна» нейтральным цветом. UNKNOWN — нейтрально. Сервис включён не равно подмена активна.
+5. **W158.5 — focused tests.** Autorun with Yandex open/closed-then-open, explicit Stop; VPN A→B on replacement/original/My Wave, Next during recovery, real source loss, Stop/logout/denial/origin change; Start/Stop and text/color states.
+6. Только релевантные W15/W23 suites, затем оба CI (Main CI и Windows Integration CI). После всего — одна consolidated Windows owner build. Никаких промежуточных EXE/ZIP/installers.
+
+## Обязательные файлы для чтения
+
+- docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md
+- docs/windows/W54-OWNER-DIAGNOSTIC-ANALYSIS-20261115.md (дополнение W158)
+- docs/windows/W152-VPN-AUDIO-SOURCE-HANDOFF-RECOVERY-20261115.md
+- docs/windows/W153-WINDOWS-STARTUPAPPROVED-AUTORUN-RECONCILIATION-20261115.md
+- docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md
+- docs/windows/W157-OWNER-FOLLOW-UP-VPN-PLAYER-UI-20261115.md
+
+Точечные исходники: MainWindow.Autostart.cs, MainWindow.cs, CompactPopupActions.cs, CompactPopup.cs, PlaybackStartGate.cs, BridgeServer.cs, YandexProcessLifecycleTracker.cs, windows-companion/w23/host.cjs, renderer-entry.mjs и адресные W15/W23 tests.
 
 ## Ограничения
-Только CELIKOM Windows. Не трогать Android, браузерное расширение, backend, updater/P-256, autostart/tray, UI redesign или архитектуру.
+
+- Только manufact-test/nomusic, ветка main.
+- Не менять архитектуру и не создавать второй плеер.
+- Не трогать Android, browser extension implementation, backend/API/DB, Yandex original files.
+- Не открывать заново updater/P-256, W155/W156, release trust и unrelated installer work.
+- Не запускать Yandex автоматически при входе в Windows; не добавлять UAC/elevation.
+- Не ослаблять entitlement checks и source-proof safeguards.
+- Не делать общий аудит, UI redesign, speculative fixes или промежуточные сборки.
+- Работать крупными блоками, строго по пунктам. Не останавливаться ради коротких отчётов. Остановиться только при необходимости реального owner input/manual acceptance или когда одна финальная сборка готова.
+
+## Первое сообщение следующему чату
+
+Привет! Продолжай **CELIKOM Windows** как ведущий разработчик. Продолжай строго с текущего состояния. Ничего не начинай с нуля и не меняй архитектуру.
+
+GitHub: manufact-test/nomusic  
+Единственная рабочая ветка: main  
+Последний подтверждённый application source checkpoint: 2948c38343cc8fba0027fe2c1a38b104b38a80ca  
+Точный backup перед W158: backup/windows-main-pre-w158-owner-vpn-autorun-ui-20261116 @ eec7561aedcc1e33c835d94a75ff0d40474a5d48  
+Существующий owner-stage build: 0.24.39.0 / native 0.24.30 — не field-accepted для новых findings. Не собирать промежуточные пакеты.
+
+Сначала прочитай W158 и все перечисленные в нём документы. Диагностики владельца уже получены и разобраны; не проси присылать их повторно.
+
+Работай строго в таком порядке:
+1. Исправь autorun false-connected: не включай видимое состояние «подключено» до реального native-host/player heartbeat. Сохраняй Start intent отдельно. Если Yandex закрыт — жди; когда владелец откроет его, подключись автоматически. Не запускай Yandex сам. Stop отменяет intent.
+2. Исправь no-kUrl VPN hold: выясни, почему track 144530503 был SOURCE_HELD, но затем всё равно REVALIDATE/RELOAD. Добавь privacy-safe reason codes только если они нужны для точного определения отказавшего guard. Сохрани текущий mapped source при том же track ID и PLAYING/PAUSED. Не ломай fail-closed для Next, реальной потери player/source, Stop, logout, denial, origin change и timeout.
+3. Исправь Start gate: при _resumeAfterNetworkFailure Start disabled, Stop enabled. Никакого ручного Stop/Start для автоматического восстановления.
+4. Исправь тексты/цвета: «Подмена активна» только при exact Windows source proof; наличие версии не равно активной подмене; неизвестный источник — нейтральный. Убери ложное сообщение, будто подмена приостановлена, когда текущий звук удерживается.
+5. Добавь адресные W15/W23 регрессии, прогони только нужные suites и оба CI.
+6. После полного успеха обнови документы и собери одну финальную Windows-версию. Никаких промежуточных EXE/ZIP/installers.
+
+Не трогай Android, расширение, backend, Yandex-файлы, updater/P-256 и архитектуру. Не запускай Yandex автоматически. Не делай общий аудит или лишние тесты. Не объявляй задачу закрытой по CI без ручной проверки звука. Иди последовательно до готового результата, без остановок на мелкие отчёты.
 
 ---
 
