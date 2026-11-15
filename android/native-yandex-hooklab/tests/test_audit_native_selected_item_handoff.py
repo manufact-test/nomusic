@@ -25,7 +25,9 @@ from audit_native_selected_item_handoff import (
     summarize_flow_entry_class_profiles,
     logical_invoke_argument_rows,
     local_primitive_register_origin,
-    constructor_int_parameter_field_store_census
+    constructor_int_parameter_field_store_census,
+    summarize_flow_interface_implementers,
+    summarize_flow_mode_branch_census
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -1103,6 +1105,59 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual([x["class"] for x in ctor_rows],["LDp0;","LBC3;"])
         self.assertEqual(ctor_rows[0]["argument_positions"],[0])
         self.assertEqual(ctor_rows[1]["argument_positions"],[0])
+
+    def test_cfg_packed_switch_exposes_exact_case_to_target_mapping(self):
+        from unittest.mock import patch
+        class FakeDex:
+            pass
+        # switch v1, payload at pc4; packed case 0 targets pc3 (return-void)
+        ins=[
+            (0,0x2b,[0x012b,4,0]),
+            (3,0x0e,[0x000e]),
+            (4,0x00,[0x0100,1,0,0,3,0])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins):
+            cfg=build_dex_control_flow(FakeDex(),100)
+        self.assertEqual(cfg["branches"][0]["switch_cases"],
+                         [{"key":0,"target_pc":3}])
+
+    def test_flow_mode_branch_census_links_switch_to_default_field(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self,offset):
+                return {100:4,102:2}[offset]
+        method=("LBy4;","collect","(LHl4;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;")
+        # iget v1, v0, field@1; packed-switch v1; case 0 -> return-void
+        ins=[
+            (0,0x54,[0x0154,1]),
+            (2,0x2b,[0x012b,4,0]),
+            (5,0x0e,[0x000e]),
+            (6,0x00,[0x0100,1,0,0,3,0])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LBy4;","default","I")):
+            result=summarize_flow_mode_branch_census(
+                FakeDex(),method,0,100
+            )
+        branch=result["branch_sites"][0]
+        self.assertEqual(branch["branch_kind"],"PACKED_SWITCH")
+        self.assertEqual(branch["selector_register_origins"][0]["origin"],
+                         {"kind":"INSTANCE_INT_FIELD_READ","owner":"LBy4;",
+                          "field":"default","type":"I"})
+        self.assertEqual(branch["switch_cases"],[{"key":0,"target_pc":5}])
+        self.assertFalse(result["branch_feasibility_proven"])
+
+    def test_flow_interface_implementer_census_is_direct_and_bounded(self):
+        profiles={
+            "LzD7;":{"interfaces":set(),"is_interface":True},
+            "LImpl;":{"interfaces":{"LzD7;"},"is_interface":False},
+            "LIndirect;":{"interfaces":{"LImpl;"},"is_interface":False}
+        }
+        rows=summarize_flow_interface_implementers(profiles)
+        row=next(x for x in rows if x["interface"]=="LzD7;")
+        self.assertTrue(row["is_interface"])
+        self.assertEqual(row["direct_implementers"],["LImpl;"])
 
     def test_primitive_flow_selector_origin_follows_move_and_decodes_const4(self):
         from unittest.mock import patch

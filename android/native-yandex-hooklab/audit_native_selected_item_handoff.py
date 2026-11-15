@@ -208,11 +208,15 @@ def declared_field_inventory(dex: Dex):
                 raise ValueError("CLASS_INTERFACE_LIMIT")
             for index in range(interface_count):
                 interfaces.add(dex.descriptor(dex.u16(interfaces_off + 4 + index * 2)))
+        access_flags=dex.u32(base+4)
         profiles[owner] = {
             "static_types": set(static_types),
             "instance_types": set(instance_types),
             "superclass": superclass,
             "interfaces": interfaces,
+            "access_flags":access_flags,
+            "is_interface":bool(access_flags&0x200),
+            "is_abstract":bool(access_flags&0x400),
         }
     return profiles
 
@@ -2443,6 +2447,7 @@ def build_dex_control_flow(dex, code_off):
         next_pc=pc+len(words)
         fallthrough=[next_pc] if next_pc in real_pcs else []
         targets=[]
+        switch_cases=[]
         if op==0x28:
             fallthrough=[]
             targets=[pc+signed_branch_offset((words[0]>>8)&0xff,8)]
@@ -2466,14 +2471,26 @@ def build_dex_control_flow(dex, code_off):
             count=payload_words[1]
             if tag==1:
                 target_start=4
+                first_key=payload_words[2]|(payload_words[3]<<16)
+                if first_key&0x80000000:
+                    first_key-=0x100000000
+                keys=[first_key+n for n in range(count)]
             elif tag==2:
                 target_start=2+2*count
+                keys=[]
+                for n in range(count):
+                    raw_key=payload_words[2+2*n]|(payload_words[3+2*n]<<16)
+                    if raw_key&0x80000000:
+                        raw_key-=0x100000000
+                    keys.append(raw_key)
             else:
                 raise ValueError("TRACK_COROUTINE_CFG_SWITCH_PAYLOAD_TYPE")
             for n in range(count):
                 at=target_start+2*n
                 raw_target=payload_words[at]|(payload_words[at+1]<<16)
-                targets.append(pc+signed_branch_offset(raw_target,32))
+                target_pc=pc+signed_branch_offset(raw_target,32)
+                targets.append(target_pc)
+                switch_cases.append({"key":keys[n],"target_pc":target_pc})
         elif op in exits:
             successors[pc]=[]
             continue
@@ -2484,7 +2501,8 @@ def build_dex_control_flow(dex, code_off):
         if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
             branches.append({
                 "pc":pc,"op":op,"target_pcs":sorted(set(targets)),
-                "fallthrough_pcs":fallthrough
+                "fallthrough_pcs":fallthrough,
+                "switch_cases":switch_cases
             })
     entry=min(real_pcs)
     reachable=set()
@@ -5228,7 +5246,9 @@ def summarize_flow_entry_class_profiles(class_profiles):
         "LBC3;","LO6;","LBy4;","Lvp0;","LzD7;","LBD7;",
         "LAp0;","Lxp0;","LUK6;","LDb1;","LC3a;","LgE6;",
         "LDw8;","LAD7;","LzE7;","Lnn4;","Lhw9;","LcE6;",
-        "LAE7;","Lup0;","LAy4;","YMApplication;"
+        "LAE7;","Lup0;","LAy4;","LJw4;","LPG1;","Lur1;",
+        "Lkh;","Lrm4;","LBC3$a;","LAC3$a;","LsF4;","LyC3;",
+        "Liw9;","LAg1;","YMApplication;"
     )
     rows=[]
     for owner in targets:
@@ -5242,6 +5262,8 @@ def summarize_flow_entry_class_profiles(class_profiles):
             "defined_in_signed_dex":True,
             "superclass":profile.get("superclass"),
             "interfaces":interfaces,
+            "is_interface":profile.get("is_interface",False),
+            "is_abstract":profile.get("is_abstract",False),
             "implements_flow_source_directly":"LGl4;" in interfaces,
             "implements_flow_collector_directly":"LHl4;" in interfaces,
             "instance_field_type_descriptors":sorted(profile.get("instance_types",())),
@@ -5250,12 +5272,111 @@ def summarize_flow_entry_class_profiles(class_profiles):
     return rows
 
 
+def summarize_flow_interface_implementers(class_profiles):
+    """List exact direct implementers of selected source/collector interfaces."""
+    targets=("LzD7;","LC3a;","Lhw9;","LcE6;","LAg1;","Liw9;","LGl4;","LHl4;")
+    rows=[]
+    for interface in targets:
+        profile=class_profiles.get(interface)
+        implementers=sorted(
+            owner for owner,entry in class_profiles.items()
+            if interface in entry.get("interfaces",())
+        )
+        rows.append({
+            "interface":interface,
+            "defined_in_signed_dex":profile is not None,
+            "is_interface":bool(profile and profile.get("is_interface")),
+            "superinterfaces":sorted(profile.get("interfaces",())) if profile else [],
+            "direct_implementer_count":len(implementers),
+            "direct_implementers":implementers[:64]
+        })
+    return rows
+
+
+def summarize_flow_mode_branch_census(dex, method, flags, code_off):
+    """Map DEX branch selectors to field/parameter origins and exact branch targets."""
+    cfg=build_dex_control_flow(dex,code_off)
+    ins=cfg["instructions"]
+    pc_to_ordinal={pc:i for i,(pc,_op,_words) in enumerate(ins)}
+    rows=[]
+    branch_names={
+        0x2b:"PACKED_SWITCH",0x2c:"SPARSE_SWITCH",
+        0x32:"IF_EQ",0x33:"IF_NE",0x34:"IF_LT",0x35:"IF_GE",
+        0x36:"IF_GT",0x37:"IF_LE",0x38:"IF_EQZ",0x39:"IF_NEZ",
+        0x3a:"IF_LTZ",0x3b:"IF_GEZ",0x3c:"IF_GTZ",0x3d:"IF_LEZ"
+    }
+    for branch in cfg["branches"]:
+        pc=branch["pc"]
+        ordinal=pc_to_ordinal[pc]
+        op,words=cfg["by_pc"][pc]
+        if op in (0x2b,0x2c):
+            registers=[(words[0]>>8)&0xff]
+        elif 0x32<=op<=0x37:
+            registers=[(words[0]>>8)&15,(words[0]>>12)&15]
+        elif 0x38<=op<=0x3d:
+            registers=[(words[0]>>8)&15]
+        else:
+            registers=[]
+        origins=[
+            {"register":reg,"origin":local_primitive_register_origin(
+                dex,method,flags,code_off,ins,ordinal,reg
+            )}
+            for reg in registers
+        ]
+        target_pcs=sorted(set(branch["target_pcs"]+branch["fallthrough_pcs"]))
+        target_blocks=[]
+        for target_pc in target_pcs:
+            target_ordinal=pc_to_ordinal[target_pc]
+            events=[]
+            for n in range(target_ordinal,min(len(ins),target_ordinal+10)):
+                _target_ins_pc,target_op,target_words=ins[n]
+                if target_op==0x22:
+                    events.append({"kind":"NEW_INSTANCE","type":dex.descriptor(target_words[1])})
+                elif target_op in INVOKES:
+                    callee=dex.method(target_words[1])
+                    events.append({"kind":"INVOKE","owner":callee[0],
+                                   "method":callee[1],"signature":callee[2]})
+                elif target_op in (0x54,0x62):
+                    owner,name,typ=field_id(dex,target_words[1])
+                    events.append({"kind":"FIELD_READ","owner":owner,
+                                   "field":name,"type":typ})
+                elif target_op==0x1f:
+                    events.append({"kind":"CHECK_CAST","type":dex.descriptor(target_words[1])})
+                if target_op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=target_op<=0x3d:
+                    if n>target_ordinal:
+                        break
+            target_blocks.append({
+                "target_pc":target_pc,"target_ordinal":target_ordinal,
+                "leading_events":events[:6]
+            })
+        rows.append({
+            "ordinal":ordinal,"pc":pc,"op":op,
+            "branch_kind":branch_names.get(op,"OTHER_BRANCH"),
+            "selector_register_origins":origins,
+            "switch_cases":branch.get("switch_cases",[]),
+            "target_blocks":target_blocks
+        })
+    return {
+        "control_flow_graph_built":True,
+        "branch_count":len(rows),
+        "branch_sites":rows,
+        "branch_feasibility_proven":False
+    }
+
+
 FLOW_RESEARCH_METHOD_REF_OWNERS = {
     "LDp0;","Lwp0;","Lyp0;","LBy4;","Lvp0;","LBD7;","LzD7;",
     "LC3a;","LgE6;","Lhw9;","LcE6;","LzE7;","Lnn4;",
     "LDw8;","LAD7;","LAE7;","Lup0;","LAy4;","LAp0;",
-    "Lxp0;","LUK6;","LDb1;","LBC3;","LzC3;","LAC3;"
+    "Lxp0;","LUK6;","LDb1;","LBC3;","LzC3;","LAC3;",
+    "LJw4;","LPG1;","Lur1;","Lkh;","Lrm4;","LBC3$a;","LAC3$a;",
+    "LsF4;","LyC3;","Liw9;","LAg1;"
 }
+FLOW_MODE_BRANCH_AUDIT_OWNERS = {
+    "LBy4;","Lvp0;","Lyp0;","LzC3;","LBC3;","LAC3;","Lnn4;","LzE7;"
+}
+
+
 FLOW_MODE_CONSTRUCTOR_OWNERS = {"LBy4;","Lvp0;","Lyp0;","LzC3;"}
 
 
@@ -5267,6 +5388,7 @@ FLOW_ARGUMENT_ORIGIN_TARGETS = {
     ("LBy4;","<init>"), ("LBy4;","collect"),
     ("Lvp0;","<init>"), ("Lvp0;","collect"),
     ("Lyp0;","<init>"), ("LzC3;","<init>"),
+    ("Lnn4;","<init>"),
     ("LzD7;","if"), ("LBD7;","if"),
     ("LDw8;","emit"), ("LAD7;","emit"),
     ("LUK6;","emit"), ("LDb1;","emit"), ("Lxp0;","emit"),
@@ -5393,6 +5515,7 @@ def inspect_signed(apks):
     flow_dispatcher_class_fields = {}
     flow_related_method_refs = set()
     flow_mode_constructor_store_rows = []
+    flow_mode_branch_census = []
     fp0_resume_null_track_arg = False
     fp0_coroutine_method_definitions = {}
     raa_resume_same_continuation = False
@@ -5407,10 +5530,15 @@ def inspect_signed(apks):
         ("LzC3;", "<init>"), ("LzC3;", "collect"),
         ("LAC3;", "<init>"), ("LAC3;", "collect"),
         ("LBC3;", "<init>"), ("LBC3;", "collect"),
+        ("LBC3$a;", "emit"), ("LAC3$a;", "emit"),
+        ("LsF4;", "emit"), ("LyC3;", "emit"),
         ("LBy4;", "<init>"), ("LBy4;", "collect"),
         ("Lvp0;", "<init>"), ("Lvp0;", "collect"),
         ("LzD7;", "<init>"), ("LzD7;", "if"),
         ("LC3a;", "collect"), ("LgE6;", "collect"),
+        ("Lnn4;", "<init>"), ("Lnn4;", "collect"),
+        ("LJw4;", "<init>"), ("LPG1;", "if"),
+        ("Lur1;", "case"), ("Lkh;", "invoke"), ("Lrm4;", "invoke"),
         ("LDw8;", "<init>"), ("LDw8;", "emit"),
         ("LAD7;", "<init>"), ("LAD7;", "emit"),
         ("LUK6;", "emit"), ("LDb1;", "emit"), ("Lxp0;", "emit"),
@@ -5516,6 +5644,14 @@ def inspect_signed(apks):
                                           "signature":method[2]},
                                 "int_parameter_field_stores":mode_stores
                             })
+                    if method[0] in FLOW_MODE_BRANCH_AUDIT_OWNERS and method[1]=="collect":
+                        flow_mode_branch_census.append({
+                            "method":{"owner":method[0],"name":method[1],
+                                      "signature":method[2]},
+                            **summarize_flow_mode_branch_census(
+                                dex,method,flags,code_off
+                            )
+                        })
                     if method in (
                         ("LGp0;", "new",
                          "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;"),
@@ -5925,7 +6061,9 @@ def inspect_signed(apks):
             {"owner":x[0],"method":x[1],"signature":x[2]}
             for x in sorted(flow_related_method_refs)[:MAX_METHODS]
         ],
+        "flow_interface_implementer_census":summarize_flow_interface_implementers(class_profiles),
         "flow_mode_constructor_int_field_stores":flow_mode_constructor_store_rows,
+        "flow_mode_branch_census":flow_mode_branch_census,
         "flow_source_interface_methods": [
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in sorted(flow_source_interface_methods)[:MAX_METHODS]
