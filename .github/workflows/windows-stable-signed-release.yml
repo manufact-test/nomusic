@@ -71,7 +71,7 @@ jobs:
               !$iss.Contains("VersionInfoVersion=$env:RELEASE_VERSION.0")) {
             throw 'W155_RELEASE_VERSION_MUST_BE_COMMITTED_TO_MAIN'
           }
-          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs
+          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_CONTRACT_FAILED' }
           node .github/scripts/windows-stable-trust-embed.mjs windows-companion/w15/Celikom.Companion/StableUpdateTrustConfiguration.cs
           if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_TRUST_EMBED_FAILED' }
@@ -121,6 +121,8 @@ jobs:
             Copy-Item "$env:CELIKOM_STABLE_INSTALLER" (Join-Path $out "$env:RELEASE_VERSION")
             node .github/scripts/windows-stable-release-verify.mjs "$out" "$env:RELEASE_VERSION" "$env:RELEASE_SEQUENCE"
             if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_VERIFICATION_FAILED' }
+            & .github/scripts/windows-stable-owner-package.ps1 -ReleaseDirectory "$out" -Version "$env:RELEASE_VERSION"
+            if ($LASTEXITCODE -ne 0) { throw 'W156_OWNER_EXE_ZIP_PACKAGING_FAILED' }
           } finally {
             Remove-Item $key,$pub -Force -ErrorAction SilentlyContinue
             Remove-Item Env:MANIFEST_PRIVATE_PEM -ErrorAction SilentlyContinue
