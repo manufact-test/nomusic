@@ -33,6 +33,32 @@ public static class WindowsLaunchSettings
         // or non-binary values fail closed.
         approval is null || (approval.Length >= 12 && (approval[0] & 0x01) == 0);
 
+    public static bool ShouldPreserveExistingWindowsOptOut(
+        bool hasRunEntry, byte[]? approval) =>
+        hasRunEntry && approval is not null && !StartupApprovalIsEnabled(approval);
+
+    private static bool PreserveExistingWindowsOptOut()
+    {
+        try
+        {
+            using var run = Registry.CurrentUser.OpenSubKey(RunKey);
+            if (run?.GetValue(RunName) is not string) return false;
+            using var approved = Registry.CurrentUser.OpenSubKey(StartupApprovedKey);
+            var value = approved?.GetValue(RunName);
+            if (value is null) return false;
+            var optedOut = value is byte[] bytes
+                ? !StartupApprovalIsEnabled(bytes) : true;
+            if (!optedOut) return false;
+            using var settings = Registry.CurrentUser.CreateSubKey(SettingsKey, writable: true);
+            if (settings is null) return true;
+            settings.SetValue(StartupChoiceKey, 1, RegistryValueKind.DWord);
+            return true;
+        }
+        catch (UnauthorizedAccessException) { return true; }
+        catch (IOException) { return true; }
+        catch (System.Security.SecurityException) { return true; }
+    }
+
     private static bool IsStartupApproved()
     {
         try
@@ -77,6 +103,9 @@ public static class WindowsLaunchSettings
                     choice == 1))
                     return IsRunAtLoginEnabled(executablePath);
             }
+            // If an older installation already has a Run entry which Windows
+            // explicitly disabled, adopt that OFF choice instead of re-enabling.
+            if (PreserveExistingWindowsOptOut()) return false;
             return TrySetRunAtLogin(executablePath, true);
         }
         catch (UnauthorizedAccessException) { return false; }

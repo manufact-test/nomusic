@@ -1211,6 +1211,16 @@ try
                  0xC5, 0x3B, 0xD9, 0x91 }) &&
          !WindowsLaunchSettings.StartupApprovalIsEnabled(new byte[] { 0x02 }),
          "W153 Windows Startup Settings OFF markers and malformed data never trigger background resume");
+    Test(WindowsLaunchSettings.ShouldPreserveExistingWindowsOptOut(true,
+             new byte[] { 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }) &&
+         WindowsLaunchSettings.ShouldPreserveExistingWindowsOptOut(true,
+             new byte[] { 0x63, 0x60, 0x60, 0x60, 0x62, 0xF9, 0x8C, 0x76,
+                 0xC5, 0x3B, 0xD9, 0x91 }) &&
+         !WindowsLaunchSettings.ShouldPreserveExistingWindowsOptOut(true,
+             new byte[] { 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }) &&
+         !WindowsLaunchSettings.ShouldPreserveExistingWindowsOptOut(false,
+             new byte[] { 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }),
+         "W153 first-launch default never overrides a pre-existing Windows Startup OFF choice");
     // W87: Windows login persistence is only a remembered user preference.
     // It can never replace server entitlement or grant access by itself.
     const string loginInstallation = "94e77e24-9abc-4c68-b3c0-a3e7aa1bb516";
