@@ -2759,12 +2759,14 @@ def trace_track_value_to_exact_field_store(dex, method, flags, code_off, target_
 
 
 def inspect_continuation_track_field_writers(apks, reference_dex, reference_field_slot):
-    """Find all exact writers to LFp0's Track field across the pinned six DEXes."""
+    """Find exact writers and callers in two bounded passes without retaining DEX methods."""
     target_field=field_id(reference_dex,reference_field_slot)
     if target_field[0]!="LFp0;" or target_field[2]!=MODEL:
         raise ValueError("CONTINUATION_TRACK_FIELD_CONTRACT_MISMATCH")
     writers=[]
-    all_definitions=[]
+
+    # Pass 1: retain only exact writer summaries and method references.
+    scanned_method_count=0
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -2774,9 +2776,9 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
                     raise ValueError("CONTINUATION_TRACK_WRITER_DEX_LIMIT")
                 dex=Dex(archive.read(entry.filename))
                 for method,flags,code_off in method_definitions_with_flags(dex):
-                    if len(all_definitions)>=100000:
+                    scanned_method_count+=1
+                    if scanned_method_count>500000:
                         raise ValueError("CONTINUATION_TRACK_WRITER_METHOD_LIMIT")
-                    all_definitions.append((dex,method,flags,code_off))
                     sites=[]
                     for ordinal,(_pc,op,words) in enumerate(instructions(dex,code_off)):
                         if op!=0x5b:
@@ -2801,42 +2803,55 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
                             "object_parameter_count":trace["object_parameter_count"],
                             "branch_seen":trace["branch_seen"]
                         })
+
     writer_refs={
         (row["method"]["owner"],row["method"]["method"],row["method"]["signature"])
         for row in writers
     }
     callsites=[]
+
+    # Pass 2: reopen the same signed DEX inputs and trace only callers that
+    # actually invoke one of the exact writer methods discovered above.
     if writer_refs:
-        for dex,caller,flags,code_off in all_definitions:
-            if caller in writer_refs:
-                continue
-            has_writer_call=False
-            for _pc,op,words in instructions(dex,code_off):
-                if op in INVOKES and dex.method(words[1]) in writer_refs:
-                    has_writer_call=True
-                    break
-            if not has_writer_call:
-                continue
-            trace=trace_identity_method(
-                dex,caller,flags,code_off,focus_targets=writer_refs,
-                capture_unproven_calls=True
-            )
-            for event in trace["events"]:
-                if event.get("kind")!="CALL_WITH_TYPED_IDENTITY":
-                    continue
-                callee=event.get("callee",{})
-                target=(callee.get("owner"),callee.get("method"),callee.get("signature"))
-                if target not in writer_refs:
-                    continue
-                if len(callsites)>=256:
-                    raise ValueError("CONTINUATION_TRACK_WRITER_CALLSITE_LIMIT")
-                callsites.append({
-                    "caller":{"owner":caller[0],"method":caller[1],"signature":caller[2]},
-                    "target":callee,
-                    "track_identity_arguments":event.get("identity_arguments",[])
-                })
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):
+                        continue
+                    if entry.file_size>DEX_MAX:
+                        raise ValueError("CONTINUATION_TRACK_WRITER_DEX_LIMIT")
+                    dex=Dex(archive.read(entry.filename))
+                    for caller,flags,code_off in method_definitions_with_flags(dex):
+                        if caller in writer_refs:
+                            continue
+                        has_writer_call=False
+                        for _pc,op,words in instructions(dex,code_off):
+                            if op in INVOKES and dex.method(words[1]) in writer_refs:
+                                has_writer_call=True
+                                break
+                        if not has_writer_call:
+                            continue
+                        trace=trace_identity_method(
+                            dex,caller,flags,code_off,focus_targets=writer_refs,
+                            capture_unproven_calls=True
+                        )
+                        for event in trace["events"]:
+                            if event.get("kind")!="CALL_WITH_TYPED_IDENTITY":
+                                continue
+                            callee=event.get("callee",{})
+                            target=(callee.get("owner"),callee.get("method"),callee.get("signature"))
+                            if target not in writer_refs:
+                                continue
+                            if len(callsites)>=256:
+                                raise ValueError("CONTINUATION_TRACK_WRITER_CALLSITE_LIMIT")
+                            callsites.append({
+                                "caller":{"owner":caller[0],"method":caller[1],"signature":caller[2]},
+                                "target":callee,
+                                "track_identity_arguments":event.get("identity_arguments",[])
+                            })
     return {
         "target_is_LFp0_track_typed_field":True,
+        "scanned_method_count":scanned_method_count,
         "writer_method_count":len(writers),
         "writer_methods":writers,
         "track_identity_callsite_count":len(callsites),
@@ -2847,7 +2862,6 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
         ) and bool(callsites),
         "field_names_values_track_ids_or_media_disclosed":False
     }
-
 
 def inspect_audio_output_dispatch_callers(apks, sink_report, class_profiles):
     focus_methods = [
