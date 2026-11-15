@@ -389,8 +389,18 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
         }
         for owner in sorted(candidate_owners)
     }
+    candidate_method_evidence = []
+    identity_link_sites = []
+    track_return_call_sites = []
     if not candidate_owners:
-        return {"candidate_owners": [], "owner_method_summary": [], "inbound_call_census": []}
+        return {
+            "candidate_owners": [],
+            "owner_method_summary": [],
+            "inbound_call_census": [],
+            "candidate_method_evidence": [],
+            "identity_link_sites": [],
+            "track_return_call_sites": [],
+        }
     if len(candidate_owners) > 32:
         raise ValueError("TRACK_SHARED_OWNER_METHOD_LIMIT")
     for apk in apks:
@@ -463,6 +473,38 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                         }
                         for role in method_roles:
                             summary[role_keys[role]] += 1
+                        if (
+                            MODEL in params or ALBUM_MODEL in params or WRAPPER in params
+                            or result_type in (MODEL, ALBUM_MODEL, WRAPPER)
+                            or method_roles
+                        ):
+                            if len(candidate_method_evidence) >= 128:
+                                raise ValueError("TRACK_SHARED_OWNER_METHOD_EVIDENCE_LIMIT")
+                            candidate_method_evidence.append({
+                                "owner": owner,
+                                "method": method[1],
+                                "signature": method[2],
+                                "accepts_track": MODEL in params,
+                                "accepts_album": ALBUM_MODEL in params,
+                                "accepts_wrapper": WRAPPER in params,
+                                "returns_track": result_type == MODEL,
+                                "returns_album": result_type == ALBUM_MODEL,
+                                "returns_wrapper": result_type == WRAPPER,
+                                "reads_track_album_wrapper_on_this": sorted(
+                                    role for role in method_roles
+                                    if role in (
+                                        "read_track_field", "read_album_field",
+                                        "read_wrapper_field"
+                                    )
+                                ),
+                                "calls": sorted(
+                                    role for role in method_roles
+                                    if role not in (
+                                        "read_track_field", "read_album_field",
+                                        "read_wrapper_field"
+                                    )
+                                ),
+                            })
 
                     # Bounded straight-line aliases from typed parameters and
                     # typed fields on this. Branches clear all provenance.
@@ -548,23 +590,91 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                                     caller_profile["has_kotlin_flow_field"]
                                 )
                                 if len(regs) == len(target_types):
+                                    identity_origins = []
                                     for index, typ in enumerate(target_types):
                                         register = regs[index]
                                         if typ == MODEL:
                                             if register in track_param_aliases:
                                                 row["same_track_parameter_alias_to_target_track_parameter_count"] += 1
+                                                identity_origins.append({
+                                                    "argument_position": index,
+                                                    "type": "TRACK",
+                                                    "origin": "CALLER_TRACK_PARAMETER"
+                                                })
                                             if register in track_field_aliases:
                                                 row["same_track_field_alias_to_target_track_parameter_count"] += 1
+                                                identity_origins.append({
+                                                    "argument_position": index,
+                                                    "type": "TRACK",
+                                                    "origin": "CALLER_TRACK_FIELD_ON_THIS"
+                                                })
                                         elif typ == ALBUM_MODEL:
                                             if register in album_param_aliases:
                                                 row["same_album_parameter_alias_to_target_album_parameter_count"] += 1
+                                                identity_origins.append({
+                                                    "argument_position": index,
+                                                    "type": "ALBUM",
+                                                    "origin": "CALLER_ALBUM_PARAMETER"
+                                                })
                                             if register in album_field_aliases:
                                                 row["same_album_field_alias_to_target_album_parameter_count"] += 1
+                                                identity_origins.append({
+                                                    "argument_position": index,
+                                                    "type": "ALBUM",
+                                                    "origin": "CALLER_ALBUM_FIELD_ON_THIS"
+                                                })
                                         elif typ == WRAPPER:
                                             if register in wrapper_param_aliases:
                                                 row["same_wrapper_parameter_alias_to_target_wrapper_parameter_count"] += 1
+                                                identity_origins.append({
+                                                    "argument_position": index,
+                                                    "type": "TRACK_WRAPPER",
+                                                    "origin": "CALLER_WRAPPER_PARAMETER"
+                                                })
                                             if register in wrapper_field_aliases:
                                                 row["same_wrapper_field_alias_to_target_wrapper_parameter_count"] += 1
+                                                identity_origins.append({
+                                                    "argument_position": index,
+                                                    "type": "TRACK_WRAPPER",
+                                                    "origin": "CALLER_WRAPPER_FIELD_ON_THIS"
+                                                })
+                                    if identity_origins:
+                                        if len(identity_link_sites) >= 128:
+                                            raise ValueError("TRACK_SHARED_OWNER_IDENTITY_SITE_LIMIT")
+                                        identity_link_sites.append({
+                                            "caller": {
+                                                "owner": method[0],
+                                                "method": method[1],
+                                                "signature": method[2]
+                                            },
+                                            "target": {
+                                                "owner": callee[0],
+                                                "method": callee[1],
+                                                "signature": callee[2]
+                                            },
+                                            "identity_arguments": identity_origins,
+                                            "branch_and_indirect_dispatch_inferred": False
+                                        })
+                            if (
+                                target_owner in candidate_owners
+                                and callee[2].split(")", 1)[1] == MODEL
+                            ):
+                                if len(track_return_call_sites) >= 128:
+                                    raise ValueError("TRACK_RETURN_CALLSITE_LIMIT")
+                                track_return_call_sites.append({
+                                    "caller": {
+                                        "owner": method[0],
+                                        "method": method[1],
+                                        "signature": method[2]
+                                    },
+                                    "target": {
+                                        "owner": callee[0],
+                                        "method": callee[1],
+                                        "signature": callee[2]
+                                    },
+                                    "returned_type": "NATIVE_TRACK",
+                                    "same_returned_object_to_downstream_not_yet_traced": True
+                                })
                             continue
                         if op == 0x54:  # typed iget-object; never inspect its value
                             dest = (words[0] >> 8) & 15
@@ -628,6 +738,12 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
         "inbound_call_census": [
             {"owner": owner, **inbound[owner]} for owner in sorted(candidate_owners)
         ],
+        "candidate_method_evidence": candidate_method_evidence,
+        "identity_link_sites": identity_link_sites,
+        "track_return_call_sites": track_return_call_sites,
+        "method_names_disclosed": True,
+        "field_names_and_values_disclosed": False,
+        "runtime_state_or_media_read": False,
     }
 
 def summarize_boundary_callsite_census(rows, class_profiles=None):
