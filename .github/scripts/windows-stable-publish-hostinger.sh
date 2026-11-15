@@ -58,13 +58,13 @@ latest_url="$origin/CELIKOM/Windows/Updates/stable/latest.json"
 signature_url="$latest_url.sig"
 for attempt in 1 2 3; do
   if ! latest_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
-      -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json" \
+      --max-filesize 16384 -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json" \
       -w '%{http_code}' "$latest_url")"; then
     sleep 0.2
     continue
   fi
   if ! signature_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
-      -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json.sig" \
+      --max-filesize 80 -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json.sig" \
       -w '%{http_code}' "$signature_url")"; then
     sleep 0.2
     continue
