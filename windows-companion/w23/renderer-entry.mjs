@@ -257,6 +257,14 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   // No player controls or media source are changed by this UI-only observer.
   window.__celikomBridgeNativeCurrentTrackId = () => playerSourceRefresh.currentTrackId();
   window.__celikomBridgeNativeCurrentTrack = () => playerSourceRefresh.currentTrack();
+  // Read-only current-entity mapping witness for a native status pulse that
+  // lagged behind a VPN route change. Not audio/source verification.
+  window.__celikomBridgeNativeMappedCurrentTrackId = () => {
+    const current = playerSourceRefresh.currentTrack();
+    return current && (current.playbackState === "PLAYING" ||
+        current.playbackState === "PAUSED") && adapter.hasMappedTrack(current.id)
+      ? current.id : "";
+  };
 
   window.__celikomBridgeNativeSetState = next => {
     if (stopped) return;
@@ -335,7 +343,10 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         report("NATIVE_STATE_CURRENT_SOURCE_UNKNOWN");
       } else if (previousActive && !nextActive) {
         if (networkRecoveryPending) {
-          report("NATIVE_ROUTE_RECOVERY_SOURCE_HELD", currentTrackId);
+          report(currentWasMapped && (currentPlaybackState === "PLAYING" ||
+            currentPlaybackState === "PAUSED")
+              ? "NATIVE_ROUTE_RECOVERY_SOURCE_HELD" :
+                "NATIVE_ROUTE_HOLD_NOT_MAPPED", currentTrackId);
         } else if (currentWasMapped) {
           report("NATIVE_ORIGINAL_SOURCE_RESTORE", currentTrackId);
           void playerSourceRefresh.request(currentTrackId).then(ok => {
@@ -359,6 +370,18 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           // UNKNOWN until the native decoder exposes exact signed kUrl proof.
           report("NATIVE_ROUTE_RECOVERY_SOURCE_KEPT", currentTrackId);
         } else {
+          // A SOURCE_HELD transition alone is not evidence that the host
+          // retained the same player. Make rejected holds diagnosable without
+          // logging the URL, cookie, signed grant or private media bytes.
+          if (currentWasMapped || next?.preserveCurrentSource === true) {
+            report(!networkRecoveryPending ? "NATIVE_ROUTE_HOLD_EARLY_CLEAR" :
+              next?.preserveCurrentSource !== true ? "NATIVE_ROUTE_HOLD_NO_WITNESS" :
+              next?.preserveCurrentTrackId !== currentTrackId ?
+                "NATIVE_ROUTE_HOLD_TRACK_CHANGED" :
+              (currentPlaybackState !== "PLAYING" && currentPlaybackState !== "PAUSED") ?
+                "NATIVE_ROUTE_HOLD_NOT_PLAYING" : "NATIVE_ROUTE_HOLD_NOT_MAPPED",
+              currentTrackId);
+          }
           report("NATIVE_CURRENT_SOURCE_REVALIDATE", currentTrackId);
           void adapter.prime(currentTrackId).then(found => {
           if (transitionGeneration !== stateTransitionGeneration || stopped ||
@@ -478,6 +501,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     delete window.__celikomBridgeNativeStatus;
     delete window.__celikomBridgeNativeCurrentTrackId;
     delete window.__celikomBridgeNativeCurrentTrack;
+    delete window.__celikomBridgeNativeMappedCurrentTrackId;
     delete window.__celikomBridgeNativeRecoverExpired;
     delete window.__celikomBridgeNativeRecoverSourceLeft;
     delete window.__celikomBridgeNativeConfirmedCurrentSource;

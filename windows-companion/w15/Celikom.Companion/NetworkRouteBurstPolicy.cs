@@ -13,6 +13,10 @@ public static class NetworkRouteBurstPolicy
     public static bool Latest(int scheduledEpoch, int currentEpoch) =>
         scheduledEpoch == currentEpoch;
 
+    public static bool SameBurst(DateTimeOffset now, DateTimeOffset previousRouteAt) =>
+        previousRouteAt != DateTimeOffset.MinValue && now >= previousRouteAt &&
+        now - previousRouteAt < TimeSpan.FromMilliseconds(1400);
+
     public static bool LogDue(DateTimeOffset now, DateTimeOffset previousLoggedAt) =>
         previousLoggedAt == DateTimeOffset.MinValue ||
         now - previousLoggedAt >= TimeSpan.FromMilliseconds(1400);

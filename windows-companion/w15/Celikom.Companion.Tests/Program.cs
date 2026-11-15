@@ -1297,6 +1297,21 @@ try
          !yandexLifecycle.Observe(true) &&
          yandexLifecycle.Observe(false),
          "W157 only an observed Yandex process exit marks the player unavailable, once per lifecycle");
+    Test(!CompactPlaybackPresentation.AutorunNativeConnected(true, false, false,
+              "NATIVE_CONNECTED") &&
+          !CompactPlaybackPresentation.AutorunNativeConnected(true, true, true,
+              "UNAVAILABLE") &&
+          !CompactPlaybackPresentation.AutorunNativeConnected(true, true, false,
+              "UNAVAILABLE") &&
+          !CompactPlaybackPresentation.AutorunNativeConnected(false, true, false,
+              "NATIVE_CONNECTED") &&
+          CompactPlaybackPresentation.AutorunNativeConnected(true, true, false,
+              "NATIVE_CONNECTED") &&
+          CompactPlaybackPresentation.AutorunNativeConnected(true, true, false,
+              "NATIVE_MAPPING_ACCEPTED") &&
+          CompactPlaybackPresentation.AutorunNativeConnected(true, true, false,
+              "NATIVE_SOURCE_VERIFIED"),
+          "W158 autorun waits for a real live native host after boot, delayed Yandex open and module repair");
     Test(BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-5),
              DateTimeOffset.UtcNow) &&
          !BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-20),
@@ -1530,6 +1545,13 @@ try
     Test(!WindowsLaunchSettings.ShouldResume(true, false, loginFingerprint,
         loginInstallation, loginEmail),
         "W87 last user Stop prevents silent resume across reboot");
+    Test(WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
+        loginInstallation, loginEmail) &&
+        !CompactPlaybackPresentation.AutorunNativeConnected(true, false, false,
+            "UNAVAILABLE") &&
+        !WindowsLaunchSettings.ShouldResume(true, false, loginFingerprint,
+            loginInstallation, loginEmail),
+        "W158 saved Start intent waits without a player; Stop before Yandex opens cancels future resume");
     Test(!WindowsLaunchSettings.ShouldResume(true, true, loginFingerprint,
         "c6e77e24-9abc-4c68-b3c0-a3e7aa1bb516", loginEmail),
         "W87 new installation never inherits another installation's Start");
@@ -1553,6 +1575,13 @@ try
         moduleMatches:false).Message.Contains("Старт"),
         "W87 repair instruction references the real Start button");
 
+    Test(!PlaybackStartGate.CanAcceptStart(true, false, false, false, true, false,
+              false, true) &&
+          !PlaybackStartGate.CanAcceptStart(true, false, false, false, false, false,
+              false, true) &&
+          PlaybackStartGate.CanAcceptStart(true, false, false, false, true, false,
+              false, false),
+          "W158 Start is disabled throughout automatic VPN recovery and restored after its cancellation");
     Test(PlaybackStartGate.CanAcceptStart(true, false, false, false, false, false, false) &&
          !PlaybackStartGate.CanAcceptStart(true, false, false, true, false, false, false) &&
          !PlaybackStartGate.CanAcceptStart(true, true, false, false, false, false, false) &&
@@ -1991,6 +2020,11 @@ try
          !NetworkRouteBurstPolicy.Latest(secondRouteEpoch, lastRouteEpoch) &&
          NetworkRouteBurstPolicy.Latest(lastRouteEpoch, lastRouteEpoch),
          "W94 VPN bursts invalidate stale scheduled route checks, last signal wins");
+    Test(NetworkRouteBurstPolicy.SameBurst(now.AddMilliseconds(100), now) &&
+          NetworkRouteBurstPolicy.SameBurst(now.AddMilliseconds(1399), now) &&
+          !NetworkRouteBurstPolicy.SameBurst(now.AddMilliseconds(1400), now) &&
+          !NetworkRouteBurstPolicy.SameBurst(now, DateTimeOffset.MinValue),
+          "W158 repeated VPN route events coalesce native hold without losing last validation epoch");
     Test(NetworkRouteBurstPolicy.LogDue(now, DateTimeOffset.MinValue) &&
          !NetworkRouteBurstPolicy.LogDue(now.AddMilliseconds(100),
              now) &&
@@ -2284,25 +2318,39 @@ try
         bridge.SetEnabled(true);
         Test(bridge.NativeNetworkRecoveryPending,
             "W152 network recovery marker survives bridge re-enable until native heartbeat");
+        var retiredRecoveryEpoch = bridge.NativeNetworkRecoveryEpoch;
         bridge.SetNativeNetworkRecoveryPending(true); // A second VPN route supersedes the first.
+        var latestRecoveryEpoch = bridge.NativeNetworkRecoveryEpoch;
+        Test(latestRecoveryEpoch > retiredRecoveryEpoch,
+            "W158 each distinct route marker invalidates a stale native recovery acknowledgement");
         using (var staleRouteBeat = await SendW141Heartbeat(new {
             trackId = "123", status = "NATIVE_CONNECTED",
             title = "Ты", artist = "13 карат", durationMs = 190000,
             source = "UNKNOWN", playbackState = "PLAYING",
-            instanceId = "w23-route-resume-1", sequence = 1
+            instanceId = "w23-route-resume-1", sequence = 1,
+            recoveryEpoch = retiredRecoveryEpoch
         }))
             Test(staleRouteBeat.IsSuccessStatusCode && bridge.NativeNetworkRecoveryPending,
-                "W152 an older heartbeat cannot release a newer VPN route hold");
+                "W158 stale route heartbeat cannot prematurely clear source hold");
         bridge.SetEnabled(false);
         bridge.SetEnabled(true);
-        using (var resumed = await SendW141Heartbeat(new {
+        using (var oldState = await SendW141Heartbeat(new {
             trackId = "123", status = "NATIVE_CONNECTED",
             title = "Ты", artist = "13 карат", durationMs = 190000,
             source = "UNKNOWN", playbackState = "PLAYING",
             instanceId = "w23-route-resume-2", sequence = 1
         }))
+            Test(oldState.IsSuccessStatusCode && bridge.NativeNetworkRecoveryPending,
+                "W158 pre-delivery heartbeat must not clear latest no-kUrl hold");
+        using (var resumed = await SendW141Heartbeat(new {
+            trackId = "123", status = "NATIVE_CONNECTED",
+            title = "Ты", artist = "13 карат", durationMs = 190000,
+            source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-route-resume-2", sequence = 2,
+            recoveryEpoch = latestRecoveryEpoch
+        }))
             Test(resumed.IsSuccessStatusCode && !bridge.NativeNetworkRecoveryPending,
-                "W152 first fresh heartbeat after the latest route releases the hold");
+                "W158 only post-renderer matching-epoch native heartbeat releases route hold");
         bridge.SetEnabled(false);
         using (var response = await Request("/v1/resolve?track_id=123", HttpMethod.Get, token: token))
             Test((await response.Content.ReadAsStringAsync()).Contains("\"found\":false"),

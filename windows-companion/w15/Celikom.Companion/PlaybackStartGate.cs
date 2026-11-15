@@ -13,11 +13,13 @@ public static class PlaybackStartGate
         bool compactStarting,
         bool switchAvailable,
         bool bridgeEnabled,
-        bool closing) =>
+        bool closing,
+        bool recoveryPending = false) =>
         bridgeStarted &&
         !integrationBusy &&
         !updatingApplication &&
         !compactStarting &&
         !closing &&
+        !recoveryPending &&
         (!switchAvailable || !bridgeEnabled);
 }

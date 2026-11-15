@@ -179,7 +179,7 @@ public sealed partial class MainWindow
             else
                 _bridge.SetNativeNetworkRecoveryPending(_resumeAfterNetworkFailure);
             SetCompactAccessText(_resumeAfterNetworkFailure
-                ? "Нет связи. Подмена приостановлена; повторим проверку автоматически."
+                ? "Восстанавливаем связь. Текущий звук не переключаем."
                 : "Доступ не подтверждён. Подмена выключена.");
         }
         finally

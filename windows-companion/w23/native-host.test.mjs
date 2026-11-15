@@ -9,7 +9,7 @@ const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null, tokenFileStats = null,
   grantOverride = null, grantSequence = [], currentTrack = null, clock = Date,
-  rendererStatus = "ORIGINAL", cpuUsage = null,
+  rendererStatus = "ORIGINAL", mappedCurrentTrackId = "", cpuUsage = null,
   secondaryTrack = null, primaryAudible = null } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
@@ -32,6 +32,8 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
         return queue.splice(0, 6);
       }
       if (script.includes("__celikomBridgeNativeStatus?.()")) return rendererStatus;
+      if (script.includes("__celikomBridgeNativeMappedCurrentTrackId?.()"))
+        return mappedCurrentTrackId;
       if (script.includes("__celikomBridgeNativeCurrentTrack?.()"))
         return currentTrack;
       return true;
@@ -1367,6 +1369,40 @@ test("W157 same-origin VPN recovery holds an already-mapped current track when Y
   assert.ok(heartbeats.length>0);
   assert.ok(heartbeats.every(x=>x.source==="UNKNOWN"),
     "a mapped-track continuity hint must never become verified replacement source");
+});
+
+test("W158 same-track 144530503 retains no-kUrl source despite lagging host status and acknowledges only delivered VPN epoch",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false,recoveryEpoch:0};
+  const track={id:"144530503",title:"Ау",artist:"10AGE",durationMs:190000,
+    playbackState:"PLAYING"};
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_CONNECTED",mappedCurrentTrackId:"144530503",
+    currentTrack:track,stateOverride:state,clock:FakeDate
+  });
+  // The status pulse may still say connected after a real mapped current track.
+  state.enabled=false;state.networkRecoveryPending=true;state.recoveryEpoch=9;
+  clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  state.enabled=true;clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"preserveCurrentSource":true'),
+    "current renderer mapping witness must retain the same track despite lagging host status");
+  assert.ok(resumed.includes('"preserveCurrentTrackId":"144530503"'));
+  const beats=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(beats.some(x=>x.recoveryEpoch===9 && x.trackId==="144530503"),
+    "only a post-renderer enabled heartbeat echoes the correct route acknowledgement");
+  assert.ok(beats.every(x=>x.source==="UNKNOWN"),
+    "no-kUrl mapping witness must never be promoted to decoder proof");
+  state.networkRecoveryPending=false;clockNow+=350;r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  const ended=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(ended.includes('"networkRecoveryPending":false'));
 });
 
 test("W157 no-kUrl VPN hold rejects Next to a different current track",async()=>{

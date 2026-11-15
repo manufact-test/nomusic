@@ -1,5 +1,5 @@
 "use strict";
-const CELIKOM_NATIVE_VERSION = "0.24.30";
+const CELIKOM_NATIVE_VERSION = "0.24.31";
 
 /**
  * CELIKOM main-process relay for genuine Yandex Music desktop.
@@ -40,6 +40,9 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "NATIVE_ORIGINAL_SOURCE_RESTORED", "NATIVE_ORIGINAL_SOURCE_RESTORE_DEFERRED",
   "NATIVE_ROUTE_RECOVERY_PAUSED", "NATIVE_ROUTE_RECOVERY_RESUMED",
   "NATIVE_ROUTE_RECOVERY_SOURCE_HELD", "NATIVE_ROUTE_RECOVERY_SOURCE_KEPT",
+  "NATIVE_ROUTE_HOLD_NO_WITNESS", "NATIVE_ROUTE_HOLD_NOT_MAPPED",
+  "NATIVE_ROUTE_HOLD_TRACK_CHANGED", "NATIVE_ROUTE_HOLD_NOT_PLAYING",
+  "NATIVE_ROUTE_HOLD_EARLY_CLEAR", "NATIVE_ROUTE_HOLD_NO_PRIOR_MAP",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD", "NATIVE_REPLACEMENT_SOURCE_RELOAD_OK",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD_DEFERRED",
   "NATIVE_TOGGLE_PLAYER_OBSERVER_READY", "NATIVE_TOGGLE_RELOAD_DEFERRED",
@@ -158,6 +161,8 @@ const lastStatus = new WeakMap();
 const lastNativeState = new WeakMap();
 const lastTokenRevision = new WeakMap();
 const lastDeliveredState = new WeakMap();
+// Only an actual renderer delivery may acknowledge a resumed route.
+const deliveredRecoveryEpoch = new WeakMap();
 const lastDiagPoll = new WeakMap();
 // W141: one actual audible Yandex window owns playback identity; a hidden
 // renderer or a stale window cannot overwrite the owner-facing heartbeat.
@@ -320,6 +325,7 @@ async function inject(view) {
   // A fresh renderer document must receive state even if the previous one
   // had the same value cached for this webContents.
   lastDeliveredState.delete(view);
+  deliveredRecoveryEpoch.delete(view);
   note("RENDERER_INJECTED");
   return true;
 }
@@ -415,18 +421,21 @@ async function relayState(view, token, now) {
       nativeRecoveryHoldBlocked.add(view);
     }
   } else if (!recoveryHold && !nativeRecoveryHoldBlocked.has(view) &&
-      previous && typeof previous.trackId === "string" &&
-      (previous.value === "NATIVE_MAPPING_ACCEPTED" ||
-       previous.value === "NATIVE_SOURCE_VERIFIED")) {
-    // Capture only the exact current entity while its Yandex player still
-    // exists and is PLAYING/PAUSED. This is a continuity hint, never proof.
+      previous && typeof previous.trackId === "string") {
+    // A read-only current-mapping witness covers a lagging native status
+    // pulse on Yandex builds without kUrl. It is never decoder proof.
     const observed = await execute(view,
       ";window.__celikomBridgeNativeCurrentTrack?.()||null");
     const observedId = typeof observed?.id === "string" &&
       /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : null;
+    const mappedId = await execute(view,
+      ";window.__celikomBridgeNativeMappedCurrentTrackId?.()||''");
+    const previouslyMapped = previous.value === "NATIVE_MAPPING_ACCEPTED" ||
+      previous.value === "NATIVE_SOURCE_VERIFIED";
     const canContinue = observed?.playbackState === "PLAYING" ||
       observed?.playbackState === "PAUSED";
-    if (observedId === previous.trackId && canContinue) {
+    if (observedId === previous.trackId && canContinue &&
+        (previouslyMapped || mappedId === observedId)) {
       recoveryHold = {
         trackId: observedId,
         firstSeenAt: previous.firstSeenAt || now,
@@ -435,6 +444,9 @@ async function relayState(view, token, now) {
       nativeRecoveryHolds.set(view, recoveryHold);
     } else {
       nativeRecoveryHoldBlocked.add(view);
+      note(observedId !== previous.trackId ? "NATIVE_ROUTE_HOLD_TRACK_CHANGED" :
+        !canContinue ? "NATIVE_ROUTE_HOLD_NOT_PLAYING" :
+        "NATIVE_ROUTE_HOLD_NO_PRIOR_MAP", previous.trackId);
     }
   }
   const preserveCurrentSource = networkRecoveryPending &&
@@ -466,7 +478,12 @@ async function relayState(view, token, now) {
     nativeDecoderPlayers.delete(view);
   }
   nativeAudioOrigins.set(view, safeState.apiOrigin);
-  await deliverState(view, safeState);
+  const delivered = await deliverState(view, safeState);
+  if (delivered && safeState.enabled && safeState.networkRecoveryPending &&
+      Number.isSafeInteger(state?.recoveryEpoch) &&
+      state.recoveryEpoch > 0)
+    deliveredRecoveryEpoch.set(view, state.recoveryEpoch);
+  else deliveredRecoveryEpoch.delete(view);
   return justEnabled;
 }
 async function relayGrant(view, token, request) {
@@ -513,6 +530,7 @@ async function tick(view) {
       lastStatus.delete(view);
       lastNativeState.delete(view);
       lastDeliveredState.delete(view);
+      deliveredRecoveryEpoch.delete(view);
       nativeAudioOrigins.set(view, "");
       nativeExpectedAudio.delete(view);
       verifiedDecoderSource.delete(view);
@@ -520,6 +538,7 @@ async function tick(view) {
       nativeDecoderPlayers.delete(view);
       nativeRecoveryHolds.delete(view);
       nativeRecoveryHoldBlocked.add(view);
+      deliveredRecoveryEpoch.delete(view);
       await deliverState(view, {enabled:false,signedIn:false,apiOrigin:""});
       return;
     }
@@ -533,6 +552,7 @@ async function tick(view) {
       lastStatus.delete(view);
       lastNativeState.delete(view);
       lastDeliveredState.delete(view);
+      deliveredRecoveryEpoch.delete(view);
       nativeAudioOrigins.set(view, "");
       nativeExpectedAudio.delete(view);
       verifiedDecoderSource.delete(view);
@@ -682,7 +702,8 @@ async function tick(view) {
           current.selectionGeneration = selectedGeneration;
           await localRequest(token, "/v1/heartbeat", "POST", heartbeatPayload({
             trackId, status, title, artist, durationMs,
-            source, playbackState
+            source, playbackState,
+            recoveryEpoch:deliveredRecoveryEpoch.get(view)
           }));
         }
       }
@@ -1222,6 +1243,8 @@ function observeNativePlayback(view) {
       ++selectionGeneration;
     }
     lastStatus.delete(view);
+    deliveredRecoveryEpoch.delete(view);
+    nativeRecoveryHolds.delete(view);
     if (wasSelected && choosePlaybackView() === null) {
       const token = readToken();
       if (token) void localRequest(token, "/v1/heartbeat", "POST", heartbeatPayload({

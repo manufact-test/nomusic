@@ -72,6 +72,9 @@ public sealed class BridgeServer : IAsyncDisposable
     private bool _enabled;
     private bool _nativeNetworkRecoveryPending;
     private bool _nativeNetworkRecoveryAwaitingHeartbeat;
+    // Generation-gated acknowledgement: stale heartbeats may not release a
+    // same-track source hold before the renderer has seen the resumed state.
+    private int _nativeNetworkRecoveryEpoch;
     private bool _playerUnavailable;
     // High-frequency native state checks used to flood diagnostics every
     // ~370 ms, rotating out the exact failure the owner was trying to report.
@@ -115,6 +118,8 @@ public sealed class BridgeServer : IAsyncDisposable
     public bool Enabled { get { lock (_gate) return _enabled; } }
     public bool NativeNetworkRecoveryPending
     { get { lock (_gate) return _nativeNetworkRecoveryPending; } }
+    public int NativeNetworkRecoveryEpoch
+    { get { lock (_gate) return _nativeNetworkRecoveryEpoch; } }
     public string PairCode { get { lock (_gate) return _code; } }
     public string LastSong { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastSong : ""; } }
     public string LastTrackTitle { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastTitle : ""; } }
@@ -134,6 +139,9 @@ public sealed class BridgeServer : IAsyncDisposable
         lock (_gate)
         {
             _nativeNetworkRecoveryPending = pending;
+            if (pending)
+                _nativeNetworkRecoveryEpoch = _nativeNetworkRecoveryEpoch == int.MaxValue
+                    ? 1 : _nativeNetworkRecoveryEpoch + 1;
             // A newer route signal invalidates any earlier re-enable handshake.
             _nativeNetworkRecoveryAwaitingHeartbeat = false;
         }
@@ -303,7 +311,8 @@ public sealed class BridgeServer : IAsyncDisposable
             if (IsNativeProtocolRequest(ctx)) RecordNativeStateSample();
             return Results.Json(new { enabled = CanResolve,
                 signedIn = _api.IsLoggedIn, apiOrigin = _api.IsLoggedIn ? _api.Origin : "",
-                networkRecoveryPending = NativeNetworkRecoveryPending, transport = "paired" });
+                networkRecoveryPending = NativeNetworkRecoveryPending,
+                recoveryEpoch = NativeNetworkRecoveryEpoch, transport = "paired" });
         });
 
         app.MapGet("/v1/resolve", async (HttpContext ctx) =>
@@ -394,7 +403,13 @@ public sealed class BridgeServer : IAsyncDisposable
                         _lastPlaybackState = beat.PlaybackState is "PLAYING" or "PAUSED" or "STOPPED"
                             ? beat.PlaybackState : "UNKNOWN";
                         _lastHeartbeatAt = DateTimeOffset.UtcNow;
-                        if (_nativeNetworkRecoveryAwaitingHeartbeat)
+                        // This generation is echoed only AFTER the host
+                        // delivers the resumed state to the real renderer.
+                        // Pre-resume heartbeats cannot clear the hold early.
+                        if (_nativeNetworkRecoveryAwaitingHeartbeat &&
+                            beat.RecoveryEpoch == _nativeNetworkRecoveryEpoch &&
+                            beat.Status is ("NATIVE_CONNECTED" or "NATIVE_MAPPING_ACCEPTED" or
+                                "NATIVE_SOURCE_VERIFIED" or "NATIVE_ORIGINAL_SOURCE_VERIFIED"))
                         {
                             _nativeNetworkRecoveryAwaitingHeartbeat = false;
                             _nativeNetworkRecoveryPending = false;
@@ -437,5 +452,6 @@ public sealed class BridgeServer : IAsyncDisposable
     public sealed record Heartbeat(string? TrackId, string Status,
         string? Title = null, string? Artist = null, long? DurationMs = null,
         string? Source = null, string? PlaybackState = null,
-        string? InstanceId = null, long? Sequence = null);
+        string? InstanceId = null, long? Sequence = null,
+        int? RecoveryEpoch = null);
 }

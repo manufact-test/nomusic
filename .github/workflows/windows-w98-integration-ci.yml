@@ -179,7 +179,7 @@ jobs:
             $detachHandler.Contains('decoderPlayers.clear()'),
             $nativeHostText.Contains('NATIVE_ELECTRON_CPU_HIGH'),
             $nativeHostText.Contains('}, 300);'),
-            $nativeHostText.Contains('CELIKOM_NATIVE_VERSION = "0.24.30"'),
+            $nativeHostText.Contains('CELIKOM_NATIVE_VERSION = "0.24.31"'),
             $rendererText.Contains('__celikomBridgeNativeRecoverSourceLeft'),
             $rendererSource.Contains('SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED'),
             $recoverySource.Contains('confirmationDelayMs = 150'),

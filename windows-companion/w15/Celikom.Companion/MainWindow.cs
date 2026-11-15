@@ -99,6 +99,7 @@ public sealed partial class MainWindow : Form
     // A brief server outage may suspend music. Never auto-start without a new,
     // positive authenticated entitlement and the user's original Start intent.
     private bool _resumeAfterNetworkFailure;
+    private volatile bool _autorunAwaitingNativePlayer;
     private DateTimeOffset _lastNetworkRecheckHint;
     private DateTimeOffset _lastNetworkRouteLoggedAt;
     private CancellationTokenSource? _compactAccessRequestCancellation;
@@ -133,6 +134,14 @@ public sealed partial class MainWindow : Form
         _bridge = new BridgeServer(_api, _store);
         _bridge.Changed += () =>
         {
+            if (_autorunAwaitingNativePlayer &&
+                CompactPlaybackPresentation.AutorunNativeConnected(
+                    _bridge.Enabled, _bridge.HasFreshHeartbeat,
+                    _bridge.PlayerUnavailable, _bridge.LastStatus))
+            {
+                _autorunAwaitingNativePlayer = false;
+                DiagnosticLog.Record("WIN_AUTORUN_CONNECTED_IN_TRAY");
+            }
             RefreshPlaybackUi();
             if (_bridge.Enabled &&
                 YandexFailureRecheckGate.IsNativeHandshakePresent(_bridge.LastStatus))
@@ -513,8 +522,13 @@ public sealed partial class MainWindow : Form
                 // only AFTER the old VPN's 9s timeout suspended the bridge.
                 if (_closing || IsDisposed || !_api.IsLoggedIn ||
                     !(_bridge.Enabled || _resumeAfterNetworkFailure)) return;
-                _bridge.SetNativeNetworkRecoveryPending(true);
                 var now = DateTimeOffset.UtcNow;
+                // Coalesce duplicate route notifications while retaining the
+                // LAST epoch/recheck. The same burst must not repeatedly reset
+                // native hold acknowledgement or cause pause/resume churn.
+                if (!_bridge.NativeNetworkRecoveryPending ||
+                    !NetworkRouteBurstPolicy.SameBurst(now, _lastNetworkRecheckHint))
+                    _bridge.SetNativeNetworkRecoveryPending(true);
                 // A VPN switch emits multiple addresses within milliseconds.
                 // Never DROP the last signal; only throttle the log line.
                 var shouldLog = NetworkRouteBurstPolicy.LogDue(now, _lastNetworkRouteLoggedAt);
@@ -560,6 +574,7 @@ public sealed partial class MainWindow : Form
         _networkRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(_networkRouteEpoch);
         _compactAccessRequestCancellation?.Cancel();
         _resumeAfterNetworkFailure = false;
+        _autorunAwaitingNativePlayer = false;
         _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactAccessGeneration; // discard a just-finished stale pulse
         ++_compactStartEpoch;
@@ -576,7 +591,8 @@ public sealed partial class MainWindow : Form
             _installedModule.MatchesApplication;
         if (!PlaybackStartGate.CanAcceptStart(
             _bridgeStarted, _integrationBusy, _updatingApplication,
-            _compactStarting, switchAvailable, _bridge.Enabled, _closing)) return;
+            _compactStarting, switchAvailable, _bridge.Enabled, _closing,
+            _resumeAfterNetworkFailure)) return;
         if (!_api.IsLoggedIn)
         {
             _compactAccountOpen = true;
@@ -586,6 +602,7 @@ public sealed partial class MainWindow : Form
             return;
         }
         _resumeAfterNetworkFailure = false;
+        _autorunAwaitingNativePlayer = false;
         _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactAccessGeneration; // user action wins over any outstanding poll
         // Every Start, including a later reinstall or expired subscription,
@@ -1461,6 +1478,7 @@ public sealed partial class MainWindow : Form
     private async void LoginAsync(object? sender, EventArgs e)
     {
         if (_loggingIn) return;
+        _autorunAwaitingNativePlayer = false;
         _resumeAfterNetworkFailure = false;
         _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactAccessGeneration;
@@ -1500,6 +1518,7 @@ public sealed partial class MainWindow : Form
 
     private async void LogoutAsync(object? sender, EventArgs e)
     {
+        _autorunAwaitingNativePlayer = false;
         _resumeAfterNetworkFailure = false;
         _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactStartEpoch;
@@ -1589,7 +1608,8 @@ public sealed partial class MainWindow : Form
             PlaybackSourceEvidence.MappedButUnverified(switchAvailable && _bridge.Enabled, state, sourcePresence);
         _start.Enabled = PlaybackStartGate.CanAcceptStart(
             _bridgeStarted, _integrationBusy, _updatingApplication,
-            _compactStarting, switchAvailable, _bridge.Enabled, _closing);
+            _compactStarting, switchAvailable, _bridge.Enabled, _closing,
+            _resumeAfterNetworkFailure);
         _stop.Enabled = switchAvailable && (_bridge.Enabled || _resumeAfterNetworkFailure);
         _connectionMark.ForeColor = sourceVerified
             ? Accent : ColorTranslator.FromHtml("#858B8E");
@@ -1597,7 +1617,8 @@ public sealed partial class MainWindow : Form
             !switchAvailable ? "Нужно подключить" :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? "Связь восстанавливается" : "Выключен") :
             _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
-            !heartbeatFresh ? "Нет данных плеера" :
+            !heartbeatFresh ? (_autorunAwaitingNativePlayer
+                ? "Ожидаем Яндекс Музыку" : "Нет данных плеера") :
             sourceVerified ? "Подмена активна" :
             originalPlaying ? "Играет оригинал" :
             paused ? "Пауза" : stopped ? "Остановлено" :
@@ -1608,7 +1629,9 @@ public sealed partial class MainWindow : Form
             !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
             _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             !_bridge.Enabled ? (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Подмена выключена") :
-            !heartbeatFresh ? "Ожидаем актуальные данные текущего плеера." :
+            !heartbeatFresh ? (_autorunAwaitingNativePlayer
+                ? "Открой Яндекс Музыку — CELIKOM подключится автоматически." :
+                  "Ожидаем актуальные данные текущего плеера.") :
             sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
             paused ? "Воспроизведение на паузе." :
@@ -1642,7 +1665,8 @@ public sealed partial class MainWindow : Form
                     ? "Данные текущего трека временно недоступны."
                     : "Подмена выключена. Текущий звук может быть в кеше Яндекса.")
             : !heartbeatFresh
-                ? "Ожидаем актуальные данные текущего плеера."
+                ? (_autorunAwaitingNativePlayer ? "Подключитесь к Яндекс Музыке" :
+                    "Ожидаем актуальные данные текущего плеера.")
             : paused ? "Воспроизведение на паузе."
             : stopped ? "Воспроизведение остановлено."
             : sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук."
@@ -1707,7 +1731,7 @@ public sealed partial class MainWindow : Form
         _tray.Text = connected && _resumeAfterNetworkFailure
             ? "CELIKOM — проверяет связь"
             : connected && _bridge.Enabled
-                ? _bridge.PlayerUnavailable ? "CELIKOM — ожидает Яндекс"
+                ? !heartbeatFresh || _bridge.PlayerUnavailable ? "CELIKOM — ожидает Яндекс"
                     : sourceVerified ? "CELIKOM — источник выбран" : "CELIKOM — сервис включён"
                 : "CELIKOM — выключен";
     }
@@ -1730,6 +1754,7 @@ public sealed partial class MainWindow : Form
         if (_closing) return;
         e.Cancel = true;
         _closing = true;
+        _autorunAwaitingNativePlayer = false;
         _resumeAfterNetworkFailure = false;
         NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
         _yandexInstallWatcher?.Dispose();

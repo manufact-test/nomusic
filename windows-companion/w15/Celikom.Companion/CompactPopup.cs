@@ -630,7 +630,7 @@ public sealed partial class MainWindow
         var nativeStatus = _bridge.LastStatus;
         var heartbeatFresh = _bridge.HasFreshHeartbeat;
         if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
-            _bridge.Enabled, heartbeatFresh))
+            _bridge.Enabled, heartbeatFresh, _bridge.PlayerUnavailable, nativeStatus))
         {
             ++_compactStartEpoch;
             _compactStarting = false;
@@ -734,28 +734,25 @@ public sealed partial class MainWindow
             _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             networkRecoveryPending ? CompactPlaybackPresentation.NetworkRecoveryMessage :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
-            activelyReplacing ? "Подмена активна · версия CELIKOM" :
+            activelyReplacing ? "Подмена активна" :
             originalPlaying ? trackHealth.Message :
             mappingOnly ? "Источник текущего трека не подтверждён" :
             _bridge.Enabled && _bridge.LastPlaybackState is "PAUSED" or "STOPPED"
                 ? trackHealth.Message :
-            _bridge.Enabled && !heartbeatFresh ? "Ожидаем текущий плеер" :
+            _bridge.Enabled && !heartbeatFresh ? (_autorunAwaitingNativePlayer
+                ? "Ожидаем Яндекс Музыку" : "Ожидаем текущий плеер") :
             _compactPresenceStatus switch
             {
-                "approved" => "Версия песни CELIKOM доступна для подмены",
+                "approved" => "Версия CELIKOM доступна",
                 "pending" => "Версия песни CELIKOM на проверке",
                 "none" => "Версия песни CELIKOM ещё не загружена",
                 "error" => "Не удалось проверить версию песни CELIKOM",
                 _ => "Проверяем версию песни CELIKOM…"
             };
+        // Approved presence is never green by itself; only exact current
+        // native decoder evidence is allowed to paint active replacement.
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
-            hostHint.Length > 0 ? Secondary :
-            networkRecoveryPending ? Secondary :
-            originalPlaying ? Secondary :
-            activelyReplacing ? Accent :
-            mappingOnly ? Secondary :
-            _compactPresenceStatus == "approved" ? Accent :
-            Secondary;
+            activelyReplacing ? Accent : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&

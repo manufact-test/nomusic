@@ -724,6 +724,75 @@ test("W157 no-kUrl VPN hold keeps only the same mapped PLAYING current track and
   r.handlers.beforeunload();
 });
 
+test("W158 track 144530503 same-source VPN burst retains mapped PAUSED track and stays neutral",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const trackId="144530503";
+  const player=new r.NativeYandexPlayer({trackId,status:"paused",position:64.25});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId});
+  await tick();
+  const request=r.window.__celikomBridgeNativeDrain();
+  assert.equal(request.length,1);
+  r.window.__celikomBridgeNativeReceive(request[0].requestId,makeGrant(trackId));
+  await first;
+  assert.equal(r.window.__celikomBridgeNativeMappedCurrentTrackId(),trackId);
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  await tick();
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true,
+    preserveCurrentSource:true,preserveCurrentTrackId:trackId
+  });
+  await tick();
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
+  });
+  await tick();
+  assert.deepEqual(player.reloadReasons,[],
+    "same already-mapped PAUSED current track must never revalidate/reload after VPN restoration");
+  assert.equal(player.state.playerState.progress.value.position,64.25);
+  const diagnostics=r.window.__celikomBridgeNativeDrainDiagnostics();
+  assert.ok(diagnostics.some(x=>x[0]==="NATIVE_ROUTE_RECOVERY_SOURCE_HELD"));
+  assert.ok(diagnostics.some(x=>x[0]==="NATIVE_ROUTE_RECOVERY_SOURCE_KEPT"));
+  assert.ok(!diagnostics.some(x=>x[0]==="NATIVE_CURRENT_SOURCE_REVALIDATE"));
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_CONNECTED",
+    "paused no-kUrl mapping is not source verification");
+  r.handlers.beforeunload();
+});
+
+test("W158 mapped current source diagnostic distinguishes a rejected hold without URLs",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123"});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const pending=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const [request]=r.window.__celikomBridgeNativeDrain();
+  r.window.__celikomBridgeNativeReceive(request.requestId,makeGrant("123"));
+  await pending;
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true,
+    preserveCurrentSource:false,preserveCurrentTrackId:""
+  });
+  await tick();
+  const diagnostics=r.window.__celikomBridgeNativeDrainDiagnostics();
+  assert.ok(diagnostics.some(x=>x[0]==="NATIVE_ROUTE_HOLD_NO_WITNESS"),
+    "a rejected host continuity witness must explain why the actual mapped source reloads");
+  assert.ok(diagnostics.every(x=>!JSON.stringify(x).includes("token=")),
+    "hold diagnostics never disclose signed source URLs");
+  for(const item of r.window.__celikomBridgeNativeDrain())
+    r.window.__celikomBridgeNativeReceive(item.requestId,null);
+  r.handlers.beforeunload();
+});
+
 test("W157 no-kUrl VPN hold cannot carry the previous ID across Next",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});

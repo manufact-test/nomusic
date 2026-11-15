@@ -111,8 +111,13 @@ public sealed partial class MainWindow
                 DiagnosticLog.Record("WIN_AUTORUN_RECHECK_NOT_ALLOWED");
                 return;
             }
+            // Arm the bridge so Yandex can attach later, but do NOT equate
+            // that permission with an actual native/player connection.
+            _autorunAwaitingNativePlayer = true;
             _bridge.SetEnabled(true);
-            DiagnosticLog.Record("WIN_AUTORUN_CONNECTED_IN_TRAY");
+            DiagnosticLog.Record(IsYandexRunning() ?
+                "WIN_AUTORUN_WAITING_FOR_NATIVE_PLAYER" :
+                "WIN_AUTORUN_WAITING_FOR_YANDEX");
             // Deliberately no Process.Start(Yandex). The owner opens it.
         }
         catch (Exception)
