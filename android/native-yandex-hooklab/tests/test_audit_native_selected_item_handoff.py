@@ -254,7 +254,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LCaller;","write","()V")
         ins=[
             (0,0x71,[0x0071,0]),
-            (1,0x0c,[0x000c]),
+            (1,0x0c,[0x010c]),
             (2,0x71,[0x0071,1])
         ]
         def regs(_op, words):
