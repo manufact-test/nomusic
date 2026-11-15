@@ -888,6 +888,17 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertTrue(result["continuation_field_track_to_opaque_wrapper_candidate"])
         self.assertTrue(result["resume_track_argument_explicit_null"])
         self.assertTrue(result["resume_continuation_call_sites"][0]["track_argument_is_explicit_null"])
+        self.assertTrue(result["original_track_parameter_to_opaque_wrapper_candidate"])
+        self.assertTrue(any(
+            row["source_origins"]==["NULL_TRACK_ARGUMENT_ON_EXACT_Fp0_RESUME"]
+            and "REUSED_LFp0_CONTINUATION" in row["receiver_origins"]
+            for row in result["track_parameter_capture_store_candidates"]
+        ))
+        self.assertFalse(any(
+            row["same_original_track_parameter"]
+            and "REUSED_LFp0_CONTINUATION" in row["receiver_origins"]
+            for row in result["track_parameter_capture_store_candidates"]
+        ))
         self.assertTrue(result["control_flow_graph_built"])
         self.assertTrue(result["wrapper_continuation_handoff_sites"][0]["wrapper_instance_passed"])
         self.assertFalse(result["coroutine_runtime_resume_dispatch_proven"])

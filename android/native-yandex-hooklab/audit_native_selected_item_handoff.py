@@ -2672,8 +2672,7 @@ def trace_native_track_coroutine_continuation(
             if typ==continuation_owner and "INPUT_CONTINUATION_PARAMETER" in origins:
                 regs.setdefault(reg,set()).add("REUSED_LFp0_CONTINUATION")
                 if resume_null_track_callsite:
-                    for track_register in track_regs:
-                        track_origins=regs.get(track_register,set())
+                    for alias_register,track_origins in regs.items():
                         if "ORIGINAL_TRACK_PARAMETER" in track_origins:
                             track_origins.discard("ORIGINAL_TRACK_PARAMETER")
                             track_origins.add("NULL_TRACK_ARGUMENT_ON_EXACT_Fp0_RESUME")
