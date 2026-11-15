@@ -3027,6 +3027,9 @@ def trace_native_track_coroutine_continuation(
         "track_parameter_register_write_sites":parameter_writes,
         "control_flow_graph_built":True,
         "reachable_instruction_count":len(cfg["reachable"]),
+        "backward_slice_instruction_count":len(reverse_reachable),
+        "analysis_scope":"ENTRY_TO_FIRST_REACHABLE_CALLSITE",
+        "post_callsite_loop_reentries_traced":False,
         "dataflow_instruction_visits":processed,
         "max_path_states_at_instruction":max(
             (len(states) for states in incoming.values()),default=0
@@ -3588,11 +3591,31 @@ def trace_coroutine_callsite_argument_origins(
             "pending_return":pending
         }
 
-    incoming={cfg["entry"]:{state_key(initial_state):initial_state}}
-    work=[(cfg["entry"],state_key(initial_state))]
+    predecessors={}
+    for source_pc,targets in successors.items():
+        for target_pc in targets:
+            predecessors.setdefault(target_pc,set()).add(source_pc)
+    reverse_reachable={callsite_pc}
+    reverse_work=[callsite_pc]
+    while reverse_work:
+        node=reverse_work.pop()
+        for predecessor in predecessors.get(node,()):
+            if predecessor not in reverse_reachable:
+                reverse_reachable.add(predecessor)
+                reverse_work.append(predecessor)
+
+    incoming={}
+    work=[]
+    if cfg["entry"] in reverse_reachable:
+        incoming[cfg["entry"]]={state_key(initial_state):initial_state}
+        work=[(cfg["entry"],state_key(initial_state))]
     processed=0
     while work:
         pc,key=work.pop()
+        if pc==callsite_pc:
+            continue
+        if pc not in reverse_reachable:
+            continue
         processed+=1
         if processed>200000:
             raise ValueError("COROUTINE_CALLSITE_ORIGIN_VISIT_LIMIT")
@@ -3601,6 +3624,8 @@ def trace_coroutine_callsite_argument_origins(
         out=transfer(state,op,words)
         out_key=state_key(out)
         for target in successors.get(pc,()):
+            if target not in reverse_reachable:
+                continue
             bucket=incoming.setdefault(target,{})
             if out_key in bucket:
                 continue
