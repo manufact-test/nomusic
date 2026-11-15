@@ -755,7 +755,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",return_value=target):
             result=trace_track_value_to_exact_field_store(
-                FakeDex(),method,ACC_STATIC,100,target
+                FakeDex(),method,0x8,100,target
             )
         site=result["field_store_sites"][0]
         self.assertTrue(result["branch_seen"])

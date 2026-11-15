@@ -2437,6 +2437,12 @@ def trace_native_track_coroutine_continuation(
     ins = list(instructions(dex, initial_code_off))
     if len(ins) > 20000:
         raise ValueError("TRACK_COROUTINE_INSTRUCTION_LIMIT")
+    wide_ops = (
+        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
+         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
+        | set(range(0x9b,0xa6)) | set(range(0xab,0xb0))
+        | set(range(0xbb,0xc6)) | set(range(0xcb,0xd0))
+    )
     track_aliases = set(track_regs)
     continuation_aliases = set(cont_regs)
     continuation_instances = set()
@@ -2573,6 +2579,8 @@ def trace_native_track_coroutine_continuation(
         dest=written_register(op,words)
         if dest is not None:
             clear(dest)
+            if op in wide_ops:
+                clear(dest+1)
         if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
             # A branch does not itself mutate registers. Keep aliases until an
             # actual write is encountered; branch/path feasibility stays unproven.
@@ -2639,6 +2647,12 @@ def trace_track_value_to_exact_field_store(dex, method, flags, code_off, target_
         dex.u16(code_off)-dex.u16(code_off+2)
     )
     ins=list(instructions(dex,code_off))
+    wide_ops=(
+        {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
+         0x7d,0x7e,0x80,0x82,0x85,0x87,0x88,0x8a}
+        |set(range(0x9b,0xa6))|set(range(0xab,0xb0))
+        |set(range(0xbb,0xc6))|set(range(0xcb,0xd0))
+    )
     stores=[]
     pending_track_return=False
     branch_seen=False
@@ -2740,6 +2754,8 @@ def trace_track_value_to_exact_field_store(dex, method, flags, code_off, target_
         dest=written_register(op,words)
         if dest is not None:
             clear(dest)
+            if op in wide_ops:
+                clear(dest+1)
         if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
             # Branches do not mutate registers; retain aliases until actual writes.
             branch_seen=True
