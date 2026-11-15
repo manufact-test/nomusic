@@ -5819,7 +5819,7 @@ def inspect_exact_track_return_owner_implementations(apks, class_profiles):
         for apk in apks:
             with zipfile.ZipFile(apk) as archive:
                 for entry in archive.infolist():
-                    if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                         continue
                     if entry.file_size > DEX_MAX:
                         raise ValueError("TRACK_RETURN_OWNER_DEX_LIMIT")
