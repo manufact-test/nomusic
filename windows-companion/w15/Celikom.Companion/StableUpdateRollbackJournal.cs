@@ -225,10 +225,10 @@ public static class StableUpdateRollbackJournal
             release.PackageUri.UserInfo.Length != 0 ||
             release.PackageUri.Query.Length != 0 ||
             release.PackageUri.Fragment.Length != 0 ||
-            !release.PackageUri.AbsolutePath.StartsWith(
-                "/CELIKOM/Windows/Updates/stable/" + release.Version.ToString(3) + "/",
-                StringComparison.Ordinal) ||
-            !release.PackageUri.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            !string.Equals(release.PackageUri.AbsolutePath,
+                "/CELIKOM/Windows/Updates/stable/" + release.Version.ToString(3) +
+                "/CELIKOM-Windows-" + release.Version.ToString(3) + ".exe",
+                StringComparison.Ordinal))
             throw new IOException("STABLE_ROLLBACK_BOOTSTRAP_PLAN_INVALID");
 
         verify(signedInstaller, release);
