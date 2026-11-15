@@ -42,3 +42,12 @@
 Исправлены недостаточные прежние Java-тесты: счётчик DISTINCT не мог обнаружить, если `TRACK_SOURCE_READ_LINK` ошибочно увеличился уже после `close` или failed reopen. Теперь **три отдельных Java fixture** создают точные `Track → wrapper → descriptor → factory → source` ссылки; после close, vendor open failure и rebind требуют `TRACK_SOURCE_READ_LINK=NONE` и `TRACK_SOURCE_UNOPENED_READ=ONE`, затем после нового successful `open` требуют `TRACK_SOURCE_READ_LINK=ONE`. Дополнительный тест не меняет наблюдатель/Яндекс, лишь проверяет fail-closed семантику. Clone-only CI [#43700267919](https://github.com/manufact-test/nomusic/actions/runs/43700267919) проверить отдельно.
 
 `2dc2e1f0ad394f83bed27e2e2d272179e85441cd` — последний **исполняемый** код, `9af55e59` — последний Java regression checkpoint. Даже если CI green, ни linked source, ни audio/decoder/current Track реально не проверялись в clone-only.
+
+## Подтверждённый CI-green итог для исполняемого кода `2dc2e1f0`
+
+- [Clone-only ARM13 #43699883677](https://github.com/manufact-test/nomusic/actions/runs/43699883677): **SUCCESS**, стабильные 25/25, Java regression/module сборка прошли, шесть native-track и восемь source hooks REGISTERED. Original intentionally absent, audio/login не тестировались.
+- [Publisher-first ARM13 #43699883681](https://github.com/manufact-test/nomusic/actions/runs/43699883681): **SUCCESS**, 16/16 publisher source splits и клон установлены одновременно, no-suppression, `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a=NO_GO`, `stage_b_current_player_album_edition_attested=false`.
+- Immutable code backup: `backup/android-a1-source-open-read-close-lifecycle-ci-green-20261115` @ `2dc2e1f0ad394f83bed27e2e2d272179e85441cd`. Отличать от текущей исследовательской ветки с документацией и дополнительными тестами.
+- Подробный fail-closed Java fixture дополнен отдельными fresh linkage cases в коммите `9af55e5909592021f75b69d7b4d1b5cec2252cfc` (исполняемый observer не менялся). [Проверка clone-only #43700267919](https://github.com/manufact-test/nomusic/actions/runs/43700267919) на момент записи была ещё не завершена, Java regression phase уже прошла. Нельзя считать этот run SUCCESS до итогового статуса.
+
+Даже все зелёные tests являются **регистрацией и лабораторной устойчивостью**, не product pass: нет допущенного current selected Track, exact album/edition/generation decoder pre-prepare и реального audio DataSource.read в воспроизведении.
