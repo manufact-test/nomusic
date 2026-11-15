@@ -179,11 +179,11 @@ jobs:
             $stableCoordinatorText.Contains('Outcome.DownloadedWaitingForSafePoint'),
             $stablePackageStagerText.Contains('GetPendingPackagePath'),
             $stablePackageStagerText.Contains('CleanupPendingPackages'),
-            $stableBootstrapperText.Contains('FetchInstalledSignedReleaseAsync'),
+            $stableBootstrapperText.Contains('FetchInstalledManifestReleaseAsync'),
             $stableTestsText.Contains('CanDownload(installerBusy: false)'),
             $mainWindowStableText.Contains('Interval = 30 * 60 * 1000'),
             $mainWindowStableText.Contains('StableUpdateInstallCoordinator.CheckAndInstallAsync'),
-            $appUpdateManagerText.Contains('LaunchVerifiedSigned')
+            $appUpdateManagerText.Contains('LaunchManifestVerified')
           )
           $downloadGateIndex=$stableCoordinatorText.IndexOf('if (!CanDownload(getContext()))', [StringComparison]::Ordinal)
           $manifestIndex=$stableCoordinatorText.IndexOf('StableUpdateManifestFetcher.FetchSignedIfNewerAsync', [StringComparison]::Ordinal)
