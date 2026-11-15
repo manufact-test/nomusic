@@ -934,15 +934,13 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertIn(13,cfg["reachable"])
         self.assertTrue(result["control_flow_graph_built"])
         self.assertEqual(len(result["branch_sites"]),2)
-        self.assertTrue(any(
-            row["same_original_track_parameter"]
-            for row in result["track_parameter_capture_store_candidates"]
-        ), repr({
+        self.assertTrue(result["raw_track_field_store_sites"], repr({
             "track_registers":result["track_parameter_registers"],
             "branches":result["branch_sites"],
-            "stores":result["track_parameter_capture_store_candidates"],
+            "raw_stores":result["raw_track_field_store_sites"],
             "reachable":result["reachable_instruction_count"]
         }))
+        self.assertFalse(result["original_track_parameter_to_continuation_field_candidate"])
         self.assertFalse(result["all_observed_store_paths_same_original_track_parameter"])
         self.assertTrue(result["original_track_parameter_to_continuation_field_candidate"])
         self.assertNotIn("privateTrack",str(result))
