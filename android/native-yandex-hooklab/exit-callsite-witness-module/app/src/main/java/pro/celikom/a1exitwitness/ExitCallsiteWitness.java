@@ -187,6 +187,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoDataOpenWitnessReady;
     private boolean exactExoDataReadWitnessReady;
     private boolean exactExoDataCloseWitnessReady;
+    private boolean nativeTrackAlbumHookAttempted;
+    private boolean nativeTrackAlbumHookReady;
     private boolean nativeTrackFlowHookReady;
     private boolean nativeTrackRequestHookReady;
     private boolean nativeTrackContinuationHookReady;
@@ -2623,6 +2625,45 @@ public final class ExitCallsiteWitness extends XposedModule {
      */
     private synchronized void installNativeTrackSourceContinuityWitness(ClassLoader loader) {
         if (loader==null || !PACKAGE.equals(Application.getProcessName())) return;
+        if (!nativeTrackAlbumHookAttempted) {
+            nativeTrackAlbumHookAttempted=true;
+            try {
+                Class<?> track=Class.forName("ru.yandex.music.data.audio.o",false,loader);
+                Class<?> album=Class.forName("ru.yandex.music.data.audio.Album",false,loader);
+                Constructor<?>[] constructors=track.getDeclaredConstructors();
+                if (constructors.length!=2)
+                    throw new NoSuchMethodException("SIGNED_TRACK_CONSTRUCTOR_SHAPE");
+                int[] albumArguments=new int[constructors.length];
+                for (int c=0;c<constructors.length;c++) {
+                    Class<?>[] parameters=constructors[c].getParameterTypes();
+                    int found=-1,amount=0;
+                    for (int i=0;i<parameters.length;i++) {
+                        if (parameters[i]==album) { found=i; amount++; }
+                    }
+                    if (amount!=1)
+                        throw new NoSuchMethodException("SIGNED_TRACK_ALBUM_ARGUMENT");
+                    albumArguments[c]=found;
+                }
+                for (int c=0;c<constructors.length;c++) {
+                    final int albumArgumentIndex=albumArguments[c];
+                    Constructor<?> constructor=constructors[c];
+                    constructor.setAccessible(true);
+                    hook(constructor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result=chain.proceed(); // exact original constructor once
+                            try {
+                                STAGE_B_AUDIO.onNativeTrackAlbumConstructed(
+                                    chain.getThisObject(),chain.getArg(albumArgumentIndex));
+                            } catch (Throwable ignored) { }
+                            return result;
+                        });
+                }
+                nativeTrackAlbumHookReady=true;
+                emit("AUDIO_NATIVE_TRACK_ALBUM_HOOK","TRACK_ALBUM","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_TRACK_ALBUM_HOOK","TRACK_ALBUM","NO_HOOK");
+            }
+        }
         if (!nativeTrackFlowHookReady) {
             try {
                 Class<?> collector=Class.forName("Dp0",false,loader);

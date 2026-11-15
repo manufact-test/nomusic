@@ -21,6 +21,21 @@ public final class StageBAudioEvidenceTest {
         check(rows[index].equals("event=AUDIO_STAGE_B_SUMMARY;origin="+category+
             ";error="+value+";thread=OTHER"));
     }
+    static StageBAudioEvidence exactAlbumLinked(Object track,Object album,Object wrapper,
+            Object descriptor,Object factory,Object source) {
+        StageBAudioEvidence evidence=new StageBAudioEvidence();
+        evidence.onNativeTrackAlbumConstructed(track,album);
+        evidence.onNativeTrackFlowEmission(track);
+        evidence.enterNativeTrackSourceRequest(track,null);
+        evidence.onNativeTrackWrapperCreated(wrapper);
+        evidence.exitNativeTrackSourceRequest();
+        evidence.enterNativeMainSourceRequest(wrapper,null);
+        evidence.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
+        evidence.exitNativeMainSourceRequest();
+        evidence.onExoFactoryCreated(descriptor,factory);
+        evidence.onExoSourceInstanceCreated(source,factory);
+        return evidence;
+    }
     static StageBAudioEvidence exactLinked(Object track,Object wrapper,Object descriptor,
             Object factory,Object source) {
         StageBAudioEvidence evidence=new StageBAudioEvidence();
@@ -38,9 +53,9 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 44);
-        for (int i=0;i<43;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[43].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 53);
+        for (int i=0;i<52;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial[52].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
         Object factory=new Object(), source=new Object();
@@ -80,7 +95,52 @@ public final class StageBAudioEvidenceTest {
         bucket(links,31,"NATIVE_TRACK_WRAPPER_CONSTRUCTED","FEW");
         bucket(links,32,"NATIVE_MAIN_SOURCE_ENTER","FEW");
         bucket(links,40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
-        check(links[43].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(links[52].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+
+        // The exact Album constructor argument is carried only by weak object
+        // identity through the Track Flow → wrapper → descriptor → source.
+        // No Track/Album fields, IDs, titles or edition values are read.
+        Object at=new Object(), aa=new Object(), aw=new Object(), ad=new Object();
+        Object af=new Object(), as=new Object();
+        StageBAudioEvidence albumChain=exactAlbumLinked(at,aa,aw,ad,af,as);
+        albumChain.onExoSourceInstanceOpen(as);
+        albumChain.onExoSourceInstanceRead(as,64);
+        String[] albumRows=albumChain.exportLines();
+        bucket(albumRows,43,"TRACK_ALBUM_CONSTRUCTOR_LINK","ONE");
+        bucket(albumRows,44,"FLOW_TRACK_ALBUM_LINK","ONE");
+        bucket(albumRows,45,"TRACK_WRAPPER_ALBUM_LINK","ONE");
+        bucket(albumRows,46,"TRACK_DESCRIPTOR_ALBUM_LINK","ONE");
+        bucket(albumRows,47,"TRACK_FACTORY_ALBUM_LINK","ONE");
+        bucket(albumRows,48,"TRACK_SOURCE_ALBUM_LINK","ONE");
+        bucket(albumRows,49,"TRACK_SOURCE_ALBUM_OPEN_LINK","ONE");
+        bucket(albumRows,50,"TRACK_SOURCE_ALBUM_READ_LINK","ONE");
+        bucket(albumRows,51,"TRACK_ALBUM_IDENTITY_CONFLICT","NONE");
+        StageBAudioEvidence noAlbum=exactLinked(new Object(),new Object(),
+            new Object(),new Object(),new Object());
+        bucket(noAlbum.exportLines(),43,"TRACK_ALBUM_CONSTRUCTOR_LINK","NONE");
+        bucket(noAlbum.exportLines(),44,"FLOW_TRACK_ALBUM_LINK","NONE");
+        Object ct=new Object(), ca1=new Object(), ca2=new Object();
+        StageBAudioEvidence albumConflict=new StageBAudioEvidence();
+        albumConflict.onNativeTrackAlbumConstructed(ct,ca1);
+        albumConflict.onNativeTrackAlbumConstructed(ct,ca2);
+        albumConflict.onNativeTrackFlowEmission(ct);
+        bucket(albumConflict.exportLines(),43,"TRACK_ALBUM_CONSTRUCTOR_LINK","ONE");
+        bucket(albumConflict.exportLines(),44,"FLOW_TRACK_ALBUM_LINK","NONE");
+        bucket(albumConflict.exportLines(),51,"TRACK_ALBUM_IDENTITY_CONFLICT","ONE");
+        Object pt=new Object(),pa=new Object(),pw=new Object(),pd=new Object();
+        Object pf=new Object(),ps=new Object();
+        StageBAudioEvidence albumReadGate=exactAlbumLinked(pt,pa,pw,pd,pf,ps);
+        albumReadGate.onExoSourceInstanceRead(ps,32);
+        bucket(albumReadGate.exportLines(),50,"TRACK_SOURCE_ALBUM_READ_LINK","NONE");
+        albumReadGate.onExoSourceInstanceOpen(ps);
+        albumReadGate.onExoSourceInstanceRead(ps,32);
+        bucket(albumReadGate.exportLines(),50,"TRACK_SOURCE_ALBUM_READ_LINK","ONE");
+        albumReadGate.onExoSourceInstanceClose(ps);
+        albumReadGate.onExoSourceInstanceRead(ps,32);
+        bucket(albumReadGate.exportLines(),50,"TRACK_SOURCE_ALBUM_READ_LINK","ONE");
+        albumReadGate.onExoSourceInstanceOpen(ps);
+        albumReadGate.onExoSourceInstanceRead(ps,32);
+        bucket(albumReadGate.exportLines(),50,"TRACK_SOURCE_ALBUM_READ_LINK","FEW");
 
         // A nested missing argument/collected weak ref must never borrow its
         // outer track or wrapper. Scope accounting survives null arguments.

@@ -32,7 +32,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             def u16(self, offset):
                 return {100:4, 102:2}[offset]
         method=(MODEL,"<init>",f"({ALBUM_MODEL})V")
-        direct=[(0,0x5b,[0x205b,0]),(1,0x0e,[0x000e])]
+        direct=[(0,0x5b,[0x235b,0]),(1,0x0e,[0x000e])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=direct), \
              patch("audit_native_selected_item_handoff.field_id",
                    return_value=(MODEL,"hidden",ALBUM_MODEL)):

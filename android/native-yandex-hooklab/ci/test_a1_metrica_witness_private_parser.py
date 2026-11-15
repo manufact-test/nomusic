@@ -766,7 +766,8 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
 
     def test_stage_b_native_track_flow_to_exo_identity_hooks_are_pid_scoped(self):
         prefix=log(431,"event=ARMED;origin=REGISTERED;error=NONE;thread=MAIN")*260
-        parts=[("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW"),
+        parts=[("AUDIO_NATIVE_TRACK_ALBUM_HOOK","TRACK_ALBUM"),
+               ("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW"),
                ("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST"),
                ("AUDIO_NATIVE_TRACK_CONTINUATION_HOOK","TRACK_CONTINUATION"),
                ("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER"),
