@@ -9,7 +9,8 @@ const source = fs.readFileSync(new URL("./host.cjs", import.meta.url), "utf8");
 async function runHost(url, { queue = [], token = "b".repeat(64),
   debuggerDriver = null, stateOverride = null,
   grantOverride = null, grantSequence = [], currentTrack = null, clock = Date,
-  rendererStatus = "ORIGINAL", cpuUsage = null } = {}) {
+  rendererStatus = "ORIGINAL", cpuUsage = null,
+  secondaryTrack = null } = {}) {
   const diagnostics = [], evaluated = [], network = [];
   const tokenReads = { count: 0 };
   let drained = false, pump = () => {}, timerIntervalMs = 0;
@@ -74,9 +75,27 @@ async function runHost(url, { queue = [], token = "b".repeat(64),
     }
   };
   const fakePath = {join: (...parts) => parts.join("\\")};
+  // W141: second valid Yandex renderer can be the ONLY audible one.
+  // The first, previously observed renderer must not repaint the owner's UI.
+  const secondaryView = secondaryTrack ? {
+    isDestroyed:()=>false,
+    isCurrentlyAudible:()=>true,
+    getURL:()=>url,
+    on:()=>{},
+    executeJavaScript:async script => {
+      if (script.includes("__celikomBridgeNativeCurrentTrack?.()"))
+        return secondaryTrack;
+      if (script.includes("__celikomBridgeNativeStatus?.()"))
+        return "NATIVE_CONNECTED";
+      if (script.includes("__celikomBridgeNativeDrain?.()")) return [];
+      if (script.includes("__celikomBridgeNativeDrainDiagnostics?.()")) return [];
+      return true;
+    }
+  } : null;
   const fakeElectron = {
     app:{getAppPath:()=>"/virtual",on:()=>{}},
-    webContents:{getAllWebContents:()=>[view]}
+    webContents:{getAllWebContents:()=>
+      secondaryView ? [view,secondaryView] : [view]}
   };
   const context = {
     require: name => name==="electron" ? fakeElectron :
@@ -1087,4 +1106,48 @@ test("W89 signed Media GET 206 suppresses fallback refresh but does NOT verify s
   r.pulse(); await new Promise(resolve=>setTimeout(resolve,45));
   assert.equal(JSON.parse(r.network.filter(x=>x.path==="/v1/heartbeat").at(-1).body).status,
     "NATIVE_SOURCE_VERIFIED","green allowed only after actual current decoder source evidence");
+});
+
+test("W141 only the audible webContents may report the current track",async()=>{
+  const r=await runHost("musicapplication://desktop/",{
+    currentTrack:{
+      id:"123",title:"Зима",artist:"CENTR",
+      durationMs:180000,playbackState:"PLAYING"
+    },
+    secondaryTrack:{
+      id:"456",title:"Ты",artist:"13 карат",
+      durationMs:190000,playbackState:"PLAYING"
+    }
+  });
+  const beats=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(beats.length>0,"the audible player must publish a heartbeat");
+  assert.ok(beats.every(x=>x.trackId==="456" && x.title==="Ты"),
+    "the stale hidden Yandex player must never overwrite the audible one");
+  assert.ok(beats.every(x=>x.source==="UNKNOWN"),
+    "current metadata without a decoder witness cannot claim replacement");
+});
+
+test("W141 unchanged current song refreshes its heartbeat before UI lease expiry",async()=>{
+  let now=Date.now();
+  class ControlledDate extends Date {static now(){return now;}}
+  const r=await runHost("musicapplication://desktop/",{
+    clock:ControlledDate,
+    currentTrack:{
+      id:"456",title:"Вечно молодой",artist:"Смысловые Галлюцинации",
+      durationMs:210000,playbackState:"PAUSED"
+    }
+  });
+  const before=r.network.filter(x=>x.path==="/v1/heartbeat");
+  assert.equal(before.length,1);
+  now+=4800;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,50));
+  const after=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}"));
+  assert.ok(after.length>before.length);
+  assert.ok(after.every(x=>x.playbackState==="PAUSED" &&
+    x.source==="UNKNOWN" && x.instanceId && x.sequence>0));
+  assert.ok(after[1].sequence>after[0].sequence,
+    "renewal is ordered without changing Yandex state or playback");
 });
