@@ -1,43 +1,62 @@
-# W155 — CELIKOM Windows P-256 updater: latest owner handoff
+# W155 — CELIKOM Windows P-256 updater: current owner handoff
 
 Date: 15 November 2026  
-Repo: `manufact-test/nomusic`  
-Active branch: `main` ONLY  
-Task authority: `docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md` and `docs/windows/W150-OWNER-CONFIRMED-SCOPE-AND-SEQUENTIAL-WORK-ORDER-20261115.md`.
+Repository: manufact-test/nomusic  
+Only working branch: main  
+Authority: W119 product/architecture rules + W150 owner-approved scope and order.
 
-## Exact verified checkpoint
+## 1. Latest exact checkpoint
 
-- Final application-code HEAD before this documentation-only update: `4abcfd5ad389363f4b954eaa578615be91140bee`.
-- **Backup created and confirmed:** `backup/windows-main-w155-p256-ci-green-owner-handoff-20261115` @ `4abcfd5ad389363f4b954eaa578615be91140bee`.
-- Pre-Task-5 rollback: `backup/windows-main-pre-task5-signed-updater-20261115` @ `2864989bad9520738951cc28806feab6bc0d69c1`.
-- Historical pre-last-fix rollback: `backup/windows-main-w155-p256-handoff-pre-ci-fix-20261115` @ `512e18ebefb0e72bc9897fb444c7bc96c956274f`.
-- **Current verified CI ON application HEAD:** Main CI `43715919526` SUCCESS; Windows integration CI (no installer) `43715919617` SUCCESS. Prior Windows CI failure `43714007098` at `512e18e` was caused by `CS1501` — a three-argument `IsTrustedRunningImage` call left after the method changed to two arguments. This is fixed in `4abcfd5` and both CI systems pass on that SHA.
-- Updating this document changes only handoff documentation; always fetch the new live HEAD before the next engineering commit.
+- Application-code checkpoint: **c1afdd5fc9b3ec90bb760857bf584dc494d7774e**.
+- Exact backup created before this handoff: **backup/windows-main-w155-owner-handoff-20261115** at the same SHA.
+- Pre-Task-5 rollback point: backup/windows-main-pre-task5-signed-updater-20261115 @ 2864989bad9520738951cc28806feab6bc0d69c1.
+- This checkpoint contains 65 commits after the previous 4abcfd5 checkpoint. The commits are W155 updater hardening and its regression coverage; no new product or branch was introduced.
+- **Main CI:** run 43726310918 — SUCCESS on c1afdd5.
+- **Windows integration CI (no installer):** run 43726310792 — SUCCESS on c1afdd5.
+- **W155 signed-release verification:** 27/27 tests passed, including offline Hostinger promotion rehearsal, signed-baseline race rejection, oversized-package rejection, symlink rejection, exact origin/key constraints and publisher path guards.
+- No installer was built. The two documentation updates after this checkpoint may move main HEAD; the next chat must fetch live main HEAD and latest checks before any code change.
 
-## Completed prior work — do not reimplement
+## 2. Completed earlier work — do not reopen
 
-W151 Task 1: current Yandex player/UI heartbeat and queue truth, conservative ORIGINAL/ACTIVE_REPLACEMENT/UNKNOWN; W152 Task 2: VPN A→B redundant original/replacement reload avoidance, retaining fast reconnect; W153 Task 3: autostart/tray and Windows StartupApproved OFF; W154 Task 4: consolidated CI regression and **one grouped owner acceptance plan**. These are code/test/CI-ready, **not yet accepted on the owner's machine**. Plan is `docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md`.
+W151 Task 1: current Yandex player/UI heartbeat and queue truth, conservative ORIGINAL / ACTIVE_REPLACEMENT / UNKNOWN.  
+W152 Task 2: VPN A→B reconnect path and avoidance of redundant original/replacement reloads, preserving fast reconnect.  
+W153 Task 3: autostart/tray behavior and persistence of deliberate Windows StartupApproved OFF.  
+W154 Task 4: consolidated regression coverage and one grouped owner acceptance plan.
 
-## What Task 5 already implemented
+W151–W154 are code/test/CI-ready. **They are not owner-PC accepted yet.** The only owner test pass is the single grouped plan in docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md, to be run on the one final build. Do not make intermediate installers or ask the owner to test each small patch.
 
-- P-256 manifest-signature trust replacing obsolete Authenticode/PFX; fixed future origin `https://celikom.com/`, public P-256 SPKI pin within release build; empty normal source pins fail closed.
-- Immutable signed release manifest **schema 2**, package/payload SHA-256 and same-product/version identity validation; cached/staged artifacts must be re-verified before execution.
-- Rollback journal **schema 3**, a separate DPAPI-protected local transaction schema recording the manifest-key fingerprint. Schema 3 is **not** a change to the signed manifest schema.
-- AppUpdateManager, Bootstrapper, PackageStager, InstallCoordinator, RollbackJournal, independent UpdateSupervisor and health checks refactored to avoid commercial code-signing and to retain safe-point, supervisor READY and one-shot rollback architecture.
-- P-256 keygen, manifest, verifier, protected stable release workflow and publisher scripts changed to use the private key only in protected signing context; workflow has nonpublishing default/explicit `publish_to_production` gate.
-- Current code compiles and automation passes both Main and Windows integration CI after the Supervisor call fix. **Do not confuse this with an end-to-end proven live update.**
+## 3. W155 — what is now implemented
 
-## Work remaining — strict order
+- CELIKOM-owned P-256 signed manifest trust replaces the obsolete commercial Authenticode/PFX design. Future fixed origin: https://celikom.com/. Only the public P-256 SPKI pin is embedded in a reviewed release build; ordinary source defaults fail closed.
+- Signed manifest remains **schema 2**. Required fields and JSON shape are checked explicitly; the URL must match the exact immutable versioned CELIKOM installer path. Do not confuse this with the separate **schema 3 DPAPI rollback journal**.
+- Package and embedded payload SHA-256 checks, product/version identity checks, bounded file reads, and re-verification of cached/staged artifacts are in place.
+- The schema 3 DPAPI journal binds the transaction to the manifest-key fingerprint and carries sequence/size/hash identity. Corrupt or mismatched journal data is rejected; rollback sequence replay is prevented.
+- Independent Supervisor journal reads are bound to the exact transaction and pinned manifest key. Final installer launch is bound to the journaled transaction, signed payload hashes and expected package path. An abandoned Prepared transaction expires to ManualRecovery without launching an installer.
+- Verified-image copy/launch boundaries, reparse-point ancestry and rollback image integrity have additional guards and regression coverage.
+- Protected release tooling now includes offline P-256 key generation/provisioning, manifest and release verification, bounded signed-feed preflight, and guarded Hostinger publication. The publisher uses same-filesystem staging/atomic promotion and refuses changed prior feed bytes, unsafe paths and symlinks.
+- The protected workflow has an explicit production-publish gate. Fixture/offline publication rehearsal is covered by CI; it did not publish to celikom.com.
 
-1. **ONLY Task 5.** Re-fetch live main and both latest CI checks; review the entire *actual execution chain*, not just isolated helpers. Check exact P-256 key pin and HTTPS origin, manifest-signature verification, schema 2 vs journal schema 3, SHA-256 of every installer and embedded payload, all cached-package reuse paths, PE identity, downgrade/replay prevention, no ability to run unsigned/tampered code, lock and DPAPI transaction safety.
-2. Inspect Supervisor READY/health/rollback with real launch arguments, no-loop rollback and preservation of prior version, account/DPAPI, original Yandex backup, autostart and installed native integration. Add negative and recovery regression cases where needed. Every changed final code HEAD must pass **both** Main and Windows integration CI; code/test/CI completion is prerequisite to Task 6.
-3. Validate GitHub protected release pipeline with fixture/offline dry-runs only, no production publisher invocation and no early DNS/TLS activation. Confirm old W148 PFX/Authenticode gates are not required in code, tests, installer scripts or workflow.
-4. Prepare owner-controlled offline P-256 private-key generation and secure GitHub protected secret upload. **Never request PEM in chat, log private key material, upload PEM in repo or create public production feed from a fixture.** Only the P-256 public key is embedded in a reviewed final release checkout. Owner's domain is purchased but live HTTPS/feed setup waits for infrastructure migration.
-5. **Task 6 only after above:** produce *exactly one* final CELIKOM Windows EXE+ZIP for owner manual bootstrap in place over installed `0.24.37`. Keep existing AppId and Windows warning with option to continue where Windows allows; do not disable security or request admin access. The next signed automatic release will work only after the real production HTTPS feed is live.
-6. Owner performs one grouped manual acceptance from W154 on the final build. No intermediate package, no tests requested per tiny change, no claim of field success based solely on CI.
+## 4. Exact remaining work — stay inside W155
 
-## Guardrails
+Do not start a new broad investigation. Continue with one bounded final pass through the actual runtime chain:
 
-Only `main`, exact backup before substantial further changes, original architecture and single CELIKOM Windows product. Do not touch Android, extension or unrelated issues #53, #54, #56, #57, #58. #52 remains open until owner-PC current-source acceptance. Preserve 15-minute Yandex version-cache, fast VPN reconnect, sound/source proof, no Yandex autolaunch and no elevated execution. Windows TEST branches/apps prohibited.
+1. Follow the real call path from signed manifest fetch/verification → package staging and cache reuse → InstallCoordinator → AppUpdateManager launch → independent Supervisor READY/health → one-shot rollback. Confirm the new transaction/key/hash bindings are used by the real callers and that rollback cannot loop or execute a substituted image.
+2. Patch only a concrete gap found in that path; add its focused regression test. Do not rework already-green keygen, manifest, publisher or path-hardening areas without a failing test or demonstrated defect.
+3. Run both Main CI and Windows integration CI on the resulting exact code HEAD. Keep release fixture tests green. CI is not proof of a live production update or owner-PC acceptance.
+4. Finish the owner-safe provisioning instructions: generate the P-256 private key on an owner-controlled machine and upload it directly to the protected GitHub Actions environment secret. Never ask for PEM in chat, print it, commit it, or place it in repository-level secrets. Embed only the public key in the final reviewed release build.
+5. Only after Task 5 is code/test/CI-ready, proceed to Task 6: build **exactly one** final CELIKOM Windows EXE+ZIP for manual bootstrap over installed 0.24.37. Then the owner performs the single grouped W154 acceptance.
 
-**Current overall status:** W151–W154 code/CI-ready; W155 Task 5 **CI green but engineering security audit and production provisioning pending**; Task 6 **not started**. No final EXE/ZIP delivered, no owner-PC change or public feed deployment.
+## 5. Not done — do not claim otherwise
+
+- No owner private signing key has been provisioned to the protected GitHub environment.
+- No production signed feed has been published; celikom.com DNS/TLS/feed activation remains deferred until infrastructure migration.
+- No new EXE/ZIP has been built or delivered; no owner installation or owner-PC audio/UI acceptance has happened.
+- CI success and offline publisher rehearsal do not prove a live update, Windows publisher identity, SmartScreen acceptance or a field rollback.
+
+## 6. Permanent guardrails
+
+- Work only on main. Before each substantial code block, create and verify an exact backup.
+- Preserve one CELIKOM Windows product and the approved architecture. No Windows TEST product, experimental branches, Android/extension work or unrelated historical Issues #53, #54, #56, #57, #58. #52 remains open until owner-PC source-truth acceptance.
+- Do not bypass SmartScreen, Defender, Smart App Control or UAC; do not request elevated execution.
+- Preserve the 15-minute Yandex compatibility cache, fast VPN reconnect, strict current-decoder source proof, account/DPAPI state, original Yandex backup, native integration and user settings.
+- No intermediate installers, no tiny-step owner chores, no unnecessary exploratory detours. Finish one bounded block, verify it, then move forward.
