@@ -135,6 +135,9 @@ jobs:
   publish:
     needs: prepare
     if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true
+    concurrency:
+      group: celikom-windows-stable-production
+      cancel-in-progress: false
     environment: windows-stable-production
     runs-on: ubuntu-22.04
     timeout-minutes: 20

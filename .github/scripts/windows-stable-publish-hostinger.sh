@@ -45,6 +45,53 @@ cp "$release_dir/$version/manifest.json" "$tmp/manifest.json"
 cp "$release_dir/$version/manifest.json.sig" "$tmp/manifest.json.sig"
 cp "$release_dir/latest.json" "$tmp/latest.json"
 cp "$release_dir/latest.json.sig" "$tmp/latest.json.sig"
+
+# Establish the sequence floor from the exact currently served, signed feed.
+# A missing pair is valid only for the first publish; mismatched or invalid
+# latest/signature pairs fail closed and are retried for an in-flight promotion.
+old_sequence=0
+zero_sha="0000000000000000000000000000000000000000000000000000000000000000"
+old_manifest_sha="$zero_sha"
+old_signature_sha="$zero_sha"
+feed_identity_verified=0
+latest_url="$origin/CELIKOM/Windows/Updates/stable/latest.json"
+signature_url="$latest_url.sig"
+for attempt in 1 2 3; do
+  if ! latest_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
+      -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json" \
+      -w '%{http_code}' "$latest_url")"; then
+    sleep 0.2
+    continue
+  fi
+  if ! signature_status="$(curl --silent --show-error --connect-timeout 15 --max-time 30 \
+      -H 'Cache-Control: no-cache, no-store' -o "$tmp/old-latest.json.sig" \
+      -w '%{http_code}' "$signature_url")"; then
+    sleep 0.2
+    continue
+  fi
+  if [[ "$latest_status" == 404 && "$signature_status" == 404 ]]; then
+    feed_identity_verified=1
+    break
+  fi
+  if [[ "$latest_status" == 200 && "$signature_status" == 200 ]]; then
+    if identity="$(node .github/scripts/windows-stable-existing-latest.mjs \
+        "$tmp/old-latest.json" "$tmp/old-latest.json.sig")"; then
+      read -r old_sequence old_manifest_sha old_signature_sha <<< "$identity"
+      feed_identity_verified=1
+      break
+    fi
+  fi
+  sleep 0.2
+done
+[[ "$feed_identity_verified" == 1 ]] || {
+  echo W155_EXISTING_LATEST_NOT_TRUSTED; exit 2; }
+[[ "$old_sequence" =~ ^(0|[1-9][0-9]{0,14})$ &&
+   "$old_manifest_sha" =~ ^[a-f0-9]{64}$ &&
+   "$old_signature_sha" =~ ^[a-f0-9]{64}$ ]] || {
+  echo W155_EXISTING_LATEST_IDENTITY_INVALID; exit 2; }
+(( sequence > old_sequence )) || {
+  echo W155_SEQUENCE_NOT_INCREASING; exit 2; }
+
 (cd "$tmp"; sha256sum "$exe" manifest.json manifest.json.sig latest.json latest.json.sig > SHA256SUMS.txt)
 ssh_remote "set -eu; root='$root'; dest='$root/CELIKOM/Windows/Updates/stable'; for d in \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do if [[ -e \"\$d\" && ( -L \"\$d\" || ! -d \"\$d\" ) ]]; then echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; fi; done; mkdir -p \"\$dest\"; for d in \"\$root\" \"\$root/CELIKOM\" \"\$root/CELIKOM/Windows\" \"\$root/CELIKOM/Windows/Updates\" \"\$dest\"; do [[ -d \"\$d\" && ! -L \"\$d\" ]] || { echo W155_RELEASE_DIRECTORY_UNSAFE; exit 3; }; done; test ! -e '$remote_root'; mkdir -m 700 '$remote_root'; test -d '$remote_root'; test ! -L '$remote_root'"
 stage_created=1
@@ -53,9 +100,14 @@ for file in "$exe" manifest.json manifest.json.sig latest.json latest.json.sig S
     -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
     -o GlobalKnownHostsFile=/dev/null "$tmp/$file" "$target:$remote_root/$file"
 done
-ssh_remote "bash -s -- '$root' '$remote_root' '$version' '$sequence' '$exe'" <<'REMOTE'
+ssh_remote "bash -s -- '$root' '$remote_root' '$version' '$sequence' '$exe' '$old_sequence' '$old_manifest_sha' '$old_signature_sha'" <<'REMOTE'
 set -euo pipefail
 root="$1"; stage="$2"; version="$3"; seq="$4"; exe="$5"
+expected_old_sequence="$6"; expected_old_manifest_sha="$7"; expected_old_signature_sha="$8"
+[[ "$expected_old_sequence" =~ ^(0|[1-9][0-9]{0,14})$ &&
+   "$expected_old_manifest_sha" =~ ^[a-f0-9]{64}$ &&
+   "$expected_old_signature_sha" =~ ^[a-f0-9]{64}$ ]] || {
+  echo W155_EXPECTED_OLD_LATEST_INVALID; exit 3; }
 dest="$root/CELIKOM/Windows/Updates/stable"
 [[ -d "$stage" && ! -L "$stage" ]] || { echo W155_RELEASE_STAGE_UNSAFE; exit 3; }
 (cd "$stage"; sha256sum -c SHA256SUMS.txt)
@@ -71,8 +123,17 @@ if [[ -e "$dest/latest.json" || -e "$dest/latest.json.sig" ]]; then
      ! -L "$dest/latest.json" && ! -L "$dest/latest.json.sig" ]] || {
     echo W155_EXISTING_LATEST_BROKEN; exit 3; }
   old="$(sed -nE 's/^ *"sequence" *: *([0-9]+),? *$/\1/p' "$dest/latest.json" | head -1)"
-  [[ "$old" =~ ^[1-9][0-9]{0,14}$ ]] || { echo W155_EXISTING_SEQUENCE_INVALID; exit 3; }
+  [[ "$old" == "$expected_old_sequence" ]] || {
+    echo W155_EXISTING_LATEST_CHANGED_DURING_PUBLISH; exit 3; }
+  [[ "$(sha256sum "$dest/latest.json" | awk '{print $1}')" == "$expected_old_manifest_sha" &&
+     "$(sha256sum "$dest/latest.json.sig" | awk '{print $1}')" == "$expected_old_signature_sha" ]] || {
+    echo W155_EXISTING_LATEST_BYTES_CHANGED; exit 3; }
   (( seq > old )) || { echo W155_SEQUENCE_NOT_INCREASING; exit 3; }
+else
+  [[ "$expected_old_sequence" == 0 &&
+     "$expected_old_manifest_sha" == "0000000000000000000000000000000000000000000000000000000000000000" &&
+     "$expected_old_signature_sha" == "0000000000000000000000000000000000000000000000000000000000000000" ]] || {
+    echo W155_EXISTING_LATEST_DISAPPEARED; exit 3; }
 fi
 for file in "$exe" manifest.json manifest.json.sig; do
   if [[ -e "$dest/$version/$file" ]]; then

@@ -5,6 +5,7 @@ import {mkdtemp,mkdir,writeFile,readFile,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {verifyPreparedStableRelease} from "../windows-stable-release-verify.mjs";
+import {verifyExistingStableLatest} from "../windows-stable-existing-latest.mjs";
 const origin="https://celikom.com",version="0.24.38",sequence=1;
 const sha=x=>createHash("sha256").update(x).digest("hex");
 async function fixture(t){
@@ -96,4 +97,33 @@ test("W155 publisher stages beside stable feed so latest promotion is same-files
   assert.ok(publisher.includes("W155_RELEASE_STAGE_UNSAFE"));
   assert.ok(publisher.includes('mv -f "$stage/latest.json" "$dest/latest.json"'));
   assert.ok(publisher.includes('mv -f "$stage/latest.json" "$dest/latest.json"'));
+});
+
+
+test("W155 publisher monotonic floor comes only from the exact signed existing latest pair",async t=>{
+  const f=await fixture(t);
+  const signature=sign("sha256",f.doc,{key:f.pair.privateKey,dsaEncoding:"der"});
+  const identity=verifyExistingStableLatest(f.doc,signature,{
+    origin,pinnedPublicKeyDerBase64:f.publicKey
+  });
+  assert.equal(identity.sequence,sequence);
+  assert.equal(identity.manifestSha256,sha(f.doc));
+  assert.equal(identity.signatureSha256,sha(signature));
+  const tampered=Buffer.from(f.doc.toString().replace('"sequence":1','"sequence":2'));
+  assert.throws(()=>verifyExistingStableLatest(tampered,signature,{
+    origin,pinnedPublicKeyDerBase64:f.publicKey
+  }),/SIGNATURE_INVALID/);
+});
+
+test("W155 publisher can preserve the sequence floor from an expired but validly signed latest",async t=>{
+  const f=await fixture(t);
+  const expired={...f.data,
+    publishedAt:"2026-11-01T00:00:00.000Z",
+    expiresAt:"2026-11-02T00:00:00.000Z"};
+  const doc=Buffer.from(JSON.stringify(expired));
+  const signature=sign("sha256",doc,{key:f.pair.privateKey,dsaEncoding:"der"});
+  const identity=verifyExistingStableLatest(doc,signature,{
+    origin,pinnedPublicKeyDerBase64:f.publicKey
+  });
+  assert.equal(identity.sequence,sequence);
 });
