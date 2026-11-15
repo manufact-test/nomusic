@@ -131,9 +131,13 @@ test("W155 publisher can preserve the sequence floor from an expired but validly
 
 
 test("W155 remote Hostinger promotion block is valid Bash and bound to verified prior bytes",async()=>{
-  const publisher=await readFile(
-    new URL("../windows-stable-publish-hostinger.sh",import.meta.url),"utf8");
+  const publisherPath=new URL("../windows-stable-publish-hostinger.sh",import.meta.url);
+  const publisher=await readFile(publisherPath,"utf8");
   assert.ok(publisher.includes("windows-stable-existing-latest.mjs"));
+  assert.ok(publisher.includes('|| -L "$dest/latest.json"'));
+  assert.ok(publisher.includes('|| -L "$dest/$version/$file"'));
+  if(process.platform!=="win32")
+    execFileSync("bash",["-n",publisherPath.pathname],{stdio:"pipe"});
   assert.ok(publisher.includes("W155_EXISTING_LATEST_BYTES_CHANGED"));
   assert.ok(publisher.includes("W155_EXISTING_LATEST_CHANGED_DURING_PUBLISH"));
   assert.ok(publisher.includes("-I -H 'Cache-Control: no-cache, no-store'"));
