@@ -21,7 +21,7 @@ export function renderStableTrustSource(source, values) {
   try { url = new URL(origin); } catch { invalid("ORIGIN_INVALID"); }
   if (url.protocol !== "https:" || url.username || url.password ||
       url.pathname !== "/" || url.search || url.hash ||
-      url.port !== "" || !/^(?:[a-z0-9-]+\\.)*celikom\\.com$/i.test(url.hostname))
+      url.port !== "" || !/^(?:[a-z0-9-]+\.)*celikom\.com$/i.test(url.hostname))
     invalid("ORIGIN_INVALID");
   if (typeof publicKeyDerBase64 !== "string" ||
       !/^[A-Za-z0-9+/]+={0,2}$/.test(publicKeyDerBase64))
