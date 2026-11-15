@@ -8,7 +8,8 @@ from audit_native_selected_item_handoff import (
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
     trace_identity_method, select_next_identity_method_refs,
-    summarize_boundary_callsite_owner_profiles, method_signature_type_profile
+    summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
+    select_exact_interface_contracts
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -188,6 +189,24 @@ class SelectedItemAuditTests(unittest.TestCase):
             reverse=boundary_callsite_census(FakeDex(),method,0,100,[publish,helper])
         self.assertTrue(rows[0]["track_returning_method_call_before"])
         self.assertFalse(reverse[0]["track_returning_method_call_before"])
+
+    def test_exact_interface_contract_requires_owner_and_full_signature(self):
+        owner_methods=[
+            ("LbJ2;","write","(J)V"),
+            ("LbJ2;","flush","()V"),
+        ]
+        interface_refs={
+            ("Laudio/Output;","write","(J)V"),
+            ("Laudio/Output;","flush","()V"),
+            ("Laudio/Output;","write","(I)V"),
+        }
+        matches=select_exact_interface_contracts(
+            "LbJ2;",owner_methods,{"Laudio/Output;"},interface_refs
+        )
+        self.assertEqual(matches,[
+            ("Laudio/Output;","flush","()V"),
+            ("Laudio/Output;","write","(J)V"),
+        ])
 
     def test_method_signature_type_profile_is_type_only(self):
         from audit_native_selected_item_handoff import method_signature_type_profile

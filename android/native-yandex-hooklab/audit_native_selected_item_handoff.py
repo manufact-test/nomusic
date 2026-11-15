@@ -1307,6 +1307,144 @@ def inspect_boundary_caller_inbound_methods(apks, boundary_rows, class_profiles)
     }
 
 
+def select_exact_interface_contracts(owner, owner_methods, interfaces, interface_method_refs):
+    method_shapes = {(row[1], row[2]) for row in owner_methods}
+    return sorted(
+        (interface, name, signature)
+        for interface in interfaces
+        for name, signature in method_shapes
+        if (interface, name, signature) in interface_method_refs
+    )
+
+
+def inspect_decoder_owner_dispatch_contracts(apks, boundary_rows, class_profiles):
+    owners = sorted({
+        row["caller_key"][0]
+        for row in boundary_rows if row["kind"] == "DECODER_BOUNDARY"
+    })
+    if len(owners) > 16:
+        raise ValueError("DECODER_OWNER_CONTRACT_LIMIT")
+    owner_methods = {owner: set() for owner in owners}
+    interface_owners = {
+        interface
+        for owner in owners
+        for interface in class_profiles.get(owner, {}).get("interfaces", ())
+    }
+    interface_method_refs = set()
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("DECODER_CONTRACT_DEX_LIMIT")
+                dex = Dex(archive.read(entry.filename))
+                for method, _flags, _code_off in method_definitions_with_flags(dex):
+                    if method[0] in owner_methods:
+                        owner_methods[method[0]].add(method)
+                for index in range(dex.method_count):
+                    method = dex.method(index)
+                    if method[0] in interface_owners:
+                        interface_method_refs.add(method)
+    contracts = {
+        owner: select_exact_interface_contracts(
+            owner, owner_methods[owner],
+            class_profiles.get(owner, {}).get("interfaces", ()),
+            interface_method_refs
+        )
+        for owner in owners
+    }
+    direct_targets = {
+        method for methods in owner_methods.values() for method in methods
+    }
+    interface_target_owners = {}
+    for owner, rows in contracts.items():
+        for contract in rows:
+            interface_target_owners.setdefault(contract, set()).add(owner)
+    incoming = {owner: [] for owner in owners}
+    total_callsites = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry.filename))
+                for caller, _flags, code_off in method_definitions_with_flags(dex):
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        target = dex.method(words[1])
+                        matched = []
+                        if target in direct_targets:
+                            matched.append((target[0], "DIRECT_CLASS_METHOD_REFERENCE"))
+                        for owner in interface_target_owners.get(target, ()):
+                            matched.append((owner, "EXACT_INTERFACE_METHOD_REFERENCE"))
+                        for owner, dispatch_kind in matched:
+                            total_callsites += 1
+                            if total_callsites > 512:
+                                raise ValueError("DECODER_OWNER_INBOUND_CALLSITE_LIMIT")
+                            incoming[owner].append({
+                                "caller": {
+                                    "owner": caller[0],
+                                    "method": caller[1],
+                                    "signature": caller[2],
+                                },
+                                "target": {
+                                    "owner": target[0],
+                                    "method": target[1],
+                                    "signature": target[2],
+                                },
+                                "ordinal": ordinal,
+                                "dispatch_kind": dispatch_kind,
+                            })
+    result = []
+    for owner in owners:
+        profile = class_profiles.get(owner, {})
+        field_types = set(profile.get("instance_types", ())) | set(
+            profile.get("static_types", ())
+        )
+        relevant_fields = sorted(
+            typ for typ in field_types
+            if any(marker in typ.lower() for marker in (
+                "audio", "media", "buffer", "format", "surface",
+                "track", "album", "data", "source", "codec",
+                "extractor", "collection", "list", "queue",
+                "byte", "long", "integer"
+            ))
+        )
+        methods = sorted(owner_methods[owner])
+        if len(methods) > 64:
+            raise ValueError("DECODER_OWNER_METHOD_LIMIT")
+        result.append({
+            "owner": owner,
+            "superclass": profile.get("superclass"),
+            "interfaces": sorted(profile.get("interfaces", ())),
+            "relevant_declared_field_types": relevant_fields,
+            "declared_code_method_count": len(methods),
+            "declared_code_methods": [
+                {
+                    "method": method[1],
+                    "signature": method[2],
+                    "signature_types": method_signature_type_profile(method),
+                }
+                for method in methods
+            ],
+            "exact_interface_contracts": [
+                {"owner": row[0], "method": row[1], "signature": row[2]}
+                for row in contracts[owner]
+            ],
+            "incoming_callsite_count": len(incoming[owner]),
+            "incoming_callsites": incoming[owner],
+            "runtime_dispatch_proven": False,
+        })
+    return {
+        "decoder_owner_count": len(owners),
+        "owners": result,
+        "field_values_or_media_values_read": False,
+        "runtime_dispatch_inferred": False,
+    }
+
+
 SOURCE_METHODS = {
     ("Lcom/yandex/music/shared/player/download2/o;", "while"),
     ("Lcom/yandex/music/shared/player/download2/o;", "for"),
@@ -2541,6 +2679,8 @@ def inspect_signed(apks):
             summarize_boundary_callsite_owner_profiles(boundary_callsite_rows, class_profiles),
         "boundary_caller_inbound_methods":
             inspect_boundary_caller_inbound_methods(apks, boundary_callsite_rows, class_profiles),
+        "decoder_owner_dispatch_contracts":
+            inspect_decoder_owner_dispatch_contracts(apks, boundary_callsite_rows, class_profiles),
         "same_basic_block_model_parameter_flows": model_flow_candidates,
         "active_selected_item_proven": False,
         "same_native_item_to_decoder_proven": False,
