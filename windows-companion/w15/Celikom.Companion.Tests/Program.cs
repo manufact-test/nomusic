@@ -116,6 +116,34 @@ try
          pendingTargetPath != pendingDifferentHashPath,
          "W140 pending package cache is bound to exact signed version, sequence and SHA-256");
     var testManifestPublicKeySha256 = new string('b', 64);
+    var launchTransaction = Guid.NewGuid();
+    var launchPath = Path.Combine(rollbackRoot, "target-verified-setup.exe");
+    var launchRecord = new StableUpdateRollbackJournal.Record(
+        3, launchTransaction, StableUpdateRollbackJournal.Phase.InstallerStarted,
+        previousRelease.Version.ToString(4), targetRelease.Version.ToString(4),
+        previousRelease.Sha256, targetRelease.Sha256, testManifestPublicKeySha256,
+        previousRelease.PackageSize, previousRelease.Sequence, targetRelease.Sequence,
+        rollbackAt.AddMinutes(10).ToUnixTimeSeconds(), 0, false, false, "",
+        prevAppHash, nextAppHash, prevHostHash, nextHostHash,
+        prevRendererHash, nextRendererHash, prevSupervisorHash, nextSupervisorHash,
+        TargetSize: targetRelease.PackageSize);
+    Test(AppUpdateManager.IsManifestLaunchRecordValid(
+            launchRecord, launchTransaction, launchPath, launchPath,
+            targetRelease, testManifestPublicKeySha256),
+         "W155 final installer launch accepts only the exact journaled transaction and signed payload");
+    Test(!AppUpdateManager.IsManifestLaunchRecordValid(
+            launchRecord, Guid.NewGuid(), launchPath, launchPath,
+            targetRelease, testManifestPublicKeySha256) &&
+         !AppUpdateManager.IsManifestLaunchRecordValid(
+            launchRecord with { TargetNativeHostSha256 = prevHostHash },
+            launchTransaction, launchPath, launchPath,
+            targetRelease, testManifestPublicKeySha256) &&
+         !AppUpdateManager.IsManifestLaunchRecordValid(
+            launchRecord with { ManifestPublicKeySha256 = new string('c', 64) },
+            launchTransaction, launchPath, launchPath,
+            targetRelease, testManifestPublicKeySha256),
+         "W155 final installer launch rejects a different transaction, payload hash or signing key");
+
     var verifiedImages = 0;
 
     // W155: simulate replacement of the source after the caller's verifier
