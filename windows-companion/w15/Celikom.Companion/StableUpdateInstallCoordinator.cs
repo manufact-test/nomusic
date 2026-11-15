@@ -188,7 +188,7 @@ public static class StableUpdateInstallCoordinator
             {
                 AppUpdateManager.MarkPending(latest.Version);
                 AppUpdateManager.LaunchManifestVerified(
-                    targetInstaller, latest, trust.ManifestPublicKeySha256);
+                    targetInstaller, record.Id, latest, trust.ManifestPublicKeySha256);
             }
             catch
             {
