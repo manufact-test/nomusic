@@ -2789,7 +2789,7 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
                             "receiver_register":(words[0]>>12)&15
                         })
                     if sites:
-                        if len(writers)>=32:
+                        if len(writers)>=256:
                             raise ValueError("CONTINUATION_TRACK_WRITER_OWNER_LIMIT")
                         trace=trace_track_value_to_exact_field_store(
                             dex,method,flags,code_off,target_field
@@ -2828,7 +2828,7 @@ def inspect_continuation_track_field_writers(apks, reference_dex, reference_fiel
                 target=(callee.get("owner"),callee.get("method"),callee.get("signature"))
                 if target not in writer_refs:
                     continue
-                if len(callsites)>=64:
+                if len(callsites)>=256:
                     raise ValueError("CONTINUATION_TRACK_WRITER_CALLSITE_LIMIT")
                 callsites.append({
                     "caller":{"owner":caller[0],"method":caller[1],"signature":caller[2]},
