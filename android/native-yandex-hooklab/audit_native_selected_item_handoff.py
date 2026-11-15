@@ -561,9 +561,8 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                             if target_owner in candidate_owners:
                                 target_params = parse_types(callee[2])
                                 is_static = op in (0x71, 0x77)
-                                target_types = (
-                                    target_params if is_static
-                                    else [target_owner] + target_params
+                                target_types = expand_invoke_register_types(
+                                    target_owner, target_params, is_static
                                 )
                                 regs = invoke_registers(op, words)
                                 row = inbound[target_owner]
@@ -622,20 +621,24 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                                 )
                                 if len(regs) == len(target_types):
                                     identity_origins = []
-                                    for index, typ in enumerate(target_types):
-                                        register = regs[index]
+                                    logical_position = -1
+                                    for register_word_position, typ in enumerate(target_types):
+                                        if typ is None:
+                                            continue
+                                        logical_position += 1
+                                        register = regs[register_word_position]
                                         if typ == MODEL:
                                             if register in track_param_aliases:
                                                 row["same_track_parameter_alias_to_target_track_parameter_count"] += 1
                                                 identity_origins.append({
-                                                    "argument_position": index,
+                                                    "argument_position": logical_position,
                                                     "type": "TRACK",
                                                     "origin": "CALLER_TRACK_PARAMETER"
                                                 })
                                             if register in track_field_aliases:
                                                 row["same_track_field_alias_to_target_track_parameter_count"] += 1
                                                 identity_origins.append({
-                                                    "argument_position": index,
+                                                    "argument_position": logical_position,
                                                     "type": "TRACK",
                                                     "origin": "CALLER_TRACK_FIELD_ON_THIS"
                                                 })
@@ -643,14 +646,14 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                                             if register in album_param_aliases:
                                                 row["same_album_parameter_alias_to_target_album_parameter_count"] += 1
                                                 identity_origins.append({
-                                                    "argument_position": index,
+                                                    "argument_position": logical_position,
                                                     "type": "ALBUM",
                                                     "origin": "CALLER_ALBUM_PARAMETER"
                                                 })
                                             if register in album_field_aliases:
                                                 row["same_album_field_alias_to_target_album_parameter_count"] += 1
                                                 identity_origins.append({
-                                                    "argument_position": index,
+                                                    "argument_position": logical_position,
                                                     "type": "ALBUM",
                                                     "origin": "CALLER_ALBUM_FIELD_ON_THIS"
                                                 })
@@ -658,14 +661,14 @@ def inspect_candidate_owner_methods(apks, candidate_owners, class_profiles):
                                             if register in wrapper_param_aliases:
                                                 row["same_wrapper_parameter_alias_to_target_wrapper_parameter_count"] += 1
                                                 identity_origins.append({
-                                                    "argument_position": index,
+                                                    "argument_position": logical_position,
                                                     "type": "TRACK_WRAPPER",
                                                     "origin": "CALLER_WRAPPER_PARAMETER"
                                                 })
                                             if register in wrapper_field_aliases:
                                                 row["same_wrapper_field_alias_to_target_wrapper_parameter_count"] += 1
                                                 identity_origins.append({
-                                                    "argument_position": index,
+                                                    "argument_position": logical_position,
                                                     "type": "TRACK_WRAPPER",
                                                     "origin": "CALLER_WRAPPER_FIELD_ON_THIS"
                                                 })
@@ -837,16 +840,23 @@ def trace_identity_method(
             regs = invoke_registers(op, words)
             params = parse_types(callee[2])
             is_static = op in (0x71, 0x77)
-            target_types = params if is_static else [callee[0]] + params
+            target_types = expand_invoke_register_types(
+                callee[0], params, is_static
+            )
             identity_arguments = []
             if len(regs) == len(target_types):
-                for index, register in enumerate(regs):
-                    declared_type = target_types[index]
+                logical_position = -1
+                for register_word_position, (declared_type, register) in enumerate(
+                    zip(target_types, regs)
+                ):
+                    if declared_type is None:
+                        continue
+                    logical_position += 1
                     for tracked_type, label in tracked_types.items():
                         origins = aliases[tracked_type].get(register)
                         if origins:
                             identity_arguments.append({
-                                "argument_position": index,
+                                "argument_position": logical_position,
                                 "declared_argument_type": declared_type,
                                 "identity_type": label,
                                 "origins": sorted(origins),
@@ -1528,14 +1538,22 @@ def trace_byte_buffer_parameter(dex, method, flags, code_off, ins=None):
             regs = invoke_registers(op, words)
             params = parse_types(callee[2])
             is_static = op in (0x71, 0x77)
-            target_types = params if is_static else [callee[0]] + params
+            target_types = expand_invoke_register_types(
+                callee[0], params, is_static
+            )
             if callee[0] in ("LbJ2;", "Lpk0;") and callee[1] == "native":
                 origins = []
                 if len(regs) == len(target_types):
-                    for position, (typ, register) in enumerate(zip(target_types, regs)):
+                    logical_position = -1
+                    for register_word_position, (typ, register) in enumerate(
+                        zip(target_types, regs)
+                    ):
+                        if typ is None:
+                            continue
+                        logical_position += 1
                         if typ == byte_buffer and register in aliases:
                             origins.append({
-                                "argument_position": position,
+                                "argument_position": logical_position,
                                 "origins": sorted(aliases[register]),
                             })
                 events.append({
@@ -1860,6 +1878,17 @@ def parse_types(signature: str) -> list[str]:
         if len(result) > 128:
             raise ValueError("METHOD_PARAMETER_LIMIT")
     return result
+
+
+def expand_invoke_register_types(owner, params, is_static):
+    """Expand logical invoke parameters to DEX register words (J/D use two)."""
+    logical_types = list(params) if is_static else [owner] + list(params)
+    register_types = []
+    for typ in logical_types:
+        register_types.append(typ)
+        if typ in ("J", "D"):
+            register_types.append(None)
+    return register_types
 
 
 def method_definitions_with_flags(dex: Dex):
@@ -2750,6 +2779,9 @@ def inspect_signed(apks):
                                 params = parse_types(callee[2])
                                 is_static = op in (0x71, 0x77)
                                 target_types = params if is_static else [callee[0]] + params
+                                register_types = expand_invoke_register_types(
+                                    callee[0], params, is_static
+                                )
                                 target_callers.append({
                                     "caller": {"owner": method[0], "name": method[1],
                                                "signature": method[2]},
@@ -2758,6 +2790,7 @@ def inspect_signed(apks):
                                     "argument_registers": regs,
                                     "invoke_kind": "STATIC" if is_static else "INSTANCE_OR_OTHER",
                                     "argument_types": target_types,
+                                    "argument_register_types": register_types,
                                     "native_track_argument_positions": [
                                         i for i, register in enumerate(regs)
                                         if register in model_regs

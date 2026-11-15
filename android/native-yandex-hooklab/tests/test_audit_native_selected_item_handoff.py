@@ -10,7 +10,7 @@ from audit_native_selected_item_handoff import (
     trace_identity_method, select_next_identity_method_refs,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
     select_exact_interface_contracts, select_audio_output_focus_methods,
-    trace_byte_buffer_parameter
+    trace_byte_buffer_parameter, expand_invoke_register_types
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -201,7 +201,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
         ins=[(0,0x71,[0x0071,0])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1,0,0]):
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,1,2,3,4]):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertTrue(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
         self.assertEqual(
@@ -219,7 +219,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
         ins=[(0,0x28,[0xFF28]),(1,0x71,[0x0071,0])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1,0,0]):
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,1,2,3,4]):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertFalse(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
         self.assertTrue(trace["branch_seen"])
@@ -236,7 +236,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LCaller;","write","(Ljava/nio/ByteBuffer;)V")
         ins=[(0,0x28,[0x0128]),(1,0x71,[0x0071,0])]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
-             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[1,0,0]):
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[0,1,2,3,4]):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertTrue(trace["same_byte_buffer_parameter_to_audio_sink_proven"])
         self.assertTrue(trace["branch_seen"])
@@ -258,7 +258,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             (2,0x71,[0x0071,1])
         ]
         def regs(_op, words):
-            return [] if words[1] == 0 else [1,0,0]
+            return [] if words[1] == 0 else [0,1,2,3,4]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.invoke_registers",side_effect=regs):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
@@ -284,12 +284,25 @@ class SelectedItemAuditTests(unittest.TestCase):
              patch("audit_native_selected_item_handoff.field_id",
                    return_value=("LHolder;","buffer","Ljava/nio/ByteBuffer;")), \
              patch("audit_native_selected_item_handoff.invoke_registers",
-                   return_value=[0,0,0]):
+                   return_value=[2,0,3,4,5]):
             trace=trace_byte_buffer_parameter(FakeDex(),method,0x8,100)
         self.assertTrue(trace["byte_buffer_object_to_audio_sink_proven"])
         self.assertEqual(
             trace["events"][0]["buffer_argument_origins"],
             [{"argument_position":0,"origins":["BYTEBUFFER_FIELD_READ"]}]
+        )
+
+    def test_invoke_register_type_expansion_accounts_for_wide_values(self):
+        from audit_native_selected_item_handoff import expand_invoke_register_types
+        self.assertEqual(
+            expand_invoke_register_types(
+                "LReceiver;",["J",MODEL,"D",WRAPPER],False
+            ),
+            ["LReceiver;","J",None,MODEL,"D",None,WRAPPER]
+        )
+        self.assertEqual(
+            expand_invoke_register_types("LStatic;",["J",MODEL],True),
+            ["J",None,MODEL]
         )
 
     def test_audio_output_focus_includes_constructor_buffer_and_factory_methods(self):
