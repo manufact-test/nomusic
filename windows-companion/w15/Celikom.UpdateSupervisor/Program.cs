@@ -30,8 +30,7 @@ internal static class Program
         var journalState = journal.Read();
         var runningImage = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(runningImage) ||
-            !IsTrustedRunningImage(runningImage, journalState.PreviousSupervisorSha256,
-                productionManifestPublicKeySha256))
+            !IsTrustedRunningImage(runningImage, journalState.PreviousSupervisorSha256))
             return 8;
 
         var engine = new UpdateSupervisorEngine(transaction, journal,
