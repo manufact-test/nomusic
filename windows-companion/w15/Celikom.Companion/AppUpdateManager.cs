@@ -160,6 +160,11 @@ public static class AppUpdateManager
 
         StableUpdatePackageStager.VerifyInstaller(
             verifiedPath, release);
+        // Re-open and hold the exact signed bytes with no write/delete sharing
+        // through process creation. The prior verifier's handle is already
+        // closed; this is the final execution-boundary anti-swap check.
+        using var verifiedImage = StableUpdatePayloadVerifier.OpenVerifiedReadHandle(
+            verifiedPath, release.Sha256, release.PackageSize);
         if (!CanLaunchWithoutPlaybackInterrupt(bridgeEnabled: false))
             throw new IOException("UPDATE_DEFER_YANDEX_RUNNING");
         LaunchInstallerProcess(verifiedPath);

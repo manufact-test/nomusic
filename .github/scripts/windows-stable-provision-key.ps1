@@ -153,29 +153,33 @@ $privatePem = $null
 if ($null -ne $publicVar -and $publicVar -cne $publicBase64) {
     throw "W155_EXISTING_PUBLIC_PIN_MISMATCH_REFUSE_KEY_ROTATION"
 }
-if ($secretExists) {
-    if ($publicVar -cne $publicBase64) {
-        throw "W155_EXISTING_PRIVATE_SECRET_DO_NOT_OVERWRITE"
-    }
-}
-else {
-    $command = 'gh secret set ' + $PrivateSecretName + ' --repo ' + $Repository +
-        ' --env ' + $EnvironmentName + ' < "' + $privatePath + '"'
-    & cmd.exe /d /c $command *> $null
-    if ($LASTEXITCODE -ne 0) { throw "W155_GH_SECRET_UPLOAD_FAILED" }
+if ($secretExists -and $publicVar -cne $publicBase64) {
+    throw "W155_EXISTING_PRIVATE_SECRET_DO_NOT_OVERWRITE"
 }
 
-function Set-OrConfirmVar([string]$Name, [string]$Value, [AllowNull()][string]$Existing) {
+function Set-OrConfirmVar([string]$Name, [string]$Value, [AllowNull()][object]$Existing) {
     if ($null -ne $Existing) {
-        if ($Existing -cne $Value) { throw ("W155_VARIABLE_MISMATCH_" + $Name) }
+        if ([string]$Existing -cne $Value) {
+            throw ("W155_VARIABLE_MISMATCH_" + $Name)
+        }
         return
     }
     gh variable set $Name --repo $Repository --env $EnvironmentName --body $Value *> $null
     if ($LASTEXITCODE -ne 0) { throw ("W155_VARIABLE_SET_FAILED_" + $Name) }
 }
+
+# Publish the non-secret trust tuple first. This makes a partial first run
+# safely resumable; the private key is uploaded only after all public pins exist.
 Set-OrConfirmVar "CELIKOM_STABLE_ORIGIN" $ExpectedOrigin $originVar
 Set-OrConfirmVar $PublicVariableName $publicBase64 $publicVar
 Set-OrConfirmVar "CELIKOM_STABLE_DEPLOY_ROOT" $ExpectedDeployRoot $rootVar
+
+if (!$secretExists) {
+    $command = 'gh secret set ' + $PrivateSecretName + ' --repo ' + $Repository +
+        ' --env ' + $EnvironmentName + ' < "' + $privatePath + '"'
+    & cmd.exe /d /c $command *> $null
+    if ($LASTEXITCODE -ne 0) { throw "W155_GH_SECRET_UPLOAD_FAILED" }
+}
 
 $verifiedSecrets = gh secret list --repo $Repository --env $EnvironmentName --json name
 if ($LASTEXITCODE -ne 0) { throw "W155_SECRET_CONFIRMATION_FAILED" }

@@ -17,13 +17,30 @@ export async function createOfflineStableManifestKeypair(output) {
   if(!status.isDirectory()||status.isSymbolicLink())throw Error("W155_KEY_DIR_UNSAFE");
   if((await readdir(dir)).length!==0)throw Error("W155_KEY_DIR_NOT_EMPTY");
   const {privateKey,publicKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
-  const privatePem=privateKey.export({type:"pkcs8",format:"pem"});
+  let privatePem=privateKey.export({type:"pkcs8",format:"pem"});
+  const privateBytes=Buffer.from(privatePem,"utf8");
+  privatePem="";
   const der=publicKey.export({type:"spki",format:"der"});
-  await writeFile(join(dir,"manifest-private.pem"),privatePem,{mode:0o600,flag:"wx"});
-  await writeFile(join(dir,"manifest-public.der"),der,{mode:0o600,flag:"wx"});
-  await writeFile(join(dir,"manifest-public-base64.txt"),der.toString("base64")+"\n",
-    {mode:0o600,flag:"wx"});
-  return {directory:dir,publicSha256:createHash("sha256").update(der).digest("hex")};
+  const names=["manifest-private.pem","manifest-public.der","manifest-public-base64.txt"];
+  const values=[privateBytes,der,Buffer.from(der.toString("base64")+"\n","utf8")];
+  const temporary=names.map(name=>join(dir,name+".tmp-"+process.pid));
+  const created=[];
+  try {
+    for(let i=0;i<names.length;i++)
+      await writeFile(temporary[i],values[i],{mode:0o600,flag:"wx"});
+    for(let i=0;i<names.length;i++){
+      const finalPath=join(dir,names[i]);
+      await rename(temporary[i],finalPath);
+      created.push(finalPath);
+    }
+    return {directory:dir,publicSha256:createHash("sha256").update(der).digest("hex")};
+  } catch(error) {
+    await Promise.all([...temporary,...created].map(file=>rm(file,{force:true}).catch(()=>{})));
+    throw error;
+  } finally {
+    privateBytes.fill(0);
+    values[2].fill(0);
+  }
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
   if(process.argv.length!==3)throw Error("W155_EXPECT_OUTPUT_DIRECTORY");

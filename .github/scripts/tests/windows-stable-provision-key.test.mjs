@@ -21,6 +21,14 @@ test("W155 existing signing keys are never silently replaced", () => {
   assert.doesNotMatch(provision, /gh secret set[^\r\n]*--body/);
 });
 
+test("W155 public trust variables are resumable and precede private-key upload", () => {
+  assert.match(provision, /\[AllowNull\(\)\]\[object\]\$Existing/);
+  const publicPin = provision.indexOf('Set-OrConfirmVar $PublicVariableName');
+  const privateUpload = provision.lastIndexOf('gh secret set ' + '$PrivateSecretName');
+  assert.ok(publicPin >= 0 && privateUpload > publicPin);
+  assert.match(provision, /if \(\$secretExists -and \$publicVar -cne \$publicBase64\)/);
+});
+
 test("W155 SSH deploy credential is scoped to the single publishing step", () => {
   const publish = releaseWorkflow.slice(releaseWorkflow.indexOf("\n  publish:"));
   const envStart = publish.indexOf("\n    env:");

@@ -109,19 +109,15 @@ public static class StableUpdateSupervisorLauncher
                 return false;
 
             var snapshotSupervisor = Path.Combine(snapshotDirectory, SupervisorFileName);
-            if (File.Exists(snapshotSupervisor))
-            {
-                if (!StableUpdatePayloadVerifier.MatchesFile(
-                        snapshotSupervisor, record.PreviousSupervisorSha256, 50_000_000))
-                    return false;
-            }
-            else
-            {
+            if (!File.Exists(snapshotSupervisor))
                 File.Copy(installedSupervisor, snapshotSupervisor, overwrite: false);
-                if (!StableUpdatePayloadVerifier.MatchesFile(
-                        snapshotSupervisor, record.PreviousSupervisorSha256, 50_000_000))
-                    return false;
-            }
+
+            // Keep the final verified image open with write/delete sharing
+            // denied until Windows has created the exact Supervisor process.
+            using var supervisorImage =
+                StableUpdatePayloadVerifier.OpenVerifiedReadHandle(
+                    snapshotSupervisor, record.PreviousSupervisorSha256,
+                    maxBytes: 50_000_000);
 
             await using var server = StableUpdateSupervisorHandshake.CreateServer(record.Id);
             var startInfo = new ProcessStartInfo(snapshotSupervisor)

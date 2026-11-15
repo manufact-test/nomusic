@@ -604,6 +604,42 @@ try
          StableUpdatePayloadVerifier.MatchesFile(payloadRenderer, payloadRendererHash, 32_000_000) &&
          StableUpdatePayloadVerifier.MatchesFile(payloadSupervisor, payloadSupervisorHash),
          "W114 exact signed manifest payload hashes accept all four installed files");
+
+    var launchLockPath = Path.Combine(payloadFolder, "verified-launch-lock.exe");
+    var launchLockBytes = new byte[12_000];
+    Array.Fill(launchLockBytes, (byte)0x5A);
+    File.WriteAllBytes(launchLockPath, launchLockBytes);
+    var launchLockHash = Convert.ToHexString(
+        SHA256.HashData(launchLockBytes)).ToLowerInvariant();
+    var launchWriteBlocked = false;
+    var launchRenameBlocked = false;
+    using (StableUpdatePayloadVerifier.OpenVerifiedReadHandle(
+        launchLockPath, launchLockHash, launchLockBytes.Length, 20_000))
+    {
+        try
+        {
+            using var writeAttempt = new FileStream(launchLockPath, FileMode.Open,
+                FileAccess.Write, FileShare.ReadWrite);
+        }
+        catch (IOException) { launchWriteBlocked = true; }
+        catch (UnauthorizedAccessException) { launchWriteBlocked = true; }
+        try { File.Move(launchLockPath, launchLockPath + ".moved"); }
+        catch (IOException) { launchRenameBlocked = true; }
+        catch (UnauthorizedAccessException) { launchRenameBlocked = true; }
+    }
+    Test(launchWriteBlocked && launchRenameBlocked &&
+         File.Exists(launchLockPath) && !File.Exists(launchLockPath + ".moved"),
+         "W155 verified launch handle blocks replacement and deletion until process creation");
+    var wrongLaunchHashRejected = false;
+    try
+    {
+        using var invalidImage = StableUpdatePayloadVerifier.OpenVerifiedReadHandle(
+            launchLockPath, new string('0', 64), launchLockBytes.Length, 20_000);
+    }
+    catch (IOException e) when (e.Message == "STABLE_UPDATE_LAUNCH_IMAGE_HASH_MISMATCH")
+    { wrongLaunchHashRejected = true; }
+    Test(wrongLaunchHashRejected,
+        "W155 execution-boundary handle rejects a mismatched installer/helper hash");
     Test(!StableUpdatePayloadVerifier.MatchesFile(payloadExe, new string('0', 64)) &&
          !StableUpdatePayloadVerifier.MatchesFile(payloadHost, "not-a-hash") &&
          !StableUpdatePayloadVerifier.MatchesFile(Path.Combine(payloadFolder, "missing.cjs"),

@@ -92,6 +92,18 @@ jobs:
           # invoke the Unix-only zip command from the Windows runner.
           npm run security
           if ($LASTEXITCODE -ne 0) { throw 'W98_SECURITY_AUDIT_FAILED' }
+      - name: Parse protected W155 key provisioning script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD '.github/scripts/windows-stable-provision-key.ps1'),
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'W155_PROVISION_SCRIPT_PARSE_FAILED'
+          }
       - name: Build W23 native bridge bundle
         shell: pwsh
         working-directory: windows-companion/w23

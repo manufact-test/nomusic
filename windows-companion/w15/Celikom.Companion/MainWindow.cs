@@ -294,8 +294,8 @@ public sealed partial class MainWindow : Form
             if (_backgroundStartup)
                 await ResumeSavedPlaybackAsync();
 
-            // The stable updater remains dormant until the production P-256
-            // and Authenticode trust tuple is embedded in this build.
+            // The stable updater remains dormant until the release build embeds
+            // the approved P-256 public key and fixed HTTPS origin.
             if (StableUpdateTrustConfiguration.TryGetProduction(out _))
             {
                 _stableUpdatePulse.Start();
