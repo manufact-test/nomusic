@@ -67,3 +67,14 @@ CELIKOM previously checked only the HKCU Run command. Windows separately records
 - No EXE, ZIP, installer, release artifact or owner-machine modification was made.
 - Task 1 and Task 2 remain code/test/CI-ready but not owner-PC field-accepted; issue #52 remains OPEN.
 - Next: W150 Task 4 only — consolidated regression review and one grouped owner acceptance plan. Do not begin Task 5 updater or package work until Task 4 is complete.
+
+
+## W158 owner-PC retest — 16.11.2026 (targeted lifecycle regression)
+
+The owner's autorun diagnostic shows GUI_STARTED and BRIDGE_STARTED, followed by WIN_AUTORUN_MODULE_REPAIR_REQUEST / OK, START_ENABLED and WIN_AUTORUN_CONNECTED_IN_TRAY. HOST_LOADED, BUNDLE_PRESENT, WEB_CONTENTS_PRESENT, APPROVED_VIEW, PLAYER_CDP_READY and PLAYER_NET_READY appear only after the owner manually presses Stop and Start.
+
+Code review identifies the likely false-ready boundary: ResumeSavedPlaybackAsync sets the local bridge Enabled and records WIN_AUTORUN_CONNECTED_IN_TRAY immediately after entitlement checks; it does not wait for a native-host/player heartbeat. The UI then treats bridge Enabled as sufficient to block Start. The owner reproduces a reboot case where CELIKOM looks enabled but is not attached and requires Stop/Start.
+
+This specifically reopens runtime lifecycle acceptance; it does not reopen the completed Windows StartupApproved registry semantics. Preserve first-launch default ON, sticky OFF, explicit tray ON/OFF, per-user startup, no UAC and the rule that CELIKOM must not launch Yandex at sign-in. Keep saved Start intent separate from actual native/player readiness, wait for Yandex to become available, and attach automatically without a Stop/Start workaround. Explicit Stop must cancel the pending intent.
+
+See docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md.
