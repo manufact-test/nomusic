@@ -1,40 +1,62 @@
 Привет! Ты принимаешь **CELIKOM Android A1** как ведущий разработчик. Продолжай существующую работу, ничего не начинай с нуля и не меняй согласованную архитектуру.
 
-**GitHub:** manufact-test/nomusic
+**GitHub:** `manufact-test/nomusic`
 
-**Единственная активная ветка:** experiment/android-a1-metrica-init-state-observer-arm13-20261112
+**Единственная рабочая ветка:**  
+`experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 
-**Последний кодовый checkpoint:** 90f8ea394e1ac4168aa63f976e17fd18eb24befb  
-**Последнее изменение runtime hooks:** a655712d210189f3bc611847235de3ed4d985c1a
+**Последний CI-green кодовый checkpoint:**  
+`a9dfbbbcf959da3d5cf265c13a17e8baffcc2c50`
 
-**Резерв кода с CI-green:** backup/android-a1-track-album-publisher-first-ci-green-20261115 @ 90f8ea394e1ac4168aa63f976e17fd18eb24befb  
-**Резерв до большого захода:** backup/android-a1-track-album-reference-pre-large-push-20261115 @ e0740cf224b34d3260822fa2248a8b136feac1e5
+**Точный резерв кода:**  
+`backup/android-a1-audio-buffer-identity-ci-green-20261115`  
+@ `a9dfbbbcf959da3d5cf265c13a17e8baffcc2c50`
 
-Сначала прочитай полностью:
-1. docs/android/NEXT-CHAT.md
-2. docs/android/NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md
-3. docs/android/ANDROID-A1-TRACK-ALBUM-IDENTITY-20261115.md
-4. docs/android/ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md
+**Резерв до исправления wide invoke mapping:**  
+`backup/android-a1-wide-invoke-map-pre-final-audit-fix-20261115`  
+@ `8e121e50712c2f65f0b703e7beeb91688727b764`
 
-### Где остановились
+**Последнее изменение runtime hooks:** `a655712d210189f3bc611847235de3ed4d985c1a`. В последнем проходе runtime hooks не менялись.
 
-Добавлены read-only hooks для двух Track-конструкторов с Album-аргументом и точного Track copy-метода. Вызовы оригинальных методов не меняются и выполняются ровно один раз. Track/Album связываются только по Java object identity (==) и weak references.
+### Обязательно прочитай полностью
 
-**CI:**
-- Static audit #43703523959 — SUCCESS. Найден один Track+Album→Track copy candidate, но прямая запись Album в новый Track не доказана.
-- Clone-only ARM13 #43703211359 — SUCCESS, 25/25, hooks зарегистрированы.
-- Publisher-first ARM13 #43703211345 — SUCCESS, original 16/16 splits + clone coexist, 25/25, без Metrica fatal suppression.
+1. `docs/android/NEXT-CHAT.md`
+2. `docs/android/NEXT-CHAT-ANDROID-A1-TRACK-EXO-CONTINUITY-20261115.md`
+3. `docs/android/ANDROID-A1-TRACK-EXO-IDENTITY-HARDENING-20261115.md`
+4. `docs/android/ANDROID-A1-TRACK-ALBUM-IDENTITY-20261115.md`
+5. `docs/android/ANDROID-A1-SOURCE-OPEN-READ-CLOSE-IDENTITY-20261115.md`
+6. `docs/android/ANDROID-A1-NAV17-OWNER-REAL-MUSIC-GREEN-STAGE-B-SOURCE-ADAPTER-20261114.md`
 
-Это не product pass. **Stage A = NO-GO.** Не доказаны current selected Track, edition/generation, тот же объект на decoder input и реальное аудио. В CI не было playback/account test; телефон владельца не трогали; APK не публиковали.
+### Текущее состояние — не перепутай этапы
 
-### Продолжай с этой задачи
+**Stage A пройден на NAV17.** Владелец подтвердил: CELIKOM открывает его настоящий аккаунт Яндекс Музыки, показывает альбомы и Мою волну, играет оригинальные треки. Это реальный успех, его нельзя ломать или откатывать.
 
-1. Найди identity именно текущего выбранного Track, отделив его от очереди, prefetch и download.
-2. Структурно установи edition/generation и связь с Track/Album.
-3. Проследи тот же объект до реального decoder input/audio renderer.
-4. Не считай Track Flow или положительный Exo DataSource read доказательством текущего звучащего трека.
-5. Продолжай read-only, bounded, fail-closed. Не читай значения полей, названия/ID альбомов, URL, DataSpec, аккаунтные данные или audio bytes.
+**Stage B продолжается.** Оригиналы играют, но CELIKOM-версии ещё не подключены и не звучат. Ни одного release APK из этой исследовательской ветки не делаем.
 
-Не меняй Test.50, frozen A1/LSPatch baseline, Windows, extension, backend или оригинальный Яндекс. Не создавай release APK из лабораторного клона. Не проси владельца делать ручные шаги или устанавливать APK, пока конкретное измерение действительно не понадобится. Работай крупными блоками, без промежуточных отчётов на каждом шаге. Если диагностика от владельца придёт — разбери её сам и сообщи только, что реально нужно проверить.
+Последний signed-DEX audit [#43712507031](https://github.com/manufact-test/nomusic/actions/runs/43712507031) — SUCCESS, 40/40 тестов. Найден конкретный native audio sink candidate:
 
-Продолжай самостоятельно.
+- `LbJ2` implements `Lpk0`, имеет типизированные поля `AudioTrack` и `ByteBuffer`.
+- `LcLb.O(..., ByteBuffer, ...)` и `Lbd6.O(..., ByteBuffer, ...)` передают тот же ByteBuffer-параметр в `LbJ2.native(ByteBuffer, long, int)`. Для обеих функций параметр находится в v6 и не перезаписывается; wide `long` правильно учитывается как два DEX-регистра.
+- `LEF2.j()` вызывает интерфейсный `Lpk0.native(...)`, передавая ByteBuffer, прочитанный из типизированного поля. Реальный runtime dispatch на `LbJ2` не доказан.
+
+Это доказывает статическую передачу ByteBuffer в конкретный аудиовыход, **но не** связь с текущим выбранным Track, Album, edition/generation или тем же item на decoder input. В отчёте остаются `active_selected_item_proven=false` и `same_native_item_to_decoder_proven=false`.
+
+### Следующий большой блок работы
+
+1. Проследи, кто вызывает `LcLb.O` и `Lbd6.O`; отдели текущий playback от очереди, prefetch и download. Не выдавай прямую ссылку на метод за runtime dispatch.
+2. Найди конкретного владельца текущего выбранного Track и свяжи его с уже найденным аудиовыходом только через bounded Java object identity.
+3. Доказательно установи Album и edition/generation для того же Track. Не считай числовые поля или коллекции семантическим доказательством.
+4. Проследи ту же identity до decoder/audio renderer. Только после этого подключай существующий CELIKOM resolve/entitlement contract до decoder input с оригинальным fallback.
+5. Работай read-only и fail-closed. Если безопасная цепочка не доказана — не добавляй generic hooks и не придумывай связку.
+
+### Жёсткие ограничения
+
+- Не менять NAV17 working auth, исходный Яндекс и его данные/аккаунт.
+- Не менять Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend/API/DB и production.
+- Не добавлять второй плеер, MediaPlayer, отдельный decoder/AudioTrack, WebView или смешивание звука.
+- Не читать/экспортировать значения приватных Track/Album полей, названия и ID, URL, DataSpec, токены, данные аккаунта или аудиобайты.
+- Не подавлять vendor exceptions и не менять поведение vendor methods: каждый оригинальный метод должен выполняться ровно один раз.
+- Не просить владельца повторять логин, вводить OTP, устанавливать APK или делать ручную диагностику, пока не определён конкретный необходимый read-only замер.
+- Работай крупными самостоятельными блоками, сохраняй точные резервные точки. Не дроби работу на мелкие инструкции и не присылай промежуточные отчёты без необходимости.
+
+**Продолжай самостоятельно.**
