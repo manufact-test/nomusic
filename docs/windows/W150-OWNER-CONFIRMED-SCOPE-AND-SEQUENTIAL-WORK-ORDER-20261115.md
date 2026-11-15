@@ -13,17 +13,17 @@ W119 still controls the product architecture and working rules (one product, `ma
 
 **The developer must finish one task to code/test/CI-ready state before moving to the next. Do not hop between tasks, reopen unrelated old tickets, or invent extra work from the repository's historical OPEN Issues.** The owner should receive one consolidated build only after all agreed code work is complete.
 
-## Current execution status — 15 November 2026 (supersedes stale "first active task" wording below)
+## Current execution status — 15 November 2026 (final release completed; owner acceptance remains)
 
-- **Tasks 1–4 are complete at code/test/CI level** under W151–W154. They are not owner-PC accepted; the owner performs one grouped acceptance from W154 only after the final package exists.
-- **Task 5 implementation is complete at code/test/CI level** under W155/W156: P-256 signed schema-2 manifest, SHA-256 package/payload verification, DPAPI transaction, independent Supervisor READY/health/one-shot rollback, protected release workflow and final package helper are in place. Do not reopen the runtime audit or add speculative code.
-- The PowerShell-only key provisioning helper and automatic one-shot release trigger are also implemented and Windows-CI tested. Current release-workflow checkpoint: `44a3e55ed9e70a4f2aa4b3ac562c122575f0a189`.
-- Latest Main CI `43736028010` and Windows integration CI `43736027854` are **SUCCESS** on documentation HEAD `0a2df7d5d104854c492dc7114ec6c4175a195df8`.
-- **Only remaining engineering/release path:** final bounded preflight; one owner-side local P-256 key generation + one protected Environment secret upload; one marker commit to trigger the protected workflow; one signed unpublished Draft Release containing exactly one EXE, one ZIP and SHA256SUMS; then one grouped W154 owner acceptance. No intermediate packages.
-- Do not commit the marker before the owner confirms the secret is saved: the marker immediately triggers the release workflow.
-- DNS/TLS and production-feed publication remain deliberately deferred until infrastructure migration. Do not publish a production feed now. The bootstrap installs the public pin; after the future feed is activated, all subsequent updates must be automatic.
-- No other task is authorized. Do not revisit Tasks 1–4, historical Issues, broad audits, unrelated code, Android or the browser extension. The only owner interaction is one consolidated key-provisioning step when repository-side preflight is complete.
-
+- **Tasks 1–4 are complete at code/test/CI level** under W151–W154. They are not owner-PC accepted; the owner performs one grouped W154 acceptance using the single final package.
+- **Task 5 is complete at code/test/CI level** under W155/W156: P-256 signed schema-2 manifest, SHA-256 package/payload verification, DPAPI transaction, independent Supervisor READY/health/one-shot rollback, protected release workflow and owner-package helper are in place. Do not reopen the runtime audit or add speculative code.
+- Owner-side P-256 provisioning is complete. The private key is stored only in the protected GitHub Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM` in `windows-stable-production`; never request or expose the PEM.
+- The one-shot marker was committed to `main`; after fixing canonical UTC expiry precision, protected release workflow run `43741752502` completed **SUCCESS** on source commit `bc59e0c7e4db749d616b318beb89369245811b44`. Main CI `43741752582` and Windows integration CI `43741752579` also completed **SUCCESS**.
+- **The single final bootstrap package now exists:** Draft Release `celikom-windows-v0.24.38-owner-bootstrap`, release ID `446239144`, version `0.24.38`, sequence `1`. It contains exactly `CELIKOM-Windows-0.24.38.exe`, `CELIKOM-Windows-0.24.38.zip` and `SHA256SUMS.txt`. The ZIP helper verifies exactly one root EXE and matching content hash. The Actions artifact upload was skipped; the release remains an unpublished Draft.
+- Exact backup before the final documentation update: `backup/windows-main-pre-final-release-docs-20261115` @ `bc59e0c7e4db749d616b318beb89369245811b44`.
+- **Only remaining owner work:** download the single final package from the Draft Release, install over 0.24.37, and perform the one grouped W154 acceptance. No intermediate packages or further engineering tasks.
+- DNS/TLS and production-feed publication remain deliberately deferred until infrastructure migration. Do not publish the Draft Release or production feed. Do not claim automatic production updates until DNS/TLS and the signed feed are live.
+- No other task is authorized. Do not revisit Tasks 1–5, historical Issues, broad audits, unrelated code, Android or the browser extension. #52 remains open until owner-PC acceptance.
 ## 1. Exact repository baseline and backup
 
 - Current `main` HEAD when W150 was authored: `0524158177beeedb50bff85d59ae573d90c19823`.
