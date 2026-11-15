@@ -1176,6 +1176,32 @@ def trace_exact_track_field_method_cfg(
                 and "OWNER_THIS" in receiver_origins
             ):
                 registers[destination] = {"TRACK_FROM_EXACT_FIELD"}
+        elif op in (0x5b, 0x67):  # iput-object / sput-object
+            owner, _field_name, typ = field_id(dex, words[1])
+            value_register = (
+                (words[0] >> 8) & 15 if op == 0x5b
+                else (words[0] >> 8) & 0xff
+            )
+            receiver_register = (
+                (words[0] >> 12) & 15 if op == 0x5b else None
+            )
+            this_register = (
+                None if flags & ACC_STATIC
+                else dex.u16(code_off) - dex.u16(code_off + 2)
+            )
+            origin = local_object_register_origin(
+                dex, method, flags, code_off, ins, ordinal,
+                value_register, include_source_ordinal=True
+            )
+            origin.pop("field", None)
+            rows.append({
+                "ordinal": ordinal, "op": "FIELD_WRITE",
+                "owner": owner, "type": typ,
+                "receiver_is_this": receiver_register == this_register
+                    if receiver_register is not None else False,
+                "value_is_native_track_parameter": value_register in aliases,
+                "value_origin": origin,
+            })
         elif op in (0x07, 0x08, 0x09):
             move = move_object_registers(op, words)
             if move is not None:
@@ -5753,7 +5779,8 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
     model_params = model_parameter_registers(dex, method, flags, code_off)
     aliases = {reg for _, reg in model_params}
     rows = []
-    for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
+    ins = list(instructions(dex, code_off))
+    for ordinal, (pc, op, words) in enumerate(ins):
         if op in INVOKES:
             callee = dex.method(words[1])
             regs = invoke_registers(op, words)
@@ -5850,6 +5877,24 @@ def privacy_safe_focused_method_trace(trace):
                 "type": field_type,
                 "receiver_is_native_track": row.get("receiver_is_native_model", False),
             })
+        elif op == "FIELD_WRITE":
+            field_type = row.get("type")
+            if field_type:
+                field_types.add(field_type)
+            origin = row.get("value_origin", {})
+            events.append({
+                "ordinal": row.get("ordinal"),
+                "kind": "FIELD_WRITE",
+                "owner": row.get("owner"),
+                "type": field_type,
+                "receiver_is_this": row.get("receiver_is_this", False),
+                "value_is_native_track_parameter":
+                    row.get("value_is_native_track_parameter", False),
+                "value_origin": {
+                    key: value for key, value in origin.items()
+                    if key != "field"
+                },
+            })
         elif op == "BRANCH_OR_SWITCH":
             events.append({
                 "ordinal": row.get("ordinal"),
@@ -5880,8 +5925,9 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
     )
     if len(implementers) > 8:
         raise ValueError("CURRENT_TRACK_FLOW_IMPLEMENTER_LIMIT")
-    owners = {"LzD7;", "LBD7;", "LMG7;", "LC3a;", "LBy4;",
-              "LBC3;", "LzC3;", "LAC3;", "LDp0;", "LGp0;"}
+    owners = {"LzD7;", "LBD7;", "LMG7;", "LMG7$a;", "LC3a;", "LD3a;",
+              "LAF7;", "LWM7;", "LyG7;", "LBy4;", "LBC3;", "LzC3;",
+              "LAC3;", "LDp0;", "LGp0;"}
     traces = [
         privacy_safe_focused_method_trace(trace)
         for trace in focused_method_traces
@@ -5936,6 +5982,11 @@ def summarize_current_track_flow_candidate(class_profiles, focused_method_traces
             class_profiles.get(interface, {}).get("is_abstract")
         ),
         "direct_implementers": implementers,
+        "flow_object_profile": class_profiles.get("LD3a;", {}),
+        "implementation_dependency_profiles": {
+            owner: class_profiles.get(owner, {})
+            for owner in ("LAF7;", "LWM7;", "LyG7;", "LMG7;", "LMG7$a;")
+        },
         "ym_application_on_create_subscribes_ldp0": app_subscribes_ldp0,
         "flow_path": [
             "LzD7.if() -> LC3a Flow",
@@ -6210,9 +6261,9 @@ def summarize_flow_entry_class_profiles(class_profiles):
         "LBC3;","LO6;","LBy4;","Lvp0;","LzD7;","LBD7;",
         "LAp0;","Lxp0;","LUK6;","LDb1;","LC3a;","LgE6;",
         "LDw8;","LAD7;","LzE7;","Lnn4;","Lhw9;","LcE6;",
-        "LAE7;","Lup0;","LAy4;","LMG7;","LJw4;","LPG1;","Lur1;",
+        "LAE7;","Lup0;","LAy4;","LMG7;","LD3a;","LAF7;","LWM7;","LyG7;","LMG7$a;","LJw4;","LPG1;","Lur1;",
         "Lkh;","Lrm4;","LBC3$a;","LAC3$a;","LsF4;","LyC3;",
-        "Liw9;","LAg1;","LMG7;","YMApplication;"
+        "Liw9;","LAg1;","LMG7;","LD3a;","LAF7;","LWM7;","LyG7;","LMG7$a;","YMApplication;"
     )
     rows=[]
     for owner in targets:
@@ -7652,7 +7703,7 @@ def inspect_signed(apks):
                         "RetryingBalancingDataSource;", "close", "()V"
                     ):
                         exo_source_close_void_declared = True
-                    if method[0] in ("LMG7;", "LC3a;") or (method[0], method[1]) in trace_targets:
+                    if method[0] in ("LMG7;", "LMG7$a;", "LC3a;", "LD3a;") or (method[0] in ("LAF7;", "LWM7;", "LyG7;") and (method[1] == "<init>" or any(t in method[2] for t in ("LD3a;", "Liw9;", "Lru/yandex/music/data/audio/o;")))) or (method[0], method[1]) in trace_targets:
                         focused_method_traces.append(
                             focused_method_trace(dex, method, flags, code_off))
                     if method in SELECTED_TRACK_PATH_METHODS:

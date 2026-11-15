@@ -1496,13 +1496,22 @@ class SelectedItemAuditTests(unittest.TestCase):
                  "native_track_argument_positions":[]},
                 {"ordinal":3,"op":"CONST_STRING","destination_register":2,
                  "literal_disclosed":False},
-                {"ordinal":4,"op":"BRANCH_OR_SWITCH"},
+                {"ordinal":4,"op":"FIELD_WRITE","owner":"LImpl;",
+                 "field":"privateFlowField","type":"LD3a;",
+                 "receiver_is_this":True,"value_is_native_track_parameter":False,
+                 "value_origin":{"kind":"INSTANCE_FIELD_READ","owner":"LService;",
+                                 "field":"privateSourceField","type":"LD3a;"}},
+                {"ordinal":5,"op":"BRANCH_OR_SWITCH"},
             ],
         }
         result = privacy_safe_focused_method_trace(trace)
         rendered = str(result)
         self.assertNotIn("privateTrackTitle", rendered)
+        self.assertNotIn("privateFlowField", rendered)
+        self.assertNotIn("privateSourceField", rendered)
         self.assertEqual(result["native_track_parameter_count"],1)
+        self.assertEqual(result["events"][3]["kind"],"FIELD_WRITE")
+        self.assertEqual(result["events"][3]["value_origin"]["type"],"LD3a;")
         self.assertEqual(result["field_read_type_descriptors"],["Ljava/lang/String;"])
         self.assertFalse(result["private_field_names_or_values_disclosed"])
         self.assertEqual(result["events"][1]["callee"]["method"],"getCurrentTrack")
