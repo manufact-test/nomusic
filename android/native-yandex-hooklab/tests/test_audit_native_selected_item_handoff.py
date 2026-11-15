@@ -748,9 +748,13 @@ class SelectedItemAuditTests(unittest.TestCase):
                 return ("LTarget;","get","()Ljava/lang/Object;")
         method=("LGp0;","new","(Lru/yandex/music/data/audio/o;LOe2;)V")
         ins=[
-            (0,0x28,[0x0028]),
-            (1,0x5b,[0x135b,7]),
-            (2,0x12,[0x0012])
+            (0,0x38,[0x0438,4]),
+            (2,0x12,[0x0312]),
+            (3,0x28,[0x0328]),
+            (4,0x00,[0x0000]),
+            (5,0x00,[0x0000]),
+            (6,0x5b,[0x135b,7]),
+            (8,0x0e,[0x000e])
         ]
         target=("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;")
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
@@ -758,10 +762,16 @@ class SelectedItemAuditTests(unittest.TestCase):
             result=trace_track_value_to_exact_field_store(
                 FakeDex(),method,0x8,100,target
             )
-        site=result["field_store_sites"][0]
+        sites=result["field_store_sites"]
         self.assertTrue(result["branch_seen"])
-        self.assertTrue(site["source_is_original_track_parameter"])
-        self.assertEqual(site["track_source_provenance"],"SAME_TRACK_PARAMETER_REFERENCE")
+        self.assertTrue(any(
+            site["source_is_original_track_parameter"]
+            and site["track_source_provenance"]=="SAME_TRACK_PARAMETER_REFERENCE"
+            for site in sites
+        ))
+        self.assertTrue(any(
+            not site["source_is_original_track_parameter"] for site in sites
+        ))
         self.assertFalse(result["control_flow_feasibility_proven"])
         self.assertNotIn("hiddenTrack",str(result))
 
@@ -776,9 +786,10 @@ class SelectedItemAuditTests(unittest.TestCase):
                 return ("LTarget;","get","()Lru/yandex/music/data/audio/o;")
         method=("LGp0;","new","(LOe2;)V")
         ins=[
-            (0,0x71,[0x0071,9]),
-            (1,0x0c,[0x020c]),
-            (2,0x5b,[0x125b,7])
+            (0,0x71,[0x0071,9,0]),
+            (3,0x0c,[0x020c]),
+            (4,0x5b,[0x125b,7]),
+            (6,0x0e,[0x000e])
         ]
         target=("LFp0;","hiddenTrack","Lru/yandex/music/data/audio/o;")
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
@@ -804,8 +815,8 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LFp0;","create","(Ljava/lang/Object;LOe2;)V")
         ins=[
             (0,0x1f,[0x041f,1]),
-            (1,0x5b,[0x345b,7]),
-            (2,0x0e,[0x000e])
+            (2,0x5b,[0x345b,7]),
+            (4,0x0e,[0x000e])
         ]
         target=("LFp0;","privateTrack","Lru/yandex/music/data/audio/o;")
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
@@ -828,7 +839,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             def method(self,index):
                 return ("LTarget;","get","()Ljava/lang/Object;")
         method=("LFp0;","create","(Ljava/lang/Object;LOe2;)V")
-        ins=[(0,0x5b,[0x345b,7]),(1,0x0e,[0x000e])]
+        ins=[(0,0x5b,[0x345b,7]),(2,0x0e,[0x000e])]
         target=("LFp0;","privateTrack","Lru/yandex/music/data/audio/o;")
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",return_value=target):
