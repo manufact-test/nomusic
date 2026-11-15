@@ -118,7 +118,7 @@ Approved design:
 - Preserve the existing safe-point download/install behavior, independent Supervisor READY handshake, DPAPI transaction, account/session/settings/native integration and one-shot automatic rollback.
 - Installed 0.24.37 has no production P-256 pin. Therefore a one-time trusted manual bootstrap is unavoidable: owner installs the one final coherent package containing the new public pin. After that, subsequent releases must be detected, downloaded, verified, staged and installed automatically without manual website downloads.
 - Domain `celikom.com` is already purchased and is the fixed future production origin: `https://celikom.com`. DNS, TLS and public feed deployment are intentionally deferred until the product/infrastructure migration is complete. Prepare the code/config now, but do not attempt to publish to a non-existent HTTPS endpoint or change DNS early.
-- W148's current workflow still contains PFX/Authenticode certificate/fingerprint gates. That scaffold is **not the final approved design** and must be refactored in this task. Do not run it or ask the owner to buy a certificate.
+- W148's original scaffold contained PFX/Authenticode certificate/fingerprint gates. W155/W156 have now replaced that release path with the approved protected P-256 signed-manifest workflow. Do not restore or reintroduce the obsolete PFX/Authenticode gates.
 - Prepare one safe local key-provisioning script for the owner to run once only if required by GitHub's protected-secret permissions. The approved helper is `.github/scripts/windows-stable-provision-key.ps1`: it uses built-in Windows PowerShell 5.1, Windows CNG, Notepad and the browser only; no Node.js, GitHub CLI, PowerShell 7, package manager, token or password is required. It creates the P-256 key locally with a user/SYSTEM-only directory ACL and opens the protected GitHub Environment page. The owner adds the PEM once as Environment secret `CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM`. Never ask the owner to paste or send the PEM in chat.
 - Before migration, validate updater logic with automated/local fixtures only; do not claim production feed delivery. Test the updater end-to-end on the owner's PC only after the domain's DNS/TLS and signed feed are live: detect → download during playback → verify → wait for safe point → Supervisor READY → in-place install → health check → forced one-shot rollback test. Preserve account, DPAPI, settings, native integration and music continuity.
 - Windows may still apply its own policy to unsigned executables. Keep the current warning experience; never promise that P-256 manifest trust creates a Windows-verified publisher or bypasses SmartScreen/SAC. If a particular Windows policy blocks execution, report it honestly; never ask users to turn protection off.
@@ -159,45 +159,4 @@ These Issues must not be silently closed or deleted; they simply are not current
 
 ## 5. First message for the next chat
 
-Copy the current first message from the authoritative top section of `docs/windows/NEXT-CHAT.md`. Do not use the archived first message below this heading in older handoffs.
-
-
----
-
-Привет! Ты принимаешь **CELIKOM Windows** как ведущий разработчик. Продолжай существующую работу строго по актуальной документации. Ничего не начинай с нуля и не меняй архитектуру.
-
-**Репозиторий:** `manufact-test/nomusic`  
-**Единственная рабочая ветка:** `main`  
-**HEAD:** перед началом обязательно получи live HEAD ветки `main`; не используй устаревший SHA из предыдущего чата. Базовый code/doc checkpoint до W150: `0524158177beeedb50bff85d59ae573d90c19823`.  Точный резерв: `backup/windows-main-pre-w150-owner-scope-handoff-20261115` @ `0524158177beeedb50bff85d59ae573d90c19823`.
-
-### Сначала обязательно прочитай
-1. `docs/windows/W119-AUTHORITATIVE-OWNER-CONTRACT-AND-WINDOWS-HANDOFF-20261114.md`
-2. `docs/windows/W150-OWNER-CONFIRMED-SCOPE-AND-SEQUENTIAL-WORK-ORDER-20261115.md` — главный актуальный список задач и очередность.
-3. `docs/windows/NEXT-CHAT.md`
-4. `docs/windows/W139-OWNER-ACCEPTANCE-FEEDBACK-AND-AUTOUPDATE-P0-20261115.md`
-5. `docs/windows/W148-PROTECTED-SIGNED-STABLE-RELEASE-PIPELINE-20261115.md` — только чтобы понять имеющийся scaffold и что в нём теперь устарело.
-
-### Правильный порядок — строго без перескоков
-1. Довести синхронизацию интерфейса с фактическим текущим плеером/источником (ORIGINAL / ACTIVE_REPLACEMENT / UNKNOWN и PLAYING / PAUSED / STOPPED). Сохранить W141–W147, исправлять только реальные оставшиеся пробелы.
-2. Устранить громкий «пшик»/щелчок при VPN A→B, сохранив быстрое переподключение. Отдельно проверить replacement, original, «Мою волну» и crossfade после восстановления.
-3. Проверить автозапуск и трей: ON по умолчанию, сохранение намеренного OFF, без автозапуска Яндекса и без повышения прав.
-4. Провести общую регрессионную проверку и подготовить один сгруппированный план приёмки. Не собирать промежуточный установщик.
-5. Последним инженерным этапом завершить автообновление на собственном P-256 signed manifest + SHA-256. Никакого коммерческого Authenticode, PFX, привязки CELIKOM к компании или просьб отключать защиту Windows. Домен уже куплен: `https://celikom.com`; DNS/TLS включим после полной миграции. Нужен один ручной bootstrap поверх 0.24.37, затем все обновления автоматические.
-6. Только после интеграции updater собрать и выдать ровно один итоговый EXE+ZIP с публичным ключом P-256 для первоначальной установки поверх 0.24.37.
-
-**Не брать в работу:** #53, #54, #56, #57, #58 и другие старые Issues как самостоятельные задачи — владелец их сейчас не поручал. #52 относится к текущей проверке правдивости источника и остаётся открытой до реальной приёмки.
-
-### Важные правила
-- Перед каждым существенным изменением делай точный backup.
-- Работай большими законченными блоками.
-- Не делай промежуточных установщиков.
-- Не проси владельца проверять каждую мелочь.
-- Не объявляй задачу готовой по одному CI.
-- Закрывай текущую задачу по коду, тестам и CI до перехода к следующей.
-- После интеграции updater собери ровно одну финальную сборку и один сгруппированный план ручной проверки.
-- Не проси владельца повторять требования из W150.
-
-Начни с проверки актуального HEAD, CI и оставшихся пробелов в **Задаче 1**. Пока не закончил Задачу 1 — не переключайся на VPN, автозапуск или updater.
-
----
-
+Copy the current first message from the authoritative top section of `docs/windows/NEXT-CHAT.md`. Do not use any archived first message in this file or older handoffs.
