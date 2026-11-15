@@ -12,8 +12,8 @@ Authority: W119 product/architecture rules + W150 owner-approved scope and order
 - Final owner release-version checkpoint before this documentation update: `718861a6b9a1ee3e01c190f49d7d7b75a3062465`.
 - Exact backup before the 0.24.38 version block: `backup/windows-main-pre-final-owner-release-02438-20261115` at `e3714f8c169ff95a59c6a973e6cdeed8bd2f9bde`.
 - Target one-time bootstrap version: **0.24.38**. GUI, Supervisor and Inno installer metadata are aligned.
-- Main CI run `43728931911`: **SUCCESS** on `718861a6`.
-- Windows integration CI run `43728931891`: **SUCCESS** on `718861a6`.
+- Main CI run `43730538279`: **SUCCESS** on `23a4ec4a`.
+- Windows integration CI run `43730538242`: **SUCCESS** on `23a4ec4a`.
 - W155 signed-release verification: 27/27 at the W155 code checkpoint. The current Windows CI also passes the P-256 key-provisioning script parse, owner EXE/ZIP fixture, GUI/Supervisor compile and the full existing Windows integration suite.
 - No final EXE/ZIP has been built or delivered.
 
@@ -53,9 +53,10 @@ Do not repeat this audit or expand into new research without a concrete failure.
 - For version 0.24.38, the output is exactly one `CELIKOM-Windows-0.24.38.exe`, one `CELIKOM-Windows-0.24.38.zip` containing that EXE as its sole root entry, and `SHA256SUMS.txt`.
 - The package helper refuses overwrite, validates the ZIP entry and byte-for-byte SHA-256 equality, and writes checksums only after successful verification.
 - The helper is covered by Main CI contract tests and a Windows PowerShell fixture. The release workflow contract includes the helper. Both CI workflows passed on `718861a6`.
-- The workflow's production publish input defaults to `false`; leave it false. This creates an owner bootstrap artifact only and does not publish to `celikom.com`.
+- The workflow's production publish input defaults to `false`; leave it false. With this setting the workflow creates the unpublished GitHub Draft Release `celikom-windows-v0.24.38-owner-bootstrap` containing exactly one EXE, one ZIP and `SHA256SUMS.txt`. It does not publish the draft or the `celikom.com` feed.
+- The draft remains visible only to repository users with push access until it is published. The repository source itself remains public. The Actions artifact upload step is skipped when `publish_to_production=false`; it runs only for the separately approved live-feed publication path.
 
-**Artifact visibility note:** `manufact-test/nomusic` is a public GitHub repository. GitHub Actions artifacts are downloadable by anyone with repository read access; do not describe this artifact as private. The artifact contains no private signing key—only the installer, ZIP, signed manifest material and public key. If owner-only distribution is required, stop before dispatch and arrange separate private storage; no such storage is currently configured.
+**Visibility correction:** the previous workflow revision uploaded the owner package as a GitHub Actions artifact, which would be downloadable by anyone because this repository is public. That was not the intended owner-only handoff. The workflow is now corrected to use an unpublished Draft Release for the owner package.
 
 ## 6. One remaining owner action — provision P-256 once
 
@@ -77,7 +78,7 @@ After successful provisioning, run the protected workflow on `main` with:
 - expiry: a valid UTC ISO timestamp within 30 days
 - `publish_to_production: false`
 
-The workflow requires the protected environment approval. Download its one artifact after success; it contains the single EXE, ZIP and checksums.
+The workflow requires the protected environment approval. After success, open the repository's Releases page and download the three assets from the unpublished Windows Draft Release: the single EXE, ZIP and checksums. Do not click Publish release.
 
 ## 7. Not done — do not claim otherwise
 

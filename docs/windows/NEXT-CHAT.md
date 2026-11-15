@@ -3,21 +3,18 @@
 **This top block is authoritative.** The archived handoff below is retained for history only and is superseded; do not follow its old "first message" or task status.
 
 - Repository: `manufact-test/nomusic`; only working branch: `main`.
-- Current release-preparation checkpoint before this docs-only refresh: `718861a6b9a1ee3e01c190f49d7d7b75a3062465`.
+- Current code checkpoint: `23a4ec4a232139b9cfea986dec629d1d9b8776dd` (draft-release delivery correction and contract test).
+- Exact backup before this delivery correction: `backup/windows-main-pre-draft-owner-release-visibility-fix-20261115` @ `7840013eafac00fdebc55768663db7ad4494e235`.
 - Exact backup before the 0.24.38 version block: `backup/windows-main-pre-final-owner-release-02438-20261115` @ `e3714f8c169ff95a59c6a973e6cdeed8bd2f9bde`.
 - Target one-time bootstrap version: **0.24.38**. GUI, UpdateSupervisor and Inno installer metadata are aligned.
-- Main CI run `43728931911`: SUCCESS. Windows integration CI run `43728931891`: SUCCESS.
+- Main CI run `43730538279`: SUCCESS. Windows integration CI run `43730538242`: SUCCESS.
 - W151–W154 are code/test/CI-ready, but owner-PC acceptance is pending. Use the single grouped plan in `docs/windows/W154-CONSOLIDATED-REGRESSION-AND-OWNER-ACCEPTANCE-PLAN-20261115.md` only after the final package.
 - W155 runtime-chain audit is complete; no concrete runtime gap was found. Do not repeat broad audits or add speculative improvements.
-- W156 final package path is implemented and CI-tested: protected P-256 release workflow embeds only the public pin, builds one EXE, creates one ZIP with that EXE as its sole root entry, and writes SHA256SUMS. Production publication defaults OFF and must stay OFF.
-- **Next owner action:** from the updated repository root on the trusted Windows PC, run once:
-  ```powershell
-  pwsh -NoProfile -ExecutionPolicy Bypass -File .github/scripts/windows-stable-provision-key.ps1
-  ```
-  Prerequisites: PowerShell 7+, Node 24, authenticated GitHub CLI with admin access, and protected `windows-stable-production` environment with required reviewer + custom deployment policy allowing exactly `main`. The script generates the key locally, stores the private PEM outside the repository with restricted ACL, sets public variables and uploads the PEM only to the protected environment secret. It prints only the public fingerprint.
+- W156 final package path is implemented and CI-tested: protected P-256 release workflow embeds only the public pin, builds one EXE, creates one ZIP with that EXE as its sole root entry, and writes SHA256SUMS. With `publish_to_production=false`, the workflow creates an unpublished GitHub Draft Release and skips Actions artifact upload. Production publication defaults OFF and must stay OFF.
+- **Next owner action:** provision the P-256 key once on the trusted Windows PC. The local step-by-step instructions are in the current chat; script: `.github/scripts/windows-stable-provision-key.ps1`. It checks the protected environment before generating anything, stores the private PEM outside the repository with restricted ACL, sets public variables and uploads the PEM only to the protected environment secret. It prints only the public fingerprint.
 - Send only the script success line and public fingerprint. **Never send the private PEM.** Keep an encrypted offline backup.
-- After provisioning, dispatch `.github/workflows/windows-stable-signed-release.yml` on `main`: version `0.24.38`, sequence `1`, expiry valid UTC ISO timestamp within 30 days, `publish_to_production=false`. Approve the protected environment if prompted. Download the one artifact and use the EXE+ZIP for the single W154 acceptance.
-- **Visibility:** `manufact-test/nomusic` is public. GitHub Actions artifacts are downloadable by anyone with repository read access; they are not private. No private signing key is included. If owner-only artifact access is required, stop before dispatch and arrange separate private storage.
+- After provisioning, run `.github/workflows/windows-stable-signed-release.yml` on `main`: version `0.24.38`, sequence `1`, expiry valid UTC ISO timestamp within 30 days, `publish_to_production=false`. Approve the protected environment if prompted. Download the EXE, ZIP and SHA256SUMS from the unpublished Windows Draft Release; do not publish it. Then run the single W154 acceptance.
+- **Visibility:** the repository itself is public, but GitHub Draft Releases are listed only for users with push access until published. Existing Releases currently contain two Android drafts; no Windows draft exists yet. The Windows bootstrap workflow creates it after key provisioning. Public source code remains public.
 - Not done: owner key provisioning, final EXE/ZIP, owner installation/acceptance, DNS/TLS/feed migration. No production feed has been published.
 - Never use Authenticode/PFX, disable SmartScreen/Defender/UAC, publish the production feed early, create a TEST product/branch, touch Android/extension, or reopen excluded #53/#54/#56/#57/#58. #52 remains open pending owner-PC acceptance.
 
@@ -27,7 +24,7 @@
 
 W155 runtime audit завершён. W156 final package workflow уже подключён и прошёл CI. Целевая версия — 0.24.38; Main CI 43728931911 и Windows integration CI 43728931891 SUCCESS на checkpoint 718861a6. Точный backup: `backup/windows-main-pre-final-owner-release-02438-20261115` @ `e3714f8c169ff95a59c6a973e6cdeed8bd2f9bde`.
 
-Не начинай новые исследования и не меняй архитектуру. Сейчас единственный внешний блокер — владелец должен один раз запустить `.github/scripts/windows-stable-provision-key.ps1` на доверенном Windows PC и прислать только success line + public fingerprint, не PEM. После этого запусти ровно один защищённый release workflow на main с version 0.24.38, sequence 1, expiry в пределах 30 дней и publish_to_production=false; получи один EXE+ZIP+SHA256SUMS artifact. Учитывай, что репозиторий публичный, поэтому Actions artifact доступен любому с read access; не называй его private. Затем передай владельцу единую W154-приёмку.
+Не начинай новые исследования и не меняй архитектуру. Сейчас единственный внешний блокер — владелец должен один раз запустить `.github/scripts/windows-stable-provision-key.ps1` на доверенном Windows PC и прислать только success line + public fingerprint, не PEM. После этого владелец запускает защищённый workflow на main: version 0.24.38, sequence 1, expiry в пределах 30 дней, publish_to_production=false; GitHub создаёт unpublished Draft Release с одним EXE, одним ZIP и SHA256SUMS. Actions artifact при этом не загружается. Draft доступен только пользователям с push access; не нажимать Publish release. Затем провести единую W154-приёмку.
 
 Никакого Authenticode/PFX, никакого обхода SmartScreen/Defender/UAC, никакой ранней публикации production feed, никаких Android/extension изменений и никаких старых Issues #53/#54/#56/#57/#58. Не собирай промежуточные пакеты.
 
