@@ -138,6 +138,7 @@ test("W155 remote Hostinger promotion block is valid Bash and bound to verified 
   assert.ok(publisher.includes("W155_EXISTING_LATEST_CHANGED_DURING_PUBLISH"));
   assert.ok(publisher.includes("-I -H 'Cache-Control: no-cache, no-store'"));
   assert.ok(publisher.includes('"/home/u235811320/domains/celikom.com"'));
+  assert.ok(publisher.includes("W155_DEPLOY_ROOT_MISSING_OR_UNSAFE"));
   const start=publisher.indexOf("<<'REMOTE'\n");
   const end=publisher.indexOf("\nREMOTE",start+10);
   assert.ok(start>=0&&end>start);
