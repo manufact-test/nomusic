@@ -1156,7 +1156,7 @@ try
         "W82 normal resolving status is not a customer warning");
     Test(!UserFacingPlaybackHealth.Track("ORIGINAL", true, "approved").Message.Contains("оригинал") &&
          UserFacingPlaybackHealth.Track("NATIVE_ORIGINAL_SOURCE_VERIFIED", true, "approved")
-             .Message.Contains("оригинал"),
+             .Message.Contains("Оригинальный источник"),
         "W151 only explicit original-source proof is surfaced quietly");
     Test(UserFacingPlaybackHealth.Track("OFF", false, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
