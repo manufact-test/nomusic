@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {generateKeyPairSync,sign,createHash} from "node:crypto";
-import {mkdtemp,mkdir,writeFile,rm} from "node:fs/promises";
+import {mkdtemp,mkdir,writeFile,readFile,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {verifyPreparedStableRelease} from "../windows-stable-release-verify.mjs";
@@ -92,8 +92,8 @@ test("W155 release public-key sidecar must match the build-pinned P-256 key",asy
 test("W155 publisher stages beside stable feed so latest promotion is same-filesystem atomic",async()=>{
   const publisher=await readFile(
     new URL("../windows-stable-publish-hostinger.sh",import.meta.url),"utf8");
-  assert.match(publisher,/remote_root="\\$root\\/CELIKOM\\/Windows\\/Updates\\/stable\\/\\.incoming-\\$GITHUB_RUN_ID"/);
+  assert.match(publisher,/remote_root="\$root\/CELIKOM\/Windows\/Updates\/stable\/\.incoming-\$GITHUB_RUN_ID"/);
   assert.match(publisher,/W155_RELEASE_STAGE_UNSAFE/);
-  assert.match(publisher,/mv -f "\\$stage\\/latest\\.json" "\\$dest\\/latest\\.json"/);
-  assert.match(publisher,/mv -f "\\$stage\\/latest\\.json\\.sig" "\\$dest\\/latest\\.json\\.sig"/);
+  assert.match(publisher,/mv -f "\$stage\/latest\.json" "\$dest\/latest\.json"/);
+  assert.match(publisher,/mv -f "\$stage\/latest\.json\.sig" "\$dest\/latest\.json\.sig"/);
 });
