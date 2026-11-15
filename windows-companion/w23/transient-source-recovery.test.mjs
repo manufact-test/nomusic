@@ -200,3 +200,24 @@ test("W76: at most two retry attempts after sustained network outage",async()=>{
   assert.ok(events.includes("SOURCE_RECOVERY_EXHAUSTED"));
   assert.equal(recovery.pendingCount,0);
 });
+
+test("W152 route handoff pauses pending source reload and resumes only after route validation",async()=>{
+  const id="106040459";
+  let current=id,primes=0,reloads=0;
+  const recovery=createTransientSourceRecovery({
+    active:()=>true,currentTrackId:()=>current,
+    prime:async()=>{primes++;return true;},
+    reload:async()=>{reloads++;return true;},
+    delays:[20],confirmationDelayMs:0
+  });
+  assert.equal(recovery.schedule(id),true);
+  recovery.setPaused(true);
+  await pause(35);
+  assert.equal(primes,0,"route transition must not issue recovery requests mid-handoff");
+  assert.equal(reloads,0,"route transition must not reload the player");
+  recovery.setPaused(false);
+  await pause(35);
+  assert.equal(primes,1,"recovery resumes against the fresh route");
+  assert.equal(reloads,1,"only one source refresh is issued after route recovery");
+  assert.equal(recovery.pendingCount,0);
+});

@@ -70,6 +70,8 @@ public sealed class BridgeServer : IAsyncDisposable
     private DateTimeOffset _codeExpires;
     private int _failedPairs;
     private bool _enabled;
+    private bool _nativeNetworkRecoveryPending;
+    private bool _nativeNetworkRecoveryAwaitingHeartbeat;
     // High-frequency native state checks used to flood diagnostics every
     // ~370 ms, rotating out the exact failure the owner was trying to report.
     private long _lastNativeStateDiagUtcTicks;
@@ -110,6 +112,8 @@ public sealed class BridgeServer : IAsyncDisposable
         RotateCode();
     }
     public bool Enabled { get { lock (_gate) return _enabled; } }
+    public bool NativeNetworkRecoveryPending
+    { get { lock (_gate) return _nativeNetworkRecoveryPending; } }
     public string PairCode { get { lock (_gate) return _code; } }
     public string LastSong { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastSong : ""; } }
     public string LastTrackTitle { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastTitle : ""; } }
@@ -123,12 +127,25 @@ public sealed class BridgeServer : IAsyncDisposable
     public DateTimeOffset CodeExpires { get { lock (_gate) return _codeExpires; } }
     public bool CanResolve => Enabled && _api.IsLoggedIn;
 
+    public void SetNativeNetworkRecoveryPending(bool pending)
+    {
+        lock (_gate)
+        {
+            _nativeNetworkRecoveryPending = pending;
+            if (!pending) _nativeNetworkRecoveryAwaitingHeartbeat = false;
+        }
+    }
+
     public void SetEnabled(bool enabled)
     {
         lock (_gate)
         {
             if (_enabled == enabled) return;
+            var wasEnabled = _enabled;
             _enabled = enabled;
+            if (enabled && !wasEnabled && _nativeNetworkRecoveryPending)
+                _nativeNetworkRecoveryAwaitingHeartbeat = true;
+            if (!enabled) _nativeNetworkRecoveryAwaitingHeartbeat = false;
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
             _lastSource = "UNKNOWN";
             _lastPlaybackState = "UNKNOWN";
@@ -243,7 +260,8 @@ public sealed class BridgeServer : IAsyncDisposable
             if (!Authorized(ctx)) return Results.Unauthorized();
             if (IsNativeProtocolRequest(ctx)) RecordNativeStateSample();
             return Results.Json(new { enabled = CanResolve,
-                signedIn = _api.IsLoggedIn, apiOrigin = _api.IsLoggedIn ? _api.Origin : "", transport = "paired" });
+                signedIn = _api.IsLoggedIn, apiOrigin = _api.IsLoggedIn ? _api.Origin : "",
+                networkRecoveryPending = NativeNetworkRecoveryPending, transport = "paired" });
         });
 
         app.MapGet("/v1/resolve", async (HttpContext ctx) =>
@@ -333,6 +351,11 @@ public sealed class BridgeServer : IAsyncDisposable
                         _lastPlaybackState = beat.PlaybackState is "PLAYING" or "PAUSED" or "STOPPED"
                             ? beat.PlaybackState : "UNKNOWN";
                         _lastHeartbeatAt = DateTimeOffset.UtcNow;
+                        if (_nativeNetworkRecoveryAwaitingHeartbeat)
+                        {
+                            _nativeNetworkRecoveryAwaitingHeartbeat = false;
+                            _nativeNetworkRecoveryPending = false;
+                        }
                     }
                 }
             }

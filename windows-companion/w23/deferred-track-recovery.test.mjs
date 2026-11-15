@@ -59,3 +59,21 @@ test('W77: negative catalog response never gets recorded as a transient miss',()
  assert.equal(handoff.candidateCount,0);
  assert.equal(handoff.check(),false);
 });
+
+test("W152 a transient current-track candidate waits while the VPN route is unsettled",()=>{
+ let current=KISHLAK,allowed=false;
+ const calls=[];
+ const handoff=createDeferredTrackRecovery({
+   currentTrackId:()=>current,active:()=>true,
+   canSchedule:()=>allowed,
+   schedule:id=>{calls.push(id);return true;}
+ });
+ assert.equal(handoff.record(KISHLAK),true);
+ assert.equal(handoff.check(),false);
+ assert.equal(handoff.candidateCount,1,"route hold must not discard the exact current candidate");
+ assert.deepEqual(calls,[]);
+ allowed=true;
+ assert.equal(handoff.check(),true,"the same candidate promotes after route validation");
+ assert.equal(handoff.candidateCount,0);
+ assert.deepEqual(calls,[KISHLAK]);
+});

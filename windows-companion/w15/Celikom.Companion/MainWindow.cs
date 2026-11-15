@@ -494,6 +494,7 @@ public sealed partial class MainWindow : Form
                 // only AFTER the old VPN's 9s timeout suspended the bridge.
                 if (_closing || IsDisposed || !_api.IsLoggedIn ||
                     !(_bridge.Enabled || _resumeAfterNetworkFailure)) return;
+                _bridge.SetNativeNetworkRecoveryPending(true);
                 var now = DateTimeOffset.UtcNow;
                 // A VPN switch emits multiple addresses within milliseconds.
                 // Never DROP the last signal; only throttle the log line.
@@ -539,6 +540,7 @@ public sealed partial class MainWindow : Form
         _networkRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(_networkRouteEpoch);
         _compactAccessRequestCancellation?.Cancel();
         _resumeAfterNetworkFailure = false;
+        _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactAccessGeneration; // discard a just-finished stale pulse
         ++_compactStartEpoch;
         _compactStarting = false;
@@ -564,6 +566,7 @@ public sealed partial class MainWindow : Form
             return;
         }
         _resumeAfterNetworkFailure = false;
+        _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactAccessGeneration; // user action wins over any outstanding poll
         // Every Start, including a later reinstall or expired subscription,
         // requires live server authority. Never infer playback entitlement
@@ -1421,6 +1424,7 @@ public sealed partial class MainWindow : Form
     {
         if (_loggingIn) return;
         _resumeAfterNetworkFailure = false;
+        _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactAccessGeneration;
         ClearCompactAccessConfirmation();
         _loggingIn = true;
@@ -1459,6 +1463,7 @@ public sealed partial class MainWindow : Form
     private async void LogoutAsync(object? sender, EventArgs e)
     {
         _resumeAfterNetworkFailure = false;
+        _bridge.SetNativeNetworkRecoveryPending(false);
         ++_compactStartEpoch;
         _compactStarting = false;
         _bridge.SetEnabled(false);

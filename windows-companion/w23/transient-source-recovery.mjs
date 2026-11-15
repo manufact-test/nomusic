@@ -16,6 +16,7 @@ export function createTransientSourceRecovery({
       confirmationDelayMs > 1000)
     throw new TypeError("W76_BAD_RECOVERY_CONTRACT");
   let epoch = 0;
+  let paused = false;
   const pending = new Map();
   const emit = (code, id) => { try { onEvent(code, id); } catch {} };
   function current(id, job) {
@@ -26,6 +27,7 @@ export function createTransientSourceRecovery({
     if (pending.get(id) === job) pending.delete(id);
   }
   function attempt(id, job) {
+    if (paused) { job.phase = "paused"; return; }
     if (job.attempt >= delays.length) {
       emit("SOURCE_RECOVERY_EXHAUSTED", id); finish(id, job); return;
     }
@@ -33,6 +35,7 @@ export function createTransientSourceRecovery({
     job.phase = "waiting";
     job.timer = timer(async () => {
       job.timer = null;
+      if (paused) { job.phase = "paused"; return; }
       if (!current(id, job)) {
         emit("SOURCE_RECOVERY_NO_LONGER_CURRENT", id);
         finish(id, job);
@@ -43,6 +46,7 @@ export function createTransientSourceRecovery({
       let found = false;
       try { found = await prime(id) === true; } catch {}
       if (!current(id, job)) { finish(id, job); return; }
+      if (paused) { job.phase = "paused"; return; }
       if (found) {
         emit("SOURCE_RECOVERY_GRANTED", id);
         // Give Yandex's own retry a short chance to surface a fresh, playing
@@ -51,6 +55,7 @@ export function createTransientSourceRecovery({
         job.phase = "confirm";
         job.timer = timer(async () => {
           job.timer = null;
+          if (paused) { job.phase = "paused"; return; }
           if (!current(id, job)) {
             emit("SOURCE_RECOVERY_NO_LONGER_CURRENT", id);
             finish(id, job);
@@ -94,11 +99,27 @@ export function createTransientSourceRecovery({
     emit("SOURCE_RECOVERY_DECODER_ALREADY_PLAYING",id);
     return true;
   }
+  function setPaused(value) {
+    const next = value === true;
+    if (paused === next) return;
+    paused = next;
+    if (paused) {
+      for (const job of pending.values()) {
+        if (job.timer !== null) clearTimer(job.timer);
+        job.timer = null;
+        if (job.phase === "waiting" || job.phase === "confirm")
+          job.phase = "paused";
+      }
+      return;
+    }
+    for (const [id, job] of pending)
+      if (job.phase === "paused") attempt(id, job);
+  }
   function cancel() {
     epoch++;
     for (const job of pending.values()) if (job.timer !== null) clearTimer(job.timer);
     pending.clear();
   }
-  return Object.freeze({schedule, cancel, confirmedCurrentSource,
+  return Object.freeze({schedule, cancel, confirmedCurrentSource, setPaused,
     get pendingCount() {return pending.size;}});
 }

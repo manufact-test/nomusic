@@ -1736,6 +1736,11 @@ try
         var token = pairJson.RootElement.GetProperty("bridgeToken").GetString();
         Test(SessionStore.IsHexToken(token), "isolated bridge token issued");
         bridge.SetEnabled(true);
+        bridge.SetNativeNetworkRecoveryPending(true);
+        using (var routeState = await Request("/v1/state", HttpMethod.Get, token: token))
+        using (var routeJson = JsonDocument.Parse(await routeState.Content.ReadAsStringAsync()))
+            Test(routeJson.RootElement.GetProperty("networkRecoveryPending").GetBoolean(),
+                "W152 native bridge exposes transient VPN route recovery without disabling the player");
         var acceptedHeartbeatNotifications = 0;
         bridge.Changed += () => acceptedHeartbeatNotifications++;
         async Task<HttpResponseMessage> SendW141Heartbeat(object beat)
@@ -1871,6 +1876,19 @@ try
         Test(!bridge.HasFreshHeartbeat && bridge.LastSong == "" &&
              bridge.LastSource == "UNKNOWN" && bridge.LastPlaybackState == "UNKNOWN",
              "W141 Stop immediately invalidates previous current-player evidence");
+        bridge.SetNativeNetworkRecoveryPending(true);
+        bridge.SetEnabled(true);
+        Test(bridge.NativeNetworkRecoveryPending,
+            "W152 network recovery marker survives bridge re-enable until native heartbeat");
+        using (var resumed = await SendW141Heartbeat(new {
+            trackId = "123", status = "NATIVE_CONNECTED",
+            title = "Ты", artist = "13 карат", durationMs = 190000,
+            source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-route-resume", sequence = 1
+        }))
+            Test(resumed.IsSuccessStatusCode && !bridge.NativeNetworkRecoveryPending,
+                "W152 first fresh heartbeat releases the held VPN recovery marker");
+        bridge.SetEnabled(false);
         using (var response = await Request("/v1/resolve?track_id=123", HttpMethod.Get, token: token))
             Test((await response.Content.ReadAsStringAsync()).Contains("\"found\":false"),
                 "stop disables future source replacement");

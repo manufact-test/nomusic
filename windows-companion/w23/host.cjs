@@ -38,6 +38,8 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "NATIVE_STATE_CURRENT_SOURCE_UNKNOWN", "NATIVE_CURRENT_SOURCE_REVALIDATE",
   "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE", "NATIVE_ORIGINAL_SOURCE_RESTORE",
   "NATIVE_ORIGINAL_SOURCE_RESTORED", "NATIVE_ORIGINAL_SOURCE_RESTORE_DEFERRED",
+  "NATIVE_ROUTE_RECOVERY_PAUSED", "NATIVE_ROUTE_RECOVERY_RESUMED",
+  "NATIVE_ROUTE_RECOVERY_SOURCE_HELD", "NATIVE_ROUTE_RECOVERY_SOURCE_KEPT",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD", "NATIVE_REPLACEMENT_SOURCE_RELOAD_OK",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD_DEFERRED",
   "NATIVE_TOGGLE_PLAYER_OBSERVER_READY", "NATIVE_TOGGLE_RELOAD_DEFERRED",
@@ -359,20 +361,32 @@ async function relayState(view, token, now) {
     lastNativeState.delete(view);
     note("STATE_UNREACHABLE");
   }
+  const previous = lastStatus.get(view);
+  const networkRecoveryPending = stateAvailable &&
+    state.networkRecoveryPending === true;
+  const preserveCurrentSource = networkRecoveryPending &&
+    state.enabled === true && state.signedIn === true &&
+    typeof previous?.trackId === "string" &&
+    !!currentDecoderPlayer(view, previous.trackId, previous.firstSeenAt, now);
   const safeState = {
     enabled: stateAvailable && state.enabled === true && state.signedIn === true,
     signedIn: stateAvailable && state.signedIn === true,
     apiOrigin: stateAvailable && typeof state.apiOrigin === "string"
-      ? state.apiOrigin.slice(0, 256) : ""
+      ? state.apiOrigin.slice(0, 256) : "",
+    networkRecoveryPending,
+    preserveCurrentSource,
+    preserveCurrentTrackId: preserveCurrentSource ? previous.trackId : ""
   };
   const previousOrigin = nativeAudioOrigins.get(view);
+  const preserveDecoderWitness = safeState.networkRecoveryPending &&
+    safeState.signedIn && previousOrigin === safeState.apiOrigin;
   if (!safeState.enabled || !safeState.signedIn || previousOrigin !== safeState.apiOrigin) {
     nativeExpectedAudio.delete(view);
-    verifiedDecoderSource.delete(view);
     nativeMediaHttpSuccess.delete(view);
-    if (!safeState.enabled || !safeState.signedIn ||
-        (previousOrigin !== undefined && previousOrigin !== safeState.apiOrigin))
+    if (!preserveDecoderWitness) {
+      verifiedDecoderSource.delete(view);
       nativeDecoderPlayers.delete(view);
+    }
   }
   nativeAudioOrigins.set(view, safeState.apiOrigin);
   await deliverState(view, safeState);
@@ -500,7 +514,10 @@ async function tick(view) {
       } else {
         verifiedDecoderSource.delete(view);
       }
-      const status = rendererStatus === "NATIVE_MAPPING_ACCEPTED" && decoderConfirmed
+      const status = decoderConfirmed &&
+        (rendererStatus === "NATIVE_MAPPING_ACCEPTED" ||
+         rendererStatus === "NATIVE_CONNECTED" ||
+         rendererStatus === "NATIVE_SOURCE_VERIFIED")
         ? "NATIVE_SOURCE_VERIFIED" : rendererStatus;
       if (rendererStatus === "NATIVE_MAPPING_ACCEPTED" && trackId &&
           nativeNetworkObserversReady.has(view) &&
@@ -685,8 +702,8 @@ function currentDecoderPlayer(view, trackId, firstSeenAt, checkedAt) {
   const players = nativeDecoderPlayers.get(view);
   if (!players) return null;
   for (const player of players.values()) {
-    if (player?.playing === true && player.sourceTrackId === trackId &&
-        Number.isSafeInteger(player.sourceAt) &&
+    if (player?.playing === true && player.pipelineFailed !== true &&
+        player.sourceTrackId === trackId && Number.isSafeInteger(player.sourceAt) &&
         player.sourceAt >= firstSeenAt - 3000 &&
         checkedAt >= player.sourceAt && checkedAt - player.sourceAt < 600000)
       return player;
@@ -738,7 +755,7 @@ function observeNativePlayback(view) {
       decoderPlayers.delete(decoderPlayers.keys().next().value);
     const prev = decoderPlayers.get(id) || {
       playing:false, sourceTrackId:null, sourceAt:null, gainApplied:null, gainDb:null,
-      evidenceReportedFor:null, lastVolume:null, volumeTrackId:null
+      pipelineFailed:false, evidenceReportedFor:null, lastVolume:null, volumeTrackId:null
     };
     const properties = params.properties.slice(0, 30);
     // Distinguish "CDP attached but no player properties" from "player
@@ -777,6 +794,7 @@ function observeNativePlayback(view) {
                classification === "PLAYER_URL_SIGNED_FIELDS_INTACT")) {
             prev.sourceTrackId = expected.yandexTrackId;
             prev.sourceAt = Date.now();
+            prev.pipelineFailed = false;
             prev.gainApplied = expected.gainApplied === true;
             prev.gainDb = expected.gainDb;
           }
@@ -794,6 +812,7 @@ function observeNativePlayback(view) {
         const wasCurrentVerified = prev.playing && !!currentTrackId &&
           prev.sourceTrackId === currentTrackId;
         prev.playing = prop.value === "true";
+        if (prev.playing) prev.pipelineFailed = false;
         if (!prev.playing) {
           if (wasCurrentVerified)
             downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
@@ -995,6 +1014,8 @@ function observeNativePlayback(view) {
             decoderPlayers.get(params.playerId) : null;
           const currentTrack = lastStatus.get(view)?.trackId;
           if (player?.sourceTrackId && player.sourceTrackId === currentTrack) {
+            player.pipelineFailed = true;
+            verifiedDecoderSource.delete(view);
             note("PLAYER_DECODER_CELIKOM_PIPELINE_ERROR", currentTrack);
             downgradeVerifiedPlaybackHeartbeat(view, currentTrack);
           }

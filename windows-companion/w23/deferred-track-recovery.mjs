@@ -4,11 +4,12 @@
  */
 const VALID_ID = /^[1-9][0-9]{0,23}$/;
 export function createDeferredTrackRecovery({
-  currentTrackId, active, schedule, onEvent = () => {},
+  currentTrackId, active, schedule, canSchedule = () => true, onEvent = () => {},
   now = Date.now, maxCandidates = 12, ttlMs = 12 * 60 * 1000
 }) {
   if (typeof currentTrackId !== 'function' || typeof active !== 'function' ||
-      typeof schedule !== 'function' || typeof now !== 'function' ||
+      typeof schedule !== 'function' || typeof canSchedule !== 'function' ||
+      typeof now !== 'function' ||
       !Number.isInteger(maxCandidates) || maxCandidates < 1 || maxCandidates > 32 ||
       !Number.isInteger(ttlMs) || ttlMs < 1000 || ttlMs > 30 * 60 * 1000)
     throw new TypeError('W77_INVALID_HANDOFF_CONTRACT');
@@ -37,8 +38,8 @@ export function createDeferredTrackRecovery({
     if (!active()) return false;
     prune();
     const id = currentTrackId();
-    if (typeof id !== 'string' || !VALID_ID.test(id) || !candidates.has(id))
-      return false;
+    if (typeof id !== 'string' || !VALID_ID.test(id) || !candidates.has(id) ||
+        !canSchedule()) return false;
     // Schedule once; a failed prime is bounded by the existing W76 recovery
     // contract and must never loop on status polling.
     candidates.delete(id);

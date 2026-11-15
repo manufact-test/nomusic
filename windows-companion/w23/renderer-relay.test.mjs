@@ -509,11 +509,15 @@ test("W98 VPN state transitions leave a confirmed ORIGINAL current song untouche
   assert.equal(initial.length,1);
   r.window.__celikomBridgeNativeReceive(initial[0].requestId,null);
   assert.equal((await first).downloadInfo.url,"https://official.yandex.example/stream");
-  r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
   await tick();await tick();
   assert.deepEqual(player.reloadReasons,[]);
   assert.equal(player.state.playerState.progress.value.position,18.4);
-  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
   await tick();
   const revalidate=r.window.__celikomBridgeNativeDrain();
   assert.equal(revalidate.length,1);
@@ -649,5 +653,109 @@ test("W77: Stop clears old prefetch failure and forbids future reload",async()=>
   await new Promise(resolve=>setTimeout(resolve,720));
   assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
   assert.equal(player.reloadReasons.length,prior);
+  r.handlers.beforeunload();
+});
+
+test("W152 VPN A-to-B preserves an already-playing exact CELIKOM decoder without double source reload",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const grants=r.window.__celikomBridgeNativeDrain();
+  assert.equal(grants.length,1);
+  r.window.__celikomBridgeNativeReceive(grants[0].requestId,makeGrant("123"));
+  const mapped=await first;
+  assert.equal(mapped.downloadInfo.url,makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  await tick();await tick();
+  assert.deepEqual(player.reloadReasons,[],
+    "temporary route suspension must not reload the mapped source back to Yandex original");
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    networkRecoveryPending:true,preserveCurrentSource:true,preserveCurrentTrackId:"123"
+  });
+  await tick();await tick();
+  assert.deepEqual(player.reloadReasons,[],
+    "a still-current signed decoder witness suppresses the redundant re-enable reload");
+  assert.equal(player.state.playerState.progress.value.position,82.25);
+  assert.equal(player.state.playerState.status.value,"playing");
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
+  });
+  await tick();
+  assert.ok(r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
+    x[0]==="NATIVE_ROUTE_RECOVERY_SOURCE_KEPT"));
+  r.handlers.beforeunload();
+});
+
+test("W152 VPN A-to-B performs only one source refresh when the old decoder did not survive",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:41.5});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const grants=r.window.__celikomBridgeNativeDrain();
+  assert.equal(grants.length,1);
+  r.window.__celikomBridgeNativeReceive(grants[0].requestId,makeGrant("123"));
+  await first;
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  await tick();
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    networkRecoveryPending:true,preserveCurrentSource:false,preserveCurrentTrackId:""
+  });
+  await tick();
+  const revalidate=r.window.__celikomBridgeNativeDrain();
+  assert.equal(revalidate.length,1,"only the fresh current-track grant is requested");
+  r.window.__celikomBridgeNativeReceive(revalidate[0].requestId,makeGrant("123"));
+  await new Promise(resolve=>setTimeout(resolve,220));
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"],
+    "a lost current decoder is refreshed once, not first to original and then back to CELIKOM");
+  assert.equal(player.state.playerState.progress.value.position,41.5);
+  r.handlers.beforeunload();
+});
+
+test("W152 My Wave track identity prevents preserving the previous song's decoder",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:55.4});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state;
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const grants=r.window.__celikomBridgeNativeDrain();
+  assert.equal(grants.length,1);
+  r.window.__celikomBridgeNativeReceive(grants[0].requestId,makeGrant("123"));
+  await first;
+
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  void player.state;
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  await tick();
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    networkRecoveryPending:true,preserveCurrentSource:true,preserveCurrentTrackId:"123"
+  });
+  await tick();
+  const next=r.window.__celikomBridgeNativeDrain();
+  assert.equal(next.length,1);
+  assert.equal(next[0].trackId,"456",
+    "the preserved decoder identity from the previous My Wave song cannot suppress current-track resolution");
+  r.window.__celikomBridgeNativeReceive(next[0].requestId,null);
+  await tick();
+  assert.deepEqual(player.reloadReasons,[],
+    "the original My Wave song is not reloaded as if it were the previous CELIKOM replacement");
   r.handlers.beforeunload();
 });

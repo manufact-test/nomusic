@@ -53,6 +53,7 @@ public sealed partial class MainWindow
         if (!_api.IsLoggedIn)
         {
             _resumeAfterNetworkFailure = false;
+            _bridge.SetNativeNetworkRecoveryPending(false);
             ++_compactAccessGeneration;
             ClearCompactAccessConfirmation();
             SetCompactAccessText("Войдите в аккаунт, чтобы начать");
@@ -109,6 +110,7 @@ public sealed partial class MainWindow
             if (!allowed)
             {
                 _resumeAfterNetworkFailure = false; // authoritative deny NEVER reconnects
+                _bridge.SetNativeNetworkRecoveryPending(false);
                 if (_bridge.Enabled)
                 {
                     ++_compactStartEpoch;
@@ -125,9 +127,20 @@ public sealed partial class MainWindow
                 // This was automatically stopped only after a transient failure.
                 // Restore ONLY after a brand-new signed-in server success; manual
                 // Stop, logout, account change and expired access cancel recovery.
+                var wasNetworkSuspended = _resumeAfterNetworkFailure;
                 _resumeAfterNetworkFailure = false;
                 _bridge.SetEnabled(true);
+                // Keep the route marker until the resumed native player publishes
+                // its first heartbeat. The host can preserve an already-live
+                // signed decoder instead of forcing two consecutive source reloads.
+                if (!wasNetworkSuspended)
+                    _bridge.SetNativeNetworkRecoveryPending(false);
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERED");
+            }
+            else
+            {
+                _resumeAfterNetworkFailure = false;
+                _bridge.SetNativeNetworkRecoveryPending(false);
             }
         }
         catch (OperationCanceledException) when (
@@ -149,6 +162,7 @@ public sealed partial class MainWindow
                 _resumeAfterNetworkFailure = transient &&
                     _nativeInstallState == NativeInstallState.Active &&
                     _installedModule.MatchesApplication;
+                _bridge.SetNativeNetworkRecoveryPending(_resumeAfterNetworkFailure);
                 _bridge.SetEnabled(false); // fail closed until new live authority
                 DiagnosticLog.Record(transient ?
                     "ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED" :
@@ -157,8 +171,13 @@ public sealed partial class MainWindow
             else if (!transient && _resumeAfterNetworkFailure)
             {
                 _resumeAfterNetworkFailure = false;
+                _bridge.SetNativeNetworkRecoveryPending(false);
                 DiagnosticLog.Record("ACTIVE_ENTITLEMENT_RECOVERY_DENIED");
             }
+            else if (!transient)
+                _bridge.SetNativeNetworkRecoveryPending(false);
+            else
+                _bridge.SetNativeNetworkRecoveryPending(_resumeAfterNetworkFailure);
             SetCompactAccessText(_resumeAfterNetworkFailure
                 ? "Нет связи. Подмена приостановлена; повторим проверку автоматически."
                 : "Доступ не подтверждён. Подмена выключена.");

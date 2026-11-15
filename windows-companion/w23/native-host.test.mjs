@@ -1286,3 +1286,32 @@ test("W151 re-enabling the bridge immediately reconciles an already-playing curr
   assert.equal(after.at(-1).trackId,"456");
   assert.equal(after.at(-1).playbackState,"PLAYING");
 });
+
+test("W152 host preserves a source only while the exact current decoder is still playing",async()=>{
+  const grant=w54GainGrant("139",true);
+  const {debug}=w52Debugger();
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:true};
+  const r=await runHost("musicapplication://desktop/",{
+    queue:[{requestId:"1",trackId:"123"}],debuggerDriver:debug,
+    grantOverride:grant,
+    currentTrack:{id:"123",title:"Ты",artist:"13 карат",durationMs:190000},
+    stateOverride:state
+  });
+  debug.emit("message",{}, "Media.playerPropertiesChanged",{
+    playerId:"w152-current-decoder",
+    properties:[{name:"kUrl",value:grant.audioUrl},{name:"kIsPlaying",value:"true"}]
+  });
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  const stateDelivery=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(stateDelivery.includes('"preserveCurrentSource":true'),
+    "only CDP current signed URL + playing proof may preserve the current source");
+  assert.ok(stateDelivery.includes('"preserveCurrentTrackId":"123"'));
+  state.networkRecoveryPending=false;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  const settledDelivery=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(settledDelivery.includes('"networkRecoveryPending":false'));
+  assert.ok(!settledDelivery.includes('"preserveCurrentSource":true'));
+});

@@ -21,6 +21,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
 
   let apiOrigin = "", stopped = false, attached = false, stateSeen = false;
   let stateTransitionGeneration = 0;
+  let networkRecoveryPending = false;
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
   const MAX_QUEUE = 24;
@@ -212,6 +213,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     currentTrackId: () => playerSourceRefresh.currentTrackId(),
     active: () => !stopped && attached && adapter.enabled &&
       playerSourceRefresh.attached,
+    canSchedule: () => !networkRecoveryPending,
     schedule: id => sourceRecovery.schedule(id),
     onEvent: (code, id) => {
       report(code, id);
@@ -269,6 +271,10 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           uri.origin === next.apiOrigin) origin = uri.origin;
     } catch {}
     const originChanged = origin !== apiOrigin;
+    const nextNetworkRecoveryPending = !originChanged &&
+      next?.networkRecoveryPending === true;
+    const recoveryStateChanged = networkRecoveryPending !== nextNetworkRecoveryPending;
+    networkRecoveryPending = nextNetworkRecoveryPending;
     if (originChanged) {
       sourceRecovery.cancel();
       deferredRecovery.cancel();
@@ -283,20 +289,33 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       apiOrigin = origin;
       adapter.disable();
     }
+    if (recoveryStateChanged) {
+      sourceRecovery.setPaused(networkRecoveryPending);
+      report(networkRecoveryPending ? "NATIVE_ROUTE_RECOVERY_PAUSED" :
+        "NATIVE_ROUTE_RECOVERY_RESUMED");
+      if (!networkRecoveryPending) deferredRecovery.check();
+    }
     const shouldEnable = next?.enabled === true && next?.signedIn === true &&
       !!origin && attached;
     if (shouldEnable) adapter.enable();
     else {
-      sourceRecovery.cancel();
-      deferredRecovery.cancel();
-      deferredSourceTrack = null;
-      deferredSourceFailedTrack = null;
-      expiredSourceTrack = null;
-      expiredSourceFailedTrack = null;
-      lastExpiredAttemptTrack = null;
-      lastExpiredAttemptAt = 0;
-      lastSourceLeftAttemptTrack = null;
-      lastSourceLeftAttemptAt = 0;
+      if (networkRecoveryPending) {
+        // Keep the currently loaded signed decoder untouched while entitlement
+        // is being revalidated on the new VPN route. No new grants are issued
+        // until the existing bridge becomes enabled again.
+        sourceRecovery.setPaused(true);
+      } else {
+        sourceRecovery.cancel();
+        deferredRecovery.cancel();
+        deferredSourceTrack = null;
+        deferredSourceFailedTrack = null;
+        expiredSourceTrack = null;
+        expiredSourceFailedTrack = null;
+        lastExpiredAttemptTrack = null;
+        lastExpiredAttemptAt = 0;
+        lastSourceLeftAttemptTrack = null;
+        lastSourceLeftAttemptAt = 0;
+      }
       adapter.disable();
     }
     const nextActive = adapter.enabled;
@@ -313,7 +332,9 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       if (!currentTrackId) {
         report("NATIVE_STATE_CURRENT_SOURCE_UNKNOWN");
       } else if (previousActive && !nextActive) {
-        if (currentWasMapped) {
+        if (networkRecoveryPending) {
+          report("NATIVE_ROUTE_RECOVERY_SOURCE_HELD", currentTrackId);
+        } else if (currentWasMapped) {
           report("NATIVE_ORIGINAL_SOURCE_RESTORE", currentTrackId);
           void playerSourceRefresh.request(currentTrackId).then(ok => {
             if (transitionGeneration !== stateTransitionGeneration) return;
@@ -327,8 +348,13 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
             currentTrackId);
         }
       } else if (nextActive && (!previousActive || originChanged)) {
-        report("NATIVE_CURRENT_SOURCE_REVALIDATE", currentTrackId);
-        void adapter.prime(currentTrackId).then(found => {
+        const preservedTrack = next?.preserveCurrentSource === true &&
+          next?.preserveCurrentTrackId === currentTrackId;
+        if (networkRecoveryPending && preservedTrack) {
+          report("NATIVE_ROUTE_RECOVERY_SOURCE_KEPT", currentTrackId);
+        } else {
+          report("NATIVE_CURRENT_SOURCE_REVALIDATE", currentTrackId);
+          void adapter.prime(currentTrackId).then(found => {
           if (transitionGeneration !== stateTransitionGeneration || stopped ||
               !adapter.enabled ||
               playerSourceRefresh.currentTrackId() !== currentTrackId) {
@@ -358,6 +384,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
               currentTrackId);
           }
         });
+        }
       }
     }
     stateSeen = true;
