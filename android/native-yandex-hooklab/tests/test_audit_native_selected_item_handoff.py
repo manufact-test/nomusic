@@ -57,6 +57,8 @@ class SelectedItemAuditTests(unittest.TestCase):
             ("LCK1$a;", "<init>", "(Lru/yandex/music/data/audio/o;Lkotlin/coroutines/Continuation;)V"),
             ("LCK1$c;", "<init>", "(LC3a;Lru/yandex/music/data/audio/o;)V"),
             ("LCK1$l;", "<init>", "(LD3a;Lru/yandex/music/data/audio/o;)V"),
+            ("LCK1$c$a;", "<init>", "(LHl4;Lru/yandex/music/data/audio/o;)V"),
+            ("LCK1$l$a;", "<init>", "(LHl4;Lru/yandex/music/data/audio/o;)V"),
             ("LSV6;", "else", "(Lru/yandex/music/data/audio/o;)LUV6;"),
             ("LBK1;", "break", "(Lru/yandex/music/data/audio/o;)LGl4;"),
         })
