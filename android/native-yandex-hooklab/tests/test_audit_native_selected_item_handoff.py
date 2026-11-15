@@ -1528,9 +1528,37 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["native_track_parameter_count"],1)
         self.assertEqual(result["events"][2]["kind"],"FIELD_WRITE")
         self.assertEqual(result["events"][2]["value_origin"]["type"],"LD3a;")
-        self.assertEqual(result["field_read_type_descriptors"],["LD3a;","Ljava/lang/String;"])
+        self.assertEqual(result["field_read_type_descriptors"],["Ljava/lang/String;"])
+        self.assertEqual(result["field_write_type_descriptors"],["LD3a;"])
         self.assertFalse(result["private_field_names_or_values_disclosed"])
         self.assertEqual(result["events"][1]["callee"]["method"],"getCurrentTrack")
+
+    def test_focused_method_trace_captures_object_field_writer_origin_privately(self):
+        from unittest.mock import patch
+        from audit_native_selected_item_handoff import focused_method_trace
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:2}[offset]
+
+        method = ("LMG7;", "<init>", "(LD3a;)V")
+        instructions_fixture = [(0, 0x5b, [0x235b, 0])]
+        with patch("audit_native_selected_item_handoff.instructions",
+                   return_value=instructions_fixture), \\
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LMG7;", "privateFlowField", "LD3a;")):
+            trace = focused_method_trace(FakeDex(), method, 0, 100)
+
+        result = privacy_safe_focused_method_trace(trace)
+        write = next(event for event in result["events"]
+                     if event["kind"] == "FIELD_WRITE")
+        self.assertTrue(write["receiver_is_this"])
+        self.assertFalse(write["value_is_native_track_parameter"])
+        self.assertEqual(write["value_origin"], {
+            "kind":"METHOD_PARAMETER", "index":0, "type":"LD3a;"
+        })
+        self.assertEqual(result["field_write_type_descriptors"], ["LD3a;"])
+        self.assertNotIn("privateFlowField", str(result))
 
     def test_current_track_flow_candidate_is_exact_and_fail_closed(self):
         profiles = {

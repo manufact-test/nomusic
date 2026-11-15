@@ -5804,6 +5804,32 @@ def focused_method_trace(dex: Dex, method, flags: int, code_off: int):
                 "destination_register": dest,
                 "receiver_is_native_model": receiver in aliases if receiver is not None else False,
             })
+        elif op in (0x5b, 0x67):  # iput-object / sput-object
+            owner, _field_name, typ = field_id(dex, words[1])
+            value_register = (
+                (words[0] >> 8) & 15 if op == 0x5b
+                else (words[0] >> 8) & 0xff
+            )
+            receiver_register = (
+                (words[0] >> 12) & 15 if op == 0x5b else None
+            )
+            this_register = (
+                None if flags & ACC_STATIC
+                else dex.u16(code_off) - dex.u16(code_off + 2)
+            )
+            origin = local_object_register_origin(
+                dex, method, flags, code_off, ins, ordinal,
+                value_register, include_source_ordinal=True
+            )
+            origin.pop("field", None)
+            rows.append({
+                "ordinal": ordinal, "op": "FIELD_WRITE",
+                "owner": owner, "type": typ,
+                "receiver_is_this": receiver_register == this_register
+                    if receiver_register is not None else False,
+                "value_is_native_track_parameter": value_register in aliases,
+                "value_origin": origin,
+            })
         elif op in (0x07, 0x08, 0x09):
             move = move_object_registers(op, words)
             dest, source = move
@@ -5870,7 +5896,8 @@ def privacy_safe_flow_class_profile(profile):
 def privacy_safe_focused_method_trace(trace):
     """Keep exact call/branch/type evidence while omitting private field names and literals."""
     events = []
-    field_types = set()
+    field_read_types = set()
+    field_write_types = set()
     for row in trace.get("instructions", ()):
         op = row.get("op")
         if op == "INVOKE":
@@ -5884,7 +5911,7 @@ def privacy_safe_focused_method_trace(trace):
         elif op == "FIELD_READ":
             field_type = row.get("type")
             if field_type:
-                field_types.add(field_type)
+                field_read_types.add(field_type)
             events.append({
                 "ordinal": row.get("ordinal"),
                 "kind": "FIELD_READ",
@@ -5895,7 +5922,7 @@ def privacy_safe_focused_method_trace(trace):
         elif op == "FIELD_WRITE":
             field_type = row.get("type")
             if field_type:
-                field_types.add(field_type)
+                field_write_types.add(field_type)
             origin = row.get("value_origin", {})
             events.append({
                 "ordinal": row.get("ordinal"),
@@ -5924,7 +5951,8 @@ def privacy_safe_focused_method_trace(trace):
     return {
         "method": trace.get("method"),
         "native_track_parameter_count": len(trace.get("native_model_parameters", ())),
-        "field_read_type_descriptors": sorted(field_types),
+        "field_read_type_descriptors": sorted(field_read_types),
+        "field_write_type_descriptors": sorted(field_write_types),
         "events": events,
         "private_field_names_or_values_disclosed": False,
     }
