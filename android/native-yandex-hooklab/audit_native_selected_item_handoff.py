@@ -948,7 +948,7 @@ def trace_identity_method(dex, method, flags, code_off, candidate_owners=None):
         "events": events,
         "branch_seen_aliases_cleared": branch_seen,
         "field_names_or_values_disclosed": False,
-        "strings_urls_dat aspec_account_or_audio_read": False,
+        "strings_urls_dataspec_account_or_audio_read": False,
     }
 
 
@@ -961,7 +961,7 @@ def inspect_candidate_identity_method_traces(apks, focus_refs, candidate_owners)
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("TRACK_IDENTITY_TRACE_DEX_LIMIT")

@@ -276,7 +276,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                 return ("LTarget;", "consume", f"({MODEL})V")
         method=("LCaller;", "run", "()V")
         ins=[(0,0x54,[0x3154,0]),(1,0x6e,[0x006e,0])]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.field_id",
                    return_value=("LCaller;","hidden",MODEL)), \\
              patch("audit_native_selected_item_handoff.invoke_registers",
@@ -287,7 +287,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(calls[0]["identity_arguments"][0]["identity_type"],"TRACK")
         self.assertIn("FIELD_READ_FROM_THIS",calls[0]["identity_arguments"][0]["origins"])
 
-    def test_identity_method_trace_tracks_returned_track_and_clears_on_branch(self):
+    def test_identity_method_trace_tracks_returned_track_to_call(self):
         from unittest.mock import patch
         class FakeDex:
             def u16(self, offset):
@@ -302,13 +302,36 @@ class SelectedItemAuditTests(unittest.TestCase):
             (1,0x0c,[0x010c]),
             (2,0x6e,[0x006e,1])
         ]
-        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \\
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.invoke_registers",
                    side_effect=[[],[0,1]]):
             trace=trace_identity_method(FakeDex(),method,0,100)
         calls=[row for row in trace["events"] if row["kind"]=="CALL_WITH_TYPED_IDENTITY"]
         self.assertEqual(len(calls),1)
         self.assertIn("RETURNED_FROM_METHOD",calls[0]["identity_arguments"][0]["origins"])
+
+    def test_identity_method_trace_clears_aliases_at_branch(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:1}[offset]
+            def method(self, index):
+                return ("LTarget;", "consume", f"({MODEL})V")
+        method=("LCaller;", "run", "()V")
+        ins=[
+            (0,0x54,[0x3154,0]),
+            (1,0x28,[0x0028]),
+            (2,0x6e,[0x006e,0])
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LCaller;","hidden",MODEL)), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[0,1]):
+            trace=trace_identity_method(FakeDex(),method,0,100)
+        self.assertTrue(trace["branch_seen_aliases_cleared"])
+        self.assertFalse(any(row["kind"]=="CALL_WITH_TYPED_IDENTITY"
+                             for row in trace["events"]))
 
     def test_edition_generation_markers_are_exact_and_bounded(self):
         self.assertIn("edition", EDITION_MARKERS)
