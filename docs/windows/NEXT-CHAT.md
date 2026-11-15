@@ -34,12 +34,12 @@ Owner-PC playback and audible VPN acceptance remain outstanding. CI cannot prove
 
 ## Current ordered work — do not mix tasks
 
-1. **Yandex fully closed:** promptly detect process/player destruction, clear the stale song/state, and show a clear instruction such as `Подключитесь к Яндекс Музыке` instead of waiting about 30 seconds and showing `Ожидаем данные текущего плеера`.
-2. **VPN reconnect:** the owner reports the CELIKOM replacement keeps playing during the VPN interruption, but the app later forces an unnecessary `CELIKOM → original → CELIKOM` handoff with an audible pop. Keep server reconnect independent from actual playback/source state. If the exact current replacement decoder is still active, reconnect the server in the background and do not touch audio. Recover audio only after verified actual loss. Preserve fast reconnect.
-3. **UI consistency:** correct confirmed text, color and status mappings for these states. No redesign or unrelated cleanup.
-4. **Diagnostics:** inspect the owner's files when supplied and correlate only with items 1–3. Do not claim they were reviewed before receipt.
-5. **Verification:** focused regressions and both required Windows CI workflows.
-6. **One new Windows version:** only after all preceding tasks are complete. No intermediate packages.
+1. **Yandex fully closed — code/test/CI complete.** Process/renderer destruction clears the stale song and prompts `Подключитесь к Яндекс Музыке`. Owner-PC timing/behavior check remains pending.
+2. **VPN reconnect — code/test/CI complete.** Exact still-playing signed decoder evidence is preserved through same-origin VPN recovery; no redundant source refresh occurs while it remains active. Fast route recheck is unchanged. Audible owner-PC acceptance remains pending.
+3. **UI consistency — confirmed W157 states corrected.** Player-unavailable text now outranks a simultaneous network-recovery banner; unknown/unavailable source colors remain neutral. Any other specific UI defects must be grounded in the owner's diagnostics, not guessed.
+4. **Diagnostics — pending.** Inspect the owner's files when supplied and correlate only with items 1–3. Do not claim they were reviewed before receipt.
+5. **Verification — current source passed.** Focused regressions and both required Windows CI workflows are green on source checkpoint `67fd6a7386715a15dee83447c0c497084deb7034`. Repeat only if diagnostics require a code correction.
+6. **One new Windows version — not started.** Build exactly one consolidated package after diagnostics correlation and any necessary targeted corrections. No intermediate packages.
 
 ## Hard constraints
 
