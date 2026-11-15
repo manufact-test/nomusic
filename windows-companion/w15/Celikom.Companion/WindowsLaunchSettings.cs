@@ -97,6 +97,7 @@ public static class WindowsLaunchSettings
         }
         catch (UnauthorizedAccessException) { return false; }
         catch (IOException) { return false; }
+        catch (System.Security.SecurityException) { return false; }
     }
 
     public static bool TrySetRunAtLogin(string executablePath, bool enable)
