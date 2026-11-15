@@ -85,7 +85,7 @@ jobs:
               !$iss.Contains("VersionInfoVersion=$env:RELEASE_VERSION.0")) {
             throw 'W155_RELEASE_VERSION_MUST_BE_COMMITTED_TO_MAIN'
           }
-          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
+          node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-key-public.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W155_RELEASE_CONTRACT_FAILED' }
           node .github/scripts/windows-stable-trust-embed.mjs windows-companion/w15/Celikom.Companion/StableUpdateTrustConfiguration.cs
           if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_TRUST_EMBED_FAILED' }

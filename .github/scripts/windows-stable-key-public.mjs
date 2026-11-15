@@ -23,7 +23,11 @@ export function deriveP256PublicKey(privatePem) {
   };
 }
 
-if (process.argv[2] === "--verify-file") {
+import {pathToFileURL} from "node:url";
+import {resolve} from "node:path";
+
+const isMain=process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).href;
+if (isMain && process.argv[2] === "--verify-file") {
   const privatePath=process.argv[3];
   const publicPath=process.argv[4];
   if (!privatePath || !publicPath || process.argv.length !== 5)
@@ -33,7 +37,7 @@ if (process.argv[2] === "--verify-file") {
   if (!stored.equals(result.publicKeyDer))
     throw new Error("W155_LOCAL_KEYPAIR_PUBLIC_MISMATCH");
   process.stdout.write("W155_P256_LOCAL_KEYPAIR_VERIFY_PASS fingerprint="+result.fingerprint+"\n");
-} else {
+} else if (isMain) {
   const result=deriveP256PublicKey(process.env.MANIFEST_PRIVATE_PEM);
   if (!process.env.GITHUB_ENV || !process.env.GITHUB_OUTPUT)
     throw new Error("W155_GITHUB_WORKFLOW_OUTPUTS_REQUIRED");

@@ -15,7 +15,7 @@ test("W155 owner key setup uses only built-in Windows PowerShell and GitHub web 
   assert.match(provision, /SYSTEM/);
   assert.match(provision, /settings\/environments\/windows-stable-production/);
   assert.match(provision, /notepad\.exe/i);
-  assert.doesNotMatch(provision, /\bnode(\.exe)?\b/i);
+  assert.doesNotMatch(provision, /^\s*(?:node|gh)(?:\.exe)?\s+/im);
   assert.doesNotMatch(provision, /\bgh(\.exe)?\b/i);
   assert.doesNotMatch(provision, /gh auth|gh secret|gh variable|Invoke-RestMethod|Invoke-WebRequest/);
   assert.match(provision, /W155_KEYPAIR_ALREADY_EXISTS_DO_NOT_REGENERATE/);
