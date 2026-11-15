@@ -2548,13 +2548,18 @@ def trace_native_track_coroutine_continuation(
         next(iter(continuation_regs)):frozenset({"INPUT_CONTINUATION_PARAMETER"}),
         next(iter(owner_regs)):frozenset({"CAPTURE_OWNER_PARAMETER"})
     }
-    incoming={
-        cfg["entry"]:{
-            "registers":initial_registers,
-            "pending_return":None
-        }
+    initial_state={
+        "registers":initial_registers,
+        "pending_return":None
     }
-    work=[cfg["entry"]]
+    def state_key(state):
+        return (
+            tuple((reg,tuple(sorted(origins)))
+                  for reg,origins in sorted(state["registers"].items())),
+            state["pending_return"]
+        )
+    incoming={cfg["entry"]:{state_key(initial_state):initial_state}}
+    work=[(cfg["entry"],state_key(initial_state))]
     processed=0
     wide_ops=(
         {0x04,0x05,0x06,0x0b,0x16,0x17,0x18,0x19,0x45,0x53,0x61,
@@ -2687,22 +2692,22 @@ def trace_native_track_coroutine_continuation(
     # Monotone must-alias dataflow. At a join, a register survives only if
     # every reachable predecessor carries the same exact origin category.
     while work:
-        pc=work.pop()
+        pc,key=work.pop()
         processed+=1
         if processed>200000:
             raise ValueError("TRACK_COROUTINE_CFG_DATAFLOW_LIMIT")
+        state=incoming[pc][key]
         op,words=by_pc[pc]
-        out=transfer(incoming[pc],op,words)
+        out=transfer(state,op,words)
+        out_key=state_key(out)
         for target in successors.get(pc,()):
-            old=incoming.get(target)
-            if old is None:
-                incoming[target]=out
-                work.append(target)
-            else:
-                merged=merge_coroutine_states(old,out)
-                if merged!=old:
-                    incoming[target]=merged
-                    work.append(target)
+            bucket=incoming.setdefault(target,{})
+            if out_key in bucket:
+                continue
+            if len(bucket)>=128:
+                raise ValueError("TRACK_COROUTINE_CFG_PATH_STATE_LIMIT")
+            bucket[out_key]=out
+            work.append((target,out_key))
 
     stores=[]
     reads=[]
@@ -2714,9 +2719,15 @@ def trace_native_track_coroutine_continuation(
         row for row in cfg["branches"]
         if row["pc"] in cfg["reachable"]
     ]
+    seen_store_events=set()
+    seen_read_events=set()
+    seen_string_events=set()
+    seen_wrapper_ctor_events=set()
+    seen_wrapper_handoff_events=set()
     for pc in sorted(cfg["reachable"]):
-        op,words=by_pc[pc]
-        state=incoming[pc]["registers"]
+      op,words=by_pc[pc]
+      for path_state in incoming.get(pc,{}).values():
+        state=path_state["registers"]
         if op==0x5b:
             value=(words[0]>>8)&15
             receiver=(words[0]>>12)&15
@@ -2727,7 +2738,7 @@ def trace_native_track_coroutine_continuation(
                 "NEW_LFp0_CONTINUATION" in receiver_origins
                 or "REUSED_LFp0_CONTINUATION" in receiver_origins
             ):
-                stores.append({
+                row={
                     "pc":pc,"field_slot":words[1],
                     "source_origins":sorted(value_origins),
                     "receiver_origins":sorted(receiver_origins),
@@ -2745,7 +2756,10 @@ def trace_native_track_coroutine_continuation(
                     "source_is_unlinked_track_return":(
                         "UNLINKED_TRACK_RETURN" in value_origins
                     )
-                })
+                }
+                key=(pc,words[1],tuple(row["source_origins"]),tuple(row["receiver_origins"]))
+                if key not in seen_store_events:
+                    seen_store_events.add(key); stores.append(row)
         elif op==0x54:
             dest=(words[0]>>8)&15
             receiver=(words[0]>>12)&15
@@ -2755,11 +2769,14 @@ def trace_native_track_coroutine_continuation(
                 "NEW_LFp0_CONTINUATION" in receiver_origins
                 or "REUSED_LFp0_CONTINUATION" in receiver_origins
             ):
-                reads.append({
+                row={
                     "pc":pc,"field_slot":words[1],
                     "value_register":dest,
                     "receiver_origins":sorted(receiver_origins)
-                })
+                }
+                key=(pc,words[1],tuple(row["receiver_origins"]))
+                if key not in seen_read_events:
+                    seen_read_events.add(key); reads.append(row)
             elif field_type==string_type:
                 string_origin=(
                     "ORIGINAL_TRACK_PARAMETER_STRING"
@@ -2770,21 +2787,27 @@ def trace_native_track_coroutine_continuation(
                     if "CAPTURE_OWNER_TRACK_FIELD" in receiver_origins else None
                 )
                 if string_origin:
-                    string_reads.append({
+                    row={
                         "pc":pc,"field_slot":words[1],
                         "receiver_origins":sorted(receiver_origins),
                         "string_origin":string_origin,
                         "field_value_disclosed":False
-                    })
+                    }
+                    key=(pc,words[1],tuple(row["receiver_origins"]),string_origin)
+                    if key not in seen_string_events:
+                        seen_string_events.add(key); string_reads.append(row)
         elif op in INVOKES:
             callee=dex.method(words[1])
             args=invoke_registers(op,words)
             if callee==wrapper_ctor and len(args)==2:
-                wrapper_ctors.append({
+                row={
                     "pc":pc,
                     "wrapper_receiver_origins":sorted(state.get(args[0],frozenset())),
                     "string_argument_origins":sorted(state.get(args[1],frozenset()))
-                })
+                }
+                key=(pc,tuple(row["wrapper_receiver_origins"]),tuple(row["string_argument_origins"]))
+                if key not in seen_wrapper_ctor_events:
+                    seen_wrapper_ctor_events.add(key); wrapper_ctors.append(row)
             if callee[0]=="Lou3;" and callee[1]=="new":
                 params=parse_types(callee[2])
                 target_types=expand_invoke_register_types(
@@ -2794,7 +2817,7 @@ def trace_native_track_coroutine_continuation(
                     state.get(reg,frozenset())
                     for reg in args
                 ]
-                wrapper_handoffs.append({
+                row={
                     "pc":pc,
                     "target":{"owner":callee[0],"method":callee[1],"signature":callee[2]},
                     "wrapper_argument_origins":sorted(
@@ -2832,14 +2855,21 @@ def trace_native_track_coroutine_continuation(
                         or "REUSED_LFp0_CONTINUATION" in origins[i]
                         for i,t in enumerate(target_types) if t==continuation_owner
                     )
-                })
+                }
+                key=(pc,tuple(row["wrapper_argument_origins"]),
+                     tuple(row["continuation_argument_origins"]))
+                if key not in seen_wrapper_handoff_events:
+                    seen_wrapper_handoff_events.add(key); wrapper_handoffs.append(row)
 
         dest=written_register(op,words)
         if dest is not None and dest in track_regs:
-            parameter_writes.append({
+            row={
                 "pc":pc,"op":op,
                 "wide_second_register":op in wide_ops and dest+1 in track_regs
-            })
+            }
+            if row not in parameter_writes:
+                parameter_writes.append(row)
+      # end path-state loop
 
     matching_reads=[
         read for read in reads
@@ -2892,6 +2922,10 @@ def trace_native_track_coroutine_continuation(
         "control_flow_graph_built":True,
         "reachable_instruction_count":len(cfg["reachable"]),
         "dataflow_instruction_visits":processed,
+        "max_path_states_at_instruction":max(
+            (len(states) for states in incoming.values()),default=0
+        ),
+        "exception_handler_edges_included":False,
         "branch_sites":reachable_branches,
         "track_parameter_capture_store_candidates":stores,
         "continuation_track_field_reads":reads,
@@ -2901,6 +2935,9 @@ def trace_native_track_coroutine_continuation(
         "wrapper_continuation_handoff_sites":wrapper_handoffs,
         "resume_continuation_call_sites":resume_calls,
         "original_track_parameter_to_continuation_field_candidate":direct_capture,
+        "all_observed_store_paths_same_original_track_parameter":(
+            bool(stores) and all(x["same_original_track_parameter"] for x in stores)
+        ),
         "continuation_field_self_write_candidate":continuation_self_write and bool(matching_reads),
         "capture_owner_track_field_to_continuation_candidate":owner_field_capture,
         "original_track_parameter_to_opaque_wrapper_candidate":original_wrapper,

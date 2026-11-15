@@ -929,8 +929,12 @@ class SelectedItemAuditTests(unittest.TestCase):
             )
         self.assertTrue(result["control_flow_graph_built"])
         self.assertEqual(len(result["branch_sites"]),2)
-        self.assertFalse(result["track_parameter_capture_store_candidates"][0]["same_original_track_parameter"])
-        self.assertFalse(result["original_track_parameter_to_continuation_field_candidate"])
+        self.assertTrue(any(
+            row["same_original_track_parameter"]
+            for row in result["track_parameter_capture_store_candidates"]
+        ))
+        self.assertFalse(result["all_observed_store_paths_same_original_track_parameter"])
+        self.assertTrue(result["original_track_parameter_to_continuation_field_candidate"])
         self.assertNotIn("privateTrack",str(result))
 
     def test_native_track_coroutine_does_not_match_different_continuation_field(self):
