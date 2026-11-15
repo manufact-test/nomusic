@@ -1,5 +1,13 @@
 # CELIKOM Windows — AUTHORITATIVE CURRENT HANDOFF / 14 November 2026
 
+## W147 newest playback-evidence continuation — 15 November 2026
+
+- **Latest native Windows code HEAD before this documentation commit:** `e174551dc086f8812f05840aa8e22d926889ad31`, only on `main`. Exact pre-W147 rollback backup `backup/windows-main-pre-w147-electron-audible-property-precedence-20261115` @ `d63e5505e7300e83cb6307ba9a23866bc3db45a2`.
+- W147 native host `nativeAudible(view)`: when Electron `isCurrentlyAudible()` provides an explicit boolean **false**, it now overrides an older `audio-state-changed(true)` event. True is also respected. Use last event only if the native method is absent/throws/unavailable. Current-player choice and PLAYING heartbeat share the same predicate. No media commands/audio edits; unknown sources remain UNKNOWN without signed current decoder proof.
+- New W23 regression uses a simulated native false + delayed old audible event, advances the observer clock past the 4-second renewal and confirms the renewed heartbeat cannot claim PLAYING or CELIKOM replacement. W147 code commits `6a39633e476c1d349acaae6517a2a186402d4cc9`, `96135537190ccb287f36ce056f5bb2fb7f6de45c`, `e174551dc086f8812f05840aa8e22d926889ad31`.
+- W145 both CI SUCCESS: Main 43696999275, Windows integration 43696999268. W146 both CI SUCCESS: Main 43697181373, Windows integration 43697181363. W147 CI at latest code `e174551dc0`: Main 43697422458 and Windows integration 43697422432 were running when authored; **check before declaring green**.
+- No new EXE/ZIP, no production trust keys/cert/feed, no user-PC acceptance. Previously installed 0.24.37 stays unchanged, all six issues OPEN. W119/W139 and the following handoff sections remain binding.
+
 ## W145/W146 latest continuation — 15 November 2026
 
 - **Live Windows code HEAD at this handoff:** `d4a94f63411e328b47aa5fe16b8acfbaf9dcb2a6`, working branch **main only**.
