@@ -257,7 +257,7 @@ class SelectedItemAuditTests(unittest.TestCase):
         method=("LyEa;","set","(Ljava/lang/Object;)V")
         ins=[
             (0,0x54,[0x1054,0]),  # iget-object v0, v1, other Track field
-            (1,0x5b,[0x315b,1]),  # iput-object v0, v3, this Track field
+            (1,0x5b,[0x305b,1]),  # iput-object v0, v3, this Track field
         ]
         with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
              patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[]), \
