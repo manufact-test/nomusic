@@ -1693,11 +1693,11 @@ public sealed partial class MainWindow : Form
             {
                 "HOST_ERROR" => "Ошибка подключения к модулю Яндекса.",
                 "NATIVE_SOURCE_FAILED" => "Не удалось подтвердить источник воспроизведения.",
-                _ => "Ожидаем воспроизведения в Яндекс Музыке…"
+                _ => ""
             };
         _song.ForeColor = state == "NATIVE_SOURCE_FAILED"
             ? ColorTranslator.FromHtml("#D36A6A")
-            : sourceVerified || (paused && serviceConnected) ? Accent : Secondary;
+            : sourceVerified ? Accent : Secondary;
         _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
             : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
@@ -1710,7 +1710,7 @@ public sealed partial class MainWindow : Form
             : paused ? "Пауза"
             : stopped ? "Воспроизведение остановлено."
             : mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage
-            : "Ожидаем воспроизведения в Яндекс Музыке…";
+            : "";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс Музыка не найдена. Установите официальное приложение.",
