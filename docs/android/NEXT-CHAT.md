@@ -6,10 +6,11 @@
 
 - Репозиторий: `manufact-test/nomusic`.
 - Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Последний CI-green code checkpoint: `c0cf9896916cca9b13299cdb3fde7a78ffbe4da1`.
-- CI #213: [SUCCESS, 127/127 тестов](https://github.com/manufact-test/nomusic/actions/runs/43871788563), точный подписанный оригинал Yandex Music 2025, 6 DEX, read-only.
-- Точный резерв: `backup/android-a1-playlist-callback-route-closed-ci-green-20261116` @ `c0cf9896916cca9b13299cdb3fde7a78ffbe4da1`.
-- Предыдущий резерв: `backup/android-a1-playlist-method-handle-census-ci-green-20261116` @ `60498b225f634f81f9eab58814e7f7d163839618`.
+- Последний CI-green code checkpoint: `46defb7d0d7384f40722ebb37c32899599838778`.
+- Реализация узкого LiLb caller audit: `aa000e758d4710c6b4f4eccb56f4b80b0d7c3e1b`; последующие коммиты исправили только тестовые фикстуры.
+- CI #216: [SUCCESS, 129/129 тестов](https://github.com/manufact-test/nomusic/actions/runs/43877551279), точный pinned issuer-signed Yandex Music 2025, 16 signed splits / 6 DEX, read-only.
+- Точный резерв: `backup/android-a1-li-lb-handoff-ci-green-20261116` @ `46defb7d0d7384f40722ebb37c32899599838778`.
+- Предыдущий резерв: `backup/android-a1-playlist-callback-route-closed-ci-green-20261116` @ `c0cf9896916cca9b13299cdb3fde7a78ffbe4da1`.
 - Последний runtime-hook change: `a655712d210189f3bc611847235de3ed4d985c1a`. После него hooks не менялись.
 - APK не собирался, не патчился, не устанавливался и не выпускался.
 
@@ -17,25 +18,21 @@
 
 - `LfH7.E()LOf6;` / shared implementation `LrD0.E()LOf6;` — getter текущего MediaItem через Timeline/index/Window. Same Timeline receiver identity across branch остаётся недоказанной.
 - `LsO7.C/V/Z → LBs4.C/V/Z → LfH7.C/V/Z` — forwarding того же MediaItem без замены.
-- В теле `LXk6.if(LsO7;LXi6$e;List)V` тот же результат `List.get()` cast-ится в MediaItem и передаётся в `LsO7.Z(ILOf6;)V`.
-- TrackWrapper → URI → MediaItem → LiLb holder — отдельная доказанная source-side цепочка, не соединённая с Player.
+- В теле `LXk6.if(LsO7;LXi6$e;List)V` тот же результат `List.get()` cast-ится в MediaItem и передаётся в `LsO7.Z(ILOf6;)V`, но прямые callers и runtime dispatch для `LXk6.if(...)` не доказаны; маршрут закрыт.
+- TrackWrapper → URI → MediaItem → LiLb — отдельная source-side цепочка. Новый exact direct-caller scan нашёл 2 прямых constructor callsites, но 0 прямых getter callsites и 0 Player mutator calls в этих непосредственных callers. Same-object связи с Player нет.
+- `LiLb.<init>` сохраняет переданный MediaItem, а `LiLb.for()LOf6;` возвращает ту же ссылку. Это только внутренняя идентичность holder, не Player connection.
 - `LcLb.O` / `Lbd6.O` передают ByteBuffer в `LbJ2.native`, но связь с текущим MediaItem не доказана.
 
-## Последний результат — маршрут LXk6 закрыт
+## Последний результат — маршрут LiLb закрыт
 
-- Прямых DEX callers точного `LXk6.if(...)`: 0.
-- MethodHandle и `invoke-custom` ссылок на точный метод: 0.
-- Метод реализует интерфейс `LLl6$c;.if(...)`, у которого шесть concrete implementers. Единственный найденный interface caller — `LKl6.run()V`.
-- В `LKl6.run()` List передаётся из поля `LKl6;`. Построитель этого List и происхождение его элементов не доказаны.
-- Runtime dispatch из `LKl6.run()` именно в `LXk6;` не доказан.
-- В bounded census нет Track-bearing Player mutator caller. Единственный кандидат `LXk6.if(...)` имеет Player-holder/List параметры, но не Track/TrackWrapper и не Track/Wrapper fields.
-- Не утверждать, что List точно не содержит Track-derived items. Состав List не установлен; маршрут закрыт именно как недоказуемый.
+- Точные direct `invoke-*` callers конструктора `LiLb.<init>(LdA9;LgA9;LJI7;LOf6;LFq1;LHy9$a;LPAa;)V`: 2 — `LcA9.extends(...)` и `Lwq2.x0(...)`.
+- Точные direct `invoke-*` callers getter `LiLb.for()LOf6;`: 0 во всех шести signed DEX.
+- Player mutator calls `LsO7/LBs4/LfH7` внутри этих двух immediate constructor callers: 0.
+- Same-object edges из LiLb в Player: 0.
+- Все target/caller identity traces завершены; bounded direct-caller absence claim complete.
+- Не утверждать отсутствие всех мыслимых reflective/virtual/indirect runtime routes. Закрыт именно заданный direct-caller/immediate-handoff маршрут; не исследовать возможные маршруты без нового точного evidence point.
 
-Полная доказательная база: [ANDROID-A1-PLAYLIST-CALLBACK-ROUTE-CLOSURE-20261116.md](ANDROID-A1-PLAYLIST-CALLBACK-ROUTE-CLOSURE-20261116.md) и [ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md](ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md).
-
-## Следующая работа — один узкий маршрут
-
-Продолжить с уже доказанной цепочки `TrackWrapper → URI → MediaItem → LiLb holder`. Найти только прямые callers точного MediaItem-returning getter/constructor handoff для `LiLb;` и проверить, передаётся ли тот же MediaItem в уже известный Player mutator `LsO7/LBs4/LfH7`. Если прямого caller или same-object edge нет — закрыть этот holder-маршрут быстро, без нового глобального поиска. Не возвращаться к `LXk6.if(...)`.
+Полная доказательная база: [ANDROID-A1-LILB-PLAYER-HANDOFF-CLOSURE-20261116.md](ANDROID-A1-LILB-PLAYER-HANDOFF-CLOSURE-20261116.md) и обновлённый [ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md](ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md).
 
 ## Статус продукта
 
@@ -43,10 +40,14 @@
 - Stage B: NOT CONNECTED / NO-GO.
 - Оставить false: `active_selected_item_proven`, `same_native_item_to_decoder_proven`, `same_track_album_edition_generation_owner_proven`, `codec_output_object_to_audio_sink_proven`.
 
+## Следующая работа
+
+Текущая LiLb-задача завершена; нового статического маршрута эта проверка не открыла. Не запускать новые глобальные исследования и не возвращаться к закрытым `LXk6` / `LiLb` маршрутам. Продолжать только после появления нового точного identity-bearing пути или конкретного необходимого runtime-измерения от владельца. Пока ручные действия не требуются.
+
 ## Жёсткие ограничения
 
 - Android CELIKOM A1 only. Не переключаться на Windows или браузерное расширение.
-- Не менять архитектуру, vendor behavior, runtime hooks, APK или оригинальное приложение.
+- Не менять архитектуру, vendor behavior, runtime hooks, APK или оригинальное приложение Yandex.
 - Не добавлять второй Player/decoder/AudioTrack.
 - Не читать/экспортировать Track/Album IDs, названия, URL, DataSpec, токены, данные аккаунта, приватные значения полей или аудиобайты.
 - Не трогать NAV17, Test.50, frozen A1/LSPatch baseline, Windows, extension, backend/API/DB и production.
