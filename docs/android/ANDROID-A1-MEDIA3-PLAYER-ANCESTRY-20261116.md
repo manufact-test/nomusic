@@ -1,14 +1,15 @@
 # CELIKOM Android A1 — exact Media3 Player ancestry audit
 
 **Дата:** 16.11.2026  
-**Репозиторий:** \`manufact-test/nomusic\`  
-**Рабочая ветка:** \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`  
-**Кодовый checkpoint:** \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`  
-**CI #180:** [SUCCESS, 116/116 тестов](https://github.com/manufact-test/nomusic/actions/runs/43830018094)  
-**Точный backup:** \`backup/android-a1-media3-current-item-candidate-ci-green-20261116\` @ \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`  
-**Предыдущий backup:** \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`
+**Репозиторий:** `manufact-test/nomusic`  
+**Рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
+**Актуальный code checkpoint:** `31fc7e48dfe7f77eca038277ff61783ed784e6a6`  
+**CI #204:** [SUCCESS, 122/122 тестов](https://github.com/manufact-test/nomusic/actions/runs/43864810093)  
+**Точный backup:** `backup/android-a1-player-playlist-mediaitem-ci-green-20261116` @ `31fc7e48dfe7f77eca038277ff61783ed784e6a6`
 
 Read-only анализ точного issuer-signed Yandex 2025 XAPK, шесть DEX, только в памяти. Runtime hooks, приложение, APK и playback не затрагивались.
+
+> **Текущий superseding результат:** после закрытия LfH7.else()LkD7; найден MediaItem-returning Player getter LfH7.E()LOf6; и подтверждён путь List.get → MediaItem → LsO7.Z. Точный текущий статус, ограничения и следующая задача описаны в [ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md](ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md). Старое закрытие LkD7 ниже остаётся верным; старое указание «ждать следующую задачу» superseded.
 
 
 ## 0. Superseding result — LfH7.else()LkD7; закрыт, CI #180

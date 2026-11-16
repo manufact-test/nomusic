@@ -1,45 +1,44 @@
 Привет! Ты принимаешь **CELIKOM Android A1** как ведущий разработчик. Продолжай строго с сохранённой точки. Ничего не начинай с нуля и архитектуру не меняй.
 
 **Продукт:** Android mobile app. Не Windows и не браузерное расширение.  
-**GitHub:** \`manufact-test/nomusic\`  
-**Единственная рабочая ветка:** \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`  
-**Последний CI-green code checkpoint:** \`70009b4e05a592e7036c8457ca027b2445202c1f\`  
-**CI #178:** [SUCCESS, 114/114 тестов](https://github.com/manufact-test/nomusic/actions/runs/43825896825)  
-**Точный backup:** \`backup/android-a1-media3-player-contracts-ci-green-20261116\`  
-**Последний runtime-hook change:** \`a655712d210189f3bc611847235de3ed4d985c1a\`. После него hooks не менялись.
+**GitHub:** `manufact-test/nomusic`  
+**Единственная рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
+**Последний CI-green code checkpoint:** `31fc7e48dfe7f77eca038277ff61783ed784e6a6`  
+**CI #204:** [SUCCESS, 122/122 тестов](https://github.com/manufact-test/nomusic/actions/runs/43864810093)  
+**Точный backup:** `backup/android-a1-player-playlist-mediaitem-ci-green-20261116`  
+**Предыдущий зелёный backup:** `backup/android-a1-player-current-item-getter-ci-green-20261116`  
+**Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`. После него hooks не менялись.
 
 ### Сначала прочитай только актуальные документы
 
-1. \`docs/android/NEXT-CHAT.md\`
-2. \`docs/android/ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`
-3. \`docs/android/ANDROID-A1-COMPETITOR-AND-TRACK-FLOW-REVIEW-20261116.md\`
-4. \`docs/android/ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md\`
+1. `docs/android/NEXT-CHAT.md`
+2. `docs/android/ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md`
+3. `docs/android/ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md`
+4. `docs/android/ANDROID-A1-COMPETITOR-AND-TRACK-FLOW-REVIEW-20261116.md`
+5. `docs/android/ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md`
 
-### Что уже сделано — не повторять
+### Что уже доказано — не повторять
 
-- Сверка конкурентов завершена. Готового Android-native решения для нашей архитектуры не найдено.
-- Старые маршруты LyEa/LaC7/LCK1 и LzD7/LMG7/LDp0/Lou3 закрыты как недоказанные. Не возвращаться.
-- Известный ByteBuffer → native audio sink путь исследован; он не доказывает идентичность текущего выбранного трека.
-- CI #178 проверил точную подписанную сборку 2025 и нашёл 5 concrete Media3 ExoPlayer implementors в ограниченной ancestry из 10 owners. Parser sanity прошёл.
-- В ancestry найден обфусцированный Player-контракт \`LfH7;\`. Его точная сигнатура \`else()LkD7;\` совпадает с методом \`Lp24.else()LkD7;\`, который вызывает Player API. Это кандидат, не доказанный current MediaItem getter.
-- Полный результат и оговорки — в \`ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`.
+- `LfH7.else()LkD7;` закрыт: `LkD7;` — Exception, не MediaItem.
+- `LfH7.E()LOf6;` реализован через текущие Timeline/index/Window и возвращает тот же MediaItem reference из Window field. Identity самого Timeline receiver через branch остаётся недоказанной.
+- Player mutator chain `LsO7 → LBs4 → LfH7` передаёт тот же MediaItem.
+- В `LXk6.if(LsO7;LXi6$e;List)V` результат `List.get(I)Object` cast-ится в MediaItem и тот же объект передаётся в `LsO7.Z(ILOf6;)V`.
+- TrackWrapper → URI → MediaItem → LiLb holder доказан, но не связан с этим Player list.
+- ByteBuffer → native sink исследован отдельно; связи с текущим MediaItem нет.
+- Stage A / NAV17: PASS по подтверждению владельца. Stage B: NOT CONNECTED / NO-GO.
 
 ### Единственная следующая задача
 
-Проверь **только** кандидат \`LfH7.else()LkD7;\` → \`Lp24.else()LkD7;\`:
+Найди прямых callers **только** метода `LXk6.if(LsO7;LXi6$e;Ljava/util/List;)V`. Установи, кто передаёт ему List и откуда берутся элементы списка.
 
-1. Установи по точному DEX descriptor, является ли \`LkD7;\` MediaItem или его wrapper. Не угадывай по имени.
-2. Проследи тело \`Lp24.else()LkD7;\`: точный delegate/receiver и object identity результата.
-3. Проверь ту же сигнатуру у других concrete implementors только если она там реально объявлена или унаследована.
-4. Если это MediaItem, проследи тот же объект до source/decoder boundary и уже известного ByteBuffer/native sink. Не смешивай current playback с queue/prefetch/download.
-5. Если identity не доказывается на этом коротком участке — зафиксируй точный разрыв и не расширяй поиск.
+Если List строится из TrackWrapper/Track, проследи тот же MediaItem object через List.get → cast → LsO7.Z и дальше к current getter `LfH7.E()LOf6;`. Если Track/Wrapper-связи нет — закрой этот маршрут и переходи к точному Track-bearing caller Player mutator.
 
 ### Не делай лишнего
 
-- Не повторяй ancestry scan, competitor sweep, полный interface census и старые аудиты.
-- Не создавай новый audit framework, не добавляй тесты ради количества и не запускай CI после каждой мелочи.
+- Не повторяй competitor sweep, полный Player ancestry, generic getter search, LiLb/LgLb holder audit или ByteBuffer sink census.
+- Не расширяй глобально типы List/Object: CI #203 уже показал, что широкая область упирается в MEDIA3_ITEM_HANDOFF_METHOD_LIMIT. CI #204 оставил List/Object tracing только внутри exact LXk6.if method.
 - Не меняй runtime hooks, vendor behavior, APK или оригинальное приложение.
-- Не добавляй второй player/decoder/AudioTrack.
+- Не добавляй второй Player/decoder/AudioTrack.
 - Не читай значения приватных полей, Track/Album IDs и названия, URL/DataSpec, токены, данные аккаунта или audio bytes.
 - Не трогай NAV17, Test.50, frozen A1/LSPatch, Windows, extension, backend/API/DB и production.
 - Не проси владельца о ручной проверке без конкретного необходимого измерения.

@@ -1,5 +1,8 @@
 # CELIKOM Android A1 — competitor and current Track Flow review
 
+> **Current follow-up (16.11.2026):** the latest Player/MediaItem and playlist handoff findings supersede the old stop note below. Read [ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md](ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md) before doing more work. The competitor sweep remains closed; do not repeat it.
+
+
 **Дата:** 16.11.2026  
 **Репозиторий:** manufact-test/nomusic  
 **Рабочая ветка:** experiment/android-a1-metrica-init-state-observer-arm13-20261112  

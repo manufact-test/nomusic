@@ -4,46 +4,45 @@
 
 ## Контрольная точка
 
-- Репозиторий: \`manufact-test/nomusic\`.
-- Единственная рабочая ветка: \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`.
-- Последний CI-green code checkpoint: \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`.
-- CI #180: [SUCCESS, 116/116 тестов](https://github.com/manufact-test/nomusic/actions/runs/43830018094), точный подписанный оригинал Yandex 2025, 6 DEX, read-only анализ.
-- Точный резерв кода: \`backup/android-a1-media3-current-item-candidate-ci-green-20261116\` @ \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`.
-- Предыдущий резерв CI #178 сохранён: \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`.
-- Runtime hooks не менялись. APK не собирался, не патчился, не устанавливался и не выпускался.
-- CI #180 — авторитетный результат проверки кандидата. CI #178 остаётся базовым ancestry checkpoint.
+- Репозиторий: `manufact-test/nomusic`.
+- Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Последний CI-green code checkpoint: `31fc7e48dfe7f77eca038277ff61783ed784e6a6`.
+- CI #204: [SUCCESS, 122/122 тестов](https://github.com/manufact-test/nomusic/actions/runs/43864810093), точный подписанный оригинал Yandex 2025, 6 DEX, read-only.
+- Точный резерв: `backup/android-a1-player-playlist-mediaitem-ci-green-20261116` @ `31fc7e48dfe7f77eca038277ff61783ed784e6a6`.
+- Предыдущий зелёный резерв: `backup/android-a1-player-current-item-getter-ci-green-20261116` @ `eee44500e973a92ffc0772e7101616db2cc2449c`.
+- Последний runtime-hook change: `a655712d210189f3bc611847235de3ed4d985c1a`. После него hooks не менялись.
+- APK не собирался, не патчился, не устанавливался и не выпускался.
 
-## Результат — кандидат LfH7.else()LkD7; закрыт
+## Что теперь доказано
 
-Полный результат: \`docs/android/ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`.
+- `LfH7.E()LOf6;` / shared implementation `LrD0.E()LOf6;` — getter, который получает текущий Timeline, индекс, Window и возвращает тот же MediaItem reference из Window field. Same Timeline receiver across branch пока не доказан.
+- `LsO7.C/V/Z` → `LBs4.C/V/Z` → delegate `LfH7.C/V/Z`: MediaItem передаётся дальше без замены.
+- В `LXk6.if(LsO7;LXi6$e;List)V` результат `List.get(I)Object` cast-ится в MediaItem и тот же объект передаётся в `LsO7.Z(ILOf6;)V`.
+- TrackWrapper → URI → MediaItem → LiLb holder тоже доказан, но пока не соединён с Player list.
+- Текущий selected item → decoder sink всё ещё не доказан. Stage B остаётся NO-GO.
 
-- \`LfH7.else()LkD7;\` **не является getter текущего MediaItem**.
-- Точный descriptor \`LkD7;\` определён в подписанном DEX как конкретный класс с superclass \`Ljava/lang/Exception;\`, без интерфейсов. Его собственные instance field types: \`I\`, \`J\`, \`Landroid/os/Bundle;\`; static field type: \`Ljava/lang/String;\`.
-- Нет MediaItem subtype relation, MediaItem-typed fields, доказанной constructor/accessor identity или метода \`MediaSource.Factory\`, принимающего точный descriptor \`LkD7;\`. Это error/exception object, не MediaItem и не доказанная обёртка над ним.
-- \`Lp24.else()LkD7;\` — 4 инструкции, без ветвлений. Метод читает receiver типа \`Landroidx/media3/exoplayer/ExoPlayer;\` из поля \`this\`, вызывает \`Landroidx/media3/exoplayer/ExoPlayer.else()LX04;\` и возвращает тот же объект, полученный от вызова. Receiver identity и same-call-result-to-return identity доказаны на этом участке.
-- Реализация той же сигнатуры: \`Lp24;\`, \`Landroidx/media3/exoplayer/d;\`, \`Landroidx/media3/exoplayer/m;\`; \`LDq2;\` и \`Lwq2;\` наследуют конкретную реализацию от \`LA14;\`.
-- Кандидат закрыт. Source/decoder/ByteBuffer tracing для него не выполнялся: тип не MediaItem, продолжать этот маршрут бессмысленно.
+## Следующая работа — только один узкий маршрут
+
+Найти прямых callers exact method `LXk6.if(LsO7;LXi6$e;Ljava/util/List;)V`, определить источник его List и проверить, строится ли этот List из TrackWrapper/Track. Не повторять полный Player ancestry, competitor sweep, LiLb/LgLb анализ и ByteBuffer sink census.
+
+Полная доказательная база и ограничения: [ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md](ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md).
 
 ## Статус продукта
 
-- **Stage A / NAV17: PASS** по ручному подтверждению владельца. Нативный Яндекс, авторизацию, альбомы, Моя волну и оригинальное воспроизведение не трогать.
-- **Stage B: NOT CONNECTED / NO-GO.** CELIKOM audio не привязано к текущему выбранному item и не подключено к доказанному decoder output.
-- Оставить false: \`active_selected_item_proven\`, \`same_native_item_to_decoder_proven\`, \`same_track_album_edition_generation_owner_proven\`, \`codec_output_object_to_audio_sink_proven\`.
-- Edition/generation остаются недоказанными.
-
-## Следующая работа
-
-Текущий bounded candidate закрыт. **Не повторять** ancestry scan, competitor sweep, полный interface census и не расширять поиск на соседние классы ради нового getter без отдельного задания. Результат и точный разрыв сохранены; ждать следующей конкретной задачи.
+- Stage A / NAV17: PASS по ручному подтверждению владельца.
+- Stage B: NOT CONNECTED / NO-GO.
+- Оставить false: `active_selected_item_proven`, `same_native_item_to_decoder_proven`, `same_track_album_edition_generation_owner_proven`, `codec_output_object_to_audio_sink_proven`.
 
 ## Жёсткие ограничения
 
 - Не менять архитектуру, vendor behavior, runtime hooks, APK или оригинальное приложение.
-- Не добавлять второй player/decoder/AudioTrack.
+- Не добавлять второй Player/decoder/AudioTrack.
 - Не читать/экспортировать Track/Album IDs, названия, URL, DataSpec, токены, данные аккаунта, приватные значения полей или аудиобайты.
 - Не трогать NAV17, Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend/API/DB и production.
 - Не просить ручные действия владельца без конкретного необходимого измерения.
 - Работать одним законченным блоком. Без промежуточных отчётов и лишних тестов.
 
+---
 ---
 
 
