@@ -46,14 +46,24 @@ Limitations:
 
 This is useful when diagnosing real playback dropouts on the device. It does **not** explain why the static audit has not proven a same-object edge from TrackWrapper to the selected Player item or decoder.
 
-### 5. The pinned audit build may not be the runtime target
+### 5. Three distinct Yandex builds — separate evidence roles
 
-The CI audit is pinned to Yandex Music **2025.10.4 #120.1gpr**. The owner's phone was previously reported as **2026.09.5 #167gpr**. These are different builds; no obfuscated class/method finding should be assumed to transfer between them.
+**2025.10.4 #120.1gpr — current CI #229 specimen**
+- Version code 24025542; publisher-signed XAPK 45,961,661 bytes; SHA-256 `8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053`; 16 splits / 6 DEX.
+- Used in the 2025 LSPatch2 laboratory clone experiments and pinned for the current static LfT2 audit.
+- This is not yet proven to be the final CELIKOM product runtime target.
 
-A public APKPure version-history page lists **2026.10.3 #170gpr** as latest on the opened page and also lists **2026.09.5 #167gpr / #167.1gpr** variants. Other mirror snippets report different newer builds, so mirror metadata is inconsistent. This is not publisher provenance and does not prove what is currently installed:
-- [APKPure Yandex Music version history](https://apkpure.net/ru/yandex-music-books-podcasts-app/ru.yandex.music/versions)
+**2026.10.3 #170gpr — verified original ARM13 control**
+- Version code 24026531; publisher-signed XAPK 60,433,885 bytes; SHA-256 `918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84`; 5 splits.
+- [CI #42990078186](https://github.com/manufact-test/nomusic/actions/runs/42990078186) verified the untouched original package installed and launched its MAIN on native ARM13. The control did not test clone, login, audio or Play Protect.
+- `android/native-yandex-hooklab/clone_native_splits_ephemeral.py` also pins #170gpr for a separate structural clone research trial. This does not establish it as the final product target.
 
-**Required gate before another long static pass:** establish the exact build CELIKOM A1 is intended to target. If the intended target remains the pinned 2025 build, continue the bounded LfT2 task there. If the target is the phone's 2026 build, first obtain that exact original split package and verify publisher signature, split set, size, and SHA-256; then run the narrow trace against that exact binary. Do not use a third-party mirror package as trusted input until its signature is independently verified.
+**2026.09.5 #167gpr / #167.1gpr — owner handset report**
+- Previously reported as installed on the owner's phone. No exact original package + verified SHA is pinned in the current A1 evidence.
+
+Do not conflate #170gpr with #170rur (different distribution channel). Public mirror version listings are inconsistent and are not publisher provenance.
+
+**Target remains unresolved:** determine the exact Yandex build the CELIKOM A1 product packaging is intended to use. The manifest `<queries><package name="ru.yandex.music"/></queries>` establishes Android package visibility only; it proves neither that Yandex is embedded nor that it is absent. Inspect packaged DEX/resources and build inputs. If no source-of-truth answer exists, ask the owner once, presenting all three builds and their distinct roles. Do not choose by newest version number or transfer obfuscated findings across builds.
 
 ## Practical conclusion
 
