@@ -46,6 +46,11 @@ Do not describe `LfT2` as a confirmed coroutine implementation or infer its purp
 
 ## 4. Next task — one bounded LfT2 class inspection
 
+**Build scope:** this proof is for 2025.10.4 #120.1gpr only. A separate verified 2026.10.3 #170gpr original-only ARM13 control exists (CI #42990078186; 5 splits; XAPK SHA-256 `918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84`). The phone was previously reported on 2026.09.5 #167gpr, without a pinned original package. These builds are not interchangeable. See [docs/android/README.md](README.md) and [NEXT-CHAT.md](NEXT-CHAT.md) for the authoritative version matrix.
+
+**Precondition:** first establish which exact original build the CELIKOM A1 product packaging is intended to use. A package-visibility manifest entry does not establish whether Yandex is embedded or absent. Inspect actual DEX/resources, build inputs, origin package references and workflows. If no source-of-truth exists, ask the owner once with all three candidates and their evidence roles. Do not assume #170gpr is the product target merely because it is the newer verified ARM13 control.
+
+Continue from the exact class `LfT2;` only:
 **Precondition:** first establish which Yandex build CELIKOM A1 actually embeds/loads. Inspect repository packaging/build configuration, pinned package metadata, workflows and verified hashes. CI #229's 2025.10.4 #120.1gpr specimen and the phone's previously reported 2026.09.5 #167gpr are not automatically the same runtime target. If repository evidence cannot resolve the intended target, ask the owner whether to target the pinned 2025 specimen or the phone's 2026 build. Then obtain that exact original package and verify publisher signature, version, full split set and SHA-256. Never transfer obfuscated findings between builds.
 
 Continue from the exact class `LfT2;` only:
