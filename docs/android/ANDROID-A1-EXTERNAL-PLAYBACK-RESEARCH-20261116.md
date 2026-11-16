@@ -57,6 +57,6 @@ A public APKPure version-history page currently lists **2026.11.1 #171gpr** as l
 
 ## Practical conclusion
 
-The best next step remains the bounded `LfT2;` class inspection documented in [ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md](ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md).
+The next step is first to establish the exact intended Yandex build and verify its original signed split package. Then perform the bounded `LfT2;` class inspection documented in [ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md](ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md) against that exact binary.
 
 Use the public Media3 contract to avoid an overly narrow MediaItem-only assumption, but require exact signed-DEX identity evidence before following a route. No architecture changes, generic hooks, APK changes, account access, private values, or audio reads are justified by this web research.
