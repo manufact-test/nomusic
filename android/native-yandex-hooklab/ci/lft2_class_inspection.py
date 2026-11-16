@@ -166,16 +166,13 @@ def package_metadata(path: Path) -> dict:
 
 
 def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dict:
-    """Follow only the exact field-read result through moves in its current basic block."""
-    instructions = list(audit.instructions(dex, code_off))
+    """Branch-sensitive alias trace from one exact TrackWrapper field read."""
+    cfg = audit.build_dex_control_flow(dex, code_off)
+    by_pc = cfg["by_pc"]
+    successors = cfg["successors"]
     read_pc = read_event.get("pc")
-    read_index = next((
-        i for i, (pc, op, words) in enumerate(instructions)
-        if pc == read_pc and op == 0x54
-        and audit.field_id(dex, words[1])[0] == TARGET
-        and audit.field_id(dex, words[1])[2] == "LtCa;"
-    ), None)
-    if read_index is None:
+    read_instruction = by_pc.get(read_pc)
+    if read_instruction is None or read_instruction[0] != 0x54:
         return {
             "read_pc": read_pc,
             "scan_complete": False,
@@ -183,105 +180,155 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
             "same_object_calls": [],
         }
 
-    read_words = instructions[read_index][2]
-    aliases = {(read_words[0] >> 8) & 15}
-    calls = []
-    stop_reason = "METHOD_END"
-    branch_ops = {0x28, 0x29, 0x2A, 0x2B, 0x2C} | set(range(0x32, 0x3E))
-    exit_ops = {0x0E, 0x0F, 0x10, 0x11, 0x27}
+    field_ref = audit.field_id(dex, read_instruction[1][1])
+    if field_ref[0] != TARGET or field_ref[2] != "LtCa;":
+        return {
+            "read_pc": read_pc,
+            "scan_complete": False,
+            "stop_reason": "EXACT_TRACK_WRAPPER_FIELD_MISMATCH",
+            "same_object_calls": [],
+        }
+
+    destination = (read_instruction[1][0] >> 8) & 15
+    work = [
+        (next_pc, frozenset({destination}))
+        for next_pc in successors.get(read_pc, ())
+    ]
+    seen = set()
+    observations = {}
+    unmodeled_state_count = 0
+    processed_state_count = 0
+    state_limit = 4096
+
     safe_no_write_ops = (
-        {0x00, 0x1D, 0x1E, 0x26}
+        {0x00, 0x1D, 0x1E, 0x26, 0x27}
+        | set(range(0x28, 0x2D))
+        | set(range(0x32, 0x3E))
+        | set(range(0x4B, 0x52))
         | set(range(0x59, 0x60))
         | set(range(0x66, 0x6E))
     )
 
-    for pc, op, words in instructions[read_index + 1:read_index + 65]:
-        if op in branch_ops:
-            stop_reason = "BRANCH_BOUNDARY"
-            break
-        if op in exit_ops:
-            stop_reason = "METHOD_EXIT"
-            break
-
-        move = audit.move_object_registers(op, words)
-        if move:
-            destination, source = move
-            aliases.discard(destination)
-            if source in aliases:
-                aliases.add(destination)
+    while work:
+        pc, aliases = work.pop()
+        state_key = (pc, aliases)
+        if state_key in seen:
             continue
-
-        if op == 0x1F:  # check-cast preserves the object reference
+        seen.add(state_key)
+        processed_state_count += 1
+        if processed_state_count > state_limit:
+            raise ValueError("LFT2_FIELD_READ_CFG_STATE_LIMIT")
+        instruction = by_pc.get(pc)
+        if instruction is None:
+            unmodeled_state_count += 1
             continue
+        op, words = instruction
+        next_aliases = set(aliases)
 
-        if 0x6E <= op <= 0x78:
-            callee = dex.method(words[1])
-            registers = audit.invoke_registers(op, words)
-            is_static = op in (0x71, 0x77)
-            declared = audit.expand_invoke_register_types(
-                callee[0], audit.parse_types(callee[2]), is_static
-            )
-            if len(registers) != len(declared):
-                stop_reason = "INVOKE_REGISTER_SHAPE_MISMATCH"
-                break
-            logical_position = -1
-            for declared_type, register in zip(declared, registers):
-                if declared_type is None:
-                    continue
-                logical_position += 1
-                if register not in aliases:
-                    continue
-                call_role = (
-                    "RECEIVER" if not is_static and logical_position == 0
-                    else "ARGUMENT"
+        if op in audit.INVOKES:
+            if 0x6E <= op <= 0x78:
+                callee = dex.method(words[1])
+                registers = audit.invoke_registers(op, words)
+                is_static = op in (0x71, 0x77)
+                declared = audit.expand_invoke_register_types(
+                    callee[0], audit.parse_types(callee[2]), is_static
                 )
-                calls.append({
-                    "call_pc": pc,
-                    "call_role": call_role,
-                    "argument_position": logical_position,
-                    "declared_argument_type": declared_type,
-                    "callee_owner": callee[0],
-                    "callee_method": callee[1],
-                    "callee_descriptor": callee[2],
-                })
-            continue
+                if len(registers) != len(declared):
+                    raise ValueError("LFT2_FIELD_READ_INVOKE_SHAPE_MISMATCH")
+                uses = []
+                logical_position = -1
+                for declared_type, register in zip(declared, registers):
+                    if declared_type is None:
+                        continue
+                    logical_position += 1
+                    if register in aliases:
+                        uses.append({
+                            "call_role": (
+                                "RECEIVER" if not is_static and logical_position == 0
+                                else "ARGUMENT"
+                            ),
+                            "argument_position": logical_position,
+                            "declared_argument_type": declared_type,
+                        })
+                if uses:
+                    key = (pc, callee[0], callee[1], callee[2])
+                    row = observations.setdefault(key, {
+                        "call_pc": pc,
+                        "callee_owner": callee[0],
+                        "callee_method": callee[1],
+                        "callee_descriptor": callee[2],
+                        "reaching_state_count": 0,
+                        "same_object_state_count": 0,
+                        "uses": [],
+                    })
+                    row["same_object_state_count"] += 1
+                    for use in uses:
+                        if use not in row["uses"]:
+                            row["uses"].append(use)
+                else:
+                    for row in observations.values():
+                        if row["call_pc"] == pc:
+                            row["reaching_state_count"] += 1
+                if uses:
+                    row["reaching_state_count"] += 1
+            elif op in (0xFA, 0xFB, 0xFC, 0xFD):
+                registers = audit.invoke_registers(op, words)
+                if next_aliases.intersection(registers):
+                    key = (pc, "DYNAMIC_INVOKE", op)
+                    row = observations.setdefault(key, {
+                        "call_pc": pc,
+                        "callee_owner": None,
+                        "callee_method": "UNRESOLVED_DYNAMIC_INVOKE",
+                        "callee_descriptor": None,
+                        "reaching_state_count": 0,
+                        "same_object_state_count": 0,
+                        "uses": [{"call_role": "DYNAMIC_ARGUMENT", "argument_position": None,
+                                  "declared_argument_type": None}],
+                    })
+                    row["same_object_state_count"] += 1
+                    row["reaching_state_count"] += 1
+                else:
+                    for row in observations.values():
+                        if row["call_pc"] == pc:
+                            row["reaching_state_count"] += 1
 
-        if op in (0xFA, 0xFB, 0xFC, 0xFD):
-            registers = audit.invoke_registers(op, words)
-            if aliases.intersection(registers):
-                calls.append({
-                    "call_pc": pc,
-                    "call_role": "UNRESOLVED_DYNAMIC_INVOKE",
-                    "argument_position": None,
-                    "declared_argument_type": None,
-                    "callee_owner": None,
-                    "callee_method": None,
-                    "callee_descriptor": None,
-                })
-            stop_reason = "DYNAMIC_INVOKE_BOUNDARY"
-            break
+        elif op in (0x07, 0x08, 0x09):
+            destination, source = audit.move_object_registers(op, words)
+            next_aliases.discard(destination)
+            if source in aliases:
+                next_aliases.add(destination)
+        elif op == 0x1F:  # check-cast preserves object identity
+            pass
+        elif op == 0x0C:  # move-result-object overwrites its destination
+            next_aliases.discard(words[0] >> 8)
+        elif op in safe_no_write_ops:
+            pass
+        else:
+            written = audit.written_register(op, words)
+            if written is None:
+                unmodeled_state_count += 1
+                continue
+            next_aliases.discard(written)
 
-        if op == 0x0C:  # move-result-object overwrites its destination
-            aliases.discard(words[0] >> 8)
-            continue
+        for next_pc in successors.get(pc, ()):
+            work.append((next_pc, frozenset(next_aliases)))
 
-        if op in safe_no_write_ops:
-            continue
-
-        written = audit.written_register(op, words)
-        if written is not None:
-            aliases.discard(written)
-            continue
-
-        stop_reason = "UNMODELED_OPCODE_BOUNDARY"
-        break
+    calls = []
+    for row in observations.values():
+        row["same_object_on_all_reaching_states"] = (
+            row["same_object_state_count"] == row["reaching_state_count"]
+        )
+        calls.append(row)
+    calls.sort(key=lambda row: (row["call_pc"], row["callee_owner"] or "", row["callee_method"] or ""))
 
     return {
         "read_pc": read_pc,
         "receiver_identity_origins": read_event.get("receiver_identity_origins"),
         "receiver_is_this_on_all_paths": read_event.get("receiver_is_this_on_all_paths"),
-        "scan_complete": stop_reason == "METHOD_END",
-        "stop_reason": stop_reason,
+        "branch_sensitive": True,
+        "processed_state_count": processed_state_count,
+        "unmodeled_state_count": unmodeled_state_count,
+        "scan_complete": unmodeled_state_count == 0,
         "same_object_calls": calls,
     }
 
