@@ -1608,8 +1608,7 @@ public sealed partial class MainWindow : Form
             _installedModule.MatchesApplication;
         var heartbeatFresh = playback.HeartbeatFresh;
         var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
-            switchAvailable && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable,
-            playback.NativeNetworkRecoveryPending || _resumeAfterNetworkFailure);
+            switchAvailable && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable);
         var sourceVerified = heartbeatFresh &&
             playback.Source == "ACTIVE_REPLACEMENT" &&
             playback.PlaybackState == "PLAYING" &&
