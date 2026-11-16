@@ -34,7 +34,7 @@ from audit_native_selected_item_handoff import (
     exact_track_return_owner_scope,
     exact_parameter_field_store_refs, local_object_register_origin,
     dex_type_assignable_to, trace_exact_object_receiver_call_cfg,
-    trace_exact_object_method_body
+    trace_exact_object_method_body, trace_track_identity_method_cfg
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -2865,6 +2865,70 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertFalse(direct["same_call_result_to_return_proven"])
         self.assertTrue(branched["branch_seen"])
         self.assertFalse(branched["same_this_field_object_to_return_proven"])
+
+
+    def test_track_identity_cfg_keeps_only_common_parameter_alias_across_branches(self):
+        from unittest.mock import patch
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 4, 102: 1}[offset]
+            def method(self, index):
+                return ("LPlayer;", "setItem", f"({MODEL})V")
+
+        method = ("LFactory;", "suspendCall", f"({MODEL})V")
+        instructions = [
+            (0, 0x38, [0x0038, 0]),  # branch to two paths
+            (1, 0x07, [0x0107]),     # path A: move Track parameter to v1
+            (2, 0x07, [0x0107]),     # path B: same exact move
+            (3, 0x71, [0x0071, 0]),  # invoke-static {v1}, Player.setItem(Track)
+            (4, 0x0e, [0x000e]),
+        ]
+        overwritten = list(instructions)
+        overwritten[2] = (2, 0x12, [0x0112])  # path B overwrites v1
+        def cfg(rows):
+            by_pc = {pc: (op, words) for pc, op, words in rows}
+            return {
+                "instructions": rows,
+                "by_pc": by_pc,
+                "successors": {
+                    0: [1, 2], 1: [3], 2: [3], 3: [4], 4: []
+                },
+                "reachable": {0, 1, 2, 3, 4},
+                "branches": [{"pc": 0}],
+                "entry": 0,
+            }
+
+        def run(rows, cfg_result):
+            with patch("audit_native_selected_item_handoff.build_dex_control_flow",
+                       return_value=cfg_result), \
+                 patch("audit_native_selected_item_handoff.typed_parameter_registers",
+                       side_effect=lambda _d, _m, _f, _c, typ: [3] if typ == MODEL else []), \
+                 patch("audit_native_selected_item_handoff.move_object_registers",
+                       side_effect=lambda op, _w: (1, 3) if op == 0x07 else None), \
+                 patch("audit_native_selected_item_handoff.written_register",
+                       side_effect=lambda op, words: 1 if op == 0x12 else None), \
+                 patch("audit_native_selected_item_handoff.invoke_registers",
+                       return_value=[1]):
+                return trace_track_identity_method_cfg(
+                    FakeDex(), method, 0x8, 100
+                )
+
+        preserved = run(instructions, cfg(instructions))
+        lost = run(overwritten, cfg(overwritten))
+        proven = [
+            row for row in preserved["events"]
+            if row["kind"] == "CALL_WITH_TYPED_IDENTITY"
+        ]
+        possible = [
+            row for row in lost["events"]
+            if row["kind"] == "CALL_WITH_POSSIBLE_IDENTITY"
+        ]
+        self.assertEqual(len(proven), 1)
+        self.assertEqual(proven[0]["identity_arguments"][0]["origins"], ["TRACK_PARAMETER"])
+        self.assertTrue(proven[0]["identity_is_common_to_all_incoming_paths"])
+        self.assertEqual(len(possible), 1)
+        self.assertFalse(possible[0]["identity_is_common_to_all_incoming_paths"])
 
 
 if __name__ == "__main__":
