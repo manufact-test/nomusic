@@ -9411,6 +9411,18 @@ def trace_track_identity_method_cfg(
             result.update(state["registers"].get(register, ()))
         return result
 
+    def origins_for_label(origins, label):
+        if label == "TRACK":
+            return {
+                origin for origin in origins
+                if origin.startswith("TRACK_")
+                and not origin.startswith("TRACK_WRAPPER_")
+            }
+        return {
+            origin for origin in origins
+            if origin.startswith(label + "_")
+        }
+
     events = []
     seen_events = set()
 
@@ -9462,8 +9474,9 @@ def trace_track_identity_method_cfg(
             receiver = (words[0] >> 12) & 15 if op == 0x5b else None
             field_label = tracked_types.get(field_type)
             origins = {
-                origin for origin in common_origins(states, value_register)
-                if field_label and origin.startswith(field_label + "_")
+                origin for origin in origins_for_label(
+                    common_origins(states, value_register), field_label
+                )
             }
             if field_label and origins:
                 add_event({
@@ -9518,14 +9531,12 @@ def trace_track_identity_method_cfg(
                 if not (declared_type.startswith("L") or declared_type.startswith("[")):
                     continue
                 for tracked_type, label in tracked_types.items():
-                    common = {
-                        origin for origin in common_origins(states, register)
-                        if origin.startswith(label + "_")
-                    }
-                    possible = {
-                        origin for origin in possible_origins(states, register)
-                        if origin.startswith(label + "_")
-                    }
+                    common = origins_for_label(
+                        common_origins(states, register), label
+                    )
+                    possible = origins_for_label(
+                        possible_origins(states, register), label
+                    )
                     if common:
                         identity_arguments.append({
                             "argument_position": logical_position,
