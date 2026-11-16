@@ -9,6 +9,7 @@
 - Only working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
 - Last code checkpoint: `27ccbe8348d598fead0386e70ef68573b04270c4`.
 - Exact code backup: `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116` @ `27ccbe8348d598fead0386e70ef68573b04270c4`.
+- Documentation/context-hygiene backup: `backup/android-a1-context-hygiene-20261116` @ `feefeb14fc613a42b1c31009448a9777b0f12cc7`.
 - CI #229: [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139), pinned issuer-signed Yandex Music 2025 XAPK, 16 splits / 6 DEX, read-only.
 - CI-log compaction workflow change: `723c71caeb0a9244e89eefd1f8c91e597e5bce00`; CI #230 is validating the compact-summary output. Do not call this workflow change green until its run is complete.
 - Last runtime-hook change: `a655712d210189f3bc611847235de3ed4d985c1a`. No runtime hooks changed after it.
