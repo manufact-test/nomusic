@@ -1,6 +1,6 @@
 # CELIKOM Windows — актуальная передача W159 (16.11.2026)
 
-**Состояние:** W158 VPN audio continuity вручную принята владельцем: уже играющая подмена продолжает звучать при переключении VPN без слышимого щелчка и ненужной перезагрузки источника. W159 исправляет только несогласованные статусы интерфейса после VPN и Next. Main CI и Windows integration CI для W159 source прошли SUCCESS. Одна итоговая owner-review сборка 0.24.41.0 / native 0.24.31 уже собрана успешно (W20 run 43828713363, artifact 14208040930); промежуточных пакетов нет.
+**Состояние:** W158 VPN audio continuity вручную принята владельцем. W159 исправление собрано в одной owner-review версии **0.24.41.0 / native 0.24.31** (W20 run 43828713363, artifact 14208040930; CI SUCCESS). Владелец сообщил, что скачал версию; установка и проверка пока НЕ подтверждены. Следующая задача — дождаться результата узкой UI-проверки до VPN / после VPN recovery / после Next. До результата не вносить новые изменения и не создавать новую сборку. Подробная передача: `docs/windows/W159-OWNER-TEST-HANDOFF-20261116.md`.
 
 ## Источник истины
 
@@ -25,7 +25,7 @@
 
 ## Следующий шаг
 
-W20 workflow [43828713363](https://github.com/manufact-test/nomusic/actions/runs/43828713363) завершился SUCCESS. Artifact ID `14208040930` проверен: один EXE, один ZIP с идентичным EXE и SHA256SUMS. Передать владельцу пакет и проверить только UI: одна mapped-песня до VPN, та же песня после VPN recovery, затем Next на другую mapped-песню. Не повторять аудио/VPN исследования, если не появится новая слышимая проблема.
+Владелец скачал 0.24.41.0, но ещё не подтвердил установку и проверку. Дождаться его результата. Проверять только согласованность UI на mapped-песне до VPN, после VPN recovery и после Next на другую mapped-песню. Не считать версию принятой до ручного подтверждения. Если всё работает — записать owner acceptance и остановиться; новую сборку не создавать. Полная инструкция и готовое первое сообщение следующему чату: `docs/windows/W159-OWNER-TEST-HANDOFF-20261116.md`.
 
 Никаких Android, browser extension, backend, Yandex original files, updater/P-256 или архитектурных изменений.
 
@@ -1536,6 +1536,8 @@ W158 fixes false autorun connected-before-native-heartbeat, no-kUrl same-current
 - Changed only W15 presentation/helper/tests and W159/W158 documentation. No VPN, native host/renderer, playback, Yandex, Android, extension, backend or updater changes.
 - Main CI `43828118274` and Windows integration CI `43828118192` passed on source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`; final package-source Main CI `43828713432` and Windows integration CI `43828713415` also passed. W20 package run `43828713363` passed.
 - Both required CI workflows passed, and the single W20 owner-review package is built successfully: run [43828713363](https://github.com/manufact-test/nomusic/actions/runs/43828713363), artifact `14208040930`, version **0.24.41.0 / native 0.24.31**. The archive was checked to contain exactly one EXE, one ZIP with the identical EXE, and SHA256SUMS. Do not create another package unless a new owner finding requires it.
-- Owner check after installation: one mapped track before VPN, same track after VPN, then Next to another mapped track. The compact and main UI should keep the same neutral availability/service labels. Audio continuity is already accepted; do not reopen or refactor it unless a new audible failure is reported.
+- Owner downloaded build 0.24.41.0 on 16 November 2026. **Installation and owner acceptance are still pending**; do not describe the version as installed/tested.
+- Next: wait for the owner's result from the narrow UI check (mapped track before VPN, same track after VPN recovery, Next to another mapped track). If it passes, record acceptance and stop. If it fails, diagnose only the reported state before changing code.
+- Full owner-test handoff and ready-to-send first message: `docs/windows/W159-OWNER-TEST-HANDOFF-20261116.md`.
 
 Do not resume W150 updater/P-256 or any Android/browser/backend work. No broad audits or unrelated tests.

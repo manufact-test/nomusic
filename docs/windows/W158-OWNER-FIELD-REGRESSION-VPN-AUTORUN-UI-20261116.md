@@ -230,3 +230,6 @@ The owner accepted the W158 VPN audio-continuity behavior in manual listening: t
 A remaining presentation regression was found: after VPN recovery the compact popup showed `Версия CELIKOM доступна`, but after Next on another mapped track it reverted to `Источник текущего трека не подтверждён` and `Ожидаем подтверждения`. W159 corrects this copy consistently in compact and main UI. Exact decoder proof remains the only route to `Подмена активна` / accent color. VPN, native playback and Yandex integration are unchanged.
  
 W159 owner-review package result (16 November 2026): one successful W20 stage run [43828713363](https://github.com/manufact-test/nomusic/actions/runs/43828713363), artifact `14208040930`, version **0.24.41.0 / native 0.24.31**. The artifact contains the unsigned installer, a ZIP containing that exact same installer, and SHA256 checksums. No production release or deployment.
+
+
+W159 owner status update (16 November 2026): the owner has downloaded the 0.24.41.0 / native 0.24.31 package. This is download-only confirmation; installation and manual UI acceptance remain pending. See `docs/windows/W159-OWNER-TEST-HANDOFF-20261116.md`.

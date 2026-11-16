@@ -68,3 +68,10 @@ The artifact contains exactly:
 - `SHA256SUMS.txt`
 
 Verified that the ZIP contains exactly one root installer and that its EXE bytes are identical to the standalone EXE. This is an UNSIGNED internal owner-review build, not a production release. No intermediate installer or ZIP was created.
+
+
+## Owner download status — 16 November 2026
+
+The owner has now reported downloading the W159 owner-review build **0.24.41.0 / native 0.24.31**. This confirms download only. Installation, launch and manual acceptance have not yet been confirmed. Do not mark the build owner-accepted until the owner reports the result.
+
+Next action is the narrow UI acceptance check documented in `docs/windows/W159-OWNER-TEST-HANDOFF-20261116.md`: same mapped-track availability/service copy before VPN, after VPN route recovery, and after Next to another mapped track. If it passes, record acceptance and stop; no further build is required. If it fails, inspect only the reported discrepancy and do not reopen accepted VPN audio continuity without a new audible failure.
