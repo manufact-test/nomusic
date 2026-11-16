@@ -9473,11 +9473,12 @@ def trace_track_identity_method_cfg(
             )
             receiver = (words[0] >> 12) & 15 if op == 0x5b else None
             field_label = tracked_types.get(field_type)
-            origins = {
-                origin for origin in origins_for_label(
+            origins = (
+                origins_for_label(
                     common_origins(states, value_register), field_label
                 )
-            }
+                if field_label else set()
+            )
             if field_label and origins:
                 add_event({
                     "pc": pc,

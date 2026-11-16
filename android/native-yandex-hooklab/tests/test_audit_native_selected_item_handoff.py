@@ -2943,13 +2943,14 @@ class SelectedItemAuditTests(unittest.TestCase):
         method = ("LFactory;", "call", f"({WRAPPER})V")
         instructions = [
             (0, 0x71, [0x0071, 0]),  # invoke-static {v2}, acceptWrapper
-            (1, 0x0e, [0x000e]),
+            (1, 0x5b, [0x215b, 0]),  # unrelated Object field store must be ignored
+            (2, 0x0e, [0x000e]),
         ]
         cfg = {
             "instructions": instructions,
             "by_pc": {pc: (op, words) for pc, op, words in instructions},
-            "successors": {0: [1], 1: []},
-            "reachable": {0, 1},
+            "successors": {0: [1], 1: [2], 2: []},
+            "reachable": {0, 1, 2},
             "branches": [],
             "entry": 0,
         }
@@ -2959,6 +2960,8 @@ class SelectedItemAuditTests(unittest.TestCase):
                    side_effect=lambda _d, _m, _f, _c, typ: [2] if typ == WRAPPER else []), \
              patch("audit_native_selected_item_handoff.invoke_registers",
                    return_value=[2]), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LFactory;", "hidden", "Ljava/lang/Object;")), \
              patch("audit_native_selected_item_handoff.written_register",
                    return_value=None):
             trace = trace_track_identity_method_cfg(FakeDex(), method, 0x8, 100)
