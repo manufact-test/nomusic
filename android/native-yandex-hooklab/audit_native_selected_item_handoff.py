@@ -1028,6 +1028,8 @@ def trace_identity_method(
                     "ordinal": ordinal,
                     "kind": "FIELD_READ_TYPED_IDENTITY",
                     "identity_type": tracked_types[field_type],
+                    "field_declaring_owner": owner,
+                    "receiver_register": receiver,
                     "receiver_is_this": receiver == this_register,
                     "receiver_identity_origins": receiver_identity_origins,
                 })
@@ -8943,7 +8945,17 @@ def inspect_media3_player_item_identity_contracts(
                     key for key in declarations
                     if key[1] == name and key[2] == signature
                 )
-    all_targets = constructor_targets | player_targets
+    item_holder_targets = {
+        ("LiLb;", "for", "()LOf6;"),
+        ("LgLb;", "for", "()V"),
+        ("LTva$d;", "for",
+         "(Ljava/lang/Object;LOf6;Ljava/lang/Object;JJJZZLOf6$f;JJIIJ)V"),
+        ("Lo45;", "default", "(Ljava/lang/Object;)LwN8;"),
+        ("LBs4;", "C", "(LOf6;J)V"),
+        ("LBs4;", "V", "(LOf6;)V"),
+        ("LBs4;", "Z", "(ILOf6;)V"),
+    }
+    all_targets = constructor_targets | player_targets | item_holder_targets
     if len(all_targets) > 128:
         raise ValueError("PLAYER_ITEM_CALL_TARGET_LIMIT")
 
@@ -8980,7 +8992,17 @@ def inspect_media3_player_item_identity_contracts(
                         item_type and item_type in parse_types(method[2])
                     )
                     has_item_field = bool(item_type and item_type in owner_instance_types)
-                    if not (has_native_identity or has_item_parameter or has_item_field):
+                    item_holder_types = {"LiLb;", "LgLb;", "LmLb;", "LwN8;", "Las2;", "LBs4;"}
+                    has_item_holder_parameter = bool(
+                        item_holder_types.intersection(parse_types(method[2]))
+                    )
+                    has_item_holder_field = bool(
+                        item_holder_types.intersection(owner_instance_types)
+                    )
+                    if not (
+                        has_native_identity or has_item_parameter or has_item_field
+                        or has_item_holder_parameter or has_item_holder_field
+                    ):
                         continue
                     for ordinal, op, words in instructions(dex, code_off):
                         if op not in INVOKES:
@@ -9012,6 +9034,8 @@ def inspect_media3_player_item_identity_contracts(
                             "caller_owner_has_wrapper_field": owner_profile["has_wrapper_field"],
                             "caller_has_item_parameter": has_item_parameter,
                             "caller_owner_has_item_field": has_item_field,
+                            "caller_has_item_holder_parameter": has_item_holder_parameter,
+                            "caller_owner_has_item_holder_field": has_item_holder_field,
                         })
                         if caller_key not in caller_traces:
                             if len(caller_traces) >= 64:
@@ -9020,7 +9044,8 @@ def inspect_media3_player_item_identity_contracts(
                             caller_traces[caller_key] = safe_identity_trace(
                                 dex, method, flags, code_off, item_type,
                                 extra_types=(
-                                    "Landroid/net/Uri;", "LmLb;", "LTva$d;"
+                                    "Landroid/net/Uri;", "LmLb;", "LTva$d;",
+                                    "LiLb;", "LgLb;", "LwN8;", "Las2;", "LBs4;"
                                 )
                             ) if item_type else None
 
@@ -9041,10 +9066,16 @@ def inspect_media3_player_item_identity_contracts(
             row for row in caller_rows
             if row["target"]["owner"] == item_type
         ]) if item_type else 0,
-        "player_setter_or_getter_callsite_count": len([
-            row for row in caller_rows
-            if row["target"]["owner"] in scope_owners
-        ]),
+        "player_setter_or_getter_callsite_count": sum(
+            1 for row in caller_rows
+            if (row["target"]["owner"], row["target"]["method"], row["target"]["signature"])
+            in player_targets
+        ),
+        "item_holder_or_internal_handoff_callsite_count": sum(
+            1 for row in caller_rows
+            if (row["target"]["owner"], row["target"]["method"], row["target"]["signature"])
+            in item_holder_targets
+        ),
         "native_track_related_callers": caller_rows,
         "native_track_related_callers_truncated": caller_rows_truncated,
         "native_track_related_caller_identity_traces_truncated": caller_traces_truncated,
@@ -9086,14 +9117,24 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
          "(LcA9;LA14;LtCa;Ljava/lang/Long;JJZLn26;Lnk0;Ljava/lang/String;)V"),
         ("LgLb;", "<init>", "(LdA9;Lmu3;LtCa;Ln26;Lnk0;)V"),
         ("LiLb;", "<init>", "(LdA9;LgA9;LJI7;LOf6;LFq1;LHy9$a;LPAa;)V"),
+        ("LiLb;", "for", "()LOf6;"),
+        ("LgLb;", "for", "()V"),
+        ("LTva$d;", "for",
+         "(Ljava/lang/Object;LOf6;Ljava/lang/Object;JJJZZLOf6$f;JJIIJ)V"),
+        ("Lo45;", "default", "(Ljava/lang/Object;)LwN8;"),
+        ("LBs4;", "C", "(LOf6;J)V"),
+        ("LBs4;", "V", "(LOf6;)V"),
+        ("LBs4;", "Z", "(ILOf6;)V"),
     }
     inspect_owners = {
         "LrD0;", "Lp24;", "LA14;", "Lbq0;", "LcA9;", "LgLb;",
         "LiLb;", "LmLb;", "Lmu3;", "LTva;", "LTva$d;", "LOf6;",
+        "Lo45;", "LwN8;", "Las2;", "LBs4;",
     }
     extra_types = (
         "LOf6;", "LTva$d;", "LmLb;", "Landroid/net/Uri;",
         "Lmu3;", "Ln26;", "Lnk0;", "LdA9;", "LA14;",
+        "LwN8;", "Las2;", "LiLb;", "LgLb;", "LBs4;", "Ljava/lang/Object;",
     )
     method_rows = []
     owner_profiles = []
@@ -9121,7 +9162,9 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     is_exact = key in exact_methods
                     is_identity_related = bool(
                         signature_types.intersection(extra_types)
-                        or method[0] in {"LiLb;", "LgLb;", "LcA9;", "Lbq0;", "LmLb;"}
+                        or method[0] in {
+                            "LiLb;", "LgLb;", "LcA9;", "Lbq0;", "LmLb;", "LBs4;"
+                        }
                     )
                     if not (is_exact or is_identity_related):
                         continue
