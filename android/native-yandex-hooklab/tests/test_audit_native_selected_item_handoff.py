@@ -3758,6 +3758,14 @@ class SelectedItemAuditTests(unittest.TestCase):
                 ]}
             return {"events": []}
 
+        def fake_instructions(_dex, code_off):
+            if code_off == 100:
+                return [
+                    (10, 0x6e, [0x006e, 1]),
+                    (20, 0x6e, [0x006e, 2]),
+                ]
+            return []
+
         definitions = [
             (caller, 0x8, 100),
             (LI_LB_CONSTRUCTOR_TARGET, 0, 300),
@@ -3771,10 +3779,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                  patch("audit_native_selected_item_handoff.method_definitions_with_flags",
                        return_value=definitions), \
                  patch("audit_native_selected_item_handoff.instructions",
-                       return_value=[
-                           (10, 0x6e, [0x006e, 1]),
-                           (20, 0x6e, [0x006e, 2]),
-                       ]), \
+                       side_effect=fake_instructions), \
                  patch("audit_native_selected_item_handoff.trace_identity_method",
                        side_effect=fake_trace):
                 result = inspect_exact_li_lb_handoff_callers([apk])
