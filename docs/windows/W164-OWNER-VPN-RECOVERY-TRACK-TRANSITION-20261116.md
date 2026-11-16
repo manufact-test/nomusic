@@ -88,7 +88,7 @@ On the W20 package request commit:
 
 ## Internal owner-review package
 
-<badge>Internal unsigned owner-review build</badge>
+**Internal unsigned owner-review build**
 
 - Version: **0.24.46.0**
 - Native module: **0.24.31**
