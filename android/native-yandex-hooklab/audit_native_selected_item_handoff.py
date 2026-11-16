@@ -8417,8 +8417,8 @@ def inspect_media3_current_item_candidate(apks, class_profiles, player_contracts
 
 
 def inspect_media3_player_object_getters(apks, class_profiles, player_contracts):
-    """Inspect only no-arg object getters declared by the exact obfuscated Player interface."""
-    interface_owner = "LfH7;"
+    """Inspect bounded no-arg object getters across the exact obfuscated Player roots."""
+    interface_owners = {"LfH7;", "Landroidx/media3/exoplayer/ExoPlayer;"}
     wrapper_owner = "Lp24;"
     factory_owner = "Landroidx/media3/exoplayer/source/MediaSource$Factory;"
     if not player_contracts.get("bounded"):
@@ -8440,14 +8440,22 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
                     raise ValueError("PLAYER_OBJECT_GETTER_DEX_SIZE_LIMIT")
                 dex = Dex(archive.read(entry))
                 for method, flags, code_off in declared_method_contracts_for_owners(
-                    dex, {interface_owner}
+                    dex, interface_owners
                 ):
                     signature = method[2]
                     result_type = signature.split(")", 1)[1]
                     if signature.startswith("()") and result_type.startswith("L"):
-                        candidate_contracts[(method[1], signature)] = method
+                        key = (method[0], method[1], signature)
+                        candidate_contracts[key] = method
+    if len(candidate_contracts) > 48:
+        raise ValueError("PLAYER_OBJECT_GETTER_CANDIDATE_LIMIT")
 
     candidate_keys = set(candidate_contracts)
+    candidate_types = {
+        method[2].split(")", 1)[1]
+        for method in candidate_contracts.values()
+        if method[2].split(")", 1)[1].startswith("L")
+    }
     scope_owners = set(player_contracts.get("scope_owners", ()))
     declarations = {}
     factory_contracts = {}
@@ -8460,7 +8468,7 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
                 for method, flags, code_off in declared_method_contracts_for_owners(
                     dex, scope_owners
                 ):
-                    if (method[1], method[2]) in candidate_keys:
+                    if (method[0], method[1], method[2]) in candidate_keys:
                         key = (method[0], method[1], method[2])
                         if key in declarations:
                             raise DexError("PLAYER_OBJECT_GETTER_DUPLICATE_DECLARATION")
@@ -8472,8 +8480,7 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
                     parameters = parse_types(method_ref[2])
                     result_type = method_ref[2].split(")", 1)[1]
                     if result_type == MEDIA3_MEDIA_SOURCE:
-                        for candidate_key, candidate_method in candidate_contracts.items():
-                            candidate_type = candidate_method[2].split(")", 1)[1]
+                        for candidate_type in candidate_types:
                             if candidate_type in parameters:
                                 factory_contracts.setdefault(candidate_type, set()).add(
                                     (method_ref[0], method_ref[1], method_ref[2])
@@ -8505,7 +8512,7 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
         return None
 
     rows = []
-    for name, signature in sorted(candidate_keys):
+    for owner, name, signature in sorted(candidate_keys):
         result_type = signature.split(")", 1)[1]
         type_profile = class_profiles.get(result_type)
         item_subtype = dex_type_assignable_to(
@@ -8514,22 +8521,29 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
         factory_rows = sorted(factory_contracts.get(result_type, ()))
         implementor_rows = []
         for implementor in player_contracts.get("implementors", ()):
+            chain = class_chain(implementor)
             declaration_owner = next(
-                (owner for owner in class_chain(implementor)
-                 if (owner, name, signature) in declarations),
+                (candidate_owner for candidate_owner in chain
+                 if (candidate_owner, name, signature) in declarations),
                 None
             )
             if declaration_owner is None:
                 declaration_owner = interface_declaration(implementor, name, signature)
             declaration = declarations.get((declaration_owner, name, signature))
+            body_trace = None
+            if declaration and declaration[2]:
+                method, flags, code_off, dex = declaration
+                body_trace = trace_exact_object_method_body(
+                    dex, method, flags, code_off
+                )
             implementor_rows.append({
                 "implementor": implementor,
                 "declaring_owner": declaration_owner,
                 "declaration_kind": (
-                    "CLASS" if declaration_owner in class_chain(implementor)
-                    else "INTERFACE"
+                    "CLASS" if declaration_owner in chain else "INTERFACE"
                 ) if declaration_owner else None,
                 "body_declared": bool(declaration and declaration[2]),
+                "method_body_identity_trace": body_trace,
             })
 
         wrapper_trace = None
@@ -8541,14 +8555,14 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
             )
 
         rows.append({
-            "interface_method": {"owner": interface_owner, "name": name,
+            "interface_method": {"owner": owner, "name": name,
                                   "signature": signature},
             "return_type_descriptor": result_type,
             "return_type_profile": privacy_safe_flow_class_profile(type_profile),
             "return_type_is_media3_media_item_or_subtype": item_subtype,
             "source_factory_contracts_accepting_exact_return_type": [
-                {"owner": owner, "method": method, "signature": factory_signature}
-                for owner, method, factory_signature in factory_rows
+                {"owner": factory_owner, "method": method, "signature": factory_signature}
+                for factory_owner, method, factory_signature in factory_rows
             ],
             "lp24_wrapper_method_body": wrapper_trace,
             "effective_concrete_implementor_declarations": implementor_rows,
@@ -8558,7 +8572,7 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
 
     return {
         "bounded": True,
-        "player_interface": interface_owner,
+        "player_interfaces": sorted(interface_owners),
         "candidate_count": len(rows),
         "candidates": rows,
         "current_media_item_proven": any(
@@ -8572,6 +8586,149 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
         "private_field_names_or_values_disclosed": False,
         "field_values_media_ids_urls_dataspec_tokens_or_audio_read": False,
     }
+
+
+def inspect_media3_item_source_timeline_contracts(
+    apks, class_profiles, player_object_getters
+):
+    """Inspect only Media3 source/timeline contracts and exact Player getter return types."""
+    exact_owners = {
+        "Landroidx/media3/common/MediaItem;",
+        "Landroidx/media3/common/Timeline;",
+        "Landroidx/media3/common/Timeline$Window;",
+        "Landroidx/media3/common/Timeline$Period;",
+        "Landroidx/media3/exoplayer/source/MediaSource;",
+        "Landroidx/media3/exoplayer/source/MediaSource$Factory;",
+    }
+    candidate_types = {
+        row["return_type_descriptor"]
+        for row in player_object_getters.get("candidates", ())
+        if row["return_type_descriptor"].startswith("L")
+        and row["return_type_descriptor"] not in {
+            "Ljava/lang/Object;", "Landroid/os/Looper;"
+        }
+    }
+    inspected_owners = exact_owners | candidate_types
+    if len(inspected_owners) > 48:
+        raise ValueError("MEDIA3_ITEM_TIMELINE_OWNER_LIMIT")
+
+    method_rows = {}
+    method_ref_rows = {}
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("MEDIA3_ITEM_TIMELINE_DEX_SIZE_LIMIT")
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in declared_method_contracts_for_owners(
+                    dex, inspected_owners
+                ):
+                    key = (method[0], method[1], method[2])
+                    method_rows[key] = {
+                        "owner": method[0],
+                        "method": method[1],
+                        "signature": method[2],
+                        "parameters": parse_types(method[2]),
+                        "return_type": method[2].split(")", 1)[1],
+                        "body_declared": bool(code_off),
+                    }
+                    if len(method_rows) > 512:
+                        raise ValueError("MEDIA3_ITEM_TIMELINE_METHOD_LIMIT")
+                for method_index in range(dex.method_count):
+                    method = dex.method(method_index)
+                    if method[0] not in exact_owners:
+                        continue
+                    key = (method[0], method[1], method[2])
+                    method_ref_rows[key] = {
+                        "owner": method[0],
+                        "method": method[1],
+                        "signature": method[2],
+                        "parameters": parse_types(method[2]),
+                        "return_type": method[2].split(")", 1)[1],
+                    }
+                    if len(method_ref_rows) > 512:
+                        raise ValueError("MEDIA3_ITEM_TIMELINE_METHOD_REF_LIMIT")
+
+    def type_profile(owner):
+        return privacy_safe_flow_class_profile(class_profiles.get(owner))
+
+    def compact_method(row):
+        parameters = row["parameters"]
+        result = row["return_type"]
+        return {
+            "owner": row["owner"],
+            "method": row["method"],
+            "signature": row["signature"],
+            "parameter_types": parameters,
+            "return_type": result,
+            "media_item_typed": (
+                MEDIA3_MEDIA_ITEM in parameters or result == MEDIA3_MEDIA_ITEM
+            ),
+            "media_source_typed": (
+                MEDIA3_MEDIA_SOURCE in parameters or result == MEDIA3_MEDIA_SOURCE
+            ),
+            "timeline_typed": result == MEDIA3_TIMELINE,
+            "body_declared": row.get("body_declared", False),
+        }
+
+    owners_out = []
+    for owner in sorted(inspected_owners):
+        methods = [
+            compact_method(row) for key, row in method_rows.items()
+            if key[0] == owner
+        ]
+        refs = [
+            compact_method(row) for key, row in method_ref_rows.items()
+            if key[0] == owner
+        ]
+        owners_out.append({
+            "owner": owner,
+            "profile": type_profile(owner),
+            "declared_method_count": len(methods),
+            "declared_methods": methods[:64],
+            "declared_methods_truncated": len(methods) > 64,
+            "referenced_method_count": len(refs),
+            "referenced_methods": refs[:64],
+            "referenced_methods_truncated": len(refs) > 64,
+        })
+
+    source_factory_acceptors = [
+        row for row in method_ref_rows.values()
+        if row["owner"] == "Landroidx/media3/exoplayer/source/MediaSource$Factory;"
+        and row["return_type"] == MEDIA3_MEDIA_SOURCE
+    ]
+    source_media_item_accessors = [
+        row for row in method_ref_rows.values()
+        if row["owner"] == "Landroidx/media3/exoplayer/source/MediaSource;"
+        and row["signature"].startswith("()L")
+    ]
+    return {
+        "bounded": True,
+        "inspected_owner_count": len(inspected_owners),
+        "owners": owners_out,
+        "source_factory_contract_count": len(source_factory_acceptors),
+        "source_factory_contracts": [
+            compact_method(row) for row in sorted(
+                source_factory_acceptors,
+                key=lambda row: (row["method"], row["signature"])
+            )[:64]
+        ],
+        "source_media_item_accessor_count": len(source_media_item_accessors),
+        "source_object_accessors": [
+            compact_method(row) for row in sorted(
+                source_media_item_accessors,
+                key=lambda row: (row["method"], row["signature"])
+            )[:64]
+        ],
+        "media_item_exact_class_defined": MEDIA3_MEDIA_ITEM in class_profiles,
+        "timeline_exact_class_defined": MEDIA3_TIMELINE in class_profiles,
+        "private_field_names_or_values_disclosed": False,
+        "field_values_media_ids_urls_dataspec_tokens_or_audio_read": False,
+    }
+
+
 
 
 def inspect_signed(apks):
@@ -9188,6 +9345,9 @@ def inspect_signed(apks):
     media3_player_object_getters = inspect_media3_player_object_getters(
         apks, class_profiles, media3_player_contracts
     )
+    media3_item_source_timeline_contracts = inspect_media3_item_source_timeline_contracts(
+        apks, class_profiles, media3_player_object_getters
+    )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -9374,6 +9534,7 @@ def inspect_signed(apks):
         "media3_player_implementation_contracts": media3_player_contracts,
         "media3_current_item_candidate": media3_current_item_candidate,
         "media3_player_object_getters": media3_player_object_getters,
+        "media3_item_source_timeline_contracts": media3_item_source_timeline_contracts,
         "selected_state_static_summary": {
             "media_session_metadata_method_reference_count": sum(
                 x[1] in MEDIA_SESSION_METADATA_METHODS
