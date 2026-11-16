@@ -46,6 +46,8 @@ Do not describe `LfT2` as a confirmed coroutine implementation or infer its purp
 
 ## 4. Next task — one bounded LfT2 class inspection
 
+**Precondition:** first resolve the exact Yandex build CELIKOM A1 is targeting. CI #229 is pinned to 2025.10.4 #120.1gpr, while the owner's phone was previously reported as 2026.09.5 #167gpr. Do not trace the 2025 DEX and apply its obfuscated route to a 2026 runtime. If the target is 2026, pin and verify that exact original signed split set before continuing.
+
 Continue from the exact class `LfT2;` only:
 
 1. Resolve its class definition in the six signed DEX: superclass, interfaces, access flags, and exact declared method descriptors.
