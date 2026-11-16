@@ -9510,6 +9510,231 @@ PLAYLIST_LIST_GET_TARGET = (
 )
 
 
+def inspect_exact_playlist_runner_construction(apks, class_profiles):
+    """Trace only LKl6.run's callback/List fields to its constructor and callers."""
+    runner_owner = "LKl6;"
+    run_method = (runner_owner, "run", "()V")
+    relevant_field_types = {
+        "LLl6$c;", "LXi6$e;", "Ljava/util/List;",
+    }
+    extra_types = (
+        "LLl6$c;", "LXi6$e;", "Ljava/util/List;",
+        "Ljava/util/Collection;", "Ljava/util/ArrayList;",
+        "Ljava/util/LinkedList;", "LwN8;", "Las2;",
+        "LsO7;", "Lek6;", "LOf6;", "LmLb;", "LiLb;", "LgLb;",
+        "Landroid/net/Uri;", "Ljava/lang/Object;",
+    )
+    runner_profile = privacy_safe_flow_class_profile(
+        class_profiles.get(runner_owner)
+    )
+    run_field_refs = {}
+    constructor_methods = []
+    constructor_traces = []
+    run_method_found = False
+    max_constructors = 8
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                definitions = method_definitions_with_flags(dex)
+                for method, flags, code_off in definitions:
+                    if method != run_method or not code_off:
+                        continue
+                    run_method_found = True
+                    this_register = (
+                        None if flags & ACC_STATIC
+                        else dex.u16(code_off) - dex.u16(code_off + 2)
+                    )
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op != 0x54:  # iget-object
+                            continue
+                        field_ref = field_id(dex, words[1])
+                        if field_ref[2] not in relevant_field_types:
+                            continue
+                        receiver = (words[0] >> 12) & 15
+                        if receiver != this_register:
+                            continue
+                        run_field_refs[field_ref] = {
+                            "read_ordinal": ordinal,
+                            "field_declaring_owner": field_ref[0],
+                            "field_type": field_ref[2],
+                        }
+
+                for method, flags, code_off in definitions:
+                    if (
+                        method[0] != runner_owner
+                        or method[1] != "<init>"
+                        or not code_off
+                    ):
+                        continue
+                    if len(constructor_methods) >= max_constructors:
+                        raise ValueError("PLAYLIST_RUNNER_CONSTRUCTOR_LIMIT")
+                    constructor_methods.append(method)
+                    writer_rows = []
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in (0x5b, 0x67):  # iput-object / sput-object
+                            continue
+                        field_ref = field_id(dex, words[1])
+                        if field_ref not in run_field_refs:
+                            continue
+                        if op == 0x5b:
+                            value_register = (words[0] >> 8) & 15
+                            receiver_register = (words[0] >> 12) & 15
+                            receiver_is_this = receiver_register == (
+                                None if flags & ACC_STATIC
+                                else dex.u16(code_off) - dex.u16(code_off + 2)
+                            )
+                        else:
+                            value_register = (words[0] >> 8) & 0xff
+                            receiver_register = None
+                            receiver_is_this = False
+                        writer_rows.append({
+                            "ordinal": ordinal,
+                            "field_declaring_owner": field_ref[0],
+                            "field_type": field_ref[2],
+                            "value_register": value_register,
+                            "receiver_register": receiver_register,
+                            "receiver_is_this": receiver_is_this,
+                        })
+                    try:
+                        trace = trace_identity_method(
+                            dex, method, flags, code_off,
+                            extra_identity_types=extra_types,
+                            track_fields_from_any_receiver=True,
+                        )
+                    except (ValueError, DexError) as exc:
+                        reason = str(exc)
+                        safe_code = (
+                            reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                            else "UNCLASSIFIED_TRACE_ERROR"
+                        )
+                        trace = {
+                            "trace_failed": True,
+                            "error_class": type(exc).__name__,
+                            "error_code": safe_code,
+                        }
+                    trace_events = trace.get("events", ()) if isinstance(trace, dict) else ()
+                    for writer in writer_rows:
+                        writer["identity_store_events"] = [
+                            event for event in trace_events
+                            if event.get("ordinal") == writer["ordinal"]
+                            and event.get("kind") == "INSTANCE_FIELD_STORE_TYPED_IDENTITY"
+                        ]
+                    constructor_traces.append({
+                        "method": {
+                            "owner": method[0],
+                            "method": method[1],
+                            "signature": method[2],
+                        },
+                        "field_writers": writer_rows,
+                        "trace": trace,
+                    })
+
+    constructor_targets = set(constructor_methods)
+    constructor_callers = {}
+    constructor_call_sites = []
+    if constructor_targets:
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                        continue
+                    dex = Dex(archive.read(entry))
+                    for method, flags, code_off in method_definitions_with_flags(dex):
+                        if not code_off:
+                            continue
+                        caller_key = (method[0], method[1], method[2])
+                        matched_sites = []
+                        for ordinal, op, words in instructions(dex, code_off):
+                            if op not in INVOKES:
+                                continue
+                            callee = dex.method(words[1])
+                            if callee in constructor_targets:
+                                matched_sites.append((ordinal, op, callee))
+                        if not matched_sites:
+                            continue
+                        if len(constructor_callers) >= PLAYLIST_UPDATE_CALLER_LIMIT and caller_key not in constructor_callers:
+                            raise ValueError("PLAYLIST_RUNNER_CONSTRUCTOR_CALLER_LIMIT")
+                        for ordinal, op, callee in matched_sites:
+                            constructor_call_sites.append({
+                                "caller": {
+                                    "owner": method[0],
+                                    "method": method[1],
+                                    "signature": method[2],
+                                },
+                                "target": {
+                                    "owner": callee[0],
+                                    "method": callee[1],
+                                    "signature": callee[2],
+                                },
+                                "ordinal": ordinal,
+                                "invoke_opcode": op,
+                            })
+                        if caller_key not in constructor_callers:
+                            try:
+                                constructor_callers[caller_key] = trace_identity_method(
+                                    dex, method, flags, code_off,
+                                    capture_argument_provenance_targets=constructor_targets,
+                                    extra_identity_types=extra_types,
+                                    track_fields_from_any_receiver=True,
+                                )
+                            except (ValueError, DexError) as exc:
+                                reason = str(exc)
+                                safe_code = (
+                                    reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                                    else "UNCLASSIFIED_TRACE_ERROR"
+                                )
+                                constructor_callers[caller_key] = {
+                                    "trace_failed": True,
+                                    "error_class": type(exc).__name__,
+                                    "error_code": safe_code,
+                                }
+
+    field_type_counts = {}
+    for field_ref in run_field_refs:
+        field_type_counts[field_ref[2]] = field_type_counts.get(field_ref[2], 0) + 1
+    return {
+        "bounded": True,
+        "runner_owner": runner_owner,
+        "runner_profile": runner_profile,
+        "run_method": {
+            "owner": run_method[0],
+            "method": run_method[1],
+            "signature": run_method[2],
+        },
+        "run_method_found": run_method_found,
+        "run_field_read_count": len(run_field_refs),
+        "run_field_reads": sorted(
+            run_field_refs.values(),
+            key=lambda row: (row["read_ordinal"], row["field_type"]),
+        ),
+        "run_field_type_counts": field_type_counts,
+        "unique_list_field": field_type_counts.get("Ljava/util/List;", 0) == 1,
+        "unique_callback_field": field_type_counts.get("LLl6$c;", 0) == 1,
+        "constructor_method_count": len(constructor_methods),
+        "constructor_traces": constructor_traces,
+        "constructor_callsite_count": len(constructor_call_sites),
+        "distinct_constructor_caller_count": len(constructor_callers),
+        "constructor_call_sites": constructor_call_sites,
+        "constructor_caller_traces": [
+            {
+                "caller": {
+                    "owner": key[0],
+                    "method": key[1],
+                    "signature": key[2],
+                },
+                "trace": value,
+            }
+            for key, value in sorted(constructor_callers.items())
+        ],
+        "field_names_or_values_disclosed": False,
+        "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
 def inspect_exact_playlist_callback_contract(apks, class_profiles):
     """Trace the exact LLl6$c callback contract implemented by LXk6."""
     target = PLAYLIST_CALLBACK_INTERFACE_TARGET
@@ -9684,8 +9909,12 @@ def inspect_exact_playlist_callback_contract(apks, class_profiles):
                                 "interface_receiver_cfg": receiver_trace,
                             }
 
+    runner_construction = inspect_exact_playlist_runner_construction(
+        apks, class_profiles
+    )
     return {
         "bounded": True,
+        "runner_construction": runner_construction,
         "interface": {
             "owner": interface_owner,
             "method": target[1],

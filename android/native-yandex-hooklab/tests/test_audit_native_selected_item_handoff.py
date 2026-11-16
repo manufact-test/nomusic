@@ -10,6 +10,7 @@ from audit_native_selected_item_handoff import (
     trace_identity_method, inspect_exact_playlist_update_callers,
     inspect_exact_playlist_update_method_handle_sites,
     inspect_exact_playlist_callback_contract,
+    inspect_exact_playlist_runner_construction,
     select_next_identity_method_refs,
     build_dex_control_flow,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
@@ -3349,6 +3350,134 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(len(result["list_get_receiver_traces"]), 1)
         self.assertEqual(argument_trace.call_count, 1)
         self.assertEqual(receiver_trace.call_count, 2)
+
+
+    def test_exact_playlist_runner_construction_traces_field_writers_and_callers(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        run_method = ("LKl6;", "run", "()V")
+        constructor = ("LKl6;", "<init>", "(LLl6$c;LXi6$e;Ljava/util/List;)V")
+        caller = ("LPlaylistOwner;", "schedule", "()V")
+        field_refs = {
+            1: ("LKl6;", "callback", "LLl6$c;"),
+            2: ("LKl6;", "entry", "LXi6$e;"),
+            3: ("LKl6;", "items", "Ljava/util/List;"),
+        }
+
+        class FakeDex:
+            def __init__(self, _data):
+                pass
+            def u16(self, offset):
+                return {
+                    100: 5, 102: 1,
+                    200: 5, 202: 4,
+                    300: 5, 302: 1,
+                }[offset]
+            def method(self, index):
+                return constructor if index == 9 else ("LOther;", "other", "()V")
+
+        class_profiles = {
+            "LKl6;": {
+                "is_interface": False,
+                "is_abstract": False,
+                "superclass": "Ljava/lang/Object;",
+                "interfaces": set(),
+                "instance_field_type_descriptors": [
+                    "LLl6$c;", "LXi6$e;", "Ljava/util/List;",
+                ],
+                "static_field_type_descriptors": [],
+            }
+        }
+
+        def fake_instructions(_dex, code_off):
+            if code_off == 100:
+                return [
+                    (10, 0x54, [0x4054, 1]),
+                    (12, 0x54, [0x4054, 2]),
+                    (14, 0x54, [0x4054, 3]),
+                ]
+            if code_off == 200:
+                return [
+                    (2, 0x5b, [0x105b, 1]),
+                    (3, 0x5b, [0x105b, 2]),
+                    (4, 0x5b, [0x105b, 3]),
+                ]
+            if code_off == 300:
+                return [(5, 0x70, [0x0070, 9])]
+            return []
+
+        def fake_trace(_dex, method, _flags, _code_off, **_kwargs):
+            if method == constructor:
+                return {
+                    "events": [
+                        {
+                            "ordinal": 2,
+                            "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                            "identity_type": "EXTRA_OBJECT:LLl6$c;",
+                            "origins": ["CALLER_TYPED_PARAMETER"],
+                        },
+                        {
+                            "ordinal": 3,
+                            "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                            "identity_type": "EXTRA_OBJECT:LXi6$e;",
+                            "origins": ["CALLER_TYPED_PARAMETER"],
+                        },
+                        {
+                            "ordinal": 4,
+                            "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                            "identity_type": "EXTRA_OBJECT:Ljava/util/List;",
+                            "origins": ["CALLER_TYPED_PARAMETER"],
+                        },
+                    ]
+                }
+            return {"events": []}
+
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex):
+                with patch(
+                    "audit_native_selected_item_handoff.method_definitions_with_flags",
+                    return_value=[
+                        (run_method, 0, 100),
+                        (constructor, 0, 200),
+                        (caller, 0, 300),
+                    ],
+                ):
+                    with patch("audit_native_selected_item_handoff.instructions",
+                               side_effect=fake_instructions):
+                        with patch("audit_native_selected_item_handoff.field_id",
+                                   side_effect=lambda _dex, index: field_refs[index]):
+                            with patch("audit_native_selected_item_handoff.trace_identity_method",
+                                       side_effect=fake_trace) as trace:
+                                result = inspect_exact_playlist_runner_construction(
+                                    [apk], class_profiles
+                                )
+
+        self.assertTrue(result["run_method_found"])
+        self.assertEqual(result["run_field_read_count"], 3)
+        self.assertTrue(result["unique_list_field"])
+        self.assertTrue(result["unique_callback_field"])
+        self.assertEqual(result["constructor_method_count"], 1)
+        self.assertEqual(result["constructor_callsite_count"], 1)
+        self.assertEqual(result["distinct_constructor_caller_count"], 1)
+        self.assertEqual(
+            len(result["constructor_traces"][0]["field_writers"]),
+            3,
+        )
+        list_writer = next(
+            row for row in result["constructor_traces"][0]["field_writers"]
+            if row["field_type"] == "Ljava/util/List;"
+        )
+        self.assertEqual(
+            list_writer["identity_store_events"][0]["origins"],
+            ["CALLER_TYPED_PARAMETER"],
+        )
+        self.assertEqual(trace.call_count, 2)
 
 
 if __name__ == "__main__":
