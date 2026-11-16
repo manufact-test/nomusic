@@ -40,7 +40,8 @@ from audit_native_selected_item_handoff import (
     exact_track_return_owner_scope,
     exact_parameter_field_store_refs, local_object_register_origin,
     dex_type_assignable_to, trace_exact_object_receiver_call_cfg,
-    trace_exact_object_method_body, trace_track_identity_method_cfg
+    trace_exact_object_method_body, trace_track_identity_method_cfg,
+    inspect_exact_track_wrapper_handoff
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -3789,6 +3790,213 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["player_mutator_callsite_count_in_direct_callers"], 1)
         self.assertEqual(result["same_media_item_player_mutator_edges"], [])
         self.assertFalse(result["same_media_item_to_player_mutator_proven"])
+
+
+    def test_exact_track_wrapper_handoff_follows_only_same_wrapper_identity(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        target = (
+            "Lqj8;", "if",
+            "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
+        )
+        caller = (
+            "LIEa;", "new",
+            "(LIEa;Lqj8;LtCa;Lru/yandex/music/data/audio/o;Lnk0;ZLOe2;)Ljava/lang/Object;",
+        )
+        descriptor = {
+            "owner": DESCRIPTOR_BUILDER[0],
+            "method": DESCRIPTOR_BUILDER[1],
+            "signature": "(LtCa;)Ljava/lang/Object;",
+        }
+
+        class FakeDex:
+            def __init__(self, _data):
+                pass
+            def method(self, index):
+                return {1: target}[index]
+
+        def fake_instructions(_dex, code_off):
+            if code_off == 100:
+                return [(12, 0x6e, [0x006e, 1])]
+            return []
+
+        def fake_trace(_dex, method, _flags, _code_off):
+            if method == caller:
+                return {
+                    "method": {
+                        "owner": caller[0], "method": caller[1],
+                        "signature": caller[2],
+                    },
+                    "events": [{
+                        "kind": "CALL_WITH_TYPED_IDENTITY",
+                        "callee": {
+                            "owner": target[0], "method": target[1],
+                            "signature": target[2],
+                        },
+                        "identity_is_common_to_all_incoming_paths": True,
+                        "identity_arguments": [{
+                            "argument_position": 1,
+                            "declared_argument_type": "LtCa;",
+                            "identity_type": "TRACK_WRAPPER",
+                            "origins": ["TRACK_WRAPPER_PARAMETER"],
+                        }],
+                    }],
+                    "reachable_instruction_count": 90,
+                    "branch_count": 12,
+                    "path_state_count": 104,
+                    "processed_state_count": 104,
+                }
+            if method == target:
+                return {
+                    "method": {
+                        "owner": target[0], "method": target[1],
+                        "signature": target[2],
+                    },
+                    "events": [
+                        {
+                            "kind": "CALL_WITH_TYPED_IDENTITY",
+                            "callee": descriptor,
+                            "identity_is_common_to_all_incoming_paths": True,
+                            "identity_arguments": [{
+                                "argument_position": 0,
+                                "declared_argument_type": "LtCa;",
+                                "identity_type": "TRACK_WRAPPER",
+                                "origins": ["TRACK_WRAPPER_PARAMETER"],
+                            }],
+                            "role": "NATIVE_SOURCE_DESCRIPTOR",
+                        },
+                        {
+                            "kind": "CALL_WITH_POSSIBLE_IDENTITY",
+                            "callee": {
+                                "owner": "LUnknown;", "method": "forward",
+                                "signature": "(LtCa;)V",
+                            },
+                            "identity_is_common_to_all_incoming_paths": False,
+                            "possible_identity_arguments": [{
+                                "argument_position": 0,
+                                "declared_argument_type": "LtCa;",
+                                "identity_type": "TRACK_WRAPPER",
+                                "possible_origins": ["TRACK_WRAPPER_PARAMETER"],
+                            }],
+                            "role": "OTHER_METHOD",
+                        },
+                    ],
+                    "reachable_instruction_count": 74,
+                    "branch_count": 12,
+                    "path_state_count": 104,
+                    "processed_state_count": 104,
+                }
+            raise AssertionError("unexpected trace target")
+
+        definitions = [
+            (caller, 0x8, 100),
+            (target, 0x8, 200),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       return_value=definitions), \
+                 patch("audit_native_selected_item_handoff.instructions",
+                       side_effect=fake_instructions), \
+                 patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
+                       side_effect=fake_trace) as trace:
+                result = inspect_exact_track_wrapper_handoff([apk] * 6)
+
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["signed_dex_count"], 6)
+        self.assertEqual(result["direct_callsite_count"], 6)
+        self.assertEqual(result["distinct_direct_caller_count"], 1)
+        self.assertTrue(result["same_track_wrapper_to_target_proven"])
+        self.assertEqual(len(result["target_typed_wrapper_calls"]), 1)
+        self.assertEqual(len(result["target_possible_wrapper_calls"]), 1)
+        self.assertTrue(result["same_wrapper_to_native_source_descriptor_proven"])
+        self.assertFalse(result["same_wrapper_to_player_api_proven"])
+        self.assertTrue(result["complete_for_bounded_direct_caller_claim"])
+        self.assertEqual(trace.call_count, 2)
+
+    def test_exact_track_wrapper_handoff_does_not_promote_possible_aliases(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        target = (
+            "Lqj8;", "if",
+            "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
+        )
+        caller = ("LCaller;", "run", "()V")
+
+        class FakeDex:
+            def __init__(self, _data):
+                pass
+            def method(self, index):
+                return {1: target}[index]
+
+        def fake_trace(_dex, method, _flags, _code_off):
+            if method == target:
+                return {
+                    "method": {"owner": target[0], "method": target[1], "signature": target[2]},
+                    "events": [{
+                        "kind": "CALL_WITH_POSSIBLE_IDENTITY",
+                        "callee": {"owner": "LUnknown;", "method": "forward", "signature": "(LtCa;)V"},
+                        "identity_is_common_to_all_incoming_paths": False,
+                        "possible_identity_arguments": [{
+                            "argument_position": 0,
+                            "declared_argument_type": "LtCa;",
+                            "identity_type": "TRACK_WRAPPER",
+                            "possible_origins": ["TRACK_WRAPPER_PARAMETER"],
+                        }],
+                        "role": "OTHER_METHOD",
+                    }],
+                    "reachable_instruction_count": 10,
+                    "branch_count": 2,
+                    "path_state_count": 4,
+                    "processed_state_count": 4,
+                }
+            return {
+                "method": {"owner": caller[0], "method": caller[1], "signature": caller[2]},
+                "events": [{
+                    "kind": "CALL_WITH_POSSIBLE_IDENTITY",
+                    "callee": {"owner": target[0], "method": target[1], "signature": target[2]},
+                    "identity_is_common_to_all_incoming_paths": False,
+                    "possible_identity_arguments": [{
+                        "argument_position": 1,
+                        "declared_argument_type": "LtCa;",
+                        "identity_type": "TRACK_WRAPPER",
+                        "possible_origins": ["TRACK_WRAPPER_PARAMETER"],
+                    }],
+                }],
+                "reachable_instruction_count": 10,
+                "branch_count": 2,
+                "path_state_count": 4,
+                "processed_state_count": 4,
+            }
+
+        definitions = [(caller, 0x8, 100), (target, 0x8, 200)]
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       return_value=definitions), \
+                 patch("audit_native_selected_item_handoff.instructions",
+                       return_value=[(3, 0x6e, [0x006e, 1])]), \
+                 patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
+                       side_effect=fake_trace):
+                result = inspect_exact_track_wrapper_handoff([apk] * 6)
+
+        self.assertFalse(result["same_track_wrapper_to_target_proven"])
+        self.assertEqual(result["target_typed_wrapper_calls"], [])
+        self.assertEqual(len(result["target_possible_wrapper_calls"]), 1)
+        self.assertTrue(result["complete_for_bounded_direct_caller_claim"])
+
 
 
 if __name__ == "__main__":
