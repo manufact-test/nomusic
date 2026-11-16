@@ -4,6 +4,7 @@
 **Рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 **Последний зелёный статический код:** `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a`
 **Backup:** `backup/android-a1-lft2-class-structure-ci-green-20261116`
+**Pre-documentation backup:** `backup/android-a1-before-yandex-media3-research-handoff-20261116` @ `a324963b84876a88513bc1d208a42519489c397f`
 **Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a` — hooks не менялись.
 **CI #12:** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/43909098407
 
@@ -21,6 +22,16 @@
 - **LfT2 закрыт:** CI #12 доказывает, что это final class extends Object, поля `LdA9;/LtCa;/LgA9;`, только constructor/equals/hashCode/toString, **нет invokeSuspend и другого continuation**. Все непосредственные чтения `LtCa;` ведут только в equals/hashCode/toString, не в source/Player. Не повторять LfT2.
 - `LiLb`, `LXk6` и отдельный ByteBuffer sink census ранее закрыты.
 - Stage A/NAV17 **PASS** (родная музыка Яндекса играет), Stage B **NO-GO** (CELIKOM replacement audio не связан с активным decoder).
+
+### Что ещё нашли в сохранённом исследовании Яндекса (важно)
+
+**Не потеряй эту зацепку:** `docs/android/ANDROID-A1-YANDEX-MEDIA3-RESEARCH-RECOVERED-20261116.md`. Это индекс предыдущих исследований и официальной справки Android, а не новое исследование.
+
+- Официальный Media3/ExoPlayer предоставляет **прямые** `setMediaSource/addMediaSource/setMediaSources` с объектом `MediaSource`. Искать исключительно через `MediaItem` — неправильно; конкретный путь официального Яндекса этим **не доказан**.
+- В подписанной версии Яндекса 2025.10.4 существует **реальный** `RAa.invokeSuspend`: CI #43696198020 SUCCESS подтвердил повторный вызов `download2.o.for` с **тем же объектом continuation** и с явно `null` аргументом TrackWrapper. В раннем исследовании были уже реализованы read-only weak-reference checks восстановления identity через этот же RAa. Это не `LfT2`, который закрыт. Повторять старое исследование RAa/Fp0 без нового факта не нужно.
+- В цепочке `download2.o.while → exo.c.for → RetryingBalancingDataSource → open/read/close` уже существуют статическая проверка и read-only lifecycle свидетели. Они **не** отличают реально выбранный звучащий трек от prefetch/offline; Stage B остаётся NO-GO.
+- Справка Яндекса про VPN/сеть объясняет потенциальные остановки звука, но **не** раскрывает внутреннюю архитектуру приложения. Сторонние клиенты YaMuLite/yt-dlp не переносить как доказательство.
+- Изменения последнего чата **только в GitHub-документах**; никаких runtime-hook/APK/оригинального Яндекса.
 
 ### Следующий блок
 Не начинай новую глобальную трассировку. По уже проверенной 2025 NAV17 базе ищи только **новое узкое, доказуемое** selected-Track → ACTIVE (не prefetch) native source/decoder same-object ребро. Предыдущие Exo factory→open/read witnesses доказывают продолжение source instance, **но не selected track identity**. Любой кандидат — сначала точная class/method identity; только потом bounded trace. Учитывать MediaSource APIs; не зацикливаться на MediaItem.
