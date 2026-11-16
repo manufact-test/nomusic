@@ -2,6 +2,9 @@ namespace Celikom.Companion;
 
 public static class CompactPlaybackPresentation
 {
+    public const string VersionAvailableMessage = "Версия CELIKOM доступна";
+    public const string ServiceEnabledMessage = "Сервис включён";
+
     public const string ConnectingMessage = "Подключаем CELIKOM к текущему плееру…";
     public const string NetworkRecoveryMessage =
         "Проверяем соединение в фоне. Текущий звук не переключаем.";
