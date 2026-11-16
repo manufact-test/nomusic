@@ -1275,7 +1275,7 @@ try
          !PlaybackSourceEvidence.Verified(true,
              "NATIVE_MAPPING_ACCEPTED", "approved") &&
          CompactPlaybackPresentation.VersionAvailableMessage == "Версия CELIKOM доступна" &&
-         CompactPlaybackPresentation.ActiveVersionMessage == "Играет полная версия CELIKOM" &&
+         CompactPlaybackPresentation.ActiveVersionMessage == "Играет версия CELIKOM" &&
          CompactPlaybackPresentation.ServiceEnabledMessage == "Сервис включён",
          "W159 a mapped current track keeps neutral availability copy after VPN recovery and Next");
     Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
@@ -1383,6 +1383,7 @@ try
     Test(CompactPlaybackPresentation.ConnectingMessage ==
              "Подождите, идёт подключение\nк приложению Яндекса." &&
          CompactPlaybackPresentation.TrackStatusBottomSpacingPx == 18 &&
+         CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 8 &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PLAYING") == "Музыка продолжает играть." &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PAUSED") == "Пауза" &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("UNKNOWN") == "Проверяем состояние воспроизведения…" &&

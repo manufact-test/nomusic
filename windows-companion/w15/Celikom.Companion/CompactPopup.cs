@@ -858,7 +858,7 @@ public sealed partial class MainWindow
                 (_compactTrack, 32, trackGap, showTrack),
                 (_compactTrackArtist, 25, artistGap, showArtist),
                 (_compactVersionStatus, 40,
-                    CompactPlaybackPresentation.TrackStatusBottomSpacingPx, showVersionStatus),
+                    CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx, showVersionStatus),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?
                     54 + CompactSupportBodyHeight() : 35, 8, true),
