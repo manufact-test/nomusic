@@ -1028,7 +1028,7 @@ def trace_identity_method(
                     "ordinal": ordinal,
                     "kind": "FIELD_READ_TYPED_IDENTITY",
                     "identity_type": tracked_types[field_type],
-                    "field_declaring_owner": owner,
+                    "field_declaring_owner": field_owner,
                     "receiver_register": receiver,
                     "receiver_is_this": receiver == this_register,
                     "receiver_identity_origins": receiver_identity_origins,
