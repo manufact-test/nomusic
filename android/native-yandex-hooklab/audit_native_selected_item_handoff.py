@@ -8451,6 +8451,9 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
         raise ValueError("PLAYER_OBJECT_GETTER_CANDIDATE_LIMIT")
 
     candidate_keys = set(candidate_contracts)
+    candidate_signatures = {
+        (method[1], method[2]) for method in candidate_contracts.values()
+    }
     candidate_types = {
         method[2].split(")", 1)[1]
         for method in candidate_contracts.values()
@@ -8468,7 +8471,7 @@ def inspect_media3_player_object_getters(apks, class_profiles, player_contracts)
                 for method, flags, code_off in declared_method_contracts_for_owners(
                     dex, scope_owners
                 ):
-                    if (method[0], method[1], method[2]) in candidate_keys:
+                    if (method[1], method[2]) in candidate_signatures:
                         key = (method[0], method[1], method[2])
                         if key in declarations:
                             raise DexError("PLAYER_OBJECT_GETTER_DUPLICATE_DECLARATION")
@@ -8726,6 +8729,297 @@ def inspect_media3_item_source_timeline_contracts(
         "timeline_exact_class_defined": MEDIA3_TIMELINE in class_profiles,
         "private_field_names_or_values_disclosed": False,
         "field_values_media_ids_urls_dataspec_tokens_or_audio_read": False,
+    }
+
+
+
+
+
+
+def inspect_media3_player_item_identity_contracts(
+    apks, class_profiles, player_contracts, player_object_getters
+):
+    """Trace exact Player getter/setter contracts for MediaItem-shaped return types."""
+    player_interface = "LfH7;"
+    scope_owners = set(player_contracts.get("scope_owners", ()))
+    if not player_contracts.get("bounded") or not scope_owners:
+        return {
+            "bounded": False,
+            "reason": "PLAYER_ANCESTRY_NOT_BOUNDED",
+            "candidate_item_types": [],
+            "player_item_contracts": [],
+            "item_constructor_callers": [],
+        }
+
+    getter_rows = [
+        row for row in player_object_getters.get("candidates", ())
+        if row["interface_method"]["owner"] == player_interface
+        and row["interface_method"]["signature"].startswith("()L")
+    ]
+    candidate_types = sorted({
+        row["return_type_descriptor"] for row in getter_rows
+        if row["return_type_descriptor"].startswith("L")
+    })
+    contract_rows = player_contracts.get("scope_method_contract_rows", ())
+    candidate_contracts = {}
+    for item_type in candidate_types:
+        related = [
+            row for row in contract_rows
+            if row["owner"] == player_interface
+            and (
+                item_type in parse_types(row["signature"])
+                or row["signature"].split(")", 1)[1] == item_type
+            )
+        ]
+        if related:
+            candidate_contracts[item_type] = related
+    if len(candidate_contracts) > 24:
+        raise ValueError("PLAYER_ITEM_TYPE_CONTRACT_LIMIT")
+
+    target_keys = {
+        (row["method"], row["signature"])
+        for rows in candidate_contracts.values() for row in rows
+    }
+    declarations = {}
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in declared_method_contracts_for_owners(
+                    dex, scope_owners
+                ):
+                    if (method[1], method[2]) not in target_keys:
+                        continue
+                    key = (method[0], method[1], method[2])
+                    if key in declarations:
+                        raise DexError("PLAYER_ITEM_CONTRACT_DUPLICATE_DECLARATION")
+                    declarations[key] = (method, flags, code_off, dex)
+
+    def class_chain(owner):
+        chain = []
+        seen = set()
+        current = owner
+        while current and current != "Ljava/lang/Object;" and current not in seen:
+            seen.add(current)
+            chain.append(current)
+            current = class_profiles.get(current, {}).get("superclass")
+        return chain
+
+    def interface_declaration(owner, name, signature):
+        pending = []
+        for class_owner in class_chain(owner):
+            pending.extend(class_profiles.get(class_owner, {}).get("interfaces", ()))
+        visited = set()
+        while pending:
+            interface = pending.pop(0)
+            if interface in visited:
+                continue
+            visited.add(interface)
+            if (interface, name, signature) in declarations:
+                return interface
+            pending.extend(class_profiles.get(interface, {}).get("interfaces", ()))
+        return None
+
+    item_contracts_out = []
+    item_type_targets = {}
+    for item_type, rows in sorted(candidate_contracts.items()):
+        contract_out = []
+        targets = set()
+        for row in rows:
+            name, signature = row["method"], row["signature"]
+            method_declarations = []
+            for implementor in player_contracts.get("implementors", ()):
+                chain = class_chain(implementor)
+                declaration_owner = next(
+                    (owner for owner in chain
+                     if (owner, name, signature) in declarations),
+                    None
+                )
+                if declaration_owner is None:
+                    declaration_owner = interface_declaration(
+                        implementor, name, signature
+                    )
+                declaration = declarations.get(
+                    (declaration_owner, name, signature)
+                )
+                body_trace = None
+                if declaration and declaration[2]:
+                    method, flags, code_off, dex = declaration
+                    body_trace = trace_identity_method(
+                        dex, method, flags, code_off,
+                        extra_identity_types=[item_type],
+                        track_fields_from_any_receiver=True,
+                    )
+                method_declarations.append({
+                    "implementor": implementor,
+                    "declaring_owner": declaration_owner,
+                    "declaration_kind": (
+                        "CLASS" if declaration_owner in chain else "INTERFACE"
+                    ) if declaration_owner else None,
+                    "body_declared": bool(declaration and declaration[2]),
+                    "identity_trace": body_trace,
+                })
+            for owner, method_name, method_signature in declarations:
+                if method_name == name and method_signature == signature:
+                    targets.add((owner, method_name, method_signature))
+            contract_out.append({
+                "interface_method": {
+                    "owner": row["owner"],
+                    "method": name,
+                    "signature": signature,
+                    "role": row["role"],
+                },
+                "effective_implementations": method_declarations,
+            })
+        item_type_targets[item_type] = targets
+        item_contracts_out.append({
+            "candidate_item_type": item_type,
+            "candidate_type_profile": privacy_safe_flow_class_profile(
+                class_profiles.get(item_type)
+            ),
+            "related_player_contract_count": len(rows),
+            "related_player_contracts": contract_out,
+        })
+
+    # The most strongly typed candidate is the type that has both a getter and
+    # multiple Player mutation contracts (set/add MediaItem-shaped methods).
+    ranked = sorted(
+        candidate_contracts.items(),
+        key=lambda item: (
+            -sum(item[0] in parse_types(row["signature"]) for row in item[1]),
+            -len(item[1]),
+            item[0],
+        )
+    )
+    item_type = ranked[0][0] if ranked else None
+    constructor_targets = set()
+    if item_type:
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                        continue
+                    dex = Dex(archive.read(entry))
+                    for method, flags, code_off in declared_method_contracts_for_owners(
+                        dex, {item_type}
+                    ):
+                        result_type = method[2].split(")", 1)[1]
+                        if method[1] == "<init>" or result_type == item_type:
+                            constructor_targets.add(
+                                (method[0], method[1], method[2])
+                            )
+    player_targets = set()
+    if item_type:
+        for owner, name, signature in target_keys:
+            if item_type in parse_types(signature) or signature.split(")", 1)[1] == item_type:
+                player_targets.update(
+                    key for key in declarations
+                    if key[1] == name and key[2] == signature
+                )
+    all_targets = constructor_targets | player_targets
+    if len(all_targets) > 128:
+        raise ValueError("PLAYER_ITEM_CALL_TARGET_LIMIT")
+
+    caller_rows = []
+    caller_traces = {}
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    owner_profile = classify_track_owner_profile(
+                        class_profiles.get(method[0], {})
+                    )
+                    signature_profile = method_signature_type_profile(method)
+                    has_native_identity = (
+                        signature_profile["accepts_track"]
+                        or signature_profile["accepts_album"]
+                        or signature_profile["accepts_track_wrapper"]
+                        or owner_profile["has_track_field"]
+                        or owner_profile["has_album_field"]
+                        or owner_profile["has_wrapper_field"]
+                    )
+                    if not has_native_identity:
+                        continue
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        callee = dex.method(words[1])
+                        if callee not in all_targets:
+                            continue
+                        if len(caller_rows) >= 256:
+                            raise ValueError("PLAYER_ITEM_CALLER_LIMIT")
+                        caller_key = (method[0], method[1], method[2])
+                        caller_rows.append({
+                            "caller": {
+                                "owner": method[0],
+                                "method": method[1],
+                                "signature": method[2],
+                            },
+                            "target": {
+                                "owner": callee[0],
+                                "method": callee[1],
+                                "signature": callee[2],
+                            },
+                            "ordinal": ordinal,
+                            "caller_accepts_track": signature_profile["accepts_track"],
+                            "caller_accepts_album": signature_profile["accepts_album"],
+                            "caller_accepts_wrapper": signature_profile["accepts_track_wrapper"],
+                            "caller_owner_has_track_field": owner_profile["has_track_field"],
+                            "caller_owner_has_album_field": owner_profile["has_album_field"],
+                            "caller_owner_has_wrapper_field": owner_profile["has_wrapper_field"],
+                        })
+                        if caller_key not in caller_traces:
+                            if len(caller_traces) >= 64:
+                                raise ValueError("PLAYER_ITEM_CALLER_TRACE_LIMIT")
+                            caller_traces[caller_key] = trace_identity_method(
+                                dex, method, flags, code_off,
+                                extra_identity_types=[
+                                    item_type, "Landroid/net/Uri;", "Ljava/lang/String;"
+                                ] if item_type else [],
+                                track_fields_from_any_receiver=True,
+                            )
+
+    return {
+        "bounded": True,
+        "player_interface": player_interface,
+        "candidate_item_types": [
+            {
+                "descriptor": row["candidate_item_type"],
+                "player_contract_count": row["related_player_contract_count"],
+                "profile": row["candidate_type_profile"],
+            }
+            for row in item_contracts_out
+        ],
+        "player_item_contracts": item_contracts_out,
+        "selected_item_type_candidate": item_type,
+        "item_constructor_or_builder_callsite_count": len([
+            row for row in caller_rows
+            if row["target"]["owner"] == item_type
+        ]) if item_type else 0,
+        "player_setter_or_getter_callsite_count": len([
+            row for row in caller_rows
+            if row["target"]["owner"] in scope_owners
+        ]),
+        "native_track_related_callers": caller_rows,
+        "native_track_related_caller_identity_traces": [
+            {
+                "caller": {
+                    "owner": key[0], "method": key[1], "signature": key[2]
+                },
+                "trace": value,
+            }
+            for key, value in sorted(caller_traces.items())
+        ],
+        "runtime_player_instance_proven": False,
+        "active_selected_item_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "field_names_or_values_disclosed": False,
+        "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
     }
 
 
@@ -9348,6 +9642,9 @@ def inspect_signed(apks):
     media3_item_source_timeline_contracts = inspect_media3_item_source_timeline_contracts(
         apks, class_profiles, media3_player_object_getters
     )
+    media3_player_item_identity_contracts = inspect_media3_player_item_identity_contracts(
+        apks, class_profiles, media3_player_contracts, media3_player_object_getters
+    )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -9535,6 +9832,7 @@ def inspect_signed(apks):
         "media3_current_item_candidate": media3_current_item_candidate,
         "media3_player_object_getters": media3_player_object_getters,
         "media3_item_source_timeline_contracts": media3_item_source_timeline_contracts,
+        "media3_player_item_identity_contracts": media3_player_item_identity_contracts,
         "selected_state_static_summary": {
             "media_session_metadata_method_reference_count": sum(
                 x[1] in MEDIA_SESSION_METADATA_METHODS
