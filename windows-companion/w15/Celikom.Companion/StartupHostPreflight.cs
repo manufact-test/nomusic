@@ -24,7 +24,7 @@ public static class StartupHostPreflight
             YandexHostStatus.UnsupportedVersion =>
                 "Установленная версия Яндекс.Музыки пока не поддерживается.",
             YandexHostStatus.NotInstalled =>
-                "Яндекс.Музыка не найдена. Установи официальное приложение.",
+                "Яндекс Музыка не найдена. Установите официальное приложение.",
             YandexHostStatus.IncompleteInstallation =>
                 "Установка Яндекс.Музыки неполная. Проверь приложение.",
             YandexHostStatus.UntrustedExecutable or YandexHostStatus.UnknownAsar =>

@@ -34,8 +34,10 @@ public static class UserFacingPlaybackHealth
                 "Версия Яндекса пока не поддерживается. Дождись проверки совместимости CELIKOM.");
         if (vendor?.Status is YandexHostStatus.UntrustedExecutable or YandexHostStatus.UnknownAsar)
             return new(Severity.Error, "Файлы Яндекса не прошли проверку безопасности.");
-        if (vendor?.Status is YandexHostStatus.NotInstalled or YandexHostStatus.IncompleteInstallation)
-            return new(Severity.Error, "Яндекс.Музыка не найдена или установлена неполностью.");
+        if (vendor?.Status == YandexHostStatus.NotInstalled)
+            return new(Severity.Error, "Яндекс Музыка не найдена. Установите официальное приложение.");
+        if (vendor?.Status == YandexHostStatus.IncompleteInstallation)
+            return new(Severity.Error, "Яндекс Музыка установлена неполностью. Проверьте приложение.");
         return new(Severity.Neutral, "Яндекс ещё не подключён.");
     }
 
@@ -52,23 +54,25 @@ public static class UserFacingPlaybackHealth
         if (nativeStatus == "HOST_ERROR")
             return new(Severity.Error, "Не удалось подключить модуль Яндекса.");
         if (playbackState == "PAUSED")
-            return new(Severity.Neutral, "Пауза.");
+            return new(Severity.Neutral, "Пауза");
         if (playbackState == "STOPPED")
-            return new(Severity.Neutral, "Воспроизведение остановлено.");
+            return new(Severity.Neutral, "Воспроизведение остановлено");
         if (playbackState == "PLAYING")
         {
             if (source == "ACTIVE_REPLACEMENT" &&
                 nativeStatus == "NATIVE_SOURCE_VERIFIED")
-                return new(Severity.Good, "Подмена активна · версия CELIKOM");
+                return new(Severity.Good, CompactPlaybackPresentation.VersionAvailableMessage);
             if (source == "ORIGINAL" && nativeStatus == "NATIVE_ORIGINAL_SOURCE_VERIFIED")
                 return new(Severity.Neutral, presence == "approved"
                     ? "Играет оригинал. Версия CELIKOM доступна."
                     : "Играет оригинал.");
-            return new(Severity.Neutral, "Источник текущего трека не подтверждён.");
+            return new(Severity.Neutral, presence == "approved"
+                ? CompactPlaybackPresentation.VersionAvailableMessage
+                : "Трек играет. Проверяем доступность версии CELIKOM.");
         }
         if (nativeStatus == "NATIVE_SOURCE_FAILED")
-            return new(Severity.Error, "Не удалось подтвердить источник трека.");
-        return new(Severity.Neutral, "Ожидаем данные текущего плеера…");
+            return new(Severity.Error, "Не удалось подтвердить источник воспроизведения.");
+        return new(Severity.Neutral, "Ожидаем воспроизведения в Яндекс Музыке…");
     }
 
     // Only explicitly observed failures may become customer-facing errors.
@@ -79,7 +83,7 @@ public static class UserFacingPlaybackHealth
     {
         if (!serviceEnabled) return new(Severity.Neutral, "");
         if (nativeStatus == "NATIVE_SOURCE_FAILED")
-            return new(Severity.Error, "Подмена не подтвердилась. Источник текущего трека неизвестен.");
+            return new(Severity.Error, "Подмена не подтвердилась. Источник воспроизведения неизвестен.");
         if (nativeStatus == "HOST_ERROR")
             return new(Severity.Error, "Не удалось подключить модуль Яндекса.");
         if (nativeStatus == "NATIVE_ORIGINAL_SOURCE_VERIFIED" && versionPresence == "approved")

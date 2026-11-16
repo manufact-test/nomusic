@@ -165,8 +165,8 @@ public sealed partial class MainWindow
         _origin.Text = string.IsNullOrWhiteSpace(_api.Origin) ? DefaultApiOrigin : _api.Origin;
         // The browser popup uses a 292px minimum width. Windows retains its
         // native title bar; the *content* is matched without wide tabs.
-        ClientSize = new Size(308, 450);
-        MinimumSize = new Size(308, 440);
+        ClientSize = new Size(308, 470);
+        MinimumSize = new Size(308, 460);
         MaximumSize = new Size(308, 820);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -629,6 +629,11 @@ public sealed partial class MainWindow
         _start.Text = "Старт";
         var nativeStatus = _bridge.LastStatus;
         var heartbeatFresh = _bridge.HasFreshHeartbeat;
+        var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
+            connected && _bridge.Enabled, heartbeatFresh, _bridge.PlayerUnavailable,
+            _bridge.NativeNetworkRecoveryPending || _resumeAfterNetworkFailure);
+        var paused = heartbeatFresh && _bridge.Enabled && _bridge.LastPlaybackState == "PAUSED";
+        var stopped = heartbeatFresh && _bridge.Enabled && _bridge.LastPlaybackState == "STOPPED";
         if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
             _bridge.Enabled, heartbeatFresh, _bridge.PlayerUnavailable, nativeStatus))
         {
@@ -639,7 +644,7 @@ public sealed partial class MainWindow
         }
         // The only large-text message in the compact UI is actual startup.
         // Checking accounts, host preflight and warnings are internal states.
-        _compactStartup.Text = _compactStarting && _bridge.Enabled
+        _compactStartup.Text = _compactStarting
             ? CompactPlaybackPresentation.ConnectingMessage : "";
         _compactStartup.ForeColor = Accent;
 
@@ -662,6 +667,7 @@ public sealed partial class MainWindow
             _compactTrackArtist.Text = "";
         }
 
+        _compactTrack.ForeColor = !valid && paused && serviceConnected ? Accent : Ink;
         _compactUploadTrack.Text = _compactTrack.Text +
             (_compactTrackArtist.Text.Length > 0 ? " — " + _compactTrackArtist.Text : "");
         _compactSuggestTrack.Text = _compactUploadTrack.Text;
@@ -735,13 +741,12 @@ public sealed partial class MainWindow
             _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             networkRecoveryPending ? CompactPlaybackPresentation.NetworkRecoveryMessage :
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
-            activelyReplacing ? "Подмена активна" :
+            activelyReplacing ? CompactPlaybackPresentation.VersionAvailableMessage :
             originalPlaying ? trackHealth.Message :
             mappingOnly ? CompactPlaybackPresentation.VersionAvailableMessage :
-            _bridge.Enabled && _bridge.LastPlaybackState is "PAUSED" or "STOPPED"
-                ? trackHealth.Message :
-            _bridge.Enabled && !heartbeatFresh ? (_autorunAwaitingNativePlayer
-                ? "Ожидаем Яндекс Музыку" : "Ожидаем текущий плеер") :
+            paused ? "Пауза" :
+            stopped ? "Воспроизведение остановлено" :
+            _bridge.Enabled && !heartbeatFresh ? CompactPlaybackPresentation.ConnectingMessage :
             _compactPresenceStatus switch
             {
                 "approved" => CompactPlaybackPresentation.VersionAvailableMessage,
@@ -753,7 +758,7 @@ public sealed partial class MainWindow
         // A current mapped track uses the same neutral availability copy
         // before/after VPN recovery and Next. Only exact decoder proof is green.
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
-            activelyReplacing ? Accent : Secondary;
+            activelyReplacing || (paused && serviceConnected) ? Accent : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
@@ -789,7 +794,7 @@ public sealed partial class MainWindow
                 (_compactSuggestBody, _compactSuggestView == "form"
                     ? CompactSuggestFormHeight() : 130, 8, _compactSuggestOpen),
                 (_compactAccess, 35, 8, true),
-                (_compactTrack, 32, 0, true),
+                (_compactTrack, 32, 0, hasTrack || !_compactStarting),
                 (_compactTrackArtist, 25, 3, !string.IsNullOrWhiteSpace(_compactTrackArtist.Text)),
                 (_compactVersionStatus, 40, 8,
                     hasTrack || !string.IsNullOrWhiteSpace(_compactVersionStatus.Text) &&
@@ -803,7 +808,7 @@ public sealed partial class MainWindow
                     54 + CompactSupportBodyHeight() : 35, 8, true),
                 (_staffPanel, 29, 8, _diagnosticsAllowed)
             };
-            var contentHeight = 18 + rows.Where(r => r.visible).Sum(r => r.height + r.gap);
+            var contentHeight = 18 + rows.Where(r => r.visible).Sum(r => r.height + r.gap) + 20;
             _compactScrollMax = Math.Max(0, contentHeight - _compactScroll.ClientSize.Height);
             _compactScrollTop = Math.Clamp(_compactScrollTop, 0, _compactScrollMax);
             var showBar = _compactScrollMax > 0;

@@ -5,10 +5,10 @@ public static class CompactPlaybackPresentation
     public const string VersionAvailableMessage = "Версия CELIKOM доступна";
     public const string ServiceEnabledMessage = "Сервис включён";
 
-    public const string ConnectingMessage = "Подключаем CELIKOM к текущему плееру…";
+    public const string ConnectingMessage = "Подождите, идёт подключение к приложению Яндекса.";
     public const string NetworkRecoveryMessage = "Связь с сервером восстанавливается.";
     public const string StartupTimeoutMessage =
-        "Не удалось получить данные текущего плеера. Проверь окно Яндекс.Музыки и подключение CELIKOM.";
+        "Не удалось подключиться к Яндекс Музыке. Проверьте, что приложение открыто, и попробуйте ещё раз.";
 
     // A bridge permission is not a native Yandex connection. Only a fresh,
     // actual player/host heartbeat may complete silent Windows autorun.
@@ -23,6 +23,12 @@ public static class CompactPlaybackPresentation
         nativeStatus is null ? bridgeEnabled && heartbeatFresh :
             AutorunNativeConnected(bridgeEnabled, heartbeatFresh,
                 playerUnavailable, nativeStatus);
+
+    // Service connection is a live native-host heartbeat, not proof that the
+    // current track is using a CELIKOM decoder source.
+    public static bool ServiceConnected(bool bridgeEnabled, bool heartbeatFresh,
+        bool playerUnavailable, bool networkRecoveryPending) =>
+        bridgeEnabled && heartbeatFresh && !playerUnavailable && !networkRecoveryPending;
 
     public static string NetworkRecoveryPlaybackMessage(string? playbackState) => playbackState switch
     {
@@ -42,17 +48,18 @@ public static class CompactPlaybackPresentation
             if (recoveryPending) return NetworkRecoveryPlaybackMessage(playbackState);
             if (connectionPending) return ConnectingMessage;
             return signedIn
-                ? "Подмена выключена. Нажми «Старт», чтобы подключить текущий плеер."
-                : "Войди в аккаунт, чтобы подключить CELIKOM.";
+                ? "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке"
+                : "Войдите в аккаунт, чтобы подключить CELIKOM.";
         }
 
-        if (!heartbeatFresh) return "Ожидаем данные текущего плеера…";
+        if (connectionPending) return ConnectingMessage;
+        if (!heartbeatFresh) return "Ожидаем подключения Яндекс Музыки…";
         return playbackState switch
         {
             "PLAYING" => "Играет. Данные текущего трека недоступны.",
             "PAUSED" => "Пауза",
             "STOPPED" => "Воспроизведение остановлено",
-            _ => "Ожидаем текущий трек"
+            _ => "Ожидаем воспроизведения в Яндекс Музыке…"
         };
     }
 }

@@ -622,7 +622,7 @@ public sealed partial class MainWindow : Form
             _api.Settings.InstallationId == account.InstallationId &&
             _api.Settings.Email == account.Email;
         _compactStarting = true;
-        _compactStartupText = "Проверяем Яндекс.Музыку…";
+        _compactStartupText = CompactPlaybackPresentation.ConnectingMessage;
         RenderCompact();
         LayoutCompact();
         UpdateSafe(); // disable duplicate Start clicks while host/entitlement checks are pending
@@ -1144,7 +1144,7 @@ public sealed partial class MainWindow : Form
                 DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_DENIED");
                 return;
             }
-            _compactStartupText = "Подождите, идёт загрузка Яндекс.Музыки…";
+            _compactStartupText = CompactPlaybackPresentation.ConnectingMessage;
             RenderCompact();
             LayoutCompact();
             DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_REQUEST" : "NATIVE_INSTALL_REQUEST");
@@ -1176,7 +1176,7 @@ public sealed partial class MainWindow : Form
             _bridge.SetEnabled(allowedNow);
             if (allowedNow) WindowsLaunchSettings.RememberPlayback(account, enabled: true);
             _compactStartupText = allowedNow
-                ? "Подождите, идёт загрузка Яндекс.Музыки…"
+                ? CompactPlaybackPresentation.ConnectingMessage
                 : "Доступ не подтверждён. Нажми «Старт» после проверки подписки.";
             _compactStarting = allowedNow;
             if (allowedNow) _ = MonitorStartupAsync(generation);
@@ -1603,6 +1603,9 @@ public sealed partial class MainWindow : Form
         var switchAvailable = connected && _nativeInstallState == NativeInstallState.Active &&
             _installedModule.MatchesApplication;
         var heartbeatFresh = _bridge.HasFreshHeartbeat;
+        var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
+            switchAvailable && _bridge.Enabled, heartbeatFresh, _bridge.PlayerUnavailable,
+            _bridge.NativeNetworkRecoveryPending || _resumeAfterNetworkFailure);
         var sourceVerified = heartbeatFresh &&
             _bridge.LastSource == "ACTIVE_REPLACEMENT" &&
             _bridge.LastPlaybackState == "PLAYING" &&
@@ -1620,33 +1623,36 @@ public sealed partial class MainWindow : Form
             _compactStarting, switchAvailable, _bridge.Enabled, _closing,
             _resumeAfterNetworkFailure);
         _stop.Enabled = switchAvailable && (_bridge.Enabled || _resumeAfterNetworkFailure);
-        _connectionMark.ForeColor = sourceVerified
+        _connectionMark.ForeColor = serviceConnected
             ? Accent : ColorTranslator.FromHtml("#858B8E");
         _connectionState.Text = !connected ? "Войти в аккаунт" :
             !switchAvailable ? "Нужно подключить" :
-            !_bridge.Enabled ? (_resumeAfterNetworkFailure ? "Связь восстанавливается" : "Выключен") :
             _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
-            !heartbeatFresh ? (_autorunAwaitingNativePlayer
-                ? "Ожидаем Яндекс Музыку" : "Нет данных плеера") :
-            sourceVerified ? "Подмена активна" :
-            originalPlaying ? "Играет оригинал" :
-            paused ? "Пауза" : stopped ? "Остановлено" :
-            CompactPlaybackPresentation.ServiceEnabledMessage;
-        _connectionState.ForeColor = sourceVerified ? Accent : Secondary;
-        _switchHint.Text = _compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…" :
+            (_resumeAfterNetworkFailure || _bridge.NativeNetworkRecoveryPending)
+                ? "Связь восстанавливается" :
+            !_bridge.Enabled ? "Выключен" :
+            serviceConnected ? CompactPlaybackPresentation.ServiceEnabledMessage :
+            _compactStarting || _autorunAwaitingNativePlayer
+                ? "Подключаемся к Яндекс Музыке" : "Ожидаем подключения Яндекс Музыки";
+        _connectionState.ForeColor = serviceConnected ? Accent : Secondary;
+        _switchHint.Text = _compactStarting ? CompactPlaybackPresentation.ConnectingMessage :
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
-            !switchAvailable ? "Нажми «Старт», чтобы подключить Яндекс.Музыку." :
+            !switchAvailable ? "Нажмите «Старт», чтобы подключиться к Яндекс Музыке" :
             _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
-            !_bridge.Enabled ? (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Подмена выключена") :
+            (_resumeAfterNetworkFailure || _bridge.NativeNetworkRecoveryPending)
+                ? CompactPlaybackPresentation.NetworkRecoveryMessage :
+            !_bridge.Enabled ? "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке" :
             !heartbeatFresh ? (_autorunAwaitingNativePlayer
-                ? "Открой Яндекс Музыку — CELIKOM подключится автоматически." :
-                  "Ожидаем актуальные данные текущего плеера.") :
-            sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук." :
+                ? "Открой Яндекс Музыку — CELIKOM подключится автоматически."
+                : CompactPlaybackPresentation.ConnectingMessage) :
+            sourceVerified ? CompactPlaybackPresentation.VersionAvailableMessage :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
-            paused ? "Воспроизведение на паузе." :
+            paused ? "Пауза" :
             stopped ? "Воспроизведение остановлено." :
             mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage :
-            "Сервис включён. Ожидаем данные текущего трека.";
+            "Ожидаем воспроизведения в Яндекс Музыке…";
+        _switchHint.ForeColor = serviceConnected && (sourceVerified || paused)
+            ? Accent : Secondary;
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
@@ -1672,39 +1678,41 @@ public sealed partial class MainWindow : Form
             : !_bridge.Enabled
                 ? (_resumeAfterNetworkFailure
                     ? CompactPlaybackPresentation.NetworkRecoveryPlaybackMessage(_networkRecoveryPlaybackState)
-                    : "Подмена выключена. Текущий звук может быть в кеше Яндекса.")
+                    : "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке")
             : !heartbeatFresh
-                ? (_autorunAwaitingNativePlayer ? "Подключитесь к Яндекс Музыке" :
-                    "Ожидаем актуальные данные текущего плеера.")
-            : paused ? "Воспроизведение на паузе."
+                ? (_autorunAwaitingNativePlayer ? "Открой Яндекс Музыку — CELIKOM подключится автоматически." :
+                    CompactPlaybackPresentation.ConnectingMessage)
+            : paused ? "Пауза"
             : stopped ? "Воспроизведение остановлено."
-            : sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук."
+            : sourceVerified ? CompactPlaybackPresentation.VersionAvailableMessage
             : originalPlaying ? "Играет оригинальная версия."
             : mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage
             : playbackState == "PLAYING"
-                ? "Трек играет. Источник CELIKOM для него ещё не подтверждён."
+                ? "Трек играет. Проверяем доступность версии CELIKOM."
             : state switch
             {
                 "HOST_ERROR" => "Ошибка подключения к модулю Яндекса.",
-                "NATIVE_SOURCE_FAILED" => "Не удалось подтвердить источник текущего трека.",
-                _ => "Ожидаем подтверждения текущего плеера."
+                "NATIVE_SOURCE_FAILED" => "Не удалось подтвердить источник воспроизведения.",
+                _ => "Ожидаем воспроизведения в Яндекс Музыке…"
             };
-        _song.ForeColor = sourceVerified ? Accent :
-            state == "NATIVE_SOURCE_FAILED" ? ColorTranslator.FromHtml("#D36A6A") : Secondary;
+        _song.ForeColor = state == "NATIVE_SOURCE_FAILED"
+            ? ColorTranslator.FromHtml("#D36A6A")
+            : sourceVerified || (paused && serviceConnected) ? Accent : Secondary;
         _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
             : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
             : _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке"
             : !_bridge.Enabled ?
                 (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Готов к работе")
-            : sourceVerified ? "Источник CELIKOM выбран плеером. Проверь звук."
-            : paused ? "Яндекс.Музыка на паузе."
+            : serviceConnected ? CompactPlaybackPresentation.ServiceEnabledMessage
+            : sourceVerified ? CompactPlaybackPresentation.VersionAvailableMessage
+            : paused ? "Пауза"
             : stopped ? "Воспроизведение остановлено."
-            : mappingAvailable ? CompactPlaybackPresentation.ServiceEnabledMessage
-            : "CELIKOM включён. Ожидаем данные текущего трека.";
+            : mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage
+            : "Ожидаем воспроизведения в Яндекс Музыке…";
         _hostStatus.Text = _hostReport?.Status switch
         {
-            YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
+            YandexHostStatus.NotInstalled => "Яндекс Музыка не найдена. Установите официальное приложение.",
             YandexHostStatus.IncompleteInstallation => "Яндекс установлен неполностью. Его файлы не изменялись.",
             YandexHostStatus.UnsupportedVersion => "Версия Яндекса не проверена: " + _hostReport.Version,
             YandexHostStatus.UntrustedExecutable => "Цифровая подпись Яндекса не прошла проверку. Ничего не меняем.",

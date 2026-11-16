@@ -1366,11 +1366,25 @@ try
          CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
              true, false, true) == "Проверяем состояние воспроизведения…",
          "W160 compact track line preserves last-known playing/paused state during server recovery");
-    Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
-             false, false, true).Contains("Нажми «Старт»") &&
-         !CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
-             false, false, true).Contains("Запустите трек"),
-         "W151 disabled bridge asks to connect CELIKOM, not to start a music track");
+    Test(CompactPlaybackPresentation.ConnectingMessage ==
+             "Подождите, идёт подключение к приложению Яндекса." &&
+         CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             false, false, true) ==
+             "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке" &&
+         CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             false, true, true) == CompactPlaybackPresentation.ConnectingMessage &&
+         CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
+             false, true, true) == CompactPlaybackPresentation.ConnectingMessage,
+         "W161 compact UI uses the agreed Start, disabled and Yandex connection copy");
+    Test(CompactPlaybackPresentation.ServiceConnected(true, true, false, false) &&
+         !CompactPlaybackPresentation.ServiceConnected(false, true, false, false) &&
+         !CompactPlaybackPresentation.ServiceConnected(true, false, false, false) &&
+         !CompactPlaybackPresentation.ServiceConnected(true, true, true, false) &&
+         !CompactPlaybackPresentation.ServiceConnected(true, true, false, true),
+         "W161 service indicator follows the native connection, not the current track source");
+    Test(CompactPlaybackPresentation.TrackPlaceholder(true, true, "UNKNOWN",
+             false, false, true) == "Ожидаем воспроизведения в Яндекс Музыке…",
+         "W161 unknown track state no longer refers to an unspecified current player");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, true, "PAUSED",
              false, false, true) == "Пауза" &&
          CompactPlaybackPresentation.TrackPlaceholder(true, true, "STOPPED",
@@ -1378,18 +1392,21 @@ try
          CompactPlaybackPresentation.TrackPlaceholder(true, true, "PLAYING",
              false, false, true).Contains("Играет"),
          "W151 compact UI preserves PLAYING/PAUSED/STOPPED when metadata is unavailable");
-    Test(!CompactPlaybackPresentation.StartupTimeoutMessage.Contains("запускается") &&
-         !CompactPlaybackPresentation.StartupTimeoutMessage.Contains("Запустите трек"),
-         "W151 startup timeout never assumes the already-running Yandex player is launching");
+    Test(!CompactPlaybackPresentation.StartupTimeoutMessage.Contains("текущего плеера") &&
+         CompactPlaybackPresentation.StartupTimeoutMessage.Contains("Яндекс Музыке"),
+         "W161 startup timeout names the Yandex application instead of an unspecified player");
     Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
-             "approved", "UNKNOWN", "PAUSED").Message == "Пауза." &&
+             "approved", "UNKNOWN", "PAUSED").Message == "Пауза" &&
          UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
              "approved", "UNKNOWN", "STOPPED").Message ==
-             "Воспроизведение остановлено." &&
+             "Воспроизведение остановлено" &&
+         UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
+             "approved", "ACTIVE_REPLACEMENT", "PLAYING").Message ==
+             CompactPlaybackPresentation.VersionAvailableMessage &&
          UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
              "approved", "ACTIVE_REPLACEMENT", "PAUSED").Level ==
              UserFacingPlaybackHealth.Severity.Neutral,
-         "W146 current-player pause/stop cannot inherit mapping or green source status");
+         "W161 short version status stays separate from connected service and pause");
     Test(UserFacingPlaybackHealth.Track("RESOLVING", true, "approved").Level ==
         UserFacingPlaybackHealth.Severity.Neutral,
         "W82 normal resolving status is not a customer warning");
