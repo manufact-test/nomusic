@@ -10868,7 +10868,10 @@ def trace_track_identity_method_cfg(
     this_register = None
     if not (flags & ACC_STATIC):
         this_register = registers_size - ins_size
-        initial_registers[this_register] = frozenset({"OWNER_THIS"})
+        owner_label = tracked_types.get(method[0])
+        initial_registers[this_register] = frozenset({
+            owner_label + "_THIS" if owner_label else "OWNER_THIS"
+        })
     for typ, label in tracked_types.items():
         for register in typed_parameter_registers(dex, method, flags, code_off, typ):
             initial_registers[register] = frozenset({label + "_PARAMETER"})

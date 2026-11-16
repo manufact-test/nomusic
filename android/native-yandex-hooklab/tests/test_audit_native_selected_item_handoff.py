@@ -4365,5 +4365,63 @@ class SelectedItemAuditTests(unittest.TestCase):
 
 
 
+    def test_track_identity_cfg_tracks_exact_typed_owner_this(self):
+        from unittest.mock import patch
+
+        target = (
+            "Lqj8;", "if",
+            "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
+        )
+        method = ("LImpl;", "dispatch", "(LtCa;)V")
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 3, 102: 2}[offset]
+            def method(self, _index):
+                return target
+
+        cfg_instructions = [
+            (0, 0x72, [0x0072, 0]),
+            (1, 0x0e, [0x000e]),
+        ]
+        cfg = {
+            "instructions": cfg_instructions,
+            "by_pc": {pc: (op, words) for pc, op, words in cfg_instructions},
+            "successors": {0: [1], 1: []},
+            "reachable": {0, 1},
+            "branches": [],
+            "entry": 0,
+        }
+        with patch("audit_native_selected_item_handoff.build_dex_control_flow",
+                   return_value=cfg), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",
+                   side_effect=lambda _d, _m, _f, _c, typ: [2] if typ == WRAPPER else []), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[1, 2, 3, 4, 5]), \
+             patch("audit_native_selected_item_handoff.expand_invoke_register_types",
+                   return_value=["Lqj8;", "LtCa;", "Z", "Lqj8$a;", "LLEa;"]):
+            trace = trace_track_identity_method_cfg(
+                FakeDex(), method, 0, 100,
+                extra_identity_types={
+                    "Lqj8;": "LQJ8_SERVICE",
+                    "LImpl;": "LQJ8_SERVICE",
+                },
+            )
+
+        event = next(
+            row for row in trace["events"]
+            if row["kind"] == "CALL_WITH_TYPED_IDENTITY"
+        )
+        self.assertEqual(
+            [(arg["argument_position"], arg["identity_type"], arg["origins"])
+             for arg in event["identity_arguments"]],
+            [
+                (0, "LQJ8_SERVICE", ["LQJ8_SERVICE_THIS"]),
+                (1, "TRACK_WRAPPER", ["TRACK_WRAPPER_PARAMETER"]),
+            ],
+        )
+
+
+
 if __name__ == "__main__":
     unittest.main()
