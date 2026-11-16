@@ -13,7 +13,7 @@ No new code change or package is requested at this point. The next chat must wai
 - Working branch: `main`
 - W159 application code: `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`
 - W159 owner-package source: `f9e82d9cce43fe0fb7949c51fe442bf37827f09b`
-- Current documentation handoff commit: `c416f5edd170eaa9cc1008eda0277a0b4d206f99`
+- All commits after the W159 package source are documentation-only; use the latest `main` HEAD and do not infer application-code changes from later docs commits.
 - Exact pre-W159 rollback: `backup/windows-main-pre-w159-mapped-source-status-20261116` @ `0e1de874bc15c401fcceb206511d8cb8f4005d80`
 
 ## Build and CI
