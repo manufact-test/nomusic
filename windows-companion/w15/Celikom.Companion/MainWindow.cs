@@ -1671,8 +1671,9 @@ public sealed partial class MainWindow : Form
             : stopped ? "Воспроизведение остановлено."
             : sourceVerified ? "Плеер выбрал поток CELIKOM. Проверь звук."
             : originalPlaying ? "Играет оригинальная версия."
+            : mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage
             : playbackState == "PLAYING"
-                ? "Трек играет. Источник текущего трека не подтверждён."
+                ? "Трек играет. Источник CELIKOM для него ещё не подтверждён."
             : state switch
             {
                 "HOST_ERROR" => "Ошибка подключения к модулю Яндекса.",
@@ -1690,8 +1691,8 @@ public sealed partial class MainWindow : Form
             : sourceVerified ? "Источник CELIKOM выбран плеером. Проверь звук."
             : paused ? "Яндекс.Музыка на паузе."
             : stopped ? "Воспроизведение остановлено."
-            : mappingPending ? "Подмена подготовлена. Ожидаем подтверждения плеера."
-            : "CELIKOM включён. Подмена текущей песни не подтверждена.";
+            : mappingAvailable ? CompactPlaybackPresentation.ServiceEnabledMessage
+            : "CELIKOM включён. Ожидаем данные текущего трека.";
         _hostStatus.Text = _hostReport?.Status switch
         {
             YandexHostStatus.NotInstalled => "Яндекс.Музыка не найдена. Установи её с официального сайта.",
