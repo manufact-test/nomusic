@@ -1297,6 +1297,11 @@ try
          !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, true, true) &&
          !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(true, false, false, true),
          "W167 module-update hint is hidden only during Start/reconnect or after playback is enabled");
+    Test(!CompactPlaybackPresentation.CanCompleteStartPresentation(true, true, true) &&
+         !CompactPlaybackPresentation.CanCompleteStartPresentation(false, false, true) &&
+         !CompactPlaybackPresentation.CanCompleteStartPresentation(false, true, false) &&
+         CompactPlaybackPresentation.CanCompleteStartPresentation(false, true, true),
+         "W167 Start banner cannot complete while native module validation/upgrade is still in progress");
     Test(PlaybackSourceEvidence.OriginalVerified(true,
              "NATIVE_ORIGINAL_SOURCE_VERIFIED", "ORIGINAL") &&
          !PlaybackSourceEvidence.OriginalVerified(true, "ORIGINAL", "ORIGINAL") &&

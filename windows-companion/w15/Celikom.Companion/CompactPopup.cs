@@ -638,8 +638,11 @@ public sealed partial class MainWindow
         var heartbeatFresh = playback.HeartbeatFresh;
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
-        if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
-            playback.Enabled, heartbeatFresh, playback.PlayerUnavailable, nativeStatus))
+        if (_compactStarting && CompactPlaybackPresentation.CanCompleteStartPresentation(
+            _integrationBusy,
+            _nativeInstallState == NativeInstallState.Active && _installedModule.MatchesApplication,
+            CompactPlaybackPresentation.StartupComplete(
+                playback.Enabled, heartbeatFresh, playback.PlayerUnavailable, nativeStatus)))
         {
             ++_compactStartEpoch;
             _compactStarting = false;

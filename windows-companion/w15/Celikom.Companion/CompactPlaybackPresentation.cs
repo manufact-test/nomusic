@@ -62,6 +62,10 @@ public static class CompactPlaybackPresentation
         bool autoReconnectBusy, bool moduleMismatch) =>
         !playbackEnabled && !startInProgress && !autoReconnectBusy && moduleMismatch;
 
+    public static bool CanCompleteStartPresentation(bool integrationBusy, bool moduleMatches,
+        bool startupComplete) =>
+        !integrationBusy && moduleMatches && startupComplete;
+
     // Green is reserved for proof about the current audible decoder source.
     // Mapping, availability, a connected service or PAUSED state are insufficient.
     public static bool ActiveReplacementStatusIsGreen(bool bridgeEnabled, bool heartbeatFresh,
