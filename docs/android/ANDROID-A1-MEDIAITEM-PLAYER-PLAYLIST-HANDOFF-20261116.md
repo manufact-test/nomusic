@@ -114,18 +114,20 @@ The existing sink-side evidence remains separate:
 
 See [ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md](ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md) for the earlier bounded sink evidence.
 
-## 8. Exact next task
+## 8. Exact next task — LiLb route closed (CI #216)
 
-Do not revisit `LXk6.if(...)`. No direct Track-bearing Player mutator caller was found in the bounded census.
+The bounded LiLb task is complete. The exact direct-invoke scan across all six signed DEX files found:
 
-Continue only from the already proven source-side chain `TrackWrapper → URI → MediaItem → LiLb holder`:
+- 2 direct callers of the exact `LiLb.<init>(LdA9;LgA9;LJI7;LOf6;LFq1;LHy9$a;LPAa;)V` constructor: `LcA9.extends(...)` and `Lwq2.x0(...)`.
+- 0 direct callers of the exact `LiLb.for()LOf6;` getter.
+- 0 direct `LsO7/LBs4/LfH7` MediaItem mutator callsites inside those two immediate constructor callers.
+- 0 same-object edges from LiLb into Player.
 
-1. Find only direct callers of the exact MediaItem-returning getter/constructor handoff for `LiLb;`.
-2. Check whether the same MediaItem reference is passed into one of the known Player mutators `LsO7/LBs4/LfH7`.
-3. If the same object reaches a Player mutator, trace only that object to `LfH7.E()LOf6;`.
-4. If no direct caller or same-object edge exists, close this holder route promptly. Do not expand into global Media3, List/Object, competitor, or renderer scans.
+The constructor stores its exact MediaItem parameter on `this`; the getter returns that same stored object. This proves holder-internal identity only, not a Player connection. The exact getter has no direct invoke caller in the six signed DEX files. The bounded caller scan is complete and is sufficient to close this route.
 
-Do not repeat the competitor sweep, full Player ancestry, generic getter search, broad LiLb/LgLb holder audit, or ByteBuffer sink census.
+**Do not continue tracing LiLb.** Do not broaden into virtual/reflection guesses, generic List/Object tracing, new Media3 ancestry, competitors, or renderer scans.
+
+Full evidence: [ANDROID-A1-LILB-PLAYER-HANDOFF-CLOSURE-20261116.md](ANDROID-A1-LILB-PLAYER-HANDOFF-CLOSURE-20261116.md).
 
 ## 9. Hard constraints
 
@@ -144,3 +146,4 @@ Do not repeat the competitor sweep, full Player ancestry, generic getter search,
 - CI #204: SUCCESS, 122/122 — narrowed List/Object tracing to `LXk6.if(...)` and established the inner `List.get → MediaItem → LsO7.Z` bridge.
 - CI #205: SUCCESS — exact direct-call and MethodHandle/`invoke-custom` census; no direct references to the exact method.
 - CI #213: SUCCESS, 127/127 — interface callback implementers/caller provenance and Player mutator caller census. Exact signed original, six DEX, read-only.
+- CI #216: SUCCESS, 129/129 — exact LiLb constructor/getter direct-caller and same-object Player-mutator scan. Exact pinned issuer-signed original, six DEX, read-only.
