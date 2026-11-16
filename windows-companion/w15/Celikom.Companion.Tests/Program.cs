@@ -2599,6 +2599,10 @@ try
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_CPU_HIGH") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CDP_PROPERTIES_SEEN") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CDP_URL_PROPERTY_SEEN") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_DOM_MEDIA_NODE_SEEN") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_BLOB_SEEN") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_CELIKOM_MATCHED") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
@@ -2632,6 +2636,10 @@ try
         when + "|NATIVE_ELECTRON_CPU_HIGH\n" +
         when + "|PLAYER_CDP_PROPERTIES_SEEN\n" +
         when + "|PLAYER_CDP_URL_PROPERTY_SEEN\n" +
+        when + "|PLAYER_DOM_MEDIA_NODE_SEEN\n" +
+        when + "|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN\n" +
+        when + "|PLAYER_DOM_SOURCE_BLOB_SEEN\n" +
+        when + "|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209\n" +
         when + "|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209\n" +
@@ -2647,7 +2655,7 @@ try
         "successful MP3 probe never implies audio replacement");
     Test(snapshot.Contains("PLAYER_CDP_PROPERTIES_SEEN/PLAYER_CDP_URL_PROPERTY_SEEN show Media-domain field availability only"),
         "W130 export explicitly says CDP field visibility is not current-source proof");
-    Test(snapshot.Contains("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE"), "W54 truthful diagnostics baseline");
+    Test(snapshot.Contains("CodeBaseline=W55_PASSIVE_DOM_MEDIA_SOURCE_WITNESS_AND_TRACK_UI_FIX"), "W55 truthful diagnostics baseline");
     Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
         "W53 native URL mismatch reaches actual exported TXT");
     Test(snapshot.Contains("PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209"),
@@ -2664,6 +2672,10 @@ try
          snapshot.Contains("ElectronCpuHighObserved=true") &&
          snapshot.Contains("NativeDecoderPropertiesObserved=true") &&
          snapshot.Contains("NativeDecoderUrlPropertyObserved=true") &&
+         snapshot.Contains("NativeDomMediaNodeObserved=true") &&
+         snapshot.Contains("NativeDomSourceAttributeObserved=true") &&
+         snapshot.Contains("NativeDomSourceBlobObserved=true") &&
+         snapshot.Contains("NativeDomCelikomSourceMatched=true") &&
          snapshot.Contains("PlayerGainVariantUrlSelectedObserved=true") &&
          snapshot.Contains("PlayerGainVariantUrlMissingObserved=true") &&
          snapshot.Contains("PlayerNativeVolumeDropObserved=true") &&
@@ -2676,6 +2688,10 @@ try
          importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_CPU_HIGH")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CDP_PROPERTIES_SEEN")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CDP_URL_PROPERTY_SEEN")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_MEDIA_NODE_SEEN")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_BLOB_SEEN")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=739209")),
@@ -2695,8 +2711,12 @@ try
             root.GetProperty("scopeSeconds").GetInt32() == 900,
             "W70 auto-attachment includes version, bounded scope and platform");
         Test(root.GetProperty("nativeDecoderPropertiesObserved").GetBoolean() &&
-             root.GetProperty("nativeDecoderUrlPropertyObserved").GetBoolean(),
-            "W130 auto-support distinguishes CDP player-property and kUrl visibility");
+             root.GetProperty("nativeDecoderUrlPropertyObserved").GetBoolean() &&
+             root.GetProperty("nativeDomMediaNodeObserved").GetBoolean() &&
+             root.GetProperty("nativeDomSourceAttributeObserved").GetBoolean() &&
+             root.GetProperty("nativeDomSourceBlobObserved").GetBoolean() &&
+             root.GetProperty("nativeDomCelikomSourceMatched").GetBoolean(),
+            "W166 auto-support distinguishes CDP and passive DOM decoder source witnesses");
         var events = root.GetProperty("events");
         Test(events.GetArrayLength() <= 64 &&
              events.EnumerateArray().Any(x => x.GetProperty("code").GetString() ==

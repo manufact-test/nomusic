@@ -639,6 +639,8 @@ public sealed partial class MainWindow
         _start.Text = "Старт";
         var nativeStatus = playback.Status;
         var heartbeatFresh = playback.HeartbeatFresh;
+        var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
+            connected && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable);
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
         if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
