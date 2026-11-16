@@ -50,7 +50,7 @@ This is useful when diagnosing real playback dropouts on the device. It does **n
 
 The CI audit is pinned to Yandex Music **2025.10.4 #120.1gpr**. The owner's phone was previously reported as **2026.09.5 #167gpr**. These are different builds; no obfuscated class/method finding should be assumed to transfer between them.
 
-A public APKPure version-history page currently lists **2026.11.1 #171gpr** as latest and still lists 2026.09.5 variants. This is third-party mirror metadata, not publisher provenance and not proof of what is currently installed:
+A public APKPure version-history page lists **2026.10.3 #170gpr** as latest on the opened page and also lists **2026.09.5 #167gpr / #167.1gpr** variants. Other mirror snippets report different newer builds, so mirror metadata is inconsistent. This is not publisher provenance and does not prove what is currently installed:
 - [APKPure Yandex Music version history](https://apkpure.net/ru/yandex-music-books-podcasts-app/ru.yandex.music/versions)
 
 **Required gate before another long static pass:** establish the exact build CELIKOM A1 is intended to target. If the intended target remains the pinned 2025 build, continue the bounded LfT2 task there. If the target is the phone's 2026 build, first obtain that exact original split package and verify publisher signature, split set, size, and SHA-256; then run the narrow trace against that exact binary. Do not use a third-party mirror package as trusted input until its signature is independently verified.
