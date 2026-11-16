@@ -8,6 +8,7 @@ from audit_native_selected_item_handoff import (
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
     trace_identity_method, inspect_exact_playlist_update_callers,
+    inspect_exact_playlist_update_method_handle_sites,
     select_next_identity_method_refs,
     build_dex_control_flow,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
@@ -3199,6 +3200,71 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["callers"][0]["ordinal"], 17)
         self.assertEqual(len(result["caller_identity_traces"]), 1)
         self.assertEqual(trace.call_count, 1)
+
+
+    def test_exact_playlist_method_handle_scan_finds_invoke_custom_reference(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        target = ("LXk6;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V")
+        caller = ("LFactory;", "makeCallback", "()V")
+        data = bytearray(512)
+        data[52:56] = (100).to_bytes(4, "little")
+        data[100:104] = (2).to_bytes(4, "little")
+        # map item: method_handle_item, one row at offset 200
+        data[104:106] = (0x0008).to_bytes(2, "little")
+        data[108:112] = (1).to_bytes(4, "little")
+        data[112:116] = (200).to_bytes(4, "little")
+        # map item: call_site_id_item, one row at offset 300
+        data[116:118] = (0x0007).to_bytes(2, "little")
+        data[120:124] = (1).to_bytes(4, "little")
+        data[124:128] = (300).to_bytes(4, "little")
+        # invoke-static method handle, member method index 7
+        data[200:202] = (4).to_bytes(2, "little")
+        data[204:206] = (7).to_bytes(2, "little")
+        # call_site_id points at an encoded_array with one VALUE_METHOD_HANDLE(0)
+        data[300:304] = (400).to_bytes(4, "little")
+        data[400:403] = bytes([1, 0x16, 0])
+
+        class FakeDex:
+            def __init__(self, _bytes):
+                self.data = memoryview(data)
+            def bounds(self, offset, size):
+                if offset < 0 or size < 0 or offset + size > len(self.data):
+                    raise ValueError("bounds")
+            def u16(self, offset):
+                self.bounds(offset, 2)
+                return int.from_bytes(self.data[offset:offset + 2], "little")
+            def u32(self, offset):
+                self.bounds(offset, 4)
+                return int.from_bytes(self.data[offset:offset + 4], "little")
+            def method(self, index):
+                return target if index == 7 else ("LOther;", "other", "()V")
+
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \\
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       return_value=[(caller, 0x8, 1000)]), \\
+                 patch("audit_native_selected_item_handoff.instructions",
+                       return_value=[(5, 0xfc, [0x00fc, 0, 0])]):
+                result = inspect_exact_playlist_update_method_handle_sites([apk])
+
+        self.assertEqual(result["matching_method_handle_count"], 1)
+        self.assertEqual(result["matching_call_site_count"], 1)
+        self.assertEqual(result["invoke_custom_reference_site_count"], 1)
+        self.assertEqual(
+            result["invoke_custom_reference_sites"][0]["caller"]["owner"],
+            "LFactory;",
+        )
+        self.assertEqual(
+            result["invoke_custom_reference_sites"][0]["call_site_index"],
+            0,
+        )
 
 
 if __name__ == "__main__":

@@ -9330,6 +9330,178 @@ PLAYLIST_UPDATE_CALLER_EXTRA_TYPES = (
 )
 
 
+def inspect_exact_playlist_update_method_handle_sites(apks):
+    """Find exact method-handle references to the playlist method and their invoke-custom sites."""
+    target = PLAYLIST_UPDATE_TARGET
+    handle_kinds = {
+        4: "INVOKE_STATIC",
+        5: "INVOKE_INSTANCE",
+        6: "INVOKE_CONSTRUCTOR",
+        7: "INVOKE_DIRECT",
+        8: "INVOKE_INTERFACE",
+    }
+    matching_handle_rows = []
+    matching_call_site_rows = []
+    invoke_custom_rows = []
+    max_table_items = 4096
+
+    def read_encoded_value(dex, position, depth=0):
+        if depth > 16:
+            raise ValueError("PLAYLIST_CALLSITE_ENCODED_VALUE_DEPTH_LIMIT")
+        dex.bounds(position, 1)
+        header = dex.data[position]
+        position += 1
+        value_type = header & 0x1f
+        value_arg = header >> 5
+        found = []
+        if value_type == 0x1c:  # VALUE_ARRAY
+            count, position = uleb(dex, position)
+            if count > max_table_items:
+                raise ValueError("PLAYLIST_CALLSITE_ENCODED_ARRAY_LIMIT")
+            for _ in range(count):
+                position, nested = read_encoded_value(dex, position, depth + 1)
+                found.extend(nested)
+            return position, found
+        if value_type == 0x1d:  # VALUE_ANNOTATION
+            _type_index, position = uleb(dex, position)
+            count, position = uleb(dex, position)
+            if count > max_table_items:
+                raise ValueError("PLAYLIST_CALLSITE_ENCODED_ANNOTATION_LIMIT")
+            for _ in range(count):
+                _name_index, position = uleb(dex, position)
+                position, nested = read_encoded_value(dex, position, depth + 1)
+                found.extend(nested)
+            return position, found
+        if value_type == 0x1e:  # VALUE_NULL
+            if value_arg != 0:
+                raise DexError("PLAYLIST_CALLSITE_INVALID_NULL")
+            return position, found
+        if value_type == 0x1f:  # VALUE_BOOLEAN
+            if value_arg > 1:
+                raise DexError("PLAYLIST_CALLSITE_INVALID_BOOLEAN")
+            return position, found
+        width = value_arg + 1
+        dex.bounds(position, width)
+        if value_type == 0x16:  # VALUE_METHOD_HANDLE
+            found.append(int.from_bytes(dex.data[position:position + width], "little"))
+        position += width
+        return position, found
+
+    def encoded_array_method_handles(dex, array_offset):
+        count, position = uleb(dex, array_offset)
+        if count > max_table_items:
+            raise ValueError("PLAYLIST_CALLSITE_ARRAY_ITEM_LIMIT")
+        handles = []
+        for _ in range(count):
+            position, found = read_encoded_value(dex, position)
+            handles.extend(found)
+        return handles
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                map_offset = dex.u32(52)
+                if not map_offset:
+                    continue
+                map_count = dex.u32(map_offset)
+                if map_count > 4096:
+                    raise ValueError("PLAYLIST_DEX_MAP_ITEM_LIMIT")
+                method_handle_section = None
+                call_site_section = None
+                for index in range(map_count):
+                    row_offset = map_offset + 4 + index * 12
+                    item_type = dex.u16(row_offset)
+                    item_count = dex.u32(row_offset + 4)
+                    item_offset = dex.u32(row_offset + 8)
+                    if item_type == 0x0008:
+                        method_handle_section = (item_count, item_offset)
+                    elif item_type == 0x0007:
+                        call_site_section = (item_count, item_offset)
+                if not method_handle_section or not call_site_section:
+                    continue
+
+                handle_count, handle_offset = method_handle_section
+                call_site_count, call_site_offset = call_site_section
+                if handle_count > max_table_items or call_site_count > max_table_items:
+                    raise ValueError("PLAYLIST_METHOD_HANDLE_TABLE_LIMIT")
+                matching_handle_indexes = set()
+                for handle_index in range(handle_count):
+                    row_offset = handle_offset + handle_index * 8
+                    handle_kind = dex.u16(row_offset)
+                    member_index = dex.u16(row_offset + 4)
+                    if handle_kind not in handle_kinds:
+                        continue
+                    if dex.method(member_index) == target:
+                        matching_handle_indexes.add(handle_index)
+                        matching_handle_rows.append({
+                            "dex_entry": entry.filename,
+                            "method_handle_index": handle_index,
+                            "handle_kind": handle_kinds[handle_kind],
+                            "target": {
+                                "owner": target[0],
+                                "method": target[1],
+                                "signature": target[2],
+                            },
+                        })
+                if not matching_handle_indexes:
+                    continue
+
+                matching_call_site_indexes = set()
+                for call_site_index in range(call_site_count):
+                    array_offset = dex.u32(call_site_offset + call_site_index * 4)
+                    handle_indexes = encoded_array_method_handles(dex, array_offset)
+                    matched = sorted(matching_handle_indexes.intersection(handle_indexes))
+                    if matched:
+                        matching_call_site_indexes.add(call_site_index)
+                        matching_call_site_rows.append({
+                            "dex_entry": entry.filename,
+                            "call_site_index": call_site_index,
+                            "method_handle_indexes": matched,
+                        })
+
+                if not matching_call_site_indexes:
+                    continue
+                for method, _flags, code_off in method_definitions_with_flags(dex):
+                    if not code_off:
+                        continue
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in (0xfc, 0xfd):
+                            continue
+                        call_site_index = words[1]
+                        if call_site_index not in matching_call_site_indexes:
+                            continue
+                        invoke_custom_rows.append({
+                            "dex_entry": entry.filename,
+                            "caller": {
+                                "owner": method[0],
+                                "method": method[1],
+                                "signature": method[2],
+                            },
+                            "ordinal": ordinal,
+                            "invoke_opcode": op,
+                            "call_site_index": call_site_index,
+                            "method_handle_indexes": sorted(matching_handle_indexes),
+                        })
+                        if len(invoke_custom_rows) > 32:
+                            raise ValueError("PLAYLIST_INVOKE_CUSTOM_REFERENCE_SITE_LIMIT")
+
+    return {
+        "bounded": True,
+        "scan_scope": "EXACT_TARGET_METHOD_HANDLE_AND_REFERENCING_CALLSITE_ITEMS_ONLY",
+        "matching_method_handle_count": len(matching_handle_rows),
+        "matching_method_handles": matching_handle_rows,
+        "matching_call_site_count": len(matching_call_site_rows),
+        "matching_call_sites": matching_call_site_rows,
+        "invoke_custom_reference_site_count": len(invoke_custom_rows),
+        "invoke_custom_reference_sites": invoke_custom_rows,
+        "field_names_or_values_disclosed": False,
+        "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
 def inspect_exact_playlist_update_callers(apks):
     """Find every direct DEX invoke of one exact Player playlist update method.
 
@@ -9395,9 +9567,11 @@ def inspect_exact_playlist_update_callers(apks):
                                     "field_names_or_values_disclosed": False,
                                     "strings_urls_dataspec_account_or_audio_read": False,
                                 }
+    method_handle_scan = inspect_exact_playlist_update_method_handle_sites(apks)
     return {
         "bounded": True,
         "scan_scope": "ALL_SIGNED_DEX_CODE_BODIES_FOR_ONE_EXACT_METHOD_REFERENCE",
+        "method_handle_scan": method_handle_scan,
         "target": {
             "owner": target[0],
             "method": target[1],
@@ -9417,7 +9591,7 @@ def inspect_exact_playlist_update_callers(apks):
             }
             for key, value in sorted(caller_traces.items())
         ],
-        "invoke_custom_method_handle_scan_performed": False,
+        "invoke_custom_method_handle_scan_performed": True,
         "field_names_or_values_disclosed": False,
         "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
     }
