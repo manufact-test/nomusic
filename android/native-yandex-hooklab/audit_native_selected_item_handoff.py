@@ -8928,7 +8928,7 @@ def inspect_media3_player_item_identity_contracts(
                             )
     player_targets = set()
     if item_type:
-        for owner, name, signature in target_keys:
+        for name, signature in target_keys:
             if item_type in parse_types(signature) or signature.split(")", 1)[1] == item_type:
                 player_targets.update(
                     key for key in declarations
