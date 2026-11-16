@@ -3,9 +3,10 @@
 **Дата:** 16.11.2026  
 **Репозиторий:** \`manufact-test/nomusic\`  
 **Рабочая ветка:** \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`  
-**Кодовый checkpoint:** \`70009b4e05a592e7036c8457ca027b2445202c1f\`  
+**Кодовый checkpoint:** \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`  
 **CI #180:** [SUCCESS, 116/116 тестов](https://github.com/manufact-test/nomusic/actions/runs/43830018094)  
-**Точный backup:** \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`
+**Точный backup:** \`backup/android-a1-media3-current-item-candidate-ci-green-20261116\` @ \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`  
+**Предыдущий backup:** \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`
 
 Read-only анализ точного issuer-signed Yandex 2025 XAPK, шесть DEX, только в памяти. Runtime hooks, приложение, APK и playback не затрагивались.
 
@@ -92,7 +93,7 @@ CI #175 завершился ошибкой: проверка наличия cla
 - 503 code-bearing метода проверено в ancestry.
 - 26 implementation rows имели распознанные сигнатурные/вызовные роли; все они указывают на обращения к Media3 Player API, но ни одна строка не доказывает передачу Track/Album в Player selection или decoder.
 - Распределение этих 26 строк: 13 у \`Lp24;\`, 11 у \`LA14;\`, 1 у \`LDq2;\`, 1 у интерфейса \`ExoPlayer;\`.
-- В Player ancestry не найдено прямых полей Track, Album или Track-ID wrapper. Не распознаны поля с известными прямыми типами Media3 MediaItem/MediaSource, DataSource, MediaSession, AudioTrack и MediaCodec. Обфусцированный descriptor \`LkD7;\` этим отрицательным результатом не классифицируется.
+- В Player ancestry не найдено прямых полей Track, Album или Track-ID wrapper. Этот отрицательный вывод относился к известным типам в CI #178; точный descriptor \`LkD7;\` классифицирован отдельно в superseding section 0 по результату CI #180.
 - \`interface_api_method_count=0\` и \`public_player_selection_method_refs=[]\` относятся к поиску по двум известным не-обфусцированным root owners. Это **не** означает отсутствие Player API: точная ancestry показала контракт \`LfH7;\`.
 
 ## 4. Историческая гипотеза — закрыта результатом CI #180
@@ -130,6 +131,8 @@ CI #175 завершился ошибкой: проверка наличия cla
 Stage A / NAV17 остаётся PASS по ручному подтверждению владельца. Stage B остаётся NOT CONNECTED / NO-GO. Известный ByteBuffer/native sink путь сам по себе не доказывает, что это буфер текущего выбранного трека.
 
 ## 6. Исторический план проверки — выполнен и superseded
+
+Не выполнять пункты ниже повторно: кандидат закрыт в section 0 по CI #180.
 
 1. Проверить точный class descriptor \`LkD7;\`: его superclass/interfaces, поля только по типам, конструкторы и методы. Установить, соответствует ли он MediaItem или внутренней обёртке, без догадок по имени.
 2. Проследить тело ровно одного метода \`Lp24.else()LkD7;\`: receiver/delegate и возвращаемую object identity.
