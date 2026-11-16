@@ -725,6 +725,7 @@ const nativeMediaHttpSuccess = new WeakMap();
 const nativeNetworkObserversReady = new WeakSet();
 const nativeUnfetchedReloadAttempt = new WeakMap();
 const nativeDecoderPlayers = new WeakMap();
+const nativeDecoderDomRefreshers = new WeakMap();
 const verifiedDecoderSource = new WeakMap();
 const AUDIO_RESOURCE_PATH = /^\/api\/v1\/audio\/([1-9][0-9]{0,17})$/;
 function rememberExpectedAudio(view, grant) {
@@ -762,6 +763,9 @@ function rememberExpectedAudio(view, grant) {
     entries.set(resourceId, { href: url.origin + url.pathname + url.search,
       expiresAt, yandexTrackId: grant.trackId, gainApplied: grant.gainApplied === true,
       gainDb: Number.isFinite(grant.gainDb) ? grant.gainDb : null, recordedAt: now });
+    // If the Media player already exposed its own direct src before this
+    // approved grant arrived, re-read only that same player's src attribute.
+    nativeDecoderDomRefreshers.get(view)?.(grant.trackId);
   } catch { /* Invalid grant is handled by the existing renderer validator. */ }
 }
 function classifyPlayerUrl(view, resourceId, actualUrl) {
@@ -1004,8 +1008,18 @@ function observeNativePlayback(view) {
       if (!found) note("PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING");
     } catch { note("PLAYER_DOM_UNAVAILABLE"); }
   };
+  nativeDecoderDomRefreshers.set(view, trackId => {
+    for (const [playerId, player] of decoderPlayers) {
+      if (!player.playing || player.urlPropertySeen ||
+          (player.sourceKind === "dom" && player.sourceTrackId === trackId)) continue;
+      const node = decoderPlayerNodes.get(playerId);
+      if (node) void readMediaPlayerNode(playerId, node.backendNodeId);
+      else if (pendingDecoderNodes.has(playerId))
+        void readMediaPlayerNode(playerId, pendingDecoderNodes.get(playerId));
+    }
+  });
   const initializeDomObserver = () => {
-    Promise.resolve(debug.sendCommand("DOM.getDocument", {depth:1, pierce:false})).then(
+    Promise.resolve(debug.sendCommand("DOM.getDocument", {depth:1, pierce:true})).then(
       () => {
         if (!validView(view)) return;
         domReady = true;
@@ -1333,6 +1347,7 @@ function observeNativePlayback(view) {
         nativeMediaHttpSuccess.delete(view);
         nativeNetworkObserversReady.delete(view);
         nativeUnfetchedReloadAttempt.delete(view);
+        nativeDecoderDomRefreshers.delete(view);
         decoderPlayers.clear();
         decoderPlayerNodes.clear();
         decoderNodePlayers.clear();
@@ -1402,6 +1417,7 @@ function observeNativePlayback(view) {
     lastStatus.delete(view);
     deliveredRecoveryEpoch.delete(view);
     nativeRecoveryHolds.delete(view);
+    nativeDecoderDomRefreshers.delete(view);
     if (wasSelected && choosePlaybackView() === null) {
       const token = readToken();
       if (token) void localRequest(token, "/v1/heartbeat", "POST", heartbeatPayload({
