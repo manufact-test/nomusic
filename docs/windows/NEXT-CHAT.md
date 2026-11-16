@@ -1,58 +1,58 @@
-# CELIKOM Windows — active handoff W161 (16 November 2026)
+# CELIKOM Windows — active handoff W162 (16 November 2026)
 
-**Status: W161 UI correction, source CI and internal owner-review package 0.24.43.0 are complete. Waiting only for the owner's manual UI check.**
+**Status: W162 0.24.44.0 source CI, Windows integration CI and one internal W20 owner-review package are complete. Waiting only for the owner's manual UI check.**
 
 ## Source of truth
 
 - Product: CELIKOM Windows only.
 - Repository: `manufact-test/nomusic`.
 - Working branch: `main`.
-- W161 source commit: `4d018021880bf2167d60f262a0ba23c29e0aba10`.
-- W20 request/package commit: `4d1fd37203e2da03b91d226c9f5875f412bedcd3`.
-- Pre-W161 rollback: `backup/windows-main-pre-w161-owner-ui-vpn-yandex-20261116` @ `851b24b02ed9398b30be4e4673485be6e772e2d5`.
-- Version: **0.24.43.0**, native module **0.24.31**.
-- W160 build 0.24.42.0 was the owner's installed version at the time of the report. Its VPN recovery messages are accepted; the remaining compact UI copy/colors were corrected in W161.
+- W162 source checkpoint: `b6aa1dee19cd2862f23c9b656210f54db12cdfe9`.
+- W20 request/package commit: `a3a3506a1acea21a0b96d7ec7ec3de9b804596f8`.
+- Pre-W162 rollback: `backup/windows-main-pre-w162-title-status-polish-20261116` @ `5c6e5d902941bb931039aa54a26cc307c09b296f`.
+- Version: **0.24.44.0**, native module **0.24.31**.
+- Full implementation and diagnostic notes: `docs/windows/W162-OWNER-UI-METADATA-STABILITY-20261116.md`.
 
-## What W161 changes
+## W162 result
 
-- Start: `Подождите, идёт подключение к приложению Яндекса.`
-- Disabled: `Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке`.
-- Missing application: `Яндекс Музыка не найдена. Установите официальное приложение.`
-- Fresh native Yandex connection: green dot + green `Сервис включён`, independently of track decoder proof.
-- Exact active CELIKOM source: `Версия CELIKOM доступна` in green. Mapping-only availability stays neutral/gray.
-- Pause: `Пауза` remains green while the service connection is live.
-- Next/track transitions do not gray the service indicator while the native connection remains live.
-- Compact window gets the requested 20 px lower breathing room.
-- W160 VPN-recovery messages and audio path are untouched.
+- Track title and artist now come from one lock-consistent playback snapshot.
+- Empty same-track heartbeat fields no longer blank previously received title, artist or duration. A real track change replaces all previous metadata.
+- Compact and main UI refreshes consume the same snapshot; compact title/artist/status labels are only assigned when their text changes.
+- Exact confirmed CELIKOM decoder source: green **«Играет полная версия CELIKOM»**.
+- Mapping-only availability remains gray **«Версия CELIKOM доступна»**. The exact decoder-source proof gate was not weakened.
+- **«Пауза»** remains green while the service connection is confirmed.
+- No changes to the VPN/audio path, W23 host/renderer, Yandex files, entitlement authority, updater/P-256, backend, Android or browser extension.
 
-Read `docs/windows/W161-UI-STATE-START-COPY-20261116.md` before changing anything.
+## CI and internal owner-review package
 
-## CI and owner-review package
+- Main CI, source checkpoint: run `43863680868` — SUCCESS.
+- Windows integration CI, source checkpoint: run `43863680894` — SUCCESS.
+- Main CI, W20 request commit: run `43864166741` — SUCCESS.
+- Windows integration CI, W20 request commit: run `43864166849` — SUCCESS.
+- W20 safe installer staging: run `43864166748` — SUCCESS.
+- Artifact ID: `14224093499`.
+- Artifact name: `CELIKOM-Windows-internal-stage-a3a3506a1acea21a0b96d7ec7ec3de9b804596f8`.
+- Installer: `CELIKOM-W162-TRACK-STATUS-AND-METADATA-STABILITY-02444-UNSIGNED.exe`.
+- ZIP: `CELIKOM-Windows-0.24.44.zip`; contains the exact same installer.
+- `SHA256SUMS.txt` is included in the artifact.
+- Uploaded artifact ZIP SHA256: `342e28febb81b5304cfb793a7da24405f85a683901237f56921f34f4878341c4`.
+- Artifact expires: 26 November 2026, 12:13:49 UTC.
+- W20 run: https://github.com/manufact-test/nomusic/actions/runs/43864166748
+- Direct artifact: https://github.com/manufact-test/nomusic/actions/runs/43864166748/artifacts/14224093499
 
-- Main CI: `43857753031` and `43858280540` — SUCCESS.
-- Windows integration CI: `43857752831` and `43858280413` — SUCCESS.
-- W20 safe installer staging: `43858280505` — SUCCESS.
-- Artifact ID: `14222536548`.
-- Installer: `CELIKOM-W161-UI-STATE-AND-START-COPY-02443-UNSIGNED.exe`.
-- ZIP: `CELIKOM-Windows-0.24.43.zip`; it contains the exact same EXE.
-- EXE SHA256: `1a3883b7c5eba1e98d467bf5f35146e3f11ca2910bf49becd1c81ba936064204`.
-- ZIP SHA256: `ad1f4b7b305fc9733326a0c661e2071be69da551ebd2b00569419b0c483bbf77`.
-- W20 run: https://github.com/manufact-test/nomusic/actions/runs/43858280505
+The W20 run passed source compilation with warnings as errors, native preflight, native image/crash-recovery tests, updater ZIP/version/anti-downgrade checks, disposable per-user install/uninstall smoke, and exact EXE+ZIP+SHA256 packaging. The artifact is internal and unsigned; this is not a production release.
 
-## Next actions
+## Owner's manual verification
 
-1. Owner installs 0.24.43.0 and manually checks the UI states above.
-2. Confirm the already accepted VPN recovery still preserves music.
-3. Do not create another package unless the owner reports a reproducible defect.
+1. Install 0.24.44.0 over 0.24.43.0.
+2. Check that title and artist remain stable when hiding/restoring the compact window and opening the full window.
+3. Check the active green label when exact CELIKOM decoder proof is present, the gray mapping-only label, and the green pause label.
+4. VPN recovery was already manually checked by the owner and reported smooth; do not repeat broad VPN testing unless a regression appears.
 
-Do not request the user to resend previous requirements; the exact agreed copy and state rules are in the W161 document.
+Important: the latest W54 diagnostic showed `NativeDecoderUrlPropertyObserved=false` and `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING`. Therefore mapping-only must remain gray even if a replacement is available. If the owner hears the full version but the status remains gray, investigate the missing exact decoder proof; do not simply relax the evidence gate.
 
-## Yandex disconnect incident
-
-The owner reported one unexpected Yandex Music disconnect/track switch during the conversation. The VPN handler does not kill or relaunch Yandex. A transient entitlement failure can temporarily disable/re-enable the CELIKOM bridge, and a rejected continuity hold can lead to source revalidation/reload. The process watcher records `YANDEX_PROCESS_UNAVAILABLE` for an observed process exit but polls every second, so a very brief restart may be missed. Source reload has separate events.
-
-Earlier W54 diagnostics showed one same-track revalidation/reload and no `YANDEX_PROCESS_UNAVAILABLE`, but those logs do not identify this new incident. No fresh diagnostic was supplied for the exact event. Do not make speculative audio/VPN changes; if it repeats, use a fresh diagnostic to distinguish process exit from source reload.
+Do not request the user to resend previous requirements. The W162 document contains the full reasoning and exact changes.
 
 ## Hard boundaries
 
-No Android, browser extension, backend, Yandex original files, updater/P-256 or architecture changes. No broad audits, speculative audio changes, unnecessary tests or intermediate packages. Preserve the pre-W161 rollback branch.
+No Android, browser extension, backend, Yandex original files, updater/P-256 or architecture changes. No broad audits, speculative audio changes, unnecessary tests or intermediate packages. Preserve the pre-W162 rollback branch.
