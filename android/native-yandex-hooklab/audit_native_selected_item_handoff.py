@@ -9634,7 +9634,7 @@ def inspect_next_identity_hop_cfg(apks, candidate_traces, next_hop_refs):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("NEXT_IDENTITY_CFG_DEX_LIMIT")
