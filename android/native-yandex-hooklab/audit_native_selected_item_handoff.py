@@ -8415,6 +8415,165 @@ def inspect_media3_current_item_candidate(apks, class_profiles, player_contracts
     }
 
 
+
+def inspect_media3_player_object_getters(apks, class_profiles, player_contracts):
+    """Inspect only no-arg object getters declared by the exact obfuscated Player interface."""
+    interface_owner = "LfH7;"
+    wrapper_owner = "Lp24;"
+    factory_owner = "Landroidx/media3/exoplayer/source/MediaSource$Factory;"
+    if not player_contracts.get("bounded"):
+        return {
+            "bounded": False,
+            "reason": "PLAYER_ANCESTRY_NOT_BOUNDED",
+            "candidate_count": 0,
+            "candidates": [],
+            "current_media_item_proven": False,
+        }
+
+    candidate_contracts = {}
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("PLAYER_OBJECT_GETTER_DEX_SIZE_LIMIT")
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in declared_method_contracts_for_owners(
+                    dex, {interface_owner}
+                ):
+                    signature = method[2]
+                    result_type = signature.split(")", 1)[1]
+                    if signature.startswith("()") and result_type.startswith("L"):
+                        candidate_contracts[(method[1], signature)] = method
+
+    candidate_keys = set(candidate_contracts)
+    scope_owners = set(player_contracts.get("scope_owners", ()))
+    declarations = {}
+    factory_contracts = {}
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in declared_method_contracts_for_owners(
+                    dex, scope_owners
+                ):
+                    if (method[1], method[2]) in candidate_keys:
+                        key = (method[0], method[1], method[2])
+                        if key in declarations:
+                            raise DexError("PLAYER_OBJECT_GETTER_DUPLICATE_DECLARATION")
+                        declarations[key] = (method, flags, code_off, dex)
+                for method_index in range(dex.method_count):
+                    method_ref = dex.method(method_index)
+                    if method_ref[0] != factory_owner:
+                        continue
+                    parameters = parse_types(method_ref[2])
+                    result_type = method_ref[2].split(")", 1)[1]
+                    if result_type == MEDIA3_MEDIA_SOURCE:
+                        for candidate_key, candidate_method in candidate_contracts.items():
+                            candidate_type = candidate_method[2].split(")", 1)[1]
+                            if candidate_type in parameters:
+                                factory_contracts.setdefault(candidate_type, set()).add(
+                                    (method_ref[0], method_ref[1], method_ref[2])
+                                )
+
+    def class_chain(owner):
+        chain = []
+        seen = set()
+        current = owner
+        while current and current != "Ljava/lang/Object;" and current not in seen:
+            seen.add(current)
+            chain.append(current)
+            current = class_profiles.get(current, {}).get("superclass")
+        return chain
+
+    def interface_declaration(owner, name, signature):
+        pending = []
+        for class_owner in class_chain(owner):
+            pending.extend(class_profiles.get(class_owner, {}).get("interfaces", ()))
+        visited = set()
+        while pending:
+            interface = pending.pop(0)
+            if interface in visited:
+                continue
+            visited.add(interface)
+            if (interface, name, signature) in declarations:
+                return interface
+            pending.extend(class_profiles.get(interface, {}).get("interfaces", ()))
+        return None
+
+    rows = []
+    for name, signature in sorted(candidate_keys):
+        result_type = signature.split(")", 1)[1]
+        type_profile = class_profiles.get(result_type)
+        item_subtype = dex_type_assignable_to(
+            result_type, MEDIA3_MEDIA_ITEM, class_profiles
+        )
+        factory_rows = sorted(factory_contracts.get(result_type, ()))
+        implementor_rows = []
+        for implementor in player_contracts.get("implementors", ()):
+            declaration_owner = next(
+                (owner for owner in class_chain(implementor)
+                 if (owner, name, signature) in declarations),
+                None
+            )
+            if declaration_owner is None:
+                declaration_owner = interface_declaration(implementor, name, signature)
+            declaration = declarations.get((declaration_owner, name, signature))
+            implementor_rows.append({
+                "implementor": implementor,
+                "declaring_owner": declaration_owner,
+                "declaration_kind": (
+                    "CLASS" if declaration_owner in class_chain(implementor)
+                    else "INTERFACE"
+                ) if declaration_owner else None,
+                "body_declared": bool(declaration and declaration[2]),
+            })
+
+        wrapper_trace = None
+        wrapper_declaration = declarations.get((wrapper_owner, name, signature))
+        if wrapper_declaration and wrapper_declaration[2]:
+            method, flags, code_off, dex = wrapper_declaration
+            wrapper_trace = trace_exact_object_method_body(
+                dex, method, flags, code_off
+            )
+
+        rows.append({
+            "interface_method": {"owner": interface_owner, "name": name,
+                                  "signature": signature},
+            "return_type_descriptor": result_type,
+            "return_type_profile": privacy_safe_flow_class_profile(type_profile),
+            "return_type_is_media3_media_item_or_subtype": item_subtype,
+            "source_factory_contracts_accepting_exact_return_type": [
+                {"owner": owner, "method": method, "signature": factory_signature}
+                for owner, method, factory_signature in factory_rows
+            ],
+            "lp24_wrapper_method_body": wrapper_trace,
+            "effective_concrete_implementor_declarations": implementor_rows,
+            "private_field_names_or_values_disclosed": False,
+            "field_values_or_media_read": False,
+        })
+
+    return {
+        "bounded": True,
+        "player_interface": interface_owner,
+        "candidate_count": len(rows),
+        "candidates": rows,
+        "current_media_item_proven": any(
+            row["return_type_is_media3_media_item_or_subtype"]
+            or row["source_factory_contracts_accepting_exact_return_type"]
+            for row in rows
+        ),
+        "runtime_player_instance_proven": False,
+        "active_selected_item_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "private_field_names_or_values_disclosed": False,
+        "field_values_media_ids_urls_dataspec_tokens_or_audio_read": False,
+    }
+
+
 def inspect_signed(apks):
     dex_count = 0
     model_defined = False
@@ -9026,6 +9185,9 @@ def inspect_signed(apks):
     media3_current_item_candidate = inspect_media3_current_item_candidate(
         apks, class_profiles, media3_player_contracts
     )
+    media3_player_object_getters = inspect_media3_player_object_getters(
+        apks, class_profiles, media3_player_contracts
+    )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -9211,6 +9373,7 @@ def inspect_signed(apks):
         ],
         "media3_player_implementation_contracts": media3_player_contracts,
         "media3_current_item_candidate": media3_current_item_candidate,
+        "media3_player_object_getters": media3_player_object_getters,
         "selected_state_static_summary": {
             "media_session_metadata_method_reference_count": sum(
                 x[1] in MEDIA_SESSION_METADATA_METHODS
