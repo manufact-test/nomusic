@@ -57,7 +57,14 @@ Focused W159 regression asserts that mapped current-track state remains neutral 
 
 - Exact pre-W159 rollback: `backup/windows-main-pre-w159-mapped-source-status-20261116` @ `0e1de874bc15c401fcceb206511d8cb8f4005d80`.
 - W159 application-source checkpoint before documentation: `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`.
-- Main CI run: [43828118274](https://github.com/manufact-test/nomusic/actions/runs/43828118274) — **SUCCESS** on source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`.
-- Windows integration CI run: [43828118192](https://github.com/manufact-test/nomusic/actions/runs/43828118192) — **SUCCESS** on the same source commit.
+- Main CI run: [43828118274](https://github.com/manufact-test/nomusic/actions/runs/43828118274) — **SUCCESS** on source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`; final package-source Main CI [43828713432](https://github.com/manufact-test/nomusic/actions/runs/43828713432) — **SUCCESS**.
+- Windows integration CI run: [43828118192](https://github.com/manufact-test/nomusic/actions/runs/43828118192) — **SUCCESS** on the same source commit; final package-source Windows integration CI [43828713415](https://github.com/manufact-test/nomusic/actions/runs/43828713415) — **SUCCESS**.
 
-Both required source CI workflows passed. Windows application/package version is now **0.24.41.0**; native remains **0.24.31**. The single W159 internal owner-review package request was updated in the same main-branch commit as the version files, triggering exactly one W20 staging build. Await that run and record its result/artifact; no intermediate installer, ZIP or release.
+Both required source CI workflows passed. Windows application/package version is **0.24.41.0**; native remains **0.24.31**. Exactly one W20 staging build completed successfully: [run 43828713363](https://github.com/manufact-test/nomusic/actions/runs/43828713363), artifact ID `14208040930`, name `CELIKOM-Windows-internal-stage-f9e82d9cce43fe0fb7949c51fe442bf37827f09b`.
+
+The artifact contains exactly:
+- `CELIKOM-W159-MAPPED-TRACK-STATUS-02441-UNSIGNED.exe` — 85,133,124 bytes; SHA-256 `d378273712e1cb8876c4555d67dcabe1657d3359c87bd8969418c192b6f067e9`
+- `CELIKOM-Windows-0.24.41.zip` — 84,653,314 bytes; SHA-256 `0322d19133d4c950940b6c06d856f5333677e6547b717a50c64dfb06783e166e`
+- `SHA256SUMS.txt`
+
+Verified that the ZIP contains exactly one root installer and that its EXE bytes are identical to the standalone EXE. This is an UNSIGNED internal owner-review build, not a production release. No intermediate installer or ZIP was created.

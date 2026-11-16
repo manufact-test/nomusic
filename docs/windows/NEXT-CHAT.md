@@ -1,6 +1,6 @@
 # CELIKOM Windows — актуальная передача W159 (16.11.2026)
 
-**Состояние:** W158 VPN audio continuity вручную принята владельцем: уже играющая подмена продолжает звучать при переключении VPN без слышимого щелчка и ненужной перезагрузки источника. W159 исправляет только несогласованные статусы интерфейса после VPN и Next. Main CI и Windows integration CI для W159 source прошли SUCCESS. Запрошена одна итоговая owner-review сборка 0.24.41.0 / native 0.24.31; промежуточных пакетов нет.
+**Состояние:** W158 VPN audio continuity вручную принята владельцем: уже играющая подмена продолжает звучать при переключении VPN без слышимого щелчка и ненужной перезагрузки источника. W159 исправляет только несогласованные статусы интерфейса после VPN и Next. Main CI и Windows integration CI для W159 source прошли SUCCESS. Одна итоговая owner-review сборка 0.24.41.0 / native 0.24.31 уже собрана успешно (W20 run 43828713363, artifact 14208040930); промежуточных пакетов нет.
 
 ## Источник истины
 
@@ -25,7 +25,7 @@
 
 ## Следующий шаг
 
-Дождаться единственного W20 workflow `CELIKOM W20 safe Windows installer staging`, запущенного обновлением `windows-companion/w20/owner-review-package-20261114.request`. Проверить успешное завершение и наличие ровно одного EXE, одного ZIP с тем же EXE и SHA256SUMS. Затем передать владельцу ссылку на artifact и проверить только UI: одна mapped-песня до VPN, та же песня после VPN recovery, затем Next на другую mapped-песню. Не повторять аудио/VPN исследования, если не появится новая слышимая проблема.
+W20 workflow [43828713363](https://github.com/manufact-test/nomusic/actions/runs/43828713363) завершился SUCCESS. Artifact ID `14208040930` проверен: один EXE, один ZIP с идентичным EXE и SHA256SUMS. Передать владельцу пакет и проверить только UI: одна mapped-песня до VPN, та же песня после VPN recovery, затем Next на другую mapped-песню. Не повторять аудио/VPN исследования, если не появится новая слышимая проблема.
 
 Никаких Android, browser extension, backend, Yandex original files, updater/P-256 или архитектурных изменений.
 
@@ -1535,7 +1535,7 @@ W158 fixes false autorun connected-before-native-heartbeat, no-kUrl same-current
 - Exact native decoder proof remains the only basis for `Подмена активна` / accent color. Do not weaken proof or claim audible confirmation from network events.
 - Changed only W15 presentation/helper/tests and W159/W158 documentation. No VPN, native host/renderer, playback, Yandex, Android, extension, backend or updater changes.
 - Required Main CI and Windows integration CI are attached to source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`; check their final conclusions before packaging.
-- After both CI workflows pass, bump Windows application/package version to **0.24.41.0**; native module remains **0.24.31**. Update the one W20 request file to produce exactly one internal W159 owner-review EXE+ZIP+SHA256 package. No intermediate installer or ZIP.
+- Both required CI workflows passed, and the single W20 owner-review package is built successfully: run [43828713363](https://github.com/manufact-test/nomusic/actions/runs/43828713363), artifact `14208040930`, version **0.24.41.0 / native 0.24.31**. The archive was checked to contain exactly one EXE, one ZIP with the identical EXE, and SHA256SUMS. Do not create another package unless a new owner finding requires it.
 - Owner check after installation: one mapped track before VPN, same track after VPN, then Next to another mapped track. The compact and main UI should keep the same neutral availability/service labels. Audio continuity is already accepted; do not reopen or refactor it unless a new audible failure is reported.
 
 Do not resume W150 updater/P-256 or any Android/browser/backend work. No broad audits or unrelated tests.
