@@ -3452,11 +3452,11 @@ class SelectedItemAuditTests(unittest.TestCase):
             with patch("audit_native_selected_item_handoff.Dex", FakeDex):
                 with patch(
                     "audit_native_selected_item_handoff.method_definitions_with_flags",
-                    return_value=[
+                    side_effect=lambda _dex: iter([
                         (run_method, 0, 100),
                         (constructor, 0, 200),
                         (caller, 0, 300),
-                    ],
+                    ]),
                 ):
                     with patch("audit_native_selected_item_handoff.instructions",
                                side_effect=fake_instructions):

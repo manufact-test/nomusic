@@ -9326,7 +9326,7 @@ PLAYLIST_UPDATE_CALLER_EXTRA_TYPES = (
     "Ljava/util/Collections$EmptyList;",
     "Ljava/util/Collections$UnmodifiableList;",
     "Lkotlin/collections/EmptyList;",
-    "LmLb;", "LiLb;", "LgLb;", "LwN8;", "LsO7;", "LXi6$e;",
+    "LmLb;", "LiLb;", "LgLb;", "LwN8;", "LsO7;", "LXi6$e;", "Lek6;",
 )
 
 
