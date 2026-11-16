@@ -1562,24 +1562,26 @@ public sealed partial class MainWindow : Form
             return;
         }
 
-        if (_bridge.PlayerUnavailable && _compactStarting)
+        var playback = _bridge.GetPlaybackSnapshot();
+        if (playback.PlayerUnavailable && _compactStarting)
         {
             ++_compactStartEpoch;
             _compactStarting = false;
             _compactStartupText = "";
         }
-        _lastPlaybackUiHeartbeatFresh = _bridge.HasFreshHeartbeat;
-        if (_bridge.Enabled && _lastPlaybackUiHeartbeatFresh)
-            _networkRecoveryPlaybackState = _bridge.LastPlaybackState;
+        _lastPlaybackUiHeartbeatFresh = playback.HeartbeatFresh;
+        if (playback.Enabled && _lastPlaybackUiHeartbeatFresh)
+            _networkRecoveryPlaybackState = playback.PlaybackState;
         if (_compactReady)
         {
-            RenderCompact();
+            RenderCompact(playback);
             LayoutCompact();
         }
-        UpdateSafe();
+        UpdateSafe(playbackSnapshot: playback);
     }
 
-    private void UpdateSafe(bool preserveAccountStatus = false)
+    private void UpdateSafe(bool preserveAccountStatus = false,
+        BridgeServer.PlaybackSnapshot? playbackSnapshot = null)
     {
         if (_closing || IsDisposed) return;
         if (InvokeRequired)
@@ -1587,6 +1589,8 @@ public sealed partial class MainWindow : Form
             if (IsHandleCreated) BeginInvoke(new Action(() => UpdateSafe(preserveAccountStatus)));
             return;
         }
+
+        var playback = playbackSnapshot ?? _bridge.GetPlaybackSnapshot();
 
         // Match the extension's prompt recovery without polling the healthy
         // service more often. Network outages never grant offline playback.
@@ -1597,40 +1601,40 @@ public sealed partial class MainWindow : Form
         var connected = _bridgeStarted && _api.IsLoggedIn;
         _login.Enabled = !_loggingIn;
         _logout.Enabled = !_loggingIn && _api.IsLoggedIn;
-        var state = _bridge.LastStatus;
+        var state = playback.Status;
         var sourcePresence = (state is "SDK_MAPPING_ACCEPTED" or "NATIVE_MAPPING_ACCEPTED" or "NATIVE_SOURCE_VERIFIED")
             ? "approved" : "none";
         var switchAvailable = connected && _nativeInstallState == NativeInstallState.Active &&
             _installedModule.MatchesApplication;
-        var heartbeatFresh = _bridge.HasFreshHeartbeat;
+        var heartbeatFresh = playback.HeartbeatFresh;
         var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
-            switchAvailable && _bridge.Enabled, heartbeatFresh, _bridge.PlayerUnavailable,
-            _bridge.NativeNetworkRecoveryPending || _resumeAfterNetworkFailure);
+            switchAvailable && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable,
+            playback.NativeNetworkRecoveryPending || _resumeAfterNetworkFailure);
         var sourceVerified = heartbeatFresh &&
-            _bridge.LastSource == "ACTIVE_REPLACEMENT" &&
-            _bridge.LastPlaybackState == "PLAYING" &&
-            PlaybackSourceEvidence.Verified(switchAvailable && _bridge.Enabled, state, sourcePresence);
+            playback.Source == "ACTIVE_REPLACEMENT" &&
+            playback.PlaybackState == "PLAYING" &&
+            PlaybackSourceEvidence.Verified(switchAvailable && playback.Enabled, state, sourcePresence);
         var originalPlaying = heartbeatFresh &&
-            PlaybackSourceEvidence.OriginalVerified(_bridge.Enabled, state, _bridge.LastSource) &&
-            _bridge.LastPlaybackState == "PLAYING";
-        var playbackState = _bridge.LastPlaybackState;
-        var paused = heartbeatFresh && _bridge.Enabled && playbackState == "PAUSED";
-        var stopped = heartbeatFresh && _bridge.Enabled && playbackState == "STOPPED";
+            PlaybackSourceEvidence.OriginalVerified(playback.Enabled, state, playback.Source) &&
+            playback.PlaybackState == "PLAYING";
+        var playbackState = playback.PlaybackState;
+        var paused = heartbeatFresh && playback.Enabled && playbackState == "PAUSED";
+        var stopped = heartbeatFresh && playback.Enabled && playbackState == "STOPPED";
         var mappingAvailable = heartbeatFresh && playbackState == "PLAYING" &&
-            PlaybackSourceEvidence.MappedButUnverified(switchAvailable && _bridge.Enabled, state, sourcePresence);
+            PlaybackSourceEvidence.MappedButUnverified(switchAvailable && playback.Enabled, state, sourcePresence);
         _start.Enabled = PlaybackStartGate.CanAcceptStart(
             _bridgeStarted, _integrationBusy, _updatingApplication,
-            _compactStarting, switchAvailable, _bridge.Enabled, _closing,
+            _compactStarting, switchAvailable, playback.Enabled, _closing,
             _resumeAfterNetworkFailure);
-        _stop.Enabled = switchAvailable && (_bridge.Enabled || _resumeAfterNetworkFailure);
+        _stop.Enabled = switchAvailable && (playback.Enabled || _resumeAfterNetworkFailure);
         _connectionMark.ForeColor = serviceConnected
             ? Accent : ColorTranslator.FromHtml("#858B8E");
         _connectionState.Text = !connected ? "Войти в аккаунт" :
             !switchAvailable ? "Нужно подключить" :
-            _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
-            (_resumeAfterNetworkFailure || _bridge.NativeNetworkRecoveryPending)
+            playback.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
+            (_resumeAfterNetworkFailure || playback.NativeNetworkRecoveryPending)
                 ? "Связь восстанавливается" :
-            !_bridge.Enabled ? "Выключен" :
+            !playback.Enabled ? "Выключен" :
             serviceConnected ? CompactPlaybackPresentation.ServiceEnabledMessage :
             _compactStarting || _autorunAwaitingNativePlayer
                 ? "Подключаемся к Яндекс Музыке" : "Ожидаем подключения Яндекс Музыки";
@@ -1638,14 +1642,14 @@ public sealed partial class MainWindow : Form
         _switchHint.Text = _compactStarting ? CompactPlaybackPresentation.ConnectingMessage :
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
             !switchAvailable ? "Нажмите «Старт», чтобы подключиться к Яндекс Музыке" :
-            _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
-            (_resumeAfterNetworkFailure || _bridge.NativeNetworkRecoveryPending)
+            playback.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
+            (_resumeAfterNetworkFailure || playback.NativeNetworkRecoveryPending)
                 ? CompactPlaybackPresentation.NetworkRecoveryMessage :
-            !_bridge.Enabled ? "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке" :
+            !playback.Enabled ? "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке" :
             !heartbeatFresh ? (_autorunAwaitingNativePlayer
                 ? "Открой Яндекс Музыку — CELIKOM подключится автоматически."
                 : CompactPlaybackPresentation.ConnectingMessage) :
-            sourceVerified ? CompactPlaybackPresentation.VersionAvailableMessage :
+            sourceVerified ? CompactPlaybackPresentation.ActiveVersionMessage :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
             paused ? "Пауза" :
             stopped ? "Воспроизведение остановлено." :
@@ -1673,9 +1677,9 @@ public sealed partial class MainWindow : Form
         }
         // Source labels in both GUI surfaces must be derived from the SAME
         // current-player lease, NOT an old file-info/renderer transition.
-        _song.Text = _bridge.PlayerUnavailable
+        _song.Text = playback.PlayerUnavailable
             ? "Подключитесь к Яндекс Музыке"
-            : !_bridge.Enabled
+            : !playback.Enabled
                 ? (_resumeAfterNetworkFailure
                     ? CompactPlaybackPresentation.NetworkRecoveryPlaybackMessage(_networkRecoveryPlaybackState)
                     : "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке")
@@ -1684,7 +1688,7 @@ public sealed partial class MainWindow : Form
                     CompactPlaybackPresentation.ConnectingMessage)
             : paused ? "Пауза"
             : stopped ? "Воспроизведение остановлено."
-            : sourceVerified ? CompactPlaybackPresentation.VersionAvailableMessage
+            : sourceVerified ? CompactPlaybackPresentation.ActiveVersionMessage
             : originalPlaying ? "Играет оригинальная версия."
             : mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage
             : playbackState == "PLAYING"
@@ -1701,11 +1705,11 @@ public sealed partial class MainWindow : Form
         _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
             : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
-            : _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке"
-            : !_bridge.Enabled ?
+            : playback.PlayerUnavailable ? "Подключитесь к Яндекс Музыке"
+            : !playback.Enabled ?
                 (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Готов к работе")
             : serviceConnected ? CompactPlaybackPresentation.ServiceEnabledMessage
-            : sourceVerified ? CompactPlaybackPresentation.VersionAvailableMessage
+            : sourceVerified ? CompactPlaybackPresentation.ActiveVersionMessage
             : paused ? "Пауза"
             : stopped ? "Воспроизведение остановлено."
             : mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage
@@ -1748,8 +1752,8 @@ public sealed partial class MainWindow : Form
         _versionFooter.Text = "CELIKOM " + AppUpdateManager.RunningVersion.ToString(3);
         _tray.Text = connected && _resumeAfterNetworkFailure
             ? "CELIKOM — проверяет связь"
-            : connected && _bridge.Enabled
-                ? !heartbeatFresh || _bridge.PlayerUnavailable ? "CELIKOM — ожидает Яндекс"
+            : connected && playback.Enabled
+                ? !heartbeatFresh || playback.PlayerUnavailable ? "CELIKOM — ожидает Яндекс"
                     : sourceVerified ? "CELIKOM — источник выбран" : "CELIKOM — сервис включён"
                 : "CELIKOM — выключен";
     }

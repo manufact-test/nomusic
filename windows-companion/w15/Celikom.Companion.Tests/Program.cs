@@ -1275,6 +1275,7 @@ try
          !PlaybackSourceEvidence.Verified(true,
              "NATIVE_MAPPING_ACCEPTED", "approved") &&
          CompactPlaybackPresentation.VersionAvailableMessage == "Версия CELIKOM доступна" &&
+         CompactPlaybackPresentation.ActiveVersionMessage == "Играет полная версия CELIKOM" &&
          CompactPlaybackPresentation.ServiceEnabledMessage == "Сервис включён",
          "W159 a mapped current track keeps neutral availability copy after VPN recovery and Next");
     Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
@@ -1338,9 +1339,15 @@ try
     Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
              "approved", "ACTIVE_REPLACEMENT", "PLAYING").Level ==
          UserFacingPlaybackHealth.Severity.Good &&
+         UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
+             "approved", "ACTIVE_REPLACEMENT", "PLAYING").Message ==
+             CompactPlaybackPresentation.ActiveVersionMessage &&
          UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
              "approved", "UNKNOWN", "PLAYING").Level ==
-         UserFacingPlaybackHealth.Severity.Neutral,
+         UserFacingPlaybackHealth.Severity.Neutral &&
+         UserFacingPlaybackHealth.CurrentTrack("NATIVE_MAPPING_ACCEPTED", true,
+             "approved", "UNKNOWN", "PLAYING").Message ==
+             CompactPlaybackPresentation.VersionAvailableMessage,
          "W141 only native decoder proof may activate green replacement status");
     Test(UserFacingPlaybackHealth.CurrentTrack("NATIVE_ORIGINAL_SOURCE_VERIFIED", true,
              "approved", "ORIGINAL", "PLAYING").Message.Contains("оригинал") &&
@@ -1402,7 +1409,7 @@ try
              "Воспроизведение остановлено" &&
          UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
              "approved", "ACTIVE_REPLACEMENT", "PLAYING").Message ==
-             CompactPlaybackPresentation.VersionAvailableMessage &&
+             CompactPlaybackPresentation.ActiveVersionMessage &&
          UserFacingPlaybackHealth.CurrentTrack("NATIVE_SOURCE_VERIFIED", true,
              "approved", "ACTIVE_REPLACEMENT", "PAUSED").Level ==
              UserFacingPlaybackHealth.Severity.Neutral,
@@ -2280,13 +2287,60 @@ try
                  "W157 a retired Yandex process remains rejected after VPN recovery re-enables the bridge");
         using (var freshAfterVpn = await SendW141Heartbeat(new {
             trackId = "987", status = "NATIVE_CONNECTED",
-            title = "Новый процесс", source = "UNKNOWN",
+            title = "Новый процесс", artist = "Тестовый исполнитель",
+            durationMs = 180000, source = "UNKNOWN",
             playbackState = "PLAYING", instanceId = "w23-current-4", sequence = 1
         }))
             Test(freshAfterVpn.IsSuccessStatusCode && !bridge.PlayerUnavailable &&
                  bridge.LastSong == "987" &&
                  acceptedHeartbeatNotifications == beforeLateAfterVpn + 1,
                  "W157 a genuinely new Yandex process is accepted after VPN recovery");
+        using (var sameTrackWithoutMetadata = await SendW141Heartbeat(new {
+            trackId = "987", status = "NATIVE_CONNECTED",
+            title = "", artist = "", durationMs = 0, source = "UNKNOWN",
+            playbackState = "PAUSED", instanceId = "w23-current-4", sequence = 2
+        }))
+        {
+            var snapshot = bridge.GetPlaybackSnapshot();
+            Test(sameTrackWithoutMetadata.IsSuccessStatusCode &&
+                 snapshot.HeartbeatFresh && snapshot.TrackId == "987" &&
+                 snapshot.Title == "Новый процесс" &&
+                 snapshot.Artist == "Тестовый исполнитель" &&
+                 snapshot.DurationMs == 180000 &&
+                 snapshot.PlaybackState == "PAUSED",
+                 "W162 empty same-track heartbeat preserves title, artist and duration in one atomic snapshot");
+        }
+        using (var nextTrackWithMetadata = await SendW141Heartbeat(new {
+            trackId = "988", status = "NATIVE_CONNECTED",
+            title = "Следующая песня", artist = "Другой исполнитель",
+            durationMs = 205000, source = "UNKNOWN",
+            playbackState = "PLAYING", instanceId = "w23-current-4", sequence = 3
+        }))
+        {
+            var snapshot = bridge.GetPlaybackSnapshot();
+            Test(nextTrackWithMetadata.IsSuccessStatusCode &&
+                 snapshot.TrackId == "988" &&
+                 snapshot.Title == "Следующая песня" &&
+                 snapshot.Artist == "Другой исполнитель" &&
+                 snapshot.DurationMs == 205000 &&
+                 snapshot.PlaybackState == "PLAYING",
+                 "W162 a real Next replaces all metadata together without leaking the previous track");
+        }
+        using (var partialMetadataRefresh = await SendW141Heartbeat(new {
+            trackId = "988", status = "NATIVE_CONNECTED",
+            title = "Обновлённое название", artist = "", durationMs = 0,
+            source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-current-4", sequence = 4
+        }))
+        {
+            var snapshot = bridge.GetPlaybackSnapshot();
+            Test(partialMetadataRefresh.IsSuccessStatusCode &&
+                 snapshot.TrackId == "988" &&
+                 snapshot.Title == "Обновлённое название" &&
+                 snapshot.Artist == "Другой исполнитель" &&
+                 snapshot.DurationMs == 205000,
+                 "W162 non-empty metadata refresh updates one field without clearing the other");
+        }
         bridge.SetNativeNetworkRecoveryPending(false);
         bridge.SetEnabled(false);
         bridge.MarkPlayerUnavailable();

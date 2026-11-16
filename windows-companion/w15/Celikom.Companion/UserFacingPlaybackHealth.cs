@@ -61,7 +61,7 @@ public static class UserFacingPlaybackHealth
         {
             if (source == "ACTIVE_REPLACEMENT" &&
                 nativeStatus == "NATIVE_SOURCE_VERIFIED")
-                return new(Severity.Good, CompactPlaybackPresentation.VersionAvailableMessage);
+                return new(Severity.Good, CompactPlaybackPresentation.ActiveVersionMessage);
             if (source == "ORIGINAL" && nativeStatus == "NATIVE_ORIGINAL_SOURCE_VERIFIED")
                 return new(Severity.Neutral, presence == "approved"
                     ? "Играет оригинал. Версия CELIKOM доступна."

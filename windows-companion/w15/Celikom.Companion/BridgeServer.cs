@@ -132,6 +132,27 @@ public sealed class BridgeServer : IAsyncDisposable
     public bool PlayerUnavailable { get { lock (_gate) return _playerUnavailable; } }
     public DateTimeOffset LastHeartbeatAt { get { lock (_gate) return _lastHeartbeatAt; } }
     public DateTimeOffset CodeExpires { get { lock (_gate) return _codeExpires; } }
+
+    // One immutable, lock-consistent view prevents the GUI from combining
+    // a new track ID with title/artist fields from a different heartbeat.
+    public PlaybackSnapshot GetPlaybackSnapshot()
+    {
+        lock (_gate)
+        {
+            var fresh = IsHeartbeatFreshLocked();
+            return new PlaybackSnapshot(
+                _enabled, fresh, _playerUnavailable, _nativeNetworkRecoveryPending,
+                fresh ? _lastSong : "",
+                fresh ? _lastTitle : "",
+                fresh ? _lastArtist : "",
+                fresh ? _lastDurationMs : 0,
+                fresh ? _lastStatus : (_enabled ? "UNAVAILABLE" : "OFF"),
+                fresh ? _lastSource : "UNKNOWN",
+                fresh ? _lastPlaybackState : "UNKNOWN",
+                _lastHeartbeatAt);
+        }
+    }
+
     public bool CanResolve => Enabled && _api.IsLoggedIn;
 
     public void SetNativeNetworkRecoveryPending(bool pending)
@@ -389,11 +410,31 @@ public sealed class BridgeServer : IAsyncDisposable
                     if (accepted)
                     {
                         var valid = GrantValidator.IsTrackId(beat.TrackId);
-                        _lastSong = valid ? beat.TrackId! : "";
-                        _lastTitle = valid ? SafeTrackText(beat.Title) : "";
-                        _lastArtist = valid ? SafeTrackText(beat.Artist) : "";
-                        _lastDurationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
+                        var sameTrack = valid && string.Equals(
+                            _lastSong, beat.TrackId, StringComparison.Ordinal);
+                        var title = valid ? SafeTrackText(beat.Title) : "";
+                        var artist = valid ? SafeTrackText(beat.Artist) : "";
+                        var durationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
                             ? beat.DurationMs.Value : 0;
+                        _lastSong = valid ? beat.TrackId! : "";
+                        if (!valid || !sameTrack)
+                        {
+                            // A real track change replaces all prior metadata,
+                            // including with empty values when Yandex has none yet.
+                            _lastTitle = title;
+                            _lastArtist = artist;
+                            _lastDurationMs = durationMs;
+                        }
+                        else
+                        {
+                            // Same-track heartbeat pulses can temporarily omit
+                            // MediaSession title/artist while the player surface
+                            // is hidden or being restored. Keep the last known
+                            // non-empty metadata instead of flashing it blank.
+                            if (title.Length > 0) _lastTitle = title;
+                            if (artist.Length > 0) _lastArtist = artist;
+                            if (durationMs > 0) _lastDurationMs = durationMs;
+                        }
                         _lastStatus = beat.Status;
                         _playerUnavailable = beat.Status == "UNAVAILABLE" && !valid;
                         _lastSource = beat.Status == "NATIVE_SOURCE_VERIFIED" &&
@@ -446,6 +487,20 @@ public sealed class BridgeServer : IAsyncDisposable
     }
 
     public sealed record PairRequest(string Code);
+    public sealed record PlaybackSnapshot(
+        bool Enabled,
+        bool HeartbeatFresh,
+        bool PlayerUnavailable,
+        bool NativeNetworkRecoveryPending,
+        string TrackId,
+        string Title,
+        string Artist,
+        long DurationMs,
+        string Status,
+        string Source,
+        string PlaybackState,
+        DateTimeOffset HeartbeatAt);
+
     private static string SafeTrackText(string? value) =>
         value is { Length: <= 180 } && !value.Any(char.IsControl) ? value.Trim() : "";
 

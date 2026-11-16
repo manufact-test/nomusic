@@ -3,6 +3,7 @@ namespace Celikom.Companion;
 public static class CompactPlaybackPresentation
 {
     public const string VersionAvailableMessage = "Версия CELIKOM доступна";
+    public const string ActiveVersionMessage = "Играет полная версия CELIKOM";
     public const string ServiceEnabledMessage = "Сервис включён";
 
     public const string ConnectingMessage = "Подождите, идёт подключение к приложению Яндекса.";

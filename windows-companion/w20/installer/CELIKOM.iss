@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.43
-VersionInfoVersion=0.24.43.0
+AppVersion=0.24.44
+VersionInfoVersion=0.24.44.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W161-UI-STATE-AND-START-COPY-02443-UNSIGNED
+OutputBaseFilename=CELIKOM-W162-TRACK-STATUS-AND-METADATA-STABILITY-02444-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
