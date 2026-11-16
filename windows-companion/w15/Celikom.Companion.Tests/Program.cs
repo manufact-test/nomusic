@@ -1270,6 +1270,15 @@ try
          !PlaybackSourceEvidence.Verified(true, "SDK_MAPPING_ACCEPTED", "approved") &&
          !PlaybackSourceEvidence.Verified(true, "NATIVE_CONNECTED", "approved"),
          "W89 mapping or Yandex connection alone must never paint the current track green");
+    Test(PlaybackSourceEvidence.ActiveReplacement(true, true,
+             "NATIVE_SOURCE_VERIFIED", "ACTIVE_REPLACEMENT", "PLAYING", "approved") &&
+         !PlaybackSourceEvidence.ActiveReplacement(true, true,
+             "NATIVE_SOURCE_VERIFIED", "ACTIVE_REPLACEMENT", "PAUSED", "approved") &&
+         !PlaybackSourceEvidence.ActiveReplacement(true, true,
+             "NATIVE_MAPPING_ACCEPTED", "ACTIVE_REPLACEMENT", "PLAYING", "approved") &&
+         !PlaybackSourceEvidence.ActiveReplacement(true, true,
+             "NATIVE_SOURCE_VERIFIED", "UNKNOWN", "PLAYING", "approved"),
+         "W166 only a verified currently-playing CELIKOM source is active");
     Test(PlaybackSourceEvidence.MappedButUnverified(true,
              "NATIVE_MAPPING_ACCEPTED", "approved") &&
          !PlaybackSourceEvidence.Verified(true,
@@ -1383,7 +1392,14 @@ try
     Test(CompactPlaybackPresentation.ConnectingMessage ==
              "Подождите, идёт подключение\nк приложению Яндекса." &&
          CompactPlaybackPresentation.TrackStatusBottomSpacingPx == 18 &&
-         CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 8 &&
+         CompactPlaybackPresentation.ActiveTrackStatusHeightPx == 28 &&
+         CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 4 &&
+         CompactPlaybackPresentation.VersionStatusTone(false, false) ==
+             CompactPlaybackPresentation.StatusTone.Neutral &&
+         CompactPlaybackPresentation.VersionStatusTone(false, true) ==
+             CompactPlaybackPresentation.StatusTone.Accent &&
+         CompactPlaybackPresentation.VersionStatusTone(true, true) ==
+             CompactPlaybackPresentation.StatusTone.Danger &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PLAYING") == "Музыка продолжает играть." &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PAUSED") == "Пауза" &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("UNKNOWN") == "Проверяем состояние воспроизведения…" &&

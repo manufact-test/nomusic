@@ -639,8 +639,6 @@ public sealed partial class MainWindow
         _start.Text = "Старт";
         var nativeStatus = playback.Status;
         var heartbeatFresh = playback.HeartbeatFresh;
-        var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
-            connected && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable);
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
         if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
@@ -774,11 +772,9 @@ public sealed partial class MainWindow
             actionProblem ? _compactStartupText : "";
         // An accepted file-info mapping is not proof of sound. Only a CDP
         // decoder kUrl match for the CURRENT playing track may use green.
-        var activelyReplacing = heartbeatFresh &&
-            playback.Source == "ACTIVE_REPLACEMENT" &&
-            playback.PlaybackState == "PLAYING" &&
-            PlaybackSourceEvidence.Verified(
-                playback.Enabled, nativeStatus, _compactPresenceStatus);
+        var activelyReplacing = PlaybackSourceEvidence.ActiveReplacement(
+            playback.Enabled, heartbeatFresh, nativeStatus, playback.Source,
+            playback.PlaybackState, _compactPresenceStatus);
         // File-info mapping remains a playback hint only while the CURRENT
         // Yandex player is playing. On pause/stop show the actual playback
         // state instead of resurrecting an older "pending source" label.
@@ -806,8 +802,14 @@ public sealed partial class MainWindow
             _compactVersionStatus.Text = versionStatusText;
         // A current mapped track uses the same neutral availability copy
         // before/after VPN recovery and Next. Only exact decoder proof is green.
-        _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
-            activelyReplacing || (paused && serviceConnected) ? Accent : Secondary;
+        _compactVersionStatus.ForeColor =
+            CompactPlaybackPresentation.VersionStatusTone(
+                problemText.Length > 0, activelyReplacing) switch
+            {
+                CompactPlaybackPresentation.StatusTone.Danger => Danger,
+                CompactPlaybackPresentation.StatusTone.Accent => Accent,
+                _ => Secondary
+            };
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
@@ -857,7 +859,8 @@ public sealed partial class MainWindow
                 (_compactAccess, 35, 8, true),
                 (_compactTrack, 32, trackGap, showTrack),
                 (_compactTrackArtist, 25, artistGap, showArtist),
-                (_compactVersionStatus, 40,
+                (_compactVersionStatus,
+                    CompactPlaybackPresentation.ActiveTrackStatusHeightPx,
                     CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx, showVersionStatus),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?

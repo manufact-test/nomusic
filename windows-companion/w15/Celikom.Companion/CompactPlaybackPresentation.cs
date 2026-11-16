@@ -7,8 +7,15 @@ public static class CompactPlaybackPresentation
     public const string ServiceEnabledMessage = "Сервис включён";
     // Extra room belongs to the disabled/placeholder state only.
     public const int TrackStatusBottomSpacingPx = 18;
-    // Preserve the original compact gap below a real current-track status.
-    public const int ActiveTrackStatusBottomSpacingPx = 8;
+    // The live track status is a single compact line, not a 40 px spacer.
+    public const int ActiveTrackStatusHeightPx = 28;
+    public const int ActiveTrackStatusBottomSpacingPx = 4;
+
+    public enum StatusTone { Neutral, Accent, Danger }
+
+    public static StatusTone VersionStatusTone(bool hasProblem, bool activelyReplacing) =>
+        hasProblem ? StatusTone.Danger :
+        activelyReplacing ? StatusTone.Accent : StatusTone.Neutral;
 
     public const string ConnectingMessage = "Подождите, идёт подключение\nк приложению Яндекса.";
 

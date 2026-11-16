@@ -596,12 +596,10 @@ async function tick(view) {
       const checkedAt = Date.now();
       const firstSeenAt = previous?.trackId === trackId && previous?.firstSeenAt
         ? previous.firstSeenAt : checkedAt;
-      // Only matching current decoder kUrl + kIsPlaying is evidence of our
-      // source reaching the actual player. HTTP 206 or a mapped file-info
-      // is NOT enough for the green "Подмена активна" label.
-      // Queue identity and CDP player-property events can arrive in either
-      // order. Reconcile the retained current decoder state after observing
-      // the queue, rather than requiring kUrl/kIsPlaying to arrive second.
+      // Only the exact current Media player's signed kUrl or direct src
+      // attribute, paired with that same player's PLAYING state, is evidence
+      // of CELIKOM reaching the player. Network 206 and file-info mapping are
+      // not enough. Queue identity and CDP events may arrive in either order.
       const decoderPlayer = currentDecoderPlayer(view, trackId, firstSeenAt, checkedAt);
       const decoderConfirmed = !!decoderPlayer;
       if (decoderConfirmed) {
@@ -1036,7 +1034,8 @@ function observeNativePlayback(view) {
       if (prop?.name === "kUrl") {
         if (applyDecoderUrl(prev, prop.value, "cdp"))
           sourceLeftCurrent = true;
-      } else if (prop?.name === "kIsPlaying") {
+      } else if (prop?.name === "kIsPlaying" &&
+          (prop.value === "true" || prop.value === "false")) {
         const currentTrackId = lastStatus.get(view)?.trackId;
         const wasCurrentVerified = prev.playing && !!currentTrackId &&
           prev.sourceTrackId === currentTrackId;
@@ -1325,7 +1324,7 @@ function observeNativePlayback(view) {
         if (!validView(view)) return;
         // A detached CDP observer can no longer prove which source is
         // currently playing. Downgrade any green heartbeat immediately and
-        // invalidate the witness; never retain an old kUrl/kIsPlaying pair.
+        // invalidate both Media and DOM source witnesses.
         const verified = verifiedDecoderSource.get(view);
         if (verified?.trackId)
           downgradeVerifiedPlaybackHeartbeat(view, verified.trackId);
