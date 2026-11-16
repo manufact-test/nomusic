@@ -1270,6 +1270,13 @@ try
          !PlaybackSourceEvidence.Verified(true, "SDK_MAPPING_ACCEPTED", "approved") &&
          !PlaybackSourceEvidence.Verified(true, "NATIVE_CONNECTED", "approved"),
          "W89 mapping or Yandex connection alone must never paint the current track green");
+    Test(PlaybackSourceEvidence.MappedButUnverified(true,
+             "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         !PlaybackSourceEvidence.Verified(true,
+             "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         CompactPlaybackPresentation.VersionAvailableMessage == "Версия CELIKOM доступна" &&
+         CompactPlaybackPresentation.ServiceEnabledMessage == "Сервис включён",
+         "W159 a mapped current track keeps neutral availability copy after VPN recovery and Next");
     Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(false, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
