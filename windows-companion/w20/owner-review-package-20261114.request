@@ -1,10 +1,10 @@
-CELIKOM Windows — one existing product, W158 final owner review
-Requested build: 0.24.40.0 (native module 0.24.31)
-Purpose: one owner acceptance installer and ZIP from the CI-green W158 application source after false autorun connection, no-kUrl VPN source continuity, Start gate, and compact UI fixes.
-Requested output: CELIKOM-W158-VPN-AUTORUN-SOURCE-UI-02440-UNSIGNED.exe
+CELIKOM Windows — one existing product, W159 final owner review
+Requested build: 0.24.41.0 (native module 0.24.31)
+Purpose: one owner acceptance installer and ZIP from the CI-green W159 mapped-track status correction after the owner accepted W158 VPN audio continuity.
+Requested output: CELIKOM-W159-MAPPED-TRACK-STATUS-02441-UNSIGNED.exe
 Scope: exactly one installer EXE, one ZIP containing that same installer, and SHA256SUMS.txt; privately retained GitHub Actions artifact only.
 Signing: internal UNSIGNED owner review. No production signing, stable feed, Hostinger deployment, customer publication or release.
-Source CI success: Main 43769234697; Windows integration 43769234693 on source-bearing main HEAD 7492158509f97564bcb45f5a892cb9b6e529a4d0.
-Owner acceptance only: Windows startup with Yandex absent then opened manually, delayed native handshake, VPN A-to-B same-current track 144530503 sound/Next, true recovery Start/Stop gate, neutral availability vs exact active replacement, Stop/logout/denial/decoder loss protections. No audible acceptance is claimed by CI.
+Source CI success: Main 43828118274 and Windows integration 43828118192, both SUCCESS on W159 application-source commit 09fca7a0f7fb9b0f7fe4a436978c48968054a0fa.
+Owner acceptance only: confirm the mapped current track shows neutral "Версия CELIKOM доступна" before VPN, after VPN recovery and after Next; header remains "Сервис включён"; exact decoder proof remains the only active/green state. W158 audio continuity was manually accepted; this UI-only build does not change playback or VPN recovery.
 No Android, browser extension, backend, Yandex original file, updater or P-256 changes.
-This single request-file change is the one-time W20 stage trigger; ordinary source/docs pushes must not create installers.
+This single request-file change triggers exactly one W20 internal owner-review build; ordinary source/docs pushes must not create installers.

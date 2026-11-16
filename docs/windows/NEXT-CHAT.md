@@ -1,18 +1,39 @@
-# CELIKOM Windows — актуальная передача W158 (16.11.2026)
+# CELIKOM Windows — актуальная передача W159 (16.11.2026)
 
-**Состояние:** W157 code/CI и owner-stage build 0.24.39.0 существуют, но новая проверка владельца выявила два runtime-регресса: ложное «подключено» после autorun и один повторный source reload после VPN hold. UI также неверно разрешает Start во время recovery. Не считать продукт field-accepted. Следующая работа строго по W158.
+**Состояние:** W158 VPN audio continuity вручную принята владельцем: уже играющая подмена продолжает звучать при переключении VPN без слышимого щелчка и ненужной перезагрузки источника. W159 исправляет только несогласованные статусы интерфейса после VPN и Next. Main CI и Windows integration CI для W159 source прошли SUCCESS. Запрошена одна итоговая owner-review сборка 0.24.41.0 / native 0.24.31; промежуточных пакетов нет.
 
 ## Источник истины
 
-- Репозиторий: manufact-test/nomusic
-- Единственная рабочая ветка: main
-- Последний подтверждённый application source checkpoint: 2948c38343cc8fba0027fe2c1a38b104b38a80ca
-- Исходник существующего owner-stage пакета: 58eb6e6ab1c303ae6ebf0cdcff96eb3bf0dc3191
-- Версия существующего пакета: 0.24.39.0; native module: 0.24.30
-- Старый W157 Main CI 43760955385 и Windows Integration CI 43760955380 — SUCCESS. Эти результаты не закрывают новые runtime findings.
-- Старый owner-stage artifact 14180750696 / workflow 43760955394 предшествует новым findings; не считать финальной принятой сборкой и не собирать промежуточный пакет.
-- Точный backup перед W158 documentation update: backup/windows-main-pre-w158-owner-vpn-autorun-ui-20261116 @ eec7561aedcc1e33c835d94a75ff0d40474a5d48
-- Полный актуальный порядок задач и диагностические доказательства: docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md
+- Репозиторий: `manufact-test/nomusic`
+- Единственная рабочая ветка: `main`
+- W159 application-source checkpoint: `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`
+- Точный rollback до W159: `backup/windows-main-pre-w159-mapped-source-status-20261116` @ `0e1de874bc15c401fcceb206511d8cb8f4005d80`
+- Проверенная текущая версия владельца: 0.24.40.0 / native 0.24.31
+- Единственная запрошенная следующая сборка: 0.24.41.0 / native 0.24.31
+- Main CI: [43828118274](https://github.com/manufact-test/nomusic/actions/runs/43828118274) — **SUCCESS**
+- Windows integration CI: [43828118192](https://github.com/manufact-test/nomusic/actions/runs/43828118192) — **SUCCESS**
+- W159 техническая запись: `docs/windows/W159-MAPPED-TRACK-STATUS-20261116.md`
+- W158 owner-field details: `docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md`
+
+## Что сделано в W159
+
+- Для текущего трека с принятым mapping компактное и основное окна теперь одинаково показывают нейтральное `Версия CELIKOM доступна`.
+- Верхний статус сервиса остаётся `Сервис включён`, а не переключается в `Ожидаем подтверждения` после Next.
+- `Подмена активна` и акцентный цвет по-прежнему разрешены только при точном native decoder proof.
+- VPN recovery, native host/renderer, playback, Yandex files, entitlement и updater не менялись.
+- W54 диагностики разобраны. Они показывают source hold/keep и route recovery, но не являются доказательством audible waveform. Непрерывность звука подтверждена ручной проверкой владельца.
+
+## Следующий шаг
+
+Дождаться единственного W20 workflow `CELIKOM W20 safe Windows installer staging`, запущенного обновлением `windows-companion/w20/owner-review-package-20261114.request`. Проверить успешное завершение и наличие ровно одного EXE, одного ZIP с тем же EXE и SHA256SUMS. Затем передать владельцу ссылку на artifact и проверить только UI: одна mapped-песня до VPN, та же песня после VPN recovery, затем Next на другую mapped-песню. Не повторять аудио/VPN исследования, если не появится новая слышимая проблема.
+
+Никаких Android, browser extension, backend, Yandex original files, updater/P-256 или архитектурных изменений.
+
+---
+
+## Исторические W158 заметки (завершённая работа; не выполнять повторно)
+
+> Ниже сохранён прежний W158 handoff и исторические материалы для отката/контекста. Текущая задача — только W159, описанная выше.
 
 ## Что показали новые диагностики
 

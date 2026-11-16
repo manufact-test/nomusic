@@ -57,7 +57,7 @@ Focused W159 regression asserts that mapped current-track state remains neutral 
 
 - Exact pre-W159 rollback: `backup/windows-main-pre-w159-mapped-source-status-20261116` @ `0e1de874bc15c401fcceb206511d8cb8f4005d80`.
 - W159 application-source checkpoint before documentation: `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`.
-- Main CI run: [43828118274](https://github.com/manufact-test/nomusic/actions/runs/43828118274) — pending at documentation time.
-- Windows integration CI run: [43828118192](https://github.com/manufact-test/nomusic/actions/runs/43828118192) — pending at documentation time.
+- Main CI run: [43828118274](https://github.com/manufact-test/nomusic/actions/runs/43828118274) — **SUCCESS** on source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`.
+- Windows integration CI run: [43828118192](https://github.com/manufact-test/nomusic/actions/runs/43828118192) — **SUCCESS** on the same source commit.
 
-No new owner installer is included in this checkpoint. After both required CI workflows pass, bump only the Windows application/package version to 0.24.41.0 (native remains 0.24.31) and create exactly one W159 internal owner-review package. No intermediate installer, ZIP or release.
+Both required source CI workflows passed. Windows application/package version is now **0.24.41.0**; native remains **0.24.31**. The single W159 internal owner-review package request was updated in the same main-branch commit as the version files, triggering exactly one W20 staging build. Await that run and record its result/artifact; no intermediate installer, ZIP or release.
