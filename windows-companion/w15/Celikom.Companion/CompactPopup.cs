@@ -736,21 +736,21 @@ public sealed partial class MainWindow
             !_api.IsLoggedIn ? "Войди, чтобы проверить версию" :
             activelyReplacing ? "Подмена активна" :
             originalPlaying ? trackHealth.Message :
-            mappingOnly ? "Источник текущего трека не подтверждён" :
+            mappingOnly ? CompactPlaybackPresentation.VersionAvailableMessage :
             _bridge.Enabled && _bridge.LastPlaybackState is "PAUSED" or "STOPPED"
                 ? trackHealth.Message :
             _bridge.Enabled && !heartbeatFresh ? (_autorunAwaitingNativePlayer
                 ? "Ожидаем Яндекс Музыку" : "Ожидаем текущий плеер") :
             _compactPresenceStatus switch
             {
-                "approved" => "Версия CELIKOM доступна",
+                "approved" => CompactPlaybackPresentation.VersionAvailableMessage,
                 "pending" => "Версия песни CELIKOM на проверке",
                 "none" => "Версия песни CELIKOM ещё не загружена",
                 "error" => "Не удалось проверить версию песни CELIKOM",
                 _ => "Проверяем версию песни CELIKOM…"
             };
-        // Approved presence is never green by itself; only exact current
-        // native decoder evidence is allowed to paint active replacement.
+        // A current mapped track uses the same neutral availability copy
+        // before/after VPN recovery and Next. Only exact decoder proof is green.
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
             activelyReplacing ? Accent : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
