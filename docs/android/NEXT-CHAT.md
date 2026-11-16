@@ -87,4 +87,4 @@ Reference docs are not startup reading. Open one only when the active task requi
 
 ## Documentation rule
 
-Follow [ANDROID-DOCUMENTATION-HYGIENE.md](ANDROID-DOCUMENTATION-HYGIENE.md). In short: replace this handoff instead of appending, keep it compact, archive superseded notes, and never load the historical archive for routine continuation.
+Follow [ANDROID-DOCUMENTATION-HYGIENE.md](ANDROID-DOCUMENTATION-HYGIENE.md). The [archive index](archive/README.md) identifies superseded and oversized historical notes. Replace this handoff instead of appending; never load the archive or legacy handoffs for routine continuation.
