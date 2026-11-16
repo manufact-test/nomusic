@@ -1637,7 +1637,8 @@ public sealed partial class MainWindow : Form
             !playback.Enabled ? "Выключен" :
             serviceConnected ? CompactPlaybackPresentation.ServiceEnabledMessage :
             _compactStarting || _autorunAwaitingNativePlayer
-                ? "Подключаемся к Яндекс Музыке" : "Ожидаем подключения Яндекс Музыки";
+                ? "Подключаемся к Яндекс Музыке" :
+            !heartbeatFresh ? "Проверяем состояние" : "Ожидаем подключения Яндекс Музыки";
         _connectionState.ForeColor = serviceConnected ? Accent : Secondary;
         _switchHint.Text = _compactStarting ? CompactPlaybackPresentation.ConnectingMessage :
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
@@ -1648,7 +1649,7 @@ public sealed partial class MainWindow : Form
             !playback.Enabled ? "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке" :
             !heartbeatFresh ? (_autorunAwaitingNativePlayer
                 ? "Открой Яндекс Музыку — CELIKOM подключится автоматически."
-                : CompactPlaybackPresentation.ConnectingMessage) :
+                : CompactPlaybackPresentation.StaleHeartbeatMessage(_networkRecoveryPlaybackState)) :
             sourceVerified ? CompactPlaybackPresentation.ActiveVersionMessage :
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
             paused ? "Пауза" :
@@ -1685,7 +1686,7 @@ public sealed partial class MainWindow : Form
                     : "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке")
             : !heartbeatFresh
                 ? (_autorunAwaitingNativePlayer ? "Открой Яндекс Музыку — CELIKOM подключится автоматически." :
-                    CompactPlaybackPresentation.ConnectingMessage)
+                    CompactPlaybackPresentation.StaleHeartbeatMessage(_networkRecoveryPlaybackState))
             : paused ? "Пауза"
             : stopped ? "Воспроизведение остановлено."
             : sourceVerified ? CompactPlaybackPresentation.ActiveVersionMessage
@@ -1709,6 +1710,7 @@ public sealed partial class MainWindow : Form
             : !playback.Enabled ?
                 (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Готов к работе")
             : serviceConnected ? CompactPlaybackPresentation.ServiceEnabledMessage
+            : !heartbeatFresh ? CompactPlaybackPresentation.StaleHeartbeatMessage(_networkRecoveryPlaybackState)
             : sourceVerified ? CompactPlaybackPresentation.ActiveVersionMessage
             : paused ? "Пауза"
             : stopped ? "Воспроизведение остановлено."
@@ -1753,7 +1755,7 @@ public sealed partial class MainWindow : Form
         _tray.Text = connected && _resumeAfterNetworkFailure
             ? "CELIKOM — проверяет связь"
             : connected && playback.Enabled
-                ? !heartbeatFresh || playback.PlayerUnavailable ? "CELIKOM — ожидает Яндекс"
+                ? !heartbeatFresh || playback.PlayerUnavailable ? "CELIKOM — проверяет состояние"
                     : sourceVerified ? "CELIKOM — источник выбран" : "CELIKOM — сервис включён"
                 : "CELIKOM — выключен";
     }

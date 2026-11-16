@@ -102,6 +102,19 @@ public sealed class BridgeServer : IAsyncDisposable
     private readonly HashSet<string> _retiredHeartbeatInstances = new(StringComparer.Ordinal);
     private DateTimeOffset _lastHeartbeatAt = DateTimeOffset.MinValue;
     private const int HeartbeatFreshnessSeconds = 12;
+    private const int TrackMetadataGapGraceSeconds = 9;
+    private DateTimeOffset _lastValidTrackAt = DateTimeOffset.MinValue;
+    public static bool IsTransientTrackMetadataGap(bool validTrackId,
+        string? status, string? playbackState) =>
+        !validTrackId && (playbackState is "PLAYING" or "PAUSED") &&
+        (status is "RESOLVING" or "NATIVE_RECOVERING" or "NATIVE_CONNECTED" or
+            "NATIVE_MAPPING_ACCEPTED" or "NATIVE_SOURCE_VERIFIED" or
+            "NATIVE_ORIGINAL_SOURCE_VERIFIED");
+    public static bool IsTrackMetadataDisplayable(DateTimeOffset lastValidTrackAt,
+        DateTimeOffset now, bool enabled, bool playerUnavailable) =>
+        enabled && !playerUnavailable && lastValidTrackAt != DateTimeOffset.MinValue &&
+        now >= lastValidTrackAt &&
+        now - lastValidTrackAt <= TimeSpan.FromSeconds(TrackMetadataGapGraceSeconds);
     public static bool IsHeartbeatFresh(DateTimeOffset seenAt, DateTimeOffset now) =>
         seenAt != DateTimeOffset.MinValue && now >= seenAt &&
         now - seenAt <= TimeSpan.FromSeconds(HeartbeatFreshnessSeconds);
@@ -139,13 +152,16 @@ public sealed class BridgeServer : IAsyncDisposable
     {
         lock (_gate)
         {
-            var fresh = IsHeartbeatFreshLocked();
+            var now = DateTimeOffset.UtcNow;
+            var fresh = IsHeartbeatFresh(_lastHeartbeatAt, now) && _enabled;
+            var trackMetadataDisplayable = IsTrackMetadataDisplayable(
+                _lastValidTrackAt, now, _enabled, _playerUnavailable);
             return new PlaybackSnapshot(
                 _enabled, fresh, _playerUnavailable, _nativeNetworkRecoveryPending,
-                fresh ? _lastSong : "",
-                fresh ? _lastTitle : "",
-                fresh ? _lastArtist : "",
-                fresh ? _lastDurationMs : 0,
+                trackMetadataDisplayable ? _lastSong : "",
+                trackMetadataDisplayable ? _lastTitle : "",
+                trackMetadataDisplayable ? _lastArtist : "",
+                trackMetadataDisplayable ? _lastDurationMs : 0,
                 fresh ? _lastStatus : (_enabled ? "UNAVAILABLE" : "OFF"),
                 fresh ? _lastSource : "UNKNOWN",
                 fresh ? _lastPlaybackState : "UNKNOWN",
@@ -183,6 +199,7 @@ public sealed class BridgeServer : IAsyncDisposable
             _lastTitle = "";
             _lastArtist = "";
             _lastDurationMs = 0;
+            _lastValidTrackAt = DateTimeOffset.MinValue;
             _lastStatus = "UNAVAILABLE";
             _lastSource = "UNKNOWN";
             _lastPlaybackState = "UNKNOWN";
@@ -228,6 +245,7 @@ public sealed class BridgeServer : IAsyncDisposable
             _lastTitle = "";
             _lastArtist = "";
             _lastDurationMs = 0;
+            _lastValidTrackAt = DateTimeOffset.MinValue;
         }
         DiagnosticLog.Record(enabled ? "START_ENABLED" : "STOP_DISABLED");
         Changed?.Invoke();
@@ -410,30 +428,45 @@ public sealed class BridgeServer : IAsyncDisposable
                     if (accepted)
                     {
                         var valid = GrantValidator.IsTrackId(beat.TrackId);
-                        var sameTrack = valid && string.Equals(
-                            _lastSong, beat.TrackId, StringComparison.Ordinal);
+                        var transientTrackGap = IsTransientTrackMetadataGap(
+                            valid, beat.Status, beat.PlaybackState);
                         var title = valid ? SafeTrackText(beat.Title) : "";
                         var artist = valid ? SafeTrackText(beat.Artist) : "";
                         var durationMs = valid && beat.DurationMs is >= 1000 and <= 86400000
                             ? beat.DurationMs.Value : 0;
-                        _lastSong = valid ? beat.TrackId! : "";
-                        if (!valid || !sameTrack)
+                        if (valid)
                         {
-                            // A real track change replaces all prior metadata,
-                            // including with empty values when Yandex has none yet.
-                            _lastTitle = title;
-                            _lastArtist = artist;
-                            _lastDurationMs = durationMs;
+                            var sameTrack = string.Equals(
+                                _lastSong, beat.TrackId, StringComparison.Ordinal);
+                            _lastSong = beat.TrackId!;
+                            _lastValidTrackAt = DateTimeOffset.UtcNow;
+                            if (!sameTrack)
+                            {
+                                // A real track change replaces all prior metadata,
+                                // including with empty values when Yandex has none yet.
+                                _lastTitle = title;
+                                _lastArtist = artist;
+                                _lastDurationMs = durationMs;
+                            }
+                            else
+                            {
+                                // Same-track heartbeat pulses can temporarily omit
+                                // MediaSession metadata while the player surface moves.
+                                if (title.Length > 0) _lastTitle = title;
+                                if (artist.Length > 0) _lastArtist = artist;
+                                if (durationMs > 0) _lastDurationMs = durationMs;
+                            }
                         }
-                        else
+                        else if (!transientTrackGap)
                         {
-                            // Same-track heartbeat pulses can temporarily omit
-                            // MediaSession title/artist while the player surface
-                            // is hidden or being restored. Keep the last known
-                            // non-empty metadata instead of flashing it blank.
-                            if (title.Length > 0) _lastTitle = title;
-                            if (artist.Length > 0) _lastArtist = artist;
-                            if (durationMs > 0) _lastDurationMs = durationMs;
+                            // Explicit stop/unavailable/unknown state clears identity.
+                            // A short ID-less PLAYING/PAUSED transition keeps the last
+                            // title while Yandex resolves the next queue entity.
+                            _lastSong = "";
+                            _lastTitle = "";
+                            _lastArtist = "";
+                            _lastDurationMs = 0;
+                            _lastValidTrackAt = DateTimeOffset.MinValue;
                         }
                         _lastStatus = beat.Status;
                         _playerUnavailable = beat.Status == "UNAVAILABLE" && !valid;

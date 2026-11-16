@@ -667,9 +667,11 @@ public sealed partial class MainWindow
         }
         else
         {
+            var displayPlaybackState = !heartbeatFresh || _resumeAfterNetworkFailure
+                ? _networkRecoveryPlaybackState : playback.PlaybackState;
             var trackText = CompactPlaybackPresentation.TrackPlaceholder(
                 playback.Enabled, heartbeatFresh,
-                _resumeAfterNetworkFailure ? _networkRecoveryPlaybackState : playback.PlaybackState,
+                displayPlaybackState,
                 _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
                 _api.IsLoggedIn, playback.PlayerUnavailable);
             if (!string.Equals(_compactTrack.Text, trackText, StringComparison.Ordinal))
@@ -756,7 +758,8 @@ public sealed partial class MainWindow
             mappingOnly ? CompactPlaybackPresentation.VersionAvailableMessage :
             paused ? "Пауза" :
             stopped ? "Воспроизведение остановлено" :
-            playback.Enabled && !heartbeatFresh ? CompactPlaybackPresentation.ConnectingMessage :
+            playback.Enabled && !heartbeatFresh
+                ? CompactPlaybackPresentation.StaleHeartbeatMessage(_networkRecoveryPlaybackState) :
             _compactPresenceStatus switch
             {
                 "approved" => CompactPlaybackPresentation.VersionAvailableMessage,
@@ -791,9 +794,21 @@ public sealed partial class MainWindow
         {
             _compactScroll.SuspendLayout();
             var hasTrack = GrantValidator.IsTrackId(_compactRenderedTrackId);
+            var showTrack = hasTrack || !_compactStarting;
+            var showArtist = !string.IsNullOrWhiteSpace(_compactTrackArtist.Text);
             var hostNeedsStart = !_bridge.Enabled && !_compactStarting &&
                 !_autoReconnectBusy && _nativeInstallState == NativeInstallState.Active &&
                 !_installedModule.MatchesApplication;
+            var showVersionStatus = hasTrack || !string.IsNullOrWhiteSpace(_compactVersionStatus.Text) &&
+                (hostNeedsStart || UserFacingPlaybackHealth.Host(
+                    _nativeInstallState, _hostReport, _installedModule.MatchesApplication)
+                    .Level is UserFacingPlaybackHealth.Severity.Error or
+                        UserFacingPlaybackHealth.Severity.Warning ||
+                 !_bridge.Enabled && IsCompactActionError(_compactStartupText));
+            var trackGap = showArtist || showVersionStatus ? 0 :
+                CompactPlaybackPresentation.TrackStatusBottomSpacingPx;
+            var artistGap = showVersionStatus ? 3 :
+                CompactPlaybackPresentation.TrackStatusBottomSpacingPx;
             var rows = new (Control item, int height, int gap, bool visible)[]
             {
                 (_compactHeader, 34, 7, true),
@@ -806,15 +821,10 @@ public sealed partial class MainWindow
                 (_compactSuggestBody, _compactSuggestView == "form"
                     ? CompactSuggestFormHeight() : 130, 8, _compactSuggestOpen),
                 (_compactAccess, 35, 8, true),
-                (_compactTrack, 32, 0, hasTrack || !_compactStarting),
-                (_compactTrackArtist, 25, 3, !string.IsNullOrWhiteSpace(_compactTrackArtist.Text)),
-                (_compactVersionStatus, 40, 8,
-                    hasTrack || !string.IsNullOrWhiteSpace(_compactVersionStatus.Text) &&
-                        (hostNeedsStart || UserFacingPlaybackHealth.Host(
-                            _nativeInstallState, _hostReport, _installedModule.MatchesApplication)
-                            .Level is UserFacingPlaybackHealth.Severity.Error or
-                                UserFacingPlaybackHealth.Severity.Warning ||
-                         !_bridge.Enabled && IsCompactActionError(_compactStartupText))),
+                (_compactTrack, 32, trackGap, showTrack),
+                (_compactTrackArtist, 25, artistGap, showArtist),
+                (_compactVersionStatus, 40,
+                    CompactPlaybackPresentation.TrackStatusBottomSpacingPx, showVersionStatus),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?
                     54 + CompactSupportBodyHeight() : 35, 8, true),

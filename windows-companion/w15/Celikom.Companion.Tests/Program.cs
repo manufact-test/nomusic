@@ -1320,11 +1320,18 @@ try
           CompactPlaybackPresentation.AutorunNativeConnected(true, true, false,
               "NATIVE_SOURCE_VERIFIED"),
           "W158 autorun waits for a real live native host after boot, delayed Yandex open and module repair");
-    Test(BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-5),
-             DateTimeOffset.UtcNow) &&
-         !BridgeServer.IsHeartbeatFresh(DateTimeOffset.UtcNow.AddSeconds(-20),
-             DateTimeOffset.UtcNow),
-         "W141 expired native heartbeats cannot keep previous track alive");
+    var metadataClock = DateTimeOffset.UtcNow;
+    Test(BridgeServer.IsHeartbeatFresh(metadataClock.AddSeconds(-5), metadataClock) &&
+         !BridgeServer.IsHeartbeatFresh(metadataClock.AddSeconds(-20), metadataClock) &&
+         BridgeServer.IsTrackMetadataDisplayable(metadataClock.AddSeconds(-8), metadataClock, true, false) &&
+         !BridgeServer.IsTrackMetadataDisplayable(metadataClock.AddSeconds(-10), metadataClock, true, false) &&
+         !BridgeServer.IsTrackMetadataDisplayable(metadataClock.AddSeconds(-2), metadataClock, false, false) &&
+         !BridgeServer.IsTrackMetadataDisplayable(metadataClock.AddSeconds(-2), metadataClock, true, true) &&
+         BridgeServer.IsTransientTrackMetadataGap(false, "NATIVE_CONNECTED", "PLAYING") &&
+         BridgeServer.IsTransientTrackMetadataGap(false, "NATIVE_RECOVERING", "PAUSED") &&
+         !BridgeServer.IsTransientTrackMetadataGap(false, "UNAVAILABLE", "PLAYING") &&
+         !BridgeServer.IsTransientTrackMetadataGap(false, "NATIVE_CONNECTED", "STOPPED"),
+         "W163 a brief ID-less playing transition keeps metadata, while stop/unavailable and expired grace clear it");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
              false, false, true, true) == "Подключитесь к Яндекс Музыке" &&
          UserFacingPlaybackHealth.CurrentTrack("UNAVAILABLE", true,
@@ -1374,7 +1381,11 @@ try
              true, false, true) == "Проверяем состояние воспроизведения…",
          "W160 compact track line preserves last-known playing/paused state during server recovery");
     Test(CompactPlaybackPresentation.ConnectingMessage ==
-             "Подождите, идёт подключение к приложению Яндекса." &&
+             "Подождите, идёт подключение\nк приложению Яндекса." &&
+         CompactPlaybackPresentation.TrackStatusBottomSpacingPx == 18 &&
+         CompactPlaybackPresentation.StaleHeartbeatMessage("PLAYING") == "Музыка продолжает играть." &&
+         CompactPlaybackPresentation.StaleHeartbeatMessage("PAUSED") == "Пауза" &&
+         CompactPlaybackPresentation.StaleHeartbeatMessage("UNKNOWN") == "Проверяем состояние воспроизведения…" &&
          CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
              false, false, true) ==
              "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке" &&
@@ -1389,7 +1400,11 @@ try
          !CompactPlaybackPresentation.ServiceConnected(true, true, true, false) &&
          !CompactPlaybackPresentation.ServiceConnected(true, true, false, true),
          "W161 service indicator follows the native connection, not the current track source");
-    Test(CompactPlaybackPresentation.TrackPlaceholder(true, true, "UNKNOWN",
+    Test(CompactPlaybackPresentation.TrackPlaceholder(true, false, "PLAYING",
+             false, false, true) == "Музыка продолжает играть." &&
+         CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
+             false, false, true) == "Проверяем состояние воспроизведения…" &&
+         CompactPlaybackPresentation.TrackPlaceholder(true, true, "UNKNOWN",
              false, false, true) == "Ожидаем воспроизведения в Яндекс Музыке…",
          "W161 unknown track state no longer refers to an unspecified current player");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, true, "PAUSED",
@@ -2340,6 +2355,40 @@ try
                  partialSnapshot.Artist == "Другой исполнитель" &&
                  partialSnapshot.DurationMs == 205000,
                  "W162 non-empty metadata refresh updates one field without clearing the other");
+        }
+        using (var transientTrackGap = await SendW141Heartbeat(new {
+            trackId = "", status = "NATIVE_CONNECTED", title = "", artist = "",
+            durationMs = 0, source = "UNKNOWN", playbackState = "PLAYING",
+            instanceId = "w23-current-4", sequence = 5
+        }))
+        {
+            var gapSnapshot = bridge.GetPlaybackSnapshot();
+            Test(transientTrackGap.IsSuccessStatusCode && gapSnapshot.HeartbeatFresh &&
+                 gapSnapshot.TrackId == "988" && gapSnapshot.Title == "Обновлённое название" &&
+                 gapSnapshot.Artist == "Другой исполнитель",
+                 "W163 a short ID-less PLAYING heartbeat does not blank the current song during Next");
+        }
+        using (var nextAfterGap = await SendW141Heartbeat(new {
+            trackId = "989", status = "NATIVE_CONNECTED", title = "Третья песня",
+            artist = "Третий исполнитель", durationMs = 190000, source = "UNKNOWN",
+            playbackState = "PLAYING", instanceId = "w23-current-4", sequence = 6
+        }))
+        {
+            var nextSnapshot = bridge.GetPlaybackSnapshot();
+            Test(nextAfterGap.IsSuccessStatusCode && nextSnapshot.TrackId == "989" &&
+                 nextSnapshot.Title == "Третья песня" && nextSnapshot.Artist == "Третий исполнитель",
+                 "W163 a real next track atomically replaces the retained transition metadata");
+        }
+        using (var stoppedWithoutTrack = await SendW141Heartbeat(new {
+            trackId = "", status = "NATIVE_CONNECTED", title = "", artist = "",
+            durationMs = 0, source = "UNKNOWN", playbackState = "STOPPED",
+            instanceId = "w23-current-4", sequence = 7
+        }))
+        {
+            var stoppedSnapshot = bridge.GetPlaybackSnapshot();
+            Test(stoppedWithoutTrack.IsSuccessStatusCode && stoppedSnapshot.TrackId == "" &&
+                 stoppedSnapshot.Title == "" && stoppedSnapshot.Artist == "",
+                 "W163 explicit STOPPED state clears the retained track metadata");
         }
         bridge.SetNativeNetworkRecoveryPending(false);
         bridge.SetEnabled(false);

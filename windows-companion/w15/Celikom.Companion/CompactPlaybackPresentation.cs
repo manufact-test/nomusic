@@ -5,8 +5,17 @@ public static class CompactPlaybackPresentation
     public const string VersionAvailableMessage = "Версия CELIKOM доступна";
     public const string ActiveVersionMessage = "Играет полная версия CELIKOM";
     public const string ServiceEnabledMessage = "Сервис включён";
+    public const int TrackStatusBottomSpacingPx = 18;
 
-    public const string ConnectingMessage = "Подождите, идёт подключение к приложению Яндекса.";
+    public const string ConnectingMessage = "Подождите, идёт подключение\nк приложению Яндекса.";
+
+    public static string StaleHeartbeatMessage(string? playbackState) => playbackState switch
+    {
+        "PLAYING" => "Музыка продолжает играть.",
+        "PAUSED" => "Пауза",
+        "STOPPED" => "Воспроизведение остановлено.",
+        _ => "Проверяем состояние воспроизведения…"
+    };
     public const string NetworkRecoveryMessage = "Связь с сервером восстанавливается.";
     public const string StartupTimeoutMessage =
         "Не удалось подключиться к Яндекс Музыке. Проверьте, что приложение открыто, и попробуйте ещё раз.";
@@ -54,7 +63,7 @@ public static class CompactPlaybackPresentation
         }
 
         if (connectionPending) return ConnectingMessage;
-        if (!heartbeatFresh) return "Ожидаем подключения Яндекс Музыки…";
+        if (!heartbeatFresh) return StaleHeartbeatMessage(playbackState);
         return playbackState switch
         {
             "PLAYING" => "Играет. Данные текущего трека недоступны.",
