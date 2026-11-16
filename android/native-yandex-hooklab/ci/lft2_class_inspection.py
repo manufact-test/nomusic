@@ -198,6 +198,7 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
     observations = {}
     call_reach_counts = {}
     unmodeled_state_count = 0
+    unmodeled_sites = []
     processed_state_count = 0
     state_limit = 4096
 
@@ -222,6 +223,7 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
         instruction = by_pc.get(pc)
         if instruction is None:
             unmodeled_state_count += 1
+            unmodeled_sites.append({"pc": pc, "opcode": None})
             continue
         op, words = instruction
         next_aliases = set(aliases)
@@ -298,6 +300,9 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
             written = audit.written_register(op, words)
             if written is None:
                 unmodeled_state_count += 1
+                site = {"pc": pc, "opcode": f"0x{op:02x}"}
+                if site not in unmodeled_sites:
+                    unmodeled_sites.append(site)
                 continue
             next_aliases.discard(written)
 
@@ -320,6 +325,7 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
         "branch_sensitive": True,
         "processed_state_count": processed_state_count,
         "unmodeled_state_count": unmodeled_state_count,
+        "unmodeled_sites": unmodeled_sites[:32],
         "scan_complete": unmodeled_state_count == 0,
         "same_object_calls": calls,
     }
