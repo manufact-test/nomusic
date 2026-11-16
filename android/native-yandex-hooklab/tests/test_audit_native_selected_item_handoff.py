@@ -194,6 +194,37 @@ class SelectedItemAuditTests(unittest.TestCase):
             "kind":"NEW_INSTANCE","type":"LyEa;","source_ordinal":0
         })
 
+
+    def test_trace_identity_method_reports_declared_type_of_other_field_receiver(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:3, 102:1}[offset]
+            def method(self, index):
+                return ("LHolderFactory;", "currentHolder", "()LHolder;")
+        method=("LTimelineChild;", "final", "()V")
+        ins=[
+            (0,0x71,[0x0071,0]),  # invoke-static {}, HolderFactory.currentHolder()
+            (1,0x0c,[0x010c]),    # move-result-object v1
+            (2,0x54,[0x1054,1]),  # iget-object v0, v1, MediaItem field
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[]), \
+             patch("audit_native_selected_item_handoff.invoke_registers",return_value=[]), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LHolder;","hidden","LOf6;")):
+            trace=trace_identity_method(
+                FakeDex(),method,0x0,100,
+                extra_identity_types={"LOf6;"},
+                track_fields_from_any_receiver=True,
+            )
+        field_read=next(
+            event for event in trace["events"]
+            if event["kind"]=="FIELD_READ_TYPED_IDENTITY"
+        )
+        self.assertEqual(field_read["receiver_register_type"],"LHolder;")
+        self.assertFalse(field_read["receiver_is_this"])
+
     def test_trace_identity_method_tracks_extra_instance_into_interface_typed_constructor(self):
         from unittest.mock import patch
         class FakeDex:

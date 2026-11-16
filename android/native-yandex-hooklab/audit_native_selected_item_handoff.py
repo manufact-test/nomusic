@@ -832,13 +832,26 @@ def trace_identity_method(
         None if flags & ACC_STATIC
         else dex.u16(code_off) - dex.u16(code_off + 2)
     )
+    # Track declared reference types separately from the selected Track/MediaItem
+    # identity aliases. This reveals only the static type of a receiver register.
+    reference_register_types = {}
+    parameter_register = dex.u16(code_off) - dex.u16(code_off + 2)
+    if not (flags & ACC_STATIC):
+        reference_register_types[parameter_register] = method[0]
+        parameter_register += 1
+    for parameter_type in parse_types(method[2]):
+        if parameter_type.startswith(("L", "[")):
+            reference_register_types[parameter_register] = parameter_type
+        parameter_register += 2 if parameter_type in ("J", "D") else 1
     events = []
     pending_return_type = None
+    pending_reference_type = None
     branch_seen = False
 
     def clear_register(register):
         for values in aliases.values():
             values.pop(register, None)
+        reference_register_types.pop(register, None)
 
     def add_event(row):
         if len(events) >= 128:
@@ -947,11 +960,16 @@ def trace_identity_method(
                 })
             result_type = callee[2].split(")", 1)[1]
             pending_return_type = result_type if result_type in tracked_types else None
+            pending_reference_type = (
+                result_type if result_type.startswith(("L", "[")) else None
+            )
             continue
 
         if op == 0x0c:  # move-result-object, only the immediately preceding invoke
             dest = words[0] >> 8
             clear_register(dest)
+            if pending_reference_type:
+                reference_register_types[dest] = pending_reference_type
             if pending_return_type:
                 aliases[pending_return_type][dest] = {"RETURNED_FROM_METHOD"}
                 add_event({
@@ -960,13 +978,16 @@ def trace_identity_method(
                     "identity_type": tracked_types[pending_return_type],
                 })
             pending_return_type = None
+            pending_reference_type = None
             continue
 
         pending_return_type = None
+        pending_reference_type = None
         if op == 0x22:  # new-instance: retain exact object identity, never inspect contents
             dest = words[0] >> 8
             object_type = dex.descriptor(words[1])
             clear_register(dest)
+            reference_register_types[dest] = object_type
             if object_type in tracked_types:
                 aliases[object_type][dest] = {f"NEW_INSTANCE_AT_{ordinal}"}
                 add_event({
@@ -981,6 +1002,8 @@ def trace_identity_method(
             field_ref = field_id(dex, words[1])
             field_type = field_ref[2]
             clear_register(dest)
+            if field_type.startswith(("L", "[")):
+                reference_register_types[dest] = field_type
             if (
                 field_type in tracked_types
                 and (
@@ -1009,7 +1032,10 @@ def trace_identity_method(
                 for receiver_type, values in aliases.items()
                 if (receiver_origins := values.get(receiver))
             ]
+            receiver_register_type = reference_register_types.get(receiver)
             clear_register(dest)
+            if field_type.startswith(("L", "[")):
+                reference_register_types[dest] = field_type
             if (
                 field_type in tracked_types
                 and (receiver == this_register or track_fields_from_any_receiver)
@@ -1031,6 +1057,7 @@ def trace_identity_method(
                     "field_declaring_owner": field_owner,
                     "receiver_register": receiver,
                     "receiver_is_this": receiver == this_register,
+                    "receiver_register_type": receiver_register_type,
                     "receiver_identity_origins": receiver_identity_origins,
                 })
             continue
@@ -1047,6 +1074,7 @@ def trace_identity_method(
                     "identity_type": tracked_types[field_type],
                     "destination_owner": field_owner,
                     "receiver_is_this": receiver == this_register,
+                    "receiver_register_type": reference_register_types.get(receiver),
                     "origins": sorted(origins),
                 })
             continue
@@ -1087,12 +1115,18 @@ def trace_identity_method(
                     for typ, values in aliases.items()
                     if source in values
                 }
+                copied_reference_type = reference_register_types.get(source)
                 clear_register(dest)
+                if copied_reference_type:
+                    reference_register_types[dest] = copied_reference_type
                 for typ, origins in copied.items():
                     aliases[typ][dest] = origins
             continue
 
         if op == 0x1f:  # check-cast preserves the reference
+            register = (words[0] >> 8) & 0xff
+            cast_type = dex.descriptor(words[1])
+            reference_register_types[register] = cast_type
             continue
 
         dest = written_register(op, words)
@@ -1102,6 +1136,7 @@ def trace_identity_method(
             branch_seen = True
             for values in aliases.values():
                 values.clear()
+            reference_register_types.clear()
 
     return {
         "method": {
@@ -9315,9 +9350,16 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     "ordinal": event.get("ordinal"),
                     "kind": event.get("kind"),
                     "receiver_is_this": event.get("receiver_is_this"),
+                    "receiver_register_type": event.get("receiver_register_type"),
                     "receiver_identity_origins": event.get("receiver_identity_origins", ()),
                     "origins": event.get("origins", ()),
                 })
+
+    timeline_media_item_receiver_type_candidates = sorted({
+        event["receiver_register_type"]
+        for event in timeline_media_item_field_events
+        if event.get("receiver_register_type")
+    })
 
     return {
         "bounded": True,
@@ -9330,6 +9372,7 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         "timeline_source_getter_candidates": timeline_source_getter_candidates,
         "timeline_window_item_setter_candidates": timeline_window_item_setter_candidates,
         "timeline_media_item_field_events": timeline_media_item_field_events,
+        "timeline_media_item_receiver_type_candidates": timeline_media_item_receiver_type_candidates,
         "li_lb_profile": privacy_safe_flow_class_profile(class_profiles.get("LiLb;")),
         "li_lb_superclass_profile": privacy_safe_flow_class_profile(class_profiles.get("LWT1;")),
         "li_lb_media_source_contract_defined": MEDIA3_MEDIA_SOURCE in class_profiles,
