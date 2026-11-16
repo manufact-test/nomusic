@@ -9334,14 +9334,14 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
     inspect_owners = {
         "LrD0;", "Lp24;", "LA14;", "Lbq0;", "LcA9;", "LgLb;",
         "LiLb;", "LmLb;", "Lmu3;", "LTva;", "LTva$d;", "LOf6;",
-        "Lo45;", "LwN8;", "Las2;", "LBs4;", "LsO7;", "LXk6;", "LXi6$e;",
+        "Lo45;", "LwN8;", "Las2;", "LBs4;", "LsO7;", "LXk6;",
     } | timeline_owner_scope
     extra_types = (
         "LOf6;", "LTva$d;", "LmLb;", "Landroid/net/Uri;",
         "Lmu3;", "Ln26;", "Lnk0;", "LdA9;", "LA14;",
         "LwN8;", "Las2;", "LiLb;", "LgLb;", "LBs4;", "LsO7;",
-        "LfH7;", "LrD0;", "LTva;", "LWT1;", "LXk6;", "LXi6$e;",
-        "Ljava/util/List;", MEDIA3_MEDIA_SOURCE, "Ljava/lang/Object;",
+        "LfH7;", "LrD0;", "LTva;", "LWT1;", "LXk6;",
+        MEDIA3_MEDIA_SOURCE, "Ljava/lang/Object;",
     )
     method_rows = []
     owner_profiles = []
@@ -9385,6 +9385,12 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     if not (is_exact or is_identity_related):
                         continue
                     try:
+                        trace_types = extra_types
+                        if key == (
+                            "LXk6;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V"
+                        ):
+                            # Keep List/Object flow local to this one playlist bridge.
+                            trace_types = (*extra_types, "LXi6$e;", "Ljava/util/List;")
                         trace = trace_identity_method(
                             dex, method, flags, code_off,
                             capture_unproven_calls=(
@@ -9393,7 +9399,7 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                                     "LrD0;", "LBs4;", "LsO7;", "Lo45;", "LXk6;"
                                 }
                             ),
-                            extra_identity_types=extra_types,
+                            extra_identity_types=trace_types,
                             track_fields_from_any_receiver=True,
                         )
                     except (ValueError, DexError) as exc:
@@ -9626,6 +9632,7 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         ],
         "li_lb_profile": privacy_safe_flow_class_profile(class_profiles.get("LiLb;")),
         "li_lb_superclass_profile": privacy_safe_flow_class_profile(class_profiles.get("LWT1;")),
+        "playlist_item_entry_profile": privacy_safe_flow_class_profile(class_profiles.get("LXi6$e;")),
         "li_lb_media_source_contract_defined": MEDIA3_MEDIA_SOURCE in class_profiles,
         "li_lb_assignable_to_media_source": dex_type_assignable_to(
             "LiLb;", MEDIA3_MEDIA_SOURCE, class_profiles
