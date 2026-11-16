@@ -4101,12 +4101,15 @@ class SelectedItemAuditTests(unittest.TestCase):
             return []
 
         def typed_event(target, args, pc=86, role="OTHER_METHOD"):
-            return {
-                "kind": "CALL_WITH_TYPED_IDENTITY",
-                "callee": {
+            callee = (
+                target if isinstance(target, dict) else {
                     "owner": target[0], "method": target[1],
                     "signature": target[2],
-                },
+                }
+            )
+            return {
+                "kind": "CALL_WITH_TYPED_IDENTITY",
+                "callee": callee,
                 "identity_is_common_to_all_incoming_paths": True,
                 "identity_arguments": args,
                 "pc": pc,
