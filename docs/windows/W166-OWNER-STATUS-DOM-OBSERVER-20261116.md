@@ -2,7 +2,7 @@
 
 Date: 16 November 2026  
 Product: CELIKOM Windows only  
-Status: source committed; CI and one internal W20 owner-review package pending; owner acceptance pending.
+Status: **source, Main CI, Windows integration CI and one internal W20 owner-review package all passed; EXE/ZIP hashes verified and files uploaded to Library. Owner acceptance pending.**
 
 ## Source of truth and rollback
 
@@ -90,10 +90,17 @@ These distinguish missing DOM node, missing src, blob/MediaSource, another direc
 
 ## Verification and package
 
-- Main CI: pending at source handoff.
-- Windows integration CI: pending.
-- W20 safe installer staging: one internal package requested; artifact and SHA256 pending.
-- No production signing, stable feed, Hostinger deployment or customer publication.
+- Main CI [43893318561](https://github.com/manufact-test/nomusic/actions/runs/43893318561) — **SUCCESS**.
+- Windows integration CI [43893318448](https://github.com/manufact-test/nomusic/actions/runs/43893318448) — **SUCCESS**.
+- W20 safe installer staging [43893318389](https://github.com/manufact-test/nomusic/actions/runs/43893318389) — **SUCCESS**.
+- W20 passed warnings-as-errors compile, W15/W23 tests, PE version/anti-downgrade validation and disposable Windows install/uninstall smoke.
+- Artifact ID: `14237173906`; expires 2026-11-26 15:13:01 UTC.
+- Artifact: https://github.com/manufact-test/nomusic/actions/runs/43893318389/artifacts/14237173906
+- EXE SHA256: `10c87e598031b71137f3b2280ad22a6b7286cf849dc28e9f01f637b43d0c1d6b`.
+- ZIP SHA256: `b5dad2f3561dc97305ab173d24262100e32c86ac799be88fa4afaea5c8e8fae9`.
+- The ZIP contains exactly the same EXE as the standalone installer; hashes were checked against `SHA256SUMS.txt`.
+- EXE, ZIP and SHA256SUMS were uploaded and verified in the user's Library at `/CELIKOM/Windows/Test`.
+- Internal unsigned review only; no production signing, stable feed, Hostinger deployment or customer publication.
 
 ## Owner review
 

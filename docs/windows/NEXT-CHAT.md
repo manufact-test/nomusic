@@ -1,6 +1,6 @@
 # CELIKOM Windows — active handoff W166 (16 November 2026)
 
-**Status: W166 source changes are committed. Main CI, Windows integration CI and one W20 internal owner-review package are pending. Owner acceptance is pending. VPN/audio behavior accepted in W164 remains frozen.**
+**Status: W166 0.24.48.0 source, Main CI, Windows integration CI and W20 internal owner-review package all passed. EXE/ZIP SHA256 verified and both packages are in the user's Library. Owner manual acceptance is pending. VPN/audio behavior accepted in W164 remains frozen.**
 
 ## Source of truth
 
@@ -8,6 +8,7 @@
 - Repository: `manufact-test/nomusic`.
 - Working branch: `main`.
 - W166 code checkpoint: `5bfd6c6e33c4a1008952ba1fc6c53918ce93792e`.
+- Package/source commit: `07afc2da864ff44c87320d924eb4c94310628c65`.
 - Exact pre-W166 rollback: `backup/windows-main-pre-w166-owner-status-dom-observer-20261116` @ `7b956d18314ef1d0d1bf6871551b33dc5d2840ba`.
 - App: **0.24.48.0**, native module **0.24.31**, W23 package **0.24.11**.
 - Diagnostics schema: **W55**.
@@ -69,13 +70,16 @@ No signed URL, token, src value or arbitrary DOM text is logged.
 
 ## Verification / package
 
-- Main CI: pending.
-- Windows integration CI: pending.
-- W20 safe installer staging: one package requested; run/artifact/SHA256 pending.
-- Expected internal package:
-  - `CELIKOM-W166-OWNER-STATUS-DOM-OBSERVER-02448-UNSIGNED.exe`
-  - `CELIKOM-Windows-0.24.48.zip`
-  - `SHA256SUMS.txt`
+- Main CI [43893318561](https://github.com/manufact-test/nomusic/actions/runs/43893318561) — **SUCCESS**.
+- Windows integration CI [43893318448](https://github.com/manufact-test/nomusic/actions/runs/43893318448) — **SUCCESS**.
+- W20 safe installer staging [43893318389](https://github.com/manufact-test/nomusic/actions/runs/43893318389) — **SUCCESS**.
+- W20 compiled with warnings as errors, passed W15/W23 tests, checked PE version and anti-downgrade, passed disposable Windows per-user install/uninstall smoke, and packaged one exact EXE into one ZIP with SHA256.
+- Artifact ID: `14237173906`; expires **26 November 2026, 15:13:01 UTC**.
+- Artifact: https://github.com/manufact-test/nomusic/actions/runs/43893318389/artifacts/14237173906
+- EXE SHA256: `10c87e598031b71137f3b2280ad22a6b7286cf849dc28e9f01f637b43d0c1d6b`.
+- ZIP SHA256: `b5dad2f3561dc97305ab173d24262100e32c86ac799be88fa4afaea5c8e8fae9`.
+- Both EXE and ZIP were uploaded to `/CELIKOM/Windows/Test` in the user's Library and re-listed to verify their presence. `SHA256SUMS.txt` is stored beside them.
+- Package is internal and unsigned; no production release, signing or deployment.
 
 ## Owner check after delivery
 
