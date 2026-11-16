@@ -9,6 +9,7 @@ from audit_native_selected_item_handoff import (
     candidate_owner_descriptors, typed_parameter_registers,
     trace_identity_method, inspect_exact_playlist_update_callers,
     inspect_exact_playlist_update_method_handle_sites,
+    inspect_exact_playlist_callback_contract,
     select_next_identity_method_refs,
     build_dex_control_flow,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
@@ -3269,6 +3270,85 @@ class SelectedItemAuditTests(unittest.TestCase):
             result["invoke_custom_reference_sites"][0]["call_site_index"],
             0,
         )
+
+
+    def test_exact_playlist_callback_contract_traces_interface_callers_and_list_get(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        signature = "(LsO7;LXi6$e;Ljava/util/List;)V"
+        interface_method = ("LLl6$c;", "if", signature)
+        implementation_method = ("LXk6;", "if", signature)
+        caller = ("LCallbackDispatcher;", "dispatch", "()V")
+
+        class FakeDex:
+            def __init__(self, _data):
+                pass
+            def method(self, index):
+                return interface_method if index == 9 else ("LOther;", "other", "()V")
+
+        class_profiles = {
+            "LLl6$c;": {
+                "is_interface": True,
+                "is_abstract": True,
+                "superclass": None,
+                "interfaces": set(),
+            },
+            "LXk6;": {
+                "is_interface": False,
+                "is_abstract": False,
+                "superclass": "Ljava/lang/Object;",
+                "interfaces": {"LLl6$c;"},
+            },
+        }
+
+        def fake_instructions(_dex, code_off):
+            if code_off == 200:
+                return [(5, 0x72, [0x0072, 9])]  # invoke-interface LLl6$c.if(...)
+            return []
+
+        cfg_trace = {
+            "method": {"owner": "LCallbackDispatcher;", "method": "dispatch", "signature": "()V"},
+            "callsite_count": 1,
+            "callsites": [{"receiver_identity_proven_on_all_paths": True}],
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex):
+                with patch(
+                    "audit_native_selected_item_handoff.method_definitions_with_flags",
+                    return_value=[
+                        (interface_method, 0x401, 0),
+                        (implementation_method, 0, 100),
+                        (caller, 0, 200),
+                    ],
+                ):
+                    with patch("audit_native_selected_item_handoff.instructions",
+                               side_effect=fake_instructions):
+                        with patch("audit_native_selected_item_handoff.trace_identity_method",
+                                   return_value={"events": []}) as argument_trace:
+                            with patch(
+                                "audit_native_selected_item_handoff.trace_exact_object_receiver_call_cfg",
+                                return_value=cfg_trace,
+                            ) as receiver_trace:
+                                result = inspect_exact_playlist_callback_contract(
+                                    [apk], class_profiles
+                                )
+
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["interface_method_definition_count"], 1)
+        self.assertEqual(result["concrete_implementers"], ["LXk6;"])
+        self.assertEqual(result["implementation_method_definition_count"], 1)
+        self.assertEqual(result["direct_interface_callsite_count"], 1)
+        self.assertEqual(result["callers"][0]["caller"]["owner"], "LCallbackDispatcher;")
+        self.assertEqual(len(result["caller_traces"]), 1)
+        self.assertEqual(len(result["list_get_receiver_traces"]), 1)
+        self.assertEqual(argument_trace.call_count, 1)
+        self.assertEqual(receiver_trace.call_count, 2)
 
 
 if __name__ == "__main__":

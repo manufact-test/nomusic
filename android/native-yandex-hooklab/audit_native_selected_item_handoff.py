@@ -9502,6 +9502,224 @@ def inspect_exact_playlist_update_method_handle_sites(apks):
     }
 
 
+PLAYLIST_CALLBACK_INTERFACE_TARGET = (
+    "LLl6$c;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V"
+)
+PLAYLIST_LIST_GET_TARGET = (
+    "Ljava/util/List;", "get", "(I)Ljava/lang/Object;"
+)
+
+
+def inspect_exact_playlist_callback_contract(apks, class_profiles):
+    """Trace the exact LLl6$c callback contract implemented by LXk6."""
+    target = PLAYLIST_CALLBACK_INTERFACE_TARGET
+    interface_owner = target[0]
+    interface_profile = privacy_safe_flow_class_profile(
+        class_profiles.get(interface_owner)
+    )
+    try:
+        direct_implementers = sorted(
+            owner for owner, profile in class_profiles.items()
+            if interface_owner in profile.get("interfaces", ())
+        )
+        concrete_implementers = sorted(
+            owner for owner, profile in class_profiles.items()
+            if not profile.get("is_interface", False)
+            and dex_type_assignable_to(owner, interface_owner, class_profiles)
+        )
+    except (ValueError, DexError) as exc:
+        return {
+            "bounded": False,
+            "reason": "PLAYLIST_CALLBACK_IMPLEMENTER_SCOPE_UNRESOLVED",
+            "error_class": type(exc).__name__,
+            "interface": {
+                "owner": interface_owner,
+                "method": target[1],
+                "signature": target[2],
+            },
+            "interface_profile": interface_profile,
+            "field_names_or_values_disclosed": False,
+            "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
+        }
+    if len(concrete_implementers) > 64:
+        raise ValueError("PLAYLIST_CALLBACK_IMPLEMENTER_LIMIT")
+
+    interface_definitions = []
+    implementation_definitions = []
+    caller_rows = []
+    caller_traces = {}
+    list_get_receiver_traces = []
+    seen_call_sites = set()
+    seen_definitions = set()
+    seen_list_get_methods = set()
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    method_key = (method[0], method[1], method[2])
+                    if method == target and method_key not in seen_definitions:
+                        seen_definitions.add(method_key)
+                        interface_definitions.append({
+                            "owner": method[0],
+                            "method": method[1],
+                            "signature": method[2],
+                            "code_body_declared": bool(code_off),
+                        })
+                    if (
+                        method[0] in concrete_implementers
+                        and method[1:] == target[1:]
+                        and method_key not in seen_definitions
+                    ):
+                        seen_definitions.add(method_key)
+                        implementation_definitions.append({
+                            "owner": method[0],
+                            "method": method[1],
+                            "signature": method[2],
+                            "code_body_declared": bool(code_off),
+                        })
+                    if not code_off:
+                        continue
+
+                    if method == PLAYLIST_UPDATE_TARGET and method_key not in seen_list_get_methods:
+                        seen_list_get_methods.add(method_key)
+                        try:
+                            list_get_receiver_traces.append({
+                                "method": {
+                                    "owner": method[0],
+                                    "method": method[1],
+                                    "signature": method[2],
+                                },
+                                "trace": trace_exact_object_receiver_call_cfg(
+                                    dex, method, flags, code_off,
+                                    PLAYLIST_LIST_GET_TARGET,
+                                    "Ljava/util/List;",
+                                    class_profiles,
+                                ),
+                            })
+                        except (ValueError, DexError) as exc:
+                            reason = str(exc)
+                            safe_code = (
+                                reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                                else "UNCLASSIFIED_TRACE_ERROR"
+                            )
+                            list_get_receiver_traces.append({
+                                "method": {
+                                    "owner": method[0],
+                                    "method": method[1],
+                                    "signature": method[2],
+                                },
+                                "trace_failed": True,
+                                "error_class": type(exc).__name__,
+                                "error_code": safe_code,
+                            })
+
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES or dex.method(words[1]) != target:
+                            continue
+                        site_key = (method_key, ordinal)
+                        if site_key in seen_call_sites:
+                            continue
+                        seen_call_sites.add(site_key)
+                        if len(caller_traces) >= PLAYLIST_UPDATE_CALLER_LIMIT and method_key not in caller_traces:
+                            raise ValueError("PLAYLIST_CALLBACK_DIRECT_CALLER_LIMIT")
+                        caller_rows.append({
+                            "dex_entry": entry.filename,
+                            "caller": {
+                                "owner": method[0],
+                                "method": method[1],
+                                "signature": method[2],
+                            },
+                            "target": {
+                                "owner": target[0],
+                                "method": target[1],
+                                "signature": target[2],
+                            },
+                            "ordinal": ordinal,
+                            "invoke_opcode": op,
+                        })
+                        if method_key not in caller_traces:
+                            try:
+                                argument_trace = trace_identity_method(
+                                    dex, method, flags, code_off,
+                                    capture_argument_provenance_targets={target},
+                                    extra_identity_types=(
+                                        PLAYLIST_UPDATE_CALLER_EXTRA_TYPES
+                                        + (interface_owner,)
+                                    ),
+                                    track_fields_from_any_receiver=True,
+                                )
+                            except (ValueError, DexError) as exc:
+                                reason = str(exc)
+                                safe_code = (
+                                    reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                                    else "UNCLASSIFIED_TRACE_ERROR"
+                                )
+                                argument_trace = {
+                                    "trace_failed": True,
+                                    "error_class": type(exc).__name__,
+                                    "error_code": safe_code,
+                                }
+                            try:
+                                receiver_trace = trace_exact_object_receiver_call_cfg(
+                                    dex, method, flags, code_off,
+                                    target, interface_owner, class_profiles,
+                                )
+                            except (ValueError, DexError) as exc:
+                                reason = str(exc)
+                                safe_code = (
+                                    reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                                    else "UNCLASSIFIED_TRACE_ERROR"
+                                )
+                                receiver_trace = {
+                                    "trace_failed": True,
+                                    "error_class": type(exc).__name__,
+                                    "error_code": safe_code,
+                                }
+                            caller_traces[method_key] = {
+                                "typed_argument_trace": argument_trace,
+                                "interface_receiver_cfg": receiver_trace,
+                            }
+
+    return {
+        "bounded": True,
+        "interface": {
+            "owner": interface_owner,
+            "method": target[1],
+            "signature": target[2],
+        },
+        "interface_profile": interface_profile,
+        "interface_method_definition_count": len(interface_definitions),
+        "interface_method_definitions": interface_definitions,
+        "direct_implementers": direct_implementers,
+        "concrete_implementers": concrete_implementers,
+        "implementation_method_definition_count": len(implementation_definitions),
+        "implementation_method_definitions": implementation_definitions,
+        "direct_interface_callsite_count": len(caller_rows),
+        "distinct_caller_method_count": len(caller_traces),
+        "callers": caller_rows,
+        "caller_traces": [
+            {
+                "caller": {
+                    "owner": key[0],
+                    "method": key[1],
+                    "signature": key[2],
+                },
+                "trace": value,
+            }
+            for key, value in sorted(caller_traces.items())
+        ],
+        "list_get_receiver_traces": list_get_receiver_traces,
+        "unique_concrete_implementer_is_lxk6": concrete_implementers == ["LXk6;"],
+        "runtime_dispatch_to_lxk6_proven": False,
+        "field_names_or_values_disclosed": False,
+        "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
 def inspect_exact_playlist_update_callers(apks):
     """Find every direct DEX invoke of one exact Player playlist update method.
 
@@ -9862,10 +10080,14 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
     ]
 
     exact_playlist_update_callers = inspect_exact_playlist_update_callers(apks)
+    exact_playlist_callback_contract = inspect_exact_playlist_callback_contract(
+        apks, class_profiles
+    )
 
     return {
         "bounded": True,
         "exact_playlist_update_callers": exact_playlist_update_callers,
+        "exact_playlist_callback_contract": exact_playlist_callback_contract,
         "candidate_media_item_type": "LOf6;",
         "candidate_timeline_type": "LTva;",
         "candidate_timeline_window_type": "LTva$d;",
