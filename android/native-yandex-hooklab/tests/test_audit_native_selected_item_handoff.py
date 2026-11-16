@@ -225,6 +225,51 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(field_read["receiver_register_type"],"LHolder;")
         self.assertFalse(field_read["receiver_is_this"])
 
+
+    def test_trace_identity_method_carries_returned_reference_producer_to_window_field(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:4, 102:1}[offset]
+            def method(self, index):
+                return {
+                    0: ("LfH7;", "Y", "()LTva;"),
+                    1: ("LTva;", "final", "()LTva$d;"),
+                }[index]
+        method=("LrD0;", "E", "()LOf6;")
+        ins=[
+            (0,0x72,[0x0072,0]),  # Player.currentTimeline()
+            (1,0x0c,[0x010c]),    # move-result-object v1
+            (2,0x6e,[0x016e,1]),  # Timeline.getWindow() -> Window
+            (3,0x0c,[0x020c]),    # move-result-object v2
+            (4,0x54,[0x2554,2]),  # iget-object v5, v2, MediaItem field
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",return_value=[]), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=lambda op,words: [3] if words[1]==0 else [1]), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("LTva$d;","opaque","LOf6;")):
+            trace=trace_identity_method(
+                FakeDex(),method,0x0,100,
+                capture_unproven_calls=True,
+                extra_identity_types={"LTva;","LTva$d;","LOf6;"},
+                track_fields_from_any_receiver=True,
+            )
+        window_call=next(
+            event for event in trace["events"]
+            if event.get("callee",{}).get("owner")=="LTva;"
+            and event.get("callee",{}).get("method")=="final"
+        )
+        field_read=next(
+            event for event in trace["events"]
+            if event["kind"]=="FIELD_READ_TYPED_IDENTITY"
+        )
+        self.assertEqual(window_call["receiver_producer"]["method"],"Y")
+        self.assertEqual(field_read["receiver_producer"]["method"],"final")
+        self.assertEqual(field_read["receiver_producer"]["owner"],"LTva;")
+        self.assertEqual(field_read["receiver_register_type"],"LTva$d;")
+
     def test_trace_identity_method_tracks_extra_instance_into_interface_typed_constructor(self):
         from unittest.mock import patch
         class FakeDex:

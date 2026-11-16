@@ -835,6 +835,8 @@ def trace_identity_method(
     # Track declared reference types separately from the selected Track/MediaItem
     # identity aliases. This reveals only the static type of a receiver register.
     reference_register_types = {}
+    # Type/provenance metadata only; reference contents are never inspected.
+    reference_register_producers = {}
     parameter_register = dex.u16(code_off) - dex.u16(code_off + 2)
     if not (flags & ACC_STATIC):
         reference_register_types[parameter_register] = method[0]
@@ -846,12 +848,24 @@ def trace_identity_method(
     events = []
     pending_return_type = None
     pending_reference_type = None
+    pending_reference_producer = None
     branch_seen = False
 
     def clear_register(register):
         for values in aliases.values():
             values.pop(register, None)
         reference_register_types.pop(register, None)
+        reference_register_producers.pop(register, None)
+
+    def reference_identity_origins(register):
+        return [
+            {
+                "identity_type": tracked_types[tracked_type],
+                "origins": sorted(origins),
+            }
+            for tracked_type, values in aliases.items()
+            if (origins := values.get(register))
+        ]
 
     def add_event(row):
         if len(events) >= 128:
@@ -867,6 +881,23 @@ def trace_identity_method(
             target_types = expand_invoke_register_types(
                 callee[0], params, is_static
             )
+            receiver_register = regs[0] if not is_static and regs else None
+            receiver_metadata = {
+                "receiver_register": receiver_register,
+                "receiver_is_this": receiver_register == this_register,
+                "receiver_register_type": (
+                    reference_register_types.get(receiver_register)
+                    if receiver_register is not None else None
+                ),
+                "receiver_identity_origins": (
+                    reference_identity_origins(receiver_register)
+                    if receiver_register is not None else []
+                ),
+                "receiver_producer": (
+                    reference_register_producers.get(receiver_register)
+                    if receiver_register is not None else None
+                ),
+            }
             identity_arguments = []
             if len(regs) == len(target_types):
                 logical_position = -1
@@ -926,6 +957,7 @@ def trace_identity_method(
                         "method": callee[1],
                         "signature": callee[2],
                     },
+                    **receiver_metadata,
                     "identity_arguments": identity_arguments,
                 })
             elif role:
@@ -938,6 +970,7 @@ def trace_identity_method(
                         "method": callee[1],
                         "signature": callee[2],
                     },
+                    **receiver_metadata,
                     "target_accepts_track_parameter": MODEL in params,
                     "target_accepts_album_parameter": ALBUM_MODEL in params,
                     "target_accepts_wrapper_parameter": WRAPPER in params,
@@ -963,6 +996,15 @@ def trace_identity_method(
             pending_reference_type = (
                 result_type if result_type.startswith(("L", "[")) else None
             )
+            pending_reference_producer = (
+                {
+                    "owner": callee[0],
+                    "method": callee[1],
+                    "signature": callee[2],
+                    "ordinal": ordinal,
+                }
+                if pending_reference_type else None
+            )
             continue
 
         if op == 0x0c:  # move-result-object, only the immediately preceding invoke
@@ -970,6 +1012,7 @@ def trace_identity_method(
             clear_register(dest)
             if pending_reference_type:
                 reference_register_types[dest] = pending_reference_type
+                reference_register_producers[dest] = pending_reference_producer
             if pending_return_type:
                 aliases[pending_return_type][dest] = {"RETURNED_FROM_METHOD"}
                 add_event({
@@ -979,15 +1022,20 @@ def trace_identity_method(
                 })
             pending_return_type = None
             pending_reference_type = None
+            pending_reference_producer = None
             continue
 
         pending_return_type = None
         pending_reference_type = None
+        pending_reference_producer = None
         if op == 0x22:  # new-instance: retain exact object identity, never inspect contents
             dest = words[0] >> 8
             object_type = dex.descriptor(words[1])
             clear_register(dest)
             reference_register_types[dest] = object_type
+            reference_register_producers[dest] = {
+                "kind": "NEW_INSTANCE", "type": object_type, "ordinal": ordinal
+            }
             if object_type in tracked_types:
                 aliases[object_type][dest] = {f"NEW_INSTANCE_AT_{ordinal}"}
                 add_event({
@@ -1004,6 +1052,10 @@ def trace_identity_method(
             clear_register(dest)
             if field_type.startswith(("L", "[")):
                 reference_register_types[dest] = field_type
+                reference_register_producers[dest] = {
+                    "kind": "STATIC_FIELD", "owner": field_ref[0],
+                    "type": field_type, "ordinal": ordinal,
+                }
             if (
                 field_type in tracked_types
                 and (
@@ -1033,9 +1085,15 @@ def trace_identity_method(
                 if (receiver_origins := values.get(receiver))
             ]
             receiver_register_type = reference_register_types.get(receiver)
+            receiver_producer = reference_register_producers.get(receiver)
             clear_register(dest)
             if field_type.startswith(("L", "[")):
                 reference_register_types[dest] = field_type
+                reference_register_producers[dest] = {
+                    "kind": "INSTANCE_FIELD", "owner": field_owner,
+                    "type": field_type, "receiver_type": receiver_register_type,
+                    "receiver_producer": receiver_producer, "ordinal": ordinal,
+                }
             if (
                 field_type in tracked_types
                 and (receiver == this_register or track_fields_from_any_receiver)
@@ -1059,6 +1117,7 @@ def trace_identity_method(
                     "receiver_is_this": receiver == this_register,
                     "receiver_register_type": receiver_register_type,
                     "receiver_identity_origins": receiver_identity_origins,
+                    "receiver_producer": receiver_producer,
                 })
             continue
 
@@ -1075,6 +1134,7 @@ def trace_identity_method(
                     "destination_owner": field_owner,
                     "receiver_is_this": receiver == this_register,
                     "receiver_register_type": reference_register_types.get(receiver),
+                    "receiver_producer": reference_register_producers.get(receiver),
                     "origins": sorted(origins),
                 })
             continue
@@ -1103,6 +1163,7 @@ def trace_identity_method(
                         "kind": "RETURN_TYPED_IDENTITY",
                         "identity_type": label,
                         "origins": sorted(origins),
+                        "producer": reference_register_producers.get(source_register),
                     })
             continue
 
@@ -1116,9 +1177,11 @@ def trace_identity_method(
                     if source in values
                 }
                 copied_reference_type = reference_register_types.get(source)
+                copied_reference_producer = reference_register_producers.get(source)
                 clear_register(dest)
                 if copied_reference_type:
                     reference_register_types[dest] = copied_reference_type
+                    reference_register_producers[dest] = copied_reference_producer
                 for typ, origins in copied.items():
                     aliases[typ][dest] = origins
             continue
@@ -1137,6 +1200,7 @@ def trace_identity_method(
             for values in aliases.values():
                 values.clear()
             reference_register_types.clear()
+            reference_register_producers.clear()
 
     return {
         "method": {
@@ -8870,9 +8934,20 @@ def inspect_media3_player_item_identity_contracts(
 
     def safe_identity_trace(dex, method, flags, code_off, item_type, extra_types=()):
         try:
+            player_item_trace = (
+                item_type == "LOf6;" and method[0] == "LrD0;"
+                and method[1] in {"E", "C", "V", "Z"}
+            )
+            player_trace_types = list(extra_types)
+            if player_item_trace:
+                player_trace_types.extend((
+                    "LTva;", "LTva$d;", "LwN8;", "Ljava/lang/Object;",
+                    "LfH7;", "Lo45;",
+                ))
             return trace_identity_method(
                 dex, method, flags, code_off,
-                extra_identity_types=[item_type, *extra_types],
+                capture_unproven_calls=player_item_trace,
+                extra_identity_types=[item_type, *player_trace_types],
                 track_fields_from_any_receiver=True,
             )
         except (ValueError, DexError) as exc:
@@ -8989,6 +9064,9 @@ def inspect_media3_player_item_identity_contracts(
         ("LBs4;", "C", "(LOf6;J)V"),
         ("LBs4;", "V", "(LOf6;)V"),
         ("LBs4;", "Z", "(ILOf6;)V"),
+        ("LsO7;", "C", "(LOf6;J)V"),
+        ("LsO7;", "V", "(LOf6;)V"),
+        ("LsO7;", "Z", "(ILOf6;)V"),
     }
     all_targets = constructor_targets | player_targets | item_holder_targets
     if len(all_targets) > 128:
@@ -9027,7 +9105,7 @@ def inspect_media3_player_item_identity_contracts(
                         item_type and item_type in parse_types(method[2])
                     )
                     has_item_field = bool(item_type and item_type in owner_instance_types)
-                    item_holder_types = {"LiLb;", "LgLb;", "LmLb;", "LwN8;", "Las2;", "LBs4;"}
+                    item_holder_types = {"LiLb;", "LgLb;", "LmLb;", "LwN8;", "Las2;", "LBs4;", "LsO7;"}
                     has_item_holder_parameter = bool(
                         item_holder_types.intersection(parse_types(method[2]))
                     )
@@ -9113,6 +9191,18 @@ def inspect_media3_player_item_identity_contracts(
         ),
         "native_track_related_callers": caller_rows,
         "native_track_related_callers_truncated": caller_rows_truncated,
+        "track_bearing_player_mutator_callers": [
+            row for row in caller_rows
+            if row["target"]["owner"] in {"LsO7;", "LBs4;", "LfH7;", "LrD0;"}
+            and (
+                row["caller_accepts_track"]
+                or row["caller_accepts_wrapper"]
+                or row["caller_owner_has_track_field"]
+                or row["caller_owner_has_wrapper_field"]
+                or row["caller_has_item_holder_parameter"]
+                or row["caller_owner_has_item_holder_field"]
+            )
+        ],
         "native_track_related_caller_identity_traces_truncated": caller_traces_truncated,
         "native_track_related_caller_identity_traces": [
             {
@@ -9219,16 +9309,20 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         ("LBs4;", "C", "(LOf6;J)V"),
         ("LBs4;", "V", "(LOf6;)V"),
         ("LBs4;", "Z", "(ILOf6;)V"),
+        ("LsO7;", "C", "(LOf6;J)V"),
+        ("LsO7;", "V", "(LOf6;)V"),
+        ("LsO7;", "Z", "(ILOf6;)V"),
     }
     inspect_owners = {
         "LrD0;", "Lp24;", "LA14;", "Lbq0;", "LcA9;", "LgLb;",
         "LiLb;", "LmLb;", "Lmu3;", "LTva;", "LTva$d;", "LOf6;",
-        "Lo45;", "LwN8;", "Las2;", "LBs4;",
+        "Lo45;", "LwN8;", "Las2;", "LBs4;", "LsO7;",
     } | timeline_owner_scope
     extra_types = (
         "LOf6;", "LTva$d;", "LmLb;", "Landroid/net/Uri;",
         "Lmu3;", "Ln26;", "Lnk0;", "LdA9;", "LA14;",
-        "LwN8;", "Las2;", "LiLb;", "LgLb;", "LBs4;", "LWT1;",
+        "LwN8;", "Las2;", "LiLb;", "LgLb;", "LBs4;", "LsO7;",
+        "LfH7;", "LrD0;", "LTva;", "LWT1;",
         MEDIA3_MEDIA_SOURCE, "Ljava/lang/Object;",
     )
     method_rows = []
@@ -9275,7 +9369,12 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     try:
                         trace = trace_identity_method(
                             dex, method, flags, code_off,
-                            capture_unproven_calls=is_timeline_method,
+                            capture_unproven_calls=(
+                                is_timeline_method
+                                or key in exact_methods and method[0] in {
+                                    "LrD0;", "LBs4;", "LsO7;", "Lo45;"
+                                }
+                            ),
                             extra_identity_types=extra_types,
                             track_fields_from_any_receiver=True,
                         )
@@ -9352,6 +9451,8 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     "receiver_is_this": event.get("receiver_is_this"),
                     "receiver_register_type": event.get("receiver_register_type"),
                     "receiver_identity_origins": event.get("receiver_identity_origins", ()),
+                    "receiver_producer": event.get("receiver_producer"),
+                    "producer": event.get("producer"),
                     "origins": event.get("origins", ()),
                 })
 
@@ -9360,6 +9461,48 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         for event in timeline_media_item_field_events
         if event.get("receiver_register_type")
     })
+    player_current_item_getter_row = next((
+        row for row in method_rows
+        if row["method"]["owner"] == "LrD0;"
+        and row["method"]["name"] == "E"
+        and row["method"]["signature"] == "()LOf6;"
+    ), None)
+    player_current_item_getter_events = (
+        player_current_item_getter_row.get("trace", {}).get("events", ())
+        if player_current_item_getter_row else ()
+    )
+    player_current_item_getter_calls = [
+        event for event in player_current_item_getter_events
+        if event.get("kind") in {
+            "CALL_WITH_TYPED_IDENTITY", "CALL_TARGET_WITHOUT_IDENTITY",
+            "CALL_TARGET_ROLE_WITHOUT_IDENTITY",
+        }
+    ]
+    player_current_item_window_field_read = next((
+        event for event in player_current_item_getter_events
+        if event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+        and event.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+        and event.get("receiver_register_type") == "LTva$d;"
+    ), None)
+    player_current_item_field_return = any(
+        event.get("kind") == "RETURN_TYPED_IDENTITY"
+        and event.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+        and event.get("origins") == ["FIELD_READ_FROM_OTHER_RECEIVER"]
+        for event in player_current_item_getter_events
+    )
+    player_item_mutator_rows = [
+        row for row in method_rows
+        if row["method"]["owner"] in {"LrD0;", "LBs4;", "LsO7;"}
+        and row["method"]["name"] in {"C", "V", "Z"}
+        and any(
+            event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+            and any(
+                argument.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+                for argument in event.get("identity_arguments", ())
+            )
+            for event in row.get("trace", {}).get("events", ())
+        )
+    ]
 
     return {
         "bounded": True,
@@ -9373,6 +9516,61 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         "timeline_window_item_setter_candidates": timeline_window_item_setter_candidates,
         "timeline_media_item_field_events": timeline_media_item_field_events,
         "timeline_media_item_receiver_type_candidates": timeline_media_item_receiver_type_candidates,
+        "player_current_media_item_getter": {
+            "method": {"owner": "LfH7;", "name": "E", "signature": "()LOf6;"},
+            "shared_implementation_owner": "LrD0;",
+            "shared_implementation_signature": "()LOf6;",
+            "implementation_calls": [
+                {
+                    "callee": event.get("callee"),
+                    "receiver_register_type": event.get("receiver_register_type"),
+                    "receiver_identity_origins": event.get("receiver_identity_origins", ()),
+                    "receiver_producer": event.get("receiver_producer"),
+                }
+                for event in player_current_item_getter_calls
+            ],
+            "window_media_item_field_receiver_type": (
+                player_current_item_window_field_read.get("receiver_register_type")
+                if player_current_item_window_field_read else None
+            ),
+            "window_media_item_field_receiver_producer": (
+                player_current_item_window_field_read.get("receiver_producer")
+                if player_current_item_window_field_read else None
+            ),
+            "same_window_field_reference_returned": bool(
+                player_current_item_window_field_read and player_current_item_field_return
+            ),
+            "current_timeline_receiver_identity_proven": bool(
+                player_current_item_window_field_read
+                and player_current_item_window_field_read.get("receiver_producer", {}).get("owner") == "LTva;"
+                and player_current_item_window_field_read.get("receiver_producer", {}).get("method") == "final"
+            ),
+            "branch_seen": bool(
+                player_current_item_getter_row
+                and player_current_item_getter_row.get("trace", {}).get("branch_seen_aliases_cleared")
+            ),
+        },
+        "player_media_item_mutator_forwarding_methods": [
+            {
+                "method": row["method"],
+                "forwarded_calls": [
+                    {
+                        "callee": event.get("callee"),
+                        "identity_arguments": event.get("identity_arguments", ()),
+                        "receiver_register_type": event.get("receiver_register_type"),
+                        "receiver_identity_origins": event.get("receiver_identity_origins", ()),
+                        "receiver_producer": event.get("receiver_producer"),
+                    }
+                    for event in row.get("trace", {}).get("events", ())
+                    if event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+                    and any(
+                        argument.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+                        for argument in event.get("identity_arguments", ())
+                    )
+                ],
+            }
+            for row in player_item_mutator_rows
+        ],
         "li_lb_profile": privacy_safe_flow_class_profile(class_profiles.get("LiLb;")),
         "li_lb_superclass_profile": privacy_safe_flow_class_profile(class_profiles.get("LWT1;")),
         "li_lb_media_source_contract_defined": MEDIA3_MEDIA_SOURCE in class_profiles,
