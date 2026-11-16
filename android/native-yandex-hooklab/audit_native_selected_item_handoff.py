@@ -8217,7 +8217,7 @@ def inspect_media3_current_item_candidate(apks, class_profiles, player_contracts
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("CURRENT_ITEM_DEX_SIZE_LIMIT")
@@ -9020,6 +9020,12 @@ def inspect_signed(apks):
     audio_output_dispatch_census = inspect_audio_output_dispatch_callers(
         apks, audio_buffer_sink_caller_traces, class_profiles
     )
+    media3_player_contracts = inspect_media3_player_implementation_contracts(
+        apks, class_profiles
+    )
+    media3_current_item_candidate = inspect_media3_current_item_candidate(
+        apks, class_profiles, media3_player_contracts
+    )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -9203,11 +9209,8 @@ def inspect_signed(apks):
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in player_method_refs
         ],
-        "media3_player_implementation_contracts": inspect_media3_player_implementation_contracts(apks, class_profiles),
-        "media3_current_item_candidate": inspect_media3_current_item_candidate(
-            apks, class_profiles,
-            inspect_media3_player_implementation_contracts(apks, class_profiles)
-        ),
+        "media3_player_implementation_contracts": media3_player_contracts,
+        "media3_current_item_candidate": media3_current_item_candidate,
         "selected_state_static_summary": {
             "media_session_metadata_method_reference_count": sum(
                 x[1] in MEDIA_SESSION_METADATA_METHODS
