@@ -2931,5 +2931,50 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertFalse(possible[0]["identity_is_common_to_all_incoming_paths"])
 
 
+    def test_track_identity_cfg_does_not_cross_label_wrapper_as_track_or_album(self):
+        from unittest.mock import patch
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 3, 102: 1}[offset]
+            def method(self, index):
+                return ("LWorker;", "acceptWrapper", f"({WRAPPER})V")
+
+        method = ("LFactory;", "call", f"({WRAPPER})V")
+        instructions = [
+            (0, 0x71, [0x0071, 0]),  # invoke-static {v2}, acceptWrapper
+            (1, 0x0e, [0x000e]),
+        ]
+        cfg = {
+            "instructions": instructions,
+            "by_pc": {pc: (op, words) for pc, op, words in instructions},
+            "successors": {0: [1], 1: []},
+            "reachable": {0, 1},
+            "branches": [],
+            "entry": 0,
+        }
+        with patch("audit_native_selected_item_handoff.build_dex_control_flow",
+                   return_value=cfg), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",
+                   side_effect=lambda _d, _m, _f, _c, typ: [2] if typ == WRAPPER else []), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[2]), \
+             patch("audit_native_selected_item_handoff.written_register",
+                   return_value=None):
+            trace = trace_track_identity_method_cfg(FakeDex(), method, 0x8, 100)
+
+        calls = [
+            row for row in trace["events"]
+            if row["kind"] == "CALL_WITH_TYPED_IDENTITY"
+        ]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls[0]["identity_arguments"]), 1)
+        self.assertEqual(calls[0]["identity_arguments"][0]["identity_type"], "TRACK_WRAPPER")
+        self.assertEqual(
+            calls[0]["identity_arguments"][0]["origins"],
+            ["TRACK_WRAPPER_PARAMETER"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

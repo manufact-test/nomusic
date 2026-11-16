@@ -9460,12 +9460,16 @@ def trace_track_identity_method_cfg(
                 else (words[0] >> 8) & 0xff
             )
             receiver = (words[0] >> 12) & 15 if op == 0x5b else None
-            origins = common_origins(states, value_register)
-            if field_type in tracked_types and origins:
+            field_label = tracked_types.get(field_type)
+            origins = {
+                origin for origin in common_origins(states, value_register)
+                if field_label and origin.startswith(field_label + "_")
+            }
+            if field_label and origins:
                 add_event({
                     "pc": pc,
                     "kind": "FIELD_STORE_TYPED_IDENTITY",
-                    "identity_type": tracked_types[field_type],
+                    "identity_type": field_label,
                     "destination_owner": field_owner,
                     "receiver_is_this_on_all_paths": (
                         receiver == this_register if receiver is not None else False
@@ -9514,8 +9518,14 @@ def trace_track_identity_method_cfg(
                 if not (declared_type.startswith("L") or declared_type.startswith("[")):
                     continue
                 for tracked_type, label in tracked_types.items():
-                    common = common_origins(states, register)
-                    possible = possible_origins(states, register)
+                    common = {
+                        origin for origin in common_origins(states, register)
+                        if origin.startswith(label + "_")
+                    }
+                    possible = {
+                        origin for origin in possible_origins(states, register)
+                        if origin.startswith(label + "_")
+                    }
                     if common:
                         identity_arguments.append({
                             "argument_position": logical_position,
