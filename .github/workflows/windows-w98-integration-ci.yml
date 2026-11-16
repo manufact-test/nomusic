@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - experiment/windows-w167-owner-ui-regressions-20261116
   pull_request:
     branches:
       - main

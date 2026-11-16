@@ -8,7 +8,7 @@
 - Product: **CELIKOM Windows only**
 - Working branch: `experiment/windows-w167-owner-ui-regressions-20261116`
 - W167 source checkpoint: `e88280740457bf539ec8e661416a26d9de1e1102`
-- Current branch HEAD: `8964ec124025cf2f480c0f913f5b7b2d69a90f00`
+- CI validation checkpoint: `8964ec124025cf2f480c0f913f5b7b2d69a90f00` (Main CI and Windows integration CI both succeeded).
 - App version: **0.24.49.0**
 - Native module: **0.24.31**
 - Rollback branch before W167 fixes: `backup/windows-w167-pre-ui-fixes-20261116` @ `ea788eaed198b71db787215b9ba85829766d6062`

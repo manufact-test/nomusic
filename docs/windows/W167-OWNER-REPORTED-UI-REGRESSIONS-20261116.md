@@ -179,6 +179,8 @@ W166 is a rejected owner build and comparison point, not the implementation base
 ## 9. W167 implementation checkpoint
 
 Source checkpoint: `e88280740457bf539ec8e661416a26d9de1e1102`
+CI validation checkpoint: `8964ec124025cf2f480c0f913f5b7b2d69a90f00`
+W20 package source commit: `025a51d7478b3c7591f893a5dc55fd8ecfee7bdc`
 
 - Start now keeps the connecting banner through module validation/upgrade; the completion gate requires integration idle and the expected module installed. Consent cancellation clears the banner cleanly.
 - The fresh `UNKNOWN` playback placeholder is blank. The old waiting copy was removed from both compact and legacy UI paths.
