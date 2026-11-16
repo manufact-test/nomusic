@@ -9,7 +9,7 @@ Status: **source CI green, W20 internal owner-review package built and verified;
 - Repository: `manufact-test/nomusic`
 - Working branch: `main`
 - Code checkpoint: `2b7fb2d3627c27c1ec9052e49b7abdb49b87429e`
-- W20 request/docs commit: `98bb24a3081e616e8a4767323bbc685cf1b2ecde` (request file only; no code change)
+- W20 package request commit: `98bb24a3081e616e8a4767323bbc685cf1b2ecde` (request file only; no code change)
 - Exact pre-W164 backup: `backup/windows-main-pre-w164-vpn-route-debounce-track-ui-20261116` @ `b5538b6bdbb62eeeaef74c57e10d0fe5a075af7a`
 - App: **0.24.46.0**
 - Native module: **0.24.31**
