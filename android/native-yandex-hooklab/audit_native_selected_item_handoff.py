@@ -8010,6 +8010,411 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
     }
 
 
+
+def trace_exact_object_method_body(dex, method, flags, code_off):
+    """Trace exact object receiver and returned-reference origins in one short method."""
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise DexError("OBJECT_METHOD_INVALID_INS_SIZE")
+    this_register = (
+        None if flags & ACC_STATIC else registers_size - ins_size
+    )
+    aliases = {}
+    if this_register is not None:
+        aliases[this_register] = {f"THIS_OBJECT:{method[0]}"}
+    calls = []
+    return_origins = []
+    pending_result = None
+    branch_seen = False
+    instruction_count = 0
+    invoke_names = {
+        0x6e: "VIRTUAL", 0x6f: "SUPER", 0x70: "DIRECT",
+        0x71: "STATIC", 0x72: "INTERFACE",
+        0x74: "VIRTUAL_RANGE", 0x75: "SUPER_RANGE",
+        0x76: "DIRECT_RANGE", 0x77: "STATIC_RANGE",
+        0x78: "INTERFACE_RANGE",
+    }
+
+    for ordinal, (pc, op, words) in enumerate(instructions(dex, code_off)):
+        instruction_count += 1
+        if instruction_count > 256:
+            raise ValueError("OBJECT_METHOD_INSTRUCTION_LIMIT")
+
+        if op in INVOKES:
+            callee = dex.method(words[1])
+            registers = invoke_registers(op, words)
+            is_static = op in (0x71, 0x77)
+            receiver_register = None if is_static or not registers else registers[0]
+            receiver_origins = (
+                sorted(aliases.get(receiver_register, ()))
+                if receiver_register is not None else []
+            )
+            result_type = callee[2].split(")", 1)[1]
+            result_token = None
+            if result_type.startswith(("L", "[")):
+                result_token = (
+                    f"CALL_RESULT:{callee[0]}|{callee[1]}|{callee[2]}@{pc}"
+                )
+            calls.append({
+                "ordinal": ordinal,
+                "pc": pc,
+                "invoke_kind": invoke_names.get(op, "OTHER_INVOKE"),
+                "callee": {
+                    "owner": callee[0],
+                    "method": callee[1],
+                    "signature": callee[2],
+                },
+                "receiver_register": receiver_register,
+                "receiver_type_descriptor": None if is_static else callee[0],
+                "receiver_origins": receiver_origins,
+                "receiver_identity_proven": bool(receiver_origins),
+                "returns_object_type": result_type if result_token else None,
+            })
+            pending_result = (
+                {"token": result_token, "type": result_type}
+                if result_token else None
+            )
+            continue
+
+        if op == 0x0c:  # move-result-object
+            destination = words[0] >> 8
+            aliases.pop(destination, None)
+            if pending_result:
+                aliases[destination] = {pending_result["token"]}
+            pending_result = None
+            continue
+
+        pending_result = None
+
+        if op == 0x54:  # iget-object: retain only declared type and receiver identity
+            destination = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
+            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            aliases.pop(destination, None)
+            if field_type.startswith(("L", "[")):
+                receiver_origins = aliases.get(receiver, set())
+                if any(x.startswith("THIS_OBJECT:") for x in receiver_origins):
+                    origin = f"FIELD_READ_FROM_THIS:{field_type}@{pc}"
+                elif receiver_origins:
+                    origin = f"FIELD_READ_FROM_OBJECT_RECEIVER:{field_type}@{pc}"
+                else:
+                    origin = f"FIELD_READ_FROM_UNKNOWN_RECEIVER:{field_type}@{pc}"
+                aliases[destination] = {origin}
+            continue
+
+        if op == 0x62:  # sget-object
+            destination = (words[0] >> 8) & 0xff
+            _field_owner, _field_name, field_type = field_id(dex, words[1])
+            aliases.pop(destination, None)
+            if field_type.startswith(("L", "[")):
+                aliases[destination] = {f"STATIC_FIELD_READ:{field_type}@{pc}"}
+            continue
+
+        if op == 0x22:  # new-instance
+            destination = (words[0] >> 8) & 0xff
+            object_type = dex.descriptor(words[1])
+            aliases[destination] = {f"NEW_INSTANCE:{object_type}@{pc}"}
+            continue
+
+        if op in (0x07, 0x08, 0x09):  # move-object preserves Java reference identity
+            move = move_object_registers(op, words)
+            if move:
+                destination, source = move
+                origins = set(aliases.get(source, ()))
+                aliases.pop(destination, None)
+                if origins:
+                    aliases[destination] = origins
+            continue
+
+        if op == 0x1f:  # check-cast preserves the same reference
+            register = (words[0] >> 8) & 0xff
+            cast_type = dex.descriptor(words[1])
+            if register in aliases:
+                aliases[register].add(f"CHECK_CAST:{cast_type}@{pc}")
+            continue
+
+        if op == 0x11:  # return-object
+            source = words[0] >> 8
+            return_origins.append(sorted(aliases.get(source, ())))
+            continue
+
+        if op in (0x28, 0x29, 0x2a, 0x2b, 0x2c) or 0x32 <= op <= 0x3d:
+            branch_seen = True
+
+        destination = written_register(op, words)
+        if destination is not None:
+            aliases.pop(destination, None)
+
+    returned_tokens = {
+        origin
+        for origins in return_origins
+        for origin in origins
+        if origin.startswith("CALL_RESULT:")
+    }
+    returned_call_rows = [
+        row for row in calls
+        if row.get("returns_object_type")
+        and any(
+            origin.startswith(
+                f"CALL_RESULT:{row['callee']['owner']}|{row['callee']['method']}|"
+                f"{row['callee']['signature']}@{row['pc']}"
+            )
+            for origins in return_origins for origin in origins
+        )
+    ]
+    field_return_proven = any(
+        origin.startswith("FIELD_READ_FROM_THIS:")
+        for origins in return_origins for origin in origins
+    )
+    return {
+        "method": {
+            "owner": method[0],
+            "name": method[1],
+            "signature": method[2],
+        },
+        "instruction_count": instruction_count,
+        "branch_seen": branch_seen,
+        "calls": calls,
+        "return_object_origins": return_origins,
+        "same_call_result_to_return_proven": (
+            not branch_seen and len(returned_tokens) == 1
+            and len(returned_call_rows) == 1
+        ),
+        "returned_call": (
+            returned_call_rows[0]["callee"] if len(returned_call_rows) == 1 else None
+        ),
+        "same_this_field_object_to_return_proven": (
+            not branch_seen and field_return_proven
+        ),
+        "private_field_names_or_values_disclosed": False,
+        "field_values_or_media_read": False,
+    }
+
+
+def inspect_media3_current_item_candidate(apks, class_profiles, player_contracts):
+    """Inspect only LfH7.else()LkD7, its exact Player ancestry declarations and LkD7 type shape."""
+    item_type = "LkD7;"
+    player_contract = "LfH7;"
+    target_method_name = "else"
+    target_signature = "()LkD7;"
+    implementation_owner = "Lp24;"
+    source_factory_owner = "Landroidx/media3/exoplayer/source/MediaSource$Factory;"
+
+    scope_owners = set(player_contracts.get("scope_owners", ()))
+    if not player_contracts.get("bounded") or not scope_owners:
+        return {
+            "bounded": False,
+            "reason": "PLAYER_ANCESTRY_NOT_BOUNDED",
+            "descriptor": item_type,
+            "active_selected_item_proven": False,
+            "same_native_item_to_decoder_proven": False,
+        }
+
+    exact_declarations = {}
+    item_class_methods = []
+    source_factory_contracts = []
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("CURRENT_ITEM_DEX_SIZE_LIMIT")
+                dex = Dex(archive.read(entry))
+
+                for method, flags, code_off in declared_method_contracts_for_owners(
+                    dex, scope_owners
+                ):
+                    if method[1] == target_method_name and method[2] == target_signature:
+                        if method[0] in exact_declarations:
+                            raise DexError("CURRENT_ITEM_DUPLICATE_METHOD_DECLARATION")
+                        exact_declarations[method[0]] = (
+                            method, flags, code_off, dex
+                        )
+
+                if item_type in class_profiles:
+                    for method, flags, code_off in declared_method_contracts_for_owners(
+                        dex, {item_type}
+                    ):
+                        item_class_methods.append((method, flags, code_off, dex))
+
+                for method_index in range(dex.method_count):
+                    method_ref = dex.method(method_index)
+                    if method_ref[0] != source_factory_owner:
+                        continue
+                    parameters = parse_types(method_ref[2])
+                    result_type = method_ref[2].split(")", 1)[1]
+                    if item_type in parameters and result_type == MEDIA3_MEDIA_SOURCE:
+                        source_factory_contracts.append({
+                            "owner": method_ref[0],
+                            "method": method_ref[1],
+                            "signature": method_ref[2],
+                        })
+
+    def class_chain(owner):
+        chain = []
+        seen = set()
+        current = owner
+        while current and current != "Ljava/lang/Object;" and current not in seen:
+            seen.add(current)
+            chain.append(current)
+            profile = class_profiles.get(current, {})
+            current = profile.get("superclass")
+        return chain
+
+    effective_rows = []
+    for implementor in player_contracts.get("implementors", ()):
+        chain = class_chain(implementor)
+        declaration_owner = next(
+            (owner for owner in chain if owner in exact_declarations), None
+        )
+        declaration_kind = "CLASS"
+        if declaration_owner is None:
+            pending = []
+            for owner in chain:
+                pending.extend(class_profiles.get(owner, {}).get("interfaces", ()))
+            visited = set()
+            interface_matches = []
+            while pending:
+                owner = pending.pop(0)
+                if owner in visited:
+                    continue
+                visited.add(owner)
+                if owner in exact_declarations:
+                    interface_matches.append(owner)
+                pending.extend(class_profiles.get(owner, {}).get("interfaces", ()))
+            if interface_matches:
+                declaration_owner = sorted(interface_matches)[0]
+                declaration_kind = "INTERFACE"
+        declaration = exact_declarations.get(declaration_owner)
+        effective_rows.append({
+            "implementor": implementor,
+            "declaring_owner": declaration_owner,
+            "declaration_kind": declaration_kind if declaration_owner else None,
+            "declared_on_concrete_implementor": declaration_owner == implementor,
+            "code_body_declared": bool(declaration and declaration[2]),
+        })
+
+    lp24_declaration = exact_declarations.get(implementation_owner)
+    lp24_trace = None
+    delegate_traces = []
+    if lp24_declaration and lp24_declaration[2]:
+        method, flags, code_off, dex = lp24_declaration
+        lp24_trace = trace_exact_object_method_body(dex, method, flags, code_off)
+        for call in lp24_trace["calls"]:
+            callee = call["callee"]
+            if (
+                callee["owner"] == implementation_owner
+                or callee["owner"] not in scope_owners
+                or callee["signature"] != target_signature
+                or callee["method"] != target_method_name
+            ):
+                continue
+            inherited = exact_declarations.get(callee["owner"])
+            if inherited and inherited[2]:
+                inherited_method, inherited_flags, inherited_code, inherited_dex = inherited
+                delegate_traces.append(
+                    trace_exact_object_method_body(
+                        inherited_dex, inherited_method, inherited_flags, inherited_code
+                    )
+                )
+                if len(delegate_traces) >= 2:
+                    break
+
+    item_profile = class_profiles.get(item_type)
+    item_profile_safe = privacy_safe_flow_class_profile(item_profile)
+    instance_types = set(item_profile.get("instance_types", ())) if item_profile else set()
+    static_types = set(item_profile.get("static_types", ())) if item_profile else set()
+    media_item_field_count = sum(
+        typ == MEDIA3_MEDIA_ITEM for typ in instance_types | static_types
+    )
+    media_item_subtype = dex_type_assignable_to(
+        item_type, MEDIA3_MEDIA_ITEM, class_profiles
+    )
+
+    constructor_field_refs = set()
+    for method, flags, code_off, dex in item_class_methods:
+        if (
+            code_off and method[1] == "<init>"
+            and MEDIA3_MEDIA_ITEM in parse_types(method[2])
+        ):
+            constructor_field_refs.update(
+                exact_parameter_field_store_refs(
+                    dex, method, flags, code_off, MEDIA3_MEDIA_ITEM
+                )
+            )
+
+    wrapper_accessor_signatures = []
+    if constructor_field_refs:
+        for method, flags, code_off, dex in item_class_methods:
+            parameters = parse_types(method[2])
+            result_type = method[2].split(")", 1)[1]
+            if not code_off or method[1] == "<init>" or parameters or result_type != MEDIA3_MEDIA_ITEM:
+                continue
+            trace = trace_identity_method(
+                dex, method, flags, code_off,
+                exact_track_field_refs=constructor_field_refs,
+                extra_identity_types={MEDIA3_MEDIA_ITEM},
+            )
+            same_field_return = any(
+                event.get("kind") == "RETURN_TYPED_IDENTITY"
+                and event.get("identity_type") == f"EXTRA_OBJECT:{MEDIA3_MEDIA_ITEM}"
+                and any(origin.startswith("FIELD_READ_FROM_THIS:")
+                        for origin in event.get("origins", ()))
+                for event in trace.get("events", ())
+            )
+            if same_field_return and not trace.get("branch_seen_aliases_cleared"):
+                wrapper_accessor_signatures.append(method[2])
+
+    wrapper_proven = bool(constructor_field_refs and wrapper_accessor_signatures)
+    factory_contracts = sorted({
+        (row["owner"], row["method"], row["signature"])
+        for row in source_factory_contracts
+    })
+    if item_type == MEDIA3_MEDIA_ITEM:
+        classification = "EXACT_MEDIA3_MEDIA_ITEM_DESCRIPTOR"
+    elif media_item_subtype:
+        classification = "MEDIA3_MEDIA_ITEM_SUBTYPE"
+    elif factory_contracts:
+        classification = "MEDIA3_MEDIA_ITEM_BY_SOURCE_FACTORY_CONTRACT"
+    elif wrapper_proven:
+        classification = "WRAPPER_WITH_SAME_MEDIA_ITEM_FIELD_AND_ACCESSOR"
+    elif media_item_field_count:
+        classification = "WRAPPER_CANDIDATE_IDENTITY_NOT_PROVEN"
+    else:
+        classification = "UNRESOLVED_OBFUSCATED_OBJECT_TYPE"
+
+    return {
+        "bounded": True,
+        "player_contract": player_contract,
+        "candidate_method": {
+            "owner": player_contract,
+            "method": target_method_name,
+            "signature": target_signature,
+        },
+        "descriptor": item_type,
+        "descriptor_class_profile": item_profile_safe,
+        "classification": classification,
+        "media3_media_item_subtype_proven": media_item_subtype,
+        "media_item_typed_field_count": media_item_field_count,
+        "source_factory_contracts_accepting_exact_descriptor": [
+            {"owner": owner, "method": method, "signature": signature}
+            for owner, method, signature in factory_contracts
+        ],
+        "same_media_item_constructor_field_to_accessor_proven": wrapper_proven,
+        "wrapper_accessor_signatures": sorted(set(wrapper_accessor_signatures)),
+        "effective_concrete_implementor_declarations": effective_rows,
+        "lp24_exact_method_body": lp24_trace,
+        "one_hop_exact_delegate_bodies": delegate_traces,
+        "runtime_player_instance_proven": False,
+        "active_selected_item_proven": False,
+        "same_native_item_to_decoder_proven": False,
+        "private_field_names_or_values_disclosed": False,
+        "field_values_media_ids_urls_dataspec_tokens_or_audio_read": False,
+    }
+
+
 def inspect_signed(apks):
     dex_count = 0
     model_defined = False
@@ -8799,6 +9204,10 @@ def inspect_signed(apks):
             for x in player_method_refs
         ],
         "media3_player_implementation_contracts": inspect_media3_player_implementation_contracts(apks, class_profiles),
+        "media3_current_item_candidate": inspect_media3_current_item_candidate(
+            apks, class_profiles,
+            inspect_media3_player_implementation_contracts(apks, class_profiles)
+        ),
         "selected_state_static_summary": {
             "media_session_metadata_method_reference_count": sum(
                 x[1] in MEDIA_SESSION_METADATA_METHODS

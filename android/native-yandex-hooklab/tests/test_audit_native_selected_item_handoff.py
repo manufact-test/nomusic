@@ -33,7 +33,8 @@ from audit_native_selected_item_handoff import (
     summarize_flow_mode_branch_census,
     exact_track_return_owner_scope,
     exact_parameter_field_store_refs, local_object_register_origin,
-    dex_type_assignable_to, trace_exact_object_receiver_call_cfg
+    dex_type_assignable_to, trace_exact_object_receiver_call_cfg,
+    trace_exact_object_method_body
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -2808,6 +2809,62 @@ class SelectedItemAuditTests(unittest.TestCase):
                       call["receiver_origins_common_to_all_paths"])
         self.assertIn("CHECK_CAST:LaC7;@0",
                       call["receiver_origins_common_to_all_paths"])
+
+
+    def test_exact_object_method_trace_links_delegate_result_to_return(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 2, 102: 1}[offset]
+            def method(self, index):
+                return ("LfH7;", "else", "()LkD7;")
+        method = ("Lp24;", "else", "()LkD7;")
+        ins = [
+            (0, 0x54, [0x1054, 0]),       # iget-object v0, this, Player delegate
+            (2, 0x72, [0x0072, 0, 0]),   # invoke-interface {v0}, LfH7.else()
+            (5, 0x0c, [0x000c]),         # move-result-object v0
+            (6, 0x11, [0x0011]),         # return-object v0
+        ]
+        with patch("audit_native_selected_item_handoff.instructions", return_value=ins), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("Lp24;", "privateField", "LfH7;")), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[0]):
+            trace = trace_exact_object_method_body(FakeDex(), method, 0, 100)
+        self.assertTrue(trace["calls"][0]["receiver_identity_proven"])
+        self.assertIn("FIELD_READ_FROM_THIS:LfH7;@0",
+                      trace["calls"][0]["receiver_origins"])
+        self.assertTrue(trace["same_call_result_to_return_proven"])
+        self.assertEqual(trace["returned_call"], {
+            "owner": "LfH7;", "method": "else", "signature": "()LkD7;"
+        })
+        self.assertFalse(trace["private_field_names_or_values_disclosed"])
+
+    def test_exact_object_method_trace_proves_same_this_field_return_and_fails_closed_on_branch(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 2, 102: 1}[offset]
+        method = ("Lp24;", "else", "()LkD7;")
+        direct_field = [
+            (0, 0x54, [0x1054, 0]),  # iget-object v0, this, LkD7 field
+            (2, 0x11, [0x0011]),     # return-object v0
+        ]
+        branch_field = [
+            (0, 0x28, [0x0028]),     # goto
+            (1, 0x54, [0x1054, 0]),
+            (3, 0x11, [0x0011]),
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",
+                   side_effect=[direct_field, branch_field]), \
+             patch("audit_native_selected_item_handoff.field_id",
+                   return_value=("Lp24;", "privateField", "LkD7;")):
+            direct = trace_exact_object_method_body(FakeDex(), method, 0, 100)
+            branched = trace_exact_object_method_body(FakeDex(), method, 0, 100)
+        self.assertTrue(direct["same_this_field_object_to_return_proven"])
+        self.assertFalse(direct["same_call_result_to_return_proven"])
+        self.assertTrue(branched["branch_seen"])
+        self.assertFalse(branched["same_this_field_object_to_return_proven"])
 
 
 if __name__ == "__main__":
