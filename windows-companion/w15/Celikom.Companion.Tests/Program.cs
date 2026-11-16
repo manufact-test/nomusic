@@ -2323,7 +2323,7 @@ try
                  nextTrackSnapshot.Title == "Следующая песня" &&
                  nextTrackSnapshot.Artist == "Другой исполнитель" &&
                  nextTrackSnapshot.DurationMs == 205000 &&
-                 snapshot.PlaybackState == "PLAYING",
+                 nextTrackSnapshot.PlaybackState == "PLAYING",
                  "W162 a real Next replaces all metadata together without leaking the previous track");
         }
         using (var partialMetadataRefresh = await SendW141Heartbeat(new {
