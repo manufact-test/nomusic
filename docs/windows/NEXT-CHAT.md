@@ -1502,3 +1502,19 @@ The W117/W118 implementation records immediately above this point are historical
 **Read `docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md` first.** The older NEXT-CHAT sections above are historical, not new tasks. Work ONLY Windows in `manufact-test/nomusic` branch `main`; never restart Android or older W150 work. The W158 application-source fix is `3f6affc242ef570120250d2e20eec791338f2ef9`; document-lint-only follow-up `7492158509f97564bcb45f5a892cb9b6e529a4d0`. Original exact backup: `backup/windows-main-pre-w158-owner-vpn-autorun-ui-20261116` @ `eec7561aedcc1e33c835d94a75ff0d40474a5d48`.
 
 W158 fixes false autorun connected-before-native-heartbeat, no-kUrl same-current mapped VPN source revalidation/reload with route-epoch acknowledgement, recovery Start/Stop gate, and truthful compact text/color. Regression coverage added in W15 and W23. Both source CI checks SUCCESS: Main `43769234697`; Windows `43769234693`. The new owner candidate is **0.24.40.0 / native 0.24.31**, prepared as a SINGLE private W20 owner acceptance build after both source CI successes; never create another intermediate installer. Do not touch architecture, Yandex originals, browser, Android, backend or updater/P-256. Do not claim owner audible confirmation without manual test. Next step after W20 artifact completes is only one grouped owner-PC acceptance: manual Yandex open after reboot, VPN same-track sound/Next, Start disabled on recovery while Stop available, and source-proof/availability colors. No new diagnostics request unless a fresh owner failure appears.
+
+## W159 — Windows mapped-track status consistency (16 November 2026; current task)
+
+**Read `docs/windows/W159-MAPPED-TRACK-STATUS-20261116.md` first.** W158 VPN continuity has now been manually accepted by the owner: CELIKOM replacement audio continues through VPN route recovery without an audible pop or unnecessary restart. The W54 diagnostics support source hold/keep and entitlement recovery, but do not independently prove audible output.
+
+- Work ONLY in `manufact-test/nomusic`, branch `main`; this remains the existing Windows application.
+- Exact pre-W159 rollback: `backup/windows-main-pre-w159-mapped-source-status-20261116` @ `0e1de874bc15c401fcceb206511d8cb8f4005d80`.
+- W159 application source checkpoint: `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`.
+- A current mapped track now consistently displays neutral `Версия CELIKOM доступна` after VPN recovery and after Next. Header/service copy is `Сервис включён`; no false `Ожидаем подтверждения` for an accepted mapping.
+- Exact native decoder proof remains the only basis for `Подмена активна` / accent color. Do not weaken proof or claim audible confirmation from network events.
+- Changed only W15 presentation/helper/tests and W159/W158 documentation. No VPN, native host/renderer, playback, Yandex, Android, extension, backend or updater changes.
+- Required Main CI and Windows integration CI are attached to source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`; check their final conclusions before packaging.
+- After both CI workflows pass, bump Windows application/package version to **0.24.41.0**; native module remains **0.24.31**. Update the one W20 request file to produce exactly one internal W159 owner-review EXE+ZIP+SHA256 package. No intermediate installer or ZIP.
+- Owner check after installation: one mapped track before VPN, same track after VPN, then Next to another mapped track. The compact and main UI should keep the same neutral availability/service labels. Audio continuity is already accepted; do not reopen or refactor it unless a new audible failure is reported.
+
+Do not resume W150 updater/P-256 or any Android/browser/backend work. No broad audits or unrelated tests.
