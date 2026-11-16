@@ -3682,6 +3682,9 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(trace.call_count, 4)
 
     def test_exact_li_lb_handoff_does_not_match_a_different_media_item_producer(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
         from unittest.mock import patch
 
         caller = ("LPlainOwner;", "dispatch", "()V")
