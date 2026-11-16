@@ -3,47 +3,44 @@
 **Продукт:** Android mobile app. Не Windows и не браузерное расширение.  
 **GitHub:** `manufact-test/nomusic`  
 **Единственная рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
-**Последний CI-green code checkpoint:** `c0cf9896916cca9b13299cdb3fde7a78ffbe4da1`  
-**CI #213:** [SUCCESS, 127/127 тестов](https://github.com/manufact-test/nomusic/actions/runs/43871788563)  
-**Точный backup:** `backup/android-a1-playlist-callback-route-closed-ci-green-20261116`  
-**Предыдущий audit backup:** `backup/android-a1-playlist-method-handle-census-ci-green-20261116`  
-**Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`. После него hooks не менялись.
+**Последний code checkpoint:** `27ccbe8348d598fead0386e70ef68573b04270c4`  
+**Точный резерв:** `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`  
+**CI #229:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139), 16 signed splits / 6 DEX, read-only.  
+**Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`; после него hooks не менялись.
 
-### Сначала прочитай только актуальные документы
+### Прочитай только два документа
 
 1. `docs/android/NEXT-CHAT.md`
-2. `docs/android/ANDROID-A1-PLAYLIST-CALLBACK-ROUTE-CLOSURE-20261116.md`
-3. `docs/android/ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md`
-4. `docs/android/ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md`
-5. `docs/android/ANDROID-A1-COMPETITOR-AND-TRACK-FLOW-REVIEW-20261116.md`
-6. `docs/android/ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md`
+2. `docs/android/ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md`
 
-### Что уже доказано — не повторять
+Дополнительно, только если нужен внешний контекст: `docs/android/ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md`.
 
-- `LfH7.else()LkD7;` закрыт: `LkD7;` — Exception, не MediaItem.
-- `LfH7.E()LOf6;` — current-item getter через Timeline/index/Window; same Timeline receiver identity across branch остаётся недоказанной.
-- Player mutator chain `LsO7 → LBs4 → LfH7` передаёт тот же MediaItem.
-- Внутри `LXk6.if(LsO7;LXi6$e;List)V` тот же `List.get()` result проходит cast в MediaItem и передаётся в `LsO7.Z(ILOf6;)V`.
-- Но outer route `LXk6.if(...)` **закрыт**: 0 direct invoke callers, 0 MethodHandle/`invoke-custom` references; интерфейс `LLl6$c` имеет 6 concrete implementers, а единственный caller `LKl6.run()` передаёт List из поля `LKl6`. Runtime dispatch именно в `LXk6` и происхождение элементов List не доказаны.
-- В bounded Player caller census нет Track-bearing Player mutator caller. Единственный кандидат `LXk6.if(...)` не принимает Track/TrackWrapper и не имеет таких полей.
-- Отдельно доказана source-side цепочка `TrackWrapper → URI → MediaItem → LiLb holder`, но она не соединена с Player.
-- ByteBuffer → native sink исследован отдельно; связи с текущим MediaItem нет.
-- Stage A / NAV17: PASS по подтверждению владельца. Stage B: NOT CONNECTED / NO-GO.
+Не загружай старые накопительные handoff-файлы и все документы папки целиком. История сохранена в архиве и Git history.
 
-### Единственная следующая задача
+### Текущая точка
 
-Продолжай только с уже доказанной цепочки `TrackWrapper → URI → MediaItem → LiLb holder`. Найди прямые callers точного MediaItem-returning getter/constructor handoff для `LiLb` и проверь, передаётся ли тот же MediaItem в один из уже известных Player mutators `LsO7/LBs4/LfH7`.
+CI #229 доказал цепочку идентичности одного TrackWrapper:
 
-Если same-object handoff к Player mutator находится — проследи только этот объект до `LfH7.E()LOf6;`. Если прямого caller или identity edge нет — быстро закрой holder route. Не возвращайся к `LXk6.if(...)` и не начинай новый глобальный поиск.
+`LIEa.new → Lqj8.if → Lxj8.if → Lvj8 → Lxj8.for → LfT2.<init>`
 
-### Не делай лишнего
+`LfT2.<init>` сохраняет тот же TrackWrapper. Но тело точного `LfT2.invokeSuspend(Object):Object` не найдено. Дальнейшая передача в MediaSource/MediaPeriod/DataSource/Extractor/Player не доказана. Stage B остаётся NO-GO.
 
-- Не повторяй competitor sweep, полный Player ancestry, generic getter search, broad LiLb/LgLb holder audit или ByteBuffer sink census.
-- Не расширяй глобально List/Object tracing: CI #203 уже упёрся в `MEDIA3_ITEM_HANDOFF_METHOD_LIMIT`.
-- Не меняй runtime hooks, vendor behavior, APK или оригинальное приложение.
-- Не добавляй второй Player/decoder/AudioTrack.
-- Не читай значения приватных полей, Track/Album IDs и названия, URL/DataSpec, токены, данные аккаунта или audio bytes.
-- Не трогай NAV17, Test.50, frozen A1/LSPatch, Windows, extension, backend/API/DB и production.
-- Не проси владельца о ручной проверке без конкретного необходимого измерения.
+### Единственная задача
 
-Работай крупным блоком, без промежуточных отчётов. Остановись только на реальном блокере или необходимости ручной проверки.
+Исследуй только точный класс `LfT2;` в шести подписанных DEX:
+- его superclass, interfaces, flags и реальные методы;
+- где находится исполняемая continuation entry, если она есть;
+- читает ли какой-либо метод сохранённый TrackWrapper и передаёт ли тот же объект в конкретную source/player boundary.
+
+Если такой путь не доказан — закрой кандидат. Не запускай глобальный поиск и не повторяй уже закрытые LiLb/LXk6 маршруты.
+
+### Ограничения
+
+- Не менять архитектуру, runtime hooks, APK, оригинальный Яндекс и vendor behavior.
+- Не добавлять второй Player/decoder/AudioTrack.
+- Не читать IDs, названия, URL, DataSpec, токены, account data, приватные значения полей или audio bytes.
+- Не трогать NAV17, Test.50, frozen A1/LSPatch, Windows, extension, backend/API/DB и production.
+- Не просить ручную проверку без конкретной необходимости.
+- Работай крупным законченным блоком, без промежуточных отчётов.
+
+**Важно:** полный CI JSON не вставляй в чат и не загружай целиком. Вытаскивай только нужные поля из компактного результата.
