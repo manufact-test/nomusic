@@ -986,6 +986,7 @@ def trace_identity_method(
                         "method": callee[1],
                         "signature": callee[2],
                     },
+                    **receiver_metadata,
                     "target_accepts_track_parameter": MODEL in params,
                     "target_accepts_album_parameter": ALBUM_MODEL in params,
                     "target_accepts_wrapper_parameter": WRAPPER in params,
@@ -9490,6 +9491,11 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         and event.get("origins") == ["FIELD_READ_FROM_OTHER_RECEIVER"]
         for event in player_current_item_getter_events
     )
+    player_current_item_window_call = next((
+        event for event in player_current_item_getter_calls
+        if event.get("callee", {}).get("owner") == "LTva;"
+        and event.get("callee", {}).get("method") == "final"
+    ), None)
     player_item_mutator_rows = [
         row for row in method_rows
         if row["method"]["owner"] in {"LrD0;", "LBs4;", "LsO7;"}
@@ -9540,10 +9546,15 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
             "same_window_field_reference_returned": bool(
                 player_current_item_window_field_read and player_current_item_field_return
             ),
-            "current_timeline_receiver_identity_proven": bool(
+            "window_field_produced_by_timeline_window_method": bool(
                 player_current_item_window_field_read
                 and player_current_item_window_field_read.get("receiver_producer", {}).get("owner") == "LTva;"
                 and player_current_item_window_field_read.get("receiver_producer", {}).get("method") == "final"
+            ),
+            "current_timeline_receiver_identity_proven": bool(
+                player_current_item_window_call
+                and player_current_item_window_call.get("receiver_producer", {}).get("owner") == "LfH7;"
+                and player_current_item_window_call.get("receiver_producer", {}).get("method") == "Y"
             ),
             "branch_seen": bool(
                 player_current_item_getter_row
