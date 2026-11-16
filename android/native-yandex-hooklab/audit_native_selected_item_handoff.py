@@ -9548,13 +9548,13 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
             ),
             "window_field_produced_by_timeline_window_method": bool(
                 player_current_item_window_field_read
-                and player_current_item_window_field_read.get("receiver_producer", {}).get("owner") == "LTva;"
-                and player_current_item_window_field_read.get("receiver_producer", {}).get("method") == "final"
+                and (player_current_item_window_field_read.get("receiver_producer") or {}).get("owner") == "LTva;"
+                and (player_current_item_window_field_read.get("receiver_producer") or {}).get("method") == "final"
             ),
             "current_timeline_receiver_identity_proven": bool(
                 player_current_item_window_call
-                and player_current_item_window_call.get("receiver_producer", {}).get("owner") == "LfH7;"
-                and player_current_item_window_call.get("receiver_producer", {}).get("method") == "Y"
+                and (player_current_item_window_call.get("receiver_producer") or {}).get("owner") == "LfH7;"
+                and (player_current_item_window_call.get("receiver_producer") or {}).get("method") == "Y"
             ),
             "branch_seen": bool(
                 player_current_item_getter_row
