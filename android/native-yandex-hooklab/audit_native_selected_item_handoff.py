@@ -1000,7 +1000,15 @@ def trace_identity_method(
             dest = (words[0] >> 8) & 15
             receiver = (words[0] >> 12) & 15
             field_ref = field_id(dex, words[1])
-            _field_owner, _field_name, field_type = field_ref
+            field_owner, _field_name, field_type = field_ref
+            receiver_identity_origins = [
+                {
+                    "identity_type": tracked_types[receiver_type],
+                    "origins": sorted(receiver_origins),
+                }
+                for receiver_type, values in aliases.items()
+                if (receiver_origins := values.get(receiver))
+            ]
             clear_register(dest)
             if (
                 field_type in tracked_types
@@ -1016,14 +1024,6 @@ def trace_identity_method(
                     else "FIELD_READ_FROM_OTHER_RECEIVER"
                 )
                 aliases[field_type][dest] = {origin}
-                receiver_identity_origins = [
-                    {
-                        "identity_type": tracked_types[receiver_type],
-                        "origins": sorted(receiver_origins),
-                    }
-                    for receiver_type, values in aliases.items()
-                    if (receiver_origins := values.get(receiver))
-                ]
                 add_event({
                     "ordinal": ordinal,
                     "kind": "FIELD_READ_TYPED_IDENTITY",
