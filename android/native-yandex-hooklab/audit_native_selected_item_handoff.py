@@ -9515,7 +9515,7 @@ def inspect_exact_playlist_runner_construction(apks, class_profiles):
     runner_owner = "LKl6;"
     run_method = (runner_owner, "run", "()V")
     relevant_field_types = {
-        "LLl6$c;", "LXi6$e;", "Ljava/util/List;",
+        "LLl6$c;", "LXi6$e;", "Lek6;", "Ljava/util/List;",
     }
     extra_types = (
         "LLl6$c;", "LXi6$e;", "Ljava/util/List;",
@@ -9539,7 +9539,7 @@ def inspect_exact_playlist_runner_construction(apks, class_profiles):
                 if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 dex = Dex(archive.read(entry))
-                definitions = method_definitions_with_flags(dex)
+                definitions = list(method_definitions_with_flags(dex))
                 for method, flags, code_off in definitions:
                     if method != run_method or not code_off:
                         continue
@@ -9575,7 +9575,7 @@ def inspect_exact_playlist_runner_construction(apks, class_profiles):
                     constructor_methods.append(method)
                     writer_rows = []
                     for ordinal, op, words in instructions(dex, code_off):
-                        if op not in (0x5b, 0x67):  # iput-object / sput-object
+                        if op not in (0x5b, 0x69):  # iput-object / sput-object
                             continue
                         field_ref = field_id(dex, words[1])
                         if field_ref not in run_field_refs:
@@ -9921,12 +9921,14 @@ def inspect_exact_playlist_callback_contract(apks, class_profiles):
             "signature": target[2],
         },
         "interface_profile": interface_profile,
-        "interface_method_definition_count": len(interface_definitions),
-        "interface_method_definitions": interface_definitions,
+        "interface_method_code_body_count": len(interface_definitions),
+        "interface_method_code_bodies": interface_definitions,
+        "interface_method_is_abstract": bool(interface_profile.get("is_abstract", False)),
+        "interface_method_reference_observed": bool(caller_rows),
         "direct_implementers": direct_implementers,
         "concrete_implementers": concrete_implementers,
-        "implementation_method_definition_count": len(implementation_definitions),
-        "implementation_method_definitions": implementation_definitions,
+        "implementation_method_code_body_count": len(implementation_definitions),
+        "implementation_method_code_bodies": implementation_definitions,
         "direct_interface_callsite_count": len(caller_rows),
         "distinct_caller_method_count": len(caller_traces),
         "callers": caller_rows,

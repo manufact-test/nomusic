@@ -3323,7 +3323,6 @@ class SelectedItemAuditTests(unittest.TestCase):
                 with patch(
                     "audit_native_selected_item_handoff.method_definitions_with_flags",
                     return_value=[
-                        (interface_method, 0x401, 0),
                         (implementation_method, 0, 100),
                         (caller, 0, 200),
                     ],
@@ -3341,9 +3340,11 @@ class SelectedItemAuditTests(unittest.TestCase):
                                 )
 
         self.assertTrue(result["bounded"])
-        self.assertEqual(result["interface_method_definition_count"], 1)
+        self.assertEqual(result["interface_method_code_body_count"], 0)
+        self.assertTrue(result["interface_method_is_abstract"])
+        self.assertTrue(result["interface_method_reference_observed"])
         self.assertEqual(result["concrete_implementers"], ["LXk6;"])
-        self.assertEqual(result["implementation_method_definition_count"], 1)
+        self.assertEqual(result["implementation_method_code_body_count"], 1)
         self.assertEqual(result["direct_interface_callsite_count"], 1)
         self.assertEqual(result["callers"][0]["caller"]["owner"], "LCallbackDispatcher;")
         self.assertEqual(len(result["caller_traces"]), 1)
@@ -3359,12 +3360,13 @@ class SelectedItemAuditTests(unittest.TestCase):
         from unittest.mock import patch
 
         run_method = ("LKl6;", "run", "()V")
-        constructor = ("LKl6;", "<init>", "(LLl6$c;LXi6$e;Ljava/util/List;)V")
+        constructor = ("LKl6;", "<init>", "(LLl6$c;LXi6$e;Lek6;Ljava/util/List;)V")
         caller = ("LPlaylistOwner;", "schedule", "()V")
         field_refs = {
             1: ("LKl6;", "callback", "LLl6$c;"),
             2: ("LKl6;", "entry", "LXi6$e;"),
             3: ("LKl6;", "items", "Ljava/util/List;"),
+            4: ("LKl6;", "outer", "Lek6;"),
         }
 
         class FakeDex:
@@ -3373,7 +3375,7 @@ class SelectedItemAuditTests(unittest.TestCase):
             def u16(self, offset):
                 return {
                     100: 5, 102: 1,
-                    200: 5, 202: 4,
+                    200: 6, 202: 5,
                     300: 5, 302: 1,
                 }[offset]
             def method(self, index):
@@ -3386,7 +3388,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                 "superclass": "Ljava/lang/Object;",
                 "interfaces": set(),
                 "instance_field_type_descriptors": [
-                    "LLl6$c;", "LXi6$e;", "Ljava/util/List;",
+                    "LLl6$c;", "LXi6$e;", "Lek6;", "Ljava/util/List;",
                 ],
                 "static_field_type_descriptors": [],
             }
@@ -3395,12 +3397,14 @@ class SelectedItemAuditTests(unittest.TestCase):
         def fake_instructions(_dex, code_off):
             if code_off == 100:
                 return [
+                    (8, 0x54, [0x4054, 4]),
                     (10, 0x54, [0x4054, 1]),
                     (12, 0x54, [0x4054, 2]),
                     (14, 0x54, [0x4054, 3]),
                 ]
             if code_off == 200:
                 return [
+                    (1, 0x5b, [0x105b, 4]),
                     (2, 0x5b, [0x105b, 1]),
                     (3, 0x5b, [0x105b, 2]),
                     (4, 0x5b, [0x105b, 3]),
@@ -3413,6 +3417,12 @@ class SelectedItemAuditTests(unittest.TestCase):
             if method == constructor:
                 return {
                     "events": [
+                        {
+                            "ordinal": 1,
+                            "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                            "identity_type": "EXTRA_OBJECT:Lek6;",
+                            "origins": ["CALLER_TYPED_PARAMETER"],
+                        },
                         {
                             "ordinal": 2,
                             "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
@@ -3459,15 +3469,16 @@ class SelectedItemAuditTests(unittest.TestCase):
                                 )
 
         self.assertTrue(result["run_method_found"])
-        self.assertEqual(result["run_field_read_count"], 3)
+        self.assertEqual(result["run_field_read_count"], 4)
         self.assertTrue(result["unique_list_field"])
         self.assertTrue(result["unique_callback_field"])
+        self.assertEqual(result["run_field_type_counts"]["Lek6;"], 1)
         self.assertEqual(result["constructor_method_count"], 1)
         self.assertEqual(result["constructor_callsite_count"], 1)
         self.assertEqual(result["distinct_constructor_caller_count"], 1)
         self.assertEqual(
             len(result["constructor_traces"][0]["field_writers"]),
-            3,
+            4,
         )
         list_writer = next(
             row for row in result["constructor_traces"][0]["field_writers"]
