@@ -267,9 +267,6 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
                     for use in uses:
                         if use not in row["uses"]:
                             row["uses"].append(use)
-                else:
-                if uses:
-                    pass
             elif op in (0xFA, 0xFB, 0xFC, 0xFD):
                 registers = audit.invoke_registers(op, words)
                 if next_aliases.intersection(registers):
@@ -285,7 +282,6 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
                                   "declared_argument_type": None}],
                     })
                     row["same_object_state_count"] += 1
-                    row["reaching_state_count"] += 1
         
         elif op in (0x07, 0x08, 0x09):
             destination, source = audit.move_object_registers(op, words)
