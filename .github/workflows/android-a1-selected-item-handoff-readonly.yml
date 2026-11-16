@@ -47,7 +47,7 @@ jobs:
           f="$RUNNER_TEMP/celikom-a1-selected-item-private/yandex-music-2025-10-4-120-1gpr.xapk"
           test "$(stat -c %s "$f")" = 45961661
           test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
-      - name: Inspect exact signed 2025 DEX, bounded Media3 Player ancestry and exact inherited interface contracts in memory
+      - name: Inspect exact signed 2025 DEX, bounded Media3 Player ancestry and full Player implementation ancestry in memory
         shell: bash
         run: |
           set -euo pipefail
