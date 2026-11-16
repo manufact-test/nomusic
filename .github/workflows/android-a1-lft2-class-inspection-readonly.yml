@@ -37,7 +37,7 @@ jobs:
       - name: Download exact private issuer-signed 2025 owner XAPK
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
