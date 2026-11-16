@@ -6,6 +6,7 @@
 **Последний code checkpoint:** `27ccbe8348d598fead0386e70ef68573b04270c4`  
 **Точный резерв:** `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`  
 **CI #229:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139), 16 signed splits / 6 DEX, read-only.  
+**CI #230:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43893294101); CI output is now compact and the full JSON is deleted after summarizing.  
 **Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`; после него hooks не менялись.
 
 ### Прочитай только два документа
