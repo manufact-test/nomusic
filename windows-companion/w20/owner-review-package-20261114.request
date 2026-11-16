@@ -1,34 +1,38 @@
-CELIKOM Windows — W164 VPN recovery and track-transition polish
-Requested build: 0.24.46.0 (native module 0.24.31)
-Source checkpoint: 2b7fb2d3627c27c1ec9052e49b7abdb49b87429e
-Purpose: exactly one internal owner-review installer and ZIP for W164.
+CELIKOM Windows — W165 owner track spacing and active status
+Requested build: 0.24.47.0 (native module 0.24.31)
+Source checkpoint: ebd16ca19f37620d620c0a6ee5e9e5361fddd607
+Purpose: exactly one internal owner-review installer and ZIP for W165.
 
-Owner findings on 0.24.45.0:
-- A brief VPN route interruption leaves the recovery message visible for roughly 20–30 seconds although the current music source is held and playback continues.
-- The compact header word “Связь” changes baseline/vertical position and color during fast recovery transitions.
-- On Next, the previous title disappears; a transient “Проверяем версию песни CELIKOM…” line and/or technical Track ID can flash before the new title arrives.
+Owner acceptance carried forward from 0.24.46.0:
+- The owner repeatedly toggled VPN while CELIKOM music was playing.
+- The CELIKOM version continued playing; no extra recovery/status text flashed.
+- VPN/audio behavior is accepted. Do not touch audio, native source routing, VPN recovery, entitlement checks, W23 host/renderer or Yandex files.
 
-Diagnostic evidence:
-- The supplied W54 capture contains at least 100 ACTIVE_ENTITLEMENT_ROUTE_CHANGED records, 27 ACTIVE_ENTITLEMENT_TIMEOUT records, 33 ACTIVE_ENTITLEMENT_NETWORK_ERROR records, 37 ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED records and 30 NATIVE_ROUTE_RECOVERY_SOURCE_HELD records.
-- The current track remains source-held through route recovery. This is evidence of continuity handling, not independent proof of audible decoder output.
-- NativeDecoderUrlPropertyObserved=false and ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING. Do NOT weaken the exact current-decoder proof gate or paint a mapping/no-kUrl hold green.
+Latest W54 diagnostic:
+- App 0.24.46.0; native module 0.24.31.
+- PlayerCelikomSourceLeftObserved=false; PlayerNativeVolumeDropObserved=false.
+- ElectronEventLoopStallObserved=false; ElectronMemoryHighObserved=false; ElectronCpuHighObserved=false.
+- NativeDecoderPropertiesObserved=true; NativeDecoderUrlPropertyObserved=false.
+- ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING.
+- Mapping/source-held/network events are not independent proof of audible decoder output. Do not weaken the exact decoder proof gate.
 
-W164 changes:
-- Coalesce delayed Windows VPN adapter notifications into an 8-second native-hold burst; keep the last route event as the owner of the recheck.
-- Wait for a 3-second quiet period before the final entitlement recheck. The immediate route-recovery request has a 5-second deadline and an 8-second fast-route window. Clear the route hint after a fresh authenticated server response so ordinary polling returns to its normal 15-second cadence.
-- No offline entitlement, cached authorization bypass or server authority change. A real server denial/network failure remains fail-closed.
-- Keep the compact header label “Связь” fixed-size and vertically centered. Its color follows a fresh native-host heartbeat; a pending server-route recheck alone does not mark a still-live host disconnected. Detailed recovery information remains in the status row.
-- During a genuine track-ID handoff, retain the previous visible title/artist for at most 2.5 seconds while the new metadata arrives. Do not expose raw Track ID placeholders. Hide the transient “Проверяем версию песни CELIKOM…” copy while the per-track presence request is pending; show only a returned availability result.
-- Exact decoder-source proof remains unchanged. No W23 native host/renderer, audio engine, Yandex files, Android, browser extension, backend, entitlement authority or updater architecture changes.
+W165 UI-only changes:
+- Separate idle/placeholder bottom spacing (18 px) from current-track version-status spacing (8 px). The 18 px gap remains for the disabled/placeholder state; the current-track status returns to its previous 8 px gap.
+- Change the exact verified active-version wording to “Играет версия CELIKOM”.
+- Keep green color conditional on exact current decoder proof: current track PLAYING, source ACTIVE_REPLACEMENT, native status NATIVE_SOURCE_VERIFIED and approved version presence.
+- The W54 capture does not contain CDP kUrl proof. The active branch is therefore not expected to turn green on this diagnostic. Do NOT paint mapping-only/availability/source-held states green.
+
+Build metadata:
+- App and supervisor version 0.24.47 / 0.24.47.0.
+- Installer AppVersion 0.24.47; output name CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.
 
 Source CI:
-- Main CI run 43878114276 — SUCCESS.
-- Windows integration CI run 43878114256 — SUCCESS.
-- W15 entitlement/login/native-state tests, GUI compile with warnings as errors, W22/W23/W60 audio/VPN regressions, supervisor and W20 installer-stage policy checks — SUCCESS.
+- Main CI run 43885286596 — pending at request creation.
+- Windows integration CI run 43885286845 — pending at request creation.
 
 Requested output:
-- CELIKOM-W164-VPN-RECOVERY-AND-TRACK-TRANSITION-02446-UNSIGNED.exe
-- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.46.zip
+- CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.exe
+- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.47.zip
 - SHA256SUMS.txt
 
 Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers; this request-file update triggers exactly one W20 build.

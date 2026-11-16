@@ -1,46 +1,63 @@
-# CELIKOM Windows — active handoff W164 (16 November 2026)
+# CELIKOM Windows — active handoff W165 (16 November 2026)
 
-**Status: W164 0.24.46.0 source CI, Windows integration CI on the code checkpoint, and one internal W20 owner-review package passed. Package bytes and SHA256 checksums verified. Owner manual VPN/track-transition acceptance is pending.**
+**Status: W165 source changes committed; Main CI and Windows integration CI are running. One internal W20 owner-review package has been requested. Owner should verify only the two UI details; VPN/audio behavior is accepted and frozen.**
 
 ## Source of truth
 
 - Product: CELIKOM Windows only.
 - Repository: `manufact-test/nomusic`.
 - Working branch: `main`.
-- Code checkpoint: `2b7fb2d3627c27c1ec9052e49b7abdb49b87429e`.
-- W20 package request commit: `98bb24a3081e616e8a4767323bbc685cf1b2ecde` (request file only; no code change).
-- Exact pre-W164 rollback: `backup/windows-main-pre-w164-vpn-route-debounce-track-ui-20261116` @ `b5538b6bdbb62eeeaef74c57e10d0fe5a075af7a`.
-- App: **0.24.46.0**, native module **0.24.31**.
-- Full handoff: `docs/windows/W164-OWNER-VPN-RECOVERY-TRACK-TRANSITION-20261116.md`.
+- W165 code checkpoint: `ebd16ca19f37620d620c0a6ee5e9e5361fddd607`.
+- Exact pre-W165 rollback: `backup/windows-main-pre-w165-owner-spacing-status-copy-20261116` @ `a8d9d43de68e03553acbbb21d09650c23ff64807`.
+- App: **0.24.47.0**, native module **0.24.31**.
+- Full handoff: `docs/windows/W165-OWNER-TRACK-SPACING-AND-ACTIVE-STATUS-20261116.md`.
 
-## W164 changes
+## Owner acceptance carried forward from W164
 
-1. VPN recovery now coalesces delayed adapter events across an 8-second burst, waits 3 seconds after the last route signal, uses a 5-second quick authenticated GET within an 8-second fast-route window, and clears the route hint after success. Normal 15-second healthy polling is restored. No offline entitlement or bypass.
-2. Header text is fixed to **«Связь»**, size and vertical alignment fixed. A pending route check alone does not gray a still-live native heartbeat. Real bridge/heartbeat loss may still be gray.
-3. On Next, previous title/artist are retained for at most 2.5 seconds while new metadata arrives. Raw Track ID and the transient «Проверяем версию песни CELIKOM…» line are no longer displayed.
-4. Exact decoder-source proof for green active replacement remains unchanged. A source-held event/mapping is not proof of audible output.
+The owner installed 0.24.46.0 and toggled VPN repeatedly while CELIKOM music was playing:
+- Music continued without interruption.
+- The UI did not flash extra recovery/status text.
+- The previous VPN/audio behavior is accepted.
 
-## Verification
+**Do not modify VPN recovery, entitlement checks, native audio, source routing, W23 host or renderer. Do not repeat broad VPN/audio testing.**
 
-- Main CI [43878114276](https://github.com/manufact-test/nomusic/actions/runs/43878114276) — SUCCESS.
-- Windows integration CI [43878114256](https://github.com/manufact-test/nomusic/actions/runs/43878114256) — SUCCESS on code checkpoint.
-- Main CI after package request [43878846340](https://github.com/manufact-test/nomusic/actions/runs/43878846340) — SUCCESS.
-- W20 package staging [43878846320](https://github.com/manufact-test/nomusic/actions/runs/43878846320) — SUCCESS, including W15/native tests, GUI warnings-as-errors, PE/version checks, install/upgrade/uninstall smoke and exact EXE/ZIP packaging.
-- EXE SHA256: `451e8614a73bf20a446eeae72625715756c458b077e4274d004f8c7aa62a4054`.
-- ZIP SHA256: `5578b2854be1f874c07260fc85097c2a80b1de35ddeebb5c3729222737bdd1d0`.
+## W165 changes — UI only
 
-## Owner-review package
+1. Split the incorrectly shared bottom spacing:
+   - `TrackStatusBottomSpacingPx = 18` remains for the disabled/placeholder state when there is no current track row below it.
+   - `ActiveTrackStatusBottomSpacingPx = 8` is used below the current track's version-status row. This restores the previous compact gap and prevents the new 18 px idle-state spacing from leaking into active playback.
+2. Active verified-version wording is now **«Играет версия CELIKOM»**.
+3. The green gate is unchanged: it still requires exact current native decoder-source proof. Mapping, source-held events, file-info acceptance, HTTP media bytes or a generic PLAYING state do not qualify.
 
-- Installer: `CELIKOM-W164-VPN-RECOVERY-AND-TRACK-TRANSITION-02446-UNSIGNED.exe`.
-- Artifact ID: `14231891556`.
-- Direct artifact: https://github.com/manufact-test/nomusic/actions/runs/43878846320/artifacts/14231891556
-- Expires: 26 November 2026, 13:48:22 UTC.
-- One internal unsigned owner-review build only; no production release or deployment.
+## Important unresolved proof limitation
 
-## Owner manual acceptance
+The latest owner W54 diagnostic from 0.24.46.0 reports:
+- Native integration and bridge active.
+- `PlayerCelikomSourceLeftObserved=false`.
+- `PlayerNativeVolumeDropObserved=false`.
+- `ElectronEventLoopStallObserved=false`.
+- `NativeDecoderPropertiesObserved=true`, but `NativeDecoderUrlPropertyObserved=false`.
+- `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING`.
 
-Install 0.24.46.0 over 0.24.45.0. Test a VPN toggle during playback and several Next transitions. Confirm the header stays centered, the recovery message clears promptly after server access returns, and no Track ID / presence-check text flashes. Do not force the active replacement label green without exact decoder proof. If it stays gray while the owner hears a CELIKOM version, collect a fresh W54 diagnostic for the native decoder observer.
+This explains why the label remains neutral/gray: the current Yandex CDP observer sees Media properties but not the `kUrl` property needed to match the current decoder to the CELIKOM resource. The code already paints the active label green when that exact proof arrives; changing CSS or forcing mapping-only green would be misleading. The new short wording is ready for that verified state, but the supplied diagnostic does not establish that state.
+
+If the owner later requests a green label while hearing CELIKOM, the next separate task is a focused native decoder-observer compatibility investigation for the current Yandex build. Do not weaken the proof gate and do not change the audio pipeline as a shortcut.
+
+## Verification and owner package
+
+- Main CI for W165 code: run `43885286596` — in progress at handoff update.
+- Windows integration CI: run `43885286845` — in progress at handoff update.
+- W20 request: `windows-companion/w20/owner-review-package-20261114.request` updated for one W165 internal installer and ZIP.
+- Installer/package artifact and SHA256: pending W20 completion.
+
+## Owner manual check
+
+Install **0.24.47.0 over 0.24.46.0** and check:
+- In the disabled/connection-placeholder state, the additional bottom breathing room remains.
+- While a current track, artist and version status are shown, the gap below the status is back to the previous smaller 8 px spacing.
+- If exact decoder proof is available, the green label reads **«Играет версия CELIKOM»**. If the observer still cannot see `kUrl`, the label correctly remains neutral; do not treat that as a spacing regression.
+- No VPN/audio retest is required unless the owner observes a real regression.
 
 ## Hard boundaries
 
-No Android, browser extension, backend, Yandex original files, W23 native host/renderer, audio engine, entitlement authority or updater architecture changes. No broad audits, intermediate installers, production signing or deployment.
+No Android, browser extension, backend, Yandex original files, W23 native host/renderer, audio engine, VPN recovery, entitlement authority, source routing, updater architecture, production signing or deployment. No broad audits or intermediate installers.
