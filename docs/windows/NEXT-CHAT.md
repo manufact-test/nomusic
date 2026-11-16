@@ -9,7 +9,7 @@
 - W159 application-source checkpoint: `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`
 - Точный rollback до W159: `backup/windows-main-pre-w159-mapped-source-status-20261116` @ `0e1de874bc15c401fcceb206511d8cb8f4005d80`
 - Проверенная текущая версия владельца: 0.24.40.0 / native 0.24.31
-- Единственная запрошенная следующая сборка: 0.24.41.0 / native 0.24.31
+- Собранная следующая сборка: 0.24.41.0 / native 0.24.31
 - Main CI: [43828118274](https://github.com/manufact-test/nomusic/actions/runs/43828118274) — **SUCCESS**
 - Windows integration CI: [43828118192](https://github.com/manufact-test/nomusic/actions/runs/43828118192) — **SUCCESS**
 - W159 техническая запись: `docs/windows/W159-MAPPED-TRACK-STATUS-20261116.md`
@@ -1518,9 +1518,9 @@ The W117/W118 implementation records immediately above this point are historical
 - Owner-PC acceptance is still pending. CI does not prove audible replacement, absence of the VPN pop, correct UI on the owner's device, or reboot behavior.
 - **Next: W150 Task 5 only** — implement/refactor the approved P-256 signed manifest + SHA-256 updater/feed. W148 PFX/Authenticode scaffold is obsolete for the approved design. No commercial certificate, PFX, security bypass, early DNS/TLS activation, or package build. Task 6 remains exactly one final EXE+ZIP after Task 5.
 
-## W158 — Windows owner-field follow-up (16 November 2026; current authoritative handoff)
+## Исторический W158 — Windows owner-field follow-up (16 November 2026; superseded by W159)
 
-**Read `docs/windows/W158-OWNER-FIELD-REGRESSION-VPN-AUTORUN-UI-20261116.md` first.** The older NEXT-CHAT sections above are historical, not new tasks. Work ONLY Windows in `manufact-test/nomusic` branch `main`; never restart Android or older W150 work. The W158 application-source fix is `3f6affc242ef570120250d2e20eec791338f2ef9`; document-lint-only follow-up `7492158509f97564bcb45f5a892cb9b6e529a4d0`. Original exact backup: `backup/windows-main-pre-w158-owner-vpn-autorun-ui-20261116` @ `eec7561aedcc1e33c835d94a75ff0d40474a5d48`.
+**Historical only.** W158 was completed and manually accepted for VPN audio continuity. W159 below is the current handoff; do not repeat W158 tasks. Work ONLY Windows in `manufact-test/nomusic` branch `main`; never restart Android or older W150 work. The W158 application-source fix is `3f6affc242ef570120250d2e20eec791338f2ef9`; document-lint-only follow-up `7492158509f97564bcb45f5a892cb9b6e529a4d0`. Original exact backup: `backup/windows-main-pre-w158-owner-vpn-autorun-ui-20261116` @ `eec7561aedcc1e33c835d94a75ff0d40474a5d48`.
 
 W158 fixes false autorun connected-before-native-heartbeat, no-kUrl same-current mapped VPN source revalidation/reload with route-epoch acknowledgement, recovery Start/Stop gate, and truthful compact text/color. Regression coverage added in W15 and W23. Both source CI checks SUCCESS: Main `43769234697`; Windows `43769234693`. The new owner candidate is **0.24.40.0 / native 0.24.31**, prepared as a SINGLE private W20 owner acceptance build after both source CI successes; never create another intermediate installer. Do not touch architecture, Yandex originals, browser, Android, backend or updater/P-256. Do not claim owner audible confirmation without manual test. Next step after W20 artifact completes is only one grouped owner-PC acceptance: manual Yandex open after reboot, VPN same-track sound/Next, Start disabled on recovery while Stop available, and source-proof/availability colors. No new diagnostics request unless a fresh owner failure appears.
 
@@ -1534,7 +1534,7 @@ W158 fixes false autorun connected-before-native-heartbeat, no-kUrl same-current
 - A current mapped track now consistently displays neutral `Версия CELIKOM доступна` after VPN recovery and after Next. Header/service copy is `Сервис включён`; no false `Ожидаем подтверждения` for an accepted mapping.
 - Exact native decoder proof remains the only basis for `Подмена активна` / accent color. Do not weaken proof or claim audible confirmation from network events.
 - Changed only W15 presentation/helper/tests and W159/W158 documentation. No VPN, native host/renderer, playback, Yandex, Android, extension, backend or updater changes.
-- Required Main CI and Windows integration CI are attached to source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`; check their final conclusions before packaging.
+- Main CI `43828118274` and Windows integration CI `43828118192` passed on source commit `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`; final package-source Main CI `43828713432` and Windows integration CI `43828713415` also passed. W20 package run `43828713363` passed.
 - Both required CI workflows passed, and the single W20 owner-review package is built successfully: run [43828713363](https://github.com/manufact-test/nomusic/actions/runs/43828713363), artifact `14208040930`, version **0.24.41.0 / native 0.24.31**. The archive was checked to contain exactly one EXE, one ZIP with the identical EXE, and SHA256SUMS. Do not create another package unless a new owner finding requires it.
 - Owner check after installation: one mapped track before VPN, same track after VPN, then Next to another mapped track. The compact and main UI should keep the same neutral availability/service labels. Audio continuity is already accepted; do not reopen or refactor it unless a new audible failure is reported.
 
