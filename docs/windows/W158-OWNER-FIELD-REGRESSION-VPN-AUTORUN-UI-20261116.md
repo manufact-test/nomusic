@@ -222,3 +222,9 @@ Run only the relevant focused W15/W23 suites, then both required Main CI and Win
 **Exactly one W158 owner candidate requested after both CI passed:** `CELIKOM-W158-VPN-AUTORUN-SOURCE-UI-02440-UNSIGNED.exe`, plus `CELIKOM-Windows-0.24.40.zip` containing that exact EXE and `SHA256SUMS.txt`, retained privately as a GitHub Actions W20 artifact. This is not a production signed release, deployment, update-feed change or audible acceptance.
 
 **Owner checks only:** (1) reboot with Yandex initially closed, then manually open Yandex and confirm CELIKOM connects without Stop/Start; also test Yandex already open; (2) switch VPN during unchanged mapped playback and PAUSED, listen for pop/click, and test Next; (3) confirm Start disabled/Stop enabled during automatic recovery; (4) inspect neutral availability vs exact green active source and Stop-before-Yandex/after-VPN behavior. Owner diagnostics were already received; ask for new ones only if a new field failure occurs. Until tested, W158 is engineering-complete, not owner-accepted.
+
+## W159 owner follow-up — 16 November 2026
+
+The owner accepted the W158 VPN audio-continuity behavior in manual listening: the already-playing CELIKOM version continues through VPN route recovery without an audible pop or unnecessary source restart. W54 diagnostics record the same-track source hold/keep and entitlement recovery sequence. The diagnostics do **not** independently prove audible output; see `docs/windows/W159-MAPPED-TRACK-STATUS-20261116.md`.
+
+A remaining presentation regression was found: after VPN recovery the compact popup showed `Версия CELIKOM доступна`, but after Next on another mapped track it reverted to `Источник текущего трека не подтверждён` and `Ожидаем подтверждения`. W159 corrects this copy consistently in compact and main UI. Exact decoder proof remains the only route to `Подмена активна` / accent color. VPN, native playback and Yandex integration are unchanged.
