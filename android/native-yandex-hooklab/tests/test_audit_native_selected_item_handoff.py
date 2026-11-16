@@ -3813,8 +3813,8 @@ class SelectedItemAuditTests(unittest.TestCase):
         }
 
         class FakeDex:
-            def __init__(self, _data):
-                pass
+            def __init__(self, data):
+                self.data = data
             def method(self, index):
                 return {1: target}[index]
 
@@ -3898,19 +3898,23 @@ class SelectedItemAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             apk = Path(folder) / "fixture.apk"
             with zipfile.ZipFile(apk, "w") as archive:
-                archive.writestr("classes.dex", b"fake-dex")
+                for index, name in enumerate((
+                    "classes.dex", "classes2.dex", "classes3.dex",
+                    "classes4.dex", "classes5.dex", "classes6.dex",
+                )):
+                    archive.writestr(name, bytes([index]))
             with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
                  patch("audit_native_selected_item_handoff.method_definitions_with_flags",
-                       return_value=definitions), \
+                       side_effect=lambda dex: definitions if dex.data == b"\\x00" else []), \
                  patch("audit_native_selected_item_handoff.instructions",
                        side_effect=fake_instructions), \
                  patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
                        side_effect=fake_trace) as trace:
-                result = inspect_exact_track_wrapper_handoff([apk] * 6)
+                result = inspect_exact_track_wrapper_handoff([apk])
 
         self.assertTrue(result["bounded"])
         self.assertEqual(result["signed_dex_count"], 6)
-        self.assertEqual(result["direct_callsite_count"], 6)
+        self.assertEqual(result["direct_callsite_count"], 1)
         self.assertEqual(result["distinct_direct_caller_count"], 1)
         self.assertTrue(result["same_track_wrapper_to_target_proven"])
         self.assertEqual(len(result["target_typed_wrapper_calls"]), 1)
@@ -3933,8 +3937,8 @@ class SelectedItemAuditTests(unittest.TestCase):
         caller = ("LCaller;", "run", "()V")
 
         class FakeDex:
-            def __init__(self, _data):
-                pass
+            def __init__(self, data):
+                self.data = data
             def method(self, index):
                 return {1: target}[index]
 
@@ -3982,15 +3986,19 @@ class SelectedItemAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             apk = Path(folder) / "fixture.apk"
             with zipfile.ZipFile(apk, "w") as archive:
-                archive.writestr("classes.dex", b"fake-dex")
+                for index, name in enumerate((
+                    "classes.dex", "classes2.dex", "classes3.dex",
+                    "classes4.dex", "classes5.dex", "classes6.dex",
+                )):
+                    archive.writestr(name, bytes([index]))
             with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
                  patch("audit_native_selected_item_handoff.method_definitions_with_flags",
-                       return_value=definitions), \
+                       side_effect=lambda dex: definitions if dex.data == b"\\x00" else []), \
                  patch("audit_native_selected_item_handoff.instructions",
                        return_value=[(3, 0x6e, [0x006e, 1])]), \
                  patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
                        side_effect=fake_trace):
-                result = inspect_exact_track_wrapper_handoff([apk] * 6)
+                result = inspect_exact_track_wrapper_handoff([apk])
 
         self.assertFalse(result["same_track_wrapper_to_target_proven"])
         self.assertEqual(result["target_typed_wrapper_calls"], [])
