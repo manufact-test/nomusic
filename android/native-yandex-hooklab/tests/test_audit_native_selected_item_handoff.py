@@ -287,6 +287,89 @@ class SelectedItemAuditTests(unittest.TestCase):
             for e in trace["events"]
         ))
 
+    def test_media3_player_scope_follows_only_concrete_signed_ancestry(self):
+        from audit_native_selected_item_handoff import (
+            media3_player_implementation_scope, MEDIA3_PLAYER_OWNERS
+        )
+        player, exo = sorted(MEDIA3_PLAYER_OWNERS)
+        profiles = {
+            player: {"is_interface": True, "is_abstract": True,
+                     "superclass": None, "interfaces": set()},
+            exo: {"is_interface": True, "is_abstract": True,
+                  "superclass": None, "interfaces": {player}},
+            "LAbstractBase;": {"is_interface": False, "is_abstract": True,
+                               "superclass": "Ljava/lang/Object;",
+                               "interfaces": {exo}},
+            "LConcretePlayer;": {"is_interface": False, "is_abstract": False,
+                                 "superclass": "LAbstractBase;", "interfaces": set()},
+            "LUnrelated;": {"is_interface": False, "is_abstract": False,
+                            "superclass": "Ljava/lang/Object;", "interfaces": set()},
+        }
+        result = media3_player_implementation_scope(profiles)
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["implementors"], ["LConcretePlayer;"])
+        self.assertIn("LAbstractBase;", result["scope_owners"])
+        self.assertIn(exo, result["scope_owners"])
+        self.assertIn(player, result["scope_owners"])
+        self.assertNotIn("LUnrelated;", result["scope_owners"])
+
+    def test_media3_player_scope_handles_cycles_without_inventing_implementors(self):
+        from audit_native_selected_item_handoff import media3_player_implementation_scope
+        profiles = {
+            "LCycleA;": {"is_interface": False, "is_abstract": False,
+                         "superclass": "LCycleB;", "interfaces": set()},
+            "LCycleB;": {"is_interface": False, "is_abstract": False,
+                         "superclass": "LCycleA;", "interfaces": set()},
+        }
+        result = media3_player_implementation_scope(profiles)
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["concrete_implementor_count"], 0)
+        self.assertEqual(result["scope_owners"], [])
+
+    def test_media3_player_scope_stops_at_explicit_implementor_bound(self):
+        from audit_native_selected_item_handoff import (
+            media3_player_implementation_scope, MEDIA3_PLAYER_OWNERS
+        )
+        player = "Landroidx/media3/common/Player;"
+        profiles = {
+            player: {"is_interface": True, "is_abstract": True,
+                     "superclass": None, "interfaces": set()}
+        }
+        for i in range(3):
+            profiles[f"LPlayer{i};"] = {
+                "is_interface": False, "is_abstract": False,
+                "superclass": "Ljava/lang/Object;", "interfaces": {player}
+            }
+        result = media3_player_implementation_scope(profiles, max_implementors=2)
+        self.assertFalse(result["bounded"])
+        self.assertEqual(result["reason"], "PLAYER_IMPLEMENTOR_LIMIT")
+        self.assertEqual(result["concrete_implementor_count"], 3)
+        self.assertEqual(result["implementors"], [])
+
+    def test_media3_player_api_roles_use_exact_item_and_source_signatures(self):
+        from audit_native_selected_item_handoff import (
+            media3_player_api_role, MEDIA3_PLAYER_OWNERS,
+            MEDIA3_MEDIA_ITEM, MEDIA3_MEDIA_SOURCE
+        )
+        owner = "Landroidx/media3/common/Player;"
+        self.assertIn(owner, MEDIA3_PLAYER_OWNERS)
+        self.assertEqual(
+            media3_player_api_role((owner, "getCurrentMediaItem",
+                                    f"(){MEDIA3_MEDIA_ITEM}")),
+            "CURRENT_MEDIA_ITEM_ACCESSOR"
+        )
+        self.assertEqual(
+            media3_player_api_role((owner, "setMediaItem",
+                                    f"({MEDIA3_MEDIA_ITEM})V")),
+            "PLAYER_ITEM_MUTATION"
+        )
+        self.assertEqual(
+            media3_player_api_role((owner, "setMediaSource",
+                                    f"({MEDIA3_MEDIA_SOURCE})V")),
+            "PLAYER_SOURCE_MUTATION"
+        )
+        self.assertIsNone(media3_player_api_role((owner, "unrelated", "()V")))
+
     def test_method_descriptor_parser_handles_objects_arrays_and_wide_values(self):
         self.assertEqual(parse_types("(ILjava/lang/String;[B[[JDLru/yandex/music/data/audio/o;)V"),
             ["I", "Ljava/lang/String;", "[B", "[[J", "D", MODEL])

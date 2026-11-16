@@ -7551,6 +7551,311 @@ def class_instantiation_and_flow_collect_sites(dex: Dex, method, flags: int, cod
     }
 
 
+
+
+# One bounded alternative route: the exact Media3 Player implementation and
+# its current-item/source API contract. This does not infer runtime dispatch.
+MEDIA3_PLAYER_OWNERS = frozenset({
+    "Landroidx/media3/common/Player;",
+    "Landroidx/media3/exoplayer/ExoPlayer;",
+})
+MEDIA3_MEDIA_ITEM = "Landroidx/media3/common/MediaItem;"
+MEDIA3_MEDIA_SOURCE = "Landroidx/media3/exoplayer/source/MediaSource;"
+MEDIA3_TIMELINE = "Landroidx/media3/common/Timeline;"
+MAX_MEDIA3_PLAYER_IMPLEMENTORS = 16
+MAX_MEDIA3_PLAYER_SCOPE_OWNERS = 96
+MAX_MEDIA3_PLAYER_METHOD_ROWS = 96
+MAX_MEDIA3_PLAYER_API_ROWS = 64
+
+
+def media3_player_implementation_scope(class_profiles,
+                                       max_implementors=MAX_MEDIA3_PLAYER_IMPLEMENTORS):
+    """Return only concrete classes whose declared ancestry reaches Media3 Player."""
+    roots = set(MEDIA3_PLAYER_OWNERS)
+
+    def parents(owner):
+        profile = class_profiles.get(owner)
+        if profile is None:
+            return []
+        result = []
+        superclass = profile.get("superclass")
+        if superclass:
+            result.append(superclass)
+        result.extend(profile.get("interfaces", ()))
+        return result
+
+    def reaches_player(owner):
+        pending = [owner]
+        visited = set()
+        while pending:
+            current = pending.pop()
+            if current in roots:
+                return True
+            if current in visited:
+                continue
+            visited.add(current)
+            pending.extend(parents(current))
+        return False
+
+    implementors = sorted(
+        owner for owner, profile in class_profiles.items()
+        if owner not in roots
+        and not profile.get("is_interface", False)
+        and not profile.get("is_abstract", False)
+        and reaches_player(owner)
+    )
+    if len(implementors) > max_implementors:
+        return {
+            "bounded": False,
+            "concrete_implementor_count": len(implementors),
+            "implementors": [],
+            "scope_owners": [],
+            "reason": "PLAYER_IMPLEMENTOR_LIMIT",
+        }
+
+    by_implementor = {}
+    scope_owners = set(roots)
+    for owner in implementors:
+        pending = [owner]
+        visited = set()
+        while pending:
+            current = pending.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            if current not in roots:
+                for parent in parents(current):
+                    if parent in roots or reaches_player(parent):
+                        pending.append(parent)
+        by_implementor[owner] = sorted(visited)
+        scope_owners.update(visited)
+
+    if len(scope_owners) > MAX_MEDIA3_PLAYER_SCOPE_OWNERS:
+        return {
+            "bounded": False,
+            "concrete_implementor_count": len(implementors),
+            "implementors": [],
+            "scope_owners": [],
+            "reason": "PLAYER_ANCESTRY_LIMIT",
+        }
+    return {
+        "bounded": True,
+        "concrete_implementor_count": len(implementors),
+        "implementors": implementors,
+        "ancestry_by_implementor": by_implementor,
+        "scope_owners": sorted(scope_owners),
+        "root_interfaces_defined": {
+            owner: owner in class_profiles for owner in sorted(roots)
+        },
+        "reason": None,
+    }
+
+
+def media3_player_api_role(method):
+    """Classify only public Player methods relevant to selected item/source identity."""
+    owner, name, signature = method
+    if owner not in MEDIA3_PLAYER_OWNERS:
+        return None
+    try:
+        parameters = parse_types(signature)
+        result = signature.split(")", 1)[1]
+    except (ValueError, IndexError):
+        return None
+    if name in ("getCurrentMediaItem", "getMediaItemAt"):
+        return "CURRENT_MEDIA_ITEM_ACCESSOR"
+    if name == "getCurrentMediaItemIndex":
+        return "CURRENT_ITEM_INDEX_ACCESSOR"
+    if name == "getCurrentTimeline":
+        return "CURRENT_TIMELINE_ACCESSOR"
+    if name in ("setMediaItem", "setMediaItems", "addMediaItem",
+                "addMediaItems", "replaceMediaItem"):
+        return "PLAYER_ITEM_MUTATION"
+    if name in ("setMediaSource", "setMediaSources"):
+        return "PLAYER_SOURCE_MUTATION"
+    if name == "prepare":
+        return "PLAYER_PREPARE"
+    if MEDIA3_MEDIA_ITEM in parameters or result == MEDIA3_MEDIA_ITEM:
+        return "MEDIA_ITEM_TYPED_API"
+    if MEDIA3_MEDIA_SOURCE in parameters or result == MEDIA3_MEDIA_SOURCE:
+        return "MEDIA_SOURCE_TYPED_API"
+    if result == MEDIA3_TIMELINE:
+        return "CURRENT_TIMELINE_TYPED_API"
+    return None
+
+
+def _media3_player_field_roles(profile):
+    instance = set(profile.get("instance_types", ()))
+    return {
+        "track": MODEL in instance,
+        "album": ALBUM_MODEL in instance,
+        "track_id_wrapper": WRAPPER in instance,
+        "native_download2_descriptor": any(
+            typ.startswith("Lcom/yandex/music/shared/player/download2/")
+            for typ in instance
+        ),
+        "media_item": any("mediaitem" in typ.lower() for typ in instance),
+        "media_source": any("mediasource" in typ.lower() for typ in instance),
+        "data_source": any("datasource" in typ.lower() for typ in instance),
+        "media_session": MEDIA_SESSION_OWNER in instance,
+        "audio_track": any("audiotrack" in typ.lower() for typ in instance),
+        "media_codec": any("mediacodec" in typ.lower() for typ in instance),
+        "flow": any(typ.startswith("Lkotlinx/coroutines/flow/") for typ in instance),
+        "collection": any(
+            typ in {"Ljava/util/List;", "Ljava/util/Collection;",
+                    "Ljava/util/Queue;", "Ljava/util/Deque;",
+                    "Ljava/util/Set;", "Ljava/util/Map;"}
+            or typ.startswith("[") for typ in instance
+        ),
+        "numeric": bool(instance & {"I", "J", "Ljava/lang/Integer;", "Ljava/lang/Long;"}),
+    }
+
+
+def inspect_media3_player_implementation_contracts(apks, class_profiles):
+    """Inspect only concrete Media3 Player implementors and their exact ancestry."""
+    scope = media3_player_implementation_scope(class_profiles)
+    if not scope["bounded"]:
+        return {
+            **scope,
+            "interface_api_method_count": 0,
+            "relevant_interface_api_methods": [],
+            "implementation_method_rows": [],
+            "implementation_method_rows_truncated": False,
+            "selected_item_or_source_identity_proven": False,
+        }
+
+    api_roles = {}
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("PLAYER_DEX_SIZE_LIMIT")
+                dex = Dex(archive.read(entry))
+                for index in range(dex.method_count):
+                    method = dex.method(index)
+                    role = media3_player_api_role(method)
+                    if role:
+                        api_roles.setdefault((method[1], method[2]), set()).add(role)
+
+    api_rows = [
+        {"method": name, "signature": signature, "roles": sorted(roles)}
+        for (name, signature), roles in sorted(api_roles.items())
+    ]
+    api_rows_truncated = len(api_rows) > MAX_MEDIA3_PLAYER_API_ROWS
+    api_rows = api_rows[:MAX_MEDIA3_PLAYER_API_ROWS]
+    api_keys = set(api_roles)
+    scan_owners = set(scope["scope_owners"])
+    rows = []
+    body_count = 0
+    truncated = False
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    if method[0] not in scan_owners:
+                        continue
+                    body_count += 1
+                    try:
+                        parameters = parse_types(method[2])
+                        result_type = method[2].split(")", 1)[1]
+                    except (ValueError, IndexError):
+                        parameters, result_type = [], "?"
+                    signature_roles = []
+                    for typ, role in (
+                        (MODEL, "TRACK"), (ALBUM_MODEL, "ALBUM"),
+                        (WRAPPER, "TRACK_ID_WRAPPER"),
+                        (MEDIA3_MEDIA_ITEM, "MEDIA_ITEM"),
+                        (MEDIA3_MEDIA_SOURCE, "MEDIA_SOURCE"),
+                        (MEDIA3_TIMELINE, "TIMELINE"),
+                    ):
+                        if typ in parameters:
+                            signature_roles.append(role + "_PARAMETER")
+                        if result_type == typ:
+                            signature_roles.append(role + "_RETURN")
+                    call_roles = set()
+                    try:
+                        body = list(instructions(dex, code_off))
+                    except (ValueError, DexError):
+                        body = []
+                    for _pc, op, words in body:
+                        if op not in INVOKES:
+                            continue
+                        callee = dex.method(words[1])
+                        if callee[0] == MODEL:
+                            call_roles.add("TRACK_MODEL")
+                        elif callee[0] == ALBUM_MODEL:
+                            call_roles.add("ALBUM_MODEL")
+                        elif callee[0] == WRAPPER:
+                            call_roles.add("TRACK_ID_WRAPPER")
+                        elif callee == DESCRIPTOR_BUILDER:
+                            call_roles.add("NATIVE_SOURCE_DESCRIPTOR_BUILDER")
+                        elif callee[0].startswith(
+                            "Lcom/yandex/music/shared/player/download2/"
+                        ):
+                            call_roles.add("NATIVE_DOWNLOAD2_SOURCE")
+                        elif callee[0] in MEDIA3_PLAYER_OWNERS:
+                            call_roles.add("MEDIA3_PLAYER_API")
+                        else:
+                            boundary = classify_boundary_call(callee)
+                            if boundary:
+                                call_roles.add(boundary)
+                    api_match_roles = sorted(api_roles.get((method[1], method[2]), ()))
+                    if not (signature_roles or call_roles or api_match_roles):
+                        continue
+                    row = {
+                        "owner": method[0],
+                        "method": method[1],
+                        "signature": method[2],
+                        "api_roles": api_match_roles,
+                        "signature_roles": sorted(set(signature_roles)),
+                        "call_roles": sorted(call_roles),
+                        "instruction_count": len(body),
+                        "declaring_owner_field_roles": _media3_player_field_roles(
+                            class_profiles.get(method[0], {})
+                        ),
+                    }
+                    if MODEL in parameters:
+                        try:
+                            trace = straight_line_model_flow(
+                                dex, method, flags, code_off
+                            )
+                            row["track_parameter_flow_to_boundary"] = [
+                                event for event in trace.get("events", ())
+                                if event.get("role") in (
+                                    "PLAYER_SELECTION_OR_TRANSPORT",
+                                    "NATIVE_DESCRIPTOR_BUILDER",
+                                    "TRACK_ID_WRAPPER_CONSTRUCTOR",
+                                    "DECODER_INPUT_OR_RENDERER_BOUNDARY",
+                                )
+                            ][:12]
+                        except (ValueError, DexError):
+                            row["track_parameter_flow_to_boundary"] = []
+                    rows.append(row)
+                    if len(rows) >= MAX_MEDIA3_PLAYER_METHOD_ROWS:
+                        truncated = True
+                        break
+                if truncated:
+                    break
+        if truncated:
+            break
+
+    return {
+        **scope,
+        "interface_api_method_count": len(api_roles),
+        "relevant_interface_api_methods": api_rows,
+        "interface_api_methods_truncated": api_rows_truncated,
+        "implementation_code_body_count": body_count,
+        "implementation_method_rows": rows,
+        "implementation_method_rows_truncated": truncated,
+        "selected_item_or_source_identity_proven": False,
+    }
+
+
 def inspect_signed(apks):
     dex_count = 0
     model_defined = False
@@ -8339,6 +8644,7 @@ def inspect_signed(apks):
             {"owner": x[0], "method": x[1], "signature": x[2]}
             for x in player_method_refs
         ],
+        "media3_player_implementation_contracts": inspect_media3_player_implementation_contracts(apks, class_profiles),
         "selected_state_static_summary": {
             "media_session_metadata_method_reference_count": sum(
                 x[1] in MEDIA_SESSION_METADATA_METHODS
