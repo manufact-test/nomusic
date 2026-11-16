@@ -1,49 +1,28 @@
-Привет! Принимай **CELIKOM Android A1** как ведущий разработчик. Продолжай строго с сохранённой точки: не начинай с нуля и не меняй архитектуру.
+Привет! Принимай **CELIKOM Android A1** как ведущий разработчик. Продолжай только с сохранённой точки, архитектуру не менять.
 
-**GitHub:** `manufact-test/nomusic`  
-**Ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
-**Code checkpoint:** `27ccbe8348d598fead0386e70ef68573b04270c4`  
-**Code backup:** `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`  
-**CI #229:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139) — Yandex 2025.10.4 #120.1gpr, 16 splits / 6 DEX.  
-**CI #230:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43893294101) — compact logs; full JSON deleted.  
-**Last runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`; no later hook changes.
+**GitHub:** `manufact-test/nomusic`
+**Рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
+**Последний зелёный статический код:** `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a`
+**Backup:** `backup/android-a1-lft2-class-structure-ci-green-20261116`
+**Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a` — hooks не менялись.
+**CI #12:** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/43909098407
 
 ### Прочитай только два документа
+1. `docs/android/NEXT-CHAT.md` — единственный текущий статус.
+2. `docs/android/ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md` — последнее окончательное техническое доказательство.
 
-1. `docs/android/NEXT-CHAT.md` — единственный актуальный статус.
-2. `docs/android/ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md` — последняя техническая точка.
+`docs/android/README.md` — индекс. Старые handoff и архивы не читай при старте.
 
-`docs/android/README.md` — индекс. Старые NEXT-CHAT/HANDOFF и архивы не загружай при старте.
+### Что доказано
+- Наш **проверенный владельцем NAV17 CELIKOM APK** (SHA `8d7c1570367360c12ba11f3972fa72477aca4dcc33f30dce78b381aee939b20d`) содержит `assets/lspatch/origin.apk` SHA `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` = подписанный Yandex **2025.10.4 #120.1gpr**. Это подтверждение фактического NAV17 original, а не выбор будущего production target.
+- Подлинный XAPK SHA `8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053`, 16 подписанных splits / 6 DEX; base SHA совпадает с NAV17 origin.
+- **2026.10.3 #170gpr** — отдельный подтверждённый ARM13 original control/structural clone research. **2026.09.5 #167gpr** — старая версия с телефона; не путать с NAV17 binary.
+- Цепочка `LIEa.new → Lqj8.if → Lxj8.if → Lvj8 → Lxj8.for → LfT2.<init>` сохраняет тот же TrackWrapper.
+- **LfT2 закрыт:** CI #12 доказывает, что это final class extends Object, поля `LdA9;/LtCa;/LgA9;`, только constructor/equals/hashCode/toString, **нет invokeSuspend и другого continuation**. Все непосредственные чтения `LtCa;` ведут только в equals/hashCode/toString, не в source/Player. Не повторять LfT2.
+- `LiLb`, `LXk6` и отдельный ByteBuffer sink census ранее закрыты.
+- Stage A/NAV17 **PASS** (родная музыка Яндекса играет), Stage B **NO-GO** (CELIKOM replacement audio не связан с активным decoder).
 
-### Не путай три версии Яндекса
+### Следующий блок
+Не начинай новую глобальную трассировку. По уже проверенной 2025 NAV17 базе ищи только **новое узкое, доказуемое** selected-Track → ACTIVE (не prefetch) native source/decoder same-object ребро. Предыдущие Exo factory→open/read witnesses доказывают продолжение source instance, **но не selected track identity**. Любой кандидат — сначала точная class/method identity; только потом bounded trace. Учитывать MediaSource APIs; не зацикливаться на MediaItem.
 
-- **2025.10.4 #120.1gpr / code 24025542:** подписанный образец 16 splits / 6 DEX; LSPatch2 lab input и текущий CI #229. Не доказан как финальный target CELIKOM.
-- **2026.10.3 #170gpr / code 24026531:** подписанный оригинал 5 splits; original-only native ARM13 control CI #42990078186. SHA-256 XAPK: `918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84`. Есть отдельный structural clone helper, но product target не подтверждён.
-- **2026.09.5 #167gpr / #167.1gpr:** ранее сообщённая версия на телефоне; точный оригинальный пакет/SHA не закреплён.
-
-**Target build CELIKOM A1 не установлен.** Manifest `<queries><package name="ru.yandex.music"/></queries>` означает package visibility; сам по себе он не доказывает, что Yandex embedded или absent.
-
-### Первая задача
-
-Проверь реальный A1 packaging/build pipeline, workflow inputs, origin/source package references, split merge scripts и историю артефактов. Установи, какая версия реально является source/runtime target CELIKOM. Сопоставь все три версии и их роли. Не задавай старый вопрос только «2025 или 2026.09.5?». Если repo не даёт ответа, задай один вопрос, перечислив все три кандидата и доказательства.
-
-Перед анализом выбранного бинарника проверь publisher signature, package/version/versionCode, полный split set, size и SHA-256. Не переноси обфусцированные дескрипторы между версиями.
-
-### Затем — LfT2
-
-Текущая цепочка доказана **только на 2025.10.4 #120.1gpr**:
-
-`LIEa.new → Lqj8.if → Lxj8.if → Lvj8 → Lxj8.for → LfT2.<init>`
-
-До MediaSource/Player/decoder same-object handoff не доказан. После выбора target продолжи только с точным `LfT2;` в соответствующем подписанном DEX. Учитывай прямой MediaSource path в Media3; требуй object identity. Не повторяй закрытые LiLb и LXk6.
-
-### Статус и ограничения
-
-- **Stage A / NAV17: PASS** по подтверждению владельца 14 Nov — оригинальная музыка Яндекса работает.
-- **Stage B: NO-GO** — CELIKOM replacement audio не подключён и не подтверждён.
-- Только Android A1. Не менять архитектуру, runtime hooks, APK и оригинальный Яндекс; не добавлять второй Player/decoder/AudioTrack.
-- Не читать IDs, названия, URL, DataSpec, токены, account data, приватные значения полей или audio bytes.
-- Не трогать Test.50, frozen A1/LSPatch, Windows, extension, backend/API/DB и production.
-- Работай крупным законченным блоком, без промежуточных отчётов и полных CI-логов.
-
-**Источник истины — NEXT-CHAT.md.** Все старые handoffs — исторические материалы.
+Ограничения: Android A1 only, без изменений APK, оригинального Яндекса, архитектуры и runtime hooks. Второй Player/decoder/AudioTrack запрещён. Не читать/экспортировать Track IDs, названия, URL, DataSpec, токены, account data, private fields, audio bytes. NAV17/Test.50/frozen branches/Windows/extension/backend/API/DB/production не трогать. Никаких больших CI-логов. Работать крупными блоками, сохранять backup, Stage B остаётся NO-GO до реального доказательства и ручной проверки.
