@@ -196,6 +196,7 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
     ]
     seen = set()
     observations = {}
+    call_reach_counts = {}
     unmodeled_state_count = 0
     processed_state_count = 0
     state_limit = 4096
@@ -226,6 +227,7 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
         next_aliases = set(aliases)
 
         if op in audit.INVOKES:
+            call_reach_counts[pc] = call_reach_counts.get(pc, 0) + 1
             if 0x6E <= op <= 0x78:
                 callee = dex.method(words[1])
                 registers = audit.invoke_registers(op, words)
@@ -266,11 +268,8 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
                         if use not in row["uses"]:
                             row["uses"].append(use)
                 else:
-                    for row in observations.values():
-                        if row["call_pc"] == pc:
-                            row["reaching_state_count"] += 1
                 if uses:
-                    row["reaching_state_count"] += 1
+                    pass
             elif op in (0xFA, 0xFB, 0xFC, 0xFD):
                 registers = audit.invoke_registers(op, words)
                 if next_aliases.intersection(registers):
@@ -287,11 +286,7 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
                     })
                     row["same_object_state_count"] += 1
                     row["reaching_state_count"] += 1
-                else:
-                    for row in observations.values():
-                        if row["call_pc"] == pc:
-                            row["reaching_state_count"] += 1
-
+        
         elif op in (0x07, 0x08, 0x09):
             destination, source = audit.move_object_registers(op, words)
             next_aliases.discard(destination)
@@ -315,6 +310,7 @@ def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dic
 
     calls = []
     for row in observations.values():
+        row["reaching_state_count"] = call_reach_counts.get(row["call_pc"], 0)
         row["same_object_on_all_reaching_states"] = (
             row["same_object_state_count"] == row["reaching_state_count"]
         )
