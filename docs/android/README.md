@@ -8,6 +8,13 @@
 
 **Important:** The older [LfT2 TrackWrapper continuation handoff](ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md) was written **before** CI #12: its LfT2 investigative task is superseded by the CLOSED result above. Other historical NEXT-CHAT/HANDOFF notes do not override NEXT-CHAT.md.
 
+## Recovered Yandex references (read only when needed)
+
+- [ANDROID-A1-YANDEX-MEDIA3-RESEARCH-RECOVERED-20261116.md](ANDROID-A1-YANDEX-MEDIA3-RESEARCH-RECOVERED-20261116.md) — compact recovered evidence: official Media3 direct MediaSource APIs, signed-2025 Yandex `RAa.invokeSuspend` continuation/explicit-null TrackWrapper, native Exo source instance chain, and the missing *current selected item* proof.
+- [ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md](ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md) — previous public-source survey; it is not a deobfuscated official Yandex call graph.
+- [ANDROID-A1-RAA-SOURCE-RESUME-IDENTITY-20261115.md](ANDROID-A1-RAA-SOURCE-RESUME-IDENTITY-20261115.md) — static CI-backed Yandex RAa coroutine research; **historical Stage A NO-GO text in this file is superseded** by NAV17 owner PASS.
+- This is **documentation-only** recovery; source code, runtime hooks and APK remain unchanged.
+
 ## Source facts
 
 - The **owner-tested NAV17** embedded signed Yandex original is **2025.10.4 #120.1gpr** with `assets/lspatch/origin.apk` SHA-256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`. This is backed by [NAV17 source audit](ANDROID-A1-NAV17-STAGE-B-PINNED-2025-FILEINFO-SOURCE-AUDIT-20261114.md) and read-only CI #12. It is **not automatically an irrevocable future production version**.
