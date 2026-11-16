@@ -2,18 +2,18 @@
 
 Date: 16 November 2026  
 Product: CELIKOM Windows only  
-Status: source changes committed; Main CI and Windows integration CI running; one internal W20 owner-review package requested.
+Status: **source, Main CI, Windows integration CI and one internal W20 owner-review package all passed. Owner manual UI check pending.**
 
 ## Source of truth and rollback
 
 - Repository: `manufact-test/nomusic`
 - Working branch: `main`
 - W165 code checkpoint: `ebd16ca19f37620d620c0a6ee5e9e5361fddd607`
+- Handoff/package-request commit: `a9020fc5d40b5118388571b917e2997c965ee62e`
 - Exact pre-W165 backup: `backup/windows-main-pre-w165-owner-spacing-status-copy-20261116` @ `a8d9d43de68e03553acbbb21d09650c23ff64807`
 - App version: **0.24.47.0**
 - Native module: **0.24.31**
 - Previous owner-tested version: **0.24.46.0**
-- Active handoff: `docs/windows/NEXT-CHAT.md`
 
 ## Owner acceptance of W164 VPN/audio behavior
 
@@ -49,7 +49,7 @@ The same constant was also applied below `_compactVersionStatus`, replacing the 
 
 W165 separates the two cases:
 - `TrackStatusBottomSpacingPx = 18` remains for the disabled/placeholder state where there is no artist/version-status row.
-- New `ActiveTrackStatusBottomSpacingPx = 8` is used only below the current track's version-status row.
+- New `ActiveTrackStatusBottomSpacingPx = 8` is used below the current track's version-status row.
 - Existing track/title/artist heights, container dimensions and other row gaps are unchanged.
 
 This is a local row-gap correction, not a global padding or container change.
@@ -74,7 +74,7 @@ Do not fake green by treating a file-info mapping, preload, HTTP 206, `SOURCE_AC
 
 1. `CompactPlaybackPresentation.ActiveVersionMessage` now reads **`Играет версия CELIKOM`**.
 2. Added `ActiveTrackStatusBottomSpacingPx = 8`.
-3. `LayoutCompact` uses the 8 px constant only below `_compactVersionStatus`; the 18 px constant remains for idle/placeholder spacing.
+3. `LayoutCompact` uses the 8 px constant below `_compactVersionStatus`; the 18 px constant remains for idle/placeholder spacing.
 4. Existing green-color logic and `PlaybackSourceEvidence.Verified` remain unchanged.
 5. App, supervisor and installer metadata bumped to 0.24.47.0 / 0.24.47.
 6. Added/updated W15 assertions for the exact wording and the separate 18 px / 8 px spacing contracts.
@@ -95,20 +95,31 @@ No W23 native host/renderer, native audio, VPN, entitlement, source-resolution, 
 
 ## Verification
 
-- Main CI run `43885286596` — pending at initial handoff update.
-- Windows integration CI run `43885286845` — pending at initial handoff update.
-- W20 safe installer staging: requested by the W165 owner-review request; run/artifact/SHA256 to be appended after completion.
-- W15 tests include exact active-version wording, strict mapping-vs-decoder proof behavior, and separate idle/active spacing values.
-- GUI compile remains covered by Windows integration/W20 checks with warnings as errors.
+- Main CI [43885551310](https://github.com/manufact-test/nomusic/actions/runs/43885551310) — **SUCCESS**.
+- Windows integration CI [43885551218](https://github.com/manufact-test/nomusic/actions/runs/43885551218) — **SUCCESS**.
+- W20 safe installer staging [43885551217](https://github.com/manufact-test/nomusic/actions/runs/43885551217) — **SUCCESS**.
+- W20 passed source compile with warnings as errors, W15/native tests, W23 native bundle/diagnostic contracts, PE version and anti-downgrade validation, disposable Windows install/uninstall smoke, and exact EXE/ZIP packaging.
+
+## Owner-review artifact
+
+One internal unsigned owner-review package:
+- Installer: `CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.exe`
+- ZIP: `CELIKOM-Windows-0.24.47.zip`
+- Artifact ID: `14235136060`
+- W20 run: https://github.com/manufact-test/nomusic/actions/runs/43885551217
+- Direct artifact: https://github.com/manufact-test/nomusic/actions/runs/43885551217/artifacts/14235136060
+- EXE SHA256: `8a8687771096ffd38d52454832e1ce6987239b2d3db9ec6c597590aa03c9bed3`
+- ZIP SHA256: `ed270f45d073e18b3350b192d995c5b45b7b95d839a38f8fa3229d5cb6294d32`
+- Artifact expires 2026-11-26 14:27:45 UTC.
+- Internal unsigned review only; no production release, signing or deployment.
 
 ## Owner review
 
-One internal unsigned installer only:
-- `CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.exe`
-- ZIP: `CELIKOM-Windows-0.24.47.zip`
-- `SHA256SUMS.txt`
-
-After installing 0.24.47.0 over 0.24.46.0, verify the idle/placeholder gap remains 18 px and the current-track status gap is 8 px. No VPN/audio retest is required. The green label will appear only if the current decoder observer supplies exact proof; if `kUrl` remains unavailable, the neutral availability label is expected.
+After installing **0.24.47.0 over 0.24.46.0**, verify:
+- Disabled/connection-placeholder state retains the larger lower breathing room.
+- A playing track with title, artist and version status has the previous smaller 8 px gap before Account.
+- If exact decoder proof is available, the green label reads **«Играет версия CELIKOM»**. If the observer still cannot see `kUrl`, the neutral availability label is expected.
+- No VPN/audio retest is required unless a real regression appears.
 
 ## Hard boundaries
 
