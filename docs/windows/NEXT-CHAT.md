@@ -60,7 +60,7 @@ One internal unsigned owner-review build only:
 - Artifact: https://github.com/manufact-test/nomusic/actions/runs/43885551217/artifacts/14235136060
 - EXE SHA256: `8a8687771096ffd38d52454832e1ce6987239b2d3db9ec6c597590aa03c9bed3`.
 - ZIP SHA256: `ed270f45d073e18b3350b192d995c5b45b7b95d839a38f8fa3229d5cb6294d32`.
-- Expires: 26 November 2026, 14:27:45 UTC.
+- Expires: 26 November 2026, 14:27:41 UTC.
 - Package is internal and unsigned; no production release, signing or deployment.
 
 ## Owner manual check
