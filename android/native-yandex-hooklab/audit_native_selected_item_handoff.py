@@ -10838,14 +10838,25 @@ def inspect_exact_li_lb_handoff_callers(apks):
 
 
 def trace_track_identity_method_cfg(
-    dex, method, flags, code_off, exact_track_field_refs=None
+    dex, method, flags, code_off, exact_track_field_refs=None,
+    extra_identity_types=None
 ):
-    """Branch-sensitive identity-only trace for one exact Track/Album/wrapper method."""
+    """Branch-sensitive identity-only trace for exact Track/Album/wrapper/service types."""
     tracked_types = {
         MODEL: "TRACK",
         ALBUM_MODEL: "ALBUM",
         WRAPPER: "TRACK_WRAPPER",
     }
+    for descriptor, label in (extra_identity_types or {}).items():
+        if (
+            not isinstance(descriptor, str)
+            or not descriptor.startswith("L")
+            or not isinstance(label, str)
+            or not re.fullmatch(r"[A-Z0-9_]{1,64}", label)
+            or descriptor in tracked_types
+        ):
+            raise ValueError("TRACK_IDENTITY_CFG_EXTRA_TYPE_INVALID")
+        tracked_types[descriptor] = label
     cfg = build_dex_control_flow(dex, code_off)
     by_pc = cfg["by_pc"]
     successors = cfg["successors"]
@@ -11127,7 +11138,7 @@ def trace_track_identity_method_cfg(
                 logical_position += 1
                 if not (declared_type.startswith("L") or declared_type.startswith("[")):
                     continue
-                for tracked_type, label in tracked_types.items():
+                for label in sorted(set(tracked_types.values())):
                     common = origins_for_label(
                         common_origins(states, register), label
                     )
@@ -11545,6 +11556,366 @@ def inspect_exact_track_wrapper_handoff(apks):
             and target_trace_complete
             and caller_traces_complete
         ),
+        "field_names_or_values_disclosed": False,
+        "track_album_ids_titles_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
+
+def inspect_exact_lqj8_service_route(apks, class_profiles):
+    """Resolve only the exact LIEa coroutine entry and Lqj8 interface dispatch.
+
+    The scan is limited to one exact coroutine method, one exact interface
+    method, direct implementers/superclasses of that interface, and direct
+    callers of the coroutine entry. It traces TrackWrapper and the service
+    receiver as types only. No field names/values, media, URLs, DataSpec,
+    tokens, account data, or audio bytes are read.
+    """
+    liea_target = (
+        "LIEa;", "new",
+        "(LIEa;Lqj8;LtCa;Lru/yandex/music/data/audio/o;Lnk0;ZLOe2;)Ljava/lang/Object;",
+    )
+    interface_target = (
+        "Lqj8;", "if",
+        "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
+    )
+    interface_owner = interface_target[0]
+    interface_profile = class_profiles.get(interface_owner)
+    interface_owner_map = selected_track_interface_implementation_owners(
+        class_profiles, {interface_owner}
+    )
+    interface_row = interface_owner_map.get(interface_owner, {})
+    direct_implementers = interface_row.get("direct_implementers", [])
+    implementation_owner_map = interface_row.get("implementation_owners", {})
+    implementation_scan_owners = set(implementation_owner_map)
+    superinterfaces = set(
+        interface_profile.get("interfaces", ()) if interface_profile else ()
+    )
+    # Include only the exact interface's direct superinterfaces for possible
+    # inherited default implementations; no unrelated ancestry sweep.
+    implementation_scan_owners.update(superinterfaces)
+
+    service_types = {interface_owner: "LQJ8_SERVICE"}
+    for candidate, profile in class_profiles.items():
+        current = candidate
+        seen = set()
+        inherits_service_interface = False
+        while current and current in class_profiles and current not in seen:
+            if current in direct_implementers:
+                inherits_service_interface = True
+                break
+            seen.add(current)
+            current = class_profiles[current].get("superclass")
+        if inherits_service_interface and not profile.get("is_interface"):
+            service_types[candidate] = "LQJ8_SERVICE"
+    if len(service_types) > 64:
+        raise ValueError("LQJ8_SERVICE_TYPE_LIMIT")
+
+    def method_row(method):
+        return {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        }
+
+    def safe_trace(dex, method, flags, code_off):
+        try:
+            return trace_track_identity_method_cfg(
+                dex, method, flags, code_off,
+                extra_identity_types=service_types,
+            )
+        except (ValueError, DexError) as exc:
+            reason = str(exc)
+            safe_code = (
+                reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                else "UNCLASSIFIED_LQJ8_CFG_ERROR"
+            )
+            return {
+                "method": method_row(method),
+                "trace_failed": True,
+                "error_class": type(exc).__name__,
+                "error_code": safe_code,
+                "field_names_or_values_disclosed": False,
+                "strings_urls_dataspec_account_or_audio_read": False,
+            }
+
+    caller_sites = {}
+    caller_definitions = {}
+    liea_definition = None
+    implementation_definitions = {}
+    seen_methods = set()
+    dex_count = 0
+    direct_callsite_count = 0
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("LQJ8_SERVICE_DEX_LIMIT")
+                dex_count += 1
+                dex = Dex(archive.read(entry.filename))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    key = (method[0], method[1], method[2])
+                    if key in seen_methods:
+                        continue
+                    seen_methods.add(key)
+
+                    if key == liea_target:
+                        liea_definition = (dex, method, flags, code_off)
+                    if (
+                        method[1] == interface_target[1]
+                        and method[2] == interface_target[2]
+                        and method[0] in implementation_scan_owners
+                    ):
+                        implementation_definitions[key] = (
+                            dex, method, flags, code_off
+                        )
+
+                    if not code_off:
+                        continue
+                    sites = []
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        if dex.method(words[1]) == liea_target:
+                            sites.append({
+                                "ordinal": ordinal,
+                                "invoke_opcode": op,
+                                "invoke_kind": invoke_kind_name(op),
+                            })
+                    if not sites:
+                        continue
+                    direct_callsite_count += len(sites)
+                    if direct_callsite_count > 128:
+                        raise ValueError("LIEA_ENTRY_CALLSITE_LIMIT")
+                    if key not in caller_sites:
+                        if len(caller_sites) >= 64:
+                            raise ValueError("LIEA_ENTRY_CALLER_LIMIT")
+                        caller_sites[key] = []
+                        caller_definitions[key] = (dex, method, flags, code_off)
+                    caller_sites[key].extend(sites)
+
+    if dex_count != 6:
+        raise ValueError("SIGNED_SIX_DEX_REQUIRED")
+
+    liea_trace = None
+    liea_body_found = liea_definition is not None and bool(liea_definition[3])
+    if liea_body_found:
+        dex, method, flags, code_off = liea_definition
+        liea_trace = safe_trace(dex, method, flags, code_off)
+
+    direct_callers = []
+    caller_traces_complete = True
+    same_service_object_to_liea_new_proven = False
+    for key in sorted(caller_sites):
+        dex, method, flags, code_off = caller_definitions[key]
+        trace = safe_trace(dex, method, flags, code_off)
+        if trace.get("trace_failed"):
+            caller_traces_complete = False
+        events = [
+            event for event in trace.get("events", ())
+            if event.get("callee") == {
+                "owner": liea_target[0],
+                "method": liea_target[1],
+                "signature": liea_target[2],
+            }
+            and event.get("kind") in (
+                "CALL_WITH_TYPED_IDENTITY",
+                "CALL_WITH_POSSIBLE_IDENTITY",
+                "CALL_TARGET_ACCEPTS_TRACK_OR_WRAPPER_WITHOUT_IDENTITY",
+            )
+        ]
+        for event in events:
+            if event.get("kind") != "CALL_WITH_TYPED_IDENTITY":
+                continue
+            if event.get("identity_is_common_to_all_incoming_paths") is not True:
+                continue
+            if any(
+                arg.get("argument_position") == 1
+                and arg.get("declared_argument_type") == interface_owner
+                and arg.get("identity_type") == "LQJ8_SERVICE"
+                for arg in event.get("identity_arguments", ())
+            ):
+                same_service_object_to_liea_new_proven = True
+        direct_callers.append({
+            "caller": method_row(method),
+            "callsite_count": len(caller_sites[key]),
+            "callsites": caller_sites[key],
+            "identity_events_for_liea_entry": events,
+            "trace_stats": {
+                "reachable_instruction_count": trace.get("reachable_instruction_count"),
+                "branch_count": trace.get("branch_count"),
+                "path_state_count": trace.get("path_state_count"),
+                "processed_state_count": trace.get("processed_state_count"),
+            },
+            "trace_complete": not trace.get("trace_failed", False),
+        })
+
+    interface_call_events = [
+        event for event in (liea_trace.get("events", ()) if liea_trace else ())
+        if event.get("callee") == {
+            "owner": interface_target[0],
+            "method": interface_target[1],
+            "signature": interface_target[2],
+        }
+    ]
+    same_service_object_to_interface_invoke_proven = any(
+        event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+        and event.get("identity_is_common_to_all_incoming_paths") is True
+        and any(
+            arg.get("argument_position") == 0
+            and arg.get("declared_argument_type") == interface_owner
+            and arg.get("identity_type") == "LQJ8_SERVICE"
+            for arg in event.get("identity_arguments", ())
+        )
+        for event in interface_call_events
+    )
+    same_wrapper_to_interface_invoke_proven = any(
+        event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+        and event.get("identity_is_common_to_all_incoming_paths") is True
+        and any(
+            arg.get("argument_position") == 1
+            and arg.get("declared_argument_type") == WRAPPER
+            and arg.get("identity_type") == "TRACK_WRAPPER"
+            for arg in event.get("identity_arguments", ())
+        )
+        for event in interface_call_events
+    )
+
+    implementation_methods = []
+    implementation_traces_complete = True
+    for key in sorted(implementation_definitions):
+        dex, method, flags, code_off = implementation_definitions[key]
+        if not code_off:
+            continue
+        trace = safe_trace(dex, method, flags, code_off)
+        if trace.get("trace_failed"):
+            implementation_traces_complete = False
+        events = trace.get("events", ())
+        typed_wrapper_calls = [
+            event for event in events
+            if event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+            and any(
+                arg.get("identity_type") == "TRACK_WRAPPER"
+                and arg.get("declared_argument_type") == WRAPPER
+                for arg in event.get("identity_arguments", ())
+            )
+        ]
+        possible_wrapper_calls = [
+            event for event in events
+            if event.get("kind") == "CALL_WITH_POSSIBLE_IDENTITY"
+            and any(
+                arg.get("identity_type") == "TRACK_WRAPPER"
+                and arg.get("declared_argument_type") == WRAPPER
+                for arg in event.get("possible_identity_arguments", ())
+            )
+        ]
+        typed_track_calls = [
+            event for event in events
+            if event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+            and any(
+                arg.get("identity_type") == "TRACK"
+                and arg.get("declared_argument_type") == MODEL
+                for arg in event.get("identity_arguments", ())
+            )
+        ]
+        source_descriptor_calls = [
+            event for event in events
+            if event.get("role") == "NATIVE_SOURCE_DESCRIPTOR"
+        ]
+        player_calls = [
+            event for event in events
+            if event.get("role") == "PLAYER_SELECTION_OR_TRANSPORT"
+        ]
+        implementation_methods.append({
+            "method": method_row(method),
+            "implementer_classes": implementation_owner_map.get(method[0], []),
+            "trace_stats": {
+                "reachable_instruction_count": trace.get("reachable_instruction_count"),
+                "branch_count": trace.get("branch_count"),
+                "path_state_count": trace.get("path_state_count"),
+                "processed_state_count": trace.get("processed_state_count"),
+            },
+            "typed_wrapper_calls": typed_wrapper_calls,
+            "possible_wrapper_calls": possible_wrapper_calls,
+            "typed_track_calls": typed_track_calls,
+            "source_descriptor_calls": source_descriptor_calls,
+            "player_calls": player_calls,
+            "trace_complete": not trace.get("trace_failed", False),
+        })
+
+    interface_profile_summary = {
+        "defined_in_signed_dex": interface_profile is not None,
+        "is_interface": bool(interface_profile and interface_profile.get("is_interface")),
+        "is_abstract": bool(interface_profile and interface_profile.get("is_abstract")),
+        "superinterfaces": sorted(superinterfaces),
+        "direct_implementer_count": len(direct_implementers),
+        "direct_implementers": direct_implementers[:64],
+    }
+    target_interface_method_body_found = any(
+        row["method"]["owner"] == interface_owner
+        for row in implementation_methods
+    )
+    same_wrapper_to_source_descriptor_proven = any(
+        any(
+            arg.get("identity_type") == "TRACK_WRAPPER"
+            for arg in event.get("identity_arguments", ())
+        )
+        for row in implementation_methods
+        for event in row["source_descriptor_calls"]
+    )
+    same_wrapper_to_player_api_proven = any(
+        any(
+            arg.get("identity_type") == "TRACK_WRAPPER"
+            for arg in event.get("identity_arguments", ())
+        )
+        for row in implementation_methods
+        for event in row["player_calls"]
+    )
+
+    return {
+        "bounded": True,
+        "scan_scope": (
+            "ALL_SIX_SIGNED_DEX_FOR_EXACT_LIEA_ENTRY_CALLERS_AND_LQJ8_IMPLEMENTATIONS"
+        ),
+        "signed_dex_count": dex_count,
+        "interface_owner_profile": interface_profile_summary,
+        "interface_implementation_scan_owners": sorted(implementation_scan_owners),
+        "service_identity_type_count": len(service_types),
+        "liea_entry_target": method_row(liea_target),
+        "liea_entry_method_body_found": liea_body_found,
+        "liea_entry_direct_callsite_count": direct_callsite_count,
+        "liea_entry_distinct_direct_caller_count": len(direct_callers),
+        "liea_entry_direct_callers": direct_callers,
+        "same_service_object_to_liea_entry_proven": same_service_object_to_liea_new_proven,
+        "liea_entry_to_interface_call_events": interface_call_events,
+        "same_service_object_to_interface_invoke_proven": (
+            same_service_object_to_interface_invoke_proven
+        ),
+        "same_wrapper_to_interface_invoke_proven": (
+            same_wrapper_to_interface_invoke_proven
+        ),
+        "interface_method_body_found": target_interface_method_body_found,
+        "interface_implementation_method_count": len(implementation_methods),
+        "interface_implementation_methods": implementation_methods,
+        "same_wrapper_to_native_source_descriptor_proven": (
+            same_wrapper_to_source_descriptor_proven
+        ),
+        "same_wrapper_to_player_api_proven": same_wrapper_to_player_api_proven,
+        "liea_entry_trace_complete": (
+            liea_trace is not None and not liea_trace.get("trace_failed", False)
+        ),
+        "caller_traces_complete": caller_traces_complete,
+        "implementation_traces_complete": implementation_traces_complete,
+        "complete_for_bounded_interface_route_claim": (
+            dex_count == 6
+            and liea_body_found
+            and caller_traces_complete
+            and implementation_traces_complete
+        ),
+        "runtime_interface_dispatch_proven": False,
         "field_names_or_values_disclosed": False,
         "track_album_ids_titles_urls_dataspec_tokens_account_or_audio_read": False,
     }
@@ -12035,6 +12406,7 @@ def inspect_signed(apks):
         apks, candidate_identity_method_traces, next_identity_hop_focus_refs
     )
     exact_track_wrapper_handoff = inspect_exact_track_wrapper_handoff(apks)
+    exact_lqj8_service_route = inspect_exact_lqj8_service_route(apks, class_profiles)
     next_identity_hop_owner_profiles = [
         {"owner": owner, **classify_track_owner_profile(class_profiles.get(owner, {}))}
         for owner in sorted({row[0] for row in next_identity_hop_focus_refs})
@@ -12432,6 +12804,7 @@ def inspect_signed(apks):
         "next_identity_hop_method_traces": next_identity_hop_trace_result["traces"],
         "next_identity_hop_cfg": next_identity_hop_cfg_result,
         "exact_track_wrapper_handoff": exact_track_wrapper_handoff,
+        "exact_lqj8_service_route": exact_lqj8_service_route,
         "next_identity_hop_missing_method_refs":
             next_identity_hop_trace_result["missing_method_refs"],
         "next_identity_hop_owner_profiles": next_identity_hop_owner_profiles,

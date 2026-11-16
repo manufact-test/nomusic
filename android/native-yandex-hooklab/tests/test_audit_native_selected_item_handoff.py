@@ -41,7 +41,7 @@ from audit_native_selected_item_handoff import (
     exact_parameter_field_store_refs, local_object_register_origin,
     dex_type_assignable_to, trace_exact_object_receiver_call_cfg,
     trace_exact_object_method_body, trace_track_identity_method_cfg,
-    inspect_exact_track_wrapper_handoff
+    inspect_exact_track_wrapper_handoff, inspect_exact_lqj8_service_route
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -4004,6 +4004,201 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["target_typed_wrapper_calls"], [])
         self.assertEqual(len(result["target_possible_wrapper_calls"]), 1)
         self.assertTrue(result["complete_for_bounded_direct_caller_claim"])
+
+
+
+    def test_track_identity_cfg_supports_exact_extra_service_type_labels(self):
+        from unittest.mock import patch
+
+        target = (
+            "Lqj8;", "if",
+            "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
+        )
+        method = ("LCaller;", "dispatch", "(Lqj8;LtCa;)V")
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 4, 102: 2}[offset]
+            def method(self, _index):
+                return target
+
+        cfg_instructions = [
+            (0, 0x72, [0x0072, 0]),
+            (1, 0x0e, [0x000e]),
+        ]
+        cfg = {
+            "instructions": cfg_instructions,
+            "by_pc": {pc: (op, words) for pc, op, words in cfg_instructions},
+            "successors": {0: [1], 1: []},
+            "reachable": {0, 1},
+            "branches": [],
+            "entry": 0,
+        }
+        with patch("audit_native_selected_item_handoff.build_dex_control_flow",
+                   return_value=cfg), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",
+                   side_effect=lambda _d, _m, _f, _c, typ:
+                   [2] if typ in ("Lqj8;", "LImpl;") else [3] if typ == WRAPPER else []), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   return_value=[2, 3, 4, 5, 6]), \
+             patch("audit_native_selected_item_handoff.expand_invoke_register_types",
+                   return_value=["Lqj8;", "LtCa;", "Z", "Lqj8$a;", "LLEa;"]):
+            trace = trace_track_identity_method_cfg(
+                FakeDex(), method, 0x8, 100,
+                extra_identity_types={
+                    "Lqj8;": "LQJ8_SERVICE",
+                    "LImpl;": "LQJ8_SERVICE",
+                },
+            )
+
+        event = next(
+            row for row in trace["events"]
+            if row["kind"] == "CALL_WITH_TYPED_IDENTITY"
+        )
+        self.assertEqual(len(event["identity_arguments"]), 2)
+        self.assertEqual(
+            [(arg["argument_position"], arg["identity_type"])
+             for arg in event["identity_arguments"]],
+            [(0, "LQJ8_SERVICE"), (1, "TRACK_WRAPPER")],
+        )
+
+    def test_exact_lqj8_service_route_traces_only_exact_interface_and_entry(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        liea = (
+            "LIEa;", "new",
+            "(LIEa;Lqj8;LtCa;Lru/yandex/music/data/audio/o;Lnk0;ZLOe2;)Ljava/lang/Object;",
+        )
+        interface_target = (
+            "Lqj8;", "if",
+            "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
+        )
+        caller = ("LKEa;", "invokeSuspend", "(Ljava/lang/Object;)Ljava/lang/Object;")
+        implementation = ("LImpl;", "if", interface_target[2])
+        descriptor = {
+            "owner": DESCRIPTOR_BUILDER[0],
+            "method": DESCRIPTOR_BUILDER[1],
+            "signature": "(LtCa;)Ljava/lang/Object;",
+        }
+
+        class FakeDex:
+            def __init__(self, data):
+                self.data = data
+            def method(self, index):
+                return {1: liea}[index]
+
+        def fake_instructions(_dex, code_off):
+            if code_off == 100:
+                return [(86, 0x71, [0x0071, 1])]
+            return []
+
+        def typed_event(target, args, pc=86, role="OTHER_METHOD"):
+            return {
+                "kind": "CALL_WITH_TYPED_IDENTITY",
+                "callee": {
+                    "owner": target[0], "method": target[1],
+                    "signature": target[2],
+                },
+                "identity_is_common_to_all_incoming_paths": True,
+                "identity_arguments": args,
+                "pc": pc,
+                "role": role,
+            }
+
+        def fake_trace(_dex, method, _flags, _code_off, **_kwargs):
+            if method == caller:
+                return {
+                    "events": [typed_event(liea, [
+                        {"argument_position": 1, "declared_argument_type": "Lqj8;",
+                         "identity_type": "LQJ8_SERVICE",
+                         "origins": ["LQJ8_SERVICE_FROM_THIS_FIELD"]},
+                        {"argument_position": 2, "declared_argument_type": "LtCa;",
+                         "identity_type": "TRACK_WRAPPER",
+                         "origins": ["TRACK_WRAPPER_FROM_THIS_FIELD"]},
+                    ])],
+                    "reachable_instruction_count": 72,
+                    "branch_count": 11,
+                    "path_state_count": 96,
+                    "processed_state_count": 96,
+                }
+            if method == liea:
+                return {
+                    "events": [typed_event(interface_target, [
+                        {"argument_position": 0, "declared_argument_type": "Lqj8;",
+                         "identity_type": "LQJ8_SERVICE",
+                         "origins": ["LQJ8_SERVICE_PARAMETER"]},
+                        {"argument_position": 1, "declared_argument_type": "LtCa;",
+                         "identity_type": "TRACK_WRAPPER",
+                         "origins": ["TRACK_WRAPPER_PARAMETER"]},
+                    ])],
+                    "reachable_instruction_count": 74,
+                    "branch_count": 12,
+                    "path_state_count": 104,
+                    "processed_state_count": 104,
+                }
+            if method == implementation:
+                return {
+                    "events": [typed_event(descriptor, [
+                        {"argument_position": 0, "declared_argument_type": "LtCa;",
+                         "identity_type": "TRACK_WRAPPER",
+                         "origins": ["TRACK_WRAPPER_PARAMETER"]},
+                    ], pc=40, role="NATIVE_SOURCE_DESCRIPTOR")],
+                    "reachable_instruction_count": 45,
+                    "branch_count": 5,
+                    "path_state_count": 32,
+                    "processed_state_count": 32,
+                }
+            raise AssertionError("unexpected trace target")
+
+        definitions = [
+            (caller, 0x8, 100),
+            (liea, 0x8, 200),
+            (implementation, 0x1, 300),
+        ]
+        class_profiles = {
+            "Lqj8;": {
+                "is_interface": True, "is_abstract": True,
+                "superclass": None, "interfaces": set(),
+                "instance_types": set(), "static_types": set(),
+            },
+            "LImpl;": {
+                "is_interface": False, "is_abstract": False,
+                "superclass": "Ljava/lang/Object;", "interfaces": {"Lqj8;"},
+                "instance_types": set(), "static_types": set(),
+            },
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                for index, name in enumerate((
+                    "classes.dex", "classes2.dex", "classes3.dex",
+                    "classes4.dex", "classes5.dex", "classes6.dex",
+                )):
+                    archive.writestr(name, bytes([index]))
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       side_effect=lambda dex: definitions if dex.data == bytes([0]) else []), \
+                 patch("audit_native_selected_item_handoff.instructions",
+                       side_effect=fake_instructions), \
+                 patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
+                       side_effect=fake_trace) as trace:
+                result = inspect_exact_lqj8_service_route([apk], class_profiles)
+
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["signed_dex_count"], 6)
+        self.assertTrue(result["interface_owner_profile"]["is_interface"])
+        self.assertEqual(result["interface_owner_profile"]["direct_implementer_count"], 1)
+        self.assertEqual(result["liea_entry_direct_callsite_count"], 1)
+        self.assertTrue(result["same_service_object_to_liea_entry_proven"])
+        self.assertTrue(result["same_service_object_to_interface_invoke_proven"])
+        self.assertTrue(result["same_wrapper_to_interface_invoke_proven"])
+        self.assertEqual(result["interface_implementation_method_count"], 1)
+        self.assertTrue(result["same_wrapper_to_native_source_descriptor_proven"])
+        self.assertTrue(result["complete_for_bounded_interface_route_claim"])
+        self.assertEqual(trace.call_count, 3)
 
 
 
