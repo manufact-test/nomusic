@@ -3247,9 +3247,9 @@ class SelectedItemAuditTests(unittest.TestCase):
             apk = Path(folder) / "fixture.apk"
             with zipfile.ZipFile(apk, "w") as archive:
                 archive.writestr("classes.dex", b"fake-dex")
-            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \\
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
                  patch("audit_native_selected_item_handoff.method_definitions_with_flags",
-                       return_value=[(caller, 0x8, 1000)]), \\
+                       return_value=[(caller, 0x8, 1000)]), \
                  patch("audit_native_selected_item_handoff.instructions",
                        return_value=[(5, 0xfc, [0x00fc, 0, 0])]):
                 result = inspect_exact_playlist_update_method_handle_sites([apk])
