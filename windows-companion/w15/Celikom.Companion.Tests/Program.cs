@@ -1283,6 +1283,20 @@ try
          !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
          !PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_SOURCE_VERIFIED", "approved"),
          "W89 only exact current decoder proof while enabled with approved version may paint green");
+    Test(CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, true, "ACTIVE_REPLACEMENT", "PLAYING", "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, true, "ACTIVE_REPLACEMENT", "PAUSED", "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, true, "ACTIVE_REPLACEMENT", "PLAYING", "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         !CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, false, "ACTIVE_REPLACEMENT", "PLAYING", "NATIVE_SOURCE_VERIFIED", "approved"),
+         "W167 green active status requires fresh PLAYING decoder proof and approved presence");
+    Test(!CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, true, false, true) &&
+         CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, false, true) &&
+         !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, true, true) &&
+         !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(true, false, false, true),
+         "W167 module-update hint is hidden only during Start/reconnect or after playback is enabled");
     Test(PlaybackSourceEvidence.OriginalVerified(true,
              "NATIVE_ORIGINAL_SOURCE_VERIFIED", "ORIGINAL") &&
          !PlaybackSourceEvidence.OriginalVerified(true, "ORIGINAL", "ORIGINAL") &&
@@ -1383,7 +1397,8 @@ try
     Test(CompactPlaybackPresentation.ConnectingMessage ==
              "Подождите, идёт подключение\nк приложению Яндекса." &&
          CompactPlaybackPresentation.TrackStatusBottomSpacingPx == 18 &&
-         CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 8 &&
+         CompactPlaybackPresentation.ActiveTrackStatusHeightPx == 28 &&
+         CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 2 &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PLAYING") == "Музыка продолжает играть." &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PAUSED") == "Пауза" &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("UNKNOWN") == "Проверяем состояние воспроизведения…" &&
@@ -1414,7 +1429,7 @@ try
          CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
              false, false, true) == "Проверяем состояние воспроизведения…" &&
          CompactPlaybackPresentation.TrackPlaceholder(true, true, "UNKNOWN",
-             false, false, true) == "Ожидаем воспроизведения в Яндекс Музыке…",
+             false, false, true) == "",
          "W161 unknown track state no longer refers to an unspecified current player");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, true, "PAUSED",
              false, false, true) == "Пауза" &&

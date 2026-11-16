@@ -626,9 +626,6 @@ public sealed partial class MainWindow
     {
         if (!_compactReady) return;
         var playback = playbackSnapshot ?? _bridge.GetPlaybackSnapshot();
-        var connected = _bridgeStarted && _api.IsLoggedIn &&
-            _nativeInstallState == NativeInstallState.Active &&
-            _installedModule.MatchesApplication;
         _compactAccountTrigger.Text = _api.IsLoggedIn ? "Аккаунт · подключён" :
             "Аккаунт · требуется вход";
         _compactAccountFrame.OutlineColor = !_api.IsLoggedIn ? Danger : Border;
@@ -639,8 +636,6 @@ public sealed partial class MainWindow
         _start.Text = "Старт";
         var nativeStatus = playback.Status;
         var heartbeatFresh = playback.HeartbeatFresh;
-        var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
-            connected && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable);
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
         if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
@@ -720,7 +715,7 @@ public sealed partial class MainWindow
             if (_compactTrackArtist.Text.Length > 0) _compactTrackArtist.Text = "";
         }
 
-        _compactTrack.ForeColor = !valid && paused && serviceConnected ? Accent : Ink;
+        _compactTrack.ForeColor = Ink;
         _compactUploadTrack.Text = _compactTrack.Text +
             (_compactTrackArtist.Text.Length > 0 ? " — " + _compactTrackArtist.Text : "");
         _compactSuggestTrack.Text = _compactUploadTrack.Text;
@@ -756,9 +751,10 @@ public sealed partial class MainWindow
             playback.PlaybackState, playback.PlayerUnavailable);
         var hostProblem = hostHealth.Level is UserFacingPlaybackHealth.Severity.Error or
             UserFacingPlaybackHealth.Severity.Warning;
-        var hostNeedsStart = !playback.Enabled && !_compactStarting && !_autoReconnectBusy &&
+        var hostNeedsStart = CompactPlaybackPresentation.ShouldShowModuleUpdateHint(
+            playback.Enabled, _compactStarting, _autoReconnectBusy,
             _nativeInstallState == NativeInstallState.Active &&
-            !_installedModule.MatchesApplication;
+            !_installedModule.MatchesApplication);
         var hostHint = hostNeedsStart
             ? "Нажми «Старт», чтобы обновить модуль CELIKOM." : "";
         var networkRecoveryPending = !playback.Enabled && _resumeAfterNetworkFailure;
@@ -774,11 +770,9 @@ public sealed partial class MainWindow
             actionProblem ? _compactStartupText : "";
         // An accepted file-info mapping is not proof of sound. Only a CDP
         // decoder kUrl match for the CURRENT playing track may use green.
-        var activelyReplacing = heartbeatFresh &&
-            playback.Source == "ACTIVE_REPLACEMENT" &&
-            playback.PlaybackState == "PLAYING" &&
-            PlaybackSourceEvidence.Verified(
-                playback.Enabled, nativeStatus, _compactPresenceStatus);
+        var activelyReplacing = CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+            playback.Enabled, heartbeatFresh, playback.Source, playback.PlaybackState,
+            nativeStatus, _compactPresenceStatus);
         // File-info mapping remains a playback hint only while the CURRENT
         // Yandex player is playing. On pause/stop show the actual playback
         // state instead of resurrecting an older "pending source" label.
@@ -807,7 +801,7 @@ public sealed partial class MainWindow
         // A current mapped track uses the same neutral availability copy
         // before/after VPN recovery and Next. Only exact decoder proof is green.
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
-            activelyReplacing || (paused && serviceConnected) ? Accent : Secondary;
+            activelyReplacing ? Accent : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
@@ -830,9 +824,10 @@ public sealed partial class MainWindow
             var hasTrack = GrantValidator.IsTrackId(_compactRenderedTrackId);
             var showTrack = hasTrack || !_compactStarting;
             var showArtist = !string.IsNullOrWhiteSpace(_compactTrackArtist.Text);
-            var hostNeedsStart = !_bridge.Enabled && !_compactStarting &&
-                !_autoReconnectBusy && _nativeInstallState == NativeInstallState.Active &&
-                !_installedModule.MatchesApplication;
+            var hostNeedsStart = CompactPlaybackPresentation.ShouldShowModuleUpdateHint(
+                _bridge.Enabled, _compactStarting, _autoReconnectBusy,
+                _nativeInstallState == NativeInstallState.Active &&
+                !_installedModule.MatchesApplication);
             var showVersionStatus = hasTrack || !string.IsNullOrWhiteSpace(_compactVersionStatus.Text) &&
                 (hostNeedsStart || UserFacingPlaybackHealth.Host(
                     _nativeInstallState, _hostReport, _installedModule.MatchesApplication)
@@ -857,7 +852,7 @@ public sealed partial class MainWindow
                 (_compactAccess, 35, 8, true),
                 (_compactTrack, 32, trackGap, showTrack),
                 (_compactTrackArtist, 25, artistGap, showArtist),
-                (_compactVersionStatus, 40,
+                (_compactVersionStatus, CompactPlaybackPresentation.ActiveTrackStatusHeightPx,
                     CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx, showVersionStatus),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?

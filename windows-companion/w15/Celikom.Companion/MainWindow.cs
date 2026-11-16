@@ -648,8 +648,8 @@ public sealed partial class MainWindow : Form
             if (_nativeInstallState != NativeInstallState.Active ||
                 !_installedModule.MatchesApplication)
             {
-                _compactStarting = false;
-                _compactStartupText = "";
+                // Keep the immediate green Start banner active through the
+                // existing native-module validation/upgrade operation.
                 await ConnectYandexAsync(sender, e);
                 return;
             }
@@ -1111,7 +1111,12 @@ public sealed partial class MainWindow : Form
             var answer = MessageBox.Show(this,
                 "Подключить CELIKOM к Яндекс.Музыке? Оригинальные файлы будут сохранены, Яндекс перезапустится.",
                 "Подключение CELIKOM", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (answer != DialogResult.Yes) return;
+            if (answer != DialogResult.Yes)
+            {
+                _compactStarting = false;
+                _compactStartupText = "";
+                return;
+            }
         }
         else DiagnosticLog.Record("YANDEX_UPDATE_RECONNECT_PRIOR_CONSENT");
         _integrationBusy = true;
@@ -1609,10 +1614,9 @@ public sealed partial class MainWindow : Form
         var heartbeatFresh = playback.HeartbeatFresh;
         var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
             switchAvailable && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable);
-        var sourceVerified = heartbeatFresh &&
-            playback.Source == "ACTIVE_REPLACEMENT" &&
-            playback.PlaybackState == "PLAYING" &&
-            PlaybackSourceEvidence.Verified(switchAvailable && playback.Enabled, state, sourcePresence);
+        var sourceVerified = CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+            switchAvailable && playback.Enabled, heartbeatFresh, playback.Source,
+            playback.PlaybackState, state, sourcePresence);
         var originalPlaying = heartbeatFresh &&
             PlaybackSourceEvidence.OriginalVerified(playback.Enabled, state, playback.Source) &&
             playback.PlaybackState == "PLAYING";
@@ -1647,9 +1651,8 @@ public sealed partial class MainWindow : Form
             paused ? "Пауза" :
             stopped ? "Воспроизведение остановлено." :
             mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage :
-            "Ожидаем воспроизведения в Яндекс Музыке…";
-        _switchHint.ForeColor = serviceConnected && (sourceVerified || paused)
-            ? Accent : Secondary;
+            "";
+        _switchHint.ForeColor = sourceVerified ? Accent : Secondary;
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {

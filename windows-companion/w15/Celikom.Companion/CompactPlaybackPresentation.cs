@@ -5,10 +5,11 @@ public static class CompactPlaybackPresentation
     public const string VersionAvailableMessage = "Версия CELIKOM доступна";
     public const string ActiveVersionMessage = "Играет версия CELIKOM";
     public const string ServiceEnabledMessage = "Сервис включён";
-    // Extra room belongs to the disabled/placeholder state only.
+    // Idle/disabled copy keeps its original breathing room. A real track status
+    // stays compact, with only a 2 px gap before the Account card.
     public const int TrackStatusBottomSpacingPx = 18;
-    // Preserve the original compact gap below a real current-track status.
-    public const int ActiveTrackStatusBottomSpacingPx = 8;
+    public const int ActiveTrackStatusHeightPx = 28;
+    public const int ActiveTrackStatusBottomSpacingPx = 2;
 
     public const string ConnectingMessage = "Подождите, идёт подключение\nк приложению Яндекса.";
 
@@ -57,6 +58,17 @@ public static class CompactPlaybackPresentation
         bool playerUnavailable) =>
         bridgeEnabled && heartbeatFresh && !playerUnavailable;
 
+    public static bool ShouldShowModuleUpdateHint(bool playbackEnabled, bool startInProgress,
+        bool autoReconnectBusy, bool moduleMismatch) =>
+        !playbackEnabled && !startInProgress && !autoReconnectBusy && moduleMismatch;
+
+    // Green is reserved for proof about the current audible decoder source.
+    // Mapping, availability, a connected service or PAUSED state are insufficient.
+    public static bool ActiveReplacementStatusIsGreen(bool bridgeEnabled, bool heartbeatFresh,
+        string? source, string? playbackState, string? nativeStatus, string? presenceStatus) =>
+        heartbeatFresh && source == "ACTIVE_REPLACEMENT" && playbackState == "PLAYING" &&
+        PlaybackSourceEvidence.Verified(bridgeEnabled, nativeStatus, presenceStatus);
+
     public static string NetworkRecoveryPlaybackMessage(string? playbackState) => playbackState switch
     {
         "PLAYING" => "Музыка продолжает играть.",
@@ -86,7 +98,7 @@ public static class CompactPlaybackPresentation
             "PLAYING" => "Играет. Данные текущего трека недоступны.",
             "PAUSED" => "Пауза",
             "STOPPED" => "Воспроизведение остановлено",
-            _ => "Ожидаем воспроизведения в Яндекс Музыке…"
+            _ => ""
         };
     }
 }
