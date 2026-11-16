@@ -15,7 +15,7 @@
 - Last runtime-hook change: `a655712d210189f3bc611847235de3ed4d985c1a`. No runtime hooks changed after it.
 - No APK was built, patched, installed, or released during this static investigation.
 
-**Build scope warning:** the static audit asset is Yandex Music 2025.10.4 #120.1gpr. The owner's test phone previously reported 2026.09.5 #167gpr. Do not assume obfuscated descriptors or findings transfer between those builds without evidence.
+**Build scope gate:** the static audit asset is Yandex Music 2025.10.4 #120.1gpr. The owner's phone was previously reported as 2026.09.5 #167gpr, and public APKPure metadata now lists 2026.11.1 #171gpr. These are not interchangeable. Before another long trace, establish the exact intended runtime target. If it is 2025.10.4, continue LfT2 there; if it is a 2026 build, first obtain the exact original split package and verify publisher signature, split set, size, and SHA-256. Do not trust a mirror file or transfer obfuscated findings across versions without verification. Details: [external research](ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md).
 
 ## 2. Product gates
 
