@@ -2,7 +2,7 @@
 
 Date: 16 November 2026  
 Product: CELIKOM Windows only  
-Status: **W167 UI source fixes are committed on the W165-based branch; CI and the single internal owner-review package are pending. Owner manual acceptance is still required. W166 / 0.24.48.0 remains rejected and was not used as the base.**
+Status: **W167 UI source fixes are committed on the W165-based branch; Main CI, Windows integration CI and the single internal owner-review package all succeeded. Owner manual acceptance is still required. W166 / 0.24.48.0 remains rejected and was not used as the base.**
 
 ## 1. Source of truth — use the previous version
 
@@ -188,4 +188,25 @@ Source checkpoint: `e88280740457bf539ec8e661416a26d9de1e1102`
 - Active status row is 28 px high with a 2 px lower gap; idle placeholder spacing remains 18 px.
 - No audio/VPN/native host/renderer/server/auth/Android/extension files were changed.
 
-Focused W167 regression assertions were added. CI and W20 package results are pending and must be recorded here after completion. Owner runtime acceptance is pending; do not call the UI fixed until the owner checks the installer.
+Focused W167 regression assertions were added and passed in the W20 W15 test step.
+
+Verification:
+- Main CI [43903409504](https://github.com/manufact-test/nomusic/actions/runs/43903409504) — **SUCCESS**.
+- Windows integration CI [43903409454](https://github.com/manufact-test/nomusic/actions/runs/43903409454) — **SUCCESS**.
+- W20 safe installer staging [43903271312](https://github.com/manufact-test/nomusic/actions/runs/43903271312) — **SUCCESS**.
+- W15 contract tests: `W15_NATIVE_CONTRACT_PASS 436`.
+- W23 native tests and W24 image-builder tests passed.
+- W20 warnings-as-errors compile, stage-only distribution policy, installer PE identity/version, updater ZIP selection and anti-downgrade all passed.
+- Disposable Windows per-user install, same-AppId in-place upgrade and uninstall passed; Yandex files were not touched.
+- Exactly one installer EXE was packaged into one ZIP; the ZIP contains only that root installer and its bytes match the standalone EXE.
+
+Owner-review package:
+- Version: **0.24.49.0**, native module **0.24.31**.
+- Installer: `CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.exe`.
+- ZIP: `CELIKOM-Windows-0.24.49.zip`.
+- EXE SHA256: `f363a23b90a58268d31f2c5a34313f35510645ab34bcf2c9acfcc3521b14a852`.
+- ZIP SHA256: `abd7ab026a6dcfa7532f4aa833c7db2c4bf93c81e76c17afa001b941dfa15f0e`.
+- Actions artifact ID: `14242836055`; expires **26 November 2026, 16:06:19 UTC**.
+- Verified Library folder: `/CELIKOM/W167/` with EXE, ZIP and `SHA256SUMS.txt`.
+
+Owner runtime acceptance is still pending. CI proves compilation, contracts and packaging, not the actual Start/Next/Pause visual sequence. The active label remains intentionally neutral unless exact current decoder-source proof is emitted. If the owner hears CELIKOM but sees neutral status, collect a fresh W54/W55 diagnostic from 0.24.49.0 before any observer change. Do not weaken the proof gate.

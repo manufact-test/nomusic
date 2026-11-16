@@ -8,6 +8,7 @@
 - Product: **CELIKOM Windows only**
 - Working branch: `experiment/windows-w167-owner-ui-regressions-20261116`
 - W167 source checkpoint: `e88280740457bf539ec8e661416a26d9de1e1102`
+- Current branch HEAD: `8964ec124025cf2f480c0f913f5b7b2d69a90f00`
 - App version: **0.24.49.0**
 - Native module: **0.24.31**
 - Rollback branch before W167 fixes: `backup/windows-w167-pre-ui-fixes-20261116` @ `ea788eaed198b71db787215b9ba85829766d6062`
@@ -24,12 +25,24 @@
 5. **Spacing:** idle/disabled placeholder remains 18 px. Active status uses a 28 px row and 2 px lower gap before Account. No global window, title, artist or idle spacing changes.
 6. **Scope:** no W23 native host/renderer, audio, VPN, source routing, server, auth, Android or browser-extension code changed.
 
-## Verification and package
+## Verification and package — all CI passed
 
-- Focused W167 regression assertions are in `Celikom.Companion.Tests/Program.cs`.
-- Main CI, Windows integration CI and W20 package status: update this section after the runs finish.
-- Exactly one internal unsigned owner-review installer is intended: `CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.exe`, plus one ZIP and SHA256 manifest.
-- No production signing, public feed, deployment or owner acceptance is claimed.
+- Main CI: [run 43903409504](https://github.com/manufact-test/nomusic/actions/runs/43903409504) — **SUCCESS**.
+- Windows integration CI: [run 43903409454](https://github.com/manufact-test/nomusic/actions/runs/43903409454) — **SUCCESS**.
+- W20 safe installer staging: [run 43903271312](https://github.com/manufact-test/nomusic/actions/runs/43903271312) — **SUCCESS**.
+- W20 source commit: `025a51d7478b3c7591f893a5dc55fd8ecfee7bdc`; it contains the full W167 source checkpoint above. Latest branch HEAD differs only by branch-scoped CI trigger configuration and this documentation update.
+- W15 contract tests: `W15_NATIVE_CONTRACT_PASS 436`; W23 native tests and W24 native image-builder tests passed.
+- W20 passed warnings-as-errors compilation, stage-only policy, PE file-version/identity and anti-downgrade validation, disposable install, same-AppId in-place upgrade, uninstall without touching Yandex, and one-installer ZIP/SHA256 checks.
+- One internal unsigned owner-review package only:
+  - Installer: `CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.exe`
+  - ZIP: `CELIKOM-Windows-0.24.49.zip`
+  - SHA256 manifest: `SHA256SUMS.txt`
+  - EXE SHA256: `f363a23b90a58268d31f2c5a34313f35510645ab34bcf2c9acfcc3521b14a852`
+  - ZIP SHA256: `abd7ab026a6dcfa7532f4aa833c7db2c4bf93c81e76c17afa001b941dfa15f0e`
+  - GitHub Actions artifact ID: `14242836055`; expires **26 November 2026, 16:06:19 UTC**.
+- ZIP contains exactly one root installer, byte-identical to the standalone EXE. Both hashes were independently recalculated after download and matched the manifest.
+- Verified Library files: `/CELIKOM/W167/` (installer, ZIP and SHA256 manifest). Use the Library copies for download, not a sandbox or direct Actions artifact link.
+- Package is internal and unsigned; no production signing, public feed, deployment or owner acceptance is claimed.
 
 ## Owner manual check
 
