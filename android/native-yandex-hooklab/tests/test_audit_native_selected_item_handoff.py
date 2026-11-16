@@ -4266,10 +4266,10 @@ class SelectedItemAuditTests(unittest.TestCase):
             if method == caller:
                 return {
                     "events": [typed_event(constructor, [
-                        {"argument_position": 0, "declared_argument_type": "Lxj8;",
+                        {"argument_position": 1, "declared_argument_type": "Lxj8;",
                          "identity_type": "LQJ8_SERVICE",
                          "origins": ["LQJ8_SERVICE_PARAMETER"]},
-                        {"argument_position": 1, "declared_argument_type": "LtCa;",
+                        {"argument_position": 2, "declared_argument_type": "LtCa;",
                          "identity_type": "TRACK_WRAPPER",
                          "origins": ["TRACK_WRAPPER_PARAMETER"]},
                     ])],

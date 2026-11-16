@@ -12069,13 +12069,13 @@ def inspect_exact_lvj8_continuation_route(apks):
             if event.get("identity_is_common_to_all_incoming_paths") is not True:
                 continue
             service_arg = any(
-                arg.get("argument_position") == 0
+                arg.get("argument_position") == 1
                 and arg.get("declared_argument_type") == "Lxj8;"
                 and arg.get("identity_type") == "LQJ8_SERVICE"
                 for arg in event.get("identity_arguments", ())
             )
             wrapper_arg = any(
-                arg.get("argument_position") == 1
+                arg.get("argument_position") == 2
                 and arg.get("declared_argument_type") == WRAPPER
                 and arg.get("identity_type") == "TRACK_WRAPPER"
                 for arg in event.get("identity_arguments", ())
