@@ -85,4 +85,5 @@ These are reference documents only. Read one only if the exact next task needs i
 - The old 71 KB accumulated `NEXT-CHAT.md` is preserved at [archive/NEXT-CHAT-ACCUMULATED-BEFORE-CLEANUP-20261116.md](archive/NEXT-CHAT-ACCUMULATED-BEFORE-CLEANUP-20261116.md). Do not load it for routine continuation.
 - Other historical documents remain in place. Nothing useful was bulk-deleted.
 - Do not fetch or paste full CI logs. Use workflow job step summaries and extract only the exact report fields needed. The workflow change in CI #230 redirects the full diagnostic JSON to a temporary runner file, prints a small safe summary, then deletes the file. It does not upload an artifact or persist the full report.
+- The audit parser and its unit-test file are very large. Never fetch either file in full; use exact line ranges around the one function/test being changed. Never print the full diagnostic JSON into chat.
 - The pre-cleanup start message is preserved at [archive/NEXT-CHAT-START-MESSAGE-BEFORE-CLEANUP-20261116.md](archive/NEXT-CHAT-START-MESSAGE-BEFORE-CLEANUP-20261116.md).
