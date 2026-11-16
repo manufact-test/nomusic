@@ -1,38 +1,54 @@
-CELIKOM Windows — W165 owner track spacing and active status
-Requested build: 0.24.47.0 (native module 0.24.31)
-Source checkpoint: ebd16ca19f37620d620c0a6ee5e9e5361fddd607
-Purpose: exactly one internal owner-review installer and ZIP for W165.
+CELIKOM Windows — W166 owner status, pause tone and passive DOM decoder witness
+Requested build: 0.24.48.0 (native module 0.24.31; W23 package 0.24.11)
+Source checkpoint: 5bfd6c6e33c4a1008952ba1fc6c53918ce93792e
+Purpose: exactly one internal owner-review installer and ZIP for W166.
 
-Owner acceptance carried forward from 0.24.46.0:
-- The owner repeatedly toggled VPN while CELIKOM music was playing.
-- The CELIKOM version continued playing; no extra recovery/status text flashed.
-- VPN/audio behavior is accepted. Do not touch audio, native source routing, VPN recovery, entitlement checks, W23 host/renderer or Yandex files.
+Owner result on W165 / 0.24.47.0:
+- Active status remained “Версия CELIKOM доступна” and neutral.
+- “Пауза” appeared green while paused.
+- Active status spacing was smaller, but the owner requested a further reduction.
+- W165 is NOT owner-accepted. Do not claim its text/color issue was solved.
 
-Latest W54 diagnostic:
-- App 0.24.46.0; native module 0.24.31.
-- PlayerCelikomSourceLeftObserved=false; PlayerNativeVolumeDropObserved=false.
-- ElectronEventLoopStallObserved=false; ElectronMemoryHighObserved=false; ElectronCpuHighObserved=false.
-- NativeDecoderPropertiesObserved=true; NativeDecoderUrlPropertyObserved=false.
-- ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING.
-- Mapping/source-held/network events are not independent proof of audible decoder output. Do not weaken the exact decoder proof gate.
+Previously accepted behavior:
+- Owner accepted 0.24.46.0 VPN/audio continuity: CELIKOM playback continued through repeated VPN changes without extra recovery text.
+- Do not repeat VPN/audio work or alter playback, source routing, Yandex files or VPN recovery.
 
-W165 UI-only changes:
-- Separate idle/placeholder bottom spacing (18 px) from current-track version-status spacing (8 px). The 18 px gap remains for the disabled/placeholder state; the current-track status returns to its previous 8 px gap.
-- Change the exact verified active-version wording to “Играет версия CELIKOM”.
-- Keep green color conditional on exact current decoder proof: current track PLAYING, source ACTIVE_REPLACEMENT, native status NATIVE_SOURCE_VERIFIED and approved version presence.
-- The W54 capture does not contain CDP kUrl proof. The active branch is therefore not expected to turn green on this diagnostic. Do NOT paint mapping-only/availability/source-held states green.
+W166 UI changes:
+- Active current-track status row height: 28 px (was 40 px).
+- Active current-track status bottom gap: 4 px (was 8 px).
+- Idle/disabled placeholder spacing remains 18 px.
+- “Пауза” is neutral. Green is reserved for a verified currently-playing CELIKOM source.
+- Verified active wording remains “Играет версия CELIKOM”.
 
-Build metadata:
-- App and supervisor version 0.24.47 / 0.24.47.0.
-- Installer AppVersion 0.24.47; output name CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.
+W166 native observer compatibility change:
+- Current Yandex builds may expose Media player properties but omit CDP kUrl.
+- When kUrl is absent, use a passive, read-only fallback tied to the exact Media.playerCreated player:
+  Media.playerCreated.domNodeId -> DOM.getDocument -> DOM.pushNodesByBackendIdsToFrontend -> DOM.getAttributes.
+- Inspect only the src attribute of that exact Media player DOM node. Do not inspect page text, scripts, account data, or arbitrary DOM.
+- A CELIKOM match still requires an exact approved/entitled signed grant URL, same current Yandex queue track ID, and PLAYING state from that same Media player (kPlay/kPause events only as fallback when kIsPlaying is not exposed).
+- If kUrl exists, it remains authoritative; DOM fallback is disabled for that player.
+- A blob: MediaSource src, mapping, grant, HTTP 206, network prefetch, or generic playback event alone NEVER proves CELIKOM decoder source.
+- Source changes away from the signed CELIKOM URL immediately invalidate the green state.
+- No Runtime.evaluate, Network.getResponseBody, extra fetches, or playback commands were added. This is a read-only observer only.
+- Raw URLs, src values, tokens, and query strings are never written to diagnostics.
 
-Source CI:
-- Main CI run 43885286596 — pending at request creation.
-- Windows integration CI run 43885286845 — pending at request creation.
+W55 diagnostics now include:
+- NativeDomMediaNodeObserved
+- NativeDomSourceAttributeObserved
+- NativeDomSourceBlobObserved
+- NativeDomSourceOtherObserved
+- NativeDomSourceAttributeMissingObserved
+- NativeDomCelikomSourceMatched
+
+Source/verification intent:
+- Focused W15 tests cover pause tone, strict active-state gating, 28 px/4 px active row, and idle 18 px spacing.
+- Focused W23 tests cover direct same-player src + kPlay verification, immediate downgrade when src changes away, and fail-closed blob src even with a matching network prefetch.
+- W20 must compile the Windows app and native host with warnings as errors, run W15/W23 tests, and pass Windows install/uninstall smoke.
+- Main CI, Windows integration CI and W20 run/artifact are pending until this request change triggers the workflows.
 
 Requested output:
-- CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.exe
-- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.47.zip
+- CELIKOM-W166-OWNER-STATUS-DOM-OBSERVER-02448-UNSIGNED.exe
+- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.48.zip
 - SHA256SUMS.txt
 
 Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers; this request-file update triggers exactly one W20 build.
