@@ -76,7 +76,7 @@ If the owner reports a defect, analyze the exact observed state first. Make only
 **Единственная рабочая ветка:** `main`
 **W159 код приложения:** `09fca7a0f7fb9b0f7fe4a436978c48968054a0fa`
 **W159 source для owner package:** `f9e82d9cce43fe0fb7949c51fe442bf37827f09b`
-**Текущий HEAD после документации:** `c416f5edd170eaa9cc1008eda0277a0b4d206f99` (документальные изменения; код W159 не меняют).
+**Текущий HEAD:** используй актуальный `main`; все последующие коммиты после W159 package source — только документация и не меняют код приложения.
 **Точный rollback до W159:** `backup/windows-main-pre-w159-mapped-source-status-20261116` @ `0e1de874bc15c401fcceb206511d8cb8f4005d80`.
 
 ## Текущая версия и статус владельца
