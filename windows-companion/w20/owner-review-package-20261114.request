@@ -1,30 +1,33 @@
-CELIKOM Windows — W162 compact track metadata stability and active-source status
-Requested build: 0.24.44.0 (native module 0.24.31)
-Source checkpoint: b6aa1dee19cd2862f23c9b656210f54db12cdfe9
-Purpose: exactly one internal owner-review installer and ZIP for W162.
+CELIKOM Windows — W163 compact track transition and UI spacing
+Requested build: 0.24.45.0 (native module 0.24.31)
+Source checkpoint: 3b290931e2e1c9153f29a56e78cede45353fafbd
+Purpose: exactly one internal owner-review installer and ZIP for W163.
 
-Owner's W161 manual result:
-- VPN reconnect now preserves the current music; owner reports no noticeable interruption or extra delay.
-- W54 diagnostics show repeated route changes and two transient entitlement network suspensions. The same current track 144530503 was held, kept and resumed after both recoveries; final resume was 2026-11-16 11:51:14.798Z.
-- This diagnostic does NOT establish audible replacement: NativeDecoderUrlPropertyObserved=false, PlayerAudibleEventObserved=false, ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING. Do not relax the exact decoder-source proof gate to make the UI green on mapping alone.
-- Two RESOLVE_REQUEST events for the same track were observed 1 ms apart. No audio/resolver change is included in W162 because no link to the compact title flicker is established.
+Owner's 0.24.44 findings:
+- The disabled-state and playback-waiting text blocks had no proper lower breathing room before the Account card.
+- The large green Start message wrapped the word "к" at the end of line 1; it must start line 2.
+- On some track transitions/reconnects, the UI briefly showed a misleading Yandex connection-waiting message before the next title appeared.
+- The owner expects the active full-version label "Играет полная версия CELIKOM" in green only when the current CELIKOM decoder source is exactly confirmed.
 
-W162 changes:
-- BridgeServer exposes one immutable, lock-consistent PlaybackSnapshot for the current track, title, artist, duration, status, source and playback state.
-- Empty title/artist/duration fields in a same-track heartbeat no longer erase previously received non-empty metadata. A real track change replaces all previous metadata; invalid/unavailable state still clears it.
-- Compact and main UI refreshes use the same playback snapshot. Compact title/artist/status labels are assigned only when their text actually changes; compact layout uses the last rendered track snapshot.
-- Exact confirmed active CELIKOM decoder source displays green: "Играет полная версия CELIKOM".
-- Mapping-only availability remains neutral/gray: "Версия CELIKOM доступна". "Пауза" remains green while the service connection is confirmed.
-- No changes to W23 native host/renderer, audio pipeline, VPN recovery, entitlement authority, Yandex files, updater/P-256, backend, Android or browser extension.
+W163 changes:
+- Add 18 px after the last visible track/status row before the Account card; do not add extra gaps between title and artist.
+- Explicit Start-message line break: "Подождите, идёт подключение\nк приложению Яндекса."
+- Preserve the last current track metadata during a short ID-less PLAYING/PAUSED heartbeat while Yandex transitions to the next queue entity. Bounded 9-second grace; a real new track ID atomically replaces metadata; STOPPED/UNAVAILABLE clears it.
+- Stale heartbeat UI now reflects last-known playback state or neutral "Проверяем состояние воспроизведения…" rather than claiming that Yandex is waiting to connect.
+- Keep the exact native decoder proof gate for green "Играет полная версия CELIKOM". Mapping-only status remains gray.
+
+Evidence boundary:
+- The W54 diagnostic from 0.24.43.0 showed HEARTBEAT_NATIVE_MAPPING_ACCEPTED, NativeDecoderUrlPropertyObserved=false, PlayerAudibleEventObserved=false and ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING.
+- Do NOT weaken the exact decoder-source proof gate or paint mapping-only playback green. If 0.24.45.0 still stays gray while the owner hears a replacement, investigate the native decoder observer separately using a fresh diagnostic.
 
 Source CI:
-- Main CI run 43863680868 — SUCCESS.
-- Windows integration CI run 43863680894 — SUCCESS, including W15 bridge/state tests, GUI compile with warnings as errors, supervisor checks and W20 installer policy/metadata validation.
-- Previous source compile issue was only a test-local variable name collision; corrected before this checkpoint.
+- Main CI run 43871031471 — SUCCESS.
+- Windows integration CI run 43871031480 — SUCCESS.
+- W15 bridge/state tests, GUI compile with warnings as errors, W22/W23/W60 audio/VPN regressions, supervisor and installer policy checks — SUCCESS.
 
 Requested output:
-- CELIKOM-W162-TRACK-STATUS-AND-METADATA-STABILITY-02444-UNSIGNED.exe
-- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.44.zip
+- CELIKOM-W163-TRACK-TRANSITION-AND-UI-SPACING-02445-UNSIGNED.exe
+- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.45.zip
 - SHA256SUMS.txt
 
 Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers; this request-file update triggers exactly one W20 build.
