@@ -7623,10 +7623,9 @@ def media3_player_implementation_scope(class_profiles,
             if current in visited:
                 continue
             visited.add(current)
-            if current not in roots:
-                for parent in parents(current):
-                    if parent in roots or reaches_player(parent):
-                        pending.append(parent)
+            for parent in parents(current):
+                if parent in roots or reaches_player(parent):
+                    pending.append(parent)
         by_implementor[owner] = sorted(visited)
         scope_owners.update(visited)
 
