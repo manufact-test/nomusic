@@ -4014,31 +4014,33 @@ class SelectedItemAuditTests(unittest.TestCase):
             "Lqj8;", "if",
             "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
         )
-        method = ("LCaller;", "dispatch", "(Lqj8;LtCa;)V")
+        method = ("LCaller;", "dispatch", "(LtCa;)V")
 
         class FakeDex:
             def u16(self, offset):
-                return {100: 4, 102: 2}[offset]
+                return {100: 4, 102: 1}[offset]
             def method(self, _index):
                 return target
+            def descriptor(self, _index):
+                return "LImpl;"
 
         cfg_instructions = [
-            (0, 0x72, [0x0072, 0]),
-            (1, 0x0e, [0x000e]),
+            (0, 0x22, [0x0222, 2]),  # new-instance v2, LImpl
+            (1, 0x72, [0x0072, 0]),  # invoke-interface {v2, v3, ...}
+            (2, 0x0e, [0x000e]),
         ]
         cfg = {
             "instructions": cfg_instructions,
             "by_pc": {pc: (op, words) for pc, op, words in cfg_instructions},
-            "successors": {0: [1], 1: []},
-            "reachable": {0, 1},
+            "successors": {0: [1], 1: [2], 2: []},
+            "reachable": {0, 1, 2},
             "branches": [],
             "entry": 0,
         }
         with patch("audit_native_selected_item_handoff.build_dex_control_flow",
                    return_value=cfg), \
              patch("audit_native_selected_item_handoff.typed_parameter_registers",
-                   side_effect=lambda _d, _m, _f, _c, typ:
-                   [2] if typ in ("Lqj8;", "LImpl;") else [3] if typ == WRAPPER else []), \
+                   side_effect=lambda _d, _m, _f, _c, typ: [3] if typ == WRAPPER else []), \
              patch("audit_native_selected_item_handoff.invoke_registers",
                    return_value=[2, 3, 4, 5, 6]), \
              patch("audit_native_selected_item_handoff.expand_invoke_register_types",
@@ -4057,9 +4059,12 @@ class SelectedItemAuditTests(unittest.TestCase):
         )
         self.assertEqual(len(event["identity_arguments"]), 2)
         self.assertEqual(
-            [(arg["argument_position"], arg["identity_type"])
+            [(arg["argument_position"], arg["identity_type"], arg["origins"])
              for arg in event["identity_arguments"]],
-            [(0, "LQJ8_SERVICE"), (1, "TRACK_WRAPPER")],
+            [
+                (0, "LQJ8_SERVICE", ["LQJ8_SERVICE_NEW_INSTANCE"]),
+                (1, "TRACK_WRAPPER", ["TRACK_WRAPPER_PARAMETER"]),
+            ],
         )
 
     def test_exact_lqj8_service_route_traces_only_exact_interface_and_entry(self):

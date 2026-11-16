@@ -11588,6 +11588,7 @@ def inspect_exact_lqj8_service_route(apks, class_profiles):
     direct_implementers = interface_row.get("direct_implementers", [])
     implementation_owner_map = interface_row.get("implementation_owners", {})
     implementation_scan_owners = set(implementation_owner_map)
+    implementation_scan_owners.add(interface_owner)
     superinterfaces = set(
         interface_profile.get("interfaces", ()) if interface_profile else ()
     )
