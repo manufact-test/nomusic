@@ -7,7 +7,8 @@ from audit_native_selected_item_handoff import (
     classify_boundary_call, boundary_callsite_census,
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
-    trace_identity_method, select_next_identity_method_refs,
+    trace_identity_method, inspect_exact_playlist_update_callers,
+    select_next_identity_method_refs,
     build_dex_control_flow,
     summarize_boundary_callsite_owner_profiles, method_signature_type_profile,
     select_exact_interface_contracts, select_audio_output_focus_methods,
@@ -3120,6 +3121,84 @@ class SelectedItemAuditTests(unittest.TestCase):
             calls[0]["identity_arguments"][0]["origins"],
             ["TRACK_WRAPPER_PARAMETER"],
         )
+
+
+    def test_trace_identity_method_reports_exact_playlist_list_argument_provenance(self):
+        from unittest.mock import patch
+
+        target = ("LXk6;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V")
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 3, 102: 3}[offset]
+            def method(self, index):
+                return target
+
+        caller = ("LQueueFactory;", "dispatch", "(LsO7;LXi6$e;Ljava/util/List;)V")
+        instructions = [(0, 0x71, [0x0071, 0])]  # invoke-static exact target
+        with patch("audit_native_selected_item_handoff.instructions", return_value=instructions), \\
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",
+                   side_effect=lambda _d, _m, _f, _c, typ:
+                   [0] if typ == "LsO7;" else [1] if typ == "LXi6$e;" else [2] if typ == "Ljava/util/List;" else []), \\
+             patch("audit_native_selected_item_handoff.invoke_registers", return_value=[0, 1, 2]), \\
+             patch("audit_native_selected_item_handoff.expand_invoke_register_types",
+                   return_value=["LsO7;", "LXi6$e;", "Ljava/util/List;"]):
+            trace = trace_identity_method(
+                FakeDex(), caller, 0x8, 100,
+                extra_identity_types={"LsO7;", "LXi6$e;", "Ljava/util/List;"},
+                capture_argument_provenance_targets={target},
+            )
+
+        event = next(row for row in trace["events"]
+                     if row["kind"] == "CALL_ARGUMENT_PROVENANCE")
+        list_argument = next(row for row in event["reference_arguments"]
+                             if row["declared_argument_type"] == "Ljava/util/List;")
+        self.assertEqual(list_argument["argument_position"], 2)
+        self.assertEqual(list_argument["register_type_descriptor"], "Ljava/util/List;")
+        self.assertEqual(
+            list_argument["identity_origins"][0]["origins"],
+            ["CALLER_TYPED_PARAMETER"],
+        )
+        self.assertIsNone(list_argument["producer"])
+
+    def test_exact_playlist_update_census_finds_unfiltered_direct_callers(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        target = ("LXk6;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V")
+        caller = ("LUnrelatedOwner;", "dispatch", "()V")
+
+        class FakeDex:
+            def __init__(self, _data):
+                pass
+            def method(self, index):
+                return target if index == 9 else ("LOther;", "unrelated", "()V")
+
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \\
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       return_value=[(caller, 0x8, 100)]), \\
+                 patch("audit_native_selected_item_handoff.instructions",
+                       return_value=[
+                           (17, 0x71, [0x0071, 9]),
+                           (18, 0x71, [0x0071, 10]),
+                       ]), \\
+                 patch("audit_native_selected_item_handoff.trace_identity_method",
+                       return_value={"method": {}, "events": []}) as trace:
+                result = inspect_exact_playlist_update_callers([apk])
+
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["direct_invoke_callsite_count"], 1)
+        self.assertEqual(result["distinct_caller_method_count"], 1)
+        self.assertEqual(result["callers"][0]["caller"]["owner"], "LUnrelatedOwner;")
+        self.assertEqual(result["callers"][0]["ordinal"], 17)
+        self.assertEqual(len(result["caller_identity_traces"]), 1)
+        self.assertEqual(trace.call_count, 1)
 
 
 if __name__ == "__main__":

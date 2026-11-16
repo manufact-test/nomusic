@@ -805,11 +805,15 @@ def trace_identity_method(
     dex, method, flags, code_off, candidate_owners=None,
     capture_unproven_calls=False, focus_targets=None,
     exact_track_field_refs=None, extra_identity_types=None,
-    track_fields_from_any_receiver=False
+    track_fields_from_any_receiver=False,
+    capture_argument_provenance_targets=None
 ):
     """Trace only typed Track/Album/wrapper aliases and exact focus callsites."""
     candidate_owners = candidate_owners or set()
     focus_targets = set(focus_targets or ())
+    capture_argument_provenance_targets = set(
+        capture_argument_provenance_targets or ()
+    )
     tracked_types = {
         MODEL: "TRACK",
         ALBUM_MODEL: "ALBUM",
@@ -881,6 +885,32 @@ def trace_identity_method(
             target_types = expand_invoke_register_types(
                 callee[0], params, is_static
             )
+            if callee in capture_argument_provenance_targets and len(regs) == len(target_types):
+                argument_provenance = []
+                logical_position = -1
+                for declared_type, register in zip(target_types, regs):
+                    if declared_type is None:
+                        continue
+                    logical_position += 1
+                    if declared_type.startswith(("L", "[")):
+                        argument_provenance.append({
+                            "argument_position": logical_position,
+                            "declared_argument_type": declared_type,
+                            "register_type_descriptor": reference_register_types.get(register),
+                            "identity_origins": reference_identity_origins(register),
+                            "producer": reference_register_producers.get(register),
+                            "register_is_this": register == this_register,
+                        })
+                add_event({
+                    "ordinal": ordinal,
+                    "kind": "CALL_ARGUMENT_PROVENANCE",
+                    "callee": {
+                        "owner": callee[0],
+                        "method": callee[1],
+                        "signature": callee[2],
+                    },
+                    "reference_arguments": argument_provenance,
+                })
             receiver_register = regs[0] if not is_static and regs else None
             receiver_metadata = {
                 "receiver_register": receiver_register,
@@ -9283,6 +9313,116 @@ def media3_timeline_method_owner_scope(class_profiles, max_owners=64):
     }
 
 
+PLAYLIST_UPDATE_TARGET = (
+    "LXk6;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V"
+)
+PLAYLIST_UPDATE_CALLER_LIMIT = 32
+PLAYLIST_UPDATE_CALLER_EXTRA_TYPES = (
+    "LOf6;", "Ljava/lang/Object;", "Ljava/util/List;",
+    "Ljava/util/Collection;", "Ljava/util/ArrayList;",
+    "Ljava/util/LinkedList;", "Ljava/util/AbstractList;",
+    "Ljava/util/AbstractCollection;",
+    "Ljava/util/Collections$SingletonList;",
+    "Ljava/util/Collections$EmptyList;",
+    "Ljava/util/Collections$UnmodifiableList;",
+    "Lkotlin/collections/EmptyList;",
+    "LmLb;", "LiLb;", "LgLb;", "LwN8;", "LsO7;", "LXi6$e;",
+)
+
+
+def inspect_exact_playlist_update_callers(apks):
+    """Find every direct DEX invoke of one exact Player playlist update method.
+
+    The scan is global only for this exact method reference. Identity tracing is
+    then limited to its direct caller methods and records only typed object
+    origins, call argument provenance, and type descriptors.
+    """
+    caller_rows = []
+    caller_traces = {}
+    seen_calls = set()
+    target = PLAYLIST_UPDATE_TARGET
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    if not code_off:
+                        continue
+                    caller_key = (method[0], method[1], method[2])
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES or dex.method(words[1]) != target:
+                            continue
+                        site_key = (caller_key, ordinal)
+                        if site_key in seen_calls:
+                            continue
+                        seen_calls.add(site_key)
+                        if len(caller_traces) >= PLAYLIST_UPDATE_CALLER_LIMIT and caller_key not in caller_traces:
+                            raise ValueError("PLAYER_PLAYLIST_DIRECT_CALLER_LIMIT")
+                        caller_rows.append({
+                            "caller": {
+                                "owner": method[0],
+                                "method": method[1],
+                                "signature": method[2],
+                            },
+                            "target": {
+                                "owner": target[0],
+                                "method": target[1],
+                                "signature": target[2],
+                            },
+                            "ordinal": ordinal,
+                            "invoke_opcode": op,
+                        })
+                        if caller_key not in caller_traces:
+                            try:
+                                caller_traces[caller_key] = trace_identity_method(
+                                    dex, method, flags, code_off,
+                                    capture_argument_provenance_targets={target},
+                                    extra_identity_types=PLAYLIST_UPDATE_CALLER_EXTRA_TYPES,
+                                    track_fields_from_any_receiver=True,
+                                )
+                            except (ValueError, DexError) as exc:
+                                reason = str(exc)
+                                safe_code = (
+                                    reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                                    else "UNCLASSIFIED_TRACE_ERROR"
+                                )
+                                caller_traces[caller_key] = {
+                                    "trace_failed": True,
+                                    "error_class": type(exc).__name__,
+                                    "error_code": safe_code,
+                                    "field_names_or_values_disclosed": False,
+                                    "strings_urls_dataspec_account_or_audio_read": False,
+                                }
+    return {
+        "bounded": True,
+        "scan_scope": "ALL_SIGNED_DEX_CODE_BODIES_FOR_ONE_EXACT_METHOD_REFERENCE",
+        "target": {
+            "owner": target[0],
+            "method": target[1],
+            "signature": target[2],
+        },
+        "direct_invoke_callsite_count": len(caller_rows),
+        "distinct_caller_method_count": len(caller_traces),
+        "callers": caller_rows,
+        "caller_identity_traces": [
+            {
+                "caller": {
+                    "owner": key[0],
+                    "method": key[1],
+                    "signature": key[2],
+                },
+                "trace": value,
+            }
+            for key, value in sorted(caller_traces.items())
+        ],
+        "invoke_custom_method_handle_scan_performed": False,
+        "field_names_or_values_disclosed": False,
+        "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
 def inspect_media3_item_handoff_bridge(apks, class_profiles):
     """Trace the exact MediaItem <-> Timeline.Window and TrackWrapper -> URI handoff."""
     timeline_scope = media3_timeline_method_owner_scope(class_profiles)
@@ -9547,8 +9687,11 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         )
     ]
 
+    exact_playlist_update_callers = inspect_exact_playlist_update_callers(apks)
+
     return {
         "bounded": True,
+        "exact_playlist_update_callers": exact_playlist_update_callers,
         "candidate_media_item_type": "LOf6;",
         "candidate_timeline_type": "LTva;",
         "candidate_timeline_window_type": "LTva$d;",
