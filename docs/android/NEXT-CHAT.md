@@ -1,85 +1,48 @@
-# CELIKOM Android A1 — CURRENT HANDOFF
+# CELIKOM Android A1 — CANONICAL CURRENT HANDOFF
 
-**Updated:** 16 November 2026  
-**Canonical current state.** If any older Android note conflicts with this file, this file wins. Do not append history dumps.
+**Updated:** 16 November 2026. This file takes precedence over earlier Android NEXT-CHAT/HANDOFF documents.
 
-## Checkpoint
+## Protected checkpoints
 
-- Repository: `manufact-test/nomusic`
-- Working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Last code checkpoint: `27ccbe8348d598fead0386e70ef68573b04270c4`
-- Code backup: `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116` @ same SHA
-- Last runtime-hook change: `a655712d210189f3bc611847235de3ed4d985c1a`; no later hook changes
-- CI #229: [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139), signed Yandex 2025.10.4 #120.1gpr, 16 splits / 6 DEX, read-only
-- CI #230: [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43893294101), compact summary only. Log reduced from 2,517,490 to 68,361 bytes (~97.3%); full report temporary and deleted
-- Current docs-only backup before this reconciliation: `backup/android-a1-docs-hygiene-and-yandex-research-20261116` @ `01efbed6d4a382585a7105942f2b2925dcc32983`
+- Only working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Current successful **read-only audit** checkpoint: `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a`, backup `backup/android-a1-lft2-class-structure-ci-green-20261116`.
+- Prior code/runtime baseline: `27ccbe8348d598fead0386e70ef68573b04270c4`, backup `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`.
+- Last runtime-hook modification: `a655712d210189f3bc611847235de3ed4d985c1a`. No hook/APK changes in this audit.
+- Pre-audit safety backup: `backup/android-a1-target-resolved-pre-lft2-class-inspection-20261116` @ `0143f904400d5ddd17a8d4469aa3c777adfe8f04`.
+- CI #229: [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139), old constructor identity proof.
+- CI #230: [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43893294101), compact logs.
+- Exact class and branch-sensitive TrackWrapper audit **CI #12 [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43909098407)**, 16 publisher-signed splits / 6 DEX.
 
-No APK was built, patched, installed or released during CI #229/#230.
+## Product status
 
-## Product status — newest decision takes precedence
+**Stage A / NAV17 PASS** (owner confirmation on 14 Nov): native Yandex login/UI and original music audible.
 
-- **Stage A / NAV17: PASS by owner confirmation (14 Nov).** The owner confirmed real Yandex account/UI, albums/My Wave and original Yandex music in CELIKOM.
-- **Stage B: NO-GO / NOT CONNECTED.** CELIKOM replacement audio has not been proven audible. No selected Track → native source/decoder same-object chain is proven.
-- Older 12–13 Nov documents that say Stage A NO-GO are historical pre-NAV17 status, not the current product state.
-- Product architecture remains one CELIKOM APK with native Yandex UI/player and the same native playback path; no second Player/decoder/AudioTrack. Do not mistake a diagnostic/probe manifest for a complete packaging specification.
+**Stage B NO-GO**: CELIKOM replacement audio not connected/proven; no selected native Track → active source/decoder same-object chain.
 
-Owner evidence: [NAV17 Stage A and Stage B boundary](ANDROID-A1-NAV17-OWNER-REAL-MUSIC-GREEN-STAGE-B-SOURCE-ADAPTER-20261114.md).
+Goal remains one standalone CELIKOM APK with native Yandex UI/player and original native playback path, no second Player/decoder/AudioTrack. Never infer product packaging from the `pro.celikom.nativeprobe` diagnostic manifest or `<queries>` visibility declarations.
 
-## Yandex build matrix — exact roles
+## Definitive *NAV17 tested artifact* origin (not a production-forward pin)
 
-| Build | What is actually verified | What it is **not** |
-|---|---|---|
-| **2025.10.4 #120.1gpr**, code 24025542 | Publisher-signed XAPK, 45,961,661 bytes, SHA-256 `8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053`, 16 splits / 6 DEX. Used by 2025 LSPatch2 lab experiments and current static CI #229. | Not yet confirmed as the final product runtime target. |
-| **2026.10.3 #170gpr**, code 24026531 | Publisher-signed XAPK, 60,433,885 bytes, SHA-256 `918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84`, 5 splits. Original-only native ARM13 control [CI #42990078186](https://github.com/manufact-test/nomusic/actions/runs/42990078186) passed package/signature/install/MAIN-liveness checks. The pinned helper `android/native-yandex-hooklab/clone_native_splits_ephemeral.py` also documents a separate structural clone trial using this #170gpr input. | Not the CI #229 LfT2 specimen. The cited original-only control did not test clone stability, login, audio, Play Protect or product readiness. Not automatically the final product target. |
-| **2026.09.5 #167gpr / #167.1gpr** | Previously reported as installed on the owner's phone. | No exact publisher-signed original package and SHA are pinned in current A1 evidence; not a verified static specimen. |
+- Owner-installed `CELIKOM-A1-NAV17-PassportProviderFix-20261114.apk`: SHA-256 `8d7c1570367360c12ba11f3972fa72477aca4dcc33f30dce78b381aee939b20d`.
+- Its embedded original `assets/lspatch/origin.apk`: SHA-256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` = Yandex Music **2025.10.4 #120.1gpr**, code `24025542`. This is grounded in the [NAV17 input audit](ANDROID-A1-NAV17-STAGE-B-PINNED-2025-FILEINFO-SOURCE-AUDIT-20261114.md).
+- Exact original verified XAPK SHA-256 `8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053`, 45,961,661 bytes, 16 splits / 6 DEX. Publisher signature and base SHA reconfirmed in CI #12.
+- Yandex **2026.10.3 #170gpr**, code `24026531`, XAPK SHA `918bd50599dc6a942e190a409303e843b83dcb6d11b90b03c00240331333cf84`, five splits: original-only ARM13 verification CI #42990078186; separate structural clone experiment; **not** the proven NAV17 original.
+- Yandex **2026.09.5 #167gpr / #167.1gpr**: formerly reported phone installation, no exact pinned signed package; **not** the proven NAV17 original.
 
-Do not conflate #170gpr with #170rur (different distribution channel). Do not infer that the manifest `<queries><package name="ru.yandex.music"/></queries>` proves Yandex is embedded or absent; it only declares package visibility. Inspect actual packaged DEX/resources and build inputs.
+The NAV17 source question is now resolved for the owner-tested artifact. The *future production target* remains a distinct owner/build decision and is not automatically pinned by a previous test. Never transfer obfuscated identifiers across versions.
 
-**Target selection is still unresolved.** The CI specimen, original ARM13 control, phone-installed build and final CELIKOM product target are distinct evidence categories. The next chat must reconcile them before another long DEX trace.
+## LfT2 closure — do not investigate again
 
-## First task — determine the actual CELIKOM A1 source/runtime target
+Read only [ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md](ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md) for exact structural evidence.
 
-Do not immediately continue tracing obfuscated classes, and do not ask the owner the old false binary question “2025.10.4 or 2026.09.5?”
+- Earlier chain `LIEa.new → Lqj8.if → Lxj8.if → Lvj8 → Lxj8.for → LfT2.<init>` carries and stores same `LtCa;` TrackWrapper, only on exact 2025 signed DEX.
+- `LfT2;` is `PUBLIC FINAL extends Object` with no interfaces; fields of types `LdA9; LtCa; LgA9;`.
+- Only constructor, `equals`, `hashCode`, `toString`. **No invokeSuspend** and no executable continuation method.
+- Branch-sensitive complete audit of all its TrackWrapper field reads finds only equality and string formatting operations; **no** same-object playback handoff to MediaSource, MediaPeriod, DataSource, Extractor or Player. **This route is CLOSED.**
+- Closed old routes: `LiLb`, `LXk6`; don't repeat Media3 ancestry, global List/Object tracing or ByteBuffer sink census.
 
-1. Inspect the current A1 packaging/build pipeline, private release inputs, source APK/XAPK references, split merge scripts, workflow pins and exact artifact history. Determine whether the current `pro.celikom.nativeprobe` build is the product clone or a diagnostic/probe. A package-visibility manifest entry alone does not answer this.
-2. Compare the existing verified inputs above: #120.1gpr (CI #229 / 2025 clone lab), #170gpr (verified original ARM13 control and structural clone helper), and #167gpr (phone-reported only).
-3. Establish which exact original build is the intended CELIKOM runtime/source. If repository/build evidence proves it, document the proof and proceed. If not, ask the owner once, with all three candidates and their different roles. Do not silently choose the newest version.
-4. Before analyzing a selected build, verify the exact original package: publisher signature, package/version/versionCode, complete split set, size and SHA-256. Never transfer obfuscated descriptors between builds.
+## Next task and boundaries
 
-## Second task — only after target is established
+**Do not repeat LfT2 or choose another obfuscated class without evidence.** To move Stage B, next distinct, narrowly scoped candidate must link *the current selected Track* to an **active**, not prefetch, native source/decoder by exact same-object proof on the signed NAV17 version. Existing [NAV17 Stage B source evidence](ANDROID-A1-NAV17-STAGE-B-PINNED-2025-FILEINFO-SOURCE-AUDIT-20261114.md) separates Exo source factory/open/read instance continuity from selected-item identity; an instance opening/reading is NOT selected-track proof. Media3 may accept MediaSource directly (not only MediaItem). Keep Stage B NO-GO until proof and owner-approved audio test.
 
-The latest bounded route is specific to the signed **2025.10.4 #120.1gpr** DEX:
-
-`LIEa.new → Lqj8.if → Lxj8.if → Lvj8 → Lxj8.for → LfT2.<init>`
-
-CI #229 proves the same TrackWrapper reaches the LfT2 constructor and is stored on that instance. The exact `LfT2.invokeSuspend(Object):Object` body was not found. No same-object handoff to MediaSource, MediaPeriod, DataSource, Extractor, Player or decoder is proven. `active_selected_item_proven=false`; `same_native_item_to_decoder_proven=false`.
-
-After target build verification, inspect only exact `LfT2;` in that build:
-1. class flags, superclass, interfaces and declared methods;
-2. actual executable continuation entry, if any;
-3. reads of the stored TrackWrapper and immediate same-object calls;
-4. identity-proven edges into MediaSource / MediaPeriod / DataSource / Extractor / Player.
-If no same-object handoff exists, close this candidate. No global scan and no repeat of the already proven chain.
-
-Media3 allows direct MediaSource playlist APIs, so do not restrict the search to MediaItem. This is a search boundary, not proof of Yandex internals. See [external research](ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md).
-
-## Closed routes — do not reopen
-
-- `LiLb`: holder constructor/getter has no direct Player handoff; closed in CI #216. [Closure](ANDROID-A1-LILB-PLAYER-HANDOFF-CLOSURE-20261116.md)
-- `LXk6`: inner List.get → MediaItem → Player mutator exists, but outer caller/runtime dispatch and List element provenance are unresolved; closed. [Closure](ANDROID-A1-PLAYLIST-CALLBACK-ROUTE-CLOSURE-20261116.md)
-- Current-item getter / Player mutator evidence: [MediaItem/Player handoff](ANDROID-A1-MEDIAITEM-PLAYER-PLAYLIST-HANDOFF-20261116.md)
-- ByteBuffer → native sink is separate; no current-item identity reaches it. [Renderer census](ANDROID-A1-RENDERER-FIELD-WRITER-CENSUS-20261115.md)
-
-## Hard constraints
-
-- Android CELIKOM A1 only; no Windows or browser extension work.
-- No architecture/vendor/runtime-hook/APK changes during this read-only target-selection and static-analysis phase.
-- No second Player, decoder or AudioTrack.
-- Do not read/export Track/Album IDs/titles, URLs, DataSpec, tokens, account data, private field names/values or audio bytes.
-- Do not touch NAV17, Test.50, frozen A1/LSPatch baseline, Windows, extension, backend/API/DB or production.
-- Static inspection remains bounded, read-only and fail-closed.
-- Work in one substantial block. No progress narration or repetitive reports.
-
-## Documentation
-
-[docs/android/README.md](README.md) is the entry-point/index. Follow [ANDROID-DOCUMENTATION-HYGIENE.md](ANDROID-DOCUMENTATION-HYGIENE.md). Archives and legacy handoffs are evidence storage, not startup reading.
+No changes to original Yandex, NAV17, Test.50, frozen branches, runtime hooks, Android APK, Windows, extension, backend/API/DB or production. No reading/exporting Track/Album IDs/titles, URLs, DataSpec, account tokens, private field values, or audio bytes. All static work bounded, read-only and fail-closed. No full CI reports or large source dumps.
