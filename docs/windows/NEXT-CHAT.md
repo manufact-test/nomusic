@@ -30,7 +30,7 @@ The W54 diagnostic from 0.24.43.0 showed `HEARTBEAT_NATIVE_MAPPING_ACCEPTED`, `N
 - Main CI run `43871031471` — SUCCESS.
 - Windows integration CI run `43871031480` — SUCCESS.
 - Main CI after W20 request/docs commit run `43871613360` — SUCCESS.
-- Windows integration CI after W20 request/docs commit run `43871613282` — SUCCESS.
+- Windows integration CI after W20 request/docs commit run `43871613282` — SUCCESS on attempt 2 (first attempt had a transient supervisor named-pipe closure; rerun passed).
 - W15 bridge/state tests, GUI compile with warnings as errors, W22/W23/W60 VPN/audio regression suite, supervisor and installer checks — SUCCESS.
 - W20 safe installer staging run `43871613198` — SUCCESS.
 - No production signing, stable feed or deployment.

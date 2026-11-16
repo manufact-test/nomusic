@@ -59,7 +59,7 @@ No W23 native host/renderer, audio pipeline, VPN recovery, entitlement authority
 - Main CI run `43871031471` — SUCCESS.
 - Windows integration CI run `43871031480` — SUCCESS.
 - Main CI after W20 request/docs commit run `43871613360` — SUCCESS.
-- Windows integration CI after W20 request/docs commit run `43871613282` — SUCCESS.
+- Windows integration CI after W20 request/docs commit run `43871613282` — SUCCESS on attempt 2 (first attempt had a transient supervisor named-pipe closure; rerun passed).
 - W15 entitlement/login/native-state tests — SUCCESS:
   - same-track metadata preservation;
   - short ID-less PLAYING transition preserves current track;
