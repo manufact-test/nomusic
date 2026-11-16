@@ -9636,15 +9636,24 @@ def inspect_signed(apks):
     media3_current_item_candidate = inspect_media3_current_item_candidate(
         apks, class_profiles, media3_player_contracts
     )
-    media3_player_object_getters = inspect_media3_player_object_getters(
-        apks, class_profiles, media3_player_contracts
-    )
-    media3_item_source_timeline_contracts = inspect_media3_item_source_timeline_contracts(
-        apks, class_profiles, media3_player_object_getters
-    )
-    media3_player_item_identity_contracts = inspect_media3_player_item_identity_contracts(
-        apks, class_profiles, media3_player_contracts, media3_player_object_getters
-    )
+    try:
+        media3_player_object_getters = inspect_media3_player_object_getters(
+            apks, class_profiles, media3_player_contracts
+        )
+    except ValueError as exc:
+        raise ValueError("PLAYER_OBJECT_GETTER_AUDIT_FAILED") from exc
+    try:
+        media3_item_source_timeline_contracts = inspect_media3_item_source_timeline_contracts(
+            apks, class_profiles, media3_player_object_getters
+        )
+    except ValueError as exc:
+        raise ValueError("PLAYER_ITEM_SOURCE_TIMELINE_AUDIT_FAILED") from exc
+    try:
+        media3_player_item_identity_contracts = inspect_media3_player_item_identity_contracts(
+            apks, class_profiles, media3_player_contracts, media3_player_object_getters
+        )
+    except ValueError as exc:
+        raise ValueError("PLAYER_ITEM_IDENTITY_AUDIT_FAILED") from exc
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
