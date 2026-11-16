@@ -1,65 +1,46 @@
-# CELIKOM Windows — active handoff W163 (16 November 2026)
+# CELIKOM Windows — active handoff W164 (16 November 2026)
 
-**Status: W163 0.24.45.0 source CI, Windows integration CI and one internal W20 owner-review package all passed. The standalone EXE is ready; owner manual check pending.**
+**Status: W164 0.24.46.0 source CI, Windows integration CI on the code checkpoint, and one internal W20 owner-review package passed. Package bytes and SHA256 checksums verified. Owner manual VPN/track-transition acceptance is pending.**
 
 ## Source of truth
 
 - Product: CELIKOM Windows only.
 - Repository: `manufact-test/nomusic`.
 - Working branch: `main`.
-- W163 code checkpoint: `3b290931e2e1c9153f29a56e78cede45353fafbd`.
-- W20 package/docs commit: `57b826ed2431febb2fad31198897d94bd4cc1648`.
-- Pre-W163 rollback: `backup/windows-main-pre-w163-owner-ui-transition-20261116` @ `0db016cbdcb939911ae3fd6ff71c2aa9af07c876`.
-- App: **0.24.45.0**, native module **0.24.31**.
-- Full details: `docs/windows/W163-OWNER-TRACK-TRANSITION-UI-POLISH-20261116.md`.
+- Code checkpoint: `2b7fb2d3627c27c1ec9052e49b7abdb49b87429e`.
+- Current request/docs commit: `98bb24a3081e616e8a4767323bbc685cf1b2ecde` (request file only; no code change).
+- Exact pre-W164 rollback: `backup/windows-main-pre-w164-vpn-route-debounce-track-ui-20261116` @ `b5538b6bdbb62eeeaef74c57e10d0fe5a075af7a`.
+- App: **0.24.46.0**, native module **0.24.31**.
+- Full handoff: `docs/windows/W164-OWNER-VPN-RECOVERY-TRACK-TRANSITION-20261116.md`.
 
-## Owner findings addressed
+## W164 changes
 
-1. Added 18 px below the last visible track/status line before the Account card. The gap is attached to the last visible row, so it works for disabled, waiting, track-only and track-plus-status layouts without widening the gap between title and artist.
-2. Large green Start copy is explicitly split after `Подождите, идёт подключение`, so `к приложению Яндекса.` begins line 2.
-3. A short ID-less PLAYING/PAUSED heartbeat during a Yandex queue transition no longer clears the last current track metadata. It is retained for at most 9 seconds; a new valid track ID replaces it atomically. STOPPED, UNAVAILABLE and other non-transient states clear the track.
-4. A stale heartbeat no longer displays a false Yandex connection-waiting message. The UI uses the last known playback state (`Музыка продолжает играть`, `Пауза`, etc.) or neutral `Проверяем состояние воспроизведения…`. The service dot remains gray without a fresh native heartbeat.
-5. Active-version copy remains `Играет полная версия CELIKOM` and green only when exact native decoder-source proof is present. Mapping-only stays gray.
+1. VPN recovery now coalesces delayed adapter events across an 8-second burst, waits 3 seconds after the last route signal, uses a 5-second quick authenticated GET within an 8-second fast-route window, and clears the route hint after success. Normal 15-second healthy polling is restored. No offline entitlement or bypass.
+2. Header text is fixed to **«Связь»**, size and vertical alignment fixed. A pending route check alone does not gray a still-live native heartbeat. Real bridge/heartbeat loss may still be gray.
+3. On Next, previous title/artist are retained for at most 2.5 seconds while new metadata arrives. Raw Track ID and the transient «Проверяем версию песни CELIKOM…» line are no longer displayed.
+4. Exact decoder-source proof for green active replacement remains unchanged. A source-held event/mapping is not proof of audible output.
 
-## Evidence boundary for green active status
+## Verification
 
-The W54 diagnostic from 0.24.43.0 showed `HEARTBEAT_NATIVE_MAPPING_ACCEPTED`, `NativeDecoderUrlPropertyObserved=false`, `PlayerAudibleEventObserved=false`, and `ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING`. This does not prove that the CELIKOM decoder URL is the current audible source. The UI path already renders the agreed active label in green when `NATIVE_SOURCE_VERIFIED` + `ACTIVE_REPLACEMENT` are present. Do not force green from mapping-only evidence. If it remains gray on 0.24.45.0, use a fresh diagnostic and investigate the native decoder observer separately.
+- Main CI [43878114276](https://github.com/manufact-test/nomusic/actions/runs/43878114276) — SUCCESS.
+- Windows integration CI [43878114256](https://github.com/manufact-test/nomusic/actions/runs/43878114256) — SUCCESS on code checkpoint.
+- Main CI after package request [43878846340](https://github.com/manufact-test/nomusic/actions/runs/43878846340) — SUCCESS.
+- W20 package staging [43878846320](https://github.com/manufact-test/nomusic/actions/runs/43878846320) — SUCCESS, including W15/native tests, GUI warnings-as-errors, PE/version checks, install/upgrade/uninstall smoke and exact EXE/ZIP packaging.
+- EXE SHA256: `451e8614a73bf20a446eeae72625715756c458b077e4274d004f8c7aa62a4054`.
+- ZIP SHA256: `5578b2854be1f874c07260fc85097c2a80b1de35ddeebb5c3729222737bdd1d0`.
 
-## W163 verification
+## Owner-review package
 
-- Main CI run `43871031471` — SUCCESS.
-- Windows integration CI run `43871031480` — SUCCESS.
-- Main CI after W20 request/docs commit run `43871613360` — SUCCESS.
-- Windows integration CI after W20 request/docs commit run `43871613282` — SUCCESS on attempt 2 (first attempt had a transient supervisor named-pipe closure; rerun passed).
-- W15 bridge/state tests, GUI compile with warnings as errors, W22/W23/W60 VPN/audio regression suite, supervisor and installer checks — SUCCESS.
-- W20 safe installer staging run `43871613198` — SUCCESS.
-- No production signing, stable feed or deployment.
+- Installer: `CELIKOM-W164-VPN-RECOVERY-AND-TRACK-TRANSITION-02446-UNSIGNED.exe`.
+- Artifact ID: `14231891556`.
+- Direct artifact: https://github.com/manufact-test/nomusic/actions/runs/43878846320/artifacts/14231891556
+- Expires: 26 November 2026, 13:48:22 UTC.
+- One internal unsigned owner-review build only; no production release or deployment.
 
-## Owner-review installer
+## Owner manual acceptance
 
-<badge>Internal unsigned owner-review build</badge>
-
-- Version: `0.24.45.0`
-- Native module: `0.24.31`
-- Installer: `CELIKOM-W163-TRACK-TRANSITION-AND-UI-SPACING-02445-UNSIGNED.exe`
-- Artifact ID: `14227453095`
-- Artifact name: `CELIKOM-Windows-internal-stage-57b826ed2431febb2fad31198897d94bd4cc1648`
-- W20 run: https://github.com/manufact-test/nomusic/actions/runs/43871613198
-- Direct artifact: https://github.com/manufact-test/nomusic/actions/runs/43871613198/artifacts/14227453095
-- EXE SHA256: `e393cfa33d0399856a263e00f260a9ba227dc1d4407e02a4f6582f6733913a54`
-- Artifact expires: 26 November 2026, 13:02:35 UTC.
-
-The artifact contains the standalone EXE, one ZIP containing that exact same EXE, and SHA256SUMS.txt. The EXE hash matches the checksum file; the ZIP contains exactly one root installer and byte-for-byte matches the EXE. **Give the owner only the standalone EXE link**, not the ZIP or checksum file.
-
-## Owner's manual check
-
-Install 0.24.45.0 over 0.24.44.0 and check:
-- 18 px spacing below the disabled and waiting status text before the Account card.
-- Large green Start message wraps with `к приложению Яндекса.` on line 2.
-- Switching to the next song does not flash a false Yandex connection-waiting message; title/artist remain stable and update when the new track ID arrives.
-- Active-version label is green only if exact decoder proof is present; mapping-only stays gray.
-- VPN continuity should remain unchanged. Do not repeat broad VPN/audio testing unless a regression is reported.
+Install 0.24.46.0 over 0.24.45.0. Test a VPN toggle during playback and several Next transitions. Confirm the header stays centered, the recovery message clears promptly after server access returns, and no Track ID / presence-check text flashes. Do not force the active replacement label green without exact decoder proof. If it stays gray while the owner hears a CELIKOM version, collect a fresh W54 diagnostic for the native decoder observer.
 
 ## Hard boundaries
 
-No Android, browser extension, backend, Yandex original files, updater/P-256 or architecture changes. No W23 native host/renderer, audio pipeline, VPN recovery or entitlement changes in W163. No broad audits or intermediate installers. Preserve the pre-W163 rollback branch.
+No Android, browser extension, backend, Yandex original files, W23 native host/renderer, audio engine, entitlement authority or updater architecture changes. No broad audits, intermediate installers, production signing or deployment.
