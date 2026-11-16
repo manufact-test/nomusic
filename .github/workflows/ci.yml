@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+      - experiment/windows-w167-owner-ui-regressions-20261116
   pull_request:
     branches: [main, develop]
 
