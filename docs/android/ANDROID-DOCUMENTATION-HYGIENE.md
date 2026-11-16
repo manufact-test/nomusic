@@ -24,6 +24,7 @@
 2. Before replacing a substantial historical handoff, copy the old file byte-for-byte into `docs/android/archive/` and link it from the current handoff or archive index.
 3. Keep closed-route evidence available, clearly labelled CLOSED. Do not re-run it merely because a new chat starts.
 4. Do not bulk-delete old evidence. Archive it or leave it as a linked reference; routine startup must not load it.
+5. Maintain `archive/README.md` as the index of superseded handoffs and long historical notes. Keep legacy files in place if moving them would break relative links; mark them as non-startup references.
 5. Keep one current start message. Update it in place instead of creating a new similarly named prompt every few hours.
 
 ## Logs and source files
