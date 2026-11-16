@@ -1,20 +1,30 @@
-CELIKOM Windows — W161 compact UI state and startup copy correction
-Requested build: 0.24.43.0 (native module 0.24.31)
-Source checkpoint: 4d018021880bf2167d60f262a0ba23c29e0aba10
-Purpose: one internal owner-review installer and ZIP for W161. The owner confirmed that W160's VPN recovery text now works and music continues, but 0.24.42 still retained the old Start/wait copy and gray service indicator.
+CELIKOM Windows — W162 compact track metadata stability and active-source status
+Requested build: 0.24.44.0 (native module 0.24.31)
+Source checkpoint: b6aa1dee19cd2862f23c9b656210f54db12cdfe9
+Purpose: exactly one internal owner-review installer and ZIP for W162.
 
-W161 correction:
-- Start: "Подождите, идёт подключение к приложению Яндекса."
-- Disabled: "Подмена выключена. Нажмите «Старт», чтобы подключиться к Яндекс Музыке"
-- Missing app: "Яндекс Музыка не найдена. Установите официальное приложение."
-- Green dot and "Сервис включён" when a fresh native Yandex heartbeat confirms service connection, independently of current-track source proof.
-- "Версия CELIKOM доступна" green only when the exact native decoder source is confirmed; mapping-only availability remains neutral/gray.
-- "Пауза" stays green while the service connection is confirmed; ordinary Next/track changes must not gray the service indicator.
-- Add the requested 20 px lower breathing room to the compact window.
-- Preserve W160 VPN recovery messages: "Связь с сервером восстанавливается." and "Музыка продолжает играть."
+Owner's W161 manual result:
+- VPN reconnect now preserves the current music; owner reports no noticeable interruption or extra delay.
+- W54 diagnostics show repeated route changes and two transient entitlement network suspensions. The same current track 144530503 was held, kept and resumed after both recoveries; final resume was 2026-11-16 11:51:14.798Z.
+- This diagnostic does NOT establish audible replacement: NativeDecoderUrlPropertyObserved=false, PlayerAudibleEventObserved=false, ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING. Do not relax the exact decoder-source proof gate to make the UI green on mapping alone.
+- Two RESOLVE_REQUEST events for the same track were observed 1 ms apart. No audio/resolver change is included in W162 because no link to the compact title flicker is established.
 
-Requested output: CELIKOM-W161-UI-STATE-AND-START-COPY-02443-UNSIGNED.exe
-Scope: exactly one installer EXE, one ZIP containing that same installer, and SHA256SUMS.txt; privately retained GitHub Actions artifact only.
-Signing: internal UNSIGNED owner review. No production signing, stable feed, Hostinger deployment, customer publication or release.
-Source CI: Main CI run 43857753031 and Windows integration CI run 43857752831 both SUCCESS on W161 source commit 4d018021880bf2167d60f262a0ba23c29e0aba10.
-No changes to native audio, VPN route recovery, entitlement authority, playback Start/Stop, Yandex files, backend, Android, browser extension, updater or P-256. No intermediate installers; this request-file update triggers exactly one W20 internal owner-review build.
+W162 changes:
+- BridgeServer exposes one immutable, lock-consistent PlaybackSnapshot for the current track, title, artist, duration, status, source and playback state.
+- Empty title/artist/duration fields in a same-track heartbeat no longer erase previously received non-empty metadata. A real track change replaces all previous metadata; invalid/unavailable state still clears it.
+- Compact and main UI refreshes use the same playback snapshot. Compact title/artist/status labels are assigned only when their text actually changes; compact layout uses the last rendered track snapshot.
+- Exact confirmed active CELIKOM decoder source displays green: "Играет полная версия CELIKOM".
+- Mapping-only availability remains neutral/gray: "Версия CELIKOM доступна". "Пауза" remains green while the service connection is confirmed.
+- No changes to W23 native host/renderer, audio pipeline, VPN recovery, entitlement authority, Yandex files, updater/P-256, backend, Android or browser extension.
+
+Source CI:
+- Main CI run 43863680868 — SUCCESS.
+- Windows integration CI run 43863680894 — SUCCESS, including W15 bridge/state tests, GUI compile with warnings as errors, supervisor checks and W20 installer policy/metadata validation.
+- Previous source compile issue was only a test-local variable name collision; corrected before this checkpoint.
+
+Requested output:
+- CELIKOM-W162-TRACK-STATUS-AND-METADATA-STABILITY-02444-UNSIGNED.exe
+- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.44.zip
+- SHA256SUMS.txt
+
+Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers; this request-file update triggers exactly one W20 build.
