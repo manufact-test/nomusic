@@ -1,44 +1,54 @@
-# АКТУАЛЬНЫЙ HANDOFF — CELIKOM Android A1 — 16.11.2026
+# CURRENT HANDOFF — CELIKOM Android A1 — 16.11.2026
 
-**Это текущая инструкция; все исторические блоки ниже — архив. Не запускать их старые задания.**
+**Это актуальная инструкция. Исторические блоки ниже — архив; старые задания не запускать.**
 
-## 1. Точная контрольная точка
+## Контрольная точка
 
-- Репозиторий: `manufact-test/nomusic`; единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Последний **CI-green read-only audit code checkpoint**: `f1ad3998b81a3c7b12d9ba19ae02c57a6199eecf`.
-- [CI #165](https://github.com/manufact-test/nomusic/actions/runs/43767513234): **SUCCESS; 108/108 unit-тестов; точный издательский подписанный оригинал 2025, 6 DEX, in-memory audit**, без экспорта/изменения приложения.
-- Новый точный резерв кода: `backup/android-a1-lou3-exact-method-ci-green-20261116` @ `f1ad3998b81a3c7b12d9ba19ae02c57a6199eecf`.
-- Предыдущая зелёная кодовая основа: `88b81e394ea2d61f0b25a0a5dd38bb41663150f5`, CI #161 (108/108); резерв `backup/android-a1-flow-field-writer-trace-ci-green-20261115`.
-- Исходный код приложения и runtime hooks **не менялись**. Последняя правка runtime hooks: `a655712d210189f3bc611847235de3ed4d985c1a`.
-- Последнее изменение касается только существующего read-only анализатора — один точный метод `Lou3.else(Track)`; никаких новых инструментов или тестов.
-- Последний известный docs+code handoff до этой проверки: `backup/android-a1-current-track-flow-handoff-20261116`.
+- Репозиторий: \`manufact-test/nomusic\`.
+- Единственная рабочая ветка: \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`.
+- Последний CI-green read-only audit checkpoint: \`70009b4e05a592e7036c8457ca027b2445202c1f\`.
+- CI #178: [SUCCESS, 114/114 тестов](https://github.com/manufact-test/nomusic/actions/runs/43825896825), точный подписанный оригинал Yandex 2025, 6 DEX, in-memory анализ.
+- Точный резерв кода: \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`.
+- Резерв документации до handoff: \`backup/android-a1-player-contracts-docs-pre-20261116\`.
+- Runtime hooks не менялись. APK не собирался, не патчился, не устанавливался и не выпускался.
+- Предыдущие промежуточные CI #175–#177 не использовать как результат: #175 имел ошибку области видимости парсера, #176–#177 не распознавали DEX из-за двойного экранирования шаблона. Эти ошибки исправлены; авторитетный результат — только CI #178. В нём sanity-check подтвердил 58 объявленных методов известного renderer owner и \`passed=true\`.
 
-## 2. Результат единственного узкого прохода
+## Результат — bounded Media3 Player ancestry
 
-- В `LDp0.if(Track)` подтверждён callsite `Lou3.else(Lru/yandex/music/data/audio/o;)V`.
-- CI #165 проверил **только точную сигнатуру Lou3.else(Track)**. `lou3_else_exact_method.body_found=false`: исполняемое тело этого exact метода **не найдено** среди шести подписанных DEX.
-- `instruction_count=null`; `complete_for_absence_claim=false`. **Не утверждать**, что Lou3 ничего не делает, что он queue/download/analytics или что у него нет непрямой dispatch-реализации: без тела это недоказуемо.
-- Связь через этот callsite с фактическим selected Player state, native decoder или audio sink не доказана. По заранее согласованному критерию **LzD7 → LMG7 → LDp0 → Lou3 закрыт как неподтверждённый путь для current playback**.
-- LyEa/LaC7/LCK1 закрыты ранее; к ним не возвращаться.
-- Общая сверка конкурентов уже завершена, новое исследование конкурентов не требуется.
-- CI #162/#163 не повторять: #163 остановился на защитном `CURRENT_TRACK_FLOW_METHOD_TRACE_LIMIT`; это не регрессия приложения.
+Полный результат: \`docs/android/ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`.
 
-## 3. Текущий продукт и реальный блокер
+- В точной подписанной сборке найдены 5 concrete implementors Media3 ExoPlayer: \`LDq2;\`, \`Landroidx/media3/exoplayer/d;\`, \`Landroidx/media3/exoplayer/m;\`, \`Lp24;\`, \`Lwq2;\`.
+- Ограниченная ancestry содержит 10 owners: \`LA14;\`, \`LDq2;\`, \`Landroidx/media3/exoplayer/ExoPlayer;\`, \`Landroidx/media3/exoplayer/d;\`, \`Landroidx/media3/exoplayer/m;\`, \`LfH7;\`, \`Lhq2;\`, \`Lp24;\`, \`LrD0;\`, \`Lwq2;\`.
+- \`ExoPlayer\` наследует интерфейс \`LfH7;\`. Его контракт содержит Player-подобные методы \`play()\`, \`pause()\`, \`prepare()\`, \`getDuration()\`, \`getVolume()\` и точный кандидат \`else()LkD7;\`. Считать \`LfH7\` обфусцированным Player-контрактом — рабочая гипотеза по ancestry и набору методов, не доказательство семантики каждого obfuscated метода.
+- Проверено 627 объявлений методов, включая 271 interface/abstract. В отчёт выведены 128 строк контрактов, поэтому полный список ограничен. Проверка парсера реального DEX прошла.
+- Проверено 503 code-bearing метода в Player ancestry; 26 строк имели распознанную связь с Player API. В них не найден доказанный Track/Album → current item → decoder identity.
+- Все 10 owner profiles не показывают полей с прямыми типами Track, Album или Track wrapper. Не найдены поля с известными Media3 MediaItem/MediaSource, DataSource, MediaSession, AudioTrack или MediaCodec типами. При этом \`LkD7;\` и другие obfuscated-типы нельзя считать не относящимися к MediaItem только потому, что их имена не распознаны.
+- Самый конкретный следующий кандидат: контракт \`LfH7.else()LkD7;\` и найденная реализация \`Lp24.else()LkD7;\`. Реализация вызывает Player API, но identity возвращаемого объекта и фактический runtime receiver ещё не доказаны.
+- Прямых ссылок на не-обфусцированный owner \`Player\` в прежнем ref-census нет; это не отсутствие Player API — его ancestry обнаружена через \`ExoPlayer → LfH7\`.
 
-- **Stage A / NAV17: PASS по ручному подтверждению владельца** — нативный Яндекс, аккаунт, альбомы, Моя волна и обычный звук работают. Не трогать.
-- **Stage B: NOT CONNECTED / NO-GO.** CELIKOM-аудио не привязано к нативному decoder и не звучит.
-- `active_selected_item_proven=false`, `same_native_item_to_decoder_proven=false`. Не установлена непрерывная идентичность **фактически выбранный Track + Album / edition/generation → конкретный текущий decoder source → декодированный ByteBuffer → native audio sink**.
-- Данные о Field/Flow/Source/positive read, результаты Source descriptor и ByteBuffer→sink по отдельности **не доказывают**, что это тот же текущий играющий трек.
+## Статус продукта
 
-## 4. Дальше — только путь к работающему продукту
+- **Stage A / NAV17: PASS** по ручному подтверждению владельца. Нативный Яндекс, авторизация, альбомы, Моя волна и оригинальное воспроизведение не трогать.
+- **Stage B: NOT CONNECTED / NO-GO.** CELIKOM audio не привязано к текущему выбранному item и не подключено к доказанному decoder output.
+- Оставить false: \`active_selected_item_proven\`, \`same_native_item_to_decoder_proven\`, \`same_track_album_edition_generation_owner_proven\`, \`codec_output_object_to_audio_sink_proven\`.
+- Edition/generation остаются недоказанными. Совпадение типа, названия метода или наличие Player implementation не доказывает текущий playback.
 
-- По закрытому Lou3 и соседним классам статический поиск не продолжать. Не открывать новую широкую программу исследований.
-- Для Stage B нужна **одна конкретная, независимо подтверждённая identity-bearing точка current Player selection** с привязкой к native decoder/source. Пока такой точки нет — это точный блокер, а не повод изобретать hooks.
-- Разрешать одно минимальное read-only измерение только если появится конкретный известный callsite и можно сформулировать проверяемый вопрос. Без этого не просить у владельца APK/телефон/диагностики.
-- Не добавлять runtime hooks, не собирать/патчить APK, не менять vendor behavior или архитектуру до доказанного Track → source → decoder identity.
-- Не повышать лимиты, не вводить новые анализаторы, не повторять censuses, не раздувать тестовые серии и не читать private field values, Track/Album ID/title, URL/DataSpec, аккаунт, токены или аудиобайты.
-- Не трогать Test.50, frozen A1/LSPatch baseline, Windows, браузерное расширение, backend, production.
-- Если нет доказанной точки — сообщить блокер прямо, Stage B оставить NO-GO. Не выдавать структуру типов за реальное воспроизведение.
+## Единственная следующая задача
+
+1. Не повторять competitor sweep, Player ancestry scan или общий interface census.
+2. Проверить точный descriptor \`LkD7;\` и контракт \`LfH7.else()LkD7;\`: установить по DEX-структуре, является ли он MediaItem или обёрткой над ним. Не угадывать по обфусцированному имени.
+3. Проследить только тело \`Lp24.else()LkD7;\`: какой exact delegate/receiver вызывается и какой объект возвращается. Проверять точные override того же signature только если они реально объявлены у других четырёх implementors.
+4. Если это current MediaItem getter, проследить identity именно возвращённого объекта к source/decoder boundary и дальше к уже известному ByteBuffer/native sink. Не читать значения полей или media values.
+5. Если связь не подтверждается на этом коротком участке — зафиксировать разрыв и не расширять поиск на соседние классы «на всякий случай».
+
+## Жёсткие ограничения
+
+- Не менять архитектуру, vendor behavior, runtime hooks, APK или оригинальное приложение.
+- Не добавлять второй player/decoder/AudioTrack и не подключать replacement до доказательства identity.
+- Не читать/экспортировать Track/Album IDs, названия, URL, DataSpec, токены, данные аккаунта, приватные значения полей или аудиобайты.
+- Не трогать NAV17, Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend/API/DB и production.
+- Не просить ручные действия владельца без конкретного необходимого измерения.
+- Работать одним законченным блоком. Без промежуточных отчётов и лишних тестов. Остановиться только при реальном блокере или необходимости ручной проверки.
 
 ---
 

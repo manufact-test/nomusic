@@ -108,3 +108,10 @@ README описывает Android-модуль с LSPatch/LSPosed, локаль�
 - Не менять vendor behavior, не подавлять exceptions, не добавлять второй player/decoder/AudioTrack.
 - Не трогать Windows, browser extension, backend/API/DB, NAV17, Test.50 или frozen A1/LSPatch baseline.
 
+
+
+## 6. Follow-up — exact Media3 Player ancestry, CI #178
+
+Этот результат supersedes общий следующий шаг «найти Player owner» из раздела 4. Ограниченная ancestry нашла 5 concrete implementors и обфусцированный Player-контракт \`LfH7;\`. Конкретный следующий кандидат — \`LfH7.else()LkD7;\` / \`Lp24.else()LkD7;\`; он ещё не доказан как current MediaItem getter. Полный результат, точные ограничения и следующий узкий проход: \`ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`.
+
+CI #178 SUCCESS, 114/114; checkpoint \`70009b4e05a592e7036c8457ca027b2445202c1f\`; backup \`backup/android-a1-media3-player-contracts-ci-green-20261116\`. Runtime hooks и APK не менялись.
