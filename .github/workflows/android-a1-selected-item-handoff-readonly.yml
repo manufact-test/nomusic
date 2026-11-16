@@ -47,12 +47,93 @@ jobs:
           f="$RUNNER_TEMP/celikom-a1-selected-item-private/yandex-music-2025-10-4-120-1gpr.xapk"
           test "$(stat -c %s "$f")" = 45961661
           test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
-      - name: Inspect exact signed 2025 DEX, bounded Media3 Player ancestry and bounded Player ancestry plus parser sanity in memory
+      - name: Inspect exact signed 2025 DEX and emit compact audit summary
         shell: bash
         run: |
           set -euo pipefail
-          python3 -B android/native-yandex-hooklab/audit_native_selected_item_handoff.py \
-            --xapk "$RUNNER_TEMP/celikom-a1-selected-item-private/yandex-music-2025-10-4-120-1gpr.xapk"
+          report="$RUNNER_TEMP/celikom-a1-selected-item-audit-report.json"
+          set +e
+          python3 -B android/native-yandex-hooklab/audit_native_selected_item_handoff.py --xapk "$RUNNER_TEMP/celikom-a1-selected-item-private/yandex-music-2025-10-4-120-1gpr.xapk" > "$report"
+          audit_status=$?
+          set -e
+          python3 - "$report" "$audit_status" <<'PY'
+          import json
+          import os
+          import sys
+
+          report_path, audit_status = sys.argv[1], int(sys.argv[2])
+          try:
+              with open(report_path, encoding="utf-8") as source:
+                  report = json.load(source)
+          except Exception:
+              print(json.dumps({"verdict": "SUMMARY_UNAVAILABLE", "audit_exit_code": audit_status}, sort_keys=True))
+              raise SystemExit(audit_status or 1)
+
+          def fields(obj, names):
+              obj = obj if isinstance(obj, dict) else {}
+              return {name: obj.get(name) for name in names}
+
+          lqj8 = report.get("exact_lqj8_service_route", {})
+          lvj8 = report.get("exact_lvj8_continuation_route", {})
+          lxj8 = report.get("exact_lxj8_for_route", {})
+          lft2 = report.get("exact_lft2_continuation_route", {})
+          summary = {
+              "verdict": report.get("verdict"),
+              "publisher_version": report.get("publisher_version"),
+              "signed_split_count": report.get("signed_split_count"),
+              "signed_dex_count": report.get("signed_dex_count"),
+              "active_selected_item_proven": report.get("active_selected_item_proven"),
+              "routes": {
+                  "Lqj8_interface": fields(lqj8, [
+                      "bounded", "complete_for_bounded_interface_route_claim",
+                      "interface_implementation_method_count",
+                      "same_wrapper_to_interface_invoke_proven",
+                      "same_wrapper_to_native_source_descriptor_proven",
+                      "same_wrapper_to_player_api_proven",
+                  ]),
+                  "Lvj8_continuation": fields(lvj8, [
+                      "bounded", "complete_for_bounded_continuation_claim",
+                      "constructor_direct_callsite_count",
+                      "constructor_stores_wrapper_on_this",
+                      "invoke_suspend_method_body_found",
+                      "invoke_suspend_trace_complete",
+                      "same_service_and_wrapper_to_constructor_proven",
+                      "same_wrapper_to_native_source_descriptor_proven",
+                      "same_wrapper_to_player_api_proven",
+                  ]),
+                  "Lxj8_for": {
+                      **fields(lxj8, [
+                          "bounded", "complete_for_bounded_method_claim",
+                          "direct_callsite_count", "target_method_body_found",
+                          "target_trace_complete",
+                          "same_service_and_wrapper_to_target_proven",
+                          "same_wrapper_to_native_source_descriptor_proven",
+                          "same_wrapper_to_player_api_proven",
+                      ]),
+                      "typed_wrapper_call_count": len(lxj8.get("target_typed_wrapper_calls", [])),
+                      "player_call_count": len(lxj8.get("target_player_calls", [])),
+                      "source_descriptor_call_count": len(lxj8.get("target_source_descriptor_calls", [])),
+                  },
+                  "LfT2_continuation": fields(lft2, [
+                      "bounded", "complete_for_bounded_continuation_claim",
+                      "constructor_direct_callsite_count",
+                      "constructor_distinct_direct_caller_count",
+                      "constructor_stores_wrapper_on_this",
+                      "invoke_suspend_method_body_found",
+                      "invoke_suspend_trace_complete",
+                      "same_wrapper_to_constructor_proven",
+                      "same_wrapper_to_native_source_descriptor_proven",
+                      "same_wrapper_to_player_api_proven",
+                  ]),
+              },
+          }
+          rendered = json.dumps(summary, sort_keys=True, ensure_ascii=False, indent=2)
+          print(rendered)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("### Bounded native identity audit\n\n```json\n" + rendered + "\n```\n")
+          PY
+          rm -f -- "$report"
+          exit "$audit_status"
       - name: Enforce no APK, login, media, or persistent output
         if: always()
         shell: bash
@@ -61,4 +142,5 @@ jobs:
           test ! -d android/native-yandex-hooklab/release
           test ! -d android/native-yandex-hooklab/patched
           rm -rf -- "$RUNNER_TEMP/celikom-a1-selected-item-private"
+          rm -f -- "$RUNNER_TEMP/celikom-a1-selected-item-audit-report.json"
           echo '{"original_binary_modified":false,"original_binary_exported":false,"user_login_or_media_accessed":false,"decoder_source_changed":false}'
