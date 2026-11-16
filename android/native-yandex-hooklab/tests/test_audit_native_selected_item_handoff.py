@@ -41,7 +41,8 @@ from audit_native_selected_item_handoff import (
     exact_parameter_field_store_refs, local_object_register_origin,
     dex_type_assignable_to, trace_exact_object_receiver_call_cfg,
     trace_exact_object_method_body, trace_track_identity_method_cfg,
-    inspect_exact_track_wrapper_handoff, inspect_exact_lqj8_service_route
+    inspect_exact_track_wrapper_handoff, inspect_exact_lqj8_service_route,
+    inspect_exact_lvj8_continuation_route
 )
 
 class SelectedItemAuditTests(unittest.TestCase):
@@ -4206,6 +4207,160 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["interface_implementation_method_count"], 1)
         self.assertTrue(result["same_wrapper_to_native_source_descriptor_proven"])
         self.assertTrue(result["complete_for_bounded_interface_route_claim"])
+        self.assertEqual(trace.call_count, 3)
+
+
+
+    def test_exact_lvj8_continuation_preserves_service_and_wrapper(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        constructor = (
+            "Lvj8;", "<init>",
+            "(Lxj8;LtCa;Lqj8$a;ZLkotlin/coroutines/Continuation;)V",
+        )
+        invoke_suspend = (
+            "Lvj8;", "invokeSuspend",
+            "(Ljava/lang/Object;)Ljava/lang/Object;",
+        )
+        caller = (
+            "Lxj8;", "if",
+            "(LtCa;ZLqj8$a;LLEa;)Ljava/lang/Object;",
+        )
+        downstream = {
+            "owner": "Lcom/yandex/music/shared/player/download2/o;",
+            "method": "while",
+            "signature": "(LtCa;)Ljava/lang/Object;",
+        }
+
+        class FakeDex:
+            def __init__(self, data):
+                self.data = data
+            def method(self, index):
+                return {1: constructor}[index]
+
+        def fake_instructions(_dex, code_off):
+            if code_off == 100:
+                return [(7, 0x70, [0x0070, 1])]
+            return []
+
+        def typed_event(target, args, pc=7, role="OTHER_METHOD"):
+            callee = (
+                target if isinstance(target, dict) else {
+                    "owner": target[0], "method": target[1],
+                    "signature": target[2],
+                }
+            )
+            return {
+                "kind": "CALL_WITH_TYPED_IDENTITY",
+                "callee": callee,
+                "identity_is_common_to_all_incoming_paths": True,
+                "identity_arguments": args,
+                "pc": pc,
+                "role": role,
+            }
+
+        def fake_trace(_dex, method, _flags, _code_off, **_kwargs):
+            if method == caller:
+                return {
+                    "events": [typed_event(constructor, [
+                        {"argument_position": 0, "declared_argument_type": "Lxj8;",
+                         "identity_type": "LQJ8_SERVICE",
+                         "origins": ["LQJ8_SERVICE_PARAMETER"]},
+                        {"argument_position": 1, "declared_argument_type": "LtCa;",
+                         "identity_type": "TRACK_WRAPPER",
+                         "origins": ["TRACK_WRAPPER_PARAMETER"]},
+                    ])],
+                    "reachable_instruction_count": 11,
+                    "branch_count": 0,
+                    "path_state_count": 11,
+                    "processed_state_count": 11,
+                }
+            if method == constructor:
+                return {
+                    "events": [
+                        {
+                            "kind": "FIELD_STORE_TYPED_IDENTITY",
+                            "identity_type": "LQJ8_SERVICE",
+                            "receiver_is_this": True,
+                            "origins": ["LQJ8_SERVICE_PARAMETER"],
+                        },
+                        {
+                            "kind": "FIELD_STORE_TYPED_IDENTITY",
+                            "identity_type": "TRACK_WRAPPER",
+                            "receiver_is_this": True,
+                            "origins": ["TRACK_WRAPPER_PARAMETER"],
+                        },
+                    ],
+                    "reachable_instruction_count": 18,
+                    "branch_count": 0,
+                    "path_state_count": 18,
+                    "processed_state_count": 18,
+                }
+            if method == invoke_suspend:
+                return {
+                    "events": [
+                        {
+                            "kind": "FIELD_READ_TYPED_IDENTITY",
+                            "identity_type": "LQJ8_SERVICE",
+                            "receiver_is_this": True,
+                            "origins": ["LQJ8_SERVICE_FROM_THIS_FIELD"],
+                        },
+                        {
+                            "kind": "FIELD_READ_TYPED_IDENTITY",
+                            "identity_type": "TRACK_WRAPPER",
+                            "receiver_is_this": True,
+                            "origins": ["TRACK_WRAPPER_FROM_THIS_FIELD"],
+                        },
+                        typed_event(downstream, [
+                            {"argument_position": 0, "declared_argument_type": "LtCa;",
+                             "identity_type": "TRACK_WRAPPER",
+                             "origins": ["TRACK_WRAPPER_FROM_THIS_FIELD"]},
+                        ], pc=32, role="NATIVE_SOURCE_DESCRIPTOR"),
+                    ],
+                    "reachable_instruction_count": 44,
+                    "branch_count": 4,
+                    "path_state_count": 20,
+                    "processed_state_count": 20,
+                }
+            raise AssertionError("unexpected trace target")
+
+        definitions = [
+            (caller, 0x1, 100),
+            (constructor, 0, 200),
+            (invoke_suspend, 0x1, 300),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                for index, name in enumerate((
+                    "classes.dex", "classes2.dex", "classes3.dex",
+                    "classes4.dex", "classes5.dex", "classes6.dex",
+                )):
+                    archive.writestr(name, bytes([index]))
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       side_effect=lambda dex: definitions if dex.data == bytes([0]) else []), \
+                 patch("audit_native_selected_item_handoff.instructions",
+                       side_effect=fake_instructions), \
+                 patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
+                       side_effect=fake_trace) as trace:
+                result = inspect_exact_lvj8_continuation_route([apk])
+
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["signed_dex_count"], 6)
+        self.assertTrue(result["constructor_method_body_found"])
+        self.assertTrue(result["invoke_suspend_method_body_found"])
+        self.assertEqual(result["constructor_direct_callsite_count"], 1)
+        self.assertTrue(result["same_service_and_wrapper_to_constructor_proven"])
+        self.assertTrue(result["constructor_stores_wrapper_on_this"])
+        self.assertTrue(result["constructor_stores_service_on_this"])
+        self.assertTrue(result["invoke_suspend_reads_wrapper_from_this"])
+        self.assertTrue(result["invoke_suspend_reads_service_from_this"])
+        self.assertTrue(result["same_wrapper_to_native_source_descriptor_proven"])
+        self.assertTrue(result["complete_for_bounded_continuation_claim"])
         self.assertEqual(trace.call_count, 3)
 
 

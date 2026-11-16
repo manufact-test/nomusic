@@ -11922,6 +11922,323 @@ def inspect_exact_lqj8_service_route(apks, class_profiles):
     }
 
 
+
+def inspect_exact_lvj8_continuation_route(apks):
+    """Trace the exact Lxj8 -> Lvj8 coroutine handoff.
+
+    This scan is limited to one exact Lvj8 constructor, its direct callers,
+    and its exact invokeSuspend body. It follows only Lxj8 service and
+    TrackWrapper identity. No field names/values, media, URLs, DataSpec,
+    tokens, account data, or audio bytes are read.
+    """
+    constructor_target = (
+        "Lvj8;", "<init>",
+        "(Lxj8;LtCa;Lqj8$a;ZLkotlin/coroutines/Continuation;)V",
+    )
+    invoke_suspend_target = (
+        "Lvj8;", "invokeSuspend",
+        "(Ljava/lang/Object;)Ljava/lang/Object;",
+    )
+    service_types = {"Lxj8;": "LQJ8_SERVICE"}
+    constructor_definition = None
+    invoke_suspend_definition = None
+    caller_sites = {}
+    caller_definitions = {}
+    seen_methods = set()
+    dex_count = 0
+    direct_callsite_count = 0
+
+    def method_row(method):
+        return {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        }
+
+    def safe_trace(dex, method, flags, code_off):
+        try:
+            return trace_track_identity_method_cfg(
+                dex, method, flags, code_off,
+                extra_identity_types=service_types,
+            )
+        except (ValueError, DexError) as exc:
+            reason = str(exc)
+            safe_code = (
+                reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                else "UNCLASSIFIED_LVJ8_CFG_ERROR"
+            )
+            return {
+                "method": method_row(method),
+                "trace_failed": True,
+                "error_class": type(exc).__name__,
+                "error_code": safe_code,
+                "field_names_or_values_disclosed": False,
+                "strings_urls_dataspec_account_or_audio_read": False,
+            }
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("LVJ8_CONTINUATION_DEX_LIMIT")
+                dex_count += 1
+                dex = Dex(archive.read(entry.filename))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    key = (method[0], method[1], method[2])
+                    if key in seen_methods:
+                        continue
+                    seen_methods.add(key)
+
+                    if key == constructor_target:
+                        constructor_definition = (dex, method, flags, code_off)
+                    if key == invoke_suspend_target:
+                        invoke_suspend_definition = (dex, method, flags, code_off)
+
+                    if not code_off:
+                        continue
+                    sites = []
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        if dex.method(words[1]) == constructor_target:
+                            sites.append({
+                                "ordinal": ordinal,
+                                "invoke_opcode": op,
+                                "invoke_kind": invoke_kind_name(op),
+                            })
+                    if not sites:
+                        continue
+                    direct_callsite_count += len(sites)
+                    if direct_callsite_count > 64:
+                        raise ValueError("LVJ8_CONSTRUCTOR_CALLSITE_LIMIT")
+                    if key not in caller_sites:
+                        if len(caller_sites) >= 32:
+                            raise ValueError("LVJ8_CONSTRUCTOR_CALLER_LIMIT")
+                        caller_sites[key] = []
+                        caller_definitions[key] = (dex, method, flags, code_off)
+                    caller_sites[key].extend(sites)
+
+    if dex_count != 6:
+        raise ValueError("SIGNED_SIX_DEX_REQUIRED")
+
+    constructor_trace = None
+    constructor_body_found = (
+        constructor_definition is not None and bool(constructor_definition[3])
+    )
+    if constructor_body_found:
+        dex, method, flags, code_off = constructor_definition
+        constructor_trace = safe_trace(dex, method, flags, code_off)
+
+    invoke_suspend_trace = None
+    invoke_suspend_body_found = (
+        invoke_suspend_definition is not None and bool(invoke_suspend_definition[3])
+    )
+    if invoke_suspend_body_found:
+        dex, method, flags, code_off = invoke_suspend_definition
+        invoke_suspend_trace = safe_trace(dex, method, flags, code_off)
+
+    direct_callers = []
+    caller_traces_complete = True
+    same_service_and_wrapper_to_constructor_proven = False
+    for key in sorted(caller_sites):
+        dex, method, flags, code_off = caller_definitions[key]
+        trace = safe_trace(dex, method, flags, code_off)
+        if trace.get("trace_failed"):
+            caller_traces_complete = False
+        events = [
+            event for event in trace.get("events", ())
+            if event.get("callee") == {
+                "owner": constructor_target[0],
+                "method": constructor_target[1],
+                "signature": constructor_target[2],
+            }
+            and event.get("kind") in (
+                "CALL_WITH_TYPED_IDENTITY",
+                "CALL_WITH_POSSIBLE_IDENTITY",
+                "CALL_TARGET_ACCEPTS_TRACK_OR_WRAPPER_WITHOUT_IDENTITY",
+            )
+        ]
+        for event in events:
+            if event.get("kind") != "CALL_WITH_TYPED_IDENTITY":
+                continue
+            if event.get("identity_is_common_to_all_incoming_paths") is not True:
+                continue
+            service_arg = any(
+                arg.get("argument_position") == 0
+                and arg.get("declared_argument_type") == "Lxj8;"
+                and arg.get("identity_type") == "LQJ8_SERVICE"
+                for arg in event.get("identity_arguments", ())
+            )
+            wrapper_arg = any(
+                arg.get("argument_position") == 1
+                and arg.get("declared_argument_type") == WRAPPER
+                and arg.get("identity_type") == "TRACK_WRAPPER"
+                for arg in event.get("identity_arguments", ())
+            )
+            if service_arg and wrapper_arg:
+                same_service_and_wrapper_to_constructor_proven = True
+        direct_callers.append({
+            "caller": method_row(method),
+            "callsite_count": len(caller_sites[key]),
+            "callsites": caller_sites[key],
+            "identity_events_for_constructor": events,
+            "trace_stats": {
+                "reachable_instruction_count": trace.get("reachable_instruction_count"),
+                "branch_count": trace.get("branch_count"),
+                "path_state_count": trace.get("path_state_count"),
+                "processed_state_count": trace.get("processed_state_count"),
+            },
+            "trace_complete": not trace.get("trace_failed", False),
+        })
+
+    constructor_events = (
+        constructor_trace.get("events", ()) if constructor_trace else ()
+    )
+    invoke_suspend_events = (
+        invoke_suspend_trace.get("events", ()) if invoke_suspend_trace else ()
+    )
+    constructor_wrapper_stores = [
+        event for event in constructor_events
+        if event.get("kind") == "FIELD_STORE_TYPED_IDENTITY"
+        and event.get("identity_type") == "TRACK_WRAPPER"
+    ]
+    constructor_service_stores = [
+        event for event in constructor_events
+        if event.get("kind") == "FIELD_STORE_TYPED_IDENTITY"
+        and event.get("identity_type") == "LQJ8_SERVICE"
+    ]
+    invoke_suspend_wrapper_reads = [
+        event for event in invoke_suspend_events
+        if event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+        and event.get("identity_type") == "TRACK_WRAPPER"
+    ]
+    invoke_suspend_service_reads = [
+        event for event in invoke_suspend_events
+        if event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+        and event.get("identity_type") == "LQJ8_SERVICE"
+    ]
+    invoke_suspend_typed_wrapper_calls = [
+        event for event in invoke_suspend_events
+        if event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+        and any(
+            arg.get("identity_type") == "TRACK_WRAPPER"
+            and arg.get("declared_argument_type") == WRAPPER
+            for arg in event.get("identity_arguments", ())
+        )
+    ]
+    invoke_suspend_possible_wrapper_calls = [
+        event for event in invoke_suspend_events
+        if event.get("kind") == "CALL_WITH_POSSIBLE_IDENTITY"
+        and any(
+            arg.get("identity_type") == "TRACK_WRAPPER"
+            and arg.get("declared_argument_type") == WRAPPER
+            for arg in event.get("possible_identity_arguments", ())
+        )
+    ]
+    invoke_suspend_typed_service_calls = [
+        event for event in invoke_suspend_events
+        if event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+        and any(
+            arg.get("identity_type") == "LQJ8_SERVICE"
+            for arg in event.get("identity_arguments", ())
+        )
+    ]
+    source_descriptor_calls = [
+        event for event in invoke_suspend_events
+        if event.get("role") == "NATIVE_SOURCE_DESCRIPTOR"
+    ]
+    player_calls = [
+        event for event in invoke_suspend_events
+        if event.get("role") == "PLAYER_SELECTION_OR_TRANSPORT"
+    ]
+
+    constructor_trace_complete = (
+        constructor_body_found
+        and constructor_trace is not None
+        and not constructor_trace.get("trace_failed", False)
+    )
+    invoke_suspend_trace_complete = (
+        invoke_suspend_body_found
+        and invoke_suspend_trace is not None
+        and not invoke_suspend_trace.get("trace_failed", False)
+    )
+    constructor_stores_wrapper_on_this = any(
+        event.get("receiver_is_this") is True
+        for event in constructor_wrapper_stores
+    )
+    constructor_stores_service_on_this = any(
+        event.get("receiver_is_this") is True
+        for event in constructor_service_stores
+    )
+    invoke_suspend_reads_wrapper_from_this = any(
+        event.get("receiver_is_this") is True
+        for event in invoke_suspend_wrapper_reads
+    )
+    invoke_suspend_reads_service_from_this = any(
+        event.get("receiver_is_this") is True
+        for event in invoke_suspend_service_reads
+    )
+
+    return {
+        "bounded": True,
+        "scan_scope": (
+            "ALL_SIX_SIGNED_DEX_FOR_ONE_EXACT_LVJ8_CONSTRUCTOR_AND_INVOKE_SUSPEND"
+        ),
+        "signed_dex_count": dex_count,
+        "constructor_target": method_row(constructor_target),
+        "invoke_suspend_target": method_row(invoke_suspend_target),
+        "constructor_method_body_found": constructor_body_found,
+        "invoke_suspend_method_body_found": invoke_suspend_body_found,
+        "constructor_direct_callsite_count": direct_callsite_count,
+        "constructor_distinct_direct_caller_count": len(direct_callers),
+        "constructor_direct_callers": direct_callers,
+        "same_service_and_wrapper_to_constructor_proven": (
+            same_service_and_wrapper_to_constructor_proven
+        ),
+        "constructor_wrapper_field_stores": constructor_wrapper_stores,
+        "constructor_service_field_stores": constructor_service_stores,
+        "constructor_stores_wrapper_on_this": constructor_stores_wrapper_on_this,
+        "constructor_stores_service_on_this": constructor_stores_service_on_this,
+        "invoke_suspend_wrapper_field_reads": invoke_suspend_wrapper_reads,
+        "invoke_suspend_service_field_reads": invoke_suspend_service_reads,
+        "invoke_suspend_reads_wrapper_from_this": invoke_suspend_reads_wrapper_from_this,
+        "invoke_suspend_reads_service_from_this": invoke_suspend_reads_service_from_this,
+        "invoke_suspend_typed_wrapper_calls": invoke_suspend_typed_wrapper_calls,
+        "invoke_suspend_possible_wrapper_calls": invoke_suspend_possible_wrapper_calls,
+        "invoke_suspend_typed_service_calls": invoke_suspend_typed_service_calls,
+        "invoke_suspend_source_descriptor_calls": source_descriptor_calls,
+        "invoke_suspend_player_calls": player_calls,
+        "same_wrapper_to_native_source_descriptor_proven": any(
+            any(
+                arg.get("identity_type") == "TRACK_WRAPPER"
+                for arg in event.get("identity_arguments", ())
+            )
+            for event in source_descriptor_calls
+        ),
+        "same_wrapper_to_player_api_proven": any(
+            any(
+                arg.get("identity_type") == "TRACK_WRAPPER"
+                for arg in event.get("identity_arguments", ())
+            )
+            for event in player_calls
+        ),
+        "constructor_trace_complete": constructor_trace_complete,
+        "invoke_suspend_trace_complete": invoke_suspend_trace_complete,
+        "caller_traces_complete": caller_traces_complete,
+        "complete_for_bounded_continuation_claim": (
+            dex_count == 6
+            and constructor_trace_complete
+            and invoke_suspend_trace_complete
+            and caller_traces_complete
+        ),
+        "runtime_coroutine_dispatch_proven": False,
+        "field_names_or_values_disclosed": False,
+        "track_album_ids_titles_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
 def inspect_signed(apks):
     dex_count = 0
     model_defined = False
@@ -12408,6 +12725,7 @@ def inspect_signed(apks):
     )
     exact_track_wrapper_handoff = inspect_exact_track_wrapper_handoff(apks)
     exact_lqj8_service_route = inspect_exact_lqj8_service_route(apks, class_profiles)
+    exact_lvj8_continuation_route = inspect_exact_lvj8_continuation_route(apks)
     next_identity_hop_owner_profiles = [
         {"owner": owner, **classify_track_owner_profile(class_profiles.get(owner, {}))}
         for owner in sorted({row[0] for row in next_identity_hop_focus_refs})
@@ -12806,6 +13124,7 @@ def inspect_signed(apks):
         "next_identity_hop_cfg": next_identity_hop_cfg_result,
         "exact_track_wrapper_handoff": exact_track_wrapper_handoff,
         "exact_lqj8_service_route": exact_lqj8_service_route,
+        "exact_lvj8_continuation_route": exact_lvj8_continuation_route,
         "next_identity_hop_missing_method_refs":
             next_identity_hop_trace_result["missing_method_refs"],
         "next_identity_hop_owner_profiles": next_identity_hop_owner_profiles,
