@@ -372,6 +372,31 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["concrete_implementor_count"], 3)
         self.assertEqual(result["implementors"], [])
 
+
+    def test_media3_timeline_method_scope_follows_only_signed_ancestry(self):
+        from audit_native_selected_item_handoff import media3_timeline_method_owner_scope
+        profiles = {
+            "LTva;": {"is_interface": False, "is_abstract": True,
+                      "superclass": "Ljava/lang/Object;", "interfaces": set()},
+            "LTimelineBase;": {"is_interface": False, "is_abstract": True,
+                               "superclass": "LTva;", "interfaces": set()},
+            "LConcreteTimeline;": {"is_interface": False, "is_abstract": False,
+                                   "superclass": "LTimelineBase;", "interfaces": set()},
+            "LUnrelated;": {"is_interface": False, "is_abstract": False,
+                            "superclass": "Ljava/lang/Object;", "interfaces": set()},
+            "LTimelineInterface;": {"is_interface": True, "is_abstract": True,
+                                    "superclass": "Ljava/lang/Object;",
+                                    "interfaces": {"LTva;"}},
+        }
+        result = media3_timeline_method_owner_scope(profiles)
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["scope_owners"],
+                         ["LConcreteTimeline;", "LTimelineBase;"])
+        limited = media3_timeline_method_owner_scope(profiles, max_owners=1)
+        self.assertFalse(limited["bounded"])
+        self.assertEqual(limited["reason"], "MEDIA3_TIMELINE_OWNER_LIMIT")
+        self.assertEqual(limited["scope_owners"], [])
+
     def test_media3_player_ancestry_contract_roles_detect_track_album_and_item_types(self):
         from audit_native_selected_item_handoff import (
             media3_player_contract_role, MODEL, ALBUM_MODEL,

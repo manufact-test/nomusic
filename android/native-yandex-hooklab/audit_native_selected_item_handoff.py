@@ -9100,8 +9100,67 @@ def inspect_media3_player_item_identity_contracts(
 
 
 
+
+def media3_timeline_method_owner_scope(class_profiles, max_owners=64):
+    """Bound the exact signed class ancestry that can implement LTva.final()."""
+    root = "LTva;"
+    if root not in class_profiles:
+        return {
+            "bounded": False,
+            "reason": "TIMELINE_ROOT_NOT_DEFINED",
+            "candidate_owner_count": 0,
+            "scope_owners": [],
+        }
+    owners = []
+    try:
+        for owner, profile in class_profiles.items():
+            if owner == root or profile.get("is_interface", False):
+                continue
+            if dex_type_assignable_to(owner, root, class_profiles):
+                owners.append(owner)
+    except (ValueError, DexError):
+        return {
+            "bounded": False,
+            "reason": "TIMELINE_ASSIGNABILITY_UNRESOLVED",
+            "candidate_owner_count": 0,
+            "scope_owners": [],
+        }
+    owners = sorted(set(owners))
+    if len(owners) > max_owners:
+        return {
+            "bounded": False,
+            "reason": "MEDIA3_TIMELINE_OWNER_LIMIT",
+            "candidate_owner_count": len(owners),
+            "scope_owners": [],
+        }
+    return {
+        "bounded": True,
+        "reason": None,
+        "candidate_owner_count": len(owners),
+        "scope_owners": owners,
+    }
+
+
 def inspect_media3_item_handoff_bridge(apks, class_profiles):
     """Trace the exact MediaItem <-> Timeline.Window and TrackWrapper -> URI handoff."""
+    timeline_scope = media3_timeline_method_owner_scope(class_profiles)
+    if not timeline_scope["bounded"]:
+        return {
+            "bounded": False,
+            "reason": timeline_scope["reason"],
+            "timeline_method_owner_scope": timeline_scope,
+            "candidate_media_item_type": "LOf6;",
+            "candidate_timeline_type": "LTva;",
+            "candidate_timeline_window_type": "LTva$d;",
+            "private_field_names_or_values_disclosed": False,
+            "strings_urls_dataspec_tokens_account_or_audio_read": False,
+        }
+    timeline_owner_scope = set(timeline_scope["scope_owners"])
+    timeline_method_signature = "(ILTva$d;J)LTva$d;"
+    timeline_method_keys = {
+        (owner, "final", timeline_method_signature)
+        for owner in timeline_owner_scope
+    }
     exact_methods = {
         ("LrD0;", "E", "()LOf6;"),
         ("LrD0;", "C", "(LOf6;J)V"),
@@ -9130,11 +9189,12 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         "LrD0;", "Lp24;", "LA14;", "Lbq0;", "LcA9;", "LgLb;",
         "LiLb;", "LmLb;", "Lmu3;", "LTva;", "LTva$d;", "LOf6;",
         "Lo45;", "LwN8;", "Las2;", "LBs4;",
-    }
+    } | timeline_owner_scope
     extra_types = (
         "LOf6;", "LTva$d;", "LmLb;", "Landroid/net/Uri;",
         "Lmu3;", "Ln26;", "Lnk0;", "LdA9;", "LA14;",
-        "LwN8;", "Las2;", "LiLb;", "LgLb;", "LBs4;", "Ljava/lang/Object;",
+        "LwN8;", "Las2;", "LiLb;", "LgLb;", "LBs4;", "LWT1;",
+        MEDIA3_MEDIA_SOURCE, "Ljava/lang/Object;",
     )
     method_rows = []
     owner_profiles = []
@@ -9143,6 +9203,12 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
             "owner": owner,
             "profile": privacy_safe_flow_class_profile(class_profiles.get(owner)),
         })
+    for owner in ("LWT1;", MEDIA3_MEDIA_SOURCE):
+        if owner not in inspect_owners:
+            owner_profiles.append({
+                "owner": owner,
+                "profile": privacy_safe_flow_class_profile(class_profiles.get(owner)),
+            })
 
     seen_methods = set()
     for apk in apks:
@@ -9158,8 +9224,11 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     if key in seen_methods or not code_off:
                         continue
                     seen_methods.add(key)
+                    is_timeline_method = key in timeline_method_keys
+                    if method[0] in timeline_owner_scope and not is_timeline_method:
+                        continue
                     signature_types = set(parse_types(method[2]))
-                    is_exact = key in exact_methods
+                    is_exact = key in exact_methods or is_timeline_method
                     is_identity_related = bool(
                         signature_types.intersection(extra_types)
                         or method[0] in {
@@ -9171,6 +9240,7 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     try:
                         trace = trace_identity_method(
                             dex, method, flags, code_off,
+                            capture_unproven_calls=is_timeline_method,
                             extra_identity_types=extra_types,
                             track_fields_from_any_receiver=True,
                         )
@@ -9195,12 +9265,77 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                     if len(method_rows) > 160:
                         raise ValueError("MEDIA3_ITEM_HANDOFF_METHOD_LIMIT")
 
+    timeline_method_rows = [
+        row for row in method_rows
+        if (
+            row["method"]["owner"],
+            row["method"]["name"],
+            row["method"]["signature"],
+        ) in timeline_method_keys
+    ]
+    timeline_source_getter_candidates = []
+    timeline_window_item_setter_candidates = []
+    timeline_media_item_field_events = []
+    for row in timeline_method_rows:
+        for event in row.get("trace", {}).get("events", ()):
+            callee = event.get("callee", {})
+            if (
+                callee.get("signature") == "()LOf6;"
+                and callee.get("owner") in {"LiLb;", "LWT1;", MEDIA3_MEDIA_SOURCE}
+            ):
+                timeline_source_getter_candidates.append({
+                    "method": row["method"],
+                    "branch_seen": row.get("trace", {}).get("branch_seen"),
+                    "event": event,
+                })
+            if callee.get("owner") == "LTva$d;" and callee.get("method") == "for":
+                item_arguments = [
+                    argument for argument in event.get("identity_arguments", ())
+                    if argument.get("declared_argument_type") == "LOf6;"
+                ]
+                timeline_window_item_setter_candidates.append({
+                    "method": row["method"],
+                    "branch_seen": row.get("trace", {}).get("branch_seen"),
+                    "ordinal": event.get("ordinal"),
+                    "item_arguments": item_arguments,
+                    "call_kind": event.get("kind"),
+                })
+            if (
+                event.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+                and event.get("kind") in {
+                    "FIELD_READ_TYPED_IDENTITY",
+                    "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                    "RETURN_TYPED_IDENTITY",
+                    "MOVE_RESULT_TYPED_IDENTITY",
+                }
+            ):
+                timeline_media_item_field_events.append({
+                    "method": row["method"],
+                    "branch_seen": row.get("trace", {}).get("branch_seen"),
+                    "ordinal": event.get("ordinal"),
+                    "kind": event.get("kind"),
+                    "receiver_is_this": event.get("receiver_is_this"),
+                    "receiver_identity_origins": event.get("receiver_identity_origins", ()),
+                    "origins": event.get("origins", ()),
+                })
+
     return {
         "bounded": True,
         "candidate_media_item_type": "LOf6;",
         "candidate_timeline_type": "LTva;",
         "candidate_timeline_window_type": "LTva$d;",
         "intermediate_source_descriptor_type": "LmLb;",
+        "timeline_method_owner_scope": timeline_scope,
+        "timeline_method_trace_count": len(timeline_method_rows),
+        "timeline_source_getter_candidates": timeline_source_getter_candidates,
+        "timeline_window_item_setter_candidates": timeline_window_item_setter_candidates,
+        "timeline_media_item_field_events": timeline_media_item_field_events,
+        "li_lb_profile": privacy_safe_flow_class_profile(class_profiles.get("LiLb;")),
+        "li_lb_superclass_profile": privacy_safe_flow_class_profile(class_profiles.get("LWT1;")),
+        "li_lb_media_source_contract_defined": MEDIA3_MEDIA_SOURCE in class_profiles,
+        "li_lb_assignable_to_media_source": dex_type_assignable_to(
+            "LiLb;", MEDIA3_MEDIA_SOURCE, class_profiles
+        ),
         "owner_profiles": owner_profiles,
         "method_trace_count": len(method_rows),
         "method_traces": method_rows,
