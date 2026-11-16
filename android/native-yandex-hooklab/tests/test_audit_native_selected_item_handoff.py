@@ -4284,13 +4284,13 @@ class SelectedItemAuditTests(unittest.TestCase):
                         {
                             "kind": "FIELD_STORE_TYPED_IDENTITY",
                             "identity_type": "LQJ8_SERVICE",
-                            "receiver_is_this": True,
+                            "receiver_is_this_on_all_paths": True,
                             "origins": ["LQJ8_SERVICE_PARAMETER"],
                         },
                         {
                             "kind": "FIELD_STORE_TYPED_IDENTITY",
                             "identity_type": "TRACK_WRAPPER",
-                            "receiver_is_this": True,
+                            "receiver_is_this_on_all_paths": True,
                             "origins": ["TRACK_WRAPPER_PARAMETER"],
                         },
                     ],
@@ -4305,13 +4305,13 @@ class SelectedItemAuditTests(unittest.TestCase):
                         {
                             "kind": "FIELD_READ_TYPED_IDENTITY",
                             "identity_type": "LQJ8_SERVICE",
-                            "receiver_is_this": True,
+                            "receiver_is_this_on_all_paths": True,
                             "origins": ["LQJ8_SERVICE_FROM_THIS_FIELD"],
                         },
                         {
                             "kind": "FIELD_READ_TYPED_IDENTITY",
                             "identity_type": "TRACK_WRAPPER",
-                            "receiver_is_this": True,
+                            "receiver_is_this_on_all_paths": True,
                             "origins": ["TRACK_WRAPPER_FROM_THIS_FIELD"],
                         },
                         typed_event(downstream, [
