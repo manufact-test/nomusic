@@ -59,7 +59,8 @@ public static class DiagnosticLog
              "NATIVE_ELECTRON_CPU_HIGH" or
              "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
              "PLAYER_DOM_MEDIA_NODE_SEEN" or "PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN" or
-             "PLAYER_DOM_SOURCE_BLOB_SEEN" or "PLAYER_DOM_SOURCE_CELIKOM_MATCHED" or
+             "PLAYER_DOM_SOURCE_BLOB_SEEN" or "PLAYER_DOM_SOURCE_OTHER" or
+             "PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING" or "PLAYER_DOM_SOURCE_CELIKOM_MATCHED" or
              "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
              "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
              "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
@@ -250,7 +251,8 @@ public static class DiagnosticLog
                 "NATIVE_ELECTRON_CPU_HIGH" or
                 "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
                 "PLAYER_DOM_MEDIA_NODE_SEEN" or "PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN" or
-                "PLAYER_DOM_SOURCE_BLOB_SEEN" or "PLAYER_DOM_SOURCE_CELIKOM_MATCHED" or
+                "PLAYER_DOM_SOURCE_BLOB_SEEN" or "PLAYER_DOM_SOURCE_OTHER" or
+             "PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING" or "PLAYER_DOM_SOURCE_CELIKOM_MATCHED" or
                 "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
                 "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
                 "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
@@ -317,6 +319,10 @@ public static class DiagnosticLog
                 e.code == "PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN"),
             nativeDomSourceBlobObserved = parsedEvents.Any(e =>
                 e.code == "PLAYER_DOM_SOURCE_BLOB_SEEN"),
+            nativeDomSourceOtherObserved = parsedEvents.Any(e =>
+                e.code == "PLAYER_DOM_SOURCE_OTHER"),
+            nativeDomSourceAttributeMissingObserved = parsedEvents.Any(e =>
+                e.code == "PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING"),
             nativeDomCelikomSourceMatched = parsedEvents.Any(e =>
                 e.code == "PLAYER_DOM_SOURCE_CELIKOM_MATCHED"),
             events
@@ -415,6 +421,12 @@ public static class DiagnosticLog
                 .ToString().ToLowerInvariant());
         text.AppendLine("NativeDomSourceBlobObserved=" +
             entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_BLOB_SEEN", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("NativeDomSourceOtherObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_OTHER", StringComparison.Ordinal))
+                .ToString().ToLowerInvariant());
+        text.AppendLine("NativeDomSourceAttributeMissingObserved=" +
+            entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("NativeDomCelikomSourceMatched=" +
             entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_CELIKOM_MATCHED", StringComparison.Ordinal))

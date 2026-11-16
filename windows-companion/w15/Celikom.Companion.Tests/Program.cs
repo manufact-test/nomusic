@@ -2602,6 +2602,8 @@ try
          DiagnosticLog.IsIncidentCode("PLAYER_DOM_MEDIA_NODE_SEEN") &&
          DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN") &&
          DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_BLOB_SEEN") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_OTHER") &&
+         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING") &&
          DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_CELIKOM_MATCHED") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
@@ -2639,6 +2641,8 @@ try
         when + "|PLAYER_DOM_MEDIA_NODE_SEEN\n" +
         when + "|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN\n" +
         when + "|PLAYER_DOM_SOURCE_BLOB_SEEN\n" +
+        when + "|PLAYER_DOM_SOURCE_OTHER\n" +
+        when + "|PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING\n" +
         when + "|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209\n" +
@@ -2675,6 +2679,8 @@ try
          snapshot.Contains("NativeDomMediaNodeObserved=true") &&
          snapshot.Contains("NativeDomSourceAttributeObserved=true") &&
          snapshot.Contains("NativeDomSourceBlobObserved=true") &&
+         snapshot.Contains("NativeDomSourceOtherObserved=true") &&
+         snapshot.Contains("NativeDomSourceAttributeMissingObserved=true") &&
          snapshot.Contains("NativeDomCelikomSourceMatched=true") &&
          snapshot.Contains("PlayerGainVariantUrlSelectedObserved=true") &&
          snapshot.Contains("PlayerGainVariantUrlMissingObserved=true") &&
@@ -2691,6 +2697,8 @@ try
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_MEDIA_NODE_SEEN")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_BLOB_SEEN")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_OTHER")) &&
+         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209")) &&
@@ -2715,6 +2723,8 @@ try
              root.GetProperty("nativeDomMediaNodeObserved").GetBoolean() &&
              root.GetProperty("nativeDomSourceAttributeObserved").GetBoolean() &&
              root.GetProperty("nativeDomSourceBlobObserved").GetBoolean() &&
+             root.GetProperty("nativeDomSourceOtherObserved").GetBoolean() &&
+             root.GetProperty("nativeDomSourceAttributeMissingObserved").GetBoolean() &&
              root.GetProperty("nativeDomCelikomSourceMatched").GetBoolean(),
             "W166 auto-support distinguishes CDP and passive DOM decoder source witnesses");
         var events = root.GetProperty("events");
