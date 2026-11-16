@@ -40,7 +40,11 @@ METHOD_FLAGS = (
 )
 CONTINUATION_METHOD_NAMES = frozenset({"invokeSuspend", "resumeWith", "invoke", "create"})
 OBJECT_TO_OBJECT = "(Ljava/lang/Object;)Ljava/lang/Object;"
-EXTRA_IDENTITY_TYPES = {"Lxj8;", "LOf6;", "LiLb;"}
+EXTRA_IDENTITY_TYPES = {
+    "Lxj8;": "LQJ8_SERVICE",
+    "LOf6;": "MEDIA_ITEM",
+    "LiLb;": "MEDIA_ITEM_HOLDER",
+}
 
 
 def flag_names(value: int, table) -> list[str]:
