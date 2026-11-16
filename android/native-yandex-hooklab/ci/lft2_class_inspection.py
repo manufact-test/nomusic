@@ -164,6 +164,127 @@ def package_metadata(path: Path) -> dict:
     return dict(re.findall(r"(\w+)='([^']*)'", line))
 
 
+
+def scan_same_wrapper_calls_after_read(dex, method, code_off, read_event) -> dict:
+    """Follow only the exact field-read result through moves in its current basic block."""
+    instructions = list(audit.instructions(dex, code_off))
+    read_pc = read_event.get("pc")
+    read_index = next((
+        i for i, (pc, op, words) in enumerate(instructions)
+        if pc == read_pc and op == 0x54
+        and audit.field_id(dex, words[1])[0] == TARGET
+        and audit.field_id(dex, words[1])[2] == "LtCa;"
+    ), None)
+    if read_index is None:
+        return {
+            "read_pc": read_pc,
+            "scan_complete": False,
+            "stop_reason": "EXACT_FIELD_READ_INSTRUCTION_NOT_FOUND",
+            "same_object_calls": [],
+        }
+
+    read_words = instructions[read_index][2]
+    aliases = {(read_words[0] >> 8) & 15}
+    calls = []
+    stop_reason = "METHOD_END"
+    branch_ops = {0x28, 0x29, 0x2A, 0x2B, 0x2C} | set(range(0x32, 0x3E))
+    exit_ops = {0x0E, 0x0F, 0x10, 0x11, 0x27}
+    safe_no_write_ops = (
+        {0x00, 0x1D, 0x1E, 0x26}
+        | set(range(0x59, 0x60))
+        | set(range(0x66, 0x6E))
+    )
+
+    for pc, op, words in instructions[read_index + 1:read_index + 65]:
+        if op in branch_ops:
+            stop_reason = "BRANCH_BOUNDARY"
+            break
+        if op in exit_ops:
+            stop_reason = "METHOD_EXIT"
+            break
+
+        move = audit.move_object_registers(op, words)
+        if move:
+            destination, source = move
+            aliases.discard(destination)
+            if source in aliases:
+                aliases.add(destination)
+            continue
+
+        if op == 0x1F:  # check-cast preserves the object reference
+            continue
+
+        if 0x6E <= op <= 0x78:
+            callee = dex.method(words[1])
+            registers = audit.invoke_registers(op, words)
+            is_static = op in (0x71, 0x77)
+            declared = audit.expand_invoke_register_types(
+                callee[0], audit.parse_types(callee[2]), is_static
+            )
+            if len(registers) != len(declared):
+                stop_reason = "INVOKE_REGISTER_SHAPE_MISMATCH"
+                break
+            logical_position = -1
+            for declared_type, register in zip(declared, registers):
+                if declared_type is None:
+                    continue
+                logical_position += 1
+                if register not in aliases:
+                    continue
+                call_role = (
+                    "RECEIVER" if not is_static and logical_position == 0
+                    else "ARGUMENT"
+                )
+                calls.append({
+                    "call_pc": pc,
+                    "call_role": call_role,
+                    "argument_position": logical_position,
+                    "declared_argument_type": declared_type,
+                    "callee_owner": callee[0],
+                    "callee_method": callee[1],
+                    "callee_descriptor": callee[2],
+                })
+            continue
+
+        if op in (0xFA, 0xFB, 0xFC, 0xFD):
+            registers = audit.invoke_registers(op, words)
+            if aliases.intersection(registers):
+                calls.append({
+                    "call_pc": pc,
+                    "call_role": "UNRESOLVED_DYNAMIC_INVOKE",
+                    "argument_position": None,
+                    "declared_argument_type": None,
+                    "callee_owner": None,
+                    "callee_method": None,
+                    "callee_descriptor": None,
+                })
+            stop_reason = "DYNAMIC_INVOKE_BOUNDARY"
+            break
+
+        if op == 0x0C:  # move-result-object overwrites its destination
+            aliases.discard(words[0] >> 8)
+            continue
+
+        if op in safe_no_write_ops:
+            continue
+
+        written = audit.written_register(op, words)
+        if written is not None:
+            aliases.discard(written)
+            continue
+
+        stop_reason = "UNMODELED_OPCODE_BOUNDARY"
+        break
+
+    return {
+        "read_pc": read_pc,
+        "receiver_identity_origins": read_event.get("receiver_identity_origins"),
+        "receiver_is_this_on_all_paths": read_event.get("receiver_is_this_on_all_paths"),
+        "scan_complete": stop_reason == "METHOD_END",
+        "stop_reason": stop_reason,
+        "same_object_calls": calls,
+    }
+
 def trace_non_constructor_method(dex, method, flags: int, code_off: int) -> dict:
     try:
         trace = audit.trace_track_identity_method_cfg(
@@ -224,11 +345,15 @@ def trace_non_constructor_method(dex, method, flags: int, code_off: int) -> dict
         "trace_complete": not trace.get("trace_failed", False),
         "wrapper_field_read_count": len(wrapper_reads),
         "wrapper_field_read_sites": [{
-            "ordinal": e.get("ordinal"),
+            "pc": e.get("pc"),
             "field_declaring_owner": e.get("field_declaring_owner"),
-            "receiver_is_this": e.get("receiver_is_this"),
+            "receiver_is_this_on_all_paths": e.get("receiver_is_this_on_all_paths"),
             "receiver_identity_origins": e.get("receiver_identity_origins"),
         } for e in wrapper_reads],
+        "same_object_calls_after_each_wrapper_field_read": [
+            scan_same_wrapper_calls_after_read(dex, method, code_off, e)
+            for e in wrapper_reads
+        ],
         "typed_same_wrapper_call_targets": targets(typed_calls),
         "possible_wrapper_call_targets": targets(possible_calls),
         "native_source_descriptor_call_targets": targets([
