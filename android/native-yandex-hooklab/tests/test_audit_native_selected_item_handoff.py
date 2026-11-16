@@ -3190,7 +3190,11 @@ class SelectedItemAuditTests(unittest.TestCase):
                            (18, 0x71, [0x0071, 10]),
                        ]), \
                  patch("audit_native_selected_item_handoff.trace_identity_method",
-                       return_value={"method": {}, "events": []}) as trace:
+                       return_value={"method": {}, "events": []}) as trace, \
+                 patch("audit_native_selected_item_handoff.inspect_exact_playlist_update_method_handle_sites",
+                       return_value={"bounded": True, "matching_method_handle_count": 0,
+                                     "matching_call_site_count": 0,
+                                     "invoke_custom_reference_site_count": 0}) :
                 result = inspect_exact_playlist_update_callers([apk])
 
         self.assertTrue(result["bounded"])
