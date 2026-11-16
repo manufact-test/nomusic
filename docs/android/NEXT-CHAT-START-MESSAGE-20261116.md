@@ -1,12 +1,11 @@
-Привет! Ты принимаешь **CELIKOM Android A1** как ведущий разработчик. Продолжай строго с сохранённой точки. Ничего не начинай с нуля и архитектуру не меняй.
+Привет! Ты принимаешь **CELIKOM Android A1** как ведущий разработчик. Продолжай строго с текущей точки. Ничего не начинай с нуля и архитектуру не меняй.
 
-**Продукт:** Android mobile app. Не Windows и не браузерное расширение.  
 **GitHub:** `manufact-test/nomusic`  
-**Единственная рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
+**Рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
 **Последний code checkpoint:** `27ccbe8348d598fead0386e70ef68573b04270c4`  
-**Точный резерв:** `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`  
-**CI #229:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139), 16 signed splits / 6 DEX, read-only.  
-**CI #230:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43893294101); CI output is now compact and the full JSON is deleted after summarizing.  
+**Code backup:** `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`  
+**CI #229:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139) — signed Yandex 2025.10.4 #120.1gpr, 16 splits / 6 DEX.  
+**CI #230:** [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43893294101) — compact logs, full report deleted after summary.  
 **Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`; после него hooks не менялись.
 
 ### Прочитай только два документа
@@ -14,36 +13,34 @@
 1. `docs/android/NEXT-CHAT.md`
 2. `docs/android/ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md`
 
-Дополнительно, только если нужен внешний контекст: `docs/android/ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md`.
+Исследование Media3/Yandex и правила документации лежат в отдельных файлах, но загружай их только при необходимости. Не читай архивы и старые накопительные handoff-файлы.
 
-Не загружай старые накопительные handoff-файлы и все документы папки целиком. История сохранена в архиве и Git history.
+### Первая задача — определить точную целевую версию Яндекса
 
-### Текущая точка
+Не начинай сразу трассировку LfT2.
 
-CI #229 доказал цепочку идентичности одного TrackWrapper:
+CI исследует Yandex 2025.10.4 #120.1gpr; телефон владельца ранее был на 2026.09.5 #167gpr. Сначала проверь конфигурацию Android-сборки CELIKOM, package pinning, workflows, metadata и SHA, чтобы установить, какая версия реально является целевым runtime внутри CELIKOM A1. Не считай CI specimen и установленное на телефоне приложение автоматически одной версией.
 
-`LIEa.new → Lqj8.if → Lxj8.if → Lvj8 → Lxj8.for → LfT2.<init>`
+Если репозиторий не даёт однозначного ответа — задай владельцу один короткий вопрос: исследуем закреплённый 2025.10.4 или целевой 2026 build с телефона?
 
-`LfT2.<init>` сохраняет тот же TrackWrapper. Но тело точного `LfT2.invokeSuspend(Object):Object` не найдено. Дальнейшая передача в MediaSource/MediaPeriod/DataSource/Extractor/Player не доказана. Stage B остаётся NO-GO.
+Для выбранной версии используй только точный оригинальный пакет. Проверь подпись издателя, version, полный split set и SHA-256. Не доверяй зеркалам как источнику подлинности и не переноси обфусцированные дескрипторы между версиями.
 
-**Сначала сверить target build:** CI сейчас анализирует Yandex 2025.10.4 #120.1gpr, а телефон ранее был на 2026.09.5 #167gpr. Не переносить выводы между версиями. Если целевая версия — 2026, сначала получить и проверить точный оригинальный подписанный split-пакет.
+### Затем — одна техническая задача
 
-### Единственная задача
+После подтверждения target build продолжи только с `LfT2;`:
+- реальные class flags, superclass, interfaces и method descriptors;
+- найти исполняемую continuation entry, если она есть;
+- проследить только чтение сохранённого TrackWrapper и передачу того же объекта в MediaSource / MediaPeriod / DataSource / Extractor / Player.
 
-Исследуй только точный класс `LfT2;` в шести подписанных DEX:
-- его superclass, interfaces, flags и реальные методы;
-- где находится исполняемая continuation entry, если она есть;
-- читает ли какой-либо метод сохранённый TrackWrapper и передаёт ли тот же объект в конкретную source/player boundary.
-
-Если такой путь не доказан — закрой кандидат. Не запускай глобальный поиск и не повторяй уже закрытые LiLb/LXk6 маршруты.
+Учитывай важный вывод Media3: Player может принимать MediaSource напрямую, поэтому не зацикливайся только на MediaItem. Но требуй доказательства идентичности объекта в подписанном DEX. Не повторяй уже закрытые LiLb и LXk6.
 
 ### Ограничения
 
-- Не менять архитектуру, runtime hooks, APK, оригинальный Яндекс и vendor behavior.
+- Только Android CELIKOM A1. Архитектуру, runtime hooks, APK и оригинальный Яндекс не менять.
 - Не добавлять второй Player/decoder/AudioTrack.
 - Не читать IDs, названия, URL, DataSpec, токены, account data, приватные значения полей или audio bytes.
 - Не трогать NAV17, Test.50, frozen A1/LSPatch, Windows, extension, backend/API/DB и production.
-- Не просить ручную проверку без конкретной необходимости.
-- Работай крупным законченным блоком, без промежуточных отчётов.
+- Stage B остаётся NO-GO, пока не доказана связь выбранного Track с активным декодером.
+- Работай крупным законченным блоком, без промежуточных отчётов. Не загружай полные CI-логи или большие исходники целиком.
 
-**Важно:** полный CI JSON не вставляй в чат и не загружай целиком. Вытаскивай только нужные поля из компактного результата.
+**Главное:** сначала правильно выбери бинарник, затем продолжай с LfT2. Не исследуй повторно то, что уже доказано.
