@@ -1,6 +1,6 @@
 # CELIKOM Windows — current handoff W159 (16 November 2026)
 
-<badge>Owner test pending</badge>
+**Status: owner test pending.**
 
 **The owner has downloaded version 0.24.41.0. Installation and manual verification are NOT yet confirmed.** Do not mark the build accepted, make speculative changes, or create another package before the owner reports the result.
 
