@@ -8952,7 +8952,10 @@ def inspect_media3_player_item_identity_contracts(
                     owner_profile = classify_track_owner_profile(
                         class_profiles.get(method[0], {})
                     )
-                    signature_profile = method_signature_type_profile(method)
+                    try:
+                        signature_profile = method_signature_type_profile(method)
+                    except (ValueError, DexError):
+                        continue
                     has_native_identity = (
                         signature_profile["accepts_track"]
                         or signature_profile["accepts_album"]
