@@ -2301,13 +2301,13 @@ try
             playbackState = "PAUSED", instanceId = "w23-current-4", sequence = 2
         }))
         {
-            var snapshot = bridge.GetPlaybackSnapshot();
+            var sameTrackSnapshot = bridge.GetPlaybackSnapshot();
             Test(sameTrackWithoutMetadata.IsSuccessStatusCode &&
-                 snapshot.HeartbeatFresh && snapshot.TrackId == "987" &&
-                 snapshot.Title == "Новый процесс" &&
-                 snapshot.Artist == "Тестовый исполнитель" &&
-                 snapshot.DurationMs == 180000 &&
-                 snapshot.PlaybackState == "PAUSED",
+                 sameTrackSnapshot.HeartbeatFresh && sameTrackSnapshot.TrackId == "987" &&
+                 sameTrackSnapshot.Title == "Новый процесс" &&
+                 sameTrackSnapshot.Artist == "Тестовый исполнитель" &&
+                 sameTrackSnapshot.DurationMs == 180000 &&
+                 sameTrackSnapshot.PlaybackState == "PAUSED",
                  "W162 empty same-track heartbeat preserves title, artist and duration in one atomic snapshot");
         }
         using (var nextTrackWithMetadata = await SendW141Heartbeat(new {
@@ -2317,12 +2317,12 @@ try
             playbackState = "PLAYING", instanceId = "w23-current-4", sequence = 3
         }))
         {
-            var snapshot = bridge.GetPlaybackSnapshot();
+            var nextTrackSnapshot = bridge.GetPlaybackSnapshot();
             Test(nextTrackWithMetadata.IsSuccessStatusCode &&
-                 snapshot.TrackId == "988" &&
-                 snapshot.Title == "Следующая песня" &&
-                 snapshot.Artist == "Другой исполнитель" &&
-                 snapshot.DurationMs == 205000 &&
+                 nextTrackSnapshot.TrackId == "988" &&
+                 nextTrackSnapshot.Title == "Следующая песня" &&
+                 nextTrackSnapshot.Artist == "Другой исполнитель" &&
+                 nextTrackSnapshot.DurationMs == 205000 &&
                  snapshot.PlaybackState == "PLAYING",
                  "W162 a real Next replaces all metadata together without leaking the previous track");
         }
@@ -2333,12 +2333,12 @@ try
             instanceId = "w23-current-4", sequence = 4
         }))
         {
-            var snapshot = bridge.GetPlaybackSnapshot();
+            var partialSnapshot = bridge.GetPlaybackSnapshot();
             Test(partialMetadataRefresh.IsSuccessStatusCode &&
-                 snapshot.TrackId == "988" &&
-                 snapshot.Title == "Обновлённое название" &&
-                 snapshot.Artist == "Другой исполнитель" &&
-                 snapshot.DurationMs == 205000,
+                 partialSnapshot.TrackId == "988" &&
+                 partialSnapshot.Title == "Обновлённое название" &&
+                 partialSnapshot.Artist == "Другой исполнитель" &&
+                 partialSnapshot.DurationMs == 205000,
                  "W162 non-empty metadata refresh updates one field without clearing the other");
         }
         bridge.SetNativeNetworkRecoveryPending(false);
