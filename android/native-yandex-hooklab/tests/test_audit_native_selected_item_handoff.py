@@ -226,6 +226,48 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertFalse(field_read["receiver_is_this"])
 
 
+
+    def test_trace_identity_method_propagates_generic_object_alias_through_check_cast(self):
+        from unittest.mock import patch
+        class FakeDex:
+            def u16(self, offset):
+                return {100:5, 102:2}[offset]
+            def descriptor(self, index):
+                return "LOf6;"
+            def method(self, index):
+                return {
+                    0: ("Ljava/util/List;", "get", "(I)Ljava/lang/Object;"),
+                    1: ("LsO7;", "Z", "(ILOf6;)V"),
+                }[index]
+        method=("LQueueUpdater;", "update", "(LsO7;Ljava/util/List;)V")
+        ins=[
+            (0,0x6e,[0x026e,0]),  # List.get(index) -> Object
+            (1,0x0c,[0x040c]),    # move-result-object v4
+            (2,0x1f,[0x041f,2]),  # check-cast v4, MediaItem
+            (3,0x6e,[0x006e,1]),  # Player.addMediaItem(index, same object)
+        ]
+        with patch("audit_native_selected_item_handoff.instructions",return_value=ins), \
+             patch("audit_native_selected_item_handoff.typed_parameter_registers",
+                   side_effect=lambda dex,m,flags,off,typ:
+                   [0] if typ=="LsO7;" else [2] if typ=="Ljava/util/List;" else []), \
+             patch("audit_native_selected_item_handoff.invoke_registers",
+                   side_effect=lambda op,words: [2,3] if words[1]==0 else [0,3,4]):
+            trace=trace_identity_method(
+                FakeDex(),method,0x8,100,
+                extra_identity_types={"LsO7;","Ljava/util/List;","Ljava/lang/Object;","LOf6;"},
+            )
+        setter=next(
+            event for event in trace["events"]
+            if event.get("callee",{}).get("owner")=="LsO7;"
+            and event.get("callee",{}).get("method")=="Z"
+        )
+        item_argument=next(
+            argument for argument in setter["identity_arguments"]
+            if argument["declared_argument_type"]=="LOf6;"
+        )
+        self.assertEqual(item_argument["identity_type"],"EXTRA_OBJECT:LOf6;")
+        self.assertEqual(item_argument["origins"],["RETURNED_FROM_METHOD"])
+
     def test_trace_identity_method_carries_returned_reference_producer_to_window_field(self):
         from unittest.mock import patch
         class FakeDex:

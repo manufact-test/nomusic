@@ -1187,10 +1187,14 @@ def trace_identity_method(
                     aliases[typ][dest] = origins
             continue
 
-        if op == 0x1f:  # check-cast preserves the reference
+        if op == 0x1f:  # check-cast preserves the exact reference identity
             register = (words[0] >> 8) & 0xff
             cast_type = dex.descriptor(words[1])
             reference_register_types[register] = cast_type
+            if cast_type in tracked_types:
+                for source_type, values in aliases.items():
+                    if register in values:
+                        aliases[cast_type][register] = set(values[register])
             continue
 
         dest = written_register(op, words)
@@ -9068,6 +9072,7 @@ def inspect_media3_player_item_identity_contracts(
         ("LsO7;", "C", "(LOf6;J)V"),
         ("LsO7;", "V", "(LOf6;)V"),
         ("LsO7;", "Z", "(ILOf6;)V"),
+        ("LXk6;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V"),
     }
     all_targets = constructor_targets | player_targets | item_holder_targets
     if len(all_targets) > 128:
@@ -9106,7 +9111,10 @@ def inspect_media3_player_item_identity_contracts(
                         item_type and item_type in parse_types(method[2])
                     )
                     has_item_field = bool(item_type and item_type in owner_instance_types)
-                    item_holder_types = {"LiLb;", "LgLb;", "LmLb;", "LwN8;", "Las2;", "LBs4;", "LsO7;"}
+                    item_holder_types = {
+                        "LiLb;", "LgLb;", "LmLb;", "LwN8;", "Las2;",
+                        "LBs4;", "LsO7;", "LXk6;", "LXi6$e;",
+                    }
                     has_item_holder_parameter = bool(
                         item_holder_types.intersection(parse_types(method[2]))
                     )
@@ -9159,7 +9167,9 @@ def inspect_media3_player_item_identity_contracts(
                                 dex, method, flags, code_off, item_type,
                                 extra_types=(
                                     "Landroid/net/Uri;", "LmLb;", "LTva$d;",
-                                    "LiLb;", "LgLb;", "LwN8;", "Las2;", "LBs4;"
+                                    "LiLb;", "LgLb;", "LwN8;", "Las2;", "LBs4;",
+                                    "LsO7;", "LXi6$e;", "LXk6;",
+                                    "Ljava/util/List;", "Ljava/lang/Object;",
                                 )
                             ) if item_type else None
 
@@ -9192,6 +9202,12 @@ def inspect_media3_player_item_identity_contracts(
         ),
         "native_track_related_callers": caller_rows,
         "native_track_related_callers_truncated": caller_rows_truncated,
+        "player_playlist_update_callers": [
+            row for row in caller_rows
+            if row["target"]["owner"] == "LXk6;"
+            and row["target"]["method"] == "if"
+            and row["target"]["signature"] == "(LsO7;LXi6$e;Ljava/util/List;)V"
+        ],
         "track_bearing_player_mutator_callers": [
             row for row in caller_rows
             if row["target"]["owner"] in {"LsO7;", "LBs4;", "LfH7;", "LrD0;"}
@@ -9313,18 +9329,19 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         ("LsO7;", "C", "(LOf6;J)V"),
         ("LsO7;", "V", "(LOf6;)V"),
         ("LsO7;", "Z", "(ILOf6;)V"),
+        ("LXk6;", "if", "(LsO7;LXi6$e;Ljava/util/List;)V"),
     }
     inspect_owners = {
         "LrD0;", "Lp24;", "LA14;", "Lbq0;", "LcA9;", "LgLb;",
         "LiLb;", "LmLb;", "Lmu3;", "LTva;", "LTva$d;", "LOf6;",
-        "Lo45;", "LwN8;", "Las2;", "LBs4;", "LsO7;",
+        "Lo45;", "LwN8;", "Las2;", "LBs4;", "LsO7;", "LXk6;", "LXi6$e;",
     } | timeline_owner_scope
     extra_types = (
         "LOf6;", "LTva$d;", "LmLb;", "Landroid/net/Uri;",
         "Lmu3;", "Ln26;", "Lnk0;", "LdA9;", "LA14;",
         "LwN8;", "Las2;", "LiLb;", "LgLb;", "LBs4;", "LsO7;",
-        "LfH7;", "LrD0;", "LTva;", "LWT1;",
-        MEDIA3_MEDIA_SOURCE, "Ljava/lang/Object;",
+        "LfH7;", "LrD0;", "LTva;", "LWT1;", "LXk6;", "LXi6$e;",
+        "Ljava/util/List;", MEDIA3_MEDIA_SOURCE, "Ljava/lang/Object;",
     )
     method_rows = []
     owner_profiles = []
@@ -9373,7 +9390,7 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                             capture_unproven_calls=(
                                 is_timeline_method
                                 or key in exact_methods and method[0] in {
-                                    "LrD0;", "LBs4;", "LsO7;", "Lo45;"
+                                    "LrD0;", "LBs4;", "LsO7;", "Lo45;", "LXk6;"
                                 }
                             ),
                             extra_identity_types=extra_types,
@@ -9496,6 +9513,20 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
         if event.get("callee", {}).get("owner") == "LTva;"
         and event.get("callee", {}).get("method") == "final"
     ), None)
+    player_playlist_update_row = next((
+        row for row in method_rows
+        if row["method"]["owner"] == "LXk6;"
+        and row["method"]["name"] == "if"
+        and row["method"]["signature"] == "(LsO7;LXi6$e;Ljava/util/List;)V"
+    ), None)
+    player_playlist_update_calls = [
+        event for event in (
+            player_playlist_update_row.get("trace", {}).get("events", ())
+            if player_playlist_update_row else ()
+        )
+        if event.get("callee", {}).get("owner") == "LsO7;"
+        and event.get("callee", {}).get("method") == "Z"
+    ]
     player_item_mutator_rows = [
         row for row in method_rows
         if row["method"]["owner"] in {"LrD0;", "LBs4;", "LsO7;"}
@@ -9560,6 +9591,17 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
                 player_current_item_getter_row
                 and player_current_item_getter_row.get("trace", {}).get("branch_seen_aliases_cleared")
             ),
+        },
+        "player_playlist_update_bridge": {
+            "method": (
+                player_playlist_update_row["method"]
+                if player_playlist_update_row else None
+            ),
+            "branch_seen": bool(
+                player_playlist_update_row
+                and player_playlist_update_row.get("trace", {}).get("branch_seen_aliases_cleared")
+            ),
+            "calls_to_player_mutator": player_playlist_update_calls,
         },
         "player_media_item_mutator_forwarding_methods": [
             {
