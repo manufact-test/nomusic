@@ -680,24 +680,20 @@ public sealed partial class MainWindow
             }
 
             var now = DateTimeOffset.UtcNow;
-            var metadataPending = string.Equals(
+            var metadataTransitionPending = string.Equals(
                     _compactMetadataPendingTrackId, id, StringComparison.Ordinal) &&
-                _compactMetadataPendingAt != DateTimeOffset.MinValue &&
+                _compactMetadataPendingAt != DateTimeOffset.MinValue;
+            var metadataPending = metadataTransitionPending &&
                 now >= _compactMetadataPendingAt &&
                 now - _compactMetadataPendingAt <= CompactTrackMetadataTransitionGrace;
             var previousTitleIsReal = GrantValidator.IsTrackId(previousRenderedTrackId) &&
                 !string.IsNullOrWhiteSpace(previousTrackTitle) &&
                 !previousTrackTitle.StartsWith("Track ID ", StringComparison.Ordinal);
+            var sameStableTrack = string.Equals(
+                    id, previousRenderedTrackId, StringComparison.Ordinal) &&
+                !metadataTransitionPending;
             var retainPrevious = title.Length == 0 && previousTitleIsReal &&
-                (string.Equals(id, previousRenderedTrackId, StringComparison.Ordinal) ||
-                 metadataPending);
-            if (title.Length == 0 &&
-                string.Equals(_compactMetadataPendingTrackId, id, StringComparison.Ordinal) &&
-                !metadataPending)
-            {
-                _compactMetadataPendingTrackId = "";
-                _compactMetadataPendingAt = DateTimeOffset.MinValue;
-            }
+                (sameStableTrack || metadataPending);
 
             var trackText = CompactPlaybackPresentation.TrackTitle(
                 title, previousTrackTitle, retainPrevious);
