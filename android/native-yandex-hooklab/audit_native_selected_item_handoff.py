@@ -5151,8 +5151,6 @@ def method_definitions_with_flags(dex: Dex):
         base = dex.class_offset + class_index * 32
         owner = dex.descriptor(dex.u32(base))
         data_off = dex.u32(base + 24)
-        if class_data_presence is not None:
-            class_data_presence[owner] = class_data_presence.get(owner, False) or bool(data_off)
         if not data_off:
             continue
         static_fields, pos = uleb(dex, data_off)
@@ -7698,6 +7696,8 @@ def declared_method_contracts_for_owners(dex, owners, class_data_presence=None):
         if owner not in wanted:
             continue
         data_off = dex.u32(base + 24)
+        if class_data_presence is not None:
+            class_data_presence[owner] = class_data_presence.get(owner, False) or bool(data_off)
         if not data_off:
             continue
         static_fields, pos = uleb(dex, data_off)
