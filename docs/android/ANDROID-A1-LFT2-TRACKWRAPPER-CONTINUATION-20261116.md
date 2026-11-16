@@ -39,6 +39,8 @@ The `LfT2` constructor is present and stores the same TrackWrapper. However:
 - The bounded trace therefore cannot establish that `LfT2` reads its stored TrackWrapper or forwards it.
 - No TrackWrapper-to-MediaSource, MediaPeriod, DataSource, MediaItem, Player mutator, or native audio-sink edge is proven from this route.
 - The broader report's `active_selected_item_proven` remains false.
+- The exact constructor has 9 direct callsites across 8 caller methods. Same-TrackWrapper identity is proven at the two `Lxj8.for(...)` callsites (the current chain), plus separate `LTJ7.invokeSuspend` and `LWBa.if` callsites. The other callers merely pass a compatible TrackWrapper-typed argument; identity was not established there.
+- The caller census includes owners under `com/yandex/music/shared/player/download2` and `RetryingBalancingDataSource`. Those names suggest areas worth distinguishing, but do not prove that this object belongs to active playback rather than download, retry, or prefetch work.
 
 Do not describe `LfT2` as a confirmed coroutine implementation or infer its purpose from the obfuscated name or constructor signature.
 
