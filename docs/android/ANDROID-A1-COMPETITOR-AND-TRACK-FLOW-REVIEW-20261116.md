@@ -110,8 +110,6 @@ README описывает Android-модуль с LSPatch/LSPosed, локаль�
 
 
 
-## 6. Follow-up — exact Media3 Player ancestry, CI #178
+## 6. Follow-up — exact Media3 Player candidate closed, CI #180
 
-Этот результат supersedes общий следующий шаг «найти Player owner» из раздела 4. Ограниченная ancestry нашла 5 concrete implementors и обфусцированный Player-контракт \`LfH7;\`. Конкретный следующий кандидат — \`LfH7.else()LkD7;\` / \`Lp24.else()LkD7;\`; он ещё не доказан как current MediaItem getter. Полный результат, точные ограничения и следующий узкий проход: \`ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`.
-
-CI #178 SUCCESS, 114/114; checkpoint \`70009b4e05a592e7036c8457ca027b2445202c1f\`; backup \`backup/android-a1-media3-player-contracts-ci-green-20261116\`. Runtime hooks и APK не менялись.
+Проверка кандидата \`LfH7.else()LkD7;\` завершена. Точный descriptor \`LkD7;\` — concrete exception class, не MediaItem и не доказанная обёртка над ним. \`Lp24.else()\` вызывает \`ExoPlayer.else()LX04;\` на delegate receiver, а затем возвращает тот же object result. Кандидат закрыт; source/decoder tracing для него не выполнялся. Не расширять поиск на соседние классы без отдельного задания. Полный trace, implementor mapping и CI #180: \`ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`.

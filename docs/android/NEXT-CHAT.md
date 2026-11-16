@@ -6,51 +6,46 @@
 
 - Репозиторий: \`manufact-test/nomusic\`.
 - Единственная рабочая ветка: \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`.
-- Последний CI-green read-only audit checkpoint: \`70009b4e05a592e7036c8457ca027b2445202c1f\`.
-- CI #178: [SUCCESS, 114/114 тестов](https://github.com/manufact-test/nomusic/actions/runs/43825896825), точный подписанный оригинал Yandex 2025, 6 DEX, in-memory анализ.
-- Точный резерв кода: \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`.
-- Резерв документации до handoff: \`backup/android-a1-player-contracts-docs-pre-20261116\`.
+- Последний CI-green code checkpoint: \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`.
+- CI #180: [SUCCESS, 116/116 тестов](https://github.com/manufact-test/nomusic/actions/runs/43830018094), точный подписанный оригинал Yandex 2025, 6 DEX, read-only анализ.
+- Точный резерв кода: \`backup/android-a1-media3-current-item-candidate-ci-green-20261116\` @ \`28c9bf9d3fa46a7a4aa0cebcc55fee9018602796\`.
+- Предыдущий резерв CI #178 сохранён: \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`.
 - Runtime hooks не менялись. APK не собирался, не патчился, не устанавливался и не выпускался.
-- Предыдущие промежуточные CI #175–#177 не использовать как результат: #175 имел ошибку области видимости парсера, #176–#177 не распознавали DEX из-за двойного экранирования шаблона. Эти ошибки исправлены; авторитетный результат — только CI #178. В нём sanity-check подтвердил 58 объявленных методов известного renderer owner и \`passed=true\`.
+- CI #180 — авторитетный результат проверки кандидата. CI #178 остаётся базовым ancestry checkpoint.
 
-## Результат — bounded Media3 Player ancestry
+## Результат — кандидат LfH7.else()LkD7; закрыт
 
 Полный результат: \`docs/android/ANDROID-A1-MEDIA3-PLAYER-ANCESTRY-20261116.md\`.
 
-- В точной подписанной сборке найдены 5 concrete implementors Media3 ExoPlayer: \`LDq2;\`, \`Landroidx/media3/exoplayer/d;\`, \`Landroidx/media3/exoplayer/m;\`, \`Lp24;\`, \`Lwq2;\`.
-- Ограниченная ancestry содержит 10 owners: \`LA14;\`, \`LDq2;\`, \`Landroidx/media3/exoplayer/ExoPlayer;\`, \`Landroidx/media3/exoplayer/d;\`, \`Landroidx/media3/exoplayer/m;\`, \`LfH7;\`, \`Lhq2;\`, \`Lp24;\`, \`LrD0;\`, \`Lwq2;\`.
-- \`ExoPlayer\` наследует интерфейс \`LfH7;\`. Его контракт содержит Player-подобные методы \`play()\`, \`pause()\`, \`prepare()\`, \`getDuration()\`, \`getVolume()\` и точный кандидат \`else()LkD7;\`. Считать \`LfH7\` обфусцированным Player-контрактом — рабочая гипотеза по ancestry и набору методов, не доказательство семантики каждого obfuscated метода.
-- Проверено 627 объявлений методов, включая 271 interface/abstract. В отчёт выведены 128 строк контрактов, поэтому полный список ограничен. Проверка парсера реального DEX прошла.
-- Проверено 503 code-bearing метода в Player ancestry; 26 строк имели распознанную связь с Player API. В них не найден доказанный Track/Album → current item → decoder identity.
-- Все 10 owner profiles не показывают полей с прямыми типами Track, Album или Track wrapper. Не найдены поля с известными Media3 MediaItem/MediaSource, DataSource, MediaSession, AudioTrack или MediaCodec типами. При этом \`LkD7;\` и другие obfuscated-типы нельзя считать не относящимися к MediaItem только потому, что их имена не распознаны.
-- Самый конкретный следующий кандидат: контракт \`LfH7.else()LkD7;\` и найденная реализация \`Lp24.else()LkD7;\`. Реализация вызывает Player API, но identity возвращаемого объекта и фактический runtime receiver ещё не доказаны.
-- Прямых ссылок на не-обфусцированный owner \`Player\` в прежнем ref-census нет; это не отсутствие Player API — его ancestry обнаружена через \`ExoPlayer → LfH7\`.
+- \`LfH7.else()LkD7;\` **не является getter текущего MediaItem**.
+- Точный descriptor \`LkD7;\` определён в подписанном DEX как конкретный класс с superclass \`Ljava/lang/Exception;\`, без интерфейсов. Его собственные instance field types: \`I\`, \`J\`, \`Landroid/os/Bundle;\`; static field type: \`Ljava/lang/String;\`.
+- Нет MediaItem subtype relation, MediaItem-typed fields, доказанной constructor/accessor identity или метода \`MediaSource.Factory\`, принимающего точный descriptor \`LkD7;\`. Это error/exception object, не MediaItem и не доказанная обёртка над ним.
+- \`Lp24.else()LkD7;\` — 4 инструкции, без ветвлений. Метод читает receiver типа \`Landroidx/media3/exoplayer/ExoPlayer;\` из поля \`this\`, вызывает \`Landroidx/media3/exoplayer/ExoPlayer.else()LX04;\` и возвращает тот же объект, полученный от вызова. Receiver identity и same-call-result-to-return identity доказаны на этом участке.
+- Реализация той же сигнатуры: \`Lp24;\`, \`Landroidx/media3/exoplayer/d;\`, \`Landroidx/media3/exoplayer/m;\`; \`LDq2;\` и \`Lwq2;\` наследуют конкретную реализацию от \`LA14;\`.
+- Кандидат закрыт. Source/decoder/ByteBuffer tracing для него не выполнялся: тип не MediaItem, продолжать этот маршрут бессмысленно.
 
 ## Статус продукта
 
-- **Stage A / NAV17: PASS** по ручному подтверждению владельца. Нативный Яндекс, авторизация, альбомы, Моя волна и оригинальное воспроизведение не трогать.
+- **Stage A / NAV17: PASS** по ручному подтверждению владельца. Нативный Яндекс, авторизацию, альбомы, Моя волну и оригинальное воспроизведение не трогать.
 - **Stage B: NOT CONNECTED / NO-GO.** CELIKOM audio не привязано к текущему выбранному item и не подключено к доказанному decoder output.
 - Оставить false: \`active_selected_item_proven\`, \`same_native_item_to_decoder_proven\`, \`same_track_album_edition_generation_owner_proven\`, \`codec_output_object_to_audio_sink_proven\`.
-- Edition/generation остаются недоказанными. Совпадение типа, названия метода или наличие Player implementation не доказывает текущий playback.
+- Edition/generation остаются недоказанными.
 
-## Единственная следующая задача
+## Следующая работа
 
-1. Не повторять competitor sweep, Player ancestry scan или общий interface census.
-2. Проверить точный descriptor \`LkD7;\` и контракт \`LfH7.else()LkD7;\`: установить по DEX-структуре, является ли он MediaItem или обёрткой над ним. Не угадывать по обфусцированному имени.
-3. Проследить только тело \`Lp24.else()LkD7;\`: какой exact delegate/receiver вызывается и какой объект возвращается. Проверять точные override того же signature только если они реально объявлены у других четырёх implementors.
-4. Если это current MediaItem getter, проследить identity именно возвращённого объекта к source/decoder boundary и дальше к уже известному ByteBuffer/native sink. Не читать значения полей или media values.
-5. Если связь не подтверждается на этом коротком участке — зафиксировать разрыв и не расширять поиск на соседние классы «на всякий случай».
+Текущий bounded candidate закрыт. **Не повторять** ancestry scan, competitor sweep, полный interface census и не расширять поиск на соседние классы ради нового getter без отдельного задания. Результат и точный разрыв сохранены; ждать следующей конкретной задачи.
 
 ## Жёсткие ограничения
 
 - Не менять архитектуру, vendor behavior, runtime hooks, APK или оригинальное приложение.
-- Не добавлять второй player/decoder/AudioTrack и не подключать replacement до доказательства identity.
+- Не добавлять второй player/decoder/AudioTrack.
 - Не читать/экспортировать Track/Album IDs, названия, URL, DataSpec, токены, данные аккаунта, приватные значения полей или аудиобайты.
 - Не трогать NAV17, Test.50, frozen A1/LSPatch baseline, Windows, browser extension, backend/API/DB и production.
 - Не просить ручные действия владельца без конкретного необходимого измерения.
-- Работать одним законченным блоком. Без промежуточных отчётов и лишних тестов. Остановиться только при реальном блокере или необходимости ручной проверки.
+- Работать одним законченным блоком. Без промежуточных отчётов и лишних тестов.
 
 ---
+
 
 # SUPERSEDING CHECKPOINT — CI #144, LyEa exact field and LCK1 receiver audit
 

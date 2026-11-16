@@ -4,10 +4,58 @@
 **Репозиторий:** \`manufact-test/nomusic\`  
 **Рабочая ветка:** \`experiment/android-a1-metrica-init-state-observer-arm13-20261112\`  
 **Кодовый checkpoint:** \`70009b4e05a592e7036c8457ca027b2445202c1f\`  
-**CI #178:** [SUCCESS, 114/114 тестов](https://github.com/manufact-test/nomusic/actions/runs/43825896825)  
+**CI #180:** [SUCCESS, 116/116 тестов](https://github.com/manufact-test/nomusic/actions/runs/43830018094)  
 **Точный backup:** \`backup/android-a1-media3-player-contracts-ci-green-20261116\` @ \`70009b4e05a592e7036c8457ca027b2445202c1f\`
 
 Read-only анализ точного issuer-signed Yandex 2025 XAPK, шесть DEX, только в памяти. Runtime hooks, приложение, APK и playback не затрагивались.
+
+
+## 0. Superseding result — LfH7.else()LkD7; закрыт, CI #180
+
+Этот раздел supersedes прежнюю гипотезу в разделах 4 и 6 ниже. Исходная ancestry-проверка CI #178 остаётся историческим baseline.
+
+### Точный descriptor
+
+- \`LkD7;\` определён в точной подписанной сборке как concrete class.
+- Superclass: \`Ljava/lang/Exception;\`; interfaces: none.
+- Instance field type descriptors: \`I\`, \`J\`, \`Landroid/os/Bundle;\`.
+- Static field type descriptor: \`Ljava/lang/String;\`.
+- \`LkD7;\` не является \`MediaItem\`, не является его subtype и не содержит MediaItem-typed fields. В DEX не найдено доказанного constructor-field-to-accessor identity для обёртки. Ни одна найденная ссылка \`MediaSource.Factory\` не принимает этот точный descriptor.
+- Вывод: \`LfH7.else()LkD7;\` — error/exception contract, не current MediaItem getter. Семантическое имя обфусцированного класса не выдумывается.
+
+### Тело Lp24.else()LkD7;
+
+Точный trace на 4 инструкциях, без ветвлений:
+
+1. Читает из \`this\` объект, объявленный как \`Landroidx/media3/exoplayer/ExoPlayer;\`.
+2. Вызывает \`Landroidx/media3/exoplayer/ExoPlayer.else()LX04;\` через interface invoke.
+3. Получает object result.
+4. Возвращает тот же object result.
+
+Доказано:
+- receiver register имеет origin \`FIELD_READ_FROM_THIS:Landroidx/media3/exoplayer/ExoPlayer;\`;
+- receiver identity на этом участке доказана;
+- \`same_call_result_to_return_proven=true\`;
+- новый объект не создаётся, field values не читаются.
+
+### Та же сигнатура у пяти concrete implementors
+
+| Concrete implementor | Effective declaration |
+|---|---|
+| \`LDq2;\` | Наследует concrete body от \`LA14;\` |
+| \`Landroidx/media3/exoplayer/d;\` | Собственная concrete declaration |
+| \`Landroidx/media3/exoplayer/m;\` | Собственная concrete declaration |
+| \`Lp24;\` | Собственная concrete declaration |
+| \`Lwq2;\` | Наследует concrete body от \`LA14;\` |
+
+### Граница результата
+
+- \`LkD7;\` — не MediaItem, поэтому путь к \`MediaSource.Factory\`, decoder и ByteBuffer/native sink для этого кандидата не запускался.
+- \`runtime_player_instance_proven=false\`, \`active_selected_item_proven=false\`, \`same_native_item_to_decoder_proven=false\`.
+- Кандидат закрыт. Не продолжать исследование соседних классов и не начинать новый getter search без отдельного задания.
+- CI #180: SUCCESS, 116/116 тестов; шесть DEX, read-only in-memory audit.
+- Runtime hooks, vendor behavior, APK и playback не менялись.
+
 
 ## 1. Область и валидность результата
 
@@ -47,7 +95,7 @@ CI #175 завершился ошибкой: проверка наличия cla
 - В Player ancestry не найдено прямых полей Track, Album или Track-ID wrapper. Не распознаны поля с известными прямыми типами Media3 MediaItem/MediaSource, DataSource, MediaSession, AudioTrack и MediaCodec. Обфусцированный descriptor \`LkD7;\` этим отрицательным результатом не классифицируется.
 - \`interface_api_method_count=0\` и \`public_player_selection_method_refs=[]\` относятся к поиску по двум известным не-обфусцированным root owners. Это **не** означает отсутствие Player API: точная ancestry показала контракт \`LfH7;\`.
 
-## 4. Конкретный следующий кандидат
+## 4. Историческая гипотеза — закрыта результатом CI #180
 
 В \`LfH7;\` найден метод:
 
@@ -81,7 +129,7 @@ CI #175 завершился ошибкой: проверка наличия cla
 
 Stage A / NAV17 остаётся PASS по ручному подтверждению владельца. Stage B остаётся NOT CONNECTED / NO-GO. Известный ByteBuffer/native sink путь сам по себе не доказывает, что это буфер текущего выбранного трека.
 
-## 6. Следующий блок — строго узкий
+## 6. Исторический план проверки — выполнен и superseded
 
 1. Проверить точный class descriptor \`LkD7;\`: его superclass/interfaces, поля только по типам, конструкторы и методы. Установить, соответствует ли он MediaItem или внутренней обёртке, без догадок по имени.
 2. Проследить тело ровно одного метода \`Lp24.else()LkD7;\`: receiver/delegate и возвращаемую object identity.
