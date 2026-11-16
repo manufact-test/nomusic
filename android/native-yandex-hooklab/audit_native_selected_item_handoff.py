@@ -7624,7 +7624,9 @@ def media3_player_implementation_scope(class_profiles,
                 continue
             visited.add(current)
             for parent in parents(current):
-                if parent in roots or reaches_player(parent):
+                if parent != "Ljava/lang/Object;" and (
+                    parent in roots or parent in class_profiles
+                ):
                     pending.append(parent)
         by_implementor[owner] = sorted(visited)
         scope_owners.update(visited)

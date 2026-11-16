@@ -313,6 +313,31 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertIn(player, result["scope_owners"])
         self.assertNotIn("LUnrelated;", result["scope_owners"])
 
+    def test_media3_player_scope_includes_full_superclass_and_interface_ancestry(self):
+        from audit_native_selected_item_handoff import media3_player_implementation_scope
+        exo = "Landroidx/media3/exoplayer/ExoPlayer;"
+        player_contract = "LPlayerContract;"
+        base = "LBasePlayer;"
+        base_interface = "LBaseInterface;"
+        concrete = "LConcretePlayer;"
+        profiles = {
+            exo: {"is_interface": True, "is_abstract": True,
+                  "superclass": "Ljava/lang/Object;", "interfaces": {player_contract}},
+            player_contract: {"is_interface": True, "is_abstract": True,
+                              "superclass": "Ljava/lang/Object;", "interfaces": set()},
+            concrete: {"is_interface": False, "is_abstract": False,
+                       "superclass": base, "interfaces": {exo}},
+            base: {"is_interface": False, "is_abstract": False,
+                   "superclass": "Ljava/lang/Object;", "interfaces": {base_interface}},
+            base_interface: {"is_interface": True, "is_abstract": True,
+                             "superclass": "Ljava/lang/Object;", "interfaces": set()},
+        }
+        result = media3_player_implementation_scope(profiles)
+        self.assertTrue(result["bounded"])
+        self.assertEqual(result["implementors"], [concrete])
+        for owner in (exo, player_contract, base, base_interface, concrete):
+            self.assertIn(owner, result["scope_owners"])
+
     def test_media3_player_scope_handles_cycles_without_inventing_implementors(self):
         from audit_native_selected_item_handoff import media3_player_implementation_scope
         profiles = {
