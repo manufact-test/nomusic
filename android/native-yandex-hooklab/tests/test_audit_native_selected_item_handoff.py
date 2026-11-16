@@ -3136,11 +3136,11 @@ class SelectedItemAuditTests(unittest.TestCase):
 
         caller = ("LQueueFactory;", "dispatch", "(LsO7;LXi6$e;Ljava/util/List;)V")
         instructions = [(0, 0x71, [0x0071, 0])]  # invoke-static exact target
-        with patch("audit_native_selected_item_handoff.instructions", return_value=instructions), \\
+        with patch("audit_native_selected_item_handoff.instructions", return_value=instructions), \
              patch("audit_native_selected_item_handoff.typed_parameter_registers",
                    side_effect=lambda _d, _m, _f, _c, typ:
-                   [0] if typ == "LsO7;" else [1] if typ == "LXi6$e;" else [2] if typ == "Ljava/util/List;" else []), \\
-             patch("audit_native_selected_item_handoff.invoke_registers", return_value=[0, 1, 2]), \\
+                   [0] if typ == "LsO7;" else [1] if typ == "LXi6$e;" else [2] if typ == "Ljava/util/List;" else []), \
+             patch("audit_native_selected_item_handoff.invoke_registers", return_value=[0, 1, 2]), \
              patch("audit_native_selected_item_handoff.expand_invoke_register_types",
                    return_value=["LsO7;", "LXi6$e;", "Ljava/util/List;"]):
             trace = trace_identity_method(
@@ -3180,14 +3180,14 @@ class SelectedItemAuditTests(unittest.TestCase):
             apk = Path(folder) / "fixture.apk"
             with zipfile.ZipFile(apk, "w") as archive:
                 archive.writestr("classes.dex", b"fake-dex")
-            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \\
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
                  patch("audit_native_selected_item_handoff.method_definitions_with_flags",
-                       return_value=[(caller, 0x8, 100)]), \\
+                       return_value=[(caller, 0x8, 100)]), \
                  patch("audit_native_selected_item_handoff.instructions",
                        return_value=[
                            (17, 0x71, [0x0071, 9]),
                            (18, 0x71, [0x0071, 10]),
-                       ]), \\
+                       ]), \
                  patch("audit_native_selected_item_handoff.trace_identity_method",
                        return_value={"method": {}, "events": []}) as trace:
                 result = inspect_exact_playlist_update_callers([apk])

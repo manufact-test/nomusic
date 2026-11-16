@@ -9344,7 +9344,7 @@ def inspect_exact_playlist_update_callers(apks):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 dex = Dex(archive.read(entry))
                 for method, flags, code_off in method_definitions_with_flags(dex):
