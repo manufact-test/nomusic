@@ -1,3 +1,7 @@
+> **CELIKOM Android A1 current documentation moved to [docs/android/README.md](../docs/android/README.md).** This file describes the older Android Stage16/native-companion diagnostic project and is historical, not the current A1 product handoff. For current Stage A / Stage B status, build-version matrix, code checkpoint and next task, read [docs/android/NEXT-CHAT.md](../docs/android/NEXT-CHAT.md). Do not use the old 0.3.51/Stage16 status below as current A1 status.
+
+---
+
 > **Android 29.10.2026 — текущий native-компаньон, НЕ WebView PoC.** Этот README про Stage16 исторический. Актуальный проект — `android/native-companion/`, последняя подписанная версия **0.3.51 (отклонена владельцем)**, решение — архитектурная переработка. Инструкции: [NEXT-CHAT](../docs/android/NEXT-CHAT.md), [ARCHITECTURE-RESET-CHECKPOINT](../docs/android/ARCHITECTURE-RESET-CHECKPOINT-2026-10-29.md). Последний signed source сохранён в `backup/android-0351-last-signed-20261029`, промежуточный pre-refactor source — в `backup/android-pre-architecture-refactor-20261029`. Не выпускать ещё одну таймерную 0.3.52 до переработки; desktop/server не трогать.
 
 ---
