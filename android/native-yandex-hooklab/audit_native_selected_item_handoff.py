@@ -7682,6 +7682,88 @@ def media3_player_api_role(method):
     return None
 
 
+
+
+def declared_method_contracts_for_owners(dex, owners):
+    """Read method signatures (including abstract declarations) for exact owners only."""
+    wanted = set(owners)
+    rows = []
+    for class_index in range(dex.class_count):
+        base = dex.class_offset + class_index * 32
+        owner = dex.descriptor(dex.u32(base))
+        if owner not in wanted:
+            continue
+        data_off = dex.u32(base + 24)
+        if not data_off:
+            continue
+        static_fields, pos = uleb(dex, data_off)
+        instance_fields, pos = uleb(dex, pos)
+        direct_methods, pos = uleb(dex, pos)
+        virtual_methods, pos = uleb(dex, pos)
+        for count in (static_fields, instance_fields):
+            previous = 0
+            for _ in range(count):
+                delta, pos = uleb(dex, pos)
+                previous += delta
+                _flags, pos = uleb(dex, pos)
+        for count in (direct_methods, virtual_methods):
+            previous = 0
+            for _ in range(count):
+                delta, pos = uleb(dex, pos)
+                previous += delta
+                flags, pos = uleb(dex, pos)
+                code_off, pos = uleb(dex, pos)
+                method = dex.method(previous)
+                if method[0] != owner:
+                    raise DexError("PLAYER_METHOD_OWNER_MISMATCH")
+                rows.append((method, flags, code_off))
+                if len(rows) > 2048:
+                    raise ValueError("PLAYER_METHOD_DECLARATION_LIMIT")
+    return rows
+
+
+def media3_player_contract_role(method):
+    """Classify exact Player ancestry contracts, including obfuscated interface owners."""
+    _owner, name, signature = method
+    try:
+        parameters = parse_types(signature)
+        result = signature.split(")", 1)[1]
+    except (ValueError, IndexError):
+        return None
+    if name in ("getCurrentMediaItem", "getMediaItemAt"):
+        return "CURRENT_MEDIA_ITEM_ACCESSOR"
+    if name == "getCurrentMediaItemIndex":
+        return "CURRENT_ITEM_INDEX_ACCESSOR"
+    if name == "getCurrentTimeline":
+        return "CURRENT_TIMELINE_ACCESSOR"
+    if name in ("setMediaItem", "setMediaItems", "addMediaItem",
+                "addMediaItems", "replaceMediaItem"):
+        return "PLAYER_ITEM_MUTATION"
+    if name in ("setMediaSource", "setMediaSources"):
+        return "PLAYER_SOURCE_MUTATION"
+    if name == "prepare":
+        return "PLAYER_PREPARE"
+    if MODEL in parameters or result == MODEL:
+        return "TRACK_TYPED_API"
+    if ALBUM_MODEL in parameters or result == ALBUM_MODEL:
+        return "ALBUM_TYPED_API"
+    if WRAPPER in parameters or result == WRAPPER:
+        return "TRACK_ID_WRAPPER_API"
+    if MEDIA3_MEDIA_ITEM in parameters or result == MEDIA3_MEDIA_ITEM:
+        return "MEDIA_ITEM_TYPED_API"
+    if MEDIA3_MEDIA_SOURCE in parameters or result == MEDIA3_MEDIA_SOURCE:
+        return "MEDIA_SOURCE_TYPED_API"
+    if MEDIA3_TIMELINE == result:
+        return "CURRENT_TIMELINE_TYPED_API"
+    if any("datasource" in typ.lower() for typ in parameters) or "datasource" in result.lower():
+        return "DATA_SOURCE_TYPED_API"
+    if any("download2/" in typ.lower() for typ in parameters) or "download2/" in result.lower():
+        return "NATIVE_DOWNLOAD2_DESCRIPTOR_API"
+    if MEDIA_SESSION_OWNER in parameters or result == MEDIA_SESSION_OWNER:
+        return "MEDIA_SESSION_TYPED_API"
+    return None
+
+
 def _media3_player_field_roles(profile):
     instance = set(profile.get("instance_types", ()))
     return {
@@ -7741,6 +7823,52 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
         {"method": name, "signature": signature, "roles": sorted(roles)}
         for (name, signature), roles in sorted(api_roles.items())
     ]
+
+    scope_owner_profiles = []
+    for owner in scope["scope_owners"]:
+        profile = class_profiles.get(owner, {})
+        scope_owner_profiles.append({
+            "owner": owner,
+            "is_interface": profile.get("is_interface", False),
+            "is_abstract": profile.get("is_abstract", False),
+            "superclass": profile.get("superclass"),
+            "interfaces": sorted(profile.get("interfaces", ())),
+            "field_roles": _media3_player_field_roles(profile),
+        })
+
+    declared_contract_rows = []
+    declared_method_count = 0
+    interface_method_count = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in declared_method_contracts_for_owners(
+                    dex, scope["scope_owners"]
+                ):
+                    declared_method_count += 1
+                    profile = class_profiles.get(method[0], {})
+                    is_interface_contract = (
+                        profile.get("is_interface", False)
+                        or profile.get("is_abstract", False)
+                    )
+                    if is_interface_contract:
+                        interface_method_count += 1
+                    role = media3_player_contract_role(method)
+                    if not (is_interface_contract or role):
+                        continue
+                    declared_contract_rows.append({
+                        "owner": method[0],
+                        "method": method[1],
+                        "signature": method[2],
+                        "role": role or "OTHER_INTERFACE_METHOD",
+                        "interface_or_abstract_contract": is_interface_contract,
+                        "code_body_declared": code_off != 0,
+                        "access_flags": flags,
+                    })
+
     api_rows_truncated = len(api_rows) > MAX_MEDIA3_PLAYER_API_ROWS
     api_rows = api_rows[:MAX_MEDIA3_PLAYER_API_ROWS]
     api_keys = set(api_roles)
@@ -7846,6 +7974,13 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
     return {
         **scope,
         "interface_api_method_count": len(api_roles),
+        "scope_owner_profiles": scope_owner_profiles,
+        "scope_declared_method_count": declared_method_count,
+        "scope_interface_method_count": interface_method_count,
+        "scope_method_contract_rows": declared_contract_rows[:MAX_MEDIA3_PLAYER_API_ROWS * 2],
+        "scope_method_contract_rows_truncated": (
+            len(declared_contract_rows) > MAX_MEDIA3_PLAYER_API_ROWS * 2
+        ),
         "relevant_interface_api_methods": api_rows,
         "interface_api_methods_truncated": api_rows_truncated,
         "implementation_code_body_count": body_count,

@@ -346,6 +346,29 @@ class SelectedItemAuditTests(unittest.TestCase):
         self.assertEqual(result["concrete_implementor_count"], 3)
         self.assertEqual(result["implementors"], [])
 
+    def test_media3_player_ancestry_contract_roles_detect_track_album_and_item_types(self):
+        from audit_native_selected_item_handoff import (
+            media3_player_contract_role, MODEL, ALBUM_MODEL,
+            MEDIA3_MEDIA_ITEM, MEDIA3_MEDIA_SOURCE
+        )
+        owner = "Lhq2;"
+        self.assertEqual(
+            media3_player_contract_role((owner, "getX", f"(){MEDIA3_MEDIA_ITEM}")),
+            "MEDIA_ITEM_TYPED_API"
+        )
+        self.assertEqual(
+            media3_player_contract_role((owner, "setX", f"({MEDIA3_MEDIA_SOURCE})V")),
+            "MEDIA_SOURCE_TYPED_API"
+        )
+        self.assertEqual(
+            media3_player_contract_role((owner, "acceptX", f"({MODEL})V")),
+            "TRACK_TYPED_API"
+        )
+        self.assertEqual(
+            media3_player_contract_role((owner, "acceptX", f"({ALBUM_MODEL})V")),
+            "ALBUM_TYPED_API"
+        )
+
     def test_media3_player_api_roles_use_exact_item_and_source_signatures(self):
         from audit_native_selected_item_handoff import (
             media3_player_api_role, MEDIA3_PLAYER_OWNERS,
