@@ -2374,9 +2374,9 @@ try
             playbackState = "PLAYING", instanceId = "w23-current-4", sequence = 6
         }))
         {
-            var nextSnapshot = bridge.GetPlaybackSnapshot();
-            Test(nextAfterGap.IsSuccessStatusCode && nextSnapshot.TrackId == "989" &&
-                 nextSnapshot.Title == "Третья песня" && nextSnapshot.Artist == "Третий исполнитель",
+            var afterGapSnapshot = bridge.GetPlaybackSnapshot();
+            Test(nextAfterGap.IsSuccessStatusCode && afterGapSnapshot.TrackId == "989" &&
+                 afterGapSnapshot.Title == "Третья песня" && afterGapSnapshot.Artist == "Третий исполнитель",
                  "W163 a real next track atomically replaces the retained transition metadata");
         }
         using (var stoppedWithoutTrack = await SendW141Heartbeat(new {
