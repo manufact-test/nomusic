@@ -11,7 +11,7 @@
 - Exact code backup: `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116` @ `27ccbe8348d598fead0386e70ef68573b04270c4`.
 - Documentation/context-hygiene backup: `backup/android-a1-context-hygiene-20261116` @ `feefeb14fc613a42b1c31009448a9777b0f12cc7`.
 - CI #229: [SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43888792139), pinned issuer-signed Yandex Music 2025 XAPK, 16 splits / 6 DEX, read-only.
-- CI-log compaction workflow change: `723c71caeb0a9244e89eefd1f8c91e597e5bce00`; CI #230 is validating the compact-summary output. Do not call this workflow change green until its run is complete.
+- CI-log compaction workflow change: `723c71caeb0a9244e89eefd1f8c91e597e5bce00`; [CI #230 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/43893294101). The job log fell from 2,517,490 bytes in #229 to 68,361 bytes in #230 (about 97.3% smaller). The compact summary retains route verdicts/counts; the full JSON is temporary and deleted, with no artifact upload.
 - Last runtime-hook change: `a655712d210189f3bc611847235de3ed4d985c1a`. No runtime hooks changed after it.
 - No APK was built, patched, installed, or released during this static investigation.
 
