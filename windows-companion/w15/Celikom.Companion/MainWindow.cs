@@ -1604,7 +1604,7 @@ public sealed partial class MainWindow : Form
         var playbackState = _bridge.LastPlaybackState;
         var paused = heartbeatFresh && _bridge.Enabled && playbackState == "PAUSED";
         var stopped = heartbeatFresh && _bridge.Enabled && playbackState == "STOPPED";
-        var mappingPending = heartbeatFresh && playbackState == "PLAYING" &&
+        var mappingAvailable = heartbeatFresh && playbackState == "PLAYING" &&
             PlaybackSourceEvidence.MappedButUnverified(switchAvailable && _bridge.Enabled, state, sourcePresence);
         _start.Enabled = PlaybackStartGate.CanAcceptStart(
             _bridgeStarted, _integrationBusy, _updatingApplication,
@@ -1622,7 +1622,7 @@ public sealed partial class MainWindow : Form
             sourceVerified ? "Подмена активна" :
             originalPlaying ? "Играет оригинал" :
             paused ? "Пауза" : stopped ? "Остановлено" :
-            mappingPending ? "Ожидаем подтверждения" : "Сервис включён";
+            CompactPlaybackPresentation.ServiceEnabledMessage;
         _connectionState.ForeColor = sourceVerified ? Accent : Secondary;
         _switchHint.Text = _compactStarting && !_bridge.Enabled ? "Проверяем Яндекс.Музыку…" :
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :
@@ -1636,8 +1636,8 @@ public sealed partial class MainWindow : Form
             originalPlaying ? "Играет оригинал. Подмена сейчас не активна." :
             paused ? "Воспроизведение на паузе." :
             stopped ? "Воспроизведение остановлено." :
-            mappingPending ? "Подмена подготовлена, но источник в плеере ещё не подтверждён." :
-            "Сервис включён. Источник текущего трека неизвестен.";
+            mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage :
+            "Сервис включён. Ожидаем данные текущего трека.";
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
