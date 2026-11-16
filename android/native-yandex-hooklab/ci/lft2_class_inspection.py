@@ -171,7 +171,8 @@ def trace_non_constructor_method(dex, method, flags: int, code_off: int) -> dict
         safe_code = reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason) else "LFT2_METHOD_TRACE_UNCLASSIFIED"
         return {
             "method": method[1], "descriptor": method[2],
-            "trace_complete": False, "error_code": safe_code,
+            "trace_complete": False, "error_class": type(exc).__name__,
+            "error_code": safe_code,
         }
 
     events = trace.get("events", ())
@@ -323,6 +324,10 @@ def inspect_lft2(apks: list[Path]) -> dict:
         })
 
     declared = target["declared_methods"]
+    declared_field_rows = audit.declared_fields_for_owner(target_dex, TARGET)
+    field_type_counts = {}
+    for _field_owner, _field_name, field_type in declared_field_rows:
+        field_type_counts[field_type] = field_type_counts.get(field_type, 0) + 1
     exact_invoke_suspend = [
         m for m in declared
         if m["name"] == "invokeSuspend" and m["descriptor"] == OBJECT_TO_OBJECT
@@ -367,6 +372,7 @@ def inspect_lft2(apks: list[Path]) -> dict:
         "verified_publisher_splits": len(apks),
         "signed_dex_count": dex_count,
         "target_class": public_class_row(target, include_all_methods=True),
+        "declared_field_type_counts_without_names": field_type_counts,
         "target_split_index": target_split,
         "target_dex_entry": target_dex_entry,
         "superclass_chain": superclass_chain,
