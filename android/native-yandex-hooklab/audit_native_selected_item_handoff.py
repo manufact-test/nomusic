@@ -5151,6 +5151,8 @@ def method_definitions_with_flags(dex: Dex):
         base = dex.class_offset + class_index * 32
         owner = dex.descriptor(dex.u32(base))
         data_off = dex.u32(base + 24)
+        if class_data_presence is not None:
+            class_data_presence[owner] = class_data_presence.get(owner, False) or bool(data_off)
         if not data_off:
             continue
         static_fields, pos = uleb(dex, data_off)
@@ -7686,7 +7688,7 @@ def media3_player_api_role(method):
 
 
 
-def declared_method_contracts_for_owners(dex, owners):
+def declared_method_contracts_for_owners(dex, owners, class_data_presence=None):
     """Read method signatures (including abstract declarations) for exact owners only."""
     wanted = set(owners)
     rows = []
@@ -7841,15 +7843,22 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
     declared_contract_rows = []
     declared_method_count = 0
     interface_method_count = 0
+    class_data_presence = {}
+    known_renderer_method_count = 0
+    contract_scan_owners = set(scope["scope_owners"]) | {"LcC0;"}
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
                 if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
                     continue
                 dex = Dex(archive.read(entry))
-                for method, flags, code_off in declared_method_contracts_for_owners(
-                    dex, scope["scope_owners"]
-                ):
+                declarations = declared_method_contracts_for_owners(
+                    dex, contract_scan_owners, class_data_presence
+                )
+                for method, flags, code_off in declarations:
+                    if method[0] == "LcC0;":
+                        known_renderer_method_count += 1
+                        continue
                     declared_method_count += 1
                     profile = class_profiles.get(method[0], {})
                     is_interface_contract = (
@@ -7980,6 +7989,15 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
         "scope_declared_method_count": declared_method_count,
         "scope_interface_method_count": interface_method_count,
         "scope_method_contract_rows": declared_contract_rows[:MAX_MEDIA3_PLAYER_API_ROWS * 2],
+        "scope_class_data_present_by_owner": {
+            owner: class_data_presence.get(owner, False)
+            for owner in scope["scope_owners"]
+        },
+        "declared_method_parser_sanity": {
+            "known_renderer_owner": "LcC0;",
+            "known_renderer_owner_method_count": known_renderer_method_count,
+            "passed": known_renderer_method_count > 0,
+        },
         "scope_method_contract_rows_truncated": (
             len(declared_contract_rows) > MAX_MEDIA3_PLAYER_API_ROWS * 2
         ),
