@@ -46,7 +46,7 @@ Do not describe `LfT2` as a confirmed coroutine implementation or infer its purp
 
 ## 4. Next task — one bounded LfT2 class inspection
 
-**Precondition:** first resolve the exact Yandex build CELIKOM A1 is targeting. CI #229 is pinned to 2025.10.4 #120.1gpr, while the owner's phone was previously reported as 2026.09.5 #167gpr. Do not trace the 2025 DEX and apply its obfuscated route to a 2026 runtime. If the target is 2026, pin and verify that exact original signed split set before continuing.
+**Precondition:** first establish which Yandex build CELIKOM A1 actually embeds/loads. Inspect repository packaging/build configuration, pinned package metadata, workflows and verified hashes. CI #229's 2025.10.4 #120.1gpr specimen and the phone's previously reported 2026.09.5 #167gpr are not automatically the same runtime target. If repository evidence cannot resolve the intended target, ask the owner whether to target the pinned 2025 specimen or the phone's 2026 build. Then obtain that exact original package and verify publisher signature, version, full split set and SHA-256. Never transfer obfuscated findings between builds.
 
 Continue from the exact class `LfT2;` only:
 
