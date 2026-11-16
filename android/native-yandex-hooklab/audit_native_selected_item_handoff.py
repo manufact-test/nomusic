@@ -1016,11 +1016,20 @@ def trace_identity_method(
                     else "FIELD_READ_FROM_OTHER_RECEIVER"
                 )
                 aliases[field_type][dest] = {origin}
+                receiver_identity_origins = [
+                    {
+                        "identity_type": tracked_types[receiver_type],
+                        "origins": sorted(receiver_origins),
+                    }
+                    for receiver_type, values in aliases.items()
+                    if (receiver_origins := values.get(receiver))
+                ]
                 add_event({
                     "ordinal": ordinal,
                     "kind": "FIELD_READ_TYPED_IDENTITY",
                     "identity_type": tracked_types[field_type],
                     "receiver_is_this": receiver == this_register,
+                    "receiver_identity_origins": receiver_identity_origins,
                 })
             continue
 
@@ -8964,7 +8973,14 @@ def inspect_media3_player_item_identity_contracts(
                         or owner_profile["has_album_field"]
                         or owner_profile["has_wrapper_field"]
                     )
-                    if not has_native_identity:
+                    owner_instance_types = set(
+                        class_profiles.get(method[0], {}).get("instance_types", ())
+                    )
+                    has_item_parameter = bool(
+                        item_type and item_type in parse_types(method[2])
+                    )
+                    has_item_field = bool(item_type and item_type in owner_instance_types)
+                    if not (has_native_identity or has_item_parameter or has_item_field):
                         continue
                     for ordinal, op, words in instructions(dex, code_off):
                         if op not in INVOKES:
@@ -8994,6 +9010,8 @@ def inspect_media3_player_item_identity_contracts(
                             "caller_owner_has_track_field": owner_profile["has_track_field"],
                             "caller_owner_has_album_field": owner_profile["has_album_field"],
                             "caller_owner_has_wrapper_field": owner_profile["has_wrapper_field"],
+                            "caller_has_item_parameter": has_item_parameter,
+                            "caller_owner_has_item_field": has_item_field,
                         })
                         if caller_key not in caller_traces:
                             if len(caller_traces) >= 64:
@@ -9001,7 +9019,9 @@ def inspect_media3_player_item_identity_contracts(
                                 continue
                             caller_traces[caller_key] = safe_identity_trace(
                                 dex, method, flags, code_off, item_type,
-                                extra_types=("Landroid/net/Uri;",)
+                                extra_types=(
+                                    "Landroid/net/Uri;", "LmLb;", "LTva$d;"
+                                )
                             ) if item_type else None
 
     return {
@@ -9042,6 +9062,135 @@ def inspect_media3_player_item_identity_contracts(
         "same_native_item_to_decoder_proven": False,
         "field_names_or_values_disclosed": False,
         "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
+
+
+
+
+def inspect_media3_item_handoff_bridge(apks, class_profiles):
+    """Trace the exact MediaItem <-> Timeline.Window and TrackWrapper -> URI handoff."""
+    exact_methods = {
+        ("LrD0;", "E", "()LOf6;"),
+        ("LrD0;", "C", "(LOf6;J)V"),
+        ("LrD0;", "V", "(LOf6;)V"),
+        ("LrD0;", "Z", "(ILOf6;)V"),
+        ("Lp24;", "E", "()LOf6;"),
+        ("Lp24;", "C", "(LOf6;J)V"),
+        ("Lp24;", "V", "(LOf6;)V"),
+        ("Lp24;", "Z", "(ILOf6;)V"),
+        ("LA14;", "E", "()LOf6;"),
+        ("Lbq0;", "this", "(LtCa;Lnk0;JJZLn26;Ljava/lang/String;)LmLb;"),
+        ("LcA9;", "extends",
+         "(LcA9;LA14;LtCa;Ljava/lang/Long;JJZLn26;Lnk0;Ljava/lang/String;)V"),
+        ("LgLb;", "<init>", "(LdA9;Lmu3;LtCa;Ln26;Lnk0;)V"),
+        ("LiLb;", "<init>", "(LdA9;LgA9;LJI7;LOf6;LFq1;LHy9$a;LPAa;)V"),
+    }
+    inspect_owners = {
+        "LrD0;", "Lp24;", "LA14;", "Lbq0;", "LcA9;", "LgLb;",
+        "LiLb;", "LmLb;", "Lmu3;", "LTva;", "LTva$d;", "LOf6;",
+    }
+    extra_types = (
+        "LOf6;", "LTva$d;", "LmLb;", "Landroid/net/Uri;",
+        "Lmu3;", "Ln26;", "Lnk0;", "LdA9;", "LA14;",
+    )
+    method_rows = []
+    owner_profiles = []
+    for owner in sorted(inspect_owners):
+        owner_profiles.append({
+            "owner": owner,
+            "profile": privacy_safe_flow_class_profile(class_profiles.get(owner)),
+        })
+
+    seen_methods = set()
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in declared_method_contracts_for_owners(
+                    dex, inspect_owners
+                ):
+                    key = (method[0], method[1], method[2])
+                    if key in seen_methods or not code_off:
+                        continue
+                    seen_methods.add(key)
+                    signature_types = set(parse_types(method[2]))
+                    is_exact = key in exact_methods
+                    is_identity_related = bool(
+                        signature_types.intersection(extra_types)
+                        or method[0] in {"LiLb;", "LgLb;", "LcA9;", "Lbq0;", "LmLb;"}
+                    )
+                    if not (is_exact or is_identity_related):
+                        continue
+                    try:
+                        trace = trace_identity_method(
+                            dex, method, flags, code_off,
+                            extra_identity_types=extra_types,
+                            track_fields_from_any_receiver=True,
+                        )
+                    except (ValueError, DexError) as exc:
+                        reason = str(exc)
+                        safe_code = reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason) else "UNCLASSIFIED_TRACE_ERROR"
+                        trace = {
+                            "trace_failed": True,
+                            "error_class": type(exc).__name__,
+                            "error_code": safe_code,
+                            "field_names_or_values_disclosed": False,
+                        }
+                    method_rows.append({
+                        "method": {
+                            "owner": method[0],
+                            "name": method[1],
+                            "signature": method[2],
+                        },
+                        "is_exact_focus_method": is_exact,
+                        "trace": trace,
+                    })
+                    if len(method_rows) > 160:
+                        raise ValueError("MEDIA3_ITEM_HANDOFF_METHOD_LIMIT")
+
+    return {
+        "bounded": True,
+        "candidate_media_item_type": "LOf6;",
+        "candidate_timeline_type": "LTva;",
+        "candidate_timeline_window_type": "LTva$d;",
+        "intermediate_source_descriptor_type": "LmLb;",
+        "owner_profiles": owner_profiles,
+        "method_trace_count": len(method_rows),
+        "method_traces": method_rows,
+        "current_item_to_timeline_window_receiver_identity_proven": any(
+            row["method"]["owner"] == "LrD0;"
+            and row["method"]["name"] == "E"
+            and any(
+                event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+                and event.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+                and any(
+                    origin.get("identity_type") == "EXTRA_OBJECT:LTva$d;"
+                    for origin in event.get("receiver_identity_origins", ())
+                )
+                for event in row.get("trace", {}).get("events", ())
+            )
+            for row in method_rows
+        ),
+        "track_wrapper_to_media_item_uri_receiver_identity_proven": any(
+            row["method"]["owner"] == "LcA9;"
+            and row["method"]["name"] == "extends"
+            and any(
+                event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+                and event.get("identity_type") == "EXTRA_OBJECT:Landroid/net/Uri;"
+                and any(
+                    origin.get("identity_type") == "EXTRA_OBJECT:LmLb;"
+                    for origin in event.get("receiver_identity_origins", ())
+                )
+                for event in row.get("trace", {}).get("events", ())
+            )
+            for row in method_rows
+        ),
+        "private_field_names_or_values_disclosed": False,
+        "strings_urls_dataspec_tokens_account_or_audio_read": False,
     }
 
 
@@ -9676,6 +9825,9 @@ def inspect_signed(apks):
         )
     except ValueError as exc:
         raise ValueError("PLAYER_ITEM_IDENTITY_AUDIT_FAILED") from exc
+    media3_item_handoff_bridge = inspect_media3_item_handoff_bridge(
+        apks, class_profiles
+    )
     return {
         "verdict": "SIGNED_NATIVE_SELECTED_ITEM_STATIC_HANDOFF_CANDIDATES_ONLY",
         "signed_dex_count": dex_count,
@@ -9864,6 +10016,7 @@ def inspect_signed(apks):
         "media3_player_object_getters": media3_player_object_getters,
         "media3_item_source_timeline_contracts": media3_item_source_timeline_contracts,
         "media3_player_item_identity_contracts": media3_player_item_identity_contracts,
+        "media3_item_handoff_bridge": media3_item_handoff_bridge,
         "selected_state_static_summary": {
             "media_session_metadata_method_reference_count": sum(
                 x[1] in MEDIA_SESSION_METADATA_METHODS
