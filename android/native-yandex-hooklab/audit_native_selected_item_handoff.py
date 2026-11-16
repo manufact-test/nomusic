@@ -10314,11 +10314,13 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
     exact_playlist_callback_contract = inspect_exact_playlist_callback_contract(
         apks, class_profiles
     )
+    li_lb_handoff_callers = inspect_exact_li_lb_handoff_callers(apks)
 
     return {
         "bounded": True,
         "exact_playlist_update_callers": exact_playlist_update_callers,
         "exact_playlist_callback_contract": exact_playlist_callback_contract,
+        "li_lb_handoff_callers": li_lb_handoff_callers,
         "candidate_media_item_type": "LOf6;",
         "candidate_timeline_type": "LTva;",
         "candidate_timeline_window_type": "LTva$d;",
@@ -10444,6 +10446,394 @@ def inspect_media3_item_handoff_bridge(apks, class_profiles):
 
 
 
+
+
+LI_LB_CONSTRUCTOR_TARGET = (
+    "LiLb;", "<init>",
+    "(LdA9;LgA9;LJI7;LOf6;LFq1;LHy9$a;LPAa;)V",
+)
+LI_LB_GETTER_TARGET = ("LiLb;", "for", "()LOf6;")
+LI_LB_PLAYER_MUTATOR_TARGETS = frozenset({
+    ("LsO7;", "C", "(LOf6;J)V"),
+    ("LsO7;", "V", "(LOf6;)V"),
+    ("LsO7;", "Z", "(ILOf6;)V"),
+    ("LBs4;", "C", "(LOf6;J)V"),
+    ("LBs4;", "V", "(LOf6;)V"),
+    ("LBs4;", "Z", "(ILOf6;)V"),
+    ("LfH7;", "C", "(LOf6;J)V"),
+    ("LfH7;", "V", "(LOf6;)V"),
+    ("LfH7;", "Z", "(ILOf6;)V"),
+})
+
+
+def inspect_exact_li_lb_handoff_callers(apks):
+    """Find only direct callers of LiLb's exact MediaItem constructor/getter.
+
+    The scan visits all signed DEX code bodies but matches only two exact
+    LiLb method references. It traces only those immediate callers and captures
+    provenance for the exact Player MediaItem mutators. No field names/values,
+    media values, URLs, tokens, account data, or audio bytes are inspected.
+    """
+    exact_targets = {LI_LB_CONSTRUCTOR_TARGET, LI_LB_GETTER_TARGET}
+    capture_targets = exact_targets | set(LI_LB_PLAYER_MUTATOR_TARGETS)
+    extra_types = (
+        "LOf6;", "LiLb;", "Landroid/net/Uri;", "LmLb;",
+        "LsO7;", "LBs4;", "LfH7;",
+    )
+    target_rows = []
+    caller_traces = {}
+    target_body_traces = {}
+    seen_calls = set()
+    seen_methods = set()
+
+    def method_ref(target):
+        return {
+            "owner": target[0],
+            "method": target[1],
+            "signature": target[2],
+        }
+
+    def safe_trace(dex, method, flags, code_off, capture=False):
+        try:
+            return trace_identity_method(
+                dex, method, flags, code_off,
+                capture_argument_provenance_targets=(
+                    capture_targets if capture else set()
+                ),
+                extra_identity_types=extra_types,
+                track_fields_from_any_receiver=True,
+            )
+        except (ValueError, DexError) as exc:
+            reason = str(exc)
+            safe_code = (
+                reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                else "UNCLASSIFIED_TRACE_ERROR"
+            )
+            return {
+                "trace_failed": True,
+                "error_class": type(exc).__name__,
+                "error_code": safe_code,
+                "field_names_or_values_disclosed": False,
+                "strings_urls_dataspec_account_or_audio_read": False,
+            }
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = Dex(archive.read(entry))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    key = (method[0], method[1], method[2])
+                    if key in seen_methods:
+                        continue
+                    seen_methods.add(key)
+
+                    if key in exact_targets:
+                        if key in target_body_traces:
+                            raise DexError("LI_LB_TARGET_BODY_DUPLICATE")
+                        target_body_traces[key] = safe_trace(
+                            dex, method, flags, code_off, capture=False
+                        )
+
+                    if not code_off:
+                        continue
+                    caller_key = key
+                    exact_sites = []
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        callee = dex.method(words[1])
+                        if callee not in exact_targets:
+                            continue
+                        site_key = (caller_key, ordinal, callee)
+                        if site_key in seen_calls:
+                            continue
+                        seen_calls.add(site_key)
+                        exact_sites.append((ordinal, op, callee))
+                    if not exact_sites:
+                        continue
+
+                    if len(caller_traces) >= 64 and caller_key not in caller_traces:
+                        raise ValueError("LI_LB_DIRECT_CALLER_LIMIT")
+                    if caller_key not in caller_traces:
+                        caller_traces[caller_key] = safe_trace(
+                            dex, method, flags, code_off, capture=True
+                        )
+                    for ordinal, op, callee in exact_sites:
+                        target_rows.append({
+                            "caller": {
+                                "owner": method[0],
+                                "method": method[1],
+                                "signature": method[2],
+                            },
+                            "target": method_ref(callee),
+                            "target_kind": (
+                                "CONSTRUCTOR" if callee == LI_LB_CONSTRUCTOR_TARGET
+                                else "MEDIA_ITEM_GETTER"
+                            ),
+                            "ordinal": ordinal,
+                            "invoke_opcode": op,
+                            "invoke_kind": invoke_kind_name(op),
+                        })
+                        if len(target_rows) > 128:
+                            raise ValueError("LI_LB_DIRECT_CALLSITE_LIMIT")
+
+    if set(target_body_traces) != exact_targets:
+        raise ValueError("LI_LB_EXACT_TARGET_BODY_MISSING")
+
+    trace_complete = all(
+        not trace.get("trace_failed")
+        for trace in caller_traces.values()
+    ) and all(
+        not trace.get("trace_failed")
+        for trace in target_body_traces.values()
+    )
+
+    constructor_trace = target_body_traces[LI_LB_CONSTRUCTOR_TARGET]
+    getter_trace = target_body_traces[LI_LB_GETTER_TARGET]
+    constructor_item_parameter_stored = any(
+        event.get("kind") == "INSTANCE_FIELD_STORE_TYPED_IDENTITY"
+        and event.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+        and event.get("receiver_is_this") is True
+        and event.get("origins") == ["CALLER_TYPED_PARAMETER"]
+        for event in constructor_trace.get("events", ())
+    )
+    getter_returns_same_this_field = (
+        any(
+            event.get("kind") == "FIELD_READ_TYPED_IDENTITY"
+            and event.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+            and event.get("receiver_is_this") is True
+            for event in getter_trace.get("events", ())
+        )
+        and any(
+            event.get("kind") == "RETURN_TYPED_IDENTITY"
+            and event.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+            and event.get("origins") == ["FIELD_READ_FROM_THIS"]
+            for event in getter_trace.get("events", ())
+        )
+    )
+
+    def provenance_event(trace, site):
+        if trace.get("trace_failed"):
+            return None
+        return next((
+            event for event in trace.get("events", ())
+            if event.get("kind") == "CALL_ARGUMENT_PROVENANCE"
+            and event.get("ordinal") == site["ordinal"]
+            and event.get("callee") == site["target"]
+        ), None)
+
+    def safe_argument(argument):
+        return {
+            "argument_position": argument.get("argument_position"),
+            "declared_argument_type": argument.get("declared_argument_type"),
+            "identity_origins": argument.get("identity_origins", ()),
+            "producer": argument.get("producer"),
+            "register_is_this": argument.get("register_is_this"),
+        }
+
+    def media_item_source_token(argument, caller_signature):
+        producer = argument.get("producer")
+        if producer is not None:
+            return ("PRODUCER", json.dumps(producer, sort_keys=True))
+        parameter_count = sum(
+            1 for typ in parse_types(caller_signature) if typ == "LOf6;"
+        )
+        if parameter_count == 1 and any(
+            origin.get("identity_type") == "EXTRA_OBJECT:LOf6;"
+            and origin.get("origins") == ["CALLER_TYPED_PARAMETER"]
+            for origin in argument.get("identity_origins", ())
+        ):
+            return ("UNIQUE_TYPED_PARAMETER", "LOf6;")
+        return None
+
+    enriched_rows = []
+    rows_by_caller = {}
+    for site in target_rows:
+        caller_key = (
+            site["caller"]["owner"],
+            site["caller"]["method"],
+            site["caller"]["signature"],
+        )
+        rows_by_caller.setdefault(caller_key, []).append(site)
+        trace = caller_traces[caller_key]
+        event = provenance_event(trace, site)
+        references = event.get("reference_arguments", ()) if event else ()
+        if site["target_kind"] == "CONSTRUCTOR":
+            media_argument = next((
+                argument for argument in references
+                if argument.get("declared_argument_type") == "LOf6;"
+            ), None)
+            receiver_argument = next((
+                argument for argument in references
+                if argument.get("declared_argument_type") == "LiLb;"
+            ), None)
+            provenance = {
+                "call_argument_provenance_found": event is not None,
+                "holder_receiver": (
+                    safe_argument(receiver_argument)
+                    if receiver_argument else None
+                ),
+                "media_item_argument": (
+                    safe_argument(media_argument)
+                    if media_argument else None
+                ),
+            }
+        else:
+            receiver_argument = next((
+                argument for argument in references
+                if argument.get("declared_argument_type") == "LiLb;"
+            ), None)
+            provenance = {
+                "call_argument_provenance_found": event is not None,
+                "holder_receiver": (
+                    safe_argument(receiver_argument)
+                    if receiver_argument else None
+                ),
+            }
+        if event is None:
+            trace_complete = False
+        enriched_rows.append({**site, "provenance": provenance})
+
+    mutator_callsite_rows = []
+    same_object_edges = []
+    for caller_key, sites in rows_by_caller.items():
+        trace = caller_traces[caller_key]
+        if trace.get("trace_failed"):
+            continue
+        getter_sites = [
+            site for site in sites
+            if site["target"] == method_ref(LI_LB_GETTER_TARGET)
+        ]
+        constructor_sites = [
+            site for site in sites
+            if site["target"] == method_ref(LI_LB_CONSTRUCTOR_TARGET)
+        ]
+        constructor_sources = []
+        for site in constructor_sites:
+            event = provenance_event(trace, site)
+            if not event:
+                continue
+            item_argument = next((
+                argument for argument in event.get("reference_arguments", ())
+                if argument.get("declared_argument_type") == "LOf6;"
+            ), None)
+            if item_argument:
+                token = media_item_source_token(
+                    item_argument, caller_key[2]
+                )
+                if token is not None:
+                    constructor_sources.append({
+                        "ordinal": site["ordinal"],
+                        "token": token,
+                    })
+
+        for event in trace.get("events", ()):
+            if event.get("kind") != "CALL_ARGUMENT_PROVENANCE":
+                continue
+            callee = event.get("callee", {})
+            callee_key = (
+                callee.get("owner"), callee.get("method"), callee.get("signature")
+            )
+            if callee_key not in LI_LB_PLAYER_MUTATOR_TARGETS:
+                continue
+            item_argument = next((
+                argument for argument in event.get("reference_arguments", ())
+                if argument.get("declared_argument_type") == "LOf6;"
+            ), None)
+            mutator_row = {
+                "caller": {
+                    "owner": caller_key[0],
+                    "method": caller_key[1],
+                    "signature": caller_key[2],
+                },
+                "target": method_ref(callee_key),
+                "ordinal": event.get("ordinal"),
+                "media_item_argument": (
+                    safe_argument(item_argument) if item_argument else None
+                ),
+            }
+            mutator_callsite_rows.append(mutator_row)
+            if not item_argument:
+                continue
+            mutator_token = media_item_source_token(
+                item_argument, caller_key[2]
+            )
+            if mutator_token is None:
+                continue
+
+            for getter_site in getter_sites:
+                getter_token = (
+                    "PRODUCER",
+                    json.dumps({
+                        "owner": LI_LB_GETTER_TARGET[0],
+                        "method": LI_LB_GETTER_TARGET[1],
+                        "signature": LI_LB_GETTER_TARGET[2],
+                        "ordinal": getter_site["ordinal"],
+                    }, sort_keys=True),
+                )
+                if mutator_token == getter_token:
+                    same_object_edges.append({
+                        "caller": mutator_row["caller"],
+                        "source_kind": "LI_LB_GETTER_RETURN",
+                        "source_call_ordinal": getter_site["ordinal"],
+                        "mutator_target": mutator_row["target"],
+                        "mutator_call_ordinal": mutator_row["ordinal"],
+                        "same_media_item_object_proven": True,
+                    })
+
+            for constructor_source in constructor_sources:
+                if mutator_token == constructor_source["token"]:
+                    same_object_edges.append({
+                        "caller": mutator_row["caller"],
+                        "source_kind": "LI_LB_CONSTRUCTOR_MEDIA_ITEM_ARGUMENT",
+                        "source_call_ordinal": constructor_source["ordinal"],
+                        "mutator_target": mutator_row["target"],
+                        "mutator_call_ordinal": mutator_row["ordinal"],
+                        "same_media_item_object_proven": True,
+                    })
+
+    return {
+        "bounded": True,
+        "scan_scope": "ALL_SIX_SIGNED_DEX_CODE_BODIES_FOR_TWO_EXACT_LILB_METHOD_REFERENCES",
+        "targets": {
+            "constructor": method_ref(LI_LB_CONSTRUCTOR_TARGET),
+            "media_item_getter": method_ref(LI_LB_GETTER_TARGET),
+        },
+        "direct_constructor_callsite_count": sum(
+            1 for row in target_rows
+            if row["target"] == method_ref(LI_LB_CONSTRUCTOR_TARGET)
+        ),
+        "direct_getter_callsite_count": sum(
+            1 for row in target_rows
+            if row["target"] == method_ref(LI_LB_GETTER_TARGET)
+        ),
+        "distinct_direct_caller_method_count": len(caller_traces),
+        "direct_callers": enriched_rows,
+        "player_mutator_callsite_count_in_direct_callers": len(mutator_callsite_rows),
+        "player_mutator_calls_in_direct_callers": mutator_callsite_rows,
+        "same_media_item_player_mutator_edges": same_object_edges,
+        "same_media_item_to_player_mutator_proven": bool(same_object_edges),
+        "li_lb_constructor_media_item_parameter_stored_on_this": (
+            constructor_item_parameter_stored
+        ),
+        "li_lb_getter_returns_same_media_item_field": (
+            getter_returns_same_this_field
+        ),
+        "target_method_bodies_complete": (
+            not constructor_trace.get("trace_failed")
+            and not getter_trace.get("trace_failed")
+        ),
+        "caller_traces_complete": trace_complete,
+        "complete_for_absence_claim": (
+            trace_complete
+            and constructor_item_parameter_stored
+            and getter_returns_same_this_field
+        ),
+        "private_field_names_or_values_disclosed": False,
+        "media_values_ids_urls_dataspec_tokens_account_or_audio_read": False,
+    }
 
 
 

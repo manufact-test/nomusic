@@ -8,6 +8,8 @@ from audit_native_selected_item_handoff import (
     summarize_track_field_owner_inventory, summarize_boundary_callsite_census,
     candidate_owner_descriptors, typed_parameter_registers,
     trace_identity_method, inspect_exact_playlist_update_callers,
+    inspect_exact_li_lb_handoff_callers, LI_LB_CONSTRUCTOR_TARGET,
+    LI_LB_GETTER_TARGET,
     inspect_exact_playlist_update_method_handle_sites,
     inspect_exact_playlist_callback_contract,
     inspect_exact_playlist_runner_construction,
@@ -3489,6 +3491,296 @@ class SelectedItemAuditTests(unittest.TestCase):
             ["CALLER_TYPED_PARAMETER"],
         )
         self.assertEqual(trace.call_count, 2)
+
+
+    def test_exact_li_lb_handoff_scans_unfiltered_callers_and_matches_same_getter_result(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        getter_caller = ("LPlainOwner;", "dispatch", "()V")
+        constructor_caller = ("LFactory;", "create", "()V")
+        mutator = ("LsO7;", "Z", "(ILOf6;)V")
+        unrelated_mutator = ("LBs4;", "V", "(LOf6;)V")
+        constructor_source = {
+            "owner": "LOf6;", "method": "new",
+            "signature": "(Landroid/net/Uri;)LOf6;", "ordinal": 3,
+        }
+        getter_source = {
+            "owner": "LiLb;", "method": "for",
+            "signature": "()LOf6;", "ordinal": 10,
+        }
+
+        class FakeDex:
+            def __init__(self, _data):
+                self.methods = {
+                    1: LI_LB_GETTER_TARGET,
+                    2: LI_LB_CONSTRUCTOR_TARGET,
+                    3: mutator,
+                    4: unrelated_mutator,
+                }
+            def method(self, index):
+                return self.methods[index]
+
+        def fake_instructions(_dex, code_off):
+            if code_off == 100:
+                return [
+                    (10, 0x6e, [0x006e, 1]),
+                    (20, 0x6e, [0x006e, 3]),
+                    (30, 0x72, [0x0072, 4]),
+                ]
+            if code_off == 200:
+                return [(7, 0x70, [0x0070, 2])]
+            return []
+
+        def provenance_event(ordinal, target, arguments):
+            return {
+                "ordinal": ordinal,
+                "kind": "CALL_ARGUMENT_PROVENANCE",
+                "callee": {
+                    "owner": target[0], "method": target[1],
+                    "signature": target[2],
+                },
+                "reference_arguments": arguments,
+            }
+
+        def fake_trace(_dex, method, _flags, _code_off, **_kwargs):
+            if method == getter_caller:
+                return {
+                    "events": [
+                        provenance_event(10, LI_LB_GETTER_TARGET, [{
+                            "argument_position": 0,
+                            "declared_argument_type": "LiLb;",
+                            "identity_origins": [{
+                                "identity_type": "EXTRA_OBJECT:LiLb;",
+                                "origins": ["CALLER_TYPED_PARAMETER"],
+                            }],
+                            "producer": None,
+                            "register_is_this": False,
+                        }]),
+                        provenance_event(20, mutator, [{
+                            "argument_position": 2,
+                            "declared_argument_type": "LOf6;",
+                            "identity_origins": [{
+                                "identity_type": "EXTRA_OBJECT:LOf6;",
+                                "origins": ["RETURNED_FROM_METHOD"],
+                            }],
+                            "producer": getter_source,
+                            "register_is_this": False,
+                        }]),
+                        provenance_event(30, unrelated_mutator, [{
+                            "argument_position": 1,
+                            "declared_argument_type": "LOf6;",
+                            "identity_origins": [{
+                                "identity_type": "EXTRA_OBJECT:LOf6;",
+                                "origins": ["RETURNED_FROM_METHOD"],
+                            }],
+                            "producer": constructor_source,
+                            "register_is_this": False,
+                        }]),
+                    ],
+                    "branch_seen_aliases_cleared": False,
+                }
+            if method == constructor_caller:
+                return {
+                    "events": [
+                        provenance_event(7, LI_LB_CONSTRUCTOR_TARGET, [
+                            {
+                                "argument_position": 0,
+                                "declared_argument_type": "LiLb;",
+                                "identity_origins": [{
+                                    "identity_type": "EXTRA_OBJECT:LiLb;",
+                                    "origins": ["NEW_INSTANCE_AT_5"],
+                                }],
+                                "producer": {"kind": "NEW_INSTANCE", "type": "LiLb;", "ordinal": 5},
+                                "register_is_this": False,
+                            },
+                            {
+                                "argument_position": 3,
+                                "declared_argument_type": "LOf6;",
+                                "identity_origins": [{
+                                    "identity_type": "EXTRA_OBJECT:LOf6;",
+                                    "origins": ["RETURNED_FROM_METHOD"],
+                                }],
+                                "producer": constructor_source,
+                                "register_is_this": False,
+                            },
+                        ]),
+                    ],
+                    "branch_seen_aliases_cleared": False,
+                }
+            if method == LI_LB_CONSTRUCTOR_TARGET:
+                return {
+                    "events": [{
+                        "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                        "identity_type": "EXTRA_OBJECT:LOf6;",
+                        "receiver_is_this": True,
+                        "origins": ["CALLER_TYPED_PARAMETER"],
+                    }]
+                }
+            if method == LI_LB_GETTER_TARGET:
+                return {
+                    "events": [
+                        {
+                            "kind": "FIELD_READ_TYPED_IDENTITY",
+                            "identity_type": "EXTRA_OBJECT:LOf6;",
+                            "receiver_is_this": True,
+                        },
+                        {
+                            "kind": "RETURN_TYPED_IDENTITY",
+                            "identity_type": "EXTRA_OBJECT:LOf6;",
+                            "origins": ["FIELD_READ_FROM_THIS"],
+                        },
+                    ]
+                }
+            return {"events": []}
+
+        definitions = [
+            (getter_caller, 0x8, 100),
+            (constructor_caller, 0x8, 200),
+            (LI_LB_CONSTRUCTOR_TARGET, 0, 300),
+            (LI_LB_GETTER_TARGET, 0, 400),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       return_value=definitions), \
+                 patch("audit_native_selected_item_handoff.instructions",
+                       side_effect=fake_instructions), \
+                 patch("audit_native_selected_item_handoff.trace_identity_method",
+                       side_effect=fake_trace) as trace:
+                result = inspect_exact_li_lb_handoff_callers([apk])
+
+        self.assertTrue(result["bounded"])
+        self.assertTrue(result["complete_for_absence_claim"])
+        self.assertEqual(result["direct_constructor_callsite_count"], 1)
+        self.assertEqual(result["direct_getter_callsite_count"], 1)
+        self.assertEqual(result["distinct_direct_caller_method_count"], 2)
+        self.assertEqual(
+            {row["caller"]["owner"] for row in result["direct_callers"]},
+            {"LPlainOwner;", "LFactory;"},
+        )
+        self.assertEqual(result["player_mutator_callsite_count_in_direct_callers"], 2)
+        self.assertEqual(result["same_media_item_player_mutator_edges"], [{
+            "caller": {
+                "owner": "LPlainOwner;", "method": "dispatch", "signature": "()V"
+            },
+            "source_kind": "LI_LB_GETTER_RETURN",
+            "source_call_ordinal": 10,
+            "mutator_target": {
+                "owner": "LsO7;", "method": "Z", "signature": "(ILOf6;)V"
+            },
+            "mutator_call_ordinal": 20,
+            "same_media_item_object_proven": True,
+        }])
+        self.assertTrue(result["li_lb_constructor_media_item_parameter_stored_on_this"])
+        self.assertTrue(result["li_lb_getter_returns_same_media_item_field"])
+        self.assertEqual(trace.call_count, 4)
+
+    def test_exact_li_lb_handoff_does_not_match_a_different_media_item_producer(self):
+        from unittest.mock import patch
+
+        caller = ("LPlainOwner;", "dispatch", "()V")
+        mutator = ("LsO7;", "V", "(LOf6;)V")
+        other_source = {
+            "owner": "LOf6;", "method": "new",
+            "signature": "(Landroid/net/Uri;)LOf6;", "ordinal": 99,
+        }
+        getter_source = {
+            "owner": "LiLb;", "method": "for",
+            "signature": "()LOf6;", "ordinal": 10,
+        }
+
+        class FakeDex:
+            def __init__(self, _data):
+                pass
+            def method(self, index):
+                return {
+                    1: LI_LB_GETTER_TARGET,
+                    2: mutator,
+                }[index]
+
+        def fake_trace(_dex, method, _flags, _code_off, **_kwargs):
+            if method == LI_LB_CONSTRUCTOR_TARGET:
+                return {"events": [{
+                    "kind": "INSTANCE_FIELD_STORE_TYPED_IDENTITY",
+                    "identity_type": "EXTRA_OBJECT:LOf6;",
+                    "receiver_is_this": True,
+                    "origins": ["CALLER_TYPED_PARAMETER"],
+                }]}
+            if method == LI_LB_GETTER_TARGET:
+                return {"events": [
+                    {"kind": "FIELD_READ_TYPED_IDENTITY",
+                     "identity_type": "EXTRA_OBJECT:LOf6;", "receiver_is_this": True},
+                    {"kind": "RETURN_TYPED_IDENTITY",
+                     "identity_type": "EXTRA_OBJECT:LOf6;",
+                     "origins": ["FIELD_READ_FROM_THIS"]},
+                ]}
+            if method == caller:
+                return {"events": [
+                    {
+                        "kind": "CALL_ARGUMENT_PROVENANCE", "ordinal": 10,
+                        "callee": {
+                            "owner": LI_LB_GETTER_TARGET[0],
+                            "method": LI_LB_GETTER_TARGET[1],
+                            "signature": LI_LB_GETTER_TARGET[2],
+                        },
+                        "reference_arguments": [{
+                            "argument_position": 0,
+                            "declared_argument_type": "LiLb;",
+                            "identity_origins": [],
+                            "producer": None,
+                        }],
+                    },
+                    {
+                        "kind": "CALL_ARGUMENT_PROVENANCE", "ordinal": 20,
+                        "callee": {
+                            "owner": mutator[0], "method": mutator[1],
+                            "signature": mutator[2],
+                        },
+                        "reference_arguments": [{
+                            "argument_position": 1,
+                            "declared_argument_type": "LOf6;",
+                            "identity_origins": [{
+                                "identity_type": "EXTRA_OBJECT:LOf6;",
+                                "origins": ["RETURNED_FROM_METHOD"],
+                            }],
+                            "producer": other_source,
+                        }],
+                    },
+                ]}
+            return {"events": []}
+
+        definitions = [
+            (caller, 0x8, 100),
+            (LI_LB_CONSTRUCTOR_TARGET, 0, 300),
+            (LI_LB_GETTER_TARGET, 0, 400),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "fixture.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("classes.dex", b"fake-dex")
+            with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
+                 patch("audit_native_selected_item_handoff.method_definitions_with_flags",
+                       return_value=definitions), \
+                 patch("audit_native_selected_item_handoff.instructions",
+                       return_value=[
+                           (10, 0x6e, [0x006e, 1]),
+                           (20, 0x6e, [0x006e, 2]),
+                       ]), \
+                 patch("audit_native_selected_item_handoff.trace_identity_method",
+                       side_effect=fake_trace):
+                result = inspect_exact_li_lb_handoff_callers([apk])
+
+        self.assertTrue(result["complete_for_absence_claim"])
+        self.assertEqual(result["direct_getter_callsite_count"], 1)
+        self.assertEqual(result["player_mutator_callsite_count_in_direct_callers"], 1)
+        self.assertEqual(result["same_media_item_player_mutator_edges"], [])
+        self.assertFalse(result["same_media_item_to_player_mutator_proven"])
 
 
 if __name__ == "__main__":
