@@ -3905,7 +3905,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                     archive.writestr(name, bytes([index]))
             with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
                  patch("audit_native_selected_item_handoff.method_definitions_with_flags",
-                       side_effect=lambda dex: definitions if dex.data == b"\\x00" else []), \
+                       side_effect=lambda dex: definitions if dex.data == bytes([0]) else []), \
                  patch("audit_native_selected_item_handoff.instructions",
                        side_effect=fake_instructions), \
                  patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
@@ -3993,7 +3993,7 @@ class SelectedItemAuditTests(unittest.TestCase):
                     archive.writestr(name, bytes([index]))
             with patch("audit_native_selected_item_handoff.Dex", FakeDex), \
                  patch("audit_native_selected_item_handoff.method_definitions_with_flags",
-                       side_effect=lambda dex: definitions if dex.data == b"\\x00" else []), \
+                       side_effect=lambda dex: definitions if dex.data == bytes([0]) else []), \
                  patch("audit_native_selected_item_handoff.instructions",
                        return_value=[(3, 0x6e, [0x006e, 1])]), \
                  patch("audit_native_selected_item_handoff.trace_track_identity_method_cfg",
