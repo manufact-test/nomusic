@@ -7812,7 +7812,7 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > DEX_MAX:
                     raise ValueError("PLAYER_DEX_SIZE_LIMIT")
@@ -7849,7 +7849,7 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 dex = Dex(archive.read(entry))
                 declarations = declared_method_contracts_for_owners(
@@ -7891,7 +7891,7 @@ def inspect_media3_player_implementation_contracts(apks, class_profiles):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 dex = Dex(archive.read(entry))
                 for method, flags, code_off in method_definitions_with_flags(dex):
