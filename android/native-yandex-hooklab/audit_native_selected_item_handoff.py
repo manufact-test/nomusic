@@ -7614,7 +7614,7 @@ def media3_player_implementation_scope(class_profiles,
         }
 
     by_implementor = {}
-    scope_owners = set(roots)
+    scope_owners = set()
     for owner in implementors:
         pending = [owner]
         visited = set()
