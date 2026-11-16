@@ -11366,7 +11366,7 @@ def inspect_exact_track_wrapper_handoff(apks):
                 for method, flags, code_off in method_definitions_with_flags(dex):
                     key = (method[0], method[1], method[2])
                     if key in seen_methods:
-                        raise DexError("TRACK_WRAPPER_HANDOFF_DUPLICATE_METHOD")
+                        continue
                     seen_methods.add(key)
 
                     if key == target:
