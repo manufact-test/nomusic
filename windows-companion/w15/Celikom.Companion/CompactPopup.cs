@@ -130,6 +130,10 @@ public sealed partial class MainWindow
     private int _compactPresenceEpoch;
     private int _compactOpenEpoch;
     private string _compactRenderedTrackId = "";
+    private string _compactMetadataPendingTrackId = "";
+    private DateTimeOffset _compactMetadataPendingAt = DateTimeOffset.MinValue;
+    private static readonly TimeSpan CompactTrackMetadataTransitionGrace =
+        TimeSpan.FromMilliseconds(2500);
     private long _compactRenderedTrackDurationMs;
     private string _compactPinnedUploadTrack = "";
     private string _compactPinnedSuggestTrack = "";
@@ -226,6 +230,9 @@ public sealed partial class MainWindow
         var logo = Tiny("CELIKOM", 11, Ink);
         logo.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
         Place(logo, _compactHeader, 16, 8, 97, 24);
+        _connectionState.AutoSize = false;
+        _connectionState.AutoEllipsis = true;
+        _connectionState.Text = "Связь";
         _connectionState.Font = new Font("Segoe UI", 8F);
         _connectionState.ForeColor = Secondary;
         _connectionState.TextAlign = ContentAlignment.MiddleRight;
@@ -633,8 +640,7 @@ public sealed partial class MainWindow
         var nativeStatus = playback.Status;
         var heartbeatFresh = playback.HeartbeatFresh;
         var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
-            connected && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable,
-            playback.NativeNetworkRecoveryPending || _resumeAfterNetworkFailure);
+            connected && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable);
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
         if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
@@ -653,20 +659,59 @@ public sealed partial class MainWindow
 
         var id = playback.TrackId;
         var valid = GrantValidator.IsTrackId(id);
+        var previousRenderedTrackId = _compactRenderedTrackId;
+        var previousTrackTitle = _compactTrack.Text;
+        var previousTrackArtist = _compactTrackArtist.Text;
         _compactRenderedTrackId = id;
         _compactRenderedTrackDurationMs = playback.DurationMs;
         if (valid)
         {
             var title = playback.Title;
             var artist = playback.Artist;
-            var trackText = title.Length > 0 ? title : "Track ID " + id;
+            if (title.Length > 0)
+            {
+                _compactMetadataPendingTrackId = "";
+                _compactMetadataPendingAt = DateTimeOffset.MinValue;
+            }
+            else if (!string.Equals(id, previousRenderedTrackId, StringComparison.Ordinal))
+            {
+                _compactMetadataPendingTrackId = id;
+                _compactMetadataPendingAt = DateTimeOffset.UtcNow;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var metadataPending = string.Equals(
+                    _compactMetadataPendingTrackId, id, StringComparison.Ordinal) &&
+                _compactMetadataPendingAt != DateTimeOffset.MinValue &&
+                now >= _compactMetadataPendingAt &&
+                now - _compactMetadataPendingAt <= CompactTrackMetadataTransitionGrace;
+            var previousTitleIsReal = GrantValidator.IsTrackId(previousRenderedTrackId) &&
+                !string.IsNullOrWhiteSpace(previousTrackTitle) &&
+                !previousTrackTitle.StartsWith("Track ID ", StringComparison.Ordinal);
+            var retainPrevious = title.Length == 0 && previousTitleIsReal &&
+                (string.Equals(id, previousRenderedTrackId, StringComparison.Ordinal) ||
+                 metadataPending);
+            if (title.Length == 0 &&
+                string.Equals(_compactMetadataPendingTrackId, id, StringComparison.Ordinal) &&
+                !metadataPending)
+            {
+                _compactMetadataPendingTrackId = "";
+                _compactMetadataPendingAt = DateTimeOffset.MinValue;
+            }
+
+            var trackText = CompactPlaybackPresentation.TrackTitle(
+                title, previousTrackTitle, retainPrevious);
+            var artistText = title.Length > 0 ? artist :
+                retainPrevious ? previousTrackArtist : "";
             if (!string.Equals(_compactTrack.Text, trackText, StringComparison.Ordinal))
                 _compactTrack.Text = trackText;
-            if (!string.Equals(_compactTrackArtist.Text, artist, StringComparison.Ordinal))
-                _compactTrackArtist.Text = artist;
+            if (!string.Equals(_compactTrackArtist.Text, artistText, StringComparison.Ordinal))
+                _compactTrackArtist.Text = artistText;
         }
         else
         {
+            _compactMetadataPendingTrackId = "";
+            _compactMetadataPendingAt = DateTimeOffset.MinValue;
             var displayPlaybackState = !heartbeatFresh || _resumeAfterNetworkFailure
                 ? _networkRecoveryPlaybackState : playback.PlaybackState;
             var trackText = CompactPlaybackPresentation.TrackPlaceholder(
@@ -760,14 +805,7 @@ public sealed partial class MainWindow
             stopped ? "Воспроизведение остановлено" :
             playback.Enabled && !heartbeatFresh
                 ? CompactPlaybackPresentation.StaleHeartbeatMessage(_networkRecoveryPlaybackState) :
-            _compactPresenceStatus switch
-            {
-                "approved" => CompactPlaybackPresentation.VersionAvailableMessage,
-                "pending" => "Версия песни CELIKOM на проверке",
-                "none" => "Версия песни CELIKOM ещё не загружена",
-                "error" => "Не удалось проверить версию песни CELIKOM",
-                _ => "Проверяем версию песни CELIKOM…"
-            };
+            CompactPlaybackPresentation.PresenceStatusMessage(_compactPresenceStatus);
         if (!string.Equals(_compactVersionStatus.Text, versionStatusText, StringComparison.Ordinal))
             _compactVersionStatus.Text = versionStatusText;
         // A current mapped track uses the same neutral availability copy

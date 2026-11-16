@@ -102,6 +102,10 @@ public sealed partial class MainWindow
             if (requestCancellation.IsCancellationRequested && _networkRouteRecheckPending)
                 return;
             if (!StillSameUser()) return;
+            // A fresh authenticated response closes the fast-route window.
+            // Ordinary 15-second entitlement polling must not keep using the
+            // short VPN timeout after connectivity has already recovered.
+            _lastNetworkRecheckHint = DateTimeOffset.MinValue;
             _compactAccessConfirmedInstallation = account.InstallationId;
             _compactAccessConfirmedEmail = account.Email;
             SetCompactAccessText(AccessLabel(response));

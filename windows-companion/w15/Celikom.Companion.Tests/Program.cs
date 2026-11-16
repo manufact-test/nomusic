@@ -1394,12 +1394,20 @@ try
          CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
              false, true, true) == CompactPlaybackPresentation.ConnectingMessage,
          "W161 compact UI uses the agreed Start, disabled and Yandex connection copy");
-    Test(CompactPlaybackPresentation.ServiceConnected(true, true, false, false) &&
-         !CompactPlaybackPresentation.ServiceConnected(false, true, false, false) &&
-         !CompactPlaybackPresentation.ServiceConnected(true, false, false, false) &&
-         !CompactPlaybackPresentation.ServiceConnected(true, true, true, false) &&
-         !CompactPlaybackPresentation.ServiceConnected(true, true, false, true),
-         "W161 service indicator follows the native connection, not the current track source");
+    Test(CompactPlaybackPresentation.ServiceConnected(true, true, false) &&
+         !CompactPlaybackPresentation.ServiceConnected(false, true, false) &&
+         !CompactPlaybackPresentation.ServiceConnected(true, false, false) &&
+         !CompactPlaybackPresentation.ServiceConnected(true, true, true),
+         "W164 service indicator stays tied to a fresh native heartbeat, not a pending server-route recheck");
+    Test(CompactPlaybackPresentation.TrackTitle("", "Предыдущая песня", true) ==
+             "Предыдущая песня" &&
+         CompactPlaybackPresentation.TrackTitle("", "Предыдущая песня", false) == "" &&
+         CompactPlaybackPresentation.TrackTitle("Новая песня", "Предыдущая песня", true) ==
+             "Новая песня" &&
+         CompactPlaybackPresentation.PresenceStatusMessage("") == "" &&
+         CompactPlaybackPresentation.PresenceStatusMessage("approved") ==
+             CompactPlaybackPresentation.VersionAvailableMessage,
+         "W164 track transition keeps the previous title only during metadata handoff and hides transient presence-check copy");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, false, "PLAYING",
              false, false, true) == "Музыка продолжает играть." &&
          CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
@@ -2061,10 +2069,12 @@ try
          "W89 suspended VPN recovery checks bounded to three seconds, healthy 15s unchanged");
     Test(EntitlementCheckRecovery.FastRouteCheck(true, now, DateTimeOffset.MinValue) &&
          EntitlementCheckRecovery.FastRouteCheck(false, now, now.AddSeconds(-4)) &&
+         !EntitlementCheckRecovery.FastRouteCheck(false, now, now.AddSeconds(-9)) &&
          !EntitlementCheckRecovery.FastRouteCheck(false, now, now.AddMinutes(-2)) &&
          !EntitlementCheckRecovery.FastRouteCheck(false, now, DateTimeOffset.MinValue) &&
-         EntitlementCheckRecovery.QuickRecheckTimeout == TimeSpan.FromSeconds(3),
-         "W89 short request deadline applies only after a network route change or suspension");
+         EntitlementCheckRecovery.RouteWindow == TimeSpan.FromSeconds(8) &&
+         EntitlementCheckRecovery.QuickRecheckTimeout == TimeSpan.FromSeconds(5),
+         "W164 short timeout is limited to the immediate route-recovery window and successful validation restores normal timing");
     // W94: multiple network-address events during VPN switch are NOT skipped.
     // The last event owns the only new revalidation after the quiet period.
     var firstRouteEpoch = NetworkRouteBurstPolicy.NextEpoch(0);
@@ -2076,16 +2086,18 @@ try
          NetworkRouteBurstPolicy.Latest(lastRouteEpoch, lastRouteEpoch),
          "W94 VPN bursts invalidate stale scheduled route checks, last signal wins");
     Test(NetworkRouteBurstPolicy.SameBurst(now.AddMilliseconds(100), now) &&
-          NetworkRouteBurstPolicy.SameBurst(now.AddMilliseconds(1399), now) &&
-          !NetworkRouteBurstPolicy.SameBurst(now.AddMilliseconds(1400), now) &&
-          !NetworkRouteBurstPolicy.SameBurst(now, DateTimeOffset.MinValue),
-          "W158 repeated VPN route events coalesce native hold without losing last validation epoch");
+          NetworkRouteBurstPolicy.SameBurst(now.AddSeconds(7.999), now) &&
+          !NetworkRouteBurstPolicy.SameBurst(now.AddSeconds(8), now) &&
+          !NetworkRouteBurstPolicy.SameBurst(now, DateTimeOffset.MinValue) &&
+          NetworkRouteBurstPolicy.RouteBurstWindow == TimeSpan.FromSeconds(8) &&
+          NetworkRouteBurstPolicy.RecheckQuietPeriod == TimeSpan.FromSeconds(3),
+          "W164 delayed VPN adapter notifications share one native hold marker and settle before the final entitlement check");
     Test(NetworkRouteBurstPolicy.LogDue(now, DateTimeOffset.MinValue) &&
          !NetworkRouteBurstPolicy.LogDue(now.AddMilliseconds(100),
              now) &&
          NetworkRouteBurstPolicy.LogDue(now.AddMilliseconds(1400), now) &&
          NetworkRouteBurstPolicy.NextEpoch(int.MaxValue) == 1,
-         "W94 1.4s coalescing suppresses only diagnostics, not actual route checks");
+         "W94 1.4s log coalescing remains separate from route-settle and native-hold windows");
     Test(!EntitlementCheckRecovery.IsTransient(new ApiFailure(401, "INVALID_SESSION")) &&
          !EntitlementCheckRecovery.IsTransient(new ApiFailure(403, "ACCESS_DENIED")) &&
          !EntitlementCheckRecovery.IsTransient(new InvalidOperationException()),

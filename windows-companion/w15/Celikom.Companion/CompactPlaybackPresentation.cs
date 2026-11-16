@@ -16,6 +16,19 @@ public static class CompactPlaybackPresentation
         "STOPPED" => "Воспроизведение остановлено.",
         _ => "Проверяем состояние воспроизведения…"
     };
+
+    public static string TrackTitle(string? title, string? previousTitle, bool retainPrevious) =>
+        !string.IsNullOrWhiteSpace(title) ? title :
+        retainPrevious ? previousTitle ?? "" : "";
+
+    public static string PresenceStatusMessage(string? presenceStatus) => presenceStatus switch
+    {
+        "approved" => VersionAvailableMessage,
+        "pending" => "Версия песни CELIKOM на проверке",
+        "none" => "Версия песни CELIKOM ещё не загружена",
+        "error" => "Не удалось проверить версию песни CELIKOM",
+        _ => ""
+    };
     public const string NetworkRecoveryMessage = "Связь с сервером восстанавливается.";
     public const string StartupTimeoutMessage =
         "Не удалось подключиться к Яндекс Музыке. Проверьте, что приложение открыто, и попробуйте ещё раз.";
@@ -35,10 +48,11 @@ public static class CompactPlaybackPresentation
                 playerUnavailable, nativeStatus);
 
     // Service connection is a live native-host heartbeat, not proof that the
-    // current track is using a CELIKOM decoder source.
+    // current track is using a CELIKOM decoder source. A pending server-route
+    // recheck does not make a still-live native host disconnected.
     public static bool ServiceConnected(bool bridgeEnabled, bool heartbeatFresh,
-        bool playerUnavailable, bool networkRecoveryPending) =>
-        bridgeEnabled && heartbeatFresh && !playerUnavailable && !networkRecoveryPending;
+        bool playerUnavailable) =>
+        bridgeEnabled && heartbeatFresh && !playerUnavailable;
 
     public static string NetworkRecoveryPlaybackMessage(string? playbackState) => playbackState switch
     {

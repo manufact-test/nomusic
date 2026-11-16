@@ -34,11 +34,11 @@ public static class EntitlementCheckRecovery
         _ => "ACTIVE_ENTITLEMENT_UNKNOWN_FAILURE"
     };
 
-    // On a fresh network route, don't make the listener wait for the old
-    // VPN's 9-second timeout before attempting a new signed-in GET.
-    // Calls are single-flight and read-only; never grant access offline.
-    public static readonly TimeSpan RouteWindow = TimeSpan.FromSeconds(30);
-    public static readonly TimeSpan QuickRecheckTimeout = TimeSpan.FromSeconds(3);
+    // Only the immediate post-route validation uses a short deadline.
+    // A successful authenticated response clears the route hint, restoring
+    // ordinary request timing; suspended recovery remains bounded and read-only.
+    public static readonly TimeSpan RouteWindow = TimeSpan.FromSeconds(8);
+    public static readonly TimeSpan QuickRecheckTimeout = TimeSpan.FromSeconds(5);
 
     public static bool FastRouteCheck(bool suspendedForNetwork, DateTimeOffset now,
         DateTimeOffset lastRouteChanged) =>

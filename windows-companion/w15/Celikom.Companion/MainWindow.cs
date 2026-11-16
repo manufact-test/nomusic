@@ -559,7 +559,7 @@ public sealed partial class MainWindow : Form
 
     private async Task RecheckAfterRouteSettledAsync(int epoch)
     {
-        await Task.Delay(750);
+        await Task.Delay(NetworkRouteBurstPolicy.RecheckQuietPeriod);
         if (!NetworkRouteBurstPolicy.Latest(epoch, _networkRouteEpoch) ||
             _closing || IsDisposed) return;
         if (!_api.IsLoggedIn || !(_bridge.Enabled || _resumeAfterNetworkFailure))
@@ -1629,16 +1629,9 @@ public sealed partial class MainWindow : Form
         _stop.Enabled = switchAvailable && (playback.Enabled || _resumeAfterNetworkFailure);
         _connectionMark.ForeColor = serviceConnected
             ? Accent : ColorTranslator.FromHtml("#858B8E");
-        _connectionState.Text = !connected ? "Войти в аккаунт" :
-            !switchAvailable ? "Нужно подключить" :
-            playback.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
-            (_resumeAfterNetworkFailure || playback.NativeNetworkRecoveryPending)
-                ? "Связь восстанавливается" :
-            !playback.Enabled ? "Выключен" :
-            serviceConnected ? CompactPlaybackPresentation.ServiceEnabledMessage :
-            _compactStarting || _autorunAwaitingNativePlayer
-                ? "Подключаемся к Яндекс Музыке" :
-            !heartbeatFresh ? "Проверяем состояние" : "Ожидаем подключения Яндекс Музыки";
+        // Keep the header label fixed; detailed state is shown in the row below.
+        // This prevents the short/long recovery copy from changing its baseline.
+        _connectionState.Text = "Связь";
         _connectionState.ForeColor = serviceConnected ? Accent : Secondary;
         _switchHint.Text = _compactStarting ? CompactPlaybackPresentation.ConnectingMessage :
             !_api.IsLoggedIn ? "Войди в аккаунт, чтобы начать." :

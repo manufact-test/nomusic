@@ -1,12 +1,15 @@
 namespace Celikom.Companion;
 
 /// <summary>
-/// Every Windows network signal invalidates a prior scheduled VPN check.
-/// The 1.4s coalesce window only limits diagnostic logging; it must NEVER
-/// drop the last VPN route change. No entitlement is granted by a signal.
+/// A VPN switch can emit delayed address notifications while Windows settles
+/// several adapters. Keep one native source-hold marker across that burst,
+/// while the last notification still owns the entitlement recheck.
 /// </summary>
 public static class NetworkRouteBurstPolicy
 {
+    public static readonly TimeSpan RouteBurstWindow = TimeSpan.FromSeconds(8);
+    public static readonly TimeSpan RecheckQuietPeriod = TimeSpan.FromSeconds(3);
+
     public static int NextEpoch(int previous) =>
         previous == int.MaxValue ? 1 : previous + 1;
 
@@ -15,7 +18,7 @@ public static class NetworkRouteBurstPolicy
 
     public static bool SameBurst(DateTimeOffset now, DateTimeOffset previousRouteAt) =>
         previousRouteAt != DateTimeOffset.MinValue && now >= previousRouteAt &&
-        now - previousRouteAt < TimeSpan.FromMilliseconds(1400);
+        now - previousRouteAt < RouteBurstWindow;
 
     public static bool LogDue(DateTimeOffset now, DateTimeOffset previousLoggedAt) =>
         previousLoggedAt == DateTimeOffset.MinValue ||
