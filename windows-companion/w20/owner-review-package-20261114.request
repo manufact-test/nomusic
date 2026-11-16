@@ -1,38 +1,36 @@
-CELIKOM Windows — W165 owner track spacing and active status
-Requested build: 0.24.47.0 (native module 0.24.31)
-Source checkpoint: ebd16ca19f37620d620c0a6ee5e9e5361fddd607
-Purpose: exactly one internal owner-review installer and ZIP for W165.
+CELIKOM Windows — W167 owner UI regression recovery
+Requested build: 0.24.49.0 (native module 0.24.31)
+Source checkpoint: e88280740457bf539ec8e661416a26d9de1e1102
+Purpose: exactly one internal owner-review installer and ZIP for W167.
 
-Owner acceptance carried forward from 0.24.46.0:
-- The owner repeatedly toggled VPN while CELIKOM music was playing.
-- The CELIKOM version continued playing; no extra recovery/status text flashed.
-- VPN/audio behavior is accepted. Do not touch audio, native source routing, VPN recovery, entitlement checks, W23 host/renderer or Yandex files.
+Starting point and rollback:
+- W167 is based on W165 / 0.24.47.0, commit ebd16ca19f37620d620c0a6ee5e9e5361fddd607.
+- Dedicated working branch: experiment/windows-w167-owner-ui-regressions-20261116.
+- Pre-fix rollback: backup/windows-w167-pre-ui-fixes-20261116 @ ea788eaed198b71db787215b9ba85829766d6062.
+- W166 / 0.24.48.0 is rejected and is not the source base.
 
-Latest W54 diagnostic:
-- App 0.24.46.0; native module 0.24.31.
-- PlayerCelikomSourceLeftObserved=false; PlayerNativeVolumeDropObserved=false.
-- ElectronEventLoopStallObserved=false; ElectronMemoryHighObserved=false; ElectronCpuHighObserved=false.
-- NativeDecoderPropertiesObserved=true; NativeDecoderUrlPropertyObserved=false.
-- ReplacementAudibleProof=NOT_AVAILABLE_FROM_NETWORK_OR_MAPPING.
-- Mapping/source-held/network events are not independent proof of audible decoder output. Do not weaken the exact decoder proof gate.
+W167 UI changes:
+- Keep the immediate green Yandex connection banner through Start, module validation and the existing module upgrade. Suppress disabled-state and idle module-update hint during this explicit operation. Preserve all real validation, entitlement and fail-closed behavior.
+- Remove the fresh-heartbeat UNKNOWN-state "Ожидаем воспроизведения в Яндекс Музыке…" fallback from compact and legacy UI. Keep W164's 2.5-second previous-title/artist handoff, raw Track-ID suppression and pending-presence suppression.
+- Make Pause neutral in compact and legacy UI. Keep the header service-heartbeat indicator independent.
+- Centralize the green active status predicate without weakening it: enabled bridge, fresh heartbeat, current ACTIVE_REPLACEMENT, current PLAYING, NATIVE_SOURCE_VERIFIED and approved presence.
+- Keep idle placeholder spacing at 18 px. Use a 28 px active status row with a 2 px lower gap before Account.
+- Do not copy the W166 DOM observer: the available W54 evidence lacks kUrl and no W55 diagnostic was supplied.
+- No audio, VPN, source routing, W23 native host/renderer, server, auth, Yandex original files, Android or browser-extension changes.
 
-W165 UI-only changes:
-- Separate idle/placeholder bottom spacing (18 px) from current-track version-status spacing (8 px). The 18 px gap remains for the disabled/placeholder state; the current-track status returns to its previous 8 px gap.
-- Change the exact verified active-version wording to “Играет версия CELIKOM”.
-- Keep green color conditional on exact current decoder proof: current track PLAYING, source ACTIVE_REPLACEMENT, native status NATIVE_SOURCE_VERIFIED and approved version presence.
-- The W54 capture does not contain CDP kUrl proof. The active branch is therefore not expected to turn green on this diagnostic. Do NOT paint mapping-only/availability/source-held states green.
+Active-source evidence boundary:
+- Mapping, approved presence by itself, HTTP 206, prefetch, generic PLAYING or a connected service are not proof of the current audible decoder source.
+- If the owner hears a CELIKOM replacement but the status remains neutral, request a fresh W54/W55 diagnostic from 0.24.49.0 before any observer change. Do not force green.
 
 Build metadata:
-- App and supervisor version 0.24.47 / 0.24.47.0.
-- Installer AppVersion 0.24.47; output name CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.
-
-Source CI:
-- Main CI run 43885286596 — pending at request creation.
-- Windows integration CI run 43885286845 — pending at request creation.
+- App and supervisor: 0.24.49 / 0.24.49.0.
+- Installer: CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.
+- Owner-review ZIP: CELIKOM-Windows-0.24.49.zip.
+- Native module remains 0.24.31.
 
 Requested output:
-- CELIKOM-W165-OWNER-SPACING-STATUS-02447-UNSIGNED.exe
-- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.47.zip
+- CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.exe
+- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.49.zip
 - SHA256SUMS.txt
 
-Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers; this request-file update triggers exactly one W20 build.
+Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers.

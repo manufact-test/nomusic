@@ -6,6 +6,8 @@ on:
     # documentation pushes must not create intermediate Windows installers.
     branches:
       - main
+      # W167 isolated internal owner-review build; main remains unchanged.
+      - experiment/windows-w167-owner-ui-regressions-20261116
     paths:
       - windows-companion/w20/owner-review-package-20261114.request
   workflow_dispatch:
