@@ -12168,19 +12168,19 @@ def inspect_exact_lvj8_continuation_route(apks):
         and not invoke_suspend_trace.get("trace_failed", False)
     )
     constructor_stores_wrapper_on_this = any(
-        event.get("receiver_is_this") is True
+        event.get("receiver_is_this_on_all_paths") is True
         for event in constructor_wrapper_stores
     )
     constructor_stores_service_on_this = any(
-        event.get("receiver_is_this") is True
+        event.get("receiver_is_this_on_all_paths") is True
         for event in constructor_service_stores
     )
     invoke_suspend_reads_wrapper_from_this = any(
-        event.get("receiver_is_this") is True
+        event.get("receiver_is_this_on_all_paths") is True
         for event in invoke_suspend_wrapper_reads
     )
     invoke_suspend_reads_service_from_this = any(
-        event.get("receiver_is_this") is True
+        event.get("receiver_is_this_on_all_paths") is True
         for event in invoke_suspend_service_reads
     )
 
@@ -12237,6 +12237,264 @@ def inspect_exact_lvj8_continuation_route(apks):
             and caller_traces_complete
         ),
         "runtime_coroutine_dispatch_proven": False,
+        "field_names_or_values_disclosed": False,
+        "track_album_ids_titles_urls_dataspec_tokens_account_or_audio_read": False,
+    }
+
+
+
+def inspect_exact_lxj8_for_route(apks):
+    """Trace the exact Lxj8.for service method receiving the same TrackWrapper.
+
+    The scan is limited to one exact Lxj8.for method and its direct callers.
+    It additionally tracks only MediaItem and LiLb holder identities so a
+    same-object Player handoff can be recognized if present.
+    """
+    target = (
+        "Lxj8;", "for",
+        "(Lxj8;LtCa;ZLqj8$a;LOe2;)Ljava/lang/Object;",
+    )
+    service_types = {
+        "Lxj8;": "LQJ8_SERVICE",
+        "LOf6;": "MEDIA_ITEM",
+        "LiLb;": "MEDIA_ITEM_HOLDER",
+    }
+    target_definition = None
+    caller_sites = {}
+    caller_definitions = {}
+    seen_methods = set()
+    dex_count = 0
+    direct_callsite_count = 0
+
+    def method_row(method):
+        return {
+            "owner": method[0],
+            "method": method[1],
+            "signature": method[2],
+        }
+
+    def safe_trace(dex, method, flags, code_off):
+        try:
+            return trace_track_identity_method_cfg(
+                dex, method, flags, code_off,
+                extra_identity_types=service_types,
+            )
+        except (ValueError, DexError) as exc:
+            reason = str(exc)
+            safe_code = (
+                reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason)
+                else "UNCLASSIFIED_LXJ8_FOR_CFG_ERROR"
+            )
+            return {
+                "method": method_row(method),
+                "trace_failed": True,
+                "error_class": type(exc).__name__,
+                "error_code": safe_code,
+                "field_names_or_values_disclosed": False,
+                "strings_urls_dataspec_account_or_audio_read": False,
+            }
+
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > DEX_MAX:
+                    raise ValueError("LXJ8_FOR_DEX_LIMIT")
+                dex_count += 1
+                dex = Dex(archive.read(entry.filename))
+                for method, flags, code_off in method_definitions_with_flags(dex):
+                    key = (method[0], method[1], method[2])
+                    if key in seen_methods:
+                        continue
+                    seen_methods.add(key)
+                    if key == target:
+                        target_definition = (dex, method, flags, code_off)
+                    if not code_off:
+                        continue
+                    sites = []
+                    for ordinal, op, words in instructions(dex, code_off):
+                        if op not in INVOKES:
+                            continue
+                        if dex.method(words[1]) == target:
+                            sites.append({
+                                "ordinal": ordinal,
+                                "invoke_opcode": op,
+                                "invoke_kind": invoke_kind_name(op),
+                            })
+                    if not sites:
+                        continue
+                    direct_callsite_count += len(sites)
+                    if direct_callsite_count > 64:
+                        raise ValueError("LXJ8_FOR_CALLSITE_LIMIT")
+                    if key not in caller_sites:
+                        if len(caller_sites) >= 32:
+                            raise ValueError("LXJ8_FOR_CALLER_LIMIT")
+                        caller_sites[key] = []
+                        caller_definitions[key] = (dex, method, flags, code_off)
+                    caller_sites[key].extend(sites)
+
+    if dex_count != 6:
+        raise ValueError("SIGNED_SIX_DEX_REQUIRED")
+
+    target_body_found = target_definition is not None and bool(target_definition[3])
+    target_trace = None
+    if target_body_found:
+        dex, method, flags, code_off = target_definition
+        target_trace = safe_trace(dex, method, flags, code_off)
+
+    direct_callers = []
+    caller_traces_complete = True
+    same_service_and_wrapper_to_target_proven = False
+    for key in sorted(caller_sites):
+        dex, method, flags, code_off = caller_definitions[key]
+        trace = safe_trace(dex, method, flags, code_off)
+        if trace.get("trace_failed"):
+            caller_traces_complete = False
+        events = [
+            event for event in trace.get("events", ())
+            if event.get("callee") == {
+                "owner": target[0],
+                "method": target[1],
+                "signature": target[2],
+            }
+            and event.get("kind") in (
+                "CALL_WITH_TYPED_IDENTITY",
+                "CALL_WITH_POSSIBLE_IDENTITY",
+                "CALL_TARGET_ACCEPTS_TRACK_OR_WRAPPER_WITHOUT_IDENTITY",
+            )
+        ]
+        for event in events:
+            if (
+                event.get("kind") != "CALL_WITH_TYPED_IDENTITY"
+                or event.get("identity_is_common_to_all_incoming_paths") is not True
+            ):
+                continue
+            service_arg = any(
+                arg.get("argument_position") == 0
+                and arg.get("declared_argument_type") == "Lxj8;"
+                and arg.get("identity_type") == "LQJ8_SERVICE"
+                for arg in event.get("identity_arguments", ())
+            )
+            wrapper_arg = any(
+                arg.get("argument_position") == 1
+                and arg.get("declared_argument_type") == WRAPPER
+                and arg.get("identity_type") == "TRACK_WRAPPER"
+                for arg in event.get("identity_arguments", ())
+            )
+            if service_arg and wrapper_arg:
+                same_service_and_wrapper_to_target_proven = True
+        direct_callers.append({
+            "caller": method_row(method),
+            "callsite_count": len(caller_sites[key]),
+            "callsites": caller_sites[key],
+            "identity_events_for_target": events,
+            "trace_stats": {
+                "reachable_instruction_count": trace.get("reachable_instruction_count"),
+                "branch_count": trace.get("branch_count"),
+                "path_state_count": trace.get("path_state_count"),
+                "processed_state_count": trace.get("processed_state_count"),
+            },
+            "trace_complete": not trace.get("trace_failed", False),
+        })
+
+    target_events = target_trace.get("events", ()) if target_trace else ()
+    def typed_calls(identity_type, argument_type=None):
+        return [
+            event for event in target_events
+            if event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+            and any(
+                arg.get("identity_type") == identity_type
+                and (argument_type is None
+                     or arg.get("declared_argument_type") == argument_type)
+                for arg in event.get("identity_arguments", ())
+            )
+        ]
+    def possible_calls(identity_type, argument_type=None):
+        return [
+            event for event in target_events
+            if event.get("kind") == "CALL_WITH_POSSIBLE_IDENTITY"
+            and any(
+                arg.get("identity_type") == identity_type
+                and (argument_type is None
+                     or arg.get("declared_argument_type") == argument_type)
+                for arg in event.get("possible_identity_arguments", ())
+            )
+        ]
+
+    typed_wrapper_calls = typed_calls("TRACK_WRAPPER", WRAPPER)
+    possible_wrapper_calls = possible_calls("TRACK_WRAPPER", WRAPPER)
+    typed_service_calls = typed_calls("LQJ8_SERVICE")
+    typed_media_item_calls = typed_calls("MEDIA_ITEM", "LOf6;")
+    possible_media_item_calls = possible_calls("MEDIA_ITEM", "LOf6;")
+    typed_holder_calls = typed_calls("MEDIA_ITEM_HOLDER", "LiLb;")
+    source_descriptor_calls = [
+        event for event in target_events
+        if event.get("role") == "NATIVE_SOURCE_DESCRIPTOR"
+    ]
+    player_calls = [
+        event for event in target_events
+        if event.get("role") == "PLAYER_SELECTION_OR_TRANSPORT"
+    ]
+    target_trace_complete = (
+        target_body_found
+        and target_trace is not None
+        and not target_trace.get("trace_failed", False)
+    )
+
+    return {
+        "bounded": True,
+        "scan_scope": "ALL_SIX_SIGNED_DEX_FOR_ONE_EXACT_LXJ8_FOR_METHOD",
+        "signed_dex_count": dex_count,
+        "target": method_row(target),
+        "target_method_body_found": target_body_found,
+        "direct_callsite_count": direct_callsite_count,
+        "distinct_direct_caller_count": len(direct_callers),
+        "direct_callers": direct_callers,
+        "same_service_and_wrapper_to_target_proven": (
+            same_service_and_wrapper_to_target_proven
+        ),
+        "target_trace_stats": ({
+            "reachable_instruction_count": target_trace.get("reachable_instruction_count"),
+            "branch_count": target_trace.get("branch_count"),
+            "path_state_count": target_trace.get("path_state_count"),
+            "processed_state_count": target_trace.get("processed_state_count"),
+        } if target_trace else None),
+        "target_typed_wrapper_calls": typed_wrapper_calls,
+        "target_possible_wrapper_calls": possible_wrapper_calls,
+        "target_typed_service_calls": typed_service_calls,
+        "target_typed_media_item_calls": typed_media_item_calls,
+        "target_possible_media_item_calls": possible_media_item_calls,
+        "target_typed_holder_calls": typed_holder_calls,
+        "target_source_descriptor_calls": source_descriptor_calls,
+        "target_player_calls": player_calls,
+        "same_wrapper_to_native_source_descriptor_proven": any(
+            any(
+                arg.get("identity_type") == "TRACK_WRAPPER"
+                for arg in event.get("identity_arguments", ())
+            )
+            for event in source_descriptor_calls
+        ),
+        "same_wrapper_to_player_api_proven": any(
+            any(
+                arg.get("identity_type") == "TRACK_WRAPPER"
+                for arg in event.get("identity_arguments", ())
+            )
+            for event in player_calls
+        ),
+        "same_media_item_to_player_api_proven": any(
+            any(
+                arg.get("identity_type") == "MEDIA_ITEM"
+                and arg.get("declared_argument_type") == "LOf6;"
+                for arg in event.get("identity_arguments", ())
+            )
+            for event in player_calls
+        ),
+        "target_trace_complete": target_trace_complete,
+        "caller_traces_complete": caller_traces_complete,
+        "complete_for_bounded_method_claim": (
+            dex_count == 6 and target_trace_complete and caller_traces_complete
+        ),
         "field_names_or_values_disclosed": False,
         "track_album_ids_titles_urls_dataspec_tokens_account_or_audio_read": False,
     }
@@ -12729,6 +12987,7 @@ def inspect_signed(apks):
     exact_track_wrapper_handoff = inspect_exact_track_wrapper_handoff(apks)
     exact_lqj8_service_route = inspect_exact_lqj8_service_route(apks, class_profiles)
     exact_lvj8_continuation_route = inspect_exact_lvj8_continuation_route(apks)
+    exact_lxj8_for_route = inspect_exact_lxj8_for_route(apks)
     next_identity_hop_owner_profiles = [
         {"owner": owner, **classify_track_owner_profile(class_profiles.get(owner, {}))}
         for owner in sorted({row[0] for row in next_identity_hop_focus_refs})
@@ -13128,6 +13387,7 @@ def inspect_signed(apks):
         "exact_track_wrapper_handoff": exact_track_wrapper_handoff,
         "exact_lqj8_service_route": exact_lqj8_service_route,
         "exact_lvj8_continuation_route": exact_lvj8_continuation_route,
+        "exact_lxj8_for_route": exact_lxj8_for_route,
         "next_identity_hop_missing_method_refs":
             next_identity_hop_trace_result["missing_method_refs"],
         "next_identity_hop_owner_profiles": next_identity_hop_owner_profiles,
