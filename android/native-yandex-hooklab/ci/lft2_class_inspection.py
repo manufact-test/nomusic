@@ -209,6 +209,7 @@ def trace_non_constructor_method(dex, method, flags: int, code_off: int) -> dict
         for event in rows:
             callee = event.get("callee") or {}
             row = {
+                "ordinal": event.get("ordinal"),
                 "owner": callee.get("owner"),
                 "method": callee.get("method"),
                 "descriptor": callee.get("signature"),
@@ -222,6 +223,12 @@ def trace_non_constructor_method(dex, method, flags: int, code_off: int) -> dict
         "method": method[1], "descriptor": method[2],
         "trace_complete": not trace.get("trace_failed", False),
         "wrapper_field_read_count": len(wrapper_reads),
+        "wrapper_field_read_sites": [{
+            "ordinal": e.get("ordinal"),
+            "field_declaring_owner": e.get("field_declaring_owner"),
+            "receiver_is_this": e.get("receiver_is_this"),
+            "receiver_identity_origins": e.get("receiver_identity_origins"),
+        } for e in wrapper_reads],
         "typed_same_wrapper_call_targets": targets(typed_calls),
         "possible_wrapper_call_targets": targets(possible_calls),
         "native_source_descriptor_call_targets": targets([
