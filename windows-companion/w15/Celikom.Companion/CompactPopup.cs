@@ -655,7 +655,8 @@ public sealed partial class MainWindow
         else
         {
             _compactTrack.Text = CompactPlaybackPresentation.TrackPlaceholder(
-                _bridge.Enabled, heartbeatFresh, _bridge.LastPlaybackState,
+                _bridge.Enabled, heartbeatFresh,
+                _resumeAfterNetworkFailure ? _networkRecoveryPlaybackState : _bridge.LastPlaybackState,
                 _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
                 _api.IsLoggedIn, _bridge.PlayerUnavailable);
             _compactTrackArtist.Text = "";

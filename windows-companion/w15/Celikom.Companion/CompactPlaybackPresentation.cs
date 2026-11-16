@@ -6,8 +6,7 @@ public static class CompactPlaybackPresentation
     public const string ServiceEnabledMessage = "Сервис включён";
 
     public const string ConnectingMessage = "Подключаем CELIKOM к текущему плееру…";
-    public const string NetworkRecoveryMessage =
-        "Проверяем соединение в фоне. Текущий звук не переключаем.";
+    public const string NetworkRecoveryMessage = "Связь с сервером восстанавливается.";
     public const string StartupTimeoutMessage =
         "Не удалось получить данные текущего плеера. Проверь окно Яндекс.Музыки и подключение CELIKOM.";
 
@@ -25,6 +24,14 @@ public static class CompactPlaybackPresentation
             AutorunNativeConnected(bridgeEnabled, heartbeatFresh,
                 playerUnavailable, nativeStatus);
 
+    public static string NetworkRecoveryPlaybackMessage(string? playbackState) => playbackState switch
+    {
+        "PLAYING" => "Музыка продолжает играть.",
+        "PAUSED" => "Музыка на паузе.",
+        "STOPPED" => "Воспроизведение остановлено.",
+        _ => "Проверяем состояние воспроизведения…"
+    };
+
     public static string TrackPlaceholder(bool bridgeEnabled, bool heartbeatFresh,
         string? playbackState, bool recoveryPending, bool connectionPending, bool signedIn,
         bool playerUnavailable = false)
@@ -32,7 +39,7 @@ public static class CompactPlaybackPresentation
         if (playerUnavailable) return "Подключитесь к Яндекс Музыке";
         if (!bridgeEnabled)
         {
-            if (recoveryPending) return "Данные текущего трека временно недоступны…";
+            if (recoveryPending) return NetworkRecoveryPlaybackMessage(playbackState);
             if (connectionPending) return ConnectingMessage;
             return signedIn
                 ? "Подмена выключена. Нажми «Старт», чтобы подключить текущий плеер."

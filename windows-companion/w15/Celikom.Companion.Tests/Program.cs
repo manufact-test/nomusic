@@ -1351,12 +1351,21 @@ try
          !CompactPlaybackPresentation.StartupComplete(true, false) &&
          !CompactPlaybackPresentation.StartupComplete(false, true),
          "W151 startup completes only on a fresh enabled current-player lease");
-    Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
-             true, false, true) == "Данные текущего трека временно недоступны…" &&
-         CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("в фоне") &&
-         CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("не переключаем") &&
-         !CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("Восстанавливаем"),
-         "W157 VPN recovery is described as background server checking without implying an audio source switch");
+    Test(CompactPlaybackPresentation.NetworkRecoveryMessage == "Связь с сервером восстанавливается." &&
+         !CompactPlaybackPresentation.NetworkRecoveryMessage.Contains("не переключаем"),
+         "W160 VPN recovery is shown as a temporary server-connection state, not a playback failure");
+    Test(CompactPlaybackPresentation.NetworkRecoveryPlaybackMessage("PLAYING") == "Музыка продолжает играть." &&
+         CompactPlaybackPresentation.NetworkRecoveryPlaybackMessage("PAUSED") == "Музыка на паузе." &&
+         CompactPlaybackPresentation.NetworkRecoveryPlaybackMessage("STOPPED") == "Воспроизведение остановлено." &&
+         CompactPlaybackPresentation.NetworkRecoveryPlaybackMessage("UNKNOWN") == "Проверяем состояние воспроизведения…",
+         "W160 recovery copy reflects only the last fresh playback state captured before bridge suspension");
+    Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "PLAYING",
+             true, false, true) == "Музыка продолжает играть." &&
+         CompactPlaybackPresentation.TrackPlaceholder(false, false, "PAUSED",
+             true, false, true) == "Музыка на паузе." &&
+         CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
+             true, false, true) == "Проверяем состояние воспроизведения…",
+         "W160 compact track line preserves last-known playing/paused state during server recovery");
     Test(CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",
              false, false, true).Contains("Нажми «Старт»") &&
          !CompactPlaybackPresentation.TrackPlaceholder(false, false, "UNKNOWN",

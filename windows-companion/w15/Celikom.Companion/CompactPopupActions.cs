@@ -162,6 +162,9 @@ public sealed partial class MainWindow
                 _resumeAfterNetworkFailure = transient &&
                     _nativeInstallState == NativeInstallState.Active &&
                     _installedModule.MatchesApplication;
+                if (_resumeAfterNetworkFailure && !_bridge.NativeNetworkRecoveryPending)
+                    _networkRecoveryPlaybackState = _bridge.HasFreshHeartbeat
+                        ? _bridge.LastPlaybackState : "UNKNOWN";
                 _bridge.SetNativeNetworkRecoveryPending(_resumeAfterNetworkFailure);
                 _bridge.SetEnabled(false); // fail closed until new live authority
                 DiagnosticLog.Record(transient ?
@@ -179,7 +182,7 @@ public sealed partial class MainWindow
             else
                 _bridge.SetNativeNetworkRecoveryPending(_resumeAfterNetworkFailure);
             SetCompactAccessText(_resumeAfterNetworkFailure
-                ? "Восстанавливаем связь. Текущий звук не переключаем."
+                ? CompactPlaybackPresentation.NetworkRecoveryMessage
                 : "Доступ не подтверждён. Подмена выключена.");
         }
         finally

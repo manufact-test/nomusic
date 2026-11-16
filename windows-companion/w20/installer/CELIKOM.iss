@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.41
-VersionInfoVersion=0.24.41.0
+AppVersion=0.24.42
+VersionInfoVersion=0.24.42.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W159-MAPPED-TRACK-STATUS-02441-UNSIGNED
+OutputBaseFilename=CELIKOM-W160-VPN-RECOVERY-PLAYBACK-STATUS-02442-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no

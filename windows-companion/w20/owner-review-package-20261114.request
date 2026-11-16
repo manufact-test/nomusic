@@ -1,10 +1,10 @@
-CELIKOM Windows — one existing product, W159 final owner review
-Requested build: 0.24.41.0 (native module 0.24.31)
-Purpose: one owner acceptance installer and ZIP from the CI-green W159 mapped-track status correction after the owner accepted W158 VPN audio continuity.
-Requested output: CELIKOM-W159-MAPPED-TRACK-STATUS-02441-UNSIGNED.exe
+CELIKOM Windows — W160 VPN recovery playback-status owner review
+Requested build: 0.24.42.0 (native module 0.24.31)
+Purpose: one owner acceptance installer and ZIP for the W160 UI correction after the owner confirmed that heavy WireGuard VPN route recovery does not interrupt the already-playing CELIKOM replacement.
+Observed on 0.24.41.0: the replacement song continues without interruption, but the UI reports server recovery and says current track data is temporarily unavailable for about 20–30 seconds.
+W160 correction: preserve only the last fresh PLAYING/PAUSED/STOPPED state for presentation while the authenticated server entitlement check recovers; show "Связь с сервером восстанавливается." separately from "Музыка продолжает играть." (or the captured pause/stop state). Unknown state remains explicitly unknown.
+Requested output: CELIKOM-W160-VPN-RECOVERY-PLAYBACK-STATUS-02442-UNSIGNED.exe
 Scope: exactly one installer EXE, one ZIP containing that same installer, and SHA256SUMS.txt; privately retained GitHub Actions artifact only.
 Signing: internal UNSIGNED owner review. No production signing, stable feed, Hostinger deployment, customer publication or release.
-Source CI success: Main 43828118274 and Windows integration 43828118192, both SUCCESS on W159 application-source commit 09fca7a0f7fb9b0f7fe4a436978c48968054a0fa.
-Owner acceptance only: confirm the mapped current track shows neutral "Версия CELIKOM доступна" before VPN, after VPN recovery and after Next; header remains "Сервис включён"; exact decoder proof remains the only active/green state. W158 audio continuity was manually accepted; this UI-only build does not change playback or VPN recovery.
-No Android, browser extension, backend, Yandex original file, updater or P-256 changes.
-This single request-file change triggers exactly one W20 internal owner-review build; ordinary source/docs pushes must not create installers.
+Source CI: Main CI and Windows integration CI must pass on the W160 source commit before owner acceptance.
+No changes to native audio, VPN route recovery, entitlement authority, playback start/stop, Yandex files, backend, Android, browser extension, updater or P-256. No intermediate installers; this request-file update triggers exactly one W20 internal owner-review build.

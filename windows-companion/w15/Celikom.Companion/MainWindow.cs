@@ -99,6 +99,9 @@ public sealed partial class MainWindow : Form
     // A brief server outage may suspend music. Never auto-start without a new,
     // positive authenticated entitlement and the user's original Start intent.
     private bool _resumeAfterNetworkFailure;
+    // Last fresh player state captured before a transient entitlement suspension clears the bridge lease.
+    // Presentation only: this snapshot never grants playback or proves the decoder source.
+    private string _networkRecoveryPlaybackState = "UNKNOWN";
     private volatile bool _autorunAwaitingNativePlayer;
     private DateTimeOffset _lastNetworkRecheckHint;
     private DateTimeOffset _lastNetworkRouteLoggedAt;
@@ -523,6 +526,10 @@ public sealed partial class MainWindow : Form
                 if (_closing || IsDisposed || !_api.IsLoggedIn ||
                     !(_bridge.Enabled || _resumeAfterNetworkFailure)) return;
                 var now = DateTimeOffset.UtcNow;
+                // Snapshot the latest fresh player state before the recovery flag suspends the bridge lease.
+                if (!_bridge.NativeNetworkRecoveryPending && !_resumeAfterNetworkFailure)
+                    _networkRecoveryPlaybackState = _bridge.HasFreshHeartbeat
+                        ? _bridge.LastPlaybackState : "UNKNOWN";
                 // Coalesce duplicate route notifications while retaining the
                 // LAST epoch/recheck. The same burst must not repeatedly reset
                 // native hold acknowledgement or cause pause/resume churn.
@@ -1562,6 +1569,8 @@ public sealed partial class MainWindow : Form
             _compactStartupText = "";
         }
         _lastPlaybackUiHeartbeatFresh = _bridge.HasFreshHeartbeat;
+        if (_bridge.Enabled && _lastPlaybackUiHeartbeatFresh)
+            _networkRecoveryPlaybackState = _bridge.LastPlaybackState;
         if (_compactReady)
         {
             RenderCompact();
@@ -1662,7 +1671,7 @@ public sealed partial class MainWindow : Form
             ? "Подключитесь к Яндекс Музыке"
             : !_bridge.Enabled
                 ? (_resumeAfterNetworkFailure
-                    ? "Данные текущего трека временно недоступны."
+                    ? CompactPlaybackPresentation.NetworkRecoveryPlaybackMessage(_networkRecoveryPlaybackState)
                     : "Подмена выключена. Текущий звук может быть в кеше Яндекса.")
             : !heartbeatFresh
                 ? (_autorunAwaitingNativePlayer ? "Подключитесь к Яндекс Музыке" :
@@ -1687,7 +1696,7 @@ public sealed partial class MainWindow : Form
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."
             : _bridge.PlayerUnavailable ? "Подключитесь к Яндекс Музыке"
             : !_bridge.Enabled ?
-                (_resumeAfterNetworkFailure ? "Текущий звук не переключаем." : "Готов к работе")
+                (_resumeAfterNetworkFailure ? CompactPlaybackPresentation.NetworkRecoveryMessage : "Готов к работе")
             : sourceVerified ? "Источник CELIKOM выбран плеером. Проверь звук."
             : paused ? "Яндекс.Музыка на паузе."
             : stopped ? "Воспроизведение остановлено."
