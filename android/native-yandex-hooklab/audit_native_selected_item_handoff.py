@@ -8822,6 +8822,24 @@ def inspect_media3_player_item_identity_contracts(
             pending.extend(class_profiles.get(interface, {}).get("interfaces", ()))
         return None
 
+    def safe_identity_trace(dex, method, flags, code_off, item_type, extra_types=()):
+        try:
+            return trace_identity_method(
+                dex, method, flags, code_off,
+                extra_identity_types=[item_type, *extra_types],
+                track_fields_from_any_receiver=True,
+            )
+        except (ValueError, DexError) as exc:
+            reason = str(exc)
+            safe_code = reason if re.fullmatch(r"[A-Z0-9_]{1,80}", reason) else "UNCLASSIFIED_TRACE_ERROR"
+            return {
+                "trace_failed": True,
+                "error_class": type(exc).__name__,
+                "error_code": safe_code,
+                "field_names_or_values_disclosed": False,
+                "strings_urls_dataspec_account_or_audio_read": False,
+            }
+
     item_contracts_out = []
     item_type_targets = {}
     for item_type, rows in sorted(candidate_contracts.items()):
@@ -8847,10 +8865,8 @@ def inspect_media3_player_item_identity_contracts(
                 body_trace = None
                 if declaration and declaration[2]:
                     method, flags, code_off, dex = declaration
-                    body_trace = trace_identity_method(
-                        dex, method, flags, code_off,
-                        extra_identity_types=[item_type],
-                        track_fields_from_any_receiver=True,
+                    body_trace = safe_identity_trace(
+                        dex, method, flags, code_off, item_type
                     )
                 method_declarations.append({
                     "implementor": implementor,
@@ -8924,6 +8940,8 @@ def inspect_media3_player_item_identity_contracts(
 
     caller_rows = []
     caller_traces = {}
+    caller_rows_truncated = False
+    caller_traces_truncated = False
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -8952,7 +8970,8 @@ def inspect_media3_player_item_identity_contracts(
                         if callee not in all_targets:
                             continue
                         if len(caller_rows) >= 256:
-                            raise ValueError("PLAYER_ITEM_CALLER_LIMIT")
+                            caller_rows_truncated = True
+                            continue
                         caller_key = (method[0], method[1], method[2])
                         caller_rows.append({
                             "caller": {
@@ -8975,14 +8994,12 @@ def inspect_media3_player_item_identity_contracts(
                         })
                         if caller_key not in caller_traces:
                             if len(caller_traces) >= 64:
-                                raise ValueError("PLAYER_ITEM_CALLER_TRACE_LIMIT")
-                            caller_traces[caller_key] = trace_identity_method(
-                                dex, method, flags, code_off,
-                                extra_identity_types=[
-                                    item_type, "Landroid/net/Uri;", "Ljava/lang/String;"
-                                ] if item_type else [],
-                                track_fields_from_any_receiver=True,
-                            )
+                                caller_traces_truncated = True
+                                continue
+                            caller_traces[caller_key] = safe_identity_trace(
+                                dex, method, flags, code_off, item_type,
+                                extra_types=("Landroid/net/Uri;",)
+                            ) if item_type else None
 
     return {
         "bounded": True,
@@ -9006,6 +9023,8 @@ def inspect_media3_player_item_identity_contracts(
             if row["target"]["owner"] in scope_owners
         ]),
         "native_track_related_callers": caller_rows,
+        "native_track_related_callers_truncated": caller_rows_truncated,
+        "native_track_related_caller_identity_traces_truncated": caller_traces_truncated,
         "native_track_related_caller_identity_traces": [
             {
                 "caller": {
