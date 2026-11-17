@@ -169,6 +169,118 @@ def scan_signed(apks):
     }
 
 
+
+LG_LB_BUILD = ("LgLb;", "for", "()V")
+LL_LB_ADAPT = ("LlLb;", "if", "(LdA9;LQAa;LOf6;LgA9;)LIr8;")
+AS2_CONSTRUCTOR = ("Las2;", "<init>", "(LOf6;LOr2$a;)V")
+EXACT_DIRECT_TARGETS = frozenset({LG_LB_BUILD, LL_LB_ADAPT, AS2_CONSTRUCTOR})
+
+
+def inspect_exact_source_adapter(apks):
+    """One already-grounded Exo->Las2/LIr8 junction and exact callers only."""
+    target_defs = {}
+    class_profiles = {}
+    direct_calls = []
+    call_count = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = audit.Dex(archive.read(entry.filename))
+                for cls in ("LgLb;", "LlLb;", "Las2;", "LIr8;"):
+                    metadata = class_metadata(dex, cls)
+                    if metadata["defined"]:
+                        if cls in class_profiles:
+                            raise ValueError("EXO_ADAPTER_CLASS_DUPLICATE")
+                        class_profiles[cls] = metadata
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    if method in EXACT_DIRECT_TARGETS:
+                        if method in target_defs:
+                            raise ValueError("EXO_ADAPTER_METHOD_DUPLICATE")
+                        target_defs[method] = (dex, flags, code_off)
+                    for ordinal, op, words in audit.instructions(dex, code_off):
+                        if op not in audit.INVOKES or not 0x6E <= op <= 0x78:
+                            continue
+                        callee = dex.method(words[1])
+                        if callee not in EXACT_DIRECT_TARGETS:
+                            continue
+                        call_count += 1
+                        if call_count > 80:
+                            raise ValueError("EXO_ADAPTER_CALLSITE_LIMIT")
+                        if len(direct_calls) < 48:
+                            direct_calls.append({
+                                "caller_owner": method[0], "caller_method": method[1],
+                                "caller_signature": method[2],
+                                "callee_owner": callee[0], "callee_method": callee[1],
+                                "callee_signature": callee[2], "ordinal": ordinal,
+                                "invoke_opcode": op,
+                            })
+    focused_traces = []
+    for target in (LG_LB_BUILD, LL_LB_ADAPT, AS2_CONSTRUCTOR):
+        row = target_defs.get(target)
+        if row is None:
+            focused_traces.append({
+                "owner": target[0], "method": target[1],
+                "body_found": False,
+            })
+            continue
+        dex, flags, code_off = row
+        if not code_off:
+            focused_traces.append({
+                "owner": target[0], "method": target[1],
+                "body_found": False,
+            })
+            continue
+        try:
+            trace = audit.trace_identity_method(
+                dex, target, flags, code_off,
+                extra_identity_types=("LOr2$a;", "LOf6;", "Las2;", "LQAa;"),
+                capture_argument_provenance_targets={
+                    EXO_FACTORY, AS2_CONSTRUCTOR,
+                },
+                track_fields_from_any_receiver=True,
+            )
+            selected_events = [
+                ev for ev in trace.get("events", ())
+                if (
+                    ev.get("kind") == "CALL_ARGUMENT_PROVENANCE"
+                    and (ev["callee"]["owner"], ev["callee"]["method"],
+                         ev["callee"]["signature"])
+                    in {EXO_FACTORY, AS2_CONSTRUCTOR}
+                ) or (
+                    ev.get("kind") in {
+                        "MOVE_RESULT_TYPED_IDENTITY", "FIELD_STORE_TYPED_IDENTITY",
+                        "FIELD_READ_TYPED_IDENTITY", "CONSTRUCTOR_TYPED_IDENTITY",
+                    }
+                    and ("EXTRA_OBJECT:LOr2$a;" in str(ev)
+                         or "EXTRA_OBJECT:LOf6;" in str(ev))
+                )
+            ]
+            focused_traces.append({
+                "owner": target[0], "method": target[1],
+                "body_found": True,
+                "branch_seen_aliases_cleared": trace.get(
+                    "branch_seen_aliases_cleared"),
+                "selected_events": selected_events[:36],
+                "selected_events_truncated": len(selected_events) > 36,
+            })
+        except (audit.DexError, ValueError) as exc:
+            code = str(exc)
+            focused_traces.append({
+                "owner": target[0], "method": target[1],
+                "body_found": True, "trace_complete": False,
+                "safe_error": code if re.fullmatch("[A-Z0-9_]{1,80}", code) else None,
+            })
+    return {
+        "exact_adapter_class_profiles": class_profiles,
+        "exact_adapter_direct_call_count": call_count,
+        "exact_adapter_direct_calls": direct_calls,
+        "exact_adapter_callers_truncated": call_count > len(direct_calls),
+        "exact_adapter_method_traces": focused_traces,
+        "runtime_owner_selection_or_decoder_proven": False,
+    }
+
 def run(xapk: Path):
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise RuntimeError("EPHEMERAL_CI_ONLY")
@@ -194,7 +306,8 @@ def run(xapk: Path):
         if len(bases) != 1 or trusted.sha256_file(bases[0]) != trusted.PINNED_BASE_APK_SHA256:
             raise ValueError("EXO_FACTORY_NAV17_BASE_MISMATCH")
         report = scan_signed(splits)
-    return {**report, "verified_exact_nav17_signed_original": True, "ephemeral_read_only": True}
+        adapter_report = inspect_exact_source_adapter(splits)
+    return {**report, **adapter_report, "verified_exact_nav17_signed_original": True, "ephemeral_read_only": True}
 
 
 if __name__ == "__main__":
