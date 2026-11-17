@@ -65,6 +65,59 @@ def checked_field_at(dex,code,pc,owner,typ):
         raise ValueError("AUDIO_EXACT_IGET_OWNER_TYPE_MISMATCH")
     return field
 
+def inspect_exact_renderer_int_getter(methods,method):
+    item=methods.get(method)
+    if not item or not item[2]:return {"declared":False}
+    dex,flags,code=item
+    insns=list(audit.instructions(dex,code))
+    if len(insns)>40:raise ValueError("AUDIO_INT_GETTER_TOO_COMPLEX")
+    fields=[]
+    return_regs=[]
+    for pc,op,w in insns:
+        if op==0x52: # iget normal int
+            fid=audit.field_id(dex,w[1])
+            fields.append({"pc":pc,"field_owner":fid[0],"field_type":fid[2],
+                           "register":(w[0]>>8)&15,
+                           "field_id":fid})
+        elif op==0x0f: # return int
+            return_regs.append((w[0]>>8)&255)
+    plain_fields=[{k:v for k,v in x.items() if k!="field_id"} for x in fields]
+    return {"declared":True,"instruction_count":len(insns),
+            "field_reads":plain_fields,
+            "return_registers":return_regs,
+            "simple_exact_int_field_getter":len(fields)==1 and len(return_regs)==1
+               and fields[0]["register"]==return_regs[0] and
+               fields[0]["field_type"]=="I",
+            "_private_exact_field":fields[0]["field_id"] if len(fields)==1 else None}
+
+def inspect_renderer_base_int_constructors(methods):
+    rows=[]
+    for method,(dex,flags,code) in methods.items():
+        if method[0]!=RENDERER_BASE or method[1]!="<init>" or not code:continue
+        insns=list(audit.instructions(dex,code))
+        if len(insns)>250:raise ValueError("AUDIO_RENDERER_CONSTRUCTOR_TOO_LARGE")
+        registers=dex.u16(code)
+        incoming=dex.u16(code+2)
+        expanded=audit.expand_invoke_register_types(
+            RENDERER_BASE,audit.parse_types(method[2]),False)
+        incoming_start=registers-incoming
+        param_int_regs=[incoming_start+i for i,t in enumerate(expanded) if t=="I"]
+        writes=[]
+        for pc,op,w in insns:
+            if op!=0x59:continue # iput int
+            fid=audit.field_id(dex,w[1])
+            if fid[0]!=RENDERER_BASE or fid[2]!="I":continue
+            input_reg=(w[0]>>8)&15
+            receiver_reg=(w[0]>>12)&15
+            writes.append({
+                "pc":pc,"input_from_direct_int_parameter":input_reg in param_int_regs,
+                "receiver_is_constructor_this":receiver_reg==incoming_start,
+                "_private_exact_field":fid})
+        rows.append({"descriptor":method[2],
+                     "input_int_parameter_count":len(param_int_regs),
+                     "writes":writes})
+    return rows
+
 def analyze_signed(apks):
     defs={}
     methods={}
@@ -128,6 +181,25 @@ def analyze_signed(apks):
                 raise ValueError("AUDIO_RENDERER_CALLS_TOO_MANY")
     if ENGINE_BREAK not in methods or ENGINE_RESET not in methods or ENGINE_ENABLE not in methods:
         raise ValueError("AUDIO_EXACT_ENGINE_METHODS_MISSING")
+    candidates=[(RENDERER_BASE,"default","()I"),
+                (RENDERER_BASE,"interface","()I"),
+                (RENDERER_BASE,"getState","()I")]
+    exact_int_getters={m[1]:inspect_exact_renderer_int_getter(methods,m) for m in candidates}
+    constructors=inspect_renderer_base_int_constructors(methods)
+    for getter in exact_int_getters.values():
+        fid=getter.pop("_private_exact_field",None)
+        getter["stored_from_direct_int_constructor_input"]=bool(
+            fid and any(w["_private_exact_field"]==fid and
+                w["input_from_direct_int_parameter"] and
+                w["receiver_is_constructor_this"]
+                for c in constructors for w in c["writes"]))
+    redacted_constructors=[]
+    for c in constructors:
+        redacted_constructors.append({
+            "descriptor":c["descriptor"],
+            "input_int_parameter_count":c["input_int_parameter_count"],
+            "writes":[{k:v for k,v in w.items() if k!="_private_exact_field"}
+                      for w in c["writes"]]})
     break_dex,_,break_code=methods[ENGINE_BREAK]
     reset_dex,_,reset_code=methods[ENGINE_RESET]
     # Previously signed six-DEX proven exact queue SLOT_B is e.break PC 547.
@@ -173,6 +245,8 @@ def analyze_signed(apks):
       "renderer_reachable_class_count":len(subtree),
       "renderer_runtime_getTrackType_declared":type_rows,
       "renderer_runtime_getState_declared":state_rows,
+      "renderer_exact_integer_getter_bodies":exact_int_getters,
+      "renderer_exact_int_constructor_sources":redacted_constructors,
       "engine_exact_queue_reference_same_across_break_reset":True,
       "engine_queue_read_count":len(q_reads),
       "engine_reset_queue_read_count":len(reset_queue_reads),
