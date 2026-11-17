@@ -154,6 +154,57 @@ public final class NativeRendererStreamEvidenceTest {
             "origin=STREAM_ALIASED_READ_RETURN_MINUS4;error=ONE"),
             "STALE_STREAM_MUST_NOT_INCREASE_MINUS4");
     }
+    private static void testScopedAndUnscopedReturnsNeverMix() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object strongRenderer=new Object(),strongHolder=new Object(),strongStream=new Object();
+        Object weakRenderer=new Object(),weakStream=new Object();
+        NativeRendererStreamEvidence.Scope scope=e.enter(strongRenderer,strongHolder);
+        try {e.onAttach(strongRenderer,strongStream);} finally {e.exit(scope);}
+        e.onAttach(weakRenderer,weakStream);
+        e.onReadReturn(strongRenderer,strongStream,-4);
+        e.onReadReturn(strongRenderer,strongStream,-5);
+        e.onReadReturn(strongRenderer,strongStream,-3);
+        e.onReadReturn(strongRenderer,strongStream,0);
+        e.onReadReturn(weakRenderer,weakStream,-4);
+        e.onReadReturn(weakRenderer,weakStream,-5);
+        e.onReadReturn(weakRenderer,weakStream,-3);
+        e.onReadReturn(weakRenderer,weakStream,0);
+        String[] snap=e.exportLines();
+        String[] returns={"MINUS4","MINUS5","MINUS3","OTHER"};
+        for(String code:returns){
+            check(contains(snap,"origin=QUEUE_SCOPED_READ_RETURN_"+code+";error=ONE"),
+                  "STRONG_COHORT_"+code);
+            check(contains(snap,"origin=UNSCOPED_READ_RETURN_"+code+";error=ONE"),
+                  "WEAK_COHORT_"+code);
+        }
+        check(contains(snap,"origin=STREAM_ALIASED_READ_RETURN_MINUS4;error=FEW"),
+              "AGGREGATE_PRESERVED");
+        e.onDetach(strongRenderer);
+        e.onReadReturn(strongRenderer,strongStream,-4);
+        snap=e.exportLines();
+        check(contains(snap,"origin=QUEUE_SCOPED_READ_RETURN_MINUS4;error=ONE"),
+              "DETACHED_STRONG_NOT_COUNTED");
+        check(contains(snap,"origin=READ_RETURN_LINK_LOST;error=ONE"),
+              "DETACHED_STRONG_REJECTED");
+    }
+    private static void testNoFalseStrongAfterUnscopedReattachment() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object renderer=new Object(),holder=new Object(),oldStream=new Object();
+        NativeRendererStreamEvidence.Scope scope=e.enter(renderer,holder);
+        try {e.onAttach(renderer,oldStream);} finally {e.exit(scope);}
+        Object freshStream=new Object();
+        e.onAttach(renderer,freshStream); // same renderer, outside queue scope
+        e.onReadReturn(renderer,freshStream,-4);
+        check(contains(e.exportLines(),
+              "origin=QUEUE_SCOPED_READ_RETURN_MINUS4;error=NONE"),
+              "STALE_QUEUE_PROOF_REVOKED");
+        check(contains(e.exportLines(),
+              "origin=UNSCOPED_READ_RETURN_MINUS4;error=ONE"),
+              "UNSCOPED_REATTACH_ONLY");
+        e.onReadReturn(renderer,oldStream,-4);
+        check(contains(e.exportLines(),"origin=READ_RETURN_LINK_LOST;error=ONE"),
+              "STALE_STREAM_CANNOT_CLAIM_NEW_RETURN");
+    }
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -163,6 +214,8 @@ public final class NativeRendererStreamEvidenceTest {
         testEarlyReadBudgetMustNotHideLaterUnscopedAttach();
         testRegistrationSurvivesTrimmedEventLog();
         testRealReturnCodesNeverInferAudibleTrack();
+        testScopedAndUnscopedReturnsNeverMix();
+        testNoFalseStrongAfterUnscopedReattachment();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
