@@ -26,12 +26,13 @@ MAX_TYPED_FIELDS=48
 HOLDER="Landroidx/media3/exoplayer/i$c;"
 HOLDER_CONSTRUCTOR=(HOLDER,"<init>","(LSl6;Z)V")
 WRAPPER_CONSTRUCTOR=("Lp96;","<init>","(LSl6;Z)V")
+BASE_WRAPPER_CONSTRUCTOR=("LuIb;","<init>","(LSl6;)V")
 LIST_GET=("Ljava/util/List;","get","(I)Ljava/lang/Object;")
 ARRAY_ADD=("Ljava/util/ArrayList;","add","(Ljava/lang/Object;)Z")
 
 
 def exact_source_handoff(method):
-    return method in (TARGET,PARENT,HOLDER_CONSTRUCTOR,WRAPPER_CONSTRUCTOR)
+    return method in (TARGET,PARENT,HOLDER_CONSTRUCTOR,WRAPPER_CONSTRUCTOR,BASE_WRAPPER_CONSTRUCTOR)
 
 
 
@@ -153,7 +154,7 @@ def scan_signed(splits):
                         if method in defs:raise ValueError("A0_DUPLICATE_TARGET")
                         defs[method]=(dex,flags,off)
     if len(dexes)!=6:raise ValueError("A0_EXPECTED_SIX_SIGNED_DEX")
-    if set(defs)!={TARGET,PARENT,HOLDER_CONSTRUCTOR,WRAPPER_CONSTRUCTOR}:raise ValueError("A0_TARGET_BODY_NOT_FOUND")
+    if set(defs)!={TARGET,PARENT,HOLDER_CONSTRUCTOR,WRAPPER_CONSTRUCTOR,BASE_WRAPPER_CONSTRUCTOR}:raise ValueError("A0_TARGET_BODY_NOT_FOUND")
     dex,flags,off=defs[TARGET]
     if not off:raise ValueError("A0_TARGET_NOT_EXECUTABLE")
     methods=[]
@@ -284,6 +285,52 @@ def scan_signed(splits):
         wrapper_events=[]
         wrapper_direct_source_store=False
         wrapper_trace_failure=type(e).__name__
+    # The exact Lp96 constructor delegates the *same source parameter* to
+    # LuIb.<init>(LSl6). Inspect only this inherited wrapper constructor.
+    wrapper_to_base_preserves_source=any(
+        e.get("kind")=="CALL_WITH_TYPED_IDENTITY"
+        and (e.get("callee",{}).get("owner"),
+             e.get("callee",{}).get("method"),
+             e.get("callee",{}).get("signature"))==BASE_WRAPPER_CONSTRUCTOR
+        and e.get("identity_is_common_to_all_incoming_paths") is True
+        and any(x.get("identity_type")=="NATIVE_MEDIA_SOURCE"
+                and "NATIVE_MEDIA_SOURCE_PARAMETER" in x.get("origins",())
+                for x in e.get("identity_arguments",()))
+        for e in wrapper_events)
+    base_dex,base_flags,base_off=defs[BASE_WRAPPER_CONSTRUCTOR]
+    if not base_off:raise ValueError("A0_BASE_WRAPPER_NO_BODY")
+    base_field_ops=[]
+    for ordinal,op,words in audit.instructions(base_dex,base_off):
+        if 0x59<=op<=0x6d:
+            owner,_name,typ=audit.field_id(base_dex,words[1])
+            if len(base_field_ops)>=20:raise ValueError("BASE_WRAPPER_FIELD_LIMIT")
+            base_field_ops.append({
+                "ordinal":ordinal,"opcode":op,"field_owner":owner,
+                "field_type":typ,
+            })
+    try:
+        base_trace=audit.trace_track_identity_method_cfg(
+            base_dex,BASE_WRAPPER_CONSTRUCTOR,base_flags,base_off,
+            extra_identity_types={SOURCE:"NATIVE_MEDIA_SOURCE"})
+        base_events=[
+            e for e in base_trace["events"]
+            if e.get("kind") in (
+                "FIELD_STORE_TYPED_IDENTITY","CALL_WITH_TYPED_IDENTITY",
+                "FIELD_READ_TYPED_IDENTITY")
+            and "NATIVE_MEDIA_SOURCE" in str(e)
+        ][:20]
+        base_source_retained=any(
+            e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
+            and e.get("identity_type")=="NATIVE_MEDIA_SOURCE"
+            and e.get("destination_owner")=="LuIb;"
+            and e.get("receiver_is_this_on_all_paths") is True
+            and "NATIVE_MEDIA_SOURCE_PARAMETER" in e.get("origins",())
+            for e in base_trace["events"])
+        base_error=None
+    except (ValueError,audit.DexError) as e:
+        base_source_retained=False
+        base_events=[]
+        base_error=type(e).__name__
     # The constructor is a wrapper: retaining the original source must be
     # proven separately, not inferred merely from receiving it once.
     # Exact i$c stores a Lp96-typed object; its field-store identity is
@@ -345,6 +392,11 @@ def scan_signed(splits):
         "Lp96_constructor_typed_field_ops":wrapper_ctor_field_ops,
         "Lp96_constructor_source_identity_events":wrapper_events,
         "Lp96_constructor_stores_exact_source_on_this":wrapper_direct_source_store,
+        "Lp96_passes_same_source_to_LuIb_base_constructor":wrapper_to_base_preserves_source,
+        "LuIb_base_constructor_source_field_opcodes":base_field_ops,
+        "LuIb_base_constructor_source_identity_events":base_events,
+        "LuIb_base_constructor_retains_exact_source_on_this":base_source_retained,
+        "LuIb_base_constructor_trace_error":base_error,
         "Lp96_constructor_cfg_error_class":wrapper_trace_failure,
         "holder_constructor_cfg_error":holder_cfg_error,
         "holder_constructor_typed_field_opcodes":holder_ctor_field_types,
@@ -356,7 +408,8 @@ def scan_signed(splits):
             and holder_to_list["same_new_holder_passed_into_ArrayList_add"]
             and holder_wrapper_source_argument_preserved
             and holder_wrapper_field_store_proven
-            and wrapper_direct_source_store),
+            and wrapper_to_base_preserves_source
+            and base_source_retained),
         "source_typed_invokes":source_methods,
         "list_or_iterator_invokes":list_methods,
         "target_new_instances":instance_creations,
