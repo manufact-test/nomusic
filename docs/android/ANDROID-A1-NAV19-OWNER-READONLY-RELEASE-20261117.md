@@ -25,7 +25,7 @@
 - Exact verified personal ChatGPT Library items:
   - `/CELIKOM/Android/Native/CELIKOM-A1-NAV19-Renderer-HookStatus-ReadOnly-20261117.apk`; library ID `libfile_2b302dba29688191a8e833e56301d955`.
   - `/CELIKOM/Android/Native/CELIKOM-A1-NAV19-Инструкция.txt`; library ID `libfile_f87cda3e1a2081919fdbb15b17a206ba`.
-  - Original accepted NAV17 and NAV18 are still in the same personal Library folder. Both new files were re-listed in Library after upload; exact APK size matched.
+  - Original accepted NAV17 and NAV18 are still in the same personal Library folder. Both new files were re-listed in Library after upload; the actual Library APK bytes were materialized back into the working container, and exact SHA256, v2/v3 owner signer, nested publisher-original SHA and embedded NAV19 observer markers independently re-checked successfully.
 
 ## Owner trial — NEXT ACTION
 1. Download the APK from personal ChatGPT Library (not GitHub Actions temporary URL), **install over existing NAV18/NAV17**. Never uninstall, wipe data, request new account login, or disable Play Protect. If an in-place update is rejected, stop, do not delete the working app.
@@ -36,3 +36,5 @@
 6. Keep accepted NAV17 as rollback, do not modify original Yandex, Test.50, Windows, extension, server or architecture. Do not repeat signed-2025 static renderer research.
 
 **Do not manufacture NAV20 until the owner's NAV19 TXT provides an actual problem/gate.**
+
+**Final fully documented owner-release rollback:** `backup/android-a1-nav19-owner-signed-readonly-final-handoff-20261117` (exact HEAD of updated `NEXT-CHAT.md`, documentation only after successful owner CI). The first backup before code work remains `backup/android-a1-nav18-owner-diagnostics-before-observer-fix-20261117`.
