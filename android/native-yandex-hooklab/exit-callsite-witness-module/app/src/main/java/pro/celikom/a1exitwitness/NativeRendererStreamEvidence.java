@@ -37,8 +37,13 @@ final class NativeRendererStreamEvidence {
 
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
     private final ArrayList<Link> links = new ArrayList<>();
+    // Unscoped renderer/stream observations are separate: never infer holder identity.
+    private final ArrayList<Link> unscopedLinks = new ArrayList<>();
+    // 0 not attempted/guarded, 1 registered, -1 failed.
+    private int queueHook, attachHook, readHook, detachHook;
     private int scopeEnters, pairedAttaches, unknownAttaches, attachConflicts;
     private int readSame, readDifferent, readUnknown, detachCount;
+    private int unscopedReadSame, unscopedReadDifferent;
     private int totalReadObservations;
     private int readSamplesRemaining = 8;
     private boolean poisoned;
@@ -61,13 +66,34 @@ final class NativeRendererStreamEvidence {
         }
     }
 
+    synchronized void onHookRegistration(String kind, boolean ok) {
+        int status=ok?1:-1;
+        switch(kind) {
+            case "QUEUE_SCOPE": queueHook=status; break;
+            case "STREAM_ATTACH": attachHook=status; break;
+            case "SAMPLE_READ": readHook=status; break;
+            case "STREAM_DETACH": detachHook=status; break;
+            default: throw new IllegalArgumentException("Unrecognized hook kind");
+        }
+    }
+
     synchronized void onAttach(Object renderer,Object stream) {
         Scope scope=inAttach.get();
         if (poisoned || scope==null || renderer==null || stream==null
                 || scope.renderer!=renderer || scope.holder==null) {
             unknownAttaches=inc(unknownAttaches);
+            // Attaches without an observed queue scope still allow a weaker
+            // renderer→stream→read same-reference check, never holder identity.
+            if(!poisoned && renderer!=null && stream!=null) {
+                removeRenderer(unscopedLinks,renderer);
+                removeRenderer(links,renderer);
+                if(unscopedLinks.size()>=MAX_HANDLES)unscopedLinks.remove(0);
+                unscopedLinks.add(new Link(renderer,null,stream));
+                readSamplesRemaining=MAX_READS_PER_ATTACH;
+            }
             return;
         }
+        removeRenderer(unscopedLinks,renderer);
         for(int i=links.size()-1;i>=0;i--) {
             Link old=links.get(i);
             Object candidate=old.renderer.get();
@@ -85,6 +111,13 @@ final class NativeRendererStreamEvidence {
         links.add(new Link(renderer,scope.holder,stream));
         pairedAttaches=inc(pairedAttaches);
         readSamplesRemaining=MAX_READS_PER_ATTACH;
+    }
+
+    private static void removeRenderer(ArrayList<Link> list,Object renderer) {
+        for(int i=list.size()-1;i>=0;i--) {
+            Object existing=list.get(i).renderer.get();
+            if(existing==null || existing==renderer)list.remove(i);
+        }
     }
 
     synchronized boolean shouldSampleRead() {
@@ -112,7 +145,23 @@ final class NativeRendererStreamEvidence {
             }
         }
         if(matched==null) {
-            readUnknown=inc(readUnknown);
+            // A weaker unscoped match cannot increment QUEUED_HOLDER_ATTACHED
+            // or ATTACHED_STREAM_READ_MATCH: holder is not established.
+            Link unscoped=null;
+            for(int i=unscopedLinks.size()-1;i>=0;i--) {
+                Link link=unscopedLinks.get(i);
+                Object candidate=link.renderer.get();
+                if(candidate==null || link.stream.get()==null) {
+                    unscopedLinks.remove(i);
+                } else if(candidate==renderer) {
+                    if(unscoped!=null) { poisoned=true; return; }
+                    unscoped=link;
+                }
+            }
+            if(unscoped==null)readUnknown=inc(readUnknown);
+            else if(unscoped.stream.get()==actualFieldStream)
+                unscopedReadSame=inc(unscopedReadSame);
+            else unscopedReadDifferent=inc(unscopedReadDifferent);
         } else if(matched.stream.get()==actualFieldStream) {
             readSame=inc(readSame);
         } else {
@@ -122,8 +171,8 @@ final class NativeRendererStreamEvidence {
 
     synchronized void onDetach(Object renderer) {
         if(renderer==null)return;
-        for(int i=links.size()-1;i>=0;i--)
-            if(links.get(i).renderer.get()==renderer)links.remove(i);
+        removeRenderer(links,renderer);
+        removeRenderer(unscopedLinks,renderer);
         detachCount=inc(detachCount);
     }
 
@@ -134,6 +183,11 @@ final class NativeRendererStreamEvidence {
         if(value<=8)return "FEW";
         return "MANY";
     }
+    private static String registrationLine(String category,int status) {
+        return "event=AUDIO_NATIVE_RENDERER_HOOK_STATUS;origin="+category
+            +";error="+(status>0?"REGISTERED":status<0?"NO_HOOK":"NOT_SEEN")
+            +";thread=OTHER";
+    }
     private static String line(String category,int value) {
         return "event=AUDIO_NATIVE_RENDERER_SUMMARY;origin=" + category
             + ";error=" + band(value) + ";thread=OTHER";
@@ -142,12 +196,18 @@ final class NativeRendererStreamEvidence {
     synchronized String[] exportLines() {
         // Only fixed finite enums leave MAIN. No raw objects, names or audio.
         return new String[] {
+            registrationLine("QUEUE_SCOPE",queueHook),
+            registrationLine("STREAM_ATTACH",attachHook),
+            registrationLine("SAMPLE_READ",readHook),
+            registrationLine("STREAM_DETACH",detachHook),
             line("QUEUE_SCOPE_ENTER",scopeEnters),
             line("QUEUED_HOLDER_ATTACHED",pairedAttaches),
             line("UNSCOPED_ATTACH",unknownAttaches),
             line("STREAM_REATTACH_TRANSITION",attachConflicts),
             line("ATTACHED_STREAM_READ_MATCH",readSame),
             line("ATTACHED_STREAM_READ_DIFFERENT",readDifferent),
+            line("UNSCOPED_ATTACHED_STREAM_READ_MATCH",unscopedReadSame),
+            line("UNSCOPED_ATTACHED_STREAM_READ_DIFFERENT",unscopedReadDifferent),
             line("READ_NO_MATCHED_ATTACHMENT",readUnknown),
             line("RENDERER_DETACHED",detachCount),
             "event=AUDIO_NATIVE_RENDERER_SUMMARY;origin=IDENTITY_STATUS;error="
