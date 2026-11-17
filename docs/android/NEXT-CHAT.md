@@ -12,7 +12,7 @@ SHA-256 `b60cad28cd815e0df29c5ffb83b2ec8d316426a5b2ff9661c7816bdbda1aeb60`, size
 
 **Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
 **Pre-NAV20 backup:** `backup/android-a1-nav19-owner-realrenderer-reads-before-nav20-20261117`.
-**Signed NAV20 code checkpoint:** `6ebce1bd4358aea68158eee42dfed097f5739ec1`; newer commits only update docs. Create exact final docs backup after finishing this handoff; never confuse the signed APK commit with docs HEAD.
+**Signed NAV20 code checkpoint:** `6ebce1bd4358aea68158eee42dfed097f5739ec1`; newer commits only update docs. **Final docs rollback branch:** `backup/android-a1-nav20-owner-library-verified-final-handoff-20261117`. Never confuse the signed APK commit with docs HEAD.
 
 ---
 
