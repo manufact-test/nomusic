@@ -48,3 +48,15 @@ This second event includes CELIKOM GUI restarting, so do not conflate its trigge
 - W20 tests should pass W15 native contracts, W23 host tests, W24 native image tests, Windows warnings-as-errors compilation, and stage-only guard.
 - Manual test: Start connection/hint, first song, Next (no prompt flash), confirmed availability green, Pause green, absence of false `Играет...`, and whether random Yandex restarts recur over ordinary playback.
 - Do not claim owner runtime acceptance before owner's own test.
+
+## W168 verified internal build (17 Nov 2026)
+
+- W20 staging job: **SUCCESS**, run `44051448677`, source commit `a234eca7ebfa46444a7e77d514ce4e5039a0eb29`. This includes the focused W168 UI source commit `2c352479b267266cd62fab7d8221bab97051c539`.
+- W20 build verified W23 native host/renderer contract tests, .NET warnings-as-errors compilation, W15 native local bridge/preflight and W168 UI tests, W24 native image/crash-recovery tests, stage-only policy, package version and anti-downgrade, disposable Windows install/in-place upgrade/uninstall and ZIP+hash checks. Job completed successfully.
+- Artifact ID: `14314201822` (private/internal).
+- Installer: `CELIKOM-W168-OWNER-UI-CORRECTIONS-02450-UNSIGNED.exe`, 85,150,990 bytes, SHA256 `49835192e39405b1292999215c3733ca99e34e35f836a494f997872064332101`.
+- ZIP: `CELIKOM-Windows-0.24.50.zip`, 84,671,189 bytes, SHA256 `4c96fee0ab6a3379c5503df5ebabfcbaab4bdc522edd3c5a9c3550d460cfa189`. Contains exactly the above EXE, byte-identical. `SHA256SUMS.txt` verified.
+- The three files were uploaded to and independently confirmed in the personal ChatGPT Library at **`/CELIKOM/W168/`**. Do not offer direct GitHub Actions or sandbox artifact links.
+- **Owner runtime acceptance not yet given.** Most importantly, **unexplained Yandex main process restart remains uncorrected**; no native/host/VPN/audio change was attempted. Treat it as the remaining third issue requiring new evidence, not a closed problem.
+- `main` remains untouched, previous 0.24.49 remains available, pre-W168 backup is preserved.
+
