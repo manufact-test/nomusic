@@ -51,6 +51,71 @@ def declared_interfaces(dex, off):
     dex.bounds(off+4,count*2)
     return [dex.descriptor(dex.u16(off+4+2*j)) for j in range(count)]
 
+
+CONCRETE_GETTER=("Landroidx/media3/exoplayer/b;","while","()LR29;")
+MAX_MATCHED_OWNER_METHODS=1800
+MAX_EXACT_FIELD_SITE_ROWS=130
+
+def confirm_direct_reference_getter(method_entry):
+    dex,flags,off=method_entry
+    if not off:raise ValueError("RENDERER_CONCRETE_GETTER_BODY_REQUIRED")
+    insns=list(audit.instructions(dex,off))
+    if len(insns)>8:raise ValueError("RENDERER_GETTER_TOO_COMPLEX")
+    fields=[(pc,op,words) for pc,op,words in insns if op==0x54]
+    returns=[(pc,op,words) for pc,op,words in insns if op==0x11]
+    if len(fields)!=1 or len(returns)!=1:
+        raise ValueError("RENDERER_GETTER_SHAPE_MISMATCH")
+    pc,op,words=fields[0]
+    owner,private,type_=audit.field_id(dex,words[1])
+    if owner!=CONCRETE_GETTER[0] or type_!=STREAM:
+        raise ValueError("RENDERER_GETTER_TYPED_FIELD_MISMATCH")
+    read_reg=(words[0]>>8)&0x0f
+    return_reg=(returns[0][2][0]>>8)&0xff
+    if read_reg!=return_reg or not pc<returns[0][0]:
+        raise ValueError("RENDERER_GETTER_FIELD_TO_RETURN_ALIAS_MISMATCH")
+    for intermediate_pc,opcode,raw in insns:
+        if pc < intermediate_pc < returns[0][0]:
+            if audit.written_register(opcode,raw)==read_reg:
+                raise ValueError("RENDERER_GETTER_RESULT_OVERWRITTEN")
+    return (owner,private,type_)
+
+def inspect_exact_attached_stream_field(apks,reachable,all_getters):
+    if CONCRETE_GETTER not in all_getters:
+        raise ValueError("RENDERER_CONCRETE_GETTER_NOT_DEFINED")
+    field=confirm_direct_reference_getter(all_getters[CONCRETE_GETTER])
+    used=[]
+    inspected=0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):
+                    continue
+                dex=audit.Dex(archive.read(entry.filename))
+                for method,flags,off in audit.method_definitions_with_flags(dex):
+                    if method[0] not in reachable or not off:continue
+                    inspected+=1
+                    if inspected>MAX_MATCHED_OWNER_METHODS:
+                        raise ValueError("RENDERER_SCOPED_OWNER_METHOD_LIMIT")
+                    sites=[]
+                    for pc,op,words in audit.instructions(dex,off):
+                        if op not in (0x54,0x5b):continue
+                        if audit.field_id(dex,words[1]) != field:continue
+                        sites.append({"pc":pc,
+                            "operation":"READ" if op==0x54 else "WRITE",
+                            "value_register":(words[0]>>8)&15,
+                            "receiver_register":(words[0]>>12)&15})
+                    if sites:
+                        used.append({"method":list(method),"sites":sites})
+                        if len(used)>MAX_EXACT_FIELD_SITE_ROWS:
+                            raise ValueError("RENDERER_EXACT_FIELD_SITE_LIMIT")
+    if not used or not any(e["operation"]=="WRITE" for row in used for e in row["sites"]):
+        raise ValueError("RENDERER_ATTACHED_STREAM_NO_EXACT_WRITES")
+    return {"inherited_getter_returns_exact_attached_stream_field":True,
+            "exact_renderer_reachable_method_count":inspected,
+            "methods_touching_same_exact_field":used,
+            "private_attached_field_name_or_values_exported":False,
+            "actual_live_attachment_verified":False}
+
 def scan_signed(apks):
     dexes=0
     definitions={}
@@ -120,7 +185,9 @@ def scan_signed(apks):
                 row["getter_instructions"]=len(insns)
                 row["getter_scoped_events"]=events
         rows.append(row)
-    return {"verdict":"EXACT_SIGNED_RENDERER_INTERFACE_CONCRETE_GETTER_MAP_STATIC_ONLY",
+    attached=inspect_exact_attached_stream_field(apks,reachable,method_bodies)
+    return {"exact_inherited_renderer_attached_stream_field_uses":attached,
+            "verdict":"EXACT_SIGNED_RENDERER_INTERFACE_CONCRETE_GETTER_MAP_STATIC_ONLY",
             "signed_dex_count":dexes,"renderer_interface":RENDERER,
             "exact_getter_descriptor":GETTER_DESC,
             "reachable_class_count":len(reachable),
