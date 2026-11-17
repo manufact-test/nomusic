@@ -44,6 +44,9 @@ final class NativeRendererStreamEvidence {
     private int scopeEnters, pairedAttaches, unknownAttaches, attachConflicts;
     private int readSame, readDifferent, readUnknown, detachCount;
     private int unscopedReadSame, unscopedReadDifferent;
+    // Return code of original b.g(), only after a matching attached stream
+    // remains present across the call. -4 can also be EOS; never claim audible PCM.
+    private int returnMinus4,returnMinus5,returnMinus3,returnOther,returnUnlinked;
     private int totalReadObservations;
     private int readSamplesRemaining = 8;
     private boolean poisoned;
@@ -169,6 +172,34 @@ final class NativeRendererStreamEvidence {
         }
     }
 
+    synchronized void onReadReturn(Object renderer,Object observedStream,int originalResult) {
+        if (poisoned || renderer==null || observedStream==null) {
+            returnUnlinked=inc(returnUnlinked);
+            return;
+        }
+        boolean found=false;
+        for (Link link:links) {
+            if (link.renderer.get()==renderer && link.holder.get()!=null
+                    && link.stream.get()==observedStream) { found=true; break; }
+        }
+        if (!found) for (Link link:unscopedLinks) {
+            if (link.renderer.get()==renderer
+                    && link.stream.get()==observedStream) { found=true; break; }
+        }
+        if(!found) {
+            returnUnlinked=inc(returnUnlinked);
+            return;
+        }
+        // Observes only the exact untouched return int from b.g();
+        // even -4 does NOT by itself prove an audible sample or selected track.
+        switch(originalResult) {
+            case -4: returnMinus4=inc(returnMinus4); break;
+            case -5: returnMinus5=inc(returnMinus5); break;
+            case -3: returnMinus3=inc(returnMinus3); break;
+            default: returnOther=inc(returnOther); break;
+        }
+    }
+
     synchronized void onDetach(Object renderer) {
         if(renderer==null)return;
         removeRenderer(links,renderer);
@@ -209,6 +240,11 @@ final class NativeRendererStreamEvidence {
             line("UNSCOPED_ATTACHED_STREAM_READ_MATCH",unscopedReadSame),
             line("UNSCOPED_ATTACHED_STREAM_READ_DIFFERENT",unscopedReadDifferent),
             line("READ_NO_MATCHED_ATTACHMENT",readUnknown),
+            line("STREAM_ALIASED_READ_RETURN_MINUS4",returnMinus4),
+            line("STREAM_ALIASED_READ_RETURN_MINUS5",returnMinus5),
+            line("STREAM_ALIASED_READ_RETURN_MINUS3",returnMinus3),
+            line("STREAM_ALIASED_READ_RETURN_OTHER",returnOther),
+            line("READ_RETURN_LINK_LOST",returnUnlinked),
             line("RENDERER_DETACHED",detachCount),
             "event=AUDIO_NATIVE_RENDERER_SUMMARY;origin=IDENTITY_STATUS;error="
               + (poisoned ? "INVALID" : "STRUCTURAL_ONLY") + ";thread=OTHER"
