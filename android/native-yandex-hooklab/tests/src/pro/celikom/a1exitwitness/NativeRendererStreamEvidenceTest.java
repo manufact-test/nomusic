@@ -291,6 +291,135 @@ public final class NativeRendererStreamEvidenceTest {
             "SECONDARY_STILL_NOT_AUDIBLE");
     }
 
+    private static final class FakePeriodHolder {
+        Object[] streams;
+        FakePeriodHolder(Object... streams) { this.streams=streams; }
+    }
+
+    private static void registerExactEngineField(NativeRendererStreamEvidence e) {
+        try {
+            java.lang.reflect.Field f=FakePeriodHolder.class.getDeclaredField("streams");
+            f.setAccessible(true);
+            e.setEngineHolderStreamArrayField(f);
+            e.onHookRegistration("ENGINE_HOLDER_SCOPE",true);
+            e.onHookRegistration("SECONDARY_CALLER",true);
+        } catch (ReflectiveOperationException exc) {
+            throw new AssertionError(exc);
+        }
+    }
+
+    private static void testEngineExactHolderArrayStreamAndLiveReturn() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        Object renderer=new Object(),stream=new Object();
+        FakePeriodHolder holder=new FakePeriodHolder(stream);
+        NativeRendererStreamEvidence.EngineFrame engine=e.enterEngine(holder);
+        NativeRendererStreamEvidence.CallerFrame secondary=e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(secondary);e.exitEngine(engine);}
+        e.onReadReturn(renderer,stream,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=ENGINE_HOLDER_SCOPE;error=REGISTERED"),
+              "ENGINE_HOOK_REGISTERED");
+        check(contains(snap,"origin=ENGINE_HOLDER_SCOPE_ENTER;error=ONE"),
+              "ENGINE_ENTRY");
+        check(contains(snap,"origin=ENGINE_HOLDER_STREAM_ARRAY_MATCH;error=ONE"),
+              "ENGINE_HOLDER_TO_STREAM_STRICT_SAME_REF");
+        check(contains(snap,"origin=ENGINE_HOLDER_READ_RETURN_MINUS4;error=ONE"),
+              "ENGINE_HOLDER_REAL_READ_RETURN");
+        check(contains(snap,"origin=QUEUE_SCOPED_READ_RETURN_MINUS4;error=NONE"),
+              "ENGINE_MUST_NOT_LIE_ABOUT_QUEUE_SCOPE");
+        check(contains(snap,"origin=UNSCOPED_READ_RETURN_MINUS4;error=ONE"),
+              "EXISTING_WEAK_NAV22_PRESERVED");
+        check(contains(snap,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "ENGINE_NOT_YET_AUDIBLE_TRACK_IDENTITY");
+    }
+
+    private static void testEngineRejectsDifferentMemberWithoutFakingHolder() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        Object renderer=new Object(),stream=new Object();
+        FakePeriodHolder holder=new FakePeriodHolder(new Object());
+        NativeRendererStreamEvidence.EngineFrame engine=e.enterEngine(holder);
+        NativeRendererStreamEvidence.CallerFrame secondary=e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(secondary);e.exitEngine(engine);}
+        e.onReadReturn(renderer,stream,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=ENGINE_HOLDER_STREAM_ARRAY_DIFFERENT;error=ONE"),
+              "ENGINE_MISMATCH_RECORDED");
+        check(contains(snap,"origin=ENGINE_HOLDER_STREAM_ARRAY_MATCH;error=NONE"),
+              "ENGINE_MISMATCH_NOT_PROMOTED");
+        check(contains(snap,"origin=ENGINE_HOLDER_READ_RETURN_MINUS4;error=NONE"),
+              "ENGINE_MISMATCH_CANNOT_ATTEST_READ");
+        check(contains(snap,"origin=UNSCOPED_READ_RETURN_MINUS4;error=ONE"),
+              "LEGACY_WEAK_READ_PRESERVED");
+    }
+
+    private static void testEngineHolderNoSecondaryCannotProveStream() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        Object renderer=new Object(),stream=new Object();
+        NativeRendererStreamEvidence.EngineFrame engine=e.enterEngine(new FakePeriodHolder(stream));
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitEngine(engine);}
+        e.onReadReturn(renderer,stream,-4);
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_STREAM_ARRAY_MATCH;error=NONE"),
+              "ENGINE_CALL_NESTING_WITHOUT_SECONDARY_NOT_PROOF");
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_READ_RETURN_MINUS4;error=NONE"),
+              "NO_ENGINE_REFERENCE_PROOF");
+    }
+
+    private static void testEngineLinkRevokedOnDetachAndReattach() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        Object renderer=new Object(),stream=new Object();
+        NativeRendererStreamEvidence.EngineFrame engine=e.enterEngine(new FakePeriodHolder(stream));
+        NativeRendererStreamEvidence.CallerFrame sec=e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(sec);e.exitEngine(engine);}
+        e.onDetach(renderer);
+        e.onReadReturn(renderer,stream,-4);
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_READ_RETURN_MINUS4;error=NONE"),
+              "DETACHED_ENGINE_PROOF_REVOKED");
+        // A later unscoped re-attach must not inherit old holder.
+        e.onAttach(renderer,stream);
+        e.onReadReturn(renderer,stream,-4);
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_READ_RETURN_MINUS4;error=NONE"),
+              "REATTACH_CANNOT_INHERIT_ENGINE");
+    }
+
+    private static void testEngineArrayUnavailableFailsClosed() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        e.onHookRegistration("ENGINE_HOLDER_SCOPE",true);
+        e.onHookRegistration("SECONDARY_CALLER",true);
+        Object renderer=new Object(),stream=new Object();
+        NativeRendererStreamEvidence.EngineFrame engine=e.enterEngine(new FakePeriodHolder(stream));
+        NativeRendererStreamEvidence.CallerFrame secondary=e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(secondary);e.exitEngine(engine);}
+        e.onReadReturn(renderer,stream,-4);
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_STREAM_ARRAY_UNAVAILABLE;error=ONE"),
+              "UNAVAILABLE_MEMBER_NOT_PROOF");
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_READ_RETURN_MINUS4;error=NONE"),
+              "UNAVAILABLE_HOLDER_NOT_PROMOTED");
+    }
+
+    private static void testEngineFrameLifetimeDoesNotLeak() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        Object renderer=new Object(),stream=new Object();
+        NativeRendererStreamEvidence.EngineFrame frame=e.enterEngine(new FakePeriodHolder(stream));
+        e.exitEngine(frame);
+        NativeRendererStreamEvidence.CallerFrame secondary=e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(secondary);}
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_STREAM_ARRAY_MATCH;error=NONE"),
+              "ENGINE_FRAME_LEAK");
+        check(contains(e.exportLines(),"origin=UNSCOPED_ATTACH_SECONDARY_MATCH;error=ONE"),
+              "OLD_SECONDARY_UNSCOPED_PATH_PRESERVED");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -307,6 +436,12 @@ public final class NativeRendererStreamEvidenceTest {
         testOutsideSecondaryOnlyWhenHookActive();
         testSecondaryDifferentStreamCannotBecomeMatch();
         testSecondaryScopeUnwindsBeforeNextAttach();
+        testEngineExactHolderArrayStreamAndLiveReturn();
+        testEngineRejectsDifferentMemberWithoutFakingHolder();
+        testEngineHolderNoSecondaryCannotProveStream();
+        testEngineLinkRevokedOnDetachAndReattach();
+        testEngineArrayUnavailableFailsClosed();
+        testEngineFrameLifetimeDoesNotLeak();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
