@@ -17,7 +17,7 @@
 - **17 Nov exact direct MediaSource Player audit:** [CI #2 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44049682525), 3/3 tests. Signed 2025 NAV17, 6 DEX, 11 known Player owners: no exact unobfuscated MediaSource-typed direct Player contract/callsites. **Historical scope-only negative, superseded as a route hypothesis:** obfuscated `LSl6` source and its concrete source→Player→playlist→MediaPeriod path have since been **positively proven statically** (above). The **active audible period** remains unproven. Read `NEXT-CHAT.md` for current code checkpoint and backups. No runtime hooks/APK changed.
 - [ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md](ANDROID-A1-EXTERNAL-PLAYBACK-RESEARCH-20261116.md) — previous public-source survey; it is not a deobfuscated official Yandex call graph.
 - [ANDROID-A1-RAA-SOURCE-RESUME-IDENTITY-20261115.md](ANDROID-A1-RAA-SOURCE-RESUME-IDENTITY-20261115.md) — static CI-backed Yandex RAa coroutine research; **historical Stage A NO-GO text in this file is superseded** by NAV17 owner PASS.
-- This is **documentation-only** recovery; source code, runtime hooks and APK remain unchanged.
+- The **recovered reference notes** were documentation-only; subsequent static audit Python code/CI was added on 17 Nov (linked above), but runtime hooks, original Yandex and APK remained unchanged.
 
 ## Source facts
 
