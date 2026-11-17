@@ -105,8 +105,27 @@ def analyze_signed(apks):
     subtree=renderer_subtree(defs)
     type_rows=signature_rows(methods,subtree,TRACK_TYPE)
     state_rows=signature_rows(methods,subtree,GET_STATE)
-    if not type_rows or not state_rows:
-        raise ValueError("AUDIO_TRACK_TYPE_OR_STATE_METHOD_MISSING")
+    # Obfuscated 2025 renderer may not expose generic Media3 method names.
+    # Never guess getTrackType() from documentation or inject a speculative
+    # reflection hook. First produce signed exact interface/base inventory.
+    public_int_methods=sorted({
+        (owner,mn,desc) for (owner,mn,desc) in methods
+        if owner in (RENDERER,RENDERER_BASE) and desc=="()I"
+    })
+    if len(public_int_methods)>64:
+        raise ValueError("AUDIO_RENDERER_INT_INVENTORY_TOO_LARGE")
+    engine_k_int_calls=[]
+    for method in (ENGINE_BREAK,ENGINE_RESET,ENGINE_ENABLE):
+        dex,flags,offset=methods[method]
+        for pc,op,w in audit.instructions(dex,offset):
+            if op not in audit.INVOKES or not (0x6e<=op<=0x78):
+                continue
+            callee=dex.method(w[1])
+            if callee[0] in (RENDERER,RENDERER_BASE) and callee[2]=="()I":
+                engine_k_int_calls.append({"caller":list(method),
+                    "pc":pc,"callee":list(callee)})
+            if len(engine_k_int_calls)>100:
+                raise ValueError("AUDIO_RENDERER_CALLS_TOO_MANY")
     if ENGINE_BREAK not in methods or ENGINE_RESET not in methods or ENGINE_ENABLE not in methods:
         raise ValueError("AUDIO_EXACT_ENGINE_METHODS_MISSING")
     break_dex,_,break_code=methods[ENGINE_BREAK]
@@ -139,8 +158,14 @@ def analyze_signed(apks):
                 reset_queue_reads.append((pc,field))
     if not reset_queue_reads or any(field!=queue for _,field in reset_queue_reads):
         raise ValueError("AUDIO_RESET_ENGINE_QUEUE_NOT_SAME")
+    runtime_methods_named=bool(type_rows and state_rows)
     return {
-      "verdict":"SIGNED_EXACT_2025_AUDIO_RENDERER_RUNTIME_WITNESS_CANDIDATE",
+      "verdict":("SIGNED_EXACT_2025_AUDIO_RENDERER_RUNTIME_WITNESS_CANDIDATE"
+                 if runtime_methods_named else
+                 "SIGNED_2025_RENDERER_METHOD_INVENTORY_REQUIRES_EXACT_OBFUSCATION"),
+      "runtime_named_method_gate_ready":runtime_methods_named,
+      "renderer_exact_int_method_inventory":[list(t) for t in public_int_methods],
+      "engine_renderer_int_method_calls":engine_k_int_calls,
       "original_16_publisher_signed_splits":True,
       "signed_six_dex":True,
       "renderer_interface":RENDERER,
