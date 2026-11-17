@@ -622,6 +622,8 @@ public sealed partial class MainWindow : Form
             _api.Settings.InstallationId == account.InstallationId &&
             _api.Settings.Email == account.Email;
         _compactStarting = true;
+        _compactSeenTrackSinceStart = false;
+        _compactNoTrackSince = DateTimeOffset.MinValue;
         _compactStartupText = CompactPlaybackPresentation.ConnectingMessage;
         RenderCompact();
         LayoutCompact();
@@ -1652,7 +1654,10 @@ public sealed partial class MainWindow : Form
             stopped ? "Воспроизведение остановлено." :
             mappingAvailable ? CompactPlaybackPresentation.VersionAvailableMessage :
             "";
-        _switchHint.ForeColor = sourceVerified ? Accent : Secondary;
+        _switchHint.ForeColor = CompactPlaybackPresentation.StatusIsGreen(
+            _switchHint.Text, playback.Enabled, heartbeatFresh,
+            playback.PlayerUnavailable, mappingAvailable, sourceVerified)
+            ? Accent : Secondary;
         if (_bridge.PairCode.Length == 6 && _api.IsLoggedIn &&
             _bridge.CodeExpires > DateTimeOffset.UtcNow)
         {
@@ -1697,7 +1702,10 @@ public sealed partial class MainWindow : Form
             };
         _song.ForeColor = state == "NATIVE_SOURCE_FAILED"
             ? ColorTranslator.FromHtml("#D36A6A")
-            : sourceVerified ? Accent : Secondary;
+            : CompactPlaybackPresentation.StatusIsGreen(
+                _song.Text, playback.Enabled, heartbeatFresh,
+                playback.PlayerUnavailable, mappingAvailable, sourceVerified)
+                ? Accent : Secondary;
         _status.Text = !_bridgeStarted ? "Не удалось запустить CELIKOM"
             : !_api.IsLoggedIn ? "Для начала войди в аккаунт."
             : !switchAvailable ? "Подключение к Яндексу требуется один раз."

@@ -4,6 +4,7 @@ public static class CompactPlaybackPresentation
 {
     public const string VersionAvailableMessage = "Версия CELIKOM доступна";
     public const string ActiveVersionMessage = "Играет версия CELIKOM";
+    public const string IdleTrackPrompt = "Откройте Яндекс Музыку и выберите песню.";
     public const string ServiceEnabledMessage = "Сервис включён";
     // Idle/disabled copy keeps its original breathing room. A real track status
     // stays compact, with only a 2 px gap before the Account card.
@@ -72,6 +73,24 @@ public static class CompactPlaybackPresentation
         string? source, string? playbackState, string? nativeStatus, string? presenceStatus) =>
         heartbeatFresh && source == "ACTIVE_REPLACEMENT" && playbackState == "PLAYING" &&
         PlaybackSourceEvidence.Verified(bridgeEnabled, nativeStatus, presenceStatus);
+
+    // An empty track at initial connection is guidance, not a Next transition.
+    public static bool ShouldShowIdleTrackPrompt(bool enabled, bool heartbeatFresh,
+        bool playerUnavailable, bool connecting, bool seenTrack,
+        string? playbackState, TimeSpan noTrackFor) =>
+        enabled && heartbeatFresh && !playerUnavailable && !connecting &&
+        !seenTrack && playbackState == "UNKNOWN" &&
+        noTrackFor >= TimeSpan.FromMilliseconds(2500);
+
+    // An approved available version and connected pause are positive statuses,
+    // but "playing CELIKOM" still requires strict current-decoder proof.
+    public static bool StatusIsGreen(string? visibleText,
+        bool enabled, bool heartbeatFresh, bool playerUnavailable,
+        bool versionApproved, bool replacementVerified) =>
+        ServiceConnected(enabled, heartbeatFresh, playerUnavailable) &&
+        ((visibleText == ActiveVersionMessage && replacementVerified) ||
+         (visibleText == VersionAvailableMessage && versionApproved) ||
+         visibleText == "Пауза");
 
     public static string NetworkRecoveryPlaybackMessage(string? playbackState) => playbackState switch
     {

@@ -26,6 +26,8 @@ public sealed partial class MainWindow
     private readonly Label _compactTrackArtist = new();
     private readonly Label _compactVersionStatus = new();
     private readonly Label _compactStartup = new();
+    private bool _compactSeenTrackSinceStart;
+    private DateTimeOffset _compactNoTrackSince = DateTimeOffset.MinValue;
     private readonly Panel _compactUploadResult = new();
     private readonly Label _compactUploadResultTitle = new();
     private readonly Label _compactUploadResultNote = new();
@@ -664,6 +666,8 @@ public sealed partial class MainWindow
         _compactRenderedTrackDurationMs = playback.DurationMs;
         if (valid)
         {
+            _compactSeenTrackSinceStart = true;
+            _compactNoTrackSince = DateTimeOffset.MinValue;
             var title = playback.Title;
             var artist = playback.Artist;
             if (title.Length > 0)
@@ -706,6 +710,8 @@ public sealed partial class MainWindow
         {
             _compactMetadataPendingTrackId = "";
             _compactMetadataPendingAt = DateTimeOffset.MinValue;
+            if (_compactNoTrackSince == DateTimeOffset.MinValue)
+                _compactNoTrackSince = DateTimeOffset.UtcNow;
             var displayPlaybackState = !heartbeatFresh || _resumeAfterNetworkFailure
                 ? _networkRecoveryPlaybackState : playback.PlaybackState;
             var trackText = CompactPlaybackPresentation.TrackPlaceholder(
@@ -713,6 +719,11 @@ public sealed partial class MainWindow
                 displayPlaybackState,
                 _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
                 _api.IsLoggedIn, playback.PlayerUnavailable);
+            if (CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+                    playback.Enabled, heartbeatFresh, playback.PlayerUnavailable,
+                    _compactStarting || _autoReconnectBusy, _compactSeenTrackSinceStart,
+                    displayPlaybackState, DateTimeOffset.UtcNow - _compactNoTrackSince))
+                trackText = CompactPlaybackPresentation.IdleTrackPrompt;
             if (!string.Equals(_compactTrack.Text, trackText, StringComparison.Ordinal))
                 _compactTrack.Text = trackText;
             if (_compactTrackArtist.Text.Length > 0) _compactTrackArtist.Text = "";
@@ -804,7 +815,10 @@ public sealed partial class MainWindow
         // A current mapped track uses the same neutral availability copy
         // before/after VPN recovery and Next. Only exact decoder proof is green.
         _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
-            activelyReplacing ? Accent : Secondary;
+            CompactPlaybackPresentation.StatusIsGreen(
+                versionStatusText, playback.Enabled, heartbeatFresh,
+                playback.PlayerUnavailable, valid && _compactPresenceStatus == "approved",
+                activelyReplacing) ? Accent : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&

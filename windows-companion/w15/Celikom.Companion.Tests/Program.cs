@@ -1277,7 +1277,7 @@ try
          CompactPlaybackPresentation.VersionAvailableMessage == "Версия CELIKOM доступна" &&
          CompactPlaybackPresentation.ActiveVersionMessage == "Играет версия CELIKOM" &&
          CompactPlaybackPresentation.ServiceEnabledMessage == "Сервис включён",
-         "W159 a mapped current track keeps neutral availability copy after VPN recovery and Next");
+         "W159 a mapped current track keeps availability copy after VPN recovery and Next");
     Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(false, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
@@ -1292,6 +1292,40 @@ try
          !CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
              true, false, "ACTIVE_REPLACEMENT", "PLAYING", "NATIVE_SOURCE_VERIFIED", "approved"),
          "W167 green active status requires fresh PLAYING decoder proof and approved presence");
+    Test(CompactPlaybackPresentation.IdleTrackPrompt ==
+             "Откройте Яндекс Музыку и выберите песню." &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, false, "UNKNOWN", TimeSpan.FromSeconds(1)) &&
+         CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, false, "UNKNOWN", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, true, "UNKNOWN", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, true, false, "UNKNOWN", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, false, "PLAYING", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, true, false, false, "UNKNOWN", TimeSpan.FromSeconds(3)),
+         "W168 idle guidance appears only for first connected idle session, never during Next");
+    Test(CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.VersionAvailableMessage,
+             true, true, false, true, false) &&
+         CompactPlaybackPresentation.StatusIsGreen(
+             "Пауза", true, true, false, false, false) &&
+         CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.ActiveVersionMessage,
+             true, true, false, true, true) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.ActiveVersionMessage,
+             true, true, false, true, false) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.VersionAvailableMessage,
+             true, true, false, false, false) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             "Пауза", true, false, false, false, false) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             "Пауза", true, true, true, false, false),
+         "W168 green availability and connected pause never fake active-decoder proof");
     Test(!CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, true, false, true) &&
          CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, false, true) &&
          !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, true, true) &&
