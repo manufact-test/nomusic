@@ -99,6 +99,67 @@ def bounded_register_microtrace(dex, instructions, slots, ranges):
         if len(result)>120:raise ValueError("QUEUE_MICROTRACE_ROW_LIMIT")
     return result
 
+
+RENDERER_BOUNDARY = frozenset({
+    ("LmQ8;","try","(Lxh6;Landroidx/media3/exoplayer/k;)Z"),
+    ("LmQ8;","new","(Lxh6;)Landroidx/media3/exoplayer/k;"),
+    ("LmQ8;","catch","(Landroidx/media3/exoplayer/k;Lxh6;LRFa;LLL2;)I"),
+    ("Landroidx/media3/exoplayer/h;","if","()Lxh6;"),
+    ("Landroidx/media3/exoplayer/e;","extends","(Lxh6;)Z"),
+})
+
+def producer_queue_slot(producer, pc_insn, dex, slots):
+    """Resolve only a direct exact queue field read as holder-call producer."""
+    if not isinstance(producer,dict) or producer.get("kind")!="INSTANCE_FIELD":
+        return None
+    pc=producer.get("ordinal")
+    item=pc_insn.get(pc)
+    if item is None:
+        return None
+    op,words=item
+    field=slot_field(dex,op,words)
+    return slots.get(field)
+
+def renderer_holder_argument_witness(engine_entry, slots):
+    dex,flags,off=engine_entry
+    insns=list(audit.instructions(dex,off))
+    by_pc={pc:(op,words) for pc,op,words in insns}
+    try:
+        result=audit.trace_identity_method(
+            dex,ENGINE,flags,off,
+            extra_identity_types=(HOLDER,"Landroidx/media3/exoplayer/i;"),
+            capture_argument_provenance_targets=RENDERER_BOUNDARY,
+            track_fields_from_any_receiver=True)
+        complete=True
+    except (audit.DexError,ValueError):
+        return {"trace_complete":False,"exact_holder_call_observations":[]}
+    events=[]
+    for ev in result.get("events",()):
+        if ev.get("kind")!="CALL_ARGUMENT_PROVENANCE":continue
+        call=ev.get("callee") or {}
+        callee=(call.get("owner"),call.get("method"),call.get("signature"))
+        if callee not in RENDERER_BOUNDARY:continue
+        holders=[]
+        for arg in ev.get("reference_arguments",()):
+            if arg.get("declared_argument_type")!=HOLDER:continue
+            p=arg.get("producer")
+            holders.append({
+                "argument_position":arg.get("argument_position"),
+                "producer_kind":p.get("kind") if isinstance(p,dict) else None,
+                "producer_pc":p.get("ordinal") if isinstance(p,dict) else None,
+                "direct_queue_slot":producer_queue_slot(p,by_pc,dex,slots),
+                "identity_origin_categories":[
+                    x.get("identity_type") for x in arg.get("identity_origins",())
+                ][:6],
+            })
+        if holders:
+            events.append({"call_pc":ev.get("ordinal"),"method":list(callee),
+                           "holder_arguments":holders})
+        if len(events)>50:
+            raise ValueError("QUEUE_RENDERER_BOUNDARY_EVENT_LIMIT")
+    return {"trace_complete":complete,"exact_holder_call_observations":events,
+            "selected_rendering_period_from_this_observation_proven":False}
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -170,7 +231,10 @@ def scan_signed(apks):
             continue
         trace=bounded_register_microtrace(dex,list(audit.instructions(dex,off)),slot_ids,ranges)
         microtraces[method[0]+method[1]+method[2]]=trace
+    native_engine_renderer_boundary=renderer_holder_argument_witness(
+        targets[ENGINE],slot_ids)
     return {
+        "native_engine_renderer_boundary":native_engine_renderer_boundary,
         "bounded_queue_register_microtraces":microtraces,
         "verdict":"NATIVE_QUEUE_SLOT_ROLE_MAP_STATIC_ONLY",
         "verified_six_signed_dex":dex_count,
