@@ -82,7 +82,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean diagnosticUiReady;
     // Limit high-volume MUSIC_APP exception witness records: never change the
     // exception or vendor behavior, and preserve count category on owner export.
-    private final java.util.concurrent.atomic.AtomicInteger musicMetricaExceptions =
+    private static final java.util.concurrent.atomic.AtomicInteger musicMetricaExceptions =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger activityPhasesLogged =
         new java.util.concurrent.atomic.AtomicInteger();
