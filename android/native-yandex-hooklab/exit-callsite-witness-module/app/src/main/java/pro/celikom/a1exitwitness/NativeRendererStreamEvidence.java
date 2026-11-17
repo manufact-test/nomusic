@@ -47,6 +47,10 @@ final class NativeRendererStreamEvidence {
     // Return code of original b.g(), only after a matching attached stream
     // remains present across the call. -4 can also be EOS; never claim audible PCM.
     private int returnMinus4,returnMinus5,returnMinus3,returnOther,returnUnlinked;
+    // Separate real queue-holder-scoped returns from weaker unscoped aliases.
+    // NAV20 aggregated these, so its MANY(-4) could all be unscoped.
+    private int strongMinus4,strongMinus5,strongMinus3,strongOther;
+    private int weakMinus4,weakMinus5,weakMinus3,weakOther;
     private int totalReadObservations;
     private int readSamplesRemaining = 8;
     private boolean poisoned;
@@ -177,26 +181,43 @@ final class NativeRendererStreamEvidence {
             returnUnlinked=inc(returnUnlinked);
             return;
         }
-        boolean found=false;
+        boolean strong=false,weak=false;
         for (Link link:links) {
             if (link.renderer.get()==renderer && link.holder.get()!=null
-                    && link.stream.get()==observedStream) { found=true; break; }
+                    && link.stream.get()==observedStream) { strong=true; break; }
         }
-        if (!found) for (Link link:unscopedLinks) {
+        if (!strong) for (Link link:unscopedLinks) {
             if (link.renderer.get()==renderer
-                    && link.stream.get()==observedStream) { found=true; break; }
+                    && link.stream.get()==observedStream) { weak=true; break; }
         }
-        if(!found) {
+        if(!strong && !weak) {
             returnUnlinked=inc(returnUnlinked);
             return;
         }
-        // Observes only the exact untouched return int from b.g();
-        // even -4 does NOT by itself prove an audible sample or selected track.
+        // Preserve NAV20 aggregate read-return bins, but never use them
+        // as proof of a queue-scoped holder. A queued holder is strict only
+        // if it remains bound at the exact return point.
         switch(originalResult) {
-            case -4: returnMinus4=inc(returnMinus4); break;
-            case -5: returnMinus5=inc(returnMinus5); break;
-            case -3: returnMinus3=inc(returnMinus3); break;
-            default: returnOther=inc(returnOther); break;
+            case -4:
+                returnMinus4=inc(returnMinus4);
+                if(strong)strongMinus4=inc(strongMinus4);
+                else weakMinus4=inc(weakMinus4);
+                break;
+            case -5:
+                returnMinus5=inc(returnMinus5);
+                if(strong)strongMinus5=inc(strongMinus5);
+                else weakMinus5=inc(weakMinus5);
+                break;
+            case -3:
+                returnMinus3=inc(returnMinus3);
+                if(strong)strongMinus3=inc(strongMinus3);
+                else weakMinus3=inc(weakMinus3);
+                break;
+            default:
+                returnOther=inc(returnOther);
+                if(strong)strongOther=inc(strongOther);
+                else weakOther=inc(weakOther);
+                break;
         }
     }
 
@@ -245,6 +266,14 @@ final class NativeRendererStreamEvidence {
             line("STREAM_ALIASED_READ_RETURN_MINUS3",returnMinus3),
             line("STREAM_ALIASED_READ_RETURN_OTHER",returnOther),
             line("READ_RETURN_LINK_LOST",returnUnlinked),
+            line("QUEUE_SCOPED_READ_RETURN_MINUS4",strongMinus4),
+            line("QUEUE_SCOPED_READ_RETURN_MINUS5",strongMinus5),
+            line("QUEUE_SCOPED_READ_RETURN_MINUS3",strongMinus3),
+            line("QUEUE_SCOPED_READ_RETURN_OTHER",strongOther),
+            line("UNSCOPED_READ_RETURN_MINUS4",weakMinus4),
+            line("UNSCOPED_READ_RETURN_MINUS5",weakMinus5),
+            line("UNSCOPED_READ_RETURN_MINUS3",weakMinus3),
+            line("UNSCOPED_READ_RETURN_OTHER",weakOther),
             line("RENDERER_DETACHED",detachCount),
             "event=AUDIO_NATIVE_RENDERER_SUMMARY;origin=IDENTITY_STATUS;error="
               + (poisoned ? "INVALID" : "STRUCTURAL_ONLY") + ";thread=OTHER"
