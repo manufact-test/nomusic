@@ -30,6 +30,9 @@ MAX_DIRECT_CALLERS=75
 MAX_METHOD_EVENTS=80
 MAX_SCANNED_METHODS=750000
 MAX_CALLERS_REPORT=75
+MAX_ENGINE_ENABLE_INVOKERS=40
+MAX_ENGINE_INVOKER_CONTEXT_INSNS=60
+MAX_ENGINE_INVOKER_CONTEXT_EVENTS=70
 
 def match_direct_secondary_invoke(callee):
     return tuple(callee)==SECONDARY
@@ -54,6 +57,7 @@ def scan_exact(apks):
     exact_secondary=None
     engine_enable=None
     direct=[]
+    engine_invokers=[]
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for member in archive.infolist():
@@ -73,6 +77,11 @@ def scan_exact(apks):
                         if op not in audit.INVOKES or not (0x6e<=op<=0x78):
                             continue
                         callee=dex.method(raw[1])
+                        if callee==ENGINE_ENABLE:
+                            engine_invokers.append((dex,method,flags,offset,pc,op,
+                                audit.invoke_registers(op,raw)))
+                            if len(engine_invokers)>MAX_ENGINE_ENABLE_INVOKERS:
+                                raise ValueError("SECONDARY_ENGINE_TOO_MANY_INVOKERS")
                         if not match_secondary_family_invoke(callee):continue
                         direct.append({"caller":list(method),"pc":pc,"opcode":op,
                                        "callee":list(callee),
@@ -154,6 +163,39 @@ def scan_exact(apks):
         raise ValueError("SECONDARY_ENGINE_EXACT_TWO_CALLS_MISMATCH")
     if len(attach_calls)!=1 or attach_calls[0]["pc"]!=27:
         raise ValueError("SECONDARY_EXACT_ATTACH_PC27_MISMATCH")
+    engine_sources=[]
+    for caller_dex,caller_method,caller_flags,caller_offset,call_pc,op,args in engine_invokers:
+        prior=[(pc,opcode,words) for pc,opcode,words
+                in audit.instructions(caller_dex,caller_offset)
+                if call_pc-35<=pc<=call_pc+9]
+        if len(prior)>MAX_ENGINE_INVOKER_CONTEXT_INSNS:
+            raise ValueError("SECONDARY_ENGINE_INVOKER_WINDOW_LIMIT")
+        scope=[]
+        for pc,opcode,words in prior:
+            if opcode in audit.INVOKES and 0x6e<=opcode<=0x78:
+                callee=caller_dex.method(words[1])
+                if callee==ENGINE_ENABLE or callee[0] in (
+                        "Landroidx/media3/exoplayer/e;", "Lxh6;",
+                        "LmQ8;", "Landroidx/media3/exoplayer/k;"):
+                    scope.append({"pc":pc,"kind":"CALL","callee":list(callee),
+                                  "args":audit.invoke_registers(opcode,words)})
+            elif opcode in (0x54,0x5b,0x62,0x69):
+                owner,_field,typ=audit.field_id(caller_dex,words[1])
+                if typ=="Lxh6;" or owner=="Lxh6;" or owner=="Landroidx/media3/exoplayer/e;":
+                    scope.append({"pc":pc,"kind":"TYPED_FIELD",
+                                  "owner":owner,"type":typ,"op":opcode,
+                                  "dest_or_value":(words[0]>>8)&15,
+                                  "receiver":(words[0]>>12)&15})
+            elif opcode in (0x07,0x08,0x09):
+                dst,src=audit.move_object_registers(opcode,words)
+                scope.append({"pc":pc,"kind":"MOVE_OBJECT","dest":dst,"source":src})
+            elif opcode in (0x0c,):
+                scope.append({"pc":pc,"kind":"MOVE_RESULT_OBJECT",
+                              "dest":words[0]>>8})
+            if len(scope)>MAX_ENGINE_INVOKER_CONTEXT_EVENTS:
+                raise ValueError("SECONDARY_ENGINE_INVOKER_EVENTS_LIMIT")
+        engine_sources.append({"caller":list(caller_method),"pc":call_pc,
+                               "opcode":op,"args":args,"context":scope})
     return {
         "verdict":"NAV22_CONFIRMED_SECONDARY_STATIC_CALLERS_ONLY",
         "exact_method":list(SECONDARY),
@@ -168,6 +210,8 @@ def scan_exact(apks):
         "direct_secondary_caller_count":len(direct),
         "secondary_interface_invocation_checked":True,
         "exact_engine_caller":list(ENGINE_ENABLE),
+        "engine_enable_direct_invoker_count":len(engine_sources),
+        "engine_enable_direct_invokers":engine_sources,
         "exact_engine_holder_input_register":e_holder_reg,
         "exact_engine_instruction_count":len(e_insns),
         "exact_engine_to_renderer_enable_invokes":e_calls,
