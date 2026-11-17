@@ -3,7 +3,7 @@ on:
   push:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
     paths:
-      - '.github/workflows/android-a1-nav24-exact-audio-state-read-diagnostic-export-once.yml'
+      - '.github/workflows/android-a1-nav25-buffer-eos-original-read-diagnostic-export-once.yml'
 permissions:
   contents: write
 jobs:
@@ -242,7 +242,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-NAV25-Owner-Audio-Type1-State2-Holder-20261118
+          name: CELIKOM-A1-NAV25-Owner-Started-Audio-Buffer-EOS-20261118
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7
