@@ -58,11 +58,16 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V24_EXACT_AUDIO_TYPE1_STATE2_ENGINE_HOLDER_READONLY' in src
+          assert 'NAV_V25_EXACT_AUDIO_TYPE1_STATE2_BUFFER_EOS_READONLY' in src
           assert 'rendererBase.getDeclaredMethod("default")' in src
           assert 'rendererBase.getDeclaredMethod("getState")' in src
           assert 'onRendererTypeStateRead(' in src
           assert 'onRendererTypeStateUnavailable(' in src
+          assert 'buffer.getMethod("isEndOfStream")' in src
+          assert 'BUFFER_EOS_ACCESS' in model
+          assert 'ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS' in model
+          assert 'engineAudioState2BufferUnavailable' in model
+          assert 'return original;' in src
           assert 'ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4' in model
           assert 'ENGINE_HOLDER_RENDERER_TYPE_OTHER' in model
           assert 'ENGINE_HOLDER_TYPE1_STATE_NOT2' in model
