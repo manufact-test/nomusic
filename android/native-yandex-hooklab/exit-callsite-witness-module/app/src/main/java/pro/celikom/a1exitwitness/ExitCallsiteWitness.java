@@ -2462,7 +2462,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             holder=Class.forName("xh6",false,loader);
             stream=Class.forName("R29",false,loader);
             flags=Class.forName("RFa",false,loader);
-            runtimePayload=Class.forName("LLL2",false,loader);
+            runtimePayload=Class.forName("LL2",false,loader);
             formats=Class.forName("[LSr4;",false,loader);
             queueItem=Class.forName("Sl6$b",false,loader);
             sampleFormat=Class.forName("iA9",false,loader);
@@ -2470,8 +2470,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             selector=Class.forName("mQ8",false,loader);
             if (!nativeRenderer.isInterface() || !stream.isInterface()
                     || !nativeRenderer.isAssignableFrom(rendererBase)
-                    || !rendererBase.isAssignableFrom(caller.getClass().getClassLoader()
-                        .loadClass("androidx.media3.exoplayer.b"))) {
+) {
                 emit("AUDIO_NATIVE_RENDERER_HOOK","PINNED_2025","TYPE_MISMATCH");
                 return;
             }
