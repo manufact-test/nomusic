@@ -5,7 +5,8 @@
 ## Protected checkpoints
 
 - Only working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Current successful **read-only signed source-to-internal-playlist-holder code checkpoint:** `dca9e8e5c6ac7503a2f307411c6a495fe8b74093`, backup `backup/android-a1-source-into-internal-playlist-holder-ci-green-20261117` (17 Nov 2026).
+- Current successful **read-only signed same-source-to-MediaPeriod code checkpoint:** `24c37a59d454cc5ec0b69f9e548fbe3349108673`, backup `backup/android-a1-exact-source-to-lo96-mediaperiod-ci-green-20261117` (17 Nov 2026).
+- Previous signed source-to-internal-playlist-holder code: `dca9e8e5c6ac7503a2f307411c6a495fe8b74093`, backup `backup/android-a1-source-into-internal-playlist-holder-ci-green-20261117`.
 - Previous exact TrackWrapper→native Player setter code checkpoint: `a9408608562b3d70a51f8d01c8be17aa4a73589b`, backup `backup/android-a1-lca9-wrapper-mediasource-player-identity-ci-green-20261117`.
 - Older exact named-type MediaSource negative-audit checkpoint: `433191c0b6e5f2a2eabef8589aa01c02f326e3b1`, backup `backup/android-a1-direct-mediasource-contract-ci-green-20261117`.
 - Prior completed LfT2 code audit checkpoint: `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a`, backup `backup/android-a1-lft2-class-structure-ci-green-20261116`.
@@ -84,8 +85,18 @@ The previous developer's useful research **was already saved**: [YANDEX-MEDIA3-R
 - This is a **real new source object → internal native playlist owner identity proof**, not a claim that a queued holder is the one currently playing. Runtime current selected Track+album+edition+duration+generation, active MediaPeriod/decoder and CELIKOM audio remain **unproven**. Stage B **NO-GO**.
 - All changes Python static read-only tools, unit tests, workflows and docs. Last runtime hook change `a655712d`; no APK or vendor code modifications.
 
+## 17 Nov — NEW exact source → returned MediaPeriod identity CI green
+
+**Read the new [MediaPeriod identity proof](ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md)**. It continues the already signed, same-object source→Player→playlist-holder route; it does NOT claim current audible playback.
+
+- **[Exact signed MediaPeriod CI #3 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44077450137)**, fail-closed fixtures: the exact `LuIb.<init>(LSl6;)V` constructor stores its original source argument to a particular `LuIb` DEX field. `Lp96.transient(LSl6$b;LrH2;J)Lo96;` reads **that identical field reference**, not merely the same declared type; source values and field names are not exported.
+- Within `Lp96.transient`, the identical original source is stored on the **unique `Lo96` MediaPeriod object** (PC 18), and **both return paths** (PC 51, 64) return that same newly created Lo96. Branch-sensitive CFG 34 states, 1 object allocation, 1 constructor call, 2/2 verified period returns. `static_same_source_to_returned_MediaPeriod_proven=true`.
+- This closes the exact *static* source→MediaPeriod identity gap from verified `LcA9 TrackWrapper → LiLb → LA14.e → ExoPlayer.d.e → singletonList → d.T0 → d.A0 → i$c → Lp96 → LuIb → Lo96`. It is **not** proof that the returned period was selected for actual playback.
+- **Still missing:** runtime active/current period vs prepared/prefetch, selected Player receiver/item, track+album+edition+duration+generation, period-to-decoder instance and sound, CELIKOM grant/replacement. **Stage B remains NO-GO.**
+- Code SHA `24c37a59d454cc5ec0b69f9e548fbe3349108673`, exact backup above. No runtime hooks/APK or vendor original changed.
+
 ## Next task and boundaries
 
-**Continue from exact `LcA9.extends → LA14.e → ExoPlayer.d.e → singletonList → d.T0 → d.A0 → i$c → Lp96 → LuIb` source-held playlist proof.** The missing next edge is the **runtime-current selected player item/queue generation and active MediaPeriod/decoder for this exact retained source**, with trusted Track+album+edition+duration. A source held in playlist can be queued/prefetch; do not upgrade it to audible. Only a precisely grounded active period hook/callsite can justify a read-only runtime measurement. Do **not** repeat LfT2, LiLb getter, LXk6, global List/Object/ByteBuffer/Player, old factory or new holder constructors. Stage B NO-GO until owner-approved real audio verification; no runtime hooks or APK without justified measurement.
+**Continue ONLY from the exact static `LcA9 TrackWrapper → LiLb → ExoPlayer.d.e → d.T0 → d.A0 → i$c → Lp96/LuIb → Lp96.transient → Lo96 MediaPeriod` same-source proof.** The remaining essential edge is **runtime-current selected Player/queue item/generation → active Lo96 period → native decoder** with trusted Track+album+edition+duration. MediaPeriod creation may be prefetch; never call it audible based on source, period, register or CI only. Next step must be an exact justified active-period witness, not a global static scan or premature APK. Do NOT redo LfT2, LiLb getters/constructors, LXk6, global List/Object/ByteBuffer/Player, source factory/read or newly proven setter/holder/period paths. Stage B NO-GO until real owner acoustic QA and exact CELIKOM grant; no runtime hooks or APK without the next justified measurement.
 
 No changes to original Yandex, NAV17, Test.50, frozen branches, runtime hooks, Android APK, Windows, extension, backend/API/DB or production. No reading/exporting Track/Album IDs/titles, URLs, DataSpec, account tokens, private field values, or audio bytes. All static work bounded, read-only and fail-closed. No full CI reports or large source dumps.
