@@ -410,6 +410,55 @@ def verify_exact_holder_to_attached_stream_sequence(owner_methods):
         "private_ids_field_names_values_urls_audio_or_tokens_exported":False
     }
 
+
+RENDERER_READ_ENTRY=(RENDERER_BASE,"g","(LiA9;LRF2;I)I")
+RENDERER_SKIP_ENTRY=(RENDERER_BASE,"h","(J)I")
+MAX_READER_METHOD_STEPS=160
+
+def inspect_renderer_attached_stream_read_entry(owner_methods,getters):
+    """Bound to proven b.g and b.h exact attached stream field access.
+    No general decoder, Media3 or ByteBuffer scans, no data values."""
+    field=confirm_direct_reference_getter(getters[CONCRETE_GETTER])
+    results=[]
+    for method in (RENDERER_READ_ENTRY,RENDERER_SKIP_ENTRY):
+        if method not in owner_methods or not owner_methods[method][2]:
+            raise ValueError("RENDERER_EXACT_INPUT_METHOD_MISSING")
+        dex,flags,off=owner_methods[method]
+        insns=list(audit.instructions(dex,off))
+        if len(insns)>MAX_READER_METHOD_STEPS:
+            raise ValueError("RENDERER_INPUT_ENTRY_SIZE_LIMIT")
+        observed=[]
+        for pc,op,words in insns:
+            row={"pc":pc}
+            if op in (0x54,0x5b):
+                desc=audit.field_id(dex,words[1])
+                if desc!=field:continue
+                row.update(action="FIELD",opcode=op,
+                           value=(words[0]>>8)&15,receiver=(words[0]>>12)&15)
+            elif op in (0x07,0x08,0x09):
+                dest,source=audit.move_object_registers(op,words)
+                row.update(action="MOVE_OBJECT",dest=dest,source=source)
+            elif op in (0x0a,0x0b,0x0c):
+                row.update(action="MOVE_RESULT",dest=words[0]>>8)
+            elif op in audit.INVOKES and 0x6e<=op<=0x78:
+                callee=dex.method(words[1])
+                if callee[0] not in (STREAM,RENDERER_BASE):
+                    continue
+                row.update(action="CALL",callee=list(callee),
+                           registers=audit.invoke_registers(op,words))
+            elif 0x32<=op<=0x3d or op in (0x28,0x29,0x2a):
+                row.update(action="BRANCH",opcode=op)
+            else:continue
+            observed.append(row)
+            if len(observed)>70:raise ValueError("RENDERER_INPUT_ENTRY_EVENT_LIMIT")
+        if not any(e["action"]=="FIELD" for e in observed):
+            raise ValueError("RENDERER_INPUT_ENTRY_NO_EXACT_STREAM_FIELD")
+        results.append({"method":list(method),"instruction_count":len(insns),
+                        "exact_stream_field_use_and_calls":observed})
+    return {"bounded_native_renderer_sample_read_entries":results,
+            "actual_current_live_decoded_audio_confirmed":False,
+            "audio_buffers_and_private_stream_data_not_read":True}
+
 def scan_signed(apks):
     dexes=0
     definitions={}
@@ -488,7 +537,9 @@ def scan_signed(apks):
     exact_attach_callers=find_exact_native_attach_callers(apks)
     attach_helper=inspect_exact_native_renderer_attach_helper(exact_owner_methods)
     exact_bridge=verify_exact_holder_to_attached_stream_sequence(exact_owner_methods)
-    return {"exact_queue_holder_to_renderer_stream_attachment_bridge":exact_bridge,
+    native_sample_read=inspect_renderer_attached_stream_read_entry(exact_owner_methods,method_bodies)
+    return {"exact_renderer_native_sample_read_boundary":native_sample_read,
+            "exact_queue_holder_to_renderer_stream_attachment_bridge":exact_bridge,
             "exact_native_renderer_attach_helper":attach_helper,
             "signed_exact_renderer_stream_attach_callers":exact_attach_callers,
             "exact_native_renderer_stream_attachment":attach,
