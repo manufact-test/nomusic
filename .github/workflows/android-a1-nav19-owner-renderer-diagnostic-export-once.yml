@@ -63,6 +63,7 @@ jobs:
           test "$GITHUB_REPOSITORY" = manufact-test/nomusic
           test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
           grep -Fq 'NAV_V19_RENDERER_HOOK_STATUS_UNSCOPED_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
+          grep -Fq 'NAV_V19_RENDERER_HOOK_STATUS_UNSCOPED_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
           grep -Fq 'installExact2025NativeRendererReadWitness(caller,loader)' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
           grep -Fq 'AUDIO_NATIVE_RENDERER_SUMMARY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'AUDIO_NATIVE_RENDERER_HOOK_STATUS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
