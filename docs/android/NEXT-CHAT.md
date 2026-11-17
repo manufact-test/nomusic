@@ -1,4 +1,20 @@
-# CURRENT — NAV21 OWNER PHONE TXT ANALYZED (17 NOV 2026)
+# CURRENT — NAV22 SIGNED; OWNER-PHONE TEST NEXT (17 NOV 2026)
+
+**Authoritative current handoff.** Owner confirmed ordinary Yandex music, Next, pause and seek work flawlessly, with **NO observed playback bugs**. Our ONLY outstanding product capability is CELIKOM alternative-audio substitution. Do not invent crashes or regressions from diagnostic categories.
+
+**Read first:** [NAV22 exact secondary caller witness + green signed release](ANDROID-A1-NAV22-SECONDARY-ATTACH-CALLER-DIAGNOSTIC-20261117.md). Previous [NAV21 actual owner phone evidence](ANDROID-A1-NAV21-OWNER-REALPHONE-TXT-RESULT-20261117.md) explains why the separate caller was added. Historical documents below remain archival.
+
+**Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112` in `manufact-test/nomusic`. Signed owner NAV22 source commit `50078f012a57b7fc13060c3205f2757b4a2894a7`; ARM13 full publisher-first signed CI **#44174172281 SUCCESS**; JVM **#44174039648 SUCCESS**. Exact pre-change NAV21 backup `backup/android-a1-nav21-owner-accepted-original-before-nav22-caller-witness-20261117`; verified NAV22 source snapshot `backup/android-a1-nav22-second-caller-signed-code-ci-green-20261117`.
+
+**Library verified owner NAV22 APK:** `/CELIKOM/Android/Native/CELIKOM-A1-NAV22-Secondary-Attach-Caller-ReadOnly-20261117.apk`, SHA-256 `06e7dd168f82db2052d8421a050c5d2bf22f12ff250918d4bd943e7b1cdebf86`, 71,471,084 bytes, same accepted v2/v3 owner signer cert `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`. Embedded original Yandex 2025.10.4 SHA `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` unchanged. Matching Library instruction `CELIKOM-A1-NAV22-Инструкция.txt`, re-downloaded APK matches CI bytes exactly. No sandbox or Actions download links to user. Previous APKs preserved.
+
+**What NAV22 does:** read-only observation of exact second 2025 native caller `b.super(lQ8,[Sr4],R29,ZZJJ,Sl6$b)`, distinguishing weak renderer attachment inside this caller, different stream and outside caller; existing queue scope and original `b.g` return counters unchanged. The CELIKOM replacement remains **NOT_CONNECTED/NO-GO**. The new NAV22 build is **NOT YET real-phone-tested**.
+
+**Next action:** Owner installs NAV22 in place without data clear/uninstall and listens to ordinary music as usual, then sends NAV22 diagnostic TXT. Analyze `SECONDARY_CALLER` hook status, `SECONDARY_CALLER_ENTER`, `SECONDARY_CALLER_STREAM_MATCH`, `UNSCOPED_ATTACH_SECONDARY_MATCH`, `UNSCOPED_ATTACH_OUTSIDE_SECONDARY` alongside `QUEUE_SCOPE_ENTER` and original scoped/weak read returns. Identify exact selected-audio linkage by evidence before implementing replacement; no invention of user playback problems, no further speculative APK, no original app modifications, no new architecture or Test.50/Windows/browser/server changes.
+
+---
+
+# ARCHIVED — NAV21 OWNER PHONE TXT ANALYZED (17 NOV 2026)
 
 **Latest evidence supersedes the older 'await NAV21 TXT' handoff below.** The user supplied private NAV21 owner diagnostic `CELIKOM-A1-Diagnostics-1794944332422.txt`. Start with [NAV21 ACTUAL OWNER PHONE RESULT](ANDROID-A1-NAV21-OWNER-REALPHONE-TXT-RESULT-20261117.md) BEFORE older handoff docs. Do **not** upload private TXT to GitHub.
 
