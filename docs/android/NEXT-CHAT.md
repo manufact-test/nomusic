@@ -1,12 +1,18 @@
-# CURRENT — NAV19 OWNER TXT REVIEWED; NAV20 READ-RESULT DIAGNOSTICS (17 NOV 2026)
+# CURRENT — NAV20 SIGNED + LIBRARY VERIFIED, OWNER PHONE TEST NEXT (17 NOV 2026)
 
-**Most recent authoritative handoff:** [NAV19 real phone findings + NAV20 targeted patch](ANDROID-A1-NAV19-OWNER-REALPHONE-RESULT-AND-NAV20-READ-RESULT-PROBE-20261117.md). This supersedes the older NAV18 and NAV19 *wait for owner TXT* headings below. The owner **has supplied NAV19 diagnostic** `CELIKOM-A1-Diagnostics-1794936007461.txt`.
+**Read [NAV20 signed release and verified Library proof](ANDROID-A1-NAV20-OWNER-READRESULT-READONLY-RELEASE-20261117.md) FIRST**, then [NAV19 actual handset TXT results](ANDROID-A1-NAV19-OWNER-REALPHONE-RESULT-AND-NAV20-READ-RESULT-PROBE-20261117.md). Owner NAV19 TXT **already received**: `CELIKOM-A1-Diagnostics-1794936007461.txt`. Do not ask again or follow obsolete 'wait for NAV18/NAV19 TXT' handoffs below.
 
-**Fact confirmed on actual phone:** `QUEUE_SCOPE=REGISTERED` but `QUEUE_SCOPE_ENTER=NONE`; `STREAM_ATTACH/SAMPLE_READ/STREAM_DETACH=REGISTERED`; `UNSCOPED_ATTACHED_STREAM_READ_MATCH=MANY`, `...DIFFERENT=NONE`; `IDENTITY_STATUS=STRUCTURAL_ONLY`. This confirms same renderer attached stream vs read-method *entry* object; not successful sample return, currently audible renderer or alternative CELIKOM sound. Stage A owner NAV17 PASS; Stage B NO-GO / NOT_CONNECTED.
+**Runtime evidence NAV19:** four hooks REGISTERED, `QUEUE_SCOPE_ENTER=NONE`, `UNSCOPED_ATTACHED_STREAM_READ_MATCH=MANY`, `DIFFERENT=NONE`, `IDENTITY_STATUS=STRUCTURAL_ONLY`; confirmed attached-stream/read-method *entry* match only, NOT read return, active audible output or CELIKOM replacement. 455 `MUSIC_APP METRICA_EXCEPTION` records and two log trims; no `JAVA_CRASH` category in latest TXT. Stage A owner NAV17 PASS; Stage B CELIKOM substitution **NO-GO / NOT_CONNECTED**.
 
-**New bounded diagnostic code:** `NAV_V20_RENDERER_READ_RESULT_READONLY`, sample untouched `b.g()` return `-4/-5/-3/OTHER` only when attached renderer stream remains same; no user audio/metadata modification, no second player. New export-time build marker and capped MUSIC_APP Metrica exception logging to stop diagnostics truncation. JVM CI #44136882616 SUCCESS. **Native signed owner export CI #44137030390 was launched and is not yet owner-accepted at this note. Do not publish/offer an APK until CI SUCCESS + owner signer match + Library verification.** Rejected output must never be installed.
+**NAV20 exact in-place diagnostic APK in ChatGPT Library:**
+`/CELIKOM/Android/Native/CELIKOM-A1-NAV20-Renderer-ReadResult-ReadOnly-20261117.apk`
+SHA-256 `b60cad28cd815e0df29c5ffb83b2ec8d316426a5b2ff9661c7816bdbda1aeb60`, size 71,466,988 bytes. Signed v2/v3 cert `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, matches NAV17/NAV19; original nested 2025 APK SHA `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`. **Library file downloaded back and checksum verified identical**. Instruction adjacent `CELIKOM-A1-NAV20-Инструкция.txt`. CI native 75s/signature **#44137030390 SUCCESS**, additional ARM13 **#44136827190/#44136827154 SUCCESS**, JVM **#44136882616 SUCCESS**.
 
-**Pre-change backup** `backup/android-a1-nav19-owner-realrenderer-reads-before-nav20-20261117`. **Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Keep owner-tested NAV17, signed NAV18/NAV19 APKs, original signed Yandex 2025.10.4, Test.50, Windows, extension and server unchanged. Do NOT use the 2026 HookSpec, do not ask uninstall/clear account/bypass Play Protect.
+**Next action:** owner installs NAV20 **over NAV19**, preserving data and Yandex login, and tests playback/Next/pause/seek/My Wave. Receive owner diagnostics TXT. NAV20 tracks original `b.g()` **result codes** `-4/-5/-3/OTHER` for same renderer attached stream, and caps duplicate Metrica logging. It **does not** substitute audio; even `-4` can be end-of-stream and does not prove heard PCM. Any next code change must be based on owner runtime data, not broad static search. Keep native architecture, exact original Yandex 2025.10.4, Windows, extension, server, Test.50 and accepted NAV17 untouched.
+
+**Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+**Pre-NAV20 backup:** `backup/android-a1-nav19-owner-realrenderer-reads-before-nav20-20261117`.
+**Signed NAV20 code checkpoint:** `6ebce1bd4358aea68158eee42dfed097f5739ec1`; newer commits only update docs. Create exact final docs backup after finishing this handoff; never confuse the signed APK commit with docs HEAD.
 
 ---
 
