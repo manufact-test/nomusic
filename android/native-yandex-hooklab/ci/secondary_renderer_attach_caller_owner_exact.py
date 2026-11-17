@@ -164,6 +164,17 @@ def scan_exact(apks):
     if len(attach_calls)!=1 or attach_calls[0]["pc"]!=27:
         raise ValueError("SECONDARY_EXACT_ATTACH_PC27_MISMATCH")
     engine_sources=[]
+    # The already signed e.break pc547 h.SLOT_B field identity is a comparison
+    # anchor only; it does not by itself attest a live selected holder.
+    all_known_b_field={}
+    for caller_dex,caller_method,caller_flags,caller_offset,call_pc,op,args in engine_invokers:
+        if caller_method==("Landroidx/media3/exoplayer/e;","break","()V"):
+            slot_insn=next(((pc,opcode,words)
+                for pc,opcode,words in audit.instructions(caller_dex,caller_offset)
+                if pc==547),None)
+            if slot_insn and slot_insn[1]==0x54:
+                all_known_b_field["field"]=audit.field_id(caller_dex,slot_insn[2][1])
+            break
     for caller_dex,caller_method,caller_flags,caller_offset,call_pc,op,args in engine_invokers:
         prior=[(pc,opcode,words) for pc,opcode,words
                 in audit.instructions(caller_dex,caller_offset)
@@ -194,8 +205,35 @@ def scan_exact(apks):
                               "dest":words[0]>>8})
             if len(scope)>MAX_ENGINE_INVOKER_CONTEXT_EVENTS:
                 raise ValueError("SECONDARY_ENGINE_INVOKER_EVENTS_LIMIT")
+        # A bounded linear list of candidate writes to the holder argument.
+        # It is NOT a CFG proof; alternate branches may write the same register.
+        holder_reg=args[1] if len(args)>1 else -1
+        holder_writes=[]
+        for pc,opcode,words in audit.instructions(caller_dex,caller_offset):
+            if pc>=call_pc:break
+            write_reg=audit.written_register(opcode,words)
+            if write_reg!=holder_reg:continue
+            row={"pc":pc,"opcode":opcode,"kind":"WRITE_OTHER"}
+            if opcode in (0x07,0x08,0x09):
+                _dst,source=audit.move_object_registers(opcode,words)
+                row.update(kind="MOVE_OBJECT",from_register=source)
+            elif opcode==0x0c:
+                row.update(kind="MOVE_RESULT_OBJECT")
+            elif opcode==0x54:
+                owner,_name,typ=audit.field_id(caller_dex,words[1])
+                row.update(kind="IGET_OBJECT",field_owner=owner,field_type=typ)
+                if owner=="Landroidx/media3/exoplayer/h;" and typ=="Lxh6;":
+                    known_b=all_known_b_field.get("field")
+                    row["exact_same_as_known_slot_b"]=bool(known_b and
+                        (owner,_name,typ)==known_b)
+            elif opcode==0x22:
+                row.update(kind="NEW_INSTANCE",type=caller_dex.descriptor(words[1]))
+            holder_writes.append(row)
+            if len(holder_writes)>16:holder_writes.pop(0)
         engine_sources.append({"caller":list(caller_method),"pc":call_pc,
-                               "opcode":op,"args":args,"context":scope})
+                               "opcode":op,"args":args,"context":scope,
+                               "holder_arg_prior_writes_linear_candidates":holder_writes,
+                               "linear_prior_writes_are_cfg_proof":False})
     # An argument provenance trace is separate from raw callsite presence.
     # Only the known engine e methods may be traced. Never return private
     # fields, literal object values, account IDs, URLs or track metadata.
@@ -246,11 +284,15 @@ def scan_exact(apks):
                     })
             engine_caller_arg_provenance.append({
                 "caller":list(caller_method),"pc":call_pc,
-                "trace_complete":True,"holder_argument_origins":rows})
+                "trace_ran":True,
+                "holder_argument_origin_resolved":any(
+                    item["producer_kind"] not in ("UNKNOWN",None) for item in rows),
+                "holder_argument_origins":rows})
         except (audit.DexError,ValueError,TypeError):
             engine_caller_arg_provenance.append({
                 "caller":list(caller_method),"pc":call_pc,
-                "trace_complete":False,"holder_argument_origins":[]})
+                "trace_ran":False,"holder_argument_origin_resolved":False,
+                "holder_argument_origins":[]})
     return {
         "verdict":"NAV22_CONFIRMED_SECONDARY_STATIC_CALLERS_ONLY",
         "exact_method":list(SECONDARY),
