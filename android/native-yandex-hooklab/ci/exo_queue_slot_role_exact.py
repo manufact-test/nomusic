@@ -503,10 +503,13 @@ def inspect_exact_renderer_stream_contract(stream_methods,stream_classes):
         if len(rows)>35:raise ValueError("QUEUE_STREAM_DECLARED_METHOD_COUNT_LIMIT")
     if "Landroidx/media3/exoplayer/k;" not in stream_classes or "LR29;" not in stream_classes:
         raise ValueError("QUEUE_STREAM_EXACT_CLASSES_NOT_DEFINED")
-    if not any(x["owner"]=="Landroidx/media3/exoplayer/k;" and
-               x["method"]=="while" and x["signature"]=="()LR29;" for x in rows):
-        raise ValueError("QUEUE_RENDERER_STREAM_GETTER_NOT_DECLARED")
-    return {"stream_and_renderer_classes":stream_classes,
+    getter_here=any(x["owner"]=="Landroidx/media3/exoplayer/k;" and
+                    x["method"]=="while" and x["signature"]=="()LR29;" for x in rows)
+    # An invoke reference owner can differ from the method's defining superclass.
+    # Never assert the concrete getter owner before resolving the hierarchy.
+    return {"renderer_get_stream_declared_on_exact_k_class":getter_here,
+            "getter_definition_or_inheritance_resolved":getter_here,
+            "stream_and_renderer_classes":stream_classes,
             "exact_bounded_stream_method_contracts":rows,
             "stream_attached_to_live_decoder_proven":False}
 
