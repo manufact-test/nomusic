@@ -8,7 +8,8 @@ on:
       - '.github/workflows/android-a1-direct-media-source-player-readonly.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  # Private draft release inspection requires the same access as the verified LfT2 workflow.
+  contents: write
 jobs:
   direct-media-source-readonly:
     runs-on: ubuntu-24.04
