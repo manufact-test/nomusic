@@ -22,6 +22,9 @@ SECONDARY=("Landroidx/media3/exoplayer/b;","super",
            "(LlQ8;[LSr4;LR29;ZZJJLSl6$b;)V")
 ATTACH=("Landroidx/media3/exoplayer/b;","package","([LSr4;LR29;JJLSl6$b;)V")
 ATTACH_INTERFACE=("Landroidx/media3/exoplayer/k;","package",ATTACH[2])
+ENGINE_ENABLE=("Landroidx/media3/exoplayer/e;","catch","(Lxh6;IZJ)V")
+MAX_ENGINE_INSNS=420
+MAX_ENGINE_EVENTS=130
 MAX_METHOD_INSNS=600
 MAX_DIRECT_CALLERS=75
 MAX_METHOD_EVENTS=80
@@ -49,6 +52,7 @@ def classify_secondary_invoke(callee):
 def scan_exact(apks):
     scanned=0
     exact_secondary=None
+    engine_enable=None
     direct=[]
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -62,6 +66,9 @@ def scan_exact(apks):
                     if method==SECONDARY:
                         if exact_secondary is not None:raise ValueError("SECONDARY_DUPLICATE_EXACT_METHOD")
                         exact_secondary=(dex,flags,offset)
+                    if method==ENGINE_ENABLE:
+                        if engine_enable is not None:raise ValueError("SECONDARY_DUPLICATE_ENGINE_ENABLE")
+                        engine_enable=(dex,flags,offset)
                     for pc,op,raw in audit.instructions(dex,offset):
                         if op not in audit.INVOKES or not (0x6e<=op<=0x78):
                             continue
@@ -75,6 +82,7 @@ def scan_exact(apks):
                         if len(direct)>MAX_DIRECT_CALLERS:
                             raise ValueError("SECONDARY_TOO_MANY_DIRECT_CALLERS")
     if exact_secondary is None:raise ValueError("SECONDARY_EXACT_METHOD_MISSING")
+    if engine_enable is None:raise ValueError("SECONDARY_EXACT_ENGINE_ENABLE_MISSING")
     dex,flags,offset=exact_secondary
     insns=list(audit.instructions(dex,offset))
     if len(insns)>MAX_METHOD_INSNS:raise ValueError("SECONDARY_EXACT_METHOD_TOO_LARGE")
@@ -110,6 +118,40 @@ def scan_exact(apks):
                                       "owner":owner,"type":typ,"op":op})
         if len(scoped_events)>MAX_METHOD_EVENTS:
             raise ValueError("SECONDARY_SCOPED_EVENTS_LIMIT")
+    e_dex,e_flags,e_offset=engine_enable
+    e_insns=list(audit.instructions(e_dex,e_offset))
+    if len(e_insns)>MAX_ENGINE_INSNS:raise ValueError("SECONDARY_ENGINE_METHOD_TOO_LARGE")
+    e_regs=e_dex.u16(e_offset)
+    e_incoming=e_dex.u16(e_offset+2)
+    e_params=audit.expand_invoke_register_types(ENGINE_ENABLE[0],
+        audit.parse_types(ENGINE_ENABLE[2]),False)
+    e_holder_reg=e_regs-e_incoming+e_params.index("Lxh6;")
+    e_events=[]
+    e_calls=[]
+    for pc,op,raw in e_insns:
+        if op in audit.INVOKES and 0x6e<=op<=0x78:
+            callee=e_dex.method(raw[1])
+            if match_secondary_family_invoke(callee):
+                e_calls.append({"pc":pc,"callee":list(callee),
+                                "args":audit.invoke_registers(op,raw)})
+            elif callee[0] in ("Landroidx/media3/exoplayer/k;","Lxh6;","Landroidx/media3/exoplayer/e;"):
+                e_events.append({"pc":pc,"op":op,"kind":"NARROW_INVOKE",
+                                 "callee":list(callee),"args":audit.invoke_registers(op,raw)})
+        elif op in (0x54,0x5b,0x62,0x69):
+            owner,_name,typ=audit.field_id(e_dex,raw[1])
+            if owner=="Lxh6;" or typ in ("LR29;","[LR29;","LSl6$b;"):
+                e_events.append({"pc":pc,"op":op,"kind":"NARROW_FIELD",
+                                 "owner":owner,"type":typ})
+        elif op in (0x46,0x4d):
+            e_events.append({"pc":pc,"op":op,"kind":"ARRAY_OBJECT"})
+        elif op in (0x07,0x08,0x09):
+            dest,source=audit.move_object_registers(op,raw)
+            e_events.append({"pc":pc,"op":op,"kind":"MOVE_OBJECT",
+                             "dest":dest,"source":source})
+        if len(e_events)>MAX_ENGINE_EVENTS:
+            raise ValueError("SECONDARY_ENGINE_EVENTS_LIMIT")
+    if sorted(row["pc"] for row in e_calls)!=[131,144]:
+        raise ValueError("SECONDARY_ENGINE_EXACT_TWO_CALLS_MISMATCH")
     if len(attach_calls)!=1 or attach_calls[0]["pc"]!=27:
         raise ValueError("SECONDARY_EXACT_ATTACH_PC27_MISMATCH")
     return {
@@ -125,6 +167,11 @@ def scan_exact(apks):
         "direct_secondary_callers":direct,
         "direct_secondary_caller_count":len(direct),
         "secondary_interface_invocation_checked":True,
+        "exact_engine_caller":list(ENGINE_ENABLE),
+        "exact_engine_holder_input_register":e_holder_reg,
+        "exact_engine_instruction_count":len(e_insns),
+        "exact_engine_to_renderer_enable_invokes":e_calls,
+        "exact_engine_scoped_fields_and_moves":e_events,
         "base_only_caller_count":sum(1 for row in direct if row["dispatch"]=="BASE_DIRECT"),
         "interface_caller_count":sum(1 for row in direct if row["dispatch"]=="INTERFACE_VIRTUAL"),
         "scope":"EXACT_PUBLISHER_2025_SIX_DEX",
