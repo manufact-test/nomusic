@@ -205,6 +205,92 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(e.exportLines(),"origin=READ_RETURN_LINK_LOST;error=ONE"),
               "STALE_STREAM_CANNOT_CLAIM_NEW_RETURN");
     }
+    private static void testExactSecondaryCallerUnscopedMatch() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        e.onHookRegistration("SECONDARY_CALLER",true);
+        Object renderer=new Object(),stream=new Object();
+        NativeRendererStreamEvidence.CallerFrame frame=
+            e.enterSecondaryCaller(renderer,stream);
+        try { e.onAttach(renderer,stream); }
+        finally {e.exitSecondaryCaller(frame);}
+        e.onReadReturn(renderer,stream,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=SECONDARY_CALLER;error=REGISTERED"),
+            "SECONDARY_CALLER_REGISTERED");
+        check(contains(snap,"origin=SECONDARY_CALLER_ENTER;error=ONE"),
+            "EXACT_SECONDARY_CALLED");
+        check(contains(snap,"origin=SECONDARY_CALLER_STREAM_MATCH;error=ONE"),
+            "SECONDARY_SAME_STREAM");
+        check(contains(snap,"origin=UNSCOPED_ATTACH_SECONDARY_MATCH;error=ONE"),
+            "SECONDARY_WEAK_LINK");
+        check(contains(snap,"origin=UNSCOPED_READ_RETURN_MINUS4;error=ONE"),
+            "SECONDARY_WEAK_RETURN");
+        check(contains(snap,"origin=QUEUE_SCOPED_READ_RETURN_MINUS4;error=NONE"),
+            "SECONDARY_NOT_STRONG_QUEUE_PROOF");
+    }
+    private static void testSecondaryCallerAndQueueScopeRemainDistinct() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        e.onHookRegistration("SECONDARY_CALLER",true);
+        Object renderer=new Object(),stream=new Object(),holder=new Object();
+        NativeRendererStreamEvidence.Scope q=e.enter(renderer,holder);
+        NativeRendererStreamEvidence.CallerFrame frame=
+            e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(frame);e.exit(q);}
+        e.onReadReturn(renderer,stream,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=SECONDARY_CALLER_STREAM_MATCH;error=ONE"),
+            "SECONDARY_WITHIN_QUEUE");
+        check(contains(snap,"origin=UNSCOPED_ATTACH_SECONDARY_MATCH;error=NONE"),
+            "STRONG_NOT_COUNTED_WEAK");
+        check(contains(snap,"origin=QUEUE_SCOPED_READ_RETURN_MINUS4;error=ONE"),
+            "QUEUE_REMAINS_STRONG");
+    }
+    private static void testOutsideSecondaryOnlyWhenHookActive() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object renderer=new Object(),stream=new Object();
+        e.onAttach(renderer,stream);
+        check(contains(e.exportLines(),"origin=UNSCOPED_ATTACH_OUTSIDE_SECONDARY;error=NONE"),
+            "CANNOT_CALL_NONHOOKED_OUTSIDE");
+        e.onHookRegistration("SECONDARY_CALLER",true);
+        e.onAttach(renderer,new Object());
+        check(contains(e.exportLines(),"origin=UNSCOPED_ATTACH_OUTSIDE_SECONDARY;error=ONE"),
+            "PROVED_OUTSIDE_ACTIVE_SECONDARY_SCOPE");
+    }
+    private static void testSecondaryDifferentStreamCannotBecomeMatch() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        e.onHookRegistration("SECONDARY_CALLER",true);
+        Object renderer=new Object(),expected=new Object(),actual=new Object();
+        NativeRendererStreamEvidence.CallerFrame frame=
+            e.enterSecondaryCaller(renderer,expected);
+        try {e.onAttach(renderer,actual);}
+        finally {e.exitSecondaryCaller(frame);}
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=SECONDARY_CALLER_STREAM_DIFFERENT;error=ONE"),
+            "SECONDARY_MISMATCH_SEEN");
+        check(contains(snap,"origin=UNSCOPED_ATTACH_SECONDARY_DIFFERENT;error=ONE"),
+            "SECONDARY_MISMATCH_NOT_PROMOTED");
+        check(contains(snap,"origin=UNSCOPED_ATTACH_SECONDARY_MATCH;error=NONE"),
+            "SECONDARY_MISMATCH_CANNOT_MATCH");
+    }
+    private static void testSecondaryScopeUnwindsBeforeNextAttach() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        e.onHookRegistration("SECONDARY_CALLER",true);
+        Object renderer=new Object(),stream=new Object();
+        NativeRendererStreamEvidence.CallerFrame frame=
+            e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(frame);}
+        e.onAttach(renderer,new Object());
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=UNSCOPED_ATTACH_SECONDARY_MATCH;error=ONE"),
+            "SECONDARY_FIRST_ATTACH");
+        check(contains(snap,"origin=UNSCOPED_ATTACH_OUTSIDE_SECONDARY;error=ONE"),
+            "SECONDARY_FRAME_MUST_NOT_LEAK");
+        check(contains(snap,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+            "SECONDARY_STILL_NOT_AUDIBLE");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -216,6 +302,11 @@ public final class NativeRendererStreamEvidenceTest {
         testRealReturnCodesNeverInferAudibleTrack();
         testScopedAndUnscopedReturnsNeverMix();
         testNoFalseStrongAfterUnscopedReattachment();
+        testExactSecondaryCallerUnscopedMatch();
+        testSecondaryCallerAndQueueScopeRemainDistinct();
+        testOutsideSecondaryOnlyWhenHookActive();
+        testSecondaryDifferentStreamCannotBecomeMatch();
+        testSecondaryScopeUnwindsBeforeNextAttach();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
