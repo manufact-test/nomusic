@@ -331,6 +331,95 @@ def scoped_wrapper_loop_register_lifecycle(methods):
         if len(rows)>110:
             raise ValueError("STREAM_WRAPPER_LOOP_EXACT_REGISTER_LIMIT")
     return rows
+
+def verify_exact_native_child_to_holder_stream_adapter(methods):
+    """Scoped DEX register + exact field ref contract only.
+    Nested period stream -> Lup1$a adapter -> incoming holder stream array.
+    Confirms bytecode can do this, NEVER that live renderer equality succeeds.
+    """
+    wd,wf,wo=methods[PERIOD_WRAPPER_SELECT]
+    ad,af,ao=methods[STREAM_ADAPTER_CTOR]
+    wi={pc:(op,words) for pc,op,words in audit.instructions(wd,wo)}
+    ai={pc:(op,words) for pc,op,words in audit.instructions(ad,ao)}
+    def op(pc,expected):
+        if pc not in wi or wi[pc][0]!=expected:
+            raise ValueError("STREAM_ADAPTER_EXACT_OPCODE_AT_PC_MISMATCH")
+        return wi[pc][1]
+    # v8 is the incoming stream-array parameter, not an unrelated local array
+    p2=wi.get(2)
+    if p2 is None or p2[0] not in (0x07,0x08,0x09):
+        raise ValueError("STREAM_ADAPTER_CALLER_ARRAY_PARAM_MOVE_MISSING")
+    caller_array,source_param=audit.move_object_registers(p2[0],p2[1])
+    if caller_array!=8 or source_param!=20:
+        raise ValueError("STREAM_ADAPTER_INCOMING_HOLDER_ARRAY_PARAMETER_MISMATCH")
+    new_arr=op(10,0x23)
+    if wd.descriptor(new_arr[1])!=STREAM_ARRAY or (new_arr[0]>>8)!=4:
+        raise ValueError("STREAM_ADAPTER_NESTED_ARRAY_ALLOCATION_MISMATCH")
+    nested_op,nested_words=wi.get(45,(None,None))
+    if nested_op not in audit.INVOKES or wd.method(nested_words[1])!=PERIOD_INTERFACE_SELECT:
+        raise ValueError("STREAM_ADAPTER_NESTED_SELECT_CALLEE_MISMATCH")
+    if audit.invoke_registers(nested_op,nested_words)[3]!=4:
+        raise ValueError("STREAM_ADAPTER_NESTED_SELECT_ARRAY_ARGUMENT_MISMATCH")
+    child=op(121,0x46)
+    if ((child[0]>>8)&255,child[1]&255,(child[1]>>8)&255)!=(2,4,1):
+        raise ValueError("STREAM_ADAPTER_CHILD_READ_REGISTER_MISMATCH")
+    a130=op(130,0x54)
+    a147=op(147,0x54)
+    field130=wd_field= audit.field_id(wd,a130[1])
+    if field130 != audit.field_id(wd,a147[1]) or field130[0]!=WRAPPER or field130[2]!="[Lup1$a;":
+        raise ValueError("STREAM_ADAPTER_EXACT_LUP1_FIELD_MISMATCH")
+    if (a130[0]>>8)&15!=5 or (a147[0]>>8)&15!=2:
+        raise ValueError("STREAM_ADAPTER_EXACT_ADAPTER_ARRAY_REG_MISMATCH")
+    existing=op(132,0x46)
+    if ((existing[0]>>8)&255,existing[1]&255,(existing[1]>>8)&255)!=(6,5,1):
+        raise ValueError("STREAM_ADAPTER_EXACT_EXISTING_ADAPTER_READ_MISMATCH")
+    read_delegate=op(136,0x54)
+    adaptor_field=wd.field_id if False else audit.field_id(wd,read_delegate[1])
+    if adaptor_field[0]!=STREAM_ADAPTER_CLASS or adaptor_field[2]!=STREAM:
+        raise ValueError("STREAM_ADAPTER_CHILD_DELEGATE_FIELD_WRONG_TYPE")
+    ctor_field_op,ctor_field_words=ai.get(5,(None,None))
+    if ctor_field_op!=0x5b or audit.field_id(ad,ctor_field_words[1])!=adaptor_field:
+        raise ValueError("STREAM_ADAPTER_CHILD_DELEGATE_EXACT_FIELD_DIFFERENCE")
+    cmp_words=op(138,0x32)
+    if {(cmp_words[0]>>8)&15,(cmp_words[0]>>12)&15}!={2,6}:
+        raise ValueError("STREAM_ADAPTER_REFERENCE_MATCH_OPERANDS_DIFFER")
+    new_adapter=op(140,0x22)
+    if wd.descriptor(new_adapter[1])!=STREAM_ADAPTER_CLASS or (new_adapter[0]>>8)!=6:
+        raise ValueError("STREAM_ADAPTER_EXACT_ALLOCATION_MISMATCH")
+    invoke_op,invoke_words=wi.get(142,(None,None))
+    if invoke_op not in audit.INVOKES or wd.method(invoke_words[1])!=STREAM_ADAPTER_CTOR:
+        raise ValueError("STREAM_ADAPTER_EXACT_CTOR_CALLEE_MISMATCH")
+    if audit.invoke_registers(invoke_op,invoke_words)!=[6,0,2]:
+        raise ValueError("STREAM_ADAPTER_CHILD_REG_TO_CTOR_MISMATCH")
+    put_adapter=op(145,0x4d)
+    if ((put_adapter[0]>>8)&255,put_adapter[1]&255,(put_adapter[1]>>8)&255)!=(6,5,1):
+        raise ValueError("STREAM_ADAPTER_INSERT_EXACT_ARRAY_MISMATCH")
+    read_stored=op(149,0x46)
+    if ((read_stored[0]>>8)&255,read_stored[1]&255,(read_stored[1]>>8)&255)!=(2,2,1):
+        raise ValueError("STREAM_ADAPTER_RESULT_FROM_EXACT_STORED_ARRAY_MISMATCH")
+    put_output=op(151,0x4d)
+    if ((put_output[0]>>8)&255,put_output[1]&255,(put_output[1]>>8)&255)!=(2,8,1):
+        raise ValueError("STREAM_ADAPTER_OUTPUT_TO_ORIGINAL_HOLDER_ARRAY_MISMATCH")
+    # Check v8 is not overwritten by any instruction after the caller-param move.
+    for pc,(opcode,words) in wi.items():
+        if pc<=2:continue
+        if opcode in audit.INVOKES or opcode==0x1f or opcode in (
+            0x4d,0x4e,0x4f,0x50,0x51,0x5b,0x5c,0x5d,0x5e,0x5f,0x6b,0x6c,0x6d):
+            continue
+        if audit.written_register(opcode,words)==caller_array:
+            raise ValueError("STREAM_ADAPTER_CALLER_ARRAY_REGISTER_OVERWRITTEN")
+    return {
+        "child_stream_array_allocated_and_passed_to_nested_MediaPeriod":True,
+        "child_sample_stream_array_element_loaded_for_adapter":True,
+        "adapter_child_stream_identity_compared_with_existing_delegate":True,
+        "new_adapter_stores_exact_child_stream_typed_field":True,
+        "same_adapter_array_field_read_after_store":True,
+        "selected_adapter_written_into_original_holder_stream_array":True,
+        "no_direct_child_stream_identity_equivalence_claim":True,
+        "active_sound_or_decoder_consumption_observed":False,
+        "private_field_values_or_names_exported":False,
+    }
+
 def scan(apks):
     dexes=0
     methods={}
@@ -390,13 +479,15 @@ def scan(apks):
         for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT)
     ]
     stream_adapter=inspect_exact_stream_adapter(methods)
+    exact_stream_bridge=verify_exact_native_child_to_holder_stream_adapter(methods)
     wrapper_loop=scoped_wrapper_loop_register_lifecycle(methods)
     shared_field=verify_exact_shared_stream_field(methods)
     period_wrapper_selection=verify_exact_holder_wrapper_period_selection(methods)
     selected=[]
     for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
         selected.append(limited_stream_selection_bytecode(method,methods[method]))
-    return {"scoped_wrapper_loop_register_lifecycle":wrapper_loop,
+    return {"exact_nested_media_period_to_holder_stream_bridge":exact_stream_bridge,
+            "scoped_wrapper_loop_register_lifecycle":wrapper_loop,
             "scoped_child_to_wrapper_stream_adapter":stream_adapter,
             "exact_holder_period_selection_identity":period_wrapper_selection,
             "exact_holder_period_receiver_shapes":holder_period_receiver_shapes,
