@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V22_EXACT_SECONDARY_ATTACH_CALLER_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V23_EXACT_ENGINE_HOLDER_STREAM_ARRAY_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -227,6 +227,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean rendererSampleReadHooked;
     private boolean rendererDetachHooked;
     private boolean rendererSecondaryCallerHooked;
+    private boolean rendererEngineHolderScopeHooked;
 
 
     private void rememberMediaExtractorSource(Object obj) {
@@ -2452,7 +2453,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 || !PACKAGE.equals(caller.getPackageName())) return;
         if (rendererAttachScopeHooked && rendererStreamSetHooked
                 && rendererSampleReadHooked && rendererDetachHooked
-                && rendererSecondaryCallerHooked) return;
+                && rendererSecondaryCallerHooked && rendererEngineHolderScopeHooked) return;
         try {
             android.content.pm.PackageInfo info=caller.getPackageManager()
                 .getPackageInfo(PACKAGE,0);
@@ -2515,6 +2516,51 @@ public final class ExitCallsiteWitness extends XposedModule {
             } catch (Throwable ignored) {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("QUEUE_SCOPE",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","QUEUE_SCOPE","NO_HOOK");
+            }
+        }
+        if (!rendererEngineHolderScopeHooked) {
+            // Exact publisher-signed 2025 engine e.catch(Lxh6;IZJ)V:
+            // two native k.super caller instructions at PC 131/144.
+            // Bind the holder only when its own typed [LR29 array contains
+            // the SAME stream object used in subsequent b.super -> b.package.
+            try {
+                Class<?> engine=Class.forName("androidx.media3.exoplayer.e",false,loader);
+                Class<?> streamArray=Class.forName("[LR29;",false,loader);
+                Field exactArray=null;
+                for(Field candidate:holder.getDeclaredFields()) {
+                    if(candidate.getType()==streamArray) {
+                        if(exactArray!=null)throw new NoSuchFieldException();
+                        exactArray=candidate;
+                    }
+                }
+                if(exactArray==null)throw new NoSuchFieldException();
+                exactArray.setAccessible(true);
+                Method currentPeriodEnable=engine.getDeclaredMethod("catch",
+                    holder,int.class,boolean.class,long.class);
+                if(currentPeriodEnable.getReturnType()!=void.class)
+                    throw new NoSuchMethodException();
+                currentPeriodEnable.setAccessible(true);
+                NATIVE_RENDERER_EVIDENCE.setEngineHolderStreamArrayField(exactArray);
+                hook(currentPeriodEnable)
+                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        NativeRendererStreamEvidence.EngineFrame frame=null;
+                        try {
+                            frame=NATIVE_RENDERER_EVIDENCE.enterEngine(chain.getArg(0));
+                        } catch (Throwable ignored) { }
+                        try { return chain.proceed(); } // exact original, once
+                        finally {
+                            try {
+                                if(frame!=null)NATIVE_RENDERER_EVIDENCE.exitEngine(frame);
+                            } catch (Throwable ignored) { }
+                        }
+                    });
+                rendererEngineHolderScopeHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("ENGINE_HOLDER_SCOPE",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","ENGINE_HOLDER_SCOPE","REGISTERED");
+            } catch (Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("ENGINE_HOLDER_SCOPE",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","ENGINE_HOLDER_SCOPE","NO_HOOK");
             }
         }
         if (!rendererStreamSetHooked) {
