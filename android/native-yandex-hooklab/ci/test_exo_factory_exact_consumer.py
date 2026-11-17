@@ -4,6 +4,7 @@ import unittest
 from exo_factory_exact_consumer import (
     EXO_FACTORY, RDS_FACTORY, SOURCE_FACTORY_INTERFACE, related_method,
     LG_LB_BUILD, LL_LB_ADAPT, AS2_CONSTRUCTOR, EXACT_DIRECT_TARGETS,
+    MEDIA_SOURCE_CANDIDATE,
 )
 
 
@@ -24,6 +25,10 @@ class ExoFactoryExactConsumerTests(unittest.TestCase):
         self.assertIn(LL_LB_ADAPT, EXACT_DIRECT_TARGETS)
         self.assertIn(AS2_CONSTRUCTOR, EXACT_DIRECT_TARGETS)
         self.assertNotIn(("LfT2;", "equals", "(Ljava/lang/Object;)Z"), EXACT_DIRECT_TARGETS)
+
+    def test_source_candidate_is_grounded_from_exact_adapter(self):
+        self.assertEqual(MEDIA_SOURCE_CANDIDATE, "LZB3;")
+        self.assertNotEqual(MEDIA_SOURCE_CANDIDATE, "LOr2$a;")
 
     def test_no_track_wrapper_or_mediaitem_false_bridge(self):
         self.assertFalse(related_method(("Lother;", "x", "(LtCa;)LOf6;")))
