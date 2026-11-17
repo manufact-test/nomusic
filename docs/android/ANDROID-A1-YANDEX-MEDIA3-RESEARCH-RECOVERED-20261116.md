@@ -24,6 +24,14 @@
 - Сохранённые публичные материалы **не раскрывают** точный obfuscated call graph издательской версии Яндекс Музыки.
 - Old RAa documents include historical “Stage A NO-GO”; it is superseded by **NAV17 Stage A PASS** (owner confirmed original music on 14 Nov). Stage B remains **NO-GO**.
 
+## Уточнение 17.11 — прямой MediaSource API проверен на signed NAV17
+
+Точечный независимый read-only CI [#2 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44049682525), 3/3 unit tests, 16 publisher-signed splits и 6 DEX на **точно том же оригинале NAV17 2025.10.4 #120.1gpr**. Сценарий: android/native-yandex-hooklab/ci/direct_media_source_player_contract.py. Проверены только 11 уже известных Player owners и точный параметр AndroidX MediaSource.
+
+Результат: **0** методов Player с таким точным типом параметра, **0** прямых callsite, exact_media_source_class_defined=false. Это **ограниченный отрицательный результат** для необфусцированного имени/точного контракта, **не** доказательство того, что нативный Яндекс не использует MediaSource: типы и вызовы могут быть обфусцированы/косвенными. Публичный API Media3 выше остаётся верным для SDK, но напрямую на signed 2025 app без точных DEX-методов не переносится. Не начинать массовое исследование обфусцированных MediaSource/List/Object.
+
+Кодовый checkpoint 433191c0b6e5f2a2eabef8589aa01c02f326e3b1, backup backup/android-a1-direct-mediasource-contract-ci-green-20261117; до изменений backup backup/android-a1-pre-direct-mediasource-contract-audit-20261117 @ a142f5fe48f92d68727f4c9873a4a6cfda56b156. Никаких runtime hooks, APK или audio изменений. **Stage B NO-GO**, same-object selected native Track → active decoder не обнаружен.
+
 ## Точное ограничение для следующего разработчика
 
 Использовать доказанный **NAV17 original = Yandex Music 2025.10.4 #120.1gpr** (`assets/lspatch/origin.apk` SHA-256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`) только для уже установленной линии исследования. Это **не** выбор будущего production target. Отличать #170gpr контроль и #167gpr старое приложение телефона.
