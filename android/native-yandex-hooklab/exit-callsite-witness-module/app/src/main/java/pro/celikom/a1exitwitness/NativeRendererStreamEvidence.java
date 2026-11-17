@@ -76,10 +76,14 @@ final class NativeRendererStreamEvidence {
     // NAV24 additional *original method* values: renderer kind 1 and state 2
     // observed on the exact same strict engine-holder-to-read link.
     // Numbers alone do not attest audible PCM, selected track or edition.
-    private int typeStateAccessHook, engineRendererType1, engineRendererTypeOther;
+    private int typeStateAccessHook, bufferEosAccessHook, engineRendererType1, engineRendererTypeOther;
     private int engineType1State2, engineType1StateOther, engineTypeStateUnavailable;
     private int engineAudioState2Minus4, engineAudioState2Minus5;
     private int engineAudioState2Minus3, engineAudioState2Other;
+    // NAV25: the original RF2 buffer's inherited EOS flag, never payload.
+    // Non-EOS is a read-buffer witness only, NOT audible PCM or track identity.
+    private int engineAudioState2BufferNonEos, engineAudioState2BufferEos;
+    private int engineAudioState2BufferUnavailable;
     private int secondaryCallerEnters, secondaryCallerStreamMatches, secondaryCallerStreamDiffers;
     private int unscopedSecondaryMatches, unscopedOutsideSecondary, unscopedSecondaryDiffers;
     private int scopeEnters, pairedAttaches, unknownAttaches, attachConflicts;
@@ -187,6 +191,7 @@ final class NativeRendererStreamEvidence {
             case "SECONDARY_CALLER": secondaryCallerHook=status; break;
             case "ENGINE_HOLDER_SCOPE": engineScopeHook=status; break;
             case "RENDERER_TYPE_STATE_ACCESS": typeStateAccessHook=status; break;
+            case "BUFFER_EOS_ACCESS": bufferEosAccessHook=status; break;
             default: throw new IllegalArgumentException("Unrecognized hook kind");
         }
     }
@@ -391,6 +396,11 @@ final class NativeRendererStreamEvidence {
      */
     synchronized void onRendererTypeStateRead(Object renderer,Object stream,
             int trackType,int state,int originalResult) {
+        onRendererTypeStateRead(renderer,stream,trackType,state,originalResult,null);
+    }
+
+    synchronized void onRendererTypeStateRead(Object renderer,Object stream,
+            int trackType,int state,int originalResult,Boolean endOfStream) {
         if(poisoned || typeStateAccessHook<=0 || renderer==null || stream==null)return;
         boolean matched=false;
         for(Link link:engineHolderLinks) {
@@ -427,6 +437,13 @@ final class NativeRendererStreamEvidence {
             return;
         }
         engineType1State2=inc(engineType1State2);
+        if(originalResult==-4) {
+            // Only the original buffer flag, after a strict same-reference
+            // started audio renderer+holder+stream match. Null means unreadable.
+            if(endOfStream==null)engineAudioState2BufferUnavailable=inc(engineAudioState2BufferUnavailable);
+            else if(endOfStream.booleanValue())engineAudioState2BufferEos=inc(engineAudioState2BufferEos);
+            else engineAudioState2BufferNonEos=inc(engineAudioState2BufferNonEos);
+        }
         switch(originalResult) {
             case -4:engineAudioState2Minus4=inc(engineAudioState2Minus4);break;
             case -5:engineAudioState2Minus5=inc(engineAudioState2Minus5);break;
@@ -481,6 +498,7 @@ final class NativeRendererStreamEvidence {
             registrationLine("SECONDARY_CALLER",secondaryCallerHook),
             registrationLine("ENGINE_HOLDER_SCOPE",engineScopeHook),
             registrationLine("RENDERER_TYPE_STATE_ACCESS",typeStateAccessHook),
+            registrationLine("BUFFER_EOS_ACCESS",bufferEosAccessHook),
             line("QUEUE_SCOPE_ENTER",scopeEnters),
             line("SECONDARY_CALLER_ENTER",secondaryCallerEnters),
             line("ENGINE_HOLDER_SCOPE_ENTER",engineEnters),
@@ -500,6 +518,9 @@ final class NativeRendererStreamEvidence {
             line("ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS5",engineAudioState2Minus5),
             line("ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS3",engineAudioState2Minus3),
             line("ENGINE_AUDIO_TYPE1_STATE2_RETURN_OTHER",engineAudioState2Other),
+            line("ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS",engineAudioState2BufferNonEos),
+            line("ENGINE_AUDIO_TYPE1_STATE2_BUFFER_EOS",engineAudioState2BufferEos),
+            line("ENGINE_AUDIO_TYPE1_STATE2_BUFFER_UNAVAILABLE",engineAudioState2BufferUnavailable),
             line("SECONDARY_CALLER_STREAM_MATCH",secondaryCallerStreamMatches),
             line("SECONDARY_CALLER_STREAM_DIFFERENT",secondaryCallerStreamDiffers),
             line("UNSCOPED_ATTACH_SECONDARY_MATCH",unscopedSecondaryMatches),
