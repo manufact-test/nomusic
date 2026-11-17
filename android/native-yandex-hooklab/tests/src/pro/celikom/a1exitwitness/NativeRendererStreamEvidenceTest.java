@@ -420,6 +420,105 @@ public final class NativeRendererStreamEvidenceTest {
               "OLD_SECONDARY_UNSCOPED_PATH_PRESERVED");
     }
 
+    private static void makeBoundEngineLink(NativeRendererStreamEvidence e,
+            Object renderer,Object stream) {
+        NativeRendererStreamEvidence.EngineFrame frame=
+            e.enterEngine(new FakePeriodHolder(stream));
+        NativeRendererStreamEvidence.CallerFrame caller=
+            e.enterSecondaryCaller(renderer,stream);
+        try { e.onAttach(renderer,stream); }
+        finally { e.exitSecondaryCaller(caller); e.exitEngine(frame); }
+    }
+
+    private static void testAudioType1State2StrictHolderRead() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object renderer=new Object(),stream=new Object();
+        makeBoundEngineLink(e,renderer,stream);
+        e.onReadReturn(renderer,stream,-4);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=RENDERER_TYPE_STATE_ACCESS;error=REGISTERED"),
+              "TYPE_STATE_METHODS_REGISTERED");
+        check(contains(snap,"origin=ENGINE_HOLDER_RENDERER_TYPE1;error=ONE"),
+              "ONLY_REFERENCED_AUDIO_KIND");
+        check(contains(snap,"origin=ENGINE_HOLDER_TYPE1_STATE2;error=ONE"),
+              "TYPE1_AND_STATE2_LIVE_READ");
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4;error=ONE"),
+              "EXACT_ORIGINAL_AUDIO_RETURN");
+        check(contains(snap,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "AUDIO_STATE_IS_NOT_AUDIBLE_CELIKOM");
+    }
+
+    private static void testAudioType2CannotMasqueradeAsAudio() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object r=new Object(),stream=new Object();
+        makeBoundEngineLink(e,r,stream);
+        e.onRendererTypeStateRead(r,stream,2,2,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=ENGINE_HOLDER_RENDERER_TYPE_OTHER;error=ONE"),
+            "TYPE2_DIFFERENT_FROM_AUDIO");
+        check(contains(snap,"origin=ENGINE_HOLDER_TYPE1_STATE2;error=NONE"),
+            "OTHER_KIND_NOT_PROMOTED");
+    }
+
+    private static void testAudioType1State1IsNotStartedState() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object r=new Object(),stream=new Object();
+        makeBoundEngineLink(e,r,stream);
+        e.onRendererTypeStateRead(r,stream,1,1,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=ENGINE_HOLDER_TYPE1_STATE_NOT2;error=ONE"),
+            "TYPE1_STATE_NOT2");
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4;error=NONE"),
+            "PREPARED_NOT_STARTED");
+    }
+
+    private static void testAudioTypeStateWrongStreamAndDetachFailClosed() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object r=new Object(),stream=new Object();
+        makeBoundEngineLink(e,r,stream);
+        e.onRendererTypeStateRead(r,new Object(),1,2,-4);
+        e.onDetach(r);
+        e.onRendererTypeStateRead(r,stream,1,2,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=ENGINE_HOLDER_TYPE1_STATE2;error=NONE"),
+            "STALE_RENDERER_NEVER_PROVES_AUDIO");
+    }
+
+    private static void testAudioTypeStateAbsentReflectionNotFalselyCounted() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",false);
+        Object r=new Object(),stream=new Object();
+        makeBoundEngineLink(e,r,stream);
+        e.onRendererTypeStateRead(r,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=ENGINE_HOLDER_TYPE1_STATE2;error=NONE"),
+            "NO_METHODS_NO_AUDIO_PROOF");
+    }
+
+    private static void testAudioTypeStateExceptionCountsUnavailableOnly() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object r=new Object(),stream=new Object();
+        makeBoundEngineLink(e,r,stream);
+        e.onRendererTypeStateUnavailable(r,stream);
+        e.onRendererTypeStateUnavailable(r,new Object());
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=ENGINE_HOLDER_TYPE_STATE_UNAVAILABLE;error=ONE"),
+            "EXCEPTION_ONLY_ON_STRICT_ENGINE_LINK");
+        check(contains(snap,"origin=ENGINE_HOLDER_TYPE1_STATE2;error=NONE"),
+            "EXCEPTION_CANNOT_ATTEST_STARTED_AUDIO");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -442,6 +541,12 @@ public final class NativeRendererStreamEvidenceTest {
         testEngineLinkRevokedOnDetachAndReattach();
         testEngineArrayUnavailableFailsClosed();
         testEngineFrameLifetimeDoesNotLeak();
+        testAudioType1State2StrictHolderRead();
+        testAudioType2CannotMasqueradeAsAudio();
+        testAudioType1State1IsNotStartedState();
+        testAudioTypeStateWrongStreamAndDetachFailClosed();
+        testAudioTypeStateAbsentReflectionNotFalselyCounted();
+        testAudioTypeStateExceptionCountsUnavailableOnly();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
