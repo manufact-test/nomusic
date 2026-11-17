@@ -24,7 +24,18 @@ Legacy queue-scoped/weak `b.g` read-return counters remain unchanged. `IDENTITY_
 
 ## Changes and verification
 
-Single working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Pre-change exact backup `backup/android-a1-nav21-owner-accepted-original-before-nav22-caller-witness-20261117` @ `c728f2e8c069ac2d360aa28fedc45af9e5164379`. NAV21 signed Library APK untouched. Five Java regression cases cover weak secondary path, coexistence with valid queue scope, hook-active-only outside counter, mismatched stream rejection, and caller-frame unwind. JVM observer CI #44174039648 SUCCESS; independent earlier #44173881716 SUCCESS. New one-time private ARM13 owner export workflow `.github/workflows/android-a1-nav22-exact-second-attach-caller-diagnostic-export-once.yml` at source HEAD `50078f012a57b7fc13060c3205f2757b4a2894a7`, run #44174172281 in progress at document creation; **do not claim signed APK/Library until this finishes successfully and actual bytes verified**.
+Single working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Pre-change exact backup `backup/android-a1-nav21-owner-accepted-original-before-nav22-caller-witness-20261117` @ `c728f2e8c069ac2d360aa28fedc45af9e5164379`. NAV21 signed Library APK untouched. Five Java regression cases cover weak secondary path, coexistence with valid queue scope, hook-active-only outside counter, mismatched stream rejection, and caller-frame unwind. JVM observer CI #44174039648 SUCCESS; independent earlier #44173881716 SUCCESS. New one-time private ARM13 owner export workflow `.github/workflows/android-a1-nav22-exact-second-attach-caller-diagnostic-export-once.yml` at source HEAD `50078f012a57b7fc13060c3205f2757b4a2894a7`, run #44174172281 **SUCCESS**. Full native publisher-first Android13/ARM13 no-suppression 75-second gate passed; persistent owner signer independently verified by that CI as `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, matching NAV17–NAV21. Owner in-place update, fresh install disabled.
+
+### Verified signed NAV22 owner APK
+
+- Source code/owner binary CI source commit: `50078f012a57b7fc13060c3205f2757b4a2894a7` (later documentation-only changes do not change APK).
+- Owner signed APK: **71,471,084 bytes**, SHA-256 `06e7dd168f82db2052d8421a050c5d2bf22f12ff250918d4bd943e7b1cdebf86`.
+- Original embedded publisher-signed `assets/lspatch/origin.apk`: SHA-256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` (unchanged from NAV17–NAV21).
+- Uploaded **only into personal ChatGPT Library**, then listed and re-downloaded; original signed output and library file compared byte-for-byte: **LIBRARY_NAV22_BYTES_IDENTICAL**.
+- Library: `/CELIKOM/Android/Native/CELIKOM-A1-NAV22-Secondary-Attach-Caller-ReadOnly-20261117.apk`, plus `CELIKOM-A1-NAV22-Инструкция.txt`.
+- Protected signed code: `backup/android-a1-nav22-second-caller-signed-code-ci-green-20261117`.
+- NAV21 and older accepted APKs remain untouched in the same Library.
+- **Not tested on the owner's real phone yet.** CI proves signing/build/isolated smoke test, not selected-audio playback or CELIKOM substitution.
 
 ## Test and gates
 
