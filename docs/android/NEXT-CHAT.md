@@ -1,3 +1,13 @@
+# CURRENT — NAV21 OWNER PHONE TXT ANALYZED (17 NOV 2026)
+
+**Latest evidence supersedes the older 'await NAV21 TXT' handoff below.** The user supplied private NAV21 owner diagnostic `CELIKOM-A1-Diagnostics-1794944332422.txt`. Start with [NAV21 ACTUAL OWNER PHONE RESULT](ANDROID-A1-NAV21-OWNER-REALPHONE-TXT-RESULT-20261117.md) BEFORE older handoff docs. Do **not** upload private TXT to GitHub.
+
+**Key new facts:** confirmed NAV21 active marker; all four hooks REGISTERED; `QUEUE_SCOPE_ENTER=NONE`, `QUEUED_HOLDER_ATTACHED=NONE`, all `QUEUE_SCOPED_READ_RETURN_*=NONE`. The real renderer/stream weak `UNSCOPED_READ_RETURN_MINUS4=MANY`, `MINUS5=FEW`, `MINUS3=ONE`; no reference conflicts, `READ_RETURN_LINK_LOST=NONE`. NAV20 had `QUEUE_SCOPE_ENTER=MANY`, `QUEUED_HOLDER_ATTACHED=ONE`, `ATTACHED_STREAM_READ_MATCH=FEW`. NAV21 queue observer itself has NOT changed from NAV20: cannot infer a code regression from one differing session. Fresh MAIN-process `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/MANY` (not just rotated old log); no confirmed Java crash or owner listening report. Stage B is **NOT_CONNECTED / NO-GO**.
+
+**Next justified step:** owner reuses existing NAV21 (no new APK) to run a controlled original song → Next → pause/seek → optional My Wave sequence, exports new TXT before process exits, and reports original audio/restarts. If queue scope stays NONE despite that sequence, a precisely bounded read-only exact-2025 attach-caller discriminator may be warranted. No new APK, architecture change, sound substitution, data reset or private TXT upload now. Prior signed code `def5f4ff` and verified Library APK remain unchanged.
+
+---
+
 # CURRENT — NAV21 FROZEN; NEXT CHAT RECEIVES OWNER TXT (17 NOV 2026)
 
 **This is the authoritative starting point, no additional build or code work required now.** The owner requested a saved checkpoint and will provide the new **NAV21 on-device TXT directly to the NEXT chat**. NAV21 TXT has **NOT** been received or analyzed in this chat. Do not claim it has. Older NAV18/NAV19/NAV20 wait notes below are archived.
