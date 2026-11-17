@@ -440,7 +440,8 @@ final class NativeRendererStreamEvidence {
         if(originalResult==-4) {
             // Only the original buffer flag, after a strict same-reference
             // started audio renderer+holder+stream match. Null means unreadable.
-            if(endOfStream==null)engineAudioState2BufferUnavailable=inc(engineAudioState2BufferUnavailable);
+            if(bufferEosAccessHook<=0 || endOfStream==null)
+                engineAudioState2BufferUnavailable=inc(engineAudioState2BufferUnavailable);
             else if(endOfStream.booleanValue())engineAudioState2BufferEos=inc(engineAudioState2BufferEos);
             else engineAudioState2BufferNonEos=inc(engineAudioState2BufferNonEos);
         }
