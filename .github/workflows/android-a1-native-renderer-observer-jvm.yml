@@ -5,6 +5,7 @@ on:
     paths:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
       - '.github/workflows/android-a1-native-renderer-observer-jvm.yml'
 permissions:
   contents: read
@@ -51,6 +52,13 @@ jobs:
           assert 'strongMinus4=inc(strongMinus4)' in model
           assert 'weakMinus4=inc(weakMinus4)' in model
           assert 'READ_RETURN_LINK_LOST' in model
+          assert 'SECONDARY_CALLER_STREAM_MATCH' in model
+          assert 'UNSCOPED_ATTACH_SECONDARY_MATCH' in model
+          assert 'enterSecondaryCaller(' in src
+          assert 'exitSecondaryCaller(' in src
+          assert 'Class.forName("lQ8",false,loader)' in src
+          assert 'rendererBase.getDeclaredMethod("super"' in src
+          assert 'NAV_V22_EXACT_SECONDARY_ATTACH_CALLER_READONLY' in src
 
           assert 'private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";' in src
           print('NAV17_EXACT_RENDERER_OBSERVER_SCOPE_PASS')
