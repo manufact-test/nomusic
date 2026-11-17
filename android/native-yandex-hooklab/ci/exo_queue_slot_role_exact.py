@@ -470,9 +470,50 @@ def scoped_front_to_renderer_helper(engine_entry, slots):
         "same_selected_period_to_decoder_proven":False,
     }
 
+
+STREAM_CLASS_BOUNDARY=frozenset({
+    "LR29;","Landroidx/media3/exoplayer/k;","Landroidx/media3/exoplayer/l;",
+})
+STREAM_METHOD_BOUNDARY=frozenset({
+    ("Landroidx/media3/exoplayer/k;","while","()LR29;"),
+    ("Landroidx/media3/exoplayer/l;","while","()LR29;"),
+})
+def inspect_exact_renderer_stream_contract(stream_methods,stream_classes):
+    """Exact typed renderer attached-stream getter / stream type declaration.
+    This does not examine decoder byte payloads or broad renderer descendants."""
+    rows=[]
+    for method,(dex,flags,off) in sorted(stream_methods.items()):
+        if method[0] not in STREAM_CLASS_BOUNDARY:continue
+        if method[0]!="LR29;" and method not in STREAM_METHOD_BOUNDARY:continue
+        row={"owner":method[0],"method":method[1],"signature":method[2],
+             "abstract_or_native":bool(flags & (0x400|0x100)),
+             "has_code":bool(off)}
+        if off:
+            insns=list(audit.instructions(dex,off))
+            if len(insns)>170:raise ValueError("QUEUE_STREAM_METHOD_LIMIT")
+            row["body_instructions"]=len(insns)
+            row["typed_stream_field_reads"]=[]
+            for pc,op,words in insns:
+                if op in (0x54,0x5b):
+                    owner,_private,typ=audit.field_id(dex,words[1])
+                    if typ=="LR29;":
+                        row["typed_stream_field_reads"].append({
+                            "pc":pc,"field_owner":owner,"op":op})
+        rows.append(row)
+        if len(rows)>35:raise ValueError("QUEUE_STREAM_DECLARED_METHOD_COUNT_LIMIT")
+    if "Landroidx/media3/exoplayer/k;" not in stream_classes or "LR29;" not in stream_classes:
+        raise ValueError("QUEUE_STREAM_EXACT_CLASSES_NOT_DEFINED")
+    if not any(x["owner"]=="Landroidx/media3/exoplayer/k;" and
+               x["method"]=="while" and x["signature"]=="()LR29;" for x in rows):
+        raise ValueError("QUEUE_RENDERER_STREAM_GETTER_NOT_DECLARED")
+    return {"stream_and_renderer_classes":stream_classes,
+            "exact_bounded_stream_method_contracts":rows,
+            "stream_attached_to_live_decoder_proven":False}
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
+    stream_classes={}
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -482,8 +523,16 @@ def scan_signed(apks):
                     raise ValueError("QUEUE_SIGNED_DEX_LIMIT")
                 dex = audit.Dex(archive.read(entry.filename))
                 dex_count += 1
+                for index in range(dex.class_count):
+                    cbase=dex.class_offset+index*32
+                    name=dex.descriptor(dex.u32(cbase))
+                    if name not in STREAM_CLASS_BOUNDARY:continue
+                    if name in stream_classes:raise ValueError("QUEUE_STREAM_CLASS_DUPLICATE")
+                    parent_idx=dex.u32(cbase+8)
+                    parent=(dex.descriptor(parent_idx) if parent_idx!=0xffffffff else None)
+                    stream_classes[name]={"extends":parent,"access_flags":dex.u32(cbase+4)}
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS:
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY:
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
@@ -543,6 +592,8 @@ def scan_signed(apks):
         microtraces[method[0]+method[1]+method[2]]=trace
     native_engine_renderer_boundary=renderer_holder_argument_witness(
         targets[ENGINE],slot_ids)
+    renderer_stream_contract=inspect_exact_renderer_stream_contract(
+        targets,stream_classes)
     renderer_helper_inspection=inspect_exact_renderer_helpers(targets)
     exact_renderer_stream_comparisons=[
         verify_renderer_attached_stream_comparator(method,targets[method])
@@ -553,6 +604,7 @@ def scan_signed(apks):
     renderer_helper_flow=scoped_front_to_renderer_helper(
         targets[ENGINE],slot_ids)
     return {
+        "exact_renderer_stream_contract":renderer_stream_contract,
         "exact_renderer_stream_comparisons":exact_renderer_stream_comparisons,
         "exact_renderer_helper_inspection":renderer_helper_inspection,
         "exact_queue_front_successor":front_successor,
