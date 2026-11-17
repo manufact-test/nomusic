@@ -19,6 +19,7 @@ audit=trusted.audit
 SOURCE="LSl6;"
 PERIOD="Lo96;"
 TARGET=("Lp96;","transient","(LSl6$b;LrH2;J)Lo96;")
+BASE_CTOR=("LuIb;","<init>","(LSl6;)V")
 SOURCE_ATTACH=("LWT1;","strictfp","(Ljava/lang/Object;LSl6;)V")
 MAX_CALLS=96
 MAX_SITE=32
@@ -29,8 +30,47 @@ def period_target(method):
     return method == TARGET
 
 
+def period_identity_witness(events,unique_allocation,unique_constructor,
+                           return_opcodes,exact_same_source_field):
+    """Require the *same* LuIb source field and exact Lo96 new object on ALL returns."""
+    reads=[
+        e for e in events if e.get("kind")=="FIELD_READ_TYPED_IDENTITY"
+        and e.get("field_declaring_owner")=="LuIb;"
+        and e.get("identity_type")=="ORIGINAL_MEDIA_SOURCE"
+        and e.get("receiver_is_this_on_all_paths") is True
+    ]
+    stores=[
+        e for e in events if e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
+        and e.get("destination_owner")=="Lo96;"
+        and e.get("identity_type")=="ORIGINAL_MEDIA_SOURCE"
+        and "ORIGINAL_MEDIA_SOURCE_FROM_THIS_FIELD" in e.get("origins",())
+    ]
+    returns=[
+        e for e in events if e.get("kind")=="RETURN_TYPED_IDENTITY"
+        and e.get("identity_type")=="MEDIA_PERIOD"
+        and "MEDIA_PERIOD_NEW_INSTANCE" in e.get("origins",())
+    ]
+    return {
+        "unique_Lo96_new_allocation":bool(unique_allocation),
+        "unique_Lo96_constructor_call":bool(unique_constructor),
+        "LuIb_same_exact_source_field_stored_and_read":bool(exact_same_source_field),
+        "LuIb_source_field_read_from_this":len(reads)==1,
+        "same_source_reference_stored_into_Lo96":len(stores)==1,
+        "all_period_returns_use_same_new_Lo96":bool(
+            return_opcodes>0 and len(returns)==return_opcodes
+        ),
+        "static_same_source_to_returned_MediaPeriod_proven":bool(
+            unique_allocation and unique_constructor and exact_same_source_field
+            and len(reads)==1 and len(stores)==1
+            and return_opcodes>0 and len(returns)==return_opcodes
+        ),
+        "runtime_active_period_or_decoder_proven":False,
+    }
+
+
 def inspect_signed(splits):
     found=None
+    base_ctor=None
     dexes=[]
     for apk in splits:
         with zipfile.ZipFile(apk) as archive:
@@ -44,8 +84,12 @@ def inspect_signed(splits):
                     if period_target(method):
                         if found:raise ValueError("LP96_PERIOD_DUPLICATE_METHOD")
                         found=(dex,flags,off)
+                    if method==BASE_CTOR:
+                        if base_ctor:raise ValueError("LP96_BASE_CTOR_DUPLICATE_METHOD")
+                        base_ctor=(dex,flags,off)
     if len(dexes)!=6:raise ValueError("LP96_PERIOD_EXPECTED_SIGNED_SIX_DEX")
     if not found or not found[2]:raise ValueError("LP96_PERIOD_EXACT_METHOD_NOT_FOUND")
+    if not base_ctor or not base_ctor[2]:raise ValueError("LP96_SOURCE_BASE_CTOR_MISSING")
     dex,flags,off=found
     callee_rows=[]
     field_reads=[]
@@ -64,6 +108,49 @@ def inspect_signed(splits):
             owner,_name,typ=audit.field_id(dex,words[1])
             if len(field_reads)>=MAX_FIELD:raise ValueError("LP96_PERIOD_FIELD_LIMIT")
             field_reads.append({"ordinal":ordinal,"owner":owner,"type":typ,"opcode":op})
+    # Compare the exact private DEX *field reference*, never its contents:
+    # the LSl6 field written by LuIb.<init> MUST be the one Lp96 reads.
+    base_dex,base_flags,base_off=base_ctor
+    base_stores=[]
+    for _pc,op,words in audit.instructions(base_dex,base_off):
+        if op!=0x5b:continue  # iput-object only
+        ref=audit.field_id(base_dex,words[1])
+        if ref[0]=="LuIb;" and ref[2]==SOURCE:
+            base_stores.append(ref)
+    period_reads=[]
+    for _pc,op,words in audit.instructions(dex,off):
+        if op!=0x54:continue  # iget-object only
+        ref=audit.field_id(dex,words[1])
+        if ref[0]=="LuIb;" and ref[2]==SOURCE:
+            period_reads.append(ref)
+    exactly_same_source_field=bool(
+        len(base_stores)==1 and len(period_reads)==1
+        and base_stores[0]==period_reads[0]
+    )
+    try:
+        base_flow=audit.trace_track_identity_method_cfg(
+            base_dex,BASE_CTOR,base_flags,base_off,
+            extra_identity_types={SOURCE:"ORIGINAL_MEDIA_SOURCE"})
+        base_written=any(
+            e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
+            and e.get("identity_type")=="ORIGINAL_MEDIA_SOURCE"
+            and e.get("destination_owner")=="LuIb;"
+            and e.get("receiver_is_this_on_all_paths") is True
+            and "ORIGINAL_MEDIA_SOURCE_PARAMETER" in e.get("origins",())
+            for e in base_flow.get("events",()))
+    except (ValueError,audit.DexError):
+        base_written=False
+    exactly_same_source_field=exactly_same_source_field and base_written
+    period_new_count=sum(
+        1 for _pc,op,words in audit.instructions(dex,off)
+        if op==0x22 and dex.descriptor(words[1])==PERIOD)
+    period_ctor_count=sum(
+        1 for _pc,op,words in audit.instructions(dex,off)
+        if op in audit.INVOKES and 0x6E<=op<=0x78
+        and dex.method(words[1])==(
+            PERIOD,"<init>","(LSl6$b;LrH2;J)V"))
+    period_return_opcodes=sum(
+        1 for _pc,op,words in audit.instructions(dex,off) if op==0x11)
     # Only exact direct callsites, no global MediaPeriod or renderer census.
     for other in dexes:
         for caller,_flags,code_off in audit.method_definitions_with_flags(other):
@@ -96,11 +183,17 @@ def inspect_signed(splits):
         cfg_complete=True
         cfg_states=trace.get("processed_state_count")
         trace_error=None
+        period_witness=period_identity_witness(
+            trace.get("events",()),period_new_count==1,
+            period_ctor_count==1,period_return_opcodes,exactly_same_source_field)
     except (ValueError,audit.DexError) as e:
         identity_events=[]
         cfg_complete=False
         cfg_states=None
         trace_error=type(e).__name__
+        period_witness=period_identity_witness(
+            [],period_new_count==1,period_ctor_count==1,
+            period_return_opcodes,False)
     # A return type or factory constructor is not a current audio decoder.
     return {
         "verdict":"LP96_EXACT_PERIOD_ENTRY_STATIC_CANDIDATE_NOT_ACTIVE_AUDIO",
@@ -109,6 +202,11 @@ def inspect_signed(splits):
         "method_invokes":callee_rows,
         "constructor_invokes":constructors,
         "field_type_operations":field_reads,
+        "base_ctor_exact_source_field_matches_period_read":exactly_same_source_field,
+        "period_new_count":period_new_count,
+        "period_ctor_count":period_ctor_count,
+        "period_return_opcodes":period_return_opcodes,
+        "strict_same_source_period_witness":period_witness,
         "exact_immediate_callers":related_callsites,
         "cfg_complete":cfg_complete,
         "cfg_states":cfg_states,
