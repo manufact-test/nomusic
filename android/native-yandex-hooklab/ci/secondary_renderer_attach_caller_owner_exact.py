@@ -196,6 +196,61 @@ def scan_exact(apks):
                 raise ValueError("SECONDARY_ENGINE_INVOKER_EVENTS_LIMIT")
         engine_sources.append({"caller":list(caller_method),"pc":call_pc,
                                "opcode":op,"args":args,"context":scope})
+    # An argument provenance trace is separate from raw callsite presence.
+    # Only the known engine e methods may be traced. Never return private
+    # fields, literal object values, account IDs, URLs or track metadata.
+    engine_caller_arg_provenance=[]
+    for caller_dex,caller_method,caller_flags,caller_offset,call_pc,op,args in engine_invokers:
+        if caller_method[0]!="Landroidx/media3/exoplayer/e;":
+            raise ValueError("SECONDARY_ENGINE_UNKNOWN_INVOKER_OWNER")
+        try:
+            trace=audit.trace_identity_method(
+                caller_dex,caller_method,caller_flags,caller_offset,
+                extra_identity_types=("Lxh6;","Landroidx/media3/exoplayer/h;"),
+                capture_argument_provenance_targets=frozenset((ENGINE_ENABLE,)),
+                track_fields_from_any_receiver=True)
+            rows=[]
+            all_pc_insns={pc:(insop,words) for pc,insop,words in audit.instructions(caller_dex,caller_offset)}
+            for event in trace.get("events",()):
+                if event.get("kind")!="CALL_ARGUMENT_PROVENANCE" or event.get("ordinal")!=call_pc:
+                    continue
+                dest=event.get("callee") or {}
+                if (dest.get("owner"),dest.get("method"),dest.get("signature"))!=ENGINE_ENABLE:
+                    continue
+                for arg in event.get("reference_arguments",()):
+                    if arg.get("declared_argument_type")!="Lxh6;":continue
+                    producer=arg.get("producer")
+                    ppc=producer.get("ordinal") if isinstance(producer,dict) else None
+                    ptype=producer.get("kind") if isinstance(producer,dict) else "UNKNOWN"
+                    source=all_pc_insns.get(ppc)
+                    exact_queue_field=False
+                    typed_queue_field=False
+                    if source is not None and source[0]==0x54:
+                        owner,_private_name,typ=audit.field_id(caller_dex,source[1][1])
+                        typed_queue_field=(owner=="Landroidx/media3/exoplayer/h;" and typ=="Lxh6;")
+                        # Signed existing e.break PC 547 is established SLOT_B
+                        if typed_queue_field and caller_method==(
+                                "Landroidx/media3/exoplayer/e;","break","()V"):
+                            queue_pc=all_pc_insns.get(547)
+                            if queue_pc and queue_pc[0]==0x54:
+                                exact_queue_field=(audit.field_id(caller_dex,source[1][1])
+                                    ==audit.field_id(caller_dex,queue_pc[1][1]))
+                    rows.append({
+                        "arg_position":arg.get("argument_position"),
+                        "producer_kind":ptype,
+                        "producer_pc":ppc,
+                        "typed_queue_field_origin":typed_queue_field,
+                        "exact_same_slot_b_as_existing_renderer_comparator":exact_queue_field,
+                        "identity_origin_categories":[str(x.get("identity_type"))
+                              for x in arg.get("identity_origins",())][:6]
+                    })
+            engine_caller_arg_provenance.append({
+                "caller":list(caller_method),"pc":call_pc,
+                "trace_complete":True,"holder_argument_origins":rows})
+        except (audit.DexError,ValueError,TypeError):
+            engine_caller_arg_provenance.append({
+                "caller":list(caller_method),"pc":call_pc,
+                "trace_complete":False,"holder_argument_origins":[]})
     return {
         "verdict":"NAV22_CONFIRMED_SECONDARY_STATIC_CALLERS_ONLY",
         "exact_method":list(SECONDARY),
@@ -212,6 +267,7 @@ def scan_exact(apks):
         "exact_engine_caller":list(ENGINE_ENABLE),
         "engine_enable_direct_invoker_count":len(engine_sources),
         "engine_enable_direct_invokers":engine_sources,
+        "engine_enable_holder_argument_provenance":engine_caller_arg_provenance,
         "exact_engine_holder_input_register":e_holder_reg,
         "exact_engine_instruction_count":len(e_insns),
         "exact_engine_to_renderer_enable_invokes":e_calls,
