@@ -19,26 +19,6 @@ New audit: `android/native-yandex-hooklab/ci/renderer_attached_stream_owner_exac
 
 **Important version-safety warning:** `android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/HookSpec.java` explicitly pins **2026.10.3 #170gpr**, not the current tested NAV17 original **2025.10.4 #120.1gpr**. Never reuse its obfuscated method/class assumptions in the new 2025 path. No hook or APK changed in this work.
 
-## Interpretation and next proof gate
-
-Known exact static chain is now:
-
-`TrackWrapper → LiLb → Player → Lo96 → Lup1 → (child LR29) → Lup1$a → Lxh6.[LR29 → LmQ8.try/new reference equality with k.while() → inherited b.while() → exact b.attached-LR29 field`
-
-And the **same exact native renderer attached field** is written by `b.package` from its incoming stream parameter, and cleared by `b.case`. The **unresolved** part is the exact caller and live event that attaches `Lup1$a` to that *same active renderer*, then which stream is currently consumed by the actual native decoder with selected Track/album/edition/duration/queue generation. A prepared queue holder, method call or field write alone is **not** a currently audible proof.
-
-Scope next work only to exact `b.package`/interface k attachment dispatch and previous known `LmQ8.try/new` comparator, not all renderer APIs. A privacy-safe live witness at this specific event may be justified **after** static owner/caller is pinned and a new backup is saved. Log only non-identifying counters/boolean matches/queue-generation transitions, NEVER actual object values, metadata, URLs, tokens, field names, or audio. No second Player/decoder/AudioTrack, no replacement attempt or new APK before precise read-only observer is justified.
-
-### Safety checkpoints
-
-- Previous canonical code: `a63a900b16af8a998fc78dde4b111741bbf8390a`, backup `backup/android-a1-verified-stream-adapter-cfg-final-ci-green-20261117`.
-- Original before-work backup: `backup/android-a1-pre-concrete-renderer-stream-audit-20261117` @ `98799bba2e94ba3283850357100bbdc713b8521c`.
-- Concrete getter PASS backup: `backup/android-a1-renderer-concrete-getter-ci-green-20261117` @ `730e282b42661eab530b2050274bdca66e82213b`.
-- Same-field writer PASS backup: `backup/android-a1-concrete-renderer-attached-stream-writes-ci-green-20261117` @ `e7b59f5166ffe7e4629bce7b10c76d4328a09d9d`.
-- Native attach parameter PASS backup: `backup/android-a1-exact-renderer-stream-attachment-ci-green-20261117` @ `60fecaa2bcb7c34358a05342a3483cdab5d07062`.
-- All changes **Python read-only static audit/fixture/CI/docs only**. Last runtime hooks `a655712d210189f3bc611847235de3ed4d985c1a`; no new APK, original Yandex, NAV17, Test.50, production, Windows, extension, API or database changes.
-
-
 ## Newly closed exact native queue → renderer attachment → sample read path (same signed original)
 
 The previous "caller unknown" gate has now been resolved by *several successive read-only signed CI runs*:
