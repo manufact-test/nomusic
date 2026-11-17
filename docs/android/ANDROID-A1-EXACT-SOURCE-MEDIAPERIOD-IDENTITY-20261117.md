@@ -9,7 +9,7 @@ The previous bounded, successful source-to-Player and playlist-holder audits are
 - [ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md](ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md) — exact `LcA9(...LtCa...) → LiLb → LA14.e → ExoPlayer.e` same-object source setter.
 - [ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md](ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md) — `ExoPlayer.d.e → singletonList → d.T0 → d.A0 → i$c → Lp96 → LuIb` same source retention.
 
-**New exact [MediaPeriod CI #3 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44077450137)**, script `android/native-yandex-hooklab/ci/lp96_media_period_entry_exact.py`, 16 original publisher-signed Yandex Music 2025.10.4 #120.1gpr splits / six DEX; four fail-closed unit fixtures (including all-return, wrong-field and duplicate-allocation negatives).
+**New exact [MediaPeriod CI #3 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44077450137)**, script `android/native-yandex-hooklab/ci/lp96_media_period_entry_exact.py`, 16 original publisher-signed Yandex Music 2025.10.4 #120.1gpr splits / six DEX; focused fail-closed unit tests (including all-return, wrong-field and duplicate-allocation negative cases).
 
 1. `LuIb.<init>(LSl6;)V` stores the **exact incoming original MediaSource reference** on `this`, in an `LSl6`-typed field. Previously checked in signed A0/source-holder CI.
 2. The exact `Lp96.transient(LSl6$b;LrH2;J)Lo96;` **reads the same DEX field reference**, not merely a field of a similar type. The static audit compares the full original DEX field reference from `LuIb` constructor write to `Lp96` read, but **does not export its name or any field value**.
