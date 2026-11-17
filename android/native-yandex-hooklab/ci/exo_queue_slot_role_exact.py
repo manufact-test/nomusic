@@ -218,6 +218,104 @@ def exact_renderer_stream_register_map(dex, insns):
         if len(out)>100:raise ValueError("QUEUE_HELPER_REGISTER_ROW_LIMIT")
     return out
 
+
+RENDER_STREAM_TYPE="LR29;"
+RENDER_STREAM_ARRAY="[LR29;"
+RENDER_GET_STREAM=("Landroidx/media3/exoplayer/k;","while","()LR29;")
+
+def verify_renderer_attached_stream_comparator(method, entry):
+    """Fail-closed exact bytecode equality-operand witness on one named helper.
+    It shows a renderer's attached-stream accessor is *compared with* a
+    holder-owned stream-array element. It does NOT claim equality at runtime.
+    """
+    dex,flags,off=entry
+    by_pc={pc:(op,words) for pc,op,words in audit.instructions(dex,off)}
+    if method[1]=="try":
+        field_pc=4
+        holder_read_pc=8
+        renderer_caller_pcs=(10,16)
+        renderer_result_pcs=(13,19)
+        equality_pc=20
+        renderer_register=3
+        holder_stream_register=1
+        second=(66,70,72,74,77,78)
+    else:
+        field_pc=2
+        holder_read_pc=17
+        renderer_caller_pcs=(13,)
+        renderer_result_pcs=(16,)
+        equality_pc=19
+        renderer_register=2
+        holder_stream_register=3
+        second=(26,29,30,32)
+    if not all(pc in by_pc for pc in (field_pc,holder_read_pc,equality_pc,
+                            *renderer_caller_pcs,*renderer_result_pcs,*second)):
+        raise ValueError("QUEUE_RENDER_STREAM_COMPARATOR_PCS_MISSING")
+    fieldop,fieldwords=by_pc[field_pc]
+    if fieldop!=0x54:
+        raise ValueError("QUEUE_RENDER_STREAM_HOLDER_FIELD_OPCODE_MISMATCH")
+    field_ref=audit.field_id(dex,fieldwords[1])
+    if field_ref[0]!=HOLDER or field_ref[2]!=RENDER_STREAM_ARRAY:
+        raise ValueError("QUEUE_RENDER_STREAM_HOLDER_ARRAY_MISMATCH")
+    array_register=(fieldwords[0]>>8)&15
+    aro,arwords=by_pc[holder_read_pc]
+    if aro!=0x46 or ((arwords[0]>>8)&255)!=holder_stream_register:
+        raise ValueError("QUEUE_RENDER_STREAM_ARRAY_READ_MISMATCH")
+    # In try, the element overwrites its own array register. In new,
+    # field array remains in v5 for both comparisons.
+    if (arwords[1]&255)!=array_register and method[1]=="new":
+        raise ValueError("QUEUE_RENDER_STREAM_ARRAY_ORIGIN_MISMATCH")
+    for callerpc,resultpc in zip(renderer_caller_pcs,renderer_result_pcs):
+        op,words=by_pc[callerpc]
+        if op not in audit.INVOKES or dex.method(words[1])!=RENDER_GET_STREAM:
+            raise ValueError("QUEUE_RENDER_EXACT_STREAM_GETTER_MISMATCH")
+        mover,resultwords=by_pc[resultpc]
+        if mover!=0x0c or resultwords[0]>>8!=renderer_register:
+            raise ValueError("QUEUE_RENDER_STREAM_MOVE_RESULT_REGISTER_MISMATCH")
+    test_op,testwords=by_pc[equality_pc]
+    if test_op!=0x33:
+        raise ValueError("QUEUE_RENDER_STREAM_REFERENCE_NE_MISSING")
+    actual={(testwords[0]>>8)&15,(testwords[0]>>12)&15}
+    if actual!={holder_stream_register,renderer_register}:
+        raise ValueError("QUEUE_RENDER_STREAM_IDENTITY_OPERAND_MISMATCH")
+    if method[1]=="try":
+        nextop,nextwords=by_pc[66]
+        arrayop,arraywords=by_pc[70]
+        getop,getwords=by_pc[72]
+        renderop,renderwords=by_pc[74]
+        moveop,movewords=by_pc[77]
+        cmpop,cmpwords=by_pc[78]
+        if not (nextop==arrayop==0x54 and
+                audit.field_id(dex,nextwords[1])[0:3][0]==HOLDER and
+                audit.field_id(dex,nextwords[1])[2]==HOLDER and
+                audit.field_id(dex,arraywords[1])==field_ref and
+                getop==0x46 and renderop in audit.INVOKES and
+                dex.method(renderwords[1])==RENDER_GET_STREAM and
+                moveop==0x0c and cmpop==0x33):
+            raise ValueError("QUEUE_RENDER_NEXT_HOLDER_STREAM_COMPARISON_MISMATCH")
+        if {((cmpwords[0]>>8)&15),((cmpwords[0]>>12)&15)}!={8,9}:
+            raise ValueError("QUEUE_RENDER_NEXT_HOLDER_OPERAND_MISMATCH")
+        second_proof=True
+    else:
+        op26,w26=by_pc[26];op29,w29=by_pc[29]
+        op30,w30=by_pc[30];op32,w32=by_pc[32]
+        if not (op26 in audit.INVOKES and dex.method(w26[1])==RENDER_GET_STREAM and
+                op29==0x0c and (w29[0]>>8)==2 and
+                op30==0x46 and (w30[1]&255)==array_register and
+                op32==0x33 and {(w32[0]>>8)&15,(w32[0]>>12)&15}=={2,5}):
+            raise ValueError("QUEUE_RENDER_ALT_STREAM_IDENTITY_OPERAND_MISMATCH")
+        second_proof=True
+    return {
+        "method":list(method),
+        "same_exact_Lxh6_stream_field_compared_with_renderer_k_get_stream":True,
+        "renderer_stream_type":RENDER_STREAM_TYPE,
+        "holder_stream_array_type":RENDER_STREAM_ARRAY,
+        "identity_inequality_branch_verified":True,
+        "secondary_comparison_uses_same_holder_stream_field":second_proof,
+        "current_runtime_equality_observed":False,
+        "current_live_decoder_input_confirmed":False,
+    }
+
 def inspect_exact_renderer_helpers(targets):
     """Inspect ONLY two exact LmQ8 methods called with native queue B.
     This is still structural evidence, not an audio decoder proof."""
@@ -446,11 +544,16 @@ def scan_signed(apks):
     native_engine_renderer_boundary=renderer_holder_argument_witness(
         targets[ENGINE],slot_ids)
     renderer_helper_inspection=inspect_exact_renderer_helpers(targets)
+    exact_renderer_stream_comparisons=[
+        verify_renderer_attached_stream_comparator(method,targets[method])
+        for method in sorted(RENDERER_HELPER_METHODS)
+    ]
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
     renderer_helper_flow=scoped_front_to_renderer_helper(
         targets[ENGINE],slot_ids)
     return {
+        "exact_renderer_stream_comparisons":exact_renderer_stream_comparisons,
         "exact_renderer_helper_inspection":renderer_helper_inspection,
         "exact_queue_front_successor":front_successor,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
