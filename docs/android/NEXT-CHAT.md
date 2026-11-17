@@ -1,4 +1,16 @@
-# CURRENT — NAV24 SIGNED, VERIFIED LIBRARY, OWNER PHONE TXT NEXT (18 NOV 2026)
+# CURRENT — NAV24 FINAL SAVED; OWNER WILL ATTACH NAV24 DIAGNOSTIC NEXT CHAT (18 NOV 2026)
+
+**Authoritative newest handoff:** [ANDROID-A1-NAV24-FINAL-OWNER-TXT-HANDOFF-20261118.md](ANDROID-A1-NAV24-FINAL-OWNER-TXT-HANDOFF-20261118.md). First action of the next chat is to inspect the **NEW owner NAV24 TXT attachment sent after the opening handoff message**. Do not re-request the analyzed NAV23 TXT, do not start fresh research or generate a speculative APK. The new NAV24 TXT is not available in this chat at the time of this checkpoint. The owner reports **normal original Yandex playback with NO pause/seek/Next bugs; CELIKOM audio replacement alone is missing**.
+
+**Only worktree:** `manufact-test/nomusic` `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. **Last signed NAV24 CODE commit** `230ad06e91b7b2fc8e77eedfb0686eff92caf228`. One-time Android13 ARM signed CI #44188930346 SUCCESS, JVM #44188648112 SUCCESS, exact signed static #44187962678 SUCCESS, queue SLOT_B signed CFG #44185115155 SUCCESS. The accepted owner NAV24 APK in **verified personal Library** is `/CELIKOM/Android/Native/CELIKOM-A1-NAV24-Audio-Renderer-Type1-State2-ReadOnly-20261118.apk` SHA-256 `b1cd871c76b9e514b212d67eab19314e23b73fb09ca5e7f24e3fd18b26eb74ac` (71,471,084 bytes); matching Library instruction `CELIKOM-A1-NAV24-Инструкция.txt`. Previous NAV23 remains intact. **No new APK has been built after this release.** Preserve accepted owner signer and publisher-signed original Yandex.
+
+**Strict NAV24 TXT decision gate:** current `DIAGNOSTIC_BUILD=NAV_V24_EXACT_AUDIO_TYPE1_STATE2_ENGINE_HOLDER_READONLY`; `RENDERER_TYPE_STATE_ACCESS`; holder-to-stream `ENGINE_HOLDER_STREAM_ARRAY_MATCH/DIFFERENT/UNAVAILABLE`; `ENGINE_HOLDER_RENDERER_TYPE1/OTHER`; `ENGINE_HOLDER_TYPE1_STATE2/NOT2/UNAVAILABLE`; `ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4/MINUS5/MINUS3/OTHER`; `READ_RETURN_LINK_LOST`; Stage B `CELIKOM_REPLACEMENT=NOT_CONNECTED`. Numeric 1/2 + read codes still do NOT prove currently audible selected song/album/edition or authorize actual substitution. Do not misread rotated historical summaries or AppMetrica exception constructors as crashes.
+
+**Recovery checkpoints:** `backup/android-a1-nav24-owner-signed-library-verified-final-20261118` @ `27e3c3f0b323d61f9b89b9b21de4c56b90c66886`; signed source `backup/android-a1-nav24-audio-type1-state2-owner-ci-green-20261118` @ `230ad06e91b7b2fc8e77eedfb0686eff92caf228`. A final *docs-only* handoff backup is created after updating this file. No code, original sound, or server changed for this final handoff. Owner will supply the NAV24 TXT in next chat; act on it immediately without asking for setup steps.
+
+---
+
+# ARCHIVED — NAV24 SIGNED, VERIFIED LIBRARY, OWNER PHONE TXT NEXT (18 NOV 2026)
 
 **Do not restart or change the Android architecture.** The owner confirms ordinary original native Yandex Music works normally, including pause/seek/Next. Only missing feature is CELIKOM alternative audio replacement. **No playback bugs were reported.** Same only working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112` in `manufact-test/nomusic`.
 
