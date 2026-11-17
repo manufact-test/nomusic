@@ -37,3 +37,9 @@ W20 internal unsigned owner build; no production deployment. Validate no build r
 - Artifacts `14320904994`; **personal ChatGPT Library `/CELIKOM/W169/`**, all three files uploaded and list-verified. For owner download use Library files, not an Actions artifact or sandbox link.
 - No production deployment, no signing, no main change, no extra intermediate installers.
 - Owner has not yet accepted 0.24.51 runtime. W169 exception containment eliminates particular crash-capable error paths but cannot establish the root cause of the reported spontaneous Yandex host restart. Verify after installing/upgrading native 0.24.32; if it recurs, do not call problem closed and correlate OS event logs.
+
+## Owner decision after runtime, 17 November 2026
+
+**Updated status: accepted as current working build / limited private beta 0.24.51, native 0.24.32**. Owner reports several hours of listening plus VPN switching with no observed spontaneous Yandex restart, no playback interruption and normal UI; he requests preserving the exact package and preparing his own clean reinstall and a friend's private test. This supersedes the earlier “owner has not yet accepted” status above. Documentation freeze is recorded in `docs/windows/CURRENT-WORKING-RELEASE.md`. Public signed production release is NOT approved; `release-gate.ps1 -Mode Release` remains blocked.
+
+New diagnostic export `2026-11-17T13:27:46Z` confirms 0.24.51.0/0.24.32 match and active native integration. Last 15 minutes sampled had no reported decoder error or Electron stall. Persistent history includes older, recovered route/network incidents and older unavailable process entries: these are not proof of a new W169 crash. User's observation is the acceptance basis; underlying cause of rare prior Yandex restart is not conclusively established.
