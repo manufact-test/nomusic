@@ -168,6 +168,125 @@ def renderer_holder_argument_witness(engine_entry, slots):
     return {"trace_complete":complete,"exact_holder_call_observations":events,
             "selected_rendering_period_from_this_observation_proven":False}
 
+
+RENDERER_HELPER = ("LmQ8;","try","(Lxh6;Landroidx/media3/exoplayer/k;)Z")
+
+def exact_queue_front_successor(h_entry, slots):
+    """Prove h.if advances one exact field via a typed holder successor.
+    This is queue-head motion, NOT proof of currently audible decoder."""
+    dex,flags,off=h_entry
+    by_pc={pc:(op,words) for pc,op,words in audit.instructions(dex,off)}
+    required=(49,51,53,58,60)
+    if not all(pc in by_pc for pc in required):
+        raise ValueError("QUEUE_FRONT_ADVANCE_PCS_MISSING")
+    a49,w49=by_pc[49]
+    a51,w51=by_pc[51]
+    a53,w53=by_pc[53]
+    a58,w58=by_pc[58]
+    a60,w60=by_pc[60]
+    if (a49,a51,a53,a58,a60)!=(0x54,0x54,0x5b,0x54,0x11):
+        raise ValueError("QUEUE_FRONT_ADVANCE_OPCODE_MISMATCH")
+    fields=[slot_field(dex,*by_pc[pc]) for pc in (49,53,58)]
+    if len(set(fields))!=1 or slots.get(fields[0])!="SLOT_A":
+        raise ValueError("QUEUE_FRONT_ADVANCE_EXACT_FIELD_MISMATCH")
+    owner,name,typ=audit.field_id(dex,w51[1])
+    if owner!=HOLDER or typ!=HOLDER:
+        raise ValueError("QUEUE_FRONT_ADVANCE_SUCCESSOR_FIELD_MISSING")
+    reg49=(w49[0]>>8)&15
+    child_receiver=(w51[0]>>12)&15
+    child_dest=(w51[0]>>8)&15
+    store_value=(w53[0]>>8)&15
+    returned_field_reg=(w58[0]>>8)&15
+    return_reg=w60[0]>>8
+    if not (reg49==child_receiver==child_dest==store_value==returned_field_reg==return_reg):
+        raise ValueError("QUEUE_FRONT_ADVANCE_ALIAS_MISMATCH")
+    if audit.field_id(dex,by_pc[10][1][1]) != audit.field_id(dex,w51[1]) or audit.field_id(dex,by_pc[18][1][1]) != audit.field_id(dex,w51[1]):
+        raise ValueError("QUEUE_FRONT_ADVANCE_CONDITIONAL_NEXT_FIELD_MISMATCH")
+    return {"exact_front_slot":"SLOT_A",
+            "old_front_to_exact_holder_successor_to_new_front":True,
+            "other_pointer_updates_use_same_holder_successor_field":True,
+            "new_front_returned":True,
+            "active_current_decoder_or_sound_proven":False}
+
+def scoped_front_to_renderer_helper(engine_entry, slots):
+    """CFG-safe alias of exact h.SLOT_B read into two already-anchored LmQ8 helper calls.
+    Tracks only <=80 PC units from one field read. Reject unknown alias effects.
+    No generic renderer/data/ByteBuffer scan."""
+    dex,flags,off=engine_entry
+    cfg=audit.build_dex_control_flow(dex,off)
+    by_pc=cfg["by_pc"]
+    successors=cfg["successors"]
+    start=547
+    end=605
+    source=by_pc.get(start)
+    if source is None or source[0]!=0x54 or slots.get(slot_field(dex,*source))!="SLOT_B":
+        raise ValueError("QUEUE_EXACT_RENDER_SOURCE_NOT_B")
+    source_reg=(source[1][0]>>8)&0xf
+    targets={590:RENDERER_HELPER,598:RENDERER_HELPER}
+    work=[(pc,frozenset((source_reg,))) for pc in successors.get(start,()) if start<pc<=end]
+    seen=set()
+    counts={pc:{"reaching":0,"identity_alias":0} for pc in targets}
+    unhandled=[]
+    max_states=1600
+    no_dest=(set((0x00,0x0e,0x0f,0x10,0x11,0x1d,0x1e,0x26,0x27)) |
+             set(range(0x28,0x2d)) |
+             set(range(0x32,0x3e)) |
+             set(range(0x4b,0x52)) |
+             set(range(0x59,0x60)) |
+             set(range(0x66,0x6e)))
+    while work:
+        pc, aliases=work.pop()
+        if (pc,aliases) in seen:continue
+        seen.add((pc,aliases))
+        if len(seen)>max_states:raise ValueError("QUEUE_RENDER_CFG_LIMIT")
+        item=by_pc.get(pc)
+        if item is None:
+            unhandled.append(pc);continue
+        op,words=item
+        next_alias=set(aliases)
+        if pc in targets:
+            callee=dex.method(words[1]) if op in audit.INVOKES and 0x6e<=op<=0x78 else None
+            if callee!=targets[pc]:
+                raise ValueError("QUEUE_RENDER_EXACT_CALLEE_MISMATCH")
+            regs=audit.invoke_registers(op,words)
+            if len(regs)<2:
+                raise ValueError("QUEUE_RENDER_INVOKE_SHAPE_MISMATCH")
+            counts[pc]["reaching"]+=1
+            if regs[1] in aliases:
+                counts[pc]["identity_alias"]+=1
+        if op in audit.INVOKES:
+            pass
+        elif op in (0x07,0x08,0x09):
+            dst,src=audit.move_object_registers(op,words)
+            next_alias.discard(dst)
+            if src in aliases:next_alias.add(dst)
+        elif op==0x1f:
+            pass
+        elif op==0x0c:
+            next_alias.discard(words[0]>>8)
+        elif op in no_dest:
+            pass
+        else:
+            written=audit.written_register(op,words)
+            if written is None:
+                unhandled.append(pc)
+                continue
+            next_alias.discard(written)
+        for nextpc in successors.get(pc,()):
+            if start<nextpc<=end:
+                work.append((nextpc,frozenset(next_alias)))
+    complete=not unhandled and all(x["reaching"] for x in counts.values())
+    return {
+        "source_slot":"SLOT_B","source_read_pc":start,
+        "renderer_helper_target_calls":[
+            {"pc":pc,**counts[pc],
+             "same_exact_slot_B_on_all_reaching_states":bool(complete and counts[pc]["reaching"]==counts[pc]["identity_alias"])}
+            for pc in sorted(counts)],
+        "cfg_scan_complete":complete,
+        "unmodeled_instruction_count":len(set(unhandled)),
+        "same_selected_period_to_decoder_proven":False,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -241,7 +360,13 @@ def scan_signed(apks):
         microtraces[method[0]+method[1]+method[2]]=trace
     native_engine_renderer_boundary=renderer_holder_argument_witness(
         targets[ENGINE],slot_ids)
+    front_successor=exact_queue_front_successor(
+        h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
+    renderer_helper_flow=scoped_front_to_renderer_helper(
+        targets[ENGINE],slot_ids)
     return {
+        "exact_queue_front_successor":front_successor,
+        "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,
         "bounded_queue_register_microtraces":microtraces,
         "verdict":"NATIVE_QUEUE_SLOT_ROLE_MAP_STATIC_ONLY",
