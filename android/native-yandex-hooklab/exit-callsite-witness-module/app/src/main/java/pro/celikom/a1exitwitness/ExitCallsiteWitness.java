@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V24_EXACT_AUDIO_TYPE1_STATE2_ENGINE_HOLDER_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V25_EXACT_AUDIO_TYPE1_STATE2_BUFFER_EOS_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2649,6 +2649,20 @@ public final class ExitCallsiteWitness extends XposedModule {
                 } catch (Throwable ignored) { }
                 final Method audioTypeGetter=resolvedType;
                 final Method rendererStateGetter=resolvedState;
+                // NAV25: read ONLY the original RF2 inherited public EOS
+                // boolean after unchanged b.g(); no ByteBuffer data is read.
+                // Missing/obfuscated accessor means UNKNOWN, never not-EOS.
+                Method resolvedEos=null;
+                try {
+                    Method candidate=buffer.getMethod("isEndOfStream");
+                    if(candidate.getParameterCount()!=0 ||
+                            candidate.getReturnType()!=boolean.class ||
+                            java.lang.reflect.Modifier.isStatic(candidate.getModifiers()))
+                        throw new NoSuchMethodException();
+                    candidate.setAccessible(true);
+                    resolvedEos=candidate;
+                } catch (Throwable ignored) { }
+                final Method bufferEosGetter=resolvedEos;
                 hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         // Sample only bounded original b.g() calls. Never inspect
@@ -2679,9 +2693,23 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     Object s=rendererStateGetter.invoke(renderer);
                                     if(!(t instanceof Integer) || !(s instanceof Integer))
                                         throw new IllegalStateException();
+                                    Boolean eos=null;
+                                    // -4 may indicate a normal sample OR EOS.
+                                    // Only a successful original isEndOfStream()
+                                    // call may distinguish them; do not read data.
+                                    if(((Integer)original).intValue()==-4 &&
+                                            bufferEosGetter!=null) {
+                                        try {
+                                            Object nativeBuffer=chain.getArg(1);
+                                            if(nativeBuffer!=null && buffer.isInstance(nativeBuffer)) {
+                                                Object flag=bufferEosGetter.invoke(nativeBuffer);
+                                                if(flag instanceof Boolean)eos=(Boolean)flag;
+                                            }
+                                        } catch(Throwable ignoredBuffer) { }
+                                    }
                                     NATIVE_RENDERER_EVIDENCE.onRendererTypeStateRead(
                                         renderer,attached,((Integer)t).intValue(),
-                                        ((Integer)s).intValue(),((Integer)original).intValue());
+                                        ((Integer)s).intValue(),((Integer)original).intValue(),eos);
                                 } catch (Throwable ignored) {
                                     try {
                                         NATIVE_RENDERER_EVIDENCE
@@ -2695,6 +2723,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 rendererSampleReadHooked=true;
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",
                     audioTypeGetter!=null && rendererStateGetter!=null);
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("BUFFER_EOS_ACCESS",
+                    bufferEosGetter!=null);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","RENDERER_TYPE_STATE_ACCESS",
                     audioTypeGetter!=null && rendererStateGetter!=null ? "REGISTERED" : "NO_HOOK");
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("SAMPLE_READ",true);
@@ -2702,6 +2732,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             } catch (Throwable ignored) {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("SAMPLE_READ",false);
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",false);
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("BUFFER_EOS_ACCESS",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","SAMPLE_READ","NO_HOOK");
             }
         }
