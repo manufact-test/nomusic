@@ -353,7 +353,7 @@ def verify_exact_native_child_to_holder_stream_adapter(methods):
     if caller_array!=8 or source_param!=20:
         raise ValueError("STREAM_ADAPTER_INCOMING_HOLDER_ARRAY_PARAMETER_MISMATCH")
     new_arr=op(10,0x23)
-    if wd.descriptor(new_arr[1])!=STREAM_ARRAY or (new_arr[0]>>8)!=4:
+    if wd.descriptor(new_arr[1])!=STREAM_ARRAY or ((new_arr[0]>>8)&15)!=4:
         raise ValueError("STREAM_ADAPTER_NESTED_ARRAY_ALLOCATION_MISMATCH")
     nested_op,nested_words=wi.get(45,(None,None))
     if nested_op not in audit.INVOKES or wd.method(nested_words[1])!=PERIOD_INTERFACE_SELECT:
