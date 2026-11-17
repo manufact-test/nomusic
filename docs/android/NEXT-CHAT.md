@@ -6,6 +6,8 @@
 
 **Latest code & private signed APK release**: branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. NAV19 signed ARM13 owner export **CI #44132767915 SUCCESS**, native 75s gate, additional ARM13 **#44132738954 SUCCESS**, JVM **#44129950827 SUCCESS**. Exact NAV19 owner APK SHA256 `d55d7194c1c490481bfc4c184030e198f28827caa18ebf0aa2d116de6932e561`, signer same as NAV17/NAV18; original publisher 2025 nested APK unchanged. Verified personal Library `/CELIKOM/Android/Native/CELIKOM-A1-NAV19-Renderer-HookStatus-ReadOnly-20261117.apk` and `CELIKOM-A1-NAV19-Инструкция.txt`. Existing NAV17 and NAV18 also retained. No fresh installs/wipes/Play Protect bypass.
 
+**Final protected documentation-and-APK-identical branch rollback:** `backup/android-a1-nav19-owner-signed-readonly-final-handoff-20261117` (same HEAD as this updated handoff). The owner APK itself was exported from successful earlier code CI; later docs-only changes do not affect those signed bytes.
+
 **First next action**: owner installs NAV19 *in place* and sends new `NAV_V19_RENDERER_HOOK_STATUS_UNSCOPED_READONLY` TXT with original sound/Next/pause/seek/My Wave notes; analyze persisted `AUDIO_NATIVE_RENDERER_HOOK_STATUS` plus weak unscoped/strong queue-holder stream read categories. Do not fabricate NAV20 without that evidence. Prior rollback before NAV19: `backup/android-a1-nav18-owner-txt-readonly-observer-jvm-green-20261117` @ `971aef7cf9339ab1ad13471e4320a4b6da21c89b`.
 
 ---
