@@ -247,6 +247,52 @@ def verify_exact_holder_wrapper_period_selection(methods):
         "private_field_identifier_exported":False,
     }
 
+
+STREAM_ADAPTER_CTOR=("Lup1$a;","<init>","(Lup1;LR29;)V")
+STREAM_ADAPTER_CLASS="Lup1$a;"
+
+def inspect_exact_stream_adapter(methods):
+    if STREAM_ADAPTER_CTOR not in methods:
+        raise ValueError("STREAM_ADAPTER_EXACT_CTOR_NOT_DEFINED")
+    dex,flags,off=methods[STREAM_ADAPTER_CTOR]
+    if not off:raise ValueError("STREAM_ADAPTER_EXACT_CTOR_NO_CODE")
+    adapter_ops=[]
+    for pc,op,words in audit.instructions(dex,off):
+        if 0x52<=op<=0x6d:
+            owner,_private,typ=audit.field_id(dex,words[1])
+            if typ==STREAM:
+                adapter_ops.append({"pc":pc,"op":op,"owner":owner,"type":typ})
+    child_dex,_,child_off=methods[PERIOD_WRAPPER_SELECT]
+    trace=[]
+    for pc,op,words in audit.instructions(child_dex,child_off):
+        if pc<112 or pc>158:continue
+        row={"pc":pc}
+        if op in (0x46,0x4d):
+            row.update(action="ARRAY_STREAM_SLOT",
+                op=op,value=(words[0]>>8)&255,
+                array=words[1]&255,index=(words[1]>>8)&255)
+        elif op==0x22:
+            typ=child_dex.descriptor(words[1])
+            if typ!=STREAM_ADAPTER_CLASS:continue
+            row.update(action="NEW_ADAPTER",dest=(words[0]>>8)&255)
+        elif op in (0x07,0x08,0x09):
+            dst,src=audit.move_object_registers(op,words)
+            row.update(action="MOVE_OBJECT",dest=dst,source=src)
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            m=child_dex.method(words[1])
+            if m[0]!=STREAM_ADAPTER_CLASS:continue
+            row.update(action="CALL",callee=list(m),
+                       registers=audit.invoke_registers(op,words))
+        elif 0x32<=op<=0x3d or op in (0x28,0x29,0x2a):
+            row.update(action="BRANCH",op=op)
+        else:continue
+        trace.append(row)
+    if len(trace)>48:
+        raise ValueError("STREAM_ADAPTER_FOCUSED_TRACE_LIMIT")
+    return {"adapter_constructor_field_ops":adapter_ops,
+            "wrapper_case_stream_loop":trace,
+            "caller_stream_instance_proven":False}
+
 def scan(apks):
     dexes=0
     methods={}
@@ -260,7 +306,7 @@ def scan(apks):
                 dex=audit.Dex(archive.read(entry.filename))
                 dexes+=1
                 for method,flags,off in audit.method_definitions_with_flags(dex):
-                    if not (scope_owner(method[0]) or method in EXACT_RENDERER_COMPARE_METHODS):continue
+                    if not (scope_owner(method[0]) or method in EXACT_RENDERER_COMPARE_METHODS or method==STREAM_ADAPTER_CTOR):continue
                     if method in methods:raise ValueError("STREAM_ORIGIN_DUPLICATE_METHOD")
                     methods[method]=(dex,flags,off)
                     if len(methods)>MAX_DECLARED_METHODS:
@@ -305,12 +351,14 @@ def scan(apks):
         exact_holder_period_receiver_shape(method,methods[method])
         for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT)
     ]
+    stream_adapter=inspect_exact_stream_adapter(methods)
     shared_field=verify_exact_shared_stream_field(methods)
     period_wrapper_selection=verify_exact_holder_wrapper_period_selection(methods)
     selected=[]
     for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
         selected.append(limited_stream_selection_bytecode(method,methods[method]))
-    return {"exact_holder_period_selection_identity":period_wrapper_selection,
+    return {"scoped_child_to_wrapper_stream_adapter":stream_adapter,
+            "exact_holder_period_selection_identity":period_wrapper_selection,
             "exact_holder_period_receiver_shapes":holder_period_receiver_shapes,
             "exact_shared_holder_stream_field":shared_field,
             "exact_stream_selection_register_topology":selected,
