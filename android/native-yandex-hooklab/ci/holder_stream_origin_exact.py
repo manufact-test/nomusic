@@ -420,6 +420,84 @@ def verify_exact_native_child_to_holder_stream_adapter(methods):
         "private_field_values_or_names_exported":False,
     }
 
+
+def strict_scoped_alias_transition(dex,op,words,aliases):
+    """Dalvik alias state: exact bounded stream adapter construction CFG.
+    Writes and unknown instructions fail closed; no string/value inspection."""
+    next_alias=set(aliases)
+    if op in (0x07,0x08,0x09):
+        dst,src=audit.move_object_registers(op,words)
+        next_alias.discard(dst)
+        if src in aliases:next_alias.add(dst)
+        return frozenset(next_alias)
+    if op==0x1f or op in audit.INVOKES or op in (0x00,0x0e,0x27,0x28,0x29,0x2a):
+        return frozenset(next_alias)
+    if 0x32<=op<=0x3d:
+        return frozenset(next_alias)
+    if op in (0x4d,0x4e,0x4f,0x50,0x51) or 0x59<=op<=0x5f or 0x66<=op<=0x6d:
+        return frozenset(next_alias)  # stores do not overwrite registers
+    dest=audit.written_register(op,words)
+    if dest is None:
+        raise ValueError("STREAM_ADAPTER_CFG_OPCODE_UNMODELED")
+    next_alias.discard(dest)
+    return frozenset(next_alias)
+
+def verify_adapter_child_parameter_identity(methods):
+    """The exact child sample v2 survives on ALL CFG states reaching adapter
+    constructor; its LR29 argument is stored unchanged on adapter.this."""
+    dex,flags,off=methods[PERIOD_WRAPPER_SELECT]
+    ci=audit.build_dex_control_flow(dex,off)
+    by_pc=ci["by_pc"]
+    succ=ci["successors"]
+    start=121
+    if by_pc.get(start,None) is None or by_pc[start][0]!=0x46:
+        raise ValueError("STREAM_ADAPTER_CHILD_READ_PIVOT_MISSING")
+    work=[(n,frozenset((2,))) for n in succ.get(start,()) if start<n<=142]
+    seen=set()
+    total=matched=0
+    while work:
+        pc,aliases=work.pop()
+        if (pc,aliases) in seen:continue
+        seen.add((pc,aliases))
+        if len(seen)>300:
+            raise ValueError("STREAM_ADAPTER_BRANCH_STATE_LIMIT")
+        if pc==142:
+            total+=1
+            op,words=by_pc[pc]
+            if op not in audit.INVOKES or dex.method(words[1])!=STREAM_ADAPTER_CTOR:
+                raise ValueError("STREAM_ADAPTER_EXACT_CFG_TARGET_CHANGED")
+            regs=audit.invoke_registers(op,words)
+            if regs[2] in aliases:matched+=1
+            continue
+        if pc<=start or pc>142:continue
+        op,words=by_pc[pc]
+        next_alias=strict_scoped_alias_transition(dex,op,words,aliases)
+        for nxt in succ.get(pc,()):
+            if start<nxt<=142:
+                work.append((nxt,next_alias))
+    if not total or total!=matched:
+        raise ValueError("STREAM_ADAPTER_CHILD_ALIAS_NOT_ON_ALL_CTOR_PATHS")
+    ad,flags,off=methods[STREAM_ADAPTER_CTOR]
+    registers_size=ad.u16(off)
+    ins_size=ad.u16(off+2)
+    if ins_size!=3 or registers_size<ins_size:
+        raise ValueError("STREAM_ADAPTER_CONSTRUCTOR_INCOMING_REGISTERS_MISMATCH")
+    child_param=registers_size-1
+    ctor_code={pc:(op,words) for pc,op,words in audit.instructions(ad,off)}
+    if 5 not in ctor_code or ctor_code[5][0]!=0x5b:
+        raise ValueError("STREAM_ADAPTER_CHILD_FIELD_STORE_MISSING")
+    child_store_reg=(ctor_code[5][1][0]>>8)&15
+    aliases=frozenset((child_param,))
+    for pc in sorted(ctor_code):
+        if pc>=5:break
+        op,words=ctor_code[pc]
+        aliases=strict_scoped_alias_transition(ad,op,words,aliases)
+    if child_store_reg not in aliases:
+        raise ValueError("STREAM_ADAPTER_CHILD_PARAM_NOT_STORED_EXACT")
+    return {"child_same_reference_on_all_scoped_ctor_reaching_states":True,
+            "scoped_reaching_state_count":total,
+            "constructor_stores_exact_incoming_LR29_argument":True,
+            "field_name_or_runtime_child_value_exported":False}
 def scan(apks):
     dexes=0
     methods={}
@@ -480,13 +558,15 @@ def scan(apks):
     ]
     stream_adapter=inspect_exact_stream_adapter(methods)
     exact_stream_bridge=verify_exact_native_child_to_holder_stream_adapter(methods)
+    child_param_proof=verify_adapter_child_parameter_identity(methods)
     wrapper_loop=scoped_wrapper_loop_register_lifecycle(methods)
     shared_field=verify_exact_shared_stream_field(methods)
     period_wrapper_selection=verify_exact_holder_wrapper_period_selection(methods)
     selected=[]
     for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
         selected.append(limited_stream_selection_bytecode(method,methods[method]))
-    return {"exact_nested_media_period_to_holder_stream_bridge":exact_stream_bridge,
+    return {"child_stream_exact_constructor_parameter_proof":child_param_proof,
+            "exact_nested_media_period_to_holder_stream_bridge":exact_stream_bridge,
             "scoped_wrapper_loop_register_lifecycle":wrapper_loop,
             "scoped_child_to_wrapper_stream_adapter":stream_adapter,
             "exact_holder_period_selection_identity":period_wrapper_selection,
