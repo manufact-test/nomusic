@@ -40,7 +40,7 @@ jobs:
           assert 'Class.forName("mQ8",false,loader)' in src
           assert 'if (info==null || info.getLongVersionCode()!=24025542L)' in src
           assert 'NATIVE_RENDERER_EVIDENCE.exportLines()' in src
-          assert 'return chain.proceed(); // one original native sample read' in src
+          assert 'Object original=chain.proceed(); // one unchanged original call' in src
           assert 'private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";' in src
           print('NAV17_EXACT_RENDERER_OBSERVER_SCOPE_PASS')
           PY
