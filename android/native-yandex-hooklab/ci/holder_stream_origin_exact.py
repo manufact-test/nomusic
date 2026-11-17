@@ -159,16 +159,38 @@ def verify_exact_holder_wrapper_period_selection(methods):
         WRAPPER,"<init>","(Lwh6;ZJJ)V"):
         raise ValueError("PERIOD_WRAPPER_INIT_CALL_MISMATCH")
     ctor_regs=audit.invoke_registers(init_op,init_words)
-    if ctor_regs[0]!=allocated_reg:
-        raise ValueError("PERIOD_WRAPPER_ALLOCATION_RECEIVER_MISMATCH")
+    # Track the unique newly allocated wrapper through local moves, not an
+    # incorrect assumption that the constructor register must equal allocation.
+    aliases={allocated_reg}
+    for step in sorted(p for p in ci if alloc_pc<p<=136):
+        op,words=ci[step]
+        if step==132 and ctor_regs[0] not in aliases:
+            raise ValueError("PERIOD_WRAPPER_ALLOC_TO_CTOR_SAME_OBJECT_MISSING")
+        if step==136:
+            if ((words[0]>>8)&15) not in aliases:
+                raise ValueError("PERIOD_WRAPPER_CTOR_TO_FIELD_STORE_SAME_OBJECT_MISSING")
+            break
+        if op in (0x07,0x08,0x09):
+            dst,src=audit.move_object_registers(op,words)
+            aliases.discard(dst)
+            if src in aliases:aliases.add(dst)
+        elif op==0x1f or op in audit.INVOKES or op==0x00:
+            continue
+        elif op in (0x28,0x29,0x2a) or 0x32<=op<=0x3d:
+            raise ValueError("PERIOD_WRAPPER_ALLOC_TO_STORE_UNMODELED_BRANCH")
+        else:
+            dst=audit.written_register(op,words)
+            if dst is None:
+                raise ValueError("PERIOD_WRAPPER_ALLOC_TO_STORE_UNMODELED_OPCODE")
+            aliases.discard(dst)
     move_op,move_words=ci.get(135,(None,None))
     store_op,store_words=ci.get(136,(None,None))
     if move_op not in (0x07,0x08,0x09) or store_op!=0x5b:
         raise ValueError("PERIOD_WRAPPER_STORE_SHAPE_MISMATCH")
     move_dest,move_source=audit.move_object_registers(move_op,move_words)
     stored_reg=(store_words[0]>>8)&15
-    if move_source!=allocated_reg or move_dest!=stored_reg:
-        raise ValueError("PERIOD_WRAPPER_STORE_ALIAS_MISMATCH")
+    if move_dest!=stored_reg:
+        raise ValueError("PERIOD_WRAPPER_STORE_DESTINATION_MISMATCH")
     stored_owner,stored_private,stored_type=audit.field_id(ctor_dex,store_words[1])
     if stored_owner!=HOLDER or stored_type!="Ljava/lang/Object;":
         raise ValueError("PERIOD_WRAPPER_HOLDER_OBJECT_FIELD_MISMATCH")
