@@ -31,6 +31,16 @@ MAX_CALLERS_REPORT=75
 def match_direct_secondary_invoke(callee):
     return tuple(callee)==SECONDARY
 
+def match_secondary_interface_invoke(callee):
+    # b implements k and inherits the exact secondary enable-style method.
+    # A call compiled against the interface's owner still dispatches to b.
+    return (tuple(callee)[1:]==SECONDARY[1:] and
+            callee[0] in ("Landroidx/media3/exoplayer/k;",
+                           "Landroidx/media3/exoplayer/l;"))
+
+def match_secondary_family_invoke(callee):
+    return match_direct_secondary_invoke(callee) or match_secondary_interface_invoke(callee)
+
 def classify_secondary_invoke(callee):
     if tuple(callee)==SECONDARY: return "EXACT_SECONDARY"
     if tuple(callee)==ATTACH or tuple(callee)==ATTACH_INTERFACE: return "EXACT_ATTACH"
@@ -56,8 +66,11 @@ def scan_exact(apks):
                         if op not in audit.INVOKES or not (0x6e<=op<=0x78):
                             continue
                         callee=dex.method(raw[1])
-                        if not match_direct_secondary_invoke(callee):continue
+                        if not match_secondary_family_invoke(callee):continue
                         direct.append({"caller":list(method),"pc":pc,"opcode":op,
+                                       "callee":list(callee),
+                                       "dispatch":"BASE_DIRECT" if match_direct_secondary_invoke(callee)
+                                                  else "INTERFACE_VIRTUAL",
                                        "args":audit.invoke_registers(op,raw)})
                         if len(direct)>MAX_DIRECT_CALLERS:
                             raise ValueError("SECONDARY_TOO_MANY_DIRECT_CALLERS")
@@ -111,6 +124,9 @@ def scan_exact(apks):
         "other_narrow_calls_fields":scoped_events,
         "direct_secondary_callers":direct,
         "direct_secondary_caller_count":len(direct),
+        "secondary_interface_invocation_checked":True,
+        "base_only_caller_count":sum(1 for row in direct if row["dispatch"]=="BASE_DIRECT"),
+        "interface_caller_count":sum(1 for row in direct if row["dispatch"]=="INTERFACE_VIRTUAL"),
         "scope":"EXACT_PUBLISHER_2025_SIX_DEX",
         "live_secondary_to_renderer_stream_read_proven_by_owner_nav22":True,
         "currently_audible_track_identity_proven":False,
