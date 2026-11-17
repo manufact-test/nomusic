@@ -1,3 +1,11 @@
+# NEW CURRENT STATE — OWNER NAV18 TXT ARRIVED (17 NOV 2026)
+
+**Start here, not the old "WAIT FOR NAV18 TXT" heading below.** Owner report `CELIKOM-A1-Diagnostics-1794933581039.txt` has been analyzed; the compact authoritative findings and subsequent in-branch read-only code/test changes are documented in [ANDROID-A1-NAV18-OWNER-TXT-READONLY-OBSERVATION-20261117.md](ANDROID-A1-NAV18-OWNER-TXT-READONLY-OBSERVATION-20261117.md). Confirmed NAV18 marker active; replacement `NOT_CONNECTED` by design; native queue scope `NONE`, unscoped renderer attaches and unmatched sample reads `FEW`, identity `STRUCTURAL_ONLY`. **No replacement and no audible renderer identity claim**. No live owner proof beyond this diagnostic.
+
+**Protected baseline:** the accepted NAV17 and delivered signed NAV18 APK are unchanged; backup `backup/android-a1-nav18-owner-diagnostics-before-observer-fix-20261117` points to the prior exact `a8d6dbc9` HEAD. On the *same single working branch* added persistent `AUDIO_NATIVE_RENDERER_HOOK_STATUS` plus independently labeled unscoped attach/read alias witness; bounded read checks rearm after unscoped attach. **JVM CI #44129950827 SUCCESS** for code through `089ea2d1`. Native ARM13 checks were auto-triggered and have not yet been marked accepted at this doc update. **No new APK built/exported or owner-tested.** Continue with CI verification and exact focused diagnostic gates, not broad source research or speculative audio substitution. Stage B stays NO-GO.
+
+---
+
 # CELIKOM Android A1 — CANONICAL CURRENT HANDOFF
 
 ## FIRST ACTION IN NEXT CHAT — WAIT FOR NAV18 PHONE TXT (17 NOV FINAL)
