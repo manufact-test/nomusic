@@ -3,8 +3,9 @@
 **Current, reconciled 17 November 2026.** These are the only startup documents:
 
 1. **[NEXT-CHAT.md](NEXT-CHAT.md)** — canonical current state, exact backup, NAV17 verified original, closed routes and next bounded task.
-2. **[ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md](ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md)** — new complete CI #12 signed-class result: LfT2 is a data holder, not continuation.
-3. **[NEXT-CHAT-START-MESSAGE-20261116.md](NEXT-CHAT-START-MESSAGE-20261116.md)** — ready-to-paste next-chat prompt.
+2. **[ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md](ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md)** — NEW exact signed same-object source handoff, TrackWrapper → LiLb → native ExoPlayer source setter (CI green); runtime selected/current decoder still unproven.
+3. **[ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md](ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md)** — new complete CI #12 signed-class result: LfT2 is a data holder, not continuation.
+4. **[NEXT-CHAT-START-MESSAGE-20261116.md](NEXT-CHAT-START-MESSAGE-20261116.md)** — ready-to-paste next-chat prompt.
 
 **Important:** The older [LfT2 TrackWrapper continuation handoff](ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md) was written **before** CI #12: its LfT2 investigative task is superseded by the CLOSED result above. Other historical NEXT-CHAT/HANDOFF notes do not override NEXT-CHAT.md.
 
