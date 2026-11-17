@@ -178,6 +178,46 @@ RENDERER_RELATED_OWNERS=frozenset({
     "Lxh6;","Lup1;","Lwh6;","Landroidx/media3/exoplayer/l;",
     "Landroidx/media3/exoplayer/k;","LmQ8;"
 })
+
+def exact_renderer_stream_register_map(dex, insns):
+    """Register-level bounded comparison of exact holder/renderer stream.
+    No literal values, private field names or media data exported."""
+    out=[]
+    for pc,op,words in insns:
+        item={"pc":pc}
+        if 0x52<=op<=0x5f:
+            owner,_private,typ=audit.field_id(dex,words[1])
+            if owner not in (HOLDER,"LmQ8;","Landroidx/media3/exoplayer/k;"):
+                continue
+            item.update(action="FIELD_READ_OR_WRITE",owner=owner,
+                        field_type=typ,opcode=op,
+                        value_register=(words[0]>>8)&15,
+                        receiver_register=(words[0]>>12)&15)
+        elif op==0x46:
+            item.update(action="ARRAY_ELEMENT_READ",
+                dest=(words[0]>>8)&255,
+                array=words[1]&255,index=(words[1]>>8)&255)
+        elif op in (0x32,0x33):
+            item.update(action="REFERENCE_EQUALITY_BRANCH",opcode=op,
+                left=(words[0]>>8)&15,right=(words[0]>>12)&15)
+        elif 0x34<=op<=0x3d:
+            item.update(action="OTHER_BRANCH",opcode=op)
+        elif op in (0x07,0x08,0x09):
+            dest,source=audit.move_object_registers(op,words)
+            item.update(action="MOVE_OBJECT",dest=dest,source=source)
+        elif op in (0x0a,0x0b,0x0c):
+            item.update(action="MOVE_RESULT",dest=words[0]>>8)
+        elif op in (0x0f,0x11,0x0e):
+            item.update(action="RETURN",register=words[0]>>8)
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            method=dex.method(words[1])
+            item.update(action="CALL",callee=list(method),
+                        registers=audit.invoke_registers(op,words))
+        else:continue
+        out.append(item)
+        if len(out)>100:raise ValueError("QUEUE_HELPER_REGISTER_ROW_LIMIT")
+    return out
+
 def inspect_exact_renderer_helpers(targets):
     """Inspect ONLY two exact LmQ8 methods called with native queue B.
     This is still structural evidence, not an audio decoder proof."""
@@ -210,7 +250,8 @@ def inspect_exact_renderer_helpers(targets):
                 allocations.append({"pc":pc,"type":dex.descriptor(words[1])})
         rows.append({"method":method,"instruction_count":len(insns),
                      "direct_calls":methods,"related_field_type_accesses":fields,
-                     "object_allocations":allocations})
+                     "object_allocations":allocations,
+                     "bounded_register_comparisons":exact_renderer_stream_register_map(dex,insns)})
     return rows
 
 RENDERER_HELPER = ("LmQ8;","try","(Lxh6;Landroidx/media3/exoplayer/k;)Z")
