@@ -1,0 +1,70 @@
+name: CELIKOM A1 exact native Exo internal period-holder caller (READ ONLY)
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - 'android/native-yandex-hooklab/ci/native_engine_period_queue_exact.py'
+      - 'android/native-yandex-hooklab/ci/test_native_engine_period_queue_exact.py'
+      - '.github/workflows/android-a1-engine-period-queue-readonly.yml'
+  workflow_dispatch:
+permissions:
+  # Private draft release inspection requires the same access as the verified LfT2 workflow.
+  contents: write
+jobs:
+  direct-media-source-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install only pinned signed APK metadata tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner
+      - name: Validate bounded direct-source parser and fail-closed fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/native_engine_period_queue_exact.py
+          PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
+            python3 -B -m unittest discover \
+              -s android/native-yandex-hooklab/ci \
+              -p 'test_native_engine_period_queue_exact.py' -v
+      - name: Download exact private signed 2025 Yandex research input
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' \
+            | grep -qx 442137464
+          mkdir -p "$RUNNER_TEMP/celikom-native-period-engine-input"
+          gh release download a1-yandex-2025-gpr-private-test \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern yandex-music-2025-10-4-120-1gpr.xapk \
+            --dir "$RUNNER_TEMP/celikom-native-period-engine-input" --clobber >/dev/null
+          f="$RUNNER_TEMP/celikom-native-period-engine-input/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Inspect exact ExoPlayer internal engine caller for source period holder
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/native_engine_period_queue_exact.py \
+            --xapk "$RUNNER_TEMP/celikom-native-period-engine-input/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Delete the original research input and guard untouched products
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "$RUNNER_TEMP/celikom-native-period-engine-input"
+          test ! -d android/native-yandex-hooklab/release
+          test ! -d android/native-yandex-hooklab/patched
+          echo '{"original_binary_modified":false,"original_binary_exported":false,"user_login_or_media_accessed":false,"runtime_hooks_changed":false,"decoder_source_changed":false}'
