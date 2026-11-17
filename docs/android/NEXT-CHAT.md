@@ -8,6 +8,8 @@
 
 **NAV25 single narrow extension:** only after untouched original `b.g` call, optional inherited public `RF2.isEndOfStream()Z` boolean within previously bounded sampled exact same-reference engine-holder-stream, type1 state2 read. New `BUFFER_EOS_ACCESS` hook status; `ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS/EOS/UNAVAILABLE` counts; no audio byte reads, metadata, auth, stream modification, new player or architecture change. Missing method is NO_HOOK and UNKNOWN, not positive. Even non-EOS does not establish audible PCM or selected track/edition. Stage B remains NO-GO.
 
+**Final source + documentation snapshot:** `backup/android-a1-nav25-owner-signed-library-verified-final-20261118` (created after this handoff update). No code changes after signed APK source checkpoint; owner signer and publisher original unchanged.
+
 **Next step:** owner installs existing NAV25 from personal Library **over NAV24 without uninstall/data clear**, listens to normal songs and sends new private TXT. Analyze `BUFFER_EOS_ACCESS`, exact non-EOS/EOS/unavailable counters, holder type/state proof and `READ_RETURN_LINK_LOST`; then research the remaining same selected-track→holder→source/album/edition chain and implement only justified next stage. No speculative active substitution, no old experiments, no original playback bug reports, no Test.50, server, Windows or extension changes.
 
 ---
