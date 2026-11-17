@@ -365,7 +365,7 @@ def verify_exact_native_child_to_holder_stream_adapter(methods):
         raise ValueError("STREAM_ADAPTER_CHILD_READ_REGISTER_MISMATCH")
     a130=op(130,0x54)
     a147=op(147,0x54)
-    field130=wd_field= audit.field_id(wd,a130[1])
+    field130=audit.field_id(wd,a130[1])
     if field130 != audit.field_id(wd,a147[1]) or field130[0]!=WRAPPER or field130[2]!="[Lup1$a;":
         raise ValueError("STREAM_ADAPTER_EXACT_LUP1_FIELD_MISMATCH")
     if (a130[0]>>8)&15!=5 or (a147[0]>>8)&15!=2:
@@ -374,7 +374,7 @@ def verify_exact_native_child_to_holder_stream_adapter(methods):
     if ((existing[0]>>8)&255,existing[1]&255,(existing[1]>>8)&255)!=(6,5,1):
         raise ValueError("STREAM_ADAPTER_EXACT_EXISTING_ADAPTER_READ_MISMATCH")
     read_delegate=op(136,0x54)
-    adaptor_field=wd.field_id if False else audit.field_id(wd,read_delegate[1])
+    adaptor_field=audit.field_id(wd,read_delegate[1])
     if adaptor_field[0]!=STREAM_ADAPTER_CLASS or adaptor_field[2]!=STREAM:
         raise ValueError("STREAM_ADAPTER_CHILD_DELEGATE_FIELD_WRONG_TYPE")
     ctor_field_op,ctor_field_words=ai.get(5,(None,None))
