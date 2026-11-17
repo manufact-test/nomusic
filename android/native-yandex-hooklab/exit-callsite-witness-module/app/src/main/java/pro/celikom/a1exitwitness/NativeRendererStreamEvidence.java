@@ -1,7 +1,6 @@
 package pro.celikom.a1exitwitness;
 
 import java.lang.ref.WeakReference;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 
 /**
@@ -14,7 +13,8 @@ import java.util.ArrayList;
  */
 final class NativeRendererStreamEvidence {
     private static final int MAX_HANDLES = 12;
-    private static final int MAX_HOT_READ_OBSERVATIONS = 64;
+    private static final int MAX_HOT_READ_OBSERVATIONS = 256;
+    private static final int MAX_READS_PER_ATTACH = 8;
     private static final int MAX_COUNT = 1000;
 
     static final class Scope {
@@ -40,6 +40,7 @@ final class NativeRendererStreamEvidence {
     private int scopeEnters, pairedAttaches, unknownAttaches, attachConflicts;
     private int readSame, readDifferent, readUnknown, detachCount;
     private int totalReadObservations;
+    private int readSamplesRemaining = 8;
     private boolean poisoned;
 
     Scope enter(Object renderer,Object holder) {
@@ -83,12 +84,14 @@ final class NativeRendererStreamEvidence {
         if (links.size()>=MAX_HANDLES) links.remove(0);
         links.add(new Link(renderer,scope.holder,stream));
         pairedAttaches=inc(pairedAttaches);
+        readSamplesRemaining=MAX_READS_PER_ATTACH;
     }
 
     synchronized boolean shouldSampleRead() {
-        if (poisoned || totalReadObservations>=MAX_HOT_READ_OBSERVATIONS)
-            return false;
+        if (poisoned || totalReadObservations>=MAX_HOT_READ_OBSERVATIONS
+                || readSamplesRemaining<=0) return false;
         totalReadObservations++;
+        readSamplesRemaining--;
         return true;
     }
 
