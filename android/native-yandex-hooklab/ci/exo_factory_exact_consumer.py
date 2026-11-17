@@ -281,6 +281,102 @@ def inspect_exact_source_adapter(apks):
         "runtime_owner_selection_or_decoder_proven": False,
     }
 
+
+MEDIA_SOURCE_CANDIDATE = "LZB3;"
+SOURCE_RELEVANT = frozenset({
+    "LgLb;", "Las2;", "LlLb;", "LZB3;", "LZB3$a;", "LIr8;",
+    "LOr2$a;", "LOf6;", "LWT1;", "LsO7;", "LBs4;",
+    "LfH7;", "LrD0;", "LA14;", "Lp24;", "Lwq2;",
+})
+
+
+def inspect_exact_media_source_interface(apks):
+    """Inspect *only* the exact LZB3 interface now proven on Las2 and LgLb."""
+    profiles = {}
+    declared_methods = {}
+    typed_refs = set()
+    owner_ref_counts = {}
+    typed_direct_call_count = 0
+    typed_direct_callers = []
+    max_refs = 384
+    max_callsites = 512
+    targets = {"LZB3;", "LZB3$a;", "Las2;", "LgLb;", "LIr8;", "LdC0;"}
+    dexes = []
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex = audit.Dex(archive.read(entry.filename))
+                dexes.append(dex)
+                for cls in targets:
+                    meta = class_metadata(dex, cls)
+                    if meta["defined"]:
+                        if cls in profiles:
+                            raise ValueError("MEDIA_SOURCE_CANDIDATE_CLASS_DUPLICATE")
+                        profiles[cls] = meta
+                for i in range(dex.method_count):
+                    method = dex.method(i)
+                    if method[0] == MEDIA_SOURCE_CANDIDATE or MEDIA_SOURCE_CANDIDATE in (
+                        *audit.parse_types(method[2]), method[2].split(")", 1)[1]
+                    ):
+                        typed_refs.add(method)
+                        if len(typed_refs) > max_refs:
+                            raise ValueError("MEDIA_SOURCE_CANDIDATE_TYPED_REF_LIMIT")
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    if method[0] not in targets:
+                        continue
+                    rows = declared_methods.setdefault(method[0], [])
+                    if len(rows) >= 72:
+                        raise ValueError("MEDIA_SOURCE_CANDIDATE_DECLARED_METHOD_LIMIT")
+                    rows.append({
+                        "method": method[1], "signature": method[2],
+                        "access_flags": flags, "has_body": bool(code_off),
+                    })
+    for method in typed_refs:
+        owner_ref_counts[method[0]] = owner_ref_counts.get(method[0], 0) + 1
+    for dex in dexes:
+        for caller, _flags, code_off in audit.method_definitions_with_flags(dex):
+            for ordinal, op, words in audit.instructions(dex, code_off):
+                if op not in audit.INVOKES or not 0x6E <= op <= 0x78:
+                    continue
+                callee = dex.method(words[1])
+                if callee not in typed_refs:
+                    continue
+                typed_direct_call_count += 1
+                if typed_direct_call_count > max_callsites:
+                    raise ValueError("MEDIA_SOURCE_CANDIDATE_TYPED_CALL_LIMIT")
+                # Only these grounded known Player/source owners; never all caller values.
+                if caller[0] in SOURCE_RELEVANT and len(typed_direct_callers) < 36:
+                    typed_direct_callers.append({
+                        "caller_owner": caller[0], "caller_method": caller[1],
+                        "caller_signature": caller[2], "callee_owner": callee[0],
+                        "callee_method": callee[1], "callee_signature": callee[2],
+                        "ordinal": ordinal,
+                    })
+    referenced_player_owners = sorted(
+        owner for owner in owner_ref_counts if owner in SOURCE_RELEVANT
+    )
+    return {
+        "exact_source_candidate_interface": MEDIA_SOURCE_CANDIDATE,
+        "candidate_class_profiles": profiles,
+        "candidate_declared_methods": declared_methods,
+        "candidate_typed_method_reference_count": len(typed_refs),
+        "candidate_typed_method_owners": [
+            {"owner": owner, "method_ref_count": count}
+            for owner, count in sorted(owner_ref_counts.items())
+        ][:90],
+        "candidate_typed_method_owners_truncated": len(owner_ref_counts) > 90,
+        "candidate_exact_typed_method_refs": [
+            {"owner": m[0], "method": m[1], "signature": m[2]}
+            for m in sorted(typed_refs) if m[0] in SOURCE_RELEVANT
+        ][:90],
+        "candidate_typed_direct_callsite_count": typed_direct_call_count,
+        "candidate_source_or_player_side_direct_calls": typed_direct_callers,
+        "grounded_player_or_source_typed_owners": referenced_player_owners,
+        "actual_selected_player_source_or_decoder_proven": False,
+    }
+
 def run(xapk: Path):
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise RuntimeError("EPHEMERAL_CI_ONLY")
@@ -307,7 +403,8 @@ def run(xapk: Path):
             raise ValueError("EXO_FACTORY_NAV17_BASE_MISMATCH")
         report = scan_signed(splits)
         adapter_report = inspect_exact_source_adapter(splits)
-    return {**report, **adapter_report, "verified_exact_nav17_signed_original": True, "ephemeral_read_only": True}
+        media_source_report = inspect_exact_media_source_interface(splits)
+    return {**report, **adapter_report, **media_source_report, "verified_exact_nav17_signed_original": True, "ephemeral_read_only": True}
 
 
 if __name__ == "__main__":
