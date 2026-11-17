@@ -2,6 +2,18 @@
 
 **Updated:** 17 November 2026. This file takes precedence over earlier Android NEXT-CHAT/HANDOFF documents.
 
+## 17 Nov — latest NAV18 OWNER READ-ONLY audio witness build (after static proof)
+
+**Mandatory live-test handoff: [ANDROID-A1-NAV18-EXACT-NATIVE-RENDERER-READONLY-OWNER-TEST-20261117.md](ANDROID-A1-NAV18-EXACT-NATIVE-RENDERER-READONLY-OWNER-TEST-20261117.md).** Owner explicitly approved preparing a new *diagnostic-only* in-place APK. Existing NAV17 on phone remains the accepted product; **Stage B NO-GO, no CELIKOM replacement audio**.
+
+- On the **same working branch** added privacy-bounded `NativeRendererStreamEvidence.java`, four exact signed-**2025.10.4** LibXposed observation hooks to existing `ExitCallsiteWitness.java` (`mQ8.catch→b.package→b.g→b.case`), model tests and owner-on-tap TXT summary; code never reads/export audio, IDs, URLs, account data, object values, names, or buffers. `DIAGNOSTIC_BUILD = NAV_V18_NATIVE_RENDERER_STREAM_READONLY`. Every original `chain.proceed()` invoked unmodified once. Does NOT claim b.g result decodes successful audio or that currently selected album/edition is known.
+- [Independent Java JVM model CI #44120467198 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44120467198). Existing full Android13 native ARM publisher-first CI runs started for original vendor-signed 2025 proof; new signed in-place owner APK export is gated until its specific one-shot run succeeds.
+- Archived exact owner NAV17 APK **SHA-256 8d7c1570367360c12ba11f3972fa72477aca4dcc33f30dce78b381aee939b20d** to verified personal Library `/CELIKOM/Android/Native/CELIKOM-A1-NAV17-OWNER-ACCEPTED-BACKUP-20261114.apk`. Independently confirmed its v2/v3 signer **048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf** and nested vendor original SHA **1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56**.
+- Working backup BEFORE live changes: `backup/android-a1-pre-live-readonly-witness-20261117` @ `4a1caf93bff6e06fb99669693fc346321b89d509`. Owner's NAV17 original binary unchanged. Last runtime-hook edit now **NAV18 preparation** (`ExitCallsiteWitness.java`), NOT older `a655712d...`; historical prior-runtime checkpoint remains documented below.
+- One-shot owner export workflow `.github/workflows/android-a1-nav18-owner-renderer-diagnostic-export-once.yml`. Its first run **#44121652525 failed closed on missing INSTALLED_CERT variable**: no artifact published. The independently verified NAV17 signing cert is now pinned as expected installed cert in **`ec559b537d52b5c9335452d7a24b7111e423f364`**, fresh **run #44122921119** is the current release gate. No fresh install; true owner signed in-place update only.
+- **Do not ask owner to install until** #44122921119 passes *and* binary is retrieved, v2/v3 signer and nested original reverified, uploaded into personal Library, and verified visible. No raw GitHub artifact/sandbox download links. If a gate fails: preserve NAV17, fix only the exact failure and rerun; do not claim the APK exists.
+- Once owner-tested, need **actual read-only event report with source/queue/current audible distinction**. Static source→MediaPeriod→Lup1$a→Lxh6→native renderer attach→LR29 read entry is previously verified; no need to re-audit it.
+
 ## Protected checkpoints
 
 - Only working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
