@@ -59,6 +59,7 @@ def inspect(apks):
     class_graph={}
     source_owners={}
     getter=None
+    getter_referenced=False
     total_dex=0
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -75,6 +76,9 @@ def inspect(apks):
                     if owner in class_graph:
                         raise ValueError("EXOPLAYER_DUPLICATE_CLASS")
                     class_graph[owner]=(supercls,interfaces,access)
+                for mid in range(dex.method_count):
+                    if dex.method(mid)==PLAYER_GETTER:
+                        getter_referenced=True
                 for method,flags,code_off in audit.method_definitions_with_flags(dex):
                     if declared_source_setter(method):
                         source_owners.setdefault(method[0],0)
@@ -86,8 +90,8 @@ def inspect(apks):
                         getter=(dex,flags,code_off)
 
     if total_dex!=6:raise ValueError("EXOPLAYER_SIGNED_SIX_DEX_REQUIRED")
-    if not getter or not getter[2]:
-        raise ValueError("EXOPLAYER_RECEIVER_GETTER_MISSING")
+    if not getter_referenced:
+        raise ValueError("EXOPLAYER_RECEIVER_GETTER_REFERENCE_MISSING")
     if INTERFACE not in class_graph:raise ValueError("EXOPLAYER_INTERFACE_MISSING")
     def reaches(owner,ancestor):
         pending=[owner];seen=set()
@@ -176,18 +180,23 @@ def inspect(apks):
         })
     if len(implementations)>48:raise ValueError("EXOPLAYER_IMPLEMENTATION_ROW_LIMIT")
     # Existing LA14.v0 only; do not try to infer runtime instance.
-    dex,flags,code_off=getter
-    try:
-        trace=audit.trace_identity_method(dex,PLAYER_GETTER,flags,code_off,
-            extra_identity_types=("Landroidx/media3/exoplayer/ExoPlayer;",),
-            track_fields_from_any_receiver=True)
-        getter_events=[
-            e for e in trace.get("events",())
-            if "EXTRA_OBJECT:Landroidx/media3/exoplayer/ExoPlayer;" in str(e)
-        ][:20]
-        getter_error=None
-    except (ValueError,audit.DexError) as e:
-        getter_events=[];getter_error=type(e).__name__
+    getter_events=[]
+    getter_error=None
+    if getter and getter[2]:
+        dex,flags,code_off=getter
+        try:
+            trace=audit.trace_identity_method(dex,PLAYER_GETTER,flags,code_off,
+                extra_identity_types=("Landroidx/media3/exoplayer/ExoPlayer;",),
+                track_fields_from_any_receiver=True)
+            getter_events=[
+                e for e in trace.get("events",())
+                if "EXTRA_OBJECT:Landroidx/media3/exoplayer/ExoPlayer;" in str(e)
+            ][:20]
+        except (ValueError,audit.DexError) as e:
+            getter_error=type(e).__name__
+    else:
+        # Interface / superclass reference is not an exact body definition.
+        getter_error="GETTER_REFERENCED_BUT_NOT_DECLARED_IN_OWNER"
     return {
         "verdict":"EXACT_SOURCE_SETTER_IMPLEMENTATION_CANDIDATES_NOT_ACTIVE_PLAYBACK",
         "six_publisher_signed_dex":total_dex,
@@ -196,6 +205,8 @@ def inspect(apks):
         "concrete_exoplayer_implementors":concrete_implementors,
         "exact_player_source_setter_implementations":implementations,
         "exact_player_getter":PLAYER_GETTER,
+        "player_getter_reference_in_signed_dex":getter_referenced,
+        "player_getter_body_in_exact_owner":bool(getter and getter[2]),
         "player_getter_events":getter_events,
         "player_getter_trace_error":getter_error,
         "runtime_same_player_receiver_to_active_item_proven":False,
