@@ -214,6 +214,16 @@ public final class ExitCallsiteWitness extends XposedModule {
     // This is NOT audible replacement, current-track identity or grant proof.
     private static final StageBAudioEvidence STAGE_B_AUDIO = new StageBAudioEvidence();
 
+    // Signed original embedded in owner-accepted NAV17 only: 2025.10.4
+    // code 24025542. Counters are exported on owner tap; no hot-path disk I/O.
+    private static final NativeRendererStreamEvidence NATIVE_RENDERER_EVIDENCE =
+        new NativeRendererStreamEvidence();
+    private boolean rendererAttachScopeHooked;
+    private boolean rendererStreamSetHooked;
+    private boolean rendererSampleReadHooked;
+    private boolean rendererDetachHooked;
+
+
     private void rememberMediaExtractorSource(Object obj) {
         if (obj == null) return;
         synchronized (mediaExtractorObservedSources) {
@@ -2400,6 +2410,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installPrivateMediaDataReadWitness(loader);
                                 installExactNativeSourceDtoWitness(loader);
                                 installExactNativeExoSourceWitness(loader);
+                                installExact2025NativeRendererReadWitness(caller,loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
                             }
@@ -2413,6 +2424,160 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
     }
 
+
+
+    /**
+     * Exact 2025.10.4 native engine route (owner's NAV17 origin ONLY):
+     * mQ8.catch(k,xh6,RFa,LLL2) -> b.package(Sr4[],R29,J,J,Sl6$b)
+     * -> inherited b.attached-stream -> b.g(iA9,RF2,int) -> LR29.throw.
+     *
+     * No arguments/results/clock/audio are changed. Fail open on observation
+     * exceptions, not on user authentication, rights, or vendor playback.
+     * Never install against published original ru.yandex.music.
+     */
+    private synchronized void installExact2025NativeRendererReadWitness(
+            Context caller, ClassLoader loader) {
+        if (caller==null || loader==null
+                || !PACKAGE.equals(Application.getProcessName())
+                || !PACKAGE.equals(caller.getPackageName())) return;
+        if (rendererAttachScopeHooked && rendererStreamSetHooked
+                && rendererSampleReadHooked && rendererDetachHooked) return;
+        try {
+            android.content.pm.PackageInfo info=caller.getPackageManager()
+                .getPackageInfo(PACKAGE,0);
+            if (info==null || info.getLongVersionCode()!=24025542L) {
+                emit("AUDIO_NATIVE_RENDERER_HOOK","PINNED_2025","WRONG_VERSION");
+                return;
+            }
+        } catch (Throwable ignored) {
+            emit("AUDIO_NATIVE_RENDERER_HOOK","PINNED_2025","NO_VERSION");
+            return;
+        }
+        Class<?> nativeRenderer, holder, rendererBase, stream;
+        Class<?> flags, runtimePayload, formats, selector, queueItem;
+        Class<?> sampleFormat, buffer;
+        try {
+            nativeRenderer=Class.forName("androidx.media3.exoplayer.k",false,loader);
+            rendererBase=Class.forName("androidx.media3.exoplayer.b",false,loader);
+            holder=Class.forName("xh6",false,loader);
+            stream=Class.forName("R29",false,loader);
+            flags=Class.forName("RFa",false,loader);
+            runtimePayload=Class.forName("LLL2",false,loader);
+            formats=Class.forName("[LSr4;",false,loader);
+            queueItem=Class.forName("Sl6$b",false,loader);
+            sampleFormat=Class.forName("iA9",false,loader);
+            buffer=Class.forName("RF2",false,loader);
+            selector=Class.forName("mQ8",false,loader);
+            if (!nativeRenderer.isInterface() || !stream.isInterface()
+                    || !nativeRenderer.isAssignableFrom(rendererBase)
+                    || !rendererBase.isAssignableFrom(caller.getClass().getClassLoader()
+                        .loadClass("androidx.media3.exoplayer.b"))) {
+                emit("AUDIO_NATIVE_RENDERER_HOOK","PINNED_2025","TYPE_MISMATCH");
+                return;
+            }
+        } catch (Throwable ignored) {
+            emit("AUDIO_NATIVE_RENDERER_HOOK","PINNED_2025","NO_CLASSES");
+            return;
+        }
+        if (!rendererAttachScopeHooked) {
+            try {
+                Method scope=selector.getDeclaredMethod("catch",
+                    nativeRenderer,holder,flags,runtimePayload);
+                if (scope.getReturnType()!=int.class) throw new NoSuchMethodException();
+                scope.setAccessible(true);
+                hook(scope).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        NativeRendererStreamEvidence.Scope frame=null;
+                        try {
+                            frame=NATIVE_RENDERER_EVIDENCE.enter(
+                                chain.getArg(0),chain.getArg(1));
+                        } catch (Throwable ignored) { }
+                        try { return chain.proceed(); }
+                        finally {
+                            try {
+                                if (frame!=null) NATIVE_RENDERER_EVIDENCE.exit(frame);
+                            } catch (Throwable ignored) { }
+                        }
+                    });
+                rendererAttachScopeHooked=true;
+                emit("AUDIO_NATIVE_RENDERER_HOOK","QUEUE_SCOPE","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_RENDERER_HOOK","QUEUE_SCOPE","NO_HOOK");
+            }
+        }
+        if (!rendererStreamSetHooked) {
+            try {
+                Method attach=rendererBase.getDeclaredMethod("package",
+                    formats,stream,long.class,long.class,queueItem);
+                if (attach.getReturnType()!=void.class) throw new NoSuchMethodException();
+                attach.setAccessible(true);
+                hook(attach).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed(); // exactly once, unmodified
+                        try {
+                            NATIVE_RENDERER_EVIDENCE.onAttach(
+                                chain.getThisObject(),chain.getArg(1));
+                        } catch (Throwable ignored) { }
+                        return result;
+                    });
+                rendererStreamSetHooked=true;
+                emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_ATTACH","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_ATTACH","NO_HOOK");
+            }
+        }
+        if (!rendererSampleReadHooked) {
+            try {
+                Method read=rendererBase.getDeclaredMethod("g",
+                    sampleFormat,buffer,int.class);
+                if (read.getReturnType()!=int.class) throw new NoSuchMethodException();
+                read.setAccessible(true);
+                final Method getter=rendererBase.getDeclaredMethod("while");
+                if (getter.getReturnType()!=stream) throw new NoSuchMethodException();
+                getter.setAccessible(true);
+                hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        // The first 64 reads only, in memory. Getter is verified
+                        // by exact signed DEX to just return the attached field.
+                        try {
+                            if (NATIVE_RENDERER_EVIDENCE.shouldSampleRead()) {
+                                Object attached=getter.invoke(chain.getThisObject());
+                                NATIVE_RENDERER_EVIDENCE.onRead(
+                                    chain.getThisObject(),attached);
+                            }
+                        } catch (Throwable ignored) {
+                            try { NATIVE_RENDERER_EVIDENCE.onRead(null,null); }
+                            catch (Throwable ignoredAgain) { }
+                        }
+                        return chain.proceed(); // one original native sample read
+                    });
+                rendererSampleReadHooked=true;
+                emit("AUDIO_NATIVE_RENDERER_HOOK","SAMPLE_READ","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_RENDERER_HOOK","SAMPLE_READ","NO_HOOK");
+            }
+        }
+        if (!rendererDetachHooked) {
+            try {
+                Method detach=rendererBase.getDeclaredMethod("case");
+                if (detach.getReturnType()!=void.class) throw new NoSuchMethodException();
+                detach.setAccessible(true);
+                hook(detach).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try { return chain.proceed(); }
+                        finally {
+                            try { NATIVE_RENDERER_EVIDENCE.onDetach(
+                                chain.getThisObject()); }
+                            catch (Throwable ignored) { }
+                        }
+                    });
+                rendererDetachHooked=true;
+                emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_DETACH","REGISTERED");
+            } catch (Throwable ignored) {
+                emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_DETACH","NO_HOOK");
+            }
+        }
+    }
 
     // Only the two exact, issuer-verified 2025 implementations are selected
     // by ephemeral CI. This is a read-only observation of readAt() calls.
@@ -4362,6 +4527,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 // from the current in-memory clone MAIN process. These do not
                 // prove playback, exact track identity or CELIKOM replacement.
                 for (String summary : STAGE_B_AUDIO.exportLines()) {
+                    output.write(summary.getBytes(StandardCharsets.UTF_8));
+                    output.write('\n');
+                }
+                for (String summary : NATIVE_RENDERER_EVIDENCE.exportLines()) {
                     output.write(summary.getBytes(StandardCharsets.UTF_8));
                     output.write('\n');
                 }
