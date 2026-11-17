@@ -20,12 +20,12 @@
 - One-shot test-and-private-export workflow `.github/workflows/android-a1-nav18-owner-renderer-diagnostic-export-once.yml` triggers only on **changes to its own workflow file**, reuses the full original 2025 publisher-first ARM13 run, verifies independent persistent owner signing, never permits fresh clone install, exports only on full native 75s acceptance. This is a **separate one-time workflow**, not a permanent automatic Android release.
 - Previous one-shot CI **#44121652525** stopped correctly at `OWNER_INSTALL_MODE_NOT_AUTHORIZED` because repo variable for installed cert was empty (not a runtime/startup failure). Since NAV17 signer was independently parsed above, the one-shot workflow pins that verified installed cert for an **in-place-only** comparison. Re-run by workflow-file update commit **`ec559b537d52b5c9335452d7a24b7111e423f364`**, full native run **#44122921119 SUCCESS**; owner APK exported and independently verified.
 
-## Release checks — completed
+## Release checks — completed, no action needed before owner's report
 
-1. **One-shot workflow #44122921119 SUCCESS**, including all source guards, native original 75s baseline + own clone 75s, owner signing and exporter acceptance. No bypass or fresh install.
-2. Retrieve its artifact ZIP through authenticated GitHub connector, extract only APK + instructions, verify outer APK v2/v3 owner certificate exactly equals baseline `048d76...`; original embedded vendor APK hash identical to baseline `1d0527...`, version/package identical, embedded module changed as expected. No official vendor content alteration.
-3. Upload **new signed APK as own file** and instruction TXT into personal ChatGPT Library `/CELIKOM/Android/Native/`. Verify Library records before telling user to install. Never give expired GitHub Actions or sandbox links as the download link.
-4. Only then ask owner to perform ONE NAV18 controlled trial with saved existing Yandex login, normal original music/Next/seek/My Wave and diagnostics TXT. Interpret matching stream reads as method entry until runtime return/status and decoder audio proven. **Stage B still NO-GO; alternative CELIKOM audio is not switched on.**
+- Final signed owner export CI **#44122921119 SUCCESS**: original publisher-first native Android13 test, clone main 75 s, stable owner signer, `owner_apk_install_mode=UPDATE_EXISTING`. The earlier one-shot #44121652525 failed closed because the installed certificate repository variable was blank; the exact accepted NAV17 signer was independently checked and pinned before the successful rerun. This error is now **closed**.
+- Exact output ZIP fetched via authenticated GitHub artifact; final APK independently checked for v2/v3 signer identity to NAV17, unchanged signed nested original Yandex and NAV18 diagnostic module. Exact hashes and Library identifiers are in the final verification section below.
+- Individual **APK and instructions uploaded to personal ChatGPT Library and presence verified**. Full owner installation procedure exists in the TXT. Do not replace these with temporary GitHub Actions download links.
+- **Next user action:** install NAV18 over NAV17 *in place*, play original tracks including Next/seek/My Wave, save/export one TXT via existing UI, send the report. **No user test results exist at this documentation checkpoint.** The successor starts with owner TXT, not a new build.
 
 ### Caution
 
