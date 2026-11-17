@@ -227,6 +227,60 @@ def find_exact_native_attach_callers(apks):
             "live_selected_audio_confirmed":False,
             "private_fields_and_audio_not_read":True}
 
+
+ATTACH_HELPER=("LmQ8;","catch","(Landroidx/media3/exoplayer/k;Lxh6;LRFa;LLL2;)I")
+MAX_ATTACH_HELPER_INSNS=330
+MAX_ATTACH_HELPER_TRACE=200
+
+def inspect_exact_native_renderer_attach_helper(owner_methods):
+    """One exact known LmQ8.catch call from native Exo engine.
+    Register/method/typed-field layout only; no private values or stream bytes."""
+    if ATTACH_HELPER not in owner_methods or not owner_methods[ATTACH_HELPER][2]:
+        raise ValueError("RENDERER_EXACT_HELPER_BODY_MISSING")
+    dex,flags,off=owner_methods[ATTACH_HELPER]
+    insns=list(audit.instructions(dex,off))
+    if len(insns)>MAX_ATTACH_HELPER_INSNS:
+        raise ValueError("RENDERER_EXACT_HELPER_TOO_LARGE")
+    selected=[]
+    target_callees=[]
+    for pc,op,words in insns:
+        row={"pc":pc}
+        if op in (0x54,0x5b):
+            owner,_private,typ=audit.field_id(dex,words[1])
+            if owner=="Lxh6;" or typ in ("[LR29;","LR29;"):
+                row.update(action="FIELD",field_owner=owner,field_type=typ,opcode=op,
+                           dest_or_value=(words[0]>>8)&15,
+                           receiver=(words[0]>>12)&15)
+            else:continue
+        elif op in (0x46,0x4d):
+            row.update(action="STREAM_ARRAY_READ_OR_WRITE",opcode=op,
+                       value=(words[0]>>8)&255,
+                       array=words[1]&255,index=(words[1]>>8)&255)
+        elif op in (0x07,0x08,0x09):
+            dst,src=audit.move_object_registers(op,words)
+            row.update(action="MOVE_OBJECT",dest=dst,source=src)
+        elif op in (0x0c,0x0a,0x0b):
+            row.update(action="MOVE_RESULT",dest=words[0]>>8)
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            m=dex.method(words[1])
+            if m[0] in (RENDERER,RENDERER_BASE,ALT_RENDERER,"Lxh6;","LmQ8;") or m[2]==ATTACH_DESCRIPTOR:
+                row.update(action="CALL",callee=list(m),registers=audit.invoke_registers(op,words))
+                if m in NATIVE_ATTACH_CALLEES:
+                    target_callees.append({"pc":pc,"callee":list(m),"registers":row["registers"]})
+            else:continue
+        elif 0x32<=op<=0x3d or op in (0x28,0x29,0x2a):
+            row.update(action="BRANCH",opcode=op)
+        else:continue
+        selected.append(row)
+        if len(selected)>MAX_ATTACH_HELPER_TRACE:
+            raise ValueError("RENDERER_EXACT_HELPER_TRACE_LIMIT")
+    if len(target_callees)!=1 or target_callees[0]["pc"]!=114:
+        raise ValueError("RENDERER_EXACT_HELPER_ATTACH_PC_MISMATCH")
+    return {"method":list(ATTACH_HELPER),"instruction_count":len(insns),
+            "exact_k_attach_callsite":target_callees[0],
+            "nonsecret_register_shape":selected,
+            "matched_active_decoder_audio":False}
+
 def scan_signed(apks):
     dexes=0
     definitions={}
@@ -250,7 +304,7 @@ def scan_signed(apks):
                     definitions[name]={"parent":parent,"interfaces":interfaces,"flags":dex.u32(off+4)}
                     if len(definitions)>MAX_CLASS_NODES:raise ValueError("RENDERER_CLASS_GRAPH_LIMIT")
                 for method,flags,code_off in audit.method_definitions_with_flags(dex):
-                    if method[0] in (ENGINE_OWNER,RENDERER_BASE):
+                    if method[0] in (ENGINE_OWNER,RENDERER_BASE) or method==ATTACH_HELPER:
                         if method in exact_owner_methods:raise ValueError("RENDERER_ENGINE_METHOD_DUPLICATE")
                         exact_owner_methods[method]=(dex,flags,code_off)
                     if method[1]!=GETTER_NAME or method[2]!=GETTER_DESC:
@@ -303,7 +357,9 @@ def scan_signed(apks):
     attached=inspect_exact_attached_stream_field(apks,reachable,method_bodies)
     attach=inspect_exact_native_stream_attachment(exact_owner_methods,method_bodies,attached)
     exact_attach_callers=find_exact_native_attach_callers(apks)
-    return {"signed_exact_renderer_stream_attach_callers":exact_attach_callers,
+    attach_helper=inspect_exact_native_renderer_attach_helper(exact_owner_methods)
+    return {"exact_native_renderer_attach_helper":attach_helper,
+            "signed_exact_renderer_stream_attach_callers":exact_attach_callers,
             "exact_native_renderer_stream_attachment":attach,
             "exact_inherited_renderer_attached_stream_field_uses":attached,
             "verdict":"EXACT_SIGNED_RENDERER_INTERFACE_CONCRETE_GETTER_MAP_STATIC_ONLY",
