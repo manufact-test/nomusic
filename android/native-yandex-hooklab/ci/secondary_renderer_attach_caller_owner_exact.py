@@ -52,6 +52,100 @@ def classify_secondary_invoke(callee):
     if tuple(callee)==ATTACH or tuple(callee)==ATTACH_INTERFACE: return "EXACT_ATTACH"
     return "OTHER"
 
+def prove_exact_queue_b_to_engine_catch(dex,code_off,source_pc,target_pc,expected_slot_b):
+    """CFG-prove h.SLOT_B member -> exact e.catch holder argument.
+    Distinguishes an alias on one path from a dominant same-reference flow.
+    No private values/field names exported.
+    """
+    cfg=audit.build_dex_control_flow(dex,code_off)
+    by_pc=cfg["by_pc"]
+    edges=cfg["successors"]
+    source=by_pc.get(source_pc)
+    target=by_pc.get(target_pc)
+    if source is None or source[0]!=0x54 or target is None:
+        raise ValueError("SECONDARY_EXACT_QUEUE_SOURCE_TARGET_MISSING")
+    actual_field=audit.field_id(dex,source[1][1])
+    if actual_field!=expected_slot_b:
+        raise ValueError("SECONDARY_EXACT_QUEUE_SLOT_B_MISMATCH")
+    target_op,target_raw=target
+    if target_op not in audit.INVOKES or dex.method(target_raw[1])!=ENGINE_ENABLE:
+        raise ValueError("SECONDARY_EXACT_QUEUE_ENABLE_CALLEE_MISMATCH")
+    argregs=audit.invoke_registers(target_op,target_raw)
+    if len(argregs)!=6:
+        raise ValueError("SECONDARY_EXACT_QUEUE_ENABLE_ARGUMENT_SHAPE")
+    wanted=argregs[1]
+    field_reg=(source[1][0]>>8)&0xf
+    # Method entry without source may not reach the target.
+    # If it can, source is not proved to dominate the observed call.
+    method_start=min(by_pc)
+    search=[method_start]
+    seen_without_source=set()
+    bypass=False
+    while search:
+        at=search.pop()
+        if at in seen_without_source or at==source_pc:continue
+        seen_without_source.add(at)
+        if len(seen_without_source)>9000:
+            raise ValueError("SECONDARY_QUEUE_DOMINANCE_BUDGET")
+        if at==target_pc:
+            bypass=True
+            break
+        search.extend(edges.get(at,()))
+    no_dest=(set((0x00,0x0e,0x0f,0x10,0x11,0x1d,0x1e,0x26,0x27)) |
+             set(range(0x28,0x2d)) |
+             set(range(0x32,0x3e)) |
+             set(range(0x4b,0x52)) |
+             set(range(0x59,0x60)) |
+             set(range(0x66,0x6e)))
+    work=[(at,frozenset((field_reg,))) for at in edges.get(source_pc,())]
+    visited=set()
+    target_states=[]
+    rejected=False
+    while work:
+        at,aliases=work.pop()
+        if (at,aliases) in visited:continue
+        visited.add((at,aliases))
+        if len(visited)>3800:
+            raise ValueError("SECONDARY_QUEUE_ALIAS_CFG_BUDGET")
+        if at==target_pc:
+            target_states.append(wanted in aliases)
+            continue
+        if at<=source_pc or at>target_pc:
+            continue
+        item=by_pc.get(at)
+        if item is None:
+            rejected=True
+            continue
+        op,words=item
+        after=set(aliases)
+        if op in (0x07,0x08,0x09):
+            dst,src=audit.move_object_registers(op,words)
+            after.discard(dst)
+            if src in aliases:after.add(dst)
+        elif op in audit.INVOKES or op in no_dest:
+            pass
+        else:
+            written=audit.written_register(op,words)
+            if written is None:
+                rejected=True
+                continue
+            after.discard(written)
+        for following in edges.get(at,()):
+            work.append((following,frozenset(after)))
+    complete=(not bypass and not rejected and bool(target_states)
+              and all(target_states))
+    return {
+        "source_pc":source_pc,
+        "target_engine_catch_pc":target_pc,
+        "field_is_exact_same_queue_slot_b":True,
+        "source_dominates_target":not bypass,
+        "reaching_states":len(target_states),
+        "same_object_reference_in_every_reaching_state":bool(target_states) and all(target_states),
+        "analysis_had_unhandled_instruction":rejected,
+        "cfg_strict_same_holder_from_slot_b_proven":complete,
+        "currently_audible_audio_identity_proven":False
+    }
+
 def scan_exact(apks):
     scanned=0
     exact_secondary=None
@@ -237,6 +331,25 @@ def scan_exact(apks):
     # An argument provenance trace is separate from raw callsite presence.
     # Only the known engine e methods may be traced. Never return private
     # fields, literal object values, account IDs, URLs or track metadata.
+    engine_queue_b_cfg_proofs=[]
+    for caller_dex,caller_method,caller_flags,caller_offset,call_pc,op,args in engine_invokers:
+        target_spec={
+          (("Landroidx/media3/exoplayer/e;","break","()V"),1183):1051,
+          (("Landroidx/media3/exoplayer/e;","class","([ZJ)V"),51):2
+        }
+        source_pc=target_spec.get((caller_method,call_pc))
+        if source_pc is None:continue
+        try:
+            result=prove_exact_queue_b_to_engine_catch(
+                caller_dex,caller_offset,source_pc,call_pc,
+                all_known_b_field.get("field"))
+            engine_queue_b_cfg_proofs.append({"caller":list(caller_method),**result})
+        except (audit.DexError,ValueError):
+            engine_queue_b_cfg_proofs.append({
+                "caller":list(caller_method),"source_pc":source_pc,
+                "target_engine_catch_pc":call_pc,
+                "cfg_strict_same_holder_from_slot_b_proven":False,
+                "currently_audible_audio_identity_proven":False})
     engine_caller_arg_provenance=[]
     for caller_dex,caller_method,caller_flags,caller_offset,call_pc,op,args in engine_invokers:
         if caller_method[0]!="Landroidx/media3/exoplayer/e;":
@@ -310,6 +423,7 @@ def scan_exact(apks):
         "engine_enable_direct_invoker_count":len(engine_sources),
         "engine_enable_direct_invokers":engine_sources,
         "engine_enable_holder_argument_provenance":engine_caller_arg_provenance,
+        "engine_enable_queue_slot_b_cfg_proofs":engine_queue_b_cfg_proofs,
         "exact_engine_holder_input_register":e_holder_reg,
         "exact_engine_instruction_count":len(e_insns),
         "exact_engine_to_renderer_enable_invokes":e_calls,
