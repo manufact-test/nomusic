@@ -1,8 +1,18 @@
 # CELIKOM Android A1 — CANONICAL CURRENT HANDOFF
 
+## FIRST ACTION IN NEXT CHAT — WAIT FOR NAV18 PHONE TXT (17 NOV FINAL)
+
+**This is the newest authoritative instruction.** The owner's next message will contain the NAV18 real-phone diagnostic TXT and listening results. **Read [ANDROID-A1-NAV18-FINAL-HANDOFF-AWAIT-OWNER-DIAGNOSTICS-20261117.md](ANDROID-A1-NAV18-FINAL-HANDOFF-AWAIT-OWNER-DIAGNOSTICS-20261117.md) FIRST, plus this document and [NAV18 binary release details](ANDROID-A1-NAV18-EXACT-NATIVE-RENDERER-READONLY-OWNER-TEST-20261117.md).** Do NOT resume static audits before interpreting that diagnostic, and do NOT manufacture new APK until a concrete device issue/gate warrants it.
+
+**Actual state:** Stage A native real Yandex original playback passed on NAV17; Stage B replacement still NO-GO. **NAV18 APK delivered and owner is about to test, but no NAV18 phone diagnostic/reliable live result exists in this chat.** Original vendor 2025.10.4 #120.1gpr (not repository HookSpec 2026.10.3). Original NAV17 backup and new NAV18 APK both saved and verified in user's **ChatGPT Library → /CELIKOM/Android/Native/**. Native signed full-owner export CI **#44122921119 SUCCESS**. The test's exact signed NAV18 APK SHA256 **`647cbbc348e128ff10e79f50a6a04964cf9253a5e4cacd08f5949fe892793212`**, and persistent owner cert **`048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`** match prior NAV17 signer. The original nested Yandex APK bytes are unchanged. DO NOT uninstall/clear data or bypass Android protections.
+
+**The 17 November signed static trace is COMPLETE through native `LR29` sample-read method entry.** New read-only NAV18 hook observes `mQ8.catch → b.package → b.g → b.case` and exports finite categories on owner tap; it does not select/replace audio or prove final PCM or current album/edition. For diagnostics, find latest `DIAGNOSTIC_BUILD=NAV_V18_NATIVE_RENDERER_STREAM_READONLY` emitted as `event=DIAGNOSTIC_BUILD;origin=NAV_V18_NATIVE_RENDERER_STREAM_READONLY;error=ACTIVE`; check hook `REGISTERED/NO_HOOK` and audio summary `QUEUED_HOLDER_ATTACHED`, `ATTACHED_STREAM_READ_MATCH`, `IDENTITY_STATUS` alongside owner sound/Next/seek/My Wave. No sensitive data, song IDs or audio in report. Interpret `NONE/ONE/FEW/MANY` strictly as coarse bins, not exact counts.
+
+**Branch safety:** only `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. The exact owner APK's signed content does not change when documenting. There is a pre-live backup `backup/android-a1-pre-live-readonly-witness-20261117` @ `4a1caf93bff6e06fb99669693fc346321b89d509`, plus final green NAV18 backup below. Code and APK are NOT to be changed in this last handoff; only documentation. Keep all previous static proof docs; they are history, not new to-do.
+
 **Updated:** 17 November 2026. This file takes precedence over earlier Android NEXT-CHAT/HANDOFF documents.
 
-## 17 Nov — CURRENT NAV18 OWNER APK RELEASED IN LIBRARY, WAIT FOR PHONE TXT
+## 17 Nov — FINAL SAVED HANDOFF: NAV18 released, phone evidence is NEXT
 
 **Mandatory live-test handoff: [ANDROID-A1-NAV18-EXACT-NATIVE-RENDERER-READONLY-OWNER-TEST-20261117.md](ANDROID-A1-NAV18-EXACT-NATIVE-RENDERER-READONLY-OWNER-TEST-20261117.md).** Owner approved one *diagnostic-only* in-place APK; **NAV18 signed APK is now verified in personal Library**. NAV17 remains preserved as accepted baseline. **Stage B NO-GO, no CELIKOM replacement audio**.
 
@@ -154,8 +164,8 @@ The previous developer's useful research **was already saved**: [YANDEX-MEDIA3-R
 
 **Exact proven static continuity:** `TrackWrapper → LiLb → native Player/i$c/Lp96 → Lo96 → Lup1 → Lup1$a → Lxh6.[LR29 → h.SLOT_B → e.break → LmQ8.catch → k.package → b.attached LR29 → b.g → LR29.throw(LiA9;LRF2;I)I`. Distinguish adapter stream (`Lup1$a`) from raw child source stream (`LR29`).
 
-## Next task and boundaries
+## Current next task (supersedes the old pre-NAV18 task)
 
-**Do not repeat any above proof.** Next *only* work on **a bounded, privacy-safe live witness for the exact 2025 NAV17** `k.package` attached-stream event **paired with** `b.g` stream read on the same renderer, and selected queue generation/Track+album+edition+duration (without logging values). Distinguish current sound from queue/prefetch and audio from other renderers; correlate transition/seek/radio. Inspect only directly supported known audio-renderer implementation(s) if static differentiation can be done cheaply; **no broad renderer/audio/ByteBuffer searches**.
+**Receive the owner's actual NAV18 TXT + symptom report first.** Interpret the final build marker, hook-registration status, matched renderer stream summaries, whether original audio plays across Next/seek/My Wave; distinguish queue/prefetch vs currently decoded audible output. Next code change, if any, must be precisely grounded in these outcomes and backed up. The earlier suggestion to *create* a live witness is **already complete in NAV18**, so do **NOT** redo it. Full detail: [ANDROID-A1-NAV18-FINAL-HANDOFF-AWAIT-OWNER-DIAGNOSTICS-20261117.md](ANDROID-A1-NAV18-FINAL-HANDOFF-AWAIT-OWNER-DIAGNOSTICS-20261117.md).
 
-**CRITICAL:** the repository's existing `HookSpec.java` pins *2026.10.3 #170gpr* and **cannot be reused for this proven NAV17 original 2025.10.4 #120.1gpr**. Any probe must be separately exact-version-locked and justified before changing runtime; create a new backup first. Do not ship an APK from static CI alone. No second Player/decoder/AudioTrack, no original Yandex modifications, no NAV17/Test.50, Windows, extension, backend or production changes. No reading/exporting private identifiers, object contents, metadata, URLs, tokens, or audio. Stage B **NO-GO** until CELIKOM audio is truly active and owner verifies sound.
+**Never confuse** the original Yandex 2025.10.4 #120.1gpr with the unrelated 2026.10.3 `HookSpec.java` targets. Stage A owner-accepted original playback PASS; Stage B CELIKOM replacement NO-GO; no changes to original app, NAV17, Test.50, other platforms or backend. The entire 17 Nov signed-static proof above remains valid history.
