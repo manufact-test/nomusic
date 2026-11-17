@@ -459,6 +459,80 @@ def inspect_renderer_attached_stream_read_entry(owner_methods,getters):
             "actual_current_live_decoded_audio_confirmed":False,
             "audio_buffers_and_private_stream_data_not_read":True}
 
+
+SIGNED_READ_CALL=(STREAM,"throw","(LiA9;LRF2;I)I")
+SIGNED_SKIP_CALL=(STREAM,"class","(J)I")
+MAX_SAMPLE_READ_CALLS=75
+MAX_SAMPLE_REACHABLE_METHODS=1800
+
+def verify_exact_attached_stream_read_source(owner_methods,getters):
+    """b.g reads the SAME b.attached LR29 field written by b.package,
+    then invokes native LR29.read-like contract with decoder input wrapper.
+    Static, no proof this executes or reaches an audible decoder."""
+    exact_field=confirm_direct_reference_getter(getters[CONCRETE_GETTER])
+    checks=[]
+    for method,entry_pc,invoke_pc,callee in (
+        (RENDERER_READ_ENTRY,0,5,SIGNED_READ_CALL),
+        (RENDERER_SKIP_ENTRY,0,8,SIGNED_SKIP_CALL),
+    ):
+        if method not in owner_methods or not owner_methods[method][2]:
+            raise ValueError("RENDERER_READER_EXACT_BODY_MISSING")
+        dex,flags,off=owner_methods[method]
+        insns={pc:(op,words) for pc,op,words in audit.instructions(dex,off)}
+        if entry_pc not in insns or insns[entry_pc][0]!=0x54:
+            raise ValueError("RENDERER_READER_ATTACHED_FIELD_GET_MISSING")
+        get_words=insns[entry_pc][1]
+        if audit.field_id(dex,get_words[1])!=exact_field:
+            raise ValueError("RENDERER_READER_NOT_SAME_ATTACHED_FIELD")
+        result_reg=(get_words[0]>>8)&15
+        call=insns.get(invoke_pc)
+        if not call or call[0] not in audit.INVOKES or dex.method(call[1][1])!=callee:
+            raise ValueError("RENDERER_READER_NATIVE_SAMPLE_CALL_MISSING")
+        actual_regs=audit.invoke_registers(call[0],call[1])
+        if not actual_regs or result_reg!=actual_regs[0]:
+            raise ValueError("RENDERER_READER_NATIVE_STREAM_RECEIVER_DIFFERENT")
+        same_alias=same_register_alias_all_call_paths(
+            dex,off,entry_pc,[invoke_pc],callee,0,result_reg)
+        checks.append({"renderer_method":list(method),
+                       "attached_field_read_pc":entry_pc,
+                       "stream_read_or_skip_pc":invoke_pc,
+                       "native_stream_interface_call":list(callee),
+                       "same_reference_alias":same_alias})
+    return {
+        "same_renderer_attached_LR29_to_native_read_data_and_skip":True,
+        "exact_native_input_entry_proofs":checks,
+        "active_live_decoder_or_audio_confirmed":False,
+        "read_buffer_values_audio_and_private_fields_not_accessed":True}
+
+def sample_read_callers_in_exact_renderer_subtree(apks,reachable):
+    """Only direct exact b.g/native sample-stream interface input.
+    No codec or audio buffer census."""
+    targets=frozenset((RENDERER_READ_ENTRY,RENDERER_SKIP_ENTRY))
+    matches=[]
+    inspected=0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for ent in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",ent.filename):continue
+                dex=audit.Dex(archive.read(ent.filename))
+                for method,flags,off in audit.method_definitions_with_flags(dex):
+                    if method[0] not in reachable or not off:continue
+                    inspected+=1
+                    if inspected>MAX_SAMPLE_REACHABLE_METHODS:
+                        raise ValueError("RENDERER_NATIVE_READER_CALLERS_METHOD_LIMIT")
+                    for pc,opcode,words in audit.instructions(dex,off):
+                        if opcode in audit.INVOKES and 0x6e<=opcode<=0x78:
+                            callee=dex.method(words[1])
+                            if callee in targets:
+                                matches.append({"caller":list(method),"pc":pc,
+                                     "callee":list(callee),
+                                     "registers":audit.invoke_registers(opcode,words)})
+                                if len(matches)>MAX_SAMPLE_READ_CALLS:
+                                    raise ValueError("RENDERER_NATIVE_READER_CALLSITE_LIMIT")
+    return {"scoped_exact_k_implementer_method_count":inspected,
+            "direct_renderer_input_reader_callers":matches,
+            "live_decoding_confirmed":False}
+
 def scan_signed(apks):
     dexes=0
     definitions={}
@@ -538,7 +612,11 @@ def scan_signed(apks):
     attach_helper=inspect_exact_native_renderer_attach_helper(exact_owner_methods)
     exact_bridge=verify_exact_holder_to_attached_stream_sequence(exact_owner_methods)
     native_sample_read=inspect_renderer_attached_stream_read_entry(exact_owner_methods,method_bodies)
-    return {"exact_renderer_native_sample_read_boundary":native_sample_read,
+    read_identity=verify_exact_attached_stream_read_source(exact_owner_methods,method_bodies)
+    native_reader_callers=sample_read_callers_in_exact_renderer_subtree(apks,reachable)
+    return {"exact_renderer_attached_stream_to_sample_read_proof":read_identity,
+            "exact_renderer_sample_read_callers":native_reader_callers,
+            "exact_renderer_native_sample_read_boundary":native_sample_read,
             "exact_queue_holder_to_renderer_stream_attachment_bridge":exact_bridge,
             "exact_native_renderer_attach_helper":attach_helper,
             "signed_exact_renderer_stream_attach_callers":exact_attach_callers,
