@@ -77,6 +77,14 @@ def bounded_register_microtrace(dex, instructions, slots, ranges):
                        value_register=(words[0] >> 8)&0xf,
                        receiver_register=(words[0] >> 12)&0xf)
             kind="field"
+        elif op in (0x54,0x5b):
+            owner,_private_name,typ=audit.field_id(dex,words[1])
+            if owner==HOLDER and typ==HOLDER:
+                row.update(action="HOLDER_NEXT_TYPED_FIELD",
+                           operation="READ" if op==0x54 else "WRITE",
+                           value_register=(words[0]>>8)&0xf,
+                           receiver_register=(words[0]>>12)&0xf)
+                kind="holder_link"
         elif op in (0x07,0x08,0x09):
             dst,src=audit.move_object_registers(op,words)
             row.update(action="MOVE_OBJECT",to=dst,source=src);kind="move"
@@ -92,7 +100,7 @@ def bounded_register_microtrace(dex, instructions, slots, ranges):
             row.update(action="CONST_REDACTED",register=(words[0]>>8)&0xff);kind="constant"
         elif op in audit.INVOKES and 0x6e<=op<=0x78:
             target=dex.method(words[1])
-            if target[0] in (QUEUE,HOLDER):
+            if target[0] in (QUEUE,HOLDER,"LmQ8;"):
                 row.update(action="CALL",callee=[target[0],target[1],target[2]],
                            registers=audit.invoke_registers(op,words));kind="call"
         if kind:result.append(row)
@@ -224,7 +232,7 @@ def scan_signed(apks):
     interesting_names={"if","while","this","for","final"}
     for method,(dex,flags,off) in all_methods.items():
         if method == ENGINE:
-            ranges=((225,330),(400,450),(1240,1270))
+            ranges=((530,605),(965,1010),(1030,1100),(1150,1190),(1220,1270))
         elif method[0] == QUEUE and method[1] in interesting_names:
             ranges=((0,90),)
         else:
