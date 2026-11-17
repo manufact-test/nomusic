@@ -116,10 +116,89 @@ def inspect_exact_attached_stream_field(apks,reachable,all_getters):
             "private_attached_field_name_or_values_exported":False,
             "actual_live_attachment_verified":False}
 
+
+RENDERER_BASE="Landroidx/media3/exoplayer/b;"
+ENGINE_OWNER="Landroidx/media3/exoplayer/e;"
+ATTACH_DESCRIPTOR="([LSr4;LR29;JJLSl6$b;)V"
+EXACT_ATTACH=(RENDERER_BASE,"package",ATTACH_DESCRIPTOR)
+MAX_ENGINE_METHODS=220
+MAX_ENGINE_ATTACH_CALLS=36
+
+def inspect_exact_native_stream_attachment(methods, getter_methods, exact_field_events):
+    """Narrow known b.package (stream attach) + Exo engine/e invokes only.
+    No signed user data, field values, audio, or broad renderer operations."""
+    if EXACT_ATTACH not in methods or not methods[EXACT_ATTACH][2]:
+        raise ValueError("RENDERER_EXACT_STREAM_SETTER_NOT_DEFINED")
+    dex,flags,off=methods[EXACT_ATTACH]
+    insns=list(audit.instructions(dex,off))
+    if len(insns)>100:raise ValueError("RENDERER_SETTER_METHOD_TOO_LARGE")
+    if CONCRETE_GETTER not in getter_methods:
+        raise ValueError("RENDERER_GETTER_FOR_SETTER_IDENTITY_MISSING")
+    field=confirm_direct_reference_getter(getter_methods[CONCRETE_GETTER])
+    # exact b.package field write proven in previous bounded signed CI:
+    pc7=[(op,words) for pc,op,words in insns if pc==7]
+    if len(pc7)!=1 or pc7[0][0]!=0x5b:
+        raise ValueError("RENDERER_EXACT_SETTER_IPUT_PC_MISSING")
+    words=pc7[0][1]
+    if audit.field_id(dex,words[1])!=field:
+        raise ValueError("RENDERER_EXACT_SETTER_NOT_SAME_FIELD_AS_GETTER")
+    set_value=(words[0]>>8)&15
+    set_receiver=(words[0]>>12)&15
+    registers=dex.u16(off)
+    incoming_words=dex.u16(off+2)
+    # non-static package([LSr4; LR29; JJ LSl6$b) receives exactly 9 registers:
+    # receiver, objects + four wide argument words + period-id object.
+    if flags&0x8:
+        raise ValueError("RENDERER_EXACT_SETTER_UNEXPECTED_STATIC")
+    types=audit.expand_invoke_register_types(RENDERER_BASE,audit.parse_types(ATTACH_DESCRIPTOR),False)
+    parameter_types=[t for t in types if t is not None]
+    # Stronger than type-name guess: require exact incoming parameter register
+    # flows unchanged into the stored renderer field at the observed PC.
+    arg_start=registers-incoming_words
+    if arg_start<0 or STREAM not in parameter_types:
+        raise ValueError("RENDERER_SETTER_INCOMING_ARGUMENT_LAYOUT")
+    stream_logical_index=parameter_types.index(STREAM)
+    # expand_invoke_register_types includes None for the second word of J/D.
+    stream_reg=arg_start+types.index(STREAM)
+    this_reg=arg_start
+    if stream_reg!=set_value or this_reg!=set_receiver:
+        raise ValueError("RENDERER_SETTER_STREAM_ARGUMENT_FIELD_ALIAS_MISMATCH")
+    # The renderer uses this stream as attached state; no sound implied.
+    direct_calls=[]
+    engine_methods=0
+    for method,(this_dex,engine_flags,engine_off) in methods.items():
+        if method[0]!=ENGINE_OWNER or not engine_off:continue
+        engine_methods+=1
+        if engine_methods>MAX_ENGINE_METHODS:
+            raise ValueError("RENDERER_ENGINE_METHOD_SCAN_LIMIT")
+        for pc,opcode,raw in audit.instructions(this_dex,engine_off):
+            if opcode not in audit.INVOKES or not (0x6e<=opcode<=0x78):
+                continue
+            callee=this_dex.method(raw[1])
+            if (callee[0] in (RENDERER,RENDERER_BASE,ALT_RENDERER)
+                    and callee[2]==ATTACH_DESCRIPTOR):
+                direct_calls.append({"caller":list(method),"pc":pc,
+                                     "callee":list(callee),
+                                     "arg_registers":audit.invoke_registers(opcode,raw)})
+                if len(direct_calls)>MAX_ENGINE_ATTACH_CALLS:
+                    raise ValueError("RENDERER_EXACT_ENGINE_ATTACH_CALL_LIMIT")
+    return {
+        "exact_native_renderer_b_attachment_method":list(EXACT_ATTACH),
+        "setter_pc":7,
+        "same_exact_stream_field_in_setter_and_getter":True,
+        "same_incoming_LR29_argument_written_to_renderer_field":True,
+        "single_renderer_instance_receiver":True,
+        "native_engine_methods_scoped":engine_methods,
+        "native_engine_exact_renderer_attach_calls":direct_calls,
+        "actual_renderer_current_decoder_or_audio_confirmed":False,
+        "private_field_names_values_ids_urls_or_stream_data_exported":False,
+    }
+
 def scan_signed(apks):
     dexes=0
     definitions={}
     method_bodies={}
+    exact_owner_methods={}
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for ent in archive.infolist():
@@ -138,6 +217,9 @@ def scan_signed(apks):
                     definitions[name]={"parent":parent,"interfaces":interfaces,"flags":dex.u32(off+4)}
                     if len(definitions)>MAX_CLASS_NODES:raise ValueError("RENDERER_CLASS_GRAPH_LIMIT")
                 for method,flags,code_off in audit.method_definitions_with_flags(dex):
+                    if method[0] in (ENGINE_OWNER,RENDERER_BASE):
+                        if method in exact_owner_methods:raise ValueError("RENDERER_ENGINE_METHOD_DUPLICATE")
+                        exact_owner_methods[method]=(dex,flags,code_off)
                     if method[1]!=GETTER_NAME or method[2]!=GETTER_DESC:
                         continue
                     if method in method_bodies:
@@ -186,7 +268,9 @@ def scan_signed(apks):
                 row["getter_scoped_events"]=events
         rows.append(row)
     attached=inspect_exact_attached_stream_field(apks,reachable,method_bodies)
-    return {"exact_inherited_renderer_attached_stream_field_uses":attached,
+    attach=inspect_exact_native_stream_attachment(exact_owner_methods,method_bodies,attached)
+    return {"exact_native_renderer_stream_attachment":attach,
+            "exact_inherited_renderer_attached_stream_field_uses":attached,
             "verdict":"EXACT_SIGNED_RENDERER_INTERFACE_CONCRETE_GETTER_MAP_STATIC_ONLY",
             "signed_dex_count":dexes,"renderer_interface":RENDERER,
             "exact_getter_descriptor":GETTER_DESC,
