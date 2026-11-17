@@ -169,6 +169,50 @@ def renderer_holder_argument_witness(engine_entry, slots):
             "selected_rendering_period_from_this_observation_proven":False}
 
 
+
+RENDERER_HELPER_METHODS=frozenset({
+    ("LmQ8;","try","(Lxh6;Landroidx/media3/exoplayer/k;)Z"),
+    ("LmQ8;","new","(Lxh6;)Landroidx/media3/exoplayer/k;"),
+})
+RENDERER_RELATED_OWNERS=frozenset({
+    "Lxh6;","Lup1;","Lwh6;","Landroidx/media3/exoplayer/l;",
+    "Landroidx/media3/exoplayer/k;","LmQ8;"
+})
+def inspect_exact_renderer_helpers(targets):
+    """Inspect ONLY two exact LmQ8 methods called with native queue B.
+    This is still structural evidence, not an audio decoder proof."""
+    rows=[]
+    for method in sorted(RENDERER_HELPER_METHODS):
+        if method not in targets or not targets[method][2]:
+            raise ValueError("QUEUE_EXACT_RENDER_HELPER_BODY_MISSING")
+        dex,flags,off=targets[method]
+        insns=list(audit.instructions(dex,off))
+        if len(insns)>700:
+            raise ValueError("QUEUE_RENDER_HELPER_SIZE_LIMIT")
+        methods=[]
+        fields=[]
+        allocations=[]
+        for pc,op,words in insns:
+            if op in audit.INVOKES and 0x6e<=op<=0x78:
+                callee=dex.method(words[1])
+                if len(methods)>=90:raise ValueError("QUEUE_HELPER_CALL_LIMIT")
+                methods.append({"pc":pc,"owner":callee[0],"name":callee[1],
+                                "signature":callee[2],
+                                "related":callee[0] in RENDERER_RELATED_OWNERS})
+            if 0x52<=op<=0x6d:
+                owner,_name,typ=audit.field_id(dex,words[1])
+                if owner in RENDERER_RELATED_OWNERS or typ in ("Lxh6;","Lup1;","Lwh6;","Landroidx/media3/exoplayer/l;"):
+                    if len(fields)>=80:raise ValueError("QUEUE_HELPER_FIELD_LIMIT")
+                    fields.append({"pc":pc,"field_owner":owner,
+                                   "field_type":typ,"opcode":op})
+            if op==0x22:
+                if len(allocations)>=40:raise ValueError("QUEUE_HELPER_ALLOCATION_LIMIT")
+                allocations.append({"pc":pc,"type":dex.descriptor(words[1])})
+        rows.append({"method":method,"instruction_count":len(insns),
+                     "direct_calls":methods,"related_field_type_accesses":fields,
+                     "object_allocations":allocations})
+    return rows
+
 RENDERER_HELPER = ("LmQ8;","try","(Lxh6;Landroidx/media3/exoplayer/k;)Z")
 
 def exact_queue_front_successor(h_entry, slots):
@@ -300,7 +344,7 @@ def scan_signed(apks):
                 dex = audit.Dex(archive.read(entry.filename))
                 dex_count += 1
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE:
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS:
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
@@ -360,11 +404,13 @@ def scan_signed(apks):
         microtraces[method[0]+method[1]+method[2]]=trace
     native_engine_renderer_boundary=renderer_holder_argument_witness(
         targets[ENGINE],slot_ids)
+    renderer_helper_inspection=inspect_exact_renderer_helpers(targets)
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
     renderer_helper_flow=scoped_front_to_renderer_helper(
         targets[ENGINE],slot_ids)
     return {
+        "exact_renderer_helper_inspection":renderer_helper_inspection,
         "exact_queue_front_successor":front_successor,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,
