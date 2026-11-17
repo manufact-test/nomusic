@@ -194,6 +194,39 @@ def inspect_exact_native_stream_attachment(methods, getter_methods, exact_field_
         "private_field_names_values_ids_urls_or_stream_data_exported":False,
     }
 
+
+NATIVE_ATTACH_CALLEES=frozenset({
+    (RENDERER,"package",ATTACH_DESCRIPTOR),
+    (RENDERER_BASE,"package",ATTACH_DESCRIPTOR),
+    (ALT_RENDERER,"package",ATTACH_DESCRIPTOR),
+})
+MAX_EXACT_ATTACH_REFERENCES=64
+def find_exact_native_attach_callers(apks):
+    """One exact renderer-attachment method descriptor, not generic renderer scan."""
+    matched=[]
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):continue
+                dex=audit.Dex(archive.read(entry.filename))
+                for method,flags,off in audit.method_definitions_with_flags(dex):
+                    if not off:continue
+                    for pc,opcode,words in audit.instructions(dex,off):
+                        if opcode not in audit.INVOKES or not (0x6e<=opcode<=0x78):
+                            continue
+                        callee=dex.method(words[1])
+                        if callee not in NATIVE_ATTACH_CALLEES:
+                            continue
+                        matched.append({"caller":list(method),"pc":pc,"callee":list(callee),
+                                        "invoke_opcode":opcode,
+                                        "arguments":audit.invoke_registers(opcode,words)})
+                        if len(matched)>MAX_EXACT_ATTACH_REFERENCES:
+                            raise ValueError("RENDERER_EXACT_ATTACH_CALLERS_LIMIT")
+    return {"exact_signed_renderer_attach_method_calls":matched,
+            "one_exact_signature_only":True,
+            "live_selected_audio_confirmed":False,
+            "private_fields_and_audio_not_read":True}
+
 def scan_signed(apks):
     dexes=0
     definitions={}
@@ -269,7 +302,9 @@ def scan_signed(apks):
         rows.append(row)
     attached=inspect_exact_attached_stream_field(apks,reachable,method_bodies)
     attach=inspect_exact_native_stream_attachment(exact_owner_methods,method_bodies,attached)
-    return {"exact_native_renderer_stream_attachment":attach,
+    exact_attach_callers=find_exact_native_attach_callers(apks)
+    return {"signed_exact_renderer_stream_attach_callers":exact_attach_callers,
+            "exact_native_renderer_stream_attachment":attach,
             "exact_inherited_renderer_attached_stream_field_uses":attached,
             "verdict":"EXACT_SIGNED_RENDERER_INTERFACE_CONCRETE_GETTER_MAP_STATIC_ONLY",
             "signed_dex_count":dexes,"renderer_interface":RENDERER,
