@@ -24,12 +24,13 @@ PERIOD="Lo96;"
 PERIOD_FACTORY=("Lp96;","transient","(LSl6$b;LrH2;J)Lo96;")
 PERIOD_ADAPTER=("Lp96;","goto","(LSl6$b;LrH2;J)Lwh6;")
 PERIOD_HOLDER_CTOR=("Lxh6;","<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V")
-EXACT_METHODS=frozenset((PERIOD_FACTORY,PERIOD_ADAPTER,PERIOD_HOLDER_CTOR))
+PERIOD_WRAPPER_CTOR=("Lup1;","<init>","(Lwh6;ZJJ)V")
+EXACT_METHODS=frozenset((PERIOD_FACTORY,PERIOD_ADAPTER,PERIOD_HOLDER_CTOR,PERIOD_WRAPPER_CTOR))
 WHITELIST=frozenset({
     "Lp96;","Lxh6;","Lo96;","LuIb;","Lwh6;","LSl6;",
     "Landroidx/media3/exoplayer/i;","Landroidx/media3/exoplayer/l;",
     "Landroidx/media3/exoplayer/d;","Landroidx/media3/exoplayer/m;",
-    "LrH2;","Lyh6;",
+    "LrH2;","Lyh6;","Lup1;",
 })
 MAX_CALLS=100
 MAX_FIELDS=110
@@ -67,6 +68,59 @@ def scan_signed(apks):
     if len(dexes)!=6:raise ValueError("PERIOD_ACTIVATION_SIX_DEX_REQUIRED")
     if set(methods)!=EXACT_METHODS or any(not x[2] for x in methods.values()):
         raise ValueError("PERIOD_ACTIVATION_METHOD_BODY_MISSING")
+    # Bound direct construction callsites only for the signed exact holder.
+    # These callers are potential queue management sites, not active decoder proof.
+    holder_ctor_callers=[]
+    for dex in dexes:
+        for caller,flags,off in audit.method_definitions_with_flags(dex):
+            for pc,op,words in audit.instructions(dex,off):
+                if op not in audit.INVOKES or not 0x6E<=op<=0x78:continue
+                if dex.method(words[1])!=PERIOD_HOLDER_CTOR:continue
+                if len(holder_ctor_callers)>=38:
+                    raise ValueError("PERIOD_HOLDER_EXACT_CALLER_LIMIT")
+                holder_ctor_callers.append({
+                    "caller_owner":caller[0],"caller_method":caller[1],
+                    "caller_signature":caller[2],"pc":pc,
+                })
+    # An exact constructor stores period ownership inside the native period
+    # wrapper only when its same-typed argument flows into that instance.
+    wrapper_dex,wrapper_flags,wrapper_off=methods[PERIOD_WRAPPER_CTOR]
+    wrapper_fields=[]
+    for pc,op,words in audit.instructions(wrapper_dex,wrapper_off):
+        if 0x52<=op<=0x6d:
+            owner,_name,typ=audit.field_id(wrapper_dex,words[1])
+            if len(wrapper_fields)>=28:
+                raise ValueError("PERIOD_WRAPPER_CTOR_FIELD_LIMIT")
+            wrapper_fields.append({
+                "pc":pc,"owner":owner,"type":typ,"opcode":op,
+            })
+    try:
+        wrapper_trace=audit.trace_track_identity_method_cfg(
+            wrapper_dex,PERIOD_WRAPPER_CTOR,wrapper_flags,wrapper_off,
+            extra_identity_types={
+                "Lwh6;":"EXACT_INCOMING_PERIOD",
+                "Lup1;":"EXACT_NATIVE_PERIOD_WRAPPER",
+            })
+        wrapper_events=[
+            e for e in wrapper_trace.get("events",())
+            if e.get("kind") in (
+                "FIELD_STORE_TYPED_IDENTITY","CALL_WITH_TYPED_IDENTITY",
+                "RETURN_TYPED_IDENTITY")
+            and "EXACT_INCOMING_PERIOD" in str(e)
+        ][:24]
+        wrapper_source_stored=any(
+            e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
+            and e.get("identity_type")=="EXACT_INCOMING_PERIOD"
+            and e.get("destination_owner")=="Lup1;"
+            and e.get("receiver_is_this_on_all_paths") is True
+            and "EXACT_INCOMING_PERIOD_PARAMETER" in e.get("origins",())
+            for e in wrapper_trace.get("events",())
+        )
+        wrapper_trace_complete=True
+        wrapper_trace_error=None
+    except (ValueError,audit.DexError) as e:
+        wrapper_events=[];wrapper_source_stored=False
+        wrapper_trace_complete=False;wrapper_trace_error=type(e).__name__
     rows=[]
     for target in (PERIOD_ADAPTER,PERIOD_HOLDER_CTOR):
         dex,flags,off=methods[target]
@@ -186,6 +240,12 @@ def scan_signed(apks):
         "verdict":"EXACT_LO96_PERIOD_TO_NATIVE_HOLDER_CALLERS_STATIC_ONLY",
         "signed_dex_count":len(dexes),
         "bounded_class_ancestry":class_refs,
+        "exact_native_period_holder_constructor_callers":holder_ctor_callers,
+        "exact_period_wrapper_ctor_fields":wrapper_fields,
+        "exact_period_wrapper_ctor_identity_events":wrapper_events,
+        "period_argument_stored_on_Lup1_this":wrapper_source_stored,
+        "period_wrapper_ctor_trace_complete":wrapper_trace_complete,
+        "period_wrapper_ctor_trace_error":wrapper_trace_error,
         "exact_period_handoff_candidate_methods":rows,
         "runtime_period_active_vs_prefetch_proven":False,
         "runtime_current_player_and_queue_generation_proven":False,
