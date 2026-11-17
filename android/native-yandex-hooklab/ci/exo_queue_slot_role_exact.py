@@ -61,6 +61,44 @@ def direct_getter(instructions, dex, slot_ids):
         return None
     return found[0]
 
+
+def bounded_register_microtrace(dex, instructions, slots, ranges):
+    """Only branch/alias/register form, never DEX literals or private fields."""
+    result=[]
+    for pc, op, words in instructions:
+        if not any(lo <= pc <= hi for lo,hi in ranges):
+            continue
+        kind=None
+        row={"pc":pc}
+        field=slot_field(dex,op,words)
+        if field is not None:
+            row.update(action="GET" if op==0x54 else "PUT",
+                       slot=slots[field],
+                       value_register=(words[0] >> 8)&0xf,
+                       receiver_register=(words[0] >> 12)&0xf)
+            kind="field"
+        elif op in (0x07,0x08,0x09):
+            dst,src=audit.move_object_registers(op,words)
+            row.update(action="MOVE_OBJECT",to=dst,source=src);kind="move"
+        elif op in (0x0c,0x0d):
+            row.update(action="MOVE_RESULT",register=words[0] >> 8);kind="move"
+        elif op==0x22 and dex.descriptor(words[1])==HOLDER:
+            row.update(action="NEW_HOLDER",register=words[0] >> 8);kind="new"
+        elif op in (0x11,0x0e):
+            row.update(action="RETURN",register=words[0]>>8);kind="return"
+        elif 0x32<=op<=0x3d or op in (0x28,0x29,0x2a):
+            row.update(action="BRANCH",opcode=op);kind="branch"
+        elif op in (0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1a,0x1b):
+            row.update(action="CONST_REDACTED",register=(words[0]>>8)&0xff);kind="constant"
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            target=dex.method(words[1])
+            if target[0] in (QUEUE,HOLDER):
+                row.update(action="CALL",callee=[target[0],target[1],target[2]],
+                           registers=audit.invoke_registers(op,words));kind="call"
+        if kind:result.append(row)
+        if len(result)>120:raise ValueError("QUEUE_MICROTRACE_ROW_LIMIT")
+    return result
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -121,7 +159,19 @@ def scan_signed(apks):
                      "events":events})
         if len(rows) > MAX_ROWS:
             raise ValueError("QUEUE_METHOD_ROW_LIMIT")
+    microtraces={}
+    interesting_names={"if","while","this","for","final"}
+    for method,(dex,flags,off) in all_methods.items():
+        if method == ENGINE:
+            ranges=((225,330),(400,450),(1240,1270))
+        elif method[0] == QUEUE and method[1] in interesting_names:
+            ranges=((0,90),)
+        else:
+            continue
+        trace=bounded_register_microtrace(dex,list(audit.instructions(dex,off)),slot_ids,ranges)
+        microtraces[method[0]+method[1]+method[2]]=trace
     return {
+        "bounded_queue_register_microtraces":microtraces,
         "verdict":"NATIVE_QUEUE_SLOT_ROLE_MAP_STATIC_ONLY",
         "verified_six_signed_dex":dex_count,
         "queue_method_count":len(h_methods),
