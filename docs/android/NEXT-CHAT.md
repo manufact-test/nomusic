@@ -5,7 +5,8 @@
 ## Protected checkpoints
 
 - Only working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Current successful **read-only static identity code checkpoint:** `a9408608562b3d70a51f8d01c8be17aa4a73589b`, backup `backup/android-a1-lca9-wrapper-mediasource-player-identity-ci-green-20261117` (17 Nov 2026).
+- Current successful **read-only signed source-to-internal-playlist-holder code checkpoint:** `dca9e8e5c6ac7503a2f307411c6a495fe8b74093`, backup `backup/android-a1-source-into-internal-playlist-holder-ci-green-20261117` (17 Nov 2026).
+- Previous exact TrackWrapper→native Player setter code checkpoint: `a9408608562b3d70a51f8d01c8be17aa4a73589b`, backup `backup/android-a1-lca9-wrapper-mediasource-player-identity-ci-green-20261117`.
 - Older exact named-type MediaSource negative-audit checkpoint: `433191c0b6e5f2a2eabef8589aa01c02f326e3b1`, backup `backup/android-a1-direct-mediasource-contract-ci-green-20261117`.
 - Prior completed LfT2 code audit checkpoint: `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a`, backup `backup/android-a1-lft2-class-structure-ci-green-20261116`.
 - Prior code/runtime baseline: `27ccbe8348d598fead0386e70ef68573b04270c4`, backup `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`.
@@ -73,8 +74,18 @@ The previous developer's useful research **was already saved**: [YANDEX-MEDIA3-R
 
 **Precise boundary:** It proves source selection *call into ExoPlayer* on a TrackWrapper-bearing route, **not** that the setter receiver is the currently audible player, nor correct album/edition/duration/generation, active MediaPeriod/decoder, or CELIKOM bytes. Stage A NAV17 PASS; **Stage B NO-GO**. No runtime hooks or APK touched. Verified code at `a9408608...`, protected backup above.
 
+## 17 Nov — NEW proven source accepted and retained in native ExoPlayer playlist
+
+**Read [exact signed playlist source-holder handoff](ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md)**. This extends the proven TrackWrapper→LiLb→LA14.e→ExoPlayer.e same-object proof *into internal Player state*, not merely a factory or source read.
+
+- [Signed implementation CI #2 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44074575554): concrete `androidx.media3.exoplayer.d.e(LSl6;J)` receives the source and calls `Collections.singletonList(source)` → `d.T0(List,I,J,Z)`; wrapper `LA14.e` forwards the exact same source into the Player.
+- [Signed T0 admission CI #1 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44075018858): branch-sensitive source parameter→singletonList→T0 is **same-reference**, and `T0` forwards the exact List parameter to `d.A0(List,I)` at PC 51. This is native Player playlist admission, not audible current selection.
+- **Critical [signed A0 source-holder CI #5 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44076441146)**: `A0` uses `List.get` on its same input List; exact retrieved source reference passes via check-cast unchanged into `i$c(LSl6;Z)`; the same i$c allocation enters `ArrayList.add`. `i$c` forwards exact source to `Lp96(LSl6,Z)` and stores that newly created Lp96 wrapper; `Lp96` forwards exact source into `LuIb(LSl6)`, where the exact argument is **stored on `this` in an LSl6-typed field**. Checkpoint `dca9e8e5...` above. **`one_source_to_internal_playlist_holder_static_proven=true`**.
+- This is a **real new source object → internal native playlist owner identity proof**, not a claim that a queued holder is the one currently playing. Runtime current selected Track+album+edition+duration+generation, active MediaPeriod/decoder and CELIKOM audio remain **unproven**. Stage B **NO-GO**.
+- All changes Python static read-only tools, unit tests, workflows and docs. Last runtime hook change `a655712d`; no APK or vendor code modifications.
+
 ## Next task and boundaries
 
-**Continue solely from the new exact `LcA9.extends → LA14.e(LSl6;J) → ExoPlayer.e` same-object source proof.** The missing next edge is its runtime **current selected Player receiver/item/generation → active MediaPeriod/decoder**, with trusted Track+album+edition+duration. Distinguish active audio from queued/prefetch sources. Do **not** repeat LfT2, LiLb direct getter, LXk6, global List/Object/ByteBuffer, generic Player ancestry or the new source constructor identity audit. Existing factory→open/read lifecycle alone is not current-track proof. Keep Stage B NO-GO until owner-approved real audio verification; no runtime hooks or APK without concrete justified measurement.
+**Continue from exact `LcA9.extends → LA14.e → ExoPlayer.d.e → singletonList → d.T0 → d.A0 → i$c → Lp96 → LuIb` source-held playlist proof.** The missing next edge is the **runtime-current selected player item/queue generation and active MediaPeriod/decoder for this exact retained source**, with trusted Track+album+edition+duration. A source held in playlist can be queued/prefetch; do not upgrade it to audible. Only a precisely grounded active period hook/callsite can justify a read-only runtime measurement. Do **not** repeat LfT2, LiLb getter, LXk6, global List/Object/ByteBuffer/Player, old factory or new holder constructors. Stage B NO-GO until owner-approved real audio verification; no runtime hooks or APK without justified measurement.
 
 No changes to original Yandex, NAV17, Test.50, frozen branches, runtime hooks, Android APK, Windows, extension, backend/API/DB or production. No reading/exporting Track/Album IDs/titles, URLs, DataSpec, account tokens, private field values, or audio bytes. All static work bounded, read-only and fail-closed. No full CI reports or large source dumps.
