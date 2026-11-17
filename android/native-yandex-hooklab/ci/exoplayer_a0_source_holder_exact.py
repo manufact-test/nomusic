@@ -23,10 +23,118 @@ PARENT=(OWNER,"T0","(Ljava/util/List;IJZ)V")
 MAX_INVOKES=140
 MAX_OBJECT_CREATIONS=64
 MAX_TYPED_FIELDS=48
+HOLDER="Landroidx/media3/exoplayer/i$c;"
+HOLDER_CONSTRUCTOR=(HOLDER,"<init>","(LSl6;Z)V")
+LIST_GET=("Ljava/util/List;","get","(I)Ljava/lang/Object;")
+ARRAY_ADD=("Ljava/util/ArrayList;","add","(Ljava/lang/Object;)Z")
 
 
 def exact_source_handoff(method):
-    return method in (TARGET,PARENT)
+    return method in (TARGET,PARENT,HOLDER_CONSTRUCTOR)
+
+
+
+def same_reference_from_get_to_holder(dex, flags, off):
+    """Only one exact local List.get -> move-result -> checked-cast -> holder init."""
+    ins=list(audit.instructions(dex,off))
+    get_sites=[i for i,(_pc,op,words) in enumerate(ins)
+        if op in audit.INVOKES and 0x6E<=op<=0x78
+        and dex.method(words[1])==LIST_GET]
+    init_sites=[i for i,(_pc,op,words) in enumerate(ins)
+        if op in audit.INVOKES and 0x6E<=op<=0x78
+        and dex.method(words[1])==HOLDER_CONSTRUCTOR]
+    result={
+        "unique_List_get":len(get_sites)==1,
+        "unique_holder_constructor":len(init_sites)==1,
+        "List_get_receiver_is_exact_parameter":False,
+        "same_get_result_passed_to_holder_ctor":False,
+        "LSl6_check_cast_preserves_reference":False,
+        "local_block_has_branch":False,
+    }
+    if len(get_sites)!=1 or len(init_sites)!=1:
+        return result
+    a,b=get_sites[0],init_sites[0]
+    if a>=b or a+1>=b:return result
+    param_regs=audit.typed_parameter_registers(
+        dex,TARGET,flags,off,"Ljava/util/List;")
+    get_regs=audit.invoke_registers(ins[a][1],ins[a][2])
+    result["List_get_receiver_is_exact_parameter"]=(
+        len(param_regs)==1 and len(get_regs)>=2 and get_regs[0] in param_regs
+    )
+    if not result["List_get_receiver_is_exact_parameter"]:return result
+    if ins[a+1][1]!=0x0c:return result
+    alias={(ins[a+1][2][0] >>8)}
+    cast=False
+    for pos in range(a+2,b):
+        _pc,op,words=ins[pos]
+        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            result["local_block_has_branch"]=True
+            return result
+        if op==0x1f:
+            r=words[0]>>8
+            if r in alias and dex.descriptor(words[1])=="LSl6;":
+                cast=True
+            continue
+        # Move-object preserves exact Java reference identity; all other
+        # writes invalidate the destination's old provenance.
+        if op in (0x07,0x08,0x09):
+            coords=audit.move_object_registers(op,words)
+            if coords is None:
+                return result
+            dest,src=coords
+            if src in alias:alias.add(dest)
+            else:alias.discard(dest)
+            continue
+        dest=audit.written_register(op,words)
+        if dest is not None:alias.discard(dest)
+    ctor_op,ctor_words=ins[b][1],ins[b][2]
+    ctor_regs=audit.invoke_registers(ctor_op,ctor_words)
+    result["same_get_result_passed_to_holder_ctor"]=(
+        len(ctor_regs)==3 and ctor_regs[1] in alias
+    )
+    result["LSl6_check_cast_preserves_reference"]=cast
+    return result
+
+
+def same_holder_allocation_added_to_array(dex, off):
+    """One unique newly created i$c object goes to the first typed ArrayList.add."""
+    ins=list(audit.instructions(dex,off))
+    starts=[i for i,(_pc,op,words) in enumerate(ins)
+        if op==0x22 and dex.descriptor(words[1])==HOLDER]
+    adds=[i for i,(_pc,op,words) in enumerate(ins)
+        if op in audit.INVOKES and 0x6E<=op<=0x78
+        and dex.method(words[1])==ARRAY_ADD]
+    result={
+        "unique_holder_new_instance":len(starts)==1,
+        "unique_first_ArrayList_add":len(adds)==1,
+        "same_new_holder_passed_into_ArrayList_add":False,
+        "branch_between_creation_and_add":False,
+    }
+    if len(starts)!=1 or len(adds)!=1:return result
+    a,b=starts[0],adds[0]
+    if a>=b:return result
+    reg=ins[a][2][0]>>8
+    aliases={reg}
+    for pos in range(a+1,b):
+        _pc,op,words=ins[pos]
+        if op in (0x28,0x29,0x2a,0x2b,0x2c) or 0x32<=op<=0x3d:
+            result["branch_between_creation_and_add"]=True
+            return result
+        if op in (0x07,0x08,0x09):
+            coords=audit.move_object_registers(op,words)
+            if coords is None:return result
+            dest,src=coords
+            if src in aliases:aliases.add(dest)
+            else:aliases.discard(dest)
+            continue
+        if op==0x1f:continue
+        dest=audit.written_register(op,words)
+        if dest is not None:aliases.discard(dest)
+    regs=audit.invoke_registers(ins[b][1],ins[b][2])
+    result["same_new_holder_passed_into_ArrayList_add"]=(
+        len(regs)==2 and regs[1] in aliases
+    )
+    return result
 
 
 def scan_signed(splits):
@@ -44,7 +152,7 @@ def scan_signed(splits):
                         if method in defs:raise ValueError("A0_DUPLICATE_TARGET")
                         defs[method]=(dex,flags,off)
     if len(dexes)!=6:raise ValueError("A0_EXPECTED_SIX_SIGNED_DEX")
-    if set(defs)!={TARGET,PARENT}:raise ValueError("A0_TARGET_BODY_NOT_FOUND")
+    if set(defs)!={TARGET,PARENT,HOLDER_CONSTRUCTOR}:raise ValueError("A0_TARGET_BODY_NOT_FOUND")
     dex,flags,off=defs[TARGET]
     if not off:raise ValueError("A0_TARGET_NOT_EXECUTABLE")
     methods=[]
@@ -80,6 +188,24 @@ def scan_signed(splits):
                 field_refs.append({"ordinal":ordinal,"owner":owner,"field_type":typ,
                                    "opcode":op})
                 if len(field_refs)>MAX_TYPED_FIELDS:raise ValueError("A0_TYPED_FIELD_LIMIT")
+    get_to_ctor=same_reference_from_get_to_holder(dex,flags,off)
+    holder_to_list=same_holder_allocation_added_to_array(dex,off)
+    ctor_dex,ctor_flags,ctor_off=defs[HOLDER_CONSTRUCTOR]
+    if not ctor_off:raise ValueError("A0_HOLDER_CONSTRUCTOR_NO_BODY")
+    try:
+        ctor_trace=audit.trace_track_identity_method_cfg(ctor_dex,HOLDER_CONSTRUCTOR,ctor_flags,ctor_off,
+            extra_identity_types={SOURCE:"NATIVE_MEDIA_SOURCE"})
+        stored=[e for e in ctor_trace["events"]
+            if e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
+            and e.get("identity_type")=="NATIVE_MEDIA_SOURCE"
+            and e.get("destination_owner")==HOLDER
+            and e.get("receiver_is_this_on_all_paths") is True
+            and "NATIVE_MEDIA_SOURCE_PARAMETER" in e.get("origins",())]
+        holder_field_store_proven=bool(stored)
+        holder_cfg_error=None
+    except (ValueError,audit.DexError) as e:
+        holder_field_store_proven=False
+        holder_cfg_error=type(e).__name__
     try:
         trace=audit.trace_track_identity_method_cfg(dex,TARGET,flags,off,
                 extra_identity_types={
@@ -108,6 +234,16 @@ def scan_signed(splits):
         "six_publisher_signed_dex":len(dexes),
         "exact_owner":TARGET[0],"exact_method":TARGET[1],
         "target_invokes":methods,
+        "List_get_to_i_c_exact_same_object":get_to_ctor,
+        "new_i_c_to_ArrayList_add_exact_same_object":holder_to_list,
+        "holder_LSl6_parameter_stored_on_this":holder_field_store_proven,
+        "holder_constructor_cfg_error":holder_cfg_error,
+        "one_source_to_internal_playlist_holder_static_proven":bool(
+            get_to_ctor["List_get_receiver_is_exact_parameter"]
+            and get_to_ctor["same_get_result_passed_to_holder_ctor"]
+            and get_to_ctor["LSl6_check_cast_preserves_reference"]
+            and holder_to_list["same_new_holder_passed_into_ArrayList_add"]
+            and holder_field_store_proven),
         "source_typed_invokes":source_methods,
         "list_or_iterator_invokes":list_methods,
         "target_new_instances":instance_creations,
