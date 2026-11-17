@@ -1,3 +1,15 @@
+# CURRENT — NAV19 SIGNED OWNER RELEASE READY, AWAIT OWNER PHONE TXT (17 NOV 2026)
+
+**Read [NAV19 final owner release](ANDROID-A1-NAV19-OWNER-READONLY-RELEASE-20261117.md) FIRST.** NAV18 owner's actual diagnostic TXT has already been examined in [NAV18 owner diagnostic](ANDROID-A1-NAV18-OWNER-TXT-READONLY-OBSERVATION-20261117.md). Do **not** follow older `WAIT FOR NAV18 TXT` instruction below; it is retained as history only.
+
+**Stage A** accepted NAV17 native original audio/login/UI **PASS**; **Stage B CELIKOM replacement NO-GO / NOT_CONNECTED**. NAV19 observes only exact-2025 native renderer hook status and unscoped same-reference stream reads, no sound replacement. **Owner has not yet tested NAV19.** No new static work needed. Do not conflate stream read entry with currently selected audible audio or final decoder.
+
+**Latest code & private signed APK release**: branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. NAV19 signed ARM13 owner export **CI #44132767915 SUCCESS**, native 75s gate, additional ARM13 **#44132738954 SUCCESS**, JVM **#44129950827 SUCCESS**. Exact NAV19 owner APK SHA256 `d55d7194c1c490481bfc4c184030e198f28827caa18ebf0aa2d116de6932e561`, signer same as NAV17/NAV18; original publisher 2025 nested APK unchanged. Verified personal Library `/CELIKOM/Android/Native/CELIKOM-A1-NAV19-Renderer-HookStatus-ReadOnly-20261117.apk` and `CELIKOM-A1-NAV19-Инструкция.txt`. Existing NAV17 and NAV18 also retained. No fresh installs/wipes/Play Protect bypass.
+
+**First next action**: owner installs NAV19 *in place* and sends new `NAV_V19_RENDERER_HOOK_STATUS_UNSCOPED_READONLY` TXT with original sound/Next/pause/seek/My Wave notes; analyze persisted `AUDIO_NATIVE_RENDERER_HOOK_STATUS` plus weak unscoped/strong queue-holder stream read categories. Do not fabricate NAV20 without that evidence. Prior rollback before NAV19: `backup/android-a1-nav18-owner-txt-readonly-observer-jvm-green-20261117` @ `971aef7cf9339ab1ad13471e4320a4b6da21c89b`.
+
+---
+
 # NEW CURRENT STATE — OWNER NAV18 TXT ARRIVED (17 NOV 2026)
 
 **Start here, not the old "WAIT FOR NAV18 TXT" heading below.** Owner report `CELIKOM-A1-Diagnostics-1794933581039.txt` has been analyzed; the compact authoritative findings and subsequent in-branch read-only code/test changes are documented in [ANDROID-A1-NAV18-OWNER-TXT-READONLY-OBSERVATION-20261117.md](ANDROID-A1-NAV18-OWNER-TXT-READONLY-OBSERVATION-20261117.md). Confirmed NAV18 marker active; replacement `NOT_CONNECTED` by design; native queue scope `NONE`, unscoped renderer attaches and unmatched sample reads `FEW`, identity `STRUCTURAL_ONLY`. **No replacement and no audible renderer identity claim**. No live owner proof beyond this diagnostic.
