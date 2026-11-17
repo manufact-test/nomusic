@@ -33,3 +33,18 @@ Original publisher Yandex and existing NAV24 verified APK in personal ChatGPT Li
 NAV25 requires a successful new owner-signed Android13 ARM CI **and verified Library upload** before user is told to test. No success claims or substituted GitHub Actions download links.
 
 **Do not alter** stock Yandex 2025.10.4, the existing A1 architecture, Test.50, Windows/browser/server, normal playback, nor any account state.
+
+
+## Signed NAV25 and verified personal Library release — FINAL
+
+- Exact native ARM13 publisher-original-first, owner-signed one-time CI **#44193129891 SUCCESS**, source/workflow HEAD `8b31f68005ca84b40d1ce1104424132d9c38bd12`.
+- NAV25 JVM model CI **#44192983731 SUCCESS**. Original NAV24 baseline signed APK and all previously accepted versions untouched.
+- Owner signed APK: **71,475,180 bytes**, **SHA-256 `5757472158cf83899ceddf6f27c4281bd5d020085bdefcb581906bc19b76581d`**. Extracted from successful CI artifact `CELIKOM-A1-NAV25-Owner-Started-Audio-Buffer-EOS-20261118`.
+- Owner certificate decoded from `META-INF/OWN-KEY.RSA`, SHA-256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` exactly matches NAV24 accepted signer. Embedded publisher `assets/lspatch/origin.apk` SHA-256 **`1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`**, unchanged from NAV24.
+- Personal ChatGPT Library **uploaded, independently listed and downloaded back**. SHA and all bytes compared with original signed CI APK: **`LIBRARY_NAV25_BYTES_IDENTICAL=true`**.
+  - `/CELIKOM/Android/Native/CELIKOM-A1-NAV25-Started-Audio-Buffer-EOS-ReadOnly-20261118.apk`
+  - `/CELIKOM/Android/Native/CELIKOM-A1-NAV25-Инструкция.txt`
+- Signed code reserve: `backup/android-a1-nav25-started-audio-eos-signed-code-ci-green-20261118` @ `8b31f68005ca84b40d1ce1104424132d9c38bd12`.
+- Latest code and docs branch remains `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. No user phone NAV25 diagnosis received yet. **CELIKOM replacement NOT_CONNECTED** until a subsequent on-device proven selected-track identity and actual replacement integration.
+
+**Owner's next check:** install NAV25 from verified personal Library **over NAV24** without data clear/uninstall; regular listening 2–5 tracks, export TXT, report whether original Yandex remains normal. Parse `BUFFER_EOS_ACCESS`, `ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS/EOS/UNAVAILABLE`, previous strict holder+type+state statuses, `READ_RETURN_LINK_LOST`, and `CELIKOM_REPLACEMENT`. If getter reports NO_HOOK, never infer non-EOS; research an exact signed 2025 flags method before further runtime changes.
