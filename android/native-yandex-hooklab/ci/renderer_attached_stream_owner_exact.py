@@ -281,6 +281,135 @@ def inspect_exact_native_renderer_attach_helper(owner_methods):
             "nonsecret_register_shape":selected,
             "matched_active_decoder_audio":False}
 
+
+EXACT_ENGINE_MAIN=("Landroidx/media3/exoplayer/e;","break","()V")
+EXACT_ATTACH_HELPER=ATTACH_HELPER
+EXACT_QUEUE="Landroidx/media3/exoplayer/h;"
+EXACT_HOLDER="Lxh6;"
+MAX_SAME_REF_CFG_STATES=1000
+
+def same_register_alias_all_call_paths(dex,off,start_pc,dest_pcs,expected_callee,
+                                        call_argument_index,origin_register):
+    """Branch-sensitive exact same-object register origin, bounded to known PCs.
+    Only proves paths REACHING target calls, not what ran at playback time."""
+    cfg=audit.build_dex_control_flow(dex,off)
+    by_pc=cfg["by_pc"]
+    successors=cfg["successors"]
+    if start_pc not in by_pc:
+        raise ValueError("RENDERER_ALIAS_START_PC_MISSING")
+    target=set(dest_pcs)
+    for p in target:
+        if p not in by_pc:raise ValueError("RENDERER_ALIAS_CALL_PC_MISSING")
+    work=[(p,frozenset((origin_register,))) for p in successors.get(start_pc,()) if start_pc<p<=max(target)]
+    seen=set()
+    counts={p:{"reach":0,"same":0} for p in target}
+    unmodeled=[]
+    safe_no_write=(set((0x00,0x0e,0x0f,0x10,0x11,0x1d,0x1e,0x26,0x27)) |
+                   set(range(0x28,0x2d)) | set(range(0x32,0x3e)) |
+                   set(range(0x4b,0x52)) | set(range(0x59,0x60)) |
+                   set(range(0x66,0x6e)))
+    while work:
+        pc,aliases=work.pop()
+        if (pc,aliases) in seen:continue
+        seen.add((pc,aliases))
+        if len(seen)>MAX_SAME_REF_CFG_STATES:
+            raise ValueError("RENDERER_ALIAS_BOUNDED_CFG_LIMIT")
+        item=by_pc.get(pc)
+        if item is None:
+            raise ValueError("RENDERER_ALIAS_INSTRUCTION_MISSING")
+        op,words=item
+        if pc in target:
+            if op not in audit.INVOKES or dex.method(words[1])!=expected_callee:
+                raise ValueError("RENDERER_ALIAS_EXACT_TARGET_CHANGED")
+            registers=audit.invoke_registers(op,words)
+            if call_argument_index>=len(registers):
+                raise ValueError("RENDERER_ALIAS_ARG_COUNT_MISMATCH")
+            counts[pc]["reach"]+=1
+            if registers[call_argument_index] in aliases:
+                counts[pc]["same"]+=1
+        next_alias=set(aliases)
+        if op in audit.INVOKES:
+            pass
+        elif op in (0x07,0x08,0x09):
+            to,source=audit.move_object_registers(op,words)
+            next_alias.discard(to)
+            if source in aliases:next_alias.add(to)
+        elif op==0x1f:
+            pass
+        elif op==0x0c:
+            next_alias.discard(words[0]>>8)
+        elif op in safe_no_write:
+            pass
+        else:
+            reg=audit.written_register(op,words)
+            if reg is None:
+                raise ValueError("RENDERER_ALIAS_UNMODELED_WRITE")
+            next_alias.discard(reg)
+        for next_pc in successors.get(pc,()):
+            if start_pc < next_pc <= max(target):
+                work.append((next_pc,frozenset(next_alias)))
+    if not all(x["reach"]>0 and x["reach"]==x["same"] for x in counts.values()):
+        raise ValueError("RENDERER_ALIAS_NOT_ALL_TARGET_STATES_MATCH")
+    return {"target_calls":[{"pc":p,"reaching_states":counts[p]["reach"],
+                             "identical_reference_states":counts[p]["same"]}
+                            for p in sorted(counts)],
+            "branch_sensitive_all_reaching_paths":True}
+
+def verify_exact_holder_to_attached_stream_sequence(owner_methods):
+    """Native Exo queue SLOT_B -> mQ8.catch -> Lxh6 stream[] -> k.package.
+    Exact references only; never infer live audible/current consumption."""
+    for method in (ATTACH_HELPER,EXACT_ENGINE_MAIN):
+        if method not in owner_methods or not owner_methods[method][2]:
+            raise ValueError("RENDERER_EXACT_ATTACH_BRIDGE_BODY_MISSING")
+    helper_dex,helper_flags,helper_off=owner_methods[ATTACH_HELPER]
+    helper={pc:(op,words) for pc,op,words in audit.instructions(helper_dex,helper_off)}
+    a91=helper.get(91)
+    a93=helper.get(93)
+    a114=helper.get(114)
+    if not a91 or a91[0]!=0x54 or not a93 or a93[0]!=0x46 or not a114:
+        raise ValueError("RENDERER_ATTACH_HELPER_STREAM_PCS_CHANGED")
+    owner,_field_name,type_=audit.field_id(helper_dex,a91[1][1])
+    if owner!=EXACT_HOLDER or type_!="[LR29;":
+        raise ValueError("RENDERER_ATTACH_STREAM_NOT_HOLDER_FIELD")
+    array_reg=(a91[1][0]>>8)&15
+    holder_reg=(a91[1][0]>>12)&15
+    stream_reg=(a93[1][0]>>8)&255
+    source_array_reg=a93[1][1]&255
+    if array_reg!=source_array_reg or holder_reg!=12 or stream_reg!=2:
+        raise ValueError("RENDERER_ATTACH_STREAM_SOURCE_REG_CHANGED")
+    if helper_dex.method(a114[1][1])!=(RENDERER,"package",ATTACH_DESCRIPTOR):
+        raise ValueError("RENDERER_ATTACH_TARGET_NOT_NATIVE_RENDERER_K")
+    helper_alias=same_register_alias_all_call_paths(
+        helper_dex,helper_off,93,[114],
+        (RENDERER,"package",ATTACH_DESCRIPTOR),2,stream_reg)
+    # In exact ExoPlayer engine, the same queue field read at PC 547 and
+    # PC 1051 must lead into both k.package helper call paths.
+    engine_dex,engine_flags,engine_off=owner_methods[EXACT_ENGINE_MAIN]
+    engine={pc:(op,words) for pc,op,words in audit.instructions(engine_dex,engine_off)}
+    for site in (547,1051):
+        if site not in engine or engine[site][0]!=0x54:
+            raise ValueError("RENDERER_QUEUE_B_REFERENCE_READ_MISSING")
+    field547=audit.field_id(engine_dex,engine[547][1][1])
+    field1051=audit.field_id(engine_dex,engine[1051][1][1])
+    if field547!=field1051 or field547[0]!=EXACT_QUEUE or field547[2]!=EXACT_HOLDER:
+        raise ValueError("RENDERER_ATTACH_ENGINE_WRONG_QUEUE_FIELD")
+    selected_reg=(engine[1051][1][0]>>8)&15
+    if selected_reg!=1:
+        raise ValueError("RENDERER_ENGINE_QUEUE_HOLDER_REGISTER_CHANGED")
+    engine_alias=same_register_alias_all_call_paths(
+        engine_dex,engine_off,1051,[1088,1094],ATTACH_HELPER,2,selected_reg)
+    return {
+        "same_exact_queue_holder_field_at_engine_helper_and_renderer_site":True,
+        "queue_read_pcs":[547,1051],
+        "exact_queue_holder_to_renderer_attach_helper":engine_alias,
+        "holder_owns_exact_LR29_array_read_at_pc91":True,
+        "one_array_element_from_that_holder_at_pc93":True,
+        "that_exact_LR29_to_k_package_same_ref":helper_alias,
+        "render_attached_stream_field_written_from_same_k_package_argument":True,
+        "current_decoder_consumption_or_runtime_branch_executed_proven":False,
+        "private_ids_field_names_values_urls_audio_or_tokens_exported":False
+    }
+
 def scan_signed(apks):
     dexes=0
     definitions={}
@@ -358,7 +487,9 @@ def scan_signed(apks):
     attach=inspect_exact_native_stream_attachment(exact_owner_methods,method_bodies,attached)
     exact_attach_callers=find_exact_native_attach_callers(apks)
     attach_helper=inspect_exact_native_renderer_attach_helper(exact_owner_methods)
-    return {"exact_native_renderer_attach_helper":attach_helper,
+    exact_bridge=verify_exact_holder_to_attached_stream_sequence(exact_owner_methods)
+    return {"exact_queue_holder_to_renderer_stream_attachment_bridge":exact_bridge,
+            "exact_native_renderer_attach_helper":attach_helper,
             "signed_exact_renderer_stream_attach_callers":exact_attach_callers,
             "exact_native_renderer_stream_attachment":attach,
             "exact_inherited_renderer_attached_stream_field_uses":attached,
