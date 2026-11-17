@@ -25,8 +25,8 @@ class SlotRoleTests(unittest.TestCase):
         audit.field_id=lambda d,i: (QUEUE,"hidden_a",HOLDER)
         try:
             s={(QUEUE,"hidden_a",HOLDER):"SLOT_A"}
-            self.assertEqual(direct_getter([(0,0x54,[0x0,3]),(1,0x11,[0x0])],StubDex(),s),None)
-            self.assertEqual(direct_getter([(0,0x54,[0x0,3]),(1,0x11,[0x0000])],StubDex(),s),None)
+            self.assertEqual(direct_getter([(0,0x54,[0x0,3]),(1,0x11,[0x0])],StubDex(),s),"SLOT_A")
+            self.assertEqual(direct_getter([(0,0x54,[0x0,3]),(1,0x11,[0x0100])],StubDex(),s),None)
             # iget A=v1; return-object v1 -> identical direct field
             self.assertEqual(direct_getter([(0,0x54,[0x0100,3]),(1,0x11,[0x0100])],StubDex(),s),"SLOT_A")
             # branch destroys the direct proof
