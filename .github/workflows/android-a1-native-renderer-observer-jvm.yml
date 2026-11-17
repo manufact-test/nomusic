@@ -58,7 +58,14 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V22_EXACT_SECONDARY_ATTACH_CALLER_READONLY' in src
+          assert 'NAV_V23_EXACT_ENGINE_HOLDER_STREAM_ARRAY_READONLY' in src
+          assert 'engine.getDeclaredMethod("catch"' in src
+          assert 'Class.forName("[LR29;",false,loader)' in src
+          assert 'setEngineHolderStreamArrayField(' in src
+          assert 'enterEngine(' in src
+          assert 'exitEngine(' in src
+          assert 'ENGINE_HOLDER_STREAM_ARRAY_MATCH' in model
+          assert 'ENGINE_HOLDER_READ_RETURN_MINUS4' in model
 
           assert 'private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";' in src
           print('NAV17_EXACT_RENDERER_OBSERVER_SCOPE_PASS')
