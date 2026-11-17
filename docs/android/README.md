@@ -2,12 +2,13 @@
 
 **Current, reconciled 17 November 2026.** These are the only startup documents:
 
-1. **[NEXT-CHAT.md](NEXT-CHAT.md)** — **one authoritative current status**, checkpoints, restrictions, next active-period blocker.
-2. **[ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md](ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md)** — latest **NEW** signed same-source object proof from native Player/playlist through `LuIb` to returned `Lo96` MediaPeriod; **runtime current audio still unproven**.
-3. **[ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md](ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md)** — signed ExoPlayer.d source → singletonList → T0 → A0 → i$c → Lp96 → LuIb identity.
-4. **[ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md](ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md)** — earlier exact TrackWrapper → LiLb → native ExoPlayer setter identity.
-5. **[ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md](ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md)** — LfT2 is a closed data-holder route, do not reopen.
-6. **[NEXT-CHAT-START-MESSAGE-20261116.md](NEXT-CHAT-START-MESSAGE-20261116.md)** — updated ready-to-paste next-chat prompt.
+1. **[NEXT-CHAT.md](NEXT-CHAT.md)** — **one authoritative current status**, checkpoints, restrictions and precise active-period blocker.
+2. **[ANDROID-A1-EXOPLAYER-ENGINE-PERIOD-HOLDER-20261117.md](ANDROID-A1-EXOPLAYER-ENGINE-PERIOD-HOLDER-20261117.md)** — **LATEST** signed Lo96 MediaPeriod→Lup1/Lxh6→native Exo engine holder evidence, CI SUCCESS; **current audio still NOT proven**.
+3. **[ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md](ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md)** — earlier same-source object proof from native Player/playlist through `LuIb` to returned `Lo96` MediaPeriod.
+4. **[ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md](ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md)** — signed ExoPlayer.d source → singletonList → T0 → A0 → i$c → Lp96 → LuIb identity.
+5. **[ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md](ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md)** — earlier exact TrackWrapper → LiLb → native ExoPlayer setter identity.
+6. **[ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md](ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md)** — LfT2 is a closed data-holder route, do not reopen.
+7. **[NEXT-CHAT-START-MESSAGE-20261116.md](NEXT-CHAT-START-MESSAGE-20261116.md)** — updated ready-to-paste next-chat prompt.
 
 **Important:** The older [LfT2 TrackWrapper continuation handoff](ANDROID-A1-LFT2-TRACKWRAPPER-CONTINUATION-20261116.md) was written **before** CI #12: its LfT2 investigative task is superseded by the CLOSED result above. Other historical NEXT-CHAT/HANDOFF notes do not override NEXT-CHAT.md.
 
