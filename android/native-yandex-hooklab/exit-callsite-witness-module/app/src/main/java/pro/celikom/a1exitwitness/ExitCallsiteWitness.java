@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V21_QUEUE_SCOPED_READ_RETURN_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V22_EXACT_SECONDARY_ATTACH_CALLER_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -226,6 +226,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean rendererStreamSetHooked;
     private boolean rendererSampleReadHooked;
     private boolean rendererDetachHooked;
+    private boolean rendererSecondaryCallerHooked;
 
 
     private void rememberMediaExtractorSource(Object obj) {
@@ -2450,7 +2451,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 || !PACKAGE.equals(Application.getProcessName())
                 || !PACKAGE.equals(caller.getPackageName())) return;
         if (rendererAttachScopeHooked && rendererStreamSetHooked
-                && rendererSampleReadHooked && rendererDetachHooked) return;
+                && rendererSampleReadHooked && rendererDetachHooked
+                && rendererSecondaryCallerHooked) return;
         try {
             android.content.pm.PackageInfo info=caller.getPackageManager()
                 .getPackageInfo(PACKAGE,0);
@@ -2536,6 +2538,43 @@ public final class ExitCallsiteWitness extends XposedModule {
             } catch (Throwable ignored) {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("STREAM_ATTACH",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_ATTACH","NO_HOOK");
+            }
+        }
+        if (!rendererSecondaryCallerHooked) {
+            // The only other exact 2025.10.4 direct caller of k.package:
+            // b.super(lQ8, Sr4[], R29, boolean, boolean, long, long, Sl6$b).
+            // This observes the caller's receiver + stream identity ONLY.
+            // No method arguments/results are replaced and no vendor code
+            // path is skipped, caught, or rewritten.
+            try {
+                Class<?> secondaryOwner=Class.forName("lQ8",false,loader);
+                Method secondary=rendererBase.getDeclaredMethod("super",
+                    secondaryOwner,formats,stream,boolean.class,boolean.class,
+                    long.class,long.class,queueItem);
+                if (secondary.getReturnType()!=void.class)
+                    throw new NoSuchMethodException();
+                secondary.setAccessible(true);
+                hook(secondary).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        NativeRendererStreamEvidence.CallerFrame frame=null;
+                        try {
+                            frame=NATIVE_RENDERER_EVIDENCE.enterSecondaryCaller(
+                                chain.getThisObject(),chain.getArg(2));
+                        } catch (Throwable ignored) { }
+                        try { return chain.proceed(); } // once, unchanged
+                        finally {
+                            try {
+                                if(frame!=null)
+                                    NATIVE_RENDERER_EVIDENCE.exitSecondaryCaller(frame);
+                            } catch (Throwable ignored) { }
+                        }
+                    });
+                rendererSecondaryCallerHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("SECONDARY_CALLER",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","SECONDARY_CALLER","REGISTERED");
+            } catch (Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("SECONDARY_CALLER",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","SECONDARY_CALLER","NO_HOOK");
             }
         }
         if (!rendererSampleReadHooked) {
