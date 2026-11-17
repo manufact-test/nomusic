@@ -1,0 +1,46 @@
+name: CELIKOM A1 NAV17 exact native renderer observer JVM regressions
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
+      - '.github/workflows/android-a1-native-renderer-observer-jvm.yml'
+permissions:
+  contents: read
+jobs:
+  nav17-owned-observer-no-vendor-code:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify exact diagnostic scope and run real Java fail-closed reference tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
+          test "$(cat android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/resources/META-INF/xposed/scope.list)" = pro.celikom.yandex.nativeclonelab
+          mkdir -p "$RUNNER_TEMP/a1-native-renderer-observer"
+          javac --release 17 -d "$RUNNER_TEMP/a1-native-renderer-observer" \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
+          java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java').read_text()
+          assert 'installExact2025NativeRendererReadWitness(caller,loader);' in src
+          assert 'Class.forName("LL2",false,loader)' in src
+          assert 'Class.forName("mQ8",false,loader)' in src
+          assert 'if (info==null || info.getLongVersionCode()!=24025542L)' in src
+          assert 'NATIVE_RENDERER_EVIDENCE.exportLines()' in src
+          assert 'return chain.proceed(); // one original native sample read' in src
+          assert 'private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";' in src
+          print('NAV17_EXACT_RENDERER_OBSERVER_SCOPE_PASS')
+          PY
