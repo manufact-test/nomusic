@@ -46,6 +46,10 @@ jobs:
           assert 'event=DIAGNOSTIC_BUILD;origin=' in src
           model=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java').read_text()
           assert 'STREAM_ALIASED_READ_RETURN_MINUS4' in model
+          assert 'QUEUE_SCOPED_READ_RETURN_MINUS4' in model
+          assert 'UNSCOPED_READ_RETURN_MINUS4' in model
+          assert 'strongMinus4=inc(strongMinus4)' in model
+          assert 'weakMinus4=inc(weakMinus4)' in model
           assert 'READ_RETURN_LINK_LOST' in model
 
           assert 'private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";' in src
