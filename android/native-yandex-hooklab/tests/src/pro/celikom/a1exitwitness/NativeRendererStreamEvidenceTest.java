@@ -519,6 +519,64 @@ public final class NativeRendererStreamEvidenceTest {
             "EXCEPTION_CANNOT_ATTEST_STARTED_AUDIO");
     }
 
+    private static void testNav25NonEosStartedAudioStrictLink() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        e.onHookRegistration("BUFFER_EOS_ACCESS",true);
+        Object renderer=new Object(),stream=new Object();
+        makeBoundEngineLink(e,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.TRUE);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-3,Boolean.FALSE);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=BUFFER_EOS_ACCESS;error=REGISTERED"),
+            "NAV25_BUFFER_GETTER_REGISTERED");
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS;error=ONE"),
+            "NAV25_EXACT_NON_EOS_READ");
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_BUFFER_EOS;error=ONE"),
+            "NAV25_EXACT_EOS_READ");
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_BUFFER_UNAVAILABLE;error=ONE"),
+            "NAV25_UNKNOWN_IS_NOT_NON_EOS");
+        check(contains(snap,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+            "NAV25_AUDIO_BUFFER_NOT_SELECTED_TRACK_OR_PCM");
+    }
+
+    private static void testNav25NoFalseAudioSampleOnWrongLinkOrState() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        e.onHookRegistration("BUFFER_EOS_ACCESS",true);
+        Object renderer=new Object(),stream=new Object();
+        makeBoundEngineLink(e,renderer,stream);
+        e.onRendererTypeStateRead(renderer,new Object(),1,2,-4,Boolean.FALSE);
+        e.onRendererTypeStateRead(renderer,stream,2,2,-4,Boolean.FALSE);
+        e.onRendererTypeStateRead(renderer,stream,1,1,-4,Boolean.FALSE);
+        e.onDetach(renderer);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS;error=NONE"),
+            "NAV25_STALE_OR_WRONG_RENDERER_NOT_SAMPLED");
+    }
+
+    private static void testNav25MissingBufferMethodCannotAttestSample() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        e.onHookRegistration("BUFFER_EOS_ACCESS",false);
+        Object renderer=new Object(),stream=new Object();
+        makeBoundEngineLink(e,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=BUFFER_EOS_ACCESS;error=NO_HOOK"),
+            "NAV25_FAIL_CLOSED_REGISTRATION");
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS;error=NONE"),
+            "NAV25_CANNOT_INVENT_BUFFER_FLAG");
+        check(contains(snap,"origin=ENGINE_AUDIO_TYPE1_STATE2_BUFFER_UNAVAILABLE;error=ONE"),
+            "NAV25_UNAVAILABLE_BEFORE_AUDIO_IDENTITY");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -547,6 +605,9 @@ public final class NativeRendererStreamEvidenceTest {
         testAudioTypeStateWrongStreamAndDetachFailClosed();
         testAudioTypeStateAbsentReflectionNotFalselyCounted();
         testAudioTypeStateExceptionCountsUnavailableOnly();
+        testNav25NonEosStartedAudioStrictLink();
+        testNav25NoFalseAudioSampleOnWrongLinkOrState();
+        testNav25MissingBufferMethodCannotAttestSample();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
