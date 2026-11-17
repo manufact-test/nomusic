@@ -1,4 +1,20 @@
-# CURRENT — NAV23 OWNER TXT CONFIRMED; QUEUE SLOT B CFG-PROVEN; AUDIO ID STILL OPEN (18 NOV 2026)
+# CURRENT — NAV24 EXACT AUDIO TYPE/STATE WITNESS; SIGNED CI PENDING (18 NOV 2026)
+
+**Do not restart or change the Android architecture.** The owner confirms ordinary original native Yandex Music works normally, including pause/seek/Next. Only missing feature is CELIKOM alternative audio replacement. **No playback bugs were reported.** Same only working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112` in `manufact-test/nomusic`.
+
+**Read [NAV24 exact signed gate and release notes](ANDROID-A1-NAV24-EXACT-AUDIO-RENDERER-STATE-20261118.md) first.** The last actual phone TXT was NAV23 `CELIKOM-A1-Diagnostics-1794952135309.txt`; analyzed and documented in [NAV23 owner evidence](ANDROID-A1-NAV23-OWNER-REALPHONE-ENGINE-HOLDER-MATCH-20261118.md). NAV23 real phone confirmed `ENGINE_HOLDER_STREAM_ARRAY_MATCH=MANY`, `ENGINE_HOLDER_READ_RETURN_MINUS4=MANY`, other original return codes present; `IDENTITY_STATUS=STRUCTURAL_ONLY`, replacement NOT_CONNECTED.
+
+**New signed 2025 static CI #44187962678 SUCCESS:** original `androidx.media3.exoplayer.b.default()I` is exact int field read of constructor `b.<init>(I)V` input (obfuscated `getTrackType`); `b.getState()I` exact int field read; unique engine `e.h` queue ref and exact same `h.SLOT_B` at `e.break PC547/1051` and `e.class PC2`. Avoid guessing generic `getTrackType` names. Existing queue holder→`e.catch` CFG CI #44185115155 SUCCESS.
+
+**NAV24 change:** six new fail-closed JVM cases plus existing all, **JVM CI #44188648112 SUCCESS**. The original NAV23 read-only `b.g` hook now additionally reads original `b.default()` and `b.getState()` **after** `chain.proceed()`, only within the existing bounded sample budget. New summary bins are `ENGINE_HOLDER_RENDERER_TYPE1`, `ENGINE_HOLDER_RENDERER_TYPE_OTHER`, `ENGINE_HOLDER_TYPE1_STATE2`, `ENGINE_HOLDER_TYPE1_STATE_NOT2`, `ENGINE_HOLDER_TYPE_STATE_UNAVAILABLE`, `ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4/-5/-3/OTHER`. All require same holder/renderer/stream identity. Numeric track type=1 and state=2 still **do not prove audible PCM or selected track/edition/entitlement**. Stage B NO-GO, no substitution.
+
+**Pre-NAV24 backup:** `backup/android-a1-nav23-owner-accepted-pre-nav24-active-audio-20261118` @ `f1fe9e052660d62eaa9cacb447eca4e577b291cd`. Original accepted signed NAV23 APK preserved in personal Library, SHA256 `376d3212a3802cf40e905eb434699d6999202086129eb9affc0c66bd4f8ea6a8`. **NAV24 owner-signed ARM13 one-shot CI #44188930346 is in progress**, exact code+workflow commit `230ad06e91b7b2fc8e77eedfb0686eff92caf228`. DO NOT claim NAV24 APK exists in Library or works on phone before CI SUCCESS, signer/original/hash verification, and Library byte-perfect re-download. No other APK or branch.
+
+**Next engineering step:** verify CI, upload only green signed NAV24 APK and README to personal ChatGPT Library (not Actions or sandbox URLs), verify presence and byte roundtrip, then owner listens normally and exports NAV24 TXT. If type1/state2 linked reads appear, next distinguish live selected item/generation/album and Stage B authorization; no speculative source substitution or user playback troubleshooting.
+
+---
+
+# ARCHIVED — NAV23 OWNER TXT CONFIRMED (18 NOV 2026)
 
 **Owner's private NAV23 real-phone diagnostic received and analyzed:** `CELIKOM-A1-Diagnostics-1794952135309.txt`. Read [exact device result and new static CFG proof](ANDROID-A1-NAV23-OWNER-REALPHONE-ENGINE-HOLDER-MATCH-20261118.md) FIRST. Never commit raw owner TXT. Historical NAV22 marker in rotated local lines is not the current build; the active build is `NAV_V23_EXACT_ENGINE_HOLDER_STREAM_ARRAY_READONLY`.
 
