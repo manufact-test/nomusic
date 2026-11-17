@@ -1,3 +1,5 @@
+**W169 VERIFIED BUILD (owner review pending):** W20 run `44071025539` SUCCESS, source `c717428a7d9f01fc8e33b482fcf66a9ed1a02947`, app `0.24.51.0` and native `0.24.32`. EXE/ZIP/SHA256 independently verified and present in Library `/CELIKOM/W169/`. Prior 0.24.50 and rollback kept. Next test is actual Yandex runtime; restarts not yet proven eliminated. Full details in W169 document.
+
 # CURRENT WINDOWS W169 (17 November 2026)
 
 Read **`docs/windows/W169-TRACK-HANDOFF-AND-YANDEX-RESTART-GUARD-20261117.md`** before any other Windows history. Active source: UI `1ac135ba5312473cc6c7feca8d1f5f57726f5342`, native exception guards `b2f9131132e26020fd861dcb71d3c33b8ff9a0c1`. App **0.24.51.0**, native **0.24.32**, backup `backup/windows-w169-pre-track-handoff-crash-investigation-20261117` @ `92e0d9e63f5fd7dc7f243d7c2a2202cf5ad8b2de`. Owner says green status in 0.24.50 works; preserve it. No VPN modifications. **Actual Yandex restart mechanism not proven by old diagnostics; guards eliminate unsafe unhandled Node rejection/callback failure but runtime owner must confirm.**
