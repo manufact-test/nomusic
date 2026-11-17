@@ -1,6 +1,6 @@
 # CELIKOM Android A1 — NAV18 native renderer read-only owner test (17 November 2026)
 
-**Status at preparation:** diagnostic code prepared, baseline saved, **signed owner APK NOT yet accepted or delivered**. User authorized one controlled test on HONOR 50. Do not claim owner audio/Stage B until device evidence arrives.
+**FINAL: owner diagnostic NAV18 APK verified and delivered to ChatGPT Library.** Native signed ARM13 CI #44122921119 SUCCESS. The user approved one controlled test on HONOR 50. Stage B replacement remains NO-GO until actual owner playback and alternate-audio evidence.
 
 ## Immutable NAV17 baseline and scoped work
 
@@ -18,9 +18,9 @@
 - Separate 4-case Java17 reference/Next/stale/lifetime/privacy tests `tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java`; isolated CI **#44120467198 SUCCESS**. The native build/launcher gates use the existing signed original ARM13 test rig; no owner Yandex account in CI.
 - Owner instructions updated in `device-audio-trial/README-RU.txt`: in-place update only; play original tracks, Next, pause/seek, My Wave; save one TXT via in-app button. Do not uninstall, reset data, or disable Play Protect.
 - One-shot test-and-private-export workflow `.github/workflows/android-a1-nav18-owner-renderer-diagnostic-export-once.yml` triggers only on **changes to its own workflow file**, reuses the full original 2025 publisher-first ARM13 run, verifies independent persistent owner signing, never permits fresh clone install, exports only on full native 75s acceptance. This is a **separate one-time workflow**, not a permanent automatic Android release.
-- Previous one-shot CI **#44121652525** stopped correctly at `OWNER_INSTALL_MODE_NOT_AUTHORIZED` because repo variable for installed cert was empty (not a runtime/startup failure). Since NAV17 signer was independently parsed above, the one-shot workflow pins that verified installed cert for an **in-place-only** comparison. Re-run by workflow-file update commit **`ec559b537d52b5c9335452d7a24b7111e423f364`**, full native run **#44122921119** pending at document creation. Do not describe it as SUCCESS until verified.
+- Previous one-shot CI **#44121652525** stopped correctly at `OWNER_INSTALL_MODE_NOT_AUTHORIZED` because repo variable for installed cert was empty (not a runtime/startup failure). Since NAV17 signer was independently parsed above, the one-shot workflow pins that verified installed cert for an **in-place-only** comparison. Re-run by workflow-file update commit **`ec559b537d52b5c9335452d7a24b7111e423f364`**, full native run **#44122921119 SUCCESS**; owner APK exported and independently verified.
 
-## Remaining release checks before owner install
+## Release checks — completed
 
 1. **One-shot workflow #44122921119 SUCCESS**, including all source guards, native original 75s baseline + own clone 75s, owner signing and exporter acceptance. No bypass or fresh install.
 2. Retrieve its artifact ZIP through authenticated GitHub connector, extract only APK + instructions, verify outer APK v2/v3 owner certificate exactly equals baseline `048d76...`; original embedded vendor APK hash identical to baseline `1d0527...`, version/package identical, embedded module changed as expected. No official vendor content alteration.
@@ -30,3 +30,16 @@
 ### Caution
 
 The retained `HookSpec.java` in another module is for Yandex **2026.10.3** and must NOT supply method names here. All NAV18 targets are pinned to **signed 2025.10.4** proven in the earlier 17 Nov `ANDROID-A1-CONCRETE-RENDERER-ATTACHED-STREAM-20261117.md` and prior static chain. No broad renderer scan or ByteBuffer sweep.
+
+## Verified final owner APK — 17 November 2026
+
+- **[Final native CI #44122921119 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44122921119)**. Verified publisher original 16 splits, stable native Android 13 original-first and own clone; `verdict=METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `owner_apk_signer_verified=true`, `owner_apk_install_mode=UPDATE_EXISTING`, `owner_phone_diagnostic_artifact.exported=true`.
+- Downloaded actual private CI artifact #14347510393, extracted signed APK and instructions and verified independently, not relying only on GitHub job report.
+- NAV18 APK: **71,466,988 bytes**, SHA256 **`647cbbc348e128ff10e79f50a6a04964cf9253a5e4cacd08f5949fe892793212`**. APK Signature Scheme v2 and v3 have exactly one cert SHA256 each, both **`048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`**, identical to owner-accepted NAV17.
+- Embedded signed original `assets/lspatch/origin.apk` SHA256 **`1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`** = unchanged NAV17 original. Embedded observer module is *different* from NAV17 as intended; its `classes2.dex` contains actual `NAV_V18_NATIVE_RENDERER_STREAM_READONLY`, `installExact2025NativeRendererReadWitness`, `AUDIO_NATIVE_RENDERER_SUMMARY`.
+- Verified present in **personal ChatGPT Library**:
+  - `/CELIKOM/Android/Native/CELIKOM-A1-NAV18-NativeRenderer-ReadOnly-20261117.apk` (Library ID `libfile_cce835526c9c81918c87d27981bc55a7`);
+  - `/CELIKOM/Android/Native/CELIKOM-A1-NAV18-Инструкция.txt` (Library ID `libfile_7a83f5e9aa7481919953a607dc538d69`);
+  - accepted NAV17 rollback `/CELIKOM/Android/Native/CELIKOM-A1-NAV17-OWNER-ACCEPTED-BACKUP-20261114.apk` (Library ID `libfile_54ce63c3f10481919b730be1614219fd`).
+- **User test**: install NAV18 over NAV17 without deleting data, start 15–20 seconds of one original track, Next 2–3, pause/resume/seek, My Wave 2–3, tap «Сохранить диагностику»; send TXT from `Загрузки/CELIKOM A1` and report interruptions/restarts.
+- Matching attached-stream read event is **sample-read entry only**, not proof of successful decoding/current selected album+edition or audible CELIKOM replacement. Do not alter source on its basis.
