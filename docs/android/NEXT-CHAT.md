@@ -1,4 +1,18 @@
-# CURRENT — NAV23 SIGNED IN VERIFIED PERSONAL LIBRARY; OWNER TXT NEXT (18 NOV 2026)
+# CURRENT — NAV23 OWNER TXT CONFIRMED; QUEUE SLOT B CFG-PROVEN; AUDIO ID STILL OPEN (18 NOV 2026)
+
+**Owner's private NAV23 real-phone diagnostic received and analyzed:** `CELIKOM-A1-Diagnostics-1794952135309.txt`. Read [exact device result and new static CFG proof](ANDROID-A1-NAV23-OWNER-REALPHONE-ENGINE-HOLDER-MATCH-20261118.md) FIRST. Never commit raw owner TXT. Historical NAV22 marker in rotated local lines is not the current build; the active build is `NAV_V23_EXACT_ENGINE_HOLDER_STREAM_ARRAY_READONLY`.
+
+**Real NAV23 result:** six 2025-native hooks REGISTERED, `ENGINE_HOLDER_SCOPE_ENTER=MANY`, **`ENGINE_HOLDER_STREAM_ARRAY_MATCH=MANY`**, `DIFFERENT=NONE`, `UNAVAILABLE=NONE`, **`ENGINE_HOLDER_READ_RETURN_MINUS4=MANY`, `MINUS5=FEW`, `MINUS3=MANY`**, no lost read links. `SECONDARY_CALLER_ENTER/MATCH=MANY`. Old `QUEUE_SCOPE_ENTER=NONE`, which is a *different helper*; no issue with the new confirmed route. `IDENTITY_STATUS=STRUCTURAL_ONLY`, **`CELIKOM_REPLACEMENT=NOT_CONNECTED/NO-GO`**. Ordinary Yandex original playback remains owner-accepted; no observed playback bugs reported. `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/MANY` does **not** prove a Java crash.
+
+**New exact original signed six-DEX CFG audit:** `e.break()V` at PC 1051 reads **`h.SLOT_B Lxh6`**, carries identical reference into `e.catch(Lxh6;IZJ)V` at PC **1183**. `e.class([ZJ)V` reads the *same exact field ID* at PC **2**, passes the same reference into `e.catch` at PC **51**. Both pass source-dominance and 1/1 alias CFG checks, **CI #44185115155 SUCCESS**, audited code commit `2fd5b5d8ee6fef997079c92966eac30a21467b6c`. A third `e.break` invocation at PC510 exists but is NOT proved to originate from SLOT_B; do not promote it. This is *static* source equality; cannot infer live audible/current track from it alone.
+
+**Working branch only:** `manufact-test/nomusic` `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. NAV23 owner-signed CI #44180557905 SUCCESS, JVM #44180395176 SUCCESS; signed APK code `b53af8291c38ac9e7141a186bb48ab682eb30e25`; Library verified owner APK `/CELIKOM/Android/Native/CELIKOM-A1-NAV23-Engine-Holder-Stream-ReadOnly-20261118.apk`, SHA256 `376d3212a3802cf40e905eb434699d6999202086129eb9affc0c66bd4f8ea6a8`. Exact older signed reserve `backup/android-a1-nav23-owner-signed-library-verified-final-20261118` @ `3c2146092e29e58d32415e3a43a2c431e896bc60`. No NAV24 APK built; original signed Yandex 2025 untouched.
+
+**Next engineering gate:** verify audio-only renderer identity/started decoder and **runtime selected holder from queue SLOT_B**, distinguishing current audible output vs prefetch/Next. Start with bounded exact 2025 signed static audit for safe hook signatures, not generic restarts. Only then potentially prepare a minimal passive NAV24 experiment with JVM/native CI, same owner signer, and verified personal Library delivery. Do not enable CELIKOM alternative-audio substitution without a verified active-source/selected-track/album/entitlement route. Do NOT change stock Yandex, architecture, Test.50, Windows, extension, server; no data wipe. No need to ask for another NAV23 TXT — this one is already analyzed.
+
+---
+
+# ARCHIVED — NAV23 SIGNED; OWNER TXT SUBSEQUENTLY RECEIVED (18 NOV 2026)
 
 **Owner-facing reality:** Native original Yandex Music works normally, including playback, Next, pause and seek, with **no reported bugs**. The sole outstanding function is CELIKOM alternative-audio substitution. **Do not claim there is a playback problem.**
 
