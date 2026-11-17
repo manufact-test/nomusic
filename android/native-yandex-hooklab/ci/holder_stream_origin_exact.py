@@ -293,6 +293,44 @@ def inspect_exact_stream_adapter(methods):
             "wrapper_case_stream_loop":trace,
             "caller_stream_instance_proven":False}
 
+
+def scoped_wrapper_loop_register_lifecycle(methods):
+    """Exact Lup1.case only. Register topology, never private values."""
+    dex,_,off=methods[PERIOD_WRAPPER_SELECT]
+    rows=[]
+    for pc,op,words in audit.instructions(dex,off):
+        if pc<40 or pc>155:continue
+        row={"pc":pc,"opcode":op}
+        if op in (0x46,0x4d):
+            row.update(kind="ARRAY",source_or_dest=(words[0]>>8)&255,
+                       array=words[1]&255,index=(words[1]>>8)&255)
+        elif op in (0x07,0x08,0x09):
+            d,src=audit.move_object_registers(op,words)
+            row.update(kind="MOVE_OBJECT",dest=d,source=src)
+        elif op in (0x0a,0x0b,0x0c):
+            row.update(kind="MOVE_RESULT",dest=words[0]>>8)
+        elif op in (0x22,0x23):
+            row.update(kind="NEW_OBJECT_OR_ARRAY",type=dex.descriptor(words[1]),
+                       dest=words[0]>>8)
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            m=dex.method(words[1])
+            row.update(kind="CALL",callee=list(m) if m[0] in (WRAPPER,MEDIAPERIOD,STREAM_ADAPTER_CLASS)
+                       else ["OTHER_CALL","",""],registers=audit.invoke_registers(op,words))
+        elif 0x52<=op<=0x6d:
+            owner,_private,typ=audit.field_id(dex,words[1])
+            row.update(kind="FIELD",owner=owner,type=typ,
+                       reg_a=(words[0]>>8)&15,reg_b=(words[0]>>12)&15)
+        elif 0x32<=op<=0x3d or op in (0x28,0x29,0x2a):
+            row.update(kind="BRANCH")
+        elif op in (0x1f,0x21):
+            row.update(kind="CHECK_CAST_OR_ARRAY_LENGTH")
+        else:
+            wrote=audit.written_register(op,words)
+            row.update(kind="OTHER",dest=wrote)
+        rows.append(row)
+        if len(rows)>110:
+            raise ValueError("STREAM_WRAPPER_LOOP_EXACT_REGISTER_LIMIT")
+    return rows
 def scan(apks):
     dexes=0
     methods={}
@@ -352,12 +390,14 @@ def scan(apks):
         for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT)
     ]
     stream_adapter=inspect_exact_stream_adapter(methods)
+    wrapper_loop=scoped_wrapper_loop_register_lifecycle(methods)
     shared_field=verify_exact_shared_stream_field(methods)
     period_wrapper_selection=verify_exact_holder_wrapper_period_selection(methods)
     selected=[]
     for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
         selected.append(limited_stream_selection_bytecode(method,methods[method]))
-    return {"scoped_child_to_wrapper_stream_adapter":stream_adapter,
+    return {"scoped_wrapper_loop_register_lifecycle":wrapper_loop,
+            "scoped_child_to_wrapper_stream_adapter":stream_adapter,
             "exact_holder_period_selection_identity":period_wrapper_selection,
             "exact_holder_period_receiver_shapes":holder_period_receiver_shapes,
             "exact_shared_holder_stream_field":shared_field,
