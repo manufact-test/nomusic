@@ -32,15 +32,24 @@ This is a **new, bounded route** in the *publisher-signed original embedded in o
 - One important direct caller of `LA14.e(LSl6;J)V` is `LcA9.extends(LcA9;LA14;LtCa;Ljava/lang/Long;JJZLn26;Lnk0;Ljava/lang/String;)V`, which **receives TrackWrapper `LtCa`**. There are eight direct Player source setter callsites in the bounded signed DEX check, including forwarding wrappers. The fact that this caller contains both TrackWrapper and source setter is **not** yet same-object constructor→setter proof.
 - The earlier exact named AndroidX `MediaSource`-parameter audit was negative **only for that unobfuscated exact name**; it did not rule out `LSl6`. Do not repeat named API or broad List/MediaItem sweeps.
 
-## Single remaining bounded static question
+## 4. Critical result — exact TrackWrapper → LiLb → native Player source SAME OBJECT
 
-Inspect **only** the exact `LcA9.extends(...LtCa...)` method with branch-sensitive register/object identity:
+[Bounded branch-sensitive CI #1 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44070976535) of only `LcA9.extends(LcA9;LA14;LtCa;Ljava/lang/Long;JJZLn26;Lnk0;Ljava/lang/String;)V` on the exact publisher-signed 2025 original.
 
-1. Is one exact `LiLb` allocation built with the TrackWrapper-derived MediaItem?
-2. Is that very same `LiLb` object passed into the `LA14.e(LSl6;J)V` Player source setter, across every reaching branch? Do **not** conflate a shared source type with an actual allocation.
-3. The Player forwarding of `LSl6` is separately proven. Never infer runtime selected audible state, album/edition/duration/generation or decoder from this static source setter.
+- Exactly **one** `LiLb` allocation in the method, **one** exact `LiLb.<init>`, and **one** exact `LA14.e(LSl6;J)V` source setter. Branch-sensitive CFG completed on 55 path states / 2 branches.
+- At PC **14**, exact `LtCa` TrackWrapper **parameter** is passed unchanged to `Lbq0.this(...)`.
+- At PC **97**, `LiLb.<init>` receives the unique **new LiLb object** and a MediaItem with proven `MEDIA_ITEM_RETURNED_FROM_METHOD` origin.
+- At PC **112**, `LA14.e(LSl6;J)V` receives **that identical newly allocated LiLb instance**, not another source with a similar type. Both events hold on all reaching CFG paths and refer to the unique `MEDIA_SOURCE_HOLDER_NEW_INSTANCE`.
+- From previous signed-source CI, `LiLb extends LWT1 extends LdC0 implements LSl6`. From source setter CI, `LA14.e(LSl6;J)` forwards the *same* source object to the real `ExoPlayer.e(LSl6;J)` interface.
+- Verdict: `LCA9_ONE_NATIVE_PLAYER_SOURCE_SAME_OBJECT_STATIC_PROVEN`. It finally establishes the exact, static **TrackWrapper-bearing source object → native ExoPlayer setter** edge, not just a file-info fetch, factory call, or prefetch read. This route is **NEWLY PROVEN**, not to be researched again.
 
-Implementation: `android/native-yandex-hooklab/ci/lca9_exact_source_player_identity.py`; CI `.github/workflows/android-a1-lca9-native-source-identity-readonly.yml`. Status and result to be reconciled into the canonical `NEXT-CHAT.md` after the run.
+Precise code: `android/native-yandex-hooklab/ci/lca9_exact_source_player_identity.py`, branch-sensitive and fail-closed; **4/4 unit fixtures** plus issuer-signed original XAPK gate. Green code checkpoint `a9408608562b3d70a51f8d01c8be17aa4a73589b` protected by `backup/android-a1-lca9-wrapper-mediasource-player-identity-ci-green-20261117`.
+
+**Still NOT proven:** whether this Player setter invocation belongs to the *currently selected audible* Track rather than another player/queue state; album + edition + duration + queue generation on that same owner; the same source reaching the **active native MediaPeriod/decoder**; authorized CELIKOM source and actual replacement sound. Passing a source into Player (even the exact instance) is **not** equivalent to audible current playback. **Stage B remains NO-GO**.
+
+### Next strictly bounded question
+
+Use the newly proven `LcA9.extends → LA14.e → ExoPlayer.e` source reference as the starting point to bind to the **current selected Player receiver and active MediaPeriod**, not a general source/decoder search. A candidate must carry exact same-object source and selected Track/Album/Edition/Duration/Generation through the active selection. No new APK or runtime hooks until a concrete measurable runtime witness is justified. Do not revisit `LfT2`, `LiLb.for()` direct getter census, `LXk6`, `LiLb` constructor caller census or global ByteBuffer sinks.
 
 ## Protected checkpoints
 
