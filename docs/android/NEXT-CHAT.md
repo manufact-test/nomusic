@@ -5,7 +5,8 @@
 ## Protected checkpoints
 
 - Only working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Current successful **read-only audit code** checkpoint: `433191c0b6e5f2a2eabef8589aa01c02f326e3b1`, backup `backup/android-a1-direct-mediasource-contract-ci-green-20261117`.
+- Current successful **read-only static identity code checkpoint:** `a9408608562b3d70a51f8d01c8be17aa4a73589b`, backup `backup/android-a1-lca9-wrapper-mediasource-player-identity-ci-green-20261117` (17 Nov 2026).
+- Older exact named-type MediaSource negative-audit checkpoint: `433191c0b6e5f2a2eabef8589aa01c02f326e3b1`, backup `backup/android-a1-direct-mediasource-contract-ci-green-20261117`.
 - Prior completed LfT2 code audit checkpoint: `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a`, backup `backup/android-a1-lft2-class-structure-ci-green-20261116`.
 - Prior code/runtime baseline: `27ccbe8348d598fead0386e70ef68573b04270c4`, backup `backup/android-a1-lft2-trackwrapper-continuation-ci-green-20261116`.
 - Last runtime-hook modification: `a655712d210189f3bc611847235de3ed4d985c1a`. No hook/APK changes in this audit.
@@ -61,8 +62,19 @@ The previous developer's useful research **was already saved**: [YANDEX-MEDIA3-R
 - **Interpretation:** This closes only the **named exact-typed direct MediaSource Player call** hypothesis in the listed owners. It does **not** disprove obfuscated MediaSource types, indirect dispatch, runtime selected item, or the public Media3 APIs. No negative inference beyond that scope. **Do not rerun a global census to compensate.**
 - No selected Track + album/edition/duration/generation → active source/decoder same-object proof; Stage B remains NO-GO. Future candidate must have a separately grounded exact source-side or selected-player-owner link, otherwise do not expand tracing.
 
+## 17 Nov — NEW proven TrackWrapper → native ExoPlayer source object handoff
+
+**Read [exact source-to-Player signed proof](ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md)** before any further Stage B work. Unlike previously closed MediaItem/List routes, this is a **specific verified source-side object identity into the native Player setter**:
+
+- [Signed factory CI #5 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44069492927): `LgLb.for()` carries the identical `LOr2$a` result from Yandex Exo factory to `Las2(MediaItem,LOr2$a)`. `LZB3` is a distinct lifecycle interface, not the MediaSource type.
+- [Signed media-source CI #1 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44069978477): `LIr8 extends LdC0 implements LSl6` (via superclass); `LiLb extends LWT1 extends LdC0 implements LSl6`. Within `LiLb$a.invokeSuspend`, `LlLb.if(...)` yields an `LIr8` which is passed as the same object to `LWT1.strictfp(Object,LSl6)`. These establish source-side nesting, not active audio.
+- [Signed Player setter CI #1 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44070516863): exact `LA14.e(LSl6;J)V` forwards the identical source parameter to native `ExoPlayer.e(LSl6;J)`; `LcA9.extends(...LtCa...)` directly calls `LA14.e`.
+- **Critical [branch-sensitive CI #1 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44070976535)**, signed 2025 NAV17, 4/4 fail-closed tests: exact `LcA9.extends(...LtCa...)` passes same TrackWrapper argument to `Lbq0.this` (PC 14), constructs the unique `LiLb` source with a MediaItem (PC 97), and passes the **exact same allocated LiLb instance** to `LA14.e(LSl6;J)` (PC 112), across 55 path states and 2 branches. Verdict **`LCA9_ONE_NATIVE_PLAYER_SOURCE_SAME_OBJECT_STATIC_PROVEN`**. This is the actual new static handoff result. No re-audit of this exact route.
+
+**Precise boundary:** It proves source selection *call into ExoPlayer* on a TrackWrapper-bearing route, **not** that the setter receiver is the currently audible player, nor correct album/edition/duration/generation, active MediaPeriod/decoder, or CELIKOM bytes. Stage A NAV17 PASS; **Stage B NO-GO**. No runtime hooks or APK touched. Verified code at `a9408608...`, protected backup above.
+
 ## Next task and boundaries
 
-**Do not repeat LfT2 or choose another obfuscated class without evidence.** To move Stage B, next distinct, narrowly scoped candidate must link *the current selected Track* to an **active**, not prefetch, native source/decoder by exact same-object proof on the signed NAV17 version. Existing [NAV17 Stage B source evidence](ANDROID-A1-NAV17-STAGE-B-PINNED-2025-FILEINFO-SOURCE-AUDIT-20261114.md) separates Exo source factory/open/read instance continuity from selected-item identity; an instance opening/reading is NOT selected-track proof. Media3 may accept MediaSource directly (not only MediaItem). Keep Stage B NO-GO until proof and owner-approved audio test.
+**Continue solely from the new exact `LcA9.extends → LA14.e(LSl6;J) → ExoPlayer.e` same-object source proof.** The missing next edge is its runtime **current selected Player receiver/item/generation → active MediaPeriod/decoder**, with trusted Track+album+edition+duration. Distinguish active audio from queued/prefetch sources. Do **not** repeat LfT2, LiLb direct getter, LXk6, global List/Object/ByteBuffer, generic Player ancestry or the new source constructor identity audit. Existing factory→open/read lifecycle alone is not current-track proof. Keep Stage B NO-GO until owner-approved real audio verification; no runtime hooks or APK without concrete justified measurement.
 
 No changes to original Yandex, NAV17, Test.50, frozen branches, runtime hooks, Android APK, Windows, extension, backend/API/DB or production. No reading/exporting Track/Album IDs/titles, URLs, DataSpec, account tokens, private field values, or audio bytes. All static work bounded, read-only and fail-closed. No full CI reports or large source dumps.
