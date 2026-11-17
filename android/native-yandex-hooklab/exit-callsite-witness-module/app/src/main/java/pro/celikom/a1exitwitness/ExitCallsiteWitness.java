@@ -2499,8 +2499,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                         }
                     });
                 rendererAttachScopeHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("QUEUE_SCOPE",true);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","QUEUE_SCOPE","REGISTERED");
             } catch (Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("QUEUE_SCOPE",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","QUEUE_SCOPE","NO_HOOK");
             }
         }
@@ -2520,8 +2522,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                         return result;
                     });
                 rendererStreamSetHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("STREAM_ATTACH",true);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_ATTACH","REGISTERED");
             } catch (Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("STREAM_ATTACH",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_ATTACH","NO_HOOK");
             }
         }
@@ -2551,8 +2555,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                         return chain.proceed(); // one original native sample read
                     });
                 rendererSampleReadHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("SAMPLE_READ",true);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","SAMPLE_READ","REGISTERED");
             } catch (Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("SAMPLE_READ",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","SAMPLE_READ","NO_HOOK");
             }
         }
@@ -2571,8 +2577,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                         }
                     });
                 rendererDetachHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("STREAM_DETACH",true);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_DETACH","REGISTERED");
             } catch (Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("STREAM_DETACH",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","STREAM_DETACH","NO_HOOK");
             }
         }
