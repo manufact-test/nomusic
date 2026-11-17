@@ -1,36 +1,20 @@
-CELIKOM Windows — W167 owner UI regression recovery
-Requested build: 0.24.49.0 (native module 0.24.31)
-Source checkpoint: e88280740457bf539ec8e661416a26d9de1e1102
-Purpose: exactly one internal owner-review installer and ZIP for W167.
+CELIKOM Windows W168 — explicit owner review package request (17 November 2026)
+Target app: 0.24.50.0; native remains EXACTLY 0.24.31.
+Branch: experiment/windows-w167-owner-ui-regressions-20261116
+Pre-fix rollback: backup/windows-w168-before-owner-three-fixes-20261117 @ 31e364bfba8795f84502f050d6716b2b6639f5cf
+UI source checkpoint: 2c352479b267266cd62fab7d8221bab97051c539
+Documents: docs/windows/W168-OWNER-THREE-ISSUES-20261117.md and NEXT-CHAT.md
 
-Starting point and rollback:
-- W167 is based on W165 / 0.24.47.0, commit ebd16ca19f37620d620c0a6ee5e9e5361fddd607.
-- Dedicated working branch: experiment/windows-w167-owner-ui-regressions-20261116.
-- Pre-fix rollback: backup/windows-w167-pre-ui-fixes-20261116 @ ea788eaed198b71db787215b9ba85829766d6062.
-- W166 / 0.24.48.0 is rejected and is not the source base.
+Two deliberate minimal W168 UI fixes:
+- Show first idle prompt "Откройте Яндекс Музыку и выберите песню." after connected/no-track grace; never flash during Next.
+- Green "Версия CELIKOM доступна" for approved current version and green "Пауза" for a live native connection; active-playing message still requires exact current decoder verification.
 
-W167 UI changes:
-- Keep the immediate green Yandex connection banner through Start, module validation and the existing module upgrade. Suppress disabled-state and idle module-update hint during this explicit operation. Preserve all real validation, entitlement and fail-closed behavior.
-- Remove the fresh-heartbeat UNKNOWN-state "Ожидаем воспроизведения в Яндекс Музыке…" fallback from compact and legacy UI. Keep W164's 2.5-second previous-title/artist handoff, raw Track-ID suppression and pending-presence suppression.
-- Make Pause neutral in compact and legacy UI. Keep the header service-heartbeat indicator independent.
-- Centralize the green active status predicate without weakening it: enabled bridge, fresh heartbeat, current ACTIVE_REPLACEMENT, current PLAYING, NATIVE_SOURCE_VERIFIED and approved presence.
-- Keep idle placeholder spacing at 18 px. Use a 28 px active status row with a 2 px lower gap before Account.
-- Do not copy the W166 DOM observer: the available W54 evidence lacks kUrl and no W55 diagnostic was supplied.
-- No audio, VPN, source routing, W23 native host/renderer, server, auth, Yandex original files, Android or browser-extension changes.
+Owner's third reported incident was verified in old diagnostics:
+2026-11-17T08:13:54.234Z PLAYER_CDP_DETACHED; 08:13:54.798Z HOST_LOADED.
+No logged reload action preceded the spontaneous Yandex host restart. Cause is NOT established. NO host, renderer, player, audio, source, VPN, entitlement, updater or Yandex original file changes are authorized. Do not falsely claim this incident was repaired or blame VPN. Do not include speculative crash mitigation.
 
-Active-source evidence boundary:
-- Mapping, approved presence by itself, HTTP 206, prefetch, generic PLAYING or a connected service are not proof of the current audible decoder source.
-- If the owner hears a CELIKOM replacement but the status remains neutral, request a fresh W54/W55 diagnostic from 0.24.49.0 before any observer change. Do not force green.
+Installer: CELIKOM-W168-OWNER-UI-CORRECTIONS-02450-UNSIGNED.exe
+ZIP: CELIKOM-Windows-0.24.50.zip
+SHA256SUMS.txt.
 
-Build metadata:
-- App and supervisor: 0.24.49 / 0.24.49.0.
-- Installer: CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.
-- Owner-review ZIP: CELIKOM-Windows-0.24.49.zip.
-- Native module remains 0.24.31.
-
-Requested output:
-- CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.exe
-- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.49.zip
-- SHA256SUMS.txt
-
-Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers.
+Exactly ONE internal unsigned owner-review W20 build, no production signing, no stable feed/public release or user Yandex app modification. GitHub Actions staging runner must not access a real Yandex installation. Check all built version/identity guards, native tests, and package hashes.
