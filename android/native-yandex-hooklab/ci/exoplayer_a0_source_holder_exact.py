@@ -25,12 +25,13 @@ MAX_OBJECT_CREATIONS=64
 MAX_TYPED_FIELDS=48
 HOLDER="Landroidx/media3/exoplayer/i$c;"
 HOLDER_CONSTRUCTOR=(HOLDER,"<init>","(LSl6;Z)V")
+WRAPPER_CONSTRUCTOR=("Lp96;","<init>","(LSl6;Z)V")
 LIST_GET=("Ljava/util/List;","get","(I)Ljava/lang/Object;")
 ARRAY_ADD=("Ljava/util/ArrayList;","add","(Ljava/lang/Object;)Z")
 
 
 def exact_source_handoff(method):
-    return method in (TARGET,PARENT,HOLDER_CONSTRUCTOR)
+    return method in (TARGET,PARENT,HOLDER_CONSTRUCTOR,WRAPPER_CONSTRUCTOR)
 
 
 
@@ -152,7 +153,7 @@ def scan_signed(splits):
                         if method in defs:raise ValueError("A0_DUPLICATE_TARGET")
                         defs[method]=(dex,flags,off)
     if len(dexes)!=6:raise ValueError("A0_EXPECTED_SIX_SIGNED_DEX")
-    if set(defs)!={TARGET,PARENT,HOLDER_CONSTRUCTOR}:raise ValueError("A0_TARGET_BODY_NOT_FOUND")
+    if set(defs)!={TARGET,PARENT,HOLDER_CONSTRUCTOR,WRAPPER_CONSTRUCTOR}:raise ValueError("A0_TARGET_BODY_NOT_FOUND")
     dex,flags,off=defs[TARGET]
     if not off:raise ValueError("A0_TARGET_NOT_EXECUTABLE")
     methods=[]
@@ -202,6 +203,8 @@ def scan_signed(splits):
                     "owner":owner,"field_type":field_type,
                 })
     holder_ctor_cfg_events=[]
+    holder_wrapper_source_argument_preserved=False
+    holder_wrapper_field_store_proven=False
     try:
         ctor_trace=audit.trace_track_identity_method_cfg(ctor_dex,HOLDER_CONSTRUCTOR,ctor_flags,ctor_off,
             extra_identity_types={SOURCE:"NATIVE_MEDIA_SOURCE"})
@@ -218,10 +221,92 @@ def scan_signed(splits):
             and e.get("receiver_is_this_on_all_paths") is True
             and "NATIVE_MEDIA_SOURCE_PARAMETER" in e.get("origins",())]
         holder_field_store_proven=bool(stored)
+        holder_wrapper_source_argument_preserved=any(
+            e.get("kind")=="CALL_WITH_TYPED_IDENTITY"
+            and (e.get("callee",{}).get("owner"),
+                 e.get("callee",{}).get("method"),
+                 e.get("callee",{}).get("signature"))==WRAPPER_CONSTRUCTOR
+            and e.get("identity_is_common_to_all_incoming_paths") is True
+            and any(x.get("identity_type")=="NATIVE_MEDIA_SOURCE"
+                    and "NATIVE_MEDIA_SOURCE_PARAMETER" in x.get("origins",())
+                    for x in e.get("identity_arguments",()))
+            for e in ctor_trace["events"])
         holder_cfg_error=None
     except (ValueError,audit.DexError) as e:
         holder_field_store_proven=False
         holder_cfg_error=type(e).__name__
+    # i$c stores a newly constructed Lp96 wrapper, not a raw LSl6 field.
+    # Probe exactly that one wrapper constructor, not MediaPeriod/list APIs.
+    wrapper_dex,wrapper_flags,wrapper_off=defs[WRAPPER_CONSTRUCTOR]
+    if not wrapper_off:raise ValueError("LP96_EXACT_CONSTRUCTOR_NO_BODY")
+    wrapper_ctor_calls=[]
+    wrapper_ctor_field_ops=[]
+    for ordinal,op,words in audit.instructions(wrapper_dex,wrapper_off):
+        if op in audit.INVOKES and 0x6E<=op<=0x78:
+            callee=wrapper_dex.method(words[1])
+            if len(wrapper_ctor_calls)>=36:raise ValueError("LP96_CTOR_INVOKE_LIMIT")
+            wrapper_ctor_calls.append({
+                "ordinal":ordinal,"owner":callee[0],"method":callee[1],
+                "signature":callee[2]
+            })
+        if 0x59<=op<=0x6d:
+            owner,_name,typ=audit.field_id(wrapper_dex,words[1])
+            if len(wrapper_ctor_field_ops)>=30:raise ValueError("LP96_CTOR_FIELD_LIMIT")
+            wrapper_ctor_field_ops.append({
+                "ordinal":ordinal,"field_owner":owner,"field_type":typ,
+                "opcode":op,
+            })
+    try:
+        wrapper_trace=audit.trace_track_identity_method_cfg(
+            wrapper_dex,WRAPPER_CONSTRUCTOR,wrapper_flags,wrapper_off,
+            extra_identity_types={
+                "LSl6;":"NATIVE_MEDIA_SOURCE",
+                "Lp96;":"EXACT_MEDIA_SOURCE_WRAPPER",
+                "Ljava/util/List;":"SOURCE_LIST",
+            })
+        wrapper_events=[
+            e for e in wrapper_trace["events"]
+            if e.get("kind") in (
+                "FIELD_STORE_TYPED_IDENTITY","CALL_WITH_TYPED_IDENTITY",
+                "RETURN_TYPED_IDENTITY","CALL_WITH_POSSIBLE_IDENTITY")
+            and ("NATIVE_MEDIA_SOURCE" in str(e) or
+                 "EXACT_MEDIA_SOURCE_WRAPPER" in str(e))
+        ][:36]
+        wrapper_direct_source_store=any(
+            e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
+            and e.get("identity_type")=="NATIVE_MEDIA_SOURCE"
+            and e.get("destination_owner")=="Lp96;"
+            and e.get("receiver_is_this_on_all_paths") is True
+            and "NATIVE_MEDIA_SOURCE_PARAMETER" in e.get("origins",())
+            for e in wrapper_trace["events"])
+        wrapper_trace_failure=None
+    except (ValueError,audit.DexError) as e:
+        wrapper_events=[]
+        wrapper_direct_source_store=False
+        wrapper_trace_failure=type(e).__name__
+    # The constructor is a wrapper: retaining the original source must be
+    # proven separately, not inferred merely from receiving it once.
+    # Exact i$c stores a Lp96-typed object; its field-store identity is
+    # inspected with Lp96 tracked rather than LSl6.
+    try:
+        parent_trace=audit.trace_track_identity_method_cfg(
+            ctor_dex,HOLDER_CONSTRUCTOR,ctor_flags,ctor_off,
+            extra_identity_types={
+                "LSl6;":"NATIVE_MEDIA_SOURCE",
+                "Lp96;":"EXACT_MEDIA_SOURCE_WRAPPER",
+            })
+        i_c_wrapper_events=[
+            e for e in parent_trace["events"]
+            if e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
+            and e.get("identity_type")=="EXACT_MEDIA_SOURCE_WRAPPER"]
+        holder_wrapper_field_store_proven=any(
+            e.get("destination_owner")==HOLDER
+            and e.get("receiver_is_this_on_all_paths") is True
+            and "EXACT_MEDIA_SOURCE_WRAPPER_NEW_INSTANCE" in e.get("origins",())
+            for e in i_c_wrapper_events)
+    except (ValueError,audit.DexError):
+        i_c_wrapper_events=[]
+        holder_wrapper_field_store_proven=False
     try:
         trace=audit.trace_track_identity_method_cfg(dex,TARGET,flags,off,
                 extra_identity_types={
@@ -253,6 +338,14 @@ def scan_signed(splits):
         "List_get_to_i_c_exact_same_object":get_to_ctor,
         "new_i_c_to_ArrayList_add_exact_same_object":holder_to_list,
         "holder_LSl6_parameter_stored_on_this":holder_field_store_proven,
+        "i_c_passes_same_LSl6_to_Lp96_constructor":holder_wrapper_source_argument_preserved,
+        "i_c_stores_Lp96_new_instance_on_this":holder_wrapper_field_store_proven,
+        "i_c_wrapper_field_store_events":i_c_wrapper_events[:12],
+        "Lp96_constructor_exact_calls":wrapper_ctor_calls,
+        "Lp96_constructor_typed_field_ops":wrapper_ctor_field_ops,
+        "Lp96_constructor_source_identity_events":wrapper_events,
+        "Lp96_constructor_stores_exact_source_on_this":wrapper_direct_source_store,
+        "Lp96_constructor_cfg_error_class":wrapper_trace_failure,
         "holder_constructor_cfg_error":holder_cfg_error,
         "holder_constructor_typed_field_opcodes":holder_ctor_field_types,
         "holder_constructor_identity_events":holder_ctor_cfg_events,
@@ -261,7 +354,9 @@ def scan_signed(splits):
             and get_to_ctor["same_get_result_passed_to_holder_ctor"]
             and get_to_ctor["LSl6_check_cast_preserves_reference"]
             and holder_to_list["same_new_holder_passed_into_ArrayList_add"]
-            and holder_field_store_proven),
+            and holder_wrapper_source_argument_preserved
+            and holder_wrapper_field_store_proven
+            and wrapper_direct_source_store),
         "source_typed_invokes":source_methods,
         "list_or_iterator_invokes":list_methods,
         "target_new_instances":instance_creations,
