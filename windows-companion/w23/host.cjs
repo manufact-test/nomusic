@@ -1,5 +1,5 @@
 "use strict";
-const CELIKOM_NATIVE_VERSION = "0.24.31";
+const CELIKOM_NATIVE_VERSION = "0.24.32";
 
 /**
  * CELIKOM main-process relay for genuine Yandex Music desktop.
@@ -1002,6 +1002,7 @@ function observeNativePlayback(view) {
       // The W48 independent probe has been disabled; matched GETs now
       // originate from Yandex itself (possibly its prefetcher, not sound).
       debug.on("message", (_event, method, params) => {
+        try {
         if (!validView(view)) return;
         const requestId = typeof params?.requestId === "string" &&
           params.requestId.length < 160 ? params.requestId : null;
@@ -1170,6 +1171,15 @@ function observeNativePlayback(view) {
             if (prop.value === "false") note("PLAYER_CDP_STATE_NOT_PLAYING");
           }
         }
+        } catch {
+          // An unexpected CDP payload must not throw out of Electron's
+          // main-process event handler and restart Yandex. Fail closed for
+          // this passive decoder witness without touching audio controls.
+          verifiedDecoderSource.delete(view);
+          decoderPlayers.clear();
+          nativeDecoderPlayers.delete(view);
+          note("NATIVE_CDP_EVENT_EXCEPTION");
+        }
       });
       debug.on("detach", () => {
         if (!validView(view)) return;
@@ -1255,9 +1265,14 @@ function observeNativePlayback(view) {
   });
 }
 
+// Fire-and-forget pulse rejections must never bubble up to Electron's main
+// process. They are diagnostic-only and must not close/relaunch Yandex.
+function scheduleTick(view) {
+  void tick(view).catch(() => note("NATIVE_RELAY_TICK_EXCEPTION"));
+}
 app.on("web-contents-created", (_event, view) => {
-  view.on("dom-ready", () => { injected.delete(view); void tick(view); });
-  view.on("did-finish-load", () => { injected.delete(view); void tick(view); });
+  view.on("dom-ready", () => { injected.delete(view); scheduleTick(view); });
+  view.on("did-finish-load", () => { injected.delete(view); scheduleTick(view); });
   view.on("console-message", (event, _level, legacy) => {
     const msg = typeof event?.message === "string" ? event.message : legacy;
     if (msg === "[CELIKOM] Native file-info source connector attached") note("RESOURCE_ATTACHED");
@@ -1308,6 +1323,6 @@ const timer = setInterval(() => {
   }
   const views = webContents.getAllWebContents();
   if (views.length) note("WEB_CONTENTS_PRESENT");
-  for (const view of views) void tick(view);
+  for (const view of views) scheduleTick(view);
 }, 300);
 if (timer.unref) timer.unref();

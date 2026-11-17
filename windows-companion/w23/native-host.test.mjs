@@ -149,6 +149,26 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
     assert.ok(evaluated.every(js=>!js.includes("b".repeat(64))),"token never leaked to renderer");
   }
 });
+test("W169 main-process CDP callbacks and asynchronous pulses cannot throw", async () => {
+  assert.ok(source.includes("function scheduleTick(view)"));
+  assert.ok(source.includes('tick(view).catch(() => note("NATIVE_RELAY_TICK_EXCEPTION"))'));
+  assert.equal((source.match(/void tick\(view\)/g)||[]).length,1,
+    "every pulse entry point uses the guarded scheduler");
+  const debug = new EventEmitter();
+  let attached = false;
+  debug.isAttached = () => attached;
+  debug.attach = () => { attached = true; };
+  debug.detach = () => { attached = false; };
+  debug.sendCommand = async () => {};
+  const r = await runHost("musicapplication://desktop/",{debuggerDriver:debug});
+  assert.equal(attached,true);
+  const broken = {};
+  Object.defineProperty(broken,"properties",{get(){throw Error("malformed vendor event");}});
+  assert.doesNotThrow(() => debug.emit("message",{},"Media.playerPropertiesChanged",broken));
+  assert.ok(r.diagnostics.includes("NATIVE_CDP_EVENT_EXCEPTION"));
+  assert.ok(!r.diagnostics.join("\n").includes("malformed vendor event"));
+});
+
 test("W120 keeps the established 300ms native relay cadence pending objective profiling",async()=>{
   const r=await runHost("musicapplication://desktop/");
   assert.equal(r.timerIntervalMs,300);
