@@ -135,6 +135,96 @@ def exact_holder_period_receiver_shape(method,entry):
         if len(rows)>130:
             raise ValueError("STREAM_EXACT_HOLDER_FIELD_SCOPE_EXCEEDED")
     return {"method":list(method),"events":rows}
+
+def verify_exact_holder_wrapper_period_selection(methods):
+    """Fail closed: exact Lup1 allocation -> Lxh6 Object storage -> same read
+    into period-select interface; exact [LR29 holder field passed to that call.
+    The wrapper may adapt streams; DO NOT assert same child stream instance.
+    """
+    ctor_dex,_,ctor_off=methods[HOLDER_CONSTRUCTOR]
+    sel_dex,_,sel_off=methods[HOLDER_SELECT]
+    wrap_dex,_,wrap_off=methods[PERIOD_WRAPPER_SELECT]
+    orig_dex,_,orig_off=methods[ORIGINAL_PERIOD_SELECT]
+    ci={pc:(op,words) for pc,op,words in audit.instructions(ctor_dex,ctor_off)}
+    si={pc:(op,words) for pc,op,words in audit.instructions(sel_dex,sel_off)}
+    wi={pc:(op,words) for pc,op,words in audit.instructions(wrap_dex,wrap_off)}
+    oi={pc:(op,words) for pc,op,words in audit.instructions(orig_dex,orig_off)}
+    new_wrappers=[(pc,(words[0]>>8)&255) for pc,(op,words) in ci.items()
+                  if op==0x22 and ctor_dex.descriptor(words[1])==WRAPPER]
+    if len(new_wrappers)!=1:
+        raise ValueError("PERIOD_WRAPPER_UNIQUE_ALLOCATION_REQUIRED")
+    alloc_pc,allocated_reg=new_wrappers[0]
+    init_op,init_words=ci.get(132,(None,None))
+    if init_op not in audit.INVOKES or ctor_dex.method(init_words[1])!=(
+        WRAPPER,"<init>","(Lwh6;ZJJ)V"):
+        raise ValueError("PERIOD_WRAPPER_INIT_CALL_MISMATCH")
+    ctor_regs=audit.invoke_registers(init_op,init_words)
+    if ctor_regs[0]!=allocated_reg:
+        raise ValueError("PERIOD_WRAPPER_ALLOCATION_RECEIVER_MISMATCH")
+    move_op,move_words=ci.get(135,(None,None))
+    store_op,store_words=ci.get(136,(None,None))
+    if move_op not in (0x07,0x08,0x09) or store_op!=0x5b:
+        raise ValueError("PERIOD_WRAPPER_STORE_SHAPE_MISMATCH")
+    move_dest,move_source=audit.move_object_registers(move_op,move_words)
+    stored_reg=(store_words[0]>>8)&15
+    if move_source!=allocated_reg or move_dest!=stored_reg:
+        raise ValueError("PERIOD_WRAPPER_STORE_ALIAS_MISMATCH")
+    stored_owner,stored_private,stored_type=audit.field_id(ctor_dex,store_words[1])
+    if stored_owner!=HOLDER or stored_type!="Ljava/lang/Object;":
+        raise ValueError("PERIOD_WRAPPER_HOLDER_OBJECT_FIELD_MISMATCH")
+    read_op,read_words=si.get(61,(None,None))
+    if read_op!=0x54 or audit.field_id(sel_dex,read_words[1])!=(
+            stored_owner,stored_private,stored_type):
+        raise ValueError("PERIOD_WRAPPER_SELECTION_FIELD_IDENTITY_MISMATCH")
+    receiver=(read_words[0]>>8)&15
+    call_op,call_words=si.get(73,(None,None))
+    if call_op not in audit.INVOKES or sel_dex.method(call_words[1])!=PERIOD_INTERFACE_SELECT:
+        raise ValueError("PERIOD_WRAPPER_SELECTION_CALL_MISMATCH")
+    regs=audit.invoke_registers(call_op,call_words)
+    if regs[0]!=receiver:
+        raise ValueError("PERIOD_WRAPPER_SELECTION_RECEIVER_NOT_SAME")
+    arr_op,arr_words=si.get(63,(None,None))
+    if arr_op!=0x54:
+        raise ValueError("PERIOD_WRAPPER_SELECTION_STREAM_READ_MISSING")
+    stream_reg=(arr_words[0]>>8)&15
+    if regs[3]!=stream_reg:
+        raise ValueError("PERIOD_WRAPPER_SELECTION_STREAM_ARRAY_ALIAS_MISMATCH")
+    # No local write to either provenance-bearing register after the field reads.
+    # cast and invokes are identity-preserving. Overwrites fail closed.
+    for pc,(op,words) in si.items():
+        if not (61<pc<73):continue
+        if op==0x1f:continue  # check-cast preserves object reference
+        if op in audit.INVOKES:
+            continue
+        written=audit.written_register(op,words)
+        if written in (receiver,stream_reg):
+            raise ValueError("PERIOD_WRAPPER_SELECTION_REGISTER_OVERWRITE")
+    # Lup1.case allocates a separate child stream array for nested MediaPeriod
+    # and can adapt return streams; never falsely claim child/direct identity.
+    if 10 not in wi or wi[10][0]!=0x23 or wrap_dex.descriptor(wi[10][1][1])!=STREAM_ARRAY:
+        raise ValueError("PERIOD_WRAPPER_CHILD_STREAM_ALLOCATION_MISMATCH")
+    child_arr=(wi[10][1][0]>>8)&15
+    wop,wwords=wi.get(45,(None,None))
+    if wop not in audit.INVOKES or wrap_dex.method(wwords[1])!=PERIOD_INTERFACE_SELECT:
+        raise ValueError("PERIOD_WRAPPER_CHILD_SELECT_INVOKE_MISMATCH")
+    wregs=audit.invoke_registers(wop,wwords)
+    if wregs[3]!=child_arr:
+        raise ValueError("PERIOD_WRAPPER_CHILD_STREAM_ARRAY_ALIAS_MISMATCH")
+    oop,owords=oi.get(32,(None,None))
+    if oop not in audit.INVOKES or orig_dex.method(owords[1])!=PERIOD_INTERFACE_SELECT:
+        raise ValueError("EXACT_LO96_CHILD_PERIOD_SELECT_MISSING")
+    return {
+        "exact_Lup1_object_allocated_and_initialized_in_holder":True,
+        "Lup1_stored_and_read_from_same_exact_Lxh6_field":True,
+        "Lup1_same_ref_is_period_select_call_receiver":True,
+        "holder_owned_stream_array_same_ref_passed_to_period_select":True,
+        "Lup1_uses_separate_child_stream_array_for_nested_selection":True,
+        "Lo96_delegates_to_native_child_period_select":True,
+        "child_stream_equals_renderer_stream_proven":False,
+        "live_period_selected_and_audio_consumed_proven":False,
+        "private_field_identifier_exported":False,
+    }
+
 def scan(apks):
     dexes=0
     methods={}
@@ -194,10 +284,12 @@ def scan(apks):
         for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT)
     ]
     shared_field=verify_exact_shared_stream_field(methods)
+    period_wrapper_selection=verify_exact_holder_wrapper_period_selection(methods)
     selected=[]
     for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
         selected.append(limited_stream_selection_bytecode(method,methods[method]))
-    return {"exact_holder_period_receiver_shapes":holder_period_receiver_shapes,
+    return {"exact_holder_period_selection_identity":period_wrapper_selection,
+            "exact_holder_period_receiver_shapes":holder_period_receiver_shapes,
             "exact_shared_holder_stream_field":shared_field,
             "exact_stream_selection_register_topology":selected,
             "verdict":"SIGNED_EXACT_HOLDER_STREAM_OWNER_STRUCTURAL_MAP",
