@@ -1,44 +1,43 @@
-Привет! Принимай **CELIKOM Android A1** как ведущий разработчик. Продолжай только с сохранённой точки. Не начинай с нуля и архитектуру не меняй.
+Привет! Принимай **CELIKOM Android A1** как ведущий разработчик. Продолжай **строго с сохранённой точки**. Архитектуру и нативный плеер не менять. Не переключайся на Windows или расширение.
 
 **GitHub:** `manufact-test/nomusic`
 **Единственная рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-**Последний проверенный read-only static code:** `24c37a59d454cc5ec0b69f9e548fbe3349108673`
-**Точный зелёный backup:** `backup/android-a1-exact-source-to-lo96-mediaperiod-ci-green-20261117`
-**Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a`. После него hooks/APK не менялись.
-**Главный новый CI #3:** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/44077450137
-**Предшествующий playlist/source-holder CI #5:** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/44076441146
-**Предшествующий exact TrackWrapper→Player CI #1:** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/44070976535
+**Последний CI-green read-only код:** `762088f55114553bacb96b324530ee241ce72dcd`
+**Точный backup:** `backup/android-a1-exoplayer-engine-period-holder-ci-green-20261117`
+**Перед последним заходом:** `backup/android-a1-pre-period-activation-last-pass-20261117` @ `a07c5dbb174f714e9d750d7ebff8fc54e60221fe`
+**Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a` — после него hooks/APK НЕ менялись.
+**Главные последние CI:** [native period holder #3 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44093915839); [native Exo engine #2 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44094591928).
 
-### Прочитай только актуальные документы
+### Сначала прочитай — строго по порядку
 
-1. `docs/android/NEXT-CHAT.md` — **единственный авторитетный текущий статус**.
-2. `docs/android/ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md` — последняя подтверждённая MediaPeriod identity.
-3. `docs/android/ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md` — Player playlist/internal holder.
-4. `docs/android/ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md` — начало точной цепочки.
+1. `docs/android/NEXT-CHAT.md` — **единственный текущий канонический статус**.
+2. `docs/android/ANDROID-A1-EXOPLAYER-ENGINE-PERIOD-HOLDER-20261117.md` — **последний точный результат**, вызовы Exo engine и нативный holder.
+3. `docs/android/ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md` — доказанная цепь исходного source → Lo96 MediaPeriod.
+4. `docs/android/ANDROID-A1-EXOPLAYER-PLAYLIST-HOLDER-IDENTITY-20261117.md` — исходный source сохраняется в Player/плейлисте.
 
-`docs/android/README.md` — индекс. Старые handoff и архивы не читать без точной причины.
+`docs/android/README.md` — индекс. Старые handoff/архивы не подменяют текущий статус.
 
-### Зафиксированные факты
+### Оригинал и статус
 
-- **Stage A / NAV17 PASS**, владелец подтвердил нативный вход в Яндекс, интерфейс, альбомы, Мою волну, оригинальную музыку.
-- **Stage B NO-GO**: замена звука CELIKOM не подключена и не подтверждена на слух, текущий активный MediaPeriod/decoder не определён.
-- Точный подписанный **NAV17 original: Yandex Music 2025.10.4 #120.1gpr**; embedded `assets/lspatch/origin.apk` SHA-256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`. Пинованный XAPK SHA-256 `8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053` — 16 issuer-signed splits / 6 DEX.
-- 2026.10.3 #170gpr — отдельный ARM13 original, 2026.09.5 #167gpr — старая версия с телефона. **Не переносить обфусцированные имена между версиями.**
+- **Stage A / NAV17 PASS** по подтверждению владельца: Яндекс внутри APK, вход, UI/альбомы/Моя волна и оригинальный звук работают.
+- **Stage B NO-GO:** CELIKOM audio replacement ещё **НЕ подключён**, не слышен и не доказан на активном декодере. APK для проверки Stage B не собирать без нового обоснованного runtime evidence.
+- В NAV17 установлен подписанный **Yandex Music 2025.10.4 #120.1gpr**. `assets/lspatch/origin.apk` SHA `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`; исходный подписанный XAPK SHA `8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053`, 16 splits / 6 DEX. **2026.10.3 #170gpr** — отдельный ARM13 original, **2026.09.5 #167gpr** — старая версия телефона; их классы НЕ смешивать.
 
-### ВАЖНО: новый доказанный исходный source→MediaPeriod маршрут
+### Что реально доказано (точные signed-DEX Java object identities)
 
-Три независимые read-only signed-CI доказали **статически по точным Java object references**:
+`LcA9(...LtCa TrackWrapper...) → LiLb(MediaSource) → LA14.e(LSl6;J) → native ExoPlayer.d.e → singletonList(source) → d.T0 → d.A0 → i$c → Lp96 → LuIb → Lo96 MediaPeriod`.
 
-`LcA9.extends(...LtCa TrackWrapper...)` → уникальный `LiLb` MediaSource с `LOf6` MediaItem → **тот же LiLb** в `LA14.e(LSl6;J)` → native `ExoPlayer.e` → concrete `ExoPlayer.d.e` → `Collections.singletonList(source)` → `d.T0(List)` → `d.A0(List)` → `List.get` **того же source** → `i$c(LSl6;Z)` → `Lp96(LSl6;Z)` → `LuIb(LSl6)` → **точный field store исходного LSl6** в LuIb.
+Уже проверено, что это **тот же source-object**, а не совпадение типов. `LuIb` хранит source в точно проверенном поле; `Lp96.transient` берёт **тот же** source и помещает в уникальный `Lo96`, возвращаемый в 2/2 ветках. CI #44077450137 SUCCESS.
 
-Новое важнейшее звено: `Lp96.transient(LSl6$b;LrH2;J)Lo96` читает **тот же самый точный DEX-field reference** LuIb, а не поле похожего типа; записывает исходный source на один `Lo96` MediaPeriod объект, и **оба возврата** (2/2) возвращают **именно его**. Это `static_same_source_to_returned_MediaPeriod_proven=true` по CI #44077450137. CFG branch-sensitive, один Lo96 allocation/constructor, exact field identity.
+**Последний большой заход:**
+- `Lxh6.<init>(...ExoPlayer/i...)` получает `Lp96` из точно подтверждённого `i$c`, вызывает `Lp96.transient` (PC 96), использует тот же `Lo96` как ключ `IdentityHashMap` (PC 102) и передаёт тот же период в `Lup1.<init>(Lwh6;ZJJ)` (PC 132). `Lup1` сохраняет параметр периода на `this`. CI #44093915839 SUCCESS.
+- **Единственный прямой вызов** указанного конструктора `Lxh6` находится в `Landroidx/media3/exoplayer/e.break()V` (PC 275), внутри которого `Lxh6` создаётся на PC 240. Код обращается к `Landroidx/media3/exoplayer/h` и полям типа `Lxh6` (очередь периодов). CI #44094591928 SUCCESS.
+- Это **доказанная статическая цепь source → period → native engine holder**, но **не** текущий звучащий период. Обфусцированное `break` — только имя метода, не основание считать его текущим playback event.
 
-**Не преувеличивать:** это *не* доказательство, что именно этот Lo96 MediaPeriod уже играет в текущем ExoPlayer. Он может быть queued/prefetch. Текущий Track+album+edition+duration+generation, активный period→decoder и фактическая подмена **не доказаны**.
+### Следующий конкретный блок
 
-### Следующий этап
+От **точной** пары `Lxh6/Lup1/Lo96` в `ExoPlayer/e` + `ExoPlayer/h` выяснить, **какой holder сейчас выбран и читает звук**, а какой лишь загружается/стоит в очереди/предзагружается. Нужны гарантированные **same-object active Player/queue generation → Lo96 → decoder**, плюс selected Track/album/edition/duration на том же owner. До этого **не подключать CELIKOM bytes и не объявлять Stage B успешным**. Если понадобится runtime-observer, сначала вывести узкую безопасную точку, создать backup, доказать отсутствие вмешательства в нативный плеер; нельзя ставить хуки «наугад».
 
-**Не начинать ещё одну массовую трассировку.** Ищи только точную связь **runtime current selected Player/item/generation → active Lo96 MediaPeriod → native decoder** на уже доказанной цепочке. Только после подтверждения текущего звучащего источника имеет смысл независимый CELIKOM approved/entitled exact grant и подмена в оригинальном нативном плеере с исходным fallback. Не принимать `open/read`, factory или сам `MediaPeriod` constructor за active audio proof.
+**Запрещено переоткрывать** `LfT2` (data-only), `LXk6`, прямой `LiLb.for()` getter, старые global `List/Object/MediaItem/ByteBuffer/Player/renderer` сканы, Exo factory/open/read и уже закрытые constructor/holder/period routes. Не читать/экспортировать IDs, Track/Album названия, URL/DataSpec, private field values, токены и аудио. Ни второго Player/decoder/AudioTrack, ни правок оригинального Яндекса, NAV17, Test.50, Windows, extension, backend/production.
 
-Закрыты: `LfT2` (final data-only, не continuation), `LXk6`, direct `LiLb.for()` getter caller census, старые generic List/ByteBuffer/Player сканы. Восстановленные `RAa.invokeSuspend` и Media3 факты — в `docs/android/ANDROID-A1-YANDEX-MEDIA3-RESEARCH-RECOVERED-20261116.md`; не повторять.
-
-**Ограничения:** Android A1 only. NAV17, Test.50, Windows, extension, backend, production и оригинальный Яндекс не трогать. Не менять runtime hooks/APK без обоснованного следующего runtime witness; не добавлять второй Player/decoder/AudioTrack. Не читать и не экспортировать приватные значения Track/Album, IDs, URLs, DataSpec, токены, аккаунт, аудиобайты. Работай большими блоками, сохраняй резервы. Stage B только после реальной проверки владельцем.
+Работай большими блоками, **без промежуточных отчётов**, сохраняй зелёные бэкапы, обновляй канонический `NEXT-CHAT.md` после нового результата. Stage B менять на PASS только после фактического ручного прослушивания владельцем.
