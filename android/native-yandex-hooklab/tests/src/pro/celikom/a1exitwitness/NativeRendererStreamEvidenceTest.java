@@ -74,11 +74,61 @@ public final class NativeRendererStreamEvidenceTest {
         check(!text.contains("track"),"TRACK_LEAK");
         check(!text.contains("java.lang"),"CLASS_LEAK");
     }
+    private static void testUnscopedReadNeverAttestsQueueHolder() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object renderer=new Object(),stream=new Object();
+        e.onAttach(renderer,stream); // no mQ8.catch scope observed
+        check(e.shouldSampleRead(),"UNSCOPED_READ_BUDGET");
+        e.onRead(renderer,stream);
+        check(contains(e.exportLines(),
+                "origin=UNSCOPED_ATTACHED_STREAM_READ_MATCH;error=ONE"),
+              "UNSCOPED_RENDERER_STREAM_ALIAS");
+        check(contains(e.exportLines(),"origin=QUEUED_HOLDER_ATTACHED;error=NONE"),
+              "UNSCOPED_MUST_NOT_INVENT_QUEUE");
+        check(contains(e.exportLines(),"origin=ATTACHED_STREAM_READ_MATCH;error=NONE"),
+              "UNSCOPED_MUST_NOT_COUNT_STRONG_MATCH");
+        e.onRead(renderer,new Object());
+        check(contains(e.exportLines(),
+                "origin=UNSCOPED_ATTACHED_STREAM_READ_DIFFERENT;error=ONE"),
+              "UNSCOPED_DIFFERENT_STREAM");
+        e.onDetach(renderer);
+        e.onRead(renderer,stream);
+        check(contains(e.exportLines(),"origin=READ_NO_MATCHED_ATTACHMENT;error=ONE"),
+              "UNSCOPED_DETACH_DROPS_ALIAS");
+    }
+    private static void testEarlyReadBudgetMustNotHideLaterUnscopedAttach() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        for(int i=0;i<8;i++)check(e.shouldSampleRead(),"EARLY_READ");
+        check(!e.shouldSampleRead(),"EARLY_READ_LIMIT");
+        Object renderer=new Object(),stream=new Object();
+        e.onAttach(renderer,stream);
+        check(e.shouldSampleRead(),"REARM_AFTER_UNSCOPED_ATTACH");
+        e.onRead(renderer,stream);
+        check(contains(e.exportLines(),
+                "origin=UNSCOPED_ATTACHED_STREAM_READ_MATCH;error=ONE"),
+              "LATE_VALID_RENDERER_READ");
+    }
+    private static void testRegistrationSurvivesTrimmedEventLog() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        check(contains(e.exportLines(),
+            "origin=QUEUE_SCOPE;error=NOT_SEEN"),"DEFAULT_UNOBSERVED");
+        e.onHookRegistration("QUEUE_SCOPE",false);
+        e.onHookRegistration("STREAM_ATTACH",true);
+        e.onHookRegistration("SAMPLE_READ",true);
+        e.onHookRegistration("STREAM_DETACH",true);
+        check(contains(e.exportLines(),"origin=QUEUE_SCOPE;error=NO_HOOK"),
+              "HOOK_INSTALL_FAILURE_SNAPSHOT");
+        check(contains(e.exportLines(),"origin=STREAM_ATTACH;error=REGISTERED"),
+              "HOOK_INSTALL_SUCCESS_SNAPSHOT");
+    }
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
         testUnscopedAndPoisonedStack();
         testNoPrivateValuesInReport();
+        testUnscopedReadNeverAttestsQueueHolder();
+        testEarlyReadBudgetMustNotHideLaterUnscopedAttach();
+        testRegistrationSurvivesTrimmedEventLog();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
