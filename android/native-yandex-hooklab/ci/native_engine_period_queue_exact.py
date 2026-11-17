@@ -81,9 +81,11 @@ def scan_signed(apks):
                 })
         if 0x52<=op<=0x6d:
             owner,_field,typ=audit.field_id(dex,words[1])
-            if (owner in (
-                "Landroidx/media3/exoplayer/e;","Lxh6;","Landroidx/media3/exoplayer/i;"
-            ) or typ in ("Lxh6;","Lup1;","Lo96;")):
+            # Limit field projections to exact period/holder/manager types;
+            # Exo engine has many unrelated fields. Never broaden them.
+            if (owner=="Lxh6;" or typ in (
+                "Lxh6;","Lup1;","Lo96;","Lwh6;",
+                "Landroidx/media3/exoplayer/i;")):
                 if len(fields)>=MAX_FIELD_OPS:
                     raise ValueError("ENGINE_RELEVANT_FIELD_LIMIT")
                 fields.append({"pc":pc,"owner":owner,"field_type":typ,"opcode":op})
