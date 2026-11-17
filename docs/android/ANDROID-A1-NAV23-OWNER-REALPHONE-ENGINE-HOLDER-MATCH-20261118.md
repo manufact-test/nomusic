@@ -20,3 +20,21 @@
 **The remaining gate is identifying which native `Lxh6` holder is actually selected for the currently heard track, and whether linked renderer is an audio decoder rather than video/prefetch.** Do a bounded signed original 2025.10.4 *static* callsite audit first: find exact callers/arguments into `e.catch(Lxh6;IZJ)V` and relationship to engine active holder field `h.SLOT_B`; distinguish playback activation from preparation, and seek/Next transitions. Avoid repeated generic scans, sound handling or metadata reads. Only if signed proof yields an exact new runtime observation boundary should a privacy-bounded passive NAV24 hook be considered. No new APK solely from today's log; no modifications to original Yandex, Test.50, Windows, browser, backend or current CELIKOM service.
 
 **Protected code**: `backup/android-a1-nav23-owner-signed-library-verified-final-20261118` @ `3c2146092e29e58d32415e3a43a2c431e896bc60`, signed APK source `b53af8291c38ac9e7141a186bb48ab682eb30e25`, CI native #44180557905 SUCCESS, JVM #44180395176 SUCCESS; Library signed owner NAV23 APK SHA-256 `376d3212a3802cf40e905eb434699d6999202086129eb9affc0c66bd4f8ea6a8`. NAV23 remains installed; no new owner test requested yet.
+
+## Additional exact signed 2025 static proof after NAV23 phone success
+
+Auditor `android/native-yandex-hooklab/ci/secondary_renderer_attach_caller_owner_exact.py` on the pinned publisher-signed original XAPK (16 original splits, six DEX) independently establishes **three exact direct invocations of `e.catch(Lxh6;IZJ)V`**:
+- `e.break()V` PC **510** — holder input exists but is **not strictly traced to queue SLOT_B** by the current exact proof. Do **not** generalize to this path.
+- `e.break()V` PC **1183** — strict `h.SLOT_B Lxh6` field read at PC **1051**.
+- `e.class([ZJ)V` PC **51** — strict same DEX `h.SLOT_B Lxh6` field read at PC **2**.
+
+**Final bounded branch-sensitive CFG, domination + alias verifier: #44185115155 SUCCESS, source commit `2fd5b5d8ee6fef997079c92966eac30a21467b6c`.** For `e.break 1051→1183` and `e.class 2→51`:
+- Same *exact field ID* as independently proved `e.break PC547` `h.SLOT_B`, not only a matching `Lxh6` type;
+- source read dominates target invocation (no bypass path found);
+- **1/1 reaching CFG state** has the same source object in the `e.catch` holder argument;
+- no unmodeled instructions in bounded region;
+- still **static only**, no proof that this is the currently audible audio decoder or track/album/edition.
+
+This dovetails with NAV23's real-phone same-holder array membership and renderer return observations but **does not establish live queue slot B equality at the moment of sound output**. `e.class` may participate in stream reset/reconfiguration; `e.break` PC510 may be an alternate path. Existing selected-track/album Stage B counters `WRAPPER_MAIN_SOURCE` and `TRACK_SOURCE_READ_LINK` remain `NONE`. No native APK, app behavior, music files or server was changed by this scan. Continue with exact 2025 audio-only renderer `getTrackType()/started` and live selected-holder discriminator only after verifying signature/field origin in bounded signed research, without metadata or audio contents capture.
+
+**Static safety checkpoint:** `2fd5b5d8ee6fef997079c92966eac30a21467b6c` (followed by documentation-only changes), isolated source scan #44185115155 SUCCESS. NAV23 owner APK and signed release backup unchanged.
