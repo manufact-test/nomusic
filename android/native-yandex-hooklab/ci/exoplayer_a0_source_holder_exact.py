@@ -192,9 +192,25 @@ def scan_signed(splits):
     holder_to_list=same_holder_allocation_added_to_array(dex,off)
     ctor_dex,ctor_flags,ctor_off=defs[HOLDER_CONSTRUCTOR]
     if not ctor_off:raise ValueError("A0_HOLDER_CONSTRUCTOR_NO_BODY")
+    holder_ctor_field_types=[]
+    for ordinal,op,words in audit.instructions(ctor_dex,ctor_off):
+        if 0x59<=op<=0x6d:
+            owner,_name,field_type=audit.field_id(ctor_dex,words[1])
+            if len(holder_ctor_field_types)<32:
+                holder_ctor_field_types.append({
+                    "ordinal":ordinal,"opcode":op,
+                    "owner":owner,"field_type":field_type,
+                })
+    holder_ctor_cfg_events=[]
     try:
         ctor_trace=audit.trace_track_identity_method_cfg(ctor_dex,HOLDER_CONSTRUCTOR,ctor_flags,ctor_off,
             extra_identity_types={SOURCE:"NATIVE_MEDIA_SOURCE"})
+        holder_ctor_cfg_events=[
+            e for e in ctor_trace["events"]
+            if e.get("kind") in (
+                "FIELD_STORE_TYPED_IDENTITY","CALL_WITH_TYPED_IDENTITY",
+                "CALL_WITH_POSSIBLE_IDENTITY","FIELD_READ_TYPED_IDENTITY")
+        ][:24]
         stored=[e for e in ctor_trace["events"]
             if e.get("kind")=="FIELD_STORE_TYPED_IDENTITY"
             and e.get("identity_type")=="NATIVE_MEDIA_SOURCE"
@@ -238,6 +254,8 @@ def scan_signed(splits):
         "new_i_c_to_ArrayList_add_exact_same_object":holder_to_list,
         "holder_LSl6_parameter_stored_on_this":holder_field_store_proven,
         "holder_constructor_cfg_error":holder_cfg_error,
+        "holder_constructor_typed_field_opcodes":holder_ctor_field_types,
+        "holder_constructor_identity_events":holder_ctor_cfg_events,
         "one_source_to_internal_playlist_holder_static_proven":bool(
             get_to_ctor["List_get_receiver_is_exact_parameter"]
             and get_to_ctor["same_get_result_passed_to_holder_ctor"]
