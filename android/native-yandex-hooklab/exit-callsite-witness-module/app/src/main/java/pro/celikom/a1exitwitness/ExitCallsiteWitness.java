@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V23_EXACT_ENGINE_HOLDER_STREAM_ARRAY_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V24_EXACT_AUDIO_TYPE1_STATE2_ENGINE_HOLDER_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2632,6 +2632,23 @@ public final class ExitCallsiteWitness extends XposedModule {
                 final Method getter=rendererBase.getDeclaredMethod("while");
                 if (getter.getReturnType()!=stream) throw new NoSuchMethodException();
                 getter.setAccessible(true);
+                // Pinned signed 2025 b.default()I returns the exact int field
+                // fed from b.<init>(I); generic getTrackType() is obfuscated.
+                // b.getState()I is also an exact field getter. Both optional:
+                // failure must NEVER disable old b.g() read witness.
+                Method resolvedType=null, resolvedState=null;
+                try {
+                    Method t=rendererBase.getDeclaredMethod("default");
+                    Method state=rendererBase.getDeclaredMethod("getState");
+                    if(t.getReturnType()!=int.class || state.getReturnType()!=int.class)
+                        throw new NoSuchMethodException();
+                    t.setAccessible(true);
+                    state.setAccessible(true);
+                    resolvedType=t;
+                    resolvedState=state;
+                } catch (Throwable ignored) { }
+                final Method audioTypeGetter=resolvedType;
+                final Method rendererStateGetter=resolvedState;
                 hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         // Sample only bounded original b.g() calls. Never inspect
@@ -2655,14 +2672,36 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 NATIVE_RENDERER_EVIDENCE.onReadReturn(
                                     renderer,attached,((Integer)original).intValue());
                             } catch (Throwable ignored) { }
+                            if(audioTypeGetter!=null && rendererStateGetter!=null
+                                    && renderer!=null && attached!=null) {
+                                try {
+                                    Object t=audioTypeGetter.invoke(renderer);
+                                    Object s=rendererStateGetter.invoke(renderer);
+                                    if(!(t instanceof Integer) || !(s instanceof Integer))
+                                        throw new IllegalStateException();
+                                    NATIVE_RENDERER_EVIDENCE.onRendererTypeStateRead(
+                                        renderer,attached,((Integer)t).intValue(),
+                                        ((Integer)s).intValue(),((Integer)original).intValue());
+                                } catch (Throwable ignored) {
+                                    try {
+                                        NATIVE_RENDERER_EVIDENCE
+                                            .onRendererTypeStateUnavailable(renderer,attached);
+                                    } catch (Throwable ignoredAgain) { }
+                                }
+                            }
                         }
                         return original;
                     });
                 rendererSampleReadHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",
+                    audioTypeGetter!=null && rendererStateGetter!=null);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","RENDERER_TYPE_STATE_ACCESS",
+                    audioTypeGetter!=null && rendererStateGetter!=null ? "REGISTERED" : "NO_HOOK");
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("SAMPLE_READ",true);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","SAMPLE_READ","REGISTERED");
             } catch (Throwable ignored) {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("SAMPLE_READ",false);
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","SAMPLE_READ","NO_HOOK");
             }
         }
