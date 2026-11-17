@@ -37,3 +37,28 @@ Scope next work only to exact `b.package`/interface k attachment dispatch and pr
 - Same-field writer PASS backup: `backup/android-a1-concrete-renderer-attached-stream-writes-ci-green-20261117` @ `e7b59f5166ffe7e4629bce7b10c76d4328a09d9d`.
 - Native attach parameter PASS backup: `backup/android-a1-exact-renderer-stream-attachment-ci-green-20261117` @ `60fecaa2bcb7c34358a05342a3483cdab5d07062`.
 - All changes **Python read-only static audit/fixture/CI/docs only**. Last runtime hooks `a655712d210189f3bc611847235de3ed4d985c1a`; no new APK, original Yandex, NAV17, Test.50, production, Windows, extension, API or database changes.
+
+
+## Newly closed exact native queue → renderer attachment → sample read path (same signed original)
+
+The previous "caller unknown" gate has now been resolved by *several successive read-only signed CI runs*:
+
+- **[Exact attachment callers CI #44115226209 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44115226209):** only two direct exact calls to `k/b.package([LSr4;LR29;JJLSl6$b;)V` exist in the signed six-DEX inspection: `b.super(LlQ8;[LSr4;LR29;ZZJJLSl6$b;)V` at PC 27 and, crucially, **`LmQ8.catch(Landroidx/media3/exoplayer/k;Lxh6;LRFa;LLL2;)I` at PC 114**. The earlier scan of Exo `e` alone correctly returned no direct call; Exo uses this helper instead. These are exact invoke signatures, not heuristic similarities.
+- **[Native queue → renderer attachment CI #44116451280 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44116451280):** `e.break()V` reads the **identical exact `h.SLOT_B` holder field** at PCs 547 and 1051. After the PC 1051 read, the exact holder register flows unchanged to both **`LmQ8.catch` invocations at PCs 1088/1094**, each **1/1 CFG reaching states matched**. Within that exact helper, the same `Lxh6` owns a `[LR29;` stream array at PC 91, an `aget-object` obtains one `LR29` stream at PC 93, and that **very same stream register flows on 1/1 CFG reaching states into the `k.package` stream argument at PC 114**. Earlier signed CI already established `k.package` dispatches into the concrete `b.package`, which writes this **same incoming stream object** into its attached `LR29` field (PC 7), read by `b.while()LR29`.
+- **[Exact renderer attached stream native read CI #44116812907 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44116812907):** the concrete native renderer base `b.g(LiA9;LRF2;I)I` reads **this same complete attached `LR29` field** at PC 0 and calls `LR29.throw(LiA9;LRF2;I)I` on **the identical object** at PC 5 (**1/1 reachable CFG state**). `b.h(J)I` similarly calls `LR29.class(J)I` on the same attached stream at PC 8. So the exact stream reference from native holder can become the receiver of the ordinary renderer's **native sample-read interface**, not merely a prepared stream or an equality comparison. It still does not prove which read executes at playback time or which decoder ultimately consumes the buffer.
+- **[Exact bounded native sample read callers CI #44117163552 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44117163552):** restricted to the **18-class proven `k` implementation subtree** (426 methods, not a global renderer census), direct `b.g` use appears in `LEF2.k/throw`, `LF35.j/throw`, `LcC0.P/i/o`, `Lkd6.P/i/o`, `LT21.throw`, `Lbsa.throw`, `Leq6.throw`; `b.h` also appears in bounded subclass operations. These are candidate renderer-owned native sample reads, **not** a proven active audio-only decoder path. Identifying video vs audio and current queue generation remains necessary.
+
+**Exact new static continuity (no live activation claim):**
+
+`TrackWrapper → LiLb → ExoPlayer source list → Lo96 MediaPeriod → Lup1 / Lup1$a → Lxh6.[LR29 → h.SLOT_B → Exo e.break → LmQ8.catch → k.package → b.attached LR29 → b.g → LR29.throw(LiA9;LRF2;I)I`.
+
+It now reaches **native sample-read entry** with a signed, branch-checked same-reference chain, which is stronger than just stream selection or renderer comparison. **This still does not establish a currently selected audible track, album/version, generation, actual decoder consumption or CELIKOM replacement audio. Stage B NO-GO.**
+
+The precise next practical decision is a **single privacy-safe, exact-original 2025 read-only live witness**, bounded to the **same renderer instance's `k.package` attached-stream event, `b.g` sample-read activity and queue `Lxh6` generation**. Only count matched/reference-present states and transitions; no metadata values, object instances, audio bytes, IDs, URLs, tokens or private field values in logs. Differentiate prepared/prefetch from *currently fed* renderer and avoid transposing 2026 `HookSpec` identifiers. Before making any runtime change, back up the exact NAV17 build and justify the hook in a separate version-locked 2025 module. Do not rebuild an APK based only on static CI.
+
+### Latest protected code checkpoints
+
+- **Current signed green read-only code**: `a5b6861ed17252bf67ce35bad8dbd64842dcf1d1` — [CI #44117163552 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44117163552). Backup `backup/android-a1-attached-native-samplestream-read-ci-green-20261117`.
+- Previous native stream input boundary: `6788a24100cb5759a16b26b3e25e214a0357e20b`, backup `backup/android-a1-renderer-attached-sample-read-ci-green-20261117`, CI #44116812907 SUCCESS.
+- Previous full queue→renderer attach same-ref bridge: `9fa89edd75692d0373d43791f422453f2d79b2bc`, backup `backup/android-a1-queue-to-renderer-attachment-same-ref-ci-green-20261117`, CI #44116451280 SUCCESS.
+- Last runtime-hook change still `a655712d210189f3bc611847235de3ed4d985c1a`. No original Yandex, NAV17, Test.50, Windows, extension, backend or production changes.
