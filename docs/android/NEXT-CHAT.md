@@ -1,3 +1,17 @@
+# CURRENT — NAV19 OWNER TXT REVIEWED; NAV20 READ-RESULT DIAGNOSTICS (17 NOV 2026)
+
+**Most recent authoritative handoff:** [NAV19 real phone findings + NAV20 targeted patch](ANDROID-A1-NAV19-OWNER-REALPHONE-RESULT-AND-NAV20-READ-RESULT-PROBE-20261117.md). This supersedes the older NAV18 and NAV19 *wait for owner TXT* headings below. The owner **has supplied NAV19 diagnostic** `CELIKOM-A1-Diagnostics-1794936007461.txt`.
+
+**Fact confirmed on actual phone:** `QUEUE_SCOPE=REGISTERED` but `QUEUE_SCOPE_ENTER=NONE`; `STREAM_ATTACH/SAMPLE_READ/STREAM_DETACH=REGISTERED`; `UNSCOPED_ATTACHED_STREAM_READ_MATCH=MANY`, `...DIFFERENT=NONE`; `IDENTITY_STATUS=STRUCTURAL_ONLY`. This confirms same renderer attached stream vs read-method *entry* object; not successful sample return, currently audible renderer or alternative CELIKOM sound. Stage A owner NAV17 PASS; Stage B NO-GO / NOT_CONNECTED.
+
+**New bounded diagnostic code:** `NAV_V20_RENDERER_READ_RESULT_READONLY`, sample untouched `b.g()` return `-4/-5/-3/OTHER` only when attached renderer stream remains same; no user audio/metadata modification, no second player. New export-time build marker and capped MUSIC_APP Metrica exception logging to stop diagnostics truncation. JVM CI #44136882616 SUCCESS. **Native signed owner export CI #44137030390 was launched and is not yet owner-accepted at this note. Do not publish/offer an APK until CI SUCCESS + owner signer match + Library verification.** Rejected output must never be installed.
+
+**Pre-change backup** `backup/android-a1-nav19-owner-realrenderer-reads-before-nav20-20261117`. **Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Keep owner-tested NAV17, signed NAV18/NAV19 APKs, original signed Yandex 2025.10.4, Test.50, Windows, extension and server unchanged. Do NOT use the 2026 HookSpec, do not ask uninstall/clear account/bypass Play Protect.
+
+---
+
+## ARCHIVED HANDOFF NOTES BELOW — historical references only
+
 # CURRENT — NAV19 SIGNED OWNER RELEASE READY, AWAIT OWNER PHONE TXT (17 NOV 2026)
 
 **Read [NAV19 final owner release](ANDROID-A1-NAV19-OWNER-READONLY-RELEASE-20261117.md) FIRST.** NAV18 owner's actual diagnostic TXT has already been examined in [NAV18 owner diagnostic](ANDROID-A1-NAV18-OWNER-TXT-READONLY-OBSERVATION-20261117.md). Do **not** follow older `WAIT FOR NAV18 TXT` instruction below; it is retained as history only.
