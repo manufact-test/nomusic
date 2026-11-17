@@ -1,6 +1,8 @@
 package pro.celikom.a1exitwitness;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 
 /**
@@ -40,6 +42,15 @@ final class NativeRendererStreamEvidence {
             this.parent=parent;
         }
     }
+    /** Signed 2025 Exo engine e.catch(Lxh6;IZJ)V holder lifetime only. */
+    static final class EngineFrame {
+        final Object holder;
+        final EngineFrame parent;
+        EngineFrame(Object holder,EngineFrame parent) {
+            this.holder=holder;
+            this.parent=parent;
+        }
+    }
     private static final class Link {
         final WeakReference<Object> renderer, holder, stream;
         Link(Object renderer,Object holder,Object stream) {
@@ -51,11 +62,17 @@ final class NativeRendererStreamEvidence {
 
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
     private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
+    private final ThreadLocal<EngineFrame> inEngineEnable = new ThreadLocal<>();
+    private Field engineHolderStreamArrayField;
+    private final ArrayList<Link> engineHolderLinks = new ArrayList<>();
     private final ArrayList<Link> links = new ArrayList<>();
     // Unscoped renderer/stream observations are separate: never infer holder identity.
     private final ArrayList<Link> unscopedLinks = new ArrayList<>();
     // 0 not attempted/guarded, 1 registered, -1 failed.
-    private int queueHook, attachHook, readHook, detachHook, secondaryCallerHook;
+    private int queueHook, attachHook, readHook, detachHook, secondaryCallerHook, engineScopeHook;
+    private int engineEnters, engineHolderStreamMatch, engineHolderStreamDifferent;
+    private int engineHolderArrayUnavailable, engineReadMinus4, engineReadMinus5;
+    private int engineReadMinus3, engineReadOther;
     private int secondaryCallerEnters, secondaryCallerStreamMatches, secondaryCallerStreamDiffers;
     private int unscopedSecondaryMatches, unscopedOutsideSecondary, unscopedSecondaryDiffers;
     private int scopeEnters, pairedAttaches, unknownAttaches, attachConflicts;
@@ -109,6 +126,50 @@ final class NativeRendererStreamEvidence {
         }
     }
 
+    /**
+     * A version-locked, one-time reflection handle to the Lxh6.[LR29 field.
+     * Caller verifies its exact declared type and uniqueness before install.
+     * No stream contents or private member values are serialized.
+     */
+    synchronized void setEngineHolderStreamArrayField(Field field) {
+        if(field==null || !field.getType().isArray())
+            throw new IllegalArgumentException("Exact holder stream array required");
+        engineHolderStreamArrayField=field;
+    }
+
+    EngineFrame enterEngine(Object holder) {
+        EngineFrame frame=new EngineFrame(holder,inEngineEnable.get());
+        inEngineEnable.set(frame);
+        synchronized(this) { engineEnters=inc(engineEnters); }
+        return frame;
+    }
+
+    void exitEngine(EngineFrame frame) {
+        EngineFrame active=inEngineEnable.get();
+        if(active==frame) {
+            if(frame.parent==null) inEngineEnable.remove();
+            else inEngineEnable.set(frame.parent);
+        } else {
+            inEngineEnable.remove();
+            synchronized(this) { poisoned=true; }
+        }
+    }
+
+    // Result: 1 exact object member, -1 safely checked but different,
+    // 0 unavailable/ambiguous; never infer membership from call nesting alone.
+    private int holderArrayHasStream(Object holder,Object stream) {
+        Field field=engineHolderStreamArrayField;
+        if(holder==null || stream==null || field==null) return 0;
+        try {
+            Object array=field.get(holder);
+            if(array==null || !array.getClass().isArray())return 0;
+            int n=Array.getLength(array);
+            if(n>32)return 0;
+            for(int i=0;i<n;i++)if(Array.get(array,i)==stream)return 1;
+            return -1;
+        } catch (Throwable ignored) { return 0; }
+    }
+
     synchronized void onHookRegistration(String kind, boolean ok) {
         int status=ok?1:-1;
         switch(kind) {
@@ -117,6 +178,7 @@ final class NativeRendererStreamEvidence {
             case "SAMPLE_READ": readHook=status; break;
             case "STREAM_DETACH": detachHook=status; break;
             case "SECONDARY_CALLER": secondaryCallerHook=status; break;
+            case "ENGINE_HOLDER_SCOPE": engineScopeHook=status; break;
             default: throw new IllegalArgumentException("Unrecognized hook kind");
         }
     }
@@ -126,6 +188,24 @@ final class NativeRendererStreamEvidence {
         boolean strongScope=!poisoned && scope!=null && renderer!=null && stream!=null
             && scope.renderer==renderer && scope.holder!=null;
         CallerFrame secondary=inSecondaryCaller.get();
+        EngineFrame engine=inEngineEnable.get();
+        // Any reattach invalidates the previous engine-to-holder reference.
+        // Only a fresh exact membership check may create a new engine link.
+        if(renderer!=null)removeRenderer(engineHolderLinks,renderer);
+        if(!poisoned && engineScopeHook>0 && engine!=null
+                && secondary!=null && secondary.renderer==renderer
+                && secondary.stream==stream && renderer!=null && stream!=null) {
+            int member=holderArrayHasStream(engine.holder,stream);
+            if(member==1) {
+                engineHolderStreamMatch=inc(engineHolderStreamMatch);
+                if(engineHolderLinks.size()>=MAX_HANDLES)engineHolderLinks.remove(0);
+                engineHolderLinks.add(new Link(renderer,engine.holder,stream));
+            } else if(member<0) {
+                engineHolderStreamDifferent=inc(engineHolderStreamDifferent);
+            } else {
+                engineHolderArrayUnavailable=inc(engineHolderArrayUnavailable);
+            }
+        }
         // The secondary caller has no queue-holder identity by itself.
         // Its same-reference link tells us which exact attach route ran.
         if(!poisoned && secondary!=null && secondary.renderer==renderer) {
@@ -249,6 +329,25 @@ final class NativeRendererStreamEvidence {
             returnUnlinked=inc(returnUnlinked);
             return;
         }
+        // Engine holder is an independent proof cohort: never elevate it to
+        // QUEUE_SCOPED counters or audible PCM. Exact holder-array membership,
+        // secondary stream alias, and unchanged renderer stream must all match.
+        boolean engineMatch=false;
+        for(Link link:engineHolderLinks) {
+            if(link.renderer.get()==renderer && link.holder.get()!=null
+                    && link.stream.get()==observedStream) {
+                engineMatch=true;
+                break;
+            }
+        }
+        if(engineMatch) {
+            switch(originalResult) {
+                case -4:engineReadMinus4=inc(engineReadMinus4);break;
+                case -5:engineReadMinus5=inc(engineReadMinus5);break;
+                case -3:engineReadMinus3=inc(engineReadMinus3);break;
+                default:engineReadOther=inc(engineReadOther);break;
+            }
+        }
         // Preserve NAV20 aggregate read-return bins, but never use them
         // as proof of a queue-scoped holder. A queued holder is strict only
         // if it remains bound at the exact return point.
@@ -280,6 +379,7 @@ final class NativeRendererStreamEvidence {
         if(renderer==null)return;
         removeRenderer(links,renderer);
         removeRenderer(unscopedLinks,renderer);
+        removeRenderer(engineHolderLinks,renderer);
         detachCount=inc(detachCount);
     }
 
@@ -308,8 +408,17 @@ final class NativeRendererStreamEvidence {
             registrationLine("SAMPLE_READ",readHook),
             registrationLine("STREAM_DETACH",detachHook),
             registrationLine("SECONDARY_CALLER",secondaryCallerHook),
+            registrationLine("ENGINE_HOLDER_SCOPE",engineScopeHook),
             line("QUEUE_SCOPE_ENTER",scopeEnters),
             line("SECONDARY_CALLER_ENTER",secondaryCallerEnters),
+            line("ENGINE_HOLDER_SCOPE_ENTER",engineEnters),
+            line("ENGINE_HOLDER_STREAM_ARRAY_MATCH",engineHolderStreamMatch),
+            line("ENGINE_HOLDER_STREAM_ARRAY_DIFFERENT",engineHolderStreamDifferent),
+            line("ENGINE_HOLDER_STREAM_ARRAY_UNAVAILABLE",engineHolderArrayUnavailable),
+            line("ENGINE_HOLDER_READ_RETURN_MINUS4",engineReadMinus4),
+            line("ENGINE_HOLDER_READ_RETURN_MINUS5",engineReadMinus5),
+            line("ENGINE_HOLDER_READ_RETURN_MINUS3",engineReadMinus3),
+            line("ENGINE_HOLDER_READ_RETURN_OTHER",engineReadOther),
             line("SECONDARY_CALLER_STREAM_MATCH",secondaryCallerStreamMatches),
             line("SECONDARY_CALLER_STREAM_DIFFERENT",secondaryCallerStreamDiffers),
             line("UNSCOPED_ATTACH_SECONDARY_MATCH",unscopedSecondaryMatches),
