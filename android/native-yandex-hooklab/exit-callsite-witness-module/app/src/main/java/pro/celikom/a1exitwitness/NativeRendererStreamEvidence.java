@@ -26,6 +26,20 @@ final class NativeRendererStreamEvidence {
             this.parent=parent;
         }
     }
+    /**
+     * A second, exact 2025 renderer attachment caller: b.super(lQ8, formats,
+     * LR29, flags...). Counts callsite relation only, never source contents.
+     * This is a caller discriminator, NOT an active-audio assertion.
+     */
+    static final class CallerFrame {
+        final Object renderer, stream;
+        final CallerFrame parent;
+        CallerFrame(Object renderer,Object stream,CallerFrame parent) {
+            this.renderer=renderer;
+            this.stream=stream;
+            this.parent=parent;
+        }
+    }
     private static final class Link {
         final WeakReference<Object> renderer, holder, stream;
         Link(Object renderer,Object holder,Object stream) {
@@ -36,11 +50,14 @@ final class NativeRendererStreamEvidence {
     }
 
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
+    private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
     private final ArrayList<Link> links = new ArrayList<>();
     // Unscoped renderer/stream observations are separate: never infer holder identity.
     private final ArrayList<Link> unscopedLinks = new ArrayList<>();
     // 0 not attempted/guarded, 1 registered, -1 failed.
-    private int queueHook, attachHook, readHook, detachHook;
+    private int queueHook, attachHook, readHook, detachHook, secondaryCallerHook;
+    private int secondaryCallerEnters, secondaryCallerStreamMatches, secondaryCallerStreamDiffers;
+    private int unscopedSecondaryMatches, unscopedOutsideSecondary, unscopedSecondaryDiffers;
     private int scopeEnters, pairedAttaches, unknownAttaches, attachConflicts;
     private int readSame, readDifferent, readUnknown, detachCount;
     private int unscopedReadSame, unscopedReadDifferent;
@@ -73,6 +90,25 @@ final class NativeRendererStreamEvidence {
         }
     }
 
+    CallerFrame enterSecondaryCaller(Object renderer,Object stream) {
+        CallerFrame frame=new CallerFrame(renderer,stream,inSecondaryCaller.get());
+        inSecondaryCaller.set(frame);
+        synchronized(this) { secondaryCallerEnters=inc(secondaryCallerEnters); }
+        return frame;
+    }
+
+    void exitSecondaryCaller(CallerFrame frame) {
+        CallerFrame active=inSecondaryCaller.get();
+        if(active==frame) {
+            if(frame.parent==null) inSecondaryCaller.remove();
+            else inSecondaryCaller.set(frame.parent);
+        } else {
+            // Never allow broken nested callsite lifetimes to attest identity.
+            inSecondaryCaller.remove();
+            synchronized(this) { poisoned=true; }
+        }
+    }
+
     synchronized void onHookRegistration(String kind, boolean ok) {
         int status=ok?1:-1;
         switch(kind) {
@@ -80,14 +116,33 @@ final class NativeRendererStreamEvidence {
             case "STREAM_ATTACH": attachHook=status; break;
             case "SAMPLE_READ": readHook=status; break;
             case "STREAM_DETACH": detachHook=status; break;
+            case "SECONDARY_CALLER": secondaryCallerHook=status; break;
             default: throw new IllegalArgumentException("Unrecognized hook kind");
         }
     }
 
     synchronized void onAttach(Object renderer,Object stream) {
         Scope scope=inAttach.get();
-        if (poisoned || scope==null || renderer==null || stream==null
-                || scope.renderer!=renderer || scope.holder==null) {
+        boolean strongScope=!poisoned && scope!=null && renderer!=null && stream!=null
+            && scope.renderer==renderer && scope.holder!=null;
+        CallerFrame secondary=inSecondaryCaller.get();
+        // The secondary caller has no queue-holder identity by itself.
+        // Its same-reference link tells us which exact attach route ran.
+        if(!poisoned && secondary!=null && secondary.renderer==renderer) {
+            if(stream!=null && secondary.stream==stream) {
+                secondaryCallerStreamMatches=inc(secondaryCallerStreamMatches);
+                if(!strongScope) unscopedSecondaryMatches=inc(unscopedSecondaryMatches);
+            } else {
+                secondaryCallerStreamDiffers=inc(secondaryCallerStreamDiffers);
+                if(!strongScope) unscopedSecondaryDiffers=inc(unscopedSecondaryDiffers);
+            }
+        } else if(!poisoned && !strongScope && secondary==null
+                  && secondaryCallerHook>0 && renderer!=null && stream!=null) {
+            // With the second caller hook registered, this was outside that
+            // observed scope. It is not proof of an unknown third caller.
+            unscopedOutsideSecondary=inc(unscopedOutsideSecondary);
+        }
+        if (!strongScope) {
             unknownAttaches=inc(unknownAttaches);
             // Attaches without an observed queue scope still allow a weaker
             // renderer→stream→read same-reference check, never holder identity.
@@ -252,7 +307,14 @@ final class NativeRendererStreamEvidence {
             registrationLine("STREAM_ATTACH",attachHook),
             registrationLine("SAMPLE_READ",readHook),
             registrationLine("STREAM_DETACH",detachHook),
+            registrationLine("SECONDARY_CALLER",secondaryCallerHook),
             line("QUEUE_SCOPE_ENTER",scopeEnters),
+            line("SECONDARY_CALLER_ENTER",secondaryCallerEnters),
+            line("SECONDARY_CALLER_STREAM_MATCH",secondaryCallerStreamMatches),
+            line("SECONDARY_CALLER_STREAM_DIFFERENT",secondaryCallerStreamDiffers),
+            line("UNSCOPED_ATTACH_SECONDARY_MATCH",unscopedSecondaryMatches),
+            line("UNSCOPED_ATTACH_SECONDARY_DIFFERENT",unscopedSecondaryDiffers),
+            line("UNSCOPED_ATTACH_OUTSIDE_SECONDARY",unscopedOutsideSecondary),
             line("QUEUED_HOLDER_ATTACHED",pairedAttaches),
             line("UNSCOPED_ATTACH",unknownAttaches),
             line("STREAM_REATTACH_TRANSITION",attachConflicts),
