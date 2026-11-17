@@ -1326,6 +1326,31 @@ try
          !CompactPlaybackPresentation.StatusIsGreen(
              "Пауза", true, true, true, false, false),
          "W168 green availability and connected pause never fake active-decoder proof");
+    Test(CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "UNKNOWN", TimeSpan.FromMilliseconds(500)) &&
+         CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_MAPPING_ACCEPTED", "PAUSED", TimeSpan.FromSeconds(2)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, false, "Предыдущая песня",
+             "NATIVE_CONNECTED", "UNKNOWN", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "UNKNOWN", TimeSpan.FromMilliseconds(2600)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, true, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "PLAYING", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "STOPPED", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, false, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "PLAYING", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "HOST_ERROR", "UNKNOWN", TimeSpan.FromSeconds(1)),
+         "W169 2.5-second title handoff covers ID-less Next but never hides Stop, VPN, stale heartbeat, host errors");
     Test(!CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, true, false, true) &&
          CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, false, true) &&
          !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, true, true) &&

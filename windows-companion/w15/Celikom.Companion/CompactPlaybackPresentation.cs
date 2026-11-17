@@ -92,6 +92,24 @@ public static class CompactPlaybackPresentation
          (visibleText == VersionAvailableMessage && versionApproved) ||
          visibleText == "Пауза");
 
+    // W169: bridge/renderer briefly lose track identity while moving between
+    // songs. Keep the last displayed real title for a bounded 2.5-second
+    // handoff only while the native player is still alive. Do not hide real
+    // Stop, app loss, VPN recovery or a failed native host.
+    public static bool HoldPreviousTrackDuringGap(bool enabled, bool heartbeatFresh,
+        bool playerUnavailable, bool networkRecovering, bool connecting,
+        bool previouslyHadTrack, string? previousTitle,
+        string? nativeStatus, string? playbackState, TimeSpan elapsed) =>
+        enabled && heartbeatFresh && !playerUnavailable &&
+        !networkRecovering && !connecting && previouslyHadTrack &&
+        !string.IsNullOrWhiteSpace(previousTitle) &&
+        nativeStatus is "RESOLVING" or "NATIVE_CONNECTED" or
+            "NATIVE_MAPPING_ACCEPTED" or "NATIVE_SOURCE_VERIFIED" or
+            "NATIVE_ORIGINAL_SOURCE_VERIFIED" or "NATIVE_RECOVERING" &&
+        playbackState is "UNKNOWN" or "PLAYING" or "PAUSED" &&
+        elapsed >= TimeSpan.Zero &&
+        elapsed <= TimeSpan.FromMilliseconds(2500);
+
     public static string NetworkRecoveryPlaybackMessage(string? playbackState) => playbackState switch
     {
         "PLAYING" => "Музыка продолжает играть.",
