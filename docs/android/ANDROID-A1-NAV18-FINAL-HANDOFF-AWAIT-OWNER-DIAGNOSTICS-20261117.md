@@ -36,3 +36,10 @@ Another `android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nati
 ## Owner's expected one-time trial
 
 Install NAV18 *over* accepted NAV17, listen original for ~15–20 s, Next 2–3 songs, pause/resume & seek, My Wave 2–3 songs, tap `Сохранить диагностику`, send `Загрузки/CELIKOM A1/CELIKOM-A1-Diagnostics-...txt` with brief symptom notes. **At handoff, this owner TXT has NOT arrived.** Wait for evidence in the next conversation. Stage B remains **NO-GO**.
+
+## Final documentary freeze and successor copy/paste
+
+- This user explicitly requested a **documentation-only stop** after the NAV18 signed owner test APK was delivered; no additional runtime changes or new APK after the successful owner export.
+- Ready-to-paste user opening is stored as `docs/android/NAV18-FIRST-MESSAGE-FOR-NEXT-CHAT-20261117.md`. The next chat receives phone diagnostics from the owner, not a new starting architecture.
+- Pre-handoff exact rollback: `backup/android-a1-nav18-before-final-handoff-20261117` @ `c980031b654a1987366e0800449f314e3cf4ac32`.
+- Final handoff docs backup to be frozen at latest documentation commit: `backup/android-a1-nav18-final-owner-diagnostics-handoff-20261117`. This is a **documentation-only pointer**, NOT another APK or signed build. The real NAV18 APK identity is the SHA256 in this document.
