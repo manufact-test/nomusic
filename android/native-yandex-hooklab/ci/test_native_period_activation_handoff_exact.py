@@ -2,17 +2,18 @@
 """Fail-closed exact signed native period activation candidates only."""
 import unittest
 from native_period_activation_handoff_exact import (
-    PERIOD_FACTORY, PERIOD_ADAPTER, PERIOD_HOLDER_CTOR,
+    PERIOD_FACTORY, PERIOD_ADAPTER, PERIOD_HOLDER_CTOR, PERIOD_WRAPPER_CTOR,
     EXACT_METHODS, only_exact_entry,
 )
 
 
 class NativePeriodActivationTests(unittest.TestCase):
     def test_exact_signed_period_factory_and_two_callers(self):
-        self.assertEqual(len(EXACT_METHODS), 3)
+        self.assertEqual(len(EXACT_METHODS), 4)
         self.assertIn(PERIOD_FACTORY, EXACT_METHODS)
         self.assertIn(PERIOD_ADAPTER, EXACT_METHODS)
         self.assertIn(PERIOD_HOLDER_CTOR, EXACT_METHODS)
+        self.assertIn(PERIOD_WRAPPER_CTOR, EXACT_METHODS)
         self.assertTrue(only_exact_entry(PERIOD_ADAPTER))
 
     def test_no_generic_media_period_or_list_census(self):
