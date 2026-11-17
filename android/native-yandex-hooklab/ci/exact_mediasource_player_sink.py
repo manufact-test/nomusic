@@ -54,6 +54,7 @@ def scan_signed(apks):
     calls=[]
     call_count=0
     target_counts={target:0 for target in EXACT_TARGETS}
+    caller_definitions={}
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
@@ -85,6 +86,7 @@ def scan_signed(apks):
                 call_count+=1
                 if call_count>MAX_CALLS:
                     raise ValueError("SOURCE_SINK_CALLSITE_LIMIT")
+                caller_definitions.setdefault(caller,(dex,flags,code_off))
                 calls.append({
                     "caller_owner":caller[0],"caller_method":caller[1],
                     "caller_signature":caller[2],"ordinal":ordinal,
@@ -104,13 +106,7 @@ def scan_signed(apks):
             "LA14;","Lp24;","Landroidx/media3/exoplayer/ExoPlayer;"
         ):
             # Find this specific defining method (previously screened call).
-            found=None
-            for dex in dexes:
-                for method,flags,code_off in audit.method_definitions_with_flags(dex):
-                    if method==key:
-                        found=(dex,flags,code_off)
-                        break
-                if found:break
+            found=caller_definitions.get(key)
             if not found:continue
             trace_refs.add(key)
             dex,flags,code_off=found
