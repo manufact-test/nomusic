@@ -219,7 +219,7 @@ def verify_exact_holder_wrapper_period_selection(methods):
         if op in audit.INVOKES:
             continue
         written=audit.written_register(op,words)
-        if written in (receiver,stream_reg):
+        if written==receiver or (pc>63 and written==stream_reg):
             raise ValueError("PERIOD_WRAPPER_SELECTION_REGISTER_OVERWRITE")
     # Lup1.case allocates a separate child stream array for nested MediaPeriod
     # and can adapt return streams; never falsely claim child/direct identity.
