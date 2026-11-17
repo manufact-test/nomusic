@@ -2,15 +2,18 @@
 
 **GitHub:** `manufact-test/nomusic`
 **Рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-**Последний зелёный статический код:** `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a`
-**Backup:** `backup/android-a1-lft2-class-structure-ci-green-20261116`
+**Последний зелёный статический код:** `433191c0b6e5f2a2eabef8589aa01c02f326e3b1` (direct MediaSource audit, 17 Nov). Прежний LfT2 checkpoint `e6bf9b6933d17d503b4f3b1d4f7d460df4b52f6a` не изменён.
+**Backup:** `backup/android-a1-direct-mediasource-contract-ci-green-20261117`.
+**Pre-audit backup:** `backup/android-a1-pre-direct-mediasource-contract-audit-20261117` @ `a142f5fe48f92d68727f4c9873a4a6cfda56b156`.
 **Pre-documentation backup:** `backup/android-a1-before-yandex-media3-research-handoff-20261116` @ `a324963b84876a88513bc1d208a42519489c397f`
 **Последний runtime-hook change:** `a655712d210189f3bc611847235de3ed4d985c1a` — hooks не менялись.
-**CI #12:** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/43909098407
+**CI #12 (LfT2):** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/43909098407
+**CI #2 (direct MediaSource):** SUCCESS, https://github.com/manufact-test/nomusic/actions/runs/44049682525 — 3/3 tests, точный signed 2025 XAPK.
 
-### Прочитай только два документа
+### Прочитай только три документа
 1. `docs/android/NEXT-CHAT.md` — единственный текущий статус.
-2. `docs/android/ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md` — последнее окончательное техническое доказательство.
+2. `docs/android/ANDROID-A1-LFT2-EXACT-CLASS-CLOSURE-20261116.md` — закрытый маршрут LfT2.
+3. `docs/android/ANDROID-A1-YANDEX-MEDIA3-RESEARCH-RECOVERED-20261116.md` — восстановленные RAa/Media3 факты и новый ограниченный MediaSource отрицательный результат.
 
 `docs/android/README.md` — индекс. Старые handoff и архивы не читай при старте.
 
@@ -31,9 +34,10 @@
 - В подписанной версии Яндекса 2025.10.4 существует **реальный** `RAa.invokeSuspend`: CI #43696198020 SUCCESS подтвердил повторный вызов `download2.o.for` с **тем же объектом continuation** и с явно `null` аргументом TrackWrapper. В раннем исследовании были уже реализованы read-only weak-reference checks восстановления identity через этот же RAa. Это не `LfT2`, который закрыт. Повторять старое исследование RAa/Fp0 без нового факта не нужно.
 - В цепочке `download2.o.while → exo.c.for → RetryingBalancingDataSource → open/read/close` уже существуют статическая проверка и read-only lifecycle свидетели. Они **не** отличают реально выбранный звучащий трек от prefetch/offline; Stage B остаётся NO-GO.
 - Справка Яндекса про VPN/сеть объясняет потенциальные остановки звука, но **не** раскрывает внутреннюю архитектуру приложения. Сторонние клиенты YaMuLite/yt-dlp не переносить как доказательство.
-- Изменения последнего чата **только в GitHub-документах**; никаких runtime-hook/APK/оригинального Яндекса.
+- **Новая точная проверка 17.11:** 11 известных Player owners на подписанном NAV17 Yandex 2025 XAPK; в шести DEX **0** методов Player с точным необфусцированным типом MediaSource в параметрах, **0** их прямых callsite, точный class MediaSource не определён. Это закрывает ТОЛЬКО named/direct API гипотезу, но **не** обфусцированные/косвенные MediaSource/Player маршруты. Не возобновлять mass scan.
+- Изменения 17.11 только в **новом статическом Python-аудите, его 3 unit tests, CI и документах**; никаких runtime-hook/APK/оригинального Яндекса.
 
 ### Следующий блок
-Не начинай новую глобальную трассировку. По уже проверенной 2025 NAV17 базе ищи только **новое узкое, доказуемое** selected-Track → ACTIVE (не prefetch) native source/decoder same-object ребро. Предыдущие Exo factory→open/read witnesses доказывают продолжение source instance, **но не selected track identity**. Любой кандидат — сначала точная class/method identity; только потом bounded trace. Учитывать MediaSource APIs; не зацикливаться на MediaItem.
+Не начинай новую глобальную трассировку. По уже проверенной 2025 NAV17 базе ищи только **новое узкое, доказуемое** selected-Track → ACTIVE (не prefetch) native source/decoder same-object ребро. Предыдущие Exo factory→open/read witnesses доказывают продолжение source instance, **но не selected track identity**. Любой кандидат — сначала точная class/method identity; только потом bounded trace. Учитывать возможности MediaSource API, но НЕ считать его необфусцированное имя присутствующим в signed Yandex. Не запускать очередной глобальный поиск. Кандидат должен появиться из точного подтверждённого source-side или selected Player owner маршрута.
 
 Ограничения: Android A1 only, без изменений APK, оригинального Яндекса, архитектуры и runtime hooks. Второй Player/decoder/AudioTrack запрещён. Не читать/экспортировать Track IDs, названия, URL, DataSpec, токены, account data, private fields, audio bytes. NAV17/Test.50/frozen branches/Windows/extension/backend/API/DB/production не трогать. Никаких больших CI-логов. Работать крупными блоками, сохранять backup, Stage B остаётся NO-GO до реального доказательства и ручной проверки.
