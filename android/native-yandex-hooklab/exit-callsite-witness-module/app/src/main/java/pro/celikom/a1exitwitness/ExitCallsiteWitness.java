@@ -75,11 +75,15 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V19_RENDERER_HOOK_STATUS_UNSCOPED_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V20_RENDERER_READ_RESULT_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
     private boolean diagnosticUiReady;
+    // Limit high-volume MUSIC_APP exception witness records: never change the
+    // exception or vendor behavior, and preserve count category on owner export.
+    private final java.util.concurrent.atomic.AtomicInteger musicMetricaExceptions =
+        new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger activityPhasesLogged =
         new java.util.concurrent.atomic.AtomicInteger();
     private final java.util.concurrent.atomic.AtomicInteger onboardingReads =
@@ -828,7 +832,12 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 emit("METRICA_PUSH_THROW_CLASS", "METRICA_SDK", pushClassGroup);
                                 emit("METRICA_PUSH_THROW_METHOD", "METRICA_SDK", pushMethodGroup);
                             }
-                            emit("METRICA_EXCEPTION", metrica, category);
+                            // Main-thread Yandex exception construction can be very
+                            // frequent; writing every duplicate has trimmed away
+                            // our diagnostic build/renderer events on real phones.
+                            if (!"MUSIC_APP".equals(metrica) ||
+                                    musicMetricaExceptions.incrementAndGet() <= 8)
+                                emit("METRICA_EXCEPTION", metrica, category);
                         }
                     } catch (Throwable ignored) { }
                     return result;
@@ -2540,19 +2549,29 @@ public final class ExitCallsiteWitness extends XposedModule {
                 getter.setAccessible(true);
                 hook(read).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
-                        // The first 64 reads only, in memory. Getter is verified
-                        // by exact signed DEX to just return the attached field.
+                        // Sample only bounded original b.g() calls. Never inspect
+                        // RF2 bytes, private values, IDs or active song metadata.
+                        Object renderer=null, attached=null;
+                        boolean sampled=false;
                         try {
                             if (NATIVE_RENDERER_EVIDENCE.shouldSampleRead()) {
-                                Object attached=getter.invoke(chain.getThisObject());
-                                NATIVE_RENDERER_EVIDENCE.onRead(
-                                    chain.getThisObject(),attached);
+                                renderer=chain.getThisObject();
+                                attached=getter.invoke(renderer);
+                                NATIVE_RENDERER_EVIDENCE.onRead(renderer,attached);
+                                sampled=true;
                             }
                         } catch (Throwable ignored) {
                             try { NATIVE_RENDERER_EVIDENCE.onRead(null,null); }
                             catch (Throwable ignoredAgain) { }
                         }
-                        return chain.proceed(); // one original native sample read
+                        Object original=chain.proceed(); // one unchanged original call
+                        if (sampled && original instanceof Integer) {
+                            try {
+                                NATIVE_RENDERER_EVIDENCE.onReadReturn(
+                                    renderer,attached,((Integer)original).intValue());
+                            } catch (Throwable ignored) { }
+                        }
+                        return original;
                     });
                 rendererSampleReadHooked=true;
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("SAMPLE_READ",true);
@@ -4529,6 +4548,14 @@ public final class ExitCallsiteWitness extends XposedModule {
                 byte[] buffer = new byte[8192];
                 int read;
                 while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                // Always include exact current build marker in owner export:
+                // circular main-process log can trim its startup marker.
+                output.write(("event=DIAGNOSTIC_BUILD;origin="+DIAGNOSTIC_BUILD
+                    +";error=ACTIVE;thread=OTHER\n").getBytes(StandardCharsets.UTF_8));
+                int appExceptionCount=musicMetricaExceptions.get();
+                output.write(("event=METRICA_EXCEPTION_SUMMARY;origin=MUSIC_APP;error="
+                    +(appExceptionCount==0?"NONE":appExceptionCount<=8?"FEW":"MANY")
+                    +";thread=OTHER\n").getBytes(StandardCharsets.UTF_8));
                 // The audio observer deliberately NEVER writes on readAt().
                 // Only explicit export captures bounded, privacy-safe counters
                 // from the current in-memory clone MAIN process. These do not
