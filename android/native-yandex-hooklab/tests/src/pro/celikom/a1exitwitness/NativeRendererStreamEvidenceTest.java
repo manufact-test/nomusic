@@ -121,6 +121,39 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(e.exportLines(),"origin=STREAM_ATTACH;error=REGISTERED"),
               "HOOK_INSTALL_SUCCESS_SNAPSHOT");
     }
+    private static void testRealReturnCodesNeverInferAudibleTrack() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object renderer=new Object(),stream=new Object();
+        e.onAttach(renderer,stream); // no queue-holder proof, like NAV19 owner
+        e.onReadReturn(renderer,stream,-4);
+        e.onReadReturn(renderer,stream,-5);
+        e.onReadReturn(renderer,stream,-3);
+        e.onReadReturn(renderer,stream,0);
+        check(contains(e.exportLines(),
+            "origin=STREAM_ALIASED_READ_RETURN_MINUS4;error=ONE"),
+            "RETURN_CODE_MINUS4");
+        check(contains(e.exportLines(),
+            "origin=STREAM_ALIASED_READ_RETURN_MINUS5;error=ONE"),
+            "RETURN_CODE_MINUS5");
+        check(contains(e.exportLines(),
+            "origin=STREAM_ALIASED_READ_RETURN_MINUS3;error=ONE"),
+            "RETURN_CODE_MINUS3");
+        check(contains(e.exportLines(),
+            "origin=STREAM_ALIASED_READ_RETURN_OTHER;error=ONE"),
+            "RETURN_CODE_OTHER");
+        check(contains(e.exportLines(),
+            "origin=QUEUED_HOLDER_ATTACHED;error=NONE"),
+            "RETURN_IS_NOT_QUEUE_IDENTITY");
+        e.onReadReturn(renderer,new Object(),-4);
+        e.onDetach(renderer);
+        e.onReadReturn(renderer,stream,-4);
+        check(contains(e.exportLines(),
+            "origin=READ_RETURN_LINK_LOST;error=FEW"),
+            "STALE_STREAM_RETURN_MUST_NOT_COUNT");
+        check(contains(e.exportLines(),
+            "origin=STREAM_ALIASED_READ_RETURN_MINUS4;error=ONE"),
+            "STALE_STREAM_MUST_NOT_INCREASE_MINUS4");
+    }
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -129,6 +162,7 @@ public final class NativeRendererStreamEvidenceTest {
         testUnscopedReadNeverAttestsQueueHolder();
         testEarlyReadBudgetMustNotHideLaterUnscopedAttach();
         testRegistrationSurvivesTrimmedEventLog();
+        testRealReturnCodesNeverInferAudibleTrack();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
