@@ -25,3 +25,15 @@ Uncaught Electron async/callback errors were a real unsafe code path, now guarde
 
 ## Review required
 W20 internal unsigned owner build; no production deployment. Validate no build regressions, new native module upgrade is exact and safe, first Start works, user green statuses intact, Next does not flicker, no VPN/audio regression, then prolonged runtime check for Yandex unexpected restart.
+
+## Verification and owner package — 17 November
+
+- W20 internal safe stage: **SUCCESS**, run `44071025539`, source `c717428a7d9f01fc8e33b482fcf66a9ed1a02947` (contains all W169 code).
+- Native W23 synthetic callback exception test and existing native diagnostics/renderer contract tests, C# warnings-as-errors build and W15 tests, W24 builder tests, stage-only guards, one-installer version/ZIP downgrade checks, disposable Windows install/in-place upgrade/uninstall: **SUCCESS**.
+- Exactly one private unsigned installer:
+  - `CELIKOM-W169-TRACK-HANDOFF-02451-UNSIGNED.exe`; 85,142,394 bytes; SHA256 `ecd62fbf722749307402d40537610ae84154d50ae27a64eddd823ab182a57b77`.
+  - `CELIKOM-Windows-0.24.51.zip`; 84,662,575 bytes; SHA256 `94dab24ab74e61bc6e4341471c5757b9c0ddb7f0b610dac7f10161fb2cd9cfe2`.
+  - `SHA256SUMS.txt`; independently checked with `sha256sum -c`. The ZIP contains exactly the byte-identical EXE.
+- Artifacts `14320904994`; **personal ChatGPT Library `/CELIKOM/W169/`**, all three files uploaded and list-verified. For owner download use Library files, not an Actions artifact or sandbox link.
+- No production deployment, no signing, no main change, no extra intermediate installers.
+- Owner has not yet accepted 0.24.51 runtime. W169 exception containment eliminates particular crash-capable error paths but cannot establish the root cause of the reported spontaneous Yandex host restart. Verify after installing/upgrading native 0.24.32; if it recurs, do not call problem closed and correlate OS event logs.
