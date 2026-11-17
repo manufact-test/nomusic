@@ -115,6 +115,26 @@ def limited_stream_selection_bytecode(method,entry):
             raise ValueError("STREAM_EXACT_SELECTION_BYTECODE_ROW_LIMIT")
     return {"method":list(method),"steps":rows}
 
+
+def exact_holder_period_receiver_shape(method,entry):
+    """Anonymised field/type/register shape, no private names/values."""
+    dex,flags,off=entry
+    rows=[]
+    for pc,op,words in audit.instructions(dex,off):
+        if 0x52<=op<=0x6d:
+            owner,_name,typ=audit.field_id(dex,words[1])
+            if owner==HOLDER or owner==WRAPPER or typ in (HOLDER,WRAPPER,MEDIAPERIOD):
+                rows.append({"pc":pc,"kind":"FIELD","op":op,
+                            "owner":owner,"type":typ,
+                            "first":(words[0]>>8)&15,"second":(words[0]>>12)&15})
+        elif 0x6e<=op<=0x78:
+            m=dex.method(words[1])
+            if m[0] in (HOLDER,WRAPPER,MEDIAPERIOD) or m[1]=="<init>" and m[0]==WRAPPER:
+                rows.append({"pc":pc,"kind":"CALL","callee":list(m),
+                             "registers":audit.invoke_registers(op,words)})
+        if len(rows)>130:
+            raise ValueError("STREAM_EXACT_HOLDER_FIELD_SCOPE_EXCEEDED")
+    return {"method":list(method),"events":rows}
 def scan(apks):
     dexes=0
     methods={}
@@ -169,11 +189,16 @@ def scan(apks):
         if events or (method[0]==HOLDER and method[1]=="<init>"):
             rows.append({"method":list(method),"instruction_count":len(insns),
                          "events":events})
+    holder_period_receiver_shapes=[
+        exact_holder_period_receiver_shape(method,methods[method])
+        for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT)
+    ]
     shared_field=verify_exact_shared_stream_field(methods)
     selected=[]
     for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
         selected.append(limited_stream_selection_bytecode(method,methods[method]))
-    return {"exact_shared_holder_stream_field":shared_field,
+    return {"exact_holder_period_receiver_shapes":holder_period_receiver_shapes,
+            "exact_shared_holder_stream_field":shared_field,
             "exact_stream_selection_register_topology":selected,
             "verdict":"SIGNED_EXACT_HOLDER_STREAM_OWNER_STRUCTURAL_MAP",
             "six_signed_dex_verified":dexes,
