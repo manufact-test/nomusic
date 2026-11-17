@@ -1,4 +1,18 @@
-# CURRENT — NAV22 SIGNED; OWNER-PHONE TEST NEXT (17 NOV 2026)
+# CURRENT — NAV23 EXACT ENGINE HOLDER PROOF, SIGNED OWNER CI IN PROGRESS (18 NOV 2026)
+
+**Owner-facing reality:** Native original Yandex Music works normally, including playback, Next, pause and seek, with **no reported bugs**. The sole outstanding function is CELIKOM alternative-audio substitution. **Do not claim there is a playback problem.**
+
+**New owner NAV22 TXT already analyzed:** [NAV22 actual phone result](ANDROID-A1-NAV22-OWNER-PHONE-RESULT-SECONDARY-CALLER-20261118.md). It confirms `b.super` secondary attachment with many same-reference renderer reads; `QUEUE_SCOPE_ENTER=NONE` and `CELIKOM_REPLACEMENT=NOT_CONNECTED`. Read [NAV23 strict engine holder array witness](ANDROID-A1-NAV23-ENGINE-HOLDER-STREAM-ARRAY-READONLY-20261118.md) for code and gates.
+
+**Exact signed 2025 static proof:** `e.catch(Lxh6;IZJ)V` invokes renderer `k.super` at PC 131/144; the same method reads `Lxh6.[LR29;` stream array at PC 67. CI #44179471641 SUCCESS. This is the proven alternative to the earlier missing queue path. The structural link to the audible current track remains unproven. NAV23 adds a passive `e.catch` lifetime scope and exact `holder.[LR29` Java-identity check on the existing `b.super → b.package → b.g` path. No payload, track ID, URLs or account values logged, no replacement enabled.
+
+**Working branch only:** `manufact-test/nomusic` `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Pre-NAV23 backup: `backup/android-a1-nav22-owner-secondary-proven-before-nav23-engine-holder-20261118` @ `892758105a130e496161aef9f1c146e78184923a`. Previous signed NAV22 APK is in verified personal Library. JVM NAV23 observer CI #44180395176 **SUCCESS**. One-time native owner-signer workflow `android-a1-nav23-exact-engine-holder-array-diagnostic-export-once.yml` build code HEAD `b53af8291c38ac9e7141a186bb48ab682eb30e25`, run #44180557905 **in progress**. Do not claim new APK/signer/Library success until run is completed and file is verified byte-for-byte.
+
+**Next:** finish native owner CI. On success, verify signed APK and retained original publisher source, upload APK ONLY to personal ChatGPT Library and check list/download SHA, then owner installs in-place over NAV22 and sends new private TXT. Parse `ENGINE_HOLDER_SCOPE`, `ENGINE_HOLDER_STREAM_ARRAY_MATCH/DIFFERENT/UNAVAILABLE` and `ENGINE_HOLDER_READ_RETURN_*` separately from legacy queue/weak counters. Do not change original Yandex, architecture, Test.50, server, Windows, extension or protection settings. Stage B remains NO-GO, original app not patched.
+
+---
+
+# ARCHIVED — NAV22 SIGNED; OWNER-PHONE TEST COMPLETED (17 NOV 2026)
 
 **Authoritative current handoff.** Owner confirmed ordinary Yandex music, Next, pause and seek work flawlessly, with **NO observed playback bugs**. Our ONLY outstanding product capability is CELIKOM alternative-audio substitution. Do not invent crashes or regressions from diagnostic categories.
 
