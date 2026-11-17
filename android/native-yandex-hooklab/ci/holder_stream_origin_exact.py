@@ -36,6 +36,85 @@ def scope_call(method):
             STREAM_ARRAY in audit.parse_types(desc) or
             STREAM in desc.split(")",1)[1] or STREAM_ARRAY in desc.split(")",1)[1])
 
+
+EXACT_RENDERER_COMPARE_METHODS=frozenset({
+    ("LmQ8;","try","(Lxh6;Landroidx/media3/exoplayer/k;)Z"),
+    ("LmQ8;","new","(Lxh6;)Landroidx/media3/exoplayer/k;"),
+})
+HOLDER_CONSTRUCTOR=("Lxh6;","<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V")
+HOLDER_SELECT=("Lxh6;","if","(LRFa;JZ[Z)J")
+PERIOD_WRAPPER_SELECT=("Lup1;","case","([Lw24;[Z[LR29;[ZJ)J")
+ORIGINAL_PERIOD_SELECT=("Lo96;","case","([Lw24;[Z[LR29;[ZJ)J")
+PERIOD_INTERFACE_SELECT=("Lwh6;","case","([Lw24;[Z[LR29;[ZJ)J")
+SHARED_FIELD_USE_PCS={
+    HOLDER_CONSTRUCTOR:(30,0x5b),
+    HOLDER_SELECT:(63,0x54),
+    ("LmQ8;","try","(Lxh6;Landroidx/media3/exoplayer/k;)Z"):(4,0x54),
+    ("LmQ8;","new","(Lxh6;)Landroidx/media3/exoplayer/k;"):(2,0x54),
+}
+
+def verify_exact_shared_stream_field(methods):
+    """Opaque complete DEX field-ref equality across verified call chain.
+    No field name/index/value exported or logged."""
+    field_refs=[]
+    for method,(pc,opcode) in SHARED_FIELD_USE_PCS.items():
+        if method not in methods or not methods[method][2]:
+            raise ValueError("STREAM_SHARED_FIELD_OWNER_BODY_MISSING")
+        dex,flags,off=methods[method]
+        insns={pc_:(op,words) for pc_,op,words in audit.instructions(dex,off)}
+        insn=insns.get(pc)
+        if not insn or insn[0]!=opcode:
+            raise ValueError("STREAM_SHARED_FIELD_OPCODE_MISMATCH")
+        owner,_private_name,typ=audit.field_id(dex,insn[1][1])
+        if owner!=HOLDER or typ!=STREAM_ARRAY:
+            raise ValueError("STREAM_SHARED_FIELD_TYPE_MISMATCH")
+        field_refs.append((owner,_private_name,typ))
+    if len(set(field_refs))!=1:
+        raise ValueError("STREAM_SHARED_FIELD_REFERENCE_MISMATCH")
+    return {"same_exact_holder_stream_array_field_from_all_four_methods":True,
+            "holder_allocation_store_pc":30,
+            "holder_selection_read_pc":63,
+            "renderer_compare_reads_pcs":[4,2],
+            "private_field_names_or_values_exported":False}
+
+def limited_stream_selection_bytecode(method,entry):
+    """Register topology on 4 exact relevant methods; no constant or field names."""
+    dex,flags,off=entry
+    insns=list(audit.instructions(dex,off))
+    if len(insns)>140:raise ValueError("STREAM_EXACT_SELECTION_METHOD_SIZE_LIMIT")
+    rows=[]
+    for pc,op,words in insns:
+        r={"pc":pc}
+        if 0x52<=op<=0x6d:
+            owner,_private_name,typ=audit.field_id(dex,words[1])
+            if typ not in (STREAM_ARRAY,MEDIAPERIOD,WRAPPER,PERIOD):
+                continue
+            r.update(action="FIELD_TYPED",owner=owner,type=typ,opcode=op,
+                     first_reg=(words[0]>>8)&15,second_reg=(words[0]>>12)&15)
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            m=dex.method(words[1])
+            if m not in (PERIOD_INTERFACE_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
+                continue
+            r.update(action="PERIOD_SELECT_CALL",callee=list(m),
+                     registers=audit.invoke_registers(op,words))
+        elif op in (0x07,0x08,0x09):
+            d,source=audit.move_object_registers(op,words)
+            r.update(action="MOVE_OBJECT",dest=d,source=source)
+        elif op in (0x0a,0x0b,0x0c):
+            r.update(action="MOVE_RESULT",dest=words[0]>>8)
+        elif op in (0x46,0x4d):
+            r.update(action="STREAM_ARRAY_ELEMENT",opcode=op,
+                     first_reg=(words[0]>>8)&255)
+        elif op in (0x23,0x24,0x25) and dex.descriptor(words[1])==STREAM_ARRAY:
+            r.update(action="NEW_STREAM_ARRAY")
+        elif op in (0x28,0x29,0x2a) or 0x32<=op<=0x3d:
+            r.update(action="BRANCH",opcode=op)
+        else:continue
+        rows.append(r)
+        if len(rows)>100:
+            raise ValueError("STREAM_EXACT_SELECTION_BYTECODE_ROW_LIMIT")
+    return {"method":list(method),"steps":rows}
+
 def scan(apks):
     dexes=0
     methods={}
@@ -49,7 +128,7 @@ def scan(apks):
                 dex=audit.Dex(archive.read(entry.filename))
                 dexes+=1
                 for method,flags,off in audit.method_definitions_with_flags(dex):
-                    if not scope_owner(method[0]):continue
+                    if not (scope_owner(method[0]) or method in EXACT_RENDERER_COMPARE_METHODS):continue
                     if method in methods:raise ValueError("STREAM_ORIGIN_DUPLICATE_METHOD")
                     methods[method]=(dex,flags,off)
                     if len(methods)>MAX_DECLARED_METHODS:
@@ -59,7 +138,7 @@ def scan(apks):
     rows=[]
     total_events=0
     for method,(dex,flags,off) in sorted(methods.items()):
-        if not off:continue
+        if not off or not scope_owner(method[0]):continue
         insns=list(audit.instructions(dex,off))
         if len(insns)>MAX_INSTRUCTIONS_PER_METHOD:
             raise ValueError("STREAM_ORIGIN_METHOD_SIZE_LIMIT")
@@ -90,7 +169,13 @@ def scan(apks):
         if events or (method[0]==HOLDER and method[1]=="<init>"):
             rows.append({"method":list(method),"instruction_count":len(insns),
                          "events":events})
-    return {"verdict":"SIGNED_EXACT_HOLDER_STREAM_OWNER_STRUCTURAL_MAP",
+    shared_field=verify_exact_shared_stream_field(methods)
+    selected=[]
+    for method in (HOLDER_CONSTRUCTOR,HOLDER_SELECT,PERIOD_WRAPPER_SELECT,ORIGINAL_PERIOD_SELECT):
+        selected.append(limited_stream_selection_bytecode(method,methods[method]))
+    return {"exact_shared_holder_stream_field":shared_field,
+            "exact_stream_selection_register_topology":selected,
+            "verdict":"SIGNED_EXACT_HOLDER_STREAM_OWNER_STRUCTURAL_MAP",
             "six_signed_dex_verified":dexes,
             "class_method_count":{owner:sum(m[0]==owner for m in methods) for owner in sorted(OWNER_SET)},
             "scoped_methods_with_stream_or_period_uses":rows,
