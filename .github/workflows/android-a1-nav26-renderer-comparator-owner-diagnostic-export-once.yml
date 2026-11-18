@@ -1,4 +1,4 @@
-name: CELIKOM A1 NAV26 signed LmQ8 renderer comparator outcome owner export ONCE
+name: CELIKOM A1 NAV27 signed comparator attach timing owner diagnostic ONCE
 on:
   push:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
@@ -66,8 +66,8 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = manufact-test/nomusic
           test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
-          grep -Fq 'NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
-          grep -Fq 'NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
+          grep -Fq 'NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
+          grep -Fq 'NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
           grep -Fq 'installExact2025NativeRendererReadWitness(caller,loader)' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
           grep -Fq 'AUDIO_NATIVE_RENDERER_SUMMARY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'AUDIO_NATIVE_RENDERER_HOOK_STATUS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
@@ -90,14 +90,14 @@ jobs:
           grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
-          grep -Fq 'NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
+          grep -Fq 'NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
 
           grep -Fq 'BUFFER_EOS_ACCESS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'buffer.getMethod("isEndOfStream")' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
-          grep -Fq 'NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
+          grep -Fq 'NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
           grep -Fq 'ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
-          grep -Fq 'NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
+          grep -Fq 'NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
           grep -Fq 'UNSCOPED_ATTACH_SECONDARY_MATCH' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'musicMetricaExceptions.incrementAndGet() <= 8' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
 
@@ -253,7 +253,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-NAV26-Owner-Renderer-Comparator-20261118
+          name: CELIKOM-A1-NAV27-Owner-Comparator-Attach-Timing-20261118
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7

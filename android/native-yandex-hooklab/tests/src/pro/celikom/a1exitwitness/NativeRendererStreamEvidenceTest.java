@@ -755,7 +755,7 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV27_WRONG_HOLDER_NEVER_MATCHES_NEW_ATTACH");
         e.onRendererComparatorResult(holderA,renderer,streamA,false);
         check(contains(e.exportLines(),
-              "origin=COMPARATOR_AT_CALL_ENGINE_OTHER;error=ONE"),
+              "origin=COMPARATOR_AT_CALL_ENGINE_OTHER;error=FEW"),
               "NAV27_DIFFERENT_ENGINE_LINK_EXPLICITLY_CLASSIFIED");
         e.onDetach(renderer);
         check(contains(e.exportLines(),
