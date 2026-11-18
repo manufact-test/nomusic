@@ -64,8 +64,8 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 64);
-        for (int i=0;i<63;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial.length == 68);
+        for (int i=0;i<67;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
@@ -571,9 +571,9 @@ class StageBAudioEvidenceTest(unittest.TestCase):
 
 
 
-    def test_nav37_creator_track_field_scope_marker_and_hook_are_readonly(self):
+    def test_nav38_creator_flow_time_order_marker_and_hook_are_readonly(self):
         code = HOOK.read_text(encoding="utf-8")
-        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V37_TCA_CREATOR_TRACK_FIELD_SCOPE_READONLY"', code)
+        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY"', code)
         self.assertIn("installNativeTcaCreatorScopeHook(loader)", code)
         self.assertIn('emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","REGISTERED")', code)
         self.assertIn('emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","NO_HOOK")', code)

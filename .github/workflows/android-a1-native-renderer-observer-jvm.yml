@@ -59,7 +59,7 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V37_TCA_CREATOR_TRACK_FIELD_SCOPE_READONLY' in src
+          assert 'NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY' in src
           assert 'holderSelect.getDeclaredMethod(' in src
           assert 'HOLDER_OTHER_WH6_AT_READ' in model
           assert 'LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT' in model
@@ -74,6 +74,8 @@ jobs:
           assert 'enterNativeTcaCreatorTrackScope(' in src
           stage=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
           assert 'TCA_CREATOR_WRAPPER_ALBUM_LINK' in stage
+          assert 'TCA_CREATOR_FLOW_LATER_SAME_TRACK' in stage
+          assert 'testNav38CreatorTrackLaterFlowExactIdentity' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'testNav37ExactTcaCreatorTrackFieldLinksWrapperAndAlbum' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'testNav37NullCreatorTrackFieldShadowsOuterTrackScope' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'classifyNativeTrackAlbumForWrapper' in Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()

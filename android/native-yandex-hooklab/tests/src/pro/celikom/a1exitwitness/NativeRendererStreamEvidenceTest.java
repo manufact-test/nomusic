@@ -1550,6 +1550,63 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV37_NULL_FIELD_NEVER_LINKS_OUTER_TRACK");
     }
 
+
+    private static void testNav38CreatorTrackLaterFlowExactIdentity() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object owner=new Object(),track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(owner);
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        check(contains(stage.exportLines(),"origin=TCA_CREATOR_WRAPPER_NOT_FLOW;error=ONE"),
+            "NAV38_NOT_FLOW_AT_BIRTH");
+        check(contains(stage.exportLines(),"origin=TCA_CREATOR_NOT_FLOW_ALBUM_OBSERVED;error=ONE"),
+            "NAV38_ALBUM_OBSERVED_AT_BIRTH");
+        stage.onNativeTrackFlowEmission(new Object());
+        check(contains(stage.exportLines(),"origin=TCA_CREATOR_FLOW_LATER_SAME_TRACK;error=NONE"),
+            "NAV38_UNRELATED_TRACK_NEVER_MATCHES");
+        stage.onNativeTrackFlowEmission(track);
+        stage.onNativeTrackFlowEmission(track);
+        check(contains(stage.exportLines(),"origin=TCA_CREATOR_FLOW_LATER_SAME_TRACK;error=ONE"),
+            "NAV38_LATER_SAME_TRACK_ONCE");
+        check(contains(stage.exportLines(),"origin=TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED;error=ONE"),
+            "NAV38_LATER_ALBUM_OBSERVED");
+        check(contains(stage.exportLines(),"origin=TRACK_WRAPPER_LINK;error=NONE"),
+            "NAV38_NO_FALSE_RETROACTIVE_WRAPPER_LINK");
+        StageBAudioEvidence missing=new StageBAudioEvidence();
+        Object different=new Object();
+        missing.enterNativeTcaCreatorOwner(new Object());
+        try {
+            missing.enterNativeTcaCreatorTrackScope(different,1);
+            try {missing.onNativeTrackWrapperCreated(new Object());}
+            finally {missing.exitNativeTcaCreatorTrackScope();}
+        } finally {missing.exitNativeTcaCreatorOwner();}
+        check(contains(missing.exportLines(),"origin=TCA_CREATOR_NOT_FLOW_ALBUM_UNOBSERVED;error=ONE"),
+            "NAV38_NO_ALBUM_OBSERVED");
+        missing.onNativeTrackFlowEmission(different);
+        check(contains(missing.exportLines(),"origin=TCA_CREATOR_FLOW_LATER_SAME_TRACK;error=ONE"),
+            "NAV38_LATE_MATCH_WITHOUT_ALBUM");
+        check(contains(missing.exportLines(),"origin=TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED;error=NONE"),
+            "NAV38_NO_FALSE_ALBUM");
+        StageBAudioEvidence prior=new StageBAudioEvidence();
+        Object priorTrack=new Object();
+        prior.onNativeTrackFlowEmission(priorTrack);
+        prior.enterNativeTcaCreatorOwner(new Object());
+        try {
+            prior.enterNativeTcaCreatorTrackScope(priorTrack,1);
+            try {prior.onNativeTrackWrapperCreated(new Object());}
+            finally {prior.exitNativeTcaCreatorTrackScope();}
+        } finally {prior.exitNativeTcaCreatorOwner();}
+        prior.onNativeTrackFlowEmission(priorTrack);
+        check(contains(prior.exportLines(),"origin=TCA_CREATOR_FLOW_LATER_SAME_TRACK;error=NONE"),
+            "NAV38_PRIOR_FLOW_NOT_MISLABELED_LATER");
+        check(contains(prior.exportLines(),"origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED"),
+            "NAV38_REPLACEMENT_STAYS_DISABLED");
+    }
+
     private static void testNav36ConstructorWitnessCannotCrossWrongSource() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         StageBAudioEvidence stage=new StageBAudioEvidence();
@@ -1635,6 +1692,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav36OriginalTcaBirthCategories();
         testNav37ExactTcaCreatorTrackFieldLinksWrapperAndAlbum();
         testNav37NullCreatorTrackFieldShadowsOuterTrackScope();
+        testNav38CreatorTrackLaterFlowExactIdentity();
         testNav36ConstructorWitnessCannotCrossWrongSource();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

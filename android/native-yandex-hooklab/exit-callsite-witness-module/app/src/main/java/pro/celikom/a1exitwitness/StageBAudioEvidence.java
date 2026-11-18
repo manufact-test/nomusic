@@ -123,6 +123,12 @@ final class StageBAudioEvidence {
     private final AtomicLong tcaCreatorWrapperFlowMatch = new AtomicLong();
     private final AtomicLong tcaCreatorWrapperNoAlbum = new AtomicLong();
     private final AtomicLong tcaCreatorWrapperAlbumLink = new AtomicLong();
+    // NAV38: last 32 weak exact creator-owned Track refs not in Flow at birth.
+    private final ArrayList<WeakReference<Object>> creatorAwaitingFlow = new ArrayList<>();
+    private final AtomicLong creatorNotFlowAlbumObserved = new AtomicLong();
+    private final AtomicLong creatorNotFlowAlbumUnobserved = new AtomicLong();
+    private final AtomicLong creatorFlowLaterSameTrack = new AtomicLong();
+    private final AtomicLong creatorFlowLaterAlbumObserved = new AtomicLong();
     private final AtomicLong nativeMainSourceEnters = new AtomicLong();
     private final AtomicLong nativeTrackContinuationConstructed = new AtomicLong();
     private final AtomicLong trackContinuationRecovered = new AtomicLong();
@@ -302,6 +308,16 @@ final class StageBAudioEvidence {
 
     synchronized void onNativeTrackFlowEmission(Object track) {
         if (track == null) return;
+        // Exact == of previously weak-held creator Track; no selected queue claim.
+        for(int i=creatorAwaitingFlow.size()-1;i>=0;i--) {
+            Object prior=creatorAwaitingFlow.get(i).get();
+            if(prior==null)creatorAwaitingFlow.remove(i);
+            else if(prior==track) {
+                mark(creatorFlowLaterSameTrack);
+                if(findTrackAlbum(track)!=null)mark(creatorFlowLaterAlbumObserved);
+                creatorAwaitingFlow.remove(i);
+            }
+        }
         mark(nativeTrackFlowEmits);
         if (findTrackAlbum(track)!=null) mark(nativeTrackAlbumFlowLinks);
         for (int i=nativeTrackFlowItems.size()-1;i>=0;i--) {
@@ -409,7 +425,24 @@ final class StageBAudioEvidence {
         Object track=currentScope(activeTrackScopes);
         if(fromExactTcaCreator) {
             if(track==null)mark(tcaCreatorWrapperNoTrack);
-            else if(!wasNativeTrackFlowItem(track))mark(tcaCreatorWrapperNotFlow);
+            else if(!wasNativeTrackFlowItem(track)) {
+                mark(tcaCreatorWrapperNotFlow);
+                if(findTrackAlbum(track)!=null)mark(creatorNotFlowAlbumObserved);
+                else mark(creatorNotFlowAlbumUnobserved);
+                // Only bounded historical observation, never a source/player link.
+                if(wrapper!=null) {
+                    boolean seen=false;
+                    for(int i=creatorAwaitingFlow.size()-1;i>=0;i--) {
+                        Object prior=creatorAwaitingFlow.get(i).get();
+                        if(prior==null)creatorAwaitingFlow.remove(i);
+                        else if(prior==track)seen=true;
+                    }
+                    if(!seen) {
+                        if(creatorAwaitingFlow.size()>=32)creatorAwaitingFlow.remove(0);
+                        creatorAwaitingFlow.add(new WeakReference<>(track));
+                    }
+                }
+            }
             else {
                 mark(tcaCreatorWrapperFlowMatch);
                 if(findTrackAlbum(track)==null)mark(tcaCreatorWrapperNoAlbum);
@@ -901,6 +934,10 @@ final class StageBAudioEvidence {
             event("TRACK_SOURCE_ALBUM_OPEN_LINK", trackSourceAlbumOpenLinks),
             event("TRACK_SOURCE_ALBUM_READ_LINK", trackSourceAlbumReadLinks),
             event("TRACK_ALBUM_IDENTITY_CONFLICT", nativeTrackAlbumConflicts),
+            event("TCA_CREATOR_NOT_FLOW_ALBUM_OBSERVED", creatorNotFlowAlbumObserved),
+            event("TCA_CREATOR_NOT_FLOW_ALBUM_UNOBSERVED", creatorNotFlowAlbumUnobserved),
+            event("TCA_CREATOR_FLOW_LATER_SAME_TRACK", creatorFlowLaterSameTrack),
+            event("TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED", creatorFlowLaterAlbumObserved),
             "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }
