@@ -1596,6 +1596,11 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
             "creator_count": 0, "creator_owner_continuation_count": 0,
             "creator_invoke_suspend_signature_count": 0,
             "creator_gpo_new_count": 0, "creator_constructor_count": 0,
+            "creator_owner_coroutine_class_count": 0,
+            "creator_owner_kotlin_function_class_count": 0,
+            "creator_method_invoke_name_count": 0,
+            "creator_method_nonprivate_instance_count": 0,
+            "creator_owner_profile_complete": True,
             "owner_parameter_type_categories": [],
             "owner_parameter_matches_track_field_owner_count": 0,
             "callsite_count": 0, "caller_count": 0, "origin_categories": [],
@@ -1610,9 +1615,42 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
     target_specs = {}
     owner_type_categories = set()
     owner_type_matches_field_owner = 0
+    creator_owner_coroutine_count = 0
+    creator_owner_function_count = 0
+    creator_method_invoke_count = 0
+    creator_method_nonprivate_instance_count = 0
+    creator_owner_profile_complete = True
     for row in creator_rows:
         definition = row["caller_definition"]
-        _dex, method, flags, _code_off = definition
+        creator_dex, method, flags, _code_off = definition
+        try:
+            profiles = audit.declared_field_inventory(creator_dex)
+            profile = profiles.get(method[0], {})
+            ancestors = set(profile.get("interfaces", ()))
+            superclass = profile.get("superclass")
+            if superclass:
+                ancestors.add(superclass)
+            coroutine_class = (
+                CONTINUATION_DESCRIPTOR in ancestors
+                or "Lkotlin/coroutines/Continuation;" in ancestors
+                or any(
+                    value.startswith("Lkotlin/coroutines/jvm/internal/")
+                    and ("Continuation" in value or "SuspendLambda" in value)
+                    for value in ancestors
+                )
+            )
+            function_class = any(
+                value.startswith("Lkotlin/jvm/functions/Function")
+                for value in ancestors
+            )
+            creator_owner_coroutine_count += bool(coroutine_class)
+            creator_owner_function_count += bool(function_class)
+            creator_method_invoke_count += method[1] == "invoke"
+            creator_method_nonprivate_instance_count += not (
+                flags & audit.ACC_STATIC or flags & 0x0002
+            )
+        except (ValueError, audit.DexError):
+            creator_owner_profile_complete = False
         positions = row.get("constructor_string_track_field_owner_parameter_positions", ())
         field_refs = row.get("constructor_string_track_source_field_refs", ())
         if len(positions) != 1:
@@ -1653,6 +1691,11 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
             "creator_constructor_count": sum(
                 row["caller_definition"][1][1] == "<init>" for row in creator_rows
             ),
+            "creator_owner_coroutine_class_count": creator_owner_coroutine_count,
+            "creator_owner_kotlin_function_class_count": creator_owner_function_count,
+            "creator_method_invoke_name_count": creator_method_invoke_count,
+            "creator_method_nonprivate_instance_count": creator_method_nonprivate_instance_count,
+            "creator_owner_profile_complete": creator_owner_profile_complete,
             "owner_parameter_type_categories": sorted(owner_type_categories),
             "owner_parameter_matches_track_field_owner_count": owner_type_matches_field_owner,
             "callsite_count": 0, "caller_count": 0, "origin_categories": [],
@@ -1792,6 +1835,11 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
         "creator_constructor_count": sum(
             row["caller_definition"][1][1] == "<init>" for row in creator_rows
         ),
+        "creator_owner_coroutine_class_count": creator_owner_coroutine_count,
+        "creator_owner_kotlin_function_class_count": creator_owner_function_count,
+        "creator_method_invoke_name_count": creator_method_invoke_count,
+        "creator_method_nonprivate_instance_count": creator_method_nonprivate_instance_count,
+        "creator_owner_profile_complete": creator_owner_profile_complete,
         "owner_parameter_type_categories": sorted(owner_type_categories),
         "owner_parameter_matches_track_field_owner_count": owner_type_matches_field_owner,
         "callsite_count": call_count,
@@ -1925,6 +1973,11 @@ def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_
         "tca_constructor_track_creator_invoke_suspend_signature_count": owner_parameter_upstream["creator_invoke_suspend_signature_count"],
         "tca_constructor_track_creator_gpo_new_count": owner_parameter_upstream["creator_gpo_new_count"],
         "tca_constructor_track_creator_constructor_count": owner_parameter_upstream["creator_constructor_count"],
+        "tca_constructor_track_creator_owner_coroutine_class_count": owner_parameter_upstream["creator_owner_coroutine_class_count"],
+        "tca_constructor_track_creator_owner_kotlin_function_class_count": owner_parameter_upstream["creator_owner_kotlin_function_class_count"],
+        "tca_constructor_track_creator_method_invoke_name_count": owner_parameter_upstream["creator_method_invoke_name_count"],
+        "tca_constructor_track_creator_method_nonprivate_instance_count": owner_parameter_upstream["creator_method_nonprivate_instance_count"],
+        "tca_constructor_track_creator_owner_profile_complete": owner_parameter_upstream["creator_owner_profile_complete"],
         "tca_constructor_track_owner_parameter_type_categories": owner_parameter_upstream["owner_parameter_type_categories"],
         "tca_constructor_track_owner_parameter_matches_track_field_owner_count": owner_parameter_upstream["owner_parameter_matches_track_field_owner_count"],
         "tca_constructor_track_owner_parameter_upstream_callsite_count": owner_parameter_upstream["callsite_count"],
