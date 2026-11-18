@@ -1,0 +1,645 @@
+#!/usr/bin/env python3
+"""Read-only signed-DEX trace of the exact LtCa object entering LcA9.extends.
+
+The scan is bounded to the direct LcA9 source-setter caller(s), plus one
+upstream caller hop only when the wrapper is a typed parameter. Private DEX
+symbols and field names stay in ephemeral CI; output is finite categories.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import tempfile
+import zipfile
+
+HERE = Path(__file__).resolve().parent
+sys_path = HERE.parent
+import sys
+sys.path.insert(0, str(sys_path))
+import audit_native_selected_item_handoff as audit
+
+TARGET = (
+    "LcA9;", "extends",
+    "(LcA9;LA14;LtCa;Ljava/lang/Long;JJZLn26;Lnk0;Ljava/lang/String;)V",
+)
+WRAPPER = "LtCa;"
+WRAPPER_CTOR = ("LtCa;", "<init>", "(Ljava/lang/String;)V")
+INITIAL = (
+    "LGp0;", "new",
+    "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;",
+)
+RESUME = ("LFp0;", "invokeSuspend", "(Ljava/lang/Object;)Ljava/lang/Object;")
+TARGET_WRAPPER_POSITION = 2
+MAX_DIRECT_CALLS = 128
+MAX_DIRECT_CALLERS = 64
+MAX_UPSTREAM_CALLS = 128
+MAX_UPSTREAM_CALLERS = 64
+WIDE_OPS = (
+    {0x04, 0x05, 0x06, 0x0b, 0x16, 0x17, 0x18, 0x19, 0x45, 0x53,
+     0x61, 0x7d, 0x7e, 0x80, 0x82, 0x85, 0x87, 0x88, 0x8a}
+    | set(range(0x9b, 0xa6)) | set(range(0xab, 0xb0))
+    | set(range(0xbb, 0xc6)) | set(range(0xcb, 0xd0))
+)
+
+
+def wrapper_origin_categories(event: dict, position: int) -> tuple[str, ...]:
+    """Return fixed categories for one exact logical LtCa argument."""
+    if not isinstance(event, dict):
+        return ("NO_EVENT",)
+    rows = []
+    common = event.get("kind") == "CALL_WITH_TYPED_IDENTITY"
+    source = event.get("identity_arguments", ()) if common else (
+        event.get("possible_identity_arguments", ())
+        if event.get("kind") == "CALL_WITH_POSSIBLE_IDENTITY" else ()
+    )
+    for row in source:
+        if (row.get("argument_position") != position
+                or row.get("declared_argument_type") != WRAPPER
+                or row.get("identity_type") != "TRACK_WRAPPER"):
+            continue
+        origins = row.get("origins", ()) if common else row.get("possible_origins", ())
+        mapping = (
+            ("TRACK_WRAPPER_NEW_INSTANCE", "NEW_INSTANCE"),
+            ("TRACK_WRAPPER_PARAMETER", "PARAMETER"),
+            ("TRACK_WRAPPER_FROM_THIS_FIELD", "THIS_FIELD"),
+            ("TRACK_WRAPPER_FROM_TRACKED_RECEIVER_FIELD", "TRACKED_RECEIVER_FIELD"),
+            ("TRACK_WRAPPER_FROM_STATIC_FIELD", "STATIC_FIELD"),
+            ("TRACK_WRAPPER_RETURNED_FROM_METHOD", "RETURNED_FROM_METHOD"),
+        )
+        found = [label for token, label in mapping if token in origins]
+        if found:
+            rows.extend(found)
+        else:
+            rows.append("UNCLASSIFIED_ORIGIN")
+    if not rows:
+        return ("NO_IDENTITY",)
+    prefix = "COMMON_" if common else "POSSIBLE_"
+    return tuple(sorted({prefix + value for value in rows}))
+
+
+def logical_parameter_positions(method, flags: int, target_type: str) -> list[int]:
+    is_static = bool(flags & audit.ACC_STATIC)
+    types = audit.expand_invoke_register_types(
+        method[0], audit.parse_types(method[2]), is_static
+    )
+    result = []
+    logical = -1
+    for typ in types:
+        if typ is None:
+            continue
+        logical += 1
+        if typ == target_type:
+            result.append(logical)
+    return result
+
+
+def _argument_register(dex, op: int, words, target_method, logical_position: int):
+    is_static = op in (0x71, 0x77)
+    types = audit.expand_invoke_register_types(
+        target_method[0], audit.parse_types(target_method[2]), is_static
+    )
+    registers = audit.invoke_registers(op, words)
+    if len(registers) != len(types):
+        raise ValueError("TCA_TARGET_INVOKE_REGISTER_MAP")
+    logical = -1
+    for word_position, typ in enumerate(types):
+        if typ is None:
+            continue
+        logical += 1
+        if logical == logical_position:
+            return registers[word_position] if typ == WRAPPER else None
+    return None
+
+
+def trace_exact_tca_constructor_to_callsites(
+    dex, method, flags: int, code_off: int, target_method,
+    callsite_pcs: list[int], wrapper_position: int
+) -> dict:
+    """Prove one constructed tCa reference reaches exact target call(s) on all paths."""
+    cfg = audit.build_dex_control_flow(dex, code_off)
+    by_pc, successors = cfg["by_pc"], cfg["successors"]
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise ValueError("TCA_TRACE_INVALID_INS_SIZE")
+
+    initial_registers = {}
+    for reg in audit.typed_parameter_registers(
+            dex, method, flags, code_off, WRAPPER):
+        initial_registers[reg] = f"TCA_PARAMETER@{reg}"
+    if not (flags & audit.ACC_STATIC) and method[0] == WRAPPER:
+        initial_registers[registers_size - ins_size] = "TCA_THIS"
+
+    initial = {"registers": initial_registers, "pending_return": None}
+
+    def state_key(state):
+        return (
+            tuple(sorted(state["registers"].items())),
+            state["pending_return"],
+        )
+
+    incoming = {cfg["entry"]: {state_key(initial): initial}}
+    work = [(cfg["entry"], state_key(initial))]
+    processed = 0
+
+    def transfer(state, pc, op, words):
+        regs = dict(state["registers"])
+        pending = None
+
+        def clear(reg):
+            regs.pop(reg, None)
+
+        if op in audit.INVOKES:
+            callee = dex.method(words[1])
+            args = audit.invoke_registers(op, words)
+            if callee == WRAPPER_CTOR and args:
+                token = regs.get(args[0])
+                if token and token.startswith("TCA_ALLOC@"):
+                    initialized = "TCA_INIT@" + token
+                    for reg, value in list(regs.items()):
+                        if value == token:
+                            regs[reg] = initialized
+            result_type = callee[2].split(")", 1)[1]
+            if result_type == WRAPPER:
+                pending = f"TCA_RETURN@{pc}"
+        elif op == 0x0c:  # move-result-object
+            dest = words[0] >> 8
+            clear(dest)
+            if state["pending_return"]:
+                regs[dest] = state["pending_return"]
+        elif op == 0x22:  # new-instance
+            dest = (words[0] >> 8) & 0xff
+            clear(dest)
+            if dex.descriptor(words[1]) == WRAPPER:
+                regs[dest] = f"TCA_ALLOC@{pc}"
+        elif op in (0x07, 0x08, 0x09):
+            move = audit.move_object_registers(op, words)
+            if move is not None:
+                dest, source = move
+                value = regs.get(source)
+                clear(dest)
+                if value is not None:
+                    regs[dest] = value
+        elif op == 0x1f:  # check-cast preserves reference identity
+            pass
+        elif op == 0x54:  # iget-object; type only
+            dest = (words[0] >> 8) & 15
+            field_type = audit.field_id(dex, words[1])[2]
+            clear(dest)
+            if field_type == WRAPPER:
+                regs[dest] = f"TCA_FIELD@{pc}"
+        elif op == 0x62:  # sget-object; type only
+            dest = words[0] >> 8
+            field_type = audit.field_id(dex, words[1])[2]
+            clear(dest)
+            if field_type == WRAPPER:
+                regs[dest] = f"TCA_STATIC_FIELD@{pc}"
+        else:
+            dest = audit.written_register(op, words)
+            if dest is not None:
+                clear(dest)
+                if op in WIDE_OPS:
+                    clear(dest + 1)
+        return {"registers": regs, "pending_return": pending}
+
+    while work:
+        pc, key = work.pop()
+        processed += 1
+        if processed > 200000:
+            raise ValueError("TCA_TRACE_DATAFLOW_LIMIT")
+        state = incoming[pc][key]
+        op, words = by_pc[pc]
+        output = transfer(state, pc, op, words)
+        output_key = state_key(output)
+        for target in successors.get(pc, ()):
+            bucket = incoming.setdefault(target, {})
+            if output_key in bucket:
+                continue
+            if len(bucket) >= 128:
+                raise ValueError("TCA_TRACE_PATH_STATE_LIMIT")
+            bucket[output_key] = output
+            work.append((target, output_key))
+
+    site_results = []
+    for pc in sorted(set(callsite_pcs)):
+        instruction = by_pc.get(pc)
+        states = list(incoming.get(pc, {}).values())
+        if instruction is None or not states:
+            site_results.append({
+                "reachable": False,
+                "same_constructed_tca_on_all_paths": False,
+                "origin_category": "UNREACHABLE_OR_UNMAPPED",
+            })
+            continue
+        op, words = instruction
+        if op not in audit.INVOKES or dex.method(words[1]) != target_method:
+            raise ValueError("TCA_TRACE_CALLSITE_TARGET_MISMATCH")
+        register = _argument_register(dex, op, words, target_method, wrapper_position)
+        tokens = [state["registers"].get(register) for state in states]
+        same = (
+            register is not None and bool(tokens)
+            and len(set(tokens)) == 1
+            and isinstance(tokens[0], str)
+            and tokens[0].startswith("TCA_INIT@")
+        )
+        token = tokens[0] if tokens and len(set(tokens)) == 1 else None
+        category = (
+            "CONSTRUCTED_IN_SAME_METHOD" if same else
+            "PARAMETER" if isinstance(token, str) and token.startswith("TCA_PARAMETER@") else
+            "INSTANCE_FIELD" if isinstance(token, str) and token.startswith("TCA_FIELD@") else
+            "STATIC_FIELD" if isinstance(token, str) and token.startswith("TCA_STATIC_FIELD@") else
+            "RETURNED_FROM_METHOD" if isinstance(token, str) and token.startswith("TCA_RETURN@") else
+            "AMBIGUOUS_OR_UNRESOLVED"
+        )
+        site_results.append({
+            "reachable": True,
+            "same_constructed_tca_on_all_paths": same,
+            "origin_category": category,
+        })
+
+    instructions = cfg["instructions"]
+    allocation_count = sum(
+        op == 0x22 and dex.descriptor(words[1]) == WRAPPER
+        for _pc, op, words in instructions
+    )
+    constructor_call_count = sum(
+        op in audit.INVOKES and dex.method(words[1]) == WRAPPER_CTOR
+        for _pc, op, words in instructions
+    )
+    return {
+        "site_count": len(site_results),
+        "same_constructed_tca_on_all_sites": (
+            bool(site_results) and all(x["same_constructed_tca_on_all_paths"]
+                                       for x in site_results)
+        ),
+        "site_results": site_results,
+        "wrapper_allocation_count": allocation_count,
+        "wrapper_constructor_call_count": constructor_call_count,
+        "processed_state_count": processed,
+        "path_state_count": sum(len(states) for states in incoming.values()),
+        "exception_handler_edges_included": False,
+    }
+
+
+def _trace_events_for_callsites(dex, method, flags, code_off, target, callsite_pcs):
+    try:
+        trace = audit.trace_track_identity_method_cfg(
+            dex, method, flags, code_off
+        )
+    except (ValueError, audit.DexError) as exc:
+        return None, type(exc).__name__
+    rows = [
+        event for event in trace.get("events", ())
+        if event.get("callee") == {
+            "owner": target[0], "method": target[1], "signature": target[2]
+        } and event.get("pc") in set(callsite_pcs)
+    ]
+    return rows, None
+
+
+def scan_direct_callers(apks):
+    target_definition = None
+    caller_definitions = {}
+    caller_sites = {}
+    dex_count = 0
+    scanned_methods = 0
+    direct_site_count = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > audit.DEX_MAX:
+                    raise ValueError("TCA_DIRECT_DEX_LIMIT")
+                dex_count += 1
+                dex = audit.Dex(archive.read(entry.filename))
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    scanned_methods += 1
+                    key = (method[0], method[1], method[2])
+                    if method == TARGET:
+                        if target_definition is not None:
+                            raise ValueError("TCA_TARGET_DUPLICATE_DEFINITION")
+                        target_definition = (dex, method, flags, code_off)
+                    sites = []
+                    for pc, op, words in audit.instructions(dex, code_off):
+                        if op in audit.INVOKES and dex.method(words[1]) == TARGET:
+                            sites.append(pc)
+                    if not sites:
+                        continue
+                    direct_site_count += len(sites)
+                    if direct_site_count > MAX_DIRECT_CALLS:
+                        raise ValueError("TCA_DIRECT_CALLSITE_LIMIT")
+                    if key not in caller_definitions:
+                        if len(caller_definitions) >= MAX_DIRECT_CALLERS:
+                            raise ValueError("TCA_DIRECT_CALLER_LIMIT")
+                        caller_definitions[key] = (dex, method, flags, code_off)
+                        caller_sites[key] = []
+                    caller_sites[key].extend(sites)
+
+    if dex_count != 6:
+        raise ValueError("TCA_SIGNED_SIX_DEX_REQUIRED")
+    if target_definition is None:
+        raise ValueError("TCA_EXACT_LCA9_METHOD_NOT_DEFINED")
+    if not (target_definition[2] & audit.ACC_STATIC):
+        raise ValueError("TCA_TARGET_NOT_STATIC")
+    positions = logical_parameter_positions(
+        TARGET, target_definition[2], WRAPPER
+    )
+    if positions != [TARGET_WRAPPER_POSITION]:
+        raise ValueError("TCA_TARGET_WRAPPER_PARAMETER_SHAPE")
+
+    direct_rows = []
+    upstream_targets = {}
+    for key, (dex, method, flags, code_off) in sorted(caller_definitions.items()):
+        pcs = caller_sites[key]
+        events, error = _trace_events_for_callsites(
+            dex, method, flags, code_off, TARGET, pcs
+        )
+        if error:
+            direct_rows.append({
+                "trace_complete": False,
+                "wrapper_origin_categories": ["TRACE_FAILED"],
+                "constructor_to_lca9_same_object": False,
+            })
+            continue
+        categories = []
+        for event in events:
+            categories.extend(wrapper_origin_categories(
+                event, TARGET_WRAPPER_POSITION
+            ))
+        categories = sorted(set(categories or ["NO_IDENTITY_EVENT"]))
+        direct_constructor = trace_exact_tca_constructor_to_callsites(
+            dex, method, flags, code_off, TARGET, pcs,
+            TARGET_WRAPPER_POSITION
+        )
+        direct_rows.append({
+            "trace_complete": True,
+            "callsite_count": len(pcs),
+            "wrapper_origin_categories": categories,
+            "constructor_to_lca9_same_object": direct_constructor[
+                "same_constructed_tca_on_all_sites"
+            ],
+            "constructor_trace": direct_constructor,
+        })
+        if "COMMON_PARAMETER" in categories:
+            wrapper_positions = logical_parameter_positions(
+                method, flags, WRAPPER
+            )
+            if len(wrapper_positions) == 1:
+                upstream_targets[key] = wrapper_positions[0]
+
+    return {
+        "dex_count": dex_count,
+        "scanned_method_count": scanned_methods,
+        "target_body_found": bool(target_definition[3]),
+        "direct_callsite_count": direct_site_count,
+        "direct_caller_count": len(caller_definitions),
+        "direct_rows": direct_rows,
+        "upstream_targets": upstream_targets,
+        "caller_definitions": caller_definitions,
+        "caller_sites": caller_sites,
+        "target_definition": target_definition,
+    }
+
+
+def scan_upstream_callers(apks, direct):
+    targets = direct["upstream_targets"]
+    if not targets:
+        return {
+            "upstream_callsite_count": 0,
+            "upstream_caller_count": 0,
+            "upstream_rows": [],
+            "complete": True,
+        }
+
+    caller_definitions = {}
+    caller_sites = {}
+    call_count = 0
+    dex_count = 0
+    scanned_methods = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > audit.DEX_MAX:
+                    raise ValueError("TCA_UPSTREAM_DEX_LIMIT")
+                dex_count += 1
+                dex = audit.Dex(archive.read(entry.filename))
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    scanned_methods += 1
+                    key = (method[0], method[1], method[2])
+                    sites = []
+                    for pc, op, words in audit.instructions(dex, code_off):
+                        if op in audit.INVOKES and dex.method(words[1]) in targets:
+                            sites.append((pc, dex.method(words[1])))
+                    if not sites:
+                        continue
+                    call_count += len(sites)
+                    if call_count > MAX_UPSTREAM_CALLS:
+                        raise ValueError("TCA_UPSTREAM_CALLSITE_LIMIT")
+                    if key not in caller_definitions:
+                        if len(caller_definitions) >= MAX_UPSTREAM_CALLERS:
+                            raise ValueError("TCA_UPSTREAM_CALLER_LIMIT")
+                        caller_definitions[key] = (dex, method, flags, code_off)
+                        caller_sites[key] = []
+                    caller_sites[key].extend(sites)
+
+    if dex_count != 6:
+        raise ValueError("TCA_UPSTREAM_SIGNED_SIX_DEX_REQUIRED")
+
+    upstream_rows = []
+    for key, (dex, method, flags, code_off) in sorted(caller_definitions.items()):
+        targets_here = {}
+        for pc, target in caller_sites[key]:
+            targets_here.setdefault(target, []).append(pc)
+        try:
+            trace = audit.trace_track_identity_method_cfg(
+                dex, method, flags, code_off
+            )
+            trace_error = None
+        except (ValueError, audit.DexError) as exc:
+            trace, trace_error = None, type(exc).__name__
+
+        for target, pcs in sorted(targets_here.items()):
+            position = targets[target]
+            events = [] if trace_error else [
+                event for event in trace.get("events", ())
+                if event.get("callee") == {
+                    "owner": target[0], "method": target[1], "signature": target[2]
+                } and event.get("pc") in set(pcs)
+            ]
+            categories = sorted(set(
+                category
+                for event in events
+                for category in wrapper_origin_categories(event, position)
+            ) or {"TRACE_FAILED" if trace_error else "NO_IDENTITY_EVENT"})
+
+            constructor_trace = trace_exact_tca_constructor_to_callsites(
+                dex, method, flags, code_off, target, pcs, position
+            ) if not trace_error else None
+            fp0_summary = None
+            if method == INITIAL:
+                initial_def = (dex, method, flags, code_off)
+                resume_def = None
+                # Resolve the exact resume method in this same signed DEX only.
+                for candidate, candidate_flags, candidate_code in (
+                        audit.method_definitions_with_flags(dex)):
+                    if candidate == RESUME:
+                        resume_def = (dex, candidate, candidate_flags, candidate_code)
+                        break
+                if resume_def is not None:
+                    try:
+                        cont = audit.trace_native_track_coroutine_continuation(
+                            dex, method, flags, code_off,
+                            resume_def[1], resume_def[2], resume_def[3]
+                        )
+                        fp0_summary = {
+                            "resume_track_argument_explicit_null":
+                                cont.get("resume_track_argument_explicit_null", False),
+                            "continuation_field_track_to_opaque_wrapper_candidate":
+                                cont.get("continuation_field_track_to_opaque_wrapper_candidate", False),
+                            "original_track_parameter_to_opaque_wrapper_candidate":
+                                cont.get("original_track_parameter_to_opaque_wrapper_candidate", False),
+                            "continuation_field_store_to_read_same_object_proven":
+                                cont.get("continuation_field_store_to_read_same_object_proven", False),
+                            "branch_path_predicates_evaluated":
+                                cont.get("branch_path_predicates_evaluated", False),
+                            "wrapper_continuation_handoff_site_count":
+                                len(cont.get("wrapper_continuation_handoff_sites", ())),
+                        }
+                    except (ValueError, audit.DexError):
+                        fp0_summary = {"trace_complete": False}
+
+            upstream_rows.append({
+                "trace_complete": trace_error is None,
+                "wrapper_origin_categories": categories,
+                "constructor_to_direct_caller_same_object": (
+                    constructor_trace["same_constructed_tca_on_all_sites"]
+                    if constructor_trace else False
+                ),
+                "constructor_trace": constructor_trace,
+                "is_gpo_new": method == INITIAL,
+                "fp0_continuation_summary": fp0_summary,
+            })
+
+    return {
+        "upstream_callsite_count": call_count,
+        "upstream_caller_count": len(caller_definitions),
+        "upstream_rows": upstream_rows,
+        "complete": True,
+    }
+
+
+def safe_summary(direct, upstream):
+    direct_rows = direct["direct_rows"]
+    upstream_rows = upstream["upstream_rows"]
+    direct_constructor = sum(
+        row.get("constructor_to_lca9_same_object", False) for row in direct_rows
+    )
+    upstream_constructor = sum(
+        row.get("constructor_to_direct_caller_same_object", False)
+        for row in upstream_rows
+    )
+    fp0 = [
+        row["fp0_continuation_summary"]
+        for row in upstream_rows if row.get("fp0_continuation_summary")
+    ]
+    return {
+        "verdict": "SIGNED_LCA9_TCA_BIRTH_ORIGIN_READONLY",
+        "signed_dex_count": direct["dex_count"],
+        "scanned_method_count": direct["scanned_method_count"],
+        "target_body_found": direct["target_body_found"],
+        "direct_callsite_count": direct["direct_callsite_count"],
+        "direct_caller_count": direct["direct_caller_count"],
+        "direct_caller_trace_complete_count": sum(
+            row.get("trace_complete", False) for row in direct_rows
+        ),
+        "direct_wrapper_origin_categories": sorted({
+            category for row in direct_rows
+            for category in row.get("wrapper_origin_categories", ())
+        }),
+        "direct_constructor_to_lca9_same_object_count": direct_constructor,
+        "upstream_callsite_count": upstream["upstream_callsite_count"],
+        "upstream_caller_count": upstream["upstream_caller_count"],
+        "upstream_wrapper_origin_categories": sorted({
+            category for row in upstream_rows
+            for category in row.get("wrapper_origin_categories", ())
+        }),
+        "upstream_constructor_to_direct_caller_same_object_count": upstream_constructor,
+        "fp0_resume_track_argument_explicit_null": any(
+            row.get("resume_track_argument_explicit_null", False) for row in fp0
+        ),
+        "fp0_continuation_field_track_to_wrapper_candidate": any(
+            row.get("continuation_field_track_to_opaque_wrapper_candidate", False)
+            for row in fp0
+        ),
+        "fp0_continuation_field_store_to_read_same_object_proven": any(
+            row.get("continuation_field_store_to_read_same_object_proven", False)
+            for row in fp0
+        ),
+        "fp0_branch_path_predicates_evaluated": any(
+            row.get("branch_path_predicates_evaluated", False) for row in fp0
+        ),
+        "fp0_wrapper_continuation_handoff_site_count": sum(
+            row.get("wrapper_continuation_handoff_site_count", 0) for row in fp0
+        ),
+        "bounded_upstream_scan_complete": upstream["complete"],
+        "virtual_or_interface_runtime_dispatch_proven": False,
+        "current_selected_track_or_queue_generation_proven": False,
+        "active_audible_decoder_source_proven": False,
+        "replacement_audio_connected_or_audible": False,
+        "private_method_symbols_field_names_or_values_disclosed": False,
+        "track_album_ids_titles_urls_tokens_account_or_audio_read": False,
+    }
+
+
+def run(xapk: Path):
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        raise RuntimeError("EPHEMERAL_CI_ONLY")
+    if not xapk.is_file() or xapk.stat().st_size != audit.PINNED_XAPK_BYTES:
+        raise ValueError("TCA_PINNED_XAPK_SIZE_MISMATCH")
+    if audit.sha256_file(xapk) != audit.PINNED_XAPK_SHA256:
+        raise ValueError("TCA_PINNED_XAPK_SHA_MISMATCH")
+
+    with tempfile.TemporaryDirectory(prefix="celikom-lca9-tca-birth-") as tmp:
+        splits = audit.unbundle_candidate(xapk, Path(tmp))
+        if len(splits) != 16:
+            raise ValueError("TCA_SIGNED_SPLIT_COUNT_MISMATCH")
+        signer = audit.verify_split_set(splits)
+        if signer.get("verified_issuer_signed_splits") != 16:
+            raise ValueError("TCA_ISSUER_SIGNER_MISMATCH")
+        bases = []
+        for apk in splits:
+            meta = audit.package_metadata(apk)
+            if (meta.get("name") != "ru.yandex.music"
+                    or meta.get("versionCode") != "24025542"):
+                raise ValueError("TCA_ORIGINAL_PACKAGE_VERSION_MISMATCH")
+            if not meta.get("split"):
+                bases.append(apk)
+        if len(bases) != 1 or audit.sha256_file(bases[0]) != audit.PINNED_BASE_APK_SHA256:
+            raise ValueError("TCA_ORIGINAL_BASE_APK_SHA_MISMATCH")
+        direct = scan_direct_callers(splits)
+        upstream = scan_upstream_callers(splits, direct)
+        return safe_summary(direct, upstream)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--xapk", type=Path, required=True)
+    args = parser.parse_args()
+    try:
+        print(json.dumps(run(args.xapk), ensure_ascii=False, sort_keys=True))
+    except (RuntimeError, ValueError, audit.DexError, OSError,
+            zipfile.BadZipFile, KeyError, IndexError) as exc:
+        code = str(exc)
+        print(json.dumps({
+            "verdict": "SIGNED_LCA9_TCA_BIRTH_ORIGIN_INCOMPLETE",
+            "error_code": code if re.fullmatch(r"[A-Z0-9_]{1,80}", code) else None,
+            "replacement_audio_connected_or_audible": False,
+        }, sort_keys=True))
+        raise SystemExit(2)
