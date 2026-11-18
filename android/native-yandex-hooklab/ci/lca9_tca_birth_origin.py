@@ -994,6 +994,146 @@ def scan_field_writers(apks, direct):
     }
 
 
+
+def scan_field_writer_upstream_callers(apks, fields):
+    targets = fields["writer_upstream_targets"]
+    if not targets:
+        return {
+            "callsite_count": 0,
+            "caller_count": 0,
+            "origin_categories": [],
+            "constructor_to_writer_same_object_count": 0,
+            "same_reference_to_writer_count": 0,
+            "fp0_resume_track_argument_explicit_null": False,
+            "fp0_continuation_field_track_to_wrapper_candidate": False,
+            "complete": True,
+        }
+
+    caller_definitions = {}
+    caller_sites = {}
+    call_count = 0
+    dex_count = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > audit.DEX_MAX:
+                    raise ValueError("TCA_WRITER_UPSTREAM_DEX_LIMIT")
+                dex_count += 1
+                dex = audit.Dex(archive.read(entry.filename))
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    key = (method[0], method[1], method[2])
+                    sites = []
+                    for pc, op, words in audit.instructions(dex, code_off):
+                        if op in audit.INVOKES and dex.method(words[1]) in targets:
+                            sites.append((pc, dex.method(words[1])))
+                    if not sites:
+                        continue
+                    call_count += len(sites)
+                    if call_count > MAX_UPSTREAM_CALLS:
+                        raise ValueError("TCA_WRITER_UPSTREAM_CALLSITE_LIMIT")
+                    if key not in caller_definitions:
+                        if len(caller_definitions) >= MAX_UPSTREAM_CALLERS:
+                            raise ValueError("TCA_WRITER_UPSTREAM_CALLER_LIMIT")
+                        caller_definitions[key] = (dex, method, flags, code_off)
+                        caller_sites[key] = []
+                    caller_sites[key].extend(sites)
+
+    if dex_count != 6:
+        raise ValueError("TCA_WRITER_UPSTREAM_SIGNED_SIX_DEX_REQUIRED")
+
+    rows = []
+    complete = True
+    for key, (dex, method, flags, code_off) in sorted(caller_definitions.items()):
+        targets_here = {}
+        for pc, target in caller_sites[key]:
+            targets_here.setdefault(target, []).append(pc)
+        for target, pcs in sorted(targets_here.items()):
+            position = targets[target]
+            target_def = fields["writer_definitions"][target]
+            target_type = logical_parameter_type(
+                target_def[1], target_def[2], position
+            )
+            if not target_type or not target_type.startswith(("L", "[")):
+                raise ValueError("TCA_WRITER_UPSTREAM_ARGUMENT_NOT_REFERENCE")
+            try:
+                trace = trace_exact_tca_constructor_to_callsites(
+                    dex, method, flags, code_off, target, pcs, position,
+                    target_argument_type=target_type
+                )
+            except (ValueError, audit.DexError):
+                trace = None
+                complete = False
+
+            fp0_summary = None
+            if method == INITIAL:
+                resume_def = None
+                for candidate, candidate_flags, candidate_code in (
+                        audit.method_definitions_with_flags(dex)):
+                    if candidate == RESUME:
+                        resume_def = (candidate, candidate_flags, candidate_code)
+                        break
+                if resume_def is not None:
+                    try:
+                        cont = audit.trace_native_track_coroutine_continuation(
+                            dex, method, flags, code_off,
+                            resume_def[0], resume_def[1], resume_def[2]
+                        )
+                        fp0_summary = {
+                            "resume_track_argument_explicit_null":
+                                cont.get("resume_track_argument_explicit_null", False),
+                            "continuation_field_track_to_opaque_wrapper_candidate":
+                                cont.get("continuation_field_track_to_opaque_wrapper_candidate", False),
+                            "continuation_field_store_to_read_same_object_proven":
+                                cont.get("continuation_field_store_to_read_same_object_proven", False),
+                            "branch_path_predicates_evaluated":
+                                cont.get("branch_path_predicates_evaluated", False),
+                        }
+                    except (ValueError, audit.DexError):
+                        fp0_summary = {"trace_complete": False}
+
+            rows.append({
+                "origin_categories": sorted({
+                    site["origin_category"]
+                    for site in (trace or {}).get("site_results", ())
+                }),
+                "constructor_to_writer_same_object": (
+                    trace["same_constructed_tca_on_all_sites"] if trace else False
+                ),
+                "same_reference_to_writer": (
+                    trace["same_tca_reference_on_all_sites"] if trace else False
+                ),
+                "fp0_continuation_summary": fp0_summary,
+            })
+
+    fp0 = [
+        row["fp0_continuation_summary"]
+        for row in rows if row.get("fp0_continuation_summary")
+    ]
+    return {
+        "callsite_count": call_count,
+        "caller_count": len(caller_definitions),
+        "origin_categories": sorted({
+            category for row in rows for category in row["origin_categories"]
+        }),
+        "constructor_to_writer_same_object_count": sum(
+            row["constructor_to_writer_same_object"] for row in rows
+        ),
+        "same_reference_to_writer_count": sum(
+            row["same_reference_to_writer"] for row in rows
+        ),
+        "fp0_resume_track_argument_explicit_null": any(
+            row.get("resume_track_argument_explicit_null", False) for row in fp0
+        ),
+        "fp0_continuation_field_track_to_wrapper_candidate": any(
+            row.get("continuation_field_track_to_opaque_wrapper_candidate", False)
+            for row in fp0
+        ),
+        "complete": complete,
+    }
+
+
 def safe_summary(direct, upstream, fields):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
