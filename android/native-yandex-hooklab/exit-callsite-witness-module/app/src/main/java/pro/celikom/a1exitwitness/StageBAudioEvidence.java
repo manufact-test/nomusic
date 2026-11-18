@@ -83,6 +83,16 @@ final class StageBAudioEvidence {
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<TrackAlbumLink> nativeTrackAlbumLinks = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
+    // NAV36: recent original tCa constructors, weak + categorical only.
+    private static final class WrapperBirth {
+        final WeakReference<Object> wrapper;
+        final int scopeAtBirth;
+        WrapperBirth(Object wrapper,int scopeAtBirth) {
+            this.wrapper=new WeakReference<>(wrapper);
+            this.scopeAtBirth=scopeAtBirth;
+        }
+    }
+    private final ArrayList<WrapperBirth> wrapperBirths = new ArrayList<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeWrapperScopes = new ThreadLocal<>();
     private final AtomicLong nativeTrackFlowEmits = new AtomicLong();
@@ -227,7 +237,7 @@ final class StageBAudioEvidence {
             if(found!=null)return 3;
             found=candidate;
         }
-        if(found==null)return 2;
+        if(found==null)return classifyMissingWrapperBirth(wrapper);
         Object track=found.track==null?null:found.track.get();
         if(track==null)return 4;
         if(found.albumInstance==null)return 5;
@@ -327,9 +337,29 @@ final class StageBAudioEvidence {
         popScope(activeTrackScopes);
     }
 
+    // Return only what was observed in a bounded history; NOT_IN_WINDOW
+    // does not imply that an original constructor never ran.
+    private int classifyMissingWrapperBirth(Object wrapper) {
+        if(wrapper==null)return 10;
+        int result=0;
+        for(WrapperBirth birth:wrapperBirths) {
+            if(birth.wrapper.get()==wrapper) {
+                if(result!=0)return 15;
+                result=birth.scopeAtBirth;
+            }
+        }
+        return result==0?10:result;
+    }
+
     synchronized void onNativeTrackWrapperCreated(Object wrapper) {
         mark(nativeTrackWrapperConstructed);
         Object track=currentScope(activeTrackScopes);
+        if(wrapper!=null) {
+            int atBirth=track==null?11:!wasNativeTrackFlowItem(track)?12:
+                findTrackAlbum(track)==null?13:14;
+            if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
+            wrapperBirths.add(new WrapperBirth(wrapper,atBirth));
+        }
         if (track==null || wrapper==null || !wasNativeTrackFlowItem(track)) return;
         NativeTrackSourceLink link=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {

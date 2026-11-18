@@ -187,6 +187,10 @@ final class NativeRendererStreamEvidence {
     private int scopedReasonTrackWeakLost,scopedReasonAlbumUnset;
     private int scopedReasonAlbumWeakLost,scopedReasonFlowMissing;
     private int scopedReasonTrackAlbumMissing,scopedReasonUnknown;
+    // NAV36: finer reasons exclusively UNDER strict-source WRAPPER_ABSENT.
+    private int scopedBirthNotInWindow,scopedBirthNoTrackScope;
+    private int scopedBirthTrackNotInFlow,scopedBirthFlowNoAlbum;
+    private int scopedBirthFlowAlbumButLinkMissing,scopedBirthAmbiguous;
     synchronized void setScopedAlbumEvidence(ScOpedAlbumEvidence evidence) {
         scopedAlbumEvidence=evidence;
     }
@@ -656,7 +660,24 @@ final class NativeRendererStreamEvidence {
                 else {
                     scopedAlbumNoLink=inc(scopedAlbumNoLink);
                     switch(result) {
-                        case 2:scopedReasonWrapperAbsent=inc(scopedReasonWrapperAbsent);break;
+                        case 2:
+                        case 10:
+                        case 11:
+                        case 12:
+                        case 13:
+                        case 14:
+                        case 15:
+                            scopedReasonWrapperAbsent=inc(scopedReasonWrapperAbsent);
+                            switch(result) {
+                                case 10:scopedBirthNotInWindow=inc(scopedBirthNotInWindow);break;
+                                case 11:scopedBirthNoTrackScope=inc(scopedBirthNoTrackScope);break;
+                                case 12:scopedBirthTrackNotInFlow=inc(scopedBirthTrackNotInFlow);break;
+                                case 13:scopedBirthFlowNoAlbum=inc(scopedBirthFlowNoAlbum);break;
+                                case 14:scopedBirthFlowAlbumButLinkMissing=inc(scopedBirthFlowAlbumButLinkMissing);break;
+                                case 15:scopedBirthAmbiguous=inc(scopedBirthAmbiguous);break;
+                                default:scopedBirthNotInWindow=inc(scopedBirthNotInWindow);break;
+                            }
+                            break;
                         case 3:scopedReasonWrapperAmbiguous=inc(scopedReasonWrapperAmbiguous);break;
                         case 4:scopedReasonTrackWeakLost=inc(scopedReasonTrackWeakLost);break;
                         case 5:scopedReasonAlbumUnset=inc(scopedReasonAlbumUnset);break;
@@ -1314,6 +1335,12 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH",scopedAlbumMatch),
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_NO_LINK",scopedAlbumNoLink),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT",scopedReasonWrapperAbsent),
+            line("LIVE_PERIOD_SCOPED_TCA_BIRTH_NOT_IN_WINDOW",scopedBirthNotInWindow),
+            line("LIVE_PERIOD_SCOPED_TCA_BIRTH_NO_TRACK_SCOPE",scopedBirthNoTrackScope),
+            line("LIVE_PERIOD_SCOPED_TCA_BIRTH_TRACK_NOT_IN_FLOW",scopedBirthTrackNotInFlow),
+            line("LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_NO_ALBUM",scopedBirthFlowNoAlbum),
+            line("LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_LINK_MISSING",scopedBirthFlowAlbumButLinkMissing),
+            line("LIVE_PERIOD_SCOPED_TCA_BIRTH_DUPLICATE_AMBIGUOUS",scopedBirthAmbiguous),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_AMBIGUOUS",scopedReasonWrapperAmbiguous),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_TRACK_WEAK_LOST",scopedReasonTrackWeakLost),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_ALBUM_UNSET",scopedReasonAlbumUnset),

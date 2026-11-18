@@ -58,12 +58,14 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V35_SCOPED_ALBUM_NO_LINK_REASON_READONLY' in src
+          assert 'NAV_V36_TCA_CONSTRUCTOR_SCOPE_READONLY' in src
           assert 'holderSelect.getDeclaredMethod(' in src
           assert 'HOLDER_OTHER_WH6_AT_READ' in model
           assert 'LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT' in model
           assert 'LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH' in model
           assert 'LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT' in model
+          assert 'LIVE_PERIOD_SCOPED_TCA_BIRTH_NO_TRACK_SCOPE' in model
+          assert 'testNav36OriginalTcaBirthCategories' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'testNav35DifferentPlayerWrapperHasExactReason' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'classifyNativeTrackAlbumForWrapper' in Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
           assert 'HOLDER_OTHER_SELECT_SAME_AT_READ' in model
