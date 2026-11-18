@@ -513,9 +513,6 @@ def scan_direct_callers(apks):
                 dex, method, flags, code_off, TARGET, pcs,
                 TARGET_WRAPPER_POSITION, target_argument_type=WRAPPER
             )
-            typed_events, typed_error = _trace_events_for_callsites(
-                dex, method, flags, code_off, TARGET, pcs
-            )
         except (ValueError, audit.DexError):
             direct_rows.append({
                 "trace_complete": False,
@@ -528,18 +525,9 @@ def scan_direct_callers(apks):
         categories = {
             row["origin_category"] for row in direct_trace["site_results"]
         }
-        if not typed_error:
-            categories.update(
-                category
-                for event in typed_events
-                for category in wrapper_origin_categories(
-                    event, TARGET_WRAPPER_POSITION
-                )
-                if category != "NO_IDENTITY"
-            )
         categories = sorted(categories or {"NO_IDENTITY"})
         direct_rows.append({
-            "trace_complete": not bool(typed_error),
+            "trace_complete": True,
             "callsite_count": len(pcs),
             "wrapper_origin_categories": categories,
             "constructor_to_lca9_same_object": direct_trace[
@@ -638,28 +626,16 @@ def scan_upstream_callers(apks, direct):
                     dex, method, flags, code_off, target, pcs, position,
                     target_argument_type=target_type
                 )
-                typed_events, typed_error = _trace_events_for_callsites(
-                    dex, method, flags, code_off, target, pcs
-                )
             except (ValueError, audit.DexError):
                 constructor_trace = None
-                typed_events, typed_error = [], "TRACE_FAILED"
-            if typed_error:
                 trace_complete_all = False
 
             categories = set(
                 row["origin_category"]
                 for row in (constructor_trace or {}).get("site_results", ())
             )
-            if not typed_error:
-                categories.update(
-                    category
-                    for event in typed_events
-                    for category in wrapper_origin_categories(event, position)
-                    if category != "NO_IDENTITY"
-                )
             categories = sorted(categories or {
-                "TRACE_FAILED" if typed_error else "NO_IDENTITY"
+                "TRACE_FAILED" if constructor_trace is None else "NO_IDENTITY"
             })
 
             fp0_summary = None
@@ -694,7 +670,7 @@ def scan_upstream_callers(apks, direct):
                         fp0_summary = {"trace_complete": False}
 
             upstream_rows.append({
-                "trace_complete": not bool(typed_error),
+                "trace_complete": constructor_trace is not None,
                 "wrapper_origin_categories": categories,
                 "constructor_to_direct_caller_same_object": (
                     constructor_trace["same_constructed_tca_on_all_sites"]
