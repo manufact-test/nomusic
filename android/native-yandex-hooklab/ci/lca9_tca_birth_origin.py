@@ -227,6 +227,8 @@ def tca_constructor_string_origin(token: str | None) -> str:
         return "CONTINUATION_METHOD_RETURN"
     if origin.startswith("STRING_PARAMETER@"):
         return "STRING_PARAMETER"
+    if origin.startswith("STRING_CONSTANT@"):
+        return "CONSTANT"
     if origin.startswith("STRING_FIELD@"):
         return "STRING_FIELD"
     if origin.startswith("STRING_STATIC_FIELD@"):
@@ -343,6 +345,10 @@ def trace_exact_tca_constructor_to_callsites(
             clear(dest)
             if state["pending_return"]:
                 regs[dest] = state["pending_return"]
+        elif op in (0x1a, 0x1b):  # const-string / const-string-jumbo; never read value
+            dest = (words[0] >> 8) & 0xff
+            clear(dest)
+            regs[dest] = f"STRING_CONSTANT@{pc}"
         elif op == 0x22:  # new-instance
             dest = (words[0] >> 8) & 0xff
             clear(dest)
