@@ -4,9 +4,10 @@
 
 - Repository: `manufact-test/nomusic`.
 - Sole working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Branch HEAD at handoff: `9916ac13c6a862f9fbe485c281c141879164806f`.
-- Protected pre-handoff backup branch: `backup/android-a1-nav26-owner-signed-arm13-ci-green-pre-handoff-20261118`, created at the same HEAD.
-- NAV26 observer source checkpoint: `19c73c433eee23359566c3df2a3a0e5e52756b9c`.
+- Working-branch HEAD verified when this handoff was resumed: `0d70b251985b8eafd49e54a8b5f2d36d26d0c159` (documentation-only handoff commit).
+- Saved NAV26 owner-signed ARM backup ref: `backup/android-a1-nav26-owner-signed-arm13-ci-green-pre-handoff-20261118`, current ref HEAD `9916ac13c6a862f9fbe485c281c141879164806f`.
+- NAV26 observer / signed APK source checkpoint: `19c73c433eee23359566c3df2a3a0e5e52756b9c`.
+- The backup ref differs from the source checkpoint only by a 20-line JVM test-fixture hardening change and documentation; no production source changes. At handoff resumption, the working branch was three documentation-only commits ahead of this backup.
 - NAV26 JVM regression CI #44259704837: **SUCCESS**.
 - NAV26 exact signed Android13 ARM CI #44259704834: **SUCCESS**, final head `19c73c433eee23359566c3df2a3a0e5e52756b9c`.
 - Successful workflow artifact: `CELIKOM-A1-NAV26-Owner-Renderer-Comparator-20261118`, artifact ID `14406884183`. The artifact was downloaded and inspected locally; it contains the APK and README. Do not use a GitHub Actions artifact URL as the owner's download route.
