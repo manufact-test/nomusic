@@ -73,3 +73,21 @@ Private file `CELIKOM-A1-Diagnostics-1794984522604.txt` received and analyzed; n
 - Both raw comparator return outcomes are recorded neutrally as TRUE/FALSE; **no assumption that TRUE means equality** is baked into the model. On a later exact type1/state2 renderer read, a result is correlated only if holder, renderer and stream references all match. Comparator evidence is invalidated on renderer reattach and detach to prevent stale reuse.
 - JVM regression CI **#44259704837 SUCCESS** after the reattach invalidation fixture. Pre-NAV26 code backup: `backup/android-a1-nav25-owner-signed-library-verified-final-20261118`; NAV26 JVM-green code backup: `backup/android-a1-nav26-comparator-identity-guard-jvm-green-20261118` @ `19c73c433eee23359566c3df2a3a0e5e52756b9c`.
 - One-shot signed Android13 ARM NAV26 CI **#44259704834 IN PROGRESS** at the time of this update. Do not ask owner to install until this exact run succeeds, APK signer/hash are verified, and file is independently present in personal ChatGPT Library. Older NAV26 attempts at earlier SHAs are not release candidates.
+
+
+## NAV26 final signed CI and owner handoff — 18 Nov 2026
+
+The earlier NAV26 section above records the state *before* the signed ARM run completed. This section supersedes its "IN PROGRESS" status.
+
+- JVM regression CI **#44259704837 SUCCESS**.
+- Exact signed Android13 ARM one-shot CI **#44259704834 SUCCESS**, source checkpoint `19c73c433eee23359566c3df2a3a0e5e52756b9c`.
+- Artifact #14406884183 `CELIKOM-A1-NAV26-Owner-Renderer-Comparator-20261118` downloaded and inspected.
+- Owner APK: 71,475,180 bytes, SHA-256 `1acd57a45dd025e144c4aaedfb43730b819806b1150eedff69274a3ae94d23a6`.
+- Signer certificate SHA-256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, exact accepted NAV25 owner signer.
+- Embedded publisher Yandex APK SHA-256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`, unchanged.
+- Library APK was independently listed/materialized; SHA-256 matched the CI artifact byte-for-byte. Canonical Library path `/CELIKOM/Android/Native/CELIKOM-A1-NAV26-Renderer-Comparator-ReadOnly-20261118.apk`. Use the unsuffixed entry; a duplicate-safe `(1)` copy exists.
+- Owner instructions: `/CELIKOM/Android/Native/CELIKOM-A1-NAV26-Инструкция.txt`.
+- Protected pre-handoff code branch: `backup/android-a1-nav26-owner-signed-arm13-ci-green-pre-handoff-20261118` at `19c73c433eee23359566c3df2a3a0e5e52756b9c`.
+- Documentation handoff is in `docs/android/ANDROID-A1-NAV26-OWNER-COMPARATOR-REALPHONE-HANDOFF-20261118.md`; current summary in `docs/android/NEXT-CHAT.md`.
+
+**Owner next:** install NAV26 over NAV25 without uninstall/data clear; if update/signature rejected, stop and preserve NAV25. Listen normally to 2–5 tracks and export TXT. No special playback stress tests. Original Yandex playback is known-good. Parse the NAV26 comparator result categories and same-holder/renderer/stream type1/state2 read correlations. Do not claim selected-track identity or replacement based on those counters alone. `CELIKOM_REPLACEMENT` remains NOT_CONNECTED until selected Track + queue generation + album/edition identity are grounded.
