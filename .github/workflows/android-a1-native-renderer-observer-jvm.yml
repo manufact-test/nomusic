@@ -72,7 +72,8 @@ jobs:
           assert 'PrivateTcaTrackCreatorTarget' in src
           assert 'currentNativeTcaCreatorOwner()' in src
           assert 'enterNativeTcaCreatorTrackScope(' in src
-          assert 'TCA_CREATOR_WRAPPER_ALBUM_LINK' in model
+          stage=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
+          assert 'TCA_CREATOR_WRAPPER_ALBUM_LINK' in stage
           assert 'testNav37ExactTcaCreatorTrackFieldLinksWrapperAndAlbum' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'testNav37NullCreatorTrackFieldShadowsOuterTrackScope' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'classifyNativeTrackAlbumForWrapper' in Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
