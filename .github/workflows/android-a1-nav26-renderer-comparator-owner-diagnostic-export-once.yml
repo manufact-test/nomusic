@@ -1,4 +1,4 @@
-name: CELIKOM A1 NAV30 signed original period adapter alias witness ONCE
+name: CELIKOM A1 NAV31 signed exact holder selection lifecycle witness ONCE
 on:
   push:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
@@ -68,8 +68,8 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = manufact-test/nomusic
           test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
-          grep -Fq 'NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
-          grep -Fq 'NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
+          grep -Fq 'NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
+          grep -Fq 'NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
           grep -Fq 'installExact2025NativeRendererReadWitness(caller,loader)' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
           grep -Fq 'AUDIO_NATIVE_RENDERER_SUMMARY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'AUDIO_NATIVE_RENDERER_HOOK_STATUS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
@@ -95,18 +95,21 @@ jobs:
           grep -Fq 'LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'NATIVE_PERIOD_FACTORY_IN_SCOPE' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'LIVE_PERIOD_ADAPTER_UNMAPPED' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
+          grep -Fq 'holderSelect.getDeclaredMethod(' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
+          grep -Fq 'HOLDER_SELECT_ENTER_EXACT' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
+          grep -Fq 'LIVE_PERIOD_HOLDER_WRAPPER_NULL_AT_READ' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'sourceWrapper.getDeclaredMethod(' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
           grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
-          grep -Fq 'NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
+          grep -Fq 'NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
 
           grep -Fq 'BUFFER_EOS_ACCESS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'buffer.getMethod("isEndOfStream")' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
-          grep -Fq 'NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
+          grep -Fq 'NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
           grep -Fq 'ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
-          grep -Fq 'NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
+          grep -Fq 'NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY' android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py
           grep -Fq 'UNSCOPED_ATTACH_SECONDARY_MATCH' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'musicMetricaExceptions.incrementAndGet() <= 8' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
 
@@ -274,7 +277,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-NAV30-Owner-Period-Adapter-ReadOnly-20261118
+          name: CELIKOM-A1-NAV31-Owner-Holder-Select-ReadOnly-20261118
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7

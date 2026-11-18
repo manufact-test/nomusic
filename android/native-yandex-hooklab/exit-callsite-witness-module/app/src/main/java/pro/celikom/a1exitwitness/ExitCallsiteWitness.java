@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -234,6 +234,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean nav29PeriodFieldsReady;
     private boolean nav30PeriodAdapterHooked;
     private boolean nav30PeriodFactoryHooked;
+    private boolean nav31HolderSelectHooked;
 
 
     private void rememberMediaExtractorSource(Object obj) {
@@ -2463,7 +2464,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 && rendererComparatorHooked
                 && nav29TrackPlayerScopeHooked && nav29NativeSourceSetterHooked
                 && nav29PeriodFieldsReady && nav30PeriodAdapterHooked
-                && nav30PeriodFactoryHooked) return;
+                && nav30PeriodFactoryHooked
+                && nav31HolderSelectHooked) return;
         try {
             android.content.pm.PackageInfo info=caller.getPackageManager()
                 .getPackageInfo(PACKAGE,0);
@@ -2635,6 +2637,46 @@ public final class ExitCallsiteWitness extends XposedModule {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration(
                     "LIVE_PERIOD_ORIGINAL_SOURCE",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_PERIOD_ORIGINAL_SOURCE","NO_HOOK");
+            }
+        }
+        // NAV31: observe ONLY the issuer-signed Lxh6.if field-read
+        // boundary, exactly PC61 proven in the existing signed 2025 DEX
+        // audit. The source-bearing holder Object field may have been
+        // cleared by the time b.g() samples live started audio.
+        // Before/after bins are finite and never authorize replacement.
+        if (!nav31HolderSelectHooked && nav29PeriodFieldsReady) {
+            try {
+                Class<?> holderSelect=Class.forName("xh6",false,loader);
+                Class<?> periodSelector=Class.forName("RFa",false,loader);
+                Method select=holderSelect.getDeclaredMethod(
+                    "if",periodSelector,long.class,boolean.class,boolean[].class);
+                if(select.getReturnType()!=long.class)throw new NoSuchMethodException();
+                select.setAccessible(true);
+                hook(select).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object originalHolder=chain.getThisObject();
+                        try {
+                            NATIVE_RENDERER_EVIDENCE.onExactHolderSelectPhase(
+                                originalHolder,false);
+                        } catch(Throwable ignored) { }
+                        try { return chain.proceed(); } // original once, unchanged
+                        finally {
+                            try {
+                                NATIVE_RENDERER_EVIDENCE.onExactHolderSelectPhase(
+                                    originalHolder,true);
+                            } catch(Throwable ignored) { }
+                        }
+                    });
+                nav31HolderSelectHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                    "HOLDER_SELECT_PHASE",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK",
+                    "HOLDER_SELECT_PHASE","REGISTERED");
+            } catch(Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                    "HOLDER_SELECT_PHASE",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK",
+                    "HOLDER_SELECT_PHASE","NO_HOOK");
             }
         }
         if (!nav29TrackPlayerScopeHooked) {
