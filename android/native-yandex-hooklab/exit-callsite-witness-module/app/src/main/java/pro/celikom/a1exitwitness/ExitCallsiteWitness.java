@@ -199,6 +199,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean nativeTrackRequestHookReady;
     private boolean nativeTrackContinuationHookReady;
     private boolean nativeTrackWrapperHookReady;
+    private boolean nativeTcaCreatorHookAttempted;
+    private boolean nativeTcaCreatorHookReady;
+    private volatile java.lang.reflect.Field nativeTcaCreatorTrackField;
     private boolean nativeMainContinuationHookReady;
     private boolean nativeMainSourceHookReady;
     private final java.util.concurrent.atomic.AtomicInteger mediaDataReadCalls =
@@ -3277,6 +3280,121 @@ public final class ExitCallsiteWitness extends XposedModule {
      * the main LtCa -> Exo descriptor path. Values and fields are never read.
      * Every intercepted vendor method is called exactly once, unchanged.
      */
+    private static String dexDescriptorForClass(Class<?> type) {
+        if(type.isArray())return type.getName().replace('.','/');
+        if(type==void.class)return "V";
+        if(type==boolean.class)return "Z";
+        if(type==byte.class)return "B";
+        if(type==char.class)return "C";
+        if(type==short.class)return "S";
+        if(type==int.class)return "I";
+        if(type==long.class)return "J";
+        if(type==float.class)return "F";
+        if(type==double.class)return "D";
+        return "L"+type.getName().replace('.','/')+";";
+    }
+
+    private static String dexDescriptorForMethod(java.lang.reflect.Method method) {
+        StringBuilder out=new StringBuilder("(");
+        for(Class<?> parameter:method.getParameterTypes())
+            out.append(dexDescriptorForClass(parameter));
+        return out.append(')').append(dexDescriptorForClass(method.getReturnType())).toString();
+    }
+
+    private static String binaryNameForDexClass(String descriptor) {
+        if(descriptor==null || !descriptor.matches("L[A-Za-z0-9_/$]+;"))
+            throw new IllegalArgumentException("PRIVATE_CREATOR_CLASS_DESCRIPTOR");
+        return descriptor.substring(1,descriptor.length()-1).replace('/','.');
+    }
+
+    private void installNativeTcaCreatorScopeHook(ClassLoader loader) {
+        if(nativeTcaCreatorHookAttempted)return;
+        nativeTcaCreatorHookAttempted=true;
+        if(loader==null)return;
+        try {
+            Class<?> target=Class.forName(
+                "pro.celikom.a1exitwitness.PrivateTcaTrackCreatorTarget",
+                false,ExitCallsiteWitness.class.getClassLoader());
+            java.lang.reflect.Method ownerGetter=target.getDeclaredMethod("creatorOwnerDescriptor");
+            java.lang.reflect.Method nameGetter=target.getDeclaredMethod("creatorMethodName");
+            java.lang.reflect.Method descriptorGetter=target.getDeclaredMethod("creatorMethodDescriptor");
+            java.lang.reflect.Method fieldOwnerGetter=target.getDeclaredMethod("trackFieldOwnerDescriptor");
+            java.lang.reflect.Method fieldNameGetter=target.getDeclaredMethod("trackFieldName");
+            java.lang.reflect.Method fieldTypeGetter=target.getDeclaredMethod("trackFieldDescriptor");
+            java.lang.reflect.Method argIndexGetter=target.getDeclaredMethod("ownerArgumentIndex");
+            ownerGetter.setAccessible(true);
+            nameGetter.setAccessible(true);
+            descriptorGetter.setAccessible(true);
+            fieldOwnerGetter.setAccessible(true);
+            fieldNameGetter.setAccessible(true);
+            fieldTypeGetter.setAccessible(true);
+            argIndexGetter.setAccessible(true);
+
+            String creatorOwnerDescriptor=(String)ownerGetter.invoke(null);
+            String creatorName=(String)nameGetter.invoke(null);
+            String creatorDescriptor=(String)descriptorGetter.invoke(null);
+            String trackFieldOwnerDescriptor=(String)fieldOwnerGetter.invoke(null);
+            String trackFieldName=(String)fieldNameGetter.invoke(null);
+            String trackFieldDescriptor=(String)fieldTypeGetter.invoke(null);
+            int ownerArgumentIndex=((Integer)argIndexGetter.invoke(null)).intValue();
+
+            Class<?> creatorOwner=Class.forName(
+                binaryNameForDexClass(creatorOwnerDescriptor),false,loader);
+            Class<?> trackFieldOwner=Class.forName(
+                binaryNameForDexClass(trackFieldOwnerDescriptor),false,loader);
+            if(!creatorName.matches("[A-Za-z_$][A-Za-z0-9_$]{0,180}")
+                    || !trackFieldName.matches("[A-Za-z_$][A-Za-z0-9_$]{0,180}"))
+                throw new NoSuchMethodException("PRIVATE_CREATOR_MEMBER_NAME");
+            java.lang.reflect.Field trackField=trackFieldOwner.getDeclaredField(trackFieldName);
+            if(java.lang.reflect.Modifier.isStatic(trackField.getModifiers())
+                    || !dexDescriptorForClass(trackField.getType()).equals(trackFieldDescriptor))
+                throw new NoSuchFieldException("PRIVATE_CREATOR_TRACK_FIELD_SHAPE");
+            trackField.setAccessible(true);
+
+            java.lang.reflect.Method creator=null;
+            for(java.lang.reflect.Method candidate:creatorOwner.getDeclaredMethods()) {
+                if(!candidate.getName().equals(creatorName)
+                        || !dexDescriptorForMethod(candidate).equals(creatorDescriptor))
+                    continue;
+                if(creator!=null)throw new NoSuchMethodException("PRIVATE_CREATOR_METHOD_AMBIGUOUS");
+                creator=candidate;
+            }
+            if(creator==null || java.lang.reflect.Modifier.isStatic(creator.getModifiers())
+                    || java.lang.reflect.Modifier.isPrivate(creator.getModifiers()))
+                throw new NoSuchMethodException("PRIVATE_CREATOR_METHOD_SHAPE");
+            Class<?>[] parameters=creator.getParameterTypes();
+            if(ownerArgumentIndex<0 || ownerArgumentIndex>=parameters.length
+                    || parameters[ownerArgumentIndex]!=trackFieldOwner)
+                throw new NoSuchMethodException("PRIVATE_CREATOR_OWNER_ARGUMENT_SHAPE");
+            creator.setAccessible(true);
+            nativeTcaCreatorTrackField=trackField;
+            final int ownerArg=ownerArgumentIndex;
+            hook(creator).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object ownerArgument=null;
+                    try { ownerArgument=chain.getArg(ownerArg); }
+                    catch(Throwable ignored) { }
+                    boolean entered=false;
+                    try {
+                        STAGE_B_AUDIO.enterNativeTcaCreatorOwner(ownerArgument);
+                        entered=true;
+                    } catch(Throwable ignored) { }
+                    try { return chain.proceed(); }
+                    finally {
+                        if(entered) {
+                            try { STAGE_B_AUDIO.exitNativeTcaCreatorOwner(); }
+                            catch(Throwable ignored) { }
+                        }
+                    }
+                });
+            nativeTcaCreatorHookReady=true;
+            emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","REGISTERED");
+        } catch(Throwable ignored) {
+            nativeTcaCreatorTrackField=null;
+            emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","NO_HOOK");
+        }
+    }
+
     private synchronized void installNativeTrackSourceContinuityWitness(ClassLoader loader) {
         if (loader==null || !PACKAGE.equals(Application.getProcessName())) return;
         if (!nativeTrackAlbumHookAttempted) {
@@ -3421,6 +3539,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                 emit("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST","NO_HOOK");
             }
         }
+        installNativeTcaCreatorScopeHook(loader);
         if (!nativeTrackWrapperHookReady) {
             try {
                 Class<?> wrapper=Class.forName("tCa",false,loader);
@@ -3429,10 +3548,43 @@ public final class ExitCallsiteWitness extends XposedModule {
                 constructor.setAccessible(true);
                 hook(constructor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
-                        Object result=chain.proceed();
-                        try { STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject()); }
-                        catch (Throwable ignored) { }
-                        return result;
+                        boolean creatorScope=STAGE_B_AUDIO.hasNativeTcaCreatorOwnerScope();
+                        boolean creatorTrackScope=false;
+                        if(creatorScope) {
+                            Object track=null;
+                            int fieldStatus=3;
+                            try {
+                                Object ownerArgument=STAGE_B_AUDIO.currentNativeTcaCreatorOwner();
+                                java.lang.reflect.Field field=nativeTcaCreatorTrackField;
+                                if(ownerArgument!=null && field!=null
+                                        && field.getDeclaringClass().isInstance(ownerArgument)) {
+                                    track=field.get(ownerArgument);
+                                    fieldStatus=track==null?2:
+                                        (field.getType().isInstance(track)?1:3);
+                                    if(fieldStatus!=1)track=null;
+                                } else if(ownerArgument==null) {
+                                    fieldStatus=2;
+                                }
+                            } catch(Throwable ignored) {
+                                track=null;
+                                fieldStatus=3;
+                            }
+                            try {
+                                STAGE_B_AUDIO.enterNativeTcaCreatorTrackScope(track,fieldStatus);
+                                creatorTrackScope=true;
+                            } catch(Throwable ignored) { }
+                        }
+                        try {
+                            Object result=chain.proceed();
+                            try { STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject()); }
+                            catch (Throwable ignored) { }
+                            return result;
+                        } finally {
+                            if(creatorTrackScope) {
+                                try { STAGE_B_AUDIO.exitNativeTcaCreatorTrackScope(); }
+                                catch(Throwable ignored) { }
+                            }
+                        }
                     });
                 nativeTrackWrapperHookReady=true;
                 emit("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER","REGISTERED");
