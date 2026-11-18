@@ -95,6 +95,9 @@ final class StageBAudioEvidence {
     private final ArrayList<WrapperBirth> wrapperBirths = new ArrayList<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeWrapperScopes = new ThreadLocal<>();
+    // NAV37: exact signed tCa creator method -> owner parameter -> Track field scope.
+    private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTcaCreatorOwners =
+        new ThreadLocal<>();
     private final AtomicLong nativeTrackFlowEmits = new AtomicLong();
     private final AtomicLong nativeTrackAlbumConstructorLinks = new AtomicLong();
     private final AtomicLong nativeTrackAlbumFlowLinks = new AtomicLong();
@@ -109,6 +112,17 @@ final class StageBAudioEvidence {
     private final AtomicLong flowTrackSourceSameObject = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
     private final AtomicLong nativeTrackWrapperConstructed = new AtomicLong();
+    private final AtomicLong tcaCreatorOwnerEnter = new AtomicLong();
+    private final AtomicLong tcaCreatorOwnerNull = new AtomicLong();
+    private final AtomicLong tcaCreatorTrackFieldRead = new AtomicLong();
+    private final AtomicLong tcaCreatorTrackFieldNull = new AtomicLong();
+    private final AtomicLong tcaCreatorTrackFieldFailed = new AtomicLong();
+    private final AtomicLong tcaCreatorWrapperConstructed = new AtomicLong();
+    private final AtomicLong tcaCreatorWrapperNoTrack = new AtomicLong();
+    private final AtomicLong tcaCreatorWrapperNotFlow = new AtomicLong();
+    private final AtomicLong tcaCreatorWrapperFlowMatch = new AtomicLong();
+    private final AtomicLong tcaCreatorWrapperNoAlbum = new AtomicLong();
+    private final AtomicLong tcaCreatorWrapperAlbumLink = new AtomicLong();
     private final AtomicLong nativeMainSourceEnters = new AtomicLong();
     private final AtomicLong nativeTrackContinuationConstructed = new AtomicLong();
     private final AtomicLong trackContinuationRecovered = new AtomicLong();
@@ -168,6 +182,43 @@ final class StageBAudioEvidence {
         if (stack == null) return;
         if (!stack.isEmpty()) stack.remove(stack.size()-1);
         if (stack.isEmpty()) local.remove();
+    }
+
+    private static boolean hasScope(
+            ThreadLocal<ArrayList<WeakReference<Object>>> local) {
+        ArrayList<WeakReference<Object>> stack=local.get();
+        return stack!=null && !stack.isEmpty();
+    }
+
+    void enterNativeTcaCreatorOwner(Object owner) {
+        pushScope(activeTcaCreatorOwners,owner);
+        mark(tcaCreatorOwnerEnter);
+        if(owner==null)mark(tcaCreatorOwnerNull);
+    }
+
+    boolean hasNativeTcaCreatorOwnerScope() {
+        return hasScope(activeTcaCreatorOwners);
+    }
+
+    Object currentNativeTcaCreatorOwner() {
+        return currentScope(activeTcaCreatorOwners);
+    }
+
+    void exitNativeTcaCreatorOwner() {
+        popScope(activeTcaCreatorOwners);
+    }
+
+    // status: 1 exact Track-typed field read, 2 null field/owner, 3 failed or
+    // mismatched field. A null frame deliberately shadows any outer Gp0 scope.
+    void enterNativeTcaCreatorTrackScope(Object track,int status) {
+        pushScope(activeTrackScopes,track);
+        if(status==1 && track!=null)mark(tcaCreatorTrackFieldRead);
+        else if(status==2 || track==null)mark(tcaCreatorTrackFieldNull);
+        else mark(tcaCreatorTrackFieldFailed);
+    }
+
+    void exitNativeTcaCreatorTrackScope() {
+        popScope(activeTrackScopes);
     }
 
     private Object findTrackAlbum(Object track) {
@@ -353,7 +404,18 @@ final class StageBAudioEvidence {
 
     synchronized void onNativeTrackWrapperCreated(Object wrapper) {
         mark(nativeTrackWrapperConstructed);
+        boolean fromExactTcaCreator=hasNativeTcaCreatorOwnerScope();
+        if(fromExactTcaCreator)mark(tcaCreatorWrapperConstructed);
         Object track=currentScope(activeTrackScopes);
+        if(fromExactTcaCreator) {
+            if(track==null)mark(tcaCreatorWrapperNoTrack);
+            else if(!wasNativeTrackFlowItem(track))mark(tcaCreatorWrapperNotFlow);
+            else {
+                mark(tcaCreatorWrapperFlowMatch);
+                if(findTrackAlbum(track)==null)mark(tcaCreatorWrapperNoAlbum);
+                else mark(tcaCreatorWrapperAlbumLink);
+            }
+        }
         if(wrapper!=null) {
             int atBirth=track==null?11:!wasNativeTrackFlowItem(track)?12:
                 findTrackAlbum(track)==null?13:14;
@@ -808,6 +870,17 @@ final class StageBAudioEvidence {
             event("TRACK_SOURCE_OPEN_LINK", trackSourceOpenLinks),
             event("TRACK_SOURCE_READ_LINK", trackSourceReadLinks),
             event("NATIVE_TRACK_WRAPPER_CONSTRUCTED", nativeTrackWrapperConstructed),
+            event("TCA_CREATOR_OWNER_ENTER", tcaCreatorOwnerEnter),
+            event("TCA_CREATOR_OWNER_NULL", tcaCreatorOwnerNull),
+            event("TCA_CREATOR_TRACK_FIELD_READ", tcaCreatorTrackFieldRead),
+            event("TCA_CREATOR_TRACK_FIELD_NULL", tcaCreatorTrackFieldNull),
+            event("TCA_CREATOR_TRACK_FIELD_FAILED", tcaCreatorTrackFieldFailed),
+            event("TCA_CREATOR_WRAPPER_CONSTRUCTED", tcaCreatorWrapperConstructed),
+            event("TCA_CREATOR_WRAPPER_NO_TRACK", tcaCreatorWrapperNoTrack),
+            event("TCA_CREATOR_WRAPPER_NOT_FLOW", tcaCreatorWrapperNotFlow),
+            event("TCA_CREATOR_WRAPPER_FLOW_MATCH", tcaCreatorWrapperFlowMatch),
+            event("TCA_CREATOR_WRAPPER_NO_ALBUM", tcaCreatorWrapperNoAlbum),
+            event("TCA_CREATOR_WRAPPER_ALBUM_LINK", tcaCreatorWrapperAlbumLink),
             event("NATIVE_MAIN_SOURCE_ENTER", nativeMainSourceEnters),
             event("NATIVE_TRACK_CONTINUATION_CONSTRUCTED", nativeTrackContinuationConstructed),
             event("TRACK_CONTINUATION_RECOVERED", trackContinuationRecovered),
