@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/android-a1-nav26-renderer-comparator-owner-diagnostic-export-once.yml'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
+      - 'android/native-yandex-hooklab/ci/a1_private_live_queue_slot_target.py'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
