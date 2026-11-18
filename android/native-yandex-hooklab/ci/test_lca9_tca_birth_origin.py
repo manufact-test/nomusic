@@ -8,7 +8,11 @@ from lca9_tca_birth_origin import (
     tca_origin_category,
     wrapper_origin_categories,
     _parameter_register_from_tca_token,
+    trace_exact_tca_constructor_to_callsites,
+    TARGET,
+    WRAPPER_CTOR,
 )
+import lca9_tca_birth_origin as tca_audit
 from audit_native_selected_item_handoff import ACC_STATIC
 
 
@@ -74,6 +78,95 @@ class Lca9TcaBirthOriginTests(unittest.TestCase):
             ("NO_IDENTITY",),
         )
 
+
+
+    def test_object_parameter_cast_preserves_exact_reference_to_lca9(self):
+        from unittest.mock import patch
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 5, 102: 1}[offset]
+            def descriptor(self, index):
+                return "LtCa;"
+            def method(self, index):
+                return TARGET
+
+        method = ("LCaller;", "call", "(Ljava/lang/Object;)V")
+        instructions = [
+            (0, 0x1f, [0x041f, 1]),  # check-cast v4, tCa
+            (1, 0x71, [0x0071, 2]),  # invoke-static LcA9.extends(..., v4, ...)
+            (2, 0x0e, [0x000e]),     # return-void
+        ]
+        cfg = {
+            "entry": 0,
+            "by_pc": {pc: (op, words) for pc, op, words in instructions},
+            "successors": {0: (1,), 1: (2,), 2: ()},
+            "instructions": instructions,
+        }
+        target_registers = [0, 1, 4, 2, 3, 5, 6, 7, 8, 9, 10, 11]
+        with patch.object(tca_audit.audit, "build_dex_control_flow", return_value=cfg), \
+             patch.object(tca_audit.audit, "invoke_registers",
+                          return_value=target_registers):
+            trace = trace_exact_tca_constructor_to_callsites(
+                FakeDex(), method, ACC_STATIC, 100, TARGET, [1], 2,
+                target_argument_type="LtCa;",
+            )
+        self.assertTrue(trace["same_tca_reference_on_all_sites"])
+        self.assertFalse(trace["same_constructed_tca_on_all_sites"])
+        self.assertEqual(
+            trace["site_results"][0]["origin_category"],
+            "CAST_FROM_REFERENCE_PARAMETER",
+        )
+        self.assertEqual(
+            trace["site_results"][0]["origin_parameter_position"], 0
+        )
+
+    def test_unique_tca_constructor_instance_reaches_lca9(self):
+        from unittest.mock import patch
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 3, 102: 0}[offset]
+            def descriptor(self, index):
+                return "LtCa;"
+            def method(self, index):
+                return {
+                    2: WRAPPER_CTOR,
+                    3: TARGET,
+                }[index]
+
+        method = ("LCaller;", "call", "()V")
+        instructions = [
+            (0, 0x22, [0x0022, 1]),  # new-instance v0, tCa
+            (1, 0x70, [0x0170, 2]),  # invoke-direct {v0,v1}, tCa.<init>
+            (2, 0x71, [0x0071, 3]),  # invoke-static LcA9.extends(..., v0, ...)
+            (3, 0x0e, [0x000e]),     # return-void
+        ]
+        cfg = {
+            "entry": 0,
+            "by_pc": {pc: (op, words) for pc, op, words in instructions},
+            "successors": {0: (1,), 1: (2,), 2: (3,), 3: ()},
+            "instructions": instructions,
+        }
+        def invoke_registers(op, words):
+            if words[1] == 2:
+                return [0, 1]
+            return [1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        with patch.object(tca_audit.audit, "build_dex_control_flow", return_value=cfg), \
+             patch.object(tca_audit.audit, "invoke_registers",
+                          side_effect=invoke_registers):
+            trace = trace_exact_tca_constructor_to_callsites(
+                FakeDex(), method, ACC_STATIC, 100, TARGET, [2], 2,
+                target_argument_type="LtCa;",
+            )
+        self.assertTrue(trace["same_constructed_tca_on_all_sites"])
+        self.assertTrue(trace["same_tca_reference_on_all_sites"])
+        self.assertEqual(
+            trace["site_results"][0]["origin_category"],
+            "CONSTRUCTED_IN_SAME_METHOD",
+        )
+        self.assertEqual(trace["wrapper_allocation_count"], 1)
+        self.assertEqual(trace["wrapper_constructor_call_count"], 1)
 
     def test_casted_opaque_reference_origin_categories(self):
         self.assertEqual(
