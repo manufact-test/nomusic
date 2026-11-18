@@ -4,6 +4,8 @@
 
 **Status:** NAV37 diagnostic candidate is implemented and CI-green. Owner-phone APK export and real-phone NAV37 diagnostic are still pending. This is not a product release and does not connect music replacement.
 
+**Current branch HEAD:** `6f329e05c2ebe875431ca213331e4a236f9abf56` (documentation-only commit); runtime/package code checkpoint: `b4e9e9ee42c63efebe929cb415999e0cfe5dd861`.
+
 ## Why this is the next minimal step
 
 The real NAV36 owner-phone diagnostic established:

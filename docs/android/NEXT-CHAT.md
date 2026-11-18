@@ -3,6 +3,7 @@
 **Project:** CELIKOM Android A1 only, `manufact-test/nomusic`. **Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. No project restart, no architecture change, no Windows/extension work. Original signed Yandex Music **2025.10.4 #120.1gpr** remains unchanged. Original playback is known-good; do not invent seek/pause/Bluetooth faults or modify Player/audio.
 
 **Current code checkpoint:** `b4e9e9ee42c63efebe929cb415999e0cfe5dd861`.
+**Current branch HEAD (documentation-only commit):** `6f329e05c2ebe875431ca213331e4a236f9abf56`; runtime/package code remains at the checkpoint above.
 **NAV36 protected code:** `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`.
 **NAV36 rollback:** `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`.
 **NAV37 pre-package source backup:** `backup/android-a1-nav37-exact-tca-creator-track-field-pre-owner-package-20261118` @ `099378e53412d09d20c0d3c9f01aaccffeafbdcc`.

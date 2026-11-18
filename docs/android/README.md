@@ -18,6 +18,7 @@
 - Sole working branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
 - NAV36 signed code: `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`; exact NAV36 backup retained.
 - NAV37 CI-green checkpoint: `b4e9e9ee42c63efebe929cb415999e0cfe5dd861`; backup branch `backup/android-a1-nav37-creator-track-field-arm13-ci-green-20261118`.
+- Current branch HEAD after documentation-only handoff: `6f329e05c2ebe875431ca213331e4a236f9abf56`.
 - Original publisher Yandex `2025.10.4 #120.1gpr` remains unchanged.
 - `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`.
 
