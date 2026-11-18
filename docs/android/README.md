@@ -14,7 +14,7 @@
 
 ## Earlier proven static source / Player research
 
-- [ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md](ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md) — signed `LcA9.extends(...LtCa...)` original wrapper → `LiLb` → original `LA14.e` source setter identity. **Starting point for narrow upstream tCa creation/handoff static audit; DO NOT redo this existing proof.**
+- [ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md](ANDROID-A1-EXACT-SOURCE-PLAYER-HANDOFF-20261117.md) — signed `LcA9.extends(...LtCa...)` original wrapper → `LiLb` → original `LA14.e` source setter identity. The upstream tCa birth/callsite follow-up is now complete; see [the static audit result](ANDROID-A1-TCA-BIRTH-STATIC-CALLSITE-20261118.md), and do not repeat the same scan.
 - [ANDROID-A1-EXOPLAYER-ENGINE-PERIOD-HOLDER-20261117.md](ANDROID-A1-EXOPLAYER-ENGINE-PERIOD-HOLDER-20261117.md) — signed native Lo96 period → engine holder identity.
 - [ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md](ANDROID-A1-EXACT-SOURCE-MEDIAPERIOD-IDENTITY-20261117.md) — exact source-to-period identity.
 - [ANDROID-A1-NAV33-OWNER-PHONE-SOURCE-MATCH-NAV34-TRACK-ALBUM-WRAPPER-20261118.md](ANDROID-A1-NAV33-OWNER-PHONE-SOURCE-MATCH-NAV34-TRACK-ALBUM-WRAPPER-20261118.md) — prior source match and NAV34 design.
