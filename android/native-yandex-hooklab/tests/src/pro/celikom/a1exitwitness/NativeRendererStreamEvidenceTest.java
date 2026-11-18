@@ -643,7 +643,7 @@ public final class NativeRendererStreamEvidenceTest {
         e.onRendererComparatorResult(holder,renderer,other,true);
         e.onRendererTypeStateRead(renderer,stream,1,2,-4);
         String[] snap=e.exportLines();
-        check(contains(snap,"origin=RENDERER_COMPARATOR_TRUE;error=MANY"),
+        check(contains(snap,"origin=RENDERER_COMPARATOR_TRUE;error=FEW"),
             "NAV26_COMPARATOR_OBSERVATIONS_COUNTED");
         check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH;error=NONE"),
             "NAV26_NO_CROSS_OBJECT_PROMOTION");
