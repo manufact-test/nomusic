@@ -1,4 +1,27 @@
-# CURRENT — NAV33 OWNER PHONE SOURCE MATCH; NAV34 TRACK/ALBUM WRAPPER READONLY CI PENDING (18 NOV 2026)
+# CURRENT — NAV34 SIGNED AND BYTE-VERIFIED LIBRARY; REAL NAV34 OWNER PHONE TXT NEXT (18 NOV 2026)
+
+**SCOPE:** only CELIKOM Android A1, `manufact-test/nomusic`, sole working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; signed original Yandex Music 2025.10.4 unchanged. No Windows/backend, architecture or original playback changes. NEVER uninstall or clear user data for upgrades. CELIKOM audio replacement remains `NOT_CONNECTED`, identity `STRUCTURAL_ONLY`. Do not invent playback, pause, Next, Bluetooth or VPN defects without owner report. No EOS/comparator repeat. Never provide GitHub Actions/sandbox owner APK downloads: only verified personal ChatGPT Library files.
+
+**NAV33 owner real-phone diagnostics RECEIVED** (private `CELIKOM-A1-Diagnostics-1795003154029.txt`, 97,897 bytes / 1,365 lines, NEVER commit raw). ACTIVE at capture/export `NAV_V33_DIRECT_LO96_SOURCE_READONLY` (earlier NAV32 log historical). Strict original live e.h.SLOT_B holder→type1/state2 renderer/stream `MATCH=MANY`; exact direct Lo96 `SOURCE_PRESENT=MANY`, `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED=MANY`/UNAVAILABLE=NONE, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY`/OTHER/NO_LINK=NONE. Same original Sl6 Java source from live playback and earlier original scoped tCa Player setter; source matches are aggregate and do NOT prove selected Track/Album/edition/queue generation. Stage B Track→Album constructor=MANY, FLOW=FEW, wrapper=MANY, descriptor/factory/source/open/read album link NONE. Exo I/O failure NONE, Metrica MUSIC_APP exception summary NONE. No owner playback defect reported.
+
+**NAV34 EXACT signed diagnostic source:** `50c458e60fc365da3fef10bfb295cc7dbe4e4613`; build marker `NAV_V34_SCOPED_TRACK_ALBUM_SOURCE_READONLY`; only bound new read-only Stage B weak-reference observation. At strict live SLOT_B started original source ref `==` unique unconflicted scoped Player source, same historical tCa wrapper is checked against actual Track Flow→Track/Album→tCa chain. New finite `LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH/NO_LINK/CONFLICT`; null, wrong source, ambiguous alias, changed live queue fail closed. Do not elevate positive MATCH to selected Track+Album/edition/generation, PCM or permission to substitute. Original Yandex unchanged.
+
+**CI VERIFIED exact NAV34 source:** JVM #44300868890 SUCCESS; publisher-first signed original Android13 ARM13 #44300869042 SUCCESS. Native verdict PASS_NOT_AUDIO is NOT phone playback or replacement proof. Owner signed APK `CELIKOM-A1-NAV34-Scoped-Track-Album-ReadOnly-20261118.apk`, 71,487,468 bytes, SHA256 `19cdbc2f8958b9f6f78178658b6f40b573bad88309e5261c72a72d4f33e7f773` independently matches signed CI ZIP. v2+v3 owner cert DER SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` unchanged NAV33, embedded publisher original APK SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` unchanged. Nested own module DEX has exact NAV34 marker plus all three new bins.
+
+**VERIFIED PERSONAL ChatGPT LIBRARY**, both uploaded, listed, materialized back and SHA256 byte-identical:
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV34-Scoped-Track-Album-ReadOnly-20261118.apk` — `libfile_63fe8367f830819198d5497da57acf16`, hash above.
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV34-Инструкция.txt` — `libfile_cf82c99b57f88191b9462e3c24779cef`; 2,937 bytes, SHA256 `18aae584282cc5a8e606ef23c454f7739c95a1acd8b334a18368e34fd7912321`.
+Older signed NAV33/32 Library files preserved.
+
+**Backup branches:** before NAV34 `backup/android-a1-nav33-owner-phone-source-match-pre-nav34-20261118` @ `63dbc56cae3c827fc538c2fbff525db7c15abc7c`, exact owner-signed NAV34 code `backup/android-a1-nav34-scoped-track-album-owner-signed-arm13-ci-green-20261118` @ `50c458e60fc365da3fef10bfb295cc7dbe4e4613`. Later working-branch HEAD after signed commit may be DOCS-ONLY, compare before assuming code changed.
+
+**ONLY NEXT PHONE ACTION:** Owner installs NAV34 personal Library APK IN PLACE over NAV33 without uninstall/data/cache/account wipe; if Android refuses stop and preserve NAV33. Listen to 2–5 normal tracks, export fresh PRIVATE TXT. Check ACTIVE NAV34 marker, source resolved/matched, current SLOT_B, the three new scoped wrapper+Flow Album categories, preexisting Stage B constructor/Flow/wrapper bins and `IDENTITY_STATUS`/`CELIKOM_REPLACEMENT`. No NAV35 until NAV34 owner phone TXT. Detailed analysis and sign-off: [NAV33 owner proof + NAV34 release](ANDROID-A1-NAV33-OWNER-PHONE-SOURCE-MATCH-NAV34-TRACK-ALBUM-WRAPPER-20261118.md).
+
+---
+
+# ARCHIVED — previous NAV33 phone / NAV34 CI-pending handoff (superseded by CURRENT above)
+
+
 
 **NAV32 actual owner phone:** private `CELIKOM-A1-Diagnostics-1795000688077.txt`, 116,173 bytes / 1,643 lines, never commit. New NAV32 marker ACTIVE at capture/export, NAV31 historical. `HOLDER_OTHER_WH6_SELECT_ENTER/EXIT/ATTACH/AT_READ=MANY`; `HOLDER_OTHER_LO96_AT_READ=MANY`; both `HOLDER_OTHER_SELECT_SAME_AT_READ=MANY` and `HOLDER_OTHER_ATTACH_SAME_AT_READ=MANY`, corresponding DIFFERENT/WEAK_LOST/NO_HISTORY=NONE. Real live SLOT_B+renderer/stream read MATCH=MANY. **The holder contains exact direct Lo96 original MediaPeriod, same Java reference through select→attach→started audio read.** Previous non-Lup1 "MISSING" was a diagnostic early-return, not proof of missing source. `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED=NONE` in NAV32 must not be interpreted as null. Track→Album descriptor/source/edition/queue-generation identity still not established, replacement NOT_CONNECTED.
 
