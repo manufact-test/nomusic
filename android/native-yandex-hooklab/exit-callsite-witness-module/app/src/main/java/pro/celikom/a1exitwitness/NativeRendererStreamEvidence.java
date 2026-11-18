@@ -59,12 +59,27 @@ final class NativeRendererStreamEvidence {
             this.stream=new WeakReference<>(stream);
         }
     }
+    // Result of the exact signed LmQ8.try(holder, renderer) comparator.
+    // Weak identity only; never exported. Stream is captured through the
+    // already-proven renderer getter so reattach/reuse cannot inherit a stale
+    // true result for a different stream.
+    private static final class ComparatorLink {
+        final WeakReference<Object> holder, renderer, stream;
+        final boolean matched;
+        ComparatorLink(Object holder,Object renderer,Object stream,boolean matched) {
+            this.holder=new WeakReference<>(holder);
+            this.renderer=new WeakReference<>(renderer);
+            this.stream=new WeakReference<>(stream);
+            this.matched=matched;
+        }
+    }
 
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
     private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
     private final ThreadLocal<EngineFrame> inEngineEnable = new ThreadLocal<>();
     private Field engineHolderStreamArrayField;
     private final ArrayList<Link> engineHolderLinks = new ArrayList<>();
+    private final ArrayList<ComparatorLink> comparatorLinks = new ArrayList<>();
     private final ArrayList<Link> links = new ArrayList<>();
     // Unscoped renderer/stream observations are separate: never infer holder identity.
     private final ArrayList<Link> unscopedLinks = new ArrayList<>();
@@ -76,7 +91,10 @@ final class NativeRendererStreamEvidence {
     // NAV24 additional *original method* values: renderer kind 1 and state 2
     // observed on the exact same strict engine-holder-to-read link.
     // Numbers alone do not attest audible PCM, selected track or edition.
-    private int typeStateAccessHook, bufferEosAccessHook, engineRendererType1, engineRendererTypeOther;
+    private int typeStateAccessHook, bufferEosAccessHook, rendererComparatorHook;
+    private int rendererComparatorTrue, rendererComparatorFalse, rendererComparatorUnavailable;
+    private int engineComparatorType1State2Read, engineComparatorType1State2ReadMinus4;
+    private int engineRendererType1, engineRendererTypeOther;
     private int engineType1State2, engineType1StateOther, engineTypeStateUnavailable;
     private int engineAudioState2Minus4, engineAudioState2Minus5;
     private int engineAudioState2Minus3, engineAudioState2Other;
@@ -192,6 +210,7 @@ final class NativeRendererStreamEvidence {
             case "ENGINE_HOLDER_SCOPE": engineScopeHook=status; break;
             case "RENDERER_TYPE_STATE_ACCESS": typeStateAccessHook=status; break;
             case "BUFFER_EOS_ACCESS": bufferEosAccessHook=status; break;
+            case "RENDERER_COMPARATOR": rendererComparatorHook=status; break;
             default: throw new IllegalArgumentException("Unrecognized hook kind");
         }
     }
@@ -399,18 +418,44 @@ final class NativeRendererStreamEvidence {
         onRendererTypeStateRead(renderer,stream,trackType,state,originalResult,null);
     }
 
+    synchronized void onRendererComparatorResult(Object holder,Object renderer,
+            Object stream,boolean matched) {
+        if(poisoned || rendererComparatorHook<=0) {
+            rendererComparatorUnavailable=inc(rendererComparatorUnavailable);
+            return;
+        }
+        if(holder==null || renderer==null || stream==null) {
+            rendererComparatorUnavailable=inc(rendererComparatorUnavailable);
+            return;
+        }
+        if(matched)rendererComparatorTrue=inc(rendererComparatorTrue);
+        else rendererComparatorFalse=inc(rendererComparatorFalse);
+        for(int i=comparatorLinks.size()-1;i>=0;i--) {
+            ComparatorLink old=comparatorLinks.get(i);
+            if(old.holder.get()==holder && old.renderer.get()==renderer) {
+                comparatorLinks.remove(i);
+            }
+        }
+        if(comparatorLinks.size()>=MAX_HANDLES)comparatorLinks.remove(0);
+        comparatorLinks.add(new ComparatorLink(holder,renderer,stream,matched));
+    }
+
+    synchronized void onRendererComparatorUnavailable() {
+        if(!poisoned)rendererComparatorUnavailable=inc(rendererComparatorUnavailable);
+    }
+
     synchronized void onRendererTypeStateRead(Object renderer,Object stream,
             int trackType,int state,int originalResult,Boolean endOfStream) {
         if(poisoned || typeStateAccessHook<=0 || renderer==null || stream==null)return;
-        boolean matched=false;
+        Object matchedHolder=null;
         for(Link link:engineHolderLinks) {
             if(link.renderer.get()==renderer && link.holder.get()!=null
                     && link.stream.get()==stream) {
-                matched=true;
+                matchedHolder=link.holder.get();
                 break;
             }
         }
-        if(!matched)return;
+        if(matchedHolder==null)return;
         // A stale engine-only link cannot be counted if the actually sampled
         // original b.g stream no longer matches an attached stream alias.
         boolean attached=false;
@@ -437,6 +482,19 @@ final class NativeRendererStreamEvidence {
             return;
         }
         engineType1State2=inc(engineType1State2);
+        // Promote only an exact TRUE result from the signed holder↔renderer
+        // comparator when holder, renderer and attached stream are all the
+        // same references as the live started-audio read cohort.
+        for(ComparatorLink link:comparatorLinks) {
+            if(link.matched && link.holder.get()==matchedHolder
+                    && link.renderer.get()==renderer && link.stream.get()==stream) {
+                engineComparatorType1State2Read=inc(engineComparatorType1State2Read);
+                if(originalResult==-4)
+                    engineComparatorType1State2ReadMinus4=
+                        inc(engineComparatorType1State2ReadMinus4);
+                break;
+            }
+        }
         if(originalResult==-4) {
             // Only the original buffer flag, after a strict same-reference
             // started audio renderer+holder+stream match. Null means unreadable.
@@ -469,6 +527,10 @@ final class NativeRendererStreamEvidence {
         removeRenderer(links,renderer);
         removeRenderer(unscopedLinks,renderer);
         removeRenderer(engineHolderLinks,renderer);
+        for(int i=comparatorLinks.size()-1;i>=0;i--) {
+            if(comparatorLinks.get(i).renderer.get()==renderer)
+                comparatorLinks.remove(i);
+        }
         detachCount=inc(detachCount);
     }
 
@@ -500,6 +562,12 @@ final class NativeRendererStreamEvidence {
             registrationLine("ENGINE_HOLDER_SCOPE",engineScopeHook),
             registrationLine("RENDERER_TYPE_STATE_ACCESS",typeStateAccessHook),
             registrationLine("BUFFER_EOS_ACCESS",bufferEosAccessHook),
+            registrationLine("RENDERER_COMPARATOR",rendererComparatorHook),
+            line("RENDERER_COMPARATOR_TRUE",rendererComparatorTrue),
+            line("RENDERER_COMPARATOR_FALSE",rendererComparatorFalse),
+            line("RENDERER_COMPARATOR_UNAVAILABLE",rendererComparatorUnavailable),
+            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH",engineComparatorType1State2Read),
+            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_MINUS4",engineComparatorType1State2ReadMinus4),
             line("QUEUE_SCOPE_ENTER",scopeEnters),
             line("SECONDARY_CALLER_ENTER",secondaryCallerEnters),
             line("ENGINE_HOLDER_SCOPE_ENTER",engineEnters),
