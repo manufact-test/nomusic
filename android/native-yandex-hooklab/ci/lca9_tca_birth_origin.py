@@ -831,6 +831,8 @@ def scan_field_writers(apks, direct):
             "field_chain_proven_count": 0,
             "all_direct_call_sites_field_backed": False,
             "tca_constructor_to_lca9_via_field_proven": False,
+            "writer_definitions": {},
+            "writer_upstream_targets": {},
         }
 
     writer_definitions = {}
@@ -1134,7 +1136,7 @@ def scan_field_writer_upstream_callers(apks, fields):
     }
 
 
-def safe_summary(direct, upstream, fields):
+def safe_summary(direct, upstream, fields, writer_upstream):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
     direct_constructor = sum(
@@ -1190,6 +1192,14 @@ def safe_summary(direct, upstream, fields):
         "tca_owner_constructor_field_write_proven_count": fields["owner_constructor_write_proven_count"],
         "tca_field_chain_proven_count": fields["field_chain_proven_count"],
         "tca_constructor_to_lca9_via_field_proven": fields["tca_constructor_to_lca9_via_field_proven"],
+        "tca_field_writer_upstream_callsite_count": writer_upstream["callsite_count"],
+        "tca_field_writer_upstream_caller_count": writer_upstream["caller_count"],
+        "tca_field_writer_upstream_origin_categories": writer_upstream["origin_categories"],
+        "tca_field_writer_upstream_constructor_to_writer_same_object_count": writer_upstream["constructor_to_writer_same_object_count"],
+        "tca_field_writer_upstream_same_reference_to_writer_count": writer_upstream["same_reference_to_writer_count"],
+        "tca_field_writer_upstream_scan_complete": writer_upstream["complete"],
+        "tca_field_writer_upstream_fp0_resume_track_argument_explicit_null": writer_upstream["fp0_resume_track_argument_explicit_null"],
+        "tca_field_writer_upstream_fp0_continuation_track_to_wrapper_candidate": writer_upstream["fp0_continuation_field_track_to_wrapper_candidate"],
         "exact_tca_constructor_to_lca9_same_object_proven": bool(
             direct_constructor or upstream_constructor
             or fields["tca_constructor_to_lca9_via_field_proven"]
@@ -1249,7 +1259,8 @@ def run(xapk: Path):
         direct = scan_direct_callers(splits)
         upstream = scan_upstream_callers(splits, direct)
         fields = scan_field_writers(splits, direct)
-        return safe_summary(direct, upstream, fields)
+        writer_upstream = scan_field_writer_upstream_callers(splits, fields)
+        return safe_summary(direct, upstream, fields, writer_upstream)
 
 
 if __name__ == "__main__":
