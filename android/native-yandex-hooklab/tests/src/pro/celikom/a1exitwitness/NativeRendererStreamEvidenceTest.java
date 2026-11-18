@@ -717,7 +717,7 @@ public final class NativeRendererStreamEvidenceTest {
     private static final class FakeSource {}
     private interface FakePublisherPeriodInterface {}
     private static final class FakeOtherPublisherPeriod implements FakePublisherPeriodInterface {}
-    private static final class FakePeriod {
+    private static final class FakePeriod implements FakePublisherPeriodInterface {
         FakeSource source;
         FakePeriod(FakeSource source) {this.source=source;}
     }
@@ -1226,6 +1226,72 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV32_VERIFIED_SAME_ATTACH_NOT_SAME_TRACK");
     }
 
+
+    private static void testNav33DirectOriginalLo96MatchesSource() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object renderer=new Object(),stream=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        holder.nested=new FakePeriod(source); // exact original Lo96, not Lup1
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        NativeRendererStreamEvidence.TrackPlayerScope f=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally {e.exitTrackPlayerSource(f);}
+        e.onExactHolderSelectPhase(holder,false);
+        e.onExactHolderSelectPhase(holder,true);
+        nav29BindLive(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] report=e.exportLines();
+        check(contains(report,"origin=HOLDER_OTHER_SELECT_SAME_AT_READ;error=ONE"),
+              "NAV33_SAME_ORIGINAL_SELECT_HOLDER");
+        check(contains(report,"origin=HOLDER_OTHER_ATTACH_SAME_AT_READ;error=ONE"),
+              "NAV33_SAME_ORIGINAL_ATTACHED_HOLDER");
+        check(contains(report,"origin=LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT;error=ONE"),
+              "NAV33_DIRECT_PINNED_PERIOD_SOURCE");
+        check(contains(report,"origin=LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED;error=ONE"),
+              "NAV33_ORIGINAL_SOURCE_RESOLVED");
+        check(contains(report,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=ONE"),
+              "NAV33_EXACT_JAVA_SOURCE_REF_EQUALITY");
+        check(contains(report,"origin=LIVE_PERIOD_HOLDER_WRAPPER_MISSING;error=NONE"),
+              "NAV33_DIRECT_LO96_NOT_WRAPPER_MISSING");
+        check(contains(report,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV33_NO_SELECTED_TRACK_EDITION_OR_QUEUE_IDENTITY");
+        engine.queue.slotB=new FakeHolderSource(source,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED;error=ONE"),
+              "NAV33_CHANGED_QUEUE_BLOCKS_SECOND_SOURCE");
+    }
+    private static void testNav33DirectLo96NullAndDifferentSourcesFailClosed() {
+        for(int mode=0;mode<2;mode++) {
+            NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+            setUpNav29(e);
+            Object renderer=new Object(),stream=new Object(),wrapper=new Object();
+            FakeSource originalSource=new FakeSource();
+            FakeHolderSource holder=new FakeHolderSource(originalSource,stream);
+            holder.nested=new FakePeriod(mode==0?null:new FakeSource());
+            FakeActiveEngine engine=new FakeActiveEngine(holder);
+            NativeRendererStreamEvidence.TrackPlayerScope f=e.enterTrackPlayerSource(wrapper);
+            try {e.onNativePlayerSourceSetter(originalSource);}
+            finally {e.exitTrackPlayerSource(f);}
+            nav29BindLive(e,engine,holder,renderer,stream);
+            e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+            String[] report=e.exportLines();
+            check(contains(report,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+                  "NAV33_NO_FALSE_SOURCE_MATCH");
+            if(mode==0) {
+                check(contains(report,"origin=LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_NULL;error=ONE"),
+                      "NAV33_NULL_DIRECT_SOURCE");
+                check(contains(report,"origin=LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED;error=NONE"),
+                      "NAV33_NULL_NOT_RESOLVED");
+            } else {
+                check(contains(report,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK;error=ONE"),
+                      "NAV33_DIFFERENT_SOURCE_NO_LINK");
+            }
+        }
+    }
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1281,6 +1347,8 @@ public final class NativeRendererStreamEvidenceTest {
         testNav32OtherNativePeriodInterfaceAndSameLiveReference();
         testNav32OtherObjectSwappedAfterAttachFailsClosed();
         testNav32NoOriginalSelectionHistoryIsExplicitlyUnproven();
+        testNav33DirectOriginalLo96MatchesSource();
+        testNav33DirectLo96NullAndDifferentSourcesFailClosed();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

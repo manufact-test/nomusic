@@ -133,6 +133,8 @@ final class NativeRendererStreamEvidence {
     private int periodAdapterLinkCreated,periodAdapterMapped,periodAdapterUnmapped;
     private int livePeriodHolderMissing,livePeriodWrappedMissing,livePeriodNonLo96;
     private int livePeriodDirectLo96,livePeriodSourceNull,livePeriodReflectionFailed;
+    // NAV33: exact publisher Lo96 held directly, without Lup1 wrapper.
+    private int directHolderSourcePresent,directHolderSourceNull;
     // NAV31: sampled ONLY at exact publisher-proven Lxh6.if() selection
     // and on the already live slot/renderer reference. Phase observations
     // are diagnostics, never proof of selected track/edition or PCM.
@@ -554,10 +556,25 @@ final class NativeRendererStreamEvidence {
                 else if(attachRelation==2)otherAttachReadWeakLost=inc(otherAttachReadWeakLost);
                 else otherAttachReadNoHistory=inc(otherAttachReadNoHistory);
                 livePeriodHolderOther=inc(livePeriodHolderOther);
-                livePeriodHolderMissing=inc(livePeriodHolderMissing);
-                livePeriodUnavailable=inc(livePeriodUnavailable);
-                return;
-            }
+                // NAV33: exact direct Lo96 observed across owner select,
+                // live attach and started read. Use ONLY signed-pinned Sl6
+                // field of that very same original period object.
+                if(exactPeriodClass!=null && exactPeriodClass.isInstance(nested)) {
+                    livePeriodDirectLo96=inc(livePeriodDirectLo96);
+                    source=periodSourceField.get(nested);
+                    if(source==null) {
+                        directHolderSourceNull=inc(directHolderSourceNull);
+                        livePeriodSourceNull=inc(livePeriodSourceNull);
+                        livePeriodUnavailable=inc(livePeriodUnavailable);
+                        return;
+                    }
+                    directHolderSourcePresent=inc(directHolderSourcePresent);
+                } else {
+                    livePeriodHolderMissing=inc(livePeriodHolderMissing);
+                    livePeriodUnavailable=inc(livePeriodUnavailable);
+                    return;
+                }
+            } else {
             Object observed=wrapperPeriodField.get(nested);
             if(observed==null) {
                 livePeriodWrappedMissing=inc(livePeriodWrappedMissing);
@@ -592,6 +609,7 @@ final class NativeRendererStreamEvidence {
                 livePeriodUnavailable=inc(livePeriodUnavailable);
                 return;
             }
+            } // existing Lup1 wrapper and adapter path unchanged
         } catch(Throwable ignored) {
             livePeriodReflectionFailed=inc(livePeriodReflectionFailed);
             livePeriodUnavailable=inc(livePeriodUnavailable);
@@ -1244,6 +1262,8 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_WRAPPED_PERIOD_MISSING",livePeriodWrappedMissing),
             line("LIVE_PERIOD_WRAPPED_NON_LO96",livePeriodNonLo96),
             line("LIVE_PERIOD_DIRECT_LO96",livePeriodDirectLo96),
+            line("LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT",directHolderSourcePresent),
+            line("LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_NULL",directHolderSourceNull),
             line("LIVE_PERIOD_ADAPTER_MAPPED",periodAdapterMapped),
             line("LIVE_PERIOD_ADAPTER_UNMAPPED",periodAdapterUnmapped),
             line("LIVE_PERIOD_SOURCE_NULL",livePeriodSourceNull),
