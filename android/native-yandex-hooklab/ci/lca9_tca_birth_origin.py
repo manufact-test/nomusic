@@ -580,7 +580,8 @@ def trace_exact_tca_constructor_to_callsites(
         field_pc = None
         if isinstance(value_token, str):
             match = re.search(
-                r"(?:TCA_FIELD|TCA_STATIC_FIELD)@([0-9]+)", value_token
+                r"(?:TCA_FIELD|TCA_STATIC_FIELD|TRACK_FIELD|TRACK_FIELD_FROM_CONTINUATION)@([0-9]+)",
+                value_token
             )
             if match:
                 field_pc = int(match.group(1))
