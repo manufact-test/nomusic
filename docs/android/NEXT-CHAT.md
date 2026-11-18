@@ -1,4 +1,18 @@
-# CURRENT — NAV26 SIGNED ANDROID13 ARM CI GREEN; OWNER PHONE TXT NEXT (18 NOV 2026)
+# CURRENT — NAV26 OWNER PHONE FALSE COMPARATOR; NAV27 PHASE DIAGNOSTIC IN CI (18 NOV 2026)
+
+**Read first:** [NAV26 real-phone comparator result and NAV27 exact phase observer](ANDROID-A1-NAV26-OWNER-PHONE-FALSE-COMPARATOR-NAV27-PHASE-20261118.md). Last owner private TXT `CELIKOM-A1-Diagnostics-1794990212006.txt` (NEVER commit raw TXT). Current NAV26 marker `NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY` ACTIVE. Original Yandex playback is owner-accepted; no newly reported playback defect. **Only missing product feature: CELIKOM replacement NOT_CONNECTED.**
+
+**NAV26 real phone:** RENDERER_COMPARATOR REGISTERED; TRUE=NONE, FALSE=MANY, UNAVAILABLE=NONE. Both exact `ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE/FALSE` and `*_MINUS4`=NONE. Meanwhile `ENGINE_HOLDER_STREAM_ARRAY_MATCH=FEW`, no different/unavailable, `ENGINE_HOLDER_TYPE1_STATE2=MANY`, `ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4=MANY`, `READ_RETURN_LINK_LOST=NONE`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. FALSE is the original raw comparator result: no meaning inferred. An aggregate NONE on strict comparator-to-audio correlation is not a claim of broken playback.
+
+**Narrow next gate justified by that phone evidence:** diagnostic phase relative to renderer attach. In NAV26, every attach deliberately invalidates earlier comparator weak references; thus the zero correlation may be timing, a different holder/stream, or another observer boundary — not yet known. NAV27 observes comparator-at-call engine/attached-stream cohorts and any comparator witness cleared on subsequent attach as distinct, privacy-safe finite counters. No payload, IDs, URLs, credentials or audio bytes. Existing comparator-to-started-read fail-closed gate unchanged. No source replacement, audio modifications, original app patches, or new architecture.
+
+**Code & safeguards:** working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; signed, proven NAV26 observer/source `19c73c433eee23359566c3df2a3a0e5e52756b9c`; NAV26 owner APK SHA256 `1acd57a45dd025e144c4aaedfb43730b819806b1150eedff69274a3ae94d23a6` in verified personal Library. Protected pre-NAV27 phone-evidence backup `backup/android-a1-nav26-phone-false-no-correlation-before-nav27-20261118` @ `2faf55dee641971c4d4e422b9e795942b4047476`; NAV27 model/test/marker commit `e6988bb7bc73fa429d44a9e7ad0941b1ccba10cc`, CI-fixture/workflow correction `b287492d600c8b01ac32a0401c5e61db2d9b63c1`. NAV27 JVM #44267549038 **SUCCESS**; signed Android13 ARM NAV27 #44267549027 **RUNNING when written**. Not yet a release; do not send owner to install until exact signed CI success, hash/signer/original publisher Yandex verification, personal ChatGPT Library upload and byte-identical Library readback.
+
+**After NAV27 real phone:** Interpret the phase bins, ground current selected Track+queue generation→Album→edition→actual renderer. Only then use existing authorized CELIKOM resolver/entitlement. Do not repeat NAV25 EOS probe or prior static chain. Do not touch account/Passport credentials, Windows, browser, server, Test.50.
+
+---
+
+# ARCHIVED — NAV26 SIGNED ANDROID13 ARM CI GREEN; OWNER PHONE TXT ALREADY RECEIVED (18 NOV 2026)
 
 **Latest owner file:** private `CELIKOM-A1-Diagnostics-1794984522604.txt` (NAV25) analyzed; never commit raw TXT. Owner confirms ordinary original Yandex playback works normally. Only missing feature remains CELIKOM audio replacement.
 
