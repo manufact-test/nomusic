@@ -619,40 +619,52 @@ def scan_upstream_callers(apks, direct):
         raise ValueError("TCA_UPSTREAM_SIGNED_SIX_DEX_REQUIRED")
 
     upstream_rows = []
+    trace_complete_all = True
     for key, (dex, method, flags, code_off) in sorted(caller_definitions.items()):
         targets_here = {}
         for pc, target in caller_sites[key]:
             targets_here.setdefault(target, []).append(pc)
-        try:
-            trace = audit.trace_track_identity_method_cfg(
-                dex, method, flags, code_off
-            )
-            trace_error = None
-        except (ValueError, audit.DexError) as exc:
-            trace, trace_error = None, type(exc).__name__
 
         for target, pcs in sorted(targets_here.items()):
             position = targets[target]
-            events = [] if trace_error else [
-                event for event in trace.get("events", ())
-                if event.get("callee") == {
-                    "owner": target[0], "method": target[1], "signature": target[2]
-                } and event.get("pc") in set(pcs)
-            ]
-            categories = sorted(set(
-                category
-                for event in events
-                for category in wrapper_origin_categories(event, position)
-            ) or {"TRACE_FAILED" if trace_error else "NO_IDENTITY_EVENT"})
+            target_def = direct["caller_definitions"][target]
+            target_type = logical_parameter_type(
+                target_def[1], target_def[2], position
+            )
+            if not target_type or not target_type.startswith(("L", "[")):
+                raise ValueError("TCA_UPSTREAM_TARGET_ARGUMENT_NOT_REFERENCE")
+            try:
+                constructor_trace = trace_exact_tca_constructor_to_callsites(
+                    dex, method, flags, code_off, target, pcs, position,
+                    target_argument_type=target_type
+                )
+                typed_events, typed_error = _trace_events_for_callsites(
+                    dex, method, flags, code_off, target, pcs
+                )
+            except (ValueError, audit.DexError):
+                constructor_trace = None
+                typed_events, typed_error = [], "TRACE_FAILED"
+            if typed_error:
+                trace_complete_all = False
 
-            constructor_trace = trace_exact_tca_constructor_to_callsites(
-                dex, method, flags, code_off, target, pcs, position
-            ) if not trace_error else None
+            categories = set(
+                row["origin_category"]
+                for row in (constructor_trace or {}).get("site_results", ())
+            )
+            if not typed_error:
+                categories.update(
+                    category
+                    for event in typed_events
+                    for category in wrapper_origin_categories(event, position)
+                    if category != "NO_IDENTITY"
+                )
+            categories = sorted(categories or {
+                "TRACE_FAILED" if typed_error else "NO_IDENTITY"
+            })
+
             fp0_summary = None
             if method == INITIAL:
-                initial_def = (dex, method, flags, code_off)
                 resume_def = None
-                # Resolve the exact resume method in this same signed DEX only.
                 for candidate, candidate_flags, candidate_code in (
                         audit.method_definitions_with_flags(dex)):
                     if candidate == RESUME:
@@ -682,10 +694,14 @@ def scan_upstream_callers(apks, direct):
                         fp0_summary = {"trace_complete": False}
 
             upstream_rows.append({
-                "trace_complete": trace_error is None,
+                "trace_complete": not bool(typed_error),
                 "wrapper_origin_categories": categories,
                 "constructor_to_direct_caller_same_object": (
                     constructor_trace["same_constructed_tca_on_all_sites"]
+                    if constructor_trace else False
+                ),
+                "same_reference_to_direct_caller": (
+                    constructor_trace["same_tca_reference_on_all_sites"]
                     if constructor_trace else False
                 ),
                 "constructor_trace": constructor_trace,
@@ -697,7 +713,7 @@ def scan_upstream_callers(apks, direct):
         "upstream_callsite_count": call_count,
         "upstream_caller_count": len(caller_definitions),
         "upstream_rows": upstream_rows,
-        "complete": True,
+        "complete": trace_complete_all,
     }
 
 
@@ -730,6 +746,9 @@ def safe_summary(direct, upstream):
             for category in row.get("wrapper_origin_categories", ())
         }),
         "direct_constructor_to_lca9_same_object_count": direct_constructor,
+        "direct_same_tca_reference_to_lca9_count": sum(
+            row.get("same_tca_reference_to_lca9", False) for row in direct_rows
+        ),
         "upstream_callsite_count": upstream["upstream_callsite_count"],
         "upstream_caller_count": upstream["upstream_caller_count"],
         "upstream_wrapper_origin_categories": sorted({
@@ -737,6 +756,12 @@ def safe_summary(direct, upstream):
             for category in row.get("wrapper_origin_categories", ())
         }),
         "upstream_constructor_to_direct_caller_same_object_count": upstream_constructor,
+        "upstream_same_reference_to_direct_caller_count": sum(
+            row.get("same_reference_to_direct_caller", False) for row in upstream_rows
+        ),
+        "exact_tca_constructor_to_lca9_same_object_proven": bool(
+            direct_constructor or upstream_constructor
+        ),
         "fp0_resume_track_argument_explicit_null": any(
             row.get("resume_track_argument_explicit_null", False) for row in fp0
         ),
