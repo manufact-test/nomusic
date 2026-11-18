@@ -1,0 +1,52 @@
+name: Desktop My Wave metadata regression
+on:
+  push:
+    branches: [fix/desktop-wave-metadata-20261118]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+      CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: All extension regressions and package validation
+        run: |
+          npm run test:extension
+          npm --prefix extension run validate
+          npm run security
+      - name: Native Chrome MediaSession positive and negative regression
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/wave-browser" --no-package-lock --no-save playwright@1.62.1
+          export NODE_PATH="$RUNNER_TEMP/wave-browser/node_modules"
+          git worktree add --detach "$RUNNER_TEMP/wave-baseline" da837585379373e356be0b93bb956a1e97f9ada3
+          (cd "$RUNNER_TEMP/wave-baseline" && npm run build:extension)
+          if WAVE_UNPACKED="$RUNNER_TEMP/wave-baseline/extension/dist/unpacked" node scripts/test-wave-metadata-browser.mjs > "$RUNNER_TEMP/wave-negative.log" 2>&1; then
+            echo 'Baseline unexpectedly passed'; exit 1
+          fi
+          grep -F 'Identity lost during same-song refresh' "$RUNNER_TEMP/wave-negative.log"
+          echo 'BASELINE_0476_REPRODUCED_PASS'
+          node scripts/test-wave-metadata-browser.mjs
+      - name: Final owner package
+        run: |
+          npm run build:extension
+          cd extension/dist
+          sha256sum --check celikom-extension-0.4.77.zip.sha256
+          cat celikom-extension-0.4.77.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-extension-0.4.77
+          path: |
+            extension/dist/celikom-extension-0.4.77.zip
+            extension/dist/celikom-extension-0.4.77.zip.sha256
+          if-no-files-found: error
