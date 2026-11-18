@@ -224,7 +224,12 @@ final class NativeRendererStreamEvidence {
         EngineFrame engine=inEngineEnable.get();
         // Any reattach invalidates the previous engine-to-holder reference.
         // Only a fresh exact membership check may create a new engine link.
-        if(renderer!=null)removeRenderer(engineHolderLinks,renderer);
+        if(renderer!=null) {
+            removeRenderer(engineHolderLinks,renderer);
+            // A new attachment transition invalidates any earlier comparator
+            // outcome for this renderer, even if Java references are reused.
+            removeComparatorRenderer(renderer);
+        }
         if(!poisoned && engineScopeHook>0 && engine!=null
                 && secondary!=null && secondary.renderer==renderer
                 && secondary.stream==stream && renderer!=null && stream!=null) {
@@ -292,6 +297,13 @@ final class NativeRendererStreamEvidence {
         for(int i=list.size()-1;i>=0;i--) {
             Object existing=list.get(i).renderer.get();
             if(existing==null || existing==renderer)list.remove(i);
+        }
+    }
+
+    private void removeComparatorRenderer(Object renderer) {
+        for(int i=comparatorLinks.size()-1;i>=0;i--) {
+            Object existing=comparatorLinks.get(i).renderer.get();
+            if(existing==null || existing==renderer)comparatorLinks.remove(i);
         }
     }
 
@@ -538,10 +550,7 @@ final class NativeRendererStreamEvidence {
         removeRenderer(links,renderer);
         removeRenderer(unscopedLinks,renderer);
         removeRenderer(engineHolderLinks,renderer);
-        for(int i=comparatorLinks.size()-1;i>=0;i--) {
-            if(comparatorLinks.get(i).renderer.get()==renderer)
-                comparatorLinks.remove(i);
-        }
+        removeComparatorRenderer(renderer);
         detachCount=inc(detachCount);
     }
 
