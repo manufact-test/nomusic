@@ -616,6 +616,7 @@ def scan_direct_callers(apks):
 
     direct_rows = []
     upstream_targets = {}
+    field_read_targets = {}
     for key, (dex, method, flags, code_off) in sorted(caller_definitions.items()):
         pcs = caller_sites[key]
         try:
@@ -649,6 +650,15 @@ def scan_direct_callers(apks):
             "constructor_trace": direct_trace,
         })
 
+        for site in direct_trace["site_results"]:
+            field_ref = site.get("origin_field_ref")
+            if field_ref is not None:
+                field_read_targets.setdefault(tuple(field_ref), []).append({
+                    "reader_owner": method[0],
+                    "receiver_category": site.get("origin_field_receiver_category"),
+                    "same_tca_reference": site.get("same_tca_reference_on_all_paths", False),
+                })
+
         parameter_positions = {
             row.get("origin_parameter_position")
             for row in direct_trace["site_results"]
@@ -664,6 +674,7 @@ def scan_direct_callers(apks):
         "direct_caller_count": len(caller_definitions),
         "direct_rows": direct_rows,
         "upstream_targets": upstream_targets,
+        "field_read_targets": field_read_targets,
         "caller_definitions": caller_definitions,
         "caller_sites": caller_sites,
         "target_definition": target_definition,
