@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V28_LIVE_QUEUE_SLOT_B_RENDERER_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2543,12 +2543,43 @@ public final class ExitCallsiteWitness extends XposedModule {
                     throw new NoSuchMethodException();
                 currentPeriodEnable.setAccessible(true);
                 NATIVE_RENDERER_EVIDENCE.setEngineHolderStreamArrayField(exactArray);
+                // NAV28: optional, publisher-verified queue SLOT_B field
+                // discovered only in private CI. No original class is modified.
+                // A missing target, nonunique e->h field, or wrong type disables
+                // only this new observer, not the already verified engine hook.
+                try {
+                    Class<?> queue=Class.forName(
+                        "androidx.media3.exoplayer.h",false,loader);
+                    Class<?> exact=Class.forName(
+                        "pro.celikom.a1exitwitness.PrivateNativeQueueSlotTarget",
+                        false,ExitCallsiteWitness.class.getClassLoader());
+                    Field named=exact.getDeclaredField("QUEUE_SLOT_B_FIELD_NAME");
+                    named.setAccessible(true);
+                    Object namedValue=named.get(null);
+                    if(!(namedValue instanceof String))throw new NoSuchFieldException();
+                    Field slot=queue.getDeclaredField((String)namedValue);
+                    if(slot.getType()!=holder)throw new NoSuchFieldException();
+                    Field engineQueue=null;
+                    for(Field candidate:engine.getDeclaredFields()) {
+                        if(candidate.getType()!=queue)continue;
+                        if(engineQueue!=null)throw new NoSuchFieldException();
+                        engineQueue=candidate;
+                    }
+                    if(engineQueue==null)throw new NoSuchFieldException();
+                    NATIVE_RENDERER_EVIDENCE.setLiveQueueSlotFields(engineQueue,slot);
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration("LIVE_QUEUE_SLOT_B",true);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_QUEUE_SLOT_B","REGISTERED");
+                } catch(Throwable ignored) {
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration("LIVE_QUEUE_SLOT_B",false);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_QUEUE_SLOT_B","NO_HOOK");
+                }
                 hook(currentPeriodEnable)
                     .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         NativeRendererStreamEvidence.EngineFrame frame=null;
                         try {
-                            frame=NATIVE_RENDERER_EVIDENCE.enterEngine(chain.getArg(0));
+                            frame=NATIVE_RENDERER_EVIDENCE.enterEngine(
+                                    chain.getThisObject(),chain.getArg(0));
                         } catch (Throwable ignored) { }
                         try { return chain.proceed(); } // exact original, once
                         finally {

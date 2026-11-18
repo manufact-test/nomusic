@@ -58,7 +58,7 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY' in src
+          assert 'NAV_V28_LIVE_QUEUE_SLOT_B_RENDERER_READONLY' in src
           assert 'rendererBase.getDeclaredMethod("default")' in src
           assert 'rendererBase.getDeclaredMethod("getState")' in src
           assert 'onRendererTypeStateRead(' in src
