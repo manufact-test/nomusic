@@ -18,6 +18,7 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_persistent_owner_signer.py'
       - 'android/native-yandex-hooklab/ci/test_a1_persistent_owner_signer.py'
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_stage_b_audio_evidence.py'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/test_lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/device-audio-trial/**'
