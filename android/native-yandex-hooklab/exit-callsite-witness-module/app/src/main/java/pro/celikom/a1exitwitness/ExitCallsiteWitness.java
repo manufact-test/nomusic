@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V29_TRACK_SOURCE_ACTIVE_PERIOD_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -232,6 +232,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean nav29TrackPlayerScopeHooked;
     private boolean nav29NativeSourceSetterHooked;
     private boolean nav29PeriodFieldsReady;
+    private boolean nav30PeriodAdapterHooked;
+    private boolean nav30PeriodFactoryHooked;
 
 
     private void rememberMediaExtractorSource(Object obj) {
@@ -2460,7 +2462,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 && rendererSecondaryCallerHooked && rendererEngineHolderScopeHooked
                 && rendererComparatorHooked
                 && nav29TrackPlayerScopeHooked && nav29NativeSourceSetterHooked
-                && nav29PeriodFieldsReady) return;
+                && nav29PeriodFieldsReady && nav30PeriodAdapterHooked
+                && nav30PeriodFactoryHooked) return;
         try {
             android.content.pm.PackageInfo info=caller.getPackageManager()
                 .getPackageInfo(PACKAGE,0);
@@ -2690,6 +2693,86 @@ public final class ExitCallsiteWitness extends XposedModule {
             } catch(Throwable ignored) {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PLAYER_SOURCE_SETTER",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PLAYER_SOURCE_SETTER","NO_HOOK");
+            }
+        }
+        // NAV30: exact signed Lp96.goto -> Lp96.transient native
+        // period alias. This maps ONLY SAME-THREAD, SAME-RECEIVER
+        // original return references. No source values/bytes or behavior
+        // changes. The existing live renderer SLOT_B guard remains mandatory.
+        if (!nav30PeriodAdapterHooked || !nav30PeriodFactoryHooked) {
+            try {
+                Class<?> sourceWrapper=Class.forName("p96",false,loader);
+                Class<?> mediaPeriodId=Class.forName("Sl6$b",false,loader);
+                Class<?> allocator=Class.forName("rH2",false,loader);
+                Class<?> periodIface=Class.forName("wh6",false,loader);
+                Class<?> originalPeriod=Class.forName("o96",false,loader);
+                if(!nav30PeriodAdapterHooked) {
+                    try {
+                        Method adapter=sourceWrapper.getDeclaredMethod(
+                            "goto",mediaPeriodId,allocator,long.class);
+                        if(adapter.getReturnType()!=periodIface)throw new NoSuchMethodException();
+                        adapter.setAccessible(true);
+                        hook(adapter).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                NativeRendererStreamEvidence.NativePeriodAdapterScope frame=null;
+                                try {
+                                    frame=NATIVE_RENDERER_EVIDENCE.enterNativePeriodAdapter(
+                                        chain.getThisObject());
+                                } catch(Throwable ignored) { }
+                                try {
+                                    Object original=chain.proceed(); // one unchanged original
+                                    try {
+                                        if(frame!=null)NATIVE_RENDERER_EVIDENCE
+                                            .onNativePeriodAdapterReturn(frame,original);
+                                    } catch(Throwable ignored) { }
+                                    return original;
+                                } finally {
+                                    try {
+                                        if(frame!=null)NATIVE_RENDERER_EVIDENCE
+                                            .exitNativePeriodAdapter(frame);
+                                    } catch(Throwable ignored) { }
+                                }
+                            });
+                        nav30PeriodAdapterHooked=true;
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PERIOD_ADAPTER",true);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PERIOD_ADAPTER","REGISTERED");
+                    } catch(Throwable ignored) {
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PERIOD_ADAPTER",false);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PERIOD_ADAPTER","NO_HOOK");
+                    }
+                }
+                if(!nav30PeriodFactoryHooked) {
+                    try {
+                        Method factory=sourceWrapper.getDeclaredMethod(
+                            "transient",mediaPeriodId,allocator,long.class);
+                        if(factory.getReturnType()!=originalPeriod)throw new NoSuchMethodException();
+                        factory.setAccessible(true);
+                        hook(factory).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object original=chain.proceed(); // once, unchanged
+                                try {
+                                    NATIVE_RENDERER_EVIDENCE.onNativePeriodFactoryResult(
+                                        chain.getThisObject(),original);
+                                } catch(Throwable ignored) { }
+                                return original;
+                            });
+                        nav30PeriodFactoryHooked=true;
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PERIOD_FACTORY",true);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PERIOD_FACTORY","REGISTERED");
+                    } catch(Throwable ignored) {
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PERIOD_FACTORY",false);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PERIOD_FACTORY","NO_HOOK");
+                    }
+                }
+            } catch(Throwable ignored) {
+                if(!nav30PeriodAdapterHooked) {
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PERIOD_ADAPTER",false);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PERIOD_ADAPTER","NO_HOOK");
+                }
+                if(!nav30PeriodFactoryHooked) {
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PERIOD_FACTORY",false);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PERIOD_FACTORY","NO_HOOK");
+                }
             }
         }
         if (!rendererStreamSetHooked) {
