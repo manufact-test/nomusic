@@ -506,3 +506,89 @@ test("fresh metadata arriving before its stream is not mistaken for stale metada
     assert.equal(adapter.getSnapshot().track.id,"1944611");
   } finally {adapter.unmount();}
 });
+
+function createMetadataGapFixture() {
+  const media = new FakeMedia();
+  const {environment} = createEnvironment(media);
+  const session = environment.navigator.mediaSession;
+  let value = session.metadata, clock = 1000, timerId = 0;
+  const timers = new Map();
+  Object.defineProperty(session,"metadata",{configurable:true,get:()=>value,set:next=>{value=next;}});
+  environment.setTimeout=(callback,delay)=>{const id=++timerId;timers.set(id,{callback,at:clock+delay});return id;};
+  environment.clearTimeout=id=>timers.delete(id);
+  const adapter=createAdapter(environment);
+  adapter.now=()=>clock;
+  const advance=delta=>{clock+=delta;for(const [id,timer] of [...timers])if(timer.at<=clock){timers.delete(id);timer.callback();}};
+  return {media,environment,session,adapter,advance,timers};
+}
+
+test("My Wave null metadata refresh preserves active replacement across polls and media events",async()=>{
+  for(const name of ["sync-engine","replacement-player","fail-open-controller","replacement-controller"])await import(`../dist/unpacked/player/${name}.js`);
+  const {ReplacementController}=globalThis.__CELIKOM_REPLACEMENT_CONTROLLER_V1__;
+  const {media,environment,session,adapter,advance}=createMetadataGapFixture();
+  const players=[],seen=[];
+  const bridge={sessionId:"wave-session",isHealthy:()=>true,getSnapshot:async()=>adapter.getSnapshot(),request:async()=>({snapshot:adapter.getSnapshot()}),post(){}};
+  const engine=new ReplacementController(bridge,environment,{
+    resolveAsset:async id=>({found:true,trackId:id,durationMs:193283,expiresAt:Date.now()+60000}),
+    createPlayer:()=>{const player={audio:{duration:193.283,currentTime:0},destroyed:false,
+      async prepare(asset){this.trackId=asset.trackId;},applyState(){},play(){this.playing=true;},pause(){this.playing=false;},destroy(){this.destroyed=true;this.playing=false;}};players.push(player);return player;}
+  });
+  const settle=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
+  engine.configure(true,"");
+  adapter.mount({onSnapshot:s=>{seen.push(s);engine.update(s);},onPlayerEvent:e=>engine.update(e.snapshot,e.type)});
+  try {
+    await settle();assert.equal(players.length,1);assert.equal(players[0].playing,true);
+    for(let i=0;i<6;i++){
+      const metadata=session.metadata;
+      session.metadata=null;
+      advance(9);
+      adapter.emitSnapshot("poll",true);
+      media.dispatchEvent(new Event("timeupdate"));
+      assert.equal(adapter.getSnapshot().track.id,"155343370");
+      session.metadata={...metadata};
+      await settle();
+    }
+    assert.ok(seen.every(s=>s.track.id==="155343370"));
+    assert.equal(engine.activationCount,1);assert.equal(engine.restoreCount,0);
+    assert.equal(players.length,1);assert.equal(players[0].destroyed,false);
+    media.paused=true;media.dispatchEvent(new Event("pause"));await settle();
+    assert.equal(players[0].playing,false,"native pause still reaches replacement");
+    media.paused=false;media.dispatchEvent(new Event("playing"));await settle();
+    assert.equal(players[0].playing,true);
+  } finally {engine.destroy();await settle();adapter.unmount();}
+});
+
+test("null metadata grace expires once and repeated null cannot extend it",()=>{
+  const {session,adapter,advance}=createMetadataGapFixture(),seen=[];
+  adapter.mount({onSnapshot:s=>seen.push(s),onPlayerEvent(){}});
+  try {
+    session.metadata=null;advance(30);session.metadata=null;advance(11);
+    assert.equal(adapter.pendingMetadataClear,null);
+    assert.equal(seen.at(-1).reason,"media-session-metadata-expired");
+    assert.equal(seen.at(-1).track.id,null);
+    assert.equal(adapter.getSnapshot().track.id,null);
+  } finally {adapter.unmount();}
+});
+
+test("metadata grace cannot carry old identity across resource, readiness or duration change",()=>{
+  for(const change of [m=>{m.src+="?next";},m=>{m.currentSrc=m.src+"?next";m.src=m.currentSrc;},m=>{m.duration=160;},m=>{m.readyState=0;},m=>{m.ended=true;}]){
+    const {media,session,adapter}=createMetadataGapFixture();
+    adapter.mount({onSnapshot(){},onPlayerEvent(){}});
+    try {session.metadata=null;change(media);assert.equal(adapter.effectiveSessionMetadata(),null);}
+    finally {adapter.unmount();}
+  }
+});
+
+test("genuine next-song metadata is emitted immediately and unmount cancels pending clear",()=>{
+  const {session,adapter,advance}=createMetadataGapFixture(),seen=[];
+  adapter.mount({onSnapshot:s=>seen.push(s),onPlayerEvent(){}});
+  adapter.ingestTrackPayload({id:"1944611",title:"Всё пиздато",artists:[{name:"Зануда"}],durationMs:193283},"fixture");
+  try {
+    session.metadata=null;advance(9);
+    session.metadata={title:"Всё пиздато",artist:"Зануда",album:"",artwork:[]};
+    assert.equal(seen.at(-1).track.id,"1944611");
+    assert.equal(adapter.pendingMetadataClear,null);
+    session.metadata=null;const before=seen.length;adapter.unmount();advance(100);
+    assert.equal(seen.length,before);assert.equal(adapter.pendingMetadataClear,null);
+  } finally {adapter.unmount();}
+});
