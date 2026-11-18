@@ -2,6 +2,18 @@
 
 Date 18 November 2026. Only `manufact-test/nomusic` sole Android A1 branch. Celikom replacement NOT_CONNECTED. No original Yandex methods, decoder, audio data modified. Latest accepted signed owner APK in Library NAV30; new NAV31 code pending verified publisher-first Android13 native CI.
 
+## FINAL — NAV31 signed green, owner APK v2/v3 signature and personal Library byte-verified (18 Nov 2026)
+
+This section supersedes the earlier pending-CI notes below. Exact signed NAV31 source commit `a8257a6f456bd897bbf4bef6bb8d823713a56dd5`. JVM `#44284890154 SUCCESS`; native publisher-first 2025 original + clone Android13 ARM13 `#44284890144 SUCCESS`, signed artifact id `14419072970`. CI native verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`: original and own clone launch without suppressed audio changes; not a real owner phone/live-audio acceptance test. Original input signature verified 16 splits. Signed owner certificate verified true in CI.
+
+Release APK `CELIKOM-A1-NAV31-Holder-Select-Lifecycle-ReadOnly-20261118.apk`: 71,483,372 bytes, SHA256 **`394a0d67a4d25c0975d19263510781484cf129468fbee84477bcbb3c392c977f`** (same output logged by CI). Actual DER signer certificates from APK Signing Block v2 and v3 SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, same as NAV30. Embedded unchanged publisher Yandex `assets/lspatch/origin.apk` SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`. Nested own module DEX contains `NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY` marker, holder select hook and new bins. ZIP generic README outdated; owner gets new instruction.
+
+**Personal ChatGPT Library uploaded, listed, and downloaded back for byte equality:**
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV31-Holder-Select-Lifecycle-ReadOnly-20261118.apk`
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV31-Инструкция.txt` (2763 bytes, SHA256 `49bcc19cc026a751f82b841ba6da1d68d31676ec98508bee072ab142baa16c81`).
+Both exact readback SHA values matched their release originals: **LIBRARY_NAV31_BYTES_IDENTICAL**. Backup `backup/android-a1-nav31-holder-select-lifecycle-owner-signed-arm13-ci-green-20261118` @ exact signed code `a8257a6f456bd897bbf4bef6bb8d823713a56dd5`. Old NAV30 Library release preserved. No NAV31 owner phone TXT yet. Only next action: owner install IN PLACE without wiping data, play normal 2–5 songs, send private TXT to check lifecycle bins. Stage B replacement remains NOT_CONNECTED.
+
+
 ## NAV30 owner evidence (private, no raw TXT committed)
 
 Private uploaded `CELIKOM-A1-Diagnostics-1794997032172.txt`, source read locally. Active `NAV_V30_NATIVE_PERIOD_ADAPTER_READONLY` appears on current app capture and export (old NAV29 marker elsewhere is historical). All three period/source hooks registered, as well as NAV28 live queue. `LIVE_QUEUE_SLOT_B_ATTACH_MATCH=FEW`, `LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH=MANY` on real phone, OTHER and UNAVAILABLE NONE, `READ_RETURN_LINK_LOST=NONE`. `TRACK_PLAYER_SOURCE_SCOPE_ENTER=FEW`, `TRACK_PLAYER_SOURCE_SAME_SCOPE=FEW`, UNSCOPED ONE, CONFLICT NONE. Old `TRACK_WRAPPER_ALBUM_LINK=FEW` only structural. `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED=NONE`, UNAVAILABLE MANY.
