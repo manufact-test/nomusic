@@ -772,6 +772,7 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                ("AUDIO_NATIVE_TRACK_REQUEST_HOOK","TRACK_REQUEST"),
                ("AUDIO_NATIVE_TRACK_CONTINUATION_HOOK","TRACK_CONTINUATION"),
                ("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER"),
+               ("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR"),
                ("AUDIO_NATIVE_MAIN_CONTINUATION_HOOK","MAIN_CONTINUATION"),
                ("AUDIO_NATIVE_MAIN_SOURCE_HOOK","MAIN_SOURCE")]
         good="".join(log(431,f"event={event};origin={origin};error=REGISTERED;thread=MAIN")
@@ -782,6 +783,25 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
         self.assertEqual(set(r["stage_b_native_track_source_hooks"].values()),{"REGISTERED"})
         self.assertFalse(r["stage_b_current_player_album_edition_attested"])
         self.assertTrue(r["stage_b_registered_hooks_are_not_audio_replacement"])
+
+
+    def test_stage_b_exact_tca_creator_hook_registration_is_pid_scoped(self):
+        rows=(
+            log(431,"event=AUDIO_NATIVE_TCA_CREATOR_HOOK;origin=TRACK_CREATOR;error=REGISTERED;thread=MAIN")
+            +log(999,"event=AUDIO_NATIVE_TCA_CREATOR_HOOK;origin=TRACK_CREATOR;error=NO_HOOK;thread=MAIN")
+            +log(431,"event=AUDIO_NATIVE_TCA_CREATOR_HOOK;origin=private.url;error=NO_HOOK;thread=MAIN"))
+        parsed=scoped_metrica_witness(EXIT,rows)
+        self.assertEqual(parsed["stage_b_native_track_source_hooks"][
+            "AUDIO_NATIVE_TCA_CREATOR_HOOK"],"REGISTERED")
+        self.assertFalse(parsed["stage_b_current_player_album_edition_attested"])
+        self.assertTrue(parsed["stage_b_registered_hooks_are_not_audio_replacement"])
+        self.assertNotIn("private.url",str(parsed))
+        self.assertNotIn("999",str(parsed))
+
+        missing=scoped_metrica_witness(EXIT,
+            log(431,"event=AUDIO_NATIVE_TCA_CREATOR_HOOK;origin=TRACK_CREATOR;error=NO_HOOK;thread=MAIN"))
+        self.assertEqual(missing["stage_b_native_track_source_hooks"][
+            "AUDIO_NATIVE_TCA_CREATOR_HOOK"],"NO_HOOK")
 
     def test_unknown_or_other_pid_continuation_registration_not_accepted(self):
         rows=(
