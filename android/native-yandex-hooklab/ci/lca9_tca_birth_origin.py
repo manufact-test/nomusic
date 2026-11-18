@@ -368,7 +368,7 @@ def trace_exact_tca_constructor_to_callsites(
             cast_type = dex.descriptor(words[1])
             token = regs.get(reg)
             if cast_type == WRAPPER:
-                if token and token.startswith(("REF_", "TRACK_")):
+                if token and token.startswith("REF_"):
                     regs[reg] = "TCA_CAST@" + token
                 elif not token:
                     regs[reg] = f"TCA_CAST@REF_UNKNOWN@{pc}"
@@ -1186,6 +1186,10 @@ def scan_field_writer_upstream_callers(apks, fields):
                 "same_reference_to_writer": (
                     trace["same_tca_reference_on_all_sites"] if trace else False
                 ),
+                "constructor_string_origin_categories": sorted({
+                    site.get("constructor_string_origin_category", "UNKNOWN")
+                    for site in (trace or {}).get("site_results", ())
+                }),
                 "fp0_continuation_summary": fp0_summary,
             })
 
@@ -1205,6 +1209,10 @@ def scan_field_writer_upstream_callers(apks, fields):
         "same_reference_to_writer_count": sum(
             row["same_reference_to_writer"] for row in rows
         ),
+        "constructor_string_origin_categories": sorted({
+            category for row in rows
+            for category in row.get("constructor_string_origin_categories", ())
+        }),
         "fp0_resume_track_argument_explicit_null": any(
             row.get("resume_track_argument_explicit_null", False) for row in fp0
         ),
@@ -1275,6 +1283,7 @@ def safe_summary(direct, upstream, fields, writer_upstream):
         "tca_field_writer_upstream_callsite_count": writer_upstream["callsite_count"],
         "tca_field_writer_upstream_caller_count": writer_upstream["caller_count"],
         "tca_field_writer_upstream_origin_categories": writer_upstream["origin_categories"],
+        "tca_constructor_string_origin_categories": writer_upstream["constructor_string_origin_categories"],
         "tca_field_writer_upstream_constructor_to_writer_same_object_count": writer_upstream["constructor_to_writer_same_object_count"],
         "tca_field_writer_upstream_same_reference_to_writer_count": writer_upstream["same_reference_to_writer_count"],
         "tca_field_writer_upstream_scan_complete": writer_upstream["complete"],
