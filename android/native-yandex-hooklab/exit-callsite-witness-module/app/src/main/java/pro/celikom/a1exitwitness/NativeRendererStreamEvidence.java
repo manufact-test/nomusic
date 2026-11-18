@@ -150,6 +150,21 @@ final class NativeRendererStreamEvidence {
         }
     }
     private final ArrayList<HolderSelectionLink> holderSelectionLinks=new ArrayList<>();
+    // NAV32: owner NAV31 phone observed OTHER (not NULL, not Lup1)
+    // at select ENTER/EXIT, live SLOT_B attach and started audio read.
+    // Classify only known publisher interface wh6 and exact Lo96.
+    // Weak identity is restricted to one exact original holder reference;
+    // matching NEVER proves selected Track/Album/edition/queue generation.
+    private Class<?> publisherMediaPeriodInterface;
+    private int otherSelectEnterPeriod,otherSelectExitPeriod,otherAttachPeriod;
+    private int otherReadPeriod,otherReadNotPeriod,otherReadLo96;
+    private int otherReadSameNameDifferentLoader;
+    private int otherSelectReadSame,otherSelectReadDifferent;
+    private int otherSelectReadWeakLost,otherSelectReadNoHistory;
+    private int otherAttachReadSame,otherAttachReadDifferent;
+    private int otherAttachReadWeakLost,otherAttachReadNoHistory;
+    private final ArrayList<HolderSelectionLink> otherSelectedLinks=new ArrayList<>();
+    private final ArrayList<HolderSelectionLink> otherAttachedLinks=new ArrayList<>();
     private final ThreadLocal<TrackPlayerScope> inPlayerTrack=new ThreadLocal<>();
     private final ArrayList<PlayerSourceLink> playerSources=new ArrayList<>();
     private Field holderWrapperField,wrapperPeriodField,periodSourceField;
@@ -395,6 +410,40 @@ final class NativeRendererStreamEvidence {
         exactPeriodClass=periodClass;
     }
 
+    synchronized void setPublisherMediaPeriodInterface(Class<?> periodInterface) {
+        if(periodInterface==null || !periodInterface.isInterface())
+            throw new IllegalArgumentException("Publisher MediaPeriod interface required");
+        publisherMediaPeriodInterface=periodInterface;
+    }
+
+    private void rememberOtherHolderObject(ArrayList<HolderSelectionLink> history,
+            Object holder,Object object) {
+        if(holder==null || object==null)return;
+        for(int i=history.size()-1;i>=0;i--) {
+            Object previous=history.get(i).holder.get();
+            if(previous==null || previous==holder)history.remove(i);
+        }
+        if(history.size()>=MAX_HANDLES)history.remove(0);
+        history.add(new HolderSelectionLink(holder,object));
+    }
+
+    // Strict original holder + Java reference equality ONLY. Multiple audio
+    // reads can sample the same link, so these are bounded evidence bins,
+    // not counts of selected songs, generations or independently unique links.
+    private int otherReferenceRelation(ArrayList<HolderSelectionLink> history,
+            Object holder,Object observed) {
+        for(int i=history.size()-1;i>=0;i--) {
+            HolderSelectionLink previous=history.get(i);
+            Object oldHolder=previous.holder.get();
+            if(oldHolder==null) {history.remove(i);continue;}
+            if(oldHolder!=holder)continue;
+            Object oldObject=previous.wrapper.get();
+            if(oldObject==null)return 2; // weak lost
+            return oldObject==observed?1:-1;
+        }
+        return 0; // no same-holder history, NEVER a negative identity proof
+    }
+
     private void observeHolderWrapperPhase(Object holder,int phase) {
         // phase 0=exact signed select ENTER, 1=select EXIT,
         // 2=already verified current queue holder at stream ATTACH.
@@ -422,6 +471,16 @@ final class NativeRendererStreamEvidence {
             else if(state==1)attachPeriodExact=inc(attachPeriodExact);
             else if(state==2)attachPeriodOther=inc(attachPeriodOther);
             else attachPeriodFail=inc(attachPeriodFail);
+        }
+        if(state==2 && nested!=null && holderSelectHook>0) {
+            if(publisherMediaPeriodInterface!=null
+                    && publisherMediaPeriodInterface.isInstance(nested)) {
+                if(phase==0)otherSelectEnterPeriod=inc(otherSelectEnterPeriod);
+                else if(phase==1)otherSelectExitPeriod=inc(otherSelectExitPeriod);
+                else if(phase==2)otherAttachPeriod=inc(otherAttachPeriod);
+            }
+            if(phase==1)rememberOtherHolderObject(otherSelectedLinks,holder,nested);
+            else if(phase==2)rememberOtherHolderObject(otherAttachedLinks,holder,nested);
         }
         // A weak earlier exact wrapper is only evidence it WAS present
         // on the same holder at a previous select boundary, not that it
@@ -473,6 +532,27 @@ final class NativeRendererStreamEvidence {
                 return;
             }
             if(!exactWrapperClass.isInstance(nested)) {
+                // NAV32: classify NAV31's non-Lup1 original holder Object
+                // without scanning its fields, methods, metadata or media.
+                if(publisherMediaPeriodInterface!=null
+                        && publisherMediaPeriodInterface.isInstance(nested))
+                    otherReadPeriod=inc(otherReadPeriod);
+                else otherReadNotPeriod=inc(otherReadNotPeriod);
+                if(exactPeriodClass!=null && exactPeriodClass.isInstance(nested))
+                    otherReadLo96=inc(otherReadLo96);
+                if(exactWrapperClass!=null
+                        && exactWrapperClass.getName().equals(nested.getClass().getName()))
+                    otherReadSameNameDifferentLoader=inc(otherReadSameNameDifferentLoader);
+                int selectRelation=otherReferenceRelation(otherSelectedLinks,currentHolder,nested);
+                if(selectRelation==1)otherSelectReadSame=inc(otherSelectReadSame);
+                else if(selectRelation==-1)otherSelectReadDifferent=inc(otherSelectReadDifferent);
+                else if(selectRelation==2)otherSelectReadWeakLost=inc(otherSelectReadWeakLost);
+                else otherSelectReadNoHistory=inc(otherSelectReadNoHistory);
+                int attachRelation=otherReferenceRelation(otherAttachedLinks,currentHolder,nested);
+                if(attachRelation==1)otherAttachReadSame=inc(otherAttachReadSame);
+                else if(attachRelation==-1)otherAttachReadDifferent=inc(otherAttachReadDifferent);
+                else if(attachRelation==2)otherAttachReadWeakLost=inc(otherAttachReadWeakLost);
+                else otherAttachReadNoHistory=inc(otherAttachReadNoHistory);
                 livePeriodHolderOther=inc(livePeriodHolderOther);
                 livePeriodHolderMissing=inc(livePeriodHolderMissing);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
@@ -1131,6 +1211,21 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_HOLDER_WRAPPER_MISSING",livePeriodHolderMissing),
             line("LIVE_PERIOD_HOLDER_WRAPPER_NULL_AT_READ",livePeriodHolderNull),
             line("LIVE_PERIOD_HOLDER_WRAPPER_OTHER_AT_READ",livePeriodHolderOther),
+            line("HOLDER_OTHER_WH6_SELECT_ENTER",otherSelectEnterPeriod),
+            line("HOLDER_OTHER_WH6_SELECT_EXIT",otherSelectExitPeriod),
+            line("HOLDER_OTHER_WH6_ATTACH",otherAttachPeriod),
+            line("HOLDER_OTHER_WH6_AT_READ",otherReadPeriod),
+            line("HOLDER_OTHER_NON_WH6_AT_READ",otherReadNotPeriod),
+            line("HOLDER_OTHER_LO96_AT_READ",otherReadLo96),
+            line("HOLDER_OTHER_UP1_NAME_DIFFERENT_LOADER_AT_READ",otherReadSameNameDifferentLoader),
+            line("HOLDER_OTHER_SELECT_SAME_AT_READ",otherSelectReadSame),
+            line("HOLDER_OTHER_SELECT_DIFFERENT_AT_READ",otherSelectReadDifferent),
+            line("HOLDER_OTHER_SELECT_WEAK_LOST_AT_READ",otherSelectReadWeakLost),
+            line("HOLDER_OTHER_SELECT_NO_HISTORY_AT_READ",otherSelectReadNoHistory),
+            line("HOLDER_OTHER_ATTACH_SAME_AT_READ",otherAttachReadSame),
+            line("HOLDER_OTHER_ATTACH_DIFFERENT_AT_READ",otherAttachReadDifferent),
+            line("HOLDER_OTHER_ATTACH_WEAK_LOST_AT_READ",otherAttachReadWeakLost),
+            line("HOLDER_OTHER_ATTACH_NO_HISTORY_AT_READ",otherAttachReadNoHistory),
             line("HOLDER_SELECT_ENTER_EXACT",selectEnterExact),
             line("HOLDER_SELECT_ENTER_NULL",selectEnterNull),
             line("HOLDER_SELECT_ENTER_OTHER",selectEnterOther),
