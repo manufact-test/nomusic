@@ -2,6 +2,19 @@
 
 18 November 2026, only `manufact-test/nomusic` / `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
 
+## FINAL — NAV29 signed owner artifact, exact publisher proof & verified personal Library (18 Nov 2026)
+
+Initial earlier "ARM13 pending" status is archived by this final section. Signed exact owner source `bef2e523d063bb90cd0606e7041716ed4c45eb11`; model JVM `#44276987119 SUCCESS`, original publisher-first native Android13 ARM `#44276987005 SUCCESS`. CI confirmed 16 issuer-signed pinned 2025.10.4 original splits and printed `NAV29_PUBLISHER_SIGNED_TRACK_TO_ACTIVE_PERIOD_PRIVATE_FIELDS_PASS`. Android verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`: publisher and clone successfully launched, no audio-replacement proof and no owner device used. Signed CI ZIP artifact ID `14415731780`.
+
+- Extracted exact owner APK size **71,479,276** bytes, SHA256 **`bd48d0225e9667a0a34212a788d949a634f2a7c570a825181cbb35db3a2894cc`** equals CI job output.
+- Independently parsed actual APK Signing Block v2 & v3 certificates: each SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, same owner NAV28 signer. CI `owner_apk_signer_verified=true`.
+- Embedded publisher original `assets/lspatch/origin.apk` SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` unchanged. Nested own module `assets/lspatch/modules/pro.celikom.a1exitwitness.apk` DEX contains marker `NAV_V29_TRACK_SOURCE_ACTIVE_PERIOD_READONLY`, `PrivateNativeActivePeriodTarget` and all NAV29 hook/counter names. Only owned read-only code changed; no vendor modification.
+- **PERSONAL ChatGPT LIBRARY:** `/CELIKOM/Android/Native/CELIKOM-A1-NAV29-Active-Track-Source-Period-ReadOnly-20261118.apk` and `/CELIKOM/Android/Native/CELIKOM-A1-NAV29-Инструкция.txt`. Both uploaded independently, both listed under `/CELIKOM/Android/Native`, both materialized back from Library, and SHA256/byte compare with exact CI-signed APK and fresh Russian NAV29 instruction **LIBRARY_NAV29_BYTES_IDENTICAL**. Instruction 2,611 bytes, SHA256 `c85982afce6b032af866440c3dfe7faccf7c1b145d449dbffffa5e455ac28fce`. **The CI ZIP bundled a stale generic README. NEVER deliver it.** Only Library instruction is the appropriate NAV29 text.
+- Protected exact signed NAV29 code backup `backup/android-a1-nav29-active-track-source-period-owner-arm13-ci-green-20261118` @ `bef2e523d063bb90cd0606e7041716ed4c45eb11`. Pre-NAV29 verified NAV28 owner phone backup `backup/android-a1-nav28-owner-phone-live-slot-read-match-pre-nav29-20261118` @ `6603fefee19b1d7be319901998d8eae441e6786a`.
+
+**Next:** owner can install Library NAV29 APK IN PLACE over NAV28 without uninstall/data wipe, play usual 2–5 tracks, export TXT privately. New counters `TRACK_PLAYER_SOURCE_SCOPE_ENTER`, `TRACK_PLAYER_SOURCE_SAME_SCOPE/UNSCOPED/CONFLICT`, `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED/UNAVAILABLE`, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH/OTHER/NO_LINK`, and corresponding hook registration categories. Even a positive match does not prove album edition/duration/queue generation, entitlement or audio substitution, so Stage B remains NOT_CONNECTED. No phone NAV29 evidence yet.
+
+
 ## Private NAV28 phone facts (not release smoke and not static inference)
 The actual owner TXT `CELIKOM-A1-Diagnostics-1794993804107.txt` was parsed in this conversation; raw contents NOT committed. The file preserves stale NAV26 and NAV27 log sections, but its explicit export snapshot identifies `NAV_V28_LIVE_QUEUE_SLOT_B_RENDERER_READONLY;ACTIVE`.
 
