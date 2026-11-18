@@ -225,6 +225,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean rendererAttachScopeHooked;
     private boolean rendererStreamSetHooked;
     private boolean rendererSampleReadHooked;
+    private boolean rendererComparatorHooked;
     private boolean rendererDetachHooked;
     private boolean rendererSecondaryCallerHooked;
     private boolean rendererEngineHolderScopeHooked;
@@ -2453,7 +2454,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 || !PACKAGE.equals(caller.getPackageName())) return;
         if (rendererAttachScopeHooked && rendererStreamSetHooked
                 && rendererSampleReadHooked && rendererDetachHooked
-                && rendererSecondaryCallerHooked && rendererEngineHolderScopeHooked) return;
+                && rendererSecondaryCallerHooked && rendererEngineHolderScopeHooked
+                && rendererComparatorHooked) return;
         try {
             android.content.pm.PackageInfo info=caller.getPackageManager()
                 .getPackageInfo(PACKAGE,0);
@@ -2632,6 +2634,45 @@ public final class ExitCallsiteWitness extends XposedModule {
                 final Method getter=rendererBase.getDeclaredMethod("while");
                 if (getter.getReturnType()!=stream) throw new NoSuchMethodException();
                 getter.setAccessible(true);
+                // NAV26: observe the exact signed LmQ8.try(holder, renderer)
+                // reference-comparator result. Original executes once and its
+                // boolean is returned unchanged. Only the exact attached stream
+                // reference is retained weakly in the evidence model.
+                if (!rendererComparatorHooked) {
+                    try {
+                        Method comparator=selector.getDeclaredMethod("try",holder,nativeRenderer);
+                        if (comparator.getReturnType()!=boolean.class)
+                            throw new NoSuchMethodException();
+                        comparator.setAccessible(true);
+                        hook(comparator).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                            .intercept(chain -> {
+                                Object holderObject=chain.getArg(0);
+                                Object rendererObject=chain.getArg(1);
+                                Object original=chain.proceed();
+                                try {
+                                    Object attached=rendererObject==null?null:getter.invoke(rendererObject);
+                                    if(original instanceof Boolean && holderObject!=null
+                                            && rendererObject!=null && attached!=null
+                                            && stream.isInstance(attached)) {
+                                        NATIVE_RENDERER_EVIDENCE.onRendererComparatorResult(
+                                            holderObject,rendererObject,attached,
+                                            ((Boolean)original).booleanValue());
+                                    } else {
+                                        NATIVE_RENDERER_EVIDENCE.onRendererComparatorUnavailable();
+                                    }
+                                } catch(Throwable ignored) {
+                                    NATIVE_RENDERER_EVIDENCE.onRendererComparatorUnavailable();
+                                }
+                                return original;
+                            });
+                        rendererComparatorHooked=true;
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration("RENDERER_COMPARATOR",true);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK","RENDERER_COMPARATOR","REGISTERED");
+                    } catch (Throwable ignored) {
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration("RENDERER_COMPARATOR",false);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK","RENDERER_COMPARATOR","NO_HOOK");
+                    }
+                }
                 // Pinned signed 2025 b.default()I returns the exact int field
                 // fed from b.<init>(I); generic getTrackType() is obfuscated.
                 // b.getState()I is also an exact field getter. Both optional:
