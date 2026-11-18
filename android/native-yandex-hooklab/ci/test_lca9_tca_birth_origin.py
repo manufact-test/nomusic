@@ -223,6 +223,18 @@ class Lca9TcaBirthOriginTests(unittest.TestCase):
             tca_origin_category("REF_PARAMETER@4"),
             "REFERENCE_PARAMETER",
         )
+        self.assertEqual(
+            tca_origin_category("TRACK_PARAMETER@6"),
+            "TRACK_PARAMETER",
+        )
+        self.assertEqual(
+            tca_origin_category("TRACK_FIELD_FROM_CONTINUATION@9"),
+            "TRACK_FROM_CONTINUATION_FIELD",
+        )
+        self.assertEqual(
+            _parameter_register_from_tca_token("TRACK_PARAMETER@8"),
+            8,
+        )
 
 
     def test_tca_constructor_string_origin_is_categorical_only(self):
