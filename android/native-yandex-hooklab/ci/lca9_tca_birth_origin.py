@@ -633,7 +633,8 @@ def trace_exact_tca_constructor_to_callsites(
             "constructor_string_field_ref": constructor_string_field_ref,
             "constructor_string_track_receiver_category": (
                 "TRACK_PARAMETER" if isinstance(constructor_string_track_receiver_token, str)
-                    and constructor_string_track_receiver_token.startswith(("TRACK_PARAMETER@", "TRACK_CAST@REF_PARAMETER@"))
+                    and (constructor_string_track_receiver_token.startswith("TRACK_PARAMETER@")
+                         or constructor_string_track_receiver_token.startswith("TRACK_CAST@REF_PARAMETER@"))
                 else "TRACK_THIS" if isinstance(constructor_string_track_receiver_token, str)
                     and constructor_string_track_receiver_token.startswith("TRACK_THIS@")
                 else "TRACK_FROM_CONTINUATION" if isinstance(constructor_string_track_receiver_token, str)
@@ -1244,6 +1245,15 @@ def scan_field_writer_upstream_callers(apks, fields):
                     site.get("constructor_string_origin_category", "UNKNOWN")
                     for site in (trace or {}).get("site_results", ())
                 }),
+                "constructor_string_track_receiver_categories": sorted({
+                    site.get("constructor_string_track_receiver_category", "OTHER_OR_UNKNOWN")
+                    for site in (trace or {}).get("site_results", ())
+                }),
+                "constructor_string_track_parameter_positions": sorted({
+                    site.get("constructor_string_track_parameter_position")
+                    for site in (trace or {}).get("site_results", ())
+                    if site.get("constructor_string_track_parameter_position") is not None
+                }),
                 "fp0_continuation_summary": fp0_summary,
             })
 
@@ -1266,6 +1276,14 @@ def scan_field_writer_upstream_callers(apks, fields):
         "constructor_string_origin_categories": sorted({
             category for row in rows
             for category in row.get("constructor_string_origin_categories", ())
+        }),
+        "constructor_string_track_receiver_categories": sorted({
+            category for row in rows
+            for category in row.get("constructor_string_track_receiver_categories", ())
+        }),
+        "constructor_string_track_parameter_positions": sorted({
+            position for row in rows
+            for position in row.get("constructor_string_track_parameter_positions", ())
         }),
         "fp0_resume_track_argument_explicit_null": any(
             row.get("resume_track_argument_explicit_null", False) for row in fp0
@@ -1338,6 +1356,8 @@ def safe_summary(direct, upstream, fields, writer_upstream):
         "tca_field_writer_upstream_caller_count": writer_upstream["caller_count"],
         "tca_field_writer_upstream_origin_categories": writer_upstream["origin_categories"],
         "tca_constructor_string_origin_categories": writer_upstream["constructor_string_origin_categories"],
+        "tca_constructor_track_receiver_categories": writer_upstream["constructor_string_track_receiver_categories"],
+        "tca_constructor_track_parameter_positions": writer_upstream["constructor_string_track_parameter_positions"],
         "tca_field_writer_upstream_constructor_to_writer_same_object_count": writer_upstream["constructor_to_writer_same_object_count"],
         "tca_field_writer_upstream_same_reference_to_writer_count": writer_upstream["same_reference_to_writer_count"],
         "tca_field_writer_upstream_scan_complete": writer_upstream["complete"],
