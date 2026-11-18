@@ -2,6 +2,19 @@
 
 18 November 2026. Repo `manufact-test/nomusic`; sole working `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. CELIKOM alternative replacement remains **NOT_CONNECTED**; original audio/player behavior unchanged. No new owner reported issues.
 
+## FINAL — NAV30 signed original strict adapter reference, owner ARM13 green and Library verified (18 Nov 2026)
+
+The early pending notes below are superseded by this final section. The first NAV30 approach only correlated an exact synchronous `Lp96.goto` frame with one `Lp96.transient` result, which was not enough for object identity. Final code commit `e96066a33b2386f84208da7b0affa24c59b2b6d9` **rejects a timing-only alias**. Weak link is recorded ONLY if `goto` returned the exact original Lo96 reference, or its exact signer-verified `Lup1` instance stores that same Lo96 in the precise original `Lwh6` field by Java `==`. Separate negative fixture proves an unrelated return in the same frame cannot match. All reasons for NAV29 `UNAVAILABLE` now get distinct finite counters. No source value, track name/ID, media bytes, private field name, token or URL logged.
+
+**CI green:** JVM `#44281341168 SUCCESS`; owner signed publisher-first native Android13 ARM13 `#44281341301 SUCCESS` at exactly `e96066a33b2386f84208da7b0affa24c59b2b6d9`. Signed private pinned 2025.10.4 original input, 16 issuer-signed splits, owner APK signer verified. Native guest verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO` — not an audio acceptance test and not owner NAV30 phone result. Owner ZIP artifact `14417566955` extracted privately; its bundled generic README is STALE, not sent to owner.
+
+**Actual signed APK:** `CELIKOM-A1-NAV30-Native-Period-Adapter-ReadOnly-20261118.apk`; 71,483,372 bytes, SHA256 `c51557a09f620f41d10825193453dc37b505cfb83f1cd191540cc635c90a3a9a` verified against CI. Both APK v2/v3 actual signing block DER X509 cert SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, same owner NAV29. Embedded original `assets/lspatch/origin.apk` SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` unchanged. Own module DEX contains NAV30 marker, new counter names and signed private target.
+
+**Personal ChatGPT Library confirmed:** `/CELIKOM/Android/Native/CELIKOM-A1-NAV30-Native-Period-Adapter-ReadOnly-20261118.apk`; `/CELIKOM/Android/Native/CELIKOM-A1-NAV30-Инструкция.txt` (2,839 bytes, SHA `c7833be5545224be0e2cfdf97509377b4235a4b198569d8ef25856713c947543`). Both uploaded, both listed, both materialized BACK from Library and exact byte SHA compared: **LIBRARY_NAV30_BYTES_IDENTICAL**. Signed immutable backup `backup/android-a1-nav30-exact-wrapper-ref-owner-arm13-ci-green-20261118` @ final signed code `e96066a33b2386f84208da7b0affa24c59b2b6d9`. Pre-NAV30 phone backup @ `7388390b9b329ba3fead134450e2fc836040d2bf`. Old accepted NAV29/NAV28 Library APKs kept.
+
+**Next:** owner install NAV30 IN PLACE over NAV29 without clearing data, listen to 2–5 songs, export private diagnostics; no extra seek/BT troubleshooting absent reported issues. New NAV30 phone sample NOT RECEIVED. CELIKOM replacement remains NOT_CONNECTED.
+
+
 ## NAV29 actual owner evidence (PRIVATE original TXT)
 File `CELIKOM-A1-Diagnostics-1794995459271.txt` is private, **do not commit**. Older NAV28 marker historical; active NAV29 marker at capture and export. Recorded:
 - `TRACK_PLAYER_SOURCE_SCOPE`, `NATIVE_PLAYER_SOURCE_SETTER`, `LIVE_PERIOD_ORIGINAL_SOURCE` REGISTERED; `TRACK_PLAYER_SOURCE_SCOPE_ENTER=FEW`, `TRACK_PLAYER_SOURCE_SAME_SCOPE=FEW`, no UNSCOPED or CONFLICT. Thus exact native source setter entered within the TrackWrapper-bearing synchronous frame at least once.
