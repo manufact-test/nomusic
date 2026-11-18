@@ -4,7 +4,10 @@ import unittest
 
 from lca9_tca_birth_origin import (
     logical_parameter_positions,
+    logical_parameter_type,
+    tca_origin_category,
     wrapper_origin_categories,
+    _parameter_register_from_tca_token,
 )
 from audit_native_selected_item_handoff import ACC_STATIC
 
@@ -70,6 +73,58 @@ class Lca9TcaBirthOriginTests(unittest.TestCase):
             wrapper_origin_categories({"kind": "CALL_TARGET_ROLE_WITHOUT_IDENTITY"}, 0),
             ("NO_IDENTITY",),
         )
+
+
+    def test_casted_opaque_reference_origin_categories(self):
+        self.assertEqual(
+            tca_origin_category("TCA_CAST@REF_PARAMETER@4"),
+            "CAST_FROM_REFERENCE_PARAMETER",
+        )
+        self.assertEqual(
+            tca_origin_category("TCA_CAST@REF_THIS_FIELD@12"),
+            "CAST_FROM_THIS_FIELD",
+        )
+        self.assertEqual(
+            tca_origin_category("TCA_CAST@REF_RETURN@27"),
+            "CAST_FROM_METHOD_RETURN",
+        )
+        self.assertEqual(
+            tca_origin_category("REF_PARAMETER@4"),
+            "REFERENCE_PARAMETER",
+        )
+
+    def test_constructor_and_null_origins_are_distinct(self):
+        self.assertEqual(
+            tca_origin_category("TCA_INIT@TCA_ALLOC@15"),
+            "CONSTRUCTED_IN_SAME_METHOD",
+        )
+        self.assertEqual(
+            tca_origin_category("TCA_NULL@19"),
+            "EXPLICIT_NULL",
+        )
+
+    def test_casted_parameter_register_is_recoverable_for_one_upstream_hop(self):
+        self.assertEqual(
+            _parameter_register_from_tca_token("TCA_CAST@REF_PARAMETER@7"),
+            7,
+        )
+        self.assertEqual(
+            _parameter_register_from_tca_token("TCA_PARAMETER@5"),
+            5,
+        )
+        self.assertIsNone(
+            _parameter_register_from_tca_token("TCA_CAST@REF_FIELD@9")
+        )
+
+    def test_logical_parameter_type_handles_instance_and_wide_arguments(self):
+        method = (
+            "Lexample/Owner;", "call",
+            "(Ljava/lang/Object;J LtCa;)V".replace(" ", ""),
+        )
+        self.assertEqual(logical_parameter_type(method, ACC_STATIC, 0), "Ljava/lang/Object;")
+        self.assertEqual(logical_parameter_type(method, ACC_STATIC, 2), "LtCa;")
+        self.assertEqual(logical_parameter_type(method, 0, 1), "Ljava/lang/Object;")
+        self.assertEqual(logical_parameter_type(method, 0, 3), "LtCa;")
 
     def test_logical_parameter_position_skips_wide_register_word(self):
         method = (
