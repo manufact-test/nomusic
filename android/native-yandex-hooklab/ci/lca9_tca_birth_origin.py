@@ -21,6 +21,7 @@ sys_path = HERE.parent
 import sys
 sys.path.insert(0, str(sys_path))
 import audit_native_selected_item_handoff as audit
+import lft2_class_inspection as trusted
 
 TARGET = (
     "LcA9;", "extends",
@@ -603,7 +604,7 @@ def run(xapk: Path):
         raise RuntimeError("EPHEMERAL_CI_ONLY")
     if not xapk.is_file() or xapk.stat().st_size != audit.PINNED_XAPK_BYTES:
         raise ValueError("TCA_PINNED_XAPK_SIZE_MISMATCH")
-    if audit.sha256_file(xapk) != audit.PINNED_XAPK_SHA256:
+    if trusted.sha256_file(xapk) != audit.PINNED_XAPK_SHA256:
         raise ValueError("TCA_PINNED_XAPK_SHA_MISMATCH")
 
     with tempfile.TemporaryDirectory(prefix="celikom-lca9-tca-birth-") as tmp:
@@ -615,13 +616,13 @@ def run(xapk: Path):
             raise ValueError("TCA_ISSUER_SIGNER_MISMATCH")
         bases = []
         for apk in splits:
-            meta = audit.package_metadata(apk)
+            meta = trusted.package_metadata(apk)
             if (meta.get("name") != "ru.yandex.music"
                     or meta.get("versionCode") != "24025542"):
                 raise ValueError("TCA_ORIGINAL_PACKAGE_VERSION_MISMATCH")
             if not meta.get("split"):
                 bases.append(apk)
-        if len(bases) != 1 or audit.sha256_file(bases[0]) != audit.PINNED_BASE_APK_SHA256:
+        if len(bases) != 1 or trusted.sha256_file(bases[0]) != trusted.PINNED_BASE_APK_SHA256:
             raise ValueError("TCA_ORIGINAL_BASE_APK_SHA_MISMATCH")
         direct = scan_direct_callers(splits)
         upstream = scan_upstream_callers(splits, direct)
