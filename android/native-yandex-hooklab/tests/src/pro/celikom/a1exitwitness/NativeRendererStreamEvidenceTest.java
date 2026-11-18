@@ -430,6 +430,15 @@ public final class NativeRendererStreamEvidenceTest {
         finally { e.exitSecondaryCaller(caller); e.exitEngine(frame); }
     }
 
+    private static void makeBoundEngineLink(NativeRendererStreamEvidence e,
+            Object holder,Object renderer,Object stream) {
+        NativeRendererStreamEvidence.EngineFrame frame=e.enterEngine(holder);
+        NativeRendererStreamEvidence.CallerFrame caller=
+            e.enterSecondaryCaller(renderer,stream);
+        try { e.onAttach(renderer,stream); }
+        finally { e.exitSecondaryCaller(caller); e.exitEngine(frame); }
+    }
+
     private static void testAudioType1State2StrictHolderRead() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         registerExactEngineField(e);
@@ -611,7 +620,7 @@ public final class NativeRendererStreamEvidenceTest {
         e.onHookRegistration("RENDERER_COMPARATOR",true);
         Object renderer=new Object(),stream=new Object();
         FakePeriodHolder holder=new FakePeriodHolder(stream);
-        makeBoundEngineLink(e,renderer,stream);
+        makeBoundEngineLink(e,holder,renderer,stream);
         e.onRendererComparatorResult(holder,renderer,stream,false);
         e.onRendererTypeStateRead(renderer,stream,1,2,-4);
         String[] snap=e.exportLines();
@@ -647,7 +656,7 @@ public final class NativeRendererStreamEvidenceTest {
         e.onHookRegistration("RENDERER_COMPARATOR",true);
         Object renderer=new Object(),stream=new Object();
         FakePeriodHolder holder=new FakePeriodHolder(stream);
-        makeBoundEngineLink(e,renderer,stream);
+        makeBoundEngineLink(e,holder,renderer,stream);
         e.onRendererComparatorResult(holder,renderer,stream,true);
         e.onDetach(renderer);
         e.onRendererTypeStateRead(renderer,stream,1,2,-4);
