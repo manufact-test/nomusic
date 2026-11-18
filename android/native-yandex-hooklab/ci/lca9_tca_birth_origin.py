@@ -1593,7 +1593,10 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
     ]
     if not creator_rows:
         return {
-            "creator_count": 0, "owner_parameter_type_categories": [],
+            "creator_count": 0, "creator_owner_continuation_count": 0,
+            "creator_invoke_suspend_signature_count": 0,
+            "creator_gpo_new_count": 0, "creator_constructor_count": 0,
+            "owner_parameter_type_categories": [],
             "owner_parameter_matches_track_field_owner_count": 0,
             "callsite_count": 0, "caller_count": 0, "origin_categories": [],
             "same_reference_count": 0, "continuation_field_origin_count": 0,
@@ -1635,6 +1638,21 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
     if not target_specs:
         return {
             "creator_count": len(creator_rows),
+            "creator_owner_continuation_count": sum(
+                row["caller_definition"][1][0] == CONTINUATION_DESCRIPTOR
+                for row in creator_rows
+            ),
+            "creator_invoke_suspend_signature_count": sum(
+                row["caller_definition"][1][1] == "invokeSuspend"
+                and row["caller_definition"][1][2] == "(Ljava/lang/Object;)Ljava/lang/Object;"
+                for row in creator_rows
+            ),
+            "creator_gpo_new_count": sum(
+                row["caller_definition"][1] == INITIAL for row in creator_rows
+            ),
+            "creator_constructor_count": sum(
+                row["caller_definition"][1][1] == "<init>" for row in creator_rows
+            ),
             "owner_parameter_type_categories": sorted(owner_type_categories),
             "owner_parameter_matches_track_field_owner_count": owner_type_matches_field_owner,
             "callsite_count": 0, "caller_count": 0, "origin_categories": [],
@@ -1759,6 +1777,21 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
     ]
     return {
         "creator_count": len(creator_rows),
+        "creator_owner_continuation_count": sum(
+            row["caller_definition"][1][0] == CONTINUATION_DESCRIPTOR
+            for row in creator_rows
+        ),
+        "creator_invoke_suspend_signature_count": sum(
+            row["caller_definition"][1][1] == "invokeSuspend"
+            and row["caller_definition"][1][2] == "(Ljava/lang/Object;)Ljava/lang/Object;"
+            for row in creator_rows
+        ),
+        "creator_gpo_new_count": sum(
+            row["caller_definition"][1] == INITIAL for row in creator_rows
+        ),
+        "creator_constructor_count": sum(
+            row["caller_definition"][1][1] == "<init>" for row in creator_rows
+        ),
         "owner_parameter_type_categories": sorted(owner_type_categories),
         "owner_parameter_matches_track_field_owner_count": owner_type_matches_field_owner,
         "callsite_count": call_count,
@@ -1888,6 +1921,10 @@ def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_
         "tca_constructor_track_source_field_same_owner_parameter_count": track_handoff["same_owner_parameter_count"],
         "tca_constructor_track_source_field_same_owner_field_candidate_count": track_handoff["same_owner_field_candidate_count"],
         "tca_constructor_track_owner_parameter_creator_count": owner_parameter_upstream["creator_count"],
+        "tca_constructor_track_creator_owner_continuation_count": owner_parameter_upstream["creator_owner_continuation_count"],
+        "tca_constructor_track_creator_invoke_suspend_signature_count": owner_parameter_upstream["creator_invoke_suspend_signature_count"],
+        "tca_constructor_track_creator_gpo_new_count": owner_parameter_upstream["creator_gpo_new_count"],
+        "tca_constructor_track_creator_constructor_count": owner_parameter_upstream["creator_constructor_count"],
         "tca_constructor_track_owner_parameter_type_categories": owner_parameter_upstream["owner_parameter_type_categories"],
         "tca_constructor_track_owner_parameter_matches_track_field_owner_count": owner_parameter_upstream["owner_parameter_matches_track_field_owner_count"],
         "tca_constructor_track_owner_parameter_upstream_callsite_count": owner_parameter_upstream["callsite_count"],
