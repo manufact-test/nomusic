@@ -319,7 +319,7 @@ def trace_exact_tca_constructor_to_callsites(
             field_ref = audit.field_id(dex, words[1])
             field_type = field_ref[2]
             receiver_token = regs.get(receiver)
-            field_read_metadata[pc] = (field_ref, receiver_token)
+            field_read_metadata[pc] = (field_ref, receiver_token, False)
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_FIELD@{pc}"
@@ -330,7 +330,7 @@ def trace_exact_tca_constructor_to_callsites(
             dest = words[0] >> 8
             field_ref = audit.field_id(dex, words[1])
             field_type = field_ref[2]
-            field_read_metadata[pc] = (field_ref, None)
+            field_read_metadata[pc] = (field_ref, None, True)
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_STATIC_FIELD@{pc}"
@@ -465,10 +465,10 @@ def trace_exact_tca_constructor_to_callsites(
                 or (isinstance(receiver_token, str) and receiver_token.startswith("REF_THIS@"))
             else "PARAMETER" if isinstance(receiver_token, str)
                 and receiver_token.startswith("REF_PARAMETER@")
-            else "FIELD" if isinstance(receiver_token, str)
-                and ("FIELD@" in receiver_token)
             else "STATIC_FIELD" if isinstance(receiver_token, str)
                 and receiver_token.startswith("REF_STATIC_FIELD@")
+            else "FIELD" if isinstance(receiver_token, str)
+                and ("FIELD@" in receiver_token)
             else "UNKNOWN" if receiver_register is not None else "STATIC"
         )
 
@@ -489,18 +489,20 @@ def trace_exact_tca_constructor_to_callsites(
                 if match:
                     field_pc = int(match.group(1) or match.group(2))
         if field_pc is not None and field_pc in field_read_metadata:
-            field_ref, field_receiver_token = field_read_metadata[field_pc]
-            if field_receiver_token == "TCA_THIS" or (
+            field_ref, field_receiver_token, field_is_static = field_read_metadata[field_pc]
+            if field_is_static:
+                field_receiver_category = "STATIC"
+            elif field_receiver_token == "TCA_THIS" or (
                 isinstance(field_receiver_token, str)
                 and field_receiver_token.startswith("REF_THIS@")
             ):
                 field_receiver_category = "THIS"
             elif isinstance(field_receiver_token, str) and field_receiver_token.startswith("REF_PARAMETER@"):
                 field_receiver_category = "PARAMETER"
+            elif isinstance(field_receiver_token, str) and field_receiver_token.startswith("REF_STATIC_FIELD@"):
+                field_receiver_category = "STATIC_FIELD"
             elif isinstance(field_receiver_token, str) and "FIELD@" in field_receiver_token:
                 field_receiver_category = "FIELD"
-            elif field_receiver_token is None:
-                field_receiver_category = "STATIC"
             else:
                 field_receiver_category = "UNKNOWN"
 
@@ -980,7 +982,7 @@ def scan_field_writers(apks, direct):
     }
 
 
-def safe_summary(direct, upstream):
+def safe_summary(direct, upstream, fields):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
     direct_constructor = sum(
@@ -1022,8 +1024,23 @@ def safe_summary(direct, upstream):
         "upstream_same_reference_to_direct_caller_count": sum(
             row.get("same_reference_to_direct_caller", False) for row in upstream_rows
         ),
+        "direct_tca_field_count": fields["field_count"],
+        "direct_tca_field_reader_site_count": fields["reader_site_count"],
+        "direct_field_reader_receiver_categories": sorted({
+            row.get("receiver_category")
+            for readers in direct["field_read_targets"].values()
+            for row in readers
+        }),
+        "tca_field_writer_site_count": fields["writer_site_count"],
+        "tca_field_writer_method_count": fields["writer_method_count"],
+        "tca_field_writer_value_origin_categories": fields["writer_value_origin_categories"],
+        "tca_field_writer_receiver_categories": fields["writer_receiver_categories"],
+        "tca_owner_constructor_field_write_proven_count": fields["owner_constructor_write_proven_count"],
+        "tca_field_chain_proven_count": fields["field_chain_proven_count"],
+        "tca_constructor_to_lca9_via_field_proven": fields["tca_constructor_to_lca9_via_field_proven"],
         "exact_tca_constructor_to_lca9_same_object_proven": bool(
             direct_constructor or upstream_constructor
+            or fields["tca_constructor_to_lca9_via_field_proven"]
         ),
         "fp0_resume_track_argument_explicit_null": any(
             row.get("resume_track_argument_explicit_null", False) for row in fp0
@@ -1079,7 +1096,8 @@ def run(xapk: Path):
             raise ValueError("TCA_ORIGINAL_BASE_APK_SHA_MISMATCH")
         direct = scan_direct_callers(splits)
         upstream = scan_upstream_callers(splits, direct)
-        return safe_summary(direct, upstream)
+        fields = scan_field_writers(splits, direct)
+        return safe_summary(direct, upstream, fields)
 
 
 if __name__ == "__main__":
