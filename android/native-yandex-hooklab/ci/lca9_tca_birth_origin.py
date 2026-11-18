@@ -1873,7 +1873,277 @@ def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
     }
 
 
-def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_upstream, track_handoff, owner_parameter_upstream):
+
+
+def scan_creator_method_dispatch_surfaces(apks, writer_upstream):
+    """Find exact/ancestor invoke edges and method-handle references for the tCa creator."""
+    creator_rows = [
+        row for row in writer_upstream["upstream_rows"]
+        if row.get("constructor_to_writer_same_object")
+        and "TRACK_FIELD" in row.get("constructor_string_origin_categories", ())
+    ]
+    creator_methods = {
+        row["caller_definition"][1] for row in creator_rows
+    }
+    if not creator_methods:
+        return {
+            "creator_method_count": 0, "ancestor_owner_count": 0,
+            "ancestor_method_declaration_count": 0,
+            "exact_method_invoke_callsite_count": 0,
+            "ancestor_method_invoke_callsite_count": 0,
+            "distinct_invoke_caller_count": 0,
+            "receiver_same_reference_count": 0,
+            "receiver_origin_categories": [],
+            "method_handle_count": 0, "method_handle_kind_categories": [],
+            "method_handle_callsite_count": 0,
+            "invoke_custom_reference_site_count": 0,
+            "invoke_custom_reference_caller_count": 0,
+            "const_method_handle_instruction_count": 0,
+            "scan_complete": True,
+        }
+
+    class_profiles = {}
+    dex_count = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > audit.DEX_MAX:
+                    raise ValueError("TCA_DISPATCH_DEX_LIMIT")
+                dex_count += 1
+                dex = audit.Dex(archive.read(entry.filename))
+                class_profiles.update(audit.declared_field_inventory(dex))
+    if dex_count != 6:
+        raise ValueError("TCA_DISPATCH_SIGNED_SIX_DEX_REQUIRED")
+
+    ancestor_owners = set()
+    for method in creator_methods:
+        pending = [method[0]]
+        visited = set()
+        while pending:
+            owner = pending.pop()
+            if owner in visited:
+                continue
+            visited.add(owner)
+            profile = class_profiles.get(owner)
+            if not profile:
+                continue
+            parents = set(profile.get("interfaces", ()))
+            superclass = profile.get("superclass")
+            if superclass:
+                parents.add(superclass)
+            for parent in parents:
+                if parent not in visited:
+                    ancestor_owners.add(parent)
+                    pending.append(parent)
+
+    target_refs = set(creator_methods)
+    for method in creator_methods:
+        for owner in ancestor_owners:
+            target_refs.add((owner, method[1], method[2]))
+
+    declared_ancestor_methods = set()
+    invoke_sites = {}
+    method_handle_count = 0
+    method_handle_kinds = set()
+    method_handle_callsite_count = 0
+    invoke_custom_sites = {}
+    const_method_handle_count = 0
+    dex_count = 0
+
+    def encoded_value_handles(dex, position, depth=0):
+        if depth > 16:
+            raise ValueError("TCA_DISPATCH_ENCODED_DEPTH_LIMIT")
+        dex.bounds(position, 1)
+        header = dex.data[position]
+        position += 1
+        value_type = header & 0x1f
+        value_arg = header >> 5
+        found = []
+        if value_type == 0x1c:
+            count, position = audit.uleb(dex, position)
+            if count > 4096:
+                raise ValueError("TCA_DISPATCH_ENCODED_ARRAY_LIMIT")
+            for _ in range(count):
+                position, nested = encoded_value_handles(dex, position, depth + 1)
+                found.extend(nested)
+            return position, found
+        if value_type == 0x1d:
+            _type_index, position = audit.uleb(dex, position)
+            count, position = audit.uleb(dex, position)
+            if count > 4096:
+                raise ValueError("TCA_DISPATCH_ENCODED_ANNOTATION_LIMIT")
+            for _ in range(count):
+                _name_index, position = audit.uleb(dex, position)
+                position, nested = encoded_value_handles(dex, position, depth + 1)
+                found.extend(nested)
+            return position, found
+        if value_type == 0x1e:
+            if value_arg != 0:
+                raise audit.DexError("TCA_DISPATCH_INVALID_NULL")
+            return position, found
+        if value_type == 0x1f:
+            if value_arg > 1:
+                raise audit.DexError("TCA_DISPATCH_INVALID_BOOLEAN")
+            return position, found
+        width = value_arg + 1
+        dex.bounds(position, width)
+        if value_type == 0x16:
+            found.append(int.from_bytes(dex.data[position:position + width], "little"))
+        position += width
+        return position, found
+
+    handle_kind_names = {
+        4: "STATIC", 5: "INSTANCE", 6: "CONSTRUCTOR",
+        7: "DIRECT", 8: "INTERFACE",
+    }
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                dex_count += 1
+                dex = audit.Dex(archive.read(entry.filename))
+                for method, _flags, _code in audit.method_definitions_with_flags(dex):
+                    if method in target_refs and method[0] in ancestor_owners:
+                        declared_ancestor_methods.add(method)
+
+                map_offset = dex.u32(52)
+                matching_handle_indexes = set()
+                matching_callsite_indexes = set()
+                if map_offset:
+                    map_count = dex.u32(map_offset)
+                    if map_count > 4096:
+                        raise ValueError("TCA_DISPATCH_MAP_LIMIT")
+                    handle_section = None
+                    callsite_section = None
+                    for index in range(map_count):
+                        row_offset = map_offset + 4 + index * 12
+                        item_type = dex.u16(row_offset)
+                        item_count = dex.u32(row_offset + 4)
+                        item_offset = dex.u32(row_offset + 8)
+                        if item_type == 0x0008:
+                            handle_section = (item_count, item_offset)
+                        elif item_type == 0x0007:
+                            callsite_section = (item_count, item_offset)
+                    if handle_section:
+                        count, offset = handle_section
+                        if count > 4096:
+                            raise ValueError("TCA_DISPATCH_HANDLE_TABLE_LIMIT")
+                        for handle_index in range(count):
+                            row_offset = offset + handle_index * 8
+                            kind = dex.u16(row_offset)
+                            member_index = dex.u16(row_offset + 4)
+                            if kind in handle_kind_names and dex.method(member_index) in target_refs:
+                                matching_handle_indexes.add(handle_index)
+                                method_handle_count += 1
+                                method_handle_kinds.add(handle_kind_names[kind])
+                    if callsite_section and matching_handle_indexes:
+                        count, offset = callsite_section
+                        if count > 4096:
+                            raise ValueError("TCA_DISPATCH_CALLSITE_TABLE_LIMIT")
+                        for callsite_index in range(count):
+                            array_offset = dex.u32(offset + callsite_index * 4)
+                            item_count, position = audit.uleb(dex, array_offset)
+                            if item_count > 4096:
+                                raise ValueError("TCA_DISPATCH_CALLSITE_ARRAY_LIMIT")
+                            found = []
+                            for _ in range(item_count):
+                                position, nested = encoded_value_handles(dex, position)
+                                found.extend(nested)
+                            if matching_handle_indexes.intersection(found):
+                                matching_callsite_indexes.add(callsite_index)
+                                method_handle_callsite_count += 1
+
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    if not code_off:
+                        continue
+                    key = (method[0], method[1], method[2])
+                    for pc, op, words in audit.instructions(dex, code_off):
+                        if op in audit.INVOKES:
+                            target = dex.method(words[1])
+                            if target in target_refs:
+                                invoke_sites.setdefault((key, target), []).append(pc)
+                        elif op in (0xfc, 0xfd):
+                            callsite_index = words[1]
+                            if callsite_index in matching_callsite_indexes:
+                                invoke_custom_sites.setdefault(key, set()).add(callsite_index)
+                        elif op == 0xfe and words[1] in matching_handle_indexes:
+                            const_method_handle_count += 1
+
+    if dex_count != 6:
+        raise ValueError("TCA_DISPATCH_SIGNED_SIX_DEX_REQUIRED")
+
+    exact_call_count = sum(
+        len(pcs) for (_caller, target), pcs in invoke_sites.items()
+        if target in creator_methods
+    )
+    ancestor_call_count = sum(
+        len(pcs) for (_caller, target), pcs in invoke_sites.items()
+        if target not in creator_methods
+    )
+    receiver_same_reference_count = 0
+    receiver_origin_categories = set()
+    trace_complete = True
+    for (caller_key, target), pcs in invoke_sites.items():
+        caller_definition = None
+        # The second pass re-opens the DEX and resolves only the bounded callsite.
+        for apk in apks:
+            with zipfile.ZipFile(apk) as archive:
+                for entry in archive.infolist():
+                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                        continue
+                    dex = audit.Dex(archive.read(entry.filename))
+                    for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                        if (method[0], method[1], method[2]) == caller_key:
+                            caller_definition = (dex, method, flags, code_off)
+                            break
+                    if caller_definition:
+                        break
+            if caller_definition:
+                break
+        if not caller_definition:
+            trace_complete = False
+            continue
+        dex, method, flags, code_off = caller_definition
+        try:
+            trace = trace_exact_tca_constructor_to_callsites(
+                dex, method, flags, code_off, target, pcs, 0,
+                target_argument_type=target[0]
+            )
+            for site in trace.get("site_results", ()):
+                receiver_origin_categories.add(
+                    site.get("receiver_origin_category", "UNKNOWN")
+                )
+                receiver_same_reference_count += bool(
+                    site.get("same_receiver_reference_on_all_paths", False)
+                )
+        except (ValueError, audit.DexError):
+            trace_complete = False
+
+    return {
+        "creator_method_count": len(creator_methods),
+        "ancestor_owner_count": len(ancestor_owners),
+        "ancestor_method_declaration_count": len(declared_ancestor_methods),
+        "exact_method_invoke_callsite_count": exact_call_count,
+        "ancestor_method_invoke_callsite_count": ancestor_call_count,
+        "distinct_invoke_caller_count": len({key for key, _target in invoke_sites}),
+        "receiver_same_reference_count": receiver_same_reference_count,
+        "receiver_origin_categories": sorted(receiver_origin_categories),
+        "method_handle_count": method_handle_count,
+        "method_handle_kind_categories": sorted(method_handle_kinds),
+        "method_handle_callsite_count": method_handle_callsite_count,
+        "invoke_custom_reference_site_count": sum(
+            len(values) for values in invoke_custom_sites.values()
+        ),
+        "invoke_custom_reference_caller_count": len(invoke_custom_sites),
+        "const_method_handle_instruction_count": const_method_handle_count,
+        "scan_complete": trace_complete,
+    }
+
+
+def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_upstream, track_handoff, owner_parameter_upstream, dispatch_surfaces):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
     direct_constructor = sum(
@@ -1978,6 +2248,20 @@ def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_
         "tca_constructor_track_creator_method_invoke_name_count": owner_parameter_upstream["creator_method_invoke_name_count"],
         "tca_constructor_track_creator_method_nonprivate_instance_count": owner_parameter_upstream["creator_method_nonprivate_instance_count"],
         "tca_constructor_track_creator_owner_profile_complete": owner_parameter_upstream["creator_owner_profile_complete"],
+        "tca_constructor_track_creator_ancestor_owner_count": dispatch_surfaces["ancestor_owner_count"],
+        "tca_constructor_track_creator_ancestor_method_declaration_count": dispatch_surfaces["ancestor_method_declaration_count"],
+        "tca_constructor_track_creator_exact_method_invoke_callsite_count": dispatch_surfaces["exact_method_invoke_callsite_count"],
+        "tca_constructor_track_creator_ancestor_method_invoke_callsite_count": dispatch_surfaces["ancestor_method_invoke_callsite_count"],
+        "tca_constructor_track_creator_dispatch_invoke_caller_count": dispatch_surfaces["distinct_invoke_caller_count"],
+        "tca_constructor_track_creator_dispatch_receiver_same_reference_count": dispatch_surfaces["receiver_same_reference_count"],
+        "tca_constructor_track_creator_dispatch_receiver_origin_categories": dispatch_surfaces["receiver_origin_categories"],
+        "tca_constructor_track_creator_method_handle_count": dispatch_surfaces["method_handle_count"],
+        "tca_constructor_track_creator_method_handle_kind_categories": dispatch_surfaces["method_handle_kind_categories"],
+        "tca_constructor_track_creator_method_handle_callsite_count": dispatch_surfaces["method_handle_callsite_count"],
+        "tca_constructor_track_creator_invoke_custom_reference_site_count": dispatch_surfaces["invoke_custom_reference_site_count"],
+        "tca_constructor_track_creator_invoke_custom_reference_caller_count": dispatch_surfaces["invoke_custom_reference_caller_count"],
+        "tca_constructor_track_creator_const_method_handle_instruction_count": dispatch_surfaces["const_method_handle_instruction_count"],
+        "tca_constructor_track_creator_dispatch_scan_complete": dispatch_surfaces["scan_complete"],
         "tca_constructor_track_owner_parameter_type_categories": owner_parameter_upstream["owner_parameter_type_categories"],
         "tca_constructor_track_owner_parameter_matches_track_field_owner_count": owner_parameter_upstream["owner_parameter_matches_track_field_owner_count"],
         "tca_constructor_track_owner_parameter_upstream_callsite_count": owner_parameter_upstream["callsite_count"],
@@ -2064,6 +2348,9 @@ def run(xapk: Path):
         owner_parameter_upstream = scan_tca_track_owner_parameter_callers(
             splits, writer_upstream
         )
+        dispatch_surfaces = scan_creator_method_dispatch_surfaces(
+            splits, writer_upstream
+        )
 
         tca_creator_rows = [
             row for row in writer_upstream["upstream_rows"]
@@ -2107,7 +2394,7 @@ def run(xapk: Path):
         }
         return safe_summary(
             direct, upstream, fields, writer_upstream, track_fields, track_upstream,
-            track_handoff, owner_parameter_upstream
+            track_handoff, owner_parameter_upstream, dispatch_surfaces
         )
 
 
