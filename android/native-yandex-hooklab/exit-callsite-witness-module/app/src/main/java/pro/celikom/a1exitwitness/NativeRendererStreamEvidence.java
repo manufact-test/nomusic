@@ -93,6 +93,12 @@ final class NativeRendererStreamEvidence {
     // Numbers alone do not attest audible PCM, selected track or edition.
     private int typeStateAccessHook, bufferEosAccessHook, rendererComparatorHook;
     private int rendererComparatorTrue, rendererComparatorFalse, rendererComparatorUnavailable;
+    // NAV27: read-only timing/alias discriminator. At-call cohorts never
+    // upgrade the comparator boolean to selected-track identity.
+    private int comparatorAtEngineMatch, comparatorAtEngineOther, comparatorAtNoEngine;
+    private int comparatorAtAttachedStream, comparatorAtNoAttachedStream;
+    private int comparatorClearedAttachSameTrio, comparatorClearedAttachDifferentStream;
+    private int comparatorClearedAttachDifferentHolder, comparatorClearedAttachUnscoped;
     private int engineComparatorType1State2ReadTrue, engineComparatorType1State2ReadFalse;
     private int engineComparatorType1State2ReadTrueMinus4, engineComparatorType1State2ReadFalseMinus4;
     private int engineRendererType1, engineRendererTypeOther;
@@ -225,6 +231,29 @@ final class NativeRendererStreamEvidence {
         // Any reattach invalidates the previous engine-to-holder reference.
         // Only a fresh exact membership check may create a new engine link.
         if(renderer!=null) {
+            // NAV27: classify any comparator witness still pending *before*
+            // the existing attach invalidation. Do not retain it as evidence
+            // after this transition, even when identical Java refs reappear.
+            for(ComparatorLink previous:comparatorLinks) {
+                if(previous.renderer.get()!=renderer)continue;
+                Object oldHolder=previous.holder.get();
+                Object oldStream=previous.stream.get();
+                if(oldHolder==null || oldStream==null)continue;
+                if(engine==null || engine.holder==null || secondary==null
+                        || secondary.renderer!=renderer || secondary.stream!=stream
+                        || holderArrayHasStream(engine.holder,stream)!=1) {
+                    comparatorClearedAttachUnscoped=inc(comparatorClearedAttachUnscoped);
+                } else if(oldStream!=stream) {
+                    comparatorClearedAttachDifferentStream=inc(
+                        comparatorClearedAttachDifferentStream);
+                } else if(oldHolder!=engine.holder) {
+                    comparatorClearedAttachDifferentHolder=inc(
+                        comparatorClearedAttachDifferentHolder);
+                } else {
+                    comparatorClearedAttachSameTrio=inc(
+                        comparatorClearedAttachSameTrio);
+                }
+            }
             removeRenderer(engineHolderLinks,renderer);
             // A new attachment transition invalidates any earlier comparator
             // outcome for this renderer, even if Java references are reused.
@@ -443,6 +472,36 @@ final class NativeRendererStreamEvidence {
         }
         if(result)rendererComparatorTrue=inc(rendererComparatorTrue);
         else rendererComparatorFalse=inc(rendererComparatorFalse);
+        // Snapshot strictly from already observed references at this instant.
+        // Do not infer method semantics, queue generation, or sound output.
+        boolean engineSame=false, engineOther=false;
+        for(Link link:engineHolderLinks) {
+            if(link.renderer.get()!=renderer)continue;
+            if(link.holder.get()==holder && link.stream.get()==stream)
+                engineSame=true;
+            else if(link.holder.get()!=null && link.stream.get()!=null)
+                engineOther=true;
+        }
+        if(engineSame && !engineOther)
+            comparatorAtEngineMatch=inc(comparatorAtEngineMatch);
+        else if(engineSame || engineOther)
+            comparatorAtEngineOther=inc(comparatorAtEngineOther);
+        else comparatorAtNoEngine=inc(comparatorAtNoEngine);
+        boolean attached=false;
+        for(Link link:links) {
+            if(link.renderer.get()==renderer && link.stream.get()==stream) {
+                attached=true;
+                break;
+            }
+        }
+        if(!attached)for(Link link:unscopedLinks) {
+            if(link.renderer.get()==renderer && link.stream.get()==stream) {
+                attached=true;
+                break;
+            }
+        }
+        if(attached)comparatorAtAttachedStream=inc(comparatorAtAttachedStream);
+        else comparatorAtNoAttachedStream=inc(comparatorAtNoAttachedStream);
         for(int i=comparatorLinks.size()-1;i>=0;i--) {
             ComparatorLink old=comparatorLinks.get(i);
             if(old.holder.get()==holder && old.renderer.get()==renderer) {
@@ -586,6 +645,17 @@ final class NativeRendererStreamEvidence {
             line("RENDERER_COMPARATOR_TRUE",rendererComparatorTrue),
             line("RENDERER_COMPARATOR_FALSE",rendererComparatorFalse),
             line("RENDERER_COMPARATOR_UNAVAILABLE",rendererComparatorUnavailable),
+            line("COMPARATOR_AT_CALL_ENGINE_MATCH",comparatorAtEngineMatch),
+            line("COMPARATOR_AT_CALL_ENGINE_OTHER",comparatorAtEngineOther),
+            line("COMPARATOR_AT_CALL_NO_ENGINE",comparatorAtNoEngine),
+            line("COMPARATOR_AT_CALL_ATTACHED_STREAM",comparatorAtAttachedStream),
+            line("COMPARATOR_AT_CALL_NO_ATTACHED_STREAM",comparatorAtNoAttachedStream),
+            line("COMPARATOR_CLEARED_ATTACH_SAME_TRIO",comparatorClearedAttachSameTrio),
+            line("COMPARATOR_CLEARED_ATTACH_DIFFERENT_STREAM",
+                comparatorClearedAttachDifferentStream),
+            line("COMPARATOR_CLEARED_ATTACH_DIFFERENT_HOLDER",
+                comparatorClearedAttachDifferentHolder),
+            line("COMPARATOR_CLEARED_ATTACH_UNSCOPED",comparatorClearedAttachUnscoped),
             line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE",engineComparatorType1State2ReadTrue),
             line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE",engineComparatorType1State2ReadFalse),
             line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4",engineComparatorType1State2ReadTrueMinus4),

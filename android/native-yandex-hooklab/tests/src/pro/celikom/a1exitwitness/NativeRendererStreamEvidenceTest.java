@@ -691,6 +691,78 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV26_REATTACH_CANNOT_INHERIT_OLD_COMPARATOR_RESULT");
     }
 
+    private static void testNav27AtCallEngineAndAttachmentCohorts() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        e.onHookRegistration("RENDERER_COMPARATOR",true);
+        Object renderer=new Object(),stream=new Object();
+        FakePeriodHolder holder=new FakePeriodHolder(stream);
+        e.onRendererComparatorResult(holder,renderer,stream,false);
+        check(contains(e.exportLines(),"origin=COMPARATOR_AT_CALL_NO_ENGINE;error=ONE"),
+              "NAV27_BEFORE_ATTACH_WITHOUT_ENGINE");
+        check(contains(e.exportLines(),
+              "origin=COMPARATOR_AT_CALL_NO_ATTACHED_STREAM;error=ONE"),
+              "NAV27_BEFORE_ATTACH_WITHOUT_STREAM_ALIAS");
+        makeBoundEngineLink(e,holder,renderer,stream);
+        e.onRendererComparatorResult(holder,renderer,stream,false);
+        String[] snapshot=e.exportLines();
+        check(contains(snapshot,"origin=COMPARATOR_AT_CALL_ENGINE_MATCH;error=ONE"),
+              "NAV27_AFTER_ATTACH_EXACT_ENGINE_MATCH");
+        check(contains(snapshot,"origin=COMPARATOR_AT_CALL_ATTACHED_STREAM;error=ONE"),
+              "NAV27_AFTER_ATTACH_SAME_STREAM");
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),
+              "origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE;error=ONE"),
+              "NAV27_EXISTING_VALID_SAME_TRIO_COHORT_PRESERVED");
+    }
+
+    private static void testNav27PendingComparatorClearedOnExactAttach() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        e.onHookRegistration("RENDERER_COMPARATOR",true);
+        Object renderer=new Object(),stream=new Object();
+        FakePeriodHolder holder=new FakePeriodHolder(stream);
+        e.onRendererComparatorResult(holder,renderer,stream,false);
+        makeBoundEngineLink(e,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] snapshot=e.exportLines();
+        check(contains(snapshot,
+              "origin=COMPARATOR_CLEARED_ATTACH_SAME_TRIO;error=ONE"),
+              "NAV27_PRE_ATTACH_SAME_TRIO_RECORDED_ONLY_AS_PHASE");
+        check(contains(snapshot,
+              "origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE;error=NONE"),
+              "NAV27_PRE_ATTACH_EVIDENCE_NOT_PROMOTED_TO_LIVE_AUDIO");
+    }
+
+    private static void testNav27PendingComparatorWrongHolderOrStream() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_COMPARATOR",true);
+        Object renderer=new Object(),streamA=new Object(),streamB=new Object();
+        FakePeriodHolder holderA=new FakePeriodHolder(streamA);
+        FakePeriodHolder holderB=new FakePeriodHolder(streamB);
+        e.onRendererComparatorResult(holderA,renderer,streamA,false);
+        makeBoundEngineLink(e,holderB,renderer,streamB);
+        check(contains(e.exportLines(),
+              "origin=COMPARATOR_CLEARED_ATTACH_DIFFERENT_STREAM;error=ONE"),
+              "NAV27_WRONG_STREAM_NEVER_MATCHES_NEW_ATTACH");
+        e.onRendererComparatorResult(holderA,renderer,streamB,false);
+        makeBoundEngineLink(e,holderB,renderer,streamB);
+        check(contains(e.exportLines(),
+              "origin=COMPARATOR_CLEARED_ATTACH_DIFFERENT_HOLDER;error=ONE"),
+              "NAV27_WRONG_HOLDER_NEVER_MATCHES_NEW_ATTACH");
+        e.onRendererComparatorResult(holderA,renderer,streamA,false);
+        check(contains(e.exportLines(),
+              "origin=COMPARATOR_AT_CALL_ENGINE_OTHER;error=ONE"),
+              "NAV27_DIFFERENT_ENGINE_LINK_EXPLICITLY_CLASSIFIED");
+        e.onDetach(renderer);
+        check(contains(e.exportLines(),
+              "origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE;error=NONE"),
+              "NAV27_NO_STALE_FALSE_PROMOTION");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -727,6 +799,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav26ComparatorRequiresExactHolderRendererAndStream();
         testNav26ComparatorDetachedRendererAndMissingHookFailClosed();
         testNav26ComparatorOutcomeClearedOnReattach();
+        testNav27AtCallEngineAndAttachmentCohorts();
+        testNav27PendingComparatorClearedOnExactAttach();
+        testNav27PendingComparatorWrongHolderOrStream();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
