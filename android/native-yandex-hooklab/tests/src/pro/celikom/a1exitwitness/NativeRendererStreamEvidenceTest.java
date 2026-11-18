@@ -715,6 +715,8 @@ public final class NativeRendererStreamEvidenceTest {
         finally { e.exitSecondaryCaller(sec); e.exitEngine(frame); }
     }
     private static final class FakeSource {}
+    private interface FakePublisherPeriodInterface {}
+    private static final class FakeOtherPublisherPeriod implements FakePublisherPeriodInterface {}
     private static final class FakePeriod {
         FakeSource source;
         FakePeriod(FakeSource source) {this.source=source;}
@@ -1143,6 +1145,87 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV31_NO_FABRICATED_HISTORY");
     }
 
+    // NAV32 replays the exact owner NAV31 OTHER-at-every-phase observation.
+    // Reference identities are historical only. Never permit replacement
+    // based on an interface flag or one matching original object reference.
+    private static void testNav32OtherNativePeriodInterfaceAndSameLiveReference() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object renderer=new Object(),stream=new Object();
+        FakeHolderSource holder=new FakeHolderSource(new FakeSource(),stream);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        holder.nested=new FakeOtherPublisherPeriod();
+        e.onExactHolderSelectPhase(holder,false);
+        e.onExactHolderSelectPhase(holder,true);
+        nav29BindLive(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] lines=e.exportLines();
+        check(contains(lines,"origin=HOLDER_OTHER_WH6_SELECT_ENTER;error=ONE"),
+              "NAV32_OTHER_IMPL_AT_ORIGINAL_SELECT_ENTER");
+        check(contains(lines,"origin=HOLDER_OTHER_WH6_SELECT_EXIT;error=ONE"),
+              "NAV32_OTHER_IMPL_AT_ORIGINAL_SELECT_EXIT");
+        check(contains(lines,"origin=HOLDER_OTHER_WH6_ATTACH;error=ONE"),
+              "NAV32_OTHER_IMPL_AT_STRICT_SLOT_ATTACH");
+        check(contains(lines,"origin=HOLDER_OTHER_WH6_AT_READ;error=ONE"),
+              "NAV32_OTHER_IMPL_AT_STARTED_AUDIO_READ");
+        check(contains(lines,"origin=HOLDER_OTHER_SELECT_SAME_AT_READ;error=ONE"),
+              "NAV32_EXACT_OTHER_OBJECT_SAME_AS_SELECT_EXIT");
+        check(contains(lines,"origin=HOLDER_OTHER_ATTACH_SAME_AT_READ;error=ONE"),
+              "NAV32_EXACT_OTHER_OBJECT_SAME_AS_ATTACH");
+        check(contains(lines,"origin=LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED;error=NONE"),
+              "NAV32_INTERFACE_IS_NOT_SOURCE_IDENTITY");
+        check(contains(lines,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV32_NEVER_PROMOTE_TO_SELECTED_TRACK");
+    }
+
+    private static void testNav32OtherObjectSwappedAfterAttachFailsClosed() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object renderer=new Object(),stream=new Object();
+        FakeHolderSource holder=new FakeHolderSource(new FakeSource(),stream);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        holder.nested=new Object();
+        e.onExactHolderSelectPhase(holder,false);
+        e.onExactHolderSelectPhase(holder,true);
+        nav29BindLive(e,engine,holder,renderer,stream);
+        holder.nested=new Object(); // original later changes same field
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] lines=e.exportLines();
+        check(contains(lines,"origin=HOLDER_OTHER_NON_WH6_AT_READ;error=ONE"),
+              "NAV32_NON_VENDOR_MEDIA_PERIOD");
+        check(contains(lines,"origin=HOLDER_OTHER_SELECT_DIFFERENT_AT_READ;error=ONE"),
+              "NAV32_NO_STALE_SELECT_ALIAS");
+        check(contains(lines,"origin=HOLDER_OTHER_ATTACH_DIFFERENT_AT_READ;error=ONE"),
+              "NAV32_NO_STALE_ATTACH_ALIAS");
+        check(contains(lines,"origin=HOLDER_OTHER_SELECT_SAME_AT_READ;error=NONE"),
+              "NAV32_WRONG_OBJECT_NOT_SAME_SELECT");
+        check(contains(lines,"origin=LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED;error=NONE"),
+              "NAV32_NO_FAKE_SOURCE");
+    }
+
+    private static void testNav32NoOriginalSelectionHistoryIsExplicitlyUnproven() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object renderer=new Object(),stream=new Object();
+        FakeHolderSource holder=new FakeHolderSource(new FakeSource(),stream);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        holder.nested=new FakeOtherPublisherPeriod();
+        nav29BindLive(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),
+              "origin=HOLDER_OTHER_SELECT_NO_HISTORY_AT_READ;error=ONE"),
+              "NAV32_NO_PHANTOM_SELECT_HISTORY");
+        check(contains(e.exportLines(),
+              "origin=HOLDER_OTHER_ATTACH_SAME_AT_READ;error=ONE"),
+              "NAV32_VERIFIED_SAME_ATTACH_NOT_SAME_TRACK");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1195,6 +1278,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav31HolderSelectBeforeVsAfterAndActiveRead();
         testNav31OtherObjectTypeIsNotNullAndNotMatched();
         testNav31NoSelectionHookNoPhantomHistory();
+        testNav32OtherNativePeriodInterfaceAndSameLiveReference();
+        testNav32OtherObjectSwappedAfterAttachFailsClosed();
+        testNav32NoOriginalSelectionHistoryIsExplicitlyUnproven();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
