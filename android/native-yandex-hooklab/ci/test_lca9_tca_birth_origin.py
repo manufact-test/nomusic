@@ -80,6 +80,43 @@ class Lca9TcaBirthOriginTests(unittest.TestCase):
 
 
 
+
+    def test_tca_field_store_traces_value_and_same_this_receiver(self):
+        from unittest.mock import patch
+
+        class FakeDex:
+            def u16(self, offset):
+                return {100: 3, 102: 2}[offset]
+            def descriptor(self, index):
+                return "LtCa;"
+            def method(self, index):
+                return TARGET
+
+        method = ("LHolder;", "<init>", "(LtCa;)V")
+        field_ref = ("LHolder;", "wrapper", "LtCa;")
+        instructions = [
+            (0, 0x5b, [0x125b, 1]),  # iput-object v2, v1, wrapper
+            (1, 0x0e, [0x000e]),     # return-void
+        ]
+        cfg = {
+            "entry": 0,
+            "by_pc": {pc: (op, words) for pc, op, words in instructions},
+            "successors": {0: (1,), 1: ()},
+            "instructions": instructions,
+        }
+        with patch.object(tca_audit.audit, "build_dex_control_flow", return_value=cfg), \
+             patch.object(tca_audit.audit, "field_id", return_value=field_ref):
+            trace = trace_exact_tca_constructor_to_callsites(
+                FakeDex(), method, 0, 100, None, [0], 0,
+                target_argument_type=None, target_field_ref=field_ref,
+            )
+        site = trace["site_results"][0]
+        self.assertEqual(site["origin_category"], "TYPED_PARAMETER")
+        self.assertEqual(site["origin_parameter_position"], 1)
+        self.assertEqual(site["receiver_origin_category"], "THIS")
+        self.assertTrue(trace["same_receiver_reference_on_all_sites"])
+        self.assertTrue(trace["same_tca_reference_on_all_sites"])
+
     def test_object_parameter_cast_preserves_exact_reference_to_lca9(self):
         from unittest.mock import patch
 
