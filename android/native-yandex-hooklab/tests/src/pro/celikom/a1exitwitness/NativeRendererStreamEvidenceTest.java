@@ -720,7 +720,7 @@ public final class NativeRendererStreamEvidenceTest {
         FakePeriod(FakeSource source) {this.source=source;}
     }
     private static final class FakeNested {
-        FakePeriod period;
+        Object period;
         FakeNested(FakePeriod period) {this.period=period;}
     }
     private static final class FakeHolderSource {
@@ -768,6 +768,90 @@ public final class NativeRendererStreamEvidenceTest {
         try {e.onAttach(renderer,stream);}
         finally {e.exitSecondaryCaller(c);e.exitEngine(f);}
     }
+    private static final class FakePeriodAdapter {}
+    private static void testNav30AdapterMapsExactFactoryToLiveWrapper() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.onHookRegistration("NATIVE_PERIOD_ADAPTER",true);
+        e.onHookRegistration("NATIVE_PERIOD_FACTORY",true);
+        Object render=new Object(),stream=new Object(),wrapper=new Object();
+        Object owner=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        FakePeriod inner=(FakePeriod)((FakeNested)holder.nested).period;
+        FakePeriodAdapter adapted=new FakePeriodAdapter();
+        ((FakeNested)holder.nested).period=adapted;
+        NativeRendererStreamEvidence.TrackPlayerScope player=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally{e.exitTrackPlayerSource(player);}
+        NativeRendererStreamEvidence.NativePeriodAdapterScope frame=
+            e.enterNativePeriodAdapter(owner);
+        try {
+            e.onNativePeriodFactoryResult(owner,inner);
+            e.onNativePeriodAdapterReturn(frame,adapted);
+        } finally {e.exitNativePeriodAdapter(frame);}
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        nav29BindLive(e,engine,holder,render,stream);
+        e.onRendererTypeStateRead(render,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_WRAPPED_NON_LO96;error=ONE"),
+              "NAV30_WRAPPED_NOT_DIRECT");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_ADAPTER_MAPPED;error=ONE"),
+              "NAV30_EXACT_FACTORY_BRIDGE");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=ONE"),
+              "NAV30_ACTIVE_ORIGINAL_SOURCE_REF_MATCH");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV30_NO_ALBUM_EDITION_GENERATION");
+    }
+    private static void testNav30AdapterNoScopeOrWrongFactoryFailsClosed() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.onHookRegistration("NATIVE_PERIOD_ADAPTER",true);
+        e.onHookRegistration("NATIVE_PERIOD_FACTORY",true);
+        Object render=new Object(),stream=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        ((FakeNested)holder.nested).period=new FakePeriodAdapter();
+        // Factory without exact Lp96.goto frame cannot bind.
+        e.onNativePeriodFactoryResult(new Object(),new FakePeriod(source));
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        nav29BindLive(e,engine,holder,render,stream);
+        e.onRendererTypeStateRead(render,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_ADAPTER_UNMAPPED;error=ONE"),
+              "NAV30_NO_UNSCOPED_ADAPTER_PROMOTION");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_ORIGINAL_SOURCE_UNAVAILABLE;error=ONE"),
+              "NAV30_WRAPPED_SOURCE_UNAVAILABLE");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+              "NAV30_NO_FALSE_POSITIVE");
+    }
+    private static void testNav30RejectsNestedDuplicateFactoryAndDetach() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.onHookRegistration("NATIVE_PERIOD_ADAPTER",true);
+        e.onHookRegistration("NATIVE_PERIOD_FACTORY",true);
+        Object render=new Object(),stream=new Object(),owner=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        FakePeriodAdapter adapted=new FakePeriodAdapter();
+        ((FakeNested)holder.nested).period=adapted;
+        NativeRendererStreamEvidence.NativePeriodAdapterScope frame=
+            e.enterNativePeriodAdapter(owner);
+        try {
+            e.onNativePeriodFactoryResult(owner,new FakePeriod(source));
+            e.onNativePeriodFactoryResult(owner,new FakePeriod(source));
+            e.onNativePeriodAdapterReturn(frame,adapted);
+        } finally {e.exitNativePeriodAdapter(frame);}
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        nav29BindLive(e,engine,holder,render,stream);
+        e.onRendererTypeStateRead(render,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=NATIVE_PERIOD_FACTORY_CONFLICT;error=ONE"),
+              "NAV30_DUPLICATE_FACTORY_FAIL_CLOSED");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_ADAPTER_UNMAPPED;error=ONE"),
+              "NAV30_CONFLICT_NOT_MAPPED");
+        e.onDetach(render);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+              "NAV30_DETACH_NEVER_PROMOTES");
+    }
+
     private static void testNav29SameSelectedWrapperSourceToLivePeriod() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         setUpNav29(e);
@@ -1011,6 +1095,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav29SameSelectedWrapperSourceToLivePeriod();
         testNav29RejectsOtherSourceOrChangedQueueSlot();
         testNav29RejectsUnscopedAndConflictingWrapper();
+        testNav30AdapterMapsExactFactoryToLiveWrapper();
+        testNav30AdapterNoScopeOrWrongFactoryFailsClosed();
+        testNav30RejectsNestedDuplicateFactoryAndDetach();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

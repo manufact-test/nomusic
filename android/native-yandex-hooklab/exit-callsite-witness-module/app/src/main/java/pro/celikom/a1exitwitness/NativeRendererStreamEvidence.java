@@ -105,6 +105,34 @@ final class NativeRendererStreamEvidence {
             this.source=new WeakReference<>(source);
         }
     }
+    // NAV30 signed candidate: associate the original Lp96.goto returned
+    // Lwh6 adapter with the exact Lo96 returned by its own synchronous
+    // Lp96.transient call on the SAME receiver. No class-name guesses or
+    // reading media values. A stale/ambiguous frame never becomes evidence.
+    static final class NativePeriodAdapterScope {
+        final Object owner;
+        final NativePeriodAdapterScope parent;
+        Object factoryPeriod;
+        boolean ambiguous;
+        NativePeriodAdapterScope(Object owner,NativePeriodAdapterScope parent) {
+            this.owner=owner;
+            this.parent=parent;
+        }
+    }
+    private static final class NativePeriodAdapterLink {
+        final WeakReference<Object> returnedPeriod, exactLo96;
+        NativePeriodAdapterLink(Object returned,Object inner) {
+            this.returnedPeriod=new WeakReference<>(returned);
+            this.exactLo96=new WeakReference<>(inner);
+        }
+    }
+    private final ThreadLocal<NativePeriodAdapterScope> inPeriodAdapter=new ThreadLocal<>();
+    private final ArrayList<NativePeriodAdapterLink> periodAdapters=new ArrayList<>();
+    private int periodAdapterHook,periodFactoryHook;
+    private int periodAdapterScopeEnter,periodFactoryInScope,periodFactoryConflict;
+    private int periodAdapterLinkCreated,periodAdapterMapped,periodAdapterUnmapped;
+    private int livePeriodHolderMissing,livePeriodWrappedMissing,livePeriodNonLo96;
+    private int livePeriodDirectLo96,livePeriodSourceNull,livePeriodReflectionFailed;
     private final ThreadLocal<TrackPlayerScope> inPlayerTrack=new ThreadLocal<>();
     private final ArrayList<PlayerSourceLink> playerSources=new ArrayList<>();
     private Field holderWrapperField,wrapperPeriodField,periodSourceField;
@@ -258,6 +286,64 @@ final class NativeRendererStreamEvidence {
         playerSources.add(new PlayerSourceLink(scope.wrapper,source));
     }
 
+    NativePeriodAdapterScope enterNativePeriodAdapter(Object owner) {
+        NativePeriodAdapterScope frame=new NativePeriodAdapterScope(owner,inPeriodAdapter.get());
+        inPeriodAdapter.set(frame);
+        synchronized(this) {
+            if(owner!=null)periodAdapterScopeEnter=inc(periodAdapterScopeEnter);
+        }
+        return frame;
+    }
+
+    void exitNativePeriodAdapter(NativePeriodAdapterScope frame) {
+        NativePeriodAdapterScope current=inPeriodAdapter.get();
+        if(current==frame) {
+            if(frame.parent==null)inPeriodAdapter.remove();
+            else inPeriodAdapter.set(frame.parent);
+        } else {
+            inPeriodAdapter.remove();
+            synchronized(this) { poisoned=true; }
+        }
+    }
+
+    synchronized void onNativePeriodFactoryResult(Object owner,Object originalPeriod) {
+        NativePeriodAdapterScope frame=inPeriodAdapter.get();
+        if(frame==null || frame.owner==null || frame.owner!=owner
+                || originalPeriod==null || exactPeriodClass==null
+                || !exactPeriodClass.isInstance(originalPeriod)
+                || poisoned || periodFactoryHook<=0)return;
+        periodFactoryInScope=inc(periodFactoryInScope);
+        if(frame.factoryPeriod!=null) {
+            frame.ambiguous=true;
+            periodFactoryConflict=inc(periodFactoryConflict);
+        } else frame.factoryPeriod=originalPeriod;
+    }
+
+    synchronized void onNativePeriodAdapterReturn(
+            NativePeriodAdapterScope frame,Object originalReturn) {
+        if(frame==null || inPeriodAdapter.get()!=frame
+                || periodAdapterHook<=0 || periodFactoryHook<=0
+                || poisoned || frame.ambiguous || frame.factoryPeriod==null
+                || originalReturn==null || exactPeriodClass==null)return;
+        for(int i=periodAdapters.size()-1;i>=0;i--) {
+            NativePeriodAdapterLink old=periodAdapters.get(i);
+            Object ret=old.returnedPeriod.get(),inner=old.exactLo96.get();
+            if(ret==null || inner==null) { periodAdapters.remove(i); continue; }
+            if(ret==originalReturn) {
+                if(inner!=frame.factoryPeriod) {
+                    frame.ambiguous=true;
+                    periodFactoryConflict=inc(periodFactoryConflict);
+                    periodAdapters.remove(i);
+                }
+                return;
+            }
+        }
+        if(periodAdapters.size()>=MAX_HANDLES)periodAdapters.remove(0);
+        periodAdapters.add(new NativePeriodAdapterLink(
+            originalReturn,frame.factoryPeriod));
+        periodAdapterLinkCreated=inc(periodAdapterLinkCreated);
+    }
+
     synchronized void setExactActivePeriodFields(Field holderWrapper,Field wrapperPeriod,
             Field periodSource,Class<?> wrapperClass,Class<?> periodClass,
             Class<?> sourceClass) {
@@ -287,20 +373,46 @@ final class NativeRendererStreamEvidence {
         try {
             Object nested=holderWrapperField.get(currentHolder);
             if(nested==null || !exactWrapperClass.isInstance(nested)) {
+                livePeriodHolderMissing=inc(livePeriodHolderMissing);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
                 return;
             }
-            Object period=wrapperPeriodField.get(nested);
-            if(period==null || !exactPeriodClass.isInstance(period)) {
+            Object observed=wrapperPeriodField.get(nested);
+            if(observed==null) {
+                livePeriodWrappedMissing=inc(livePeriodWrappedMissing);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
                 return;
             }
-            source=periodSourceField.get(period);
+            Object exactPeriod=observed;
+            if(!exactPeriodClass.isInstance(observed)) {
+                // NAV29 assumed the underlying Lwh6 always IS Lo96. It
+                // need not be; never make an unsafe cast or scan fields.
+                livePeriodNonLo96=inc(livePeriodNonLo96);
+                exactPeriod=null;
+                int hits=0;
+                for(NativePeriodAdapterLink link:periodAdapters) {
+                    if(link.returnedPeriod.get()!=observed)continue;
+                    Object inner=link.exactLo96.get();
+                    if(inner!=null && exactPeriodClass.isInstance(inner)) {
+                        hits++;
+                        exactPeriod=inner;
+                    }
+                }
+                if(hits!=1 || periodAdapterHook<=0 || periodFactoryHook<=0) {
+                    periodAdapterUnmapped=inc(periodAdapterUnmapped);
+                    livePeriodUnavailable=inc(livePeriodUnavailable);
+                    return;
+                }
+                periodAdapterMapped=inc(periodAdapterMapped);
+            } else livePeriodDirectLo96=inc(livePeriodDirectLo96);
+            source=periodSourceField.get(exactPeriod);
             if(source==null) {
+                livePeriodSourceNull=inc(livePeriodSourceNull);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
                 return;
             }
         } catch(Throwable ignored) {
+            livePeriodReflectionFailed=inc(livePeriodReflectionFailed);
             livePeriodUnavailable=inc(livePeriodUnavailable);
             return;
         }
@@ -398,6 +510,8 @@ final class NativeRendererStreamEvidence {
             case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
             case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
             case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
+            case "NATIVE_PERIOD_ADAPTER": periodAdapterHook=status; break;
+            case "NATIVE_PERIOD_FACTORY": periodFactoryHook=status; break;
             case "RENDERER_TYPE_STATE_ACCESS": typeStateAccessHook=status; break;
             case "BUFFER_EOS_ACCESS": bufferEosAccessHook=status; break;
             case "RENDERER_COMPARATOR": rendererComparatorHook=status; break;
@@ -864,6 +978,8 @@ final class NativeRendererStreamEvidence {
             registrationLine("TRACK_PLAYER_SOURCE_SCOPE",trackPlayerScopeHook),
             registrationLine("NATIVE_PLAYER_SOURCE_SETTER",nativeSourceSetterHook),
             registrationLine("LIVE_PERIOD_ORIGINAL_SOURCE",livePeriodSourceHook),
+            registrationLine("NATIVE_PERIOD_ADAPTER",periodAdapterHook),
+            registrationLine("NATIVE_PERIOD_FACTORY",periodFactoryHook),
             registrationLine("RENDERER_TYPE_STATE_ACCESS",typeStateAccessHook),
             registrationLine("BUFFER_EOS_ACCESS",bufferEosAccessHook),
             registrationLine("RENDERER_COMPARATOR",rendererComparatorHook),
@@ -904,6 +1020,18 @@ final class NativeRendererStreamEvidence {
             line("TRACK_PLAYER_SOURCE_CONFLICT",playerSourceConflict),
             line("LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED",livePeriodResolved),
             line("LIVE_PERIOD_ORIGINAL_SOURCE_UNAVAILABLE",livePeriodUnavailable),
+            line("NATIVE_PERIOD_ADAPTER_SCOPE_ENTER",periodAdapterScopeEnter),
+            line("NATIVE_PERIOD_FACTORY_IN_SCOPE",periodFactoryInScope),
+            line("NATIVE_PERIOD_FACTORY_CONFLICT",periodFactoryConflict),
+            line("NATIVE_PERIOD_ADAPTER_LINK_CREATED",periodAdapterLinkCreated),
+            line("LIVE_PERIOD_HOLDER_WRAPPER_MISSING",livePeriodHolderMissing),
+            line("LIVE_PERIOD_WRAPPED_PERIOD_MISSING",livePeriodWrappedMissing),
+            line("LIVE_PERIOD_WRAPPED_NON_LO96",livePeriodNonLo96),
+            line("LIVE_PERIOD_DIRECT_LO96",livePeriodDirectLo96),
+            line("LIVE_PERIOD_ADAPTER_MAPPED",periodAdapterMapped),
+            line("LIVE_PERIOD_ADAPTER_UNMAPPED",periodAdapterUnmapped),
+            line("LIVE_PERIOD_SOURCE_NULL",livePeriodSourceNull),
+            line("LIVE_PERIOD_REFLECTION_FAILED",livePeriodReflectionFailed),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH",livePeriodSourceMatched),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_OTHER",livePeriodSourceDifferent),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK",livePeriodSourceNoLink),
