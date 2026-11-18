@@ -2134,6 +2134,78 @@ def scan_creator_method_dispatch_surfaces(apks, writer_upstream):
     }
 
 
+def private_tca_track_creator_target(writer_upstream):
+    """Return the one exact private runtime target; never print its symbols."""
+    creator_rows = [
+        row for row in writer_upstream["upstream_rows"]
+        if row.get("constructor_to_writer_same_object")
+        and "TRACK_FIELD" in row.get("constructor_string_origin_categories", ())
+    ]
+    if len(creator_rows) != 1:
+        raise ValueError("TCA_PRIVATE_CREATOR_NOT_UNIQUE")
+    row = creator_rows[0]
+    _dex, method, flags, _code_off = row["caller_definition"]
+    if flags & audit.ACC_STATIC or flags & 0x0002:
+        raise ValueError("TCA_PRIVATE_CREATOR_NOT_HOOKABLE_INSTANCE")
+    if method[1] in ("<init>", "<clinit>"):
+        raise ValueError("TCA_PRIVATE_CREATOR_METHOD_KIND")
+    positions = row.get("constructor_string_track_field_owner_parameter_positions", ())
+    field_refs = row.get("constructor_string_track_source_field_refs", ())
+    if len(positions) != 1 or len(field_refs) != 1:
+        raise ValueError("TCA_PRIVATE_CREATOR_TRACK_FIELD_NOT_UNIQUE")
+    logical_position = positions[0]
+    if not isinstance(logical_position, int) or logical_position < 1:
+        raise ValueError("TCA_PRIVATE_CREATOR_OWNER_PARAMETER_POSITION")
+    field_owner, field_name, field_type = field_refs[0]
+    owner_type = logical_parameter_type(method, flags, logical_position)
+    if owner_type != field_owner:
+        raise ValueError("TCA_PRIVATE_CREATOR_PARAMETER_FIELD_OWNER_MISMATCH")
+    if field_type != TRACK_DESCRIPTOR:
+        raise ValueError("TCA_PRIVATE_CREATOR_FIELD_NOT_TRACK_TYPED")
+    return {
+        "creator_owner_descriptor": method[0],
+        "creator_method_name": method[1],
+        "creator_method_descriptor": method[2],
+        "track_field_owner_descriptor": field_owner,
+        "track_field_name": field_name,
+        "track_field_descriptor": field_type,
+        # DEX logical positions include this for instance methods; Xposed args do not.
+        "owner_argument_index": logical_position - 1,
+    }
+
+
+def write_private_tca_track_creator_target(writer_upstream, destination):
+    target = private_tca_track_creator_target(writer_upstream)
+    import json as _json
+    def literal(value):
+        return _json.dumps(value, ensure_ascii=True)
+    content = """package pro.celikom.a1exitwitness;
+
+/** Ephemeral exact target generated only from the pinned publisher-signed 2025 DEX. */
+final class PrivateTcaTrackCreatorTarget {
+    private PrivateTcaTrackCreatorTarget() {}
+    static String creatorOwnerDescriptor() { return %s; }
+    static String creatorMethodName() { return %s; }
+    static String creatorMethodDescriptor() { return %s; }
+    static String trackFieldOwnerDescriptor() { return %s; }
+    static String trackFieldName() { return %s; }
+    static String trackFieldDescriptor() { return %s; }
+    static int ownerArgumentIndex() { return %d; }
+}
+""" % (
+        literal(target["creator_owner_descriptor"]),
+        literal(target["creator_method_name"]),
+        literal(target["creator_method_descriptor"]),
+        literal(target["track_field_owner_descriptor"]),
+        literal(target["track_field_name"]),
+        literal(target["track_field_descriptor"]),
+        target["owner_argument_index"],
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(content, encoding="utf-8")
+    return target
+
+
 def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_upstream, track_handoff, owner_parameter_upstream, dispatch_surfaces):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
@@ -2303,7 +2375,7 @@ def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_
     }
 
 
-def run(xapk: Path):
+def run(xapk: Path, private_java: Path | None = None):
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise RuntimeError("EPHEMERAL_CI_ONLY")
     if not xapk.is_file() or xapk.stat().st_size != audit.PINNED_XAPK_BYTES:
@@ -2352,6 +2424,8 @@ def run(xapk: Path):
             if row.get("constructor_to_writer_same_object")
             and "TRACK_FIELD" in row.get("constructor_string_origin_categories", ())
         ]
+        if private_java is not None:
+            write_private_tca_track_creator_target(writer_upstream, private_java)
         track_writer_rows_by_method = {
             row["caller_method_key"]: row
             for row in track_upstream["upstream_rows"]
@@ -2425,9 +2499,10 @@ def run(xapk: Path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--xapk", type=Path, required=True)
+    parser.add_argument("--private-java", type=Path, default=None)
     args = parser.parse_args()
     try:
-        print(json.dumps(run(args.xapk), ensure_ascii=False, sort_keys=True))
+        print(json.dumps(run(args.xapk, args.private_java), ensure_ascii=False, sort_keys=True))
     except (RuntimeError, ValueError, audit.DexError, OSError,
             zipfile.BadZipFile, KeyError, IndexError) as exc:
         code = str(exc)
