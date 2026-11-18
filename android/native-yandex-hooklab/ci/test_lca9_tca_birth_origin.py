@@ -10,6 +10,7 @@ from lca9_tca_birth_origin import (
     wrapper_origin_categories,
     _parameter_register_from_tca_token,
     trace_exact_tca_constructor_to_callsites,
+    private_tca_track_creator_target,
     TARGET,
     WRAPPER_CTOR,
 )
@@ -18,6 +19,45 @@ from audit_native_selected_item_handoff import ACC_STATIC
 
 
 class Lca9TcaBirthOriginTests(unittest.TestCase):
+    def test_private_creator_target_uses_exact_track_field_owner_parameter(self):
+        method = ("LCreator;", "build", "(LOwner;)V")
+        row = {
+            "caller_definition": (None, method, 0, 0),
+            "constructor_to_writer_same_object": True,
+            "constructor_string_origin_categories": ["TRACK_FIELD"],
+            "constructor_string_track_field_owner_parameter_positions": [1],
+            "constructor_string_track_source_field_refs": [
+                ("LOwner;", "track", "Lru/yandex/music/data/audio/o;")
+            ],
+        }
+        target = private_tca_track_creator_target({"upstream_rows": [row]})
+        self.assertEqual(target["creator_owner_descriptor"], "LCreator;")
+        self.assertEqual(target["creator_method_name"], "build")
+        self.assertEqual(target["track_field_owner_descriptor"], "LOwner;")
+        self.assertEqual(target["track_field_descriptor"], "Lru/yandex/music/data/audio/o;")
+        self.assertEqual(target["owner_argument_index"], 0)
+
+    def test_private_creator_target_fails_closed_for_ambiguous_or_wrong_field(self):
+        method = ("LCreator;", "build", "(LOwner;)V")
+        base = {
+            "caller_definition": (None, method, 0, 0),
+            "constructor_to_writer_same_object": True,
+            "constructor_string_origin_categories": ["TRACK_FIELD"],
+            "constructor_string_track_field_owner_parameter_positions": [1],
+            "constructor_string_track_source_field_refs": [
+                ("LOwner;", "track", "Ljava/lang/String;")
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "TCA_PRIVATE_CREATOR_FIELD_NOT_TRACK_TYPED"):
+            private_tca_track_creator_target({"upstream_rows": [base]})
+        ambiguous = dict(base)
+        ambiguous["constructor_string_track_source_field_refs"] = [
+            ("LOwner;", "trackA", "Lru/yandex/music/data/audio/o;"),
+            ("LOwner;", "trackB", "Lru/yandex/music/data/audio/o;"),
+        ]
+        with self.assertRaisesRegex(ValueError, "TCA_PRIVATE_CREATOR_TRACK_FIELD_NOT_UNIQUE"):
+            private_tca_track_creator_target({"upstream_rows": [ambiguous]})
+
     def test_common_exact_new_wrapper_argument(self):
         event = {
             "kind": "CALL_WITH_TYPED_IDENTITY",
