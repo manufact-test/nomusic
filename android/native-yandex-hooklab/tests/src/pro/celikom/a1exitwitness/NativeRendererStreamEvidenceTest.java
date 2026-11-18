@@ -779,7 +779,7 @@ public final class NativeRendererStreamEvidenceTest {
         FakeSource source=new FakeSource();
         FakeHolderSource holder=new FakeHolderSource(source,stream);
         FakePeriod inner=(FakePeriod)((FakeNested)holder.nested).period;
-        FakePeriodAdapter adapted=new FakePeriodAdapter();
+        FakeNested adapted=new FakeNested(inner); // exact known Lup1 field stores Lo96
         ((FakeNested)holder.nested).period=adapted;
         NativeRendererStreamEvidence.TrackPlayerScope player=e.enterTrackPlayerSource(wrapper);
         try {e.onNativePlayerSourceSetter(source);}
@@ -801,6 +801,32 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV30_ACTIVE_ORIGINAL_SOURCE_REF_MATCH");
         check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
               "NAV30_NO_ALBUM_EDITION_GENERATION");
+    }
+    private static void testNav30SameFrameUnrelatedAdapterNeverLinks() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.onHookRegistration("NATIVE_PERIOD_ADAPTER",true);
+        e.onHookRegistration("NATIVE_PERIOD_FACTORY",true);
+        Object render=new Object(),stream=new Object(),owner=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        FakePeriodAdapter unrelated=new FakePeriodAdapter();
+        ((FakeNested)holder.nested).period=unrelated;
+        NativeRendererStreamEvidence.NativePeriodAdapterScope frame=
+            e.enterNativePeriodAdapter(owner);
+        try {
+            e.onNativePeriodFactoryResult(owner,new FakePeriod(source));
+            e.onNativePeriodAdapterReturn(frame,unrelated);
+        } finally {e.exitNativePeriodAdapter(frame);}
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        nav29BindLive(e,engine,holder,render,stream);
+        e.onRendererTypeStateRead(render,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=NATIVE_PERIOD_ADAPTER_LINK_CREATED;error=NONE"),
+              "NAV30_TEMPORAL_ONLY_REJECTED");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_ADAPTER_MAPPED;error=NONE"),
+              "NAV30_NO_FAKE_PERIOD_IDENTITY_FROM_TIMING");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+              "NAV30_UNRELATED_ADAPTER_NEVER_PROMOTES");
     }
     private static void testNav30AdapterNoScopeOrWrongFactoryFailsClosed() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
@@ -1096,6 +1122,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav29RejectsOtherSourceOrChangedQueueSlot();
         testNav29RejectsUnscopedAndConflictingWrapper();
         testNav30AdapterMapsExactFactoryToLiveWrapper();
+        testNav30SameFrameUnrelatedAdapterNeverLinks();
         testNav30AdapterNoScopeOrWrongFactoryFailsClosed();
         testNav30RejectsNestedDuplicateFactoryAndDetach();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");

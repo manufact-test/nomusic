@@ -325,6 +325,19 @@ final class NativeRendererStreamEvidence {
                 || periodAdapterHook<=0 || periodFactoryHook<=0
                 || poisoned || frame.ambiguous || frame.factoryPeriod==null
                 || originalReturn==null || exactPeriodClass==null)return;
+        // Temporal same-frame factory / adapter calls alone do NOT establish
+        // an alias. Reject unrelated factory results and prefetch. Require
+        // direct Java == OR exact previously signer-verified Lup1 stored
+        // Lwh6 field == that original factory period; no type guessing.
+        boolean exactAlias=originalReturn==frame.factoryPeriod;
+        if(!exactAlias && exactWrapperClass!=null
+                && exactWrapperClass.isInstance(originalReturn)
+                && wrapperPeriodField!=null) {
+            try {
+                exactAlias=wrapperPeriodField.get(originalReturn)==frame.factoryPeriod;
+            } catch(Throwable ignored) { exactAlias=false; }
+        }
+        if(!exactAlias)return;
         for(int i=periodAdapters.size()-1;i>=0;i--) {
             NativePeriodAdapterLink old=periodAdapters.get(i);
             Object ret=old.returnedPeriod.get(),inner=old.exactLo96.get();
