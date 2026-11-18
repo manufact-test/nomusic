@@ -248,6 +248,12 @@ class Lca9TcaBirthOriginTests(unittest.TestCase):
             tca_constructor_string_origin("TCA_INIT@TCA_ALLOC@10"),
             "UNKNOWN",
         )
+        self.assertEqual(
+            tca_constructor_string_origin(
+                "TCA_INIT@TCA_ALLOC@10|STRING=STRING_CONSTANT@13"
+            ),
+            "CONSTANT",
+        )
 
     def test_constructor_and_null_origins_are_distinct(self):
         self.assertEqual(
