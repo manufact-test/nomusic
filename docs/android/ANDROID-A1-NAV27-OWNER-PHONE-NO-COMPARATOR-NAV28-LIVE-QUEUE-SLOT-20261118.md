@@ -1,5 +1,18 @@
 # CELIKOM Android A1 — NAV27 real phone no comparator; NAV28 live queue SLOT_B (18 Nov 2026)
 
+## NAV28 final signed ARM release and Library verification (18 November 2026)
+
+This supersedes the earlier "IN PROGRESS" statements. Exact signed owner ARM13 publisher-first CI **#44271711454 SUCCESS** at source/workflow `4463297d81e5476fb1f3b2724391127b076b4828`, artifact ID **14412264159**. JVM evidence model #44271011147 SUCCESS. The private generator independently verified pinned issuer 2025.10.4 16-split XAPK, established two existing exact strict CFG queue-slot-B→engine.catch source paths and printed `NAV28_PUBLISHER_SIGNED_EXACT_QUEUE_SLOT_B_PRIVATE_TARGET_PASS`. Android13 original publisher and CELIKOM clone were installed in disposable guest and passed `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; not an audio replacement test.
+
+Verified extracted owner APK 71,475,180 bytes, SHA-256 **`d336ee0d616c809cfa8017e24a489ba6a2e5f0285407595811807efc43479943`**, same as CI job. Both v2 and v3 actual APK signer DER certificate SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, independently extracted from APK Signing Block, matches owner NAV27, and CI `owner_apk_signer_verified=true`. Embedded original publisher `assets/lspatch/origin.apk` SHA256 **`1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`** unchanged. Nested own LSPatch module DEX confirms build marker `NAV_V28_LIVE_QUEUE_SLOT_B_RENDERER_READONLY`, live SLOT_B bins and private signed-field class.
+
+**Actual personal Library:** `/CELIKOM/Android/Native/CELIKOM-A1-NAV28-Live-Queue-Slot-B-ReadOnly-20261118.apk`, and `/CELIKOM/Android/Native/CELIKOM-A1-NAV28-Инструкция.txt`. Instruction bytes=2507, SHA256 `e891d667d504c4c185fef3a7d8c68643735d3737b44d27434c8c23d1bff25206`. Both uploaded, independently listed, then materialized back and compared byte for byte with signed extracted APK and correct fresh owner instruction: **LIBRARY_NAV28_BYTES_IDENTICAL**. The CI ZIP's generic `README-RU.txt` was **stale NAV24** (not appropriate), deliberately replaced by fresh NAV28 instructions in personal Library only. Do not give stale README, ZIP, GitHub Actions or sandbox links.
+
+Protected exact signed NAV28 source backup `backup/android-a1-nav28-live-queue-slot-owner-signed-arm13-ci-green-20261118` @ `4463297d81e5476fb1f3b2724391127b076b4828`; pre-NAV28 owner phone `backup/android-a1-nav27-owner-phone-comparator-no-calls-pre-nav28-20261118` @ `aa32602e87d216afbfcfd5d83c731147464d58cb`. No original audio modification, no replacement connection, no selected Track+Album/edition claim, no NAV28 owner phone result yet.
+
+**Owner test next:** install signed NAV28 over NAV27 without uninstall/data wipe, listen to 2–5 ordinary tracks, export TXT. If `LIVE_QUEUE_SLOT_B=NO_HOOK`, inspect missing/ambiguous exact engine→h queue field without broad speculation. If LIVE MATCH occurs at attach/read, still not sufficient for selected track, album/edition or audible replacement.
+
+
 ## NAV27 private owner evidence (authoritative export; raw TXT not in GitHub)
 Owner TXT `CELIKOM-A1-Diagnostics-1794991540152.txt` includes retained historical NAV26 lines, then current `NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY` ACTIVE near capture and export.
 

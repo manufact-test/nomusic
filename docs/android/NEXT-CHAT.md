@@ -1,4 +1,27 @@
-# CURRENT — NAV27 OWNER PHONE PARSED; NAV28 LIVE QUEUE SLOT READ-ONLY CI (18 NOV 2026)
+# CURRENT — NAV28 OWNER-SIGNED ARM13 GREEN AND PERSONAL LIBRARY VERIFIED (18 NOV 2026)
+
+**Only** CELIKOM Android A1, GitHub `manufact-test/nomusic`, branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Original Yandex Music works by earlier owner reports; NO NEW owner playback bug reported. CELIKOM replacement **NOT_CONNECTED**. No architecture changes, vendor modifications or user account/credentials logged.
+
+**NAV27 owner's phone:** private `CELIKOM-A1-Diagnostics-1794991540152.txt` (never commit). NAV27 ACTIVE marker at export; comparator hook REGISTERED but TRUE/FALSE/UNAVAILABLE and all NAV27 timing bins NONE *this session*; NAV26 previously FALSE=MANY on a separate session. Engine-holder stream equality FEW, active type1/state2 sampled reads MANY, READ_RETURN_LINK_LOST=NONE; IDENTITY_STATUS STRUCTURAL_ONLY. Comparator is not a reliable mandatory selected-track gate.
+
+**NAV28:** the already signed original 2025.10.4 CFG proof uniquely anchors h.SLOT_B and e.catch holder. New read-only NAV28 checks exact live `e.h.SLOT_B==holder` at renderer attach and checks again during original type1/state2 sample read; reports MATCH/OTHER/UNAVAILABLE separately. Stale, detached, changed slot never promotes. This is **only** live queue-slot identity, NOT selected song/album/edition, audible PCM, or working CELIKOM substitution. Original vendor method/return and audio unchanged. Signed-original private DEX generates exact field name in ephemeral CI only; if runtime e→h field ambiguous/missing, new hook fails closed with NO_HOOK while prior audio observer works.
+
+**Signed source / checks:** JVM #44271011147 SUCCESS; native Android13 ARM13 owner signed publisher-first #44271711454 SUCCESS, exact checked source `4463297d81e5476fb1f3b2724391127b076b4828`. CI signed original 16 splits, verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; NAV28 private exact field derivation PASS. APK 71,475,180 bytes, SHA-256 **`d336ee0d616c809cfa8017e24a489ba6a2e5f0285407595811807efc43479943`**. APK v2/v3 certificate SHA256 independently extracted and CI-verified owner signer `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` (same NAV27). Embedded original Yandex `assets/lspatch/origin.apk` SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` unchanged. Own nested module DEX contains NAV28 marker and new exact queue categories. CI artifact #14412264159 downloaded and privately verified; do NOT give Actions link.
+
+**Personal ChatGPT Library — both uploaded, listed, read back and byte-compared:**
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV28-Live-Queue-Slot-B-ReadOnly-20261118.apk` (SHA above).
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV28-Инструкция.txt`, 2507 bytes, SHA256 `e891d667d504c4c185fef3a7d8c68643735d3737b44d27434c8c23d1bff25206`.
+**Use Library entries/cards, not sandbox/GitHub Actions.** NOTE: raw CI ZIP bundled **stale NAV24** generic README; DO NOT share it. Correct NAV28 owner instructions are in Library.
+
+**Backups:** pre-NAV28 real-phone NAV27 `backup/android-a1-nav27-owner-phone-comparator-no-calls-pre-nav28-20261118` @ `aa32602e87d216afbfcfd5d83c731147464d58cb`. Exact signed NAV28 code `backup/android-a1-nav28-live-queue-slot-owner-signed-arm13-ci-green-20261118` @ `4463297d81e5476fb1f3b2724391127b076b4828`. Older accepted NAV26/NAV27 APKs in Library unchanged.
+
+**NEXT phone step:** install NAV28 **OVER NAV27** WITHOUT uninstall/clear data or cache; if Android rejects, stop and preserve NAV27. Listen to 2–5 ordinary songs, export TXT; no special pause/seek bug testing. Analyze ACTIVE NAV28 marker; `LIVE_QUEUE_SLOT_B` hook REGISTERED/NO_HOOK, attach MATCH/OTHER/UNAVAILABLE, type1/state2 read MATCH/OTHER/UNAVAILABLE/MINUS4, engine-holder and read return, IDENTITY_STATUS, CELIKOM_REPLACEMENT. No selected Track/queue generation or Album/edition proof yet. Next after phone evidence: connect current selected Track→queue generation→Album edition to exact active audio renderer before resolver/entitlement. Do not repeat NAV25 EOS or NAV26 comparator-only loops.
+
+[Details of NAV27 owner evidence and NAV28 signed/Library release](ANDROID-A1-NAV27-OWNER-PHONE-NO-COMPARATOR-NAV28-LIVE-QUEUE-SLOT-20261118.md).
+
+---
+
+# ARCHIVED — NAV27 OWNER PHONE PARSED; NAV28 LIVE QUEUE SLOT READ-ONLY CI COMPLETED (18 NOV 2026)
 
 **Project:** CELIKOM Android A1 ONLY; sole working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112` in `manufact-test/nomusic`. Do not restart/rebase or change architecture. The owner original Yandex playback is known-good from earlier reports; no new pause/seek/Next bug was reported. CELIKOM replacement **NOT_CONNECTED**, no active substitution.
 
