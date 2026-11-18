@@ -28,10 +28,17 @@
 ## Metrica caveat
 `METRICA_EXCEPTION_SUMMARY;origin=MUSIC_APP;error=FEW`. In the retained NAV36 portion, MUSIC_APP exceptions include `EXC_AUTH` (two visible entries) and `EXC_OTHER` (one visible entry); old NAV35 retained history also contains MUSIC_APP entries. The log is trimmed and categorical. No evidence proves a causal connection to CELIKOM/NAV36, player/audio failure or a regression. `PREVIOUS_PROCESS_EXIT=USER_REQUESTED` appears in the retained export; no attributable crash established. Do not change push/auth because of this summary alone.
 
-## Narrowest next technical step — NO NAV37 yet
-1. **Static-only** issuer-signed original 2025.10.4 #120.1gpr DEX investigation: enumerate **direct producers and callers only on the already-proven `LcA9.extends(LcA9;LA14;LtCa;...)` original Player source path**, trace the exact `LtCa` parameter backward to its `tCa(String)` construction or guarded handoff, and look for a concrete `Track`/Flow/Album object-reference association or a coroutine boundary. Existing `lca9_exact_source_player_identity.py` and its 2025-signed checks are the starting point. Do not widen into unrelated candidate sources, EOS, comparator, or NAV25–NAV35 probes.
-2. If and ONLY if signed static evidence identifies one narrow original read-only scope/continuation edge capable of associating the exact `tCa` object with original `Track` object by Java reference, propose minimal instrumentation (a NAV37 would then require backup, regression JVM and ARM13 CI, unchanged publisher/owner cert, verified personal Library delivery and real owner TXT). No new runtime build just to add more counter names.
-3. Even a verified historical Track/Album association still would **not** prove current selected edition, duration, queue generation, entitlement or audio substitute. Maintain fail-closed `STRUCTURAL_ONLY` and `NOT_CONNECTED`.
+## Completed narrow static follow-up — no same-object edge; NO NAV37
+
+The bounded signed-original investigation requested above is complete. Full result: [tCa birth/callsite static audit](ANDROID-A1-TCA-BIRTH-STATIC-CALLSITE-20261118.md).
+
+- On the original signed 2025.10.4 #120.1gpr, one exact `tCa(String)` creator was found. Its String comes from a Track-typed field read on a parameter object; the parameter type matches that Track field's owner/writer.
+- The creator is a non-private instance method, not a constructor, `Gp0.new`, `Fp0.invokeSuspend` or Kotlin `invoke`; its owner is neither Continuation nor Kotlin Function.
+- No direct DEX invoke caller to the exact creator or to its Track-holder parameter method was found. One same-signature ancestor reference is static and has no receiver; no same-object virtual dispatch is proven. No exact method-handle / invoke-custom reference was found.
+- The existing exact Player setter path has two callers passing the same `tCa` field reference, but neither constructs that same `tCa`. The Track field writer's two callers do not establish the exact owner/Track reference at birth.
+- CI [#44335142995 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44335142995), read-only, all six signed DEX files scanned; original input deleted from ephemeral runner. No runtime hooks, APK, original Yandex binary, Player, decoder or audio changed.
+
+**Interpretation:** NAV36 still proves only that the exact Player-scoped original `tCa` was born outside the observed synchronous `Gp0.new(...Track...)` scope. This static search did not prove an asynchronous cause or the same Track Java object. Do not widen into unrelated vendor methods, reflective guesses, media values, EOS/comparator work or new runtime hooks. Keep NAV36 unchanged, `IDENTITY_STATUS=STRUCTURAL_ONLY`, `CELIKOM_REPLACEMENT=NOT_CONNECTED`. No NAV37 is justified by the current evidence.
 
 ## Release / rollback untouched
 NAV36 signed exact source `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`; protected backup `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`. JVM CI #44311280846 SUCCESS, Android13 ARM13 CI #44311280892 SUCCESS. No code or APK changed during this phone diagnostic review. NAV36 Library package and hashes remain as recorded in `NEXT-CHAT.md` and NAV35→NAV36 release document.
