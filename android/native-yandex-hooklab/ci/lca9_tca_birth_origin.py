@@ -622,6 +622,8 @@ def trace_exact_tca_constructor_to_callsites(
         constructor_string_track_receiver_token = None
         constructor_string_track_receiver_field_ref = None
         constructor_string_track_receiver_field_owner_token = None
+        constructor_string_track_receiver_field_is_static = False
+        constructor_string_track_receiver_field_receiver_category = "UNKNOWN"
         constructor_string_track_parameter_position = None
         constructor_string_source_pc = None
         if isinstance(constructor_string_token, str):
@@ -640,14 +642,23 @@ def trace_exact_tca_constructor_to_callsites(
                         _callee, constructor_string_track_receiver_token = next(iter(metadata_options))
         if isinstance(constructor_string_track_receiver_token, str):
             track_field_match = re.search(
-                r"TRACK_FIELD(?:_FROM_CONTINUATION)?@([0-9]+)",
+                r"TRACK_FIELD(?:_FROM_CONTINUATION)?@([0-9]+)|TRACK_CAST@REF_(?:THIS_)?FIELD@([0-9]+)",
                 constructor_string_track_receiver_token
             )
             if track_field_match:
-                track_field_pc = int(track_field_match.group(1))
+                track_field_pc = int(track_field_match.group(1) or track_field_match.group(2))
                 track_field_options = field_read_metadata.get(track_field_pc, set())
                 if len(track_field_options) == 1:
-                    constructor_string_track_receiver_field_ref, constructor_string_track_receiver_field_owner_token, _ = next(iter(track_field_options))
+                    constructor_string_track_receiver_field_ref, constructor_string_track_receiver_field_owner_token, constructor_string_track_receiver_field_is_static = next(iter(track_field_options))
+                    owner_token = constructor_string_track_receiver_field_owner_token
+                    if constructor_string_track_receiver_field_is_static:
+                        constructor_string_track_receiver_field_receiver_category = "STATIC"
+                    elif isinstance(owner_token, str) and owner_token.startswith(("REF_THIS@", "TRACK_THIS@", "TRACK_CONTINUATION_THIS@")):
+                        constructor_string_track_receiver_field_receiver_category = "THIS"
+                    elif isinstance(owner_token, str) and owner_token.startswith(("REF_PARAMETER@", "TRACK_PARAMETER@", "TRACK_CONTINUATION_PARAMETER@")):
+                        constructor_string_track_receiver_field_receiver_category = "PARAMETER"
+                    elif isinstance(owner_token, str) and "FIELD@" in owner_token:
+                        constructor_string_track_receiver_field_receiver_category = "FIELD"
             track_parameter_match = re.search(
                 r"(?:TRACK_PARAMETER|REF_PARAMETER)@([0-9]+)",
                 constructor_string_track_receiver_token
@@ -680,6 +691,8 @@ def trace_exact_tca_constructor_to_callsites(
             "constructor_string_track_receiver_token": constructor_string_track_receiver_token,
             "constructor_string_track_receiver_field_ref": constructor_string_track_receiver_field_ref,
             "constructor_string_track_receiver_field_owner_token": constructor_string_track_receiver_field_owner_token,
+            "constructor_string_track_receiver_field_is_static": constructor_string_track_receiver_field_is_static,
+            "constructor_string_track_receiver_field_receiver_category": constructor_string_track_receiver_field_receiver_category,
             "same_tca_reference_on_all_paths": same_reference,
             "same_receiver_reference_on_all_paths": same_receiver,
             "origin_category": tca_origin_category(value_token),
