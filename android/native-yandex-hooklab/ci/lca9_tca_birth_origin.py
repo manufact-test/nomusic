@@ -945,6 +945,16 @@ def scan_upstream_callers(apks, direct):
                 "TRACE_FAILED" if constructor_trace is None else "NO_IDENTITY"
             })
 
+            if trace is not None:
+                for site in trace["site_results"]:
+                    track_field_ref = site.get("constructor_string_track_receiver_field_ref")
+                    if track_field_ref is not None:
+                        track_source_field_targets.setdefault(tuple(track_field_ref), []).append({
+                            "reader_owner": method[0],
+                            "receiver_category": site.get("constructor_string_track_receiver_field_receiver_category", "UNKNOWN"),
+                            "same_tca_reference": True,
+                        })
+
             fp0_summary = None
             if method == INITIAL:
                 resume_def = None
@@ -1192,6 +1202,7 @@ def scan_field_writer_upstream_callers(apks, fields):
             "same_reference_to_writer_count": 0,
             "fp0_resume_track_argument_explicit_null": False,
             "fp0_continuation_field_track_to_wrapper_candidate": False,
+            "track_source_field_targets": {},
             "complete": True,
         }
 
@@ -1230,6 +1241,7 @@ def scan_field_writer_upstream_callers(apks, fields):
         raise ValueError("TCA_WRITER_UPSTREAM_SIGNED_SIX_DEX_REQUIRED")
 
     rows = []
+    track_source_field_targets = {}
     complete = True
     for key, (dex, method, flags, code_off) in sorted(caller_definitions.items()):
         targets_here = {}
@@ -1341,6 +1353,7 @@ def scan_field_writer_upstream_callers(apks, fields):
             row.get("continuation_field_track_to_opaque_wrapper_candidate", False)
             for row in fp0
         ),
+        "track_source_field_targets": track_source_field_targets,
         "complete": complete,
     }
 
