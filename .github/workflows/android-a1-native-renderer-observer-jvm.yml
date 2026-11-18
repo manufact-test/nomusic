@@ -1,0 +1,115 @@
+name: CELIKOM A1 exact native renderer observer JVM regressions
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
+      - '.github/workflows/android-a1-native-renderer-observer-jvm.yml'
+permissions:
+  contents: read
+jobs:
+  nav17-owned-observer-no-vendor-code:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify exact diagnostic scope and run real Java fail-closed reference tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
+          test "$(cat android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/resources/META-INF/xposed/scope.list)" = pro.celikom.yandex.nativeclonelab
+          mkdir -p "$RUNNER_TEMP/a1-native-renderer-observer"
+          javac --release 17 -d "$RUNNER_TEMP/a1-native-renderer-observer" \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
+          java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java').read_text()
+          assert 'installExact2025NativeRendererReadWitness(caller,loader);' in src
+          assert 'Class.forName("LL2",false,loader)' in src
+          assert 'Class.forName("mQ8",false,loader)' in src
+          assert 'if (info==null || info.getLongVersionCode()!=24025542L)' in src
+          assert 'NATIVE_RENDERER_EVIDENCE.exportLines()' in src
+          assert 'Object original=chain.proceed(); // one unchanged original call' in src
+          assert 'onReadReturn(' in src and 'return original;' in src
+          assert 'musicMetricaExceptions.incrementAndGet() <= 8' in src
+          assert 'event=DIAGNOSTIC_BUILD;origin=' in src
+          model=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java').read_text()
+          assert 'STREAM_ALIASED_READ_RETURN_MINUS4' in model
+          assert 'QUEUE_SCOPED_READ_RETURN_MINUS4' in model
+          assert 'UNSCOPED_READ_RETURN_MINUS4' in model
+          assert 'strongMinus4=inc(strongMinus4)' in model
+          assert 'weakMinus4=inc(weakMinus4)' in model
+          assert 'READ_RETURN_LINK_LOST' in model
+          assert 'SECONDARY_CALLER_STREAM_MATCH' in model
+          assert 'UNSCOPED_ATTACH_SECONDARY_MATCH' in model
+          assert 'enterSecondaryCaller(' in src
+          assert 'exitSecondaryCaller(' in src
+          assert 'Class.forName("lQ8",false,loader)' in src
+          assert 'rendererBase.getDeclaredMethod("super"' in src
+          assert 'NAV_V36_TCA_CONSTRUCTOR_SCOPE_READONLY' in src
+          assert 'holderSelect.getDeclaredMethod(' in src
+          assert 'HOLDER_OTHER_WH6_AT_READ' in model
+          assert 'LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT' in model
+          assert 'LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH' in model
+          assert 'LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT' in model
+          assert 'LIVE_PERIOD_SCOPED_TCA_BIRTH_NO_TRACK_SCOPE' in model
+          assert 'testNav36OriginalTcaBirthCategories' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
+          assert 'testNav35DifferentPlayerWrapperHasExactReason' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
+          assert 'installNativeTcaCreatorScopeHook(loader);' in src
+          assert 'PrivateTcaTrackCreatorTarget' in src
+          assert 'currentNativeTcaCreatorOwner()' in src
+          assert 'enterNativeTcaCreatorTrackScope(' in src
+          stage=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
+          assert 'TCA_CREATOR_WRAPPER_ALBUM_LINK' in stage
+          assert 'testNav37ExactTcaCreatorTrackFieldLinksWrapperAndAlbum' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
+          assert 'testNav37NullCreatorTrackFieldShadowsOuterTrackScope' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
+          assert 'classifyNativeTrackAlbumForWrapper' in Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
+          assert 'HOLDER_OTHER_SELECT_SAME_AT_READ' in model
+          assert 'HOLDER_SELECT_ENTER_EXACT' in model
+          assert 'LIVE_PERIOD_HOLDER_WRAPPER_NULL_AT_READ' in model
+          assert 'NATIVE_PERIOD_ADAPTER_SCOPE_ENTER' in model
+          assert 'LIVE_PERIOD_ADAPTER_MAPPED' in model
+          assert 'NATIVE_PERIOD_FACTORY_IN_SCOPE' in model
+          assert 'rendererBase.getDeclaredMethod("default")' in src
+          assert 'rendererBase.getDeclaredMethod("getState")' in src
+          assert 'onRendererTypeStateRead(' in src
+          assert 'onRendererTypeStateUnavailable(' in src
+          assert 'buffer.getMethod("isEndOfStream")' in src
+          assert 'BUFFER_EOS_ACCESS' in model
+          assert 'ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS' in model
+          assert 'engineAudioState2BufferUnavailable' in model
+          assert 'selector.getDeclaredMethod("try",holder,nativeRenderer)' in src
+          assert 'RENDERER_COMPARATOR' in model
+          assert 'onRendererComparatorResult' in model
+          assert 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE' in model
+          assert 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4' in model
+          assert 'rendererComparatorHooked' in src
+          assert 'return original;' in src
+          assert 'ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4' in model
+          assert 'ENGINE_HOLDER_RENDERER_TYPE_OTHER' in model
+          assert 'ENGINE_HOLDER_TYPE1_STATE_NOT2' in model
+          assert 'ENGINE_HOLDER_TYPE_STATE_UNAVAILABLE' in model
+          assert 'engine.getDeclaredMethod("catch"' in src
+          assert 'Class.forName("[LR29;",false,loader)' in src
+          assert 'setEngineHolderStreamArrayField(' in src
+          assert 'enterEngine(' in src
+          assert 'exitEngine(' in src
+          assert 'ENGINE_HOLDER_STREAM_ARRAY_MATCH' in model
+          assert 'ENGINE_HOLDER_READ_RETURN_MINUS4' in model
+
+          assert 'private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";' in src
+          print('NAV17_EXACT_RENDERER_OBSERVER_SCOPE_PASS')
+          PY
