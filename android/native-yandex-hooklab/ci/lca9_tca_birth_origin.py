@@ -508,41 +508,55 @@ def scan_direct_callers(apks):
     upstream_targets = {}
     for key, (dex, method, flags, code_off) in sorted(caller_definitions.items()):
         pcs = caller_sites[key]
-        events, error = _trace_events_for_callsites(
-            dex, method, flags, code_off, TARGET, pcs
-        )
-        if error:
+        try:
+            direct_trace = trace_exact_tca_constructor_to_callsites(
+                dex, method, flags, code_off, TARGET, pcs,
+                TARGET_WRAPPER_POSITION, target_argument_type=WRAPPER
+            )
+            typed_events, typed_error = _trace_events_for_callsites(
+                dex, method, flags, code_off, TARGET, pcs
+            )
+        except (ValueError, audit.DexError):
             direct_rows.append({
                 "trace_complete": False,
                 "wrapper_origin_categories": ["TRACE_FAILED"],
                 "constructor_to_lca9_same_object": False,
+                "same_tca_reference_to_lca9": False,
             })
             continue
-        categories = []
-        for event in events:
-            categories.extend(wrapper_origin_categories(
-                event, TARGET_WRAPPER_POSITION
-            ))
-        categories = sorted(set(categories or ["NO_IDENTITY_EVENT"]))
-        direct_constructor = trace_exact_tca_constructor_to_callsites(
-            dex, method, flags, code_off, TARGET, pcs,
-            TARGET_WRAPPER_POSITION
-        )
+
+        categories = {
+            row["origin_category"] for row in direct_trace["site_results"]
+        }
+        if not typed_error:
+            categories.update(
+                category
+                for event in typed_events
+                for category in wrapper_origin_categories(
+                    event, TARGET_WRAPPER_POSITION
+                )
+                if category != "NO_IDENTITY"
+            )
+        categories = sorted(categories or {"NO_IDENTITY"})
         direct_rows.append({
-            "trace_complete": True,
+            "trace_complete": not bool(typed_error),
             "callsite_count": len(pcs),
             "wrapper_origin_categories": categories,
-            "constructor_to_lca9_same_object": direct_constructor[
+            "constructor_to_lca9_same_object": direct_trace[
                 "same_constructed_tca_on_all_sites"
             ],
-            "constructor_trace": direct_constructor,
+            "same_tca_reference_to_lca9": direct_trace[
+                "same_tca_reference_on_all_sites"
+            ],
+            "constructor_trace": direct_trace,
         })
-        if "COMMON_PARAMETER" in categories:
-            wrapper_positions = logical_parameter_positions(
-                method, flags, WRAPPER
-            )
-            if len(wrapper_positions) == 1:
-                upstream_targets[key] = wrapper_positions[0]
+
+        parameter_positions = {
+            row.get("origin_parameter_position")
+            for row in direct_trace["site_results"]
+        }
+        if len(parameter_positions) == 1 and None not in parameter_positions:
+            upstream_targets[key] = next(iter(parameter_positions))
 
     return {
         "dex_count": dex_count,
