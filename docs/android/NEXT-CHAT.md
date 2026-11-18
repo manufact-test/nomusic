@@ -1,4 +1,4 @@
-# CURRENT — NAV38 exact Track/Flow time-order diagnostic; JVM GREEN, ARM13 pending (19 Nov 2026)
+# CURRENT — NAV38 exact Track/Flow time-order diagnostic; SIGNED AND LIBRARY-VERIFIED; CI GREEN (19 Nov 2026)
 
 **Repository:** `manufact-test/nomusic`. **Sole working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
 
@@ -29,16 +29,17 @@ Based strictly on NAV37, do NOT redo NAV25–NAV36 probes or static caller searc
 No retroactive Track→wrapper→Player link is created; no active queue inference, no media substitution, no exported titles, IDs, URL, tokens, PCM or raw field values. Negative results are limited by weak refs and 32-item history.
 
 **JVM CI:** [#44407443841 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44407443841).
-**Owner ARM13 CI + automatic one-time signed APK export:** [#44407443952](https://github.com/manufact-test/nomusic/actions/runs/44407443952), currently pending completion.
-**Clone-alone differential ARM13:** [#44407443848](https://github.com/manufact-test/nomusic/actions/runs/44407443848), currently pending completion.
+**Owner ARM13 CI + automatic one-time signed APK export:** [#44407443952](https://github.com/manufact-test/nomusic/actions/runs/44407443952), SUCCESS.
+**Clone-alone differential ARM13:** [#44407443848](https://github.com/manufact-test/nomusic/actions/runs/44407443848), SUCCESS.
 
-## Owner APK release gate / next manual action
+## NAV38 signed artifact — DELIVERED TO PERSONAL LIBRARY
 
-- First confirm both ARM13 jobs SUCCESS and artifact package is signed owner-approved UPDATE_EXISTING with unchanged certificate SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`. Check SHA-256 of downloaded ZIP/APK.
-- GitHub artifact expected `CELIKOM-A1-NAV38-Creator-Flow-Time-Order-20261119`, package `CELIKOM-A1-NAV38-Creator-Flow-Time-Order-ReadOnly-20261119.apk`.
-- Upload signed ZIP to PERSONAL ChatGPT Library `/CELIKOM/Android/Native/`; materialize it back and byte-compare. Only then deliver direct Library or a verified local download link to the owner. Do not ask owner to run workflow or transfer artifacts.
-- Owner installs NAV38 *over installed NAV37* without clearing data/account or uninstalling CELIKOM/Yandex; if signature mismatch, STOP. Listen to 2–5 ordinary tracks and export only private TXT.
-- After NAV38 phone TXT, check exact creator-owned Track late Flow evidence, Album observation and strict current Player evidence. No NAV39 or audio replacement based on historical structural identity alone.
+- Protected NAV38 signed source: `72d5c42f1678d7b6839202a52712e5e80bf8a019`; backup `backup/android-a1-nav38-flow-time-order-owner-signed-arm13-ci-green-20261119` at that exact commit. NAV37 pre-NAV38 backup remains untouched.
+- CI: JVM [#44407443841 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44407443841); clone-alone ARM13 [#44407443848 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44407443848); owner publisher-first ARM13 [#44407443952 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44407443952).
+- Signed APK `CELIKOM-A1-NAV38-Creator-Flow-Time-Order-ReadOnly-20261119.apk`: 71,491,564 bytes, SHA256 `3b4aa30dff47a44ca2e052c0a3bb9c44bcd6f0c6479720312ed670d56fec2378`. v2/v3 APK signing owner cert SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` unchanged.
+- ZIP `CELIKOM-A1-NAV38-Creator-Flow-Time-Order-20261119.zip`: 51,618,089 bytes, SHA256 `e216f81839b3fe59b98f47d1850dcad4f706574ccc15da7cde2624ea67d7ef62`, matches GitHub artifact `14475253638`; ZIP CRC good, includes correct APK and NAV38 instruction.
+- **Personal Library upload succeeded**, path `/CELIKOM/Android/Native/CELIKOM-A1-NAV38-Creator-Flow-Time-Order-20261119.zip`, Library ID `libfile_ad79f587f2208191a729d7774d251173`. File listed, materialized back, same size and SHA256; readback is byte-identical.
+- **Next manual action:** owner installs NAV38 in place over NAV37 without uninstall or data clearing, listens to 2–5 ordinary tracks and returns private NAV38 diagnostic TXT. Stop if Android reports signature incompatibility. Do NOT build NAV39 or connect music replacement without new owner evidence.
 
 ## Context / archive
 
