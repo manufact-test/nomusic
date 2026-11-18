@@ -65,12 +65,12 @@ final class NativeRendererStreamEvidence {
     // true result for a different stream.
     private static final class ComparatorLink {
         final WeakReference<Object> holder, renderer, stream;
-        final boolean matched;
-        ComparatorLink(Object holder,Object renderer,Object stream,boolean matched) {
+        final boolean result;
+        ComparatorLink(Object holder,Object renderer,Object stream,boolean result) {
             this.holder=new WeakReference<>(holder);
             this.renderer=new WeakReference<>(renderer);
             this.stream=new WeakReference<>(stream);
-            this.matched=matched;
+            this.result=result;
         }
     }
 
@@ -93,7 +93,8 @@ final class NativeRendererStreamEvidence {
     // Numbers alone do not attest audible PCM, selected track or edition.
     private int typeStateAccessHook, bufferEosAccessHook, rendererComparatorHook;
     private int rendererComparatorTrue, rendererComparatorFalse, rendererComparatorUnavailable;
-    private int engineComparatorType1State2Read, engineComparatorType1State2ReadMinus4;
+    private int engineComparatorType1State2ReadTrue, engineComparatorType1State2ReadFalse;
+    private int engineComparatorType1State2ReadTrueMinus4, engineComparatorType1State2ReadFalseMinus4;
     private int engineRendererType1, engineRendererTypeOther;
     private int engineType1State2, engineType1StateOther, engineTypeStateUnavailable;
     private int engineAudioState2Minus4, engineAudioState2Minus5;
@@ -419,7 +420,7 @@ final class NativeRendererStreamEvidence {
     }
 
     synchronized void onRendererComparatorResult(Object holder,Object renderer,
-            Object stream,boolean matched) {
+            Object stream,boolean result) {
         if(poisoned || rendererComparatorHook<=0) {
             rendererComparatorUnavailable=inc(rendererComparatorUnavailable);
             return;
@@ -428,7 +429,7 @@ final class NativeRendererStreamEvidence {
             rendererComparatorUnavailable=inc(rendererComparatorUnavailable);
             return;
         }
-        if(matched)rendererComparatorTrue=inc(rendererComparatorTrue);
+        if(result)rendererComparatorTrue=inc(rendererComparatorTrue);
         else rendererComparatorFalse=inc(rendererComparatorFalse);
         for(int i=comparatorLinks.size()-1;i>=0;i--) {
             ComparatorLink old=comparatorLinks.get(i);
@@ -437,7 +438,7 @@ final class NativeRendererStreamEvidence {
             }
         }
         if(comparatorLinks.size()>=MAX_HANDLES)comparatorLinks.remove(0);
-        comparatorLinks.add(new ComparatorLink(holder,renderer,stream,matched));
+        comparatorLinks.add(new ComparatorLink(holder,renderer,stream,result));
     }
 
     synchronized void onRendererComparatorUnavailable() {
@@ -482,16 +483,26 @@ final class NativeRendererStreamEvidence {
             return;
         }
         engineType1State2=inc(engineType1State2);
-        // Promote only an exact TRUE result from the signed holder↔renderer
-        // comparator when holder, renderer and attached stream are all the
-        // same references as the live started-audio read cohort.
+        // Correlate the exact comparator boolean outcome with this same
+        // holder/renderer/attached-stream started-audio read. Do not label
+        // TRUE as equality until the signed return semantics are independently
+        // confirmed; both outcomes remain visible.
         for(ComparatorLink link:comparatorLinks) {
-            if(link.matched && link.holder.get()==matchedHolder
-                    && link.renderer.get()==renderer && link.stream.get()==stream) {
-                engineComparatorType1State2Read=inc(engineComparatorType1State2Read);
-                if(originalResult==-4)
-                    engineComparatorType1State2ReadMinus4=
-                        inc(engineComparatorType1State2ReadMinus4);
+            if(link.holder.get()==matchedHolder && link.renderer.get()==renderer
+                    && link.stream.get()==stream) {
+                if(link.result) {
+                    engineComparatorType1State2ReadTrue=
+                        inc(engineComparatorType1State2ReadTrue);
+                    if(originalResult==-4)
+                        engineComparatorType1State2ReadTrueMinus4=
+                            inc(engineComparatorType1State2ReadTrueMinus4);
+                } else {
+                    engineComparatorType1State2ReadFalse=
+                        inc(engineComparatorType1State2ReadFalse);
+                    if(originalResult==-4)
+                        engineComparatorType1State2ReadFalseMinus4=
+                            inc(engineComparatorType1State2ReadFalseMinus4);
+                }
                 break;
             }
         }
@@ -566,8 +577,10 @@ final class NativeRendererStreamEvidence {
             line("RENDERER_COMPARATOR_TRUE",rendererComparatorTrue),
             line("RENDERER_COMPARATOR_FALSE",rendererComparatorFalse),
             line("RENDERER_COMPARATOR_UNAVAILABLE",rendererComparatorUnavailable),
-            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH",engineComparatorType1State2Read),
-            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_MINUS4",engineComparatorType1State2ReadMinus4),
+            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE",engineComparatorType1State2ReadTrue),
+            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE",engineComparatorType1State2ReadFalse),
+            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4",engineComparatorType1State2ReadTrueMinus4),
+            line("ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE_MINUS4",engineComparatorType1State2ReadFalseMinus4),
             line("QUEUE_SCOPE_ENTER",scopeEnters),
             line("SECONDARY_CALLER_ENTER",secondaryCallerEnters),
             line("ENGINE_HOLDER_SCOPE_ENTER",engineEnters),
