@@ -593,11 +593,18 @@ def trace_exact_tca_constructor_to_callsites(
                     field_pc = int(match.group(1) or match.group(2))
         if field_pc is not None and field_pc in field_read_metadata:
             metadata_options = field_read_metadata[field_pc]
-            if len(metadata_options) == 1:
-                field_ref, field_receiver_token, field_is_static = next(iter(metadata_options))
+            field_refs = {item[0] for item in metadata_options}
+            static_flags = {item[2] for item in metadata_options}
+            receiver_options = {item[1] for item in metadata_options}
+            if len(field_refs) == 1 and len(static_flags) == 1:
+                field_ref = next(iter(field_refs))
+                field_is_static = next(iter(static_flags))
+                field_receiver_token = (
+                    next(iter(receiver_options)) if len(receiver_options) == 1 else None
+                )
             else:
                 field_ref, field_receiver_token, field_is_static = None, None, False
-            if field_ref is None:
+            if field_ref is None or len(receiver_options) != 1:
                 field_receiver_category = "AMBIGUOUS"
             elif field_is_static:
                 field_receiver_category = "STATIC"
@@ -631,15 +638,24 @@ def trace_exact_tca_constructor_to_callsites(
             if match:
                 constructor_string_source_pc = int(match.group(1))
                 metadata_options = field_read_metadata.get(constructor_string_source_pc, set())
-                if len(metadata_options) == 1:
-                    constructor_string_field_ref, constructor_string_track_receiver_token, _ = next(iter(metadata_options))
+                field_refs = {item[0] for item in metadata_options}
+                receiver_options = {item[1] for item in metadata_options}
+                if len(field_refs) == 1:
+                    constructor_string_field_ref = next(iter(field_refs))
+                    constructor_string_track_receiver_token = (
+                        next(iter(receiver_options)) if len(receiver_options) == 1 else None
+                    )
             else:
                 match = re.search(r"STRING_(?:TRACK_)?METHOD_RETURN@([0-9]+)", constructor_string_token)
                 if match:
                     constructor_string_source_pc = int(match.group(1))
                     metadata_options = string_return_metadata.get(constructor_string_source_pc, set())
-                    if len(metadata_options) == 1:
-                        _callee, constructor_string_track_receiver_token = next(iter(metadata_options))
+                    callees = {item[0] for item in metadata_options}
+                    receiver_options = {item[1] for item in metadata_options}
+                    if len(callees) == 1:
+                        constructor_string_track_receiver_token = (
+                            next(iter(receiver_options)) if len(receiver_options) == 1 else None
+                        )
         if isinstance(constructor_string_track_receiver_token, str):
             track_field_match = re.search(
                 r"TRACK_FIELD(?:_FROM_CONTINUATION)?@([0-9]+)|TRACK_CAST@REF_(?:THIS_)?FIELD@([0-9]+)",
@@ -648,10 +664,19 @@ def trace_exact_tca_constructor_to_callsites(
             if track_field_match:
                 track_field_pc = int(track_field_match.group(1) or track_field_match.group(2))
                 track_field_options = field_read_metadata.get(track_field_pc, set())
-                if len(track_field_options) == 1:
-                    constructor_string_track_receiver_field_ref, constructor_string_track_receiver_field_owner_token, constructor_string_track_receiver_field_is_static = next(iter(track_field_options))
+                track_field_refs = {item[0] for item in track_field_options}
+                track_field_receivers = {item[1] for item in track_field_options}
+                track_field_static_flags = {item[2] for item in track_field_options}
+                if len(track_field_refs) == 1 and len(track_field_static_flags) == 1:
+                    constructor_string_track_receiver_field_ref = next(iter(track_field_refs))
+                    constructor_string_track_receiver_field_is_static = next(iter(track_field_static_flags))
+                    constructor_string_track_receiver_field_owner_token = (
+                        next(iter(track_field_receivers)) if len(track_field_receivers) == 1 else None
+                    )
                     owner_token = constructor_string_track_receiver_field_owner_token
-                    if constructor_string_track_receiver_field_is_static:
+                    if len(track_field_receivers) != 1:
+                        constructor_string_track_receiver_field_receiver_category = "AMBIGUOUS"
+                    elif constructor_string_track_receiver_field_is_static:
                         constructor_string_track_receiver_field_receiver_category = "STATIC"
                     elif isinstance(owner_token, str) and owner_token.startswith(("REF_THIS@", "TRACK_THIS@", "TRACK_CONTINUATION_THIS@")):
                         constructor_string_track_receiver_field_receiver_category = "THIS"
