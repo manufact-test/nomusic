@@ -4,7 +4,8 @@ on:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
     paths:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
-      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
       - '.github/workflows/android-a1-native-renderer-observer-jvm.yml'
 permissions:
@@ -67,6 +68,13 @@ jobs:
           assert 'LIVE_PERIOD_SCOPED_TCA_BIRTH_NO_TRACK_SCOPE' in model
           assert 'testNav36OriginalTcaBirthCategories' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'testNav35DifferentPlayerWrapperHasExactReason' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
+          assert 'installNativeTcaCreatorScopeHook(loader);' in src
+          assert 'PrivateTcaTrackCreatorTarget' in src
+          assert 'currentNativeTcaCreatorOwner()' in src
+          assert 'enterNativeTcaCreatorTrackScope(' in src
+          assert 'TCA_CREATOR_WRAPPER_ALBUM_LINK' in model
+          assert 'testNav37ExactTcaCreatorTrackFieldLinksWrapperAndAlbum' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
+          assert 'testNav37NullCreatorTrackFieldShadowsOuterTrackScope' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'classifyNativeTrackAlbumForWrapper' in Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
           assert 'HOLDER_OTHER_SELECT_SAME_AT_READ' in model
           assert 'HOLDER_SELECT_ENTER_EXACT' in model
