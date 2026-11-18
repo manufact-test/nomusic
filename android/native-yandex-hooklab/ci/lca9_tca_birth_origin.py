@@ -835,6 +835,7 @@ def scan_field_writers(apks, direct):
 
     writer_definitions = {}
     writer_sites = {}
+    writer_traces = {}
     dex_count = 0
     scanned_methods = 0
     writer_site_count = 0
@@ -902,6 +903,7 @@ def scan_field_writers(apks, direct):
                 )
             except (ValueError, audit.DexError):
                 continue
+            writer_traces.setdefault(method_key, []).extend(trace["site_results"])
             writer_origin_categories.update(
                 site["origin_category"] for site in trace["site_results"]
             )
@@ -951,11 +953,21 @@ def scan_field_writers(apks, direct):
         total_reader_sites == direct["direct_callsite_count"]
         and total_reader_sites > 0
     )
+    writer_upstream_targets = {}
+    for method_key, site_rows in writer_traces.items():
+        positions = {
+            row.get("origin_parameter_position") for row in site_rows
+        }
+        if len(positions) == 1 and None not in positions:
+            writer_upstream_targets[method_key] = next(iter(positions))
+
     return {
         "field_count": len(targets),
         "reader_site_count": total_reader_sites,
         "writer_site_count": writer_site_count,
         "writer_method_count": len(writer_definitions),
+        "writer_definitions": writer_definitions,
+        "writer_upstream_targets": writer_upstream_targets,
         "writer_value_origin_categories": sorted({
             category for row in field_rows
             for category in row["writer_value_origin_categories"]
