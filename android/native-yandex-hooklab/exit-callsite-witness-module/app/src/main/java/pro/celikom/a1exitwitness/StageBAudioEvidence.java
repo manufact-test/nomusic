@@ -211,6 +211,22 @@ final class StageBAudioEvidence {
         mark(nativeTrackAlbumConstructorLinks);
     }
 
+    // NAV34: the exact original Player source-setter's tCa wrapper can be
+    // compared with this already observed Track Flow -> Track/Album wrapper.
+    // This is an album-bearing historical object witness, NOT queue generation,
+    // selected edition, duration or permission to substitute audio.
+    // 1=unique verified Flow/Track/Album/tCa reference chain;
+    // 0=unavailable/nonunique, -1=conflict. No private values read.
+    synchronized int classifyNativeTrackAlbumForWrapper(Object wrapper) {
+        NativeTrackSourceLink link=findByWrapper(wrapper);
+        if(link==null || link.track==null || link.albumInstance==null)return 0;
+        Object track=link.track.get(),album=link.albumInstance.get();
+        if(track==null || album==null || !wasNativeTrackFlowItem(track))return 0;
+        Object existing=findTrackAlbum(track);
+        if(existing==null)return 0;
+        return existing==album?1:-1;
+    }
+
     synchronized void onNativeTrackFlowEmission(Object track) {
         if (track == null) return;
         mark(nativeTrackFlowEmits);

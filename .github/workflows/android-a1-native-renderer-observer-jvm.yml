@@ -4,7 +4,7 @@ on:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
     paths:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
-      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
       - '.github/workflows/android-a1-native-renderer-observer-jvm.yml'
 permissions:
@@ -31,7 +31,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/a1-native-renderer-observer"
           javac --release 17 -d "$RUNNER_TEMP/a1-native-renderer-observer" \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
-            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
           python3 - <<'PY'
           from pathlib import Path
@@ -58,10 +58,12 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V33_DIRECT_LO96_SOURCE_READONLY' in src
+          assert 'NAV_V34_SCOPED_TRACK_ALBUM_SOURCE_READONLY' in src
           assert 'holderSelect.getDeclaredMethod(' in src
           assert 'HOLDER_OTHER_WH6_AT_READ' in model
           assert 'LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT' in model
+          assert 'LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH' in model
+          assert 'classifyNativeTrackAlbumForWrapper' in Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java').read_text()
           assert 'HOLDER_OTHER_SELECT_SAME_AT_READ' in model
           assert 'HOLDER_SELECT_ENTER_EXACT' in model
           assert 'LIVE_PERIOD_HOLDER_WRAPPER_NULL_AT_READ' in model

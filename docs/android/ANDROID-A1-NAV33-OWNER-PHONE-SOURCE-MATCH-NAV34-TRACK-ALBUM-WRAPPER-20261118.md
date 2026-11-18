@@ -1,0 +1,16 @@
+# CELIKOM A1 — REAL NAV33 owner phone source matching; NAV34 structural Track/Album reference witness
+
+18 November 2026. Owner private file `CELIKOM-A1-Diagnostics-1795003154029.txt`, **97,897 bytes / 1,365 lines**; never commit, mirror or expose original diagnostics. Active `NAV_V33_DIRECT_LO96_SOURCE_READONLY` at capture and export; preceding NAV32 marker historical only.
+
+## Proven on actual phone
+- Publisher original MediaPeriod from direct holder exact Lo96, same Java reference across original select, live SLOT_B attach and strict type1/state2 read: `HOLDER_OTHER_LO96_AT_READ=MANY`, SELECT/ATTACH SAME=MANY, different/lost NONE.
+- `LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT=MANY`, NULL=NONE, `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED=MANY`, UNAVAILABLE=NONE. `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY`, OTHER/NO_LINK=NONE. This proves exact Sl6 source Java reference equality between original started live period and an earlier original Player setter invoked within tCa wrapper scope (no source values logged).
+- `LIVE_QUEUE_SLOT_B_ATTACH_MATCH=MANY`, `TYPE1_STATE2_READ_MATCH=MANY`, OTHER/UNAVAILABLE NONE. Source and stream evidence intact.
+- Stage B Track/Album structural constructor=MANY, FLOW=MANY? **No**: FLOW=FEW, WRAPPER=MANY; descriptor/factory/source/open/read album links ALL NONE. No selected edition or queue generation. `IDENTITY_STATUS=STRUCTURAL_ONLY`; `CELIKOM_REPLACEMENT=NOT_CONNECTED`. Exo I/O failure NONE, Metrica MUSIC_APP NONE; no reported playback/seek/BT regression. Comparator FALSE not a track identity predicate; don't repeat.
+
+## NAV34 owned read-only bounded diagnostic, not a switch
+Precise NEW question: Does the *same tCa Java wrapper* previously registered at original scoped Player source setter have an already observed unique StageBAudioEvidence Track Flow→Track/Album→tCa link? Reuse the exact original Java references without reading any metadata/URL/content or guessing original fields. The model invokes an optional callback **only** after original live SLOT_B+renderer/stream+type1/state2 source reference matches a unique unconflicted scoped Player source setter. The owned Stage B model confirms the same wrapper object, the originally observed Track Flow, and an unchanged unique Track→Album object. Emit categorical counters `LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH/NO_LINK/CONFLICT`, never track/album names, IDs or values. Wrong source, absent album, different wrapper, null, changed live SLOT_B fail closed. Every original vendor method still proceeds exactly once, untouched.
+
+A positive MATCH would only establish a **historical scoped original source → tCa → track and album structural relation**. It does NOT prove selected edition, duration, time-aligned queue generation, current UI track, entitlement, audio content, or permission to enable CELIKOM substitution. `IDENTITY_STATUS` remains `STRUCTURAL_ONLY` and replacement `NOT_CONNECTED`. NAV34 needs exact JVM+signed ARM13 pass, owner signer and unchanged original, complete Library byte-verified APK+instruction before phone test.
+
+**Backups**: `backup/android-a1-nav33-owner-phone-source-match-pre-nav34-20261118` @ `63dbc56cae3c827fc538c2fbff525db7c15abc7c`. Existing exact signed NAV33 backup intact.

@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V33_DIRECT_LO96_SOURCE_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V34_SCOPED_TRACK_ALBUM_SOURCE_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2645,6 +2645,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                 emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_PERIOD_ORIGINAL_SOURCE","NO_HOOK");
             }
         }
+        // NAV34: classify historical Track Flow->Album for the SAME tCa
+        // wrapper only after strict live original source == scoped setter.
+        // No Yandex/PCM/data mutation or metadata read.
+        try {
+            NATIVE_RENDERER_EVIDENCE.setScopedAlbumEvidence(
+                STAGE_B_AUDIO::classifyNativeTrackAlbumForWrapper);
+        } catch(Throwable ignored) { }
         // NAV31: observe ONLY the issuer-signed Lxh6.if field-read
         // boundary, exactly PC61 proven in the existing signed 2025 DEX
         // audit. The source-bearing holder Object field may have been

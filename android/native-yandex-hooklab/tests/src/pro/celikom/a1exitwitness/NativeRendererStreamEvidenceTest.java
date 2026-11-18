@@ -1292,6 +1292,76 @@ public final class NativeRendererStreamEvidenceTest {
             }
         }
     }
+
+    // NAV34: same tCa wrapper from original Player source setter must be the
+    // same previously observed Track Flow -> Track/Album wrapper in Stage B.
+    private static void testNav34LiveOriginalSourceMatchesFlowTrackAlbumWrapper() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        setUpNav29(e);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onNativeTrackFlowEmission(track);
+        stage.enterNativeTrackSourceRequest(track,null);
+        try {stage.onNativeTrackWrapperCreated(wrapper);}
+        finally {stage.exitNativeTrackSourceRequest();}
+        Object renderer=new Object(),stream=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        holder.nested=new FakePeriod(source);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        NativeRendererStreamEvidence.TrackPlayerScope f=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally {e.exitTrackPlayerSource(f);}
+        nav29BindLive(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] report=e.exportLines();
+        check(contains(report,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=ONE"),
+              "NAV34_STRICT_ORIGINAL_PLAYER_SOURCE_MATCH");
+        check(contains(report,"origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH;error=ONE"),
+              "NAV34_IDENTICAL_TCA_REFERENCE_HAS_FLOW_TRACK_AND_ALBUM");
+        check(contains(report,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV34_HISTORICAL_ALBUM_NOT_SELECTED_EDITION_OR_QUEUE_GENERATION");
+        // Replacing live SLOT_B invalidates a stale holder link.
+        engine.queue.slotB=new FakeHolderSource(source,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH;error=ONE"),
+              "NAV34_STALE_QUEUE_CANNOT_ADD_ANOTHER_MATCH");
+    }
+    private static void testNav34MissingAlbumAndWrongScopedWrapperNeverPromote() {
+        for(int mode=0;mode<3;mode++) {
+            NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+            StageBAudioEvidence stage=new StageBAudioEvidence();
+            e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+            setUpNav29(e);
+            Object track=new Object(),album=new Object(),stageWrapper=new Object();
+            stage.onNativeTrackAlbumConstructed(track,album);
+            stage.onNativeTrackFlowEmission(track);
+            stage.enterNativeTrackSourceRequest(track,null);
+            try {stage.onNativeTrackWrapperCreated(stageWrapper);}
+            finally {stage.exitNativeTrackSourceRequest();}
+            if(mode==1)stage.onNativeTrackAlbumConstructed(track,new Object());
+            Object playerWrapper=mode==0?new Object():stageWrapper;
+            Object renderer=new Object(),stream=new Object();
+            FakeSource source=new FakeSource(),playerSource=mode==2?new FakeSource():source;
+            FakeHolderSource holder=new FakeHolderSource(source,stream);
+            holder.nested=new FakePeriod(source);
+            NativeRendererStreamEvidence.TrackPlayerScope f=e.enterTrackPlayerSource(playerWrapper);
+            try {e.onNativePlayerSourceSetter(playerSource);}
+            finally {e.exitTrackPlayerSource(f);}
+            nav29BindLive(e,new FakeActiveEngine(holder),holder,renderer,stream);
+            e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+            String[] report=e.exportLines();
+            check(contains(report,"origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH;error=NONE"),
+                  "NAV34_UNRELATED_WRAPPER_CONFLICTED_ALBUM_OR_WRONG_SOURCE_FAIL_CLOSED");
+            if(mode<2)check(contains(report,
+                    "origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_NO_LINK;error=ONE"),
+                    "NAV34_WRAPPER_OR_ALBUM_UNAVAILABLE_EXPLICIT");
+            else check(contains(report,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK;error=ONE"),
+                    "NAV34_PLAYER_SOURCE_MISMATCH_NEVER_QUERIES_ALBUM");
+        }
+    }
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1349,6 +1419,8 @@ public final class NativeRendererStreamEvidenceTest {
         testNav32NoOriginalSelectionHistoryIsExplicitlyUnproven();
         testNav33DirectOriginalLo96MatchesSource();
         testNav33DirectLo96NullAndDifferentSourcesFailClosed();
+        testNav34LiveOriginalSourceMatchesFlowTrackAlbumWrapper();
+        testNav34MissingAlbumAndWrongScopedWrapperNeverPromote();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

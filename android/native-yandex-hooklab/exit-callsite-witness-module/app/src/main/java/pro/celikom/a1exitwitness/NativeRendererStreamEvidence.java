@@ -175,6 +175,15 @@ final class NativeRendererStreamEvidence {
     private int trackPlayerScopeEnter,playerSourceSameScope,playerSourceUnscoped;
     private int playerSourceConflict,livePeriodResolved,livePeriodUnavailable;
     private int livePeriodSourceMatched,livePeriodSourceDifferent,livePeriodSourceNoLink;
+    // NAV34: ONLY after a strict live-original-source == scoped native
+    // Player setter source, inspect the SAME tCa wrapper's Stage B album link.
+    // Historical structural link; NEVER selected track, queue generation or PCM.
+    interface ScOpedAlbumEvidence { int classify(Object scopedWrapper); }
+    private ScOpedAlbumEvidence scopedAlbumEvidence;
+    private int scopedAlbumMatch,scopedAlbumNoLink,scopedAlbumConflict;
+    synchronized void setScopedAlbumEvidence(ScOpedAlbumEvidence evidence) {
+        scopedAlbumEvidence=evidence;
+    }
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
     private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
     private final ThreadLocal<EngineFrame> inEngineEnable = new ThreadLocal<>();
@@ -618,14 +627,29 @@ final class NativeRendererStreamEvidence {
         livePeriodResolved=inc(livePeriodResolved);
         int matches=0;
         boolean conflicting=false;
+        Object uniquelyScopedWrapper=null;
         for(PlayerSourceLink link:playerSources) {
             if(link.source.get()!=source)continue;
-            if(link.conflicted || link.wrapper.get()==null)conflicting=true;
-            else matches++;
+            Object wrapper=link.wrapper.get();
+            if(link.conflicted || wrapper==null)conflicting=true;
+            else {
+                matches++;
+                uniquelyScopedWrapper=wrapper;
+            }
         }
-        if(!conflicting && matches==1)
+        if(!conflicting && matches==1) {
             livePeriodSourceMatched=inc(livePeriodSourceMatched);
-        else if(matches==0 && !conflicting)
+            // No classification if source is unresolved, conflicted, stale,
+            // matched to multiple scopes or read from a non-live queue holder.
+            if(scopedAlbumEvidence!=null && uniquelyScopedWrapper!=null) {
+                int result=0;
+                try { result=scopedAlbumEvidence.classify(uniquelyScopedWrapper); }
+                catch(Throwable ignored) { result=0; }
+                if(result==1)scopedAlbumMatch=inc(scopedAlbumMatch);
+                else if(result==-1)scopedAlbumConflict=inc(scopedAlbumConflict);
+                else scopedAlbumNoLink=inc(scopedAlbumNoLink);
+            }
+        } else if(matches==0 && !conflicting)
             livePeriodSourceNoLink=inc(livePeriodSourceNoLink);
         else livePeriodSourceDifferent=inc(livePeriodSourceDifferent);
     }
@@ -1269,6 +1293,9 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_SOURCE_NULL",livePeriodSourceNull),
             line("LIVE_PERIOD_REFLECTION_FAILED",livePeriodReflectionFailed),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH",livePeriodSourceMatched),
+            line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH",scopedAlbumMatch),
+            line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_NO_LINK",scopedAlbumNoLink),
+            line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_CONFLICT",scopedAlbumConflict),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_OTHER",livePeriodSourceDifferent),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK",livePeriodSourceNoLink),
             line("ENGINE_HOLDER_READ_RETURN_MINUS4",engineReadMinus4),
