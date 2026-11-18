@@ -2229,6 +2229,10 @@ def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_
         "tca_constructor_track_source_field_same_owner_reference_count": track_handoff["same_owner_reference_count"],
         "tca_constructor_track_source_field_same_owner_parameter_count": track_handoff["same_owner_parameter_count"],
         "tca_constructor_track_source_field_same_owner_field_candidate_count": track_handoff["same_owner_field_candidate_count"],
+        "tca_constructor_track_creator_owner_is_track_field_owner_count": track_handoff["creator_owner_is_track_field_owner_count"],
+        "tca_constructor_track_creator_owner_is_track_writer_owner_count": track_handoff["creator_owner_is_track_writer_owner_count"],
+        "tca_constructor_track_creator_parameter_owner_is_track_writer_owner_count": track_handoff["creator_parameter_owner_is_track_writer_owner_count"],
+        "tca_constructor_track_creator_owner_parameter_same_type_count": track_handoff["creator_owner_parameter_same_type_count"],
         "tca_constructor_track_owner_parameter_creator_count": owner_parameter_upstream["creator_count"],
         "tca_constructor_track_creator_owner_continuation_count": owner_parameter_upstream["creator_owner_continuation_count"],
         "tca_constructor_track_creator_invoke_suspend_signature_count": owner_parameter_upstream["creator_invoke_suspend_signature_count"],
@@ -2376,12 +2380,41 @@ def run(xapk: Path):
             ):
                 same_owner_field_candidate_count += 1
 
+        creator_owner_is_track_field_owner_count = 0
+        creator_owner_is_track_writer_owner_count = 0
+        creator_parameter_owner_is_track_writer_owner_count = 0
+        creator_owner_parameter_same_type_count = 0
+        track_writer_owners = {
+            method_key[0] for method_key in track_fields["writer_definitions"]
+        }
+        for creator in tca_creator_rows:
+            _dex, creator_method, creator_flags, _code_off = creator["caller_definition"]
+            field_refs = creator.get("constructor_string_track_source_field_refs", ())
+            if any(ref[0] == creator_method[0] for ref in field_refs):
+                creator_owner_is_track_field_owner_count += 1
+            if creator_method[0] in track_writer_owners:
+                creator_owner_is_track_writer_owner_count += 1
+            positions = creator.get("constructor_string_track_field_owner_parameter_positions", ())
+            owner_types = {
+                logical_parameter_type(creator_method, creator_flags, position)
+                for position in positions
+            }
+            owner_types.discard(None)
+            if owner_types & track_writer_owners:
+                creator_parameter_owner_is_track_writer_owner_count += 1
+            if creator_method[0] in owner_types:
+                creator_owner_parameter_same_type_count += 1
+
         track_handoff = {
             "tca_creator_method_count": len(tca_creator_rows),
             "same_method_track_writer_count": len(shared_creator_writer_rows),
             "same_owner_reference_count": same_owner_reference_count,
             "same_owner_parameter_count": same_owner_parameter_count,
             "same_owner_field_candidate_count": same_owner_field_candidate_count,
+            "creator_owner_is_track_field_owner_count": creator_owner_is_track_field_owner_count,
+            "creator_owner_is_track_writer_owner_count": creator_owner_is_track_writer_owner_count,
+            "creator_parameter_owner_is_track_writer_owner_count": creator_parameter_owner_is_track_writer_owner_count,
+            "creator_owner_parameter_same_type_count": creator_owner_parameter_same_type_count,
         }
         return safe_summary(
             direct, upstream, fields, writer_upstream, track_fields, track_upstream,
