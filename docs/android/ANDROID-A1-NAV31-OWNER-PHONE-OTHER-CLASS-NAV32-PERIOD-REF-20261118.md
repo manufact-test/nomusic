@@ -1,5 +1,21 @@
 # CELIKOM Android A1 — REAL NAV31 owner phone: non-Lup1 object at every native phase; NAV32 bounded witness
 
+## FINAL — NAV32 signed ARM13 GREEN, personal Library byte-verified (18 Nov 2026)
+
+**Supersedes NAV32 CI-pending statements later in this file.** Signed exact NAV32 runtime/owner release commit `2f7feb8d7f8b3708925cc2c68ebe523f031930ad`; build marker `NAV_V32_HOLDER_OTHER_TYPE_REF_READONLY`. JVM source/model/fixture verification `#44290883730 SUCCESS` on `c22f65b23e2841a70015893910ba5847a281c1ee` (identical Java production model+tests to signed code; later commits only workflow/payload Python verification, not runtime Java). Owner-signed publisher-first original Yandex 2025.10.4 Android13 ARM13 `#44290896479 SUCCESS` on exact final source SHA, artifact ID `14421767491`. CI outcome `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`: original + clone launched, no audio-replacement or owner-phone validation; original 16 publisher-signed splits verified, owner signing verifier true.
+
+**Actual owner NAV32 APK independently unpacked from CI ZIP:** `CELIKOM-A1-NAV32-Other-Holder-Identity-ReadOnly-20261118.apk` — exactly **71,483,372 bytes**, SHA256 **`c956e5bb4dc03ae6c368e0fb0850c2eb6e16aeed84a5b7ac850d59bbdd875548`** (matches signed CI job log). Android APK Signing Block v2 and v3 DER certificate SHA256 **`048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`**, same as owner NAV31. Nested original `assets/lspatch/origin.apk` SHA256 **`1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`**, unchanged. Nested own-module DEX independently contains NAV32 active build marker and new WH6 and same-ref summary bins. CI ZIP README is STALE, not user instruction; upload APK and own fresh instruction separately.
+
+**Personal ChatGPT Library — uploaded, listed, materialized/downloaded back and SHA256 byte-identical:**
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV32-Other-Holder-Identity-ReadOnly-20261118.apk` — Library ID `libfile_4f720b0b77a88191a909ff8f92e474dc`.
+- `/CELIKOM/Android/Native/CELIKOM-A1-NAV32-Инструкция.txt` — 2,827 bytes, SHA256 `9fa963e79f76c50a6236dc68985819cf7c3fd373b82b3be579060cae570e22cc`, Library ID `libfile_830d55cb95d88191be79cf2b9cfe6e5e`.
+
+Older NAV31/30 APKs preserved. Pre-NAV32 backup `backup/android-a1-nav31-owner-phone-other-class-pre-nav32-20261118` @ `8c3a5b2659947a6301fa76a19b526ddeee7478de`; protected exact signed NAV32 source backup `backup/android-a1-nav32-other-holder-owner-signed-arm13-ci-green-20261118` @ `2f7feb8d7f8b3708925cc2c68ebe523f031930ad`. Last working HEAD after signed code is docs-only, plus unrelated cross-platform engineering reference docs; do not override those docs.
+
+**NEXT OWNER ACTION:** install exact NAV32 APK **in-place over NAV31**, no app uninstall, cache/data clear or account reset; if update fails STOP. Play normal 2–5 tracks, export new private TXT. Confirm current NAV32 marker and `HOLDER_SELECT_PHASE=REGISTERED`, then inspect exact `HOLDER_OTHER_WH6_* / NON_WH6 / LO96 / UP1_NAME_DIFFERENT_LOADER` and `HOLDER_OTHER_SELECT/ATTACH_*_AT_READ` along with guarded live SLOT_B and original Track/Source. Same Java object/interface NEVER proves selected Track+Album+edition/duration+queue generation. `CELIKOM_REPLACEMENT=NOT_CONNECTED`. No speculative NAV33 before owner NAV32 TXT.
+
+---
+
 Date: 2026-11-18. Owner private TXT: `CELIKOM-A1-Diagnostics-1794999303715.txt`, 100,645 UTF-8 bytes / 1,418 lines. NEVER commit, publish or copy the private raw TXT. Only version 2025.10.4 original; original player untouched. Stage B `CELIKOM_REPLACEMENT=NOT_CONNECTED`.
 
 ## NAV31 owner evidence (real Android phone, not CI)
