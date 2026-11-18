@@ -5,6 +5,8 @@ on:
     paths:
       - 'android/native-yandex-hooklab/ci/lca9_exact_source_player_identity.py'
       - 'android/native-yandex-hooklab/ci/test_lca9_exact_source_player_identity.py'
+      - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
+      - 'android/native-yandex-hooklab/ci/test_lca9_tca_birth_origin.py'
       - '.github/workflows/android-a1-lca9-native-source-identity-readonly.yml'
   workflow_dispatch:
 permissions:
@@ -13,7 +15,7 @@ permissions:
 jobs:
   direct-media-source-readonly:
     runs-on: ubuntu-24.04
-    timeout-minutes: 16
+    timeout-minutes: 28
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,6 +38,11 @@ jobs:
             python3 -B -m unittest discover \
               -s android/native-yandex-hooklab/ci \
               -p 'test_lca9_exact_source_player_identity.py' -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py
+          PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
+            python3 -B -m unittest discover \
+              -s android/native-yandex-hooklab/ci \
+              -p 'test_lca9_tca_birth_origin.py' -v
       - name: Download exact private signed 2025 Yandex research input
         shell: bash
         env:
@@ -58,6 +65,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/lca9_exact_source_player_identity.py \
+            --xapk "$RUNNER_TEMP/celikom-lca9-source-identity-input/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Trace exact tCa constructor identity into the LcA9 Player setter caller
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py \
             --xapk "$RUNNER_TEMP/celikom-lca9-source-identity-input/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Delete the original research input and guard untouched products
         if: always()
