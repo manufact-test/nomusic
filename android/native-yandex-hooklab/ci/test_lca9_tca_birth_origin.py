@@ -6,6 +6,7 @@ from lca9_tca_birth_origin import (
     logical_parameter_positions,
     logical_parameter_type,
     tca_origin_category,
+    tca_constructor_string_origin,
     wrapper_origin_categories,
     _parameter_register_from_tca_token,
     trace_exact_tca_constructor_to_callsites,
@@ -221,6 +222,31 @@ class Lca9TcaBirthOriginTests(unittest.TestCase):
         self.assertEqual(
             tca_origin_category("REF_PARAMETER@4"),
             "REFERENCE_PARAMETER",
+        )
+
+
+    def test_tca_constructor_string_origin_is_categorical_only(self):
+        self.assertEqual(
+            tca_constructor_string_origin(
+                "TCA_INIT@TCA_ALLOC@10|STRING=STRING_TRACK_FIELD@8"
+            ),
+            "TRACK_FIELD",
+        )
+        self.assertEqual(
+            tca_constructor_string_origin(
+                "TCA_INIT@TCA_ALLOC@10|STRING=STRING_TRACK_METHOD_RETURN@12"
+            ),
+            "TRACK_METHOD_RETURN",
+        )
+        self.assertEqual(
+            tca_constructor_string_origin(
+                "TCA_INIT@TCA_ALLOC@10|STRING=STRING_PARAMETER@4"
+            ),
+            "STRING_PARAMETER",
+        )
+        self.assertEqual(
+            tca_constructor_string_origin("TCA_INIT@TCA_ALLOC@10"),
+            "UNKNOWN",
         )
 
     def test_constructor_and_null_origins_are_distinct(self):
