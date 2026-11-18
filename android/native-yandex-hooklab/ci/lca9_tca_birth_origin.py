@@ -663,27 +663,37 @@ def trace_exact_tca_constructor_to_callsites(
             )
             if track_field_match:
                 track_field_pc = int(track_field_match.group(1) or track_field_match.group(2))
-                track_field_options = field_read_metadata.get(track_field_pc, set())
-                track_field_refs = {item[0] for item in track_field_options}
-                track_field_receivers = {item[1] for item in track_field_options}
-                track_field_static_flags = {item[2] for item in track_field_options}
-                if len(track_field_refs) == 1 and len(track_field_static_flags) == 1:
-                    constructor_string_track_receiver_field_ref = next(iter(track_field_refs))
-                    constructor_string_track_receiver_field_is_static = next(iter(track_field_static_flags))
-                    constructor_string_track_receiver_field_owner_token = (
-                        next(iter(track_field_receivers)) if len(track_field_receivers) == 1 else None
-                    )
-                    owner_token = constructor_string_track_receiver_field_owner_token
-                    if len(track_field_receivers) != 1:
-                        constructor_string_track_receiver_field_receiver_category = "AMBIGUOUS"
-                    elif constructor_string_track_receiver_field_is_static:
-                        constructor_string_track_receiver_field_receiver_category = "STATIC"
-                    elif isinstance(owner_token, str) and owner_token.startswith(("REF_THIS@", "TRACK_THIS@", "TRACK_CONTINUATION_THIS@")):
-                        constructor_string_track_receiver_field_receiver_category = "THIS"
-                    elif isinstance(owner_token, str) and owner_token.startswith(("REF_PARAMETER@", "TRACK_PARAMETER@", "TRACK_CONTINUATION_PARAMETER@")):
-                        constructor_string_track_receiver_field_receiver_category = "PARAMETER"
-                    elif isinstance(owner_token, str) and "FIELD@" in owner_token:
-                        constructor_string_track_receiver_field_receiver_category = "FIELD"
+                track_field_instruction = by_pc.get(track_field_pc)
+                if track_field_instruction is not None:
+                    track_field_op, track_field_words = track_field_instruction
+                    if track_field_op in (0x54, 0x62):
+                        constructor_string_track_receiver_field_ref = audit.field_id(
+                            dex, track_field_words[1]
+                        )
+                        constructor_string_track_receiver_field_is_static = (
+                            track_field_op == 0x62
+                        )
+                        if track_field_op == 0x62:
+                            constructor_string_track_receiver_field_receiver_category = "STATIC"
+                        else:
+                            track_receiver_register = (track_field_words[0] >> 12) & 15
+                            track_receiver_options = {
+                                state["registers"].get(track_receiver_register)
+                                for state in incoming.get(track_field_pc, {}).values()
+                            }
+                            if len(track_receiver_options) == 1:
+                                constructor_string_track_receiver_field_owner_token = next(iter(track_receiver_options))
+                                owner_token = constructor_string_track_receiver_field_owner_token
+                                if isinstance(owner_token, str) and owner_token.startswith(("REF_THIS@", "TRACK_THIS@", "TRACK_CONTINUATION_THIS@")):
+                                    constructor_string_track_receiver_field_receiver_category = "THIS"
+                                elif isinstance(owner_token, str) and owner_token.startswith(("REF_PARAMETER@", "TRACK_PARAMETER@", "TRACK_CONTINUATION_PARAMETER@")):
+                                    constructor_string_track_receiver_field_receiver_category = "PARAMETER"
+                                elif isinstance(owner_token, str) and "FIELD@" in owner_token:
+                                    constructor_string_track_receiver_field_receiver_category = "FIELD"
+                                else:
+                                    constructor_string_track_receiver_field_receiver_category = "UNKNOWN"
+                            else:
+                                constructor_string_track_receiver_field_receiver_category = "AMBIGUOUS"
             track_parameter_match = re.search(
                 r"(?:TRACK_PARAMETER|REF_PARAMETER)@([0-9]+)",
                 constructor_string_track_receiver_token
