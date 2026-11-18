@@ -1945,6 +1945,7 @@ def scan_creator_method_dispatch_surfaces(apks, writer_upstream):
 
     declared_ancestor_methods = set()
     invoke_sites = {}
+    caller_definitions = {}
     method_handle_count = 0
     method_handle_kinds = set()
     method_handle_callsite_count = 0
@@ -2065,6 +2066,9 @@ def scan_creator_method_dispatch_surfaces(apks, writer_upstream):
                             target = dex.method(words[1])
                             if target in target_refs:
                                 invoke_sites.setdefault((key, target), []).append(pc)
+                                caller_definitions.setdefault(
+                                    key, (apk, entry.filename, method, flags, code_off)
+                                )
                         elif op in (0xfc, 0xfd):
                             callsite_index = words[1]
                             if callsite_index in matching_callsite_indexes:
@@ -2087,26 +2091,13 @@ def scan_creator_method_dispatch_surfaces(apks, writer_upstream):
     receiver_origin_categories = set()
     trace_complete = True
     for (caller_key, target), pcs in invoke_sites.items():
-        caller_definition = None
-        # The second pass re-opens the DEX and resolves only the bounded callsite.
-        for apk in apks:
-            with zipfile.ZipFile(apk) as archive:
-                for entry in archive.infolist():
-                    if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
-                        continue
-                    dex = audit.Dex(archive.read(entry.filename))
-                    for method, flags, code_off in audit.method_definitions_with_flags(dex):
-                        if (method[0], method[1], method[2]) == caller_key:
-                            caller_definition = (dex, method, flags, code_off)
-                            break
-                    if caller_definition:
-                        break
-            if caller_definition:
-                break
+        caller_definition = caller_definitions.get(caller_key)
         if not caller_definition:
             trace_complete = False
             continue
-        dex, method, flags, code_off = caller_definition
+        caller_apk, caller_dex_entry, method, flags, code_off = caller_definition
+        with zipfile.ZipFile(caller_apk) as archive:
+            dex = audit.Dex(archive.read(caller_dex_entry))
         try:
             trace = trace_exact_tca_constructor_to_callsites(
                 dex, method, flags, code_off, target, pcs, 0,
