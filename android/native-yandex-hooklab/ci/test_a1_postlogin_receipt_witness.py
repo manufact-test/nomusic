@@ -247,7 +247,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.putString(',part)
         self.assertNotIn('.setResult(',part)
         self.assertNotIn('.startActivity(',part)
-        self.assertIn('NAV_V25_EXACT_AUDIO_TYPE1_STATE2_BUFFER_EOS_READONLY',s)
+        self.assertIn('NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY',s)
 
     def test_native_gate_requires_receiver_hook_registration(self):
         runner=(Path(__file__).resolve().parent /
@@ -372,7 +372,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         s=self.code
         self.assertIn('!"ENTRY_ACTIVITY".equals(activityFamily(activity))',s)
         self.assertIn('postLoginHookAttempts.incrementAndGet() > 3',s)
-        self.assertIn('NAV_V25_EXACT_AUDIO_TYPE1_STATE2_BUFFER_EOS_READONLY',s)
+        self.assertIn('NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY',s)
 
 if __name__=="__main__":
     unittest.main()
