@@ -30,10 +30,10 @@ NAV38 build marker `NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY`. Four new Stag
 - Source: `72d5c42f1678d7b6839202a52712e5e80bf8a019`.
 - Pre-NAV38 protected backup: `backup/android-a1-nav37-owner-phone-not-flow-pre-nav38-20261119` @ `211460b4143bd3f775ccc0001a65afb5ce75b640`.
 - JVM regression: [#44407443841 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44407443841).
-- Owner-signed ARM13 and APK export: [#44407443952](https://github.com/manufact-test/nomusic/actions/runs/44407443952), pending.
-- Clone-alone: [#44407443848](https://github.com/manufact-test/nomusic/actions/runs/44407443848), pending.
-- APK package expected `CELIKOM-A1-NAV38-Creator-Flow-Time-Order-ReadOnly-20261119.apk`.
-- Follow owner acceptance + signer/SHA256 checks, upload signed ZIP to personal Library, materialize for byte comparison; only then owner installs over NAV37 and returns another private TXT.
+- Owner-signed ARM13 and APK export: [#44407443952 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44407443952).
+- Clone-alone: [#44407443848 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44407443848).
+- APK package delivered `CELIKOM-A1-NAV38-Creator-Flow-Time-Order-ReadOnly-20261119.apk`.
+- **DELIVERED:** signed APK SHA256 `3b4aa30dff47a44ca2e052c0a3bb9c44bcd6f0c6479720312ed670d56fec2378`, v2/v3 owner certificate SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`. ZIP SHA256 `e216f81839b3fe59b98f47d1850dcad4f706574ccc15da7cde2624ea67d7ef62`, 51,618,089 bytes, exact byte-for-byte Library readback verified. Personal Library `/CELIKOM/Android/Native/CELIKOM-A1-NAV38-Creator-Flow-Time-Order-20261119.zip`, Library ID `libfile_ad79f587f2208191a729d7774d251173`. Protected signed source backup `backup/android-a1-nav38-flow-time-order-owner-signed-arm13-ci-green-20261119`. Next: owner installs over NAV37 and returns private NAV38 TXT.
 
 ## Boundaries
 
