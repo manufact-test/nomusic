@@ -48,3 +48,9 @@ NAV25 requires a successful new owner-signed Android13 ARM CI **and verified Lib
 - Latest code and docs branch remains `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. No user phone NAV25 diagnosis received yet. **CELIKOM replacement NOT_CONNECTED** until a subsequent on-device proven selected-track identity and actual replacement integration.
 
 **Owner's next check:** install NAV25 from verified personal Library **over NAV24** without data clear/uninstall; regular listening 2–5 tracks, export TXT, report whether original Yandex remains normal. Parse `BUFFER_EOS_ACCESS`, `ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS/EOS/UNAVAILABLE`, previous strict holder+type+state statuses, `READ_RETURN_LINK_LOST`, and `CELIKOM_REPLACEMENT`. If getter reports NO_HOOK, never infer non-EOS; research an exact signed 2025 flags method before further runtime changes.
+
+## NAV25 owner phone diagnostic — 18 Nov 2026
+
+The latest export identifies NAV25 as active; an older NAV24 marker remains in the retained log. All previous renderer checks are registered. Holder/stream matches are FEW, mismatches and lost links NONE; started audio renderer reads and the -4 return cohort are MANY. The new EOS accessor reports NO_HOOK, with NON_EOS=NONE, EOS=NONE and UNAVAILABLE=MANY. These bins represent missing observation, not a claim that audio buffers are empty or playback has failed. Selected-track linkage is unproven; replacement remains NOT_CONNECTED. No runtime changes or new APK were made. Existing signed checkpoints are preserved. Raw owner diagnostic stays private.
+
+Security review is required before any further changes: keep third-party account credentials, authentication and protected playback outside CELIKOM instrumentation; use a separately controlled test player and owned/licensed media for further integration testing.
