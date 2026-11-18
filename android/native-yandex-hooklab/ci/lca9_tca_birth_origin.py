@@ -207,6 +207,22 @@ def tca_origin_category(token: str | None) -> str:
         return "REFERENCE_NEW_INSTANCE"
     if token.startswith("REF_THIS@"):
         return "REFERENCE_THIS"
+    if token.startswith("TRACK_PARAMETER@"):
+        return "TRACK_PARAMETER"
+    if token.startswith("TRACK_CAST@REF_PARAMETER@"):
+        return "TRACK_CAST_FROM_REFERENCE_PARAMETER"
+    if token.startswith("TRACK_THIS@"):
+        return "TRACK_THIS"
+    if token.startswith("TRACK_FIELD_FROM_CONTINUATION@"):
+        return "TRACK_FROM_CONTINUATION_FIELD"
+    if token.startswith("TRACK_FIELD@"):
+        return "TRACK_FIELD"
+    if token.startswith("TRACK_RETURN@"):
+        return "TRACK_METHOD_RETURN"
+    if token.startswith("TRACK_CONTINUATION_PARAMETER@"):
+        return "TRACK_CONTINUATION_PARAMETER"
+    if token.startswith("TRACK_CONTINUATION_FIELD@"):
+        return "TRACK_CONTINUATION_FIELD"
     if token.startswith("TCA_NULL@"):
         return "EXPLICIT_NULL"
     return "AMBIGUOUS_OR_UNRESOLVED"
@@ -243,7 +259,7 @@ def tca_constructor_string_origin(token: str | None) -> str:
 def _parameter_register_from_tca_token(token: str | None):
     if not isinstance(token, str):
         return None
-    match = re.search(r"(?:TCA_PARAMETER|REF_PARAMETER)@([0-9]+)", token)
+    match = re.search(r"(?:TCA_PARAMETER|REF_PARAMETER|TRACK_PARAMETER|TRACK_CONTINUATION_PARAMETER)@([0-9]+)", token)
     return int(match.group(1)) if match else None
 
 
@@ -525,7 +541,7 @@ def trace_exact_tca_constructor_to_callsites(
             register is not None and bool(value_tokens)
             and len(set(value_tokens)) == 1
             and isinstance(value_tokens[0], str)
-            and value_tokens[0].startswith(("TCA_", "REF_"))
+            and value_tokens[0].startswith(("TCA_", "REF_", "TRACK_"))
             and not value_tokens[0].startswith("TCA_NULL@")
         )
         value_token = (
