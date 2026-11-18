@@ -1,4 +1,30 @@
-# CURRENT — NAV28 OWNER-SIGNED ARM13 GREEN AND PERSONAL LIBRARY VERIFIED (18 NOV 2026)
+# CURRENT — NAV28 OWNER PHONE LIVE QUEUE/STARTED AUDIO MATCH; NAV29 TRACK SOURCE TO ACTIVE PERIOD IN CI (18 NOV 2026)
+
+**Scope:** CELIKOM Android A1 ONLY, `manufact-test/nomusic`, sole working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Keep original Yandex behavior, original publisher signed 2025.10.4 unchanged, no unauthorized audio switching. Original playback last reported working; do not invent pause/seek/Next defects. CELIKOM audio substitution **NOT_CONNECTED**. User expects personal ChatGPT Library files, not sandbox/GitHub Actions download.
+
+**Actual owner NAV28 TXT received and analyzed:** `CELIKOM-A1-Diagnostics-1794993804107.txt` (PRIVATE; NEVER commit raw). Earlier retained log contains NAV26/NAV27 build markers; **CURRENT** near file line 936 `NAV_V28_LIVE_QUEUE_SLOT_B_RENDERER_READONLY;ACTIVE`. Key NAV28 phone snapshot:
+- `LIVE_QUEUE_SLOT_B=REGISTERED`, `ENGINE_HOLDER_SCOPE=REGISTERED`, `RENDERER_TYPE_STATE_ACCESS=REGISTERED`, others original renderer hooks REGISTERED, `BUFFER_EOS_ACCESS=NO_HOOK` unchanged.
+- `ENGINE_HOLDER_STREAM_ARRAY_MATCH=FEW` with DIFFERENT=NONE, UNAVAILABLE=NONE; live queue at attach `LIVE_QUEUE_SLOT_B_ATTACH_MATCH=FEW`, OTHER=NONE, UNAVAILABLE=NONE.
+- **`LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH=MANY`**, OTHER=NONE, UNAVAILABLE=NONE, MINUS4=MANY. **Real phone current live e.h.SLOT_B holder == active type1/state2 renderer/stream holder identity at sampled original audio reads**. This closes live queue-slot vs active renderer *structural* gate, not current Track+Album+edition, PCM or source substitution.
+- `READ_RETURN_LINK_LOST=NONE`, `UNSCOPED_ATTACHED_STREAM_READ_MATCH=MANY`, `ENGINE_HOLDER_TYPE1_STATE2=MANY`, `ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4=MANY`. Existing alternate helper QUEUE_SCOPE_ENTER=NONE does not negate independent exact engine route.
+- Original comparator this session FALSE=MANY, at-call engine MATCH=MANY, attached stream MANY but strict comparator-to-later started read NONE; comparator not required for NAV29, raw FALSE semantics not inferred. Prior NAV27 session comparator NONE, correct session-specific observation.
+- Stage B selected source path: FLOW_TRACK_SAME_OBJECT=FEW, TRACK_WRAPPER_LINK=MANY, TRACK_WRAPPER_ALBUM_LINK=MANY; `WRAPPER_MAIN_SOURCE=NONE`, `NATIVE_MAIN_SOURCE_ENTER=NONE`, `TRACK_SOURCE_READ_LINK=NONE`. These are prior source-chain holes; do not pretend resolved. `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/FEW` says only sampled exception constructors; no proven new user-visible playback crash.
+
+**Protected before NAV29:** `backup/android-a1-nav28-owner-phone-live-slot-read-match-pre-nav29-20261118` @ `6603fefee19b1d7be319901998d8eae441e6786a`. NAV28 exact signed code backup `backup/android-a1-nav28-live-queue-slot-owner-signed-arm13-ci-green-20261118` @ `4463297d81e5476fb1f3b2724391127b076b4828`; NAV28 user-verified Library APK untouched.
+
+**NAV29 read-only proposed gate:** Use already publisher-signed proven `LcA9.extends(...LtCa...)` TrackWrapper → exact `LiLb` source → native Player `d.e(LSl6;J)` same-original-object, and `Lp96.transient` Lo96 original source, `Lxh6` holder-stored exact `Lup1` wrapper. The current NAV28 live e.h.SLOT_B holder→renderer/stream match is the ONLY time the new proof can count. New Stage B hooks/counters (no metadata/files/track IDs/tokens/URLs or audio bytes):
+- `TRACK_PLAYER_SOURCE_SCOPE_ENTER`, `TRACK_PLAYER_SOURCE_SAME_SCOPE/UNSCOPED/CONFLICT`: bounded weak TrackWrapper–original source link only when exact synchronous source setter in precise TrackWrapper-bearing original method. A source belonging to two wrappers is conflicted, never promoted.
+- `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED/UNAVAILABLE`: exact original `Lxh6.Object → Lup1.Lwh6 → Lo96.LSl6` fields from cryptographically verified signed original, only on NAV28 live slot audio sample.
+- `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH/OTHER/NO_LINK`: strict Java reference equality between original active period source and previously observed scoped player original source. This is a **source object match**, not Track/Album edition or correct audible CELIKOM substitution.
+- New hook status `TRACK_PLAYER_SOURCE_SCOPE`, `NATIVE_PLAYER_SOURCE_SETTER`, `LIVE_PERIOD_ORIGINAL_SOURCE`; optional if any exact field cannot be proven/loaded; no fallback to weaker. Original methods unchanged, fail closed.
+
+**Source:** new owned Java model and three JVM negative/positive fixtures commit `b6b8442f5dcc285f6f0e626b5d2dbd6cd0d91660`. New owner hooks and exact publisher-private signed field generator and NAV29 CI workflow commit `bef2e523d063bb90cd0606e7041716ed4c45eb11`. NAV29 model JVM CI **#44276987119 SUCCESS**. Original issuer XAPK full ARM13 signing/functional CI **#44276987005 IN PROGRESS** at handoff drafting; do NOT claim signed owner APK, and do NOT send user to install unless native CI SUCCESS, read-only module marker and cryptographic signer & original verified, personal Library upload independently listed & materialized back byte-identical. If source generator exact field proof fails, do not bypass; use static DEX to fix the exact gap or mark NO_GO.
+
+**Next:** Continue NAV29 ARM CI; resolve fail-closed static proof issues only, do not replace vendor audio and do not ask owner for another TXT until verified Library NAV29 release. Then owner can install over NAV28 without clearing data and send NAV29 TXT. Selected Track, Album, edition, duration and queue generation still need explicit same-lineage proof; only after that connect authorized CELIKOM resolver and source swap. Docs: [NAV28 owner + NAV29 exact-source gate](ANDROID-A1-NAV28-OWNER-LIVE-QUEUE-POSITIVE-NAV29-ACTIVE-SOURCE-20261118.md).
+
+---
+
+# ARCHIVED — NAV28 OWNER-SIGNED ARM13 GREEN AND PERSONAL LIBRARY VERIFIED (18 NOV 2026)
 
 **Only** CELIKOM Android A1, GitHub `manufact-test/nomusic`, branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Original Yandex Music works by earlier owner reports; NO NEW owner playback bug reported. CELIKOM replacement **NOT_CONNECTED**. No architecture changes, vendor modifications or user account/credentials logged.
 
