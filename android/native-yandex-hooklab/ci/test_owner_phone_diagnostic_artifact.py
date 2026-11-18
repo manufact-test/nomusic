@@ -91,5 +91,11 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
             export_after_native_acceptance(link, self.accepted_report(), self.runner)
 
 
+    def test_output_name_is_explicitly_versioned_nav37(self):
+        self.assertIn("NAV37", OUTPUT_NAME)
+        self.assertIn("Tca-Creator-Track-Field", OUTPUT_NAME)
+
+
+
 if __name__ == "__main__":
     unittest.main()

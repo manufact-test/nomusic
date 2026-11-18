@@ -34,7 +34,7 @@ on:
         type: boolean
         default: false
       authorize_fresh_clone_install:
-        description: Authorize removing and reinstalling CELIKOM clone only; its saved clone account/data will be lost. Original Yandex is untouched.
+        description: Only for a fresh CELIKOM install when NAV36 is not already installed; keep false for the normal in-place NAV36 update. Original Yandex is untouched.
         required: false
         type: boolean
         default: false
@@ -233,7 +233,7 @@ jobs:
           CELIKOM_A1_OWNER_KEY_ALIAS: ${{ secrets.CELIKOM_A1_OWNER_KEY_ALIAS }}
           CELIKOM_A1_OWNER_KEY_PASSWORD: ${{ secrets.CELIKOM_A1_OWNER_KEY_PASSWORD }}
           CELIKOM_A1_OWNER_CERT_SHA256: ${{ vars.CELIKOM_A1_OWNER_CERT_SHA256 }}
-          CELIKOM_A1_INSTALLED_CERT_SHA256: ${{ vars.CELIKOM_A1_INSTALLED_CERT_SHA256 }}
+          CELIKOM_A1_INSTALLED_CERT_SHA256: ${{ vars.CELIKOM_A1_INSTALLED_CERT_SHA256 || '048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf' }}
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
@@ -243,14 +243,14 @@ jobs:
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          test -s "$bundle/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk"
+          test -s "$bundle/CELIKOM-A1-NAV37-Tca-Creator-Track-Field-ReadOnly-20261118.apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
-          sha256sum "$bundle/CELIKOM-A1-Native-ReadOnly-Diagnostic.apk"
+          sha256sum "$bundle/CELIKOM-A1-NAV37-Tca-Creator-Track-Field-ReadOnly-20261118.apk"
       - name: Upload private one-time owner-phone diagnostic bundle
         if: success() && (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk)
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-OnDevice-Diagnostic-20261113
+          name: CELIKOM-A1-NAV37-Tca-Creator-Track-Field-20261118
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7
