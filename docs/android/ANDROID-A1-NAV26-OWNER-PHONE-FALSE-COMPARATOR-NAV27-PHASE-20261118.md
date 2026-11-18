@@ -1,5 +1,22 @@
 # CELIKOM Android A1 — NAV26 owner phone FALSE comparator; NAV27 attach-phase discrimination (18 Nov 2026)
 
+## FINAL NAV27 signed owner release and personal Library verification — 18 Nov 2026
+
+**This final section supersedes the earlier "ARM13 in progress" note above.** Exact NAV27 JVM #44267549038 **SUCCESS**. Exact publisher-first signed Android13 ARM NAV27 #44267549027 **SUCCESS**, built at `b287492d600c8b01ac32a0401c5e61db2d9b63c1`. Artifact ID `14411526799`, name `CELIKOM-A1-NAV27-Owner-Comparator-Attach-Timing-20261118`.
+
+The artifact ZIP was downloaded, its APK extracted, the embedded module checked for the exact `NAV_V27_COMPARATOR_ATTACH_PHASE_DISCRIMINATOR_READONLY` marker and new bins. Verified owner APK:
+- Filename: `CELIKOM-A1-NAV27-Comparator-Attach-Phase-ReadOnly-20261118.apk`.
+- Size: **71,475,180 bytes**.
+- SHA-256 **`a051e795c9123447018ece88b6dc88d2e69e736177d001d60e289c8c47e314ab`**.
+- APK Signature Scheme v2 and v3 signer certificate SHA-256 **`048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`**, same accepted NAV26 signing certificate.
+- Embedded untouched original publisher Yandex `assets/lspatch/origin.apk` SHA-256 **`1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`**. Original 2025.10.4 APK was not edited.
+- Canonical personal ChatGPT Library APK `/CELIKOM/Android/Native/CELIKOM-A1-NAV27-Comparator-Attach-Phase-ReadOnly-20261118.apk`; matching instructions `/CELIKOM/Android/Native/CELIKOM-A1-NAV27-Инструкция.txt`. Both uploads succeeded, files were independently listed, materialized back to local container and SHA-256 byte-for-byte checked against signed artifact and the original instructions: **LIBRARY_NAV27_BYTES_IDENTICAL**.
+
+Protected exact signed NAV27 source backup `backup/android-a1-nav27-comparator-attach-phase-owner-ci-green-20261118` @ `b287492d600c8b01ac32a0401c5e61db2d9b63c1`. No original audio modification, architecture change, user data clear, production replacement, or private diagnostic TXT upload. Prior NAV26 source/Library APK/backup preserved.
+
+**Owner's next test:** install verified NAV27 from personal Library over NAV26 without uninstall or data wipe. If Android refuses the upgrade, do not remove NAV26. Play 2–5 regular tracks; export TXT and send privately in chat; report whether original Yandex playback remains ordinary. Analyze the at-call and at-attach phase categories before attempting selected Track/queue generation proof. Stage B still NOT_CONNECTED.
+
+
 ## Authority and scope
 
 Only work in `manufact-test/nomusic` / `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Native original publisher-signed Yandex Music 2025.10.4 is working; pause, seek and Next are not known to be broken. The **only outstanding feature** is CELIKOM alternative-stream substitution. No architectural changes or original vendor audio modifications. Stage B remains `NOT_CONNECTED`. Do not review account/Passport telemetry or commit private owner TXT.
