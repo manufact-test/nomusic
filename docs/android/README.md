@@ -1,15 +1,16 @@
 # CELIKOM Android A1 — documentation index
 
-**Current, reconciled 18 November 2026 after real NAV36 owner phone TXT.** `NEXT-CHAT.md` is the sole authoritative live status. NAV36 produced a positive `BIRTH_NO_TRACK_SCOPE` observation. Do not use superseded awaiting-NAV36 prompts.
+**Current, reconciled 18 November 2026 after real NAV36 owner phone TXT and completed signed-original tCa callsite audit.** `NEXT-CHAT.md` is the sole authoritative live status. NAV36's exact live Player-scoped tCa had `BIRTH_NO_TRACK_SCOPE` as the only positive birth reason. The bounded signed-original follow-up found a Track-backed constructor argument but **no exact same-object edge** to the synchronous Gp0 Track scope. No NAV37 is justified; keep the existing NAV36 runtime unchanged.
 
 ## Required current startup documents
 
-1. **[NEXT-CHAT.md](NEXT-CHAT.md)** — authoritative current real NAV36 owner result, code/release checkpoint and static-only next action.
-2. **[ANDROID-A1-NAV36-OWNER-PHONE-NO-TRACK-SCOPE-20261118.md](ANDROID-A1-NAV36-OWNER-PHONE-NO-TRACK-SCOPE-20261118.md)** — private owner phone evidence (categorical summary only), NAV36 hook code review, six reasons, Metrica qualification and precisely scoped next static investigation.
-3. **[ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md](ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md)** — NAV35 prior real-phone evidence; NAV36 construction/test/release/Library validation.
-4. **[ANDROID-A1-NAV34-OWNER-PHONE-ALBUM-NO-LINK-NAV35-REASONS-20261118.md](ANDROID-A1-NAV34-OWNER-PHONE-ALBUM-NO-LINK-NAV35-REASONS-20261118.md)** — prior historical evidence only.
+1. **[NEXT-CHAT.md](NEXT-CHAT.md)** — authoritative current NAV36 owner result, completed static follow-up, runtime/release checkpoint and no-NAV37 decision.
+2. **[ANDROID-A1-TCA-BIRTH-STATIC-CALLSITE-20261118.md](ANDROID-A1-TCA-BIRTH-STATIC-CALLSITE-20261118.md)** — completed signed-original DEX callsite/creator/dispatch audit, exact bounded findings and negative result.
+3. **[ANDROID-A1-NAV36-OWNER-PHONE-NO-TRACK-SCOPE-20261118.md](ANDROID-A1-NAV36-OWNER-PHONE-NO-TRACK-SCOPE-20261118.md)** — latest real owner phone evidence (categorical summary only), NAV36 hook meaning and the static follow-up conclusion.
+4. **[ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md](ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md)** — NAV35 prior phone evidence; NAV36 construction/test/release/Library validation.
+5. **[ANDROID-A1-NAV34-OWNER-PHONE-ALBUM-NO-LINK-NAV35-REASONS-20261118.md](ANDROID-A1-NAV34-OWNER-PHONE-ALBUM-NO-LINK-NAV35-REASONS-20261118.md)** — prior historical evidence only.
 
-**Archived startup message** [NEXT-CHAT-START-MESSAGE-20261118.md](NEXT-CHAT-START-MESSAGE-20261118.md) referred to awaiting NAV36 and is **superseded** by the current `NEXT-CHAT.md`; do not paste it as new current state.
+**Archived startup message** [NEXT-CHAT-START-MESSAGE-20261118.md](NEXT-CHAT-START-MESSAGE-20261118.md) referred to awaiting NAV36 and is **superseded**; do not paste it as new current state.
 
 ## Earlier proven static source / Player research
 
