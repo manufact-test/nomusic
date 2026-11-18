@@ -211,20 +211,32 @@ final class StageBAudioEvidence {
         mark(nativeTrackAlbumConstructorLinks);
     }
 
-    // NAV34: the exact original Player source-setter's tCa wrapper can be
-    // compared with this already observed Track Flow -> Track/Album wrapper.
-    // This is an album-bearing historical object witness, NOT queue generation,
-    // selected edition, duration or permission to substitute audio.
-    // 1=unique verified Flow/Track/Album/tCa reference chain;
-    // 0=unavailable/nonunique, -1=conflict. No private values read.
+    // NAV35: resolve NAV34's real-phone NO_LINK=MANY, without selecting a
+    // guessed Track/Album. All checks use weak == Java refs only.
+    // 1 exact historical Flow/Track/Album/tCa, -1 explicit different album;
+    // 2 exact tCa missing, 3 multiple tracks share tCa, 4 track weak-lost,
+    // 5 no album captured at wrapper creation, 6 album weak-lost,
+    // 7 Flow track not retained, 8 constructor album absent/conflicted.
+    // Even MATCH is historical structural identity, NEVER selected edition
+    // or queue generation and NEVER permission to replace original audio.
     synchronized int classifyNativeTrackAlbumForWrapper(Object wrapper) {
-        NativeTrackSourceLink link=findByWrapper(wrapper);
-        if(link==null || link.track==null || link.albumInstance==null)return 0;
-        Object track=link.track.get(),album=link.albumInstance.get();
-        if(track==null || album==null || !wasNativeTrackFlowItem(track))return 0;
-        Object existing=findTrackAlbum(track);
-        if(existing==null)return 0;
-        return existing==album?1:-1;
+        if(wrapper==null)return 2;
+        NativeTrackSourceLink found=null;
+        for(NativeTrackSourceLink candidate:nativeTrackSourceLinks) {
+            if(candidate.wrapper==null || candidate.wrapper.get()!=wrapper)continue;
+            if(found!=null)return 3;
+            found=candidate;
+        }
+        if(found==null)return 2;
+        Object track=found.track==null?null:found.track.get();
+        if(track==null)return 4;
+        if(found.albumInstance==null)return 5;
+        Object album=found.albumInstance.get();
+        if(album==null)return 6;
+        if(!wasNativeTrackFlowItem(track))return 7;
+        Object observed=findTrackAlbum(track);
+        if(observed==null)return 8;
+        return observed==album?1:-1;
     }
 
     synchronized void onNativeTrackFlowEmission(Object track) {

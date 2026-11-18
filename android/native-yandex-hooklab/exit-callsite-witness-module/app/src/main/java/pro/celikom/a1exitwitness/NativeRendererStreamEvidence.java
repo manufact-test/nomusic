@@ -181,6 +181,12 @@ final class NativeRendererStreamEvidence {
     interface ScOpedAlbumEvidence { int classify(Object scopedWrapper); }
     private ScOpedAlbumEvidence scopedAlbumEvidence;
     private int scopedAlbumMatch,scopedAlbumNoLink,scopedAlbumConflict;
+    // NAV35: separate mutually exclusive reasons under the same exact
+    // live-source guard. No identities, content, URLs or durations logged.
+    private int scopedReasonWrapperAbsent,scopedReasonWrapperAmbiguous;
+    private int scopedReasonTrackWeakLost,scopedReasonAlbumUnset;
+    private int scopedReasonAlbumWeakLost,scopedReasonFlowMissing;
+    private int scopedReasonTrackAlbumMissing,scopedReasonUnknown;
     synchronized void setScopedAlbumEvidence(ScOpedAlbumEvidence evidence) {
         scopedAlbumEvidence=evidence;
     }
@@ -647,7 +653,19 @@ final class NativeRendererStreamEvidence {
                 catch(Throwable ignored) { result=0; }
                 if(result==1)scopedAlbumMatch=inc(scopedAlbumMatch);
                 else if(result==-1)scopedAlbumConflict=inc(scopedAlbumConflict);
-                else scopedAlbumNoLink=inc(scopedAlbumNoLink);
+                else {
+                    scopedAlbumNoLink=inc(scopedAlbumNoLink);
+                    switch(result) {
+                        case 2:scopedReasonWrapperAbsent=inc(scopedReasonWrapperAbsent);break;
+                        case 3:scopedReasonWrapperAmbiguous=inc(scopedReasonWrapperAmbiguous);break;
+                        case 4:scopedReasonTrackWeakLost=inc(scopedReasonTrackWeakLost);break;
+                        case 5:scopedReasonAlbumUnset=inc(scopedReasonAlbumUnset);break;
+                        case 6:scopedReasonAlbumWeakLost=inc(scopedReasonAlbumWeakLost);break;
+                        case 7:scopedReasonFlowMissing=inc(scopedReasonFlowMissing);break;
+                        case 8:scopedReasonTrackAlbumMissing=inc(scopedReasonTrackAlbumMissing);break;
+                        default:scopedReasonUnknown=inc(scopedReasonUnknown);break;
+                    }
+                }
             }
         } else if(matches==0 && !conflicting)
             livePeriodSourceNoLink=inc(livePeriodSourceNoLink);
@@ -1295,6 +1313,14 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH",livePeriodSourceMatched),
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH",scopedAlbumMatch),
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_NO_LINK",scopedAlbumNoLink),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT",scopedReasonWrapperAbsent),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_AMBIGUOUS",scopedReasonWrapperAmbiguous),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_TRACK_WEAK_LOST",scopedReasonTrackWeakLost),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_ALBUM_UNSET",scopedReasonAlbumUnset),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_ALBUM_WEAK_LOST",scopedReasonAlbumWeakLost),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_FLOW_MISSING",scopedReasonFlowMissing),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_TRACK_ALBUM_MISSING",scopedReasonTrackAlbumMissing),
+            line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_UNKNOWN",scopedReasonUnknown),
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_CONFLICT",scopedAlbumConflict),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_OTHER",livePeriodSourceDifferent),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK",livePeriodSourceNoLink),

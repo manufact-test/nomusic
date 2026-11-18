@@ -1362,6 +1362,96 @@ public final class NativeRendererStreamEvidenceTest {
                     "NAV34_PLAYER_SOURCE_MISMATCH_NEVER_QUERIES_ALBUM");
         }
     }
+
+    // NAV35: real NAV34 phone had strict source=MANY but album NO_LINK=MANY.
+    // Expose the exact reason without ever guessing by title or time.
+    private static void testNav35DifferentPlayerWrapperHasExactReason() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        setUpNav29(e);
+        Object track=new Object(),album=new Object(),stageWrapper=new Object(),playerWrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onNativeTrackFlowEmission(track);
+        stage.enterNativeTrackSourceRequest(track,null);
+        try {stage.onNativeTrackWrapperCreated(stageWrapper);}
+        finally {stage.exitNativeTrackSourceRequest();}
+        Object renderer=new Object(),stream=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        holder.nested=new FakePeriod(source);
+        NativeRendererStreamEvidence.TrackPlayerScope frame=e.enterTrackPlayerSource(playerWrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally {e.exitTrackPlayerSource(frame);}
+        nav29BindLive(e,new FakeActiveEngine(holder),holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] out=e.exportLines();
+        check(contains(out,"origin=LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT;error=ONE"),
+              "NAV35_SAME_PLAYER_SOURCE_BUT_DIFFERENT_TCA_REFERENCE");
+        check(contains(out,"origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH;error=NONE"),
+              "NAV35_NEVER_INVENT_ALBUM_ON_DIFFERENT_WRAPPER");
+    }
+
+    private static void testNav35AlbumUnsetAndAmbiguousWrapperReasons() {
+        for(int mode=0;mode<2;mode++) {
+            NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+            StageBAudioEvidence stage=new StageBAudioEvidence();
+            e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+            setUpNav29(e);
+            Object track=new Object(),wrapper=new Object();
+            if(mode==1)stage.onNativeTrackAlbumConstructed(track,new Object());
+            stage.onNativeTrackFlowEmission(track);
+            stage.enterNativeTrackSourceRequest(track,null);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTrackSourceRequest();}
+            if(mode==1) {
+                Object anotherTrack=new Object();
+                stage.onNativeTrackAlbumConstructed(anotherTrack,new Object());
+                stage.onNativeTrackFlowEmission(anotherTrack);
+                stage.enterNativeTrackSourceRequest(anotherTrack,null);
+                try {stage.onNativeTrackWrapperCreated(wrapper);}
+                finally {stage.exitNativeTrackSourceRequest();}
+            }
+            FakeSource source=new FakeSource();
+            Object renderer=new Object(),stream=new Object();
+            FakeHolderSource holder=new FakeHolderSource(source,stream);
+            holder.nested=new FakePeriod(source);
+            NativeRendererStreamEvidence.TrackPlayerScope frame=e.enterTrackPlayerSource(wrapper);
+            try {e.onNativePlayerSourceSetter(source);}
+            finally {e.exitTrackPlayerSource(frame);}
+            nav29BindLive(e,new FakeActiveEngine(holder),holder,renderer,stream);
+            e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+            String[] out=e.exportLines();
+            String expected=mode==0?"ALBUM_UNSET":"WRAPPER_AMBIGUOUS";
+            check(contains(out,"origin=LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_"+expected+";error=ONE"),
+                  "NAV35_DISTINGUISH_MISSING_ALBUM_FROM_AMBIGUOUS_WRAPPER");
+            check(contains(out,"origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH;error=NONE"),
+                  "NAV35_NO_FALSE_POSITIVE");
+        }
+    }
+
+    private static void testNav35WrongPlayerSourceDoesNotClassifyReason() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        setUpNav29(e);
+        Object renderer=new Object(),stream=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource(),wrong=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        holder.nested=new FakePeriod(source);
+        NativeRendererStreamEvidence.TrackPlayerScope frame=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(wrong);}
+        finally {e.exitTrackPlayerSource(frame);}
+        nav29BindLive(e,new FakeActiveEngine(holder),holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] out=e.exportLines();
+        check(contains(out,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK;error=ONE"),
+              "NAV35_WRONG_SOURCE_REJECTED");
+        check(contains(out,"origin=LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT;error=NONE"),
+              "NAV35_NOT_CLASSIFIED_WITHOUT_ORIGINAL_SOURCE_MATCH");
+        check(contains(out,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV35_DOES_NOT_ENABLE_REPLACEMENT");
+    }
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1421,6 +1511,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav33DirectLo96NullAndDifferentSourcesFailClosed();
         testNav34LiveOriginalSourceMatchesFlowTrackAlbumWrapper();
         testNav34MissingAlbumAndWrongScopedWrapperNeverPromote();
+        testNav35DifferentPlayerWrapperHasExactReason();
+        testNav35AlbumUnsetAndAmbiguousWrapperReasons();
+        testNav35WrongPlayerSourceDoesNotClassifyReason();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
