@@ -814,6 +814,172 @@ def scan_upstream_callers(apks, direct):
     }
 
 
+
+def scan_field_writers(apks, direct):
+    targets = direct["field_read_targets"]
+    if not targets:
+        return {
+            "field_count": 0,
+            "reader_site_count": 0,
+            "writer_site_count": 0,
+            "writer_method_count": 0,
+            "writer_value_origin_categories": [],
+            "writer_receiver_categories": [],
+            "owner_constructor_write_proven_count": 0,
+            "field_chain_proven_count": 0,
+            "all_direct_call_sites_field_backed": False,
+            "tca_constructor_to_lca9_via_field_proven": False,
+        }
+
+    writer_definitions = {}
+    writer_sites = {}
+    dex_count = 0
+    scanned_methods = 0
+    writer_site_count = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > audit.DEX_MAX:
+                    raise ValueError("TCA_FIELD_WRITER_DEX_LIMIT")
+                dex_count += 1
+                dex = audit.Dex(archive.read(entry.filename))
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    scanned_methods += 1
+                    method_key = (method[0], method[1], method[2])
+                    for pc, op, words in audit.instructions(dex, code_off):
+                        if op not in (0x5b, 0x67):  # iput-object / sput-object
+                            continue
+                        field_ref = audit.field_id(dex, words[1])
+                        if field_ref not in targets:
+                            continue
+                        writer_site_count += 1
+                        if writer_site_count > 512:
+                            raise ValueError("TCA_FIELD_WRITER_SITE_LIMIT")
+                        if method_key not in writer_definitions:
+                            writer_definitions[method_key] = (
+                                dex, method, flags, code_off
+                            )
+                        writer_sites.setdefault(field_ref, {}).setdefault(
+                            method_key, []
+                        ).append(pc)
+
+    if dex_count != 6:
+        raise ValueError("TCA_FIELD_WRITER_SIGNED_SIX_DEX_REQUIRED")
+
+    field_rows = []
+    all_field_chains_proven = True
+    total_reader_sites = 0
+    for field_ref, readers in targets.items():
+        reader_site_count = len(readers)
+        total_reader_sites += reader_site_count
+        reader_this_owner = all(
+            row.get("reader_owner") == field_ref[0]
+            and row.get("receiver_category") == "THIS"
+            for row in readers
+        )
+        reader_same_reference = all(
+            row.get("same_tca_reference", False) for row in readers
+        )
+
+        field_writers = writer_sites.get(field_ref, {})
+        field_writer_sites = sum(len(pcs) for pcs in field_writers.values())
+        writer_origin_categories = set()
+        writer_receiver_categories = set()
+        owner_constructor_proven = False
+        owner_clinit_proven = False
+        writer_method_count = len(field_writers)
+
+        for method_key, pcs in field_writers.items():
+            dex, method, flags, code_off = writer_definitions[method_key]
+            try:
+                trace = trace_exact_tca_constructor_to_callsites(
+                    dex, method, flags, code_off, None, pcs, 0,
+                    target_argument_type=None, target_field_ref=field_ref
+                )
+            except (ValueError, audit.DexError):
+                continue
+            writer_origin_categories.update(
+                site["origin_category"] for site in trace["site_results"]
+            )
+            writer_receiver_categories.update(
+                site["receiver_origin_category"] for site in trace["site_results"]
+            )
+
+            owner_constructor = method[1] == "<init>" and method[0] == field_ref[0]
+            owner_clinit = method[1] == "<clinit>" and method[0] == field_ref[0]
+            if (owner_constructor and field_writer_sites == 1
+                    and writer_method_count == 1
+                    and trace["same_constructed_tca_on_all_sites"]
+                    and trace["same_receiver_reference_on_all_sites"]
+                    and all(site["receiver_origin_category"] == "THIS"
+                            for site in trace["site_results"])):
+                owner_constructor_proven = True
+            if (owner_clinit and field_writer_sites == 1
+                    and writer_method_count == 1
+                    and trace["same_constructed_tca_on_all_sites"]):
+                owner_clinit_proven = True
+
+        instance_chain = (
+            reader_this_owner and reader_same_reference
+            and owner_constructor_proven
+        )
+        static_chain = (
+            all(row.get("receiver_category") == "STATIC" for row in readers)
+            and reader_same_reference and owner_clinit_proven
+        )
+        field_chain = instance_chain or static_chain
+        if not field_chain:
+            all_field_chains_proven = False
+        field_rows.append({
+            "reader_site_count": reader_site_count,
+            "reader_this_owner_match": reader_this_owner,
+            "reader_same_reference": reader_same_reference,
+            "writer_site_count": field_writer_sites,
+            "writer_method_count": writer_method_count,
+            "writer_value_origin_categories": sorted(writer_origin_categories),
+            "writer_receiver_categories": sorted(writer_receiver_categories),
+            "owner_constructor_write_proven": owner_constructor_proven,
+            "owner_static_initializer_write_proven": owner_clinit_proven,
+            "field_chain_proven": field_chain,
+        })
+
+    all_direct_call_sites_field_backed = (
+        total_reader_sites == direct["direct_callsite_count"]
+        and total_reader_sites > 0
+    )
+    return {
+        "field_count": len(targets),
+        "reader_site_count": total_reader_sites,
+        "writer_site_count": writer_site_count,
+        "writer_method_count": len(writer_definitions),
+        "writer_value_origin_categories": sorted({
+            category for row in field_rows
+            for category in row["writer_value_origin_categories"]
+        }),
+        "writer_receiver_categories": sorted({
+            category for row in field_rows
+            for category in row["writer_receiver_categories"]
+        }),
+        "owner_constructor_write_proven_count": sum(
+            row["owner_constructor_write_proven"] for row in field_rows
+        ),
+        "owner_static_initializer_write_proven_count": sum(
+            row["owner_static_initializer_write_proven"] for row in field_rows
+        ),
+        "field_chain_proven_count": sum(
+            row["field_chain_proven"] for row in field_rows
+        ),
+        "all_direct_call_sites_field_backed": all_direct_call_sites_field_backed,
+        "tca_constructor_to_lca9_via_field_proven": (
+            all_direct_call_sites_field_backed
+            and bool(field_rows)
+            and all_field_chains_proven
+        ),
+    }
+
+
 def safe_summary(direct, upstream):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
