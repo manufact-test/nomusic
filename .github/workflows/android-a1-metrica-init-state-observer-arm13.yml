@@ -18,6 +18,8 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_persistent_owner_signer.py'
       - 'android/native-yandex-hooklab/ci/test_a1_persistent_owner_signer.py'
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
+      - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
+      - 'android/native-yandex-hooklab/ci/test_lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/device-audio-trial/**'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/**'
@@ -100,6 +102,8 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_lca9_tca_birth_origin.py -v
           # Compile actual admission/lifecycle models on BOTH native Android CI lanes.
           # All selection, file-info and pre-prepare decisions require the
           # exact track+album+edition triple; no legacy 2-field overloads.
@@ -194,6 +198,12 @@ jobs:
             --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
             --private-java "$media_target"
           test -s "$media_target"
+          tca_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateTcaTrackCreatorTarget.java"
+          test ! -e "$tca_target"
+          python3 -B android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$tca_target"
+          test -s "$tca_target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
       - name: Prepare exact separate own signature and test-only native tooling
@@ -256,4 +266,5 @@ jobs:
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePostTrueProviderTarget.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateMediaDataSourceTargets.java
+          rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateTcaTrackCreatorTarget.java
           echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'
