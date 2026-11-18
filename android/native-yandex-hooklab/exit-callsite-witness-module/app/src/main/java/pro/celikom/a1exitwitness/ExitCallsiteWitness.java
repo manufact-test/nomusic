@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V28_LIVE_QUEUE_SLOT_B_RENDERER_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V29_TRACK_SOURCE_ACTIVE_PERIOD_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -229,6 +229,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean rendererDetachHooked;
     private boolean rendererSecondaryCallerHooked;
     private boolean rendererEngineHolderScopeHooked;
+    private boolean nav29TrackPlayerScopeHooked;
+    private boolean nav29NativeSourceSetterHooked;
+    private boolean nav29PeriodFieldsReady;
 
 
     private void rememberMediaExtractorSource(Object obj) {
@@ -2455,7 +2458,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         if (rendererAttachScopeHooked && rendererStreamSetHooked
                 && rendererSampleReadHooked && rendererDetachHooked
                 && rendererSecondaryCallerHooked && rendererEngineHolderScopeHooked
-                && rendererComparatorHooked) return;
+                && rendererComparatorHooked
+                && nav29TrackPlayerScopeHooked && nav29NativeSourceSetterHooked
+                && nav29PeriodFieldsReady) return;
         try {
             android.content.pm.PackageInfo info=caller.getPackageManager()
                 .getPackageInfo(PACKAGE,0);
@@ -2594,6 +2599,97 @@ public final class ExitCallsiteWitness extends XposedModule {
             } catch (Throwable ignored) {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("ENGINE_HOLDER_SCOPE",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","ENGINE_HOLDER_SCOPE","NO_HOOK");
+            }
+        }
+        // NAV29: optional issuer-verified TrackWrapper->native source and
+        // active Lo96 MediaPeriod identity. No value/URI/PCM/metadata access,
+        // original methods always proceed once and are never replaced.
+        if (!nav29PeriodFieldsReady) {
+            try {
+                Class<?> inner=Class.forName(
+                    "pro.celikom.a1exitwitness.PrivateNativeActivePeriodTarget",
+                    false,ExitCallsiteWitness.class.getClassLoader());
+                Class<?> periodWrapper=Class.forName("up1",false,loader);
+                Class<?> period=Class.forName("o96",false,loader);
+                Class<?> nativeSource=Class.forName("Sl6",false,loader);
+                Class<?> holderClass=Class.forName("xh6",false,loader);
+                Field first=inner.getDeclaredField("HOLDER_WRAPPER_FIELD_NAME");
+                Field second=inner.getDeclaredField("WRAPPER_PERIOD_FIELD_NAME");
+                Field third=inner.getDeclaredField("PERIOD_SOURCE_FIELD_NAME");
+                first.setAccessible(true);
+                second.setAccessible(true);
+                third.setAccessible(true);
+                Field a=holderClass.getDeclaredField((String)first.get(null));
+                Field b=periodWrapper.getDeclaredField((String)second.get(null));
+                Field c=period.getDeclaredField((String)third.get(null));
+                NATIVE_RENDERER_EVIDENCE.setExactActivePeriodFields(
+                    a,b,c,periodWrapper,period,nativeSource);
+                nav29PeriodFieldsReady=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                    "LIVE_PERIOD_ORIGINAL_SOURCE",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_PERIOD_ORIGINAL_SOURCE","REGISTERED");
+            } catch(Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                    "LIVE_PERIOD_ORIGINAL_SOURCE",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_PERIOD_ORIGINAL_SOURCE","NO_HOOK");
+            }
+        }
+        if (!nav29TrackPlayerScopeHooked) {
+            try {
+                Class<?> trackOwner=Class.forName("cA9",false,loader);
+                Class<?> trackWrapper=Class.forName("tCa",false,loader);
+                Class<?> player=Class.forName("A14",false,loader);
+                Class<?> policy=Class.forName("n26",false,loader);
+                Class<?> trackContext=Class.forName("nk0",false,loader);
+                Method selection=trackOwner.getDeclaredMethod(
+                    "extends",trackOwner,player,trackWrapper,Long.class,
+                    long.class,long.class,boolean.class,policy,trackContext,String.class);
+                if(selection.getReturnType()!=void.class
+                        || !java.lang.reflect.Modifier.isStatic(selection.getModifiers()))
+                    throw new NoSuchMethodException();
+                selection.setAccessible(true);
+                hook(selection).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        NativeRendererStreamEvidence.TrackPlayerScope frame=null;
+                        try { frame=NATIVE_RENDERER_EVIDENCE.enterTrackPlayerSource(
+                            chain.getArg(2)); } catch(Throwable ignored) { }
+                        try { return chain.proceed(); }
+                        finally {
+                            try {
+                                if(frame!=null)NATIVE_RENDERER_EVIDENCE.exitTrackPlayerSource(frame);
+                            } catch(Throwable ignored) { }
+                        }
+                    });
+                nav29TrackPlayerScopeHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("TRACK_PLAYER_SOURCE_SCOPE",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","TRACK_PLAYER_SOURCE_SCOPE","REGISTERED");
+            } catch(Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("TRACK_PLAYER_SOURCE_SCOPE",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","TRACK_PLAYER_SOURCE_SCOPE","NO_HOOK");
+            }
+        }
+        if (!nav29NativeSourceSetterHooked) {
+            try {
+                Class<?> nativePlayer=Class.forName(
+                    "androidx.media3.exoplayer.d",false,loader);
+                Class<?> nativeSource=Class.forName("Sl6",false,loader);
+                Method sourceSetter=nativePlayer.getDeclaredMethod(
+                    "e",nativeSource,long.class);
+                if(sourceSetter.getReturnType()!=void.class)throw new NoSuchMethodException();
+                sourceSetter.setAccessible(true);
+                hook(sourceSetter).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            NATIVE_RENDERER_EVIDENCE.onNativePlayerSourceSetter(chain.getArg(0));
+                        } catch(Throwable ignored) { }
+                        return chain.proceed(); // unchanged original, once
+                    });
+                nav29NativeSourceSetterHooked=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PLAYER_SOURCE_SETTER",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PLAYER_SOURCE_SETTER","REGISTERED");
+            } catch(Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PLAYER_SOURCE_SETTER",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","NATIVE_PLAYER_SOURCE_SETTER","NO_HOOK");
             }
         }
         if (!rendererStreamSetHooked) {
