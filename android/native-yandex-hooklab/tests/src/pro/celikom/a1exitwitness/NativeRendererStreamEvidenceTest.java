@@ -605,9 +605,9 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV26_COMPARATOR_HOOK_REGISTERED");
         check(contains(snap,"origin=RENDERER_COMPARATOR_TRUE;error=ONE"),
             "NAV26_EXACT_COMPARATOR_TRUE");
-        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH;error=ONE"),
+        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE;error=ONE"),
             "NAV26_SAME_HOLDER_RENDERER_STREAM_AUDIO_READ");
-        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_MINUS4;error=ONE"),
+        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4;error=ONE"),
             "NAV26_SAME_PAIR_ORIGINAL_READ_RESULT");
         check(contains(snap,"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
             "NAV26_NOT_SELECTED_TRACK_OR_AUDIBLE_CELIKOM");
@@ -626,7 +626,9 @@ public final class NativeRendererStreamEvidenceTest {
         String[] snap=e.exportLines();
         check(contains(snap,"origin=RENDERER_COMPARATOR_FALSE;error=ONE"),
             "NAV26_EXACT_COMPARATOR_FALSE");
-        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH;error=NONE"),
+        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE;error=ONE"),
+            "NAV26_FALSE_OUTCOME_CORRELATED_WITH_SAME_ACTIVE_READ");
+        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE;error=NONE"),
             "NAV26_FALSE_NEVER_PROMOTED");
     }
 
@@ -645,7 +647,7 @@ public final class NativeRendererStreamEvidenceTest {
         String[] snap=e.exportLines();
         check(contains(snap,"origin=RENDERER_COMPARATOR_TRUE;error=FEW"),
             "NAV26_COMPARATOR_OBSERVATIONS_COUNTED");
-        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH;error=NONE"),
+        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE;error=NONE"),
             "NAV26_NO_CROSS_OBJECT_PROMOTION");
     }
 
@@ -660,13 +662,13 @@ public final class NativeRendererStreamEvidenceTest {
         e.onRendererComparatorResult(holder,renderer,stream,true);
         e.onDetach(renderer);
         e.onRendererTypeStateRead(renderer,stream,1,2,-4);
-        check(contains(e.exportLines(),"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH;error=NONE"),
+        check(contains(e.exportLines(),"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE;error=NONE"),
             "NAV26_DETACH_INVALIDATES_COMPARATOR");
         NativeRendererStreamEvidence missing=new NativeRendererStreamEvidence();
         missing.onRendererComparatorResult(holder,renderer,stream,true);
         check(contains(missing.exportLines(),"origin=RENDERER_COMPARATOR;error=NOT_SEEN"),
             "NAV26_MISSING_HOOK_NOT_REGISTERED");
-        check(contains(missing.exportLines(),"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH;error=NONE"),
+        check(contains(missing.exportLines(),"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE;error=NONE"),
             "NAV26_MISSING_HOOK_NO_AUDIO_PROOF");
     }
 
