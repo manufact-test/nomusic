@@ -2,7 +2,8 @@
 
 **Project:** CELIKOM Android A1 only, `manufact-test/nomusic`. **Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. No project restart, no architecture change, no Windows/extension work. Original signed Yandex Music **2025.10.4 #120.1gpr** remains unchanged. Original playback is known-good; do not invent seek/pause/Bluetooth faults or modify Player/audio.
 
-**Current code checkpoint:** `b4e9e9ee42c63efebe929cb415999e0cfe5dd861`.
+**NAV37 runtime/package source commit:** `70b5f74485e92c7f0e6bd2ee86c910e4bd9ad8e6`.
+**Protected CI-green checkpoint including workflow housekeeping:** `b4e9e9ee42c63efebe929cb415999e0cfe5dd861` (no runtime/package changes after the source commit).
 **After the runtime/package checkpoint:** subsequent commits are documentation-only; fetch the live branch ref for the current docs HEAD. Runtime/package code remains at the checkpoint above.
 **NAV36 protected code:** `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`.
 **NAV36 rollback:** `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`.

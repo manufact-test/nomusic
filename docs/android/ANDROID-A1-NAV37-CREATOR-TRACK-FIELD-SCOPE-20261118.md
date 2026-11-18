@@ -4,7 +4,7 @@
 
 **Status:** NAV37 diagnostic candidate is implemented and CI-green. Owner-phone APK export and real-phone NAV37 diagnostic are still pending. This is not a product release and does not connect music replacement.
 
-**Runtime/package code checkpoint:** `b4e9e9ee42c63efebe929cb415999e0cfe5dd861`; subsequent commits are documentation-only. Fetch the live branch ref before resuming.
+**Runtime/package source commit:** `70b5f74485e92c7f0e6bd2ee86c910e4bd9ad8e6`; **protected CI-green checkpoint:** `b4e9e9ee42c63efebe929cb415999e0cfe5dd861` (workflow housekeeping only). Subsequent commits are documentation-only. Fetch the live branch ref before resuming.
 
 ## Why this is the next minimal step
 
