@@ -1,4 +1,20 @@
-# CURRENT — NAV36 SIGNED CI GREEN, APK LIBRARY UPLOAD BLOCKED BY STORAGE QUOTA (18 NOV 2026)
+# CURRENT — NAV36 SIGNED CI GREEN, LIBRARY PACKAGE UPLOADED AND BYTE-VERIFIED; OWNER PHONE TEST NEXT (18 NOV 2026)
+
+**CELIKOM Android A1 only**, repository `manufact-test/nomusic`, sole work branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Signed original Yandex Music 2025.10.4 unchanged. No original playback methods altered; CELIKOM_REPLACEMENT=NOT_CONNECTED, IDENTITY_STATUS=STRUCTURAL_ONLY. NEVER uninstall/clear owner data, invent playback bugs, redo EOS/comparator, or provide GitHub Actions/sandbox APK download links.
+
+**REAL NAV35 OWNER PHONE** private `CELIKOM-A1-Diagnostics-1795006986945.txt`, 128,352 bytes / 1,813 lines, SHA256 `b34389ccc8813d61e2b479f0111160892e107a38aa855440b430b05fec9ca1a8`; NEVER commit raw. Exact live original Lo96 Sl6 source and scoped native Player setter source ref MATCH=MANY; exact original Player tCa `WRAPPER_ABSENT=MANY` from retained Stage B Flow/Track/Album links; all other NAV35 NO_LINK causes NONE. Independent constructor tCa=MANY, Flow Album=FEW, Track Wrapper Album=MANY; reason still uncertain. MUSIC_APP exception summary FEW, no owner playback complaint; cannot attribute.
+
+**NAV36 exact SIGNED SOURCE** `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`, protected backup `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`. Pre-NAV36 backup `backup/android-a1-nav35-phone-wrapper-absent-pre-nav36-20261118` @ `b6c6a2f4ab6523481a499cc5b3958ac5bfbbd71c`. Marker `NAV_V36_TCA_CONSTRUCTOR_SCOPE_READONLY`. Existing original tCa(String) constructor hook retains weak last 64 original tCa refs with categorical construction context. Under strict live source match classify NAV35 WRAPPER_ABSENT into BIRTH_NOT_IN_WINDOW / NO_TRACK_SCOPE / TRACK_NOT_IN_FLOW / FLOW_NO_ALBUM / FLOW_ALBUM_LINK_MISSING / DUPLICATE_AMBIGUOUS. JVM tests cover all six and wrong original source. Original audio, values, methods and player unchanged. See [NAV35 phone→NAV36 code and release](ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md).
+
+**CI VERIFIED:** exact JVM `#44311280846 SUCCESS`, issuer-first signed original Android13 ARM13 `#44311280892 SUCCESS`; this is NOT phone playback proof. Signed APK `CELIKOM-A1-NAV36-tCa-Constructor-Scope-ReadOnly-20261118.apk` 71,487,468 bytes SHA256 `16329086e7b2ec2d3b976bbab2334993be68bb32c9a401c7551e0b6c4ffd93e3`. APK v2/v3 owner cert DER SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` unchanged NAV35. Embedded original Yandex APK SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` unchanged.
+
+<badge>DELIVERED</badge> **Personal Library package now uploaded, listed, materialized and byte-verified:** `/CELIKOM/Android/Native/CELIKOM-A1-NAV36-Подписанный-APK-и-Инструкция-20261118.zip`, 51,090,129 bytes, SHA256 `4019d2a972b88542970eb5ea224a1209f85bf83fbf55f93366409fa6cfe5ff40`, Library ID `libfile_5d5fae68121081918df9d84108f29716`. Materialized copy is byte-identical. Earlier quota failure cleared/retry succeeded. A separate NAV36 instruction also remains in Library `libfile_dad077a6fecc81919faad34126439e94`. Do not use stale NAV24 CI README.
+
+**NEXT:** give owner the PERSONAL Library package card. Owner extracts APK from ZIP, installs NAV36 IN PLACE over NAV35 (no uninstall, no clear data), listens 2–5 tracks, and exports private NAV36 diagnostic TXT. Then inspect that TXT and only then decide next instrumentation. No NAV37 before actual owner phone evidence.
+
+---
+
+# ARCHIVED — NAV36 signed release awaiting Library quota (18 NOV 2026)
 
 **CELIKOM Android A1 only**, repository `manufact-test/nomusic`, sole work branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Signed original Yandex Music 2025.10.4 unchanged. No original playback methods altered; CELIKOM_REPLACEMENT=NOT_CONNECTED, IDENTITY_STATUS=STRUCTURAL_ONLY. NEVER uninstall/clear owner data, invent playback bugs, redo EOS/comparator, or provide GitHub Actions/sandbox APK download links.
 
