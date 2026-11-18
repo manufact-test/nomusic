@@ -207,6 +207,18 @@ def tca_origin_category(token: str | None) -> str:
         return "REFERENCE_NEW_INSTANCE"
     if token.startswith("REF_THIS@"):
         return "REFERENCE_THIS"
+    if token.startswith("TRACK_CONTINUATION_NEW_INSTANCE@"):
+        return "CONTINUATION_NEW_INSTANCE"
+    if token.startswith("TRACK_CONTINUATION_INIT@"):
+        return "CONTINUATION_CONSTRUCTED_IN_SAME_METHOD"
+    if token.startswith("TRACK_CONTINUATION_RETURN@"):
+        return "CONTINUATION_METHOD_RETURN"
+    if token.startswith("TRACK_CONTINUATION_CAST@REF_PARAMETER@"):
+        return "CONTINUATION_CAST_FROM_PARAMETER"
+    if token.startswith("TRACK_CONTINUATION_CAST@REF_FIELD@"):
+        return "CONTINUATION_CAST_FROM_FIELD"
+    if token.startswith("TRACK_CONTINUATION_THIS@"):
+        return "CONTINUATION_THIS"
     if token.startswith("TRACK_PARAMETER@"):
         return "TRACK_PARAMETER"
     if token.startswith("TRACK_CAST@REF_PARAMETER@"):
@@ -217,6 +229,10 @@ def tca_origin_category(token: str | None) -> str:
         return "TRACK_FROM_CONTINUATION_FIELD"
     if token.startswith("TRACK_FIELD@"):
         return "TRACK_FIELD"
+    if token.startswith("TRACK_NEW_INSTANCE@"):
+        return "TRACK_NEW_INSTANCE"
+    if token.startswith("TRACK_INIT@"):
+        return "TRACK_CONSTRUCTED_IN_SAME_METHOD"
     if token.startswith("TRACK_RETURN@"):
         return "TRACK_METHOD_RETURN"
     if token.startswith("TRACK_CONTINUATION_PARAMETER@"):
@@ -335,6 +351,16 @@ def trace_exact_tca_constructor_to_callsites(
                     for reg, value in list(regs.items()):
                         if value == token:
                             regs[reg] = initialized
+                elif token and token.startswith("TRACK_CONTINUATION_NEW_INSTANCE@"):
+                    initialized = "TRACK_CONTINUATION_INIT@" + token
+                    for reg, value in list(regs.items()):
+                        if value == token:
+                            regs[reg] = initialized
+                elif token and token.startswith("TRACK_NEW_INSTANCE@"):
+                    initialized = "TRACK_INIT@" + token
+                    for reg, value in list(regs.items()):
+                        if value == token:
+                            regs[reg] = initialized
                 elif token and token.startswith("REF_NEW_INSTANCE@"):
                     initialized = "REF_INIT@" + token
                     for reg, value in list(regs.items()):
@@ -424,6 +450,8 @@ def trace_exact_tca_constructor_to_callsites(
                     regs[dest] = f"TRACK_FIELD_FROM_CONTINUATION@{pc}"
                 else:
                     regs[dest] = f"TRACK_FIELD@{pc}"
+            elif field_type == CONTINUATION_DESCRIPTOR:
+                regs[dest] = f"TRACK_CONTINUATION_FIELD@{pc}"
             elif field_type.startswith(("L", "[")):
                 category = "REF_THIS_FIELD" if receiver == this_register else "REF_FIELD"
                 regs[dest] = f"{category}@{pc}"
@@ -437,6 +465,8 @@ def trace_exact_tca_constructor_to_callsites(
                 regs[dest] = f"TCA_STATIC_FIELD@{pc}"
             elif field_type == "Ljava/lang/String;":
                 regs[dest] = f"STRING_STATIC_FIELD@{pc}"
+            elif field_type == CONTINUATION_DESCRIPTOR:
+                regs[dest] = f"TRACK_CONTINUATION_STATIC_FIELD@{pc}"
             elif field_type.startswith(("L", "[")):
                 regs[dest] = f"REF_STATIC_FIELD@{pc}"
         elif op == 0x46:  # aget-object
@@ -577,6 +607,7 @@ def trace_exact_tca_constructor_to_callsites(
 
         field_ref = None
         field_receiver_category = None
+        field_receiver_parameter_position = None
         field_pc = None
         if isinstance(value_token, str):
             match = re.search(
@@ -614,8 +645,19 @@ def trace_exact_tca_constructor_to_callsites(
                 and field_receiver_token.startswith("REF_THIS@")
             ):
                 field_receiver_category = "THIS"
-            elif isinstance(field_receiver_token, str) and field_receiver_token.startswith("REF_PARAMETER@"):
+            elif isinstance(field_receiver_token, str) and field_receiver_token.startswith(("REF_PARAMETER@", "TRACK_PARAMETER@", "TRACK_CONTINUATION_PARAMETER@")):
                 field_receiver_category = "PARAMETER"
+                receiver_parameter_match = re.search(
+                    r"(?:REF_PARAMETER|TRACK_PARAMETER|TRACK_CONTINUATION_PARAMETER)@([0-9]+)",
+                    field_receiver_token
+                )
+                if receiver_parameter_match:
+                    field_receiver_parameter_position = logical_position_for_parameter_register(
+                        dex, method, flags, code_off,
+                        int(receiver_parameter_match.group(1))
+                    )
+            elif isinstance(field_receiver_token, str) and field_receiver_token.startswith(("TRACK_THIS@", "TRACK_CONTINUATION_THIS@")):
+                field_receiver_category = "THIS"
             elif isinstance(field_receiver_token, str) and field_receiver_token.startswith("REF_STATIC_FIELD@"):
                 field_receiver_category = "STATIC_FIELD"
             elif isinstance(field_receiver_token, str) and "FIELD@" in field_receiver_token:
@@ -764,6 +806,7 @@ def trace_exact_tca_constructor_to_callsites(
             "origin_parameter_position": parameter_position,
             "origin_field_ref": field_ref,
             "origin_field_receiver_category": field_receiver_category,
+            "origin_field_receiver_parameter_position": field_receiver_parameter_position,
             "receiver_origin_category": receiver_category,
         })
 
@@ -1423,6 +1466,17 @@ def scan_field_writer_upstream_callers(apks, fields):
                 "origin_parameter_positions": origin_parameter_positions,
                 "origin_field_refs": origin_field_refs,
                 "origin_field_receiver_categories": origin_field_receiver_categories,
+                "origin_field_receiver_parameter_positions": sorted({
+                    site.get("origin_field_receiver_parameter_position")
+                    for site in site_rows
+                    if site.get("origin_field_receiver_parameter_position") is not None
+                }),
+                "constructor_string_track_source_field_refs": sorted({
+                    tuple(site["constructor_string_track_receiver_field_ref"])
+                    for site in site_rows
+                    if site.get("constructor_string_track_receiver_field_ref") is not None
+                }),
+                "caller_is_gpo_new": method == INITIAL,
                 "receiver_trace_complete": receiver_trace is not None,
                 "receiver_origin_categories": receiver_origin_categories,
                 "receiver_parameter_positions": receiver_parameter_positions,
@@ -1528,7 +1582,217 @@ def scan_field_writer_upstream_callers(apks, fields):
     }
 
 
-def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_upstream, track_handoff):
+
+
+def scan_tca_track_owner_parameter_callers(apks, writer_upstream):
+    """Follow only the exact owner parameter whose Track field supplied tCa(String)."""
+    creator_rows = [
+        row for row in writer_upstream["upstream_rows"]
+        if row.get("constructor_to_writer_same_object")
+        and "TRACK_FIELD" in row.get("constructor_string_origin_categories", ())
+    ]
+    if not creator_rows:
+        return {
+            "creator_count": 0, "owner_parameter_type_categories": [],
+            "owner_parameter_matches_track_field_owner_count": 0,
+            "callsite_count": 0, "caller_count": 0, "origin_categories": [],
+            "same_reference_count": 0, "continuation_field_origin_count": 0,
+            "continuation_caller_count": 0, "gpo_new_caller_count": 0,
+            "trace_complete": True, "fp0_present": False,
+            "fp0_trace_complete": False, "fp0_branch_path_predicates_evaluated": False,
+            "fp0_continuation_field_store_read_same_object": False,
+            "fp0_handoff_site_count": 0,
+        }
+
+    target_specs = {}
+    owner_type_categories = set()
+    owner_type_matches_field_owner = 0
+    for row in creator_rows:
+        definition = row["caller_definition"]
+        _dex, method, flags, _code_off = definition
+        positions = row.get("constructor_string_track_field_owner_parameter_positions", ())
+        field_refs = row.get("constructor_string_track_source_field_refs", ())
+        if len(positions) != 1:
+            continue
+        position = positions[0]
+        owner_type = logical_parameter_type(method, flags, position)
+        if not owner_type or not owner_type.startswith(("L", "[")):
+            continue
+        if owner_type == CONTINUATION_DESCRIPTOR:
+            owner_type_categories.add("COROUTINE_CONTINUATION")
+        elif owner_type == TRACK_DESCRIPTOR:
+            owner_type_categories.add("TRACK")
+        else:
+            owner_type_categories.add("OTHER_REFERENCE")
+        if any(ref[0] == owner_type for ref in field_refs):
+            owner_type_matches_field_owner += 1
+        target_specs[method] = {
+            "position": position,
+            "owner_type": owner_type,
+            "field_refs": {tuple(ref) for ref in field_refs},
+        }
+
+    if not target_specs:
+        return {
+            "creator_count": len(creator_rows),
+            "owner_parameter_type_categories": sorted(owner_type_categories),
+            "owner_parameter_matches_track_field_owner_count": owner_type_matches_field_owner,
+            "callsite_count": 0, "caller_count": 0, "origin_categories": [],
+            "same_reference_count": 0, "continuation_field_origin_count": 0,
+            "continuation_caller_count": 0, "gpo_new_caller_count": 0,
+            "trace_complete": False, "fp0_present": False,
+            "fp0_trace_complete": False, "fp0_branch_path_predicates_evaluated": False,
+            "fp0_continuation_field_store_read_same_object": False,
+            "fp0_handoff_site_count": 0,
+        }
+
+    callers = {}
+    sites = {}
+    dex_count = 0
+    call_count = 0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
+                    continue
+                if entry.file_size > audit.DEX_MAX:
+                    raise ValueError("TCA_OWNER_PARAMETER_DEX_LIMIT")
+                dex_count += 1
+                dex = audit.Dex(archive.read(entry.filename))
+                for method, flags, code_off in audit.method_definitions_with_flags(dex):
+                    key = (method[0], method[1], method[2])
+                    hits = []
+                    for pc, op, words in audit.instructions(dex, code_off):
+                        if op in audit.INVOKES and dex.method(words[1]) in target_specs:
+                            hits.append((pc, dex.method(words[1])))
+                    if not hits:
+                        continue
+                    call_count += len(hits)
+                    if call_count > MAX_UPSTREAM_CALLS:
+                        raise ValueError("TCA_OWNER_PARAMETER_CALLSITE_LIMIT")
+                    if key not in callers:
+                        if len(callers) >= MAX_UPSTREAM_CALLERS:
+                            raise ValueError("TCA_OWNER_PARAMETER_CALLER_LIMIT")
+                        callers[key] = (dex, method, flags, code_off)
+                        sites[key] = []
+                    sites[key].extend(hits)
+
+    if dex_count != 6:
+        raise ValueError("TCA_OWNER_PARAMETER_SIGNED_SIX_DEX_REQUIRED")
+
+    rows = []
+    complete = True
+    for key, (dex, method, flags, code_off) in sorted(callers.items()):
+        grouped = {}
+        for pc, target in sites[key]:
+            grouped.setdefault(target, []).append(pc)
+        for target, pcs in grouped.items():
+            spec = target_specs[target]
+            try:
+                trace = trace_exact_tca_constructor_to_callsites(
+                    dex, method, flags, code_off, target, pcs,
+                    spec["position"], target_argument_type=spec["owner_type"]
+                )
+            except (ValueError, audit.DexError):
+                trace = None
+                complete = False
+
+            fp0_summary = None
+            if method == INITIAL:
+                resume_def = None
+                for candidate, candidate_flags, candidate_code in (
+                        audit.method_definitions_with_flags(dex)):
+                    if candidate == RESUME:
+                        resume_def = (candidate, candidate_flags, candidate_code)
+                        break
+                if resume_def is not None:
+                    try:
+                        cont = audit.trace_native_track_coroutine_continuation(
+                            dex, method, flags, code_off,
+                            resume_def[0], resume_def[1], resume_def[2]
+                        )
+                        fp0_summary = {
+                            "trace_complete": True,
+                            "resume_track_argument_explicit_null":
+                                cont.get("resume_track_argument_explicit_null", False),
+                            "continuation_field_track_to_opaque_wrapper_candidate":
+                                cont.get("continuation_field_track_to_opaque_wrapper_candidate", False),
+                            "continuation_field_store_to_read_same_object_proven":
+                                cont.get("continuation_field_store_to_read_same_object_proven", False),
+                            "branch_path_predicates_evaluated":
+                                cont.get("branch_path_predicates_evaluated", False),
+                            "wrapper_continuation_handoff_site_count":
+                                len(cont.get("wrapper_continuation_handoff_sites", ())),
+                        }
+                    except (ValueError, audit.DexError):
+                        fp0_summary = {"trace_complete": False}
+
+            site_rows = (trace or {}).get("site_results", ())
+            origin_categories = sorted({
+                site.get("origin_category", "UNKNOWN") for site in site_rows
+            })
+            origin_field_refs = {
+                tuple(site["origin_field_ref"])
+                for site in site_rows if site.get("origin_field_ref") is not None
+            }
+            origin_field_owners = {
+                ref[0] for ref in origin_field_refs
+            }
+            rows.append({
+                "caller_is_gpo_new": method == INITIAL,
+                "caller_owner_is_continuation": method[0] == CONTINUATION_DESCRIPTOR,
+                "origin_categories": origin_categories,
+                "same_reference_to_owner_parameter": bool(
+                    trace and trace["same_tca_reference_on_all_sites"]
+                ),
+                "origin_field_refs": sorted(origin_field_refs),
+                "origin_field_owners_are_continuation": (
+                    bool(origin_field_owners)
+                    and origin_field_owners == {CONTINUATION_DESCRIPTOR}
+                ),
+                "fp0_continuation_summary": fp0_summary,
+            })
+
+    fp0_rows = [
+        row["fp0_continuation_summary"] for row in rows
+        if row.get("fp0_continuation_summary") is not None
+    ]
+    return {
+        "creator_count": len(creator_rows),
+        "owner_parameter_type_categories": sorted(owner_type_categories),
+        "owner_parameter_matches_track_field_owner_count": owner_type_matches_field_owner,
+        "callsite_count": call_count,
+        "caller_count": len(callers),
+        "origin_categories": sorted({
+            category for row in rows for category in row["origin_categories"]
+        }),
+        "same_reference_count": sum(
+            row["same_reference_to_owner_parameter"] for row in rows
+        ),
+        "continuation_field_origin_count": sum(
+            row["origin_field_owners_are_continuation"] for row in rows
+        ),
+        "continuation_caller_count": sum(
+            row["caller_owner_is_continuation"] for row in rows
+        ),
+        "gpo_new_caller_count": sum(row["caller_is_gpo_new"] for row in rows),
+        "trace_complete": complete,
+        "fp0_present": bool(fp0_rows),
+        "fp0_trace_complete": all(row.get("trace_complete", False) for row in fp0_rows),
+        "fp0_branch_path_predicates_evaluated": any(
+            row.get("branch_path_predicates_evaluated", False) for row in fp0_rows
+        ),
+        "fp0_continuation_field_store_read_same_object": any(
+            row.get("continuation_field_store_to_read_same_object_proven", False)
+            for row in fp0_rows
+        ),
+        "fp0_handoff_site_count": sum(
+            row.get("wrapper_continuation_handoff_site_count", 0) for row in fp0_rows
+        ),
+    }
+
+
+def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_upstream, track_handoff, owner_parameter_upstream):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
     direct_constructor = sum(
@@ -1623,6 +1887,22 @@ def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_
         "tca_constructor_track_source_field_same_owner_reference_count": track_handoff["same_owner_reference_count"],
         "tca_constructor_track_source_field_same_owner_parameter_count": track_handoff["same_owner_parameter_count"],
         "tca_constructor_track_source_field_same_owner_field_candidate_count": track_handoff["same_owner_field_candidate_count"],
+        "tca_constructor_track_owner_parameter_creator_count": owner_parameter_upstream["creator_count"],
+        "tca_constructor_track_owner_parameter_type_categories": owner_parameter_upstream["owner_parameter_type_categories"],
+        "tca_constructor_track_owner_parameter_matches_track_field_owner_count": owner_parameter_upstream["owner_parameter_matches_track_field_owner_count"],
+        "tca_constructor_track_owner_parameter_upstream_callsite_count": owner_parameter_upstream["callsite_count"],
+        "tca_constructor_track_owner_parameter_upstream_caller_count": owner_parameter_upstream["caller_count"],
+        "tca_constructor_track_owner_parameter_upstream_origin_categories": owner_parameter_upstream["origin_categories"],
+        "tca_constructor_track_owner_parameter_upstream_same_reference_count": owner_parameter_upstream["same_reference_count"],
+        "tca_constructor_track_owner_parameter_upstream_continuation_field_origin_count": owner_parameter_upstream["continuation_field_origin_count"],
+        "tca_constructor_track_owner_parameter_upstream_continuation_caller_count": owner_parameter_upstream["continuation_caller_count"],
+        "tca_constructor_track_owner_parameter_upstream_gpo_new_caller_count": owner_parameter_upstream["gpo_new_caller_count"],
+        "tca_constructor_track_owner_parameter_upstream_scan_complete": owner_parameter_upstream["trace_complete"],
+        "tca_constructor_track_owner_parameter_upstream_fp0_present": owner_parameter_upstream["fp0_present"],
+        "tca_constructor_track_owner_parameter_upstream_fp0_trace_complete": owner_parameter_upstream["fp0_trace_complete"],
+        "tca_constructor_track_owner_parameter_upstream_fp0_branch_path_predicates_evaluated": owner_parameter_upstream["fp0_branch_path_predicates_evaluated"],
+        "tca_constructor_track_owner_parameter_upstream_fp0_continuation_field_store_read_same_object": owner_parameter_upstream["fp0_continuation_field_store_read_same_object"],
+        "tca_constructor_track_owner_parameter_upstream_fp0_handoff_site_count": owner_parameter_upstream["fp0_handoff_site_count"],
         "exact_tca_constructor_to_lca9_same_object_proven": bool(
             direct_constructor or upstream_constructor
             or fields["tca_constructor_to_lca9_via_field_proven"]
@@ -1691,6 +1971,9 @@ def run(xapk: Path):
         }
         track_fields = scan_field_writers(splits, track_direct)
         track_upstream = scan_field_writer_upstream_callers(splits, track_fields)
+        owner_parameter_upstream = scan_tca_track_owner_parameter_callers(
+            splits, writer_upstream
+        )
 
         tca_creator_rows = [
             row for row in writer_upstream["upstream_rows"]
@@ -1734,7 +2017,7 @@ def run(xapk: Path):
         }
         return safe_summary(
             direct, upstream, fields, writer_upstream, track_fields, track_upstream,
-            track_handoff
+            track_handoff, owner_parameter_upstream
         )
 
 
