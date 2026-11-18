@@ -329,7 +329,7 @@ def trace_exact_tca_constructor_to_callsites(
                 pending = f"TCA_RETURN@{pc}"
             elif result_type == "Ljava/lang/String;":
                 receiver_token = regs.get(args[0]) if args else None
-                string_return_metadata[pc] = (callee, receiver_token)
+                string_return_metadata.setdefault(pc, set()).add((callee, receiver_token))
                 if isinstance(receiver_token, str) and receiver_token.startswith("TRACK_CONTINUATION_"):
                     pending = f"STRING_CONTINUATION_METHOD_RETURN@{pc}"
                 elif isinstance(receiver_token, str) and receiver_token.startswith("TRACK_"):
@@ -392,7 +392,7 @@ def trace_exact_tca_constructor_to_callsites(
             field_ref = audit.field_id(dex, words[1])
             field_type = field_ref[2]
             receiver_token = regs.get(receiver)
-            field_read_metadata[pc] = (field_ref, receiver_token, False)
+            field_read_metadata.setdefault(pc, set()).add((field_ref, receiver_token, False))
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_FIELD@{pc}"
@@ -415,7 +415,7 @@ def trace_exact_tca_constructor_to_callsites(
             dest = words[0] >> 8
             field_ref = audit.field_id(dex, words[1])
             field_type = field_ref[2]
-            field_read_metadata[pc] = (field_ref, None, True)
+            field_read_metadata.setdefault(pc, set()).add((field_ref, None, True))
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_STATIC_FIELD@{pc}"
@@ -576,8 +576,14 @@ def trace_exact_tca_constructor_to_callsites(
                 if match:
                     field_pc = int(match.group(1) or match.group(2))
         if field_pc is not None and field_pc in field_read_metadata:
-            field_ref, field_receiver_token, field_is_static = field_read_metadata[field_pc]
-            if field_is_static:
+            metadata_options = field_read_metadata[field_pc]
+            if len(metadata_options) == 1:
+                field_ref, field_receiver_token, field_is_static = next(iter(metadata_options))
+            else:
+                field_ref, field_receiver_token, field_is_static = None, None, False
+            if field_ref is None:
+                field_receiver_category = "AMBIGUOUS"
+            elif field_is_static:
                 field_receiver_category = "STATIC"
             elif field_receiver_token == "TCA_THIS" or (
                 isinstance(field_receiver_token, str)
@@ -598,23 +604,34 @@ def trace_exact_tca_constructor_to_callsites(
             constructor_string_token = value_token.split("|STRING=", 1)[1]
         constructor_string_field_ref = None
         constructor_string_track_receiver_token = None
+        constructor_string_track_receiver_field_ref = None
+        constructor_string_track_receiver_field_owner_token = None
         constructor_string_track_parameter_position = None
         constructor_string_source_pc = None
         if isinstance(constructor_string_token, str):
             match = re.search(r"STRING_(?:TRACK_)?FIELD@([0-9]+)", constructor_string_token)
             if match:
                 constructor_string_source_pc = int(match.group(1))
-                metadata = field_read_metadata.get(constructor_string_source_pc)
-                if metadata:
-                    constructor_string_field_ref, constructor_string_track_receiver_token, _ = metadata
+                metadata_options = field_read_metadata.get(constructor_string_source_pc, set())
+                if len(metadata_options) == 1:
+                    constructor_string_field_ref, constructor_string_track_receiver_token, _ = next(iter(metadata_options))
             else:
                 match = re.search(r"STRING_(?:TRACK_)?METHOD_RETURN@([0-9]+)", constructor_string_token)
                 if match:
                     constructor_string_source_pc = int(match.group(1))
-                    metadata = string_return_metadata.get(constructor_string_source_pc)
-                    if metadata:
-                        _callee, constructor_string_track_receiver_token = metadata
+                    metadata_options = string_return_metadata.get(constructor_string_source_pc, set())
+                    if len(metadata_options) == 1:
+                        _callee, constructor_string_track_receiver_token = next(iter(metadata_options))
         if isinstance(constructor_string_track_receiver_token, str):
+            track_field_match = re.search(
+                r"TRACK_FIELD(?:_FROM_CONTINUATION)?@([0-9]+)",
+                constructor_string_track_receiver_token
+            )
+            if track_field_match:
+                track_field_pc = int(track_field_match.group(1))
+                track_field_options = field_read_metadata.get(track_field_pc, set())
+                if len(track_field_options) == 1:
+                    constructor_string_track_receiver_field_ref, constructor_string_track_receiver_field_owner_token, _ = next(iter(track_field_options))
             track_parameter_match = re.search(
                 r"(?:TRACK_PARAMETER|REF_PARAMETER)@([0-9]+)",
                 constructor_string_track_receiver_token
@@ -644,6 +661,9 @@ def trace_exact_tca_constructor_to_callsites(
                 else "OTHER_OR_UNKNOWN"
             ),
             "constructor_string_track_parameter_position": constructor_string_track_parameter_position,
+            "constructor_string_track_receiver_token": constructor_string_track_receiver_token,
+            "constructor_string_track_receiver_field_ref": constructor_string_track_receiver_field_ref,
+            "constructor_string_track_receiver_field_owner_token": constructor_string_track_receiver_field_owner_token,
             "same_tca_reference_on_all_paths": same_reference,
             "same_receiver_reference_on_all_paths": same_receiver,
             "origin_category": tca_origin_category(value_token),
