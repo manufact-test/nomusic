@@ -980,16 +980,6 @@ def scan_upstream_callers(apks, direct):
                 "TRACE_FAILED" if constructor_trace is None else "NO_IDENTITY"
             })
 
-            if trace is not None:
-                for site in trace["site_results"]:
-                    track_field_ref = site.get("constructor_string_track_receiver_field_ref")
-                    if track_field_ref is not None:
-                        track_source_field_targets.setdefault(tuple(track_field_ref), []).append({
-                            "reader_owner": method[0],
-                            "receiver_category": site.get("constructor_string_track_receiver_field_receiver_category", "UNKNOWN"),
-                            "same_tca_reference": True,
-                        })
-
             fp0_summary = None
             if method == INITIAL:
                 resume_def = None
@@ -1298,6 +1288,16 @@ def scan_field_writer_upstream_callers(apks, fields):
             except (ValueError, audit.DexError):
                 trace = None
                 complete = False
+
+            if trace is not None:
+                for site in trace["site_results"]:
+                    track_field_ref = site.get("constructor_string_track_receiver_field_ref")
+                    if track_field_ref is not None:
+                        track_source_field_targets.setdefault(tuple(track_field_ref), []).append({
+                            "reader_owner": method[0],
+                            "receiver_category": site.get("constructor_string_track_receiver_field_receiver_category", "UNKNOWN"),
+                            "same_tca_reference": True,
+                        })
 
             fp0_summary = None
             if method == INITIAL:
