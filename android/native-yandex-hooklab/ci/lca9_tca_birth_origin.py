@@ -1509,19 +1509,19 @@ def scan_field_writer_upstream_callers(apks, fields):
         "continuation_caller_count": sum(row["caller_owner_is_continuation"] for row in rows),
         "fp0_present": any(row.get("fp0_continuation_summary") is not None for row in rows),
         "fp0_trace_complete": all(
-            row.get("fp0_continuation_summary", {}).get("trace_complete", False)
+            (row.get("fp0_continuation_summary") or {}).get("trace_complete", False)
             for row in rows if row.get("fp0_continuation_summary") is not None
         ),
         "fp0_branch_path_predicates_evaluated": any(
-            row.get("fp0_continuation_summary", {}).get("branch_path_predicates_evaluated", False)
+            (row.get("fp0_continuation_summary") or {}).get("branch_path_predicates_evaluated", False)
             for row in rows
         ),
         "fp0_continuation_field_store_to_read_same_object": any(
-            row.get("fp0_continuation_summary", {}).get("continuation_field_store_to_read_same_object_proven", False)
+            (row.get("fp0_continuation_summary") or {}).get("continuation_field_store_to_read_same_object_proven", False)
             for row in rows
         ),
         "fp0_wrapper_continuation_handoff_site_count": sum(
-            row.get("fp0_continuation_summary", {}).get("wrapper_continuation_handoff_site_count", 0)
+            (row.get("fp0_continuation_summary") or {}).get("wrapper_continuation_handoff_site_count", 0)
             for row in rows
         ),
         "complete": complete,
