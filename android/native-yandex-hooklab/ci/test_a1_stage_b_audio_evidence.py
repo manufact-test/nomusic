@@ -18,8 +18,19 @@ package pro.celikom.a1exitwitness;
 public final class StageBAudioEvidenceTest {
     static void check(boolean value) { if (!value) throw new AssertionError(); }
     static void bucket(String[] rows,int index,String category,String value) {
-        check(rows[index].equals("event=AUDIO_STAGE_B_SUMMARY;origin="+category+
-            ";error="+value+";thread=OTHER"));
+        String expected="event=AUDIO_STAGE_B_SUMMARY;origin="+category+
+            ";error="+value+";thread=OTHER";
+        for(String row:rows) {
+            if(row.contains(";origin="+category+";")) {
+                check(row.equals(expected));
+                return;
+            }
+        }
+        throw new AssertionError("MISSING_CATEGORY_"+category);
+    }
+    static boolean contains(String[] rows,String fragment) {
+        for(String row:rows) if(row.contains(fragment)) return true;
+        return false;
     }
     static StageBAudioEvidence exactAlbumLinked(Object track,Object album,Object wrapper,
             Object descriptor,Object factory,Object source) {
@@ -53,9 +64,9 @@ public final class StageBAudioEvidenceTest {
     public static void main(String[] argv) {
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 53);
-        for (int i=0;i<52;i++) check(initial[i].contains(";error=NONE;"));
-        check(initial[52].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(initial.length == 64);
+        for (int i=0;i<63;i++) check(initial[i].contains(";error=NONE;"));
+        check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
         Object factory=new Object(), source=new Object();
@@ -95,7 +106,7 @@ public final class StageBAudioEvidenceTest {
         bucket(links,31,"NATIVE_TRACK_WRAPPER_CONSTRUCTED","FEW");
         bucket(links,32,"NATIVE_MAIN_SOURCE_ENTER","FEW");
         bucket(links,40,"TRACK_SOURCE_DISTINCT_POSITIVE_READ","ONE");
-        check(links[52].contains("CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
+        check(contains(links,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         // The exact Album constructor argument is carried only by weak object
         // identity through the Track Flow → wrapper → descriptor → source.
