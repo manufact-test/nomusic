@@ -29,6 +29,8 @@ TARGET = (
 )
 WRAPPER = "LtCa;"
 WRAPPER_CTOR = ("LtCa;", "<init>", "(Ljava/lang/String;)V")
+TRACK_DESCRIPTOR = "Lru/yandex/music/data/audio/o;"
+CONTINUATION_DESCRIPTOR = "LFp0;"
 INITIAL = (
     "LGp0;", "new",
     "(LGp0;Lru/yandex/music/data/audio/o;LOe2;)Ljava/lang/Object;",
@@ -210,6 +212,32 @@ def tca_origin_category(token: str | None) -> str:
     return "AMBIGUOUS_OR_UNRESOLVED"
 
 
+
+def tca_constructor_string_origin(token: str | None) -> str:
+    if not isinstance(token, str) or "|STRING=" not in token:
+        return "UNKNOWN"
+    origin = token.split("|STRING=", 1)[1]
+    if origin.startswith("STRING_TRACK_FIELD@"):
+        return "TRACK_FIELD"
+    if origin.startswith("STRING_TRACK_METHOD_RETURN@"):
+        return "TRACK_METHOD_RETURN"
+    if origin.startswith("STRING_CONTINUATION_FIELD@"):
+        return "CONTINUATION_FIELD"
+    if origin.startswith("STRING_CONTINUATION_METHOD_RETURN@"):
+        return "CONTINUATION_METHOD_RETURN"
+    if origin.startswith("STRING_PARAMETER@"):
+        return "STRING_PARAMETER"
+    if origin.startswith("STRING_FIELD@"):
+        return "STRING_FIELD"
+    if origin.startswith("STRING_STATIC_FIELD@"):
+        return "STRING_STATIC_FIELD"
+    if origin.startswith("STRING_RETURN@"):
+        return "STRING_METHOD_RETURN"
+    if origin.startswith("STRING_NEW_INSTANCE@"):
+        return "STRING_NEW_INSTANCE"
+    return "UNKNOWN"
+
+
 def _parameter_register_from_tca_token(token: str | None):
     if not isinstance(token, str):
         return None
@@ -237,14 +265,20 @@ def trace_exact_tca_constructor_to_callsites(
     if not (flags & audit.ACC_STATIC):
         this_register = current
         initial_registers[current] = (
-            "TCA_THIS" if method[0] == WRAPPER else f"REF_THIS@{current}"
+            "TCA_THIS" if method[0] == WRAPPER else
+            f"TRACK_THIS@{current}" if method[0] == TRACK_DESCRIPTOR else
+            f"TRACK_CONTINUATION_THIS@{current}" if method[0] == CONTINUATION_DESCRIPTOR else
+            f"REF_THIS@{current}"
         )
         current += 1
     for typ in audit.parse_types(method[2]):
         if typ.startswith(("L", "[")):
             initial_registers[current] = (
-                f"TCA_PARAMETER@{current}" if typ == WRAPPER
-                else f"REF_PARAMETER@{current}"
+                f"TCA_PARAMETER@{current}" if typ == WRAPPER else
+                f"TRACK_PARAMETER@{current}" if typ == TRACK_DESCRIPTOR else
+                f"TRACK_CONTINUATION_PARAMETER@{current}" if typ == CONTINUATION_DESCRIPTOR else
+                f"STRING_PARAMETER@{current}" if typ == "Ljava/lang/String;" else
+                f"REF_PARAMETER@{current}"
             )
         current += 2 if typ in ("J", "D") else 1
 
@@ -271,16 +305,37 @@ def trace_exact_tca_constructor_to_callsites(
         if op in audit.INVOKES:
             callee = dex.method(words[1])
             args = audit.invoke_registers(op, words)
-            if callee == WRAPPER_CTOR and args:
+            if callee[1] == "<init>" and args:
                 token = regs.get(args[0])
                 if token and token.startswith("TCA_ALLOC@"):
-                    initialized = "TCA_INIT@" + token
+                    string_token = regs.get(args[1]) if len(args) > 1 else None
+                    initialized = (
+                        "TCA_INIT@" + token + "|STRING="
+                        + (string_token or "STRING_UNKNOWN")
+                    )
+                    for reg, value in list(regs.items()):
+                        if value == token:
+                            regs[reg] = initialized
+                elif token and token.startswith("REF_NEW_INSTANCE@"):
+                    initialized = "REF_INIT@" + token
                     for reg, value in list(regs.items()):
                         if value == token:
                             regs[reg] = initialized
             result_type = callee[2].split(")", 1)[1]
             if result_type == WRAPPER:
                 pending = f"TCA_RETURN@{pc}"
+            elif result_type == "Ljava/lang/String;":
+                receiver_token = regs.get(args[0]) if args else None
+                if isinstance(receiver_token, str) and receiver_token.startswith("TRACK_CONTINUATION_"):
+                    pending = f"STRING_CONTINUATION_METHOD_RETURN@{pc}"
+                elif isinstance(receiver_token, str) and receiver_token.startswith("TRACK_"):
+                    pending = f"STRING_TRACK_METHOD_RETURN@{pc}"
+                else:
+                    pending = f"STRING_RETURN@{pc}"
+            elif result_type == TRACK_DESCRIPTOR:
+                pending = f"TRACK_RETURN@{pc}"
+            elif result_type == CONTINUATION_DESCRIPTOR:
+                pending = f"TRACK_CONTINUATION_RETURN@{pc}"
             elif result_type.startswith(("L", "[")):
                 pending = f"REF_RETURN@{pc}"
         elif op == 0x0c:  # move-result-object
@@ -294,6 +349,10 @@ def trace_exact_tca_constructor_to_callsites(
             object_type = dex.descriptor(words[1])
             if object_type == WRAPPER:
                 regs[dest] = f"TCA_ALLOC@{pc}"
+            elif object_type == TRACK_DESCRIPTOR:
+                regs[dest] = f"TRACK_NEW_INSTANCE@{pc}"
+            elif object_type == CONTINUATION_DESCRIPTOR:
+                regs[dest] = f"TRACK_CONTINUATION_NEW_INSTANCE@{pc}"
             elif object_type.startswith(("L", "[")):
                 regs[dest] = f"REF_NEW_INSTANCE@{pc}"
         elif op in (0x07, 0x08, 0x09):
@@ -309,10 +368,16 @@ def trace_exact_tca_constructor_to_callsites(
             cast_type = dex.descriptor(words[1])
             token = regs.get(reg)
             if cast_type == WRAPPER:
-                if token and token.startswith("REF_"):
+                if token and token.startswith(("REF_", "TRACK_")):
                     regs[reg] = "TCA_CAST@" + token
                 elif not token:
                     regs[reg] = f"TCA_CAST@REF_UNKNOWN@{pc}"
+            elif cast_type == TRACK_DESCRIPTOR:
+                if token and token.startswith("REF_"):
+                    regs[reg] = "TRACK_CAST@" + token
+            elif cast_type == CONTINUATION_DESCRIPTOR:
+                if token and token.startswith("REF_"):
+                    regs[reg] = "TRACK_CONTINUATION_CAST@" + token
         elif op == 0x54:  # iget-object; type and receiver class only
             dest = (words[0] >> 8) & 15
             receiver = (words[0] >> 12) & 15
@@ -323,6 +388,18 @@ def trace_exact_tca_constructor_to_callsites(
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_FIELD@{pc}"
+            elif field_type == "Ljava/lang/String;":
+                if isinstance(receiver_token, str) and receiver_token.startswith("TRACK_CONTINUATION_"):
+                    regs[dest] = f"STRING_CONTINUATION_FIELD@{pc}"
+                elif isinstance(receiver_token, str) and receiver_token.startswith("TRACK_"):
+                    regs[dest] = f"STRING_TRACK_FIELD@{pc}"
+                else:
+                    regs[dest] = f"STRING_FIELD@{pc}"
+            elif field_type == TRACK_DESCRIPTOR:
+                if isinstance(receiver_token, str) and receiver_token.startswith("TRACK_CONTINUATION_"):
+                    regs[dest] = f"TRACK_FIELD_FROM_CONTINUATION@{pc}"
+                else:
+                    regs[dest] = f"TRACK_FIELD@{pc}"
             elif field_type.startswith(("L", "[")):
                 category = "REF_THIS_FIELD" if receiver == this_register else "REF_FIELD"
                 regs[dest] = f"{category}@{pc}"
@@ -334,6 +411,8 @@ def trace_exact_tca_constructor_to_callsites(
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_STATIC_FIELD@{pc}"
+            elif field_type == "Ljava/lang/String;":
+                regs[dest] = f"STRING_STATIC_FIELD@{pc}"
             elif field_type.startswith(("L", "[")):
                 regs[dest] = f"REF_STATIC_FIELD@{pc}"
         elif op == 0x46:  # aget-object
@@ -509,6 +588,7 @@ def trace_exact_tca_constructor_to_callsites(
         site_results.append({
             "reachable": True,
             "same_constructed_tca_on_all_paths": same,
+            "constructor_string_origin_category": tca_constructor_string_origin(value_token),
             "same_tca_reference_on_all_paths": same_reference,
             "same_receiver_reference_on_all_paths": same_receiver,
             "origin_category": tca_origin_category(value_token),
