@@ -220,7 +220,8 @@ def _parameter_register_from_tca_token(token: str | None):
 def trace_exact_tca_constructor_to_callsites(
     dex, method, flags: int, code_off: int, target_method,
     callsite_pcs: list[int], wrapper_position: int,
-    target_argument_type: str | None = WRAPPER
+    target_argument_type: str | None = WRAPPER,
+    target_field_ref=None
 ) -> dict:
     """Trace a tCa reference through typed or Object-then-check-cast aliases."""
     cfg = audit.build_dex_control_flow(dex, code_off)
@@ -258,6 +259,7 @@ def trace_exact_tca_constructor_to_callsites(
     incoming = {cfg["entry"]: {state_key(initial): initial}}
     work = [(cfg["entry"], state_key(initial))]
     processed = 0
+    field_read_metadata = {}
 
     def transfer(state, pc, op, words):
         regs = dict(state["registers"])
@@ -314,7 +316,10 @@ def trace_exact_tca_constructor_to_callsites(
         elif op == 0x54:  # iget-object; type and receiver class only
             dest = (words[0] >> 8) & 15
             receiver = (words[0] >> 12) & 15
-            field_type = audit.field_id(dex, words[1])[2]
+            field_ref = audit.field_id(dex, words[1])
+            field_type = field_ref[2]
+            receiver_token = regs.get(receiver)
+            field_read_metadata[pc] = (field_ref, receiver_token)
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_FIELD@{pc}"
@@ -323,7 +328,9 @@ def trace_exact_tca_constructor_to_callsites(
                 regs[dest] = f"{category}@{pc}"
         elif op == 0x62:  # sget-object
             dest = words[0] >> 8
-            field_type = audit.field_id(dex, words[1])[2]
+            field_ref = audit.field_id(dex, words[1])
+            field_type = field_ref[2]
+            field_read_metadata[pc] = (field_ref, None)
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_STATIC_FIELD@{pc}"
@@ -387,43 +394,126 @@ def trace_exact_tca_constructor_to_callsites(
                 "reachable": False,
                 "same_constructed_tca_on_all_paths": False,
                 "same_tca_reference_on_all_paths": False,
+                "same_receiver_reference_on_all_paths": False,
                 "origin_category": "UNREACHABLE_OR_UNMAPPED",
                 "origin_parameter_position": None,
+                "origin_field_ref": None,
+                "origin_field_receiver_category": None,
+                "receiver_origin_category": None,
             })
             continue
         op, words = instruction
-        if op not in audit.INVOKES or dex.method(words[1]) != target_method:
-            raise ValueError("TCA_TRACE_CALLSITE_TARGET_MISMATCH")
-        register = _argument_register(
-            dex, op, words, target_method, wrapper_position,
-            expected_type=target_argument_type
-        )
-        tokens = [state["registers"].get(register) for state in states]
+        receiver_tokens = []
+        if target_field_ref is None:
+            if op not in audit.INVOKES or dex.method(words[1]) != target_method:
+                raise ValueError("TCA_TRACE_CALLSITE_TARGET_MISMATCH")
+            register = _argument_register(
+                dex, op, words, target_method, wrapper_position,
+                expected_type=target_argument_type
+            )
+            value_tokens = [state["registers"].get(register) for state in states]
+            receiver_register = None
+        else:
+            if op not in (0x5b, 0x67) or audit.field_id(dex, words[1]) != target_field_ref:
+                raise ValueError("TCA_TRACE_FIELD_STORE_TARGET_MISMATCH")
+            if op == 0x5b:  # iput-object value, instance receiver
+                register = (words[0] >> 8) & 15
+                receiver_register = (words[0] >> 12) & 15
+            else:  # sput-object value
+                register = (words[0] >> 8) & 0xff
+                receiver_register = None
+            value_tokens = [state["registers"].get(register) for state in states]
+            if receiver_register is not None:
+                receiver_tokens = [
+                    state["registers"].get(receiver_register) for state in states
+                ]
+
         same = (
-            register is not None and bool(tokens)
-            and len(set(tokens)) == 1
-            and isinstance(tokens[0], str)
-            and tokens[0].startswith("TCA_INIT@")
+            register is not None and bool(value_tokens)
+            and len(set(value_tokens)) == 1
+            and isinstance(value_tokens[0], str)
+            and value_tokens[0].startswith("TCA_INIT@")
         )
         same_reference = (
-            register is not None and bool(tokens)
-            and len(set(tokens)) == 1
-            and isinstance(tokens[0], str)
-            and tokens[0].startswith(("TCA_",))
+            register is not None and bool(value_tokens)
+            and len(set(value_tokens)) == 1
+            and isinstance(value_tokens[0], str)
+            and value_tokens[0].startswith(("TCA_", "REF_"))
+            and not value_tokens[0].startswith("TCA_NULL@")
         )
-        token = tokens[0] if tokens and len(set(tokens)) == 1 else None
-        parameter_register = _parameter_register_from_tca_token(token)
+        value_token = (
+            value_tokens[0]
+            if value_tokens and len(set(value_tokens)) == 1 else None
+        )
+        parameter_register = _parameter_register_from_tca_token(value_token)
         parameter_position = (
             logical_position_for_parameter_register(
                 dex, method, flags, code_off, parameter_register
             ) if parameter_register is not None else None
         )
+        receiver_token = (
+            receiver_tokens[0]
+            if receiver_tokens and len(set(receiver_tokens)) == 1 else None
+        )
+        same_receiver = (
+            bool(receiver_tokens) and len(set(receiver_tokens)) == 1
+            and isinstance(receiver_token, str)
+            and receiver_token.startswith(("TCA_", "REF_"))
+        )
+        receiver_category = (
+            "THIS" if receiver_token == "TCA_THIS"
+                or (isinstance(receiver_token, str) and receiver_token.startswith("REF_THIS@"))
+            else "PARAMETER" if isinstance(receiver_token, str)
+                and receiver_token.startswith("REF_PARAMETER@")
+            else "FIELD" if isinstance(receiver_token, str)
+                and ("FIELD@" in receiver_token)
+            else "STATIC_FIELD" if isinstance(receiver_token, str)
+                and receiver_token.startswith("REF_STATIC_FIELD@")
+            else "UNKNOWN" if receiver_register is not None else "STATIC"
+        )
+
+        field_ref = None
+        field_receiver_category = None
+        field_pc = None
+        if isinstance(value_token, str):
+            match = re.search(
+                r"(?:TCA_FIELD|TCA_STATIC_FIELD)@([0-9]+)", value_token
+            )
+            if match:
+                field_pc = int(match.group(1))
+            else:
+                match = re.search(
+                    r"REF_(?:THIS_)?FIELD@([0-9]+)|REF_STATIC_FIELD@([0-9]+)",
+                    value_token
+                )
+                if match:
+                    field_pc = int(match.group(1) or match.group(2))
+        if field_pc is not None and field_pc in field_read_metadata:
+            field_ref, field_receiver_token = field_read_metadata[field_pc]
+            if field_receiver_token == "TCA_THIS" or (
+                isinstance(field_receiver_token, str)
+                and field_receiver_token.startswith("REF_THIS@")
+            ):
+                field_receiver_category = "THIS"
+            elif isinstance(field_receiver_token, str) and field_receiver_token.startswith("REF_PARAMETER@"):
+                field_receiver_category = "PARAMETER"
+            elif isinstance(field_receiver_token, str) and "FIELD@" in field_receiver_token:
+                field_receiver_category = "FIELD"
+            elif field_receiver_token is None:
+                field_receiver_category = "STATIC"
+            else:
+                field_receiver_category = "UNKNOWN"
+
         site_results.append({
             "reachable": True,
             "same_constructed_tca_on_all_paths": same,
             "same_tca_reference_on_all_paths": same_reference,
-            "origin_category": tca_origin_category(token),
+            "same_receiver_reference_on_all_paths": same_receiver,
+            "origin_category": tca_origin_category(value_token),
             "origin_parameter_position": parameter_position,
+            "origin_field_ref": field_ref,
+            "origin_field_receiver_category": field_receiver_category,
+            "receiver_origin_category": receiver_category,
         })
 
     instructions = cfg["instructions"]
@@ -443,6 +533,10 @@ def trace_exact_tca_constructor_to_callsites(
         ),
         "same_tca_reference_on_all_sites": (
             bool(site_results) and all(x["same_tca_reference_on_all_paths"]
+                                       for x in site_results)
+        ),
+        "same_receiver_reference_on_all_sites": (
+            bool(site_results) and all(x["same_receiver_reference_on_all_paths"]
                                        for x in site_results)
         ),
         "site_results": site_results,
