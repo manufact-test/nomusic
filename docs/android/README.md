@@ -1,6 +1,6 @@
 # CELIKOM Android A1 — documentation index
 
-**Current (19 Nov 2026):** NAV38 source prepared, JVM green, ARM13 owner/clone CI and signed APK export pending. The sole canonical live status is **[NEXT-CHAT.md](NEXT-CHAT.md)**.
+**Current (19 Nov 2026):** NAV38 signed/hashed ZIP verified in personal Library; JVM and both ARM13 CI runs green. Owner-phone NAV38 TXT next. The sole canonical live status is **[NEXT-CHAT.md](NEXT-CHAT.md)**.
 
 ## Read in order
 1. [NEXT-CHAT.md](NEXT-CHAT.md) — exact live status, SHA/backup refs, owner-phone results, CI and distribution status.
