@@ -1076,6 +1076,73 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV27_NO_STALE_FALSE_PROMOTION");
     }
 
+    private static void testNav31HolderSelectBeforeVsAfterAndActiveRead() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object render=new Object(),stream=new Object();
+        FakeHolderSource holder=new FakeHolderSource(new FakeSource(),stream);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        e.onExactHolderSelectPhase(holder,false); // exact Lup1 wrapper present
+        holder.nested=null; // original may clear holder field, not our hook
+        e.onExactHolderSelectPhase(holder,true);
+        nav29BindLive(e,engine,holder,render,stream);
+        e.onRendererTypeStateRead(render,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=HOLDER_SELECT_ENTER_EXACT;error=ONE"),
+              "NAV31_EXACT_EARLY_FIELD");
+        check(contains(e.exportLines(),"origin=HOLDER_SELECT_EXIT_NULL;error=ONE"),
+              "NAV31_AFTER_SELECT_NULL");
+        check(contains(e.exportLines(),"origin=HOLDER_ATTACH_NULL;error=ONE"),
+              "NAV31_ATTACH_ALREADY_NULL");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_HOLDER_WRAPPER_NULL_AT_READ;error=ONE"),
+              "NAV31_NULL_NOT_WRONG_CLASS");
+        check(contains(e.exportLines(),"origin=LIVE_HOLDER_PRIOR_SELECT_EXACT_CLEARED;error=ONE"),
+              "NAV31_PRIOR_EXACT_SEEN_BUT_NOW_GONE");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+              "NAV31_NO_STALE_EARLY_SELECTION_PROMOTION");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV31_NO_SELECTED_TRACK_EDITION_OR_PCM");
+    }
+
+    private static void testNav31OtherObjectTypeIsNotNullAndNotMatched() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object render=new Object(),stream=new Object();
+        FakeHolderSource holder=new FakeHolderSource(new FakeSource(),stream);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        holder.nested=new Object(); // not exact publisher type Lup1
+        e.onExactHolderSelectPhase(holder,false);
+        nav29BindLive(e,engine,holder,render,stream);
+        e.onRendererTypeStateRead(render,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=HOLDER_SELECT_ENTER_OTHER;error=ONE"),
+              "NAV31_EXPLICIT_WRONG_CLASS");
+        check(contains(e.exportLines(),"origin=HOLDER_ATTACH_OTHER;error=ONE"),
+              "NAV31_WRONG_TYPE_AT_ATTACH");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_HOLDER_WRAPPER_OTHER_AT_READ;error=ONE"),
+              "NAV31_WRONG_TYPE_AT_ACTIVE_READ");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_HOLDER_WRAPPER_NULL_AT_READ;error=NONE"),
+              "NAV31_WRONG_CLASS_NOT_NULL");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+              "NAV31_NEVER_USE_WRONG_CLASS_AS_ACTIVE_PERIOD");
+    }
+
+    private static void testNav31NoSelectionHookNoPhantomHistory() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        Object render=new Object(),stream=new Object();
+        FakeHolderSource holder=new FakeHolderSource(new FakeSource(),stream);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        e.onExactHolderSelectPhase(holder,false); // unregistered, fail closed
+        holder.nested=null;
+        nav29BindLive(e,engine,holder,render,stream);
+        e.onRendererTypeStateRead(render,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=HOLDER_SELECT_ENTER_EXACT;error=NONE"),
+              "NAV31_UNREGISTERED_SELECT_NOT_OBSERVED");
+        check(contains(e.exportLines(),"origin=LIVE_HOLDER_PRIOR_SELECT_EXACT_CLEARED;error=NONE"),
+              "NAV31_NO_FABRICATED_HISTORY");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1125,6 +1192,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav30SameFrameUnrelatedAdapterNeverLinks();
         testNav30AdapterNoScopeOrWrongFactoryFailsClosed();
         testNav30RejectsNestedDuplicateFactoryAndDetach();
+        testNav31HolderSelectBeforeVsAfterAndActiveRead();
+        testNav31OtherObjectTypeIsNotNullAndNotMatched();
+        testNav31NoSelectionHookNoPhantomHistory();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

@@ -133,6 +133,23 @@ final class NativeRendererStreamEvidence {
     private int periodAdapterLinkCreated,periodAdapterMapped,periodAdapterUnmapped;
     private int livePeriodHolderMissing,livePeriodWrappedMissing,livePeriodNonLo96;
     private int livePeriodDirectLo96,livePeriodSourceNull,livePeriodReflectionFailed;
+    // NAV31: sampled ONLY at exact publisher-proven Lxh6.if() selection
+    // and on the already live slot/renderer reference. Phase observations
+    // are diagnostics, never proof of selected track/edition or PCM.
+    private int holderSelectHook;
+    private int selectEnterExact,selectEnterNull,selectEnterOther,selectEnterFail;
+    private int selectExitExact,selectExitNull,selectExitOther,selectExitFail;
+    private int attachPeriodExact,attachPeriodNull,attachPeriodOther,attachPeriodFail;
+    private int livePeriodHolderNull,livePeriodHolderOther;
+    private int priorSelectedExactCleared,priorSelectedExactPresent,priorSelectedWeakLost;
+    private static final class HolderSelectionLink {
+        final WeakReference<Object> holder,wrapper;
+        HolderSelectionLink(Object holder,Object wrapper) {
+            this.holder=new WeakReference<>(holder);
+            this.wrapper=new WeakReference<>(wrapper);
+        }
+    }
+    private final ArrayList<HolderSelectionLink> holderSelectionLinks=new ArrayList<>();
     private final ThreadLocal<TrackPlayerScope> inPlayerTrack=new ThreadLocal<>();
     private final ArrayList<PlayerSourceLink> playerSources=new ArrayList<>();
     private Field holderWrapperField,wrapperPeriodField,periodSourceField;
@@ -378,6 +395,69 @@ final class NativeRendererStreamEvidence {
         exactPeriodClass=periodClass;
     }
 
+    private void observeHolderWrapperPhase(Object holder,int phase) {
+        // phase 0=exact signed select ENTER, 1=select EXIT,
+        // 2=already verified current queue holder at stream ATTACH.
+        // Never inspect nested fields unless the private field descriptor
+        // was validated against the exact issuer-signed DEX.
+        if(holder==null || holderWrapperField==null || exactWrapperClass==null)return;
+        int state;
+        Object nested=null;
+        try {
+            nested=holderWrapperField.get(holder);
+            state=nested==null?0:exactWrapperClass.isInstance(nested)?1:2;
+        } catch(Throwable ignored) { state=3; }
+        if(phase==0) {
+            if(state==0)selectEnterNull=inc(selectEnterNull);
+            else if(state==1)selectEnterExact=inc(selectEnterExact);
+            else if(state==2)selectEnterOther=inc(selectEnterOther);
+            else selectEnterFail=inc(selectEnterFail);
+        } else if(phase==1) {
+            if(state==0)selectExitNull=inc(selectExitNull);
+            else if(state==1)selectExitExact=inc(selectExitExact);
+            else if(state==2)selectExitOther=inc(selectExitOther);
+            else selectExitFail=inc(selectExitFail);
+        } else if(phase==2) {
+            if(state==0)attachPeriodNull=inc(attachPeriodNull);
+            else if(state==1)attachPeriodExact=inc(attachPeriodExact);
+            else if(state==2)attachPeriodOther=inc(attachPeriodOther);
+            else attachPeriodFail=inc(attachPeriodFail);
+        }
+        // A weak earlier exact wrapper is only evidence it WAS present
+        // on the same holder at a previous select boundary, not that it
+        // is the current media period when the audio renderer reads.
+        if((phase==0 || phase==1) && state==1
+                && holderSelectHook>0 && nested!=null) {
+            for(int i=holderSelectionLinks.size()-1;i>=0;i--) {
+                HolderSelectionLink prior=holderSelectionLinks.get(i);
+                Object old=prior.holder.get();
+                if(old==null || old==holder)holderSelectionLinks.remove(i);
+            }
+            if(holderSelectionLinks.size()>=MAX_HANDLES)holderSelectionLinks.remove(0);
+            holderSelectionLinks.add(new HolderSelectionLink(holder,nested));
+        }
+    }
+
+    synchronized void onExactHolderSelectPhase(Object holder,boolean after) {
+        if(holderSelectHook<=0 || poisoned)return;
+        observeHolderWrapperPhase(holder,after?1:0);
+    }
+
+    private void observePriorSelectWhenLiveRead(Object holder,Object nested) {
+        if(holderSelectHook<=0 || poisoned || holder==null)return;
+        for(int i=holderSelectionLinks.size()-1;i>=0;i--) {
+            HolderSelectionLink old=holderSelectionLinks.get(i);
+            Object priorHolder=old.holder.get(),priorWrapper=old.wrapper.get();
+            if(priorHolder==null) {holderSelectionLinks.remove(i);continue;}
+            if(priorHolder!=holder)continue;
+            if(priorWrapper==null)priorSelectedWeakLost=inc(priorSelectedWeakLost);
+            else if(priorWrapper==nested)priorSelectedExactPresent=inc(priorSelectedExactPresent);
+            else if(nested==null)priorSelectedExactCleared=inc(priorSelectedExactCleared);
+            // Different non-null wrapper is a new generation: no promotion.
+            break;
+        }
+    }
+
     private void observeActivePeriodSource(Object currentHolder) {
         if(livePeriodSourceHook<=0 || currentHolder==null)return;
         if(holderWrapperField==null || wrapperPeriodField==null
@@ -385,7 +465,15 @@ final class NativeRendererStreamEvidence {
         Object source=null;
         try {
             Object nested=holderWrapperField.get(currentHolder);
-            if(nested==null || !exactWrapperClass.isInstance(nested)) {
+            observePriorSelectWhenLiveRead(currentHolder,nested);
+            if(nested==null) {
+                livePeriodHolderNull=inc(livePeriodHolderNull);
+                livePeriodHolderMissing=inc(livePeriodHolderMissing);
+                livePeriodUnavailable=inc(livePeriodUnavailable);
+                return;
+            }
+            if(!exactWrapperClass.isInstance(nested)) {
+                livePeriodHolderOther=inc(livePeriodHolderOther);
                 livePeriodHolderMissing=inc(livePeriodHolderMissing);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
                 return;
@@ -523,6 +611,7 @@ final class NativeRendererStreamEvidence {
             case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
             case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
             case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
+            case "HOLDER_SELECT_PHASE": holderSelectHook=status; break;
             case "NATIVE_PERIOD_ADAPTER": periodAdapterHook=status; break;
             case "NATIVE_PERIOD_FACTORY": periodFactoryHook=status; break;
             case "RENDERER_TYPE_STATE_ACCESS": typeStateAccessHook=status; break;
@@ -582,6 +671,7 @@ final class NativeRendererStreamEvidence {
                     int live=liveQueueSlotMatches(engine.engine,engine.holder);
                     if(live==1) {
                         queueSlotAttachSame=inc(queueSlotAttachSame);
+                        observeHolderWrapperPhase(engine.holder,2);
                         if(liveQueueLinks.size()>=MAX_HANDLES)liveQueueLinks.remove(0);
                         liveQueueLinks.add(new LiveQueueLink(
                             engine.engine,engine.holder,renderer,stream));
@@ -991,6 +1081,7 @@ final class NativeRendererStreamEvidence {
             registrationLine("TRACK_PLAYER_SOURCE_SCOPE",trackPlayerScopeHook),
             registrationLine("NATIVE_PLAYER_SOURCE_SETTER",nativeSourceSetterHook),
             registrationLine("LIVE_PERIOD_ORIGINAL_SOURCE",livePeriodSourceHook),
+            registrationLine("HOLDER_SELECT_PHASE",holderSelectHook),
             registrationLine("NATIVE_PERIOD_ADAPTER",periodAdapterHook),
             registrationLine("NATIVE_PERIOD_FACTORY",periodFactoryHook),
             registrationLine("RENDERER_TYPE_STATE_ACCESS",typeStateAccessHook),
@@ -1038,6 +1129,23 @@ final class NativeRendererStreamEvidence {
             line("NATIVE_PERIOD_FACTORY_CONFLICT",periodFactoryConflict),
             line("NATIVE_PERIOD_ADAPTER_LINK_CREATED",periodAdapterLinkCreated),
             line("LIVE_PERIOD_HOLDER_WRAPPER_MISSING",livePeriodHolderMissing),
+            line("LIVE_PERIOD_HOLDER_WRAPPER_NULL_AT_READ",livePeriodHolderNull),
+            line("LIVE_PERIOD_HOLDER_WRAPPER_OTHER_AT_READ",livePeriodHolderOther),
+            line("HOLDER_SELECT_ENTER_EXACT",selectEnterExact),
+            line("HOLDER_SELECT_ENTER_NULL",selectEnterNull),
+            line("HOLDER_SELECT_ENTER_OTHER",selectEnterOther),
+            line("HOLDER_SELECT_ENTER_FAILED",selectEnterFail),
+            line("HOLDER_SELECT_EXIT_EXACT",selectExitExact),
+            line("HOLDER_SELECT_EXIT_NULL",selectExitNull),
+            line("HOLDER_SELECT_EXIT_OTHER",selectExitOther),
+            line("HOLDER_SELECT_EXIT_FAILED",selectExitFail),
+            line("HOLDER_ATTACH_EXACT",attachPeriodExact),
+            line("HOLDER_ATTACH_NULL",attachPeriodNull),
+            line("HOLDER_ATTACH_OTHER",attachPeriodOther),
+            line("HOLDER_ATTACH_FAILED",attachPeriodFail),
+            line("LIVE_HOLDER_PRIOR_SELECT_EXACT_CLEARED",priorSelectedExactCleared),
+            line("LIVE_HOLDER_PRIOR_SELECT_EXACT_PRESENT",priorSelectedExactPresent),
+            line("LIVE_HOLDER_PRIOR_SELECT_WEAK_LOST",priorSelectedWeakLost),
             line("LIVE_PERIOD_WRAPPED_PERIOD_MISSING",livePeriodWrappedMissing),
             line("LIVE_PERIOD_WRAPPED_NON_LO96",livePeriodNonLo96),
             line("LIVE_PERIOD_DIRECT_LO96",livePeriodDirectLo96),
