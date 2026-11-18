@@ -229,6 +229,72 @@ Android already has the pure-Java lifecycle model:
 
 ---
 
+### Дополнение к W76: защита W22 adapter от Next/radio race
+
+В **windows-companion/w22/native-resource-adapter.mjs** есть более низкий уровень тех же гарантий:
+- **revision** меняется при track change / enable / disable; **cancel()** увеличивает revision, abort-ит pending requests и очищает очередь.
+- **trackChanged(id)** отменяет старые resolve jobs до применения результата новой песни.
+- **lookup(id, revisionAtStart)** проверяет enabled/disposed/revision, ограничивает timeout, использует AbortController и не кеширует transient timeout как authoritative ORIGINAL.
+- **getFileInfo** сначала вызывает оригинальный Yandex method, параллельно запрашивает grant, а replacement применяет только если **isLive(id, rev)** всё ещё true. Если нет grant/истёк generation — возвращает оригинальный native file-info.
+- **getFileInfoBatch** меняет только существующие native response entries с exact matching ID; не создаёт выдуманные metadata entries и не добавляет отсутствующие IDs.
+- **dispose()** восстанавливает оригинальные методы prototype, если их hooks всё ещё принадлежат CELIKOM.
+
+Это один из самых полезных Android шаблонов: не применять поздний grant к новой песне, не мутировать чужой/старый response, вернуть оригинал при отсутствии корректного grant и восстановить hook при unload. Но Java/Kotlin реализация должна отменять coroutine/job и проверять собственную generation, а не копировать JS AbortController.
+
+### W60 — Start/Stop для уже загруженной текущей песни
+
+**Симптом.** Bridge успешно переключался OFF→ON, но Yandex не запрашивал новый file-info для уже играющего MediaItem. Поэтому Start мог не применить replacement к текущей оригинальной песне, а Stop не всегда мгновенно возвращал уже загруженный replacement к оригиналу.
+
+**Windows-решение.**
+- В disposable desktop Yandex 5.126.1 был read-only подтверждён штатный controller **7123.VE.reloadEntity("QUALITY_CHANGE")**: он заново получает source для того же entity, сохраняет position и различает PLAYING/PAUSED.
+- Экспериментальный W60 **windows-companion/w60/current-source-refresh.mjs** был version-pinned к этому controller. Renderer сначала менял adapter state, затем сериализованно просил Yandex сделать source reload; никаких Next/Pause/Seek команд и второго плеера.
+- Если controller не найден или version не совпала, операция fail-closed/no-op.
+- Owner audio controls baseline 0.24.9 подтвердил Pause/Seek/Next/MyWave; Start/Stop same-track reload был отдельным desktop экспериментом.
+
+**Android:** не копировать **reloadEntity**, его private controller, desktop module ID или предположение о сохранении clock. В Android должен быть отдельно доказан штатный способ сменить source того же MediaItem без второго Player, потери position и pause state. Пока это не доказано, не обещать instant same-track Start/Stop; безопаснее не вмешиваться в уже buffered source.
+
+### W157 — Yandex закрыт, но старый track остаётся в UI
+
+**Симптом.** После полного выхода из Yandex CELIKOM мог показывать прежнюю песню ещё около 30 секунд, пока не истечёт heartbeat lease.
+
+**Windows-решение.**
+- **YandexProcessLifecycleTracker.Observe()** замечает переход process running→not running.
+- **MainWindow.cs** опрашивает процесс отдельным 1-second pulse.
+- W23 selected renderer **destroyed** handler отправляет sequenced **UNAVAILABLE** heartbeat, если выбранный player исчез и другого выбранного playback view нет.
+- Bridge очищает title/artist/track/source/playback lease и отвергает heartbeat от retired host/process после reconnect.
+- UI показывает «Подключитесь к Яндекс Музыке», а не старый трек и не generic server wait.
+- W157 code checkpoint **23538cab793be9d1381790d4c304db3cd4d4b417**; W158 окончательно закрыл handshake/retired-host race на **3f6affc242ef570120250d2e20eec791338f2ef9**.
+
+**Android:** процесс/Service/Player destruction должны иметь отдельные события. Не держать старый MediaItem UI по длинному heartbeat TTL после реального player destruction; не принимать late callbacks старого Player generation после нового Player attach.
+
+### W51/W56 — что было доказано про 403, а что только предполагалось
+
+- W51 owner diagnostic на 0.24.6: **7 реальных Yandex Media GET → 7 HTTP 403, 0 HTTP 200/206**. Обычные оригинальные треки работали, approved replacements не стартовали и быстро уходили в Play/Pause.
+- W51 не позволял доказать точную причину: signed query и response body были redacted. Тогда query corruption была гипотезой.
+- W56 позже нашёл конкретный vendor query-append mechanism в desktop source flow и добавил узкий native URL guard. Владелец затем подтвердил replacement playback на 0.24.7 и реальные HTTP 206.
+- Не путать CELIKOM resource ID в **/api/v1/audio/{replacement_id}** с Yandex track ID. Диагностика должна иметь отдельные **track_id** и **resource_id**, иначе можно обвинить не ту песню.
+- W33 ранее исследовал CORS/CSP; публичная web CSP не доказывала native **musicapplication://desktop** CSP. Нельзя отключать **webSecurity**, ослаблять CSP глобально или делать CORS wildcard «на всякий случай». В итоге узкий signed-query issue оказался практическим desktop blocker; это не означает, что любой Android 403 имеет ту же причину.
+
+### W81 — Yandex vendor updates / compatibility
+
+**Проблема.** Официальный Yandex может обновиться и изменить EXE/ASAR/runtime hooks; совпадение версии или наличие официальной подписи само по себе не доказывает совместимость source adapter.
+
+**Windows-решение.**
+- Append-only reviewed catalog точных Yandex EXE+ASAR version/hash/publisher pins; новые unknown builds не принимаются автоматически.
+- Отдельные v1/v2 catalog schemas сохраняли backward compatibility со старыми клиентами.
+- Disposable runner проверяет vendor signature/hash, install→module identity→byte-for-byte restore; после этого developer отдельно подтверждает runtime API/audio compatibility.
+- W104 **YandexFailureRecheckGate** делает coalesced 2/4/8/15-minute backoff после native HOST_ERROR/start failure, но ORIGINAL/audio 403 не считается vendor install failure.
+- Новый Yandex build нельзя считать рабочим только потому, что официальный updater его установил.
+
+**Android:** pinned original APK/split signer and hashes, ABI/split inventory, owner signer and native hook compatibility должны быть отдельными gates. Не заменять publisher original на неизвестный build и не переносить Windows catalog assumptions.
+
+### Отдельные нерешённые/не доказанные аудио-симптомы
+
+- **Hiss после VPN/403:** W89 видел реальный expired-token 403 → fresh 206 в одном случае, а владелец описал громкий hiss. Точная причина hiss не была установлена. Не считать, что query guard автоматически исправил любой hiss/pop.
+- **Big City Life mid-song volume dip:** W90 установил, что Windows native path не применял numeric gain_db; W93 подготовил offline pre-render/sidecar staging, но это не стало универсальным live DSP fix. Само падение громкости посреди песни имело отдельную, не доказанную причину.
+- **Instant pause в ранних 0.24.6 builds:** W51 связал не стартовавшие replacements с реальными 403; W56 затем дал практическое исправление signed URL desktop path. Не переносить старые симптомы на текущую Android ветку без воспроизведения.
+- **Brave/web renderer fetch/CSP** из W33 — отдельная desktop/browser исследовательская ветка; точный native desktop CSP не был доказан. Это не Android source boundary.
+
 ## 3. Windows code map for quick inspection
 
 | Что искать | Файл / метод |
