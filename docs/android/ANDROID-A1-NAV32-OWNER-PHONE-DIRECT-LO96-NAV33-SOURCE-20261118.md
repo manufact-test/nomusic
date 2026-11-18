@@ -1,0 +1,18 @@
+# CELIKOM Android A1 — NAV32 real owner phone and NAV33 exact direct Lo96 source
+
+18 November 2026. Only Android A1, GitHub `manufact-test/nomusic` working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Preserve signed 2025.10.4 original, its player, PCM, and existing source mechanisms. Private real-phone TXT `CELIKOM-A1-Diagnostics-1795000688077.txt` stays off GitHub.
+
+## NAV32 real owner proof
+The file contains historical NAV31 earlier, but ACTIVE NAV32 at capture/export. `HOLDER_SELECT_PHASE`, live SLOT_B, renderer, original period/source hook all registered. `HOLDER_OTHER_WH6_SELECT_ENTER/EXIT/ATTACH/AT_READ=MANY`, `HOLDER_OTHER_LO96_AT_READ=MANY`, `HOLDER_OTHER_SELECT_SAME_AT_READ=MANY`, `HOLDER_OTHER_ATTACH_SAME_AT_READ=MANY` (the corresponding DIFFERENT, WEAK_LOST and NO_HISTORY NONE). `LIVE_QUEUE_SLOT_B_ATTACH_MATCH=MANY` and `TYPE1_STATE2_READ_MATCH=MANY`, OTHER/UNAVAILABLE NONE. Exact same Java object persists at original holder select, live attach and strict audio read and is original publisher Lo96 implementing wh6.
+
+`LIVE_PERIOD_HOLDER_WRAPPER_MISSING=MANY` and original source RESOLVED=NONE were artifacts of NAV32's unconditional early return on non-Lup1, even exact Lo96; not a proven absent source. Original `TRACK_PLAYER_SOURCE_SCOPE_ENTER=FEW`, SAME_SCOPE=FEW, UNSCOPED=FEW, conflict NONE. Track→Album constructor=MANY, flow=FEW, wrapper=MANY but descriptor/factory/open/read Album identity NONE; edition, generation, selected track unresolved. Native period adapter/factory in-scope NONE, comparator FALSE=MANY is NOT identity. `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. EXO_IO_FAILURE=NONE, METRICA_EXCEPTION_SUMMARY MUSIC_APP/NONE; no owner-reported playback problem.
+
+## NAV33 narrow owned-only diagnostic change
+Protected pre-NAV33 source branch: `backup/android-a1-nav32-owner-phone-direct-lo96-pre-nav33-20261118` at `66e0dfb985b260fb4d5cc4b69b357ef4b95257dd`. Exact NAV33 code commit `d2925a9479f325293bed6dfb5540ebf02015b560`.
+
+The original `Lxh6.Object` holder Field and `Lo96.Sl6` source Field were pinned from issuer-signed original DEX by prior private CI target. Existing strict *currently live* e.h.SLOT_B + engine+renderer+attached stream + type1/state2 read guard remains mandatory. Under that guard, the owned model now accepts directly held exact Lo96, reads only the prevalidated typed original source Field and classifies new `LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT/NULL`, original SOURCE_RESOLVED, and original scoped TrackWrapper→Player-source setter Java `==` matching `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH/OTHER/NO_LINK`. If wrong class, NULL or reflection failure, fail closed; previous Lup1 and adapter paths unaffected. No metadata, IDs, URLs, tokens, filenames, raw source values or audio data logged. No playback or original app changes, no source replacement.
+
+JVM tests include same original direct Lo96 + scoped source, NULL direct source, different source and queue-switch negative. Model continues `IDENTITY_STATUS=STRUCTURAL_ONLY` even on source match. A source ref equality at started read still does not prove selected Track+Album+edition/duration+queue generation or authorize replacement audio.
+
+## Build/release gate
+NAV33 JVM #44295498699 SUCCESS on exact code SHA; Android13 ARM13 owner-signed #44295498745 still running at checkpoint. Never tell owner to test until native CI PASS, owner v2/v3 signer, unchanged embedded original Yandex signature/hash, final APK SHA-256, and personal ChatGPT Library uploaded/listed/downloaded back byte identical. Only then install over NAV32 without deleting data, play 2–5 tracks and send private TXT. No comparator/EOS reruns or speculative NAV34.
