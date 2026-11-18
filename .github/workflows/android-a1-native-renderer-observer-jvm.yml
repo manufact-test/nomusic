@@ -70,8 +70,8 @@ jobs:
           assert 'selector.getDeclaredMethod("try",holder,nativeRenderer)' in src
           assert 'RENDERER_COMPARATOR' in model
           assert 'onRendererComparatorResult' in model
-          assert 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH' in model
-          assert 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_MINUS4' in model
+          assert 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE' in model
+          assert 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4' in model
           assert 'rendererComparatorHooked' in src
           assert 'return original;' in src
           assert 'ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4' in model
