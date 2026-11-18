@@ -44,9 +44,10 @@ final class NativeRendererStreamEvidence {
     }
     /** Signed 2025 Exo engine e.catch(Lxh6;IZJ)V holder lifetime only. */
     static final class EngineFrame {
-        final Object holder;
+        final Object engine,holder;
         final EngineFrame parent;
-        EngineFrame(Object holder,EngineFrame parent) {
+        EngineFrame(Object engine,Object holder,EngineFrame parent) {
+            this.engine=engine;
             this.holder=holder;
             this.parent=parent;
         }
@@ -56,6 +57,17 @@ final class NativeRendererStreamEvidence {
         Link(Object renderer,Object holder,Object stream) {
             this.renderer=new WeakReference<>(renderer);
             this.holder=new WeakReference<>(holder);
+            this.stream=new WeakReference<>(stream);
+        }
+    }
+    // NAV28: one live native e.h.SLOT_B (queue-holder) -> renderer/stream
+    // association, never promoted to selected-song/audio-content identity.
+    private static final class LiveQueueLink {
+        final WeakReference<Object> engine,holder,renderer,stream;
+        LiveQueueLink(Object engine,Object holder,Object renderer,Object stream) {
+            this.engine=new WeakReference<>(engine);
+            this.holder=new WeakReference<>(holder);
+            this.renderer=new WeakReference<>(renderer);
             this.stream=new WeakReference<>(stream);
         }
     }
@@ -78,6 +90,11 @@ final class NativeRendererStreamEvidence {
     private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
     private final ThreadLocal<EngineFrame> inEngineEnable = new ThreadLocal<>();
     private Field engineHolderStreamArrayField;
+    private Field engineQueueField,queueSlotBField;
+    private final ArrayList<LiveQueueLink> liveQueueLinks=new ArrayList<>();
+    private int liveQueueSlotHook,queueSlotAttachSame,queueSlotAttachOther;
+    private int queueSlotAttachUnavailable,queueSlotReadSame,queueSlotReadOther;
+    private int queueSlotReadUnavailable,queueSlotReadMinus4;
     private final ArrayList<Link> engineHolderLinks = new ArrayList<>();
     private final ArrayList<ComparatorLink> comparatorLinks = new ArrayList<>();
     private final ArrayList<Link> links = new ArrayList<>();
@@ -167,6 +184,30 @@ final class NativeRendererStreamEvidence {
      * Caller verifies its exact declared type and uniqueness before install.
      * No stream contents or private member values are serialized.
      */
+    synchronized void setLiveQueueSlotFields(Field engineField,Field slotField) {
+        if(engineField==null || slotField==null
+                || engineField.getType()!=slotField.getDeclaringClass())
+            throw new IllegalArgumentException("Exact native engine/queue layout required");
+        engineField.setAccessible(true);
+        slotField.setAccessible(true);
+        engineQueueField=engineField;
+        queueSlotBField=slotField;
+    }
+
+    // 1 live same identity; -1 available and definitely different; 0
+    // unavailable/ambiguous. No toString/equals/value/export ever.
+    private int liveQueueSlotMatches(Object engine,Object holder) {
+        if(engine==null || holder==null || engineQueueField==null
+                || queueSlotBField==null || liveQueueSlotHook<=0)return 0;
+        try {
+            Object queue=engineQueueField.get(engine);
+            if(queue==null)return 0;
+            Object selectedSlot=queueSlotBField.get(queue);
+            if(selectedSlot==null)return 0;
+            return selectedSlot==holder ? 1 : -1;
+        } catch(Throwable ignored) { return 0; }
+    }
+
     synchronized void setEngineHolderStreamArrayField(Field field) {
         if(field==null || !field.getType().isArray())
             throw new IllegalArgumentException("Exact holder stream array required");
@@ -174,7 +215,10 @@ final class NativeRendererStreamEvidence {
     }
 
     EngineFrame enterEngine(Object holder) {
-        EngineFrame frame=new EngineFrame(holder,inEngineEnable.get());
+        return enterEngine(null,holder); // old read-only JVM fixtures
+    }
+    EngineFrame enterEngine(Object engine,Object holder) {
+        EngineFrame frame=new EngineFrame(engine,holder,inEngineEnable.get());
         inEngineEnable.set(frame);
         synchronized(this) { engineEnters=inc(engineEnters); }
         return frame;
@@ -215,6 +259,7 @@ final class NativeRendererStreamEvidence {
             case "STREAM_DETACH": detachHook=status; break;
             case "SECONDARY_CALLER": secondaryCallerHook=status; break;
             case "ENGINE_HOLDER_SCOPE": engineScopeHook=status; break;
+            case "LIVE_QUEUE_SLOT_B": liveQueueSlotHook=status; break;
             case "RENDERER_TYPE_STATE_ACCESS": typeStateAccessHook=status; break;
             case "BUFFER_EOS_ACCESS": bufferEosAccessHook=status; break;
             case "RENDERER_COMPARATOR": rendererComparatorHook=status; break;
@@ -255,6 +300,7 @@ final class NativeRendererStreamEvidence {
                 }
             }
             removeRenderer(engineHolderLinks,renderer);
+            removeLiveQueueRenderer(renderer);
             // A new attachment transition invalidates any earlier comparator
             // outcome for this renderer, even if Java references are reused.
             removeComparatorRenderer(renderer);
@@ -267,6 +313,19 @@ final class NativeRendererStreamEvidence {
                 engineHolderStreamMatch=inc(engineHolderStreamMatch);
                 if(engineHolderLinks.size()>=MAX_HANDLES)engineHolderLinks.remove(0);
                 engineHolderLinks.add(new Link(renderer,engine.holder,stream));
+                if(liveQueueSlotHook>0) {
+                    int live=liveQueueSlotMatches(engine.engine,engine.holder);
+                    if(live==1) {
+                        queueSlotAttachSame=inc(queueSlotAttachSame);
+                        if(liveQueueLinks.size()>=MAX_HANDLES)liveQueueLinks.remove(0);
+                        liveQueueLinks.add(new LiveQueueLink(
+                            engine.engine,engine.holder,renderer,stream));
+                    } else if(live<0) {
+                        queueSlotAttachOther=inc(queueSlotAttachOther);
+                    } else {
+                        queueSlotAttachUnavailable=inc(queueSlotAttachUnavailable);
+                    }
+                }
             } else if(member<0) {
                 engineHolderStreamDifferent=inc(engineHolderStreamDifferent);
             } else {
@@ -326,6 +385,13 @@ final class NativeRendererStreamEvidence {
         for(int i=list.size()-1;i>=0;i--) {
             Object existing=list.get(i).renderer.get();
             if(existing==null || existing==renderer)list.remove(i);
+        }
+    }
+
+    private void removeLiveQueueRenderer(Object renderer) {
+        for(int i=liveQueueLinks.size()-1;i>=0;i--) {
+            Object existing=liveQueueLinks.get(i).renderer.get();
+            if(existing==null || existing==renderer)liveQueueLinks.remove(i);
         }
     }
 
@@ -554,6 +620,19 @@ final class NativeRendererStreamEvidence {
             return;
         }
         engineType1State2=inc(engineType1State2);
+        // NAV28: re-read current live queue slot at original started-audio
+        // sample time. A prior match at attach cannot survive changed slot.
+        for(LiveQueueLink live:liveQueueLinks) {
+            if(live.renderer.get()!=renderer || live.stream.get()!=stream
+                    || live.holder.get()!=matchedHolder)continue;
+            int fresh=liveQueueSlotMatches(live.engine.get(),live.holder.get());
+            if(fresh==1) {
+                queueSlotReadSame=inc(queueSlotReadSame);
+                if(originalResult==-4)queueSlotReadMinus4=inc(queueSlotReadMinus4);
+            } else if(fresh<0)queueSlotReadOther=inc(queueSlotReadOther);
+            else queueSlotReadUnavailable=inc(queueSlotReadUnavailable);
+            break;
+        }
         // Correlate the exact comparator boolean outcome with this same
         // holder/renderer/attached-stream started-audio read. Do not label
         // TRUE as equality until the signed return semantics are independently
@@ -609,6 +688,7 @@ final class NativeRendererStreamEvidence {
         removeRenderer(links,renderer);
         removeRenderer(unscopedLinks,renderer);
         removeRenderer(engineHolderLinks,renderer);
+        removeLiveQueueRenderer(renderer);
         removeComparatorRenderer(renderer);
         detachCount=inc(detachCount);
     }
@@ -639,6 +719,7 @@ final class NativeRendererStreamEvidence {
             registrationLine("STREAM_DETACH",detachHook),
             registrationLine("SECONDARY_CALLER",secondaryCallerHook),
             registrationLine("ENGINE_HOLDER_SCOPE",engineScopeHook),
+            registrationLine("LIVE_QUEUE_SLOT_B",liveQueueSlotHook),
             registrationLine("RENDERER_TYPE_STATE_ACCESS",typeStateAccessHook),
             registrationLine("BUFFER_EOS_ACCESS",bufferEosAccessHook),
             registrationLine("RENDERER_COMPARATOR",rendererComparatorHook),
@@ -666,6 +747,13 @@ final class NativeRendererStreamEvidence {
             line("ENGINE_HOLDER_STREAM_ARRAY_MATCH",engineHolderStreamMatch),
             line("ENGINE_HOLDER_STREAM_ARRAY_DIFFERENT",engineHolderStreamDifferent),
             line("ENGINE_HOLDER_STREAM_ARRAY_UNAVAILABLE",engineHolderArrayUnavailable),
+            line("LIVE_QUEUE_SLOT_B_ATTACH_MATCH",queueSlotAttachSame),
+            line("LIVE_QUEUE_SLOT_B_ATTACH_OTHER",queueSlotAttachOther),
+            line("LIVE_QUEUE_SLOT_B_ATTACH_UNAVAILABLE",queueSlotAttachUnavailable),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH",queueSlotReadSame),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_OTHER",queueSlotReadOther),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_UNAVAILABLE",queueSlotReadUnavailable),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MINUS4",queueSlotReadMinus4),
             line("ENGINE_HOLDER_READ_RETURN_MINUS4",engineReadMinus4),
             line("ENGINE_HOLDER_READ_RETURN_MINUS5",engineReadMinus5),
             line("ENGINE_HOLDER_READ_RETURN_MINUS3",engineReadMinus3),

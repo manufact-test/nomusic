@@ -691,6 +691,93 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV26_REATTACH_CANNOT_INHERIT_OLD_COMPARATOR_RESULT");
     }
 
+    private static final class FakeQueue {
+        FakePeriodHolder slotB;
+        FakeQueue(FakePeriodHolder holder) { slotB=holder; }
+    }
+    private static final class FakeEngine {
+        FakeQueue queue;
+        FakeEngine(FakePeriodHolder holder) { queue=new FakeQueue(holder); }
+    }
+    private static void registerLiveQueueFields(NativeRendererStreamEvidence e) {
+        try {
+            java.lang.reflect.Field queue=FakeEngine.class.getDeclaredField("queue");
+            java.lang.reflect.Field slot=FakeQueue.class.getDeclaredField("slotB");
+            e.setLiveQueueSlotFields(queue,slot);
+            e.onHookRegistration("LIVE_QUEUE_SLOT_B",true);
+        } catch(ReflectiveOperationException ex) { throw new AssertionError(ex); }
+    }
+    private static void bindLiveQueue(NativeRendererStreamEvidence e,
+            FakeEngine engine,FakePeriodHolder holder,Object renderer,Object stream) {
+        NativeRendererStreamEvidence.EngineFrame frame=e.enterEngine(engine,holder);
+        NativeRendererStreamEvidence.CallerFrame sec=e.enterSecondaryCaller(renderer,stream);
+        try { e.onAttach(renderer,stream); }
+        finally { e.exitSecondaryCaller(sec); e.exitEngine(frame); }
+    }
+    private static void testNav28LiveQueueSlotMatchesAtAttachAndStartedRead() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        registerLiveQueueFields(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object renderer=new Object(),stream=new Object();
+        FakePeriodHolder holder=new FakePeriodHolder(stream);
+        FakeEngine engine=new FakeEngine(holder);
+        bindLiveQueue(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_QUEUE_SLOT_B_ATTACH_MATCH;error=ONE"),
+              "NAV28_LIVE_SLOT_ATTACH_IDENTITY");
+        check(contains(e.exportLines(),
+              "origin=LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH;error=ONE"),
+              "NAV28_LIVE_SLOT_STILL_SAME_AT_STARTED_AUDIO_READ");
+        check(contains(e.exportLines(),
+              "origin=LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MINUS4;error=ONE"),
+              "NAV28_RETURN_CLASS_ONLY");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV28_LIVE_SLOT_ALONE_NOT_TRACK_EDITION");
+    }
+    private static void testNav28RejectsLiveQueueSlotChangeAndDetach() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        registerLiveQueueFields(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object renderer=new Object(),stream=new Object();
+        FakePeriodHolder holder=new FakePeriodHolder(stream);
+        FakeEngine engine=new FakeEngine(holder);
+        bindLiveQueue(e,engine,holder,renderer,stream);
+        engine.queue.slotB=new FakePeriodHolder(stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_OTHER;error=ONE"),
+              "NAV28_LIVE_SLOT_CHANGED_FAIL_CLOSED");
+        check(contains(e.exportLines(),"origin=LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH;error=NONE"),
+              "NAV28_NOT_STALE");
+        e.onDetach(renderer);
+        engine.queue.slotB=holder;
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH;error=NONE"),
+              "NAV28_DETACH_NOT_STALE");
+    }
+    private static void testNav28WrongOrUnavailableSlotNeverClaimsMatch() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        registerLiveQueueFields(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        Object renderer=new Object(),stream=new Object();
+        FakePeriodHolder holder=new FakePeriodHolder(stream);
+        FakeEngine engine=new FakeEngine(holder);
+        engine.queue.slotB=new FakePeriodHolder(stream);
+        bindLiveQueue(e,engine,holder,renderer,stream);
+        check(contains(e.exportLines(),"origin=LIVE_QUEUE_SLOT_B_ATTACH_OTHER;error=ONE"),
+              "NAV28_OTHER_QUEUE_SLOT_NOT_SELECTED");
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),
+              "origin=LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH;error=NONE"),
+              "NAV28_WRONG_SLOT_CANNOT_READ_PROVE");
+        engine.queue=null;
+        bindLiveQueue(e,engine,holder,renderer,stream);
+        check(contains(e.exportLines(),"origin=LIVE_QUEUE_SLOT_B_ATTACH_UNAVAILABLE;error=ONE"),
+              "NAV28_UNAVAILABLE_REPORTED");
+    }
+
     private static void testNav27AtCallEngineAndAttachmentCohorts() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         registerExactEngineField(e);
@@ -802,6 +889,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav27AtCallEngineAndAttachmentCohorts();
         testNav27PendingComparatorClearedOnExactAttach();
         testNav27PendingComparatorWrongHolderOrStream();
+        testNav28LiveQueueSlotMatchesAtAttachAndStartedRead();
+        testNav28RejectsLiveQueueSlotChangeAndDetach();
+        testNav28WrongOrUnavailableSlotNeverClaimsMatch();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
