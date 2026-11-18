@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V31_HOLDER_SELECT_LIFECYCLE_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V32_HOLDER_OTHER_TYPE_REF_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2630,6 +2630,12 @@ public final class ExitCallsiteWitness extends XposedModule {
                 NATIVE_RENDERER_EVIDENCE.setExactActivePeriodFields(
                     a,b,c,periodWrapper,period,nativeSource);
                 nav29PeriodFieldsReady=true;
+                // NAV32 optional publisher interface check. If unavailable,
+                // the known-good NAV29/NAV31 hooks remain unchanged.
+                try {
+                    Class<?> originalPeriodIface=Class.forName("wh6",false,loader);
+                    NATIVE_RENDERER_EVIDENCE.setPublisherMediaPeriodInterface(originalPeriodIface);
+                } catch(Throwable ignored) { }
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration(
                     "LIVE_PERIOD_ORIGINAL_SOURCE",true);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_PERIOD_ORIGINAL_SOURCE","REGISTERED");
