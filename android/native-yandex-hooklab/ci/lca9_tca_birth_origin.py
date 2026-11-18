@@ -1918,9 +1918,11 @@ def scan_creator_method_dispatch_surfaces(apks, writer_upstream):
         raise ValueError("TCA_DISPATCH_SIGNED_SIX_DEX_REQUIRED")
 
     ancestor_owners = set()
+    target_refs = set(creator_methods)
     for method in creator_methods:
         pending = [method[0]]
         visited = set()
+        method_ancestors = set()
         while pending:
             owner = pending.pop()
             if owner in visited:
@@ -1935,12 +1937,10 @@ def scan_creator_method_dispatch_surfaces(apks, writer_upstream):
                 parents.add(superclass)
             for parent in parents:
                 if parent not in visited:
-                    ancestor_owners.add(parent)
+                    method_ancestors.add(parent)
                     pending.append(parent)
-
-    target_refs = set(creator_methods)
-    for method in creator_methods:
-        for owner in ancestor_owners:
+        ancestor_owners.update(method_ancestors)
+        for owner in method_ancestors:
             target_refs.add((owner, method[1], method[2]))
 
     declared_ancestor_methods = set()
