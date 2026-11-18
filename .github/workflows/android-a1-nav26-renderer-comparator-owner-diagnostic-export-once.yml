@@ -87,7 +87,9 @@ jobs:
           grep -Fq 'ENGINE_HOLDER_TYPE1_STATE2' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'selector.getDeclaredMethod("try",holder,nativeRenderer)' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
           grep -Fq 'RENDERER_COMPARATOR' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
-          grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_MATCH' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
+          grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
+          grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_FALSE' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
+          grep -Fq 'ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE_MINUS4' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
           grep -Fq 'NAV_V26_EXACT_LMQ8_RENDERER_COMPARATOR_OUTCOME_READONLY' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java
 
           grep -Fq 'BUFFER_EOS_ACCESS' android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java
