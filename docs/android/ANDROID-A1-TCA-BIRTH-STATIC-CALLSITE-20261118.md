@@ -37,3 +37,8 @@ Do not reinterpret this as proof that Track/Album is absent, do not claim an asy
 
 ## Next action
 Stop this static branch of investigation here rather than broadening into unrelated vendor methods, media values, reflective guesses, EOS/comparator work or new runtime instrumentation. Reopen only if a new concrete signed-source reference path or new owner diagnostic gives a specific, testable edge. Preserve NAV36 and all rollback checkpoints.
+
+
+## Superseding follow-up — NAV37 exact creator Track-field observation (18 Nov 2026)
+
+The original conclusion above was correct for the static caller-edge question: the bounded DEX scan did not prove a direct caller or same-object edge from that creator parameter to the synchronous Gp0 Track scope. It is now superseded as a decision about whether a minimal NAV37 diagnostic is justified. A narrower runtime observation can hook the exact creator method itself, read the Track field from its actual owner argument inside the existing tCa constructor hook, and fail closed by shadowing outer scope when that field is absent. This does not require inventing a static caller edge and does not prove selected edition/current queue generation. See [NAV37 creator Track-field scope](ANDROID-A1-NAV37-CREATOR-TRACK-FIELD-SCOPE-20261118.md). The resulting candidate passed JVM and signed Android13 ARM13 gates; `AUDIO_NATIVE_TCA_CREATOR_HOOK=REGISTERED`. No owner-phone NAV37 diagnostic or music replacement has been verified yet.

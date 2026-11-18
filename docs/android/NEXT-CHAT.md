@@ -1,47 +1,95 @@
-# CURRENT — NAV36 OWNER NO_TRACK_SCOPE + SIGNED tCa BIRTH/CALLSITE AUDIT COMPLETE; NO NAV37 (18 NOV 2026)
+# CURRENT — NAV37 exact tCa creator Track-field scope; CI GREEN; owner APK export pending (18 Nov 2026)
 
-**Project:** CELIKOM Android A1 only, `manufact-test/nomusic`. **Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. No architecture change, no Windows/extension. Original signed Yandex Music **2025.10.4 #120.1gpr** remains unchanged. Original playback known-good; do NOT invent seek/pause/BT faults or alter player/audio. `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+**Project:** CELIKOM Android A1 only, `manufact-test/nomusic`. **Only working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. No project restart, no architecture change, no Windows/extension work. Original signed Yandex Music **2025.10.4 #120.1gpr** remains unchanged. Original playback is known-good; do not invent seek/pause/Bluetooth faults or modify Player/audio.
 
-## 1. Latest real owner-phone NAV36 — unchanged ground truth
-- Private `CELIKOM-A1-Diagnostics-1795009674955.txt`, **117,037 bytes, 1,634 lines**, SHA256 `7701f459618aa3306dff153b200330a2f6e5a58edff4fa24efdf26f680e4f33d`. **NEVER commit raw TXT**. Retained log includes older NAV35 build marker and is trimmed; NAV36 is active at capture and export.
-- **Active marker** `NAV_V36_TCA_CONSTRUCTOR_SCOPE_READONLY`.
-- **Required strict live guard TRUE:** `LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH=MANY`, `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED=MANY`, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY`, with OTHER/NO_LINK/UNAVAILABLE `NONE`. Same original `Lo96/Sl6` live source Java ref as original scoped Player setter source.
-- `LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH=NONE`, `NO_LINK=MANY`, `CONFLICT=NONE`. NAV35's sole `...NO_LINK_WRAPPER_ABSENT=MANY` persists. Other NAV35 bins `NONE`.
-- **All six NAV36 birth reasons checked:** `BIRTH_NO_TRACK_SCOPE=MANY` **only positive**. `BIRTH_NOT_IN_WINDOW`, `BIRTH_TRACK_NOT_IN_FLOW`, `BIRTH_FLOW_NO_ALBUM`, `BIRTH_FLOW_ALBUM_LINK_MISSING`, `BIRTH_DUPLICATE_AMBIGUOUS` all `NONE`.
-- **Meaning:** the exact Player-scoped original `tCa` was in last-64 weak constructor history, but its `tCa(String)` constructor hook returned with `currentScope(activeTrackScopes)==null`. That scope is established only by existing `Gp0.new(...Track...)` interception and cleared after original proceed. This proves absence of that observed synchronous scope at birth, **not** absence of Track/Album, and not an asynchronous cause, selected edition/current queue or playback fault.
-- Independent Stage B links remain `TRACK_ALBUM_CONSTRUCTOR_LINK=MANY`, `FLOW_TRACK_ALBUM_LINK=FEW`, `TRACK_WRAPPER_ALBUM_LINK=MANY`, but do not identify the exact Player tCa. `EXO_READ_POSITIVE=MANY`, `EXO_IO_FAILURE=NONE`.
-- `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/FEW`. Retained NAV36 segment shows two `EXC_AUTH` and one `EXC_OTHER`; not proven caused by CELIKOM. No auth/push changes justified.
+**Current code checkpoint:** `b4e9e9ee42c63efebe929cb415999e0cfe5dd861`.
+**NAV36 protected code:** `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`.
+**NAV36 rollback:** `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`.
+**NAV37 pre-package source backup:** `backup/android-a1-nav37-exact-tca-creator-track-field-pre-owner-package-20261118` @ `099378e53412d09d20c0d3c9f01aaccffeafbdcc`.
+**NAV37 CI-green checkpoint backup:** `backup/android-a1-nav37-creator-track-field-arm13-ci-green-20261118` @ `b4e9e9ee42c63efebe929cb415999e0cfe5dd861`.
 
-**Phone ground truth and code review:** [NAV36 real phone NO_TRACK_SCOPE](ANDROID-A1-NAV36-OWNER-PHONE-NO-TRACK-SCOPE-20261118.md).
+`CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`.
 
-## 2. Completed signed-original static follow-up — no same-object edge; NO NAV37
-Read [tCa birth/callsite static audit](ANDROID-A1-TCA-BIRTH-STATIC-CALLSITE-20261118.md). Exact publisher-signed 2025.10.4 #120.1gpr; all six DEX scanned; bounded parser/fixtures and read-only workflow succeeded.
+## 1. Last real owner-phone evidence — NAV36 remains the baseline
 
-- Existing exact `LcA9.extends(...LtCa...)` setter path has **2 direct callers**, both pass the same `tCa` ref through a typed field read. Neither caller constructs that same `tCa` (`direct_constructor_to_lca9_same_object_count=0`).
-- One exact `tCa(String)` creator was found. Its String comes from a Track field on a parameter object; that parameter type matches the Track-field writer owner. This is a Track-backed source, **not proof of same Track Java reference as the synchronous Gp0 scope**.
-- The creator is a non-private instance method, not a constructor, not `Gp0.new`, not `Fp0.invokeSuspend`, not `invoke`; its owner is neither Continuation nor Kotlin Function.
-- No direct DEX callsite to that creator and no direct caller of its Track-holder parameter method were found. One same-signature ancestor reference is static (no receiver), not virtual same-object dispatch. No matching method handles, invoke-custom or const-method-handle sites.
-- Track field writer: one method / one write site / two direct callers. No exact same-object link from those callers to the creator parameter. The bounded scans completed; this is a completed negative result in the scoped search, not a failed/incomplete run.
-- **Conclusion:** NAV36 `BIRTH_NO_TRACK_SCOPE` remains an observation about the missing synchronous Gp0 scope at birth. Static research did not prove a coroutine handoff, an alternate exact Track object identity, or any cause. Do not broaden into unrelated vendor methods, media values, reflection guesses, EOS/comparator work or new runtime hooks. No NAV37 justified.
+- Private `CELIKOM-A1-Diagnostics-1795009674955.txt`, **117,037 bytes, 1,634 lines**, SHA256 `7701f459618aa3306dff153b200330a2f6e5a58edff4fa24efdf26f680e4f33d`. Never commit the raw TXT.
+- NAV36 active marker at capture: `NAV_V36_TCA_CONSTRUCTOR_SCOPE_READONLY`.
+- Strict live chain was confirmed: SLOT_B type1/state2 → original live Lo96/Sl6 source → the same original scoped Player setter source.
+- The exact live Player-scoped `tCa` was in the bounded last-64 constructor history, but `BIRTH_NO_TRACK_SCOPE=MANY` was the **only positive** of the six NAV36 birth categories. The other five were NONE.
+- This meant the existing synchronous `Gp0.new(...Track...)` scope was absent at that constructor birth. It did **not** prove Track/Album absence, a coroutine cause, the selected edition, current queue generation, or an audio problem.
+- NAV35 `WRAPPER_ABSENT=MANY` was reproduced. See [NAV36 owner-phone evidence](ANDROID-A1-NAV36-OWNER-PHONE-NO-TRACK-SCOPE-20261118.md) and [NAV35/NAV36 checkpoint](ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md).
+- `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/FEW` remains unassigned to CELIKOM; do not attribute it without evidence.
 
-**Read-only audit code:** `7812cf321318e8d77d8af6a86879226cb80af65a`; [CI #44335142995 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44335142995). Only Python CI audit and docs changed; **no runtime hooks, APK, decoder, original Yandex binary, Player or audio changed**. Temporary signed XAPK deleted by CI.
+## 2. NAV37 — the minimal new diagnostic step
 
-## 3. Exact protected runtime checkpoint / released package — unchanged
-- Last signed NAV36 runtime code SHA `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`. Protected signed backup `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`. Pre-NAV36 backup `backup/android-a1-nav35-phone-wrapper-absent-pre-nav36-20261118` @ `b6c6a2f4ab6523481a499cc5b3958ac5bfbbd71c`. Current branch HEAD may be newer **read-only CI audit/docs only**.
-- NAV36 JVM CI `#44311280846 SUCCESS`; signed Android13 ARM13 CI `#44311280892 SUCCESS`. The new static audit CI is separate and is not acoustic owner proof.
-- Original Yandex embedded APK SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`, unchanged.
-- NAV36 signed APK `CELIKOM-A1-NAV36-tCa-Constructor-Scope-ReadOnly-20261118.apk`: 71,487,468 bytes, SHA256 `16329086e7b2ec2d3b976bbab2334993be68bb32c9a401c7551e0b6c4ffd93e3`. Owner signing cert DER SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
-- Personal ChatGPT Library verified ZIP: `/CELIKOM/Android/Native/CELIKOM-A1-NAV36-Подписанный-APK-и-Инструкция-20261118.zip`, ID `libfile_5d5fae68121081918df9d84108f29716`, 51,090,129 bytes, SHA256 `4019d2a972b88542970eb5ea224a1209f85bf83fbf55f93366409fa6cfe5ff40`. Byte-identical on materialize/readback. Never provide Actions or sandbox APK links instead of Library.
-- Preserve the sole working branch, backups, original publisher/media/audio/Player, categorical-only privacy, and `NOT_CONNECTED / STRUCTURAL_ONLY`.
+The completed signed-original DEX audit found one exact `tCa(String)` creator whose String originates from a Track-typed field on a typed parameter object. The static search did not find a direct callsite to that creator, so it did not prove a same-object edge to the synchronous Gp0 scope.
 
-## Required reading order
-1. `docs/android/NEXT-CHAT.md` (this canonical checkpoint).
-2. `docs/android/ANDROID-A1-TCA-BIRTH-STATIC-CALLSITE-20261118.md` (completed signed-original static search and negative result).
-3. `docs/android/ANDROID-A1-NAV36-OWNER-PHONE-NO-TRACK-SCOPE-20261118.md` (latest real owner phone diagnosis).
-4. `docs/android/ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md` (NAV35 baseline and NAV36 release hashes).
-5. `docs/android/README.md` (index).
+The next minimal experiment does **not** invent a caller or broaden the static search. It hooks that exact creator method directly using a private target generated from the pinned signed XAPK during CI:
 
----
+1. Enter a bounded creator-owner scope around the original method call.
+2. In the existing original `tCa(String)` constructor hook, read the Track field from that exact owner argument.
+3. Push that Track as the active constructor scope only for the original constructor execution.
+4. If the owner/field/Track is null or unreadable, push a null scope that shadows any outer scope; never borrow an unrelated Track from Gp0.
+5. After the original constructor succeeds, record only bounded weak-reference Track/Flow/Album/wrapper relationships.
+
+The generated private Java target is ephemeral CI input and is removed during cleanup. The runtime observer does not change the original Yandex binary, original Player setter, audio pipeline, decoder, or replacement behavior. Original constructor/method execution is preserved.
+
+**Active NAV37 marker:** `NAV_V37_TCA_CREATOR_TRACK_FIELD_SCOPE_READONLY`.
+
+**New categorical evidence:**
+- `AUDIO_NATIVE_TCA_CREATOR_HOOK` — `REGISTERED` / `NO_HOOK`.
+- `TCA_CREATOR_OWNER_ENTER`, `TCA_CREATOR_OWNER_NULL`.
+- `TCA_CREATOR_TRACK_FIELD_READ`, `TCA_CREATOR_TRACK_FIELD_NULL`, `TCA_CREATOR_TRACK_FIELD_FAILED`.
+- `TCA_CREATOR_WRAPPER_CONSTRUCTED`, `TCA_CREATOR_WRAPPER_NO_TRACK`, `TCA_CREATOR_WRAPPER_NOT_FLOW`.
+- `TCA_CREATOR_WRAPPER_FLOW_MATCH`, `TCA_CREATOR_WRAPPER_NO_ALBUM`, `TCA_CREATOR_WRAPPER_ALBUM_LINK`.
+
+All NAV36 evidence and all six NAV36 birth reasons remain. No track/album names, IDs, URLs, PCM, media bytes, tokens, or private field values are exported.
+
+A positive `TCA_CREATOR_WRAPPER_ALBUM_LINK` is still only structural evidence that the Track read from the exact creator owner belonged to the observed Flow and had an Album link. It does **not** prove the currently selected edition or queue generation, and does not mean music replacement is connected.
+
+## 3. CI result — candidate green, not product acceptance
+
+- [ARM13 publisher-first owner pipeline #44349835364 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44349835364), source commit `70b5f74485e92c7f0e6bd2ee86c910e4bd9ad8e6`.
+  - Original publisher installed first; its 75-second lifecycle passed before clone installation.
+  - The clone installed after the original, all 16 source splits were accounted for, and clone lifecycle was stable for 25/25 observations.
+  - `AUDIO_NATIVE_TCA_CREATOR_HOOK=REGISTERED`.
+  - Persistent owner signer verified; signer SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
+  - `owner_apk_install_mode=UPDATE_EXISTING`; fresh-install authorization false.
+  - `audio_or_account_tested=false`, `owner_phone_touched=false`, `stage_a=NO_GO`, `stage_b_current_player_album_edition_attested=false`, `diagnostic_only_not_product_or_releasable=true`.
+  - Push run did not export an APK; artifact export is intentionally manual.
+- [JVM observer regressions #44350073072 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44350073072), NAV37 marker contract and model tests.
+- [Clone-alone differential ARM13 #44349367581 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44349367581).
+- [Parser/ARM13 run #44347371311 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44347371311) also surfaced `AUDIO_NATIVE_TCA_CREATOR_HOOK=REGISTERED`.
+- The old NAV36 one-shot workflow was switched to manual-only so it no longer runs against the NAV37 marker. Its already-started stale run is not part of the active NAV37 gate.
+
+## 4. APK packaging status — not yet exported to Library
+
+The package and Russian instructions are now versioned as NAV37:
+- APK name: `CELIKOM-A1-NAV37-Tca-Creator-Track-Field-ReadOnly-20261118.apk`.
+- GitHub artifact name: `CELIKOM-A1-NAV37-Tca-Creator-Track-Field-20261118`.
+- The CI falls back to the known NAV36 installed signer SHA only when the explicit installed-cert variable is unset, allowing an in-place NAV36 update. Fresh-install authorization remains false.
+
+**One manual GitHub action is required** because the pipeline intentionally skips artifact publication on ordinary pushes:
+[Open the NAV37 ARM13 workflow](https://github.com/manufact-test/nomusic/actions/workflows/android-a1-metrica-init-state-observer-arm13.yml), select branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`, click **Run workflow**, set `export_diagnostic_apk=true`, and leave `authorize_fresh_clone_install=false`.
+
+After that run completes, retrieve the artifact, verify APK signer SHA256 and APK/ZIP SHA256, upload the ZIP to the personal ChatGPT Library, download it back, and compare byte-for-byte. Do not send a GitHub artifact or an unverified sandbox path as the final delivery.
+
+## 5. Required owner-phone check after Library delivery
+
+- Install NAV37 **over the installed NAV36** as a normal update. Do not uninstall CELIKOM, clear data/cache, or reinstall Yandex.
+- If Android says the signature is incompatible or asks to remove NAV36, stop and report the exact error; do not uninstall.
+- Use Yandex normally for 2–5 ordinary tracks. No special seek, pause, Bluetooth, or stress tests are needed.
+- Press `Сохранить диагностику` and send only the resulting TXT from `Загрузки/CELIKOM A1`.
+
+The next engineering action after the phone TXT is to analyze whether the exact live Player-scoped wrapper now has the creator Track/Flow/Album link, and whether any stronger current-edition/queue-generation evidence exists. Do not create NAV38 or connect replacement speculatively.
+
+## 6. Non-negotiable constraints
+
+- Original Yandex Music `2025.10.4 #120.1gpr` stays unchanged; original playback is known-good.
+- No player/audio/decoder intervention and no invented seek/pause/Bluetooth bugs.
+- No repeated NAV25–NAV36 probes, old EOS/comparator checks, unrelated DEX searches, or architecture changes without new evidence.
+- Never export track/album names, IDs, URLs, PCM, media bytes, tokens, raw private field values, or raw phone diagnostics.
+- `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`. NAV37 is a diagnostic candidate, not a working replacement or product release.
 
 # ARCHIVED — previous NAV36 release checkpoint (superseded by current owner-phone handoff)
 
