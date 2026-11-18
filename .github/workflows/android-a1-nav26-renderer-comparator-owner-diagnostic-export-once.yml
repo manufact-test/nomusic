@@ -178,6 +178,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Install cryptographic publisher verification and own signing tools before signed private NAV28 field extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
       - name: Generate exact private Push targets and rebuild own read-only observer
         shell: bash
         run: |
@@ -198,12 +204,6 @@ jobs:
           test -s "$provider_target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
-      - name: Install cryptographic publisher verification and own signing tools before MediaDataSource target generation
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo timeout 120 apt-get update -qq
-          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner zipalign
       - name: Generate exact owned 2025 MediaDataSource read-only targets; private CI only
         shell: bash
         run: |
