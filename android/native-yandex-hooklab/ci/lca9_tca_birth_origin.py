@@ -189,6 +189,22 @@ def tca_origin_category(token: str | None) -> str:
         return "CAST_FROM_NEW_INSTANCE"
     if token.startswith("TCA_CAST@"):
         return "CAST_FROM_UNKNOWN_REFERENCE"
+    if token.startswith("REF_PARAMETER@"):
+        return "REFERENCE_PARAMETER"
+    if token.startswith("REF_THIS_FIELD@"):
+        return "REFERENCE_FROM_THIS_FIELD"
+    if token.startswith("REF_FIELD@"):
+        return "REFERENCE_FROM_FIELD"
+    if token.startswith("REF_STATIC_FIELD@"):
+        return "REFERENCE_FROM_STATIC_FIELD"
+    if token.startswith("REF_RETURN@"):
+        return "REFERENCE_FROM_METHOD_RETURN"
+    if token.startswith("REF_ARRAY_ELEMENT@"):
+        return "REFERENCE_FROM_ARRAY_ELEMENT"
+    if token.startswith("REF_NEW_INSTANCE@"):
+        return "REFERENCE_NEW_INSTANCE"
+    if token.startswith("REF_THIS@"):
+        return "REFERENCE_THIS"
     if token.startswith("TCA_NULL@"):
         return "EXPLICIT_NULL"
     return "AMBIGUOUS_OR_UNRESOLVED"
