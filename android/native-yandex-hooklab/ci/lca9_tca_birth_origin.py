@@ -586,11 +586,11 @@ def trace_exact_tca_constructor_to_callsites(
                 field_pc = int(match.group(1))
             else:
                 match = re.search(
-                    r"REF_(?:THIS_)?FIELD@([0-9]+)|REF_STATIC_FIELD@([0-9]+)",
+                    r"(?:TCA_CAST|TRACK_CAST)@REF_(?:THIS_)?FIELD@([0-9]+)|(?:TCA_CAST|TRACK_CAST)@REF_STATIC_FIELD@([0-9]+)|REF_(?:THIS_)?FIELD@([0-9]+)|REF_STATIC_FIELD@([0-9]+)",
                     value_token
                 )
                 if match:
-                    field_pc = int(match.group(1) or match.group(2))
+                    field_pc = int(next(group for group in match.groups() if group is not None))
         if field_pc is not None and field_pc in field_read_metadata:
             metadata_options = field_read_metadata[field_pc]
             field_refs = {item[0] for item in metadata_options}
@@ -1222,6 +1222,7 @@ def scan_field_writer_upstream_callers(apks, fields):
         return {
             "callsite_count": 0,
             "caller_count": 0,
+            "upstream_rows": [],
             "origin_categories": [],
             "constructor_to_writer_same_object_count": 0,
             "same_reference_to_writer_count": 0,
@@ -1326,7 +1327,28 @@ def scan_field_writer_upstream_callers(apks, fields):
                     except (ValueError, audit.DexError):
                         fp0_summary = {"trace_complete": False}
 
+            site_rows = (trace or {}).get("site_results", ())
+            origin_parameter_positions = sorted({
+                site.get("origin_parameter_position")
+                for site in site_rows
+                if site.get("origin_parameter_position") is not None
+            })
+            origin_field_refs = sorted({
+                tuple(site["origin_field_ref"])
+                for site in site_rows
+                if site.get("origin_field_ref") is not None
+            })
+            origin_field_receiver_categories = sorted({
+                site.get("origin_field_receiver_category", "UNKNOWN")
+                for site in site_rows
+                if site.get("origin_field_ref") is not None
+            })
             rows.append({
+                "caller_method_key": key,
+                "caller_definition": (dex, method, flags, code_off),
+                "origin_parameter_positions": origin_parameter_positions,
+                "origin_field_refs": origin_field_refs,
+                "origin_field_receiver_categories": origin_field_receiver_categories,
                 "origin_categories": sorted({
                     site["origin_category"]
                     for site in (trace or {}).get("site_results", ())
@@ -1360,6 +1382,7 @@ def scan_field_writer_upstream_callers(apks, fields):
     return {
         "callsite_count": call_count,
         "caller_count": len(caller_definitions),
+        "upstream_rows": rows,
         "origin_categories": sorted({
             category for row in rows for category in row["origin_categories"]
         }),
