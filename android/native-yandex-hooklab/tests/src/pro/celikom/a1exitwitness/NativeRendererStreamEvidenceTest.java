@@ -672,6 +672,25 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV26_MISSING_HOOK_NO_AUDIO_PROOF");
     }
 
+    private static void testNav26ComparatorOutcomeClearedOnReattach() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        registerExactEngineField(e);
+        e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+        e.onHookRegistration("RENDERER_COMPARATOR",true);
+        Object renderer=new Object(),streamA=new Object(),streamB=new Object();
+        FakePeriodHolder holderA=new FakePeriodHolder(streamA);
+        FakePeriodHolder holderB=new FakePeriodHolder(streamB);
+        makeBoundEngineLink(e,holderA,renderer,streamA);
+        e.onRendererComparatorResult(holderA,renderer,streamA,true);
+        makeBoundEngineLink(e,holderB,renderer,streamB);
+        e.onRendererTypeStateRead(renderer,streamB,1,2,-4);
+        String[] snap=e.exportLines();
+        check(contains(snap,"origin=RENDERER_COMPARATOR_TRUE;error=ONE"),
+            "NAV26_OLD_COMPARATOR_EVENT_RETAINED_AS_HISTORY");
+        check(contains(snap,"origin=ENGINE_COMPARATOR_TYPE1_STATE2_READ_RESULT_TRUE;error=NONE"),
+            "NAV26_REATTACH_CANNOT_INHERIT_OLD_COMPARATOR_RESULT");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -707,6 +726,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav26ComparatorFalseNeverPromotesAudioRead();
         testNav26ComparatorRequiresExactHolderRendererAndStream();
         testNav26ComparatorDetachedRendererAndMissingHookFailClosed();
+        testNav26ComparatorOutcomeClearedOnReattach();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
