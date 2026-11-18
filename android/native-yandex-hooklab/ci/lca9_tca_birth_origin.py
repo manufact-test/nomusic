@@ -1082,6 +1082,8 @@ def scan_field_writers(apks, direct):
             "tca_constructor_to_lca9_via_field_proven": False,
             "writer_definitions": {},
             "writer_upstream_targets": {},
+            "reader_receiver_categories": [],
+            "reader_this_owner_match_count": 0,
         }
 
     writer_definitions = {}
@@ -1219,6 +1221,13 @@ def scan_field_writers(apks, direct):
         "writer_method_count": len(writer_definitions),
         "writer_definitions": writer_definitions,
         "writer_upstream_targets": writer_upstream_targets,
+        "reader_receiver_categories": sorted({
+            row.get("receiver_category", "UNKNOWN")
+            for readers in targets.values() for row in readers
+        }),
+        "reader_this_owner_match_count": sum(
+            row["reader_this_owner_match"] for row in field_rows
+        ),
         "writer_value_origin_categories": sorted({
             category for row in field_rows
             for category in row["writer_value_origin_categories"]
@@ -1598,12 +1607,8 @@ def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_
         "tca_constructor_track_source_field_writer_upstream_fp0_resume_track_argument_explicit_null": track_upstream["fp0_resume_track_argument_explicit_null"],
         "tca_constructor_track_source_field_writer_upstream_fp0_continuation_field_track_candidate": track_upstream["fp0_continuation_field_track_to_wrapper_candidate"],
         "tca_constructor_track_source_field_writer_upstream_scan_complete": track_upstream["complete"],
-        "tca_constructor_track_source_field_reader_owner_categories": sorted({
-            row.get("receiver_category", "UNKNOWN")
-            for readers in track_direct["field_read_targets"].values()
-            for row in readers
-        }) if "track_direct" in locals() else [],
-        "tca_constructor_track_source_field_reader_same_owner_class_count": track_fields["reader_site_count"] if track_fields["field_chain_proven_count"] else 0,
+        "tca_constructor_track_source_field_reader_owner_categories": track_fields["reader_receiver_categories"],
+        "tca_constructor_track_source_field_reader_same_owner_class_count": track_fields["reader_this_owner_match_count"],
         "tca_constructor_track_source_field_owner_constructor_write_proven_count": track_fields["owner_constructor_write_proven_count"],
         "tca_constructor_track_source_field_field_chain_proven_count": track_fields["field_chain_proven_count"],
         "tca_constructor_track_source_field_writer_upstream_receiver_trace_complete": track_upstream["receiver_trace_complete"],
