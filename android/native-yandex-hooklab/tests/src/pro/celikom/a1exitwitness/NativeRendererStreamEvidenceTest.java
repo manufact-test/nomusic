@@ -714,6 +714,122 @@ public final class NativeRendererStreamEvidenceTest {
         try { e.onAttach(renderer,stream); }
         finally { e.exitSecondaryCaller(sec); e.exitEngine(frame); }
     }
+    private static final class FakeSource {}
+    private static final class FakePeriod {
+        FakeSource source;
+        FakePeriod(FakeSource source) {this.source=source;}
+    }
+    private static final class FakeNested {
+        FakePeriod period;
+        FakeNested(FakePeriod period) {this.period=period;}
+    }
+    private static final class FakeHolderSource {
+        Object nested;
+        Object[] streams;
+        FakeHolderSource(FakeSource source,Object stream) {
+            nested=new FakeNested(new FakePeriod(source));
+            streams=new Object[]{stream};
+        }
+    }
+    private static final class FakeActiveQueue {
+        FakeHolderSource slotB;
+        FakeActiveQueue(FakeHolderSource h) {slotB=h;}
+    }
+    private static final class FakeActiveEngine {
+        FakeActiveQueue queue;
+        FakeActiveEngine(FakeHolderSource holder) {queue=new FakeActiveQueue(holder);}
+    }
+    private static void setUpNav29(NativeRendererStreamEvidence e) {
+        try {
+            java.lang.reflect.Field holderStream=FakeHolderSource.class.getDeclaredField("streams");
+            holderStream.setAccessible(true);
+            e.setEngineHolderStreamArrayField(holderStream);
+            e.onHookRegistration("ENGINE_HOLDER_SCOPE",true);
+            e.onHookRegistration("SECONDARY_CALLER",true);
+            e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+            e.onHookRegistration("LIVE_QUEUE_SLOT_B",true);
+            e.setLiveQueueSlotFields(
+                FakeActiveEngine.class.getDeclaredField("queue"),
+                FakeActiveQueue.class.getDeclaredField("slotB"));
+            e.setExactActivePeriodFields(
+                FakeHolderSource.class.getDeclaredField("nested"),
+                FakeNested.class.getDeclaredField("period"),
+                FakePeriod.class.getDeclaredField("source"),
+                FakeNested.class,FakePeriod.class,FakeSource.class);
+            e.onHookRegistration("LIVE_PERIOD_ORIGINAL_SOURCE",true);
+            e.onHookRegistration("TRACK_PLAYER_SOURCE_SCOPE",true);
+            e.onHookRegistration("NATIVE_PLAYER_SOURCE_SETTER",true);
+        } catch(ReflectiveOperationException ex) {throw new AssertionError(ex);}
+    }
+    private static void nav29BindLive(NativeRendererStreamEvidence e,
+            FakeActiveEngine engine,FakeHolderSource holder,Object renderer,Object stream) {
+        NativeRendererStreamEvidence.EngineFrame f=e.enterEngine(engine,holder);
+        NativeRendererStreamEvidence.CallerFrame c=e.enterSecondaryCaller(renderer,stream);
+        try {e.onAttach(renderer,stream);}
+        finally {e.exitSecondaryCaller(c);e.exitEngine(f);}
+    }
+    private static void testNav29SameSelectedWrapperSourceToLivePeriod() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        Object renderer=new Object(),stream=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        NativeRendererStreamEvidence.TrackPlayerScope f=e.enterTrackPlayerSource(wrapper);
+        try { e.onNativePlayerSourceSetter(source); }
+        finally {e.exitTrackPlayerSource(f);}
+        nav29BindLive(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=TRACK_PLAYER_SOURCE_SAME_SCOPE;error=ONE"),
+              "NAV29_SAME_TRACK_TO_PLAYER_SOURCE");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED;error=ONE"),
+              "NAV29_LO96_SOURCE_REACHED");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=ONE"),
+              "NAV29_ACTIVE_SOURCE_EQUALITY");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "NAV29_NO_EDITION_CLAIM");
+    }
+    private static void testNav29RejectsOtherSourceOrChangedQueueSlot() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        Object r=new Object(),s=new Object(),wrapper=new Object();
+        FakeSource chosen=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(new FakeSource(),s);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        NativeRendererStreamEvidence.TrackPlayerScope f=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(chosen);}
+        finally{e.exitTrackPlayerSource(f);}
+        nav29BindLive(e,engine,holder,r,s);
+        e.onRendererTypeStateRead(r,s,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK;error=ONE"),
+              "NAV29_WRONG_SOURCE_NO_LINK");
+        engine.queue.slotB=new FakeHolderSource(chosen,s);
+        e.onRendererTypeStateRead(r,s,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+              "NAV29_CHANGED_QUEUE_CANNOT_PROMOTE");
+    }
+    private static void testNav29RejectsUnscopedAndConflictingWrapper() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        setUpNav29(e);
+        Object r=new Object(),s=new Object(),w1=new Object(),w2=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,s);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        e.onNativePlayerSourceSetter(source); // no track scope
+        NativeRendererStreamEvidence.TrackPlayerScope f=e.enterTrackPlayerSource(w1);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally{e.exitTrackPlayerSource(f);}
+        f=e.enterTrackPlayerSource(w2);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally{e.exitTrackPlayerSource(f);}
+        nav29BindLive(e,engine,holder,r,s);
+        e.onRendererTypeStateRead(r,s,1,2,-4);
+        check(contains(e.exportLines(),"origin=TRACK_PLAYER_SOURCE_CONFLICT;error=ONE"),
+              "NAV29_CONFLICT_RECORDED");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=NONE"),
+              "NAV29_CONFLICT_NOT_PROMOTED");
+    }
+
     private static void testNav28LiveQueueSlotMatchesAtAttachAndStartedRead() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         registerExactEngineField(e);
@@ -892,6 +1008,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav28LiveQueueSlotMatchesAtAttachAndStartedRead();
         testNav28RejectsLiveQueueSlotChangeAndDetach();
         testNav28WrongOrUnavailableSlotNeverClaimsMatch();
+        testNav29SameSelectedWrapperSourceToLivePeriod();
+        testNav29RejectsOtherSourceOrChangedQueueSlot();
+        testNav29RejectsUnscopedAndConflictingWrapper();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

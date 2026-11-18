@@ -86,6 +86,33 @@ final class NativeRendererStreamEvidence {
         }
     }
 
+    // NAV29: source lineage from exact TrackWrapper-bearing cA9 method
+    // through the native Player source setter into the CURRENT live Lo96.
+    // Only bounded weak Java reference identity; no IDs, metadata or bytes.
+    static final class TrackPlayerScope {
+        final Object wrapper;
+        final TrackPlayerScope parent;
+        TrackPlayerScope(Object wrapper,TrackPlayerScope parent) {
+            this.wrapper=wrapper;
+            this.parent=parent;
+        }
+    }
+    private static final class PlayerSourceLink {
+        final WeakReference<Object> wrapper,source;
+        boolean conflicted;
+        PlayerSourceLink(Object wrapper,Object source) {
+            this.wrapper=new WeakReference<>(wrapper);
+            this.source=new WeakReference<>(source);
+        }
+    }
+    private final ThreadLocal<TrackPlayerScope> inPlayerTrack=new ThreadLocal<>();
+    private final ArrayList<PlayerSourceLink> playerSources=new ArrayList<>();
+    private Field holderWrapperField,wrapperPeriodField,periodSourceField;
+    private Class<?> exactWrapperClass,exactPeriodClass;
+    private int trackPlayerScopeHook,nativeSourceSetterHook,livePeriodSourceHook;
+    private int trackPlayerScopeEnter,playerSourceSameScope,playerSourceUnscoped;
+    private int playerSourceConflict,livePeriodResolved,livePeriodUnavailable;
+    private int livePeriodSourceMatched,livePeriodSourceDifferent,livePeriodSourceNoLink;
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
     private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
     private final ThreadLocal<EngineFrame> inEngineEnable = new ThreadLocal<>();
@@ -184,6 +211,114 @@ final class NativeRendererStreamEvidence {
      * Caller verifies its exact declared type and uniqueness before install.
      * No stream contents or private member values are serialized.
      */
+    TrackPlayerScope enterTrackPlayerSource(Object wrapper) {
+        TrackPlayerScope frame=new TrackPlayerScope(wrapper,inPlayerTrack.get());
+        inPlayerTrack.set(frame);
+        synchronized(this) {
+            if(wrapper!=null)trackPlayerScopeEnter=inc(trackPlayerScopeEnter);
+        }
+        return frame;
+    }
+
+    void exitTrackPlayerSource(TrackPlayerScope frame) {
+        TrackPlayerScope active=inPlayerTrack.get();
+        if(active==frame) {
+            if(frame.parent==null)inPlayerTrack.remove();
+            else inPlayerTrack.set(frame.parent);
+        } else {
+            inPlayerTrack.remove();
+            synchronized(this) { poisoned=true; }
+        }
+    }
+
+    synchronized void onNativePlayerSourceSetter(Object source) {
+        TrackPlayerScope scope=inPlayerTrack.get();
+        if(poisoned || source==null)return;
+        if(scope==null || scope.wrapper==null) {
+            playerSourceUnscoped=inc(playerSourceUnscoped);
+            return;
+        }
+        playerSourceSameScope=inc(playerSourceSameScope);
+        for(int i=playerSources.size()-1;i>=0;i--) {
+            PlayerSourceLink prior=playerSources.get(i);
+            Object oldSource=prior.source.get(),oldWrapper=prior.wrapper.get();
+            if(oldSource==null || oldWrapper==null) {
+                playerSources.remove(i);
+                continue;
+            }
+            if(oldSource==source) {
+                if(oldWrapper!=scope.wrapper) {
+                    prior.conflicted=true;
+                    playerSourceConflict=inc(playerSourceConflict);
+                }
+                return;
+            }
+        }
+        if(playerSources.size()>=MAX_HANDLES)playerSources.remove(0);
+        playerSources.add(new PlayerSourceLink(scope.wrapper,source));
+    }
+
+    synchronized void setExactActivePeriodFields(Field holderWrapper,Field wrapperPeriod,
+            Field periodSource,Class<?> wrapperClass,Class<?> periodClass,
+            Class<?> sourceClass) {
+        if(holderWrapper==null || wrapperPeriod==null || periodSource==null
+                || wrapperClass==null || periodClass==null || sourceClass==null
+                || holderWrapper.getType()!=Object.class
+                || wrapperPeriod.getDeclaringClass()!=wrapperClass
+                || !wrapperPeriod.getType().isAssignableFrom(periodClass)
+                || periodSource.getDeclaringClass()!=periodClass
+                || periodSource.getType()!=sourceClass)
+            throw new IllegalArgumentException("Publisher-exact period source fields required");
+        holderWrapper.setAccessible(true);
+        wrapperPeriod.setAccessible(true);
+        periodSource.setAccessible(true);
+        holderWrapperField=holderWrapper;
+        wrapperPeriodField=wrapperPeriod;
+        periodSourceField=periodSource;
+        exactWrapperClass=wrapperClass;
+        exactPeriodClass=periodClass;
+    }
+
+    private void observeActivePeriodSource(Object currentHolder) {
+        if(livePeriodSourceHook<=0 || currentHolder==null)return;
+        if(holderWrapperField==null || wrapperPeriodField==null
+                || periodSourceField==null)return;
+        Object source=null;
+        try {
+            Object nested=holderWrapperField.get(currentHolder);
+            if(nested==null || !exactWrapperClass.isInstance(nested)) {
+                livePeriodUnavailable=inc(livePeriodUnavailable);
+                return;
+            }
+            Object period=wrapperPeriodField.get(nested);
+            if(period==null || !exactPeriodClass.isInstance(period)) {
+                livePeriodUnavailable=inc(livePeriodUnavailable);
+                return;
+            }
+            source=periodSourceField.get(period);
+            if(source==null) {
+                livePeriodUnavailable=inc(livePeriodUnavailable);
+                return;
+            }
+        } catch(Throwable ignored) {
+            livePeriodUnavailable=inc(livePeriodUnavailable);
+            return;
+        }
+        livePeriodResolved=inc(livePeriodResolved);
+        int matches=0;
+        boolean conflicting=false;
+        for(PlayerSourceLink link:playerSources) {
+            if(link.source.get()!=source)continue;
+            if(link.conflicted || link.wrapper.get()==null)conflicting=true;
+            else matches++;
+        }
+        if(!conflicting && matches==1)
+            livePeriodSourceMatched=inc(livePeriodSourceMatched);
+        else if(matches==0 && !conflicting)
+            livePeriodSourceNoLink=inc(livePeriodSourceNoLink);
+        else livePeriodSourceDifferent=inc(livePeriodSourceDifferent);
+    }
+
     synchronized void setLiveQueueSlotFields(Field engineField,Field slotField) {
         if(engineField==null || slotField==null
                 || engineField.getType()!=slotField.getDeclaringClass())
@@ -260,6 +395,9 @@ final class NativeRendererStreamEvidence {
             case "SECONDARY_CALLER": secondaryCallerHook=status; break;
             case "ENGINE_HOLDER_SCOPE": engineScopeHook=status; break;
             case "LIVE_QUEUE_SLOT_B": liveQueueSlotHook=status; break;
+            case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
+            case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
+            case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
             case "RENDERER_TYPE_STATE_ACCESS": typeStateAccessHook=status; break;
             case "BUFFER_EOS_ACCESS": bufferEosAccessHook=status; break;
             case "RENDERER_COMPARATOR": rendererComparatorHook=status; break;
@@ -629,6 +767,9 @@ final class NativeRendererStreamEvidence {
             if(fresh==1) {
                 queueSlotReadSame=inc(queueSlotReadSame);
                 if(originalResult==-4)queueSlotReadMinus4=inc(queueSlotReadMinus4);
+                // Only on independently proven same holder + live SLOT_B
+                // + started audio stream, never on merely prepared periods.
+                observeActivePeriodSource(live.holder.get());
             } else if(fresh<0)queueSlotReadOther=inc(queueSlotReadOther);
             else queueSlotReadUnavailable=inc(queueSlotReadUnavailable);
             break;
@@ -720,6 +861,9 @@ final class NativeRendererStreamEvidence {
             registrationLine("SECONDARY_CALLER",secondaryCallerHook),
             registrationLine("ENGINE_HOLDER_SCOPE",engineScopeHook),
             registrationLine("LIVE_QUEUE_SLOT_B",liveQueueSlotHook),
+            registrationLine("TRACK_PLAYER_SOURCE_SCOPE",trackPlayerScopeHook),
+            registrationLine("NATIVE_PLAYER_SOURCE_SETTER",nativeSourceSetterHook),
+            registrationLine("LIVE_PERIOD_ORIGINAL_SOURCE",livePeriodSourceHook),
             registrationLine("RENDERER_TYPE_STATE_ACCESS",typeStateAccessHook),
             registrationLine("BUFFER_EOS_ACCESS",bufferEosAccessHook),
             registrationLine("RENDERER_COMPARATOR",rendererComparatorHook),
@@ -754,6 +898,15 @@ final class NativeRendererStreamEvidence {
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_OTHER",queueSlotReadOther),
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_UNAVAILABLE",queueSlotReadUnavailable),
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MINUS4",queueSlotReadMinus4),
+            line("TRACK_PLAYER_SOURCE_SCOPE_ENTER",trackPlayerScopeEnter),
+            line("TRACK_PLAYER_SOURCE_SAME_SCOPE",playerSourceSameScope),
+            line("TRACK_PLAYER_SOURCE_UNSCOPED",playerSourceUnscoped),
+            line("TRACK_PLAYER_SOURCE_CONFLICT",playerSourceConflict),
+            line("LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED",livePeriodResolved),
+            line("LIVE_PERIOD_ORIGINAL_SOURCE_UNAVAILABLE",livePeriodUnavailable),
+            line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH",livePeriodSourceMatched),
+            line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_OTHER",livePeriodSourceDifferent),
+            line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK",livePeriodSourceNoLink),
             line("ENGINE_HOLDER_READ_RETURN_MINUS4",engineReadMinus4),
             line("ENGINE_HOLDER_READ_RETURN_MINUS5",engineReadMinus5),
             line("ENGINE_HOLDER_READ_RETURN_MINUS3",engineReadMinus3),
