@@ -64,7 +64,7 @@ def derive_signed_slot_field(xapk:Path)->str:
         for apk in apks:
             with zipfile.ZipFile(apk) as archive:
                 for member in archive.infolist():
-                    if not re.fullmatch(r"classes[0-9]*\\.dex",member.filename):
+                    if not re.fullmatch(r"classes[0-9]*\.dex",member.filename):
                         continue
                     dex=trusted.audit.Dex(archive.read(member.filename))
                     for method,flags,offset in trusted.audit.method_definitions_with_flags(dex):
@@ -94,11 +94,11 @@ def main():
     args.private_java.parent.mkdir(parents=True,exist_ok=True)
     java_name=json.dumps(field,ensure_ascii=True)
     args.private_java.write_text(
-        "package pro.celikom.a1exitwitness;\\n"
-        "final class PrivateNativeQueueSlotTarget {\\n"
-        "  static final String QUEUE_SLOT_B_FIELD_NAME = " + java_name + ";\\n"
-        "  private PrivateNativeQueueSlotTarget() {}\\n"
-        "}\\n",encoding="utf-8")
+        "package pro.celikom.a1exitwitness;\n"
+        "final class PrivateNativeQueueSlotTarget {\n"
+        "  static final String QUEUE_SLOT_B_FIELD_NAME = " + java_name + ";\n"
+        "  private PrivateNativeQueueSlotTarget() {}\n"
+        "}\n",encoding="utf-8")
     print("NAV28_PUBLISHER_SIGNED_EXACT_QUEUE_SLOT_B_PRIVATE_TARGET_PASS")
 
 
