@@ -98,7 +98,10 @@ def logical_parameter_positions(method, flags: int, target_type: str) -> list[in
     return result
 
 
-def _argument_register(dex, op: int, words, target_method, logical_position: int):
+def _argument_register(
+    dex, op: int, words, target_method, logical_position: int,
+    expected_type: str | None = None
+):
     is_static = op in (0x71, 0x77)
     types = audit.expand_invoke_register_types(
         target_method[0], audit.parse_types(target_method[2]), is_static
@@ -112,15 +115,98 @@ def _argument_register(dex, op: int, words, target_method, logical_position: int
             continue
         logical += 1
         if logical == logical_position:
-            return registers[word_position] if typ == WRAPPER else None
+            if not typ.startswith(("L", "[")):
+                return None
+            if expected_type is not None and typ != expected_type:
+                return None
+            return registers[word_position]
     return None
+
+
+def logical_parameter_type(method, flags: int, logical_position: int):
+    types = audit.expand_invoke_register_types(
+        method[0], audit.parse_types(method[2]),
+        bool(flags & audit.ACC_STATIC)
+    )
+    logical = -1
+    for typ in types:
+        if typ is None:
+            continue
+        logical += 1
+        if logical == logical_position:
+            return typ
+    return None
+
+
+def logical_position_for_parameter_register(
+    dex, method, flags: int, code_off: int, register: int
+):
+    registers_size = dex.u16(code_off)
+    ins_size = dex.u16(code_off + 2)
+    if ins_size > registers_size:
+        raise ValueError("TCA_PARAMETER_REGISTER_LAYOUT")
+    current = registers_size - ins_size
+    logical = 0
+    if not (flags & audit.ACC_STATIC):
+        if current == register:
+            return 0
+        current += 1
+        logical = 1
+    for typ in audit.parse_types(method[2]):
+        if current == register:
+            return logical
+        current += 2 if typ in ("J", "D") else 1
+        logical += 1
+    return None
+
+
+def tca_origin_category(token: str | None) -> str:
+    if not isinstance(token, str):
+        return "AMBIGUOUS_OR_UNRESOLVED"
+    if token.startswith("TCA_INIT@"):
+        return "CONSTRUCTED_IN_SAME_METHOD"
+    if token.startswith("TCA_PARAMETER@") or token == "TCA_THIS":
+        return "TYPED_PARAMETER"
+    if token.startswith("TCA_FIELD@"):
+        return "TYPED_FIELD"
+    if token.startswith("TCA_STATIC_FIELD@"):
+        return "TYPED_STATIC_FIELD"
+    if token.startswith("TCA_RETURN@"):
+        return "TYPED_METHOD_RETURN"
+    if token.startswith("TCA_CAST@REF_PARAMETER@"):
+        return "CAST_FROM_REFERENCE_PARAMETER"
+    if token.startswith("TCA_CAST@REF_THIS_FIELD@"):
+        return "CAST_FROM_THIS_FIELD"
+    if token.startswith("TCA_CAST@REF_FIELD@"):
+        return "CAST_FROM_REFERENCE_FIELD"
+    if token.startswith("TCA_CAST@REF_STATIC_FIELD@"):
+        return "CAST_FROM_STATIC_FIELD"
+    if token.startswith("TCA_CAST@REF_RETURN@"):
+        return "CAST_FROM_METHOD_RETURN"
+    if token.startswith("TCA_CAST@REF_ARRAY_ELEMENT@"):
+        return "CAST_FROM_ARRAY_ELEMENT"
+    if token.startswith("TCA_CAST@REF_NEW_INSTANCE@"):
+        return "CAST_FROM_NEW_INSTANCE"
+    if token.startswith("TCA_CAST@"):
+        return "CAST_FROM_UNKNOWN_REFERENCE"
+    if token.startswith("TCA_NULL@"):
+        return "EXPLICIT_NULL"
+    return "AMBIGUOUS_OR_UNRESOLVED"
+
+
+def _parameter_register_from_tca_token(token: str | None):
+    if not isinstance(token, str):
+        return None
+    match = re.search(r"(?:TCA_PARAMETER|REF_PARAMETER)@([0-9]+)", token)
+    return int(match.group(1)) if match else None
 
 
 def trace_exact_tca_constructor_to_callsites(
     dex, method, flags: int, code_off: int, target_method,
-    callsite_pcs: list[int], wrapper_position: int
+    callsite_pcs: list[int], wrapper_position: int,
+    target_argument_type: str | None = WRAPPER
 ) -> dict:
-    """Prove one constructed tCa reference reaches exact target call(s) on all paths."""
+    """Trace a tCa reference through typed or Object-then-check-cast aliases."""
     cfg = audit.build_dex_control_flow(dex, code_off)
     by_pc, successors = cfg["by_pc"], cfg["successors"]
     registers_size = dex.u16(code_off)
@@ -129,11 +215,21 @@ def trace_exact_tca_constructor_to_callsites(
         raise ValueError("TCA_TRACE_INVALID_INS_SIZE")
 
     initial_registers = {}
-    for reg in audit.typed_parameter_registers(
-            dex, method, flags, code_off, WRAPPER):
-        initial_registers[reg] = f"TCA_PARAMETER@{reg}"
-    if not (flags & audit.ACC_STATIC) and method[0] == WRAPPER:
-        initial_registers[registers_size - ins_size] = "TCA_THIS"
+    current = registers_size - ins_size
+    this_register = None
+    if not (flags & audit.ACC_STATIC):
+        this_register = current
+        initial_registers[current] = (
+            "TCA_THIS" if method[0] == WRAPPER else f"REF_THIS@{current}"
+        )
+        current += 1
+    for typ in audit.parse_types(method[2]):
+        if typ.startswith(("L", "[")):
+            initial_registers[current] = (
+                f"TCA_PARAMETER@{current}" if typ == WRAPPER
+                else f"REF_PARAMETER@{current}"
+            )
+        current += 2 if typ in ("J", "D") else 1
 
     initial = {"registers": initial_registers, "pending_return": None}
 
@@ -167,16 +263,21 @@ def trace_exact_tca_constructor_to_callsites(
             result_type = callee[2].split(")", 1)[1]
             if result_type == WRAPPER:
                 pending = f"TCA_RETURN@{pc}"
+            elif result_type.startswith(("L", "[")):
+                pending = f"REF_RETURN@{pc}"
         elif op == 0x0c:  # move-result-object
-            dest = words[0] >> 8
+            dest = (words[0] >> 8) & 0xff
             clear(dest)
             if state["pending_return"]:
                 regs[dest] = state["pending_return"]
         elif op == 0x22:  # new-instance
             dest = (words[0] >> 8) & 0xff
             clear(dest)
-            if dex.descriptor(words[1]) == WRAPPER:
+            object_type = dex.descriptor(words[1])
+            if object_type == WRAPPER:
                 regs[dest] = f"TCA_ALLOC@{pc}"
+            elif object_type.startswith(("L", "[")):
+                regs[dest] = f"REF_NEW_INSTANCE@{pc}"
         elif op in (0x07, 0x08, 0x09):
             move = audit.move_object_registers(op, words)
             if move is not None:
@@ -185,20 +286,56 @@ def trace_exact_tca_constructor_to_callsites(
                 clear(dest)
                 if value is not None:
                     regs[dest] = value
-        elif op == 0x1f:  # check-cast preserves reference identity
-            pass
-        elif op == 0x54:  # iget-object; type only
+        elif op == 0x1f:  # check-cast preserves the exact Java reference
+            reg = (words[0] >> 8) & 0xff
+            cast_type = dex.descriptor(words[1])
+            token = regs.get(reg)
+            if cast_type == WRAPPER:
+                if token and token.startswith("REF_"):
+                    regs[reg] = "TCA_CAST@" + token
+                elif not token:
+                    regs[reg] = f"TCA_CAST@REF_UNKNOWN@{pc}"
+        elif op == 0x54:  # iget-object; type and receiver class only
             dest = (words[0] >> 8) & 15
+            receiver = (words[0] >> 12) & 15
             field_type = audit.field_id(dex, words[1])[2]
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_FIELD@{pc}"
-        elif op == 0x62:  # sget-object; type only
+            elif field_type.startswith(("L", "[")):
+                category = "REF_THIS_FIELD" if receiver == this_register else "REF_FIELD"
+                regs[dest] = f"{category}@{pc}"
+        elif op == 0x62:  # sget-object
             dest = words[0] >> 8
             field_type = audit.field_id(dex, words[1])[2]
             clear(dest)
             if field_type == WRAPPER:
                 regs[dest] = f"TCA_STATIC_FIELD@{pc}"
+            elif field_type.startswith(("L", "[")):
+                regs[dest] = f"REF_STATIC_FIELD@{pc}"
+        elif op == 0x46:  # aget-object
+            dest = (words[0] >> 8) & 0xff
+            clear(dest)
+            regs[dest] = f"REF_ARRAY_ELEMENT@{pc}"
+        elif op in (0x12, 0x13, 0x14, 0x15):
+            dest = audit.written_register(op, words)
+            if dest is not None:
+                literal = None
+                if op == 0x12:
+                    literal = (words[0] >> 12) & 15
+                    if literal & 8:
+                        literal -= 16
+                elif op == 0x13:
+                    literal = words[1]
+                    if literal & 0x8000:
+                        literal -= 0x10000
+                elif op == 0x14:
+                    literal = words[1] | (words[2] << 16)
+                elif op == 0x15:
+                    literal = words[1]
+                clear(dest)
+                if literal == 0:
+                    regs[dest] = f"TCA_NULL@{pc}"
         else:
             dest = audit.written_register(op, words)
             if dest is not None:
@@ -233,13 +370,18 @@ def trace_exact_tca_constructor_to_callsites(
             site_results.append({
                 "reachable": False,
                 "same_constructed_tca_on_all_paths": False,
+                "same_tca_reference_on_all_paths": False,
                 "origin_category": "UNREACHABLE_OR_UNMAPPED",
+                "origin_parameter_position": None,
             })
             continue
         op, words = instruction
         if op not in audit.INVOKES or dex.method(words[1]) != target_method:
             raise ValueError("TCA_TRACE_CALLSITE_TARGET_MISMATCH")
-        register = _argument_register(dex, op, words, target_method, wrapper_position)
+        register = _argument_register(
+            dex, op, words, target_method, wrapper_position,
+            expected_type=target_argument_type
+        )
         tokens = [state["registers"].get(register) for state in states]
         same = (
             register is not None and bool(tokens)
@@ -247,19 +389,25 @@ def trace_exact_tca_constructor_to_callsites(
             and isinstance(tokens[0], str)
             and tokens[0].startswith("TCA_INIT@")
         )
+        same_reference = (
+            register is not None and bool(tokens)
+            and len(set(tokens)) == 1
+            and isinstance(tokens[0], str)
+            and tokens[0].startswith(("TCA_",))
+        )
         token = tokens[0] if tokens and len(set(tokens)) == 1 else None
-        category = (
-            "CONSTRUCTED_IN_SAME_METHOD" if same else
-            "PARAMETER" if isinstance(token, str) and token.startswith("TCA_PARAMETER@") else
-            "INSTANCE_FIELD" if isinstance(token, str) and token.startswith("TCA_FIELD@") else
-            "STATIC_FIELD" if isinstance(token, str) and token.startswith("TCA_STATIC_FIELD@") else
-            "RETURNED_FROM_METHOD" if isinstance(token, str) and token.startswith("TCA_RETURN@") else
-            "AMBIGUOUS_OR_UNRESOLVED"
+        parameter_register = _parameter_register_from_tca_token(token)
+        parameter_position = (
+            logical_position_for_parameter_register(
+                dex, method, flags, code_off, parameter_register
+            ) if parameter_register is not None else None
         )
         site_results.append({
             "reachable": True,
             "same_constructed_tca_on_all_paths": same,
-            "origin_category": category,
+            "same_tca_reference_on_all_paths": same_reference,
+            "origin_category": tca_origin_category(token),
+            "origin_parameter_position": parameter_position,
         })
 
     instructions = cfg["instructions"]
@@ -277,6 +425,10 @@ def trace_exact_tca_constructor_to_callsites(
             bool(site_results) and all(x["same_constructed_tca_on_all_paths"]
                                        for x in site_results)
         ),
+        "same_tca_reference_on_all_sites": (
+            bool(site_results) and all(x["same_tca_reference_on_all_paths"]
+                                       for x in site_results)
+        ),
         "site_results": site_results,
         "wrapper_allocation_count": allocation_count,
         "wrapper_constructor_call_count": constructor_call_count,
@@ -284,7 +436,6 @@ def trace_exact_tca_constructor_to_callsites(
         "path_state_count": sum(len(states) for states in incoming.values()),
         "exception_handler_edges_included": False,
     }
-
 
 def _trace_events_for_callsites(dex, method, flags, code_off, target, callsite_pcs):
     try:
