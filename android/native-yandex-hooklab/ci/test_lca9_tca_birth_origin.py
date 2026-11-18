@@ -232,6 +232,22 @@ class Lca9TcaBirthOriginTests(unittest.TestCase):
             "TRACK_FROM_CONTINUATION_FIELD",
         )
         self.assertEqual(
+            tca_origin_category("TRACK_CONTINUATION_FIELD@9"),
+            "TRACK_CONTINUATION_FIELD",
+        )
+        self.assertEqual(
+            tca_origin_category("TRACK_CONTINUATION_NEW_INSTANCE@11"),
+            "CONTINUATION_NEW_INSTANCE",
+        )
+        self.assertEqual(
+            tca_origin_category("TRACK_CONTINUATION_INIT@TRACK_CONTINUATION_NEW_INSTANCE@11"),
+            "CONTINUATION_CONSTRUCTED_IN_SAME_METHOD",
+        )
+        self.assertEqual(
+            tca_origin_category("TRACK_CONTINUATION_RETURN@15"),
+            "CONTINUATION_METHOD_RETURN",
+        )
+        self.assertEqual(
             _parameter_register_from_tca_token("TRACK_PARAMETER@8"),
             8,
         )
