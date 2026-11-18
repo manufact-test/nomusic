@@ -296,6 +296,7 @@ def trace_exact_tca_constructor_to_callsites(
     work = [(cfg["entry"], state_key(initial))]
     processed = 0
     field_read_metadata = {}
+    string_return_metadata = {}
 
     def transfer(state, pc, op, words):
         regs = dict(state["registers"])
@@ -328,6 +329,7 @@ def trace_exact_tca_constructor_to_callsites(
                 pending = f"TCA_RETURN@{pc}"
             elif result_type == "Ljava/lang/String;":
                 receiver_token = regs.get(args[0]) if args else None
+                string_return_metadata[pc] = (callee, receiver_token)
                 if isinstance(receiver_token, str) and receiver_token.startswith("TRACK_CONTINUATION_"):
                     pending = f"STRING_CONTINUATION_METHOD_RETURN@{pc}"
                 elif isinstance(receiver_token, str) and receiver_token.startswith("TRACK_"):
@@ -591,10 +593,56 @@ def trace_exact_tca_constructor_to_callsites(
             else:
                 field_receiver_category = "UNKNOWN"
 
+        constructor_string_token = None
+        if isinstance(value_token, str) and "|STRING=" in value_token:
+            constructor_string_token = value_token.split("|STRING=", 1)[1]
+        constructor_string_field_ref = None
+        constructor_string_track_receiver_token = None
+        constructor_string_track_parameter_position = None
+        constructor_string_source_pc = None
+        if isinstance(constructor_string_token, str):
+            match = re.search(r"STRING_(?:TRACK_)?FIELD@([0-9]+)", constructor_string_token)
+            if match:
+                constructor_string_source_pc = int(match.group(1))
+                metadata = field_read_metadata.get(constructor_string_source_pc)
+                if metadata:
+                    constructor_string_field_ref, constructor_string_track_receiver_token, _ = metadata
+            else:
+                match = re.search(r"STRING_(?:TRACK_)?METHOD_RETURN@([0-9]+)", constructor_string_token)
+                if match:
+                    constructor_string_source_pc = int(match.group(1))
+                    metadata = string_return_metadata.get(constructor_string_source_pc)
+                    if metadata:
+                        _callee, constructor_string_track_receiver_token = metadata
+        if isinstance(constructor_string_track_receiver_token, str):
+            track_parameter_match = re.search(
+                r"(?:TRACK_PARAMETER|REF_PARAMETER)@([0-9]+)",
+                constructor_string_track_receiver_token
+            )
+            if track_parameter_match:
+                constructor_string_track_parameter_position = (
+                    logical_position_for_parameter_register(
+                        dex, method, flags, code_off,
+                        int(track_parameter_match.group(1))
+                    )
+                )
         site_results.append({
             "reachable": True,
             "same_constructed_tca_on_all_paths": same,
             "constructor_string_origin_category": tca_constructor_string_origin(value_token),
+            "constructor_string_field_ref": constructor_string_field_ref,
+            "constructor_string_track_receiver_category": (
+                "TRACK_PARAMETER" if isinstance(constructor_string_track_receiver_token, str)
+                    and constructor_string_track_receiver_token.startswith(("TRACK_PARAMETER@", "TRACK_CAST@REF_PARAMETER@"))
+                else "TRACK_THIS" if isinstance(constructor_string_track_receiver_token, str)
+                    and constructor_string_track_receiver_token.startswith("TRACK_THIS@")
+                else "TRACK_FROM_CONTINUATION" if isinstance(constructor_string_track_receiver_token, str)
+                    and "CONTINUATION" in constructor_string_track_receiver_token
+                else "TRACK_FROM_FIELD" if isinstance(constructor_string_track_receiver_token, str)
+                    and constructor_string_track_receiver_token.startswith("TRACK_FIELD")
+                else "OTHER_OR_UNKNOWN"
+            ),
+            "constructor_string_track_parameter_position": constructor_string_track_parameter_position,
             "same_tca_reference_on_all_paths": same_reference,
             "same_receiver_reference_on_all_paths": same_receiver,
             "origin_category": tca_origin_category(value_token),
