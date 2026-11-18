@@ -1500,6 +1500,7 @@ public final class NativeRendererStreamEvidenceTest {
                   "NAV36_NEVER_PROMOTES_HISTORICAL_WRAPPER_"+mode);
         }
     }
+    // NAV37: a null exact creator field must not borrow an outer synchronous Track scope.
     private static void testNav37ExactTcaCreatorTrackFieldLinksWrapperAndAlbum() {
         StageBAudioEvidence stage=new StageBAudioEvidence();
         Object owner=new Object(),track=new Object(),album=new Object(),wrapper=new Object();
