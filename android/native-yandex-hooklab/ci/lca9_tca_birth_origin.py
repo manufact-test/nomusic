@@ -1358,7 +1358,7 @@ def scan_field_writer_upstream_callers(apks, fields):
     }
 
 
-def safe_summary(direct, upstream, fields, writer_upstream):
+def safe_summary(direct, upstream, fields, writer_upstream, track_fields, track_upstream):
     direct_rows = direct["direct_rows"]
     upstream_rows = upstream["upstream_rows"]
     direct_constructor = sum(
@@ -1425,6 +1425,18 @@ def safe_summary(direct, upstream, fields, writer_upstream):
         "tca_field_writer_upstream_scan_complete": writer_upstream["complete"],
         "tca_field_writer_upstream_fp0_resume_track_argument_explicit_null": writer_upstream["fp0_resume_track_argument_explicit_null"],
         "tca_field_writer_upstream_fp0_continuation_track_to_wrapper_candidate": writer_upstream["fp0_continuation_field_track_to_wrapper_candidate"],
+        "tca_constructor_track_source_field_count": track_fields["field_count"],
+        "tca_constructor_track_source_field_writer_site_count": track_fields["writer_site_count"],
+        "tca_constructor_track_source_field_writer_method_count": track_fields["writer_method_count"],
+        "tca_constructor_track_source_field_writer_value_origin_categories": track_fields["writer_value_origin_categories"],
+        "tca_constructor_track_source_field_writer_receiver_categories": track_fields["writer_receiver_categories"],
+        "tca_constructor_track_source_field_writer_upstream_callsite_count": track_upstream["callsite_count"],
+        "tca_constructor_track_source_field_writer_upstream_caller_count": track_upstream["caller_count"],
+        "tca_constructor_track_source_field_writer_upstream_origin_categories": track_upstream["origin_categories"],
+        "tca_constructor_track_source_field_writer_upstream_constructor_to_writer_same_object_count": track_upstream["constructor_to_writer_same_object_count"],
+        "tca_constructor_track_source_field_writer_upstream_fp0_resume_track_argument_explicit_null": track_upstream["fp0_resume_track_argument_explicit_null"],
+        "tca_constructor_track_source_field_writer_upstream_fp0_continuation_field_track_candidate": track_upstream["fp0_continuation_field_track_to_wrapper_candidate"],
+        "tca_constructor_track_source_field_writer_upstream_scan_complete": track_upstream["complete"],
         "exact_tca_constructor_to_lca9_same_object_proven": bool(
             direct_constructor or upstream_constructor
             or fields["tca_constructor_to_lca9_via_field_proven"]
@@ -1485,7 +1497,17 @@ def run(xapk: Path):
         upstream = scan_upstream_callers(splits, direct)
         fields = scan_field_writers(splits, direct)
         writer_upstream = scan_field_writer_upstream_callers(splits, fields)
-        return safe_summary(direct, upstream, fields, writer_upstream)
+        track_direct = {
+            "field_read_targets": writer_upstream["track_source_field_targets"],
+            "direct_callsite_count": sum(
+                len(rows) for rows in writer_upstream["track_source_field_targets"].values()
+            ),
+        }
+        track_fields = scan_field_writers(splits, track_direct)
+        track_upstream = scan_field_writer_upstream_callers(splits, track_fields)
+        return safe_summary(
+            direct, upstream, fields, writer_upstream, track_fields, track_upstream
+        )
 
 
 if __name__ == "__main__":
