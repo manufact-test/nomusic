@@ -1,4 +1,77 @@
-# CURRENT — NAV36 SIGNED CI GREEN, LIBRARY PACKAGE UPLOADED AND BYTE-VERIFIED; OWNER PHONE TEST NEXT (18 NOV 2026)
+# CURRENT — NAV36 LIBRARY-DELIVERED AND BYTE-VERIFIED; WAITING FOR REAL OWNER PHONE DIAGNOSTICS (18 NOV 2026)
+
+**Project:** CELIKOM Android A1 only. Repository `manufact-test/nomusic`; only working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Do not restart, change architecture, or switch to Windows/extension. Original signed Yandex Music **2025.10.4 #120.1gpr** remains unchanged. Original playback is known-good; do not invent seek/pause/track-switch/Bluetooth faults. `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+## 1. Exact current checkpoint
+
+- **Signed NAV36 code SHA:** `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`.
+- **NAV36 marker:** `NAV_V36_TCA_CONSTRUCTOR_SCOPE_READONLY`.
+- **Protected code backup:** `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`.
+- **Pre-NAV36 backup:** `backup/android-a1-nav35-phone-wrapper-absent-pre-nav36-20261118` @ `b6c6a2f4ab6523481a499cc5b3958ac5bfbbd71c`.
+- **Final handoff/docs backup:** `backup/android-a1-nav36-final-handoff-before-next-chat-20261118` @ `81d04ccf145cb8920c6d056a503aa4963797869b`. Following changes are documentation only; signed NAV36 code is not modified.
+
+## 2. What NAV35 proved on the real phone
+
+Private owner TXT `CELIKOM-A1-Diagnostics-1795006986945.txt`, 128,352 bytes / 1,813 lines, SHA256 `b34389ccc8813d61e2b479f0111160892e107a38aa855440b430b05fec9ca1a8` (never commit raw TXT).
+
+- Exact original live Lo96/Sl6 source resolves and matches the original scoped native Player source setter: `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY`; live SLOT_B type1/state2 match confirmed.
+- NAV35 identified `LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT=MANY` as the **only** NO_LINK reason. Other NAV35 reason bins were NONE.
+- Independent Stage B observations: tCa constructor=MANY, Track Album constructor=MANY, Track Wrapper Album=MANY, Flow Album=FEW. Yet the exact Player-scoped tCa was absent from the retained Flow/Track/Album link set.
+- This does not prove an absent album, wrong track, selected edition or playback fault. `EXO_IO_FAILURE=NONE`. `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/FEW` was observed but is not attributed to NAV35; no owner playback defect was reported.
+
+## 3. NAV36 signed build and Library delivery — complete
+
+NAV36 reuses the existing original `tCa(String)` constructor hook. It retains a bounded last-64 weak history of original tCa refs with categorical construction context. Under the same strict live original-source equality guard, it classifies NAV35's WRAPPER_ABSENT into:
+- `LIVE_PERIOD_SCOPED_TCA_BIRTH_NOT_IN_WINDOW`
+- `...BIRTH_NO_TRACK_SCOPE`
+- `...BIRTH_TRACK_NOT_IN_FLOW`
+- `...BIRTH_FLOW_NO_ALBUM`
+- `...BIRTH_FLOW_ALBUM_LINK_MISSING`
+- `...BIRTH_DUPLICATE_AMBIGUOUS`
+
+JVM tests cover all six categories and wrong-source rejection. This is bounded historical structural evidence only; it does not prove current selected Track/Album, edition, duration or queue generation. No original audio/player behavior changed.
+
+**CI:** JVM `#44311280846 SUCCESS`; issuer-first signed original Android13 ARM13 `#44311280892 SUCCESS`. This is CI/guest validation, not owner-phone playback proof.
+
+**Signed APK:** `CELIKOM-A1-NAV36-tCa-Constructor-Scope-ReadOnly-20261118.apk`, 71,487,468 bytes, SHA256 `16329086e7b2ec2d3b976bbab2334993be68bb32c9a401c7551e0b6c4ffd93e3`.
+- Owner APK v2/v3 certificate DER SHA256: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` — same as NAV35.
+- Embedded original publisher Yandex APK SHA256: `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` — unchanged.
+- Private CI artifact `14430114939` is not the owner delivery route.
+
+**Personal ChatGPT Library package:** `/CELIKOM/Android/Native/CELIKOM-A1-NAV36-Подписанный-APK-и-Инструкция-20261118.zip`; Library ID `libfile_5d5fae68121081918df9d84108f29716`; 51,090,129 bytes; SHA256 `4019d2a972b88542970eb5ea224a1209f85bf83fbf55f93366409fa6cfe5ff40`. Package was listed and materialized from Library; SHA256 matched the uploaded package byte-for-byte. Its contents were checked:
+- APK: 71,487,468 bytes, SHA256 `16329086e7b2ec2d3b976bbab2334993be68bb32c9a401c7551e0b6c4ffd93e3`.
+- Current Russian instruction: 2,982 bytes, SHA256 `de020b440b82ba270032ad791b461e3a334c3758bd436425b41ea5a07e68d31d`.
+Separate instruction also remains in Library as `libfile_dad077a6fecc81919faad34126439e94`. Do not distribute the stale NAV24 CI README.
+
+## 4. Only next task — analyze the real NAV36 phone diagnostic
+
+The owner is expected to install NAV36 **in place over NAV35**, without uninstalling, clearing cache/data or logging out, listen to 2–5 ordinary tracks and export a fresh TXT. The next chat will receive that TXT.
+
+On receipt:
+1. Inspect active/export marker `NAV_V36_TCA_CONSTRUCTOR_SCOPE_READONLY`. If absent, first establish whether NAV36 was installed and whether the export is fresh; do not assume the test ran.
+2. Recheck the strict live SLOT_B type1/state2 and original Lo96/Sl6 source → original scoped Player setter match. NAV36 reason counters are meaningful only under that guard.
+3. Read all six `LIVE_PERIOD_SCOPED_TCA_BIRTH_*` counters. Compare them with NAV35's `WRAPPER_ABSENT=MANY`; do not infer anything from an unguarded count.
+4. Correlate with existing Track/Album/Flow evidence, NAV34/35 history and any exception summary. Do not attribute MUSIC_APP exceptions to CELIKOM without proof.
+5. Decide the next smallest evidence step from the actual result. **Do not create NAV37 before analyzing the real NAV36 TXT.**
+
+Even a positive constructor/Flow/Album historical relation is not proof of the currently selected Track, Album, edition, duration or queue generation. No audio substitution until the full current identity is proven. Keep `CELIKOM_REPLACEMENT=NOT_CONNECTED`.
+
+## 5. Non-negotiable constraints
+
+- Do not change the original Yandex APK, native player, source, audio bytes, or working playback.
+- Do not repeat NAV25–NAV35, EOS probes or old comparator checks without a new evidence-based reason.
+- No broad hooks/scans, no IDs/names/URLs/DataSpec/PCM/media contents/tokens/private field values in exported diagnostics.
+- Keep exact branch and backups; CI for any new code; preserve owner signer and original embedded Yandex SHA.
+- All owner APKs/archives must be uploaded to personal ChatGPT Library, then listed, materialized and byte-verified. Never substitute GitHub Actions or sandbox links.
+- Do not ask the owner to re-run already completed NAV35. The next input is the fresh NAV36 TXT.
+
+## Required reading
+
+1. `docs/android/NEXT-CHAT.md` — canonical current state.
+2. `docs/android/ANDROID-A1-NAV35-OWNER-PHONE-WRAPPER-ABSENT-NAV36-TCA-CONSTRUCTOR-20261118.md` — NAV35 owner evidence, NAV36 design/build/release and hashes.
+3. `docs/android/README.md` — navigation/index.
+
+# ARCHIVED — previous NAV36 release checkpoint (superseded by current owner-phone handoff)
 
 **CELIKOM Android A1 only**, repository `manufact-test/nomusic`, sole work branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Signed original Yandex Music 2025.10.4 unchanged. No original playback methods altered; CELIKOM_REPLACEMENT=NOT_CONNECTED, IDENTITY_STATUS=STRUCTURAL_ONLY. NEVER uninstall/clear owner data, invent playback bugs, redo EOS/comparator, or provide GitHub Actions/sandbox APK download links.
 

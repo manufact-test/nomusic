@@ -13,7 +13,7 @@ Protected backup `backup/android-a1-nav35-phone-wrapper-absent-pre-nav36-2026111
 NAV34 MATCH/NO_LINK/CONFLICT and NAV35 WRAPPER_ABSENT preserved. All are categorical bounded observations and never selected current Track/Album, edition, playback queue generation, PCM, entitlement, or permission to replace sound. Original Yandex methods/proceed exactly once untouched, replacement stays `NOT_CONNECTED`. JVM regression includes all six reasons, no false positive for changed source, NAV29–35 unchanged.
 Release ONLY after JVM+signed ARM13 CI success, unchanged owner APK signature and original publisher Yandex inside APK, nested NAV36 marker/enum verification, signed APK + instruction uploaded to personal ChatGPT Library and materialized/readback byte-identical. Owner then installs in-place over NAV35 without uninstall/wipe, listens 2–5 songs, exports private TXT. Do not give GitHub Actions or sandbox APK links.
 
-## NAV36 signed CI SUCCESS; release blocked solely by Library storage quota
+## ARCHIVE — initial Library upload attempts failed; quota retry later succeeded
 
 Exact signed source SHA `8b9d91b7b1ba2b0df84ada516bab938f077cfab9`, protected signed backup `backup/android-a1-nav36-original-tca-birth-owner-signed-arm13-ci-green-20261118`. JVM #44311280846 SUCCESS; publisher-first Android13 ARM13 #44311280892 SUCCESS. APK exact `CELIKOM-A1-NAV36-tCa-Constructor-Scope-ReadOnly-20261118.apk`, 71,487,468 bytes, SHA256 `16329086e7b2ec2d3b976bbab2334993be68bb32c9a401c7551e0b6c4ffd93e3`. Same v2/v3 owner cert SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` and unchanged embedded original publisher Yandex SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`. Own nested module includes NAV36 marker and all checked counters.
 
@@ -24,3 +24,17 @@ Private CI artifact `14430114939` expires 2026-11-25 13:20:55 UTC. Exact signed 
 ## NAV36 Library package successfully uploaded and byte-verified
 
 Quota retry on 18 Nov succeeded. Personal Library path `/CELIKOM/Android/Native/CELIKOM-A1-NAV36-Подписанный-APK-и-Инструкция-20261118.zip`, Library ID `libfile_5d5fae68121081918df9d84108f29716`, 51,090,129 bytes, SHA256 `4019d2a972b88542970eb5ea224a1209f85bf83fbf55f93366409fa6cfe5ff40`. Listed and materialized; downloaded Library copy `cmp` byte-identical to upload. Package contains signed NAV36 APK plus current owner instruction. Separate instruction remains in Library too. Owner can now download package, extract APK, install over NAV35 in-place without uninstall/wipe, listen 2–5 tracks, export private TXT. CI is green, but actual phone verification remains outstanding.
+
+
+## FINAL HANDOFF — NAV36 owner package verified; next input is real phone TXT
+
+The earlier quota-failure note above is historical and superseded. The successful retry is authoritative:
+- Personal Library package: `/CELIKOM/Android/Native/CELIKOM-A1-NAV36-Подписанный-APK-и-Инструкция-20261118.zip`
+- Library ID: `libfile_5d5fae68121081918df9d84108f29716`
+- ZIP: 51,090,129 bytes; SHA256 `4019d2a972b88542970eb5ea224a1209f85bf83fbf55f93366409fa6cfe5ff40`.
+- Library item was listed, materialized, and verified byte-identical to uploaded ZIP.
+- ZIP members: signed APK `CELIKOM-A1-NAV36-tCa-Constructor-Scope-ReadOnly-20261118.apk` (71,487,468 bytes, SHA256 `16329086e7b2ec2d3b976bbab2334993be68bb32c9a401c7551e0b6c4ffd93e3`) and current instruction (2,982 bytes, SHA256 `de020b440b82ba270032ad791b461e3a334c3758bd436425b41ea5a07e68d31d`). Both inner hashes independently checked after materializing the Library ZIP.
+- Owner signing certificate v2/v3 and embedded original Yandex publisher APK hashes remain unchanged from NAV35 (see CI section above).
+
+**All release gates for delivering the NAV36 diagnostic APK are complete.** Only the real owner-phone test is outstanding: install in place over NAV35, no uninstall or data/cache clearing; listen to 2–5 ordinary tracks; export fresh private NAV36 TXT. The next chat must inspect the active NAV36 marker and all six constructor-birth reason counters under the strict live original-source guard. Do not create NAV37 before that evidence. Replacement remains `NOT_CONNECTED`.
+
