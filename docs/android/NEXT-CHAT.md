@@ -1,3 +1,11 @@
+# CURRENT 19.11.2026 — после NAV45: подписанный семантический Track/Album identity NO-GO
+
+**Точечный источник проверен, приложение НЕ пересобирали.** Оригинальный publisher-signed Yandex 2025.10.4 #120.1gpr (16 verified splits, six DEX), exact Track `ru.yandex.music.data.audio.o` (51 instance fields) и Album (37 fields) проверены по **четырём явно разрешённым сериализационным аннотациям** на instance fields и ctor parameters. Не найдено доказанных `trackId`, `albumId`, `editionId` через эти аннотации. [Статический CI #44562209490 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44562209490); отчёт: [ANDROID-A1-NAV45-SIGNED-TRACK-ALBUM-ANNOTATION-NO-GO-20261119.md](ANDROID-A1-NAV45-SIGNED-TRACK-ALBUM-ANNOTATION-NO-GO-20261119.md). Отсутствие этих аннотаций **не означает** отсутствия ID в оригинальной модели вообще. При этом копируемый `long` и `Ldjv.a()` не аттестованы как ID в актуальном original source.
+
+**Результат:** `NO_GO_EXACT_ID_AND_EDITION_NOT_SEMANTICALLY_ATTESTED`. Запрет на выпуск очередной пустой диагностики и включение подмены остаётся: `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`. Не возобновлять бесполезные MediaItem-пробы. Оригинальный player, Play/Pause/Seek/Next/MyWave не изменены. Работали только 2 новых CI-only файла и документация; NAV40 `34cb32c8`, owner-signed NAV45 `c95c0bf2`, Test.50, Windows и APK/ZIP не тронуты. Единственная ветка `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+
+---
+
 # 19.11.2026 — передача новому чату после NAV45 (сохранено)
 
 **Каноническая короткая передача:** [HANDOFF-A1-NAV45-TO-NEXT-CHAT-20261119.md](HANDOFF-A1-NAV45-TO-NEXT-CHAT-20261119.md). Последний owner TXT `CELIKOM-A1-Diagnostics-1795102532842.txt`: NAV45 `CURRENT_MEDIAITEM_LOGICAL_ID=REGISTERED`, но `MATCH=NONE`, `DIFFERENT=NONE`, `BLANK=FEW`; больше **не искать ID через MediaItem**. Прежняя исходная связка TrackWrapper/late Flow ↔ original source/PeriodID `MANY`, часть `NO_LINK=MANY`; подмена `NOT_CONNECTED`. Следующая работа: доказанный Track ID + album/edition + playback generation в **том же** исходном источнике; не выпускать очередной read-only APK без оправданной новой точки. Signed NAV40, NAV43/44/45 не менять.
