@@ -26,3 +26,15 @@ The NAV38 owner ARM13 build generated only `PrivateTcaTrackCreatorTarget`, not t
 4. Only decide subsequent minimal bounded read-only test after phone evidence. Do not infer historical Album equality as current edition or enable replacement without full admission/identity proof.
 
 Never commit private diagnostic values/track names/IDs/URLs/media/PCM/tokens; don't rerun old EOS or comparator probing.
+
+## Final NAV39 release verification (19 Nov 2026)
+- Source/CI-green commit `9e5e462773cdc39ea0c2077dd24e47a3d6b9174e`. Previous failed #44479658010/#44479658027 were due to two stale NAV38-marker assertions; fixed prior to this signed export.
+- JVM [#44480016827 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44480016827).
+- Clone-alone [#44479658036 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44479658036).
+- Original-first owner-signed ARM13+APK [#44480016738 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44480016738). Artifact `14508004348`.
+- APK signed v2/v3, owner SHA256 certificate `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`, SHA256 `9c84583b63a5d93b8ae6118874ee7acbd649fa3408748c72b2aa06bd1498f50a`, size 71,491,564. Own inner module contains NAV39 marker and correct 3 private exact DEX targets.
+- Same ORIGINAL `assets/lspatch/origin.apk` byte-for-byte as NAV38 (SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`).
+- ZIP SHA256 `93813ad4060cc74863783ebdf0f779d80773f06ce8198f1f45944ddac61ae53f`, 51,618,102 bytes, exact GitHub artifact digest. Archive contains APK and NAV39 README.
+- Both personal Library items uploaded, materialized and byte-compared: ZIP `libfile_3b1b6b3309dc81919973ea0a5c6ba17b`, direct APK `libfile_0744232fcb20819185900663cdf07aba`, folder `/CELIKOM/Android/Native/`.
+- Protected NAV39 backup `backup/android-a1-nav39-live-private-hooks-owner-signed-arm13-ci-green-20261119`.
+- Now awaiting **NAV39** owner phone TXT; do not treat CI success as proof of live current Track identity or audio replacement. `CELIKOM_REPLACEMENT=NOT_CONNECTED`.

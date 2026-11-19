@@ -1,29 +1,28 @@
-## NAV39 CI gate update — source/marker unchanged (19 Nov 2026)
+# CURRENT — NAV39 signed & delivered in personal Library; owner TXT next (19 Nov 2026)
 
-- Initial NAV39 export CI #44479658010 and JVM #44479658027 **FAILED** on stale tests that asserted the old NAV38 marker; no signed NAV39 APK was exported. These were test-version assertions, not real owner playback failures.
-- Fixed those CI-only marker assertions at commit `9e5e462773cdc39ea0c2077dd24e47a3d6b9174e`. No new Player/audio/Track/Flow runtime changes.
-- New JVM regression [#44480016827 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44480016827).
-- New publisher-first ARM13 APK-export run [#44480016738](https://github.com/manufact-test/nomusic/actions/runs/44480016738) **IN PROGRESS at last check**. Clone-alone differential from prior source [#44479658036](https://github.com/manufact-test/nomusic/actions/runs/44479658036) was also in progress at last check. Check current GitHub conclusion; do not presume green.
-- NEXT: after owner ARM13 success and artifact publication, verify v2/v3 owner signer, SHA256 and expected NAV39 marker/README, upload signed ZIP to personal Library, materialize/readback compare, THEN user download. Do not send or suggest any unverified package.
+**GitHub:** `manufact-test/nomusic`; sole working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+**NAV39 signed source HEAD:** `9e5e462773cdc39ea0c2077dd24e47a3d6b9174e` (NAV39 target packaging fix from `694f0efa1616560d814de60de2906446aad7e3d0` plus exact regression marker assertions).
+**NAV39 signed rollback backup:** `backup/android-a1-nav39-live-private-hooks-owner-signed-arm13-ci-green-20261119` @ `9e5e462773cdc39ea0c2077dd24e47a3d6b9174e`.
+**NAV38 pre-change backup:** `backup/android-a1-nav38-phone-late-flow-before-nav39-hooks-repair-20261119` @ `fb2463ff7dbe48441bcb96ee89fdf4d8df9d1169`.
 
-# CURRENT — NAV39 live private target packaging repair; CI RUNNING (19 Nov 2026)
+## Release and delivery verified
+- JVM CI [#44480016827 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44480016827).
+- Clone-alone ARM13 CI [#44479658036 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44479658036) for same functional runtime (subsequent source change only regression marker assertion).
+- Original-first owner-signed ARM13 CI and APK export [#44480016738 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44480016738). GitHub artifact `14508004348`.
+- Signed APK `CELIKOM-A1-NAV39-Creator-Flow-Live-Hooks-ReadOnly-20261119.apk`: 71,491,564 bytes; SHA256 `9c84583b63a5d93b8ae6118874ee7acbd649fa3408748c72b2aa06bd1498f50a`. v2/v3 signatures independently cryptographically verified with content digests and SAME owner signing certificate SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`. Verified inner owned module contains exact NAV39 marker and all 3 private classes (`PrivateNativeQueueSlotTarget`, `PrivateNativeActivePeriodTarget`, `PrivateTcaTrackCreatorTarget`).
+- Embedded original origin.apk SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` — exact byte match NAV38 embedded original, 29,803,070 bytes. Original Yandex 2025.10.4 #120.1gpr untouched.
+- GitHub ZIP `CELIKOM-A1-NAV39-Creator-Flow-Live-Hooks-20261119.zip`: 51,618,102 bytes; SHA256 `93813ad4060cc74863783ebdf0f779d80773f06ce8198f1f45944ddac61ae53f` equals published artifact SHA256. Contains exact signed APK and NAV39 README-RU.txt.
+- **Personal Library**: `/CELIKOM/Android/Native/CELIKOM-A1-NAV39-Creator-Flow-Live-Hooks-20261119.zip`, `libfile_3b1b6b3309dc81919973ea0a5c6ba17b`; direct APK `/CELIKOM/Android/Native/CELIKOM-A1-NAV39-Creator-Flow-Live-Hooks-ReadOnly-20261119.apk`, `libfile_0744232fcb20819185900663cdf07aba`. Both materialized back into container from Library and compared byte-for-byte equal to GitHub-sourced verified files. User links were delivered in chat from verified local files.
 
-**Repository:** `manufact-test/nomusic`; **sole work branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-**NAV39 source commit:** `694f0efa1616560d814de60de2906446aad7e3d0` (runtime unchanged apart from version marker; packaging regenerates old signed-original NAV28/NAV29 private targets).
-**Pre-NAV39 protected backup:** `backup/android-a1-nav38-phone-late-flow-before-nav39-hooks-repair-20261119` @ `fb2463ff7dbe48441bcb96ee89fdf4d8df9d1169`.
-**NAV38 verified original backup:** `backup/android-a1-nav38-flow-time-order-owner-signed-arm13-ci-green-20261119` @ `72d5c42f1678d7b6839202a52712e5e80bf8a019`.
+## Real owner phone evidence driving this change
+- NAV38 actual private owner TXT `CELIKOM-A1-Diagnostics-1795072687109.txt`: 126,763 bytes/1,783 lines, SHA256 `5282b02a1fe32407043fd6b7c3d6c21d496236787342c85212e9047c794467d8`. Do not commit raw TXT.
+- `NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY` active; `TCA_CREATOR_FLOW_LATER_SAME_TRACK=FEW` and `TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED=FEW`. Proven: some exact creator-owned Java Track references appear in Flow later, not necessarily a different Track object. This proves historical structural link ONLY.
+- NAV38 private build omitted signed-original exact queue/active-period Java target classes: phone `LIVE_QUEUE_SLOT_B=NO_HOOK`, `LIVE_PERIOD_ORIGINAL_SOURCE=NO_HOOK`; NAV39 restores generators, private targets, DEX packaging; actual on-phone REGISTERED/strict live source chain must STILL be verified from NAV39 owner TXT.
+- No new source/audio/player changes. `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`. Metrica exceptions `MUSIC_APP/NONE`; `EXO_IO_FAILURE=NONE`. No invented seek/pause/BT bugs.
 
-**NAV38 actual owner-phone TXT** `CELIKOM-A1-Diagnostics-1795072687109.txt`: private, 126,763 bytes, 1,783 lines, SHA256 `5282b02a1fe32407043fd6b7c3d6c21d496236787342c85212e9047c794467d8`. NEVER commit raw phone TXT.
-Active `NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY`. Exact creator owner/Track field/wrapper MANY; `TCA_CREATOR_WRAPPER_NOT_FLOW=MANY`, `FLOW_MATCH=NONE`, but **`TCA_CREATOR_FLOW_LATER_SAME_TRACK=FEW` and `TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED=FEW`**. At birth Album observed MANY and unobserved FEW. This proves some creator-owned exact same Java Track references emit to Flow only later (within weak last-32 retention); not a current selected edition, queue generation, or live player link. `TRACK_ALBUM_IDENTITY_CONFLICT=NONE`. `EXO_IO_FAILURE=NONE`, `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/NONE`; don't assign SDK Push failures to CELIKOM.
-**Current live Player chain missing in NAV38 capture:** `LIVE_QUEUE_SLOT_B=NO_HOOK`, `LIVE_PERIOD_ORIGINAL_SOURCE=NO_HOOK`; all strict live read/source comparators NONE. This does not negate NAV36's earlier live proof, but prevents current attestation.
+**NEXT:** owner installs exact NAV39 over NAV38 without uninstall, wiping data, or changing original Yandex. Listen to 2–5 tracks and send NAV39 TXT. Confirm marker `NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY`, `LIVE_QUEUE_SLOT_B=REGISTERED`, `LIVE_PERIOD_ORIGINAL_SOURCE=REGISTERED`, then strict current SLOT_B type1/state2→ original Lo96/Sl6 → same original scoped Player setter source, and independent creator-owned Track→Flow/Album reference evidence. If registration/chain absent, diagnose actual phone data, no blind NAV40. Historical Track/Album equality does not prove current selected edition and queue generation and NEVER authorizes replacement.
 
-**Root cause candidate confirmed in source build workflow:** NAV38 `android-a1-metrica-init-state-observer-arm13.yml` compiles private tCa target, but does not generate `PrivateNativeQueueSlotTarget` or `PrivateNativeActivePeriodTarget` although the runtime uses `Class.forName` for both. This precisely explains expected NO_HOOK; full restoration must still be confirmed in fresh phone TXT.
-
-**NAV39 narrow fix:** CI now calls existing publisher-signed offline generators `a1_private_live_queue_slot_target.py` and `a1_private_active_period_source_target.py` before final module rebuild; verifies their classes are in built DEX; cleans generated private Java afterwards. No original Yandex, Player/audio/decoder changes. Runtime Track/Flow evidence unchanged, only version marker `NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY`. Packaging names/instruction/tests updated. Signed original Yandex `2025.10.4 #120.1gpr` remains unchanged. No media values, names, IDs, URL, tokens or PCM exported.
-**Three CI runs (not yet verified):** JVM [#44479658027](https://github.com/manufact-test/nomusic/actions/runs/44479658027), ARM13 clone-alone [#44479658036](https://github.com/manufact-test/nomusic/actions/runs/44479658036), publisher-first owner ARM13 with private APK export [#44479658010](https://github.com/manufact-test/nomusic/actions/runs/44479658010). DO NOT claim NAV39 artifact or Library delivery until confirmed.
-**Release gate:** all 3 CI SUCCESS, signed APK generated from exact commit and publisher-first gate, unchanged v2/v3 owner cert, SHA256 and embedded original verified; correct ZIP with NAV39 instruction uploaded to personal Library, materialized and byte-compared before sharing user link. Only then in-place NAV39 over NAV38 (no uninstall/data wipe), 2–5 tracks, owner TXT, check `LIVE_QUEUE_SLOT_B` and `LIVE_PERIOD_ORIGINAL_SOURCE` registration and strict active chain. Historical `FLOW_LATER_SAME_TRACK` alone never permits replacement. `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`.
-
-**Detail:** [NAV38 phone → NAV39 packaging repair](ANDROID-A1-NAV38-OWNER-PHONE-NAV39-RESTORE-LIVE-PRIVATE-TARGETS-20261119.md).
+**Detailed source:** [NAV38 owner phone → NAV39 protected restoration](ANDROID-A1-NAV38-OWNER-PHONE-NAV39-RESTORE-LIVE-PRIVATE-TARGETS-20261119.md).
 
 ---
 
