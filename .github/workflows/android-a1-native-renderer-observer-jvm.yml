@@ -59,10 +59,11 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V41_PLAYER_PERIOD_SLOTB_NON_EOS_READONLY' in src
+          assert 'NAV_V42_PLAYER_PERIOD_SLOTB_EOS_UNKNOWN_READONLY' in src
           assert 'PrivateNativePlayerPeriodTarget' in src
           assert 'setCurrentPlaybackPeriodFields(' in src
           assert 'PLAYER_PERIOD_AT_READ_UID_AND_INDEX_MATCH' in model
+          assert 'PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF' in model
           assert 'testNav41RejectUidOnlyAndOldPeriodSameUidNotEdition' in Path('android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java').read_text()
           assert 'holderSelect.getDeclaredMethod(' in src
           assert 'HOLDER_OTHER_WH6_AT_READ' in model
