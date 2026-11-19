@@ -1,3 +1,13 @@
+# CURRENT — CI recovered, strict issuer signer preserved, stop static expansion (19 Nov 2026)
+
+**Latest verified CI:** [#44523003641 SUCCESS, **35/35**](https://github.com/manufact-test/nomusic/actions/runs/44523003641), green code `e801787ef6a6c13c7d0c1d2e7916da6b622fe460`. Replaced broken Ubuntu apt-based signed-APK tool installation with preinstalled SDK, strictly verified unchanged original 16-split publisher signature using both historical and SDK 0.9 modern `apksigner` text formats. Fail-closed tests reject incorrect certificate, missing APK signer or multiple signers. The separate Source Stamp is **not** accepted as issuer. No original signature gate bypass. Original scan SUCCESS on exact 2025.10.4 #120.1gpr.
+
+**Final narrow negative result:** verified exact original `LrD0.E()LOf6;` getter uses MediaItem-typed `LTva$d.LOf6;` field at getter PC24; the `e.I` Window PC67 reads **different exact field type** `LOf6$f;`, so it cannot be used as selected MediaItem identity. This rejects a false NAV41 basis. It does not establish same Player/Window instance or currently audible period. Prior exact Period→Window and post-UID comparisons remain green.
+
+**Product focus:** do not continue generic static scans, broad UID/J/Timeline re-exploration or extra test count accumulation. The ONLY remaining gate is a verified **same-live-audio-read** selected original Player MediaItem/Track/edition ↔ active SLOT_B renderer period (distinguish stale, prefetched, repeat). Next action should be a minimal targeted plan for a runtime read-only proof using already pinned hooks and getter only if concrete non-invasive test basis is verified, then owner phone feedback and sound replacement. If not verifiable, fail closed; no unjustified NAV41 release. Keep the working native one-player architecture. `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`. Signed NAV40 source `34cb32c88a11743a64c9f4814fa71957223a1391`, protected backups, owner APK/ZIP Library unchanged.
+
+---
+
 # CURRENT — original Player/front post-UID ID guards plus exact Period→Window index (19 Nov 2026)
 
 **Latest signed-original STATIC research code:** `bac9dfcca42d23d5bd82ea21bbf5836c6695a8d5`; [CI #44519254855 SUCCESS, **32/32**](https://github.com/manufact-test/nomusic/actions/runs/44519254855). Earlier `14bb3a753661b689c5928acbd05b74b41d57262e` [CI #44518516341 SUCCESS 30/30](https://github.com/manufact-test/nomusic/actions/runs/44518516341). Pinned issuer-signed original Yandex Music 2025.10.4 #120.1gpr, read-only exact DEX; all 16 signed splits checked. No APK/owner-phone/runtime changes.

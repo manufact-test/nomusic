@@ -1,3 +1,5 @@
+**Latest CI (19 Nov 2026):** [#44523003641 SUCCESS 35/35](https://github.com/manufact-test/nomusic/actions/runs/44523003641), green code `e801787ef6a6c13c7d0c1d2e7916da6b622fe460`. SDK signer format compatibility fixed without weakening cryptographic issuer checks. Original `e.I` Window config field is **not** the Player current MediaItem getter field. Stop redundant static branches; next only concrete same-started-audio-read live-selection evidence, no NAV41 yet. See [canonical current checkpoint](NEXT-CHAT.md).
+
 **Latest pinned signed-original static step (19 Nov 2026):** original PlaybackInfo/front PeriodID post-UID int/sentinel conditional guards and three exact UID→Timeline Period int→Timeline Window handoffs are proven, [CI #44519254855 SUCCESS 32/32](https://github.com/manufact-test/nomusic/actions/runs/44519254855), source `bac9dfcca42d23d5bd82ea21bbf5836c6695a8d5`. Still **STRUCTURAL_ONLY**, not selected audible Track/edition/epoch; no NAV41. [Detailed report](ANDROID-A1-NAV40-SIGNED-FRONT-ID-GUARD-PERIOD-WINDOW-20261119.md).
 
 # CELIKOM Android A1 — documentation index
