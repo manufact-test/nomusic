@@ -1960,6 +1960,20 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
             "NAV43_DOES_NOT_CLAIM_SELECTED_EDITION");
 
+        // Same holder/UID but a fresh queue sequence is NOT this selection.
+        engine.playback.currentId=new Nav41Id(uid,-1,6);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(exactLiveObservations[0]==1,"NAV46_REPLAY_GENERATION_CHANGE_REJECTED");
+        engine.playback.currentId=new Nav41Id(uid,-1,5);
+        // The original source can change without the SLOT_B pointer changing.
+        ((FakePeriod)((FakeNested)h.nested).period).source=new FakeSource();
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(exactLiveObservations[0]==1,"NAV46_SOURCE_REBIND_REJECTED");
+        ((FakePeriod)((FakeNested)h.nested).period).source=originalSource;
+        stage.onNativeTrackAlbumConstructed(track,new Object());
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(exactLiveObservations[0]==1,"NAV46_ALBUM_CONFLICT_REJECTED");
+
         // EOS, wrong read code, wrong player period and changed queue slot
         // never turn the one earlier positive into another callback join.
         e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.TRUE);
