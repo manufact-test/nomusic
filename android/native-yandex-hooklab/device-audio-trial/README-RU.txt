@@ -1,11 +1,10 @@
-CELIKOM Android A1 — NAV42. Read-only сравнение текущего оригинального PlaybackInfo PeriodID с активным SLOT_B при -4 с НЕИЗВЕСТНЫМ EOS.
+CELIKOM Android A1 — NAV43. Read-only: точный текущий Player PeriodID и исходный TrackWrapper/Flow Album в ОДНОМ активном read (-4), при неизвестном EOS.
 
-Установить поверх NAV41 без удаления данных. При несовпадении подписи — остановиться, НЕ удалять приложение. Оригинал Яндекс.Музыки, плеер, декодер и звук не изменяются.
+Установка поверх NAV42, НЕ удаляя приложение и данные. Если Android сообщает о несовпадении подписи — остановиться. Яндекс.Музыка, проигрыватель и декодер НЕ изменены; подмены звука пока нет.
 
-Результат NAV41 на реальном HONOR 50: активный SLOT_B type1/state2/-4=MANY, PLAYER_PERIOD_AT_AUDIO_READ=REGISTERED, но BUFFER_EOS_ACCESS=NO_HOOK. Поэтому прежние строго non-EOS счётчики периода остались NONE.
-
-NAV42 не подделывает EOS. Он отдельно считает структурные совпадения только при точном оригинальном активном SLOT_B, type1/state2/-4, EOS неизвестен. Счётчики PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF / UID_INTS / UID_ONLY / DIFFERENT / UNAVAILABLE. Все прежние счётчики non-EOS оставлены. Сравнение НЕ доказывает выбранный трек/редакцию, новую генерацию очереди или звуковой сэмпл.
-
-Проверь 2–5 треков, Мою волну, Next, паузу, перемотку и повтор той же песни. Сохрани TXT диагностику CELIKOM и пришли её в чат.
-Маркер: NAV_V42_PLAYER_PERIOD_SLOTB_EOS_UNKNOWN_READONLY.
+NAV42 на телефоне: PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY, DIFFERENT=NONE, UNAVAILABLE=NONE, активный SLOT_B=MANY, но EOS=NO_HOOK. Это НЕ доказательство конкретной редакции/генерации песни.
+NAV43 в одном синхронном вызове проверяет совпадение Player PeriodID ↔ активный SLOT_B и уникальный source↔TrackWrapper↔поздний SAME Flow Album. Меняется очередь/нет единственного источника/нет Album? Положительный общий маркер запрещён. 
+Новые отдельные счётчики: PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK, PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_NO_LINK, PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SLOT_CHANGED. UNKNOWN EOS не выдаётся за доказанный аудиосэмпл. Значения не являются выбранной редакцией или разрешением на подмену.
+Протестируй 2–5 песен, Мою волну, Next, паузу, перемотку и повтор той же песни. Экспортируй TXT и пришли его в чат.
+Маркер NAV_V43_PERIOD_FLOW_UID_INTS_SAME_CALLBACK_READONLY.
 CELIKOM_REPLACEMENT=NOT_CONNECTED; IDENTITY_STATUS=STRUCTURAL_ONLY.

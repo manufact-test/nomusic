@@ -573,7 +573,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
 
     def test_nav40_creator_late_flow_strict_guard_readonly(self):
         code = HOOK.read_text(encoding="utf-8")
-        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V42_PLAYER_PERIOD_SLOTB_EOS_UNKNOWN_READONLY"', code)
+        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V43_PERIOD_FLOW_UID_INTS_SAME_CALLBACK_READONLY"', code)
         self.assertIn('PrivateNativePlayerPeriodTarget', code)
         self.assertIn('PLAYER_PERIOD_AT_AUDIO_READ', code)
         self.assertIn("installNativeTcaCreatorScopeHook(loader)", code)
