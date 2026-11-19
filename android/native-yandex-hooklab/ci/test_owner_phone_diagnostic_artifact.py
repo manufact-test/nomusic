@@ -92,8 +92,8 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
 
 
     def test_output_name_is_explicitly_versioned_nav41(self):
-        self.assertIn("NAV43", OUTPUT_NAME)
-        self.assertIn("Period-Flow-SameCallback", OUTPUT_NAME)
+        self.assertIn("NAV44", OUTPUT_NAME)
+        self.assertIn("Current-MediaItem-Source", OUTPUT_NAME)
 
 
 
