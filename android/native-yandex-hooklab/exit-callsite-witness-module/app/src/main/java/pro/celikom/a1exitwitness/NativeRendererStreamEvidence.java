@@ -332,6 +332,8 @@ final class NativeRendererStreamEvidence {
                     || currentPeriodSecondIntField.getInt(playbackId)
                         !=currentPeriodSecondIntField.getInt(holderId))
                 throw new IllegalStateException();
+            int first=currentPeriodFirstIntField.getInt(playbackId);
+            int second=currentPeriodSecondIntField.getInt(playbackId);
             Object timeline=selectedPlaybackTimelineField.get(info);
             if(timeline==null)throw new IllegalStateException();
             Object periodScratch=selectedPeriodConstructor.newInstance();
@@ -354,7 +356,27 @@ final class NativeRendererStreamEvidence {
                     || selectedPlaybackTimelineField.get(info)!=timeline
                     || currentPeriodUidField.get(playbackId)!=uid
                     || currentPeriodUidField.get(holderId)!=uid
+                    || currentPeriodFirstIntField.getInt(playbackId)!=first
+                    || currentPeriodFirstIntField.getInt(holderId)!=first
+                    || currentPeriodSecondIntField.getInt(playbackId)!=second
+                    || currentPeriodSecondIntField.getInt(holderId)!=second
+                    || selectedSourceMediaItemField.get(source)!=sourceItem
                     || liveQueueSlotMatches(engine,holder)!=1) {
+                selectedItemSlotChanged=inc(selectedItemSlotChanged);
+                return;
+            }
+            // A stable SLOT_B pointer is not enough if its period's
+            // underlying source changes without changing the queue holder.
+            // Only the signed-direct period/wrapper paths can be re-read;
+            // adapter ambiguity fails closed, never borrows an old link.
+            Object nested=holderWrapperField.get(holder);
+            Object exactPeriod=null;
+            if(exactPeriodClass.isInstance(nested))exactPeriod=nested;
+            else if(exactWrapperClass.isInstance(nested)) {
+                Object original=wrapperPeriodField.get(nested);
+                if(exactPeriodClass.isInstance(original))exactPeriod=original;
+            }
+            if(exactPeriod==null || periodSourceField.get(exactPeriod)!=source) {
                 selectedItemSlotChanged=inc(selectedItemSlotChanged);
                 return;
             }
