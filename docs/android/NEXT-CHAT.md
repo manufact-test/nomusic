@@ -1,3 +1,17 @@
+# LATEST — NAV43 signed phone diagnostic READY in Library (19 November 2026)
+
+**Owner NAV42 diagnostic `CELIKOM-A1-Diagnostics-1795096092342.txt`:** `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`, `DIFFERENT=NONE`, `UNAVAILABLE=NONE`, and exact live `SLOT_B`, scoped tCa source, late SAME Flow Album each MANY. Original EOS accessor still NO_HOOK. All only structural, no selected edition/PCM and no audio replacement.
+
+**NAV43 exact same-callback classifier:** code `24a6a2dfcce86e7514fccd8253bc4eae440de5d4`; read-only joint witness checks current Player PeriodID versus live SLOT_B and unique exact original scoped source → tCa wrapper → SAME late Flow Album at a single -4 callback, then rechecks SLOT_B; separate no-link/slot-changed counters. Signed release source commit `3cc409d9e7879abf91783109fd28f66586881bdc`; [JVM #44538897528 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44538897528), [final owner-signed Android13 ARM CI #44538897470 SUCCESS (27 steps)](https://github.com/manufact-test/nomusic/actions/runs/44538897470).
+
+**Verified released artifact in ChatGPT Library `/CELIKOM/Android/Native/` (both UPLOAD SUCCEEDED):**
+- `CELIKOM-A1-NAV43-Period-Flow-SameCallback-ReadOnly-20261119.apk` 71,491,564 bytes SHA256 `5bda3ddea77e94f1bc6f87e8224c7838a0f8ae7dd05d0c466866e8f321b758e6`.
+- `CELIKOM-A1-NAV43-Period-Flow-SameCallback-20261119.zip` 51,621,360 bytes SHA256 `04e1a60fd4ce93e3576965e281f0acda63e8cd69999f9c88f1929fe5850a4350`, contains only APK + README-RU.txt.
+
+**NEXT:** user installs NAV43 *over NAV42*, no delete/data wipe. Play 2–5 tracks and MyWave; Next/seek/pause/repeat; send TXT. Inspect `PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK`, `...NO_LINK`, `...SLOT_CHANGED`. Until then `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. Do not touch signed NAV40 code `34cb32c88a11743a64c9f4814fa71957223a1391` or backups; no broad static scans, no NAV44 without new phone proof.
+
+---
+
 # CURRENT — NAV42 owner phone proof → NAV43 same-callback source/period witness (19 Nov 2026)
 
 **Phone TXT:** `CELIKOM-A1-Diagnostics-1795096092342.txt` (118623 bytes, 1637 lines) confirms `NAV_V42_PLAYER_PERIOD_SLOTB_EOS_UNKNOWN_READONLY` ACTIVE. `LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MINUS4=MANY`, original `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`, `...SAME_REF=NONE`, `...UID_ONLY=NONE`, `...DIFFERENT=NONE`, `...UNAVAILABLE=NONE`. Original `BUFFER_EOS_ACCESS=NO_HOOK`, so the NON-EOS category remains NONE and no physical PCM/audible proof is allowed. In that run `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY`, `LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME=MANY`, neither scoped source conflict nor late-flow conflict observed. `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY` remains.
