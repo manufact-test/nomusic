@@ -1553,6 +1553,90 @@ def signed_engine_state_identity_window(targets):
     return {"signed_engine_bounded_register_region":rows,
             "selected_identity_or_audible_event_proven":False}
 
+
+ENGINE_PLAYER_FRONT=(QUEUE,"if","()Lxh6;")
+OBJECT_GET_CLASS=("Ljava/lang/Object;","getClass","()Ljava/lang/Class;")
+OBJECT_EQUALS=("Ljava/lang/Object;","equals","(Ljava/lang/Object;)Z")
+def verify_signed_player_info_front_UID_comparison(targets):
+    """Exact engine: playback-info period UID vs Queue front candidate UID.
+
+    The comparison is a real original-source identity boundary, but an
+    Object.equals / branch at this site does not establish *runtime truth*,
+    uniqueness for same Track or current audible media. No values exported.
+    """
+    if ENGINE not in targets or PLAYER_STATE_RESOLVE not in targets or ENGINE_PLAYER_FRONT not in targets:
+        raise ValueError("PLAYER_FRONT_IDENTITY_MISSING_ORIGINAL_METHOD")
+    dex,_flags,off=targets[ENGINE]
+    by_pc={pc:(op,w) for pc,op,w in audit.instructions(dex,off)}
+    def require_site(pc,opcode):
+        row=by_pc.get(pc)
+        if row is None or row[0]!=opcode:
+            raise ValueError("PLAYER_FRONT_IDENTITY_OPCODE_OR_PC_DRIFT")
+        return row[1]
+    def typed_field(pc,op,owner,typ,receiver,dest):
+        w=require_site(pc,op)
+        f=audit.field_id(dex,w[1])
+        if (f[0]!=owner or f[2]!=typ or
+            ((w[0]>>8)&15)!=dest or
+            ((w[0]>>12)&15)!=receiver):
+            raise ValueError("PLAYER_FRONT_IDENTITY_FIELD_OR_REGISTER_DRIFT")
+        return f
+    def invoke(pc,opcode,target,expected_registers):
+        w=require_site(pc,opcode)
+        if dex.method(w[1])!=target or audit.invoke_registers(opcode,w)!=expected_registers:
+            raise ValueError("PLAYER_FRONT_IDENTITY_CALLEE_OR_ARGUMENT_DRIFT")
+    invoke(1253,0x6e,ENGINE_PLAYER_FRONT,[10])
+    move=require_site(1256,0x0c)
+    if (move[0]>>8)!=11:
+        raise ValueError("PLAYER_FRONT_IDENTITY_FRONT_MOVE_DRIFT")
+    invoke(1257,0x6e,OBJECT_GET_CLASS,[11])
+    engine_info=typed_field(1260,0x54,ENGINE[0],PLAYBACK_INFO,0,1)
+    player_ID=typed_field(1262,0x54,PLAYBACK_INFO,PERIOD_ID,1,1)
+    original_UID=typed_field(1264,0x54,PERIOD_ID,"Ljava/lang/Object;",1,1)
+    holder_info=typed_field(1266,0x54,HOLDER,PERIOD_INFO,11,2)
+    holder_ID=typed_field(1268,0x54,PERIOD_INFO,PERIOD_ID,2,2)
+    front_UID=typed_field(1270,0x54,PERIOD_ID,"Ljava/lang/Object;",2,2)
+    if original_UID!=front_UID:
+        raise ValueError("PLAYER_FRONT_IDENTITY_PERIOD_UID_FIELD_DIFFERENT")
+    invoke(1272,0x6e,OBJECT_EQUALS,[1,2])
+    result=require_site(1275,0x0a)
+    if (result[0]>>8)!=1:
+        raise ValueError("PLAYER_FRONT_IDENTITY_RESULT_REGISTER_DRIFT")
+    branch=require_site(1276,0x38)
+    signed=branch[1]-(0x10000 if branch[1]&0x8000 else 0)
+    if branch[0]>>8!=1 or 1276+signed!=1303:
+        raise ValueError("PLAYER_FRONT_IDENTITY_CONDITIONAL_TARGET_DRIFT")
+    # Must refer to the previously pinned Player state and holder fields.
+    d,_,d_off=targets[PLAYER_STATE_RESOLVE]
+    d_ins={pc:(op,w) for pc,op,w in audit.instructions(d,d_off)}
+    if (d_ins.get(74,(None,None))[0]!=0x54 or
+        audit.field_id(d,d_ins[74][1][1])!=player_ID):
+        raise ValueError("PLAYER_FRONT_IDENTITY_PLAYER_M0_FIELD_CHANGED")
+    e,_,e_off=targets[ENGINE]
+    e_ins={pc:(op,w) for pc,op,w in audit.instructions(e,e_off)}
+    for pc,field in ((671,engine_info),(675,holder_info),(677,holder_ID)):
+        row=e_ins.get(pc)
+        if row is None or row[0]!=0x54 or audit.field_id(e,row[1][1])!=field:
+            raise ValueError("PLAYER_FRONT_IDENTITY_SAME_ENGINE_FIELDS_DRIFT")
+    # No branch exists between direct front-result and UID equality.
+    for pc,op,words in audit.instructions(dex,off):
+        if 1253<pc<1276 and (0x28<=op<=0x2c or 0x32<=op<=0x3d):
+            raise ValueError("PLAYER_FRONT_IDENTITY_UNEXPECTED_LOCAL_BRANCH")
+    return {
+        "signed_engine_queue_front_method":list(ENGINE_PLAYER_FRONT),
+        "queue_front_holder_return_captured_at_pc":1256,
+        "player_playback_info_period_id_exact_M0_field":True,
+        "engine_state_field_same_as_previous_renderer_region":True,
+        "front_holder_period_info_and_id_fields_match_prior_anchors":True,
+        "same_period_uid_field_used_on_two_ID_receivers":True,
+        "original_java_equals_receives_player_uid_and_front_holder_uid":True,
+        "equals_false_branch_pc":1276,
+        "equals_false_target_pc":1303,
+        "runtime_uid_equals_outcome_proven":False,
+        "started_audio_read_same_snapshot_proven":False,
+        "selected_track_edition_or_unique_generation_proven":False,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -1651,6 +1735,7 @@ def scan_signed(apks):
     old_period_J_reuse=verify_signed_old_period_id_long_handoff(targets)
     player_selection_scout=signed_player_timeline_candidate(targets)
     state_field_correspondence=signed_selected_state_field_correspondence(targets)
+    player_front_uid_comparison=verify_signed_player_info_front_UID_comparison(targets)
     state_engine_identity_window=signed_engine_state_identity_window(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
@@ -1672,6 +1757,7 @@ def scan_signed(apks):
         "exact_old_period_id_long_to_new_queue_builder":old_period_J_reuse,
         "exact_original_player_timeline_candidate_scout":player_selection_scout,
         "exact_player_state_field_correspondence":state_field_correspondence,
+        "exact_original_player_front_UID_equals_boundary":player_front_uid_comparison,
         "engine_selected_state_bounded_region":state_engine_identity_window,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,

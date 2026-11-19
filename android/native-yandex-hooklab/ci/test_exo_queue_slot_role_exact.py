@@ -531,4 +531,73 @@ class SignedSelectedStateFieldCorrespondenceTests(unittest.TestCase):
         self.assertNotIn("SECRET",str(view))
         self.assertNotIn("PRIVATE",str(view))
 
+
+class SignedPlayerFrontUIDEqualsTests(unittest.TestCase):
+    def _fixture(self,alter=None):
+        from exo_queue_slot_role_exact import (
+            ENGINE,PLAYER_STATE_RESOLVE,ENGINE_PLAYER_FRONT,
+            HOLDER,PERIOD_INFO,PLAYBACK_INFO,PERIOD_ID)
+        class Dex:
+            def method(self,index):
+                return {1:ENGINE_PLAYER_FRONT,2:("Ljava/lang/Object;","getClass","()Ljava/lang/Class;"),
+                        3:("Ljava/lang/Object;","equals","(Ljava/lang/Object;)Z")}[index]
+        engine=Dex();player=Dex()
+        def w(op,dst,receiver,field):
+            return ((receiver<<12)|(dst<<8)|op,field)
+        instructions={
+            671:(0x54,w(0x54,5,0,1)),675:(0x54,w(0x54,6,3,4)),677:(0x54,w(0x54,6,6,5)),
+            1253:(0x6e,(0x016e,1,0x000a)),
+            1256:(0x0c,(0x0b0c,)),
+            1257:(0x6e,(0x016e,2,0x000b)),
+            1260:(0x54,w(0x54,1,0,1)),
+            1262:(0x54,w(0x54,1,1,3)),
+            1264:(0x54,w(0x54,1,1,7)),
+            1266:(0x54,w(0x54,2,11,4)),
+            1268:(0x54,w(0x54,2,2,5)),
+            1270:(0x54,w(0x54,2,2,7)),
+            1272:(0x6e,(0x026e,3,0x0021)),
+            1275:(0x0a,(0x010a,)),
+            1276:(0x38,(0x0138,27)),
+        }
+        if alter:
+            pc,opcode,words=alter
+            instructions[pc]=(opcode,words)
+        fields={1:(ENGINE[0],"engineInfo",PLAYBACK_INFO),
+                3:(PLAYBACK_INFO,"playingId",PERIOD_ID),
+                4:(HOLDER,"periodInfo",PERIOD_INFO),
+                5:(PERIOD_INFO,"id",PERIOD_ID),
+                7:(PERIOD_ID,"uid","Ljava/lang/Object;"),
+                8:(PERIOD_ID,"differentUid","Ljava/lang/Object;")}
+        targets={ENGINE:(engine,0,100),PLAYER_STATE_RESOLVE:(player,0,200),
+                 ENGINE_PLAYER_FRONT:(object(),0,300)}
+        source_by_offset={100:[(pc,op,w) for pc,(op,w) in instructions.items()],
+                          200:[(74,0x54,w(0x54,1,1,3))]}
+        return targets,fields,source_by_offset
+    def _prove(self,alter=None):
+        from exo_queue_slot_role_exact import (
+            verify_signed_player_info_front_UID_comparison,audit)
+        from unittest.mock import patch
+        targets,fields,sources=self._fixture(alter)
+        with patch.object(audit,"instructions",side_effect=lambda dex,off:sources[off]), \
+             patch.object(audit,"field_id",side_effect=lambda dex,index:fields[index]), \
+             patch.object(audit,"invoke_registers",side_effect=lambda opcode,w:
+                 {1:[10],2:[11],3:[1,2]}[w[1]]):
+            return verify_signed_player_info_front_UID_comparison(targets)
+    def test_proven_comparison_is_not_runtime_equals_or_selected_item(self):
+        result=self._prove()
+        self.assertTrue(result["original_java_equals_receives_player_uid_and_front_holder_uid"])
+        self.assertFalse(result["started_audio_read_same_snapshot_proven"])
+        self.assertFalse(result["selected_track_edition_or_unique_generation_proven"])
+    def test_wrong_uid_field_equals_target_and_front_holder_fail_closed(self):
+        changes=[
+            (1270,0x54,(0x2254,8)),
+            (1276,0x38,(0x0138,26)),
+            (1256,0x0c,(0x0a0c,)),
+            (1272,0x6e,(0x026e,2,0x0021)),
+        ]
+        for case in changes:
+            with self.subTest(case=case):
+                with self.assertRaisesRegex(ValueError,"PLAYER_FRONT_IDENTITY_"):
+                    self._prove(case)
+
 if __name__=="__main__": unittest.main()
