@@ -1916,7 +1916,18 @@ public final class NativeRendererStreamEvidenceTest {
         nav41Setup(e);
         nav43SetupLiveSource(e);
         e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        e.setExactOriginalTrackAlbumEvidence(stage::exactOriginalTrackAlbumForWrapper);
         Object track=new Object(),album=new Object(),wrapper=new Object();
+        final int[] exactLiveObservations={0};
+        // Never permit a prefetch/stale/other source callback to claim this
+        // exact original Track, Album and active native source as selected.
+        final Object[] sourceForOriginalIdentity={null};
+        e.setActiveOriginalTrackObserver((t,audioAlbum,audioSource)->{
+            check(t==track && audioAlbum==album
+                && audioSource==sourceForOriginalIdentity[0],
+                "NAV46_SAME_JAVA_OBJECTS_ACTIVE_ORIGINAL_SOURCE");
+            exactLiveObservations[0]++;
+        });
         stage.onNativeTrackAlbumConstructed(track,album);
         stage.enterNativeTcaCreatorOwner(new Object());
         try {
@@ -1932,11 +1943,14 @@ public final class NativeRendererStreamEvidenceTest {
         Nav41Id originalId=new Nav41Id(uid,-1,5);
         Nav41Holder h=new Nav41Holder(originalId,stream);
         FakeSource originalSource=new FakeSource();
+        sourceForOriginalIdentity[0]=originalSource;
         h.nested=new FakeNested(new FakePeriod(originalSource));
         Nav41Engine engine=new Nav41Engine(h,new Nav41Id(uid,-1,5));
         nav43LinkOriginalSource(e,wrapper,originalSource);
         nav41Attach(e,engine,h,renderer,stream);
         e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(exactLiveObservations[0]==1,
+            "NAV46_CURRENT_ORIGINAL_TRACK_SOURCE_REFERENCE_DELIVERED");
         check(contains(e.exportLines(),
             "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=ONE"),
             "NAV43_EXACT_CALLBACK_JOIN");
@@ -1957,6 +1971,8 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(e.exportLines(),
             "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=ONE"),
             "NAV43_NO_STALE_EXTRA_JOIN");
+        check(exactLiveObservations[0]==1,
+            "NAV46_NO_ORIGINAL_TRACK_DELIVERY_AFTER_EOS_NEXT_OR_DETACH");
     }
 
     private static void testNav43JointRequiresFlowAndUniqueSourceAndStableSlot() {
