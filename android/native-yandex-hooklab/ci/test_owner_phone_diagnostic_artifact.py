@@ -92,8 +92,8 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
 
 
     def test_output_name_is_explicitly_versioned_nav41(self):
-        self.assertIn("NAV44", OUTPUT_NAME)
-        self.assertIn("Current-MediaItem-Source", OUTPUT_NAME)
+        self.assertIn("NAV45", OUTPUT_NAME)
+        self.assertIn("Nonempty-MediaItem-ID", OUTPUT_NAME)
 
 
 
