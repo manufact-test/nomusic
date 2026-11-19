@@ -1,3 +1,13 @@
+# LATEST — NAV45 signed-original immutable MediaItem ID candidate; owner APK export requested (19.11.2026)
+
+**Owner NAV44 TXT received and analyzed:** `CELIKOM-A1-Diagnostics-1795100702186.txt`. Exact `NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY` marker + hook `CURRENT_MEDIAITEM_SOURCE=REGISTERED`. `PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF=NONE`, `DIFFERENT=FEW`, `UNAVAILABLE=NONE`, `SLOT_CHANGED=NONE`; `PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK=MANY`, `...NO_LINK=MANY`, `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`. A distinct Java MediaItem reference is **not** proof of different songs, TrackIDs or editions; never alter original playback just to force Java reference identity.
+
+**NAV45 narrow next step:** original signed 2025 MediaItem `LOf6;` has **exactly one immutable final instance String field** (publisher-signed private CI [#44551508431 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44551508431)). Compare only two nonempty String field values from NAV44-qualified same-read selected Window MediaItem and actual source MediaItem; field contents are not stored or logged. Distinct refs and same logical ID now classify `PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_MATCH`. `DIFFERENT`, `BLANK`, `UNAVAILABLE` remain fail-closed; old SLOT_B/Period/Flow gates stay in place. [JVM new ref/id tests #44552192680 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44552192680). See [NAV45 target report](ANDROID-A1-NAV45-NONEMPTY-MEDIAITEM-ID-READONLY-20261119.md).
+
+**Status:** owner-signed NAV45 APK + ZIP are **not yet certified** until final ARM13 release CI; expected artifact names `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-ReadOnly-20261119.apk`, `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-20261119.zip`. Same sole branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Signed NAV40, signed NAV43, signed NAV44 remain immutable. `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`, `BUFFER_EOS_ACCESS=NO_HOOK`; no audible PCM or selected edition proof.
+
+---
+
 # LATEST — NAV44 signed ARM13 27/27 SUCCESS; APK + ZIP verified and in Library (19 Nov 2026)
 
 **Signed final release:** source/export commit `e7b7dc1d0272cbf354876ff23d347917e815560a`. [Owner-signed Android13 ARM run #44547529479 — SUCCESS, all 27/27 steps](https://github.com/manufact-test/nomusic/actions/runs/44547529479); [preceding ARM preflight #44547059680 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44547059680); [JVM #44546865739 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44546865739); [exact publisher-signed private field compiler CI #44545043886 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44545043886).
