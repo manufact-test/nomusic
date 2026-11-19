@@ -1765,6 +1765,78 @@ def signed_two_slotB_reads_to_timeline_transition(targets,slots):
         "current_selected_audio_track_edition_or_epoch_proven":False,
     }
 
+
+EXACT_TIMELINE_PERIOD_BY_UID=("LTva;","goto",
+                             "(Ljava/lang/Object;LTva$b;)LTva$b;")
+SIGNED_TIMELINE_UID_HANDOFFS=(
+    (ENGINE_PERIOD_TIMELINE_TRANSITION,52,56,8,7,8,0),
+    (ENGINE_PERIOD_TIMELINE_TRANSITION,99,101,10,9,8,0),
+    (ENGINE_PERIOD_STATUS_PREDICATE,13,17,4,3,4,0),
+)
+def verify_signed_period_ID_UID_to_timeline_lookup(targets):
+    """Exact original Player Engine period UID → Timeline record lookup.
+
+    Distinct playback period IDs may have equal UIDs. This is not a proof
+    of current selected MediaItem/edition or of audible renderer period.
+    """
+    required={ENGINE,ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE}
+    if not required.issubset(targets):
+        raise ValueError("TIMELINE_UID_REQUIRED_METHODS_MISSING")
+    e,_,eo=targets[ENGINE]
+    e_ins={pc:(op,w) for pc,op,w in audit.instructions(e,eo)}
+    known=e_ins.get(1264)
+    if known is None or known[0]!=0x54:
+        raise ValueError("TIMELINE_UID_ORIGINAL_COMPARATOR_ANCHOR_DRIFT")
+    exact_UID_field=audit.field_id(e,known[1][1])
+    if exact_UID_field[0]!=PERIOD_ID or exact_UID_field[2]!="Ljava/lang/Object;":
+        raise ValueError("TIMELINE_UID_FIELD_TYPE_MISMATCH")
+    out=[]
+    for method,uid_pc,lookup_pc,id_argument_reg,timeline_argument_reg,UID_dest,result_reg in SIGNED_TIMELINE_UID_HANDOFFS:
+        dex,flags,off=targets[method]
+        ins={pc:(op,w) for pc,op,w in audit.instructions(dex,off)}
+        original=ins.get(uid_pc)
+        lookup=ins.get(lookup_pc)
+        if original is None or original[0]!=0x54 or lookup is None or lookup[0] not in audit.INVOKES:
+            raise ValueError("TIMELINE_UID_OPCODE_OR_PC_DRIFT")
+        op,w=original
+        if (audit.field_id(dex,w[1])!=exact_UID_field or
+            ((w[0]>>12)&15)!=id_argument_reg or
+            ((w[0]>>8)&15)!=UID_dest):
+            raise ValueError("TIMELINE_UID_SAME_FIELD_RECEIVER_DEST_DRIFT")
+        lookupop,lookupwords=lookup
+        if (dex.method(lookupwords[1])!=EXACT_TIMELINE_PERIOD_BY_UID or
+            audit.invoke_registers(lookupop,lookupwords)!=[
+                timeline_argument_reg,UID_dest,result_reg]):
+            raise ValueError("TIMELINE_UID_LOOKUP_ARGUMENT_DRIFT")
+        id_params=audit.typed_parameter_registers(dex,method,flags,off,PERIOD_ID)
+        timeline_params=audit.typed_parameter_registers(dex,method,flags,off,TIMELINE)
+        if id_argument_reg not in id_params or timeline_argument_reg not in timeline_params:
+            raise ValueError("TIMELINE_UID_NOT_FROM_TYPED_PARAMETER")
+        # No short interval branch or UID overwrite; check every opcode
+        # between the source and callee, not only listed typed operations.
+        for pc0,op0,w0 in audit.instructions(dex,off):
+            if not uid_pc<pc0<lookup_pc:continue
+            dest=audit.written_register(op0,w0)
+            if dest==UID_dest or (0x28<=op0<=0x2c or 0x32<=op0<=0x3d):
+                raise ValueError("TIMELINE_UID_SHORT_BLOCK_UNKNOWN_MUTATION")
+        out.append({
+            "caller":list(method),
+            "source_ID_UID_read_pc":uid_pc,
+            "timeline_period_lookup_pc":lookup_pc,
+            "same_exact_UID_field_as_Player_front_comparator":True,
+            "source_ID_receiver_is_typed_parameter":True,
+            "timeline_receiver_is_typed_parameter":True,
+            "UID_register_not_overwritten_in_local_block":True,
+            "selected_track_edition_or_active_period_proven":False,
+        })
+    return {
+        "three_exact_signed_ID_UID_to_timeline_period_lookups":len(out)==3,
+        "signed_UID_lookup_sites":out,
+        "timeline_Period_record_used_as_original_ID_lookup":True,
+        "current_Player_selected_media_item_at_same_audio_read_proven":False,
+        "NAV41_readonly_runtime_admission_proven":False,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -1866,6 +1938,7 @@ def scan_signed(apks):
     player_front_uid_comparison=verify_signed_player_info_front_UID_comparison(targets)
     timeline_transition_scout=inspect_signed_engine_period_timeline_transition(targets)
     two_slotB_transition=signed_two_slotB_reads_to_timeline_transition(targets,slot_ids)
+    timeline_UID_lookup=verify_signed_period_ID_UID_to_timeline_lookup(targets)
     state_engine_identity_window=signed_engine_state_identity_window(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
@@ -1890,6 +1963,7 @@ def scan_signed(apks):
         "exact_original_player_front_UID_equals_boundary":player_front_uid_comparison,
         "exact_engine_period_timeline_transition_scout":timeline_transition_scout,
         "exact_two_SLOT_B_reads_to_engine_timeline_ID_transition":two_slotB_transition,
+        "exact_signed_period_UID_to_Timeline_period_lookup":timeline_UID_lookup,
         "engine_selected_state_bounded_region":state_engine_identity_window,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,

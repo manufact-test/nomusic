@@ -672,4 +672,48 @@ class SignedTwoSlotBTransitionFailClosedTests(unittest.TestCase):
         self.assertEqual(witness["exact_same_slotB_read_at_pcs"],[547,664])
         self.assertFalse(witness["current_selected_audio_track_edition_or_epoch_proven"])
 
+
+class SignedTimelinePeriodUIDLookupTests(unittest.TestCase):
+    def _prove(self,uid_drift=False,callee_drift=False):
+        from exo_queue_slot_role_exact import (
+            verify_signed_period_ID_UID_to_timeline_lookup,
+            ENGINE,ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE,
+            EXACT_TIMELINE_PERIOD_BY_UID,PERIOD_ID,TIMELINE,audit)
+        from unittest.mock import patch
+        class FakeDex:
+            def method(self,index):
+                return ("Lfake;","bad","()V") if callee_drift else EXACT_TIMELINE_PERIOD_BY_UID
+        positions={ENGINE:1,ENGINE_PERIOD_TIMELINE_TRANSITION:2,ENGINE_PERIOD_STATUS_PREDICATE:3}
+        data={
+            1:[(1264,0x54,(0x1154,7))],
+            2:[(52,0x54,(0x8854,7 if not uid_drift else 8)),
+               (56,0x6e,(0x036e,1,0x0870)),
+               (99,0x54,(0xa854,7)),
+               (101,0x6e,(0x036e,1,0x0890))],
+            3:[(13,0x54,(0x4454,7)),
+               (17,0x6e,(0x036e,1,0x0430))]
+        }
+        targets={k:(FakeDex(),0,pos) for k,pos in positions.items()}
+        def invoke(op,words):
+            return {0x0870:[7,8,0],0x0890:[9,8,0],0x0430:[3,4,0]}[words[2]]
+        def params(dex,method,flags,off,typ):
+            if off==2:return {8,10} if typ==PERIOD_ID else {7,9}
+            return {4} if typ==PERIOD_ID else {3}
+        with patch.object(audit,"instructions",side_effect=lambda dex,off:data[off]), \
+             patch.object(audit,"field_id",side_effect=lambda dex,index:
+                (PERIOD_ID,"sameUID","Ljava/lang/Object;") if index==7
+                 else (PERIOD_ID,"OTHER_UID","Ljava/lang/Object;")), \
+             patch.object(audit,"invoke_registers",side_effect=invoke), \
+             patch.object(audit,"typed_parameter_registers",side_effect=params):
+            return verify_signed_period_ID_UID_to_timeline_lookup(targets)
+    def test_same_exact_original_period_UID_field_not_selection_proof(self):
+        v=self._prove()
+        self.assertTrue(v["three_exact_signed_ID_UID_to_timeline_period_lookups"])
+        self.assertFalse(v["NAV41_readonly_runtime_admission_proven"])
+    def test_changed_UID_field_or_lookup_callee_fail_closed(self):
+        for uid_drift,callee_drift in ((True,False),(False,True)):
+            with self.subTest(uid_drift=uid_drift,callee_drift=callee_drift):
+                with self.assertRaisesRegex(ValueError,"TIMELINE_UID_"):
+                    self._prove(uid_drift,callee_drift)
+
 if __name__=="__main__": unittest.main()
