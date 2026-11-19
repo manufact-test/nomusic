@@ -329,7 +329,7 @@ class SignedIdLongOriginalQueueCfgTests(unittest.TestCase):
           4:(0x05,(0x0205,6)),
           6:(0x70,(0x0070,1,0x0321)),
         }
-        if clobber: ins[4]=(0x16,(0x0216,0))
+        if clobber: ins[2]=(0x16,(0x0616,0))
         if skipped:
             ins[0]=(0x32,(0x1032,6))
         successors={0:[2,6] if skipped else [2],2:[4],4:[6],6:[]}
