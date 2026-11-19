@@ -247,7 +247,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         self.assertNotIn('.putString(',part)
         self.assertNotIn('.setResult(',part)
         self.assertNotIn('.startActivity(',part)
-        self.assertIn('NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY',s)
+        self.assertIn('NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY',s)
 
     def test_native_gate_requires_receiver_hook_registration(self):
         runner=(Path(__file__).resolve().parent /
@@ -372,7 +372,7 @@ class PostLoginReceiptSourceContract(unittest.TestCase):
         s=self.code
         self.assertIn('!"ENTRY_ACTIVITY".equals(activityFamily(activity))',s)
         self.assertIn('postLoginHookAttempts.incrementAndGet() > 3',s)
-        self.assertIn('NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY',s)
+        self.assertIn('NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY',s)
 
 if __name__=="__main__":
     unittest.main()

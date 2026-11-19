@@ -59,7 +59,7 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY' in src
+          assert 'NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY' in src
           assert 'holderSelect.getDeclaredMethod(' in src
           assert 'HOLDER_OTHER_WH6_AT_READ' in model
           assert 'LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT' in model
