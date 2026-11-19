@@ -282,4 +282,22 @@ class SignedPeriodIdConstructorDiscoveryTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_ID_CTOR_"):
                     validate_signed_period_id_ctor_sites(candidate)
 
+
+class SignedPeriodIdPinnedSiteGuardTests(unittest.TestCase):
+    def test_all_15_original_direct_sites_pinned_fail_closed(self):
+        from exo_queue_slot_role_exact import (
+            SIGNED_PERIOD_ID_CTOR_DIRECT_SITES,
+            validate_signed_period_id_ctor_sites,
+        )
+        sites=list(SIGNED_PERIOD_ID_CTOR_DIRECT_SITES)
+        self.assertEqual(len(sites),15)
+        self.assertEqual(validate_signed_period_id_ctor_sites(
+            sites,exact_signed=True)["exact_direct_constructor_callsite_count"],15)
+        for candidate in (sites[:-1],sites+[
+            ("Lfake;","extra","()V",42,"(JLjava/lang/Object;)V",0x70)],
+            [(*sites[0][:3],sites[0][3]+1,*sites[0][4:])]+sites[1:]):
+            with self.subTest(candidate_len=len(candidate)):
+                with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_ID_CTOR_"):
+                    validate_signed_period_id_ctor_sites(candidate,exact_signed=True)
+
 if __name__=="__main__": unittest.main()

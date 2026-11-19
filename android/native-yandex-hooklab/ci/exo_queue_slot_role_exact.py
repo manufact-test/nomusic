@@ -914,7 +914,26 @@ def signed_holder_period_token_census(apks,targets):
 # constructor callsites. A callsite does not imply current playback.
 # No instance values, media IDs, string contents or private field names.
 MAX_SIGNED_PERIOD_ID_CTOR_SITES=512
-def validate_signed_period_id_ctor_sites(rows):
+
+SIGNED_PERIOD_ID_CTOR_DIRECT_SITES=frozenset({
+    ("LCD7;","<clinit>","()V",7,"(Ljava/lang/Object;)V",112),
+    ("LQM2;","case","(Llo$a;)V",120,"(IJLjava/lang/Object;)V",112),
+    ("LQM2;","try","(Llo$a;)V",88,"(JLjava/lang/Object;)V",112),
+    ("LSl6$b;","<init>","(IJLjava/lang/Object;)V",6,"(Ljava/lang/Object;IIJI)V",118),
+    ("LSl6$b;","<init>","(JLjava/lang/Object;)V",6,"(Ljava/lang/Object;IIJI)V",118),
+    ("LSl6$b;","<init>","(Ljava/lang/Object;)V",2,"(JLjava/lang/Object;)V",112),
+    ("LSl6$b;","if","(Ljava/lang/Object;)LSl6$b;",20,"(Ljava/lang/Object;IIJI)V",118),
+    ("LUKb$c;","if","(LSl6;LTva;)V",61,"(Ljava/lang/Object;)V",112),
+    ("LUKb;","if","(LUKb;)V",164,"(Ljava/lang/Object;)V",112),
+    ("Landroidx/media3/exoplayer/d;","M0","(LCD7;LTva;Landroid/util/Pair;)LCD7;",92,"(Ljava/lang/Object;)V",112),
+    ("Landroidx/media3/exoplayer/e;","throwables","(ZZZZ)V",277,"(JLjava/lang/Object;)V",112),
+    ("Landroidx/media3/exoplayer/h;","else","(LTva;Ljava/lang/Object;IIJJZ)Lyh6;",11,"(Ljava/lang/Object;IIJI)V",118),
+    ("Landroidx/media3/exoplayer/h;","goto","(LTva;Ljava/lang/Object;JJJZ)Lyh6;",103,"(IJLjava/lang/Object;)V",112),
+    ("Landroidx/media3/exoplayer/h;","import","(LTva;Ljava/lang/Object;JJLTva$d;LTva$b;)LSl6$b;",126,"(IJLjava/lang/Object;)V",112),
+    ("Landroidx/media3/exoplayer/h;","import","(LTva;Ljava/lang/Object;JJLTva$d;LTva$b;)LSl6$b;",139,"(Ljava/lang/Object;IIJI)V",118),
+})
+
+def validate_signed_period_id_ctor_sites(rows,exact_signed=False):
     """Only exact, distinct, opcode-aligned constructor references qualify."""
     if not rows or len(rows)>MAX_SIGNED_PERIOD_ID_CTOR_SITES:
         raise ValueError("QUEUE_PERIOD_ID_CTOR_SITE_COUNT")
@@ -930,6 +949,8 @@ def validate_signed_period_id_ctor_sites(rows):
             raise ValueError("QUEUE_PERIOD_ID_CTOR_DUPLICATE_SITE")
         seen.add(row)
         signatures[row[4]]=signatures.get(row[4],0)+1
+    if exact_signed and seen!=SIGNED_PERIOD_ID_CTOR_DIRECT_SITES:
+        raise ValueError("QUEUE_PERIOD_ID_CTOR_EXACT_SIGNED_SITE_DRIFT")
     return {
         "exact_direct_constructor_callsite_count":len(rows),
         "constructor_signatures_and_counts":sorted(signatures.items()),
@@ -945,6 +966,7 @@ def signed_period_id_constructor_site_census(apks):
     proof that a constructed ID is the actively rendered queue period.
     """
     rows=[]
+    parameter_layout=[]
     dex_count=0
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -975,11 +997,37 @@ def signed_period_id_constructor_site_census(apks):
                         if len(invoked)<2:
                             raise ValueError("QUEUE_PERIOD_ID_CTOR_INVOKE_SHAPE")
                         rows.append((*caller,pc,callee[2],op))
+
+                        # Register layout only. No value-flow or semantic selection
+                        # inferred from a J register matching an incoming parameter.
+                        args=audit.parse_types(callee[2])
+                        expected_words=1+sum(2 if arg in ("J","D") else 1 for arg in args)
+                        if len(invoked)!=expected_words:
+                            raise ValueError("QUEUE_PERIOD_ID_CTOR_ARGUMENT_WORDS")
+                        caller_long_regs=audit.typed_parameter_registers(
+                            dex,caller,_flags,off,"J")
+                        word_index=1
+                        wide_arguments=[]
+                        for arg in args:
+                            if arg=="J":
+                                wide_arguments.append({
+                                    "argument_word_index":word_index,
+                                    "is_direct_caller_wide_parameter_register":
+                                         invoked[word_index] in caller_long_regs,
+                                })
+                            word_index+=2 if arg in ("J","D") else 1
+                        if caller[0] in (QUEUE,ENGINE[0],"Landroidx/media3/exoplayer/d;"):
+                            parameter_layout.append({
+                                "caller":list(caller),
+                                "pc":pc,"ctor":callee[2],
+                                "wide_J_argument_register_layout_only":wide_arguments,
+                                "caller_declares_J_parameter":bool(caller_long_regs),
+                            })
                         if len(rows)>MAX_SIGNED_PERIOD_ID_CTOR_SITES:
                             raise ValueError("QUEUE_PERIOD_ID_CTOR_TOO_MANY_SITES")
     if dex_count!=6:
         raise ValueError("QUEUE_PERIOD_ID_CTOR_EXPECTED_SIX_DEX")
-    witness=validate_signed_period_id_ctor_sites(rows)
+    witness=validate_signed_period_id_ctor_sites(rows,exact_signed=True)
     # Callers are DEX methods, not song/album/media instance data. Keep the
     # output bounded; fail if the discovered cohort is too large to inspect.
     if len(rows)>100:
@@ -993,6 +1041,8 @@ def signed_period_id_constructor_site_census(apks):
             for caller in sorted(rows)
         ],
         "constructor_calls_are_not_selected_queue_epoch":True,
+        "scoped_Exo_constructor_J_argument_register_layout":parameter_layout,
+        "argument_layout_does_not_prove_control_flow_or_epoch":True,
     }
 
 def scan_signed(apks):
