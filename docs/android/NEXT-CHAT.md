@@ -1,3 +1,18 @@
+# LATEST — NAV45 owner-signed Android13 27/27 SUCCESS; APK/ZIP verified; Library FULL, upload blocked (19 November 2026)
+
+**Signed release source commit:** `c95c0bf27157c9f3ff8bd4aa13f6ed6eabe222f8`. [ARM13 owner-signed release CI #44552661805 SUCCESS (27/27)](https://github.com/manufact-test/nomusic/actions/runs/44552661805); private artifact id **14545670017** `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-20261119`. Static signed field gate [#44551508431 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44551508431), JVM exact model [#44552192680 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44552192680).
+
+**Exactly verified release files (generated owner artifacts, NOT uploaded to personal Library due quota):**
+- APK `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-ReadOnly-20261119.apk` — **71,495,660 bytes**; SHA256 **`8254721d6ac19221aecff389615b8fcf08e62cb29a4c5843096be1588aec0c27`**.
+- ZIP `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-20261119.zip` — **51,626,477 bytes**; SHA256 **`07b6a2e84568ff59181bf06217b430e47ebacb08ef77313792f9d2055d3ba9d9`**. Contains exactly that APK + `README-RU.txt`; ZIP CRC, APK CRC and embedded LSPatch module CRC verified. Nested `assets/lspatch/modules/pro.celikom.a1exitwitness.apk` contains correct NAV45 marker, `CURRENT_MEDIAITEM_LOGICAL_ID`, `ITEM_LOGICAL_ID` and nonempty-ID match/different counters.
+- **Library upload attempted for BOTH** under `/CELIKOM/Android/Native/`, both returned: **"You've reached your Library storage limit. Delete files to free up space before saving more."** No Library success; do NOT claim upload success. User needs to clear approximately 124 MB; do not delete any older signed APK/ZIP on user's behalf. Direct sandbox files existed in this conversation: `/mnt/data/CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-ReadOnly-20261119.apk`, `/mnt/data/CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-20261119.zip`. If next chat cannot see those files, re-download from GitHub artifact **14545670017** (retention 7 days), verify hashes, then upload when space free. Never invent sandbox link in next chat.
+
+**Owner phone NAV45 TXT STILL PENDING.** Install over NAV44, no uninstall/data reset; 2–5 songs, MyWave, Next/seek/pause/repeat, export TXT. Key `PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_{MATCH,DIFFERENT,BLANK,UNAVAILABLE}` alongside original NAV44 `PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_*`, NAV43 late-Flow same callback and SLOT_B guard. Even ID MATCH is only logical item candidate, NOT track edition/PCM/replacement.
+
+**Hard state:** `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`; `BUFFER_EOS_ACCESS=NO_HOOK`. Signed NAV40 `34cb32c88a11743a64c9f4814fa71957223a1391`, its backup, signed NAV43/44 packages unchanged. Single branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Full report [NAV45](ANDROID-A1-NAV45-NONEMPTY-MEDIAITEM-ID-READONLY-20261119.md). No NAV46 until phone TXT and exact necessity.
+
+---
+
 # LATEST — NAV45 signed-original immutable MediaItem ID candidate; owner APK export requested (19.11.2026)
 
 **Owner NAV44 TXT received and analyzed:** `CELIKOM-A1-Diagnostics-1795100702186.txt`. Exact `NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY` marker + hook `CURRENT_MEDIAITEM_SOURCE=REGISTERED`. `PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF=NONE`, `DIFFERENT=FEW`, `UNAVAILABLE=NONE`, `SLOT_CHANGED=NONE`; `PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK=MANY`, `...NO_LINK=MANY`, `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`. A distinct Java MediaItem reference is **not** proof of different songs, TrackIDs or editions; never alter original playback just to force Java reference identity.

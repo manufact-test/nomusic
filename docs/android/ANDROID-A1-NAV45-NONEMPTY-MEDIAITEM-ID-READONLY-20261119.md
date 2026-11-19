@@ -25,3 +25,10 @@ At most one final logical-ID result per bounded holder/source probe pair (3 call
 
 ## Next action
 After ARM13 CI success, verify exact single APK+ZIP artifact, hashes, and embedded NAV45 marker/counters, upload both to `/CELIKOM/Android/Native/`, and request one owner phone TXT after 2–5 tracks including MyWave/Next/seek/pause/repeat.
+
+## Final signed ARM13 release — success; Library quota prevents upload
+- Source/export commit `c95c0bf27157c9f3ff8bd4aa13f6ed6eabe222f8`; [CI #44552661805 SUCCESS (all 27 of 27 steps)](https://github.com/manufact-test/nomusic/actions/runs/44552661805); Actions artifact ID `14545670017`.
+- APK `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-ReadOnly-20261119.apk`: **71,495,660 B**, SHA256 `8254721d6ac19221aecff389615b8fcf08e62cb29a4c5843096be1588aec0c27`.
+- ZIP `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-20261119.zip`: **51,626,477 B**, SHA256 `07b6a2e84568ff59181bf06217b430e47ebacb08ef77313792f9d2055d3ba9d9`. ZIP contains only the APK + README; ZIP, APK and embedded module CRC verified. LSPatch inner module contains NAV45 marker, `PrivateNativeCurrentMediaItemTarget`, `ITEM_LOGICAL_ID`, and ID diagnostic counters.
+- **Both attempted Library uploads FAILED** with the exact service error: `You've reached your Library storage limit. Delete files to free up space before saving more.` No uploads succeeded; do not imply otherwise. Keep signed prior binaries untouched. Once owner frees Library space, upload these same files without a rebuild. If session paths lost, download the same exact GitHub Actions artifact ID and verify published SHA256.
+- Phone NAV45 diagnostic not yet received. Product `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`, `BUFFER_EOS_ACCESS=NO_HOOK`.
