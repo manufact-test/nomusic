@@ -14,7 +14,8 @@ MAX_TRACK_FORMALS = 1
 TERMINATORS = {0x0e, 0x0f, 0x10, 0x11, 0x27}
 IF_BRANCHES = set(range(0x32, 0x3e))
 GOTOS = {0x28, 0x29, 0x2a}
-UNSUPPORTED_FLOW = {0x26, 0x2b, 0x2c}  # fill-array, packed/sparse switch
+SWITCHES = {0x2b, 0x2c}
+MAX_SWITCH_CASES = 128
 SIDE_EFFECT_ONLY = (set(range(0x4b, 0x52)) |
                     set(range(0x59, 0x60)) |
                     set(range(0x67, 0x6e)) |
@@ -30,12 +31,42 @@ def signed(value, bits):
     limit=1 << bits
     return value-limit if value & (limit >> 1) else value
 
+def _payload_targets(ins, switch_pc, opcode, words, loc):
+    """DEX packed/sparse switch 31t offsets are relative to switch PC."""
+    delta=signed(words[1] | (words[2] << 16),32)
+    index=loc.get(switch_pc+delta)
+    if index is None or opcode not in SWITCHES:
+        return None
+    _pc,pop,payload=ins[index]
+    ident=0x0100 if opcode==0x2b else 0x0200
+    if pop!=0 or payload[0]!=ident or len(payload)<4:
+        return None
+    count=payload[1]
+    if count>MAX_SWITCH_CASES:
+        return None
+    first_target=4 if opcode==0x2b else 2+count*2
+    if len(payload)<first_target+2*count:
+        return None
+    targets=[]
+    for k in range(count):
+        offset=signed(payload[first_target+2*k] |
+                      (payload[first_target+2*k+1] << 16),32)
+        dest=loc.get(switch_pc+offset)
+        if dest is None or ins[dest][1]==0 and ins[dest][2][0]!=0:
+            return None
+        targets.append(dest)
+    return tuple(targets)
+
 def _successors(ins):
     loc={pc:i for i,(pc,op,words) in enumerate(ins)}
     result=[]
     for i,(pc,op,words) in enumerate(ins):
-        if op in UNSUPPORTED_FLOW or (op == 0 and words[0] != 0):
-            return None
+        if op == 0 and words[0] != 0:
+            # Packed/sparse/fill-array payload is inert data, never code.
+            if words[0] not in (0x0100,0x0200,0x0300):
+                return None
+            result.append(())
+            continue
         if op in TERMINATORS:
             result.append(())
             continue
@@ -47,7 +78,8 @@ def _successors(ins):
             else:
                 step=signed(words[1] | (words[2] << 16),32)
             target=loc.get(pc+step)
-            if target is None or step==0:
+            if target is None or step==0 or (
+                    ins[target][1]==0 and ins[target][2][0]!=0):
                 return None
             result.append((target,))
             continue
@@ -55,9 +87,21 @@ def _successors(ins):
             return None
         if op in IF_BRANCHES:
             target=loc.get(pc+signed(words[1],16))
-            if target is None:
+            if target is None or (
+                    ins[target][1]==0 and ins[target][2][0]!=0):
                 return None
             result.append((i+1,target) if i+1 != target else (target,))
+        elif op in SWITCHES:
+            branches=_payload_targets(ins,pc,op,words,loc)
+            if branches is None:
+                return None
+            result.append(tuple(set([i+1,*branches])))
+        elif op==0x26:
+            delta=signed(words[1] | (words[2] << 16),32)
+            target=loc.get(pc+delta)
+            if target is None or ins[target][2][0]!=0x0300:
+                return None
+            result.append((i+1,))
         else:
             result.append((i+1,))
     return result
@@ -112,7 +156,7 @@ def prove_original_track_receiver(dex,method,flags,code_off,instructions,
                 # aliased register with the upper half of a long is a kill.
                 if op in WIDE_WRITERS:
                     alias.discard(dst+1)
-            elif op not in (SIDE_EFFECT_ONLY | GOTOS | IF_BRANCHES | TERMINATORS):
+            elif op not in (SIDE_EFFECT_ONLY | GOTOS | IF_BRANCHES | TERMINATORS | SWITCHES | {0x26}):
                 # An opcode whose destination we cannot model may write
                 # any live register: fail closed rather than guessing.
                 alias.clear()
