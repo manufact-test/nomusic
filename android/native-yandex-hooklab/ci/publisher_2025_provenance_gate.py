@@ -46,9 +46,23 @@ def verify_metadata(aapt_text: str, signer_text: str, expected_version: str = VE
     matches = re.findall(
         r"Signer #(\d+) certificate SHA-256 digest:\s*([A-Fa-f0-9:]+)",
         signer_text, flags=re.I)
-    if not matches or {n for n, _ in matches} != {"1"}:
-        raise GateError("SIGNER_SET_NOT_SINGLE_ISSUER")
-    cert = {digest.replace(":", "").lower() for _, digest in matches}
+    if matches:
+        # Older Android SDK: numbered signer certificate lines.
+        if {n for n, _ in matches} != {"1"}:
+            raise GateError("SIGNER_SET_NOT_SINGLE_ISSUER")
+        cert = {digest.replace(":", "").lower() for _, digest in matches}
+    else:
+        # New SDK apksigner 0.9: "V3.0 Signer: certificate SHA-256
+        # digest" + separate Source Stamp Signer. Source stamp is NEVER
+        # an issuer substitute. Require reported exactly one APK signer.
+        counts = re.findall(r"^Number of signers:\s*(\d+)\s*$",
+                            signer_text, flags=re.I | re.M)
+        modern = re.findall(
+            r"^V3(?:\.\d+)? Signer:\s*certificate SHA-256 digest:\s*([A-Fa-f0-9:]+)\s*$",
+            signer_text, flags=re.I | re.M)
+        if counts != ["1"] or not modern:
+            raise GateError("SIGNER_SET_NOT_SINGLE_ISSUER")
+        cert = {digest.replace(":", "").lower() for digest in modern}
     if cert != {KNOWN_ISSUER_CERT}:
         raise GateError("PUBLISHER_CERTIFICATE_MISMATCH")
     scheme = re.findall(

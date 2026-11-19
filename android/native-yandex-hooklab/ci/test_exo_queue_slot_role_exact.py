@@ -928,4 +928,34 @@ class SignedWindowGetCurrentItemFieldDistinctionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"WINDOW_ITEM_FIELD_"):
                     self._run(change,without)
 
+
+
+class PublisherNewSDKSignerGateCompatTests(unittest.TestCase):
+    def test_old_and_new_output_issuer_gate_strictly_equivalent(self):
+        from publisher_2025_provenance_gate import (
+            verify_metadata,KNOWN_ISSUER_CERT,VERSION_CODE,VERSION_NAME_GPR,GateError)
+        manifest="package: name='ru.yandex.music' versionCode='{}' versionName='{}'".format(
+            VERSION_CODE,VERSION_NAME_GPR)
+        scheme="Verified using v2 scheme (APK Signature Scheme v2): true\\n"
+        old="Signer #1 certificate SHA-256 digest: {}\\n".format(KNOWN_ISSUER_CERT)+scheme
+        modern=("Number of signers: 1\\n"
+                "V3.0 Signer: certificate SHA-256 digest: {}\\n"
+                "Source Stamp Signer: certificate SHA-256 digest: {}\\n").format(
+                    KNOWN_ISSUER_CERT,"0"*64)+scheme
+        for output in (old,modern):
+            with self.subTest(style=output[:12]):
+                self.assertTrue(verify_metadata(manifest,output,expected_version=VERSION_NAME_GPR)[
+                    "publisher_cert_matches_verified_rustore_2026_reference"])
+        cases=[
+            modern.replace("Number of signers: 1","Number of signers: 2"),
+            modern.replace("V3.0 Signer: certificate SHA-256 digest: {}".format(KNOWN_ISSUER_CERT),
+                           "V3.0 Signer: certificate SHA-256 digest: {}".format("0"*64)),
+            modern.replace("V3.0 Signer: certificate SHA-256 digest: {}".format(KNOWN_ISSUER_CERT),""),
+            modern.replace("true","false"),
+        ]
+        for bad in cases:
+            with self.subTest(bad=bad[:34]):
+                with self.assertRaises(GateError):
+                    verify_metadata(manifest,bad,expected_version=VERSION_NAME_GPR)
+
 if __name__=="__main__": unittest.main()

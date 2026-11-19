@@ -64,39 +64,6 @@ jobs:
           f="$RUNNER_TEMP/celikom-native-queue-slot-input/yandex-music-2025-10-4-120-1gpr.xapk"
           test "$(stat -c %s "$f")" = 45961661
           test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
-      - name: Diagnose issuer signer output format only (no certificate values)
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os,zipfile,tempfile,subprocess,re
-          from pathlib import Path
-          x=Path(os.environ["RUNNER_TEMP"])/"celikom-native-queue-slot-input/yandex-music-2025-10-4-120-1gpr.xapk"
-          with tempfile.TemporaryDirectory(prefix="celikom-signer-shape-") as d:
-              with zipfile.ZipFile(x) as arc:
-                  names=[n for n in arc.namelist() if n.lower().endswith(".apk")]
-                  if len(names)!=16:raise SystemExit("SIGNER_DIAG_SPLIT_COUNT")
-                  one=Path(d)/"sample.apk"
-                  with arc.open(names[0]) as a, one.open("wb") as b:
-                      while block:=a.read(1024*1024):b.write(block)
-              out=subprocess.run(["apksigner","verify","--verbose","--print-certs",str(one)],
-                                 capture_output=True,text=True,timeout=75)
-              def summary(s):
-                  keys=[]
-                  for line in s.splitlines():
-                      if "Signer" in line or "Verified using" in line or "signer" in line:
-                          # Keep only public key labels; censor all values,
-                          # including certificate digests and distinguished names.
-                          censored=re.sub(r"(?i)(digest|DN|certificate)[^:]*:.*",
-                                          r"\\1: [REDACTED]",line)
-                          censored=re.sub(r"[A-Fa-f0-9]{40,}","[REDACTED]",censored)
-                          if len(censored)<140:keys.append(censored)
-                  return keys[:24]
-              print("SIGNER_DIAG returncode",out.returncode,"stdout_chars",len(out.stdout),
-                    "stderr_chars",len(out.stderr))
-              print("SIGNER_DIAG stdout_keys",summary(out.stdout))
-              print("SIGNER_DIAG stderr_keys",summary(out.stderr))
-          PY
       - name: Inspect only exact ExoPlayer/h pointer slots and native engine use
         shell: bash
         run: |
