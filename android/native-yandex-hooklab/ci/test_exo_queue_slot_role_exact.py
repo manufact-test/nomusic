@@ -258,4 +258,28 @@ class SignedInfoRefreshTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_INFO_"):
                     self._check(case,targets,hf,pf)
 
+
+class SignedPeriodIdConstructorDiscoveryTests(unittest.TestCase):
+    def test_distinct_typed_constructor_references_stay_structural_only(self):
+        from exo_queue_slot_role_exact import validate_signed_period_id_ctor_sites
+        rows=[
+            ("Lsynthetic;","first","()V",12,"(Ljava/lang/Object;IIJI)V",0x70),
+            ("Lsynthetic;","second","()V",18,"(Ljava/lang/Object;J)V",0x76),
+        ]
+        result=validate_signed_period_id_ctor_sites(rows)
+        self.assertEqual(result["exact_direct_constructor_callsite_count"],2)
+        self.assertFalse(result["selected_player_item_generation_at_audio_read_proven"])
+
+    def test_missing_duplicate_wrong_opcode_signature_and_pc_fail_closed(self):
+        from exo_queue_slot_role_exact import validate_signed_period_id_ctor_sites
+        good=("Lsynthetic;","first","()V",12,"(Ljava/lang/Object;IIJI)V",0x70)
+        bad=[[],[good,good],
+             [(*good[:3],-1,*good[4:])],
+             [(*good[:4],"(Ljava/lang/Object;IIJI)J",0x70)],
+             [(*good[:5],0x6e)]]
+        for candidate in bad:
+            with self.subTest(candidate=candidate):
+                with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_ID_CTOR_"):
+                    validate_signed_period_id_ctor_sites(candidate)
+
 if __name__=="__main__": unittest.main()

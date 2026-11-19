@@ -909,6 +909,92 @@ def signed_holder_period_token_census(apks,targets):
             verify_signed_period_info_refresh_preserves_id(targets,holder_info,info_id),
     }
 
+
+# Read-only discovery: enumerate the exact signed-original MediaPeriodId
+# constructor callsites. A callsite does not imply current playback.
+# No instance values, media IDs, string contents or private field names.
+MAX_SIGNED_PERIOD_ID_CTOR_SITES=512
+def validate_signed_period_id_ctor_sites(rows):
+    """Only exact, distinct, opcode-aligned constructor references qualify."""
+    if not rows or len(rows)>MAX_SIGNED_PERIOD_ID_CTOR_SITES:
+        raise ValueError("QUEUE_PERIOD_ID_CTOR_SITE_COUNT")
+    seen=set()
+    signatures={}
+    for row in rows:
+        if (len(row)!=6 or not all(isinstance(x,str) for x in row[:3])
+                or not isinstance(row[3],int) or row[3]<0
+                or not isinstance(row[4],str) or row[5] not in (0x70,0x76)
+                or not row[4].startswith("(") or not row[4].endswith(")V")):
+            raise ValueError("QUEUE_PERIOD_ID_CTOR_SITE_SHAPE")
+        if row in seen:
+            raise ValueError("QUEUE_PERIOD_ID_CTOR_DUPLICATE_SITE")
+        seen.add(row)
+        signatures[row[4]]=signatures.get(row[4],0)+1
+    return {
+        "exact_direct_constructor_callsite_count":len(rows),
+        "constructor_signatures_and_counts":sorted(signatures.items()),
+        "distinct_instruction_site_guard":True,
+        "selected_player_item_generation_at_audio_read_proven":False,
+        "callsites_without_reflection_or_native_exclusion":True,
+    }
+
+def signed_period_id_constructor_site_census(apks):
+    """Scan all six publisher-signed DEX for invoke-direct(*/range) of LSl6$b.<init>.
+
+    This is constructor *site discovery*, never a semantic epoch or
+    proof that a constructed ID is the actively rendered queue period.
+    """
+    rows=[]
+    dex_count=0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):
+                    continue
+                if entry.file_size>audit.DEX_MAX:
+                    raise ValueError("QUEUE_PERIOD_ID_CTOR_DEX_LIMIT")
+                dex=audit.Dex(archive.read(entry.filename))
+                dex_count+=1
+                for caller,_flags,off in audit.method_definitions_with_flags(dex):
+                    units=dex.u32(off+12)
+                    if units>3_000_000:
+                        raise ValueError("QUEUE_PERIOD_ID_CTOR_CODE_LIMIT")
+                    start=off+16
+                    dex.bounds(start,units*2)
+                    buf=bytes(dex.data[start:start+units*2])
+                    if b"\x70" not in buf and b"\x76" not in buf:
+                        continue
+                    for pc,op,words in audit.instructions(dex,off):
+                        if op not in (0x70,0x76):
+                            continue
+                        callee=dex.method(words[1])
+                        if callee[0]!=PERIOD_ID or callee[1]!="<init>":
+                            continue
+                        # No register values are exported: signatures/sites only.
+                        invoked=audit.invoke_registers(op,words)
+                        if len(invoked)<2:
+                            raise ValueError("QUEUE_PERIOD_ID_CTOR_INVOKE_SHAPE")
+                        rows.append((*caller,pc,callee[2],op))
+                        if len(rows)>MAX_SIGNED_PERIOD_ID_CTOR_SITES:
+                            raise ValueError("QUEUE_PERIOD_ID_CTOR_TOO_MANY_SITES")
+    if dex_count!=6:
+        raise ValueError("QUEUE_PERIOD_ID_CTOR_EXPECTED_SIX_DEX")
+    witness=validate_signed_period_id_ctor_sites(rows)
+    # Callers are DEX methods, not song/album/media instance data. Keep the
+    # output bounded; fail if the discovered cohort is too large to inspect.
+    if len(rows)>100:
+        raise ValueError("QUEUE_PERIOD_ID_CTOR_REPORT_SCOPE")
+    return {
+        **witness,
+        "publisher_dex_scanned":dex_count,
+        "original_direct_constructor_callers":[
+            {"caller":list(caller[:3]),"pc":caller[3],
+             "signature":caller[4],"opcode":"INVOKE_DIRECT_RANGE" if caller[5]==0x76 else "INVOKE_DIRECT"}
+            for caller in sorted(rows)
+        ],
+        "constructor_calls_are_not_selected_queue_epoch":True,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -1004,6 +1090,7 @@ def scan_signed(apks):
     direct_slot_b_writers=signed_slot_b_direct_writer_census(apks,exact_slot_b)
     slot_b_local_provenance=verify_signed_slot_b_local_provenance(targets,slot_ids)
     period_token= signed_holder_period_token_census(apks,targets)
+    period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
     renderer_helper_flow=scoped_front_to_renderer_helper(
@@ -1016,6 +1103,7 @@ def scan_signed(apks):
         "exact_signed_slot_b_direct_writer_census":direct_slot_b_writers,
         "exact_signed_slot_b_local_provenance":slot_b_local_provenance,
         "exact_signed_original_period_token_chain":period_token,
+        "signed_original_period_id_constructor_sites":period_id_ctor_sites,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,
         "bounded_queue_register_microtraces":microtraces,
