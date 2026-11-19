@@ -1,3 +1,9 @@
+# 19.11.2026 — передача новому чату после NAV45 (сохранено)
+
+**Каноническая короткая передача:** [HANDOFF-A1-NAV45-TO-NEXT-CHAT-20261119.md](HANDOFF-A1-NAV45-TO-NEXT-CHAT-20261119.md). Последний owner TXT `CELIKOM-A1-Diagnostics-1795102532842.txt`: NAV45 `CURRENT_MEDIAITEM_LOGICAL_ID=REGISTERED`, но `MATCH=NONE`, `DIFFERENT=NONE`, `BLANK=FEW`; больше **не искать ID через MediaItem**. Прежняя исходная связка TrackWrapper/late Flow ↔ original source/PeriodID `MANY`, часть `NO_LINK=MANY`; подмена `NOT_CONNECTED`. Следующая работа: доказанный Track ID + album/edition + playback generation в **том же** исходном источнике; не выпускать очередной read-only APK без оправданной новой точки. Signed NAV40, NAV43/44/45 не менять.
+
+---
+
 # CURRENT — NAV45 OWNER PHONE CHECKED; MediaItem STRING ID BLANK (19 November 2026)
 
 **New owner TXT**: `CELIKOM-A1-Diagnostics-1795102532842.txt` (2066 lines). Actual `NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY` summary: hook `CURRENT_MEDIAITEM_LOGICAL_ID=REGISTERED`; `PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_MATCH=NONE`, `DIFFERENT=NONE`, `BLANK=FEW`, `UNAVAILABLE=NONE`. The source/current Window MediaItem objects are distinct (`...SAME_REF=NONE`, `...DIFFERENT=FEW`), but **at least one immutable String is blank** for all classified probes. It does **not** prove different songs and is NOT a usable identity gate. Earlier NAV44 process sections in same file are not the NAV45 summary.
