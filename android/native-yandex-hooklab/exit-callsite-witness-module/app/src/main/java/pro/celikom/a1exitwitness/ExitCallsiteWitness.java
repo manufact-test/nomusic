@@ -2776,6 +2776,11 @@ public final class ExitCallsiteWitness extends XposedModule {
         try {
             NATIVE_RENDERER_EVIDENCE.setScopedAlbumEvidence(
                 STAGE_B_AUDIO::classifyNativeTrackAlbumForWrapper);
+            // Same original creator Track+Album reference, resolved only at
+            // the already verified live original PeriodID/SLOT_B source.
+            // No ID guesses, no audio swapping, no additional player.
+            NATIVE_RENDERER_EVIDENCE.setExactOriginalTrackAlbumEvidence(
+                STAGE_B_AUDIO::exactOriginalTrackAlbumForWrapper);
         } catch(Throwable ignored) { }
         // NAV31: observe ONLY the issuer-signed Lxh6.if field-read
         // boundary, exactly PC61 proven in the existing signed 2025 DEX
