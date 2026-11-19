@@ -573,9 +573,10 @@ class StageBAudioEvidenceTest(unittest.TestCase):
 
     def test_nav40_creator_late_flow_strict_guard_readonly(self):
         code = HOOK.read_text(encoding="utf-8")
-        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY"', code)
+        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY"', code)
         self.assertIn('PrivateNativeCurrentMediaItemTarget', code)
         self.assertIn('CURRENT_MEDIAITEM_SOURCE', code)
+        self.assertIn('CURRENT_MEDIAITEM_LOGICAL_ID', code)
         self.assertIn('PrivateNativePlayerPeriodTarget', code)
         self.assertIn('PLAYER_PERIOD_AT_AUDIO_READ', code)
         self.assertIn("installNativeTcaCreatorScopeHook(loader)", code)
