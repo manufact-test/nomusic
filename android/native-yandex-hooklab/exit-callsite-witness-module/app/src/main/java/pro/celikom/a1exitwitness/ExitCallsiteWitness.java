@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2677,11 +2677,35 @@ public final class ExitCallsiteWitness extends XposedModule {
                         "CURRENT_MEDIAITEM_SOURCE",true);
                     emit("AUDIO_NATIVE_RENDERER_HOOK","CURRENT_MEDIAITEM_SOURCE",
                         "REGISTERED");
+                    // NAV45: exact publisher-signed final String MediaItem
+                    // field. Never emit or retain the String or track metadata.
+                    try {
+                        Field idName=privateItem.getDeclaredField("ITEM_LOGICAL_ID");
+                        idName.setAccessible(true);
+                        Object name=idName.get(null);
+                        if(!(name instanceof String))throw new NoSuchFieldException();
+                        Field logicalId=item.getDeclaredField((String)name);
+                        NATIVE_RENDERER_EVIDENCE
+                            .setSelectedLogicalMediaIdField(logicalId);
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                            "CURRENT_MEDIAITEM_LOGICAL_ID",true);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK",
+                            "CURRENT_MEDIAITEM_LOGICAL_ID","REGISTERED");
+                    } catch(Throwable ignoredId) {
+                        NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                            "CURRENT_MEDIAITEM_LOGICAL_ID",false);
+                        emit("AUDIO_NATIVE_RENDERER_HOOK",
+                            "CURRENT_MEDIAITEM_LOGICAL_ID","NO_HOOK");
+                    }
                 } catch(Throwable ignored) {
                     NATIVE_RENDERER_EVIDENCE.onHookRegistration(
                         "CURRENT_MEDIAITEM_SOURCE",false);
                     emit("AUDIO_NATIVE_RENDERER_HOOK","CURRENT_MEDIAITEM_SOURCE",
                         "NO_HOOK");
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                        "CURRENT_MEDIAITEM_LOGICAL_ID",false);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK",
+                        "CURRENT_MEDIAITEM_LOGICAL_ID","NO_HOOK");
                 }
 
                 hook(currentPeriodEnable)
