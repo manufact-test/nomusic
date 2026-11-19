@@ -1693,6 +1693,7 @@ public final class NativeRendererStreamEvidenceTest {
     }
     private static final class Nav41Holder {
         Nav41HolderInfo info;
+        Object nested; // exact NAV29 fake original period; unused by NAV41 tests
         final Object[] streams;
         Nav41Holder(Nav41Id id,Object stream){
             info=new Nav41HolderInfo(id);streams=new Object[]{stream};
@@ -1883,6 +1884,130 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV42_DETACHED_NO_PROOF");
     }
 
+
+    private static void nav43SetupLiveSource(NativeRendererStreamEvidence e) {
+        try {
+            e.setExactActivePeriodFields(
+                Nav41Holder.class.getDeclaredField("nested"),
+                FakeNested.class.getDeclaredField("period"),
+                FakePeriod.class.getDeclaredField("source"),
+                FakeNested.class,FakePeriod.class,FakeSource.class);
+            e.onHookRegistration("LIVE_PERIOD_ORIGINAL_SOURCE",true);
+            e.onHookRegistration("TRACK_PLAYER_SOURCE_SCOPE",true);
+            e.onHookRegistration("NATIVE_PLAYER_SOURCE_SETTER",true);
+        } catch(ReflectiveOperationException ex) {throw new AssertionError(ex);}
+    }
+
+    private static void nav43LinkOriginalSource(NativeRendererStreamEvidence e,
+            Object wrapper,FakeSource source) {
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        try{e.onNativePlayerSourceSetter(source);}
+        finally{e.exitTrackPlayerSource(scope);}
+    }
+
+    private static void testNav43JointUnknownEosExactSourceAndPlayerSameRead() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        nav43SetupLiveSource(e);
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try{stage.onNativeTrackWrapperCreated(wrapper);}
+            finally{stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        stage.onNativeTrackFlowEmission(track);
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==16,
+            "NAV43_TEST_FIXTURE_EXACT_LATE_FLOW");
+
+        Object uid=new Object(),stream=new Object(),renderer=new Object();
+        Nav41Id originalId=new Nav41Id(uid,-1,5);
+        Nav41Holder h=new Nav41Holder(originalId,stream);
+        FakeSource originalSource=new FakeSource();
+        h.nested=new FakeNested(new FakePeriod(originalSource));
+        Nav41Engine engine=new Nav41Engine(h,new Nav41Id(uid,-1,5));
+        nav43LinkOriginalSource(e,wrapper,originalSource);
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=ONE"),
+            "NAV43_EXACT_CALLBACK_JOIN");
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS;error=ONE"),
+            "NAV43_ORIGINAL_PLAYER_PERIOD_BOUND");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+            "NAV43_DOES_NOT_CLAIM_SELECTED_EDITION");
+
+        // EOS, wrong read code, wrong player period and changed queue slot
+        // never turn the one earlier positive into another callback join.
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.TRUE);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-3,null);
+        engine.playback.currentId=new Nav41Id(new Object(),-1,5);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        engine.queue.slotB=new Nav41Holder(originalId,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=ONE"),
+            "NAV43_NO_STALE_EXTRA_JOIN");
+    }
+
+    private static void testNav43JointRequiresFlowAndUniqueSourceAndStableSlot() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        nav43SetupLiveSource(e);
+        Object uid=new Object(),stream=new Object(),renderer=new Object(),wrapper=new Object();
+        Nav41Id originalId=new Nav41Id(uid,-1,6);
+        Nav41Holder h=new Nav41Holder(originalId,stream);
+        FakeSource originalSource=new FakeSource();
+        h.nested=new FakeNested(new FakePeriod(originalSource));
+        Nav41Engine engine=new Nav41Engine(h,new Nav41Id(uid,-1,6));
+        nav41Attach(e,engine,h,renderer,stream);
+        nav43LinkOriginalSource(e,wrapper,originalSource);
+        // No exact same-flow original Track/Album classification.
+        e.setScopedAlbumEvidence(x->12);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_NO_LINK;error=ONE"),
+            "NAV43_NO_LATE_FLOW_DOES_NOT_JOIN");
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=NONE"),
+            "NAV43_NO_PRIOR_FALSE_POSITIVE");
+        // Same callback but queue slot changes inside source observer.
+        e.setScopedAlbumEvidence(x->{engine.queue.slotB=new Nav41Holder(originalId,stream);return 16;});
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SLOT_CHANGED;error=ONE"),
+            "NAV43_CHANGED_SLOT_DURING_SOURCE_CLASSIFICATION_REJECTED");
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=NONE"),
+            "NAV43_NO_SLOT_LEAK");
+    }
+
+    private static void testNav43MissingSourceNoHistoryJoin() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        nav43SetupLiveSource(e);
+        Object uid=new Object(),stream=new Object(),renderer=new Object(),wrapper=new Object();
+        Nav41Id id=new Nav41Id(uid,-1,4);
+        Nav41Holder h=new Nav41Holder(id,stream);
+        h.nested=new FakeNested(new FakePeriod(new FakeSource()));
+        Nav41Engine engine=new Nav41Engine(h,new Nav41Id(uid,-1,4));
+        // Wrong original source in a different player scope.
+        nav43LinkOriginalSource(e,wrapper,new FakeSource());
+        e.setScopedAlbumEvidence(x->16);
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_NO_LINK;error=ONE"),
+            "NAV43_WRONG_SOURCE_FAIL_CLOSED");
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=NONE"),
+            "NAV43_WRONG_SOURCE_NO_FALSE_JOIN");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1957,6 +2082,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav42UnknownEosUsesSeparateStructuralCohorts();
         testNav42UnknownEosUidAndIndexAndStaleGuard();
         testNav42DisabledPeriodHookAndReattachNeverMatch();
+        testNav43JointUnknownEosExactSourceAndPlayerSameRead();
+        testNav43JointRequiresFlowAndUniqueSourceAndStableSlot();
+        testNav43MissingSourceNoHistoryJoin();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

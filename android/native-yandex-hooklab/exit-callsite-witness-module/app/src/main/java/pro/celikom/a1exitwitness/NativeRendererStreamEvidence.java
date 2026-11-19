@@ -220,6 +220,12 @@ final class NativeRendererStreamEvidence {
     private int periodUnknownEosSame,periodUnknownEosUidInts;
     private int periodUnknownEosUidOnly,periodUnknownEosDifferent;
     private int periodUnknownEosUnavailable;
+    // Same sampled callback only: a current PlaybackInfo-to-SLOT_B ID
+    // equality and one unique late-Flow original-source TrackWrapper.
+    // Structural evidence only; EOS unknown, not selected edition/audio.
+    private int jointUnknownEosPeriodFlowSame;
+    private int jointUnknownEosPeriodNoFlow;
+    private int jointUnknownEosPeriodSlotChanged;
 
     synchronized void setCurrentPlaybackPeriodFields(
             Field engineInfo,Field playbackId,Field holderInfo,Field holderId,
@@ -1264,14 +1270,33 @@ final class NativeRendererStreamEvidence {
             if(fresh==1) {
                 queueSlotReadSame=inc(queueSlotReadSame);
                 if(originalResult==-4)queueSlotReadMinus4=inc(queueSlotReadMinus4);
-                // NAV42: unknown EOS is *separate*, strictly structural
-                // evidence; NEVER treat it as a confirmed non-EOS sample.
+                // Keep unknown-EOS results segregated from true non-EOS.
+                // Snapshot counters before the SAME sampled renderer call,
+                // never join two positives from unrelated past tracks.
+                int beforeUidInts=periodUnknownEosUidInts;
+                int beforeSameRef=periodUnknownEosSame;
+                int beforeFlowSame=scopedLateFlowAlbumSame;
+                int beforeSourceSame=livePeriodSourceMatched;
                 if(originalResult==-4 && !Boolean.TRUE.equals(endOfStream))
                     observeCurrentPlaybackPeriodAtRead(
                         live.engine.get(),live.holder.get(),endOfStream==null);
-                // Only on independently proven same holder + live SLOT_B
-                // + started audio stream, never on merely prepared periods.
+                // Only independently proven exact holder + live SLOT_B.
                 observeActivePeriodSource(live.holder.get());
+                // NAV43 narrow admission *witness*, NOT audio replacement:
+                // source+late Flow and PlaybackInfo PeriodID must BOTH have
+                // advanced on this exact original -4 renderer callback.
+                if(originalResult==-4 && endOfStream==null
+                        && (periodUnknownEosUidInts>beforeUidInts
+                            || periodUnknownEosSame>beforeSameRef)) {
+                    if(scopedLateFlowAlbumSame>beforeFlowSame
+                            && livePeriodSourceMatched>beforeSourceSame) {
+                        // Retest queue after source classification to reject
+                        // playback / Next changes during this callback.
+                        if(liveQueueSlotMatches(live.engine.get(),live.holder.get())==1)
+                            jointUnknownEosPeriodFlowSame=inc(jointUnknownEosPeriodFlowSame);
+                        else jointUnknownEosPeriodSlotChanged=inc(jointUnknownEosPeriodSlotChanged);
+                    } else jointUnknownEosPeriodNoFlow=inc(jointUnknownEosPeriodNoFlow);
+                }
             } else if(fresh<0)queueSlotReadOther=inc(queueSlotReadOther);
             else queueSlotReadUnavailable=inc(queueSlotReadUnavailable);
             break;
@@ -1414,6 +1439,9 @@ final class NativeRendererStreamEvidence {
             line("PLAYER_PERIOD_EOS_UNKNOWN_UID_ONLY",periodUnknownEosUidOnly),
             line("PLAYER_PERIOD_EOS_UNKNOWN_DIFFERENT",periodUnknownEosDifferent),
             line("PLAYER_PERIOD_EOS_UNKNOWN_UNAVAILABLE",periodUnknownEosUnavailable),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK",jointUnknownEosPeriodFlowSame),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_NO_LINK",jointUnknownEosPeriodNoFlow),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SLOT_CHANGED",jointUnknownEosPeriodSlotChanged),
             line("TRACK_PLAYER_SOURCE_SCOPE_ENTER",trackPlayerScopeEnter),
             line("TRACK_PLAYER_SOURCE_SAME_SCOPE",playerSourceSameScope),
             line("TRACK_PLAYER_SOURCE_UNSCOPED",playerSourceUnscoped),
