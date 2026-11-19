@@ -714,7 +714,7 @@ public final class NativeRendererStreamEvidenceTest {
         try { e.onAttach(renderer,stream); }
         finally { e.exitSecondaryCaller(sec); e.exitEngine(frame); }
     }
-    private static final class FakeSource {}
+    private static final class FakeSource { Object item; }
     private interface FakePublisherPeriodInterface {}
     private static final class FakeOtherPublisherPeriod implements FakePublisherPeriodInterface {}
     private static final class FakePeriod implements FakePublisherPeriodInterface {
@@ -1685,6 +1685,7 @@ public final class NativeRendererStreamEvidenceTest {
     }
     private static final class Nav41Info {
         Nav41Id currentId;
+        ItemTimeline timeline;
         Nav41Info(Nav41Id id){currentId=id;}
     }
     private static final class Nav41HolderInfo {
@@ -2008,6 +2009,130 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV43_WRONG_SOURCE_NO_FALSE_JOIN");
     }
 
+    // NAV44 isolated, publisher-shaped fake objects. No raw identifiers,
+    // metadata or source content in these tests.
+    private static final class ItemPeriod { int windowIndex; }
+    private static final class ItemWindow { Object mediaItem; }
+    private static final class ItemTimeline {
+        final Object uid,item;
+        Runnable afterWindow;
+        ItemTimeline(Object uid,Object item){this.uid=uid;this.item=item;}
+        ItemPeriod getPeriodByUid(Object searched,ItemPeriod scratch){
+            if(searched!=uid)return null;
+            scratch.windowIndex=0;
+            return scratch;
+        }
+        ItemWindow getWindow(int index,ItemWindow scratch,long projectionUs){
+            if(index!=0)return null;
+            scratch.mediaItem=item;
+            if(afterWindow!=null)afterWindow.run();
+            return scratch;
+        }
+    }
+
+    private static void nav44SetupItem(NativeRendererStreamEvidence e) {
+        try {
+            e.setSelectedMediaItemSourceFields(
+                Nav41Info.class.getDeclaredField("timeline"),
+                ItemPeriod.class.getDeclaredField("windowIndex"),
+                ItemWindow.class.getDeclaredField("mediaItem"),
+                FakeSource.class.getDeclaredField("item"),
+                ItemTimeline.class.getDeclaredMethod("getPeriodByUid",
+                    Object.class,ItemPeriod.class),
+                ItemTimeline.class.getDeclaredMethod("getWindow",
+                    int.class,ItemWindow.class,long.class),
+                ItemPeriod.class.getDeclaredConstructor(),
+                ItemWindow.class.getDeclaredConstructor());
+            e.onHookRegistration("CURRENT_MEDIAITEM_SOURCE",true);
+        } catch(ReflectiveOperationException ex){throw new AssertionError(ex);}
+    }
+
+    private static void testNav44OriginalTimelineAndSourceSameItem() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        nav43SetupLiveSource(e);
+        nav44SetupItem(e);
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try{
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try{stage.onNativeTrackWrapperCreated(wrapper);}
+            finally{stage.exitNativeTcaCreatorTrackScope();}
+        } finally{stage.exitNativeTcaCreatorOwner();}
+        stage.onNativeTrackFlowEmission(track);
+        Object uid=new Object(),item=new Object();
+        Object renderer=new Object(),stream=new Object();
+        Nav41Id period=new Nav41Id(uid,-1,11);
+        Nav41Holder holder=new Nav41Holder(period,stream);
+        FakeSource source=new FakeSource();source.item=item;
+        holder.nested=new FakeNested(new FakePeriod(source));
+        Nav41Engine engine=new Nav41Engine(holder,new Nav41Id(uid,-1,11));
+        engine.playback.timeline=new ItemTimeline(uid,item);
+        nav43LinkOriginalSource(e,wrapper,source);
+        nav41Attach(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),
+            "origin=PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK;error=FEW"),
+            "NAV44_NAV43_JOINT_STILL_ACTIVE");
+        check(contains(e.exportLines(),
+            "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF;error=ONE"),
+            "NAV44_LIVE_ORIGINAL_ITEM_SAME_REF");
+        check(contains(e.exportLines(),
+            "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_DIFFERENT;error=NONE"),
+            "NAV44_NO_FALSE_DIFFERENT");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+            "NAV44_MEDIAITEM_IS_NOT_TRACK_EDITION_OR_PCM");
+    }
+
+    private static void testNav44DifferentAndChangedSlotFailClosed() {
+        for(int scenario=0;scenario<2;scenario++){
+            StageBAudioEvidence stage=new StageBAudioEvidence();
+            NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+            nav41Setup(e);
+            nav43SetupLiveSource(e);
+            nav44SetupItem(e);
+            e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+            Object track=new Object(),album=new Object(),wrapper=new Object();
+            stage.onNativeTrackAlbumConstructed(track,album);
+            stage.enterNativeTcaCreatorOwner(new Object());
+            try {
+                stage.enterNativeTcaCreatorTrackScope(track,1);
+                try{stage.onNativeTrackWrapperCreated(wrapper);}
+                finally{stage.exitNativeTcaCreatorTrackScope();}
+            } finally {stage.exitNativeTcaCreatorOwner();}
+            stage.onNativeTrackFlowEmission(track);
+            Object uid=new Object(),renderer=new Object(),stream=new Object();
+            Nav41Id id=new Nav41Id(uid,-1,12);
+            Nav41Holder holder=new Nav41Holder(id,stream);
+            FakeSource source=new FakeSource();source.item=new Object();
+            holder.nested=new FakeNested(new FakePeriod(source));
+            Nav41Engine engine=new Nav41Engine(holder,new Nav41Id(uid,-1,12));
+            ItemTimeline timeline=new ItemTimeline(uid,new Object());
+            engine.playback.timeline=timeline;
+            if(scenario==1)timeline.afterWindow=()->
+                engine.queue.slotB=new Nav41Holder(id,stream);
+            nav43LinkOriginalSource(e,wrapper,source);
+            nav41Attach(e,engine,holder,renderer,stream);
+            e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+            if(scenario==0) {
+                check(contains(e.exportLines(),
+                    "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_DIFFERENT;error=ONE"),
+                    "NAV44_DIFFERENT_MEDIAITEM_NEVER_MATCHES");
+            } else {
+                check(contains(e.exportLines(),
+                    "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SLOT_CHANGED;error=ONE"),
+                    "NAV44_WINDOW_LOOKUP_CHANGE_REJECTS");
+            }
+            check(contains(e.exportLines(),
+                "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF;error=NONE"),
+                "NAV44_NEGATIVE_NEVER_PROMOTES");
+        }
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2085,6 +2210,8 @@ public final class NativeRendererStreamEvidenceTest {
         testNav43JointUnknownEosExactSourceAndPlayerSameRead();
         testNav43JointRequiresFlowAndUniqueSourceAndStableSlot();
         testNav43MissingSourceNoHistoryJoin();
+        testNav44OriginalTimelineAndSourceSameItem();
+        testNav44DifferentAndChangedSlotFailClosed();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
