@@ -1122,6 +1122,119 @@ def signed_wide_writer_type_only(dex,pc,op,words):
         }
     return shape
 
+
+SIGNED_OLD_ID_J_REUSE_CALLER=(QUEUE,"case","(LTva;LSl6$b;JJ)Lyh6;")
+SIGNED_OLD_ID_J_REUSE_SITES=(
+    (13,25,(QUEUE,"else","(LTva;Ljava/lang/Object;IIJJZ)Lyh6;"),1,8),
+    (30,40,(QUEUE,"goto","(LTva;Ljava/lang/Object;JJJZ)Lyh6;"),2,7),
+)
+
+def verify_signed_old_period_id_long_handoff(targets):
+    """Exact old MediaPeriodId.J field -> Queue builder's J parameter.
+
+    This is NORMAL CFG same-field provenance, not an executed transition,
+    playback generation, current selected item, or source-to-decoder proof.
+    """
+    caller=SIGNED_OLD_ID_J_REUSE_CALLER
+    ctor=(PERIOD_ID,"<init>","(Ljava/lang/Object;IIJI)V")
+    if caller not in targets or ctor not in targets:
+        raise ValueError("QUEUE_OLD_ID_REUSE_TARGET_MISSING")
+    dex,flags,off=targets[caller]
+    id_dex,_id_flags,id_off=targets[ctor]
+    ctor_pcs={pc:(op,w) for pc,op,w in audit.instructions(id_dex,id_off)}
+    anchored=ctor_pcs.get(9)
+    if anchored is None or anchored[0]!=0x5a:
+        raise ValueError("QUEUE_OLD_ID_FIELD_CTOR_DRIFT")
+    original_J_field=audit.field_id(id_dex,anchored[1][1])
+    if original_J_field[0]!=PERIOD_ID or original_J_field[2]!="J":
+        raise ValueError("QUEUE_OLD_ID_FIELD_TYPE_DRIFT")
+    cfg=audit.build_dex_control_flow(dex,off)
+    by_pc=cfg["by_pc"]
+    succ=cfg["successors"]
+    if len(cfg["reachable"])>1200:
+        raise ValueError("QUEUE_OLD_ID_CFG_LIMIT")
+    input_ids=audit.typed_parameter_registers(dex,caller,flags,off,PERIOD_ID)
+    if len(input_ids)!=1:
+        raise ValueError("QUEUE_OLD_ID_TYPED_PARAM_COUNT")
+    input_id=next(iter(input_ids))
+    def avoid_reaches(start,destination,avoid):
+        pending=[start]
+        seen=set()
+        while pending:
+            pc=pending.pop()
+            if pc in seen or pc in avoid:continue
+            seen.add(pc)
+            if pc==destination:return True
+            pending.extend(succ.get(pc,()))
+        return False
+    def path_may_write(start,stop,regs):
+        pending=[start]
+        visited=set()
+        while pending:
+            pc=pending.pop()
+            if pc in visited or pc==stop:continue
+            visited.add(pc)
+            op,words=by_pc[pc]
+            written=audit.written_register(op,words)
+            shape=wide_definition_register_shape(pc,op,words)
+            if written in regs or (shape is not None and
+                                   (shape["dest"] in regs or shape["dest"]+1 in regs)):
+                return True
+            pending.extend(succ.get(pc,()))
+        return False
+    rows=[]
+    for read_pc,call_pc,target,j_ordinal,expected_register in SIGNED_OLD_ID_J_REUSE_SITES:
+        source=by_pc.get(read_pc)
+        call=by_pc.get(call_pc)
+        if source is None or source[0]!=0x53 or call is None or (
+                call[0] not in audit.INVOKES):
+            raise ValueError("QUEUE_OLD_ID_J_SITE_OPCODE_DRIFT")
+        value_register=(source[1][0]>>8)&15
+        recv=(source[1][0]>>12)&15
+        if (audit.field_id(dex,source[1][1])!=original_J_field or
+            recv!=input_id or value_register!=expected_register or
+            dex.method(call[1][1])!=target):
+            raise ValueError("QUEUE_OLD_ID_J_FIELD_OR_RECEIVER_DRIFT")
+        invoked=audit.invoke_registers(call[0],call[1])
+        index=0 if call[0] in (0x71,0x77) else 1
+        Jregs=[]
+        for param in audit.parse_types(target[2]):
+            if param=="J":Jregs.append(invoked[index])
+            index+=2 if param in ("J","D") else 1
+        if len(Jregs)<=j_ordinal or Jregs[j_ordinal]!=value_register:
+            raise ValueError("QUEUE_OLD_ID_J_INVOKE_REGISTER_DRIFT")
+        dominates=(
+            read_pc in cfg["reachable"] and call_pc in cfg["reachable"]
+            and not avoid_reaches(cfg["entry"],call_pc,{read_pc}))
+        caller_id_retained=not path_may_write(
+            cfg["entry"],read_pc,{input_id})
+        source_unclobbered=not any(
+            path_may_write(pc,call_pc,{value_register,value_register+1})
+            for pc in succ.get(read_pc,()))
+        proven=bool(dominates and caller_id_retained and source_unclobbered)
+        rows.append({
+            "caller_method":list(caller),
+            "old_period_id_j_read_pc":read_pc,
+            "queue_builder_call_pc":call_pc,
+            "builder":list(target),
+            "same_exact_old_period_id_j_field":True,
+            "read_receiver_is_exact_typed_id_parameter":True,
+            "old_J_read_dominates_builder_call_on_normal_cfg":dominates,
+            "old_id_reference_not_overwritten_before_read":caller_id_retained,
+            "old_J_register_not_overwritten_before_call":source_unclobbered,
+            "old_period_id_J_forwarded_to_new_period_id_constructor_on_normal_cfg":proven,
+            "current_selected_item_or_queue_generation_proven":False,
+        })
+    return {
+        "old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg":
+            all(row["old_period_id_J_forwarded_to_new_period_id_constructor_on_normal_cfg"]
+                for row in rows),
+        "verified_exact_original_old_id_J_field_vs_ctor":True,
+        "signed_source_sites":rows,
+        "exceptional_control_flow_native_or_reflection_excluded":False,
+        "current_selected_item_or_unique_playback_generation_proven":False,
+    }
+
 def signed_period_id_constructor_site_census(apks):
     """Scan all six publisher-signed DEX for invoke-direct(*/range) of LSl6$b.<init>.
 
@@ -1379,6 +1492,7 @@ def scan_signed(apks):
     direct_slot_b_writers=signed_slot_b_direct_writer_census(apks,exact_slot_b)
     slot_b_local_provenance=verify_signed_slot_b_local_provenance(targets,slot_ids)
     period_token= signed_holder_period_token_census(apks,targets)
+    old_period_J_reuse=verify_signed_old_period_id_long_handoff(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
@@ -1392,6 +1506,7 @@ def scan_signed(apks):
         "exact_signed_slot_b_direct_writer_census":direct_slot_b_writers,
         "exact_signed_slot_b_local_provenance":slot_b_local_provenance,
         "exact_signed_original_period_token_chain":period_token,
+        "exact_old_period_id_long_to_new_queue_builder":old_period_J_reuse,
         "signed_original_period_id_constructor_sites":period_id_ctor_sites,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,

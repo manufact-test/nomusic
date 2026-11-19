@@ -407,4 +407,56 @@ class SignedWideFieldOwnerOnlyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"QUEUE_WIDE_OWNER_FIELD_TYPE_MISMATCH"):
                 typed(dex,5,0x53,(0x2153,10))
 
+
+class SignedOldPeriodIdJReuseCfgTests(unittest.TestCase):
+    def _scenario(self,skipped=False,clobbered=False):
+        from exo_queue_slot_role_exact import (
+            QUEUE,PERIOD_ID,SIGNED_OLD_ID_J_REUSE_CALLER,
+            SIGNED_OLD_ID_J_REUSE_SITES)
+        class Dex:
+            def method(self,index):
+                return SIGNED_OLD_ID_J_REUSE_SITES[0][2] if index==1 else SIGNED_OLD_ID_J_REUSE_SITES[1][2]
+        dex=Dex()
+        id_dex=object()
+        make=lambda op,receiver,value:((receiver<<12)|(value<<8)|op)
+        src13=(0x53,(make(0x53,9,8),10))
+        src30=(0x53,(make(0x53,9,7),10))
+        ins={0:(0x12,(0x0012,)),13:src13,
+             24:(0x12,(0x0012,)),
+             25:(0x74,(0x0074,1,0)),
+             30:src30,40:(0x74,(0x0074,2,0))}
+        if clobbered:ins[24]=(0x16,(0x0816,0))
+        successors={0:[13,25] if skipped else [13],13:[24],24:[25],
+                    25:[30],30:[40],40:[]}
+        cfg={"by_pc":ins,"successors":successors,
+             "entry":0,"reachable":set(ins)}
+        targets={
+            SIGNED_OLD_ID_J_REUSE_CALLER:(dex,0,1),
+            (PERIOD_ID,"<init>","(Ljava/lang/Object;IIJI)V"):(id_dex,0,2)
+        }
+        return dex,id_dex,targets,cfg
+    def test_exact_id_field_reuse_is_not_automatically_selected_epoch(self):
+        from exo_queue_slot_role_exact import (
+            verify_signed_old_period_id_long_handoff,audit,PERIOD_ID)
+        from unittest.mock import patch
+        for skipped,clobbered in ((False,False),(True,False),(False,True)):
+            dex,id_dex,targets,cfg=self._scenario(skipped,clobbered)
+            insn_ctor=[(9,0x5a,(0x005a,10))]
+            with patch.object(audit,"instructions",side_effect=lambda _dex,off: insn_ctor if off==2 else []), \
+                 patch.object(audit,"field_id",return_value=(PERIOD_ID,"private","J")), \
+                 patch.object(audit,"build_dex_control_flow",return_value=cfg), \
+                 patch.object(audit,"typed_parameter_registers",return_value={9}), \
+                 patch.object(audit,"invoke_registers",side_effect=lambda op,words:
+                     [0,0,0,0,0,6,0,8,0,0] if words[1]==1 else
+                     [0,0,0,3,0,5,0,7,0,0]), \
+                 patch.object(audit,"parse_types",side_effect=lambda sig:
+                     ["LTva;","Ljava/lang/Object;","I","I","J","J","Z"] if "IIJJZ" in sig else
+                     ["LTva;","Ljava/lang/Object;","J","J","J","Z"]):
+                witness=verify_signed_old_period_id_long_handoff(targets)
+            if skipped or clobbered:
+                self.assertFalse(witness["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"])
+            else:
+                self.assertTrue(witness["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"])
+            self.assertFalse(witness["current_selected_item_or_unique_playback_generation_proven"])
+
 if __name__=="__main__": unittest.main()
