@@ -1,4 +1,25 @@
-# CURRENT — NAV40 signed CI-GREEN; Library storage limit blocks upload (19 Nov 2026)
+# CURRENT — NAV40 owner phone CONFIRMED exact late Flow Album SAME; Stage B remains structural-only (19 Nov 2026)
+
+**Sole GitHub working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Latest NAV40 signed **runtime/source unchanged** `34cb32c88a11743a64c9f4814fa71957223a1391`. Protected rollback `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119`. New changes are **documentation only**.
+
+**New real owner-phone TXT:** `CELIKOM-A1-Diagnostics-1795077619261.txt` (122,665 bytes / 1,715 lines / SHA256 `c0a5c30994d3e533db41618b7b1b4c880f6a42cf6bd513449adf28d5f114ad51`). Raw TXT not committed. Active marker `NAV_V40_TCA_CREATOR_LATE_FLOW_LIVE_WRAPPER_READONLY` (old NAV39 lines are retained trimmed history).
+
+- `LIVE_QUEUE_SLOT_B=REGISTERED`, `LIVE_PERIOD_ORIGINAL_SOURCE=REGISTERED`; strict live `SLOT_B_TYPE1_STATE2_READ_MATCH=MANY`, original `Lo96` source resolved MANY, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY`. Original source OTHER/NO_LINK NONE.
+- `TCA_CREATOR_WRAPPER_NOT_FLOW=MANY` **at birth**, same creator Track **later** emitted to Flow MANY with Album observed MANY.
+- **NAV40 new result:** `LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME=MANY`; MISSING/DIFFERENT/REFERENCE_LOST all NONE; Track/Album conflicts NONE.
+- Legacy `LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_NO_LINK=MANY` is compatible with new SAME: the latter classifies an original wrapper born **before** Flow emission, without retroactive birth-time links. Previous NAV39 `LIVE_PERIOD_SCOPED_TCA_BIRTH_TRACK_NOT_IN_FLOW=MANY` becomes NONE under this more specific classifying outcome, **not** because birth-time order changed.
+- Active `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/NONE`; separate Push SDK exception and historic MUSIC_APP exceptions do not prove CELIKOM fault. `EXO_IO_FAILURE=NONE`. No invented playback/seek/BT bugs.
+- `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`. Repeated MANY counters are **not** distinct songs, epochs or selected editions.
+
+**Important distribution correction:** user freed personal Library space; NAV40 **ZIP and owner-signed APK now both uploaded successfully** to `/CELIKOM/Android/Native/`. Personal Library ZIP `libfile_f229652c7cd0819196f625c9c2ea3192`; APK `libfile_75f63719768481918fc14d9b86cff309`. Readback materialization size verified: ZIP 51,618,241 bytes, APK 71,491,564 bytes. Existing release SHA-256/owner certificate/original APK are documented below; no new NAV41 artifacts.
+
+**NEXT minimal technical work, no build on guesses:** inspect only pinned signed-original `ExoPlayer/h.SLOT_B` queue mutation / currently selected item boundary to establish **original player selection+generation** for the exact read-time holder/source. The historical Track/Flow/Album SAME does NOT supply this. Require independently verifiable signed DEX/static semantics and strict fail-closed classification before any NAV41 read-only hook. Don't change player/decoder/audio or claim replacement.
+
+**Detailed new handoff:** [NAV40 owner-phone exact SAME and limits](ANDROID-A1-NAV40-OWNER-PHONE-LATE-FLOW-SAME-20261119.md).
+
+---
+
+# PRIOR CHECKPOINT — NAV40 signed CI-GREEN; Library limit at time of first delivery (19 Nov 2026)
 
 **GitHub:** `manufact-test/nomusic`. Sole working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
 **NAV40 signed source:** `34cb32c88a11743a64c9f4814fa71957223a1391`; **protected signed backup:** `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119` at that SHA.
