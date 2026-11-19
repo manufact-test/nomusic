@@ -1401,6 +1401,8 @@ def signed_period_id_constructor_site_census(apks):
 # Original Player selected-item/timeline candidate map. Intentional discovery
 # only: structural typed references in exact signed methods; no instance data
 # and no inference that a period is audible/current.
+ENGINE_PERIOD_STATUS_PREDICATE=("Landroidx/media3/exoplayer/e;","z","(LTva;LSl6$b;)Z")
+ENGINE_PERIOD_POSITION_LOOKUP=("Landroidx/media3/exoplayer/e;","const","(LTva;Ljava/lang/Object;J)J")
 ENGINE_PERIOD_TIMELINE_TRANSITION=("Landroidx/media3/exoplayer/e;","I",
     "(LTva;LSl6$b;LTva;LSl6$b;JZ)V")
 PLAYER_STATE_RESOLVE=("Landroidx/media3/exoplayer/d;","M0",
@@ -1674,8 +1676,93 @@ def inspect_signed_engine_period_timeline_transition(targets):
         "engine_call_argument_registers":regs,
         "original_e_I_bounded_method":signed_selector_window(
             d,ENGINE_PERIOD_TIMELINE_TRANSITION,flags,off,((0,260),)),
+        "original_e_z_period_status_candidate":signed_selector_window(
+            targets[ENGINE_PERIOD_STATUS_PREDICATE][0],ENGINE_PERIOD_STATUS_PREDICATE,
+            targets[ENGINE_PERIOD_STATUS_PREDICATE][1],
+            targets[ENGINE_PERIOD_STATUS_PREDICATE][2],((0,200),)),
+        "original_e_const_period_position_candidate":signed_selector_window(
+            targets[ENGINE_PERIOD_POSITION_LOOKUP][0],ENGINE_PERIOD_POSITION_LOOKUP,
+            targets[ENGINE_PERIOD_POSITION_LOOKUP][1],
+            targets[ENGINE_PERIOD_POSITION_LOOKUP][2],((0,200),)),
         "timeline_qualified_current_selected_track_proven":False,
         "synchronous_original_player_to_started_audio_read_proven":False,
+    }
+
+
+def signed_two_slotB_reads_to_timeline_transition(targets,slots):
+    """Same method register provenance; call is NOT a playback selection event."""
+    dex,_flags,off=targets[ENGINE]
+    ins={pc:(op,w) for pc,op,w in audit.instructions(dex,off)}
+    def field(pc,opcode,owner,typ,recv,dest):
+        item=ins.get(pc)
+        if item is None or item[0]!=opcode:
+            raise ValueError("TWO_SLOTB_EXACT_FIELD_OPCODE_DRIFT")
+        op,w=item
+        ff=audit.field_id(dex,w[1])
+        if ff[0]!=owner or ff[2]!=typ or ((w[0]>>8)&15)!=dest or ((w[0]>>12)&15)!=recv:
+            raise ValueError("TWO_SLOTB_EXACT_FIELD_OR_REGISTER_DRIFT")
+        return ff
+    b547=field(547,0x54,QUEUE,HOLDER,9,1)
+    b664=field(664,0x54,QUEUE,HOLDER,9,3)
+    b659=field(659,0x5b,QUEUE,HOLDER,9,3)
+    if b547!=b664 or b547!=b659 or slots.get(b547)!="SLOT_B":
+        raise ValueError("TWO_SLOTB_REFERENCE_IS_NOT_EXACT_B")
+    originalHolderInfo=field(679,0x54,HOLDER,PERIOD_INFO,1,1)
+    latestHolderInfo=field(675,0x54,HOLDER,PERIOD_INFO,3,6)
+    if originalHolderInfo!=latestHolderInfo:
+        raise ValueError("TWO_SLOTB_PERIOD_INFO_FIELD_MISMATCH")
+    old_id=field(681,0x54,PERIOD_INFO,PERIOD_ID,1,1)
+    current_id=field(677,0x54,PERIOD_INFO,PERIOD_ID,6,6)
+    if old_id!=current_id:
+        raise ValueError("TWO_SLOTB_PERIOD_ID_FIELD_MISMATCH")
+    timeline=field(673,0x54,PLAYBACK_INFO,TIMELINE,5,5)
+    moves={
+        686:(2,6),687:(4,1),688:(1,5),699:(3,1),
+    }
+    for pc,(dst,source) in moves.items():
+        op,w=ins.get(pc,(None,None))
+        if op!=0x07 or audit.move_object_registers(op,w)!=(dst,source):
+            raise ValueError("TWO_SLOTB_TO_TRANSITION_MOVE_ALIAS_DRIFT")
+    callop,callwords=ins.get(711,(None,None))
+    if (callop not in audit.INVOKES or
+        dex.method(callwords[1])!=ENGINE_PERIOD_TIMELINE_TRANSITION or
+        audit.invoke_registers(callop,callwords)!=[0,1,2,3,4,5,6,7]):
+        raise ValueError("TWO_SLOTB_TO_TRANSITION_EXACT_CALL_CHANGED")
+    # Conservative no-write checks over the entire original instruction
+    # interval, stronger than a single normal CFG branch. A positive
+    # result does NOT attest that the queue wrote a fresh holder at PC659.
+    insns=list(audit.instructions(dex,off))
+    def pair_unclobbered(start,stop,reg):
+        for pc,op,w in insns:
+            if not (start<pc<stop):continue
+            dest=audit.written_register(op,w)
+            if dest==reg:return False
+            wide=wide_definition_register_shape(pc,op,w)
+            if wide is not None and reg in (wide["dest"],wide["dest"]+1):
+                return False
+        return True
+    spans={
+        "first_B_holder_reference_to_old_period_info":(547,679,1),
+        "second_B_holder_reference_to_new_period_info":(664,675,3),
+        "first_B_period_ID_to_transition_copy":(681,687,1),
+        "second_B_period_ID_to_transition_copy":(677,686,6),
+        "player_timeline_to_first_transition_copy":(673,688,5),
+        "old_id_copy_to_transition_call":(687,711,4),
+        "second_id_copy_to_transition_call":(686,711,2),
+        "two_timelines_same_register_proven":(688,699,1),
+    }
+    safety={name:pair_unclobbered(*args) for name,args in spans.items()}
+    return {
+        "exact_same_slotB_read_at_pcs":[547,664],
+        "exact_same_slotB_may_be_written_between_reads_pc":659,
+        "same_original_holder_info_field_across_two_reads":True,
+        "same_original_period_info_ID_field_across_two_reads":True,
+        "two_IDs_transferred_to_original_e_I_at_pc":711,
+        "unchanged_register_pair_spans":safety,
+        "all_bounded_register_spans_no_clobber":all(safety.values()),
+        "a_new_holder_was_written_on_executed_path_proven":False,
+        "two_ID_instances_differ_proven":False,
+        "current_selected_audio_track_edition_or_epoch_proven":False,
     }
 
 def scan_signed(apks):
@@ -1700,7 +1787,7 @@ def scan_signed(apks):
                     parent=(dex.descriptor(parent_idx) if parent_idx!=0xffffffff else None)
                     stream_classes[name]={"extends":parent,"access_flags":dex.u32(cbase+4)}
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,PLAYER_STATE_RESOLVE,ENGINE_PERIOD_TIMELINE_TRANSITION):
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,PLAYER_STATE_RESOLVE,ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE,ENGINE_PERIOD_POSITION_LOOKUP):
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
@@ -1778,6 +1865,7 @@ def scan_signed(apks):
     state_field_correspondence=signed_selected_state_field_correspondence(targets)
     player_front_uid_comparison=verify_signed_player_info_front_UID_comparison(targets)
     timeline_transition_scout=inspect_signed_engine_period_timeline_transition(targets)
+    two_slotB_transition=signed_two_slotB_reads_to_timeline_transition(targets,slot_ids)
     state_engine_identity_window=signed_engine_state_identity_window(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
@@ -1801,6 +1889,7 @@ def scan_signed(apks):
         "exact_player_state_field_correspondence":state_field_correspondence,
         "exact_original_player_front_UID_equals_boundary":player_front_uid_comparison,
         "exact_engine_period_timeline_transition_scout":timeline_transition_scout,
+        "exact_two_SLOT_B_reads_to_engine_timeline_ID_transition":two_slotB_transition,
         "engine_selected_state_bounded_region":state_engine_identity_window,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,

@@ -630,4 +630,46 @@ class SignedEnginePeriodTimelineTransitionTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError,"PERIOD_TIMELINE_"):
                         inspect_signed_engine_period_timeline_transition(targets)
 
+
+class SignedTwoSlotBTransitionFailClosedTests(unittest.TestCase):
+    def test_reject_wrong_old_new_slot_or_method(self):
+        from exo_queue_slot_role_exact import (
+            signed_two_slotB_reads_to_timeline_transition,QUEUE,HOLDER,PERIOD_INFO,PERIOD_ID,
+            PLAYBACK_INFO,TIMELINE,ENGINE,ENGINE_PERIOD_TIMELINE_TRANSITION,audit)
+        from unittest.mock import patch
+        class Dex:
+            def method(self,index):return ENGINE_PERIOD_TIMELINE_TRANSITION
+        dex=Dex()
+        def w(op,dst,recv,index):
+            return ((recv<<12)|(dst<<8)|op,index)
+        rows={
+          547:(0x54,w(0x54,1,9,1)),
+          659:(0x5b,w(0x5b,3,9,1)),
+          664:(0x54,w(0x54,3,9,1)),
+          673:(0x54,w(0x54,5,5,4)),
+          675:(0x54,w(0x54,6,3,2)),
+          677:(0x54,w(0x54,6,6,3)),
+          679:(0x54,w(0x54,1,1,2)),
+          681:(0x54,w(0x54,1,1,3)),
+          686:(0x07,(0x6207,)),
+          687:(0x07,(0x1407,)),
+          688:(0x07,(0x5107,)),
+          699:(0x07,(0x1307,)),
+          711:(0x76,(0x0876,5,0)),
+        }
+        fields={1:(QUEUE,"b",HOLDER),2:(HOLDER,"info",PERIOD_INFO),
+                3:(PERIOD_INFO,"id",PERIOD_ID),4:(PLAYBACK_INFO,"timeline",TIMELINE),
+                5:(QUEUE,"wrong",HOLDER)}
+        targets={ENGINE:(dex,0,1)}
+        with patch.object(audit,"instructions",side_effect=lambda d,off:
+                 [(pc,op,words) for pc,(op,words) in rows.items()]), \
+             patch.object(audit,"field_id",side_effect=lambda d,i:fields[i]), \
+             patch.object(audit,"invoke_registers",return_value=[0,1,2,3,4,5,6,7]), \
+             patch.object(audit,"move_object_registers",side_effect=lambda op,w:
+                 ((w[0]>>8)&15,(w[0]>>12)&15)):
+            witness=signed_two_slotB_reads_to_timeline_transition(
+                targets,{fields[1]:"SLOT_B"})
+        self.assertEqual(witness["exact_same_slotB_read_at_pcs"],[547,664])
+        self.assertFalse(witness["current_selected_audio_track_edition_or_epoch_proven"])
+
 if __name__=="__main__": unittest.main()
