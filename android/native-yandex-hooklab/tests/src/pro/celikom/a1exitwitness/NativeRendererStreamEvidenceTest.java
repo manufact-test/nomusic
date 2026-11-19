@@ -2089,7 +2089,7 @@ public final class NativeRendererStreamEvidenceTest {
     }
 
     private static void testNav44DifferentAndChangedSlotFailClosed() {
-        for(int scenario=0;scenario<2;scenario++){
+        for(int scenario=0;scenario<3;scenario++){
             StageBAudioEvidence stage=new StageBAudioEvidence();
             NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
             nav41Setup(e);
@@ -2111,10 +2111,13 @@ public final class NativeRendererStreamEvidenceTest {
             FakeSource source=new FakeSource();source.item=new Object();
             holder.nested=new FakeNested(new FakePeriod(source));
             Nav41Engine engine=new Nav41Engine(holder,new Nav41Id(uid,-1,12));
-            ItemTimeline timeline=new ItemTimeline(uid,new Object());
+            ItemTimeline timeline=new ItemTimeline(uid,
+                scenario==2?source.item:new Object());
             engine.playback.timeline=timeline;
             if(scenario==1)timeline.afterWindow=()->
                 engine.queue.slotB=new Nav41Holder(id,stream);
+            if(scenario==2)timeline.afterWindow=()->
+                holder.nested=new FakeNested(new FakePeriod(new FakeSource()));
             nav43LinkOriginalSource(e,wrapper,source);
             nav41Attach(e,engine,holder,renderer,stream);
             e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
@@ -2125,7 +2128,8 @@ public final class NativeRendererStreamEvidenceTest {
             } else {
                 check(contains(e.exportLines(),
                     "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SLOT_CHANGED;error=ONE"),
-                    "NAV44_WINDOW_LOOKUP_CHANGE_REJECTS");
+                    scenario==1?"NAV44_WINDOW_LOOKUP_CHANGE_REJECTS":
+                        "NAV44_SAME_HOLDER_DIFFERENT_PERIOD_SOURCE_REJECTS");
             }
             check(contains(e.exportLines(),
                 "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF;error=NONE"),
