@@ -1,3 +1,5 @@
+**Latest pinned signed-original static step (19 Nov 2026):** original PlaybackInfo/front PeriodID post-UID int/sentinel conditional guards and three exact UID→Timeline Period int→Timeline Window handoffs are proven, [CI #44519254855 SUCCESS 32/32](https://github.com/manufact-test/nomusic/actions/runs/44519254855), source `bac9dfcca42d23d5bd82ea21bbf5836c6695a8d5`. Still **STRUCTURAL_ONLY**, not selected audible Track/edition/epoch; no NAV41. [Detailed report](ANDROID-A1-NAV40-SIGNED-FRONT-ID-GUARD-PERIOD-WINDOW-20261119.md).
+
 # CELIKOM Android A1 — documentation index
 
 **NEW current signed-original research (19 Nov 2026):** original `e.break()` reads the same SLOT_B field twice around a possible write, feeds original `e.I` with two candidate PeriodIDs+Timeline, and exact original `e.I`/`e.z` use three typed Period UID→Timeline Period lookups. [CI #44516354079 SUCCESS 27/27](https://github.com/manufact-test/nomusic/actions/runs/44516354079); [new handoff](ANDROID-A1-NAV40-SIGNED-TWO-SLOTB-UID-TIMELINE-LOOKUPS-20261119.md). Still structural-only; NOT selected Track/edition, active audio read, or NAV41 admission.
