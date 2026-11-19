@@ -1,3 +1,13 @@
+# CURRENT — NAV42 targeted response to owner NAV41 EOS blocker (19 Nov 2026)
+
+Owner phone diagnostic `CELIKOM-A1-Diagnostics-1795094518695.txt` confirms `NAV_V41_PLAYER_PERIOD_SLOTB_NON_EOS_READONLY` ACTIVE; `PLAYER_PERIOD_AT_AUDIO_READ=REGISTERED`; `LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH=MANY`, `...MINUS4=MANY`; `BUFFER_EOS_ACCESS=NO_HOOK`. All original 5 period counters NONE solely because unknown EOS was excluded by `Boolean.FALSE.equals(endOfStream)`. The vendor still plays, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY` and `LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME=MANY`. None of this proves selected edition, `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+NAV42 implemented strictly in existing read observer, no new hook, no vendor mutation. Unknown EOS gets five separate structural `PLAYER_PERIOD_EOS_UNKNOWN_{SAME_REF,UID_INTS,UID_ONLY,DIFFERENT,UNAVAILABLE}` at strict type1/state2/-4/SLOT_B original stream read. Proven non-EOS cohorts unchanged; EOS true rejected. PlaybackInfo + holder IDs/UIDs/two ints and queue pointer rechecked, all enum-only. No raw media IDs/content. [JVM #44533352224 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44533352224), [JVM versioned #44533945905 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44533945905). New export request [ARM owner-signed #44534038483](https://github.com/manufact-test/nomusic/actions/runs/44534038483) PENDING until completed, **do not claim release yet**.
+
+NAV42 owner artifact once accepted: `CELIKOM-A1-NAV42-Period-EosUnknown-SlotB-ReadOnly-20261119.apk`, ZIP `CELIKOM-A1-NAV42-Period-EosUnknown-SlotB-20261119.zip`. Existing NAV40 signed backup and NAV41 signed APK remain unchanged. Next: one NAV42 phone test, send TXT with new 5 EOS_UNKNOWN counters; no further broad source scans, no NAV43 without measured evidence. Work in only `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+
+---
+
 # CURRENT — NAV41 signed diagnostic exported to Library; owner phone run is next (19 Nov 2026)
 
 **Completed:** exact signed original field compiler [CI #44527901915 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44527901915), JVM fail-closed witness [CI #44529331046 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529331046), owner Android 13 ARM test [CI #44529331360 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529331360) and **final owner-signed NAV41 release [CI #44529576455 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529576455)**. Export commit `c8e73015493c50c05fa97aaf9febdf802c48c864`, final code `74df48624f79051276924326a8bd77dc1afe4174`.
