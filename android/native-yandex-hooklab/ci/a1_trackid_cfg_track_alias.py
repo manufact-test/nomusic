@@ -138,6 +138,8 @@ def prove_original_track_receiver(dex,method,flags,code_off,instructions,
         if relaxations>MAX_RELAXATIONS:
             return "CFG_BUDGET_EXCEEDED"
         _pc,op,words=instructions[i]
+        if op==0 and words[0] in (0x0100,0x0200,0x0300):
+            return "CFG_REACHABLE_PAYLOAD"
         alias=set(states[i])
         moving=move_object(op,words)
         if moving is not None:
