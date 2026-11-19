@@ -1802,6 +1802,87 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV41_MISSING_REGISTRATION_EXPLICIT");
     }
 
+
+    // NAV42: the actual owner NAV41 diagnostic has original -4 reads on
+    // live SLOT_B, but RF2 EOS accessor is not readable. Do not suppress all
+    // structural PeriodID evidence, and do not mislabel it as non-EOS.
+    private static void testNav42UnknownEosUsesSeparateStructuralCohorts() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        Object uid=new Object(),stream=new Object(),renderer=new Object();
+        Nav41Id id=new Nav41Id(uid,-1,7);
+        Nav41Holder h=new Nav41Holder(id,stream);
+        Nav41Engine engine=new Nav41Engine(h,id);
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF;error=ONE"),
+            "NAV42_UNKNOWN_EOS_SAME_REFERENCE_OBSERVED");
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_SAME_REFERENCE;error=NONE"),
+            "NAV42_UNKNOWN_EOS_NEVER_NON_EOS_PROMOTED");
+        check(contains(e.exportLines(),"origin=ENGINE_AUDIO_TYPE1_STATE2_BUFFER_NON_EOS;error=NONE"),
+            "NAV42_NO_FAKE_BUFFER_NEGATIVE");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+            "NAV42_NO_FAKE_SELECTED_EDITION");
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.TRUE);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-3,null);
+        e.onRendererTypeStateRead(renderer,stream,2,2,-4,null);
+        e.onRendererTypeStateRead(renderer,stream,1,1,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF;error=ONE"),
+            "NAV42_EOS_TRUE_OR_NON_AUDIO_NOT_COUNTED");
+    }
+    private static void testNav42UnknownEosUidAndIndexAndStaleGuard() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        Object uid=new Object(),stream=new Object(),renderer=new Object();
+        Nav41Holder h=new Nav41Holder(new Nav41Id(uid,-1,4),stream);
+        Nav41Engine engine=new Nav41Engine(h,new Nav41Id(uid,-1,4));
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS;error=ONE"),
+            "NAV42_UNKNOWN_VALUE_MATCH_NOT_SAME_JAVA_REFERENCE");
+        engine.playback.currentId=new Nav41Id(uid,-1,6);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_UID_ONLY;error=ONE"),
+            "NAV42_REPLAY_UID_ONLY");
+        engine.playback.currentId=new Nav41Id(new Object(),-1,4);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_DIFFERENT;error=ONE"),
+            "NAV42_DIFFERENT_PERIOD");
+        engine.playback.currentId=null;
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_UNAVAILABLE;error=ONE"),
+            "NAV42_NULL_FAIL_CLOSED");
+        engine.playback.currentId=h.info.id;
+        engine.queue.slotB=new Nav41Holder(h.info.id,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF;error=NONE"),
+            "NAV42_CHANGED_SLOT_REJECTED");
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS;error=ONE"),
+            "NAV42_CHANGED_SLOT_NOT_MATCHED");
+        for(String line:e.exportLines()) {
+            check(!line.contains("uid@") && !line.contains("Nav41Id@"),
+                "NAV42_NEVER_EXPORT_RAW_IDENTITIES");
+        }
+    }
+    private static void testNav42DisabledPeriodHookAndReattachNeverMatch() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        Object stream=new Object(),renderer=new Object();
+        Nav41Id id=new Nav41Id(new Object(),-1,8);
+        Nav41Holder h=new Nav41Holder(id,stream);
+        Nav41Engine engine=new Nav41Engine(h,id);
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onHookRegistration("PLAYER_PERIOD_AT_AUDIO_READ",false);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF;error=NONE"),
+            "NAV42_NO_HOOK_NO_PROOF");
+        e.onHookRegistration("PLAYER_PERIOD_AT_AUDIO_READ",true);
+        e.onDetach(renderer);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF;error=NONE"),
+            "NAV42_DETACHED_NO_PROOF");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1873,6 +1954,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod();
         testNav41RejectUidOnlyAndOldPeriodSameUidNotEdition();
         testNav41NoFieldsOrNoActiveSlotCannotProduceMatch();
+        testNav42UnknownEosUsesSeparateStructuralCohorts();
+        testNav42UnknownEosUidAndIndexAndStaleGuard();
+        testNav42DisabledPeriodHookAndReattachNeverMatch();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

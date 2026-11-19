@@ -214,6 +214,12 @@ final class NativeRendererStreamEvidence {
     private int currentPeriodAtReadHook,currentPeriodSameReferenceAtRead;
     private int currentPeriodUidAndIntsAtRead,currentPeriodUidOnlyAtRead;
     private int currentPeriodDifferentAtRead,currentPeriodUnavailableAtRead;
+    // NAV42: unknown EOS is NOT promoted to a non-EOS audio sample.
+    // On the same strict SLOT_B read, separately classify only structural
+    // PlaybackInfo<->holder PeriodID reference/field relationships.
+    private int periodUnknownEosSame,periodUnknownEosUidInts;
+    private int periodUnknownEosUidOnly,periodUnknownEosDifferent;
+    private int periodUnknownEosUnavailable;
 
     synchronized void setCurrentPlaybackPeriodFields(
             Field engineInfo,Field playbackId,Field holderInfo,Field holderId,
@@ -241,20 +247,22 @@ final class NativeRendererStreamEvidence {
         currentPeriodSecondIntField=second;
     }
 
-    private void observeCurrentPlaybackPeriodAtRead(Object engine,Object holder) {
+    private void observeCurrentPlaybackPeriodAtRead(Object engine,Object holder,boolean eosUnverified) {
         if(currentPeriodAtReadHook<=0 || currentEnginePlaybackInfoField==null
                 || engine==null || holder==null)return;
         try {
             Object info=currentEnginePlaybackInfoField.get(engine);
             Object holderInfo=currentHolderInfoField.get(holder);
             if(info==null || holderInfo==null) {
-                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                if(eosUnverified)periodUnknownEosUnavailable=inc(periodUnknownEosUnavailable);
+                else currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
                 return;
             }
             Object playbackId=currentPlaybackIdField.get(info);
             Object activeId=currentHolderIdField.get(holderInfo);
             if(playbackId==null || activeId==null) {
-                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                if(eosUnverified)periodUnknownEosUnavailable=inc(periodUnknownEosUnavailable);
+                else currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
                 return;
             }
             Object playerUid=currentPeriodUidField.get(playbackId);
@@ -275,25 +283,34 @@ final class NativeRendererStreamEvidence {
                     || currentPeriodFirstIntField.getInt(activeId)!=holderFirst
                     || currentPeriodSecondIntField.getInt(playbackId)!=playerSecond
                     || currentPeriodSecondIntField.getInt(activeId)!=holderSecond) {
-                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                if(eosUnverified)periodUnknownEosUnavailable=inc(periodUnknownEosUnavailable);
+                else currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
                 return;
             }
             // The queue pointer may move while fields are sampled.
             // Never count a stale holder after the second live-slot check.
             if(liveQueueSlotMatches(engine,holder)!=1) {
-                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                if(eosUnverified)periodUnknownEosUnavailable=inc(periodUnknownEosUnavailable);
+                else currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
                 return;
             }
-            if(playbackId==activeId)currentPeriodSameReferenceAtRead=
-                inc(currentPeriodSameReferenceAtRead);
-            else if(playerUid!=null && playerUid==holderUid
-                    && playerFirst==holderFirst && playerSecond==holderSecond)
-                currentPeriodUidAndIntsAtRead=inc(currentPeriodUidAndIntsAtRead);
-            else if(playerUid!=null && playerUid==holderUid)
-                currentPeriodUidOnlyAtRead=inc(currentPeriodUidOnlyAtRead);
-            else currentPeriodDifferentAtRead=inc(currentPeriodDifferentAtRead);
+            if(playbackId==activeId) {
+                if(eosUnverified)periodUnknownEosSame=inc(periodUnknownEosSame);
+                else currentPeriodSameReferenceAtRead=inc(currentPeriodSameReferenceAtRead);
+            } else if(playerUid!=null && playerUid==holderUid
+                    && playerFirst==holderFirst && playerSecond==holderSecond) {
+                if(eosUnverified)periodUnknownEosUidInts=inc(periodUnknownEosUidInts);
+                else currentPeriodUidAndIntsAtRead=inc(currentPeriodUidAndIntsAtRead);
+            } else if(playerUid!=null && playerUid==holderUid) {
+                if(eosUnverified)periodUnknownEosUidOnly=inc(periodUnknownEosUidOnly);
+                else currentPeriodUidOnlyAtRead=inc(currentPeriodUidOnlyAtRead);
+            } else {
+                if(eosUnverified)periodUnknownEosDifferent=inc(periodUnknownEosDifferent);
+                else currentPeriodDifferentAtRead=inc(currentPeriodDifferentAtRead);
+            }
         } catch(Throwable ignored) {
-            currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+            if(eosUnverified)periodUnknownEosUnavailable=inc(periodUnknownEosUnavailable);
+            else currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
         }
     }
 
@@ -1247,8 +1264,11 @@ final class NativeRendererStreamEvidence {
             if(fresh==1) {
                 queueSlotReadSame=inc(queueSlotReadSame);
                 if(originalResult==-4)queueSlotReadMinus4=inc(queueSlotReadMinus4);
-                if(originalResult==-4 && Boolean.FALSE.equals(endOfStream))
-                    observeCurrentPlaybackPeriodAtRead(live.engine.get(),live.holder.get());
+                // NAV42: unknown EOS is *separate*, strictly structural
+                // evidence; NEVER treat it as a confirmed non-EOS sample.
+                if(originalResult==-4 && !Boolean.TRUE.equals(endOfStream))
+                    observeCurrentPlaybackPeriodAtRead(
+                        live.engine.get(),live.holder.get(),endOfStream==null);
                 // Only on independently proven same holder + live SLOT_B
                 // + started audio stream, never on merely prepared periods.
                 observeActivePeriodSource(live.holder.get());
@@ -1389,6 +1409,11 @@ final class NativeRendererStreamEvidence {
             line("PLAYER_PERIOD_AT_READ_UID_ONLY",currentPeriodUidOnlyAtRead),
             line("PLAYER_PERIOD_AT_READ_DIFFERENT",currentPeriodDifferentAtRead),
             line("PLAYER_PERIOD_AT_READ_UNAVAILABLE",currentPeriodUnavailableAtRead),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_SAME_REF",periodUnknownEosSame),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS",periodUnknownEosUidInts),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_UID_ONLY",periodUnknownEosUidOnly),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_DIFFERENT",periodUnknownEosDifferent),
+            line("PLAYER_PERIOD_EOS_UNKNOWN_UNAVAILABLE",periodUnknownEosUnavailable),
             line("TRACK_PLAYER_SOURCE_SCOPE_ENTER",trackPlayerScopeEnter),
             line("TRACK_PLAYER_SOURCE_SAME_SCOPE",playerSourceSameScope),
             line("TRACK_PLAYER_SOURCE_UNSCOPED",playerSourceUnscoped),
