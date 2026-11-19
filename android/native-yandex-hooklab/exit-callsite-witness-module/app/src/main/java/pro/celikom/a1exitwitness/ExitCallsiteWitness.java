@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V43_PERIOD_FLOW_UID_INTS_SAME_CALLBACK_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2631,6 +2631,56 @@ public final class ExitCallsiteWitness extends XposedModule {
                     NATIVE_RENDERER_EVIDENCE.onHookRegistration(
                         "PLAYER_PERIOD_AT_AUDIO_READ",false);
                     emit("AUDIO_NATIVE_RENDERER_HOOK","PLAYER_PERIOD_AT_AUDIO_READ",
+                        "NO_HOOK");
+                }
+
+                // NAV44: no new hook. Read only publisher-signed period
+                // Timeline/Window MediaItem and same active-source MediaItem.
+                // No values, IDs, audio bytes or URL access. Missing target
+                // disables this observer, not original playback.
+                try {
+                    Class<?> privateItem=Class.forName(
+                        "pro.celikom.a1exitwitness.PrivateNativeCurrentMediaItemTarget",
+                        false,ExitCallsiteWitness.class.getClassLoader());
+                    Class<?> info=Class.forName("CD7",false,loader);
+                    Class<?> timeline=Class.forName("Tva",false,loader);
+                    Class<?> period=Class.forName("Tva$b",false,loader);
+                    Class<?> window=Class.forName("Tva$d",false,loader);
+                    Class<?> item=Class.forName("Of6",false,loader);
+                    Class<?> source=Class.forName("iLb",false,loader);
+                    String[] names={
+                        "PLAYBACK_TIMELINE","PERIOD_WINDOW_INDEX",
+                        "WINDOW_MEDIA_ITEM","SOURCE_MEDIA_ITEM"
+                    };
+                    Class<?>[] owners={info,period,window,source};
+                    Class<?>[] expected={timeline,int.class,item,item};
+                    Field[] fields=new Field[names.length];
+                    for(int i=0;i<names.length;i++) {
+                        Field privateName=privateItem.getDeclaredField(names[i]);
+                        privateName.setAccessible(true);
+                        Object name=privateName.get(null);
+                        if(!(name instanceof String))throw new NoSuchFieldException();
+                        Field originalField=owners[i].getDeclaredField((String)name);
+                        if(originalField.getType()!=expected[i])
+                            throw new NoSuchFieldException();
+                        fields[i]=originalField;
+                    }
+                    Method periodByUid=timeline.getDeclaredMethod(
+                        "goto",Object.class,period);
+                    Method windowByIndex=timeline.getDeclaredMethod(
+                        "final",int.class,window,long.class);
+                    NATIVE_RENDERER_EVIDENCE.setSelectedMediaItemSourceFields(
+                        fields[0],fields[1],fields[2],fields[3],
+                        periodByUid,windowByIndex,
+                        period.getDeclaredConstructor(),window.getDeclaredConstructor());
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                        "CURRENT_MEDIAITEM_SOURCE",true);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","CURRENT_MEDIAITEM_SOURCE",
+                        "REGISTERED");
+                } catch(Throwable ignored) {
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                        "CURRENT_MEDIAITEM_SOURCE",false);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","CURRENT_MEDIAITEM_SOURCE",
                         "NO_HOOK");
                 }
 
