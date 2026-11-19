@@ -251,7 +251,7 @@ class SignedInfoRefreshTests(unittest.TestCase):
                         for p,op,w in v[section]]
             variants.append(v)
         overwritten=deepcopy(scripts)
-        overwritten[2].insert(1,(20,0x07,(0x0137,)))
+        overwritten[2].insert(1,(20,0x07,(0x1307,)))
         variants.append(overwritten)
         for idx,case in enumerate(variants):
             with self.subTest(idx=idx):
