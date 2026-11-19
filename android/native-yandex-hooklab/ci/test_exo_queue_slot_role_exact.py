@@ -419,8 +419,8 @@ class SignedOldPeriodIdJReuseCfgTests(unittest.TestCase):
         dex=Dex()
         id_dex=object()
         make=lambda op,receiver,value:((receiver<<12)|(value<<8)|op)
-        src13=(0x53,(make(0x53,9,8),10))
-        src30=(0x53,(make(0x53,9,7),10))
+        src13=(0x53,(make(0x53,13,8),10))
+        src30=(0x53,(make(0x53,13,7),10))
         ins={0:(0x12,(0x0012,)),13:src13,
              24:(0x12,(0x0012,)),
              25:(0x74,(0x0074,1,0)),
@@ -445,7 +445,7 @@ class SignedOldPeriodIdJReuseCfgTests(unittest.TestCase):
             with patch.object(audit,"instructions",side_effect=lambda _dex,off: insn_ctor if off==2 else []), \
                  patch.object(audit,"field_id",return_value=(PERIOD_ID,"private","J")), \
                  patch.object(audit,"build_dex_control_flow",return_value=cfg), \
-                 patch.object(audit,"typed_parameter_registers",return_value={9}), \
+                 patch.object(audit,"typed_parameter_registers",return_value={13}), \
                  patch.object(audit,"invoke_registers",side_effect=lambda op,words:
                      [0,0,0,0,0,6,0,8,0,0] if words[1]==1 else
                      [0,0,0,3,0,5,0,7,0,0]), \
