@@ -391,4 +391,20 @@ class SignedQueueIdBuilderPinnedSitesTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"QUEUE_ID_BUILDERS_"):
                     validate_signed_queue_id_builder_callers(alternate,exact_signed=True)
 
+
+class SignedWideFieldOwnerOnlyTests(unittest.TestCase):
+    def test_typed_iget_wide_shape_no_field_name_or_value(self):
+        from exo_queue_slot_role_exact import signed_wide_writer_type_only as typed,audit
+        from unittest.mock import patch
+        dex=object()
+        with patch.object(audit,"field_id",return_value=("Lsynthetic;","PRIVATE_SECRET","J")):
+            row=typed(dex,5,0x53,(0x2153,10))
+        self.assertEqual(row["declaring_class"],"Lsynthetic;")
+        self.assertEqual(row["instance_field_receiver_register"],2)
+        self.assertEqual(row["dest"],1)
+        self.assertNotIn("PRIVATE_SECRET",str(row))
+        with patch.object(audit,"field_id",return_value=("Lsynthetic;","private","I")):
+            with self.assertRaisesRegex(ValueError,"QUEUE_WIDE_OWNER_FIELD_TYPE_MISMATCH"):
+                typed(dex,5,0x53,(0x2153,10))
+
 if __name__=="__main__": unittest.main()

@@ -1105,6 +1105,23 @@ def validate_signed_queue_id_builder_callers(rows,exact_signed=False):
         "original_queue_epoch_or_selected_edition_proven":False,
     }
 
+def signed_wide_writer_type_only(dex,pc,op,words):
+    """Typed field declaration only; never disclose obfuscated field name or value."""
+    shape=wide_definition_register_shape(pc,op,words)
+    if shape is None:return None
+    if op in (0x53,0x61):
+        owner,_private,typ=audit.field_id(dex,words[1])
+        if typ!="J":
+            raise ValueError("QUEUE_WIDE_OWNER_FIELD_TYPE_MISMATCH")
+        shape={
+            **shape,
+            "declaring_class":owner,
+            "field_type":"J",
+            "instance_field_receiver_register":(
+                ((words[0]>>12)&15) if op==0x53 else None),
+        }
+    return shape
+
 def signed_period_id_constructor_site_census(apks):
     """Scan all six publisher-signed DEX for invoke-direct(*/range) of LSl6$b.<init>.
 
@@ -1168,7 +1185,7 @@ def signed_period_id_constructor_site_census(apks):
                                     {"argument_register":a["argument_register"],
                                      "candidate_instruction_writers":[
                                         shape for shape in (
-                                            wide_definition_register_shape(p,o,w)
+                                            signed_wide_writer_type_only(dex,p,o,w)
                                             for p,o,w in audit.instructions(dex,off)
                                             if p<pc)
                                         if shape is not None and
