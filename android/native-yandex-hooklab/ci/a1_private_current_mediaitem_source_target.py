@@ -34,6 +34,8 @@ def derive(splits):
     methods={}
     dex_count=0
     seen_calls=set()
+    item_id_fields=[]
+    item_class_count=0
     for apk in splits:
         with zipfile.ZipFile(apk) as archive:
             for member in archive.infolist():
@@ -41,6 +43,37 @@ def derive(splits):
                     continue
                 dex_count+=1
                 dex=audit.Dex(archive.read(member.filename))
+                # NAV45: only the exact already-pinned LOf6 MediaItem class.
+                # Expect one final instance String. No names/values emitted to CI.
+                for class_index in range(dex.class_count):
+                    base=dex.class_offset+class_index*32
+                    if dex.descriptor(dex.u32(base))!="LOf6;":
+                        continue
+                    item_class_count+=1
+                    class_data=dex.u32(base+24)
+                    if not class_data:raise ValueError("NAV45_ITEM_CLASS_NO_FIELDS")
+                    nstatic,pos=audit.uleb(dex,class_data)
+                    ninst,pos=audit.uleb(dex,pos)
+                    _,pos=audit.uleb(dex,pos)
+                    _,pos=audit.uleb(dex,pos)
+                    if nstatic>256 or ninst>256:
+                        raise ValueError("NAV45_ITEM_CLASS_FIELD_BOUND")
+                    prior=0
+                    for _ in range(nstatic):
+                        delta,pos=audit.uleb(dex,pos)
+                        prior+=delta
+                        _,pos=audit.uleb(dex,pos)
+                    prior=0
+                    for _ in range(ninst):
+                        delta,pos=audit.uleb(dex,pos)
+                        prior+=delta
+                        access,pos=audit.uleb(dex,pos)
+                        owner,name,typ=audit.field_id(dex,prior)
+                        if owner!="LOf6;":raise ValueError("NAV45_ITEM_FIELD_OWNER_DRIFT")
+                        if typ=="Ljava/lang/String;":
+                            if not (access&0x0010):
+                                raise ValueError("NAV45_ITEM_ID_NOT_FINAL")
+                            item_id_fields.append(name)
                 for m,flags,off in audit.method_definitions_with_flags(dex):
                     if m in TARGETS:
                         if m in methods:raise ValueError("NAV44_DUPLICATE_SIGNED_METHOD")
@@ -53,6 +86,9 @@ def derive(splits):
                                 seen_calls.add(dex.method(words[1]))
     if dex_count!=6 or set(methods)!=set(TARGETS):
         raise ValueError("NAV44_EXACT_SIX_DEX_FOUR_METHODS")
+    if item_class_count!=1 or len(item_id_fields)!=1:
+        raise ValueError("NAV45_MEDIAITEM_UNIQUE_FINAL_STRING_FIELD_GUARD:"
+                         +str(item_class_count)+":"+str(len(item_id_fields)))
     if seen_calls!={PERIOD_LOOKUP,WINDOW_LOOKUP}:
         raise ValueError("NAV44_PERIOD_TO_WINDOW_METHODS_NOT_BOTH_PINNED")
     fields={}
@@ -91,6 +127,7 @@ def derive(splits):
     if incoming!=1 or reads[0][:2]!=(returns[0],registers-incoming):
         raise ValueError("NAV44_SOURCE_GETTER_REF_NOT_RETURNED_FROM_THIS")
     fields["SOURCE_MEDIA_ITEM"]=reads[0][2]
+    fields["ITEM_LOGICAL_ID"]=item_id_fields[0]
     return fields
 
 def run(path:Path):
@@ -117,12 +154,12 @@ def main():
         raise ValueError("NAV44_PRIVATE_TARGET_ALREADY_EXISTS")
     fields=run(args.xapk)
     output="package pro.celikom.a1exitwitness;\nfinal class PrivateNativeCurrentMediaItemTarget {\n"
-    for key in ("PLAYBACK_TIMELINE","PERIOD_WINDOW_INDEX","WINDOW_MEDIA_ITEM","SOURCE_MEDIA_ITEM"):
+    for key in ("PLAYBACK_TIMELINE","PERIOD_WINDOW_INDEX","WINDOW_MEDIA_ITEM","SOURCE_MEDIA_ITEM","ITEM_LOGICAL_ID"):
         output+="  static final String "+key+" = "+json.dumps(fields[key],ensure_ascii=True)+";\n"
     output+="  private PrivateNativeCurrentMediaItemTarget() {}\n}\n"
     args.private_java.parent.mkdir(parents=True,exist_ok=True)
     args.private_java.write_text(output,encoding="utf-8")
-    print("NAV44_EXACT_ORIGINAL_PERIOD_TIMELINE_SOURCE_ITEM_FIELD_GATE_PASS")
+    print("NAV45_EXACT_MEDIAITEM_UNIQUE_FINAL_LOGICAL_STRING_GATE_PASS")
 
 if __name__=="__main__":
     main()
