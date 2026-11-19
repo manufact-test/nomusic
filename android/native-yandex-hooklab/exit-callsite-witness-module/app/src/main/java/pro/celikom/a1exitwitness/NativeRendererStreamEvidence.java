@@ -199,6 +199,27 @@ final class NativeRendererStreamEvidence {
     synchronized void setScopedAlbumEvidence(ScOpedAlbumEvidence evidence) {
         scopedAlbumEvidence=evidence;
     }
+    // One original-reference-only path from NAV40 creator Track+Album to
+    // the exact selected native source on the SAME renderer callback.
+    // No retained track/album, ID reading, PCM, replacement or second Player.
+    interface ExactOriginalTrackAlbumEvidence { Object[] exact(Object wrapper); }
+    interface ActiveOriginalTrackObserver {
+        void observe(Object originalTrack,Object originalAlbum,Object liveSource);
+    }
+    private ExactOriginalTrackAlbumEvidence exactOriginalTrackAlbumEvidence;
+    private ActiveOriginalTrackObserver activeOriginalTrackObserver;
+    synchronized void setExactOriginalTrackAlbumEvidence(ExactOriginalTrackAlbumEvidence evidence) {
+        exactOriginalTrackAlbumEvidence=evidence;
+    }
+    synchronized void setActiveOriginalTrackObserver(ActiveOriginalTrackObserver observer) {
+        activeOriginalTrackObserver=observer;
+    }
+    private static final class ExactOriginalSourceRead {
+        final Object source,track,album;
+        ExactOriginalSourceRead(Object source,Object track,Object album) {
+            this.source=source;this.track=track;this.album=album;
+        }
+    }
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
     private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
     private final ThreadLocal<EngineFrame> inEngineEnable = new ThreadLocal<>();
@@ -515,6 +536,61 @@ final class NativeRendererStreamEvidence {
             if(eosUnverified)periodUnknownEosUnavailable=inc(periodUnknownEosUnavailable);
             else currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
         }
+    }
+
+    /**
+     * Candidate selected original PeriodID at the instant of consumption.
+     * Fail closed across queue moves, source rebinding, MediaPeriod adapters
+     * and replacement of PlaybackInfo/period objects. Never call equals().
+     */
+    private boolean originalPeriodIdStillCurrent(Object engine,Object holder) {
+        if(engine==null || holder==null || currentEnginePlaybackInfoField==null
+                || currentPlaybackIdField==null || currentHolderInfoField==null
+                || currentHolderIdField==null || currentPeriodUidField==null
+                || currentPeriodFirstIntField==null
+                || currentPeriodSecondIntField==null)return false;
+        try {
+            Object info=currentEnginePlaybackInfoField.get(engine);
+            Object holderInfo=currentHolderInfoField.get(holder);
+            if(info==null || holderInfo==null)return false;
+            Object a=currentPlaybackIdField.get(info);
+            Object b=currentHolderIdField.get(holderInfo);
+            if(a==null || b==null)return false;
+            Object uid=currentPeriodUidField.get(a);
+            if(uid==null || uid!=currentPeriodUidField.get(b))return false;
+            int first=currentPeriodFirstIntField.getInt(a);
+            int second=currentPeriodSecondIntField.getInt(a);
+            if(first!=currentPeriodFirstIntField.getInt(b)
+                    || second!=currentPeriodSecondIntField.getInt(b))return false;
+            return currentEnginePlaybackInfoField.get(engine)==info
+                && currentHolderInfoField.get(holder)==holderInfo
+                && currentPlaybackIdField.get(info)==a
+                && currentHolderIdField.get(holderInfo)==b
+                && currentPeriodUidField.get(a)==uid
+                && currentPeriodUidField.get(b)==uid
+                && currentPeriodFirstIntField.getInt(a)==first
+                && currentPeriodFirstIntField.getInt(b)==first
+                && currentPeriodSecondIntField.getInt(a)==second
+                && currentPeriodSecondIntField.getInt(b)==second
+                && liveQueueSlotMatches(engine,holder)==1;
+        } catch(Throwable ignored) { return false; }
+    }
+
+    private boolean holderStillHasOriginalSource(Object holder,Object expectedSource) {
+        if(holder==null || expectedSource==null || holderWrapperField==null
+                || wrapperPeriodField==null || periodSourceField==null
+                || exactPeriodClass==null)return false;
+        try {
+            Object nested=holderWrapperField.get(holder);
+            Object period=null;
+            if(exactPeriodClass.isInstance(nested))period=nested;
+            else if(exactWrapperClass!=null && exactWrapperClass.isInstance(nested)) {
+                Object underlying=wrapperPeriodField.get(nested);
+                if(exactPeriodClass.isInstance(underlying))period=underlying;
+            }
+            return period!=null && periodSourceField.get(period)==expectedSource
+                    && holderWrapperField.get(holder)==nested;
+        } catch(Throwable ignored) { return false; }
     }
 
     private int liveQueueSlotHook,queueSlotAttachSame,queueSlotAttachOther;
@@ -855,12 +931,13 @@ final class NativeRendererStreamEvidence {
         }
     }
 
-    private Object observeActivePeriodSource(Object currentHolder) {
+    private ExactOriginalSourceRead observeActivePeriodSource(Object currentHolder) {
         if(livePeriodSourceHook<=0 || currentHolder==null)return null;
         if(holderWrapperField==null || wrapperPeriodField==null
                 || periodSourceField==null)return null;
         Object source=null;
         Object exactLateFlowSource=null;
+        Object exactLateFlowTrack=null,exactLateFlowAlbum=null;
         try {
             Object nested=holderWrapperField.get(currentHolder);
             observePriorSelectWhenLiveRead(currentHolder,nested);
@@ -997,7 +1074,19 @@ final class NativeRendererStreamEvidence {
                             }
                             break;
                         case 16:scopedLateFlowAlbumSame=inc(scopedLateFlowAlbumSame);
-                            exactLateFlowSource=source;break;
+                            exactLateFlowSource=source;
+                            if(exactOriginalTrackAlbumEvidence!=null) {
+                                try {
+                                    Object[] same=exactOriginalTrackAlbumEvidence.exact(
+                                        uniquelyScopedWrapper);
+                                    if(same!=null && same.length==2
+                                            && same[0]!=null && same[1]!=null) {
+                                        exactLateFlowTrack=same[0];
+                                        exactLateFlowAlbum=same[1];
+                                    }
+                                } catch(Throwable ignored) { }
+                            }
+                            break;
                         case 17:scopedLateFlowAlbumMissing=inc(scopedLateFlowAlbumMissing);break;
                         case 18:scopedLateFlowAlbumDifferent=inc(scopedLateFlowAlbumDifferent);break;
                         case 19:scopedLateFlowReferenceLost=inc(scopedLateFlowReferenceLost);break;
@@ -1014,7 +1103,9 @@ final class NativeRendererStreamEvidence {
         } else if(matches==0 && !conflicting)
             livePeriodSourceNoLink=inc(livePeriodSourceNoLink);
         else livePeriodSourceDifferent=inc(livePeriodSourceDifferent);
-        return exactLateFlowSource;
+        return exactLateFlowSource==null ? null :
+            new ExactOriginalSourceRead(
+                exactLateFlowSource,exactLateFlowTrack,exactLateFlowAlbum);
     }
 
     synchronized void setLiveQueueSlotFields(Field engineField,Field slotField) {
@@ -1483,7 +1574,8 @@ final class NativeRendererStreamEvidence {
                     observeCurrentPlaybackPeriodAtRead(
                         live.engine.get(),live.holder.get(),endOfStream==null);
                 // Only independently proven exact holder + live SLOT_B.
-                Object exactLateSource=observeActivePeriodSource(live.holder.get());
+                ExactOriginalSourceRead exactLateSource=
+                    observeActivePeriodSource(live.holder.get());
                 // NAV43 narrow admission *witness*, NOT audio replacement:
                 // source+late Flow and PlaybackInfo PeriodID must BOTH have
                 // advanced on this exact original -4 renderer callback.
@@ -1498,8 +1590,27 @@ final class NativeRendererStreamEvidence {
                             jointUnknownEosPeriodFlowSame=inc(jointUnknownEosPeriodFlowSame);
                             // NAV44 strictly read-only Timeline/source MediaItem
                             // comparison, after all NAV43 synchronized guards.
+                            // This callback is useful for future pre-decoder
+                            // identity resolution; only exact original Track +
+                            // Album Java references are delivered. An observer
+                            // MUST NOT infer trackId, edition or audible PCM.
+                            if(exactLateSource!=null
+                                    && exactLateSource.track!=null
+                                    && exactLateSource.album!=null
+                                    && activeOriginalTrackObserver!=null
+                                    && originalPeriodIdStillCurrent(
+                                        live.engine.get(),live.holder.get())
+                                    && holderStillHasOriginalSource(
+                                        live.holder.get(),exactLateSource.source)) {
+                                try {
+                                    activeOriginalTrackObserver.observe(
+                                        exactLateSource.track,exactLateSource.album,
+                                        exactLateSource.source);
+                                } catch(Throwable ignored) { }
+                            }
                             observeSelectedMediaItemSameRead(
-                                live.engine.get(),live.holder.get(),exactLateSource);
+                                live.engine.get(),live.holder.get(),
+                                exactLateSource==null?null:exactLateSource.source);
                         } else jointUnknownEosPeriodSlotChanged=inc(jointUnknownEosPeriodSlotChanged);
                     } else jointUnknownEosPeriodNoFlow=inc(jointUnknownEosPeriodNoFlow);
                 }
