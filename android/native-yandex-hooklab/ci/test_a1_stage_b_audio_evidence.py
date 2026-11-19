@@ -506,6 +506,48 @@ public final class StageBAudioEvidenceTest {
         check(e.exportLines()[3].contains(";error=MANY;"));
         for(int i=0;i<50;i++) e.onExoReadResult(1);
         check(e.exportLines()[13].contains(";error=MANY;"));
+        // New original Track/Album identity handle is exact for an already
+        // linked wrapper, but never a guessed ID or a later player selection.
+        Object[] linkedPair=albumChain.exactOriginalTrackAlbumForWrapper(aw);
+        check(linkedPair!=null && linkedPair.length==2
+              && linkedPair[0]==at && linkedPair[1]==aa);
+        check(albumChain.exactOriginalTrackAlbumForWrapper(new Object())==null);
+        albumChain.onNativeTrackAlbumConstructed(at,new Object());
+        check(albumChain.exactOriginalTrackAlbumForWrapper(aw)==null);
+
+        // NAV40 real-phone late-Flow case: creator owns this exact Track at
+        // wrapper birth, and the SAME original Track enters Flow afterwards.
+        StageBAudioEvidence lateHandle=new StageBAudioEvidence();
+        Object ltrack=new Object(),lalbum=new Object(),lwrapper=new Object();
+        lateHandle.onNativeTrackAlbumConstructed(ltrack,lalbum);
+        lateHandle.enterNativeTcaCreatorOwner(new Object());
+        lateHandle.enterNativeTcaCreatorTrackScope(ltrack,1);
+        lateHandle.onNativeTrackWrapperCreated(lwrapper);
+        lateHandle.exitNativeTcaCreatorTrackScope();
+        lateHandle.exitNativeTcaCreatorOwner();
+        check(lateHandle.exactOriginalTrackAlbumForWrapper(lwrapper)==null);
+        lateHandle.onNativeTrackFlowEmission(new Object());
+        check(lateHandle.exactOriginalTrackAlbumForWrapper(lwrapper)==null);
+        lateHandle.onNativeTrackFlowEmission(ltrack);
+        check(lateHandle.classifyNativeTrackAlbumForWrapper(lwrapper)==16);
+        Object[] latePair=lateHandle.exactOriginalTrackAlbumForWrapper(lwrapper);
+        check(latePair!=null && latePair[0]==ltrack && latePair[1]==lalbum);
+        // Same creator callback but a conflicting Album must reject the
+        // whole handle even if previously classified as SAME.
+        lateHandle.onNativeTrackAlbumConstructed(ltrack,new Object());
+        check(lateHandle.exactOriginalTrackAlbumForWrapper(lwrapper)==null);
+        StageBAudioEvidence reusedBirth=new StageBAudioEvidence();
+        Object rbTrack=new Object(),rbAlbum=new Object(),rbWrapper=new Object();
+        reusedBirth.onNativeTrackAlbumConstructed(rbTrack,rbAlbum);
+        reusedBirth.enterNativeTcaCreatorOwner(new Object());
+        reusedBirth.enterNativeTcaCreatorTrackScope(rbTrack,1);
+        reusedBirth.onNativeTrackWrapperCreated(rbWrapper);
+        reusedBirth.onNativeTrackWrapperCreated(rbWrapper);
+        reusedBirth.exitNativeTcaCreatorTrackScope();
+        reusedBirth.exitNativeTcaCreatorOwner();
+        reusedBirth.onNativeTrackFlowEmission(rbTrack);
+        check(reusedBirth.exactOriginalTrackAlbumForWrapper(rbWrapper)==null);
+
         System.out.println("PASS Stage B exact Track-to-Exo identity chain; mismatches fail closed");
     }
 }
