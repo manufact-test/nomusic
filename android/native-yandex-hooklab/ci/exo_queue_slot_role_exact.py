@@ -705,6 +705,150 @@ def verify_signed_slot_b_local_provenance(targets,slots):
         "reflective_or_native_mutations_excluded":False,
     }
 
+
+# NAV40 static candidate: original SLOT_B holder's mutable period-info
+# pointer, immutable period-info->period-id pointer and period-id long slot.
+# This does NOT identify the user's current song, edition or queue generation.
+PERIOD_INFO="Lyh6;"
+PERIOD_ID="LSl6$b;"
+SIGNED_PERIOD_TOKEN_CTORS=frozenset({
+    (HOLDER,"<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V"),
+    (PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V"),
+    (PERIOD_ID,"<init>","(Ljava/lang/Object;IIJI)V"),
+})
+SIGNED_PERIOD_TOKEN_WRITERS={
+    "holder_period_info":frozenset({
+        ("Landroidx/media3/exoplayer/e;","break","()V",283),
+        ("Landroidx/media3/exoplayer/e;","default","()V",151),
+        ("Landroidx/media3/exoplayer/e;","i","(Z)V",128),
+        ("Landroidx/media3/exoplayer/e;","static","()V",839),
+        ("Landroidx/media3/exoplayer/h;","return","(LTva;)I",69),
+        ("Landroidx/media3/exoplayer/h;","static","(LTva;JJJ)I",48),
+        (HOLDER,"<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V",18),
+        (HOLDER,"else","(Lyh6;)V",68),
+    }),
+    "period_info_id":frozenset({
+        (PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V",48),
+    }),
+    "period_id_long":frozenset({
+        (PERIOD_ID,"<init>","(Ljava/lang/Object;IIJI)V",9),
+    }),
+}
+def validate_signed_period_token_writers(observed):
+    """Exact pinned expected member writes, no private field names output."""
+    for alias,expected in SIGNED_PERIOD_TOKEN_WRITERS.items():
+        actual=observed.get(alias)
+        if actual is None or len(actual)!=len(set(actual)) or set(actual)!=set(expected):
+            raise ValueError("QUEUE_PERIOD_TOKEN_DIRECT_WRITER_MISMATCH")
+    if set(observed)!=set(SIGNED_PERIOD_TOKEN_WRITERS):
+        raise ValueError("QUEUE_PERIOD_TOKEN_UNEXPECTED_FIELD_CATEGORY")
+    return {
+        "holder_period_info_direct_writers":len(observed["holder_period_info"]),
+        "period_info_id_direct_writers":len(observed["period_info_id"]),
+        "period_id_long_direct_writers":len(observed["period_id_long"]),
+        "holder_info_mutable_in_original":True,
+        "period_token_direct_writer_guard_pass":True,
+        "same_holder_cannot_be_assumed_same_period_info":True,
+        "original_selected_edition_or_queue_epoch_proven":False,
+        "reflection_or_native_mutations_excluded":False,
+    }
+
+def signed_holder_period_token_census(apks,targets):
+    """Anchor 3 exact original ctor instructions then scan all signed DEX.
+
+    No period-id values, opaque field names, window identifiers, album IDs,
+    media details or audio data are read/exported. A long field is NOT proof
+    of generation semantics or monotonicity.
+    """
+    def verify_ctor(method,pc,opcode,owner,typ):
+        dex,_flags,off=targets[method]
+        table={x:(o,w) for x,o,w in audit.instructions(dex,off)}
+        if pc not in table or table[pc][0]!=opcode:
+            raise ValueError("QUEUE_PERIOD_TOKEN_CTOR_OPCODE_DRIFT")
+        w=table[pc][1]
+        f=audit.field_id(dex,w[1])
+        if f[0]!=owner or f[2]!=typ:
+            raise ValueError("QUEUE_PERIOD_TOKEN_CTOR_TYPE_DRIFT")
+        return dex,off,table,w,f
+    holder_ctor=(HOLDER,"<init>",
+        "([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V")
+    info_ctor=(PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V")
+    id_ctor=(PERIOD_ID,"<init>","(Ljava/lang/Object;IIJI)V")
+    holder,holder_off,holder_ins,holder_word,holder_info=verify_ctor(
+        holder_ctor,18,0x5b,HOLDER,PERIOD_INFO)
+    info,info_off,info_ins,info_word,info_id=verify_ctor(
+        info_ctor,48,0x5b,PERIOD_INFO,PERIOD_ID)
+    period,period_off,period_ins,period_word,period_long=verify_ctor(
+        id_ctor,9,0x5a,PERIOD_ID,"J")
+    # Exact class ctor parameter-to-field locals: holder moves its
+    # incoming period-info argument at PC0 into v2, then stores v2 to
+    # this at PC18. No intervening store to v2 within bounded PC0..18.
+    if (holder.u16(holder_off)!=16 or holder.u16(holder_off+2)!=9
+        or holder_ins.get(0)!=(0x07,(0xe207,))
+        or ((holder_word[0]>>8)&15,(holder_word[0]>>12)&15)!=(2,7)):
+        raise ValueError("QUEUE_PERIOD_TOKEN_HOLDER_CTOR_REGISTER_DRIFT")
+    for pc,op,w in audit.instructions(holder,holder_off):
+        if pc<=0:continue
+        if pc>=18:break
+        if audit.written_register(op,w)==2:
+            raise ValueError("QUEUE_PERIOD_TOKEN_HOLDER_ARG_OVERWRITE")
+    if (info.u16(info_off)!=22 or info.u16(info_off+2)!=15
+        or ((info_word[0]>>8)&15,(info_word[0]>>12)&15)!=(8,7)):
+        raise ValueError("QUEUE_PERIOD_TOKEN_INFO_CTOR_REGISTER_DRIFT")
+    if (period.u16(period_off)!=7 or period.u16(period_off+2)!=7
+        or ((period_word[0]>>8)&15,(period_word[0]>>12)&15)!=(4,0)):
+        raise ValueError("QUEUE_PERIOD_TOKEN_ID_CTOR_REGISTER_DRIFT")
+    anchored={
+        "holder_period_info":(holder_info,0x5b),
+        "period_info_id":(info_id,0x5b),
+        "period_id_long":(period_long,0x5a),
+    }
+    rows={k:[] for k in anchored}
+    dex_seen=0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):
+                    continue
+                if entry.file_size>audit.DEX_MAX:
+                    raise ValueError("QUEUE_PERIOD_TOKEN_DEX_LIMIT")
+                dex=audit.Dex(archive.read(entry.filename))
+                dex_seen+=1
+                field_count,_=dex.table(80,8)
+                ids={}
+                for idx in range(field_count):
+                    f=audit.field_id(dex,idx)
+                    for alias,(target_field,opcode) in anchored.items():
+                        if f==target_field:ids[idx]=(alias,opcode)
+                if not ids:continue
+                for method,_flags,off in audit.method_definitions_with_flags(dex):
+                    size=dex.u32(off+12)
+                    if size>3_000_000:
+                        raise ValueError("QUEUE_PERIOD_TOKEN_CODE_LIMIT")
+                    start=off+16
+                    dex.bounds(start,size*2)
+                    buf=dex.data[start:start+size*2]
+                    # Fast precheck only; opcode positions are validated by
+                    # fail-closed iterator before any site is counted.
+                    if b"\x5b" not in buf and b"\x5a" not in buf:
+                        continue
+                    for pc,op,w in audit.instructions(dex,off):
+                        if op not in (0x5b,0x5a):continue
+                        match=ids.get(w[1])
+                        if match is None:continue
+                        alias,expected_op=match
+                        if op!=expected_op:continue
+                        rows[alias].append((*method,pc))
+                        if len(rows[alias])>len(SIGNED_PERIOD_TOKEN_WRITERS[alias]):
+                            raise ValueError("QUEUE_PERIOD_TOKEN_TOO_MANY_WRITES")
+    if dex_seen!=6:raise ValueError("QUEUE_PERIOD_TOKEN_SIGNED_DEX_COUNT")
+    return {
+        **validate_signed_period_token_writers(rows),
+        "publisher_dex_scanned":dex_seen,
+        "exact_holder_info_to_period_id_to_long_typed_chain":True,
+        "exact_holder_info_constructor_argument_retained":True,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -727,7 +871,7 @@ def scan_signed(apks):
                     parent=(dex.descriptor(parent_idx) if parent_idx!=0xffffffff else None)
                     stream_classes[name]={"extends":parent,"access_flags":dex.u32(cbase+4)}
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY:
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS:
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
@@ -799,6 +943,7 @@ def scan_signed(apks):
     if exact_slot_b is None:raise ValueError("QUEUE_SIGNED_SLOT_B_UNRESOLVED")
     direct_slot_b_writers=signed_slot_b_direct_writer_census(apks,exact_slot_b)
     slot_b_local_provenance=verify_signed_slot_b_local_provenance(targets,slot_ids)
+    period_token= signed_holder_period_token_census(apks,targets)
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
     renderer_helper_flow=scoped_front_to_renderer_helper(
@@ -810,6 +955,7 @@ def scan_signed(apks):
         "exact_queue_front_successor":front_successor,
         "exact_signed_slot_b_direct_writer_census":direct_slot_b_writers,
         "exact_signed_slot_b_local_provenance":slot_b_local_provenance,
+        "exact_signed_original_period_token_chain":period_token,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,
         "bounded_queue_register_microtraces":microtraces,
