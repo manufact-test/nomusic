@@ -25,7 +25,7 @@ No raw values, titles, account/token data, URLs, Track IDs, audio bytes, periods
 
 - [Signed original static private-field generator CI #44527901915 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44527901915). Original 16 publisher-signed XAPK splits and pinned base unchanged; same exact field anchors proven.
 - [JVM observer and fail-closed model CI #44529331046 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529331046). Negative cases include EOS, wrong type/state, stale live slot, UID-only, different period, null and disabled hook.
-- Android 13 ARM, original-first/persistent owner signing and export run [#44529576455](https://github.com/manufact-test/nomusic/actions/runs/44529576455) **initiated; not claimed successful until completed**. APK export requires explicit post-native acceptance and persistent owner signer; original stock app must stay installed. Build is marked `NAV_V41_PLAYER_PERIOD_SLOTB_NON_EOS_READONLY`.
+- Android 13 ARM, original-first/persistent owner signing and export run [#44529576455 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529576455), completed with signed owner diagnostic artifact. APK export requires explicit post-native acceptance and persistent owner signer; original stock app must stay installed. Build is marked `NAV_V41_PLAYER_PERIOD_SLOTB_NON_EOS_READONLY`.
 - Read-only model/code commit `74df48624f79051276924326a8bd77dc1afe4174`; owner-export intent `c8e73015493c50c05fa97aaf9febdf802c48c864`.
 - Do NOT treat prior failed CI runs caused by old NAV40 test marker assertions as vendor playback failures; the current typed tests were updated to NAV41 without removing NAV40 guards.
 
@@ -36,3 +36,14 @@ No raw values, titles, account/token data, URLs, Track IDs, audio bytes, periods
 ## Next action: one phone test if signed APK is released
 
 Install NAV41 over NAV40 without removing data. Test 2–5 tracks including MyWave, pause/seek/Next and repeat the same song. Export CELIKOM TXT. Check the NAV41 registration and only these five categories, alongside already proven NAV40 live source/Flow counters. If no trustworthy current identity or scope mismatch, fail closed. Do not restart broad Timeline/MediaItem/Exo scans, redesign, or touch signed NAV40. Continue toward one original-player replacement only after runtime identity is verified.
+
+
+## Released private owner artifact (not a replacement product)
+
+Confirmed final CI export with one APK plus Russian README. Downloaded GitHub Actions artifact, checked ZIP contents and extracted APK hash, then uploaded both to ChatGPT Library at `/CELIKOM/Android/Native/`.
+
+- APK: `CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-ReadOnly-20261119.apk`; size **71,491,564** bytes; SHA-256 `a584e84cb4462f1865d916d83de9de59f4d7168e09a26d7617b45d5e7b64fc26`.
+- ZIP: `CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-20261119.zip`; size **51,620,702** bytes; SHA-256 `b4ae351e49c37d48eb2157b7224f5427bbc7623ab5d5435bb6a57722c2050ab2`.
+- Exact verified release CI: [#44529576455 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529576455). Signed NAV40 and its exact backup remain untouched.
+
+No on-device owner diagnosis for NAV41 yet. No claimed audio replacement or confirmed current song edition/generation.

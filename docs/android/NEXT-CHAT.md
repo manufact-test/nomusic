@@ -1,10 +1,14 @@
-# CURRENT (19 Nov 2026) — NAV41 narrow same-audio-read probe is code-complete, waiting for owner-signed ARM gate
+# CURRENT — NAV41 signed diagnostic exported to Library; owner phone run is next (19 Nov 2026)
 
-**No more broad static investigations.** Only new work is NAV41 read-only test of the *existing* strict SLOT_B non-EOS renderer read against exact original engine PlaybackInfo current PeriodID. Original NAV40 signed code + backup untouched.
+**Completed:** exact signed original field compiler [CI #44527901915 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44527901915), JVM fail-closed witness [CI #44529331046 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529331046), owner Android 13 ARM test [CI #44529331360 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529331360) and **final owner-signed NAV41 release [CI #44529576455 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44529576455)**. Export commit `c8e73015493c50c05fa97aaf9febdf802c48c864`, final code `74df48624f79051276924326a8bd77dc1afe4174`.
 
-**Green proofs:** [signed exact-field CI #44527901915](https://github.com/manufact-test/nomusic/actions/runs/44527901915), [JVM fail-closed CI #44529331046](https://github.com/manufact-test/nomusic/actions/runs/44529331046). Code `74df48624f79051276924326a8bd77dc1afe4174`; latest requested export commit `c8e73015493c50c05fa97aaf9febdf802c48c864`. [ARM release gate #44529576455](https://github.com/manufact-test/nomusic/actions/runs/44529576455) not yet confirmed. Never claim an APK is available without seeing green native acceptance + persistent signer. [NAV41 exact handoff](ANDROID-A1-NAV41-PLAYER-PERIOD-SLOTB-NON-EOS-READONLY-20261119.md).
+**Library files verified in `/CELIKOM/Android/Native/`:**
+- `CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-ReadOnly-20261119.apk` — 71,491,564 bytes, SHA-256 `a584e84cb4462f1865d916d83de9de59f4d7168e09a26d7617b45d5e7b64fc26`.
+- `CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-20261119.zip` — 51,620,702 bytes, SHA-256 `b4ae351e49c37d48eb2157b7224f5427bbc7623ab5d5435bb6a57722c2050ab2`, contains exactly the APK and `README-RU.txt`.
 
-**Status:** `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`; not selected edition/generation/audible PCM, no replacement. If release passes, use one owner's HONOR 50 Android 13 phone diagnosis (2–5 tracks, MyWave, Next, pause, seek, repeat same song), then decide only on actual readout. NAV40 APK/ZIP in Library untouched. Do NOT broaden static study or rebuild NAV40.
+**Safety/goal:** NAV40 signed source `34cb32c88a11743a64c9f4814fa71957223a1391`, backup `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119` and NAV40 Library APK/ZIP are untouched. **`CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`.** NAV41 only observes exact original PlaybackInfo PeriodID against active renderer SLOT_B at type1/state2/-4/non-EOS with repeated field and slot safety checks; no new audio hook or second player. Same ID/UID/index is not selected Track edition, new generation or replacement sound.
+
+**Next and only useful action:** owner installs new NAV41 over NAV40 without deleting data, checks 2–5 tracks, MyWave, Next, pause, seek and same-track replay on HONOR 50 Android 13; sends CELIKOM TXT. Then evaluate those exact NAV41 bins together with NAV40 live TrackWrapper→source and late Flow Album. If no positive live identity, fail closed. No broad static scans, no NAV40 rebuild, no NAV42 without evidence. [Detailed NAV41 handoff](ANDROID-A1-NAV41-PLAYER-PERIOD-SLOTB-NON-EOS-READONLY-20261119.md).
 
 ---
 
