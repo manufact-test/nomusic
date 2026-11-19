@@ -205,8 +205,29 @@ jobs:
             --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
             --private-java "$tca_target"
           test -s "$tca_target"
+          # NAV39: restore signed-original queue/active-period targets omitted from NAV38.
+          queue_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeQueueSlotTarget.java"
+          period_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeActivePeriodTarget.java"
+          test ! -e "$queue_target" && test ! -e "$period_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_live_queue_slot_target.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$queue_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_active_period_source_target.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$period_target"
+          test -s "$queue_target" && test -s "$period_target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          apk=Path("android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk")
+          with ZipFile(apk) as z:
+              dex=b"".join(z.read(x) for x in z.namelist() if x.startswith("classes") and x.endswith(".dex"))
+          for cls in (b"PrivateNativeQueueSlotTarget",b"PrivateNativeActivePeriodTarget",b"PrivateTcaTrackCreatorTarget"):
+              if cls not in dex: raise SystemExit("NAV39_REQUIRED_PRIVATE_TARGET_NOT_PACKAGED")
+          print("NAV39_PRIVATE_TARGETS_PACKAGED")
+          PY
       - name: Prepare exact separate own signature and test-only native tooling
         shell: bash
         run: |
@@ -226,7 +247,7 @@ jobs:
         shell: bash
         env:
           CELIKOM_A1_METRICA_OWN_MODULE_PATH: ${{ runner.temp }}/celikom-own-metrica-module/app-debug.apk
-          CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav38]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk)) && '1' || '0' }}
+          CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav39]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk)) && '1' || '0' }}
           CELIKOM_A1_ALLOW_FRESH_INSTALL: ${{ (github.event_name == 'workflow_dispatch' && inputs.authorize_fresh_clone_install) && '1' || '0' }}
           CELIKOM_A1_OWNER_KEYSTORE_BASE64: ${{ secrets.CELIKOM_A1_OWNER_KEYSTORE_BASE64 }}
           CELIKOM_A1_OWNER_KEYSTORE_PASSWORD: ${{ secrets.CELIKOM_A1_OWNER_KEYSTORE_PASSWORD }}
@@ -238,19 +259,19 @@ jobs:
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Package Russian owner-phone test instructions
-        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav38]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
+        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav39]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
         shell: bash
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          test -s "$bundle/CELIKOM-A1-NAV38-Creator-Flow-Time-Order-ReadOnly-20261119.apk"
+          test -s "$bundle/CELIKOM-A1-NAV39-Creator-Flow-Live-Hooks-ReadOnly-20261119.apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
-          sha256sum "$bundle/CELIKOM-A1-NAV38-Creator-Flow-Time-Order-ReadOnly-20261119.apk"
+          sha256sum "$bundle/CELIKOM-A1-NAV39-Creator-Flow-Live-Hooks-ReadOnly-20261119.apk"
       - name: Upload private one-time owner-phone diagnostic bundle
-        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav38]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
+        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav39]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-NAV38-Creator-Flow-Time-Order-20261119
+          name: CELIKOM-A1-NAV39-Creator-Flow-Live-Hooks-20261119
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7
@@ -268,4 +289,6 @@ jobs:
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePostTrueProviderTarget.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateMediaDataSourceTargets.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateTcaTrackCreatorTarget.java
+          rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeQueueSlotTarget.java
+          rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeActivePeriodTarget.java
           echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'

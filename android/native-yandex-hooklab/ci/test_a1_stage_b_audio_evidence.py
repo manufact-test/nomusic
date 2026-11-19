@@ -571,15 +571,18 @@ class StageBAudioEvidenceTest(unittest.TestCase):
 
 
 
-    def test_nav38_creator_flow_time_order_marker_and_hook_are_readonly(self):
+    def test_nav39_creator_flow_and_live_targets_readonly(self):
         code = HOOK.read_text(encoding="utf-8")
-        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V38_TCA_CREATOR_FLOW_TIME_ORDER_READONLY"', code)
+        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY"', code)
         self.assertIn("installNativeTcaCreatorScopeHook(loader)", code)
         self.assertIn('emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","REGISTERED")', code)
         self.assertIn('emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","NO_HOOK")', code)
         self.assertIn("STAGE_B_AUDIO.enterNativeTcaCreatorTrackScope(track,fieldStatus)", code)
         self.assertIn("STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject())", code)
         self.assertNotIn("MEDIA_SOURCE_REPLACEMENT_APPLIED", code)
+        workflow = (BASE.parents[1] / ".github/workflows/android-a1-metrica-init-state-observer-arm13.yml").read_text(encoding="utf-8")
+        self.assertIn("a1_private_live_queue_slot_target.py", workflow)
+        self.assertIn("a1_private_active_period_source_target.py", workflow)
 
 
 if __name__ == "__main__":

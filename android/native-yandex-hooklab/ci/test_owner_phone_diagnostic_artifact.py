@@ -91,9 +91,9 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
             export_after_native_acceptance(link, self.accepted_report(), self.runner)
 
 
-    def test_output_name_is_explicitly_versioned_nav38(self):
-        self.assertIn("NAV38", OUTPUT_NAME)
-        self.assertIn("Creator-Flow-Time-Order", OUTPUT_NAME)
+    def test_output_name_is_explicitly_versioned_nav39(self):
+        self.assertIn("NAV39", OUTPUT_NAME)
+        self.assertIn("Creator-Flow-Live-Hooks", OUTPUT_NAME)
 
 
 
