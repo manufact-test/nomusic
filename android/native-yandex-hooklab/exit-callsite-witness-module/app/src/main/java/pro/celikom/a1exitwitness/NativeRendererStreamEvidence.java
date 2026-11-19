@@ -239,6 +239,25 @@ final class NativeRendererStreamEvidence {
     private Constructor<?> selectedPeriodConstructor,selectedWindowConstructor;
     private int selectedItemSourceHook,selectedItemSame,selectedItemDifferent;
     private int selectedItemUnavailable,selectedItemSlotChanged;
+    // NAV45: publisher-signed unique final String field of the very same
+    // two MediaItem objects. String values NEVER enter counters, logs or
+    // persistent data; blank/default IDs are not a match.
+    private Field selectedLogicalItemIdField;
+    private int selectedLogicalIdHook,selectedLogicalIdMatch;
+    private int selectedLogicalIdDifferent,selectedLogicalIdBlank;
+    private int selectedLogicalIdUnavailable;
+    synchronized void setSelectedLogicalMediaIdField(Field logicalId) {
+        if(logicalId==null || selectedSourceMediaItemField==null
+                || selectedWindowMediaItemField==null
+                || logicalId.getDeclaringClass()!=selectedSourceMediaItemField.getType()
+                || logicalId.getDeclaringClass()!=selectedWindowMediaItemField.getType()
+                || logicalId.getType()!=String.class
+                || !java.lang.reflect.Modifier.isFinal(logicalId.getModifiers())
+                || java.lang.reflect.Modifier.isStatic(logicalId.getModifiers()))
+            throw new IllegalArgumentException("NAV45 exact signed immutable MediaItem ID required");
+        logicalId.setAccessible(true);
+        selectedLogicalItemIdField=logicalId;
+    }
     private static final class SelectedItemProbe {
         final WeakReference<Object> holder,source;
         int tries;
@@ -383,6 +402,23 @@ final class NativeRendererStreamEvidence {
             probe.finalResult=true;
             if(selected==sourceItem)selectedItemSame=inc(selectedItemSame);
             else selectedItemDifferent=inc(selectedItemDifferent);
+            if(selectedLogicalIdHook>0 && selectedLogicalItemIdField!=null) {
+                // Only two immutable String fields; comparison is local.
+                // Nonempty equality is candidate logical item identity,
+                // NOT a selected edition/generation/PCM proof.
+                try {
+                    Object a=selectedLogicalItemIdField.get(selected);
+                    Object b=selectedLogicalItemIdField.get(sourceItem);
+                    if(!(a instanceof String) || !(b instanceof String)
+                            || ((String)a).isEmpty() || ((String)b).isEmpty()) {
+                        selectedLogicalIdBlank=inc(selectedLogicalIdBlank);
+                    } else if(((String)a).equals((String)b)) {
+                        selectedLogicalIdMatch=inc(selectedLogicalIdMatch);
+                    } else selectedLogicalIdDifferent=inc(selectedLogicalIdDifferent);
+                } catch(Throwable ignoredId) {
+                    selectedLogicalIdUnavailable=inc(selectedLogicalIdUnavailable);
+                }
+            }
         } catch(Throwable ignored) {
             selectedItemUnavailable=inc(selectedItemUnavailable);
         }
@@ -1059,6 +1095,7 @@ final class NativeRendererStreamEvidence {
             case "LIVE_QUEUE_SLOT_B": liveQueueSlotHook=status; break;
             case "PLAYER_PERIOD_AT_AUDIO_READ": currentPeriodAtReadHook=status; break;
             case "CURRENT_MEDIAITEM_SOURCE": selectedItemSourceHook=status; break;
+            case "CURRENT_MEDIAITEM_LOGICAL_ID": selectedLogicalIdHook=status; break;
             case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
             case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
             case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
@@ -1559,6 +1596,7 @@ final class NativeRendererStreamEvidence {
             registrationLine("LIVE_QUEUE_SLOT_B",liveQueueSlotHook),
             registrationLine("PLAYER_PERIOD_AT_AUDIO_READ",currentPeriodAtReadHook),
             registrationLine("CURRENT_MEDIAITEM_SOURCE",selectedItemSourceHook),
+            registrationLine("CURRENT_MEDIAITEM_LOGICAL_ID",selectedLogicalIdHook),
             registrationLine("TRACK_PLAYER_SOURCE_SCOPE",trackPlayerScopeHook),
             registrationLine("NATIVE_PLAYER_SOURCE_SETTER",nativeSourceSetterHook),
             registrationLine("LIVE_PERIOD_ORIGINAL_SOURCE",livePeriodSourceHook),
@@ -1616,6 +1654,10 @@ final class NativeRendererStreamEvidence {
             line("PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_DIFFERENT",selectedItemDifferent),
             line("PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_UNAVAILABLE",selectedItemUnavailable),
             line("PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SLOT_CHANGED",selectedItemSlotChanged),
+            line("PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_MATCH",selectedLogicalIdMatch),
+            line("PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_DIFFERENT",selectedLogicalIdDifferent),
+            line("PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_BLANK",selectedLogicalIdBlank),
+            line("PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_UNAVAILABLE",selectedLogicalIdUnavailable),
             line("TRACK_PLAYER_SOURCE_SCOPE_ENTER",trackPlayerScopeEnter),
             line("TRACK_PLAYER_SOURCE_SAME_SCOPE",playerSourceSameScope),
             line("TRACK_PLAYER_SOURCE_UNSCOPED",playerSourceUnscoped),
