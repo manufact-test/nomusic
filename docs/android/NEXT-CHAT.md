@@ -1,3 +1,15 @@
+# CURRENT — NAV45 OWNER PHONE CHECKED; MediaItem STRING ID BLANK (19 November 2026)
+
+**New owner TXT**: `CELIKOM-A1-Diagnostics-1795102532842.txt` (2066 lines). Actual `NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY` summary: hook `CURRENT_MEDIAITEM_LOGICAL_ID=REGISTERED`; `PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_MATCH=NONE`, `DIFFERENT=NONE`, `BLANK=FEW`, `UNAVAILABLE=NONE`. The source/current Window MediaItem objects are distinct (`...SAME_REF=NONE`, `...DIFFERENT=FEW`), but **at least one immutable String is blank** for all classified probes. It does **not** prove different songs and is NOT a usable identity gate. Earlier NAV44 process sections in same file are not the NAV45 summary.
+
+NAV43 structural proof remains `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`, `...LATE_FLOW_SAME_CALLBACK=MANY`, `...NO_LINK=MANY`, `...SLOT_CHANGED=NONE`, active SLOT_B and original TrackWrapper source links MANY. Occasional missing Flow links mean no universal per-read proof. `METRICA_EXCEPTION_SUMMARY/MUSIC_APP=FEW` is an unassigned error category, not proof of an observer crash. `BUFFER_EOS_ACCESS=NO_HOOK`, `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+**Stop chasing MediaItem id/reference.** Instead, use already owner-confirmed original `ru.yandex.music.data.audio.o` Track from creator-owned `tCa` TrackWrapper and its Flow/active original source, and seek *publisher-signed* field/provenance for exact Track ID + edition + generation. Existing `StageBAudioEvidence.classifyNativeTrackAlbumForWrapper` returns structural classification, not actual ID. Track copy method's `long` parameter is **NOT yet proven as track ID**, and a separate download API `Ldjv.a()` string cannot be assumed equivalent. Do not invent identity or connect audio/ship NAV46 without a verified narrow source target. [Complete NAV45 phone report](ANDROID-A1-NAV45-OWNER-PHONE-BLANK-MEDIAITEM-ID-20261119.md).
+
+**No source, APK or tests changed after signed NAV45**. Signed release `c95c0bf27157c9f3ff8bd4aa13f6ed6eabe222f8` / Android13 [#44552661805 27/27 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44552661805); NAV45 Library upload previously blocked by quota, direct downloads offered in prior chat. NAV40 code/backup and owner signed NAV43/44/45 untouched.
+
+---
+
 # LATEST — NAV45 owner-signed Android13 27/27 SUCCESS; APK/ZIP verified; Library FULL, upload blocked (19 November 2026)
 
 **Signed release source commit:** `c95c0bf27157c9f3ff8bd4aa13f6ed6eabe222f8`. [ARM13 owner-signed release CI #44552661805 SUCCESS (27/27)](https://github.com/manufact-test/nomusic/actions/runs/44552661805); private artifact id **14545670017** `CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-20261119`. Static signed field gate [#44551508431 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44551508431), JVM exact model [#44552192680 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44552192680).
