@@ -1222,12 +1222,12 @@ def verify_signed_old_period_id_long_handoff(targets):
             "old_J_read_dominates_builder_call_on_normal_cfg":dominates,
             "old_id_reference_not_overwritten_before_read":caller_id_retained,
             "old_J_register_not_overwritten_before_call":source_unclobbered,
-            "old_period_id_J_forwarded_to_new_period_id_constructor_on_normal_cfg":proven,
+            "old_period_id_J_forwarded_to_original_queue_builder_on_normal_cfg":proven,
             "current_selected_item_or_queue_generation_proven":False,
         })
     return {
         "old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg":
-            all(row["old_period_id_J_forwarded_to_new_period_id_constructor_on_normal_cfg"]
+            all(row["old_period_id_J_forwarded_to_original_queue_builder_on_normal_cfg"]
                 for row in rows),
         "verified_exact_original_old_id_J_field_vs_ctor":True,
         "signed_source_sites":rows,
@@ -1494,6 +1494,10 @@ def scan_signed(apks):
     period_token= signed_holder_period_token_census(apks,targets)
     old_period_J_reuse=verify_signed_old_period_id_long_handoff(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
+    old_ID_J_to_new_ID_constructor_static_proven=bool(
+        old_period_J_reuse["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"]
+        and period_id_ctor_sites["all_four_queue_J_parameters_to_period_ID_proven_on_normal_CFG"]
+    )
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
     renderer_helper_flow=scoped_front_to_renderer_helper(
@@ -1507,6 +1511,9 @@ def scan_signed(apks):
         "exact_signed_slot_b_local_provenance":slot_b_local_provenance,
         "exact_signed_original_period_token_chain":period_token,
         "exact_old_period_id_long_to_new_queue_builder":old_period_J_reuse,
+        "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
+            old_ID_J_to_new_ID_constructor_static_proven,
+        "old_J_same_value_proven_not_new_selected_generation":True,
         "signed_original_period_id_constructor_sites":period_id_ctor_sites,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,
