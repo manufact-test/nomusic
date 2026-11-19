@@ -6,6 +6,7 @@ on:
       - 'android/native-yandex-hooklab/ci/exo_queue_slot_role_exact.py'
       - 'android/native-yandex-hooklab/ci/test_exo_queue_slot_role_exact.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
       - '.github/workflows/android-a1-queue-slot-roles-readonly.yml'
   workflow_dispatch:
 permissions:
@@ -85,6 +86,19 @@ jobs:
           test -s "$source_java"
           grep -q 'class PrivateNativePlayerPeriodTarget' "$source_java"
           rm -f -- "$source_java"
+      - name: NAV44 signed-original precise current PeriodID Timeline to source MediaItem gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py
+          target="$RUNNER_TEMP/CELIKOM-PrivateNativeCurrentMediaItemTarget.java"
+          PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
+            python3 -B android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py \
+              --xapk "$RUNNER_TEMP/celikom-native-queue-slot-input/yandex-music-2025-10-4-120-1gpr.xapk" \
+              --private-java "$target"
+          test -s "$target"
+          grep -q 'class PrivateNativeCurrentMediaItemTarget' "$target"
+          rm -f -- "$target"
       - name: Delete the original research input and guard untouched products
         if: always()
         shell: bash
