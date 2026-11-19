@@ -205,7 +205,7 @@ def inspect_one_upstream_hop(splits, next_hops):
     for apk in splits:
         with zipfile.ZipFile(apk) as z:
             for member in z.infolist():
-                if not re.fullmatch(r"classes\\d*\\.dex", member.filename):
+                if not re.fullmatch(r"classes\d*\.dex", member.filename):
                     continue
                 dex = audit.Dex(z.read(member.filename))
                 for method,flags,off in audit.method_definitions_with_flags(dex):
