@@ -800,4 +800,90 @@ class SignedTimelinePeriodWindowScopedSurveyTests(unittest.TestCase):
         self.assertNotIn("DO_NOT_LOG",str(view))
         self.assertEqual(view["scoped_signed_methods"]["I"]["rows"][0]["type"],"I")
 
+
+
+class SignedPeriodRecordToWindowExactTests(unittest.TestCase):
+    def _run(self,mutation=None):
+        from exo_queue_slot_role_exact import (
+            verify_signed_period_record_window_handoffs,ENGINE,
+            ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE,
+            TIMELINE_PERIOD,TIMELINE_WINDOW,TIMELINE,
+            EXACT_TIMELINE_PERIOD_BY_UID,EXACT_TIMELINE_WINDOW_BY_INDEX,
+            EXACT_TIMELINE_WINDOW_AT_POSITION,audit)
+        from unittest.mock import patch
+        class Dex:
+            def method(self,i):
+                return {1:EXACT_TIMELINE_PERIOD_BY_UID,
+                        2:EXACT_TIMELINE_WINDOW_BY_INDEX,
+                        3:EXACT_TIMELINE_WINDOW_AT_POSITION}[i]
+        dex=Dex()
+        def field(op,dst,recv,i):return (op|(dst<<8)|(recv<<12),i)
+        def call(i):return (0x006e,i,0)
+        def result(reg):return (0x0c|(reg<<8),)
+        first={
+            54:(0x54,field(0x54,0,6,1)),
+            56:(0x6e,call(1)),59:(0x0c,result(1)),
+            60:(0x52,field(0x52,1,1,3)),
+            62:(0x54,field(0x54,2,6,2)),
+            64:(0x6e,call(2)),67:(0x54,field(0x54,1,2,4)),
+            101:(0x6e,call(1)),104:(0x0c,result(8)),
+            105:(0x52,field(0x52,8,8,3)),
+            109:(0x6e,call(3)),112:(0x0c,result(8)),
+            113:(0x54,field(0x54,8,8,5))}
+        second={
+            15:(0x54,field(0x54,0,2,1)),
+            17:(0x6e,call(1)),20:(0x0c,result(4)),
+            21:(0x52,field(0x52,4,4,3)),
+            23:(0x54,field(0x54,0,2,2)),
+            25:(0x6e,call(2))}
+        if mutation:
+            site,pc,row=mutation
+            (first if site=="I" else second)[pc]=row
+        fields={1:(ENGINE[0],"SECRET_PERIOD",TIMELINE_PERIOD),
+                2:(ENGINE[0],"SECRET_WINDOW",TIMELINE_WINDOW),
+                3:(TIMELINE_PERIOD,"SECRET_INT","I"),
+                4:(TIMELINE_WINDOW,"PRIVATE_ITEM_CONFIG","LOf6$f;"),
+                5:(TIMELINE_WINDOW,"PRIVATE_OBJECT","Ljava/lang/Object;"),
+                6:(TIMELINE_PERIOD,"DIFFERENT_INT","I"),
+                7:(ENGINE[0],"DIFFERENT_WINDOW",TIMELINE_WINDOW)}
+        targets={ENGINE_PERIOD_TIMELINE_TRANSITION:(dex,0,1),
+                 ENGINE_PERIOD_STATUS_PREDICATE:(dex,0,2)}
+        regsets={("I",56):[7,8,0],("I",64):[7,1,2],
+                 ("I",101):[9,8,0],("I",109):[9,8,2,10,11],
+                 ("z",17):[3,4,0],("z",25):[3,4,0]}
+        at=iter(())
+        def inv(op,w):
+            ident=w[1]
+            for method,insns in (("I",first),("z",second)):
+                for pc,(code,words) in insns.items():
+                    if code in audit.INVOKES and words is w:
+                        return regsets[(method,pc)]
+            raise AssertionError("unmapped fixture invoke")
+        with patch.object(audit,"instructions",side_effect=lambda d,off:[
+            (pc,op,w) for pc,(op,w) in sorted((first if off==1 else second).items())]), \
+             patch.object(audit,"field_id",side_effect=lambda d,i:fields[i]), \
+             patch.object(audit,"invoke_registers",side_effect=inv):
+            return verify_signed_period_record_window_handoffs(targets)
+    def test_exact_three_signed_uid_to_period_to_window_paths_without_selected_claim(self):
+        value=self._run()
+        self.assertTrue(value["three_original_period_records_expose_same_exact_int_field"])
+        self.assertFalse(value["NAV41_readonly_runtime_admission_proven"])
+        self.assertNotIn("SECRET",str(value))
+        self.assertNotIn("PRIVATE",str(value))
+    def test_reject_wrong_period_field_window_field_invocation_and_register(self):
+        def f(op,d,r,i):return (op|(d<<8)|(r<<12),i)
+        cases=[
+            ("I",105,(0x52,f(0x52,8,8,6))),
+            ("z",23,(0x54,f(0x54,0,2,7))),
+            ("I",109,(0x6e,(0x006e,2,0))),
+            ("I",59,(0x0c,(0x020c,))),
+            ("z",21,(0x52,f(0x52,5,4,3))),
+            ("I",67,(0x54,f(0x54,1,1,4))),
+            ("I",61,(0x01,(0x1101,))),
+        ]
+        for changed in cases:
+            with self.subTest(changed=changed):
+                with self.assertRaisesRegex(ValueError,"PERIOD_WINDOW_"):
+                    self._run(changed)
+
 if __name__=="__main__": unittest.main()

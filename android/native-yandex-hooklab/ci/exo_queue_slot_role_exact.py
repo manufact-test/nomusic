@@ -1955,6 +1955,91 @@ def signed_period_window_bounded_scout(targets):
             "period_to_window_current_selection_proven":False,
             "same_started_audio_read_snapshot_proven":False}
 
+
+# Exact signed-original Period record -> Window mapping (still not selected item).
+EXACT_TIMELINE_WINDOW_BY_INDEX=("LTva;","super","(ILTva$d;)V")
+EXACT_TIMELINE_WINDOW_AT_POSITION=("LTva;","final","(ILTva$d;J)LTva$d;")
+def verify_signed_period_record_window_handoffs(targets):
+    required=(ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE)
+    if not all(m in targets for m in required):
+        raise ValueError("PERIOD_WINDOW_EXACT_METHOD_MISSING")
+    def by_pc(method):
+        d,_,off=targets[method]
+        return d,{pc:(op,w) for pc,op,w in audit.instructions(d,off)}
+    d_i,ins_i=by_pc(ENGINE_PERIOD_TIMELINE_TRANSITION)
+    d_z,ins_z=by_pc(ENGINE_PERIOD_STATUS_PREDICATE)
+    def site(code,pc,opcode):
+        row=code.get(pc)
+        if row is None or row[0]!=opcode:
+            raise ValueError("PERIOD_WINDOW_EXACT_OPCODE_OR_PC_DRIFT")
+        return row[1]
+    def fld(d,code,pc,op,owner,typ,reg,receiver):
+        w=site(code,pc,op)
+        field=audit.field_id(d,w[1])
+        if (field[0]!=owner or field[2]!=typ or
+            ((w[0]>>8)&15)!=reg or ((w[0]>>12)&15)!=receiver):
+            raise ValueError("PERIOD_WINDOW_EXACT_TYPED_FIELD_OR_REGISTER_DRIFT")
+        return field
+    def call(d,code,pc,target,registers):
+        row=code.get(pc)
+        if row is None or row[0] not in audit.INVOKES:
+            raise ValueError("PERIOD_WINDOW_EXACT_INVOKE_ABSENT")
+        op,w=row
+        if d.method(w[1])!=target or audit.invoke_registers(op,w)!=registers:
+            raise ValueError("PERIOD_WINDOW_EXACT_CALLEE_OR_ARGUMENT_DRIFT")
+    def result(code,pc,reg):
+        w=site(code,pc,0x0c)
+        if (w[0]>>8)!=reg:
+            raise ValueError("PERIOD_WINDOW_EXACT_RESULT_REGISTER_DRIFT")
+    period_scratch_i=fld(d_i,ins_i,54,0x54,ENGINE[0],TIMELINE_PERIOD,0,6)
+    period_scratch_z=fld(d_z,ins_z,15,0x54,ENGINE[0],TIMELINE_PERIOD,0,2)
+    window_scratch_i=fld(d_i,ins_i,62,0x54,ENGINE[0],TIMELINE_WINDOW,2,6)
+    window_scratch_z=fld(d_z,ins_z,23,0x54,ENGINE[0],TIMELINE_WINDOW,0,2)
+    if period_scratch_i!=period_scratch_z or window_scratch_i!=window_scratch_z:
+        raise ValueError("PERIOD_WINDOW_SCRATCH_ORIGINAL_FIELD_DIFFERENT")
+    i_first=fld(d_i,ins_i,60,0x52,TIMELINE_PERIOD,"I",1,1)
+    i_second=fld(d_i,ins_i,105,0x52,TIMELINE_PERIOD,"I",8,8)
+    z_first=fld(d_z,ins_z,21,0x52,TIMELINE_PERIOD,"I",4,4)
+    if i_first!=i_second or i_first!=z_first:
+        raise ValueError("PERIOD_WINDOW_NOT_SAME_ORIGINAL_PERIOD_INT_FIELD")
+    call(d_i,ins_i,56,EXACT_TIMELINE_PERIOD_BY_UID,[7,8,0])
+    result(ins_i,59,1)
+    call(d_i,ins_i,64,EXACT_TIMELINE_WINDOW_BY_INDEX,[7,1,2])
+    call(d_i,ins_i,101,EXACT_TIMELINE_PERIOD_BY_UID,[9,8,0])
+    result(ins_i,104,8)
+    call(d_i,ins_i,109,EXACT_TIMELINE_WINDOW_AT_POSITION,[9,8,2,10,11])
+    result(ins_i,112,8)
+    call(d_z,ins_z,17,EXACT_TIMELINE_PERIOD_BY_UID,[3,4,0])
+    result(ins_z,20,4)
+    call(d_z,ins_z,25,EXACT_TIMELINE_WINDOW_BY_INDEX,[3,4,0])
+    # The same exact engine Window scratch value is passed to the first
+    # Window lookup; an after-call field read does not identify the selected
+    # media item, edition or currently audible source.
+    fld(d_i,ins_i,67,0x54,TIMELINE_WINDOW,"LOf6$f;",1,2)
+    fld(d_i,ins_i,113,0x54,TIMELINE_WINDOW,"Ljava/lang/Object;",8,8)
+    for d,code,start,stop,reg in (
+        (d_i,ins_i,60,64,1),(d_i,ins_i,105,109,8),(d_z,ins_z,21,25,4)):
+        for pc,(op,w) in code.items():
+            if start<pc<stop:
+                if (audit.written_register(op,w)==reg or
+                    (0x28<=op<=0x2c or 0x32<=op<=0x3d)):
+                    raise ValueError("PERIOD_WINDOW_INDEX_LOCAL_CLOBBER_OR_BRANCH")
+    return {
+        "same_exact_original_engine_period_scratch_field_in_e_I_and_e_z":True,
+        "same_exact_original_engine_window_scratch_field_in_e_I_and_e_z":True,
+        "three_original_period_records_expose_same_exact_int_field":True,
+        "UID_period_result_to_int_to_window_calls":[
+            {"method":"e.I","period_uid_lookup_pc":56,"period_index_read_pc":60,"window_call_pc":64},
+            {"method":"e.I","period_uid_lookup_pc":101,"period_index_read_pc":105,"window_call_pc":109},
+            {"method":"e.z","period_uid_lookup_pc":17,"period_index_read_pc":21,"window_call_pc":25},
+        ],
+        "original_window_typed_field_after_first_lookup_pc":67,
+        "original_window_typed_object_field_after_second_lookup_pc":113,
+        "window_field_is_current_Player_selected_media_item_proven":False,
+        "period_is_current_or_prefetched_or_stale_at_audio_read_proven":False,
+        "NAV41_readonly_runtime_admission_proven":False,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -2060,6 +2145,7 @@ def scan_signed(apks):
     state_engine_identity_window=signed_engine_state_identity_window(targets)
     front_post_uid_guard=verify_signed_player_front_post_UID_guard(targets)
     period_window_scout=signed_period_window_bounded_scout(targets)
+    exact_period_window=verify_signed_period_record_window_handoffs(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
         old_period_J_reuse["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"]
@@ -2087,6 +2173,7 @@ def scan_signed(apks):
         "engine_selected_state_bounded_region":state_engine_identity_window,
         "exact_original_player_front_post_UID_guard":front_post_uid_guard,
         "original_timeline_period_window_bounded_scout":period_window_scout,
+        "exact_original_period_record_to_window_handoffs":exact_period_window,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,
         "old_J_same_value_proven_not_new_selected_generation":True,
