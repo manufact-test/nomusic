@@ -1074,7 +1074,19 @@ SIGNED_QUEUE_ID_BUILDERS=frozenset({
 })
 MAX_SIGNED_QUEUE_ID_BUILDERS_DIRECT_CALLS=96
 
-def validate_signed_queue_id_builder_callers(rows):
+SIGNED_QUEUE_ID_BUILDER_PINNED_DIRECT_SITES=frozenset({
+    ("Landroidx/media3/exoplayer/h;","case","(LTva;LSl6$b;JJ)Lyh6;",25,("Landroidx/media3/exoplayer/h;","else","(LTva;Ljava/lang/Object;IIJJZ)Lyh6;"),116),
+    ("Landroidx/media3/exoplayer/h;","case","(LTva;LSl6$b;JJ)Lyh6;",40,("Landroidx/media3/exoplayer/h;","goto","(LTva;Ljava/lang/Object;JJJZ)Lyh6;"),116),
+    ("Landroidx/media3/exoplayer/h;","native","(LTva;Ljava/lang/Object;J)LSl6$b;",180,("Landroidx/media3/exoplayer/h;","import","(LTva;Ljava/lang/Object;JJLTva$d;LTva$b;)LSl6$b;"),119),
+    ("Landroidx/media3/exoplayer/h;","new","(LTva;Lxh6;J)Lyh6;",148,("Landroidx/media3/exoplayer/h;","import","(LTva;Ljava/lang/Object;JJLTva$d;LTva$b;)LSl6$b;"),119),
+    ("Landroidx/media3/exoplayer/h;","try","(LTva;Lxh6;J)Lyh6;",84,("Landroidx/media3/exoplayer/h;","else","(LTva;Ljava/lang/Object;IIJJZ)Lyh6;"),116),
+    ("Landroidx/media3/exoplayer/h;","try","(LTva;Lxh6;J)Lyh6;",179,("Landroidx/media3/exoplayer/h;","goto","(LTva;Ljava/lang/Object;JJJZ)Lyh6;"),116),
+    ("Landroidx/media3/exoplayer/h;","try","(LTva;Lxh6;J)Lyh6;",245,("Landroidx/media3/exoplayer/h;","else","(LTva;Ljava/lang/Object;IIJJZ)Lyh6;"),116),
+    ("Landroidx/media3/exoplayer/h;","try","(LTva;Lxh6;J)Lyh6;",290,("Landroidx/media3/exoplayer/h;","goto","(LTva;Ljava/lang/Object;JJJZ)Lyh6;"),116),
+})
+
+
+def validate_signed_queue_id_builder_callers(rows,exact_signed=False):
     """Normal invoke sites only, never inferred runtime selection or epoch."""
     if not rows or len(rows)>MAX_SIGNED_QUEUE_ID_BUILDERS_DIRECT_CALLS:
         raise ValueError("QUEUE_ID_BUILDERS_CALLSITE_COUNT")
@@ -1085,6 +1097,8 @@ def validate_signed_queue_id_builder_callers(rows):
             not isinstance(row[3],int) or row[3]<0 or row[4] not in SIGNED_QUEUE_ID_BUILDERS
             or row[5] not in audit.INVOKES):
             raise ValueError("QUEUE_ID_BUILDERS_CALLSITE_SHAPE")
+    if exact_signed and set(rows)!=SIGNED_QUEUE_ID_BUILDER_PINNED_DIRECT_SITES:
+        raise ValueError("QUEUE_ID_BUILDERS_PINNED_ORIGINAL_SITE_DRIFT")
     return {
         "exact_direct_callsite_count":len(rows),
         "direct_method_call_sites_not_runtime_dispatch":True,
@@ -1141,7 +1155,8 @@ def signed_period_id_constructor_site_census(apks):
                                     j_inputs.append({
                                         "argument_word_position":idx,
                                         "source_register_is_direct_caller_J_parameter":
-                                            invoked[idx] in input_js
+                                            invoked[idx] in input_js,
+                                        "argument_register":invoked[idx]
                                     })
                                 idx+=2 if typ in ("J","D") else 1
                             queue_builder_callers.append((*caller,pc,callee,op))
@@ -1149,6 +1164,21 @@ def signed_period_id_constructor_site_census(apks):
                                 "caller":list(caller),"pc":pc,
                                 "target":list(callee),"invoke_opcode":op,
                                 "direct_caller_J_parameter_argument_layout":j_inputs,
+                                "preceding_wide_register_definitions_scope":[
+                                    {"argument_register":a["argument_register"],
+                                     "candidate_instruction_writers":[
+                                        shape for shape in (
+                                            wide_definition_register_shape(p,o,w)
+                                            for p,o,w in audit.instructions(dex,off)
+                                            if p<pc)
+                                        if shape is not None and
+                                           shape["dest"] in (
+                                               a["argument_register"],
+                                               a["argument_register"]-1)
+                                     ][:36]}
+                                    for a in j_inputs
+                                ],
+                                "preceding_writers_are_not_cfg_or_selected_epoch_proof":True,
                                 "at_callsite_no_proven_audible_period_or_playlist_edition":True
                             })
                             if len(queue_builder_callers)>MAX_SIGNED_QUEUE_ID_BUILDERS_DIRECT_CALLS:
@@ -1209,7 +1239,7 @@ def signed_period_id_constructor_site_census(apks):
     if dex_count!=6:
         raise ValueError("QUEUE_PERIOD_ID_CTOR_EXPECTED_SIX_DEX")
     witness=validate_signed_period_id_ctor_sites(rows,exact_signed=True)
-    queue_builder_witness=validate_signed_queue_id_builder_callers(queue_builder_callers)
+    queue_builder_witness=validate_signed_queue_id_builder_callers(queue_builder_callers,exact_signed=True)
     if len(exact_long_handoffs)!=len(SIGNED_ID_LONG_HANDOFF_SITES):
         raise ValueError("QUEUE_ID_LONG_EXPECTED_HANDOFF_SITES_CHANGED")
     # Callers are DEX methods, not song/album/media instance data. Keep the

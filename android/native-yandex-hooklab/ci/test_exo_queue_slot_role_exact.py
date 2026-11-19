@@ -372,4 +372,23 @@ class SignedQueueIdBuilderCallerDiscoveryTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"QUEUE_ID_BUILDERS_"):
                     validate_signed_queue_id_builder_callers(bad)
 
+
+class SignedQueueIdBuilderPinnedSitesTests(unittest.TestCase):
+    def test_exact_eight_caller_sites_negative_mutations(self):
+        from exo_queue_slot_role_exact import (
+            SIGNED_QUEUE_ID_BUILDER_PINNED_DIRECT_SITES,
+            validate_signed_queue_id_builder_callers)
+        baseline=list(SIGNED_QUEUE_ID_BUILDER_PINNED_DIRECT_SITES)
+        self.assertEqual(validate_signed_queue_id_builder_callers(
+            baseline,exact_signed=True)["exact_direct_callsite_count"],8)
+        for alternate in (
+            baseline[:-1],
+            baseline+[baseline[0]],
+            [(*baseline[0][:3],baseline[0][3]+1,*baseline[0][4:])]+baseline[1:],
+            baseline+[("Lsynthetic;","bad","()V",9,baseline[0][4],0x71)],
+        ):
+            with self.subTest(count=len(alternate)):
+                with self.assertRaisesRegex(ValueError,"QUEUE_ID_BUILDERS_"):
+                    validate_signed_queue_id_builder_callers(alternate,exact_signed=True)
+
 if __name__=="__main__": unittest.main()
