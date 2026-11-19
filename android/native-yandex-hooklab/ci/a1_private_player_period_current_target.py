@@ -93,7 +93,8 @@ def derive_signed_private_field_names(xapk:Path):
             and post.get("post_UID_both_IDs_test_same_exact_first_int_field_against_minus_one")
             and post.get("second_int_field_same_for_both_and_distinct_from_first")
             and correspondence.get("engine_timeline_field_matches_player_M0")
-            and 257 in correspondence.get("engine_player_ID_field_exact_M0_iget_match_PCs",[])
+            and correspondence.get("engine_player_ID_field_exact_M0_iget_match_PCs")==[74,96,259]
+            and correspondence.get("engine_player_ID_field_M0_distinct_PCs")==[138,257]
         ):
             raise ValueError("NAV41_SIGNED_PLAYER_PERIOD_BRIDGE_NOT_PROVEN")
         matches=[]
