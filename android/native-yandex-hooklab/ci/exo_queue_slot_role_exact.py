@@ -584,11 +584,7 @@ def signed_slot_b_direct_writer_census(apks,field):
         **validate_signed_slot_b_direct_writes(rows),
         "publisher_dex_scanned":dex_seen,
         "publisher_dex_referencing_exact_slot_b":dex_with_field,
-        "writer_sites":sorted(
-            {"scope":"engine" if row[0]==ENGINE[0] else "queue",
-             "pc":row[3], "operation":"IPUT_OBJECT_EXACT_SLOT_B"}
-            for row in rows
-        ) if False else [
+        "writer_sites":[
             {"scope":"engine" if owner==ENGINE[0] else "queue",
              "pc":pc, "operation":"IPUT_OBJECT_EXACT_SLOT_B"}
             for owner,_name,_sig,pc in sorted(rows)
