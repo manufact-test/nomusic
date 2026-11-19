@@ -17,6 +17,7 @@ from pathlib import Path
 
 import lft2_class_inspection as trusted
 from audit_native_register_bridge import invoke_registers, move_object_registers
+from a1_trackid_cfg_track_alias import prove_original_track_receiver
 from trace_native_callers import uleb
 from trace_playaudio_boundary import _encoded_value
 
@@ -241,7 +242,8 @@ def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
                     return "EXACT_FORMAL_TRACK_STRING_FIELD", ("SIGNED_TRACK_FIELD_REF",owner,_name,typ)
                 return "DIRECT_TRACK_STRING_FIELD", (
                     "TRACK_STRING_RECEIVER",
-                    trace_original_track_receiver(dex,method,flags,off,ins,j,receiver))
+                    trace_original_track_receiver(dex,method,flags,off,ins,j,receiver),
+                    j,receiver)
             if owner == ALBUM and typ == "Ljava/lang/String;":
                 return "DIRECT_ALBUM_STRING_FIELD", None
             return "OTHER_OBJECT_FIELD", ("SOURCE_FIELD_REF",owner,_name,typ)
@@ -318,10 +320,17 @@ def inspect_one_upstream_hop(splits, next_hops):
                             receiver_category = (detail[1] if isinstance(detail,tuple)
                                 and len(detail)>1 and detail[0]=="TRACK_STRING_RECEIVER"
                                 else "NO_TRACK_STRING_RECEIVER")
+                            owner_role=EXACT_SOURCE_PATH_OWNERS.get(method[0],"OTHER_OWNER")
+                            cfg_result="NOT_APPLICABLE"
+                            if (owner_role=="SOURCE_TRACK_CREATOR"
+                                    and category=="DIRECT_TRACK_STRING_FIELD"
+                                    and isinstance(detail,tuple) and len(detail)==4):
+                                cfg_result=prove_original_track_receiver(
+                                    dex,method,flags,off,ins,detail[2],detail[3],
+                                    audit,move_object_registers)
                             results.append((category, bool(TRACK in audit.parse_types(method[2])),
                                             bool(ALBUM in audit.parse_types(method[2])),
-                                            EXACT_SOURCE_PATH_OWNERS.get(method[0],"OTHER_OWNER"),
-                                            receiver_category))
+                                            owner_role,receiver_category,cfg_result))
                             if len(results) > 48:
                                 raise ValueError("UPSTREAM_TRACK_ID_CALLSITE_LIMIT")
     return results
@@ -464,40 +473,47 @@ def scan(splits):
         "trackid_api_exact_field_writer_upstream": {
             "inbound_call_count": len(writer_upstream_rows),
             "same_formal_track_id_field_path_count": sum(
-                category == "EXACT_FORMAL_TRACK_STRING_FIELD" for category,_,_,_,_ in writer_upstream_rows),
+                category == "EXACT_FORMAL_TRACK_STRING_FIELD" for category,_,_,_,_,_ in writer_upstream_rows),
             "known_original_source_path_owner_roles": sorted({
-                role for _category,_track,_album,role,_receiver in writer_upstream_rows
+                role for _category,_track,_album,role,_receiver,_cfg in writer_upstream_rows
                 if role != "OTHER_OWNER"}),
             "exact_creator_trackid_argument_origin_categories": sorted({
-                category for category,_track,_album,role,_receiver in writer_upstream_rows
+                category for category,_track,_album,role,_receiver,_cfg in writer_upstream_rows
                 if role=="SOURCE_TRACK_CREATOR"}),
             "exact_creator_trackid_field_receiver_categories": sorted({
-                receiver for category,_track,_album,role,receiver in writer_upstream_rows
+                receiver for category,_track,_album,role,receiver,_cfg in writer_upstream_rows
                 if role=="SOURCE_TRACK_CREATOR"
                 and category=="DIRECT_TRACK_STRING_FIELD"}),
+            "exact_creator_branch_aware_receiver_cfg_verdicts": sorted({
+                cfg for _category,_track,_album,role,_receiver,cfg in writer_upstream_rows
+                if role=="SOURCE_TRACK_CREATOR" and cfg!="NOT_APPLICABLE"}),
+            "same_formal_track_source_to_trackid_api_candidate_count": sum(
+                role=="SOURCE_TRACK_CREATOR"
+                and cfg=="CFG_EXACT_FORMAL_TRACK_RECEIVER"
+                for _category,_track,_album,role,_receiver,cfg in writer_upstream_rows),
             "exact_creator_track_parameter_present": any(
-                track for _category,track,_album,role,_receiver in writer_upstream_rows
+                track for _category,track,_album,role,_receiver,_cfg in writer_upstream_rows
                 if role=="SOURCE_TRACK_CREATOR"),
             "track_super_getter_candidate_count": sum(
                 category == "TRACK_SUPER_STRING_GETTER_CANDIDATE"
-                for category,_,_,_,_ in writer_upstream_rows),
+                for category,_,_,_,_,_ in writer_upstream_rows),
             "album_if_getter_candidate_count": sum(
                 category == "ALBUM_IF_STRING_GETTER_CANDIDATE"
-                for category,_,_,_,_ in writer_upstream_rows),
-            "value_origins": sorted({category for category,_,_,_,_ in writer_upstream_rows}),
-            "typed_track_parameter_count": sum(track for _,track,_,_,_ in writer_upstream_rows),
-            "typed_album_parameter_count": sum(album for _,_,album,_,_ in writer_upstream_rows),
+                for category,_,_,_,_,_ in writer_upstream_rows),
+            "value_origins": sorted({category for category,_,_,_,_,_ in writer_upstream_rows}),
+            "typed_track_parameter_count": sum(track for _,track,_,_,_,_ in writer_upstream_rows),
+            "typed_album_parameter_count": sum(album for _,_,album,_,_,_ in writer_upstream_rows),
             "active_source_proven": False,
         },
         "trackid_api_arg_direct_origin_categories": sorted({
             category for _api, category, _caller, _param_idx in direct_rows}),
         "trackid_api_arg_indirect_one_hop_categories": sorted({
-            category for category, _track_param, _album_param, _role, _receiver in upstream_rows}),
+            category for category, _track_param, _album_param, _role, _receiver, _cfg in upstream_rows}),
         "api_arg_one_hop_inbound_call_count": len(upstream_rows),
         "api_arg_one_hop_caller_has_track_param_count": sum(
-            track for _category, track, _album, _role, _receiver in upstream_rows),
+            track for _category, track, _album, _role, _receiver, _cfg in upstream_rows),
         "api_arg_one_hop_caller_has_album_param_count": sum(
-            album for _category, _track, album, _role, _receiver in upstream_rows),
+            album for _category, _track, album, _role, _receiver, _cfg in upstream_rows),
         "direct_proven_current_source_track_album_edition": False,
         "verdict": ("PUBLISHER_TRACKID_API_ANNOTATIONS_PRESENT_NOT_SOURCE_PROOF"
                     if targets else "NO_PROVEN_ANNOTATED_TRACKID_API_IN_SIGNED_2025"),
