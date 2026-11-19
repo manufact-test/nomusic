@@ -157,7 +157,7 @@ def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
                 return "DIRECT_TRACK_STRING_FIELD", None
             if owner == ALBUM and typ == "Ljava/lang/String;":
                 return "DIRECT_ALBUM_STRING_FIELD", None
-            return "OTHER_OBJECT_FIELD", None
+            return "OTHER_OBJECT_FIELD", ("SOURCE_FIELD_REF",owner,_name,typ)
         if op == 0x0c and (words[0] >> 8) == current:
             if j == 0 or ins[j-1][1] not in audit.INVOKES:
                 return "RESULT_WITHOUT_PROVEN_CALL", None
@@ -175,6 +175,7 @@ def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
 
 def resolve_trackid_direct_inputs(api_calls, targets):
     next_hops = set()
+    field_targets = set()
     rows = []
     for dex, caller, flags, off, hits in api_calls:
         ins = list(audit.instructions(dex, off))
@@ -193,9 +194,11 @@ def resolve_trackid_direct_inputs(api_calls, targets):
             arg = logical_argument_register(o,w,called,1)
             category,paramidx = local_track_id_origin(dex, caller,flags,off,ins,item_idx,arg)
             rows.append((APIS[called[0]],category,caller,paramidx))
+            if category == "OTHER_OBJECT_FIELD" and isinstance(paramidx,tuple) and paramidx[0] == "SOURCE_FIELD_REF":
+                field_targets.add(tuple(paramidx[1:]))
             if category == "FORMAL_STRING_PARAM" and paramidx is not None:
                 next_hops.add((caller,paramidx))
-    return rows, next_hops
+    return rows, next_hops, field_targets
 
 def inspect_one_upstream_hop(splits, next_hops):
     if not next_hops:
@@ -226,6 +229,50 @@ def inspect_one_upstream_hop(splits, next_hops):
                             if len(results) > 48:
                                 raise ValueError("UPSTREAM_TRACK_ID_CALLSITE_LIMIT")
     return results
+
+def inspect_exact_source_field_writers(splits, field_targets):
+    """One exact field-writer census. Never treat a typed parameter as an
+    established live Track identity; only direct Track getter/field use is
+    relevant to semantic trackId provenance."""
+    if not field_targets:
+        return {"matched_exact_field_writes":0, "origins":[],
+                "direct_track_string_origin_count":0,
+                "track_typed_caller_count":0}
+    if len(field_targets) > 4:
+        raise ValueError("API_TRACKID_SOURCE_FIELDS_OVER_LIMIT")
+    classes = 0
+    writer_rows = []
+    for apk in splits:
+        with zipfile.ZipFile(apk) as z:
+            for member in z.infolist():
+                if not re.fullmatch(r"classes\d*\.dex", member.filename):
+                    continue
+                dex = audit.Dex(z.read(member.filename))
+                for method, flags, off in audit.method_definitions_with_flags(dex):
+                    ins = list(audit.instructions(dex, off))
+                    for idx, (_pc, op, words) in enumerate(ins):
+                        if op != 0x5b:
+                            continue
+                        if audit.field_id(dex, words[1]) not in field_targets:
+                            continue
+                        source_reg = (words[0] >> 8) & 15
+                        category, _pidx = local_track_id_origin(
+                            dex,method,flags,off,ins,idx,source_reg)
+                        writer_rows.append({
+                            "origin": category,
+                            "method_track_parameter": TRACK in audit.parse_types(method[2]),
+                            "method_album_parameter": ALBUM in audit.parse_types(method[2]),
+                        })
+                        if len(writer_rows) > 24:
+                            raise ValueError("API_TRACKID_EXACT_FIELD_WRITERS_OVER_LIMIT")
+    direct = ("DIRECT_TRACK_STRING_GETTER","DIRECT_TRACK_STRING_FIELD")
+    return {
+        "matched_exact_field_writes": len(writer_rows),
+        "origins": sorted({x["origin"] for x in writer_rows}),
+        "direct_track_string_origin_count": sum(x["origin"] in direct for x in writer_rows),
+        "track_typed_caller_count": sum(x["method_track_parameter"] for x in writer_rows),
+        "album_typed_caller_count": sum(x["method_album_parameter"] for x in writer_rows),
+    }
 
 def scan(splits):
     apis_seen = set()
@@ -309,9 +356,11 @@ def scan(splits):
                     summaries[label]["track_id_callers_with_same_method_track_proximity"] += 1
     if dex_count != 6:
         raise ValueError("SOURCE_SIGNED_SIX_DEX_REQUIRED")
-    direct_rows, next_hops = resolve_trackid_direct_inputs(api_calls, targets)
+    direct_rows, next_hops, field_targets = resolve_trackid_direct_inputs(api_calls, targets)
     upstream_rows = inspect_one_upstream_hop(splits, next_hops)
+    field_writer_provenance = inspect_exact_source_field_writers(splits, field_targets)
     return {
+        "trackid_api_exact_intermediate_field_writer_provenance": field_writer_provenance,
         "trackid_api_arg_direct_origin_categories": sorted({
             category for _api, category, _caller, _param_idx in direct_rows}),
         "trackid_api_arg_indirect_one_hop_categories": sorted({
