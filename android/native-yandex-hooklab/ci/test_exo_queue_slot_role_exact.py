@@ -936,11 +936,11 @@ class PublisherNewSDKSignerGateCompatTests(unittest.TestCase):
             verify_metadata,KNOWN_ISSUER_CERT,VERSION_CODE,VERSION_NAME_GPR,GateError)
         manifest="package: name='ru.yandex.music' versionCode='{}' versionName='{}'".format(
             VERSION_CODE,VERSION_NAME_GPR)
-        scheme="Verified using v2 scheme (APK Signature Scheme v2): true\\n"
-        old="Signer #1 certificate SHA-256 digest: {}\\n".format(KNOWN_ISSUER_CERT)+scheme
-        modern=("Number of signers: 1\\n"
-                "V3.0 Signer: certificate SHA-256 digest: {}\\n"
-                "Source Stamp Signer: certificate SHA-256 digest: {}\\n").format(
+        scheme="Verified using v2 scheme (APK Signature Scheme v2): true\n"
+        old="Signer #1 certificate SHA-256 digest: {}\n".format(KNOWN_ISSUER_CERT)+scheme
+        modern=("Number of signers: 1\n"
+                "V3.0 Signer: certificate SHA-256 digest: {}\n"
+                "Source Stamp Signer: certificate SHA-256 digest: {}\n").format(
                     KNOWN_ISSUER_CERT,"0"*64)+scheme
         for output in (old,modern):
             with self.subTest(style=output[:12]):
