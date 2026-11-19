@@ -311,6 +311,53 @@ final class StageBAudioEvidence {
         return observed==album?1:-1;
     }
 
+    /**
+     * Resolves only the exact original Track + Album Java objects already
+     * proven for this wrapper. Called synchronously from the live original
+     * source/PeriodID renderer gate; no names, IDs, fields or sound bytes read.
+     *
+     * A holder from a different track/Flow, any ambiguous wrapper, a changed
+     * Album association or an expired weak link fails closed. Returning these
+     * objects does NOT by itself prove edition, replay generation or PCM.
+     * Caller must never cache the returned pair across Play/Next/reopen.
+     */
+    synchronized Object[] exactOriginalTrackAlbumForWrapper(Object wrapper) {
+        int status=classifyNativeTrackAlbumForWrapper(wrapper);
+        if(status!=1 && status!=16)return null;
+        Object track=null,album=null;
+        if(status==1) {
+            NativeTrackSourceLink matched=null;
+            for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
+                if(link.wrapper==null || link.wrapper.get()!=wrapper)continue;
+                if(matched!=null)return null;
+                matched=link;
+            }
+            if(matched==null || matched.track==null
+                    || matched.albumInstance==null)return null;
+            track=matched.track.get();
+            album=matched.albumInstance.get();
+        } else {
+            WrapperBirth matched=null;
+            for(WrapperBirth birth:wrapperBirths) {
+                if(birth.wrapper.get()!=wrapper)continue;
+                if(matched!=null)return null;
+                matched=birth;
+            }
+            if(matched==null || matched.scopeAtBirth!=12
+                    || !matched.laterFlowEmitted
+                    || matched.creatorTrack==null
+                    || matched.albumAtBirth==null)return null;
+            track=matched.creatorTrack.get();
+            album=matched.albumAtBirth.get();
+        }
+        if(track==null || album==null || !wasNativeTrackFlowItem(track)
+                || findTrackAlbum(track)!=album)return null;
+        // Recheck within the same monitor: no stale positive classification
+        // can be turned into a handle after an object identity conflict.
+        if(classifyNativeTrackAlbumForWrapper(wrapper)!=status)return null;
+        return new Object[]{track,album};
+    }
+
     synchronized void onNativeTrackFlowEmission(Object track) {
         if (track == null) return;
         // Exact same Track emitted after THIS tCa birth; never bind player.
