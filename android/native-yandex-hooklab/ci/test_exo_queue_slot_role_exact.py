@@ -354,4 +354,22 @@ class SignedIdLongOriginalQueueCfgTests(unittest.TestCase):
             else:
                 self.assertTrue(result["original_caller_J_parameter_proven_at_ctor_on_normal_paths"])
 
+
+class SignedQueueIdBuilderCallerDiscoveryTests(unittest.TestCase):
+    def test_reject_duplicate_unexpected_target_and_wrong_opcode(self):
+        from exo_queue_slot_role_exact import (
+            validate_signed_queue_id_builder_callers, SIGNED_QUEUE_ID_BUILDERS)
+        method=("Lsynthetic;","test","()V")
+        callee=sorted(SIGNED_QUEUE_ID_BUILDERS)[0]
+        row=(*method,5,callee,0x71)
+        result=validate_signed_queue_id_builder_callers([row])
+        self.assertEqual(result["exact_direct_callsite_count"],1)
+        self.assertFalse(result["original_queue_epoch_or_selected_edition_proven"])
+        for bad in ([],[row,row],
+                    [(*method,5,("Lbad;","test","()V"),0x71)],
+                    [(*method,5,callee,0x12)]):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError,"QUEUE_ID_BUILDERS_"):
+                    validate_signed_queue_id_builder_callers(bad)
+
 if __name__=="__main__": unittest.main()

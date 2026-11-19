@@ -1066,6 +1066,31 @@ def verify_signed_id_long_normal_cfg(dex,method,flags,off,invoke_pc,move_pc,sour
         "selected_item_or_queue_epoch_proven":False,
     }
 
+
+SIGNED_QUEUE_ID_BUILDERS=frozenset({
+    (QUEUE,"import","(LTva;Ljava/lang/Object;JJLTva$d;LTva$b;)LSl6$b;"),
+    (QUEUE,"else","(LTva;Ljava/lang/Object;IIJJZ)Lyh6;"),
+    (QUEUE,"goto","(LTva;Ljava/lang/Object;JJJZ)Lyh6;"),
+})
+MAX_SIGNED_QUEUE_ID_BUILDERS_DIRECT_CALLS=96
+
+def validate_signed_queue_id_builder_callers(rows):
+    """Normal invoke sites only, never inferred runtime selection or epoch."""
+    if not rows or len(rows)>MAX_SIGNED_QUEUE_ID_BUILDERS_DIRECT_CALLS:
+        raise ValueError("QUEUE_ID_BUILDERS_CALLSITE_COUNT")
+    if len(rows)!=len(set(rows)):
+        raise ValueError("QUEUE_ID_BUILDERS_DUPLICATE_CALLSITE")
+    for row in rows:
+        if len(row)!=6 or not all(isinstance(a,str) for a in row[:3]) or (
+            not isinstance(row[3],int) or row[3]<0 or row[4] not in SIGNED_QUEUE_ID_BUILDERS
+            or row[5] not in audit.INVOKES):
+            raise ValueError("QUEUE_ID_BUILDERS_CALLSITE_SHAPE")
+    return {
+        "exact_direct_callsite_count":len(rows),
+        "direct_method_call_sites_not_runtime_dispatch":True,
+        "original_queue_epoch_or_selected_edition_proven":False,
+    }
+
 def signed_period_id_constructor_site_census(apks):
     """Scan all six publisher-signed DEX for invoke-direct(*/range) of LSl6$b.<init>.
 
@@ -1075,6 +1100,8 @@ def signed_period_id_constructor_site_census(apks):
     rows=[]
     parameter_layout=[]
     exact_long_handoffs=[]
+    queue_builder_callers=[]
+    queue_builder_details=[]
     dex_count=0
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -1092,13 +1119,41 @@ def signed_period_id_constructor_site_census(apks):
                     start=off+16
                     dex.bounds(start,units*2)
                     buf=bytes(dex.data[start:start+units*2])
-                    if b"\x70" not in buf and b"\x76" not in buf:
+                    if not any(bytes((b,)) in buf for b in (0x6e,0x6f,0x70,0x71,0x72,0x74,0x75,0x76,0x77,0x78)):
                         continue
                     for pc,op,words in audit.instructions(dex,off):
-                        if op not in (0x70,0x76):
+                        if op not in audit.INVOKES or not (0x6e<=op<=0x78):
                             continue
                         callee=dex.method(words[1])
-                        if callee[0]!=PERIOD_ID or callee[1]!="<init>":
+                        if callee in SIGNED_QUEUE_ID_BUILDERS:
+                            invoked=audit.invoke_registers(op,words)
+                            static_call=op in (0x71,0x77)
+                            expected=(0 if static_call else 1)+sum(
+                                2 if arg in ("J","D") else 1
+                                for arg in audit.parse_types(callee[2]))
+                            if len(invoked)!=expected:
+                                raise ValueError("QUEUE_ID_BUILDERS_CALL_ARG_SHAPE")
+                            input_js=audit.typed_parameter_registers(dex,caller,_flags,off,"J")
+                            idx=0 if static_call else 1
+                            j_inputs=[]
+                            for typ in audit.parse_types(callee[2]):
+                                if typ=="J":
+                                    j_inputs.append({
+                                        "argument_word_position":idx,
+                                        "source_register_is_direct_caller_J_parameter":
+                                            invoked[idx] in input_js
+                                    })
+                                idx+=2 if typ in ("J","D") else 1
+                            queue_builder_callers.append((*caller,pc,callee,op))
+                            queue_builder_details.append({
+                                "caller":list(caller),"pc":pc,
+                                "target":list(callee),"invoke_opcode":op,
+                                "direct_caller_J_parameter_argument_layout":j_inputs,
+                                "at_callsite_no_proven_audible_period_or_playlist_edition":True
+                            })
+                            if len(queue_builder_callers)>MAX_SIGNED_QUEUE_ID_BUILDERS_DIRECT_CALLS:
+                                raise ValueError("QUEUE_ID_BUILDERS_TOO_MANY_CALLS")
+                        if op not in (0x70,0x76) or callee[0]!=PERIOD_ID or callee[1]!="<init>":
                             continue
                         # No register values are exported: signatures/sites only.
                         invoked=audit.invoke_registers(op,words)
@@ -1154,6 +1209,7 @@ def signed_period_id_constructor_site_census(apks):
     if dex_count!=6:
         raise ValueError("QUEUE_PERIOD_ID_CTOR_EXPECTED_SIX_DEX")
     witness=validate_signed_period_id_ctor_sites(rows,exact_signed=True)
+    queue_builder_witness=validate_signed_queue_id_builder_callers(queue_builder_callers)
     if len(exact_long_handoffs)!=len(SIGNED_ID_LONG_HANDOFF_SITES):
         raise ValueError("QUEUE_ID_LONG_EXPECTED_HANDOFF_SITES_CHANGED")
     # Callers are DEX methods, not song/album/media instance data. Keep the
@@ -1163,6 +1219,10 @@ def signed_period_id_constructor_site_census(apks):
     return {
         **witness,
         "publisher_dex_scanned":dex_count,
+        "signed_queue_id_builder_direct_callers":{
+            **queue_builder_witness,
+            "typed_argument_layout":queue_builder_details,
+        },
         "original_direct_constructor_callers":[
             {"caller":list(caller[:3]),"pc":caller[3],
              "signature":caller[4],"opcode":"INVOKE_DIRECT_RANGE" if caller[5]==0x76 else "INVOKE_DIRECT"}
