@@ -585,6 +585,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         workflow = (BASE.parents[1] / ".github/workflows/android-a1-metrica-init-state-observer-arm13.yml").read_text(encoding="utf-8")
         self.assertIn("a1_private_live_queue_slot_target.py", workflow)
         self.assertIn("a1_private_active_period_source_target.py", workflow)
+        self.assertIn("a1_private_player_period_current_target.py", workflow)
 
 
 if __name__ == "__main__":

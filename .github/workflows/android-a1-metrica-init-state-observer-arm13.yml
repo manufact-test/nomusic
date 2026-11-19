@@ -255,7 +255,7 @@ jobs:
         shell: bash
         env:
           CELIKOM_A1_METRICA_OWN_MODULE_PATH: ${{ runner.temp }}/celikom-own-metrica-module/app-debug.apk
-          CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav40]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk)) && '1' || '0' }}
+          CELIKOM_A1_EXPORT_DIAGNOSTIC_APK: ${{ ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav41]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk)) && '1' || '0' }}
           CELIKOM_A1_ALLOW_FRESH_INSTALL: ${{ (github.event_name == 'workflow_dispatch' && inputs.authorize_fresh_clone_install) && '1' || '0' }}
           CELIKOM_A1_OWNER_KEYSTORE_BASE64: ${{ secrets.CELIKOM_A1_OWNER_KEYSTORE_BASE64 }}
           CELIKOM_A1_OWNER_KEYSTORE_PASSWORD: ${{ secrets.CELIKOM_A1_OWNER_KEYSTORE_PASSWORD }}
@@ -267,19 +267,19 @@ jobs:
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Package Russian owner-phone test instructions
-        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav40]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
+        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav41]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
         shell: bash
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          test -s "$bundle/CELIKOM-A1-NAV40-Creator-Late-Flow-Live-Wrapper-ReadOnly-20261119.apk"
+          test -s "$bundle/CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-ReadOnly-20261119.apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
-          sha256sum "$bundle/CELIKOM-A1-NAV40-Creator-Late-Flow-Live-Wrapper-ReadOnly-20261119.apk"
+          sha256sum "$bundle/CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-ReadOnly-20261119.apk"
       - name: Upload private one-time owner-phone diagnostic bundle
-        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav40]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
+        if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-nav41]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-NAV40-Creator-Late-Flow-Live-Wrapper-20261119
+          name: CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-20261119
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7

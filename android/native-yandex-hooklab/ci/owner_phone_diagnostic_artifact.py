@@ -7,7 +7,7 @@ from pathlib import Path
 
 EXPECTED_VERDICT = "METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO"
 OUTPUT_DIRECTORY = "celikom-a1-owner-phone-test"
-OUTPUT_NAME = "CELIKOM-A1-NAV40-Creator-Late-Flow-Live-Wrapper-ReadOnly-20261119.apk"
+OUTPUT_NAME = "CELIKOM-A1-NAV41-Player-Period-SlotB-NonEos-ReadOnly-20261119.apk"
 MAX_APK_BYTES = 150_000_000
 MIN_APK_BYTES = 1_000_000
 
