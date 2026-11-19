@@ -1,5 +1,8 @@
 # CELIKOM Android A1 — documentation index
 
+**NEW current signed-original research (19 Nov 2026):** original `e.break()` reads the same SLOT_B field twice around a possible write, feeds original `e.I` with two candidate PeriodIDs+Timeline, and exact original `e.I`/`e.z` use three typed Period UID→Timeline Period lookups. [CI #44516354079 SUCCESS 27/27](https://github.com/manufact-test/nomusic/actions/runs/44516354079); [new handoff](ANDROID-A1-NAV40-SIGNED-TWO-SLOTB-UID-TIMELINE-LOOKUPS-20261119.md). Still structural-only; NOT selected Track/edition, active audio read, or NAV41 admission.
+
+
 **Newest static Player/Queue comparison (19 Nov):** original `e.break()` compares `LCD7` PlaybackInfo period UID against original `h.SLOT_A` front holder period UID by exact `Object.equals` and branch. Exact playback-info field matches `d.M0`; distinct second ID field excluded. [CI #44513983147 SUCCESS, 23/23](https://github.com/manufact-test/nomusic/actions/runs/44513983147). Still NOT the `SLOT_B` same-audio-read selected Track/edition; no NAV41. [Exact PlaybackInfo-front-UID report](ANDROID-A1-NAV40-SIGNED-PLAYBACKINFO-FRONT-UID-COMPARISON-20261119.md).
 
 

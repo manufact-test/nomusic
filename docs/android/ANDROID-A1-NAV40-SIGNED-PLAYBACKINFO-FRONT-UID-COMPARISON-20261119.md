@@ -25,3 +25,7 @@ This check does **NOT** prove any actual current-media-item/Track/edition, anoth
 The correct next narrow original-only question: analyze the exact subsequent original branches (PC1278–1303), independent `LCD7` period identity versus `SLOT_A` and `SLOT_B` at the read site, and map the same original selected Timeline/MediaItem to the candidate Track/edition. Require actual signed-source reference identity and fail-closed tests before minimal read-only NAV41 is justified; **do not infer** a generation by method-call counts or object equality alone.
 
 The runtime stage remains `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. Owner-signed NAV40 source SHA `34cb32c88a11743a64c9f4814fa71957223a1391` and protected `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119` unchanged. NAV40 Library APK/ZIP untouched, no NAV41 APK built.
+
+## Follow-up, 19 Nov 2026
+
+[Exact signed original two SLOT_B reads → `e.I` with two PeriodIDs → 3 typed UID-to-Timeline lookups](ANDROID-A1-NAV40-SIGNED-TWO-SLOTB-UID-TIMELINE-LOOKUPS-20261119.md). [CI #44516354079 SUCCESS, 27/27](https://github.com/manufact-test/nomusic/actions/runs/44516354079). This is independent, original static structural evidence **only**; no same-audio-read selected Track/edition and no NAV41 build.
