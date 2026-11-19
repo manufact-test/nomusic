@@ -886,4 +886,46 @@ class SignedPeriodRecordToWindowExactTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"PERIOD_WINDOW_"):
                     self._run(changed)
 
+
+
+class SignedWindowGetCurrentItemFieldDistinctionTests(unittest.TestCase):
+    def _run(self,change=None,without_getter=False):
+        from exo_queue_slot_role_exact import (
+            verify_signed_window_field_is_not_current_mediaitem,
+            PLAYER_CURRENT_MEDIAITEM_GETTER,ENGINE_PERIOD_TIMELINE_TRANSITION,
+            TIMELINE_WINDOW,audit)
+        from unittest.mock import patch
+        class Dex:pass
+        d1=Dex();d2=Dex()
+        getter=[(5,0x54,(0x1054,1))]
+        engine=[(67,0x54,(0x2154,2))]
+        if change:
+            which,row=change
+            (getter if which=="getter" else engine)[0]=row
+        targets={ENGINE_PERIOD_TIMELINE_TRANSITION:(d2,0,2)}
+        if not without_getter:targets[PLAYER_CURRENT_MEDIAITEM_GETTER]=(d1,0,1)
+        def field(d,i):
+            if d is d1:
+                return (TIMELINE_WINDOW,"SECRET_MEDIA_ITEM","LOf6;" if i==1 else "LOf6$f;")
+            return (TIMELINE_WINDOW,"SECRET_LIVE_CONFIG","LOf6$f;" if i==2 else "LOf6;")
+        with patch.object(audit,"instructions",side_effect=lambda d,off:getter if off==1 else engine), \
+             patch.object(audit,"field_id",side_effect=field):
+            return verify_signed_window_field_is_not_current_mediaitem(targets)
+    def test_distinct_window_field_is_not_active_mediaitem_proof(self):
+        r=self._run()
+        self.assertTrue(r["the_two_exact_original_window_field_references_distinct"])
+        self.assertFalse(r["same_original_window_instance_between_getter_and_e_I_proven"])
+        self.assertNotIn("SECRET",str(r))
+    def test_missing_getter_wrong_type_and_wrong_register_fail_closed(self):
+        checks=[
+            (("getter",(5,0x54,(0x1054,3))),False),
+            (("engine",(67,0x54,(0x2154,3))),False),
+            (("engine",(67,0x54,(0x3154,2))),False),
+            (None,True),
+        ]
+        for change,without in checks:
+            with self.subTest(change=change,without=without):
+                with self.assertRaisesRegex(ValueError,"WINDOW_ITEM_FIELD_"):
+                    self._run(change,without)
+
 if __name__=="__main__": unittest.main()

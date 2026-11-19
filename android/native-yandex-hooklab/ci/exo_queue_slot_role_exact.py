@@ -2040,6 +2040,47 @@ def verify_signed_period_record_window_handoffs(targets):
         "NAV41_readonly_runtime_admission_proven":False,
     }
 
+
+# Narrow crosscheck against the already independently audited current-item
+# getter candidate LrD0.E. Do NOT re-run broad MediaItem/Player census.
+PLAYER_CURRENT_MEDIAITEM_GETTER=("LrD0;","E","()LOf6;")
+MEDIAITEM="LOf6;"
+def verify_signed_window_field_is_not_current_mediaitem(targets):
+    if PLAYER_CURRENT_MEDIAITEM_GETTER not in targets or ENGINE_PERIOD_TIMELINE_TRANSITION not in targets:
+        raise ValueError("WINDOW_ITEM_FIELD_GETTER_OR_ENGINE_MISSING")
+    getter,flags,off=targets[PLAYER_CURRENT_MEDIAITEM_GETTER]
+    if not off:raise ValueError("WINDOW_ITEM_FIELD_GETTER_BODY_MISSING")
+    candidates=[]
+    for pc,op,w in audit.instructions(getter,off):
+        if op!=0x54:continue
+        f=audit.field_id(getter,w[1])
+        if f[0]==TIMELINE_WINDOW and f[2]==MEDIAITEM:
+            candidates.append((pc,f))
+    if len(candidates)!=1:
+        raise ValueError("WINDOW_ITEM_FIELD_EXPECTED_ONE_MEDIAITEM_READ")
+    engine,_,engine_off=targets[ENGINE_PERIOD_TIMELINE_TRANSITION]
+    ecode={pc:(op,w) for pc,op,w in audit.instructions(engine,engine_off)}
+    e67=ecode.get(67)
+    if e67 is None or e67[0]!=0x54:
+        raise ValueError("WINDOW_ITEM_FIELD_ENGINE_PC67_DRIFT")
+    f67=audit.field_id(engine,e67[1][1])
+    if (f67[0]!=TIMELINE_WINDOW or f67[2]!="LOf6$f;" or
+        ((e67[1][0]>>8)&15)!=1 or ((e67[1][0]>>12)&15)!=2):
+        raise ValueError("WINDOW_ITEM_FIELD_ENGINE_NOT_EXPECTED_TYPED_FIELD")
+    if candidates[0][1]==f67 or candidates[0][1][2]==f67[2]:
+        raise ValueError("WINDOW_ITEM_FIELD_CURRENT_ITEM_FALSIFICATION")
+    return {
+        "original_current_item_getter_candidate":list(PLAYER_CURRENT_MEDIAITEM_GETTER),
+        "one_exact_mediaitem_typed_field_read_in_getter_pc":candidates[0][0],
+        "e_I_window_field_pc67_type":"LOf6$f;",
+        "getter_window_field_type":"LOf6;",
+        "the_two_exact_original_window_field_references_distinct":True,
+        "e_I_pc67_cannot_be_called_player_current_MediaItem_field":True,
+        "same_original_window_instance_between_getter_and_e_I_proven":False,
+        "current_player_item_matches_SLO_B_started_audio_period_proven":False,
+        "NAV41_readonly_runtime_admission_proven":False,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -2062,7 +2103,7 @@ def scan_signed(apks):
                     parent=(dex.descriptor(parent_idx) if parent_idx!=0xffffffff else None)
                     stream_classes[name]={"extends":parent,"access_flags":dex.u32(cbase+4)}
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,PLAYER_STATE_RESOLVE,ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE,ENGINE_PERIOD_POSITION_LOOKUP):
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,PLAYER_STATE_RESOLVE,ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE,ENGINE_PERIOD_POSITION_LOOKUP,PLAYER_CURRENT_MEDIAITEM_GETTER):
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
@@ -2146,6 +2187,7 @@ def scan_signed(apks):
     front_post_uid_guard=verify_signed_player_front_post_UID_guard(targets)
     period_window_scout=signed_period_window_bounded_scout(targets)
     exact_period_window=verify_signed_period_record_window_handoffs(targets)
+    window_mediaitem_distinction=verify_signed_window_field_is_not_current_mediaitem(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
         old_period_J_reuse["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"]
@@ -2174,6 +2216,7 @@ def scan_signed(apks):
         "exact_original_player_front_post_UID_guard":front_post_uid_guard,
         "original_timeline_period_window_bounded_scout":period_window_scout,
         "exact_original_period_record_to_window_handoffs":exact_period_window,
+        "exact_window_field_distinction_from_player_getter":window_mediaitem_distinction,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,
         "old_J_same_value_proven_not_new_selected_generation":True,
