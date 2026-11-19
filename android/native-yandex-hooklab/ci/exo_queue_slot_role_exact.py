@@ -719,13 +719,13 @@ SIGNED_PERIOD_TOKEN_CTORS=frozenset({
 SIGNED_PERIOD_TOKEN_WRITERS={
     "holder_period_info":frozenset({
         ("Landroidx/media3/exoplayer/e;","break","()V",283),
-        ("Landroidx/media3/exoplayer/e;","default","()V",151),
-        ("Landroidx/media3/exoplayer/e;","i","(Z)V",128),
-        ("Landroidx/media3/exoplayer/e;","static","()V",839),
+        ("Landroidx/media3/exoplayer/e;","default","(LSl6$b;JJJZI)LCD7;",151),
+        ("Landroidx/media3/exoplayer/e;","i","(LSl6$b;JZZ)J",128),
+        ("Landroidx/media3/exoplayer/e;","static","(LTva;Z)V",839),
         ("Landroidx/media3/exoplayer/h;","return","(LTva;)I",69),
         ("Landroidx/media3/exoplayer/h;","static","(LTva;JJJ)I",48),
         (HOLDER,"<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V",18),
-        (HOLDER,"else","(Lyh6;)V",68),
+        (HOLDER,"else","(FLTva;Z)V",68),
     }),
     "period_info_id":frozenset({
         (PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V",48),
