@@ -23,6 +23,17 @@ from trace_playaudio_boundary import _encoded_value
 audit = trusted.audit
 TRACK = "Lru/yandex/music/data/audio/o;"
 ALBUM = "Lru/yandex/music/data/audio/Album;"
+EXACT_SOURCE_PATH_OWNERS = {
+    "LGp0;": "SOURCE_TRACK_CREATOR",
+    "LFp0;": "SOURCE_TRACK_CONTINUATION",
+    "LDp0;": "FLOW_TRACK",
+    "LcA9;": "ORIGINAL_SOURCE_SETTER",
+    "LRAa;": "SOURCE_BUILDER_CONTINUATION",
+    "Lcom/yandex/music/shared/player/download2/o;": "SOURCE_DESCRIPTOR_BUILDER",
+    "Lru/yandex/music/data/audio/o;": "TRACK_MODEL",
+    "Lru/yandex/music/data/audio/Album;": "ALBUM_MODEL",
+    "LiLb;": "ORIGINAL_MEDIA_ITEM_SOURCE",
+}
 APIS = {
     "Lcom/yandex/music/shared/player/content/remote/fileinfo/FileInfoApi;": "FILE_INFO",
     "Lcom/yandex/music/shared/player/content/remote/fileinfo/OldFileInfoApi;": "OLD_FILE_INFO",
@@ -192,6 +203,10 @@ def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
             if j == 0 or ins[j-1][1] not in audit.INVOKES:
                 return "RESULT_WITHOUT_PROVEN_CALL", None
             called = dex.method(ins[j-1][2][1])
+            if called == (TRACK, "super", "()Ljava/lang/String;"):
+                return "TRACK_SUPER_STRING_GETTER_CANDIDATE", None
+            if called == (ALBUM, "if", "()Ljava/lang/String;"):
+                return "ALBUM_IF_STRING_GETTER_CANDIDATE", None
             if called[0] == TRACK and called[2].endswith(")Ljava/lang/String;"):
                 return "DIRECT_TRACK_STRING_GETTER", None
             if called[0] == ALBUM and called[2].endswith(")Ljava/lang/String;"):
@@ -255,7 +270,8 @@ def inspect_one_upstream_hop(splits, next_hops):
                             reg = logical_argument_register(op,words,target,arg_index)
                             category,_ = local_track_id_origin(dex,method,flags,off,ins,i,reg)
                             results.append((category, bool(TRACK in audit.parse_types(method[2])),
-                                            bool(ALBUM in audit.parse_types(method[2]))))
+                                            bool(ALBUM in audit.parse_types(method[2])),
+                                            EXACT_SOURCE_PATH_OWNERS.get(method[0],"OTHER_OWNER")))
                             if len(results) > 48:
                                 raise ValueError("UPSTREAM_TRACK_ID_CALLSITE_LIMIT")
     return results
@@ -398,21 +414,30 @@ def scan(splits):
         "trackid_api_exact_field_writer_upstream": {
             "inbound_call_count": len(writer_upstream_rows),
             "same_formal_track_id_field_path_count": sum(
-                category == "EXACT_FORMAL_TRACK_STRING_FIELD" for category,_,_ in writer_upstream_rows),
-            "value_origins": sorted({category for category,_,_ in writer_upstream_rows}),
-            "typed_track_parameter_count": sum(track for _,track,_ in writer_upstream_rows),
-            "typed_album_parameter_count": sum(album for _,_,album in writer_upstream_rows),
+                category == "EXACT_FORMAL_TRACK_STRING_FIELD" for category,_,_,_ in writer_upstream_rows),
+            "known_original_source_path_owner_roles": sorted({
+                role for _category,_track,_album,role in writer_upstream_rows
+                if role != "OTHER_OWNER"}),
+            "track_super_getter_candidate_count": sum(
+                category == "TRACK_SUPER_STRING_GETTER_CANDIDATE"
+                for category,_,_,_ in writer_upstream_rows),
+            "album_if_getter_candidate_count": sum(
+                category == "ALBUM_IF_STRING_GETTER_CANDIDATE"
+                for category,_,_,_ in writer_upstream_rows),
+            "value_origins": sorted({category for category,_,_,_ in writer_upstream_rows}),
+            "typed_track_parameter_count": sum(track for _,track,_,_ in writer_upstream_rows),
+            "typed_album_parameter_count": sum(album for _,_,album,_ in writer_upstream_rows),
             "active_source_proven": False,
         },
         "trackid_api_arg_direct_origin_categories": sorted({
             category for _api, category, _caller, _param_idx in direct_rows}),
         "trackid_api_arg_indirect_one_hop_categories": sorted({
-            category for category, _track_param, _album_param in upstream_rows}),
+            category for category, _track_param, _album_param, _role in upstream_rows}),
         "api_arg_one_hop_inbound_call_count": len(upstream_rows),
         "api_arg_one_hop_caller_has_track_param_count": sum(
-            track for _category, track, _album in upstream_rows),
+            track for _category, track, _album, _role in upstream_rows),
         "api_arg_one_hop_caller_has_album_param_count": sum(
-            album for _category, _track, album in upstream_rows),
+            album for _category, _track, album, _role in upstream_rows),
         "direct_proven_current_source_track_album_edition": False,
         "verdict": ("PUBLISHER_TRACKID_API_ANNOTATIONS_PRESENT_NOT_SOURCE_PROOF"
                     if targets else "NO_PROVEN_ANNOTATED_TRACKID_API_IN_SIGNED_2025"),
