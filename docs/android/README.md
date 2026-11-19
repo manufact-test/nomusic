@@ -1,5 +1,8 @@
 # CELIKOM Android A1 — documentation index
 
+**Newer signed-original static result (19 Nov 2026):** 15 pinned direct MediaPeriodId constructor sites in all 6 signed DEX; 4 exact Queue `J` constructor arguments proven from typed caller parameters by branch-sensitive normal CFG and register-overwrite guards. [CI #44507724826 SUCCESS, 15/15](https://github.com/manufact-test/nomusic/actions/runs/44507724826). **Still not selected item/edition/generation; no NAV41.** See [signed PeriodId constructor + J CFG report](ANDROID-A1-NAV40-SIGNED-PERIOD-ID-CTOR-J-NORMAL-CFG-20261119.md).
+
+
 **Current (19 Nov 2026):** NAV40 owner-phone test confirms strict original live Player source plus **exact creator Track later Flow Album SAME/MANY**, negative categories NONE. This is historical structural-only evidence, **NOT** proof of selected edition/queue generation. NAV40 signed runtime source unchanged; all prior CI green. Library quota was freed and **both** NAV40 APK+ZIP were uploaded to personal Library and independently downloaded back: SHA-256 matches signed release. See NEXT-CHAT and new NAV40 phone report.
 
 **Latest signed-original static milestone (19 Nov):** all five `h.SLOT_B` write origins proven locally, plus 8 original mutable holder→period-info writes; `Lyh6` and period-ID reference may survive refresh without proving selection/queue epoch. [CI #44500312807 SUCCESS, 10/10 tests](https://github.com/manufact-test/nomusic/actions/runs/44500312807). NAV40 owner-signed runtime/clone unchanged; no NAV41 APK. See NEXT-CHAT and period-info report.

@@ -50,3 +50,7 @@ Pinned private research binary never exported. **Final tested static source** `5
 **Remaining source-backed question:** Which exact original Player state transition identifies the **currently selected playlist item/edition and its actual current period sequence** at the SAME started audio read? The new audit rules out guessing that `SLOT_B` writes, holder `==`, period-info `==`, period-id `==` or the long component alone are such a generation/selection proof. More study must stay scoped to this original selected-Player-item / current MediaPeriod boundary, branch-sensitive, fail-closed, with no private identifiers/metadata logged. If not provable, remain NAV40 structural-only; **no blind NAV41**.
 
 See previous [exact five direct writers](ANDROID-A1-NAV40-SIGNED-SLOTB-DIRECT-WRITES-20261119.md) and [real owner NAV40 phone](ANDROID-A1-NAV40-OWNER-PHONE-LATE-FLOW-SAME-20261119.md).
+
+## Signed-original follow-up, 19 November 2026
+
+Read [15 exact MediaPeriodId constructor sites and four Queue J normal-CFG handoffs](ANDROID-A1-NAV40-SIGNED-PERIOD-ID-CTOR-J-NORMAL-CFG-20261119.md). CI #44507724826 passed 15/15. This supplies parameter provenance only, **not** current selected playlist item or new generation. The period-info same-ID refresh warning above remains binding.

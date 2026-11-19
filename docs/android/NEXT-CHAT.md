@@ -1,3 +1,13 @@
+# CURRENT — NAV40 signed-original MediaPeriodId ctor J parameter provenance; 15/15 CI GREEN (19 Nov 2026)
+
+**New static proof, no new APK:** enumerated **all 15 direct signed DEX `LSl6$b` constructor call sites** across six DEX and pinned exact method+PC+descriptor+opcode. Four original Exo Queue constructor J arguments proved to come from a typed incoming J parameter through a dominating `move-wide/from16` on all **normal CFG** paths, with wide-register overwrite guards. [CI #44507724826 SUCCESS, 15/15](https://github.com/manufact-test/nomusic/actions/runs/44507724826); last static code commit `b6de25c7f146610e7f25ad7838d11529edca07b2`. Report [NAV40 signed period-ID constructors and J CFG](ANDROID-A1-NAV40-SIGNED-PERIOD-ID-CTOR-J-NORMAL-CFG-20261119.md).
+
+**Hard limit:** a constructor site and a J caller parameter do NOT prove the original Player's selected track/edition or unique active queue generation. Exceptional CFG / indirect creation excluded from positive claims. Runtime NAV40 unchanged `34cb32c88a11743a64c9f4814fa71957223a1391`, protected backup and Library APK/ZIP untouched. `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+**NEXT:** branch-sensitive source of these exact Queue J caller arguments and independently verified current original Player selected item/window linked to the **same started audio read**. Distinguish repeated same Track, stale holder and prefetch. No synthetic generation counter and **no NAV41 build** without proof.
+
+---
+
 # CURRENT — NAV40 exact signed SLOT_B transitions and mutable period-ID chain, STATIC CI GREEN (19 Nov 2026)
 
 **Sole working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Latest owner-signed **runtime** NAV40 unchanged `34cb32c88a11743a64c9f4814fa71957223a1391`, protected signed backup `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119`. Protected pre-static-audit backup `backup/android-a1-nav40-owner-phone-signed-slotb-pre-readonly-census-20261119` @ `86addd96de8af868ca9da41b14540d86b6e8505a`.
