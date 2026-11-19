@@ -1,20 +1,31 @@
-# CURRENT — NAV40 strict active original wrapper + late Flow Track (phone TXT 19 Nov 2026; CI pending)
+# CURRENT — NAV40 signed CI-GREEN; Library storage limit blocks upload (19 Nov 2026)
 
-**GitHub** `manufact-test/nomusic`; sole branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-**NAV40 source** `34cb32c88a11743a64c9f4814fa71957223a1391`; protected pre-change NAV39 backup `backup/android-a1-nav39-owner-phone-live-source-pass-pre-nav40-late-flow-20261119` @ `d137f45238e6ca331952058d314eecc89db59f21`. NAV39 signed backup `backup/android-a1-nav39-live-private-hooks-owner-signed-arm13-ci-green-20261119` @ `9e5e462773cdc39ea0c2077dd24e47a3d6b9174e`.
+**GitHub:** `manufact-test/nomusic`. Sole working branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+**NAV40 signed source:** `34cb32c88a11743a64c9f4814fa71957223a1391`; **protected signed backup:** `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119` at that SHA.
+**Previous NAV39 pre-change backup:** `backup/android-a1-nav39-owner-phone-live-source-pass-pre-nav40-late-flow-20261119` at `d137f45238e6ca331952058d314eecc89db59f21`; original signed NAV39 rollback unchanged.
 
-**Exact NAV39 owner-phone TXT:** `CELIKOM-A1-Diagnostics-1795075324697.txt`, 107,919 bytes, 1,499 lines, SHA256 `3ba0cba6c6d34dd9e46862f89628652ab451af13a6ddf97f662053d5d1164ef8`. **Private; do not commit raw.** File has prior NAV38 session log lines but *active export summary* is NAV39 `NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY`.
-- Correct signed-original private hooks both REGISTERED: `LIVE_QUEUE_SLOT_B`, `LIVE_PERIOD_ORIGINAL_SOURCE`; `NATIVE_PLAYER_SOURCE_SETTER` also REGISTERED.
-- Exact SLOT_B type1/state2 read match MANY, other/unavailable NONE; original `Lo96/Sl6` source resolved MANY (unavailable NONE); strict scoped Player setter source identity MATCH MANY, OTHER/NO_LINK NONE.
-- Creator-owned original tCa `OWNER_ENTER/TRACK_FIELD_READ/WRAPPER_CONSTRUCTED=MANY`, null/failed NONE; `TCA_CREATOR_WRAPPER_NOT_FLOW=MANY`, FLOW_MATCH NONE. Exact creator Track observed later in Flow FEW and with historical Album FEW; birth Album observed MANY. Live original source `LIVE_PERIOD_SCOPED_TCA_BIRTH_TRACK_NOT_IN_FLOW=MANY`, `NO_TRACK_SCOPE=NONE`, `NOT_IN_WINDOW=NONE`. This is timing/retention, not proof of selected edition.
-- `TRACK_ALBUM_IDENTITY_CONFLICT=NONE`, `EXO_IO_FAILURE=NONE`; `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/FEW` and a separate SDK Push exception logged. No attribution to CELIKOM without evidence. `BUFFER_EOS_ACCESS=NO_HOOK` unrelated; **do not reintroduce EOS investigation**.
-- `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`; original Yandex 2025.10.4 #120.1gpr, Player/audio untouched.
+**Real NAV39 owner-phone TXT:** `CELIKOM-A1-Diagnostics-1795075324697.txt`, 107,919 bytes / 1,499 lines / SHA256 `3ba0cba6c6d34dd9e46862f89628652ab451af13a6ddf97f662053d5d1164ef8`. Original private phone file not committed; actual active NAV39 marker in export (earlier NAV38 local event history retained).
+Real phone confirms exact live original chain `LIVE_QUEUE_SLOT_B=REGISTERED`, `LIVE_PERIOD_ORIGINAL_SOURCE=REGISTERED`, `LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH=MANY`, `LIVE_PERIOD_ORIGINAL_SOURCE_RESOLVED=MANY`, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY`; source OTHER/NO_LINK NONE. Original creator's Track is NOT in retained Flow at tCa birth (MANY), exact SAME Track later Flow (FEW) + Album (FEW). No selected edition/queue-generation evidence; do not enable replacement. `METRICA_EXCEPTION_SUMMARY=MUSIC_APP/FEW`; attribution unproven.
 
-**NAV40 minimal read-only response:** keep last 64 weak references to original constructor-bound exact `tCa` wrapper+creator Track+Album at birth, track SAME creator Track emitted in Flow AFTER wrapper birth (no source/audio retrofit); classify only under existing strict original SLOT_B/audio type1/state2→Lo96/Sl6→same original scoped setter source, using unique original wrapper. New finite categories `LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME/MISSING/DIFFERENT/REFERENCE_LOST`. All old counters untouched. Fail-closed for ambiguous same-wrapper births, missing/expired refs, different Track/Album, mismatched original source. No titles/IDs/URLs/PCM/tokens/private values emitted; no audio replacement, no selected edition/queue generation claim.
+**NAV40 small read-only change:** weak 64 original ctor tCa wrapper/creator Track/birth Album refs and explicit later exact Flow ref. Only classify historical `LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME/MISSING/DIFFERENT/REFERENCE_LOST` under the already strict live original source & setter match. No Track/Album identifiers, URLs, PCM, tokens or media content exported; no original player/audio changes; `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
 
-**NAV40 CI running:** JVM `44485488863` (SUCCESS on first check), clone-alone ARM13 `44485488606` (pending), owner-signed original-first ARM13 APK export `44485488053` (pending). Never release before all SUCCESS, v2/v3 owner signer, SHA256, original identical, NAV40 README and Library byte-for-byte readback. No NAV40 APK/Library link yet until checks pass.
+## NAV40 built and verified
+- JVM [#44485488863 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44485488863).
+- Clone-alone native ARM13 [#44485488606 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44485488606).
+- Publisher-first, original+clone owner-signed ARM13 test and artifact [#44485488053 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44485488053); GitHub artifact `14511350924`, exact source SHA `34cb32c88a11743a64c9f4814fa71957223a1391`.
+- **Owner-signed APK** `CELIKOM-A1-NAV40-Creator-Late-Flow-Live-Wrapper-ReadOnly-20261119.apk`: 71,491,564 bytes; SHA256 `0914bc4ac4fd498b3e8ff16a0cb64b12372cb0278e1649d0171c913321c53a6e`. Cryptographic RSA-SHA256 v2/v3 verification including full APK content digest passes; signer certificate SHA256 `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` is SAME as verified NAV39.
+- Embedded publisher original `assets/lspatch/origin.apk` SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56` matches signed NAV39 exact original bytes, publisher Yandex 2025.10.4 #120.1gpr unchanged.
+- Inner owned module SHA256 `9d61809aeb03823ba168840460080ce2e40db2834a1a0b07ef6cd4e87ff3eee2`. Verified DEX contains NAV40 marker, all 4 new categories and exact three private target classes.
+- GitHub artifact ZIP `CELIKOM-A1-NAV40-Creator-Late-Flow-Live-Wrapper-20261119.zip`: 51,618,241 bytes, SHA256 `8abee5ec924d1f1920ef27b5a38ca09ff7dbdbbf56b9db0f605d324b80a935cc`, exact GitHub artifact digest. ZIP contains APK and `README-RU.txt` with NAV40 marker.
 
-**NEXT:** after all CI green, download private signed NAV40 GitHub artifact, verify signed owner cert and embedded original, upload APK+ZIP to personal Library `/CELIKOM/Android/Native/`, read back and compare, send direct user link. Then owner installs in-place over NAV39 and sends NAV40 TXT. On real phone inspect new live late-flow categories; never authorize source replacement based on historic Track/Album equality alone.
+## Library distribution BLOCKED, not missing APK
+- Attempted upload BOTH NAV40 ZIP and APK into personal `/CELIKOM/Android/Native/`; **both returned `library_storage_limit_exceeded`** with `You've reached your Library storage limit. Delete files to free up space before saving more.`
+- **Do NOT claim either NAV40 file is in Library.** Do not delete old Library builds without explicit user approval. User was told clearly of quota and given direct current-chat verified `sandbox:/mnt/data/` download links for APK and ZIP as interim option.
+- If user frees space or authorizes cleanup, upload preferred NAV40 ZIP first, then APK only if space, read back and hash compare before giving a Library link.
+
+**NEXT:** owner installs NAV40 *over NAV39* with no uninstall/data wipe or change to original publisher Yandex; listens to 2–5 tracks, sends `CELIKOM-A1-Diagnostics-...` TXT. Analyse new late-Flow/strict live source summaries. No NAV41 without actual owner phone evidence. Historic Track/Album identity must never be claimed as currently selected edition/queue generation.
+
+**Detailed report:** [NAV39 owner phone→NAV40](ANDROID-A1-NAV39-OWNER-PHONE-NAV40-LATE-FLOW-LIVE-WRAPPER-20261119.md).
 
 ---
 
