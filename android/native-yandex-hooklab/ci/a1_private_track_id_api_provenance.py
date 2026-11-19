@@ -174,6 +174,50 @@ def same_exact_formal_track_receiver(dex, method, flags, off, ins, read_at, rece
             return False
     return current in track_params
 
+def trace_original_track_receiver(dex,method,flags,off,ins,read_at,receiver):
+    """A conservative bounded one-field origin for the exact signed
+    LGp0 Track String read. Branches and unrecognised register writes FAIL.
+    This classifies only the owner of a Track *reference*, never trackId."""
+    current=receiver
+    for n,j in enumerate(range(read_at-1,-1,-1)):
+        if n>=80:
+            return "TRACK_RECEIVER_TRACE_LIMIT"
+        _pc,op,words=ins[j]
+        if op in BRANCHES:
+            return "TRACK_RECEIVER_BRANCH_UNPROVEN"
+        move=move_object_registers(op,words)
+        if move and move[0]==current:
+            current=move[1]
+            continue
+        if op==0x54 and ((words[0]>>8)&15)==current:
+            owner,_name,ftype=audit.field_id(dex,words[1])
+            if ftype != TRACK:
+                return "TRACK_RECEIVER_OTHER_FIELD_TYPE"
+            if owner=="LFp0;":
+                return "TRACK_RECEIVER_EXACT_FP0_CONTINUATION"
+            if owner=="LGp0;":
+                return "TRACK_RECEIVER_EXACT_GP0_OWNER"
+            return "TRACK_RECEIVER_TYPED_FIELD_OTHER_OWNER"
+        if op==0x0c and (words[0]>>8)==current:
+            if j==0 or ins[j-1][1] not in audit.INVOKES:
+                return "TRACK_RECEIVER_RESULT_UNPROVEN"
+            callee=dex.method(ins[j-1][2][1])
+            return ("TRACK_RECEIVER_TYPED_METHOD_RESULT" if
+                    callee[2].endswith(")"+TRACK) else
+                    "TRACK_RECEIVER_OTHER_METHOD_RESULT")
+        if audit.written_register(op,words)==current:
+            return "TRACK_RECEIVER_UNKNOWN_WRITE"
+    size,insize=dex.u16(off),dex.u16(off+2)
+    if insize>size:
+        return "TRACK_RECEIVER_BAD_REGISTER_WINDOW"
+    pos=size-insize+(0 if flags&0x8 else 1)
+    for typ in audit.parse_types(method[2]):
+        if pos==current:
+            return ("TRACK_RECEIVER_EXACT_FORMAL_TRACK" if typ==TRACK
+                    else "TRACK_RECEIVER_OTHER_FORMAL_PARAM")
+        pos+=2 if typ in ("J","D") else 1
+    return "TRACK_RECEIVER_UNRESOLVED"
+
 def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
     if reg is None:
         return "INVALID_API_ARGUMENT", None
@@ -195,7 +239,9 @@ def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
                 if same_exact_formal_track_receiver(
                         dex,method,flags,off,ins,j,receiver):
                     return "EXACT_FORMAL_TRACK_STRING_FIELD", ("SIGNED_TRACK_FIELD_REF",owner,_name,typ)
-                return "DIRECT_TRACK_STRING_FIELD", None
+                return "DIRECT_TRACK_STRING_FIELD", (
+                    "TRACK_STRING_RECEIVER",
+                    trace_original_track_receiver(dex,method,flags,off,ins,j,receiver))
             if owner == ALBUM and typ == "Ljava/lang/String;":
                 return "DIRECT_ALBUM_STRING_FIELD", None
             return "OTHER_OBJECT_FIELD", ("SOURCE_FIELD_REF",owner,_name,typ)
@@ -268,10 +314,14 @@ def inspect_one_upstream_hop(splits, next_hops):
                                 continue
                             arg_index = logical_idx + (0 if op in (0x71,0x77) else 1)
                             reg = logical_argument_register(op,words,target,arg_index)
-                            category,_ = local_track_id_origin(dex,method,flags,off,ins,i,reg)
+                            category,detail = local_track_id_origin(dex,method,flags,off,ins,i,reg)
+                            receiver_category = (detail[1] if isinstance(detail,tuple)
+                                and len(detail)>1 and detail[0]=="TRACK_STRING_RECEIVER"
+                                else "NO_TRACK_STRING_RECEIVER")
                             results.append((category, bool(TRACK in audit.parse_types(method[2])),
                                             bool(ALBUM in audit.parse_types(method[2])),
-                                            EXACT_SOURCE_PATH_OWNERS.get(method[0],"OTHER_OWNER")))
+                                            EXACT_SOURCE_PATH_OWNERS.get(method[0],"OTHER_OWNER"),
+                                            receiver_category))
                             if len(results) > 48:
                                 raise ValueError("UPSTREAM_TRACK_ID_CALLSITE_LIMIT")
     return results
@@ -414,36 +464,40 @@ def scan(splits):
         "trackid_api_exact_field_writer_upstream": {
             "inbound_call_count": len(writer_upstream_rows),
             "same_formal_track_id_field_path_count": sum(
-                category == "EXACT_FORMAL_TRACK_STRING_FIELD" for category,_,_,_ in writer_upstream_rows),
+                category == "EXACT_FORMAL_TRACK_STRING_FIELD" for category,_,_,_,_ in writer_upstream_rows),
             "known_original_source_path_owner_roles": sorted({
-                role for _category,_track,_album,role in writer_upstream_rows
+                role for _category,_track,_album,role,_receiver in writer_upstream_rows
                 if role != "OTHER_OWNER"}),
             "exact_creator_trackid_argument_origin_categories": sorted({
-                category for category,_track,_album,role in writer_upstream_rows
+                category for category,_track,_album,role,_receiver in writer_upstream_rows
                 if role=="SOURCE_TRACK_CREATOR"}),
+            "exact_creator_trackid_field_receiver_categories": sorted({
+                receiver for category,_track,_album,role,receiver in writer_upstream_rows
+                if role=="SOURCE_TRACK_CREATOR"
+                and category=="DIRECT_TRACK_STRING_FIELD"}),
             "exact_creator_track_parameter_present": any(
-                track for _category,track,_album,role in writer_upstream_rows
+                track for _category,track,_album,role,_receiver in writer_upstream_rows
                 if role=="SOURCE_TRACK_CREATOR"),
             "track_super_getter_candidate_count": sum(
                 category == "TRACK_SUPER_STRING_GETTER_CANDIDATE"
-                for category,_,_,_ in writer_upstream_rows),
+                for category,_,_,_,_ in writer_upstream_rows),
             "album_if_getter_candidate_count": sum(
                 category == "ALBUM_IF_STRING_GETTER_CANDIDATE"
-                for category,_,_,_ in writer_upstream_rows),
-            "value_origins": sorted({category for category,_,_,_ in writer_upstream_rows}),
-            "typed_track_parameter_count": sum(track for _,track,_,_ in writer_upstream_rows),
-            "typed_album_parameter_count": sum(album for _,_,album,_ in writer_upstream_rows),
+                for category,_,_,_,_ in writer_upstream_rows),
+            "value_origins": sorted({category for category,_,_,_,_ in writer_upstream_rows}),
+            "typed_track_parameter_count": sum(track for _,track,_,_,_ in writer_upstream_rows),
+            "typed_album_parameter_count": sum(album for _,_,album,_,_ in writer_upstream_rows),
             "active_source_proven": False,
         },
         "trackid_api_arg_direct_origin_categories": sorted({
             category for _api, category, _caller, _param_idx in direct_rows}),
         "trackid_api_arg_indirect_one_hop_categories": sorted({
-            category for category, _track_param, _album_param, _role in upstream_rows}),
+            category for category, _track_param, _album_param, _role, _receiver in upstream_rows}),
         "api_arg_one_hop_inbound_call_count": len(upstream_rows),
         "api_arg_one_hop_caller_has_track_param_count": sum(
-            track for _category, track, _album, _role in upstream_rows),
+            track for _category, track, _album, _role, _receiver in upstream_rows),
         "api_arg_one_hop_caller_has_album_param_count": sum(
-            album for _category, _track, album, _role in upstream_rows),
+            album for _category, _track, album, _role, _receiver in upstream_rows),
         "direct_proven_current_source_track_album_edition": False,
         "verdict": ("PUBLISHER_TRACKID_API_ANNOTATIONS_PRESENT_NOT_SOURCE_PROOF"
                     if targets else "NO_PROVEN_ANNOTATED_TRACKID_API_IN_SIGNED_2025"),
