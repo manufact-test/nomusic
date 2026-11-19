@@ -1,3 +1,13 @@
+# LATEST — NAV44 selected original Timeline↔source MediaItem candidate: signed static + JVM PASS, ARM owner APK PENDING (19 November 2026)
+
+**Do not restart; only one branch.** NAV43 owner-phone TXT `CELIKOM-A1-Diagnostics-1795097798424.txt` confirmed `PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK=MANY` with `NO_LINK=NONE` and `SLOT_CHANGED=NONE`. This joined active current PlaybackInfo PeriodID, live SLOT_B, and uniquely scoped original source→TrackWrapper→late SAME Flow Album in the same original -4 callback; still structural only.
+
+**NAV44 code candidate:** current-period UID→original Timeline Period→Window MediaItem `==` current original source LiLb MediaItem, only after NAV43's same-callback guard and after live SLOT_B+PeriodID rechecks, plus source-after-read recheck; enum-only `PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_{SAME_REF,DIFFERENT,UNAVAILABLE,SLOT_CHANGED}`. The signed private target compiler checks exact original 2025 field PCs and pure LiLb.for source getter. [Signed issuer preflight CI #44545043886 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44545043886); [JVM owner model CI #44546865739 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44546865739). Android ARM source/build/signature/export **not yet accepted** until full green and verified Library files. See [NAV44 exact report](ANDROID-A1-NAV44-CURRENT-MEDIAITEM-SOURCE-READONLY-20261119.md).
+
+**No inference:** equal MediaItem Java references do NOT prove selected original Track ID/edition, queue generation, PCM or replacement; `BUFFER_EOS_ACCESS=NO_HOOK`, `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. Signed NAV40 `34cb32c88a11743a64c9f4814fa71957223a1391` and protected backup are unchanged. No NAV45 without NAV44 phone TXT and exact next necessity.
+
+---
+
 # LATEST — NAV43 owner-phone same-callback PASS, selected Track/edition remains UNPROVEN (19 November 2026)
 
 **Actual owner TXT** `CELIKOM-A1-Diagnostics-1795097798424.txt` (122007 bytes, 1685 lines) contains confirmed active `NAV_V43_PERIOD_FLOW_UID_INTS_SAME_CALLBACK_READONLY`. **PASS:** `PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK=MANY`, `...NO_LINK=NONE`, `...SLOT_CHANGED=NONE`; `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`; live type1/state2/-4 SLOT_B and late tCa Flow Album SAME are MANY. This upgrades NAV42's separate aggregate structural witnesses to one sampled callback with final SLOT_B recheck; it **does not identify the selected original Track ID/edition**, distinct replay generation, or audible PCM. `BUFFER_EOS_ACCESS=NO_HOOK`, `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
