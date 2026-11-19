@@ -1,3 +1,11 @@
+# LATEST — NAV43 owner-phone same-callback PASS, selected Track/edition remains UNPROVEN (19 November 2026)
+
+**Actual owner TXT** `CELIKOM-A1-Diagnostics-1795097798424.txt` (122007 bytes, 1685 lines) contains confirmed active `NAV_V43_PERIOD_FLOW_UID_INTS_SAME_CALLBACK_READONLY`. **PASS:** `PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK=MANY`, `...NO_LINK=NONE`, `...SLOT_CHANGED=NONE`; `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`; live type1/state2/-4 SLOT_B and late tCa Flow Album SAME are MANY. This upgrades NAV42's separate aggregate structural witnesses to one sampled callback with final SLOT_B recheck; it **does not identify the selected original Track ID/edition**, distinct replay generation, or audible PCM. `BUFFER_EOS_ACCESS=NO_HOOK`, `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+**Next ONLY:** use the already confirmed NAV43 source/period callback, seek a **specific original, publisher-signed read-only current-selected Track+edition identity at that same active read**, fail closed for Next, prefetch, stale and repeated composition. No blanket static study, no NAV44 until an exact independent provenance route is verified, no audio mutation or new Player. **NAV40 and all signed binaries untouched.** [Detailed NAV43 real-phone report](ANDROID-A1-NAV43-OWNER-PHONE-SAME-CALLBACK-20261119.md). Code and release references below remain applicable.
+
+---
+
 # LATEST — NAV43 signed phone diagnostic READY in Library (19 November 2026)
 
 **Owner NAV42 diagnostic `CELIKOM-A1-Diagnostics-1795096092342.txt`:** `PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY`, `DIFFERENT=NONE`, `UNAVAILABLE=NONE`, and exact live `SLOT_B`, scoped tCa source, late SAME Flow Album each MANY. Original EOS accessor still NO_HOOK. All only structural, no selected edition/PCM and no audio replacement.
