@@ -459,4 +459,29 @@ class SignedOldPeriodIdJReuseCfgTests(unittest.TestCase):
                 self.assertTrue(witness["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"])
             self.assertFalse(witness["current_selected_item_or_unique_playback_generation_proven"])
 
+
+class SignedSelectedTimelineCandidateWindowTests(unittest.TestCase):
+    def test_scout_exact_scoped_field_type_only_and_false_selection(self):
+        from exo_queue_slot_role_exact import signed_selector_window,PLAYBACK_INFO
+        from exo_queue_slot_role_exact import audit
+        from unittest.mock import patch
+        class FakeDex:
+            def method(self,idx):return ("Lunrelated;","other","()V")
+        fake=FakeDex()
+        ins=[
+            (3,0x54,(0x1254,8)),
+            (5,0x54,(0x0354,9)),
+            (7,0x32,(0x0032,2)),
+            (10,0x11,(0x0211,))
+        ]
+        with patch.object(audit,"instructions",return_value=ins), \
+             patch.object(audit,"field_id",side_effect=lambda dex,index:
+                 (PLAYBACK_INFO,"DO_NOT_LEAK","LTva;") if index==8
+                 else ("Lunrelated;","SECRET","I")):
+            view=signed_selector_window(fake,("Ltest;","test","()V"),0,100,((0,10),))
+        self.assertFalse(view["runtime_current_selected_item_or_period_proven"])
+        self.assertEqual([x["pc"] for x in view["scoped_type_reference_rows"]],[3,7,10])
+        self.assertNotIn("DO_NOT_LEAK",str(view))
+        self.assertNotIn("SECRET",str(view))
+
 if __name__=="__main__": unittest.main()

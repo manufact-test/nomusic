@@ -1397,6 +1397,68 @@ def signed_period_id_constructor_site_census(apks):
         "argument_layout_does_not_prove_control_flow_or_epoch":True,
     }
 
+
+# Original Player selected-item/timeline candidate map. Intentional discovery
+# only: structural typed references in exact signed methods; no instance data
+# and no inference that a period is audible/current.
+PLAYER_STATE_RESOLVE=("Landroidx/media3/exoplayer/d;","M0",
+    "(LCD7;LTva;Landroid/util/Pair;)LCD7;")
+PLAYBACK_INFO="LCD7;"
+TIMELINE="LTva;"
+SELECTOR_TYPES=frozenset({
+    PLAYBACK_INFO,TIMELINE,PERIOD_ID,HOLDER,PERIOD_INFO,
+    "Landroid/util/Pair;","Landroidx/media3/exoplayer/h;",
+    "Landroidx/media3/exoplayer/d;"
+})
+MAX_SELECTOR_ROWS=150
+def signed_selector_window(dex,method,flags,off,ranges):
+    """Exact signed typed field/call/branch survey, without field names or values."""
+    out=[]
+    scoped_calls=0
+    for pc,op,words in audit.instructions(dex,off):
+        if not any(lo<=pc<=hi for lo,hi in ranges):continue
+        row=None
+        if 0x52<=op<=0x6d:
+            owner,_name,typ=audit.field_id(dex,words[1])
+            if (owner in SELECTOR_TYPES or typ in SELECTOR_TYPES):
+                row={"pc":pc,"action":"TYPED_FIELD","owner":owner,
+                     "field_type":typ,"opcode":op,
+                     "value_register":(words[0]>>8)&15,
+                     "receiver_register":((words[0]>>12)&15) if 0x52<=op<=0x5f else None}
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            callee=dex.method(words[1])
+            if (callee[0] in SELECTOR_TYPES or
+                callee[2].split(")",1)[1] in SELECTOR_TYPES or
+                any(t in SELECTOR_TYPES for t in audit.parse_types(callee[2]))):
+                row={"pc":pc,"action":"TYPED_CALL","method":list(callee),
+                     "opcode":op,"registers":audit.invoke_registers(op,words)}
+                scoped_calls+=1
+        elif 0x32<=op<=0x3d or op in (0x28,0x29,0x2a,0x2b,0x2c):
+            row={"pc":pc,"action":"BRANCH","opcode":op}
+        elif op in (0x0c,0x0b,0x11,0x10):
+            row={"pc":pc,"action":"RESULT_OR_RETURN","opcode":op,
+                 "register":words[0]>>8}
+        if row:
+            out.append(row)
+            if len(out)>MAX_SELECTOR_ROWS:raise ValueError("SELECTOR_WINDOW_ROW_LIMIT")
+    return {"method":list(method),"scoped_type_reference_rows":out,
+            "scoped_call_count":scoped_calls,
+            "runtime_current_selected_item_or_period_proven":False}
+
+def signed_player_timeline_candidate(targets):
+    if PLAYER_STATE_RESOLVE not in targets or ENGINE not in targets:
+        raise ValueError("PLAYER_SELECTED_TIMELINE_METHOD_ABSENT")
+    d,flags,off=targets[PLAYER_STATE_RESOLVE]
+    e,engine_flags,engine_off=targets[ENGINE]
+    if not off or not engine_off:raise ValueError("PLAYER_SELECTED_TIMELINE_BODY_MISSING")
+    original=signed_selector_window(d,PLAYER_STATE_RESOLVE,flags,off,((0,320),))
+    queue=signed_selector_window(e,ENGINE,engine_flags,engine_off,
+        ((335,465),(515,710),(1030,1110),(1180,1265)))
+    return {"candidate_player_playback_info_timeline_resolution":original,
+            "candidate_queue_renderer_boundary":queue,
+            "same_exact_snapshot_or_selected_media_item_proven":False,
+            "current_media_period_active_vs_prefetch_proven":False}
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -1419,7 +1481,7 @@ def scan_signed(apks):
                     parent=(dex.descriptor(parent_idx) if parent_idx!=0xffffffff else None)
                     stream_classes[name]={"extends":parent,"access_flags":dex.u32(cbase+4)}
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE):
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,PLAYER_STATE_RESOLVE):
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
@@ -1493,6 +1555,7 @@ def scan_signed(apks):
     slot_b_local_provenance=verify_signed_slot_b_local_provenance(targets,slot_ids)
     period_token= signed_holder_period_token_census(apks,targets)
     old_period_J_reuse=verify_signed_old_period_id_long_handoff(targets)
+    player_selection_scout=signed_player_timeline_candidate(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
         old_period_J_reuse["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"]
@@ -1511,6 +1574,7 @@ def scan_signed(apks):
         "exact_signed_slot_b_local_provenance":slot_b_local_provenance,
         "exact_signed_original_period_token_chain":period_token,
         "exact_old_period_id_long_to_new_queue_builder":old_period_J_reuse,
+        "exact_original_player_timeline_candidate_scout":player_selection_scout,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,
         "old_J_same_value_proven_not_new_selected_generation":True,
