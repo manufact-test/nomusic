@@ -342,9 +342,9 @@ class SignedIdLongOriginalQueueCfgTests(unittest.TestCase):
         method=(QUEUE,"fixture","(J)V")
         for skipped,clobber in ((False,False),(True,False),(False,True)):
             dex,cfg=self._cfg_fixture(skipped,clobber)
-            with patch.object(audit,"build_dex_control_flow",return_value=cfg), \\
-                 patch.object(audit,"typed_parameter_registers",return_value={6}), \\
-                 patch.object(audit,"invoke_registers",return_value=[1,2,3,4]), \\
+            with patch.object(audit,"build_dex_control_flow",return_value=cfg), \
+                 patch.object(audit,"typed_parameter_registers",return_value={6}), \
+                 patch.object(audit,"invoke_registers",return_value=[1,2,3,4]), \
                  patch.object(audit,"parse_types",return_value=["J","Ljava/lang/Object;"]):
                 # The synthetic invoke carries long in v2; move v2 <- p6.
                 result=verify_signed_id_long_normal_cfg(
