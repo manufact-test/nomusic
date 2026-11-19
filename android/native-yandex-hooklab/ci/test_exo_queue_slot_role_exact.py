@@ -33,4 +33,28 @@ class SlotRoleTests(unittest.TestCase):
             self.assertIsNone(direct_getter([(0,0x54,[0x0100,3]),(1,0x32,[0]),(2,0x11,[0x0100])],StubDex(),s))
         finally: audit.field_id=old
 
+class SignedSlotBWriterCensusTests(unittest.TestCase):
+    def test_exact_five_sites_only(self):
+        from exo_queue_slot_role_exact import (SIGNED_SLOT_B_DIRECT_WRITES,
+            validate_signed_slot_b_direct_writes)
+        proven=validate_signed_slot_b_direct_writes(list(SIGNED_SLOT_B_DIRECT_WRITES))
+        self.assertEqual(proven["publisher_base_direct_iput_object_site_count"],5)
+        self.assertTrue(proven["bounded_exact_site_proven"])
+        self.assertFalse(proven["currently_selected_track_or_queue_epoch_proven"])
+        self.assertFalse(proven["reflective_or_native_mutations_excluded"])
+
+    def test_extra_missing_duplicate_and_pc_drift_fail_closed(self):
+        from exo_queue_slot_role_exact import (SIGNED_SLOT_B_DIRECT_WRITES,
+            validate_signed_slot_b_direct_writes)
+        sites=list(SIGNED_SLOT_B_DIRECT_WRITES)
+        for altered in (
+            sites[:-1],
+            sites+[sites[0]],
+            sites+[(QUEUE,"unexpected","()V",999)],
+            [(*sites[0][:3],sites[0][3]+1)]+sites[1:],
+        ):
+            with self.subTest(altered=altered):
+                with self.assertRaisesRegex(ValueError,"QUEUE_SIGNED_SLOT_B_DIRECT_WRITES_CHANGED"):
+                    validate_signed_slot_b_direct_writes(altered)
+
 if __name__=="__main__": unittest.main()
