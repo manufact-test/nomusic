@@ -16,6 +16,7 @@ import zipfile
 from pathlib import Path
 
 import lft2_class_inspection as trusted
+from audit_native_register_bridge import invoke_registers, move_object_registers
 from trace_native_callers import uleb
 from trace_playaudio_boundary import _encoded_value
 
@@ -105,6 +106,127 @@ def method_sources(dex, method, off):
                 source.add("ALBUM_MODEL_METHOD_CALL")
     return sorted(source)
 
+# A narrow, branch-conservative one-hop caller-parameter witness. An
+# exact source register to API trackId can only be called an ID ARGUMENT,
+# never current-original-source or edition proof.
+BRANCHES = set(range(0x27, 0x2d)) | set(range(0x32, 0x3e))
+
+def logical_argument_register(op, words, callee, logical_index):
+    if not (0x6e <= op <= 0x78):
+        return None
+    is_static = op in (0x71, 0x77)
+    regs = invoke_registers(op, words)
+    types = ([callee[0]] if not is_static else []) + audit.parse_types(callee[2])
+    if logical_index < 0 or logical_index >= len(types):
+        return None
+    offset = sum(2 if t in ("J", "D") else 1 for t in types[:logical_index])
+    return regs[offset] if offset < len(regs) else None
+
+def formal_source(dex, method, flags, off, reg):
+    size, insize = dex.u16(off), dex.u16(off + 2)
+    if insize > size:
+        raise ValueError("IDENTITY_BAD_REGISTER_WINDOW")
+    pos = size - insize
+    if not (flags & 0x8):
+        if pos == reg:
+            return ("RECEIVER_NOT_ID", None)
+        pos += 1
+    for idx, typ in enumerate(audit.parse_types(method[2])):
+        if pos == reg:
+            return ("FORMAL_STRING_PARAM", idx) if typ == "Ljava/lang/String;" else ("FORMAL_OTHER_PARAM", None)
+        pos += 2 if typ in ("J","D") else 1
+    return ("OTHER_REGISTER", None)
+
+def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
+    if reg is None:
+        return "INVALID_API_ARGUMENT", None
+    current = reg
+    steps = 0
+    for j in range(call_at - 1, -1, -1):
+        pc, op, words = ins[j]
+        steps += 1
+        if steps > 80 or op in BRANCHES:
+            return "BRANCH_OR_LIMIT_UNPROVEN", None
+        move = move_object_registers(op, words)
+        if move and move[0] == current:
+            current = move[1]
+            continue
+        if op == 0x54 and ((words[0] >> 8) & 0xf) == current:
+            owner, _name, typ = audit.field_id(dex, words[1])
+            if owner == TRACK and typ == "Ljava/lang/String;":
+                return "DIRECT_TRACK_STRING_FIELD", None
+            if owner == ALBUM and typ == "Ljava/lang/String;":
+                return "DIRECT_ALBUM_STRING_FIELD", None
+            return "OTHER_OBJECT_FIELD", None
+        if op == 0x0c and (words[0] >> 8) == current:
+            if j == 0 or ins[j-1][1] not in audit.INVOKES:
+                return "RESULT_WITHOUT_PROVEN_CALL", None
+            called = dex.method(ins[j-1][2][1])
+            if called[0] == TRACK and called[2].endswith(")Ljava/lang/String;"):
+                return "DIRECT_TRACK_STRING_GETTER", None
+            if called[0] == ALBUM and called[2].endswith(")Ljava/lang/String;"):
+                return "DIRECT_ALBUM_STRING_GETTER", None
+            return "OTHER_METHOD_STRING_RESULT", None
+        if op in (0x1a, 0x1b) and words[0] >> 8 == current:
+            return "CONST_STRING_NOT_TRACK", None
+        if audit.written_register(op, words) == current:
+            return "UNTRACKED_REGISTER_WRITE", None
+    return formal_source(dex,method,flags,off,current)
+
+def resolve_trackid_direct_inputs(api_calls, targets):
+    next_hops = set()
+    rows = []
+    for dex, caller, flags, off, hits in api_calls:
+        ins = list(audit.instructions(dex, off))
+        for pc, called in hits:
+            if called not in targets:
+                continue
+            index = next((idx for idx,(position,value) in enumerate(targets[called])
+                          if position == 0 and value in ("trackId","track_id","track-id")),None)
+            if index is None:
+                continue
+            item_idx = next((i for i,(p,o,w) in enumerate(ins) if p == pc and
+                             o in audit.INVOKES and dex.method(w[1]) == called),None)
+            if item_idx is None:
+                raise ValueError("API_CALLSITE_INSTRUCTION_NOT_FOUND")
+            p,o,w = ins[item_idx]
+            arg = logical_argument_register(o,w,called,1)
+            category,paramidx = local_track_id_origin(dex, caller,flags,off,ins,item_idx,arg)
+            rows.append((APIS[called[0]],category,caller,paramidx))
+            if category == "FORMAL_STRING_PARAM" and paramidx is not None:
+                next_hops.add((caller,paramidx))
+    return rows, next_hops
+
+def inspect_one_upstream_hop(splits, next_hops):
+    if not next_hops:
+        return []
+    targets = {method for method,_ in next_hops}
+    results = []
+    for apk in splits:
+        with zipfile.ZipFile(apk) as z:
+            for member in z.infolist():
+                if not re.fullmatch(r"classes\\d*\\.dex", member.filename):
+                    continue
+                dex = audit.Dex(z.read(member.filename))
+                for method,flags,off in audit.method_definitions_with_flags(dex):
+                    ins = list(audit.instructions(dex,off))
+                    matched = []
+                    for i,(pc,op,words) in enumerate(ins):
+                        if op in audit.INVOKES and dex.method(words[1]) in targets:
+                            matched.append((i,op,words,dex.method(words[1])))
+                    for i,op,words,target in matched:
+                        for candidate,logical_idx in next_hops:
+                            if target != candidate:
+                                continue
+                            arg_index = logical_idx + (0 if op in (0x71,0x77) else 1)
+                            reg = logical_argument_register(op,words,target,arg_index)
+                            category,_ = local_track_id_origin(dex,method,flags,off,ins,i,reg)
+                            results.append((category, bool(TRACK in audit.parse_types(method[2])),
+                                            bool(ALBUM in audit.parse_types(method[2]))))
+                            if len(results) > 48:
+                                raise ValueError("UPSTREAM_TRACK_ID_CALLSITE_LIMIT")
+    return results
+
 def scan(splits):
     apis_seen = set()
     api_specs = {}
@@ -164,7 +286,7 @@ def scan(splits):
                     if hits:
                         if len(api_calls) >= 150:
                             raise ValueError("SOURCE_API_CALLSITE_LIMIT")
-                        api_calls.append((dex, method, off, hits))
+                        api_calls.append((dex, method, flags, off, hits))
     targets = {m:labels for m,labels in api_specs.items()
                if any(value in ("trackId", "track_id", "track-id")
                       for _,value in labels)}
@@ -176,7 +298,7 @@ def scan(splits):
         summaries[APIS[method[0]]]["all_annotated_methods"] += 1
         if method in targets:
             summaries[APIS[method[0]]]["track_id_annotated_methods"] += 1
-    for dex, caller, off, hits in api_calls:
+    for dex, caller, flags, off, hits in api_calls:
         prox = method_sources(dex, caller, off)
         for _,m in hits:
             label = APIS[m[0]]
@@ -187,7 +309,19 @@ def scan(splits):
                     summaries[label]["track_id_callers_with_same_method_track_proximity"] += 1
     if dex_count != 6:
         raise ValueError("SOURCE_SIGNED_SIX_DEX_REQUIRED")
+    direct_rows, next_hops = resolve_trackid_direct_inputs(api_calls, targets)
+    upstream_rows = inspect_one_upstream_hop(splits, next_hops)
     return {
+        "trackid_api_arg_direct_origin_categories": sorted({
+            category for _api, category, _caller, _param_idx in direct_rows}),
+        "trackid_api_arg_indirect_one_hop_categories": sorted({
+            category for category, _track_param, _album_param in upstream_rows}),
+        "api_arg_one_hop_inbound_call_count": len(upstream_rows),
+        "api_arg_one_hop_caller_has_track_param_count": sum(
+            track for _category, track, _album in upstream_rows),
+        "api_arg_one_hop_caller_has_album_param_count": sum(
+            album for _category, _track, album in upstream_rows),
+        "direct_proven_current_source_track_album_edition": False,
         "verdict": ("PUBLISHER_TRACKID_API_ANNOTATIONS_PRESENT_NOT_SOURCE_PROOF"
                     if targets else "NO_PROVEN_ANNOTATED_TRACKID_API_IN_SIGNED_2025"),
         "api_classes_present": sorted(apis_seen),
