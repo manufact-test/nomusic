@@ -1,3 +1,13 @@
+# CURRENT — NAV42 owner-signed diagnostic PASS; Library storage blocked (19 Nov 2026)
+
+**NAV42 final owner-signed CI:** [#44534038483 SUCCESS, 27 steps](https://github.com/manufact-test/nomusic/actions/runs/44534038483), HEAD source/export commit `531c165f7f68ef0cf45de91b8a6d6c9895008158`. Artifact `14535881448` downloaded and verified: ZIP `CELIKOM-A1-NAV42-Period-EosUnknown-SlotB-20261119.zip` (51,620,783 bytes; SHA256 `81471abd2a38cc0d80336694dd0356bdc6089d3f31c2b49149ac64fe5d555cf4`), containing exactly APK `CELIKOM-A1-NAV42-Period-EosUnknown-SlotB-ReadOnly-20261119.apk` (71,491,564 bytes; SHA256 `1b4fac49a5508413cd9d6c05a7fa796e2d1534dfd90f897560fde6430ed707ab`) and `README-RU.txt`.
+
+**Library BLOCKED:** both `files.manage_library` uploads into `/CELIKOM/Android/Native/` failed `library_storage_limit_exceeded`; do not claim the files are in Library or silently delete old builds. Verified files are in current conversation `/mnt/data` sandbox (exact paths above). User needs to free >=~72MB to save APK, preferably >=~124MB for APK+ZIP, or take direct sandbox download.
+
+**Next:** install NAV42 directly over NAV41, without uninstall/data wipe, check 2–5 songs including MyWave, Next/seek/pause/repeat, send CELIKOM TXT. At original `-4` / live SLOT_B with EOS null, check five `PLAYER_PERIOD_EOS_UNKNOWN_*` counters. These are *only structural*, NOT selected song/audio/PCM. NAV40 backup and NAV41 Library artifacts untouched, `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. Do not broaden static study or issue audio-changing APK without proof.
+
+---
+
 # CURRENT — NAV42 targeted response to owner NAV41 EOS blocker (19 Nov 2026)
 
 Owner phone diagnostic `CELIKOM-A1-Diagnostics-1795094518695.txt` confirms `NAV_V41_PLAYER_PERIOD_SLOTB_NON_EOS_READONLY` ACTIVE; `PLAYER_PERIOD_AT_AUDIO_READ=REGISTERED`; `LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MATCH=MANY`, `...MINUS4=MANY`; `BUFFER_EOS_ACCESS=NO_HOOK`. All original 5 period counters NONE solely because unknown EOS was excluded by `Boolean.FALSE.equals(endOfStream)`. The vendor still plays, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY` and `LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME=MANY`. None of this proves selected edition, `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
