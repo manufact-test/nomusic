@@ -974,8 +974,97 @@ def wide_definition_register_shape(pc,op,words):
            0x17:"CONST_WIDE_32",0x18:"CONST_WIDE",0x19:"CONST_WIDE_HIGH16",
            0x53:"IGET_WIDE",0x61:"SGET_WIDE"}
     if op in kinds:
-        return {"pc":pc,"kind":kinds[op],"dest":(words[0]>>8)&255}
+        reg=((words[0]>>8)&15) if op==0x53 else (words[0]>>8)
+        return {"pc":pc,"kind":kinds[op],"dest":reg}
     return None
+
+
+# A narrow normal-control-flow guard for the exact original Queue ID long
+# argument. This proves parameter provenance only, never a selected track,
+# epoch, audible event, or absence of exceptional/native/reflection changes.
+SIGNED_ID_LONG_HANDOFF_SITES=frozenset({
+    (QUEUE,"import","(LTva;Ljava/lang/Object;JJLTva$d;LTva$b;)LSl6$b;",126,124,18,10),
+    (QUEUE,"import","(LTva;Ljava/lang/Object;JJLTva$d;LTva$b;)LSl6$b;",139,130,18,10),
+    (QUEUE,"else","(LTva;Ljava/lang/Object;IIJJZ)Lyh6;",11,9,23,4),
+    (QUEUE,"goto","(LTva;Ljava/lang/Object;JJJZ)Lyh6;",103,101,34,14),
+})
+
+def verify_signed_id_long_normal_cfg(dex,method,flags,off,invoke_pc,move_pc,source_reg,dest_reg):
+    """Use signed CFG, not adjacent PCs alone; fail closed on skipped/clobbered moves."""
+    cfg=audit.build_dex_control_flow(dex,off)
+    by_pc=cfg["by_pc"]
+    successors=cfg["successors"]
+    move=by_pc.get(move_pc)
+    invoke=by_pc.get(invoke_pc)
+    parameter_regs=audit.typed_parameter_registers(dex,method,flags,off,"J")
+    if (move is None or move[0]!=0x05 or
+        move[1][0]>>8!=dest_reg or move[1][1]!=source_reg
+        or source_reg not in parameter_regs or invoke is None
+        or invoke[0] not in (0x70,0x76)):
+        raise ValueError("QUEUE_ID_LONG_EXACT_TARGET_SHAPE_DRIFT")
+    descriptor=dex.method(invoke[1][1])
+    if descriptor[0]!=PERIOD_ID or descriptor[1]!="<init>":
+        raise ValueError("QUEUE_ID_LONG_NOT_PERIOD_ID_CONSTRUCTOR")
+    arg_regs=audit.invoke_registers(invoke[0],invoke[1])
+    index=1
+    j_words=[]
+    for param in audit.parse_types(descriptor[2]):
+        if param=="J":j_words.append(arg_regs[index])
+        index+=2 if param in ("J","D") else 1
+    if j_words!=[dest_reg]:
+        raise ValueError("QUEUE_ID_LONG_ARGUMENT_REGISTER_DRIFT")
+    if not (cfg["entry"] in cfg["reachable"] and
+            invoke_pc in cfg["reachable"] and move_pc in cfg["reachable"]):
+        raise ValueError("QUEUE_ID_LONG_UNREACHABLE_TARGET")
+    if len(cfg["reachable"])>1200:
+        raise ValueError("QUEUE_ID_LONG_CFG_SCOPE_LIMIT")
+    def can_reach_excluding(excluded):
+        seen=set()
+        todo=[cfg["entry"]]
+        while todo:
+            here=todo.pop()
+            if here in seen or here in excluded:continue
+            seen.add(here)
+            if here==invoke_pc:return True
+            todo.extend(successors.get(here,()))
+        return False
+    dominated=not can_reach_excluding({move_pc})
+    # Detect any writing to source J word on a normal path reaching the
+    # copy, and any writing to destination J word from copy to call.
+    def may_clobber(start,stop,pair,skip_start=False):
+        todo=[start]
+        seen=set()
+        while todo:
+            here=todo.pop()
+            if here==stop:continue
+            if here in seen:continue
+            seen.add(here)
+            if not (skip_start and here==start):
+                op,words=by_pc[here]
+                written=audit.written_register(op,words)
+                if written in pair:
+                    return True
+                shape=wide_definition_register_shape(here,op,words)
+                if shape is not None and shape["dest"]+1 in pair:
+                    return True
+            todo.extend(successors.get(here,()))
+        return False
+    before_move_write=may_clobber(cfg["entry"],move_pc,{source_reg,source_reg+1})
+    after_move_write=any(
+        may_clobber(pc,invoke_pc,{dest_reg,dest_reg+1})
+        for pc in successors[move_pc])
+    proven=bool(dominated and not before_move_write and not after_move_write)
+    return {
+        "caller":list(method),
+        "ctor_pc":invoke_pc,
+        "source_move_pc":move_pc,
+        "normal_cfg_move_dominates_ctor":dominated,
+        "normal_cfg_input_J_not_overwritten_before_move":not before_move_write,
+        "normal_cfg_copy_J_not_overwritten_before_ctor":not after_move_write,
+        "original_caller_J_parameter_proven_at_ctor_on_normal_paths":proven,
+        "exceptional_control_flow_or_selection_proven":False,
+        "selected_item_or_queue_epoch_proven":False,
+    }
 
 def signed_period_id_constructor_site_census(apks):
     """Scan all six publisher-signed DEX for invoke-direct(*/range) of LSl6$b.<init>.
@@ -985,6 +1074,7 @@ def signed_period_id_constructor_site_census(apks):
     """
     rows=[]
     parameter_layout=[]
+    exact_long_handoffs=[]
     dex_count=0
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
@@ -1015,6 +1105,12 @@ def signed_period_id_constructor_site_census(apks):
                         if len(invoked)<2:
                             raise ValueError("QUEUE_PERIOD_ID_CTOR_INVOKE_SHAPE")
                         rows.append((*caller,pc,callee[2],op))
+                        matching=[x for x in SIGNED_ID_LONG_HANDOFF_SITES
+                                  if x[:4]==(*caller,pc)]
+                        for site in matching:
+                            exact_long_handoffs.append(
+                                verify_signed_id_long_normal_cfg(
+                                    dex,caller,_flags,off,pc,*site[4:]))
 
                         # Register layout only. No value-flow or semantic selection
                         # inferred from a J register matching an incoming parameter.
@@ -1058,6 +1154,8 @@ def signed_period_id_constructor_site_census(apks):
     if dex_count!=6:
         raise ValueError("QUEUE_PERIOD_ID_CTOR_EXPECTED_SIX_DEX")
     witness=validate_signed_period_id_ctor_sites(rows,exact_signed=True)
+    if len(exact_long_handoffs)!=len(SIGNED_ID_LONG_HANDOFF_SITES):
+        raise ValueError("QUEUE_ID_LONG_EXPECTED_HANDOFF_SITES_CHANGED")
     # Callers are DEX methods, not song/album/media instance data. Keep the
     # output bounded; fail if the discovered cohort is too large to inspect.
     if len(rows)>100:
@@ -1071,6 +1169,10 @@ def signed_period_id_constructor_site_census(apks):
             for caller in sorted(rows)
         ],
         "constructor_calls_are_not_selected_queue_epoch":True,
+        "exact_signed_queue_J_to_period_ID_normal_CFG":exact_long_handoffs,
+        "all_four_queue_J_parameters_to_period_ID_proven_on_normal_CFG":
+            all(x["original_caller_J_parameter_proven_at_ctor_on_normal_paths"]
+                for x in exact_long_handoffs),
         "scoped_Exo_constructor_J_argument_register_layout":parameter_layout,
         "argument_layout_does_not_prove_control_flow_or_epoch":True,
     }

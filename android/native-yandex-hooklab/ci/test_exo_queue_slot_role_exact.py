@@ -316,4 +316,42 @@ class SignedQueueWideRegisterShapeTests(unittest.TestCase):
                          {"pc":8,"kind":"CONST_WIDE_16","dest":4})
         self.assertIsNone(shape(9,0x70,(0x0070,10,0)))
 
+
+class SignedIdLongOriginalQueueCfgTests(unittest.TestCase):
+    def _cfg_fixture(self,skipped=False,clobber=False):
+        from exo_queue_slot_role_exact import QUEUE, PERIOD_ID
+        class Dex:
+            def method(self,index): return (PERIOD_ID,"<init>","(JLjava/lang/Object;)V")
+        dex=Dex()
+        ins={
+          0:(0x05,(0x0305,6)),
+          2:(0x05,(0x0105,6)),
+          4:(0x05,(0x0205,6)),
+          6:(0x70,(0x0070,1,0x0321)),
+        }
+        if clobber: ins[4]=(0x16,(0x0216,0))
+        if skipped:
+            ins[0]=(0x32,(0x1032,6))
+        successors={0:[2,6] if skipped else [2],2:[4],4:[6],6:[]}
+        cfg={"by_pc":ins,"successors":successors,
+             "entry":0,"reachable":{0,2,4,6}}
+        return dex,cfg
+    def test_dominator_blocks_shortcut_and_wide_clobber(self):
+        from exo_queue_slot_role_exact import verify_signed_id_long_normal_cfg,QUEUE,audit
+        from unittest.mock import patch
+        method=(QUEUE,"fixture","(J)V")
+        for skipped,clobber in ((False,False),(True,False),(False,True)):
+            dex,cfg=self._cfg_fixture(skipped,clobber)
+            with patch.object(audit,"build_dex_control_flow",return_value=cfg), \\
+                 patch.object(audit,"typed_parameter_registers",return_value={6}), \\
+                 patch.object(audit,"invoke_registers",return_value=[1,2,3,4]), \\
+                 patch.object(audit,"parse_types",return_value=["J","Ljava/lang/Object;"]):
+                # The synthetic invoke carries long in v2; move v2 <- p6.
+                result=verify_signed_id_long_normal_cfg(
+                    dex,method,0,0,6,4,6,2)
+            if skipped or clobber:
+                self.assertFalse(result["original_caller_J_parameter_proven_at_ctor_on_normal_paths"])
+            else:
+                self.assertTrue(result["original_caller_J_parameter_proven_at_ctor_on_normal_paths"])
+
 if __name__=="__main__": unittest.main()
