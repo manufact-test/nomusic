@@ -300,4 +300,20 @@ class SignedPeriodIdPinnedSiteGuardTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_ID_CTOR_"):
                     validate_signed_period_id_ctor_sites(candidate,exact_signed=True)
 
+
+class SignedQueueWideRegisterShapeTests(unittest.TestCase):
+    def test_move_wide_register_decoding_and_no_literal_values(self):
+        from exo_queue_slot_role_exact import wide_definition_register_shape as shape
+        self.assertEqual(shape(4,0x04,(0x3204,)),
+                         {"pc":4,"kind":"MOVE_WIDE","dest":2,"source":3})
+        self.assertEqual(shape(5,0x05,(0x0905,16)),
+                         {"pc":5,"kind":"MOVE_WIDE_FROM16","dest":9,"source":16})
+        self.assertEqual(shape(6,0x06,(0x0006,18,21)),
+                         {"pc":6,"kind":"MOVE_WIDE_16","dest":18,"source":21})
+        self.assertEqual(shape(7,0x53,(0x2153,999)),
+                         {"pc":7,"kind":"IGET_WIDE","dest":33})
+        self.assertEqual(shape(8,0x16,(0x0416,1234)),
+                         {"pc":8,"kind":"CONST_WIDE_16","dest":4})
+        self.assertIsNone(shape(9,0x70,(0x0070,10,0)))
+
 if __name__=="__main__": unittest.main()

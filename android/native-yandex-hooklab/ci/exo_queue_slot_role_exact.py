@@ -959,6 +959,24 @@ def validate_signed_period_id_ctor_sites(rows,exact_signed=False):
         "callsites_without_reflection_or_native_exclusion":True,
     }
 
+def wide_definition_register_shape(pc,op,words):
+    """Only DEX register layout; never read constants or field values/names."""
+    if op==0x04:
+        return {"pc":pc,"kind":"MOVE_WIDE","dest":(words[0]>>8)&15,
+                "source":(words[0]>>12)&15}
+    if op==0x05:
+        return {"pc":pc,"kind":"MOVE_WIDE_FROM16","dest":words[0]>>8,
+                "source":words[1]}
+    if op==0x06:
+        return {"pc":pc,"kind":"MOVE_WIDE_16","dest":words[1],
+                "source":words[2]}
+    kinds={0x0b:"MOVE_RESULT_WIDE",0x16:"CONST_WIDE_16",
+           0x17:"CONST_WIDE_32",0x18:"CONST_WIDE",0x19:"CONST_WIDE_HIGH16",
+           0x53:"IGET_WIDE",0x61:"SGET_WIDE"}
+    if op in kinds:
+        return {"pc":pc,"kind":kinds[op],"dest":(words[0]>>8)&255}
+    return None
+
 def signed_period_id_constructor_site_census(apks):
     """Scan all six publisher-signed DEX for invoke-direct(*/range) of LSl6$b.<init>.
 
@@ -1022,6 +1040,18 @@ def signed_period_id_constructor_site_census(apks):
                                 "pc":pc,"ctor":callee[2],
                                 "wide_J_argument_register_layout_only":wide_arguments,
                                 "caller_declares_J_parameter":bool(caller_long_regs),
+                                "caller_long_input_registers":sorted(caller_long_regs),
+                                "constructor_long_argument_registers":[
+                                    invoked[x["argument_word_index"]]
+                                    for x in wide_arguments],
+                                "wide_definition_opcode_shapes_before_call":[
+                                    item for item in (
+                                        wide_definition_register_shape(p,o,w)
+                                        for p,o,w in audit.instructions(dex,off)
+                                        if p<pc)
+                                    if item is not None][:100]
+                                if caller[0]==QUEUE else [],
+
                             })
                         if len(rows)>MAX_SIGNED_PERIOD_ID_CTOR_SITES:
                             raise ValueError("QUEUE_PERIOD_ID_CTOR_TOO_MANY_SITES")
