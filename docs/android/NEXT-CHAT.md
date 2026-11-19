@@ -1,4 +1,4 @@
-# CURRENT — NAV40 owner evidence + exact signed SLOT_B writer census, CI GREEN (19 Nov 2026)
+# CURRENT — NAV40 exact signed SLOT_B transitions and mutable period-ID chain, STATIC CI GREEN (19 Nov 2026)
 
 **Sole working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Latest owner-signed **runtime** NAV40 unchanged `34cb32c88a11743a64c9f4814fa71957223a1391`, protected signed backup `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119`. Protected pre-static-audit backup `backup/android-a1-nav40-owner-phone-signed-slotb-pre-readonly-census-20261119` @ `86addd96de8af868ca9da41b14540d86b6e8505a`.
 
@@ -8,9 +8,11 @@
 
 **Critical distinction:** direct DEX writer census does **not** exclude reflective/native mutation; `e.break()` has TWO write sites, so method entry/exit ≠ exact field-write epoch. Runtime holder/same historical Track/Album identity still does not prove unique current selected edition or queue generation. Do not invent one or treat the new writer count as a NAV41 green light.
 
-**NEXT:** static only, branch-sensitive exact signed-original analysis of these five writer paths and current selected original Player-item / MediaPeriod sequence boundary. Only if safe uniquely provable propose minimal read-only NAV41 design; no production changes/Player/audio/decoder, no APK now.
+**NEW validated signed-original findings (not NAV41):** the *local original reference provenance* of all five SLOT_B writes is exactly verified: initial shared holder, engine successor, queue front successor, conditional SLOT_A reference, null clearing. The signed current holder points to a **mutable** Lyh6 period-info reference (8 direct DEX writers), Lyh6 retains an LSl6$b period ID (1 direct writer), and that ID retains a long component (1 writer). Moreover the **same original Lxh6 holder can refresh its Lyh6 while preserving the same exact LSl6$b Java reference**. Hence SLOT_B same-reference, Lyh6, period ID or J alone are **not** a proven fresh selected track/edition/generation. Detailed [new static period-info report](ANDROID-A1-NAV40-SIGNED-SLOTB-PERIOD-INFO-REFRESH-20261119.md). All **10/10** scoped fixtures passed on exact signed-original: [CI #44500312807 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44500312807), tested static code SHA `5f057390503fa76f53e55cd2643897f815676349`. Protected static green backup `backup/android-a1-nav40-signed-slotb-period-info-readonly-ci-green-20261119`.
 
-**Detailed new report:** [NAV40 signed SLOT_B five writers and next identity gate](ANDROID-A1-NAV40-SIGNED-SLOTB-DIRECT-WRITES-20261119.md).
+**NEXT:** look only for the actual signed **original Player current playlist item/edition + current MediaPeriod sequence** identity boundary at the SAME NAV40 started-audio read. Do not add an artificial counter/epoch based on method calls, holder or period-id equality. Require independently verified semantic selector before any NAV41 runtime hook. Otherwise STOP at structural-only. No APK build or vendor modification.
+
+**Detailed reports:** [SLOT_B five writer locations](ANDROID-A1-NAV40-SIGNED-SLOTB-DIRECT-WRITES-20261119.md); [local origin and mutable period-ID proof](ANDROID-A1-NAV40-SIGNED-SLOTB-PERIOD-INFO-REFRESH-20261119.md).
 
 ---
 
