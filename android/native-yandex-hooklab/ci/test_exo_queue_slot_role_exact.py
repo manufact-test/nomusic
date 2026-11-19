@@ -186,4 +186,76 @@ class SignedPeriodTokenTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_TOKEN_"):
                     validate_signed_period_token_writers(case)
 
+class SignedInfoRefreshTests(unittest.TestCase):
+    def _scenario(self):
+        from exo_queue_slot_role_exact import (
+            SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,
+            PERIOD_INFO,PERIOD_ID,HOLDER)
+        holder_field=(HOLDER,"synthetic_info",PERIOD_INFO)
+        id_field=(PERIOD_INFO,"synthetic_id",PERIOD_ID)
+        class Dex:
+            def method(self,index):
+                if index==1:return SIGNED_PERIOD_INFO_CLONE
+                if index==2:return (
+                    PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V")
+                raise AssertionError("unexpected method index")
+        owner=Dex(); info=Dex()
+        scripts={
+            1:[
+                (56,0x54,(0x1a54,10)),
+                (64,0x6e,(0x306e,1,0x098a)),
+                (67,0x0c,(0x080c,)),
+                (68,0x5b,(0x185b,10)),
+            ],
+            2:[
+                (15,0x54,(0x0354,11)),
+                (33,0x76,(0x0f76,2,2)),
+            ],
+        }
+        targets={
+            SIGNED_PERIOD_INFO_REFRESH:(owner,0,1),
+            SIGNED_PERIOD_INFO_CLONE:(info,0,2),
+        }
+        return scripts,targets,holder_field,id_field
+
+    def _check(self,scripts,targets,holder_field,id_field):
+        from exo_queue_slot_role_exact import (
+            verify_signed_period_info_refresh_preserves_id,audit)
+        from unittest.mock import patch
+        with patch.object(audit,"instructions",
+                side_effect=lambda _dex,offset:scripts[offset]), \
+             patch.object(audit,"field_id",
+                side_effect=lambda _dex,index: {
+                    10:holder_field,11:id_field}[index]):
+            return verify_signed_period_info_refresh_preserves_id(
+                targets,holder_field,id_field)
+
+    def test_same_id_ref_may_survive_original_period_info_refresh(self):
+        scripts,targets,hf,pf=self._scenario()
+        proof=self._check(scripts,targets,hf,pf)
+        self.assertTrue(proof["refreshed_period_info_can_retain_same_java_period_id"])
+        self.assertTrue(proof["same_period_id_not_sufficient_as_monotonic_queue_epoch"])
+        self.assertFalse(proof["currently_selected_edition_or_queue_generation_proven"])
+
+    def test_refresh_wrong_method_result_or_token_register_fails_closed(self):
+        scripts,targets,hf,pf=self._scenario()
+        from copy import deepcopy
+        variants=[]
+        for section,pc,replacement in (
+            (1,56,(0x54,(0x1954,10))), # wrong holder info register
+            (1,67,(0x0c,(0x070c,))), # result != stored reference
+            (2,33,(0x76,(0x0f76,2,3))), # wrong argument start
+        ):
+            v=deepcopy(scripts)
+            v[section]=[(p,*(replacement if p==pc else (op,w)))
+                        for p,op,w in v[section]]
+            variants.append(v)
+        overwritten=deepcopy(scripts)
+        overwritten[2].insert(1,(20,0x07,(0x0137,)))
+        variants.append(overwritten)
+        for idx,case in enumerate(variants):
+            with self.subTest(idx=idx):
+                with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_INFO_"):
+                    self._check(case,targets,hf,pf)
+
 if __name__=="__main__": unittest.main()
