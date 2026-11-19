@@ -75,7 +75,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
-    private static final String DIAGNOSTIC_BUILD = "NAV_V40_TCA_CREATOR_LATE_FLOW_LIVE_WRAPPER_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V41_PLAYER_PERIOD_SLOTB_NON_EOS_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -2586,6 +2586,54 @@ public final class ExitCallsiteWitness extends XposedModule {
                     NATIVE_RENDERER_EVIDENCE.onHookRegistration("LIVE_QUEUE_SLOT_B",false);
                     emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_QUEUE_SLOT_B","NO_HOOK");
                 }
+
+                // NAV41: use only seven exact original field names compiled
+                // in private signed-XAPK CI. No new hook, no original call,
+                // no MediaItem/ID/URL/audio serialization or mutation.
+                try {
+                    Class<?> privateFields=Class.forName(
+                        "pro.celikom.a1exitwitness.PrivateNativePlayerPeriodTarget",
+                        false,ExitCallsiteWitness.class.getClassLoader());
+                    Class<?> playbackInfo=Class.forName("CD7",false,loader);
+                    Class<?> periodInfo=Class.forName("yh6",false,loader);
+                    String[] keys={
+                        "ENGINE_PLAYBACK_INFO","PLAYBACK_INFO_CURRENT_ID",
+                        "HOLDER_INFO","HOLDER_PERIOD_ID",
+                        "PERIOD_UID","PERIOD_FIRST_INT","PERIOD_SECOND_INT"
+                    };
+                    Class<?>[] owners={
+                        engine,playbackInfo,holder,periodInfo,
+                        queueItem,queueItem,queueItem
+                    };
+                    Class<?>[] fieldTypes={
+                        playbackInfo,queueItem,periodInfo,queueItem,
+                        Object.class,int.class,int.class
+                    };
+                    Field[] exactFields=new Field[keys.length];
+                    for(int i=0;i<keys.length;i++) {
+                        Field key=privateFields.getDeclaredField(keys[i]);
+                        key.setAccessible(true);
+                        Object name=key.get(null);
+                        if(!(name instanceof String))throw new NoSuchFieldException();
+                        Field found=owners[i].getDeclaredField((String)name);
+                        if(found.getType()!=fieldTypes[i])
+                            throw new NoSuchFieldException();
+                        exactFields[i]=found;
+                    }
+                    NATIVE_RENDERER_EVIDENCE.setCurrentPlaybackPeriodFields(
+                        exactFields[0],exactFields[1],exactFields[2],exactFields[3],
+                        exactFields[4],exactFields[5],exactFields[6]);
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                        "PLAYER_PERIOD_AT_AUDIO_READ",true);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","PLAYER_PERIOD_AT_AUDIO_READ",
+                        "REGISTERED");
+                } catch(Throwable ignored) {
+                    NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                        "PLAYER_PERIOD_AT_AUDIO_READ",false);
+                    emit("AUDIO_NATIVE_RENDERER_HOOK","PLAYER_PERIOD_AT_AUDIO_READ",
+                        "NO_HOOK");
+                }
+
                 hook(currentPeriodEnable)
                     .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {

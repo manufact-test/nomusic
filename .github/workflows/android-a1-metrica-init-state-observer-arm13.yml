@@ -20,6 +20,7 @@ on:
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
       - 'android/native-yandex-hooklab/ci/test_a1_stage_b_audio_evidence.py'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
       - 'android/native-yandex-hooklab/ci/test_lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/device-audio-trial/**'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
@@ -216,6 +217,13 @@ jobs:
             --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
             --private-java "$period_target"
           test -s "$queue_target" && test -s "$period_target"
+          # NAV41: one extra private source name table, never checked into git.
+          player_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativePlayerPeriodTarget.java"
+          test ! -e "$player_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$player_target"
+          test -s "$player_target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
           python3 - <<'PY'
@@ -224,7 +232,7 @@ jobs:
           apk=Path("android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk")
           with ZipFile(apk) as z:
               dex=b"".join(z.read(x) for x in z.namelist() if x.startswith("classes") and x.endswith(".dex"))
-          for cls in (b"PrivateNativeQueueSlotTarget",b"PrivateNativeActivePeriodTarget",b"PrivateTcaTrackCreatorTarget"):
+          for cls in (b"PrivateNativeQueueSlotTarget",b"PrivateNativeActivePeriodTarget",b"PrivateNativePlayerPeriodTarget",b"PrivateTcaTrackCreatorTarget"):
               if cls not in dex: raise SystemExit("NAV39_REQUIRED_PRIVATE_TARGET_NOT_PACKAGED")
           print("NAV39_PRIVATE_TARGETS_PACKAGED")
           PY
@@ -291,4 +299,5 @@ jobs:
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateTcaTrackCreatorTarget.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeQueueSlotTarget.java
           rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeActivePeriodTarget.java
+          rm -f -- android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativePlayerPeriodTarget.java
           echo '{"publisher_source_published":false,"own_lab_apk_published":false,"owner_handset_touched":false,"acoustic_product_proven":false}'
