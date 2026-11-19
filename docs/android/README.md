@@ -1,6 +1,6 @@
 # CELIKOM Android A1 — documentation index
 
-**Current (19 Nov 2026):** NAV39 owner-signed APK + ZIP delivered in personal Library with full SHA-256, v2/v3 and byte-for-byte readback verification. All 3 CI SUCCESS. NAV38 owner phone proved exact creator Track may appear in Flow later (FEW); NAV39 restores previously omitted queue/live-source private hooks. Owner NAV39 TXT next. See NEXT-CHAT. The sole canonical live status is **[NEXT-CHAT.md](NEXT-CHAT.md)**.
+**Current (19 Nov 2026):** NAV39 real phone confirms restored strict live original audio source chain (MANY). NAV40 read-only exact creator tCa wrapper→Track later in Flow audit code/CI is pending. No NAV40 Library binary claimed yet. See NEXT-CHAT.
 
 ## Read in order
 0. [NAV38 phone → NAV39 restored live private targets](ANDROID-A1-NAV38-OWNER-PHONE-NAV39-RESTORE-LIVE-PRIVATE-TARGETS-20261119.md) — latest phone evidence and release gate.
