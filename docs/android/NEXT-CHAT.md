@@ -1,3 +1,19 @@
+# CURRENT — NAV40 owner evidence + exact signed SLOT_B writer census, CI GREEN (19 Nov 2026)
+
+**Sole working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Latest owner-signed **runtime** NAV40 unchanged `34cb32c88a11743a64c9f4814fa71957223a1391`, protected signed backup `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119`. Protected pre-static-audit backup `backup/android-a1-nav40-owner-phone-signed-slotb-pre-readonly-census-20261119` @ `86addd96de8af868ca9da41b14540d86b6e8505a`.
+
+**Real NAV40 owner-phone latest (19 Nov):** `CELIKOM-A1-Diagnostics-1795077619261.txt` confirms strict live original source + `LATE_FLOW_ALBUM_SAME=MANY`, negative 3 categories NONE; details below and [NAV40 phone report](ANDROID-A1-NAV40-OWNER-PHONE-LATE-FLOW-SAME-20261119.md). `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+**New exact signed ORIGINAL static proof:** added narrow fail-closed direct DEX writer census to existing `ci/exo_queue_slot_role_exact.py`, fixture tests. Across ALL SIX original signed DEX, exact `h.SLOT_B` field has exactly five direct `iput-object` write sites: engine `e.break` PCs **307/659** and queue `h.if` PC **12**, `h.while` PC **25**, `h.for` PC **35**. No other directly referenced DEX writers. New static code SHA `ea2dfb08092a4a468c6b7b8e6c98f74cc363b4d3`, [read-only CI #44494854641 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44494854641). Tests cover missing/extra/duplicate/shifted sites; original XAPK hash + publisher signature pinned by existing CI. No APK built, original Yandex untouched.
+
+**Critical distinction:** direct DEX writer census does **not** exclude reflective/native mutation; `e.break()` has TWO write sites, so method entry/exit ≠ exact field-write epoch. Runtime holder/same historical Track/Album identity still does not prove unique current selected edition or queue generation. Do not invent one or treat the new writer count as a NAV41 green light.
+
+**NEXT:** static only, branch-sensitive exact signed-original analysis of these five writer paths and current selected original Player-item / MediaPeriod sequence boundary. Only if safe uniquely provable propose minimal read-only NAV41 design; no production changes/Player/audio/decoder, no APK now.
+
+**Detailed new report:** [NAV40 signed SLOT_B five writers and next identity gate](ANDROID-A1-NAV40-SIGNED-SLOTB-DIRECT-WRITES-20261119.md).
+
+---
+
 # CURRENT — NAV40 owner phone CONFIRMED exact late Flow Album SAME; Stage B remains structural-only (19 Nov 2026)
 
 **Sole GitHub working branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Latest NAV40 signed **runtime/source unchanged** `34cb32c88a11743a64c9f4814fa71957223a1391`. Protected rollback `backup/android-a1-nav40-late-flow-live-wrapper-owner-signed-arm13-ci-green-20261119`. New changes are **documentation only**.
