@@ -92,8 +92,8 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
 
 
     def test_output_name_is_explicitly_versioned_nav41(self):
-        self.assertIn("NAV41", OUTPUT_NAME)
-        self.assertIn("Player-Period-SlotB-NonEos", OUTPUT_NAME)
+        self.assertIn("NAV42", OUTPUT_NAME)
+        self.assertIn("Period-EosUnknown-SlotB", OUTPUT_NAME)
 
 
 
