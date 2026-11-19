@@ -4,6 +4,7 @@ on:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
     paths:
       - 'android/native-yandex-hooklab/ci/a1_private_track_model_identity_annotation.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_track_id_api_provenance.py'
       - '.github/workflows/android-a1-track-model-id-edition-annotation.yml'
   workflow_dispatch:
 permissions:
@@ -49,6 +50,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/a1_private_track_model_identity_annotation.py \
+            --xapk "$RUNNER_TEMP/celikom-id-annotation/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Check exact signed 2025 trackId API and model-accessor route candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_track_id_api_provenance.py
+          python3 -B android/native-yandex-hooklab/ci/a1_private_track_id_api_provenance.py \
             --xapk "$RUNNER_TEMP/celikom-id-annotation/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Securely remove research input; no APK or runtime changes
         if: always()
