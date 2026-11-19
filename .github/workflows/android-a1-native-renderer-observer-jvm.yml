@@ -59,10 +59,12 @@ jobs:
           assert 'exitSecondaryCaller(' in src
           assert 'Class.forName("lQ8",false,loader)' in src
           assert 'rendererBase.getDeclaredMethod("super"' in src
-          assert 'NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY' in src
+          assert 'NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY' in src
           assert 'PrivateNativePlayerPeriodTarget' in src
           assert 'PrivateNativeCurrentMediaItemTarget' in src
           assert 'CURRENT_MEDIAITEM_SOURCE' in model
+          assert 'CURRENT_MEDIAITEM_LOGICAL_ID' in model
+          assert 'PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_MATCH' in model
           assert 'PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF' in model
           assert 'setCurrentPlaybackPeriodFields(' in src
           assert 'PLAYER_PERIOD_AT_READ_UID_AND_INDEX_MATCH' in model
