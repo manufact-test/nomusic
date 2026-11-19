@@ -1,3 +1,11 @@
+# CURRENT 19.11.2026 — signed 2025 FileInfo API TrackID route: no proven active Track/source/edition
+
+**Новая узкая исходная проверка закончена:** [ANDROID-A1-NAV45-SIGNED-FILEINFO-TRACKID-API-ORIGIN-20261119.md](ANDROID-A1-NAV45-SIGNED-FILEINFO-TRACKID-API-ORIGIN-20261119.md). [CI #44569443742 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44569443742). В настоящем signed Yandex 2025 FileInfoApi и DownloadInfoApi имеют `trackId`-аннотированный параметр (по 1 direct callsite), но его источник в API — отдельное String поле; один точный field writer получает параметр String; у него 21 inbound caller, включая структурные Track.String candidates, **0** доказанных same-formal-Track receiver paths. Поэтому semantic `trackId` API подтверждён, его принадлежность нынешнему Track/active SLOT_B/source и редакции **нет**. `Album.if()` String не удостоверен как albumId, `Track.super()` String не удостоверен как trackId. Нельзя выдавать за рабочую подмену.
+
+**Никакого нового owner APK нет:** это были две CI-only static Python проверки + docs, исходный звук/архитектура/подписанные NAV40/NAV45/Test.50/Windows не изменялись. `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`. Не запускать ещё одну серию MediaItem, Album String или широких DEX-сканов ради искусственного прогресса. Разрешён только same-original-source+edition+generation доказанный шаг.
+
+---
+
 # CURRENT 19.11.2026 — после NAV45: подписанный семантический Track/Album identity NO-GO
 
 **Точечный источник проверен, приложение НЕ пересобирали.** Оригинальный publisher-signed Yandex 2025.10.4 #120.1gpr (16 verified splits, six DEX), exact Track `ru.yandex.music.data.audio.o` (51 instance fields) и Album (37 fields) проверены по **четырём явно разрешённым сериализационным аннотациям** на instance fields и ctor parameters. Не найдено доказанных `trackId`, `albumId`, `editionId` через эти аннотации. [Статический CI #44562209490 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44562209490); отчёт: [ANDROID-A1-NAV45-SIGNED-TRACK-ALBUM-ANNOTATION-NO-GO-20261119.md](ANDROID-A1-NAV45-SIGNED-TRACK-ALBUM-ANNOTATION-NO-GO-20261119.md). Отсутствие этих аннотаций **не означает** отсутствия ID в оригинальной модели вообще. При этом копируемый `long` и `Ldjv.a()` не аттестованы как ID в актуальном original source.
