@@ -513,6 +513,88 @@ def inspect_exact_renderer_stream_contract(stream_methods,stream_classes):
             "exact_bounded_stream_method_contracts":rows,
             "stream_attached_to_live_decoder_proven":False}
 
+
+# NAV40 owner-phone follow-up: enumerate ALL direct DEX iput-object writes
+# to the one publisher-signed h.SLOT_B field, not just the old bounded
+# queue/engine method list. No private field names or values leave this audit.
+# This direct-bytecode census does NOT rule out reflective/native mutations
+# and does NOT attest currently selected Track/edition/queue generation.
+SIGNED_SLOT_B_DIRECT_WRITES=frozenset({
+    (ENGINE[0],"break","()V",307),
+    (ENGINE[0],"break","()V",659),
+    (QUEUE,"for","()V",35),
+    (QUEUE,"if","()Lxh6;",12),
+    (QUEUE,"while","(Lxh6;)I",25),
+})
+
+def validate_signed_slot_b_direct_writes(rows):
+    """Fail closed on any missing, extra, duplicated or shifted write site."""
+    if len(rows)!=len(set(rows)) or frozenset(rows)!=SIGNED_SLOT_B_DIRECT_WRITES:
+        raise ValueError("QUEUE_SIGNED_SLOT_B_DIRECT_WRITES_CHANGED")
+    return {
+        "publisher_base_direct_iput_object_site_count":len(rows),
+        "bounded_exact_site_proven":True,
+        "reflective_or_native_mutations_excluded":False,
+        "currently_selected_track_or_queue_epoch_proven":False,
+    }
+
+def signed_slot_b_direct_writer_census(apks,field):
+    """Read all method bodies in exactly six signed original DEX files.
+
+    Identify the same field only using exact owner/name/descriptor internally.
+    Scan only actual opcode-boundary iput-object 0x5b, never raw byte matches.
+    Do not export the private field name, Dex strings or user/media values.
+    """
+    rows=[]
+    dex_seen=0
+    dex_with_field=0
+    for apk in apks:
+        with zipfile.ZipFile(apk) as archive:
+            for entry in archive.infolist():
+                if not re.fullmatch(r"classes[0-9]*\.dex",entry.filename):
+                    continue
+                if entry.file_size>audit.DEX_MAX:
+                    raise ValueError("QUEUE_WRITER_DEX_LIMIT")
+                dex=audit.Dex(archive.read(entry.filename))
+                dex_seen+=1
+                field_count,_=dex.table(80,8)
+                ids={i for i in range(field_count)
+                     if audit.field_id(dex,i)==field}
+                if not ids:
+                    continue
+                dex_with_field+=1
+                for method,_flags,code_off in audit.method_definitions_with_flags(dex):
+                    units=dex.u32(code_off+12)
+                    if units>3_000_000:
+                        raise ValueError("QUEUE_WRITER_CODE_LIMIT")
+                    # Fast negative test only. Every candidate is then parsed
+                    # with the established fail-closed opcode-boundary iterator.
+                    start=code_off+16
+                    dex.bounds(start,units*2)
+                    if b"\x5b" not in bytes(dex.data[start:start+units*2]):
+                        continue
+                    for pc,op,words in audit.instructions(dex,code_off):
+                        if op==0x5b and words[1] in ids:
+                            rows.append((*method,pc))
+                            if len(rows)>len(SIGNED_SLOT_B_DIRECT_WRITES):
+                                raise ValueError("QUEUE_WRITER_EXTRA_DIRECT_SITE")
+    if dex_seen!=6 or dex_with_field!=1:
+        raise ValueError("QUEUE_WRITER_SIGNED_DEX_COHORT_CHANGED")
+    return {
+        **validate_signed_slot_b_direct_writes(rows),
+        "publisher_dex_scanned":dex_seen,
+        "publisher_dex_referencing_exact_slot_b":dex_with_field,
+        "writer_sites":sorted(
+            {"scope":"engine" if row[0]==ENGINE[0] else "queue",
+             "pc":row[3], "operation":"IPUT_OBJECT_EXACT_SLOT_B"}
+            for row in rows
+        ) if False else [
+            {"scope":"engine" if owner==ENGINE[0] else "queue",
+             "pc":pc, "operation":"IPUT_OBJECT_EXACT_SLOT_B"}
+            for owner,_name,_sig,pc in sorted(rows)
+        ],
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -602,6 +684,10 @@ def scan_signed(apks):
         verify_renderer_attached_stream_comparator(method,targets[method])
         for method in sorted(RENDERER_HELPER_METHODS)
     ]
+    exact_slot_b=next((f for f,label in slot_ids.items()
+                       if label=="SLOT_B"),None)
+    if exact_slot_b is None:raise ValueError("QUEUE_SIGNED_SLOT_B_UNRESOLVED")
+    direct_slot_b_writers=signed_slot_b_direct_writer_census(apks,exact_slot_b)
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
     renderer_helper_flow=scoped_front_to_renderer_helper(
@@ -611,6 +697,7 @@ def scan_signed(apks):
         "exact_renderer_stream_comparisons":exact_renderer_stream_comparisons,
         "exact_renderer_helper_inspection":renderer_helper_inspection,
         "exact_queue_front_successor":front_successor,
+        "exact_signed_slot_b_direct_writer_census":direct_slot_b_writers,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,
         "bounded_queue_register_microtraces":microtraces,
