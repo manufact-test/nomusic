@@ -1401,6 +1401,8 @@ def signed_period_id_constructor_site_census(apks):
 # Original Player selected-item/timeline candidate map. Intentional discovery
 # only: structural typed references in exact signed methods; no instance data
 # and no inference that a period is audible/current.
+ENGINE_PERIOD_TIMELINE_TRANSITION=("Landroidx/media3/exoplayer/e;","I",
+    "(LTva;LSl6$b;LTva;LSl6$b;JZ)V")
 PLAYER_STATE_RESOLVE=("Landroidx/media3/exoplayer/d;","M0",
     "(LCD7;LTva;Landroid/util/Pair;)LCD7;")
 PLAYBACK_INFO="LCD7;"
@@ -1637,6 +1639,45 @@ def verify_signed_player_info_front_UID_comparison(targets):
         "selected_track_edition_or_unique_generation_proven":False,
     }
 
+
+def inspect_signed_engine_period_timeline_transition(targets):
+    """Only exact e.I method and four original e.break argument handoffs."""
+    if ENGINE_PERIOD_TIMELINE_TRANSITION not in targets:
+        raise ValueError("PERIOD_TIMELINE_EXACT_TRANSITION_MISSING")
+    caller=targets[ENGINE]
+    callee=targets[ENGINE_PERIOD_TIMELINE_TRANSITION]
+    d,flags,off=callee
+    e,eflags,eoff=caller
+    ins={pc:(op,w) for pc,op,w in audit.instructions(e,eoff)}
+    expected={
+        673:(0x54,5),677:(0x54,6),681:(0x54,1),
+        686:(0x07,2),687:(0x07,4),688:(0x07,1),
+        699:(0x07,3),711:(0x74,None),
+    }
+    # PC711 may use invoke-direct /range. Check opcode from signed origin
+    # instead of forcing guessed instruction format.
+    for pc,(op,reg) in expected.items():
+        row=ins.get(pc)
+        if row is None or (pc!=711 and row[0]!=op):
+            raise ValueError("PERIOD_TIMELINE_CALLSITE_REGISTER_OR_OPCODE_DRIFT")
+        if reg is not None and ((row[1][0]>>8)&15)!=reg:
+            raise ValueError("PERIOD_TIMELINE_EXPECTED_REGISTER_CHANGED")
+    callop,words=ins[711]
+    if callop not in audit.INVOKES or e.method(words[1])!=ENGINE_PERIOD_TIMELINE_TRANSITION:
+        raise ValueError("PERIOD_TIMELINE_EXACT_CALLEE_CHANGED")
+    regs=audit.invoke_registers(callop,words)
+    if len(regs)!=8:
+        raise ValueError("PERIOD_TIMELINE_ARGUMENT_WORD_COUNT_DRIFT")
+    return {
+        "signed_method":list(ENGINE_PERIOD_TIMELINE_TRANSITION),
+        "engine_callsite_pc":711,
+        "engine_call_argument_registers":regs,
+        "original_e_I_bounded_method":signed_selector_window(
+            d,ENGINE_PERIOD_TIMELINE_TRANSITION,flags,off,((0,260),)),
+        "timeline_qualified_current_selected_track_proven":False,
+        "synchronous_original_player_to_started_audio_read_proven":False,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -1659,7 +1700,7 @@ def scan_signed(apks):
                     parent=(dex.descriptor(parent_idx) if parent_idx!=0xffffffff else None)
                     stream_classes[name]={"extends":parent,"access_flags":dex.u32(cbase+4)}
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,PLAYER_STATE_RESOLVE):
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE,PLAYER_STATE_RESOLVE,ENGINE_PERIOD_TIMELINE_TRANSITION):
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
@@ -1736,6 +1777,7 @@ def scan_signed(apks):
     player_selection_scout=signed_player_timeline_candidate(targets)
     state_field_correspondence=signed_selected_state_field_correspondence(targets)
     player_front_uid_comparison=verify_signed_player_info_front_UID_comparison(targets)
+    timeline_transition_scout=inspect_signed_engine_period_timeline_transition(targets)
     state_engine_identity_window=signed_engine_state_identity_window(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
@@ -1758,6 +1800,7 @@ def scan_signed(apks):
         "exact_original_player_timeline_candidate_scout":player_selection_scout,
         "exact_player_state_field_correspondence":state_field_correspondence,
         "exact_original_player_front_UID_equals_boundary":player_front_uid_comparison,
+        "exact_engine_period_timeline_transition_scout":timeline_transition_scout,
         "engine_selected_state_bounded_region":state_engine_identity_window,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,

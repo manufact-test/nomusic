@@ -600,4 +600,34 @@ class SignedPlayerFrontUIDEqualsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"PLAYER_FRONT_IDENTITY_"):
                     self._prove(case)
 
+
+class SignedEnginePeriodTimelineTransitionTests(unittest.TestCase):
+    def test_exact_callsite_rejects_missing_and_wrong_target(self):
+        from exo_queue_slot_role_exact import (
+            inspect_signed_engine_period_timeline_transition,
+            ENGINE,ENGINE_PERIOD_TIMELINE_TRANSITION,audit)
+        from unittest.mock import patch
+        class FakeDex:
+            def __init__(self,target):self.target=target
+            def method(self,index):return self.target
+        bad={"missing":False,"wrong":True}
+        for variant in bad:
+            rows=[
+                (673,0x54,(0x0554,1)),(677,0x54,(0x0654,2)),
+                (681,0x54,(0x0154,3)),(686,0x07,(0x0207,)),
+                (687,0x07,(0x0407,)),(688,0x07,(0x0107,)),
+                (699,0x07,(0x0307,)),(711,0x76,(0x0876,5,0)),
+            ]
+            if variant=="missing":rows=[x for x in rows if x[0]!=711]
+            engine=FakeDex(("Lbogus;","notIt","()V") if variant=="wrong"
+                           else ENGINE_PERIOD_TIMELINE_TRANSITION)
+            transition=FakeDex(None)
+            targets={ENGINE:(engine,0,1),
+                     ENGINE_PERIOD_TIMELINE_TRANSITION:(transition,0,2)}
+            with patch.object(audit,"instructions",side_effect=lambda d,off:rows if off==1 else []), \
+                 patch.object(audit,"invoke_registers",return_value=[0]*8):
+                with self.subTest(variant=variant):
+                    with self.assertRaisesRegex(ValueError,"PERIOD_TIMELINE_"):
+                        inspect_signed_engine_period_timeline_transition(targets)
+
 if __name__=="__main__": unittest.main()
