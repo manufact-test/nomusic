@@ -1676,6 +1676,132 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(e.exportLines(),"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK;error=ONE"),
               "NAV36_ORIGINAL_LIVE_SOURCE_GUARD");
     }
+
+    private static final class Nav41Id {
+        final Object uid; final int first; final int second;
+        Nav41Id(Object uid,int first,int second){
+            this.uid=uid;this.first=first;this.second=second;
+        }
+    }
+    private static final class Nav41Info {
+        Nav41Id currentId;
+        Nav41Info(Nav41Id id){currentId=id;}
+    }
+    private static final class Nav41HolderInfo {
+        Nav41Id id;
+        Nav41HolderInfo(Nav41Id value){id=value;}
+    }
+    private static final class Nav41Holder {
+        Nav41HolderInfo info;
+        final Object[] streams;
+        Nav41Holder(Nav41Id id,Object stream){
+            info=new Nav41HolderInfo(id);streams=new Object[]{stream};
+        }
+    }
+    private static final class Nav41Queue {
+        Nav41Holder slotB;
+        Nav41Queue(Nav41Holder value){slotB=value;}
+    }
+    private static final class Nav41Engine {
+        Nav41Queue queue;
+        Nav41Info playback;
+        Nav41Engine(Nav41Holder holder,Nav41Id id){
+            queue=new Nav41Queue(holder);playback=new Nav41Info(id);
+        }
+    }
+    private static void nav41Setup(NativeRendererStreamEvidence e) {
+        try {
+            e.setEngineHolderStreamArrayField(
+                Nav41Holder.class.getDeclaredField("streams"));
+            e.onHookRegistration("ENGINE_HOLDER_SCOPE",true);
+            e.onHookRegistration("SECONDARY_CALLER",true);
+            e.onHookRegistration("RENDERER_TYPE_STATE_ACCESS",true);
+            e.setLiveQueueSlotFields(Nav41Engine.class.getDeclaredField("queue"),
+                Nav41Queue.class.getDeclaredField("slotB"));
+            e.onHookRegistration("LIVE_QUEUE_SLOT_B",true);
+            e.setCurrentPlaybackPeriodFields(
+                Nav41Engine.class.getDeclaredField("playback"),
+                Nav41Info.class.getDeclaredField("currentId"),
+                Nav41Holder.class.getDeclaredField("info"),
+                Nav41HolderInfo.class.getDeclaredField("id"),
+                Nav41Id.class.getDeclaredField("uid"),
+                Nav41Id.class.getDeclaredField("first"),
+                Nav41Id.class.getDeclaredField("second"));
+            e.onHookRegistration("PLAYER_PERIOD_AT_AUDIO_READ",true);
+        } catch(ReflectiveOperationException ex){throw new AssertionError(ex);}
+    }
+    private static void nav41Attach(NativeRendererStreamEvidence e,
+            Nav41Engine engine,Nav41Holder holder,Object renderer,Object stream) {
+        NativeRendererStreamEvidence.EngineFrame f=e.enterEngine(engine,holder);
+        NativeRendererStreamEvidence.CallerFrame c=e.enterSecondaryCaller(renderer,stream);
+        try{e.onAttach(renderer,stream);}
+        finally{e.exitSecondaryCaller(c);e.exitEngine(f);}
+    }
+    private static void testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        Object uid=new Object(),stream=new Object(),renderer=new Object();
+        Nav41Id current=new Nav41Id(uid,-1,3);
+        Nav41Holder h=new Nav41Holder(current,stream);
+        Nav41Engine engine=new Nav41Engine(h,current);
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_SAME_REFERENCE;error=ONE"),
+            "NAV41_READ_EXACT_SAME_ID_REFERENCE");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+            "NAV41_NO_FALSE_SELECTED_ITEM");
+        // EOS, not sample, non-audio and a changed live slot must not count.
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.TRUE);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-3,Boolean.FALSE);
+        e.onRendererTypeStateRead(renderer,stream,2,2,-4,Boolean.FALSE);
+        engine.queue.slotB=new Nav41Holder(current,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_SAME_REFERENCE;error=ONE"),
+            "NAV41_INELIGIBLE_PATH_NOT_COUNTED");
+    }
+    private static void testNav41RejectUidOnlyAndOldPeriodSameUidNotEdition() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav41Setup(e);
+        Object uid=new Object(),stream=new Object(),renderer=new Object();
+        Nav41Holder h=new Nav41Holder(new Nav41Id(uid,-1,5),stream);
+        Nav41Engine engine=new Nav41Engine(h,new Nav41Id(uid,-1,5));
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_UID_AND_INDEX_MATCH;error=ONE"),
+            "NAV41_EQUAL_VALUES_NOT_GENERATION");
+        engine.playback.currentId=new Nav41Id(uid,-1,6);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_UID_ONLY;error=ONE"),
+            "NAV41_REPLAY_OR_STALE_ID_UID_ONLY");
+        engine.playback.currentId=new Nav41Id(new Object(),-1,5);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_DIFFERENT;error=ONE"),
+            "NAV41_OLD_OR_NEXT_PERIOD_DIFFERENT");
+        engine.playback.currentId=null;
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_UNAVAILABLE;error=ONE"),
+            "NAV41_NULL_FAILS_CLOSED");
+        for(String line:e.exportLines()) {
+            check(!line.contains("uid@") && !line.contains("Nav41Id@"),
+                "NAV41_NO_PRIVATE_OBJECT_ID_EXPORT");
+        }
+    }
+    private static void testNav41NoFieldsOrNoActiveSlotCannotProduceMatch() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object uid=new Object(),stream=new Object(),renderer=new Object();
+        Nav41Id current=new Nav41Id(uid,-1,1);
+        Nav41Holder h=new Nav41Holder(current,stream);
+        Nav41Engine engine=new Nav41Engine(h,current);
+        nav41Setup(e);
+        e.onHookRegistration("PLAYER_PERIOD_AT_AUDIO_READ",false);
+        nav41Attach(e,engine,h,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_READ_SAME_REFERENCE;error=NONE"),
+              "NAV41_NO_UNREGISTERED_POSITIVE");
+        check(contains(e.exportLines(),"origin=PLAYER_PERIOD_AT_AUDIO_READ;error=NO_HOOK"),
+              "NAV41_MISSING_REGISTRATION_EXPLICIT");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -1744,6 +1870,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav38CreatorTrackLaterFlowExactIdentity();
         testNav40ExactLaterFlowUnderLiveOriginalSource();
         testNav36ConstructorWitnessCannotCrossWrongSource();
+        testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod();
+        testNav41RejectUidOnlyAndOldPeriodSameUidNotEdition();
+        testNav41NoFieldsOrNoActiveSlotCannotProduceMatch();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

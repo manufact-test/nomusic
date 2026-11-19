@@ -203,6 +203,94 @@ final class NativeRendererStreamEvidence {
     private Field engineHolderStreamArrayField;
     private Field engineQueueField,queueSlotBField;
     private final ArrayList<LiveQueueLink> liveQueueLinks=new ArrayList<>();
+
+    // NAV41 candidate, no vendor mutation: exact publisher e.PlaybackInfo
+    // current-period ID versus the already verified live SLOT_B period ID,
+    // sampled only on the *same* non-EOS (-4) renderer read.
+    // This never declares selected MediaItem, audible PCM or queue generation.
+    private Field currentEnginePlaybackInfoField,currentPlaybackIdField;
+    private Field currentHolderInfoField,currentHolderIdField;
+    private Field currentPeriodUidField,currentPeriodFirstIntField,currentPeriodSecondIntField;
+    private int currentPeriodAtReadHook,currentPeriodSameReferenceAtRead;
+    private int currentPeriodUidAndIntsAtRead,currentPeriodUidOnlyAtRead;
+    private int currentPeriodDifferentAtRead,currentPeriodUnavailableAtRead;
+
+    synchronized void setCurrentPlaybackPeriodFields(
+            Field engineInfo,Field playbackId,Field holderInfo,Field holderId,
+            Field uid,Field first,Field second) {
+        if(engineInfo==null || playbackId==null || holderInfo==null
+                || holderId==null || uid==null || first==null || second==null
+                || engineInfo.getType()!=playbackId.getDeclaringClass()
+                || holderInfo.getType()!=holderId.getDeclaringClass()
+                || playbackId.getType()!=holderId.getType()
+                || uid.getDeclaringClass()!=playbackId.getType()
+                || first.getDeclaringClass()!=playbackId.getType()
+                || second.getDeclaringClass()!=playbackId.getType()
+                || uid.getType()!=Object.class
+                || first.getType()!=int.class || second.getType()!=int.class
+                || first.equals(second))
+            throw new IllegalArgumentException("Exact signed PlaybackInfo/holder PeriodID fields required");
+        for(Field f:new Field[]{engineInfo,playbackId,holderInfo,holderId,uid,first,second})
+            f.setAccessible(true);
+        currentEnginePlaybackInfoField=engineInfo;
+        currentPlaybackIdField=playbackId;
+        currentHolderInfoField=holderInfo;
+        currentHolderIdField=holderId;
+        currentPeriodUidField=uid;
+        currentPeriodFirstIntField=first;
+        currentPeriodSecondIntField=second;
+    }
+
+    private void observeCurrentPlaybackPeriodAtRead(Object engine,Object holder) {
+        if(currentPeriodAtReadHook<=0 || currentEnginePlaybackInfoField==null
+                || engine==null || holder==null)return;
+        try {
+            Object info=currentEnginePlaybackInfoField.get(engine);
+            Object holderInfo=currentHolderInfoField.get(holder);
+            if(info==null || holderInfo==null) {
+                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                return;
+            }
+            Object playbackId=currentPlaybackIdField.get(info);
+            Object activeId=currentHolderIdField.get(holderInfo);
+            if(playbackId==null || activeId==null) {
+                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                return;
+            }
+            Object playerUid=currentPeriodUidField.get(playbackId);
+            Object holderUid=currentPeriodUidField.get(activeId);
+            int playerFirst=currentPeriodFirstIntField.getInt(playbackId);
+            int holderFirst=currentPeriodFirstIntField.getInt(activeId);
+            int playerSecond=currentPeriodSecondIntField.getInt(playbackId);
+            int holderSecond=currentPeriodSecondIntField.getInt(activeId);
+            // Reject replaced PlaybackInfo, holder info or MediaPeriodId during
+            // sampling; immutable identity alone is not a generation stamp.
+            if(currentEnginePlaybackInfoField.get(engine)!=info
+                    || currentHolderInfoField.get(holder)!=holderInfo
+                    || currentPlaybackIdField.get(info)!=playbackId
+                    || currentHolderIdField.get(holderInfo)!=activeId
+                    || currentPeriodUidField.get(playbackId)!=playerUid
+                    || currentPeriodUidField.get(activeId)!=holderUid
+                    || currentPeriodFirstIntField.getInt(playbackId)!=playerFirst
+                    || currentPeriodFirstIntField.getInt(activeId)!=holderFirst
+                    || currentPeriodSecondIntField.getInt(playbackId)!=playerSecond
+                    || currentPeriodSecondIntField.getInt(activeId)!=holderSecond) {
+                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                return;
+            }
+            if(playbackId==activeId)currentPeriodSameReferenceAtRead=
+                inc(currentPeriodSameReferenceAtRead);
+            else if(playerUid!=null && playerUid==holderUid
+                    && playerFirst==holderFirst && playerSecond==holderSecond)
+                currentPeriodUidAndIntsAtRead=inc(currentPeriodUidAndIntsAtRead);
+            else if(playerUid!=null && playerUid==holderUid)
+                currentPeriodUidOnlyAtRead=inc(currentPeriodUidOnlyAtRead);
+            else currentPeriodDifferentAtRead=inc(currentPeriodDifferentAtRead);
+        } catch(Throwable ignored) {
+            currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+        }
+    }
+
     private int liveQueueSlotHook,queueSlotAttachSame,queueSlotAttachOther;
     private int queueSlotAttachUnavailable,queueSlotReadSame,queueSlotReadOther;
     private int queueSlotReadUnavailable,queueSlotReadMinus4;
@@ -776,6 +864,7 @@ final class NativeRendererStreamEvidence {
             case "SECONDARY_CALLER": secondaryCallerHook=status; break;
             case "ENGINE_HOLDER_SCOPE": engineScopeHook=status; break;
             case "LIVE_QUEUE_SLOT_B": liveQueueSlotHook=status; break;
+            case "PLAYER_PERIOD_AT_AUDIO_READ": currentPeriodAtReadHook=status; break;
             case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
             case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
             case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
@@ -1152,6 +1241,8 @@ final class NativeRendererStreamEvidence {
             if(fresh==1) {
                 queueSlotReadSame=inc(queueSlotReadSame);
                 if(originalResult==-4)queueSlotReadMinus4=inc(queueSlotReadMinus4);
+                if(originalResult==-4 && Boolean.FALSE.equals(endOfStream))
+                    observeCurrentPlaybackPeriodAtRead(live.engine.get(),live.holder.get());
                 // Only on independently proven same holder + live SLOT_B
                 // + started audio stream, never on merely prepared periods.
                 observeActivePeriodSource(live.holder.get());
@@ -1246,6 +1337,7 @@ final class NativeRendererStreamEvidence {
             registrationLine("SECONDARY_CALLER",secondaryCallerHook),
             registrationLine("ENGINE_HOLDER_SCOPE",engineScopeHook),
             registrationLine("LIVE_QUEUE_SLOT_B",liveQueueSlotHook),
+            registrationLine("PLAYER_PERIOD_AT_AUDIO_READ",currentPeriodAtReadHook),
             registrationLine("TRACK_PLAYER_SOURCE_SCOPE",trackPlayerScopeHook),
             registrationLine("NATIVE_PLAYER_SOURCE_SETTER",nativeSourceSetterHook),
             registrationLine("LIVE_PERIOD_ORIGINAL_SOURCE",livePeriodSourceHook),
@@ -1286,6 +1378,11 @@ final class NativeRendererStreamEvidence {
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_OTHER",queueSlotReadOther),
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_UNAVAILABLE",queueSlotReadUnavailable),
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MINUS4",queueSlotReadMinus4),
+            line("PLAYER_PERIOD_AT_READ_SAME_REFERENCE",currentPeriodSameReferenceAtRead),
+            line("PLAYER_PERIOD_AT_READ_UID_AND_INDEX_MATCH",currentPeriodUidAndIntsAtRead),
+            line("PLAYER_PERIOD_AT_READ_UID_ONLY",currentPeriodUidOnlyAtRead),
+            line("PLAYER_PERIOD_AT_READ_DIFFERENT",currentPeriodDifferentAtRead),
+            line("PLAYER_PERIOD_AT_READ_UNAVAILABLE",currentPeriodUnavailableAtRead),
             line("TRACK_PLAYER_SOURCE_SCOPE_ENTER",trackPlayerScopeEnter),
             line("TRACK_PLAYER_SOURCE_SAME_SCOPE",playerSourceSameScope),
             line("TRACK_PLAYER_SOURCE_UNSCOPED",playerSourceUnscoped),
