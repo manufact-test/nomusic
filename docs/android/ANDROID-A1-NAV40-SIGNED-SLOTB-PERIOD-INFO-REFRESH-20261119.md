@@ -41,7 +41,7 @@ Constructor anchors verified with exact field owner/type, opcode and parameterâ†
 
 Therefore **same SLOT_B holder can carry a replaced period-info** and **same period-id Java reference can survive period-info refresh**. The long J is a real typed constructor field but its role as unique monotonic playback epoch is **NOT proven**. Never promote this period-id or J to currently selected edition/generation just because it exists. The right check would compare the **exact current per-read holder+period-info+period-id** against an independently proven original Player selected item/sequence boundary.
 
-Pinned private research binary never exported. CI [#44500003305 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44500003305) on exact signed-original proof source `11121607d094f348e7ece432217f1775455a9417`. Synthetic negative fixtures guard direct member-writer categories; separate cloned-info register-guard tests added afterward.
+Pinned private research binary never exported. **Final tested static source** `5f057390503fa76f53e55cd2643897f815676349`; [CI #44500312807 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44500312807), **10/10 tests passed**, including negative wrong-register, wrong-branch, changed constructor/writer, wrong cloned period ID, and overwritten clone reference cases. Exact verified signed-original result: holder-info writes `8`, period-infoâ†’ID writes `1`, ID long writes `1`, holder refresh reuses same Java ID, selection/epoch `false`. Protected exact static code backup `backup/android-a1-nav40-signed-slotb-period-info-readonly-ci-green-20261119`.
 
 ## Stage B safety & next
 
