@@ -278,6 +278,12 @@ final class NativeRendererStreamEvidence {
                 currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
                 return;
             }
+            // The queue pointer may move while fields are sampled.
+            // Never count a stale holder after the second live-slot check.
+            if(liveQueueSlotMatches(engine,holder)!=1) {
+                currentPeriodUnavailableAtRead=inc(currentPeriodUnavailableAtRead);
+                return;
+            }
             if(playbackId==activeId)currentPeriodSameReferenceAtRead=
                 inc(currentPeriodSameReferenceAtRead);
             else if(playerUid!=null && playerUid==holderUid
