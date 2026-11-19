@@ -311,7 +311,7 @@ class SignedQueueWideRegisterShapeTests(unittest.TestCase):
         self.assertEqual(shape(6,0x06,(0x0006,18,21)),
                          {"pc":6,"kind":"MOVE_WIDE_16","dest":18,"source":21})
         self.assertEqual(shape(7,0x53,(0x2153,999)),
-                         {"pc":7,"kind":"IGET_WIDE","dest":33})
+                         {"pc":7,"kind":"IGET_WIDE","dest":1})
         self.assertEqual(shape(8,0x16,(0x0416,1234)),
                          {"pc":8,"kind":"CONST_WIDE_16","dest":4})
         self.assertIsNone(shape(9,0x70,(0x0070,10,0)))
