@@ -591,6 +591,120 @@ def signed_slot_b_direct_writer_census(apks,field):
         ],
     }
 
+
+# NAV40 exact signed-original five-writer *local* reference provenance.
+# Never interpret same-reference register flow as a queue epoch, current
+# selected edition, or a player/decoder replacement admission.
+def verify_signed_slot_b_local_provenance(targets,slots):
+    """Pinned-Dex instruction-site / branch-guard proof, fail closed.
+
+    The verifier intentionally states LOCAL same-register relationships.
+    It does not claim whole-program CFG dominance, runtime execution of the
+    branch, absence of native/reflection writes or selected MediaItem.
+    """
+    a=targets[ENGINE]
+    b=targets[(QUEUE,"if","()Lxh6;")]
+    c=targets[(QUEUE,"while","(Lxh6;)I")]
+    d=targets[(QUEUE,"for","()V")]
+    def view(entry):
+        dex,_flags,off=entry
+        return dex,{pc:(op,w) for pc,op,w in audit.instructions(dex,off)}
+    engine,e=view(a);advance,h=view(b);append,q=view(c);clear,z=view(d)
+    rev={name:field for field,name in slots.items()}
+    for slot in ("SLOT_A","SLOT_B","SLOT_C","SLOT_D"):
+        if slot not in rev:raise ValueError("SLOT_B_PROVENANCE_SLOT_MISSING")
+    def site(dex,ins,pc,opcode,field=None):
+        actual=ins.get(pc)
+        if actual is None or actual[0]!=opcode:
+            raise ValueError("SLOT_B_PROVENANCE_OPCODE_DRIFT")
+        op,w=actual
+        if field is not None and audit.field_id(dex,w[1])!=field:
+            raise ValueError("SLOT_B_PROVENANCE_FIELD_DRIFT")
+        return w
+    def registers(w):
+        return ((w[0]>>8)&15,(w[0]>>12)&15)
+    def require(condition):
+        if not condition:raise ValueError("SLOT_B_PROVENANCE_REGISTER_OR_BRANCH_DRIFT")
+    def holder_next(dex,ins,pc):
+        w=site(dex,ins,pc,0x54)
+        field=audit.field_id(dex,w[1])
+        require(field[0]==HOLDER and field[2]==HOLDER)
+        return field,registers(w)
+    def branch_to(ins,at_pc,destination):
+        # Exact 22t if-ne: verify the branch skips the STORE path;
+        # comparison semantics stay restricted to this DEX opcode.
+        w=site(None,ins,at_pc,0x33)
+        offset=w[1] if w[1]<0x8000 else w[1]-0x10000
+        require(at_pc+offset==destination)
+        return registers(w)
+
+    # e.break 305/307/309/313: one exact local holder register is
+    # installed in A, B, C, D without any intervening register writes.
+    init=[site(engine,e,pc,0x5b,rev[slot])
+          for pc,slot in ((305,"SLOT_A"),(307,"SLOT_B"),
+                          (309,"SLOT_C"),(313,"SLOT_D"))]
+    require(len({registers(w) for w in init})==1)
+    require(site(engine,e,311,0x5b) is not None)  # field store, no register overwrite
+    # e.break 652 → 657 → 659: exact prior B holder's typed
+    # successor is stored back to B with the same receiver.
+    b_read=registers(site(engine,e,652,0x54,rev["SLOT_B"]))
+    _,next_engine=holder_next(engine,e,657)
+    b_store=registers(site(engine,e,659,0x5b,rev["SLOT_B"]))
+    require(b_read[0]==next_engine[0]==next_engine[1]==b_store[0])
+    require(b_read[1]==b_store[1])
+    site(engine,e,654,0x71) # invoke-static, cannot overwrite local DEX register
+
+    # h.if 6/8/10/12: if old front equals B, update B to that
+    # front's exact typed successor. The unequal branch jumps over store.
+    front=registers(site(advance,h,0,0x54,rev["SLOT_A"]))
+    b_old=registers(site(advance,h,6,0x54,rev["SLOT_B"]))
+    comparison=branch_to(h,8,14)
+    successor_field,succ=holder_next(advance,h,10)
+    saved=registers(site(advance,h,12,0x5b,rev["SLOT_B"]))
+    require(set(comparison)=={front[0],b_old[0]})
+    require(succ==(b_old[0],front[0]))
+    require(saved==(succ[0],b_old[1]))
+    # h.if 49/51/53 original front advance uses same exact holder
+    # successor, not merely same declared field type.
+    _,front_next=holder_next(advance,h,51)
+    require(audit.field_id(advance,h[51][1][1])==successor_field)
+    require(front_next==(registers(site(advance,h,49,0x54,rev["SLOT_A"]))[0],)*2)
+    require(registers(site(advance,h,53,0x5b,rev["SLOT_A"]))[0]==front_next[0])
+    require(audit.field_id(engine,e[657][1][1])==successor_field)
+
+    # h.while 19/21/23/25: conditional B -> A reference assignment;
+    # comparing old B with successor does NOT establish selected edition.
+    old_b=registers(site(append,q,19,0x54,rev["SLOT_B"]))
+    guard=branch_to(q,21,30)
+    src_a=registers(site(append,q,23,0x54,rev["SLOT_A"]))
+    dst_b=registers(site(append,q,25,0x5b,rev["SLOT_B"]))
+    require(old_b[1]==src_a[1]==dst_b[1])
+    require(src_a==dst_b)
+    require(old_b[0] in guard)
+    # h.for 30..37: zero local value written into A,D,B,C.
+    const=site(clear,z,30,0x12)
+    require(const[0]==0x0012) # const/4 v0, 0; no secret values exported
+    nulled=[site(clear,z,pc,0x5b,rev[slot])
+            for pc,slot in ((31,"SLOT_A"),(33,"SLOT_D"),
+                            (35,"SLOT_B"),(37,"SLOT_C"))]
+    require(len({registers(w) for w in nulled})==1)
+    require(registers(nulled[0])[0]==0)
+    return {
+        "exact_writer_local_reference_origin_categories":[
+            {"site":"ENGINE_INIT_PC307", "origin":"INITIAL_SAME_HOLDER_REFERENCE"},
+            {"site":"ENGINE_ADVANCE_PC659", "origin":"OLD_SLOT_B_HOLDER_SUCCESSOR"},
+            {"site":"QUEUE_ADVANCE_PC12", "origin":"FRONT_HOLDER_SUCCESSOR_CONDITIONAL"},
+            {"site":"QUEUE_UPDATE_PC25", "origin":"SLOT_A_REFERENCE_CONDITIONAL"},
+            {"site":"QUEUE_CLEAR_PC35", "origin":"ZERO_NULL_REFERENCE"},
+        ],
+        "site_opcode_and_register_proven":True,
+        "signed_holder_successor_field_same_across_engine_and_queue":True,
+        "conditional_skip_branch_pc_verified":True,
+        "whole_program_queue_epoch_proven":False,
+        "runtime_selected_edition_proven":False,
+        "reflective_or_native_mutations_excluded":False,
+    }
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -684,6 +798,7 @@ def scan_signed(apks):
                        if label=="SLOT_B"),None)
     if exact_slot_b is None:raise ValueError("QUEUE_SIGNED_SLOT_B_UNRESOLVED")
     direct_slot_b_writers=signed_slot_b_direct_writer_census(apks,exact_slot_b)
+    slot_b_local_provenance=verify_signed_slot_b_local_provenance(targets,slot_ids)
     front_successor=exact_queue_front_successor(
         h_methods[(QUEUE,"if","()Lxh6;")],slot_ids)
     renderer_helper_flow=scoped_front_to_renderer_helper(
@@ -694,6 +809,7 @@ def scan_signed(apks):
         "exact_renderer_helper_inspection":renderer_helper_inspection,
         "exact_queue_front_successor":front_successor,
         "exact_signed_slot_b_direct_writer_census":direct_slot_b_writers,
+        "exact_signed_slot_b_local_provenance":slot_b_local_provenance,
         "scoped_front_to_renderer_helper":renderer_helper_flow,
         "native_engine_renderer_boundary":native_engine_renderer_boundary,
         "bounded_queue_register_microtraces":microtraces,
