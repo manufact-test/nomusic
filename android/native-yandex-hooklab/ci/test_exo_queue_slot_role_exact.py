@@ -153,4 +153,37 @@ class SignedSlotBProvenanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"SLOT_B_PROVENANCE_"):
                     self._prove(changed,fields,targets,slots)
 
+class SignedPeriodTokenTests(unittest.TestCase):
+    def test_mutable_holder_info_not_promoted_to_selected_epoch(self):
+        from exo_queue_slot_role_exact import (
+            SIGNED_PERIOD_TOKEN_WRITERS,validate_signed_period_token_writers)
+        rows={alias:list(writes) for alias,writes in SIGNED_PERIOD_TOKEN_WRITERS.items()}
+        witness=validate_signed_period_token_writers(rows)
+        self.assertEqual(witness["holder_period_info_direct_writers"],8)
+        self.assertEqual(witness["period_info_id_direct_writers"],1)
+        self.assertEqual(witness["period_id_long_direct_writers"],1)
+        self.assertTrue(witness["same_holder_cannot_be_assumed_same_period_info"])
+        self.assertFalse(witness["original_selected_edition_or_queue_epoch_proven"])
+        self.assertFalse(witness["reflection_or_native_mutations_excluded"])
+
+    def test_fail_closed_when_any_member_writer_drifted(self):
+        from exo_queue_slot_role_exact import (
+            SIGNED_PERIOD_TOKEN_WRITERS,validate_signed_period_token_writers)
+        original={alias:list(writes) for alias,writes in SIGNED_PERIOD_TOKEN_WRITERS.items()}
+        from copy import deepcopy
+        bad=[]
+        for category in original:
+            gone=deepcopy(original);gone[category].pop();bad.append(gone)
+            duplicate=deepcopy(original);duplicate[category].append(duplicate[category][0]);bad.append(duplicate)
+            extra=deepcopy(original);extra[category].append(("Lfake;","unexpected","()V",999));bad.append(extra)
+            offset=deepcopy(original)
+            first=offset[category][0];offset[category][0]=(*first[:3],first[3]+1)
+            bad.append(offset)
+        wrong_category=deepcopy(original);wrong_category["unverified"]=[]
+        bad.append(wrong_category)
+        for i,case in enumerate(bad):
+            with self.subTest(i=i):
+                with self.assertRaisesRegex(ValueError,"QUEUE_PERIOD_TOKEN_"):
+                    validate_signed_period_token_writers(case)
+
 if __name__=="__main__": unittest.main()
