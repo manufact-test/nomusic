@@ -827,7 +827,7 @@ def signed_holder_period_token_census(apks,targets):
                         raise ValueError("QUEUE_PERIOD_TOKEN_CODE_LIMIT")
                     start=off+16
                     dex.bounds(start,size*2)
-                    buf=dex.data[start:start+size*2]
+                    buf=bytes(dex.data[start:start+size*2])
                     # Fast precheck only; opcode positions are validated by
                     # fail-closed iterator before any site is counted.
                     if b"\x5b" not in buf and b"\x5a" not in buf:
