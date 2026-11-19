@@ -1,3 +1,11 @@
+## NAV39 CI gate update — source/marker unchanged (19 Nov 2026)
+
+- Initial NAV39 export CI #44479658010 and JVM #44479658027 **FAILED** on stale tests that asserted the old NAV38 marker; no signed NAV39 APK was exported. These were test-version assertions, not real owner playback failures.
+- Fixed those CI-only marker assertions at commit `9e5e462773cdc39ea0c2077dd24e47a3d6b9174e`. No new Player/audio/Track/Flow runtime changes.
+- New JVM regression [#44480016827 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44480016827).
+- New publisher-first ARM13 APK-export run [#44480016738](https://github.com/manufact-test/nomusic/actions/runs/44480016738) **IN PROGRESS at last check**. Clone-alone differential from prior source [#44479658036](https://github.com/manufact-test/nomusic/actions/runs/44479658036) was also in progress at last check. Check current GitHub conclusion; do not presume green.
+- NEXT: after owner ARM13 success and artifact publication, verify v2/v3 owner signer, SHA256 and expected NAV39 marker/README, upload signed ZIP to personal Library, materialize/readback compare, THEN user download. Do not send or suggest any unverified package.
+
 # CURRENT — NAV39 live private target packaging repair; CI RUNNING (19 Nov 2026)
 
 **Repository:** `manufact-test/nomusic`; **sole work branch:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
