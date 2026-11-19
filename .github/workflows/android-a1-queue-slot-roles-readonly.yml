@@ -21,12 +21,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install only pinned signed APK metadata tools
+      - name: Use runner's installed Android SDK signed APK tools (offline)
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          test -d "$sdk/build-tools"
+          mapfile -t versions < <(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V -r)
+          for version in "${versions[@]}"; do
+            if test -x "$version/aapt" && test -x "$version/apksigner"; then
+              echo "$version" >> "$GITHUB_PATH"
+              "$version/aapt" version
+              "$version/apksigner" --version
+              exit 0
+            fi
+          done
+          echo "::error::ANDROID_BUILD_TOOLS_NOT_AVAILABLE"
+          exit 1
       - name: Validate bounded direct-source parser and fail-closed fixtures
         shell: bash
         run: |
