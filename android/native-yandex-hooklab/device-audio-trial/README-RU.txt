@@ -1,10 +1,12 @@
-CELIKOM Android A1 — NAV43. Read-only: точный текущий Player PeriodID и исходный TrackWrapper/Flow Album в ОДНОМ активном read (-4), при неизвестном EOS.
+CELIKOM Android A1 — NAV44. Read-only сравнение MediaItem текущего оригинального Timeline Window и MediaItem того же активного источника, который связан с PlaybackInfo PeriodID и SLOT_B.
 
-Установка поверх NAV42, НЕ удаляя приложение и данные. Если Android сообщает о несовпадении подписи — остановиться. Яндекс.Музыка, проигрыватель и декодер НЕ изменены; подмены звука пока нет.
+Установить поверх NAV43. Не удалять приложение и не очищать данные. Официальную Яндекс.Музыку не изменять.
+Проверить несколько обычных треков и Мою волну; Next, паузу, перемотку и повтор того же трека.
+Сохранить TXT диагностикой CELIKOM, прислать файл.
 
-NAV42 на телефоне: PLAYER_PERIOD_EOS_UNKNOWN_UID_INTS=MANY, DIFFERENT=NONE, UNAVAILABLE=NONE, активный SLOT_B=MANY, но EOS=NO_HOOK. Это НЕ доказательство конкретной редакции/генерации песни.
-NAV43 в одном синхронном вызове проверяет совпадение Player PeriodID ↔ активный SLOT_B и уникальный source↔TrackWrapper↔поздний SAME Flow Album. Меняется очередь/нет единственного источника/нет Album? Положительный общий маркер запрещён. 
-Новые отдельные счётчики: PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK, PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_NO_LINK, PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SLOT_CHANGED. UNKNOWN EOS не выдаётся за доказанный аудиосэмпл. Значения не являются выбранной редакцией или разрешением на подмену.
-Протестируй 2–5 песен, Мою волну, Next, паузу, перемотку и повтор той же песни. Экспортируй TXT и пришли его в чат.
-Маркер NAV_V43_PERIOD_FLOW_UID_INTS_SAME_CALLBACK_READONLY.
+NAV44 сначала требует NAV43 positive SAME_CALLBACK и неизменный SLOT_B. Затем проверяет только равенство Java-ссылок MediaItem текущего окна Timeline и исходного source — никаких названий песен, личных идентификаторов, URI, байтов PCM или содержимого буферов.
+Контрольные строки: PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF / DIFFERENT / UNAVAILABLE / SLOT_CHANGED.
+Маркер NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY.
+BUFFER_EOS_ACCESS=NO_HOOK. Это только read-only structural identity, не подтверждает редакцию, текущий PCM или работу подмены.
 CELIKOM_REPLACEMENT=NOT_CONNECTED; IDENTITY_STATUS=STRUCTURAL_ONLY.
+NAV40 и резервная ветка не изменены.
