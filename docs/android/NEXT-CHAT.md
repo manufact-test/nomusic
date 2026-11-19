@@ -1,3 +1,18 @@
+# LATEST — NAV44 signed ARM13 27/27 SUCCESS; APK + ZIP verified and in Library (19 Nov 2026)
+
+**Signed final release:** source/export commit `e7b7dc1d0272cbf354876ff23d347917e815560a`. [Owner-signed Android13 ARM run #44547529479 — SUCCESS, all 27/27 steps](https://github.com/manufact-test/nomusic/actions/runs/44547529479); [preceding ARM preflight #44547059680 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44547059680); [JVM #44546865739 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44546865739); [exact publisher-signed private field compiler CI #44545043886 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44545043886).
+
+**Both files uploaded SUCCESS to ChatGPT Library `/CELIKOM/Android/Native/` and locally byte/hash inspected:**
+- `CELIKOM-A1-NAV44-Current-MediaItem-Source-ReadOnly-20261119.apk` — **71,495,660 bytes**, SHA-256 `9d24147caa5f67a4251026b3d5bbfad814e3a090c4166e4e4a2d34e33990ab5d`.
+- `CELIKOM-A1-NAV44-Current-MediaItem-Source-20261119.zip` — **51,625,612 bytes**, SHA-256 `196021eeb6a2f5ccaafd3571bcff99e1d8bf7e33afe2d473325dbb89a7c9caa3`; ZIP contains only the expected APK + README-RU.txt.
+- Independently inspected embedded `assets/lspatch/modules/pro.celikom.a1exitwitness.apk` inside final signed owner APK; private `PrivateNativeCurrentMediaItemTarget` and new diagnostic marker/counters present in embedded module DEX. No stale NAV43 module accepted.
+
+**NEXT:** owner installs NAV44 **over NAV43**, no uninstall/data reset, 2–5 tracks, MyWave, Next/seek/pause/repeat, sends one TXT. Check new exact `PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_{SAME_REF,DIFFERENT,UNAVAILABLE,SLOT_CHANGED}` counters together with NAV43 same-callback positives. Missing or mismatched MediaItem is an explicit fail-closed result; even SAME_REF is structural and not selected exact Track ID/edition/generation or confirmed PCM.
+
+**Hard product status unchanged:** `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`, `BUFFER_EOS_ACCESS=NO_HOOK`. No NAV45 until NAV44 owner TXT and a justified next gate; protect signed NAV40 `34cb32c88a11743a64c9f4814fa71957223a1391` and backup, old binaries untouched. [Full NAV44 report](ANDROID-A1-NAV44-CURRENT-MEDIAITEM-SOURCE-READONLY-20261119.md).
+
+---
+
 # LATEST — NAV44 selected original Timeline↔source MediaItem candidate: signed static + JVM PASS, ARM owner APK PENDING (19 November 2026)
 
 **Do not restart; only one branch.** NAV43 owner-phone TXT `CELIKOM-A1-Diagnostics-1795097798424.txt` confirmed `PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK=MANY` with `NO_LINK=NONE` and `SLOT_CHANGED=NONE`. This joined active current PlaybackInfo PeriodID, live SLOT_B, and uniquely scoped original source→TrackWrapper→late SAME Flow Album in the same original -4 callback; still structural only.
