@@ -34,3 +34,7 @@ The constructor's long argument **originates in a caller parameter** on four spe
 ## Next scoped question, no blind NAV41
 
 Trace **the callers of exact Queue `h.import`, `h.else` and `h.goto` J parameters** back to an independently proven original current Player selected playlist item/window and current MediaPeriod at the **same started-audio read**. Require branch-sensitive same-identity and sequence semantics under repeated same Track, holder refresh, prefetch, stale previous period and transitions. If no independent selected item/generation witness can be shown, retain NAV40 structural-only. Do not build NAV41 until signed-original proof, fail-closed tests and a narrow read-only runtime target exist.
+
+## New signed-original old ID reuse proof (19 November 2026)
+
+See [exact two old `LSl6$b.J` → new Queue ID-builder branches](ANDROID-A1-NAV40-SIGNED-OLD-PERIOD-ID-J-REUSE-CFG-20261119.md). CI #44510497627 SUCCESS, 19/19; original J itself may be carried into another constructor. **Do not** promote Long, ID ref, call count or holder ref to selected-item generation. No NAV41.

@@ -1,3 +1,13 @@
+# CURRENT — NAV40 old MediaPeriodId.J forwarded into two Queue constructors, static CI GREEN (19 Nov 2026)
+
+**Latest signed-original proof:** eight exact direct callers of the Queue's three ID builders, all pinned; original `h.case` reads the **same exact old `LSl6$b.J` field as the pinned constructor** at PCs 13/30 and passes it via two independent normal-CFG paths to `h.else` (PC25, second J) and `h.goto` (PC40, third J). Those exact inputs in turn reach new ID constructors at PCs 11/103. Dominance, typed input ID receiver and wide-register non-overwrite proven; **no assumption from equal Long values**. Code `6fe28f562089852025793eb5e2e52d7fbd34382e`; [CI #44510497627 SUCCESS, 19/19](https://github.com/manufact-test/nomusic/actions/runs/44510497627). See [NAV40 old ID J reuse normal-CFG report](ANDROID-A1-NAV40-SIGNED-OLD-PERIOD-ID-J-REUSE-CFG-20261119.md).
+
+**This is NOT** proof that another selected song or playback generation occurred. It is evidence that original J may be propagated into other ID constructors, so **J cannot be promoted to a reliable queue epoch**. Original selected Player item/edition at the **same started-audio read** still missing. No runtime changes, no NAV41 APK, no original Player/audio/decoder modifications. Original signed NAV40 runtime `34cb32c88a11743a64c9f4814fa71957223a1391` and signed backup untouched. `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+**NEXT:** tie exact current renderer `SLOT_B`/MediaPeriod to independent original Player current selected playlist item/timeline window and repeated-track queue identity, fail closed on prefetch/old period/ambiguous snapshots. No synthetic call counter/epoch and no NAV41 before positive signed source+runtime target.
+
+---
+
 # CURRENT — NAV40 signed-original MediaPeriodId ctor J parameter provenance; 15/15 CI GREEN (19 Nov 2026)
 
 **New static proof, no new APK:** enumerated **all 15 direct signed DEX `LSl6$b` constructor call sites** across six DEX and pinned exact method+PC+descriptor+opcode. Four original Exo Queue constructor J arguments proved to come from a typed incoming J parameter through a dominating `move-wide/from16` on all **normal CFG** paths, with wide-register overwrite guards. [CI #44507724826 SUCCESS, 15/15](https://github.com/manufact-test/nomusic/actions/runs/44507724826); last static code commit `b6de25c7f146610e7f25ad7838d11529edca07b2`. Report [NAV40 signed period-ID constructors and J CFG](ANDROID-A1-NAV40-SIGNED-PERIOD-ID-CTOR-J-NORMAL-CFG-20261119.md).

@@ -1,5 +1,8 @@
 # CELIKOM Android A1 — documentation index
 
+**Latest STATIC-only proof (19 Nov 2026):** original old `LSl6$b.J` field propagates through two signed Queue branches into another original MediaPeriodId constructor on all normal CFG paths. Eight upstream Queue builder calls pinned. [CI #44510497627 SUCCESS, 19/19](https://github.com/manufact-test/nomusic/actions/runs/44510497627). **Still NOT current Player selected track or queue epoch; no NAV41.** [Old period ID J reuse and limits](ANDROID-A1-NAV40-SIGNED-OLD-PERIOD-ID-J-REUSE-CFG-20261119.md).
+
+
 **Newer signed-original static result (19 Nov 2026):** 15 pinned direct MediaPeriodId constructor sites in all 6 signed DEX; 4 exact Queue `J` constructor arguments proven from typed caller parameters by branch-sensitive normal CFG and register-overwrite guards. [CI #44507724826 SUCCESS, 15/15](https://github.com/manufact-test/nomusic/actions/runs/44507724826). **Still not selected item/edition/generation; no NAV41.** See [signed PeriodId constructor + J CFG report](ANDROID-A1-NAV40-SIGNED-PERIOD-ID-CTOR-J-NORMAL-CFG-20261119.md).
 
 
