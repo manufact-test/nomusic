@@ -3,6 +3,8 @@ package pro.celikom.a1exitwitness;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 
 /**
@@ -226,6 +228,143 @@ final class NativeRendererStreamEvidence {
     private int jointUnknownEosPeriodFlowSame;
     private int jointUnknownEosPeriodNoFlow;
     private int jointUnknownEosPeriodSlotChanged;
+
+    // NAV44: strictly same-current-PeriodID / SLOT_B callback, compare the
+    // signed original Timeline Window MediaItem reference against the SAME
+    // uniquely scoped original LiLb source's MediaItem field. Never read
+    // track IDs, titles, URLs, editions, PCM or arbitrary objects.
+    private Field selectedPlaybackTimelineField,selectedPeriodWindowIndexField;
+    private Field selectedWindowMediaItemField,selectedSourceMediaItemField;
+    private Method selectedPeriodByUid,selectedWindowByIndex;
+    private Constructor<?> selectedPeriodConstructor,selectedWindowConstructor;
+    private int selectedItemSourceHook,selectedItemSame,selectedItemDifferent;
+    private int selectedItemUnavailable,selectedItemSlotChanged;
+    private static final class SelectedItemProbe {
+        final WeakReference<Object> holder,source;
+        int tries;
+        boolean finalResult;
+        SelectedItemProbe(Object holder,Object source) {
+            this.holder=new WeakReference<>(holder);
+            this.source=new WeakReference<>(source);
+        }
+    }
+    private final ArrayList<SelectedItemProbe> selectedItemProbes=new ArrayList<>();
+
+    synchronized void setSelectedMediaItemSourceFields(
+            Field playbackTimeline,Field periodWindowIndex,Field windowMediaItem,
+            Field sourceMediaItem,Method periodByUid,Method windowByIndex,
+            Constructor<?> periodConstructor,Constructor<?> windowConstructor) {
+        if(currentPlaybackIdField==null || playbackTimeline==null
+                || periodWindowIndex==null || windowMediaItem==null
+                || sourceMediaItem==null || periodByUid==null || windowByIndex==null
+                || periodConstructor==null || windowConstructor==null
+                || playbackTimeline.getDeclaringClass()!=currentPlaybackIdField.getDeclaringClass()
+                || periodWindowIndex.getType()!=int.class
+                || windowMediaItem.getType()!=sourceMediaItem.getType()
+                || periodByUid.getParameterCount()!=2
+                || periodByUid.getParameterTypes()[0]!=Object.class
+                || periodByUid.getParameterTypes()[1]!=periodWindowIndex.getDeclaringClass()
+                || periodByUid.getReturnType()!=periodWindowIndex.getDeclaringClass()
+                || !periodByUid.getDeclaringClass().isAssignableFrom(playbackTimeline.getType())
+                || windowByIndex.getParameterCount()!=3
+                || windowByIndex.getParameterTypes()[0]!=int.class
+                || windowByIndex.getParameterTypes()[1]!=windowMediaItem.getDeclaringClass()
+                || windowByIndex.getParameterTypes()[2]!=long.class
+                || windowByIndex.getReturnType()!=windowMediaItem.getDeclaringClass()
+                || !windowByIndex.getDeclaringClass().isAssignableFrom(playbackTimeline.getType())
+                || periodConstructor.getDeclaringClass()!=periodWindowIndex.getDeclaringClass()
+                || windowConstructor.getDeclaringClass()!=windowMediaItem.getDeclaringClass()) {
+            throw new IllegalArgumentException("NAV44 exact original Timeline/MediaItem target required");
+        }
+        for(Field f:new Field[]{playbackTimeline,periodWindowIndex,
+                windowMediaItem,sourceMediaItem}) f.setAccessible(true);
+        periodByUid.setAccessible(true);
+        windowByIndex.setAccessible(true);
+        periodConstructor.setAccessible(true);
+        windowConstructor.setAccessible(true);
+        selectedPlaybackTimelineField=playbackTimeline;
+        selectedPeriodWindowIndexField=periodWindowIndex;
+        selectedWindowMediaItemField=windowMediaItem;
+        selectedSourceMediaItemField=sourceMediaItem;
+        selectedPeriodByUid=periodByUid;
+        selectedWindowByIndex=windowByIndex;
+        selectedPeriodConstructor=periodConstructor;
+        selectedWindowConstructor=windowConstructor;
+    }
+
+    private SelectedItemProbe sampleSelectedSource(Object holder,Object source) {
+        if(selectedItemSourceHook<=0 || selectedPlaybackTimelineField==null
+                || holder==null || source==null)return null;
+        for(int i=selectedItemProbes.size()-1;i>=0;i--) {
+            SelectedItemProbe prior=selectedItemProbes.get(i);
+            if(prior.holder.get()==null || prior.source.get()==null) {
+                selectedItemProbes.remove(i);continue;
+            }
+            if(prior.holder.get()==holder && prior.source.get()==source) {
+                if(prior.finalResult || prior.tries>=3)return null;
+                prior.tries++;
+                return prior;
+            }
+        }
+        if(selectedItemProbes.size()>=24)selectedItemProbes.remove(0);
+        SelectedItemProbe fresh=new SelectedItemProbe(holder,source);
+        fresh.tries=1;
+        selectedItemProbes.add(fresh);
+        return fresh;
+    }
+
+    private void observeSelectedMediaItemSameRead(Object engine,Object holder,Object source) {
+        SelectedItemProbe probe=sampleSelectedSource(holder,source);
+        if(probe==null || engine==null)return;
+        try {
+            if(!selectedSourceMediaItemField.getDeclaringClass().isInstance(source))
+                throw new IllegalStateException("NAV44_SOURCE_CLASS_OTHER");
+            Object info=currentEnginePlaybackInfoField.get(engine);
+            Object holderInfo=currentHolderInfoField.get(holder);
+            if(info==null || holderInfo==null)throw new IllegalStateException();
+            Object playbackId=currentPlaybackIdField.get(info);
+            Object holderId=currentHolderIdField.get(holderInfo);
+            if(playbackId==null || holderId==null)throw new IllegalStateException();
+            Object uid=currentPeriodUidField.get(playbackId);
+            if(uid==null || uid!=currentPeriodUidField.get(holderId)
+                    || currentPeriodFirstIntField.getInt(playbackId)
+                        !=currentPeriodFirstIntField.getInt(holderId)
+                    || currentPeriodSecondIntField.getInt(playbackId)
+                        !=currentPeriodSecondIntField.getInt(holderId))
+                throw new IllegalStateException();
+            Object timeline=selectedPlaybackTimelineField.get(info);
+            if(timeline==null)throw new IllegalStateException();
+            Object periodScratch=selectedPeriodConstructor.newInstance();
+            Object period=selectedPeriodByUid.invoke(timeline,uid,periodScratch);
+            if(period!=periodScratch)throw new IllegalStateException();
+            int windowIndex=selectedPeriodWindowIndexField.getInt(period);
+            if(windowIndex<0)throw new IllegalStateException();
+            Object windowScratch=selectedWindowConstructor.newInstance();
+            Object window=selectedWindowByIndex.invoke(timeline,windowIndex,windowScratch,0L);
+            if(window!=windowScratch)throw new IllegalStateException();
+            Object selected=selectedWindowMediaItemField.get(window);
+            Object sourceItem=selectedSourceMediaItemField.get(source);
+            if(selected==null || sourceItem==null)throw new IllegalStateException();
+            // The sampled Player/PeriodID, current Timeline and live holder
+            // MUST still be unchanged after both original read-only lookups.
+            if(currentEnginePlaybackInfoField.get(engine)!=info
+                    || currentPlaybackIdField.get(info)!=playbackId
+                    || currentHolderInfoField.get(holder)!=holderInfo
+                    || currentHolderIdField.get(holderInfo)!=holderId
+                    || selectedPlaybackTimelineField.get(info)!=timeline
+                    || currentPeriodUidField.get(playbackId)!=uid
+                    || currentPeriodUidField.get(holderId)!=uid
+                    || liveQueueSlotMatches(engine,holder)!=1) {
+                selectedItemSlotChanged=inc(selectedItemSlotChanged);
+                return;
+            }
+            probe.finalResult=true;
+            if(selected==sourceItem)selectedItemSame=inc(selectedItemSame);
+            else selectedItemDifferent=inc(selectedItemDifferent);
+        } catch(Throwable ignored) {
+            selectedItemUnavailable=inc(selectedItemUnavailable);
+        }
+    }
 
     synchronized void setCurrentPlaybackPeriodFields(
             Field engineInfo,Field playbackId,Field holderInfo,Field holderId,
@@ -658,11 +797,12 @@ final class NativeRendererStreamEvidence {
         }
     }
 
-    private void observeActivePeriodSource(Object currentHolder) {
-        if(livePeriodSourceHook<=0 || currentHolder==null)return;
+    private Object observeActivePeriodSource(Object currentHolder) {
+        if(livePeriodSourceHook<=0 || currentHolder==null)return null;
         if(holderWrapperField==null || wrapperPeriodField==null
-                || periodSourceField==null)return;
+                || periodSourceField==null)return null;
         Object source=null;
+        Object exactLateFlowSource=null;
         try {
             Object nested=holderWrapperField.get(currentHolder);
             observePriorSelectWhenLiveRead(currentHolder,nested);
@@ -670,7 +810,7 @@ final class NativeRendererStreamEvidence {
                 livePeriodHolderNull=inc(livePeriodHolderNull);
                 livePeriodHolderMissing=inc(livePeriodHolderMissing);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
-                return;
+                return null;
             }
             if(!exactWrapperClass.isInstance(nested)) {
                 // NAV32: classify NAV31's non-Lup1 original holder Object
@@ -705,20 +845,20 @@ final class NativeRendererStreamEvidence {
                         directHolderSourceNull=inc(directHolderSourceNull);
                         livePeriodSourceNull=inc(livePeriodSourceNull);
                         livePeriodUnavailable=inc(livePeriodUnavailable);
-                        return;
+                        return null;
                     }
                     directHolderSourcePresent=inc(directHolderSourcePresent);
                 } else {
                     livePeriodHolderMissing=inc(livePeriodHolderMissing);
                     livePeriodUnavailable=inc(livePeriodUnavailable);
-                    return;
+                    return null;
                 }
             } else {
             Object observed=wrapperPeriodField.get(nested);
             if(observed==null) {
                 livePeriodWrappedMissing=inc(livePeriodWrappedMissing);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
-                return;
+                return null;
             }
             Object exactPeriod=observed;
             if(!exactPeriodClass.isInstance(observed)) {
@@ -738,7 +878,7 @@ final class NativeRendererStreamEvidence {
                 if(hits!=1 || periodAdapterHook<=0 || periodFactoryHook<=0) {
                     periodAdapterUnmapped=inc(periodAdapterUnmapped);
                     livePeriodUnavailable=inc(livePeriodUnavailable);
-                    return;
+                    return null;
                 }
                 periodAdapterMapped=inc(periodAdapterMapped);
             } else livePeriodDirectLo96=inc(livePeriodDirectLo96);
@@ -746,13 +886,13 @@ final class NativeRendererStreamEvidence {
             if(source==null) {
                 livePeriodSourceNull=inc(livePeriodSourceNull);
                 livePeriodUnavailable=inc(livePeriodUnavailable);
-                return;
+                return null;
             }
             } // existing Lup1 wrapper and adapter path unchanged
         } catch(Throwable ignored) {
             livePeriodReflectionFailed=inc(livePeriodReflectionFailed);
             livePeriodUnavailable=inc(livePeriodUnavailable);
-            return;
+            return null;
         }
         livePeriodResolved=inc(livePeriodResolved);
         int matches=0;
@@ -798,7 +938,8 @@ final class NativeRendererStreamEvidence {
                                 default:scopedBirthNotInWindow=inc(scopedBirthNotInWindow);break;
                             }
                             break;
-                        case 16:scopedLateFlowAlbumSame=inc(scopedLateFlowAlbumSame);break;
+                        case 16:scopedLateFlowAlbumSame=inc(scopedLateFlowAlbumSame);
+                            exactLateFlowSource=source;break;
                         case 17:scopedLateFlowAlbumMissing=inc(scopedLateFlowAlbumMissing);break;
                         case 18:scopedLateFlowAlbumDifferent=inc(scopedLateFlowAlbumDifferent);break;
                         case 19:scopedLateFlowReferenceLost=inc(scopedLateFlowReferenceLost);break;
@@ -815,6 +956,7 @@ final class NativeRendererStreamEvidence {
         } else if(matches==0 && !conflicting)
             livePeriodSourceNoLink=inc(livePeriodSourceNoLink);
         else livePeriodSourceDifferent=inc(livePeriodSourceDifferent);
+        return exactLateFlowSource;
     }
 
     synchronized void setLiveQueueSlotFields(Field engineField,Field slotField) {
@@ -894,6 +1036,7 @@ final class NativeRendererStreamEvidence {
             case "ENGINE_HOLDER_SCOPE": engineScopeHook=status; break;
             case "LIVE_QUEUE_SLOT_B": liveQueueSlotHook=status; break;
             case "PLAYER_PERIOD_AT_AUDIO_READ": currentPeriodAtReadHook=status; break;
+            case "CURRENT_MEDIAITEM_SOURCE": selectedItemSourceHook=status; break;
             case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
             case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
             case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
@@ -1281,7 +1424,7 @@ final class NativeRendererStreamEvidence {
                     observeCurrentPlaybackPeriodAtRead(
                         live.engine.get(),live.holder.get(),endOfStream==null);
                 // Only independently proven exact holder + live SLOT_B.
-                observeActivePeriodSource(live.holder.get());
+                Object exactLateSource=observeActivePeriodSource(live.holder.get());
                 // NAV43 narrow admission *witness*, NOT audio replacement:
                 // source+late Flow and PlaybackInfo PeriodID must BOTH have
                 // advanced on this exact original -4 renderer callback.
@@ -1292,9 +1435,13 @@ final class NativeRendererStreamEvidence {
                             && livePeriodSourceMatched>beforeSourceSame) {
                         // Retest queue after source classification to reject
                         // playback / Next changes during this callback.
-                        if(liveQueueSlotMatches(live.engine.get(),live.holder.get())==1)
+                        if(liveQueueSlotMatches(live.engine.get(),live.holder.get())==1) {
                             jointUnknownEosPeriodFlowSame=inc(jointUnknownEosPeriodFlowSame);
-                        else jointUnknownEosPeriodSlotChanged=inc(jointUnknownEosPeriodSlotChanged);
+                            // NAV44 strictly read-only Timeline/source MediaItem
+                            // comparison, after all NAV43 synchronized guards.
+                            observeSelectedMediaItemSameRead(
+                                live.engine.get(),live.holder.get(),exactLateSource);
+                        } else jointUnknownEosPeriodSlotChanged=inc(jointUnknownEosPeriodSlotChanged);
                     } else jointUnknownEosPeriodNoFlow=inc(jointUnknownEosPeriodNoFlow);
                 }
             } else if(fresh<0)queueSlotReadOther=inc(queueSlotReadOther);
@@ -1389,6 +1536,7 @@ final class NativeRendererStreamEvidence {
             registrationLine("ENGINE_HOLDER_SCOPE",engineScopeHook),
             registrationLine("LIVE_QUEUE_SLOT_B",liveQueueSlotHook),
             registrationLine("PLAYER_PERIOD_AT_AUDIO_READ",currentPeriodAtReadHook),
+            registrationLine("CURRENT_MEDIAITEM_SOURCE",selectedItemSourceHook),
             registrationLine("TRACK_PLAYER_SOURCE_SCOPE",trackPlayerScopeHook),
             registrationLine("NATIVE_PLAYER_SOURCE_SETTER",nativeSourceSetterHook),
             registrationLine("LIVE_PERIOD_ORIGINAL_SOURCE",livePeriodSourceHook),
@@ -1442,6 +1590,10 @@ final class NativeRendererStreamEvidence {
             line("PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SAME_CALLBACK",jointUnknownEosPeriodFlowSame),
             line("PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_NO_LINK",jointUnknownEosPeriodNoFlow),
             line("PLAYER_PERIOD_EOS_UNKNOWN_LATE_FLOW_SLOT_CHANGED",jointUnknownEosPeriodSlotChanged),
+            line("PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SAME_REF",selectedItemSame),
+            line("PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_DIFFERENT",selectedItemDifferent),
+            line("PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_UNAVAILABLE",selectedItemUnavailable),
+            line("PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SLOT_CHANGED",selectedItemSlotChanged),
             line("TRACK_PLAYER_SOURCE_SCOPE_ENTER",trackPlayerScopeEnter),
             line("TRACK_PLAYER_SOURCE_SAME_SCOPE",playerSourceSameScope),
             line("TRACK_PLAYER_SOURCE_UNSCOPED",playerSourceUnscoped),
