@@ -418,6 +418,12 @@ def scan(splits):
             "known_original_source_path_owner_roles": sorted({
                 role for _category,_track,_album,role in writer_upstream_rows
                 if role != "OTHER_OWNER"}),
+            "exact_creator_trackid_argument_origin_categories": sorted({
+                category for category,_track,_album,role in writer_upstream_rows
+                if role=="SOURCE_TRACK_CREATOR"}),
+            "exact_creator_track_parameter_present": any(
+                track for _category,track,_album,role in writer_upstream_rows
+                if role=="SOURCE_TRACK_CREATOR"),
             "track_super_getter_candidate_count": sum(
                 category == "TRACK_SUPER_STRING_GETTER_CANDIDATE"
                 for category,_,_,_ in writer_upstream_rows),
