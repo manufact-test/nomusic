@@ -714,7 +714,11 @@ public final class NativeRendererStreamEvidenceTest {
         try { e.onAttach(renderer,stream); }
         finally { e.exitSecondaryCaller(sec); e.exitEngine(frame); }
     }
-    private static final class FakeSource { Object item; }
+    private static final class FakeMediaItem {
+        final String mediaId;
+        FakeMediaItem(String mediaId){this.mediaId=mediaId;}
+    }
+    private static final class FakeSource { FakeMediaItem item; }
     private interface FakePublisherPeriodInterface {}
     private static final class FakeOtherPublisherPeriod implements FakePublisherPeriodInterface {}
     private static final class FakePeriod implements FakePublisherPeriodInterface {
@@ -2012,11 +2016,12 @@ public final class NativeRendererStreamEvidenceTest {
     // NAV44 isolated, publisher-shaped fake objects. No raw identifiers,
     // metadata or source content in these tests.
     private static final class ItemPeriod { int windowIndex; }
-    private static final class ItemWindow { Object mediaItem; }
+    private static final class ItemWindow { FakeMediaItem mediaItem; }
     private static final class ItemTimeline {
-        final Object uid,item;
+        final Object uid;
+        final FakeMediaItem item;
         Runnable afterWindow;
-        ItemTimeline(Object uid,Object item){this.uid=uid;this.item=item;}
+        ItemTimeline(Object uid,FakeMediaItem item){this.uid=uid;this.item=item;}
         ItemPeriod getPeriodByUid(Object searched,ItemPeriod scratch){
             if(searched!=uid)return null;
             scratch.windowIndex=0;
@@ -2044,6 +2049,9 @@ public final class NativeRendererStreamEvidenceTest {
                 ItemPeriod.class.getDeclaredConstructor(),
                 ItemWindow.class.getDeclaredConstructor());
             e.onHookRegistration("CURRENT_MEDIAITEM_SOURCE",true);
+            e.setSelectedLogicalMediaIdField(
+                FakeMediaItem.class.getDeclaredField("mediaId"));
+            e.onHookRegistration("CURRENT_MEDIAITEM_LOGICAL_ID",true);
         } catch(ReflectiveOperationException ex){throw new AssertionError(ex);}
     }
 
@@ -2063,7 +2071,8 @@ public final class NativeRendererStreamEvidenceTest {
             finally{stage.exitNativeTcaCreatorTrackScope();}
         } finally{stage.exitNativeTcaCreatorOwner();}
         stage.onNativeTrackFlowEmission(track);
-        Object uid=new Object(),item=new Object();
+        Object uid=new Object();
+        FakeMediaItem item=new FakeMediaItem("TRACK_11");
         Object renderer=new Object(),stream=new Object();
         Nav41Id period=new Nav41Id(uid,-1,11);
         Nav41Holder holder=new Nav41Holder(period,stream);
@@ -2084,12 +2093,15 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(e.exportLines(),
             "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_DIFFERENT;error=NONE"),
             "NAV44_NO_FALSE_DIFFERENT");
+        check(contains(e.exportLines(),
+            "origin=PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_MATCH;error=ONE"),
+            "NAV45_SAME_REF_AND_SAME_NONEMPTY_ID");
         check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
             "NAV44_MEDIAITEM_IS_NOT_TRACK_EDITION_OR_PCM");
     }
 
     private static void testNav44DifferentAndChangedSlotFailClosed() {
-        for(int scenario=0;scenario<3;scenario++){
+        for(int scenario=0;scenario<5;scenario++){
             StageBAudioEvidence stage=new StageBAudioEvidence();
             NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
             nav41Setup(e);
@@ -2108,11 +2120,13 @@ public final class NativeRendererStreamEvidenceTest {
             Object uid=new Object(),renderer=new Object(),stream=new Object();
             Nav41Id id=new Nav41Id(uid,-1,12);
             Nav41Holder holder=new Nav41Holder(id,stream);
-            FakeSource source=new FakeSource();source.item=new Object();
+            FakeSource source=new FakeSource();
+            source.item=new FakeMediaItem(scenario==4?"":"TRACK_12");
             holder.nested=new FakeNested(new FakePeriod(source));
             Nav41Engine engine=new Nav41Engine(holder,new Nav41Id(uid,-1,12));
             ItemTimeline timeline=new ItemTimeline(uid,
-                scenario==2?source.item:new Object());
+                scenario==2?source.item:
+                    new FakeMediaItem(scenario==3?"DIFFERENT_TRACK":"TRACK_12"));
             engine.playback.timeline=timeline;
             if(scenario==1)timeline.afterWindow=()->
                 engine.queue.slotB=new Nav41Holder(id,stream);
@@ -2121,10 +2135,19 @@ public final class NativeRendererStreamEvidenceTest {
             nav43LinkOriginalSource(e,wrapper,source);
             nav41Attach(e,engine,holder,renderer,stream);
             e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
-            if(scenario==0) {
+            if(scenario==0 || scenario==3 || scenario==4) {
                 check(contains(e.exportLines(),
                     "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_DIFFERENT;error=ONE"),
                     "NAV44_DIFFERENT_MEDIAITEM_NEVER_MATCHES");
+                if(scenario==0)check(contains(e.exportLines(),
+                    "origin=PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_MATCH;error=ONE"),
+                    "NAV45_DISTINCT_JAVA_ITEMS_SAME_LOGICAL_ID");
+                if(scenario==3)check(contains(e.exportLines(),
+                    "origin=PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_DIFFERENT;error=ONE"),
+                    "NAV45_DIFFERENT_NONEMPTY_IDS_NOT_PROMOTED");
+                if(scenario==4)check(contains(e.exportLines(),
+                    "origin=PLAYER_MEDIAITEM_NONEMPTY_ID_SAME_CALLBACK_BLANK;error=ONE"),
+                    "NAV45_DEFAULT_EMPTY_ID_NOT_PROMOTED");
             } else {
                 check(contains(e.exportLines(),
                     "origin=PLAYER_MEDIAITEM_SOURCE_SAME_CALLBACK_SLOT_CHANGED;error=ONE"),
