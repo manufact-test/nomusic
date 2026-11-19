@@ -1,3 +1,13 @@
+# CURRENT — pinned original PlaybackInfo period UID vs Queue SLOT_A front, exact comparator CI GREEN (19 Nov 2026)
+
+**New exact signed-original boundary:** `e.break()V` PCs1253–1276 obtains original Queue `h.if()` front holder `SLOT_A`, reads exact engine `LCD7` ID UID and exact returned holder `Lyh6 → LSl6$b` UID, calls original `Object.equals(v1,v2)`, branches on its result to PC1303. The `LCD7` period-id field matches `d.M0` PC74/96/259 and is DISTINCT from `d.M0` PC138/257. Exact timeline fields and original constructor-anchored holder/period-info fields match. [CI #44513983147 SUCCESS 23/23](https://github.com/manufact-test/nomusic/actions/runs/44513983147), code `549c6d332734327f5395075d431b58b1f7c736ae`; [detailed field/comparison proof](ANDROID-A1-NAV40-SIGNED-PLAYBACKINFO-FRONT-UID-COMPARISON-20261119.md).
+
+**HARD NO-GO remains:** this is `SLOT_A` front UID check, not the current selected Track/edition at the exact started audio read of `SLOT_B`. Runtime equality result, current vs stale/prefetch and queue generation still unproved. Original holder/periodID/J may be retained/reused; don't mistake equality for epoch. NAV40 runtime `34cb32c88a11743a64c9f4814fa71957223a1391` and backups/Library untouched; no NAV41. `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`.
+
+**NEXT:** original period ID additional conditional field comparisons PCs1278–1303 and transition `e.I` PC711, then original selected Timeline/Track-vs-SLOT_B same-read link with strict fail-closed negative cases. Do not build without verified selection boundary.
+
+---
+
 # CURRENT — NAV40 old MediaPeriodId.J forwarded into two Queue constructors, static CI GREEN (19 Nov 2026)
 
 **Latest signed-original proof:** eight exact direct callers of the Queue's three ID builders, all pinned; original `h.case` reads the **same exact old `LSl6$b.J` field as the pinned constructor** at PCs 13/30 and passes it via two independent normal-CFG paths to `h.else` (PC25, second J) and `h.goto` (PC40, third J). Those exact inputs in turn reach new ID constructors at PCs 11/103. Dominance, typed input ID receiver and wide-register non-overwrite proven; **no assumption from equal Long values**. Code `6fe28f562089852025793eb5e2e52d7fbd34382e`; [CI #44510497627 SUCCESS, 19/19](https://github.com/manufact-test/nomusic/actions/runs/44510497627). See [NAV40 old ID J reuse normal-CFG report](ANDROID-A1-NAV40-SIGNED-OLD-PERIOD-ID-J-REUSE-CFG-20261119.md).

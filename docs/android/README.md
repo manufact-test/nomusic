@@ -1,5 +1,8 @@
 # CELIKOM Android A1 — documentation index
 
+**Newest static Player/Queue comparison (19 Nov):** original `e.break()` compares `LCD7` PlaybackInfo period UID against original `h.SLOT_A` front holder period UID by exact `Object.equals` and branch. Exact playback-info field matches `d.M0`; distinct second ID field excluded. [CI #44513983147 SUCCESS, 23/23](https://github.com/manufact-test/nomusic/actions/runs/44513983147). Still NOT the `SLOT_B` same-audio-read selected Track/edition; no NAV41. [Exact PlaybackInfo-front-UID report](ANDROID-A1-NAV40-SIGNED-PLAYBACKINFO-FRONT-UID-COMPARISON-20261119.md).
+
+
 **Latest STATIC-only proof (19 Nov 2026):** original old `LSl6$b.J` field propagates through two signed Queue branches into another original MediaPeriodId constructor on all normal CFG paths. Eight upstream Queue builder calls pinned. [CI #44510497627 SUCCESS, 19/19](https://github.com/manufact-test/nomusic/actions/runs/44510497627). **Still NOT current Player selected track or queue epoch; no NAV41.** [Old period ID J reuse and limits](ANDROID-A1-NAV40-SIGNED-OLD-PERIOD-ID-J-REUSE-CFG-20261119.md).
 
 
