@@ -78,6 +78,37 @@ class AliasCfgTests(unittest.TestCase):
         self.assertEqual(check(ins,1),"CFG_ORIGINAL_TRACK_ALIAS_NOT_PROVEN")
         self.assertEqual(check(ins,1,dex=FakeDex(tries=1)),"CFG_UNSUPPORTED_METHOD")
 
+    def test_packed_switch_all_paths_keep_track(self):
+        # Encoded 31t switch at pc0 -> payload pc8, one target pc14.
+        # Both case and default must write exact formal Track into v0.
+        ins=[
+            (0,0x2b,(0x2b,8,0)),
+            (3,0x07,word_move(0,3)),
+            (4,0x28,(0x28 | 11<<8,)),
+            (5,0x00,(0,)),(6,0x00,(0,)),(7,0x00,(0,)),
+            (8,0x00,(0x0100,1,0,0,14,0)),
+            (14,0x07,word_move(0,3)),
+            (15,0x54,(0x54 | 1<<8,0)),
+            (16,0x0e,(0x0e,))]
+        self.assertEqual(check(ins,8),"CFG_EXACT_FORMAL_TRACK_RECEIVER")
+        # A case that skips its formal Track copy kills the claim.
+        ins[7]=(14,0x12,(0x12,))
+        self.assertEqual(check(ins,8),"CFG_ORIGINAL_TRACK_ALIAS_NOT_PROVEN")
+
+    def test_sparse_switch_and_filled_array_are_not_executable_alias_sources(self):
+        # pc0 sparse switch references a one-case payload at pc8, target pc16.
+        ins=[
+            (0,0x2c,(0x2c,8,0)),
+            (3,0x07,word_move(0,3)),
+            (4,0x28,(0x28 | 13<<8,)),
+            (5,0x00,(0,)),(6,0x00,(0,)),(7,0x00,(0,)),
+            (8,0x00,(0x0200,1,1,0,16,0)),
+            (14,0x00,(0,)),(15,0x00,(0,)),
+            (16,0x07,word_move(0,3)),
+            (17,0x54,(0x54 | 1<<8,0)),
+            (18,0x0e,(0x0e,))]
+        self.assertEqual(check(ins,11),"CFG_EXACT_FORMAL_TRACK_RECEIVER")
+
     def test_wrong_target_and_switch_fail_closed(self):
         ins=[(0,0x38,(0x38,9)),(1,0x54,(0x54,0))]
         self.assertEqual(check(ins,1),"CFG_UNSUPPORTED_FLOW")
