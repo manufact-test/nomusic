@@ -1607,6 +1607,55 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV38_REPLACEMENT_STAYS_DISABLED");
     }
 
+    // NAV40: the only permissible new proof is original tCa's exact
+    // birth-time creator Track, later SAME Flow ref, SAME Album and strictly
+    // same live original Player source. Still no edition/queue admission.
+    private static void testNav40ExactLaterFlowUnderLiveOriginalSource() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        setUpNav29(e);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==12,"NAV40_NOT_IN_FLOW_AT_BIRTH");
+        Object renderer=new Object(),stream=new Object();
+        FakeSource source=new FakeSource();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        holder.nested=new FakePeriod(source);
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally {e.exitTrackPlayerSource(scope);}
+        nav29BindLive(e,new FakeActiveEngine(holder),holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_SCOPED_TCA_BIRTH_TRACK_NOT_IN_FLOW;error=ONE"),"NAV40_BEFORE_FLOW");
+        stage.onNativeTrackFlowEmission(new Object());
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==12,"NAV40_WRONG_TRACK_CANNOT_LINK");
+        stage.onNativeTrackFlowEmission(track);
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==16,"NAV40_SAME_TRACK_AND_ALBUM");
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME;error=ONE"),"NAV40_LIVE_SOURCE_SCOPED_SAME");
+        check(contains(e.exportLines(),"origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH;error=NONE"),"NAV40_NO_AT_BIRTH_FALSE_MATCH");
+        check(contains(stage.exportLines(),"origin=TRACK_WRAPPER_LINK;error=NONE"),"NAV40_NO_RETROACTIVE_SOURCE");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),"NAV40_NO_SELECTED_EDITION");
+        stage.onNativeTrackAlbumConstructed(track,new Object());
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==17,"NAV40_CONFLICT_FAIL_CLOSED");
+        NativeRendererStreamEvidence wrong=new NativeRendererStreamEvidence();
+        wrong.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        setUpNav29(wrong);
+        NativeRendererStreamEvidence.TrackPlayerScope bad=wrong.enterTrackPlayerSource(wrapper);
+        try {wrong.onNativePlayerSourceSetter(new FakeSource());}
+        finally {wrong.exitTrackPlayerSource(bad);}
+        nav29BindLive(wrong,new FakeActiveEngine(holder),holder,renderer,stream);
+        wrong.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        check(contains(wrong.exportLines(),"origin=LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME;error=NONE"),"NAV40_WRONG_SOURCE_CANNOT_CLASSIFY");
+    }
+
     private static void testNav36ConstructorWitnessCannotCrossWrongSource() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         StageBAudioEvidence stage=new StageBAudioEvidence();
@@ -1693,6 +1742,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav37ExactTcaCreatorTrackFieldLinksWrapperAndAlbum();
         testNav37NullCreatorTrackFieldShadowsOuterTrackScope();
         testNav38CreatorTrackLaterFlowExactIdentity();
+        testNav40ExactLaterFlowUnderLiveOriginalSource();
         testNav36ConstructorWitnessCannotCrossWrongSource();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

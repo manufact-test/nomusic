@@ -191,6 +191,9 @@ final class NativeRendererStreamEvidence {
     private int scopedBirthNotInWindow,scopedBirthNoTrackScope;
     private int scopedBirthTrackNotInFlow,scopedBirthFlowNoAlbum;
     private int scopedBirthFlowAlbumButLinkMissing,scopedBirthAmbiguous;
+    // NAV40: strictly gated by same live original period/setter source.
+    private int scopedLateFlowAlbumSame,scopedLateFlowAlbumMissing;
+    private int scopedLateFlowAlbumDifferent,scopedLateFlowReferenceLost;
     synchronized void setScopedAlbumEvidence(ScOpedAlbumEvidence evidence) {
         scopedAlbumEvidence=evidence;
     }
@@ -678,6 +681,10 @@ final class NativeRendererStreamEvidence {
                                 default:scopedBirthNotInWindow=inc(scopedBirthNotInWindow);break;
                             }
                             break;
+                        case 16:scopedLateFlowAlbumSame=inc(scopedLateFlowAlbumSame);break;
+                        case 17:scopedLateFlowAlbumMissing=inc(scopedLateFlowAlbumMissing);break;
+                        case 18:scopedLateFlowAlbumDifferent=inc(scopedLateFlowAlbumDifferent);break;
+                        case 19:scopedLateFlowReferenceLost=inc(scopedLateFlowReferenceLost);break;
                         case 3:scopedReasonWrapperAmbiguous=inc(scopedReasonWrapperAmbiguous);break;
                         case 4:scopedReasonTrackWeakLost=inc(scopedReasonTrackWeakLost);break;
                         case 5:scopedReasonAlbumUnset=inc(scopedReasonAlbumUnset);break;
@@ -1341,6 +1348,10 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_NO_ALBUM",scopedBirthFlowNoAlbum),
             line("LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_LINK_MISSING",scopedBirthFlowAlbumButLinkMissing),
             line("LIVE_PERIOD_SCOPED_TCA_BIRTH_DUPLICATE_AMBIGUOUS",scopedBirthAmbiguous),
+            line("LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME",scopedLateFlowAlbumSame),
+            line("LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_MISSING",scopedLateFlowAlbumMissing),
+            line("LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_DIFFERENT",scopedLateFlowAlbumDifferent),
+            line("LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_REFERENCE_LOST",scopedLateFlowReferenceLost),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_AMBIGUOUS",scopedReasonWrapperAmbiguous),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_TRACK_WEAK_LOST",scopedReasonTrackWeakLost),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_ALBUM_UNSET",scopedReasonAlbumUnset),

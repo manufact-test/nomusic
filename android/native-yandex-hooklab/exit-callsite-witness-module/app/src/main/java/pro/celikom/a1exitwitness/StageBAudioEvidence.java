@@ -83,13 +83,18 @@ final class StageBAudioEvidence {
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<TrackAlbumLink> nativeTrackAlbumLinks = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
-    // NAV36: recent original tCa constructors, weak + categorical only.
+    // NAV40: exact original tCa creator-owned Track + Album, weak only.
     private static final class WrapperBirth {
         final WeakReference<Object> wrapper;
+        final WeakReference<Object> creatorTrack;
+        final WeakReference<Object> albumAtBirth;
         final int scopeAtBirth;
-        WrapperBirth(Object wrapper,int scopeAtBirth) {
+        boolean laterFlowEmitted;
+        WrapperBirth(Object wrapper,int scopeAtBirth,Object track,Object album) {
             this.wrapper=new WeakReference<>(wrapper);
             this.scopeAtBirth=scopeAtBirth;
+            this.creatorTrack=track==null?null:new WeakReference<>(track);
+            this.albumAtBirth=album==null?null:new WeakReference<>(album);
         }
     }
     private final ArrayList<WrapperBirth> wrapperBirths = new ArrayList<>();
@@ -308,6 +313,12 @@ final class StageBAudioEvidence {
 
     synchronized void onNativeTrackFlowEmission(Object track) {
         if (track == null) return;
+        // Exact same Track emitted after THIS tCa birth; never bind player.
+        for(WrapperBirth birth:wrapperBirths) {
+            if(birth.scopeAtBirth==12 && birth.creatorTrack!=null
+                    && birth.creatorTrack.get()==track)
+                birth.laterFlowEmitted=true;
+        }
         // Exact == of previously weak-held creator Track; no selected queue claim.
         for(int i=creatorAwaitingFlow.size()-1;i>=0;i--) {
             Object prior=creatorAwaitingFlow.get(i).get();
@@ -404,18 +415,27 @@ final class StageBAudioEvidence {
         popScope(activeTrackScopes);
     }
 
-    // Return only what was observed in a bounded history; NOT_IN_WINDOW
-    // does not imply that an original constructor never ran.
+    // NAV40: only SAME original creator Track seen in Flow AFTER THIS
+    // wrapper's birth. 16 same birth Album; 17 absent/conflicted Album;
+    // 18 different Album; 19 weak Track/Flow window lost. Historical ONLY.
     private int classifyMissingWrapperBirth(Object wrapper) {
         if(wrapper==null)return 10;
-        int result=0;
+        WrapperBirth found=null;
         for(WrapperBirth birth:wrapperBirths) {
             if(birth.wrapper.get()==wrapper) {
-                if(result!=0)return 15;
-                result=birth.scopeAtBirth;
+                if(found!=null)return 15;
+                found=birth;
             }
         }
-        return result==0?10:result;
+        if(found==null)return 10;
+        if(found.scopeAtBirth!=12 || !found.laterFlowEmitted)
+            return found.scopeAtBirth;
+        Object track=found.creatorTrack==null?null:found.creatorTrack.get();
+        if(track==null || !wasNativeTrackFlowItem(track))return 19;
+        Object album=found.albumAtBirth==null?null:found.albumAtBirth.get();
+        Object observed=findTrackAlbum(track);
+        if(album==null || observed==null)return 17;
+        return album==observed?16:18;
     }
 
     synchronized void onNativeTrackWrapperCreated(Object wrapper) {
@@ -453,7 +473,10 @@ final class StageBAudioEvidence {
             int atBirth=track==null?11:!wasNativeTrackFlowItem(track)?12:
                 findTrackAlbum(track)==null?13:14;
             if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
-            wrapperBirths.add(new WrapperBirth(wrapper,atBirth));
+            Object birthAlbum=fromExactTcaCreator && atBirth==12
+                ?findTrackAlbum(track):null;
+            wrapperBirths.add(new WrapperBirth(wrapper,atBirth,
+                fromExactTcaCreator && atBirth==12?track:null,birthAlbum));
         }
         if (track==null || wrapper==null || !wasNativeTrackFlowItem(track)) return;
         NativeTrackSourceLink link=null;

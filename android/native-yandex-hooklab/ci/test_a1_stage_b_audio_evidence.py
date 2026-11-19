@@ -571,9 +571,9 @@ class StageBAudioEvidenceTest(unittest.TestCase):
 
 
 
-    def test_nav39_creator_flow_and_live_targets_readonly(self):
+    def test_nav40_creator_late_flow_strict_guard_readonly(self):
         code = HOOK.read_text(encoding="utf-8")
-        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V39_TCA_CREATOR_FLOW_LIVE_RECHECK_READONLY"', code)
+        self.assertIn('DIAGNOSTIC_BUILD = "NAV_V40_TCA_CREATOR_LATE_FLOW_LIVE_WRAPPER_READONLY"', code)
         self.assertIn("installNativeTcaCreatorScopeHook(loader)", code)
         self.assertIn('emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","REGISTERED")', code)
         self.assertIn('emit("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR","NO_HOOK")', code)
