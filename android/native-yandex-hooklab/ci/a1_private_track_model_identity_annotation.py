@@ -31,6 +31,12 @@ LABELS = {
 }
 STRING = "Ljava/lang/String;"
 FIELD_TYPES = {STRING, "J", "Ljava/lang/Long;", "I", "Ljava/lang/Integer;"}
+SERIALIZATION_ANNOTATIONS = {
+    "Lcom/google/gson/annotations/SerializedName;",
+    "Lcom/squareup/moshi/Json;",
+    "Lcom/fasterxml/jackson/annotation/JsonProperty;",
+    "Lkotlinx/serialization/SerialName;",
+}
 MAX_FIELDS = 128
 MAX_ANNOTATIONS = 20
 MAX_ITEMS = 20
@@ -54,7 +60,8 @@ def annotations_for_field(dex, set_offset):
         if not offset:
             continue
         dex.bounds(offset, 2)
-        _, cur = uleb(dex, offset + 1)
+        annotation_type_idx, cur = uleb(dex, offset + 1)
+        recognized_serialization = dex.descriptor(annotation_type_idx) in SERIALIZATION_ANNOTATIONS
         entries, cur = uleb(dex, cur)
         if entries > MAX_ITEMS:
             raise ValueError("IDENTITY_ANNOTATION_PAIRS_OVER_LIMIT")
@@ -62,7 +69,7 @@ def annotations_for_field(dex, set_offset):
             key_idx, cur = uleb(dex, cur)
             key = dex.string(key_idx)
             value, cur = _encoded_value(dex, cur)
-            if key in ("value", "name"):
+            if recognized_serialization and key in ("value", "name"):
                 label = safe_label(value)
                 if label:
                     found.add(label)
