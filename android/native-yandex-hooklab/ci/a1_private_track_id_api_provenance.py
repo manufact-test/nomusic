@@ -137,6 +137,32 @@ def formal_source(dex, method, flags, off, reg):
         pos += 2 if typ in ("J","D") else 1
     return ("OTHER_REGISTER", None)
 
+def same_exact_formal_track_receiver(dex, method, flags, off, ins, read_at, receiver):
+    """Prove read receiver is unchanged formal Track parameter, not merely a
+    field whose declaring class is Track. Count no Kotlin coroutine fields or
+    virtual call result as a substitute for exact reference identity."""
+    size, ins_size = dex.u16(off), dex.u16(off + 2)
+    if ins_size > size:
+        return False
+    cursor = size - ins_size + (0 if flags & 0x8 else 1)
+    track_params = set()
+    for typ in audit.parse_types(method[2]):
+        if typ == TRACK:
+            track_params.add(cursor)
+        cursor += 2 if typ in ("J","D") else 1
+    if not track_params:
+        return False
+    current=receiver
+    for j in range(read_at - 1,-1,-1):
+        _pc,op,words = ins[j]
+        move=move_object_registers(op,words)
+        if move and move[0] == current:
+            current=move[1]
+            continue
+        if audit.written_register(op,words) == current:
+            return False
+    return current in track_params
+
 def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
     if reg is None:
         return "INVALID_API_ARGUMENT", None
@@ -154,6 +180,10 @@ def local_track_id_origin(dex, method, flags, off, ins, call_at, reg):
         if op == 0x54 and ((words[0] >> 8) & 0xf) == current:
             owner, _name, typ = audit.field_id(dex, words[1])
             if owner == TRACK and typ == "Ljava/lang/String;":
+                receiver=(words[0] >> 12) & 15
+                if same_exact_formal_track_receiver(
+                        dex,method,flags,off,ins,j,receiver):
+                    return "EXACT_FORMAL_TRACK_STRING_FIELD", ("SIGNED_TRACK_FIELD_REF",owner,_name,typ)
                 return "DIRECT_TRACK_STRING_FIELD", None
             if owner == ALBUM and typ == "Ljava/lang/String;":
                 return "DIRECT_ALBUM_STRING_FIELD", None
@@ -268,7 +298,7 @@ def inspect_exact_source_field_writers(splits, field_targets):
                         })
                         if len(writer_rows) > 24:
                             raise ValueError("API_TRACKID_EXACT_FIELD_WRITERS_OVER_LIMIT")
-    direct = ("DIRECT_TRACK_STRING_GETTER","DIRECT_TRACK_STRING_FIELD")
+    direct = ("DIRECT_TRACK_STRING_GETTER","DIRECT_TRACK_STRING_FIELD","EXACT_FORMAL_TRACK_STRING_FIELD")
     return ({
         "matched_exact_field_writes": len(writer_rows),
         "origins": sorted({x["origin"] for x in writer_rows}),
@@ -367,6 +397,8 @@ def scan(splits):
         "trackid_api_exact_intermediate_field_writer_provenance": field_writer_provenance,
         "trackid_api_exact_field_writer_upstream": {
             "inbound_call_count": len(writer_upstream_rows),
+            "same_formal_track_id_field_path_count": sum(
+                category == "EXACT_FORMAL_TRACK_STRING_FIELD" for category,_,_ in writer_upstream_rows),
             "value_origins": sorted({category for category,_,_ in writer_upstream_rows}),
             "typed_track_parameter_count": sum(track for _,track,_ in writer_upstream_rows),
             "typed_album_parameter_count": sum(album for _,_,album in writer_upstream_rows),
