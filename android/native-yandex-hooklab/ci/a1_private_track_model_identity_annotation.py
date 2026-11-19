@@ -77,7 +77,8 @@ def annotations_for_field(dex, set_offset):
 
 def scan(splits):
     result = {name: {"class_count": 0, "instance_field_count": 0,
-                     "serialization_identity_fields": []}
+                     "serialization_identity_fields": [],
+                     "annotated_constructor_parameters": []}
               for name in MODELS}
     dex_count = 0
     for apk in splits:
@@ -143,6 +144,33 @@ def scan(splits):
                                 {"label": label, "type": ftype,
                                  "primitive_or_string": ftype in FIELD_TYPES}
                                 for label in sorted(labels))
+                    # Kotlin JSON model annotations may sit on the constructor
+                    # parameter rather than on its corresponding instance
+                    # field. Classify these ONLY as unbound candidates: never
+                    # infer the parameter-to-instance-field write from order.
+                    param_directory = annotation_off + 16 + (nfields + nmethods) * 8
+                    for j in range(nparams):
+                        method_idx = dex.u32(param_directory + j * 8)
+                        ref_list_off = dex.u32(param_directory + j * 8 + 4)
+                        owner, method_name, signature = dex.method(method_idx)
+                        if owner != desc or method_name != "<init>" or not ref_list_off:
+                            continue
+                        types = audit.parse_types(signature)
+                        param_count = dex.u32(ref_list_off)
+                        if param_count > MAX_FIELDS:
+                            raise ValueError("IDENTITY_CTOR_PARAM_COUNT_OVER_LIMIT")
+                        # Synthetic/default-argument overloads can have
+                        # different annotation-array sizes. No guess.
+                        if len(types) != param_count:
+                            continue
+                        for pidx, ftype in enumerate(types):
+                            set_offset = dex.u32(ref_list_off + 4 + pidx * 4)
+                            for label in sorted(annotations_for_field(dex, set_offset)):
+                                item = {"label": label, "type": ftype,
+                                        "primitive_or_string": ftype in FIELD_TYPES,
+                                        "parameter_only_not_proven_instance_field": True}
+                                if item not in row["annotated_constructor_parameters"]:
+                                    row["annotated_constructor_parameters"].append(item)
     if dex_count != 6 or any(v["class_count"] != 1 for v in result.values()):
         raise ValueError("IDENTITY_PINNED_SIX_DEX_MODEL_UNIQUE_REQUIRED")
     track = result["track"]["serialization_identity_fields"]
@@ -155,10 +183,23 @@ def scan(splits):
                     v["primitive_or_string"] for v in album)
     has_edition = any(v["label"] in ("editionid", "edition", "versionid") and
                       v["primitive_or_string"] for v in track + album)
+    track_params = result["track"]["annotated_constructor_parameters"]
+    album_params = result["album"]["annotated_constructor_parameters"]
+    has_track_param = any(v["label"] in ("trackid", "realid", "id") and
+                          v["primitive_or_string"] for v in track_params)
+    has_album_param = any(v["label"] in ("albumid", "id") and
+                          v["primitive_or_string"] for v in album_params)
+    has_edition_param = any(v["label"] == "editionid" and
+                            v["primitive_or_string"] for v in track_params + album_params)
     return {
         "verdict": ("SERIALIZED_IDENTITY_FIELDS_CANDIDATE_NOT_CURRENT_SOURCE_PROOF"
                     if all((has_track, has_album, has_edition))
+                    else "ANNOTATED_CTOR_PARAMS_NOT_MAPPED_TO_FIELDS_OR_SOURCE"
+                    if all((has_track_param, has_album_param, has_edition_param))
                     else "NO_GO_EXACT_ID_AND_EDITION_NOT_SEMANTICALLY_ATTESTED"),
+        "track_ctor_id_annotation_candidate": has_track_param,
+        "album_ctor_id_annotation_candidate": has_album_param,
+        "edition_ctor_annotation_candidate": has_edition_param,
         "models": result,
         "track_id_annotation_present": has_track,
         "album_id_annotation_present": has_album,
