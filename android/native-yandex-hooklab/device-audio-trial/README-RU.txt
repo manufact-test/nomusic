@@ -10,3 +10,5 @@ NAV44 сначала требует NAV43 positive SAME_CALLBACK и неизме
 BUFFER_EOS_ACCESS=NO_HOOK. Это только read-only structural identity, не подтверждает редакцию, текущий PCM или работу подмены.
 CELIKOM_REPLACEMENT=NOT_CONNECTED; IDENTITY_STATUS=STRUCTURAL_ONLY.
 NAV40 и резервная ветка не изменены.
+
+После проверки отправить именно TXT с пометкой NAV_V44_CURRENT_MEDIAITEM_SOURCE_READONLY. Не делать вывод о подмене только по совпадению MediaItem.
