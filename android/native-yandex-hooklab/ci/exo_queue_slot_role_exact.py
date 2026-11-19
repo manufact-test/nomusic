@@ -1459,6 +1459,100 @@ def signed_player_timeline_candidate(targets):
             "same_exact_snapshot_or_selected_media_item_proven":False,
             "current_media_period_active_vs_prefetch_proven":False}
 
+
+def signed_selected_state_field_correspondence(targets):
+    """Exact same-Dex-field checks across Player playback-info and Engine.
+
+    Field NAMES are never exported; both same and different field matches
+    are accounted for. Calls on the same method do not prove same runtime
+    playback snapshot, selected item or simultaneous renderer state.
+    """
+    required=(PLAYER_STATE_RESOLVE,ENGINE,
+              (HOLDER,"<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V"),
+              (PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V"))
+    if not all(k in targets for k in required):
+        raise ValueError("SELECTED_STATE_REQUIRED_SIGNED_METHOD_NOT_FOUND")
+    def field(method,pc,opcode,owner,typ):
+        dex,_flags,off=targets[method]
+        by_pc={pc0:(op,w) for pc0,op,w in audit.instructions(dex,off)}
+        row=by_pc.get(pc)
+        if row is None or row[0]!=opcode:
+            raise ValueError("SELECTED_STATE_ANCHORED_OPCODE_DRIFT")
+        f=audit.field_id(dex,row[1][1])
+        if f[0]!=owner or f[2]!=typ:
+            raise ValueError("SELECTED_STATE_ANCHORED_FIELD_TYPE_DRIFT")
+        return f
+    engine_info_a=field(ENGINE,671,0x54,ENGINE[0],PLAYBACK_INFO)
+    engine_info_b=field(ENGINE,1260,0x54,ENGINE[0],PLAYBACK_INFO)
+    engine_timeline=field(ENGINE,673,0x54,PLAYBACK_INFO,TIMELINE)
+    player_timeline=field(PLAYER_STATE_RESOLVE,25,0x54,PLAYBACK_INFO,TIMELINE)
+    engine_current_ID=field(ENGINE,1262,0x54,PLAYBACK_INFO,PERIOD_ID)
+    d_ID_reads={
+        pc:field(PLAYER_STATE_RESOLVE,pc,0x54,PLAYBACK_INFO,PERIOD_ID)
+        for pc in (74,96,138,257,259)}
+    # PC41 is sget-object and can target a synthetic/static holder:
+    # do not misrepresent it as an instance read of the exact info.
+    holder_ctor=(HOLDER,"<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V")
+    period_info_ctor=(PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V")
+    holder_info_field=field(holder_ctor,18,0x5b,HOLDER,PERIOD_INFO)
+    period_ID_field=field(period_info_ctor,48,0x5b,PERIOD_INFO,PERIOD_ID)
+    engine_holder_infos=[field(ENGINE,pc,0x54,HOLDER,PERIOD_INFO) for pc in (675,679)]
+    engine_period_info_IDs=[field(ENGINE,pc,0x54,PERIOD_INFO,PERIOD_ID) for pc in (677,681)]
+    return {
+        "engine_playback_info_two_reads_same_exact_field":engine_info_a==engine_info_b,
+        "engine_timeline_field_matches_player_M0":engine_timeline==player_timeline,
+        "engine_player_ID_field_exact_M0_iget_match_PCs":[
+            pc for pc,f in d_ID_reads.items() if f==engine_current_ID
+        ],
+        "engine_player_ID_field_M0_distinct_PCs":[
+            pc for pc,f in d_ID_reads.items() if f!=engine_current_ID
+        ],
+        "two_engine_holder_info_reads_match_original_constructor_field":
+            all(f==holder_info_field for f in engine_holder_infos),
+        "two_engine_period_info_ID_reads_match_original_constructor_field":
+            all(f==period_ID_field for f in engine_period_info_IDs),
+        "playback_info_and_holder_period_ID_same_object_proven":False,
+        "selected_track_or_edition_at_started_audio_read_proven":False,
+        "runtime_simultaneous_snapshot_proven":False,
+    }
+
+def signed_engine_state_identity_window(targets):
+    """Narrow readable opcode form around engine state/period readers."""
+    dex,_flags,off=targets[ENGINE]
+    selected=((665,785),(1245,1300))
+    rows=[]
+    for pc,op,words in audit.instructions(dex,off):
+        if not any(lo<=pc<=hi for lo,hi in selected):continue
+        item={"pc":pc,"opcode":op}
+        if 0x52<=op<=0x6d:
+            owner,_field,typ=audit.field_id(dex,words[1])
+            item.update(kind="TYPED_FIELD",owner=owner,field_type=typ,
+                        dest=(words[0]>>8)&15,
+                        receiver=(words[0]>>12)&15 if 0x52<=op<=0x5f else None)
+        elif op in audit.INVOKES and 0x6e<=op<=0x78:
+            item.update(kind="TYPED_CALL",method=list(dex.method(words[1])),
+                        args=audit.invoke_registers(op,words))
+        elif op in (0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3a,0x3b,0x3c,0x3d,
+                   0x28,0x29,0x2a):
+            item.update(kind="BRANCH")
+            if 0x32<=op<=0x3d:
+                offset=words[1]-(0x10000 if words[1]&0x8000 else 0)
+                item["relative_jump_target_pc"]=pc+offset
+        elif op in (0x01,0x02,0x03,0x07,0x08,0x09):
+            item.update(kind="MOVE_REGISTER")
+            if op in (0x07,0x08,0x09):
+                item["to"],item["from"]=audit.move_object_registers(op,words)
+        elif op in (0x0a,0x0b,0x0c,0x0d,0x10,0x11):
+            item.update(kind="RESULT_OR_RETURN",register=words[0]>>8)
+        elif 0x12<=op<=0x1c:
+            item.update(kind="REDACTED_CONST",register=words[0]>>8)
+        else:
+            item["kind"]="OTHER_OPCODE"
+        rows.append(item)
+        if len(rows)>180:raise ValueError("SELECTED_STATE_REGION_ROW_LIMIT")
+    return {"signed_engine_bounded_register_region":rows,
+            "selected_identity_or_audible_event_proven":False}
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -1556,6 +1650,8 @@ def scan_signed(apks):
     period_token= signed_holder_period_token_census(apks,targets)
     old_period_J_reuse=verify_signed_old_period_id_long_handoff(targets)
     player_selection_scout=signed_player_timeline_candidate(targets)
+    state_field_correspondence=signed_selected_state_field_correspondence(targets)
+    state_engine_identity_window=signed_engine_state_identity_window(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
         old_period_J_reuse["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"]
@@ -1575,6 +1671,8 @@ def scan_signed(apks):
         "exact_signed_original_period_token_chain":period_token,
         "exact_old_period_id_long_to_new_queue_builder":old_period_J_reuse,
         "exact_original_player_timeline_candidate_scout":player_selection_scout,
+        "exact_player_state_field_correspondence":state_field_correspondence,
+        "engine_selected_state_bounded_region":state_engine_identity_window,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,
         "old_J_same_value_proven_not_new_selected_generation":True,

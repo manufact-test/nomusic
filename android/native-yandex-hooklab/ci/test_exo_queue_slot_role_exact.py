@@ -484,4 +484,51 @@ class SignedSelectedTimelineCandidateWindowTests(unittest.TestCase):
         self.assertNotIn("DO_NOT_LEAK",str(view))
         self.assertNotIn("SECRET",str(view))
 
+
+class SignedSelectedStateFieldCorrespondenceTests(unittest.TestCase):
+    def test_field_correspondence_names_never_exported(self):
+        from exo_queue_slot_role_exact import (
+            signed_selected_state_field_correspondence,
+            PLAYER_STATE_RESOLVE,ENGINE,HOLDER,PERIOD_INFO)
+        from exo_queue_slot_role_exact import audit
+        from unittest.mock import patch
+        hctor=(HOLDER,"<init>","([Landroidx/media3/exoplayer/l;JLOFa;LrH2;Landroidx/media3/exoplayer/i;Lyh6;LRFa;)V")
+        ctor=(PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V")
+        class FakeDex:
+            pass
+        sources={ENGINE:{671:(0x54,(0x0054,1)),1260:(0x54,(0x0054,1)),
+                  673:(0x54,(0x0054,2)),1262:(0x54,(0x0054,3)),
+                  675:(0x54,(0x0054,4)),679:(0x54,(0x0054,4)),
+                  677:(0x54,(0x0054,5)),681:(0x54,(0x0054,5))},
+                 PLAYER_STATE_RESOLVE:{
+                    25:(0x54,(0x0054,2)),
+                    74:(0x54,(0x0054,7)),96:(0x54,(0x0054,7)),
+                    138:(0x54,(0x0054,8)),257:(0x54,(0x0054,3)),
+                    259:(0x54,(0x0054,8))},
+                 hctor:{18:(0x5b,(0x005b,4))},
+                 ctor:{48:(0x5b,(0x005b,5))}}
+        fields={
+            1:(ENGINE[0],"SECRET_PLAYBACK","LCD7;"),
+            2:("LCD7;","PRIVATE_TIMELINE","LTva;"),
+            3:("LCD7;","PRIVATE_CURRENT","LSl6$b;"),
+            4:(HOLDER,"PRIVATE_INFO",PERIOD_INFO),
+            5:(PERIOD_INFO,"PRIVATE_ID","LSl6$b;"),
+            7:("LCD7;","PRIVATE_LOADING","LSl6$b;"),
+            8:("LCD7;","PRIVATE_SECONDARY","LSl6$b;")}
+        targets={}
+        lookup={}
+        for ix,m in enumerate(sources):
+            dex=FakeDex()
+            targets[m]=(dex,0,ix)
+            lookup[ix]=[(pc,op,w) for pc,(op,w) in sources[m].items()]
+        with patch.object(audit,"instructions",side_effect=lambda dex,offset: lookup[offset]), \
+             patch.object(audit,"field_id",side_effect=lambda dex,index:fields[index]):
+            view=signed_selected_state_field_correspondence(targets)
+        self.assertTrue(view["engine_timeline_field_matches_player_M0"])
+        self.assertTrue(view["engine_playback_info_two_reads_same_exact_field"])
+        self.assertEqual(view["engine_player_ID_field_exact_M0_iget_match_PCs"],[257])
+        self.assertFalse(view["runtime_simultaneous_snapshot_proven"])
+        self.assertNotIn("SECRET",str(view))
+        self.assertNotIn("PRIVATE",str(view))
+
 if __name__=="__main__": unittest.main()
