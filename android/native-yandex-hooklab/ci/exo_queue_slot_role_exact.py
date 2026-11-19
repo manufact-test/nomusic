@@ -1837,6 +1837,124 @@ def verify_signed_period_ID_UID_to_timeline_lookup(targets):
         "NAV41_readonly_runtime_admission_proven":False,
     }
 
+
+# Signed-original PlaybackInfo-vs-front MediaPeriodId post-UID checks.
+# These are conditional comparisons, NOT selected-audio proof.
+def verify_signed_player_front_post_UID_guard(targets):
+    if ENGINE not in targets:
+        raise ValueError("FRONT_POST_UID_ENGINE_MISSING")
+    dex,_flags,off=targets[ENGINE]
+    code={pc:(op,w) for pc,op,w in audit.instructions(dex,off)}
+    def site(pc,opcode):
+        row=code.get(pc)
+        if row is None or row[0]!=opcode:
+            raise ValueError("FRONT_POST_UID_OPCODE_OR_PC_DRIFT")
+        return row[1]
+    def field(pc,opcode,owner,typ,dest,recv):
+        w=site(pc,opcode)
+        value=audit.field_id(dex,w[1])
+        if (value[0]!=owner or value[2]!=typ or
+            ((w[0]>>8)&15)!=dest or ((w[0]>>12)&15)!=recv):
+            raise ValueError("FRONT_POST_UID_TYPED_FIELD_OR_REGISTER_DRIFT")
+        return value
+    # Two complete pointer chains (PlaybackInfo and front holder)
+    # must be the exact original fields used in the previous UID comparison.
+    pins=(
+        (1278,1260,ENGINE[0],PLAYBACK_INFO,1,0),
+        (1280,1262,PLAYBACK_INFO,PERIOD_ID,1,1),
+        (1287,1266,HOLDER,PERIOD_INFO,2,11),
+        (1289,1268,PERIOD_INFO,PERIOD_ID,2,2),
+    )
+    for pc,prior,owner,typ,dest,recv in pins:
+        if field(pc,0x54,owner,typ,dest,recv)!=field(prior,0x54,owner,typ,dest,recv):
+            raise ValueError("FRONT_POST_UID_NOT_SAME_ORIGINAL_REFERENCE_FIELD")
+    sentinel_a=field(1282,0x52,PERIOD_ID,"I",2,1)
+    sentinel_b=field(1291,0x52,PERIOD_ID,"I",4,2)
+    secondary_a=field(1295,0x52,PERIOD_ID,"I",1,1)
+    secondary_b=field(1297,0x52,PERIOD_ID,"I",2,2)
+    if sentinel_a!=sentinel_b or secondary_a!=secondary_b or sentinel_a==secondary_a:
+        raise ValueError("FRONT_POST_UID_DISTINCT_PERIOD_ID_INT_FIELDS_NOT_PAIRED")
+    # const/4 encodes a signed four-bit literal. Verify the actual -1
+    # sentinel and register, without exporting original field names/values.
+    w=site(1284,0x12)[0]
+    literal=(w>>12)&15
+    literal=literal-16 if literal>=8 else literal
+    if ((w>>8)&15)!=3 or literal!=-1:
+        raise ValueError("FRONT_POST_UID_NEGATIVE_ONE_SENTINEL_DRIFT")
+    def branch(pc,op,a,b):
+        w=site(pc,op)
+        if (((w[0]>>8)&15,(w[0]>>12)&15)!=(a,b)):
+            raise ValueError("FRONT_POST_UID_BRANCH_REGISTERS_DRIFT")
+        offset=w[1]-(0x10000 if (w[1]&0x8000) else 0)
+        if pc+offset!=1303:
+            raise ValueError("FRONT_POST_UID_BRANCH_TARGET_DRIFT")
+    # Two 'not equal -1' branches and one *equal* secondary-index branch:
+    # never misreport these as a successful admission or audio selection.
+    branch(1285,0x33,2,3)
+    branch(1293,0x33,4,3)
+    branch(1299,0x32,1,2)
+    for pc,op,w in audit.instructions(dex,off):
+        if 1278<=pc<=1299 and pc not in (1285,1293,1299):
+            if 0x28<=op<=0x2c or 0x32<=op<=0x3d:
+                raise ValueError("FRONT_POST_UID_UNPINNED_BRANCH")
+    return {
+        "original_UID_comparison_precedes_post_UID_checks_pc":1276,
+        "original_playback_info_vs_front_reuses_same_exact_ID_fields":True,
+        "post_UID_both_IDs_test_same_exact_first_int_field_against_minus_one":True,
+        "second_int_field_same_for_both_and_distinct_from_first":True,
+        "post_UID_not_equal_sentinel_branches_to_pc":[1285,1293],
+        "post_UID_equal_secondary_index_branch_to_pc":1299,
+        "three_branches_target_pc":1303,
+        "runtime_comparison_outcomes_proven":False,
+        "front_holder_proven_same_as_active_SLOT_B_at_audio_read":False,
+        "selected_media_item_or_edition_proven":False,
+    }
+
+
+TIMELINE_PERIOD="LTva$b;"
+TIMELINE_WINDOW="LTva$d;"
+def signed_period_window_bounded_scout(targets):
+    """Type/register-only narrow scout: how e.I and e.z use Period/Window.
+    No private field identifiers, media payloads or selector claims."""
+    selected=(ENGINE_PERIOD_TIMELINE_TRANSITION,ENGINE_PERIOD_STATUS_PREDICATE)
+    out={}
+    for method in selected:
+        if method not in targets or not targets[method][2]:
+            raise ValueError("PERIOD_WINDOW_SIGNED_METHOD_MISSING")
+        dex,flags,off=targets[method]
+        rows=[]
+        for pc,op,w in audit.instructions(dex,off):
+            if pc>145:continue
+            row=None
+            if 0x52<=op<=0x5f:
+                owner,_name,typ=audit.field_id(dex,w[1])
+                if owner in (TIMELINE_PERIOD,TIMELINE_WINDOW) or typ in (TIMELINE_PERIOD,TIMELINE_WINDOW):
+                    row={"pc":pc,"action":"TYPED_FIELD","owner":owner,
+                         "type":typ,"opcode":op,"dest":(w[0]>>8)&15,"receiver":(w[0]>>12)&15}
+            elif op in audit.INVOKES and 0x6e<=op<=0x78:
+                callee=dex.method(w[1])
+                if (callee[0]==TIMELINE or TIMELINE_PERIOD in callee[2] or TIMELINE_WINDOW in callee[2]):
+                    row={"pc":pc,"action":"TIMELINE_CALL","callee":list(callee),
+                         "registers":audit.invoke_registers(op,w)}
+            elif op in (0x0a,0x0b,0x0c,0x07,0x08,0x09,0x22):
+                if op==0x22:
+                    if dex.descriptor(w[1]) in (TIMELINE_PERIOD,TIMELINE_WINDOW):
+                        row={"pc":pc,"action":"NEW_PERIOD_OR_WINDOW","type":dex.descriptor(w[1])}
+                else:
+                    row={"pc":pc,"action":"MOVE_OR_RESULT","opcode":op,
+                         "register":(w[0]>>8)&255}
+            elif 0x32<=op<=0x3d:
+                jump=w[1]-(0x10000 if w[1]&0x8000 else 0)
+                row={"pc":pc,"action":"IF_BRANCH","opcode":op,
+                     "target_pc":pc+jump}
+            if row:
+                rows.append(row)
+                if len(rows)>120:raise ValueError("PERIOD_WINDOW_SCOUT_BOUNDED_LIMIT")
+        out[method[1]]={"method":list(method),"rows":rows}
+    return {"scoped_signed_methods":out,
+            "period_to_window_current_selection_proven":False,
+            "same_started_audio_read_snapshot_proven":False}
+
 def scan_signed(apks):
     dex_count = 0
     targets = {}
@@ -1940,6 +2058,8 @@ def scan_signed(apks):
     two_slotB_transition=signed_two_slotB_reads_to_timeline_transition(targets,slot_ids)
     timeline_UID_lookup=verify_signed_period_ID_UID_to_timeline_lookup(targets)
     state_engine_identity_window=signed_engine_state_identity_window(targets)
+    front_post_uid_guard=verify_signed_player_front_post_UID_guard(targets)
+    period_window_scout=signed_period_window_bounded_scout(targets)
     period_id_ctor_sites=signed_period_id_constructor_site_census(apks)
     old_ID_J_to_new_ID_constructor_static_proven=bool(
         old_period_J_reuse["old_id_J_field_reaches_two_builder_paths_on_all_normal_cfg"]
@@ -1965,6 +2085,8 @@ def scan_signed(apks):
         "exact_two_SLOT_B_reads_to_engine_timeline_ID_transition":two_slotB_transition,
         "exact_signed_period_UID_to_Timeline_period_lookup":timeline_UID_lookup,
         "engine_selected_state_bounded_region":state_engine_identity_window,
+        "exact_original_player_front_post_UID_guard":front_post_uid_guard,
+        "original_timeline_period_window_bounded_scout":period_window_scout,
         "old_period_id_J_field_to_new_period_id_constructor_normal_cfg":
             old_ID_J_to_new_ID_constructor_static_proven,
         "old_J_same_value_proven_not_new_selected_generation":True,

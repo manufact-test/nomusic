@@ -716,4 +716,88 @@ class SignedTimelinePeriodUIDLookupTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"TIMELINE_UID_"):
                     self._prove(uid_drift,callee_drift)
 
+
+
+class SignedFrontPostUIDSentinelGuardTests(unittest.TestCase):
+    def _verify(self,change=None):
+        from exo_queue_slot_role_exact import (
+            verify_signed_player_front_post_UID_guard,ENGINE,HOLDER,
+            PLAYBACK_INFO,PERIOD_INFO,PERIOD_ID,audit)
+        from unittest.mock import patch
+        class Dex:pass
+        dex=Dex()
+        def f(op,dest,recv,idx):
+            return (op|(dest<<8)|(recv<<12),idx)
+        def b(op,a,c,pc):
+            return (op|(a<<8)|(c<<12),1303-pc)
+        rows={
+            1260:(0x54,f(0x54,1,0,1)),1262:(0x54,f(0x54,1,1,2)),
+            1266:(0x54,f(0x54,2,11,3)),1268:(0x54,f(0x54,2,2,4)),
+            1278:(0x54,f(0x54,1,0,1)),1280:(0x54,f(0x54,1,1,2)),
+            1282:(0x52,f(0x52,2,1,5)),1284:(0x12,(0xf312,)),
+            1285:(0x33,b(0x33,2,3,1285)),
+            1287:(0x54,f(0x54,2,11,3)),1289:(0x54,f(0x54,2,2,4)),
+            1291:(0x52,f(0x52,4,2,5)),
+            1293:(0x33,b(0x33,4,3,1293)),
+            1295:(0x52,f(0x52,1,1,6)),1297:(0x52,f(0x52,2,2,6)),
+            1299:(0x32,b(0x32,1,2,1299))}
+        if change:
+            pc,entry=change
+            rows[pc]=entry
+        fields={1:(ENGINE[0],"SECRET_INFO",PLAYBACK_INFO),
+                2:(PLAYBACK_INFO,"SECRET_ID",PERIOD_ID),
+                3:(HOLDER,"SECRET_HOLDER",PERIOD_INFO),
+                4:(PERIOD_INFO,"SECRET_PERIOD_ID",PERIOD_ID),
+                5:(PERIOD_ID,"SECRET_FIRST_INT","I"),
+                6:(PERIOD_ID,"SECRET_SECOND_INT","I"),
+                7:(PERIOD_ID,"DRIFT","I")}
+        targets={ENGINE:(dex,0,1)}
+        with patch.object(audit,"instructions",return_value=[
+            (pc,op,w) for pc,(op,w) in sorted(rows.items())]), \
+             patch.object(audit,"field_id",side_effect=lambda d,idx:fields[idx]):
+            return verify_signed_player_front_post_UID_guard(targets)
+    def test_all_three_original_post_uid_comparisons_do_not_prove_audible_selection(self):
+        v=self._verify()
+        self.assertTrue(v["post_UID_both_IDs_test_same_exact_first_int_field_against_minus_one"])
+        self.assertTrue(v["second_int_field_same_for_both_and_distinct_from_first"])
+        self.assertFalse(v["selected_media_item_or_edition_proven"])
+        self.assertNotIn("SECRET",str(v))
+    def test_wrong_field_literal_branch_opcode_register_and_target_fail_closed(self):
+        changes=[
+            (1291,(0x52,(0x2452,7))),
+            (1284,(0x12,(0x0312,))),
+            (1299,(0x33,(0x2133,4))),
+            (1293,(0x33,(0x2333,10))),
+            (1280,(0x54,(0x1154,7))),
+            (1285,(0x33,(0x2333,17))),
+        ]
+        for case in changes:
+            with self.subTest(case=case):
+                with self.assertRaisesRegex(ValueError,"FRONT_POST_UID_"):
+                    self._verify(case)
+
+
+class SignedTimelinePeriodWindowScopedSurveyTests(unittest.TestCase):
+    def test_keeps_private_fields_hidden_and_selection_unproved(self):
+        from exo_queue_slot_role_exact import (
+            signed_period_window_bounded_scout,ENGINE_PERIOD_TIMELINE_TRANSITION,
+            ENGINE_PERIOD_STATUS_PREDICATE,TIMELINE_PERIOD,TIMELINE_WINDOW,
+            TIMELINE,audit)
+        from unittest.mock import patch
+        class FakeDex:
+            def method(self,i):return (TIMELINE,"super","(ILTva$d;)V")
+        dex=FakeDex()
+        targets={
+            ENGINE_PERIOD_TIMELINE_TRANSITION:(dex,0,1),
+            ENGINE_PERIOD_STATUS_PREDICATE:(dex,0,2)}
+        instructions=[(3,0x54,(0x1254,10)),(7,0x6e,(0x006e,0,0)),
+                      (9,0x0c,(0x010c,))]
+        with patch.object(audit,"instructions",return_value=instructions), \
+             patch.object(audit,"field_id",return_value=(TIMELINE_PERIOD,"DO_NOT_LOG","I")), \
+             patch.object(audit,"invoke_registers",return_value=[7,1,2]):
+            view=signed_period_window_bounded_scout(targets)
+        self.assertFalse(view["period_to_window_current_selection_proven"])
+        self.assertNotIn("DO_NOT_LOG",str(view))
+        self.assertEqual(view["scoped_signed_methods"]["I"]["rows"][0]["type"],"I")
+
 if __name__=="__main__": unittest.main()
