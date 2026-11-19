@@ -753,6 +753,64 @@ def validate_signed_period_token_writers(observed):
         "reflection_or_native_mutations_excluded":False,
     }
 
+SIGNED_PERIOD_INFO_REFRESH=(HOLDER,"else","(FLTva;Z)V")
+SIGNED_PERIOD_INFO_CLONE=(PERIOD_INFO,"for","(J)Lyh6;")
+
+def verify_signed_period_info_refresh_preserves_id(targets,holder_field,info_field):
+    """Signed same Java ID path in a holder-internal info refresh.
+
+    Even if a holder has the SAME period-id reference after a refresh,
+    current song/edition, generation and audible PCM remain unproven.
+    """
+    holder,_,holder_off=targets[SIGNED_PERIOD_INFO_REFRESH]
+    info,_,info_off=targets[SIGNED_PERIOD_INFO_CLONE]
+    h={pc:(op,w) for pc,op,w in audit.instructions(holder,holder_off)}
+    n={pc:(op,w) for pc,op,w in audit.instructions(info,info_off)}
+    def site(tab,pc,op):
+        if pc not in tab or tab[pc][0]!=op:
+            raise ValueError("QUEUE_PERIOD_INFO_REFRESH_OPCODE_DRIFT")
+        return tab[pc][1]
+    read=site(h,56,0x54)
+    store=site(h,68,0x5b)
+    if (audit.field_id(holder,read[1])!=holder_field
+        or audit.field_id(holder,store[1])!=holder_field):
+        raise ValueError("QUEUE_PERIOD_INFO_REFRESH_FIELD_DRIFT")
+    rreg=(read[0]>>8)&15
+    owner=(read[0]>>12)&15
+    saved=(store[0]>>8)&15
+    saved_owner=(store[0]>>12)&15
+    call=site(h,64,0x6e)
+    if holder.method(call[1])!=SIGNED_PERIOD_INFO_CLONE:
+        raise ValueError("QUEUE_PERIOD_INFO_REFRESH_METHOD_DRIFT")
+    invoked=audit.invoke_registers(0x6e,call)
+    move_result=site(h,67,0x0c)
+    if (invoked[0]!=rreg or len(invoked)!=3 or
+        ((move_result[0]>>8)&255)!=saved or owner!=saved_owner):
+        raise ValueError("QUEUE_PERIOD_INFO_REFRESH_REGISTER_DRIFT")
+    # The cloned new Lyh6 uses EXACT original LSl6$b reference
+    # extracted from the former Lyh6; no value/equals fallback.
+    token_read=site(n,15,0x54)
+    if audit.field_id(info,token_read[1])!=info_field:
+        raise ValueError("QUEUE_PERIOD_INFO_CLONE_ID_FIELD_DRIFT")
+    token_register=(token_read[0]>>8)&15
+    constructor=site(n,33,0x76)
+    if (info.method(constructor[1])!=(
+            PERIOD_INFO,"<init>","(LSl6$b;JJJJZZZZZ)V")
+        or constructor[0]>>8!=15
+        or constructor[2]+1!=token_register):
+        raise ValueError("QUEUE_PERIOD_INFO_CLONE_ID_REGISTER_DRIFT")
+    for pc,op,w in audit.instructions(info,info_off):
+        if pc<=15:continue
+        if pc>=33:break
+        if audit.written_register(op,w)==token_register:
+            raise ValueError("QUEUE_PERIOD_INFO_CLONE_ID_OVERWRITTEN")
+    return {
+        "holder_in_place_period_info_refresh_proven":True,
+        "refreshed_period_info_can_retain_same_java_period_id":True,
+        "same_period_id_not_sufficient_as_monotonic_queue_epoch":True,
+        "currently_selected_edition_or_queue_generation_proven":False,
+    }
+
 def signed_holder_period_token_census(apks,targets):
     """Anchor 3 exact original ctor instructions then scan all signed DEX.
 
@@ -847,6 +905,8 @@ def signed_holder_period_token_census(apks,targets):
         "publisher_dex_scanned":dex_seen,
         "exact_holder_info_to_period_id_to_long_typed_chain":True,
         "exact_holder_info_constructor_argument_retained":True,
+        "signed_holder_info_refresh_id_preservation":
+            verify_signed_period_info_refresh_preserves_id(targets,holder_info,info_id),
     }
 
 def scan_signed(apks):
@@ -871,7 +931,7 @@ def scan_signed(apks):
                     parent=(dex.descriptor(parent_idx) if parent_idx!=0xffffffff else None)
                     stream_classes[name]={"extends":parent,"access_flags":dex.u32(cbase+4)}
                 for method, flags, off in audit.method_definitions_with_flags(dex):
-                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS:
+                    if method[0] != QUEUE and method != ENGINE and method not in RENDERER_HELPER_METHODS and method[0] != "LR29;" and method not in STREAM_METHOD_BOUNDARY and method not in SIGNED_PERIOD_TOKEN_CTORS and method not in (SIGNED_PERIOD_INFO_REFRESH,SIGNED_PERIOD_INFO_CLONE):
                         continue
                     if method in targets:
                         raise ValueError("QUEUE_TARGET_DUPLICATE")
