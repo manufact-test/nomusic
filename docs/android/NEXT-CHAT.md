@@ -1,3 +1,13 @@
+# CURRENT (19 Nov 2026) — NAV41 narrow same-audio-read probe is code-complete, waiting for owner-signed ARM gate
+
+**No more broad static investigations.** Only new work is NAV41 read-only test of the *existing* strict SLOT_B non-EOS renderer read against exact original engine PlaybackInfo current PeriodID. Original NAV40 signed code + backup untouched.
+
+**Green proofs:** [signed exact-field CI #44527901915](https://github.com/manufact-test/nomusic/actions/runs/44527901915), [JVM fail-closed CI #44529331046](https://github.com/manufact-test/nomusic/actions/runs/44529331046). Code `74df48624f79051276924326a8bd77dc1afe4174`; latest requested export commit `c8e73015493c50c05fa97aaf9febdf802c48c864`. [ARM release gate #44529576455](https://github.com/manufact-test/nomusic/actions/runs/44529576455) not yet confirmed. Never claim an APK is available without seeing green native acceptance + persistent signer. [NAV41 exact handoff](ANDROID-A1-NAV41-PLAYER-PERIOD-SLOTB-NON-EOS-READONLY-20261119.md).
+
+**Status:** `CELIKOM_REPLACEMENT=NOT_CONNECTED`; `IDENTITY_STATUS=STRUCTURAL_ONLY`; not selected edition/generation/audible PCM, no replacement. If release passes, use one owner's HONOR 50 Android 13 phone diagnosis (2–5 tracks, MyWave, Next, pause, seek, repeat same song), then decide only on actual readout. NAV40 APK/ZIP in Library untouched. Do NOT broaden static study or rebuild NAV40.
+
+---
+
 # CURRENT — CI recovered, strict issuer signer preserved, stop static expansion (19 Nov 2026)
 
 **Latest verified CI:** [#44523003641 SUCCESS, **35/35**](https://github.com/manufact-test/nomusic/actions/runs/44523003641), green code `e801787ef6a6c13c7d0c1d2e7916da6b622fe460`. Replaced broken Ubuntu apt-based signed-APK tool installation with preinstalled SDK, strictly verified unchanged original 16-split publisher signature using both historical and SDK 0.9 modern `apksigner` text formats. Fail-closed tests reject incorrect certificate, missing APK signer or multiple signers. The separate Source Stamp is **not** accepted as issuer. No original signature gate bypass. Original scan SUCCESS on exact 2025.10.4 #120.1gpr.
