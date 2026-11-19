@@ -23,3 +23,12 @@ The three original private field references and one source getter field are buil
 
 ## Owner acceptance
 Only after full owner-signed Android13 ARM CI SUCCESS, retrieve and verify exactly one APK plus ZIP, upload both to ChatGPT Library `/CELIKOM/Android/Native/`. User installs over NAV43 without deleting app/data and tests 2–5 tracks including MyWave, Next/seek/pause/repeat, sends TXT. Interpret four new counters together with NAV43 structural gates; no NAV45 or audio substitution before measured proof. No changes to signed NAV40 `34cb32c88a11743a64c9f4814fa71957223a1391`, backup or pre-existing owner binaries.
+
+## Final signed owner release and verification — accepted
+- Exact signed source/export commit: `e7b7dc1d0272cbf354876ff23d347917e815560a`.
+- Full ARM13 signed release [#44547529479](https://github.com/manufact-test/nomusic/actions/runs/44547529479) **SUCCESS, all 27/27 steps**. Pre-export original-first ARM13 [#44547059680](https://github.com/manufact-test/nomusic/actions/runs/44547059680) SUCCESS; JVM [#44546865739](https://github.com/manufact-test/nomusic/actions/runs/44546865739) SUCCESS; exact original field preflight [#44545043886](https://github.com/manufact-test/nomusic/actions/runs/44545043886) SUCCESS.
+- Signed APK `CELIKOM-A1-NAV44-Current-MediaItem-Source-ReadOnly-20261119.apk`: 71,495,660 bytes, SHA256 `9d24147caa5f67a4251026b3d5bbfad814e3a090c4166e4e4a2d34e33990ab5d`.
+- ZIP `CELIKOM-A1-NAV44-Current-MediaItem-Source-20261119.zip`: 51,625,612 bytes, SHA256 `196021eeb6a2f5ccaafd3571bcff99e1d8bf7e33afe2d473325dbb89a7c9caa3`. Contains exactly APK + README-RU.txt.
+- APK nested `assets/lspatch/modules/pro.celikom.a1exitwitness.apk` verified to contain NAV44 diagnostic marker and new private target/counters; no claim about stock original audio.
+- Both APK and ZIP Library uploads SUCCESS into `/CELIKOM/Android/Native/` on 19 Nov.
+- **Not yet owner-phone accepted:** no NAV44 TXT received. Preserve NAV40 and prior signed APKs. Product status `CELIKOM_REPLACEMENT=NOT_CONNECTED`, `IDENTITY_STATUS=STRUCTURAL_ONLY`, `BUFFER_EOS_ACCESS=NO_HOOK`.
