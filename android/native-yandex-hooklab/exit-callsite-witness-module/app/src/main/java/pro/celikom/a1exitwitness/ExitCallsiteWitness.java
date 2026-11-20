@@ -199,6 +199,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean nativeTrackRequestHookReady;
     private boolean nativeTrackContinuationHookReady;
     private boolean nativeTrackWrapperHookReady;
+    private boolean issuerTrackIdProxyHookAttempted;
+    private final java.util.HashSet<Method> issuerTrackIdProxyMethods =
+        new java.util.HashSet<>();
     private boolean nativeTcaCreatorHookAttempted;
     private boolean nativeTcaCreatorHookReady;
     private volatile java.lang.reflect.Field nativeTcaCreatorTrackField;
@@ -3609,8 +3612,107 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
     }
 
+
+    /**
+     * Signed original 2025 FileInfoApi/DownloadInfoApi trackId declarations
+     * are ABSTRACT. Instrument only the concrete Java Proxy implementation
+     * for the publisher's real annotated API request, not its interface.
+     * This hook is optional and pass-through: no requests, bytes, responses
+     * or identifiers are logged, intercepted or changed.
+     */
+    private synchronized void hookConcretePublisherTrackIdProxy(
+            Object originalProxy,Class<?> issuerApi) {
+        if(originalProxy==null || issuerApi==null
+                || !issuerApi.isInstance(originalProxy)
+                || !java.lang.reflect.Proxy.isProxyClass(originalProxy.getClass()))
+            return;
+        Method publisherMethod=null;
+        int selectedIndex=-1;
+        for(Method method:issuerApi.getDeclaredMethods()) {
+            java.lang.annotation.Annotation[][] annotations=method.getParameterAnnotations();
+            int annotatedIndex=-1;
+            for(int i=0;i<annotations.length;i++) {
+                Class<?> type=method.getParameterTypes()[i];
+                if(type!=String.class && type!=long.class && type!=Long.class
+                        && type!=int.class && type!=Integer.class)continue;
+                for(java.lang.annotation.Annotation annotation:annotations[i]) {
+                    try {
+                        if(!annotation.annotationType().getName()
+                                .startsWith("retrofit2.http."))continue;
+                        Object name=annotation.annotationType().getMethod("value")
+                            .invoke(annotation);
+                        if("trackId".equals(name)) {
+                            if(annotatedIndex!=-1)return;
+                            annotatedIndex=i;
+                        }
+                    } catch(Throwable ignored) { }
+                }
+            }
+            if(annotatedIndex<0)continue;
+            if(publisherMethod!=null)return; // ambiguous annotated overload
+            publisherMethod=method;
+            selectedIndex=annotatedIndex;
+        }
+        if(publisherMethod==null)return;
+        Method concrete;
+        try {
+            concrete=originalProxy.getClass().getDeclaredMethod(
+                publisherMethod.getName(),publisherMethod.getParameterTypes());
+            if(java.lang.reflect.Modifier.isAbstract(concrete.getModifiers())
+                    || java.lang.reflect.Modifier.isStatic(concrete.getModifiers()))
+                return;
+            concrete.setAccessible(true);
+        } catch(Throwable ignored) {return;}
+        if(!issuerTrackIdProxyMethods.add(concrete))return;
+        final int selected=selectedIndex;
+        try {
+            hook(concrete).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    try {
+                        // This only becomes source-bound when the existing
+                        // Gp0 Track request scope is active on THIS thread.
+                        STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
+                            chain.getArg(selected));
+                    } catch(Throwable ignored) { }
+                    return chain.proceed(); // publisher's exact request, once
+                });
+        } catch(Throwable ignored) {
+            issuerTrackIdProxyMethods.remove(concrete);
+        }
+    }
+
+    private synchronized void installPublisherTrackIdProxyWitness(ClassLoader loader) {
+        if(loader==null || issuerTrackIdProxyHookAttempted)return;
+        issuerTrackIdProxyHookAttempted=true;
+        try {
+            final Class<?> fileApi=Class.forName(
+                "com.yandex.music.shared.player.content.remote.fileinfo.FileInfoApi",
+                false,loader);
+            final Class<?> downloadApi=Class.forName(
+                "com.yandex.music.shared.player.content.remote.downloadinfo.DownloadInfoApi",
+                false,loader);
+            if(!fileApi.isInterface() || !downloadApi.isInterface())return;
+            Method make=java.lang.reflect.Proxy.class.getDeclaredMethod(
+                "newProxyInstance",ClassLoader.class,Class[].class,
+                java.lang.reflect.InvocationHandler.class);
+            make.setAccessible(true);
+            hook(make).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object real=chain.proceed(); // unchanged Java Proxy
+                    try {
+                        if(fileApi.isInstance(real))
+                            hookConcretePublisherTrackIdProxy(real,fileApi);
+                        if(downloadApi.isInstance(real))
+                            hookConcretePublisherTrackIdProxy(real,downloadApi);
+                    } catch(Throwable ignored) { }
+                    return real;
+                });
+        } catch(Throwable ignored) { }
+    }
+
     private synchronized void installNativeTrackSourceContinuityWitness(ClassLoader loader) {
         if (loader==null || !PACKAGE.equals(Application.getProcessName())) return;
+        installPublisherTrackIdProxyWitness(loader);
         if (!nativeTrackAlbumHookAttempted) {
             nativeTrackAlbumHookAttempted=true;
             try {
@@ -3790,7 +3892,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                         }
                         try {
                             Object result=chain.proceed();
-                            try { STAGE_B_AUDIO.onNativeTrackWrapperCreated(chain.getThisObject()); }
+                            try { STAGE_B_AUDIO.onNativeTrackWrapperCreated(
+                                chain.getThisObject(),chain.getArg(0)); }
                             catch (Throwable ignored) { }
                             return result;
                         } finally {
