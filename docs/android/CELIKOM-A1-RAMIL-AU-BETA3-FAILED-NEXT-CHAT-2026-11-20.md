@@ -1,3 +1,16 @@
+## BETA5 correction — restore diagnostics, remove only the BETA control (20.11.2026)
+
+**Owner feedback on BETA4:** the clone opened like a plain Yandex app: the BETA control was gone, the diagnostic export button was also gone, and there was no visible way to tell whether CELIKOM had activated or to send a TXT. The speculative Yandex-settings entry did not appear on the owner's phone. This was a real UI regression introduced by the BETA4 change; do not ask the owner to search Yandex settings.
+
+**Correction in BETA5:**
+- Restore the previously proven top-right diagnostic export button, now labelled with CELIKOM activation state and TXT action.
+- Keep the separate BETA enable/disable button removed. There is no “join beta” or “connect to beta” control.
+- Attempt CELIKOM activation automatically from the saved encrypted CELIKOM session on app launch. The button shows `ПРОВЕРКА`, `ВКЛ`, `НЕТ СЕССИИ`, `НЕТ ДОСТУПА`, `СЕРВЕР` or `ОШИБКА`; transient activation failures can retry on a later activity resume.
+- Pressing the single diagnostic button saves the privacy-safe TXT to Downloads / CELIKOM A1. It does not require navigating to a Yandex settings screen.
+- Yandex account credentials are not read or used. No server-side auth model or audio architecture changes.
+
+**BETA5 is not built/phone-tested yet at this document revision.** The BETA4 APK remains the failed UI build and should not be used for another audio test. Wait for the signed BETA5 artifact and install it as an update over BETA4 without clearing app data. Then check the single status/diagnostic button and test Ramil' «Ау» ID `144530503`, 00:43–00:54. If status is not `ВКЛ` or the censored original still plays, press that button and send the TXT. CI pass is not proof of audible replacement.
+
 # CELIKOM Android A1 — BETA3 failure / BETA4 current handoff (20 ноября 2026)
 
 ## BETA4 update — signed owner-phone diagnostic build (20.11.2026)

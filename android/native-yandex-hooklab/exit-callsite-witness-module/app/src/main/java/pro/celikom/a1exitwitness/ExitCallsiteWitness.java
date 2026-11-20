@@ -74,17 +74,19 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Never equal the publisher's authenticator type itself.
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
-    private static final String A1_SETTINGS_ENTRY_TAG = "celikom_a1_settings_entry";
+    private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_diagnostic_export";
     private static volatile NativeOwnerControlPlane nativeOwnerControl;
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    private static final String BETA_BUILD = "A1_TRACKID_BETA4_RAMIL_AU_20261120";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA5_RAMIL_AU_20261120";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
     private boolean diagnosticUiReady;
-    private boolean ownerAutoStartAttempted;
+    private boolean ownerAutoStartInFlight;
+    private long ownerAutoStartRetryAfterMs;
+    private volatile String ownerAutoStartStatus = "ОЖИДАНИЕ";
     // Limit high-volume MUSIC_APP exception witness records: never change the
     // exception or vendor behavior, and preserve count category on owner export.
     private static final java.util.concurrent.atomic.AtomicInteger musicMetricaExceptions =
@@ -4699,8 +4701,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                     logActivityPhase(activity,"RESUMED");
                     observeAccountSnapshot(activity);
                     observeOnboardingReadOnly(activity);
+                    attachDiagnosticExportButton(activity);
                     autoStartOwnerIfSession(activity);
-                    attachSettingsEntry(activity);
                 }
                 @Override public void onActivityPaused(Activity activity) {
                     logActivityPhase(activity,"PAUSED");
@@ -5627,108 +5629,69 @@ public final class ExitCallsiteWitness extends XposedModule {
         return (int) (value * context.getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    private static boolean isSettingsActivity(Activity activity) {
-        if(activity==null)return false;
-        String title=String.valueOf(activity.getTitle()).toLowerCase(java.util.Locale.ROOT);
-        String className=activity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
-        if(title.contains("настрой") || title.contains("setting")
-                || className.contains("settings") || className.contains("preference"))
-            return true;
-        try {
-            return containsSettingsLabel(
-                activity.findViewById(android.R.id.content),0);
-        } catch(Throwable ignored) { return false; }
-    }
-
-    private static boolean containsSettingsLabel(View view,int depth) {
-        if(view==null || depth>6 || view.getVisibility()!=View.VISIBLE)return false;
-        if(view instanceof TextView) {
-            CharSequence raw=((TextView)view).getText();
-            if(raw!=null) {
-                String label=raw.toString().trim().toLowerCase(java.util.Locale.ROOT);
-                if("настройки".equals(label) || "settings".equals(label)
-                        || "preferences".equals(label))return true;
-            }
-        }
-        if(view instanceof ViewGroup) {
-            ViewGroup group=(ViewGroup)view;
-            int limit=Math.min(group.getChildCount(),96);
-            for(int i=0;i<limit;i++)
-                if(containsSettingsLabel(group.getChildAt(i),depth+1))return true;
-        }
-        return false;
-    }
-
-    private void attachSettingsEntry(Activity activity) {
-        if(activity==null || !PACKAGE.equals(activity.getPackageName())
-                || !isSettingsActivity(activity))return;
+    private void attachDiagnosticExportButton(Activity activity) {
+        if(activity==null || !PACKAGE.equals(activity.getPackageName()))return;
         try {
             if(activity.getWindow()==null)return;
             View decor=activity.getWindow().getDecorView();
             if(!(decor instanceof FrameLayout))return;
             FrameLayout root=(FrameLayout)decor;
-            if(root.findViewWithTag(A1_SETTINGS_ENTRY_TAG)!=null)return;
+            View existing=root.findViewWithTag(DIAGNOSTIC_BUTTON_TAG);
+            if(existing instanceof TextView) {
+                updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
+                return;
+            }
 
             TextView button=new TextView(activity);
-            button.setTag(A1_SETTINGS_ENTRY_TAG);
-            button.setText("CELIKOM · НАСТРОЙКИ");
+            button.setTag(DIAGNOSTIC_BUTTON_TAG);
+            button.setText("CELIKOM: ПРОВЕРКА · TXT");
             button.setTextColor(Color.WHITE);
-            button.setTextSize(13.0f);
+            button.setTextSize(12.0f);
             button.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
             button.setGravity(Gravity.CENTER);
-            button.setPadding(diagnosticDp(activity,16),diagnosticDp(activity,11),
-                diagnosticDp(activity,16),diagnosticDp(activity,11));
+            button.setPadding(diagnosticDp(activity,12),diagnosticDp(activity,9),
+                diagnosticDp(activity,12),diagnosticDp(activity,9));
             GradientDrawable background=new GradientDrawable();
             background.setColor(Color.rgb(20,32,40));
-            background.setCornerRadius(diagnosticDp(activity,14));
+            background.setCornerRadius(diagnosticDp(activity,18));
             background.setStroke(diagnosticDp(activity,1),Color.rgb(102,224,255));
             button.setBackground(background);
-            button.setElevation(diagnosticDp(activity,6));
+            button.setElevation(diagnosticDp(activity,8));
             button.setClickable(true);
             button.setFocusable(true);
-            button.setOnClickListener(view->showA1SettingsDialog(activity,button));
+            button.setContentDescription("Сохранить диагностику CELIKOM");
+            button.setOnClickListener(view->exportDiagnosticReport(activity));
 
             FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
-            params.leftMargin=diagnosticDp(activity,16);
-            params.rightMargin=diagnosticDp(activity,16);
-            params.bottomMargin=diagnosticDp(activity,18);
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP|Gravity.END);
+            params.topMargin=diagnosticDp(activity,52);
+            params.rightMargin=diagnosticDp(activity,12);
             root.addView(button,params);
-            emit("CELIKOM_SETTINGS_ENTRY","SETTINGS","ATTACHED");
+
+            NativeOwnerControlPlane control=ownerControl(activity);
+            if(control.enabled())ownerAutoStartStatus="ВКЛ";
+            else if(!control.hasSession())ownerAutoStartStatus="НЕТ СЕССИИ";
+            else if(!ownerAutoStartInFlight && "ОЖИДАНИЕ".equals(ownerAutoStartStatus))
+                ownerAutoStartStatus="ПРОВЕРКА";
+            updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
+            emit("DIAGNOSTIC_UI","BUTTON","ATTACHED");
         } catch(Throwable ignored) {
-            emit("CELIKOM_SETTINGS_ENTRY","SETTINGS","ATTACH_FAILED");
+            emit("DIAGNOSTIC_UI","BUTTON","ATTACH_FAILED");
         }
     }
 
-    private void showA1SettingsDialog(Activity activity,TextView button) {
-        NativeOwnerControlPlane control=ownerControl(activity);
-        String status=control.enabled()
-            ? "Замена аудио CELIKOM включена в оригинальном проигрывателе."
-            : control.hasSession()
-                ? "Сохранённая сессия CELIKOM найдена. Активация выполняется автоматически."
-                : "Сохранённая сессия CELIKOM не найдена. Вход потребуется только в CELIKOM.";
-        status+="\n\nУчётная запись Яндекса не читается и не используется.";
-        String action=control.enabled()?"Отключить"
-            :control.hasSession()?"Включить":"Войти и включить";
-        new android.app.AlertDialog.Builder(activity)
-            .setTitle("CELIKOM A1")
-            .setMessage(status)
-            .setNegativeButton("Закрыть",null)
-            .setNeutralButton("Сохранить диагностику",
-                (dialog,which)->exportDiagnosticReport(activity))
-            .setPositiveButton(action,(dialog,which)->{
-                if(control.enabled()) {
-                    control.stop();
-                    button.setText("CELIKOM · НАСТРОЙКИ");
-                    Toast.makeText(activity,"CELIKOM выключен",Toast.LENGTH_SHORT).show();
-                } else if(!control.hasSession()) {
-                    showOwnerLogin(activity,control,button);
-                } else {
-                    activateOwnerAudio(activity,control,button);
-                }
-            }).show();
+    private void updateDiagnosticButtonStatus(Activity activity,String status) {
+        if(activity==null || status==null)return;
+        try {
+            if(activity.getWindow()==null)return;
+            View decor=activity.getWindow().getDecorView();
+            if(!(decor instanceof FrameLayout))return;
+            View found=((FrameLayout)decor).findViewWithTag(DIAGNOSTIC_BUTTON_TAG);
+            if(found instanceof TextView)
+                ((TextView)found).setText("CELIKOM: "+status+" · TXT");
+        } catch(Throwable ignored) { }
     }
 
     private void exportDiagnosticReport(Activity activity) {
@@ -5768,25 +5731,47 @@ public final class ExitCallsiteWitness extends XposedModule {
         return nativeOwnerControl;
     }
     private synchronized void autoStartOwnerIfSession(Activity activity) {
-        if(ownerAutoStartAttempted || activity==null
-                || !PACKAGE.equals(activity.getPackageName()))return;
-        ownerAutoStartAttempted=true;
+        if(activity==null || !PACKAGE.equals(activity.getPackageName()))return;
         NativeOwnerControlPlane control=ownerControl(activity);
         if(control.enabled()) {
+            ownerAutoStartStatus="ВКЛ";
+            updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
             emit("BETA_OWNER_AUTO_START","CELIKOM_SESSION","ALREADY_ENABLED");
             return;
         }
         if(!control.hasSession()) {
+            ownerAutoStartStatus="НЕТ СЕССИИ";
+            updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
             emit("BETA_OWNER_AUTO_START","CELIKOM_SESSION","NO_SESSION");
             return;
         }
+        long now=System.currentTimeMillis();
+        if(ownerAutoStartInFlight || now<ownerAutoStartRetryAfterMs) {
+            updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
+            return;
+        }
+        ownerAutoStartInFlight=true;
+        ownerAutoStartStatus="ПРОВЕРКА";
+        updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
         emit("BETA_OWNER_AUTO_START","CELIKOM_SESSION","START_REQUESTED");
         control.start(code->{
-            String status="enabled".equals(code)?"ENABLED"
+            String status="enabled".equals(code)?"ВКЛ"
+                :"login_required".equals(code)?"НЕТ СЕССИИ"
+                :"not_entitled".equals(code)?"НЕТ ДОСТУПА"
+                :"service_unavailable".equals(code)?"СЕРВЕР"
+                :"ОШИБКА";
+            synchronized(ExitCallsiteWitness.this) {
+                ownerAutoStartInFlight=false;
+                ownerAutoStartStatus=status;
+                ownerAutoStartRetryAfterMs="ВКЛ".equals(status)?0L
+                    :System.currentTimeMillis()+15000L;
+            }
+            updateDiagnosticButtonStatus(activity,status);
+            String event="enabled".equals(code)?"ENABLED"
                 :"login_required".equals(code)?"LOGIN_REQUIRED"
                 :"not_entitled".equals(code)?"NOT_ENTITLED"
                 :"service_unavailable".equals(code)?"SERVICE_UNAVAILABLE":"FAILED";
-            emit("BETA_OWNER_AUTO_START","CELIKOM_SESSION",status);
+            emit("BETA_OWNER_AUTO_START","CELIKOM_SESSION",event);
         });
     }
 
