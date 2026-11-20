@@ -133,6 +133,54 @@ public final class NativeExoAlternateByteRouteTest {
         check(noOriginalMix || !afterAudio.isArmed(yandexDataSource),
             "FAILED_SEEK_CANNOT_KEEP_STALE_ALT_ARMED");
 
+        // A slow alternate HTTPS open may be in progress while Next/Stop
+        // invalidates the old native selection. Never resume original bytes
+        // into the superseded decoder after that cancellation.
+        final java.util.concurrent.CountDownLatch insideOpen=
+            new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch releaseOpen=
+            new java.util.concurrent.CountDownLatch(1);
+        NativeExoAlternateByteRoute pending=new NativeExoAlternateByteRoute(
+            (urlValue,mime)->new NativeExoAlternateByteRoute.Cursor() {
+                public long open(long start) throws IOException {
+                    insideOpen.countDown();
+                    try {
+                        if(!releaseOpen.await(3,java.util.concurrent.TimeUnit.SECONDS))
+                            throw new IOException("fixture_timeout");
+                    } catch(InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("fixture_interrupted",ex);
+                    }
+                    return 32;
+                }
+                public int read(byte[] buffer,int start,int length) {return -1;}
+                public void close() {}
+            });
+        check(pending.armApproved(5,yandexDataSource,"42884423","41","main",
+            180000,grant,"https://audio.example",now,
+            NativeSourceGate.Choice.ALTERNATE),"PENDING_GRANT_ARMED");
+        final java.util.concurrent.atomic.AtomicBoolean cancelledOpenThrew=
+            new java.util.concurrent.atomic.AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicBoolean staleOriginalFallback=
+            new java.util.concurrent.atomic.AtomicBoolean();
+        Thread slow=new Thread(()->{
+            try {
+                Long opened=pending.openIfApproved(yandexDataSource,0);
+                staleOriginalFallback.set(opened==null || opened>=0);
+            } catch(IOException expected) {
+                cancelledOpenThrew.set(true);
+            }
+        });
+        slow.start();
+        check(insideOpen.await(3,java.util.concurrent.TimeUnit.SECONDS),
+            "ALT_OPEN_ACTUALLY_PENDING");
+        pending.cancelForNext();
+        releaseOpen.countDown();
+        slow.join(3000);
+        check(!slow.isAlive() && cancelledOpenThrew.get()
+                && !staleOriginalFallback.get(),
+            "NEXT_CANCELLED_OPEN_NEVER_FALLS_THROUGH_TO_STALE_VENDOR");
+
         System.out.println("NATIVE_EXO_SINGLE_PLAYER_ENCODED_BYTES_ROUTE_PASS");
     }
 }
