@@ -100,9 +100,13 @@ final class NativeEarlySourceLifecycleBridge
     }
 
     @Override public synchronized void beforeUnverifiedOriginalPeriodPrepare() {
-        // This callback only arises from a registered original concrete
-        // prepare hook. A foreign/unlinked period is never evidence for an
-        // alternate, even if FileInfo or a grant arrives later.
+        // An unlinked original MediaPeriod has entered actual prepare.
+        // Even if a same-source period later prepares, this generation is
+        // no longer UNIQUE; revoke all historical pre-prepare candidates.
+        originalPeriodAmbiguous=true;
+        originalPeriodPrePrepareGeneration=-1;
+        originalPeriodRef=null;
+        prePrepareSourceInstanceRef=null;
         sealUnknownNativePrepare();
     }
 
@@ -122,11 +126,19 @@ final class NativeEarlySourceLifecycleBridge
         // At most ONE exact original period for this setter generation.
         // A distinct period (prefetch/retry ambiguity) permanently revokes
         // this generation, even if the first period appears again later.
-        if(originalPeriodRef!=null && originalPeriodRef.get()!=period) {
-            originalPeriodPrePrepareGeneration=-1;
-            originalPeriodRef=null;
-            prePrepareSourceInstanceRef=null;
-            originalPeriodAmbiguous=true;
+        if(originalPeriodRef!=null) {
+            if(originalPeriodRef.get()!=period) {
+                originalPeriodPrePrepareGeneration=-1;
+                originalPeriodRef=null;
+                prePrepareSourceInstanceRef=null;
+                originalPeriodAmbiguous=true;
+            } else {
+                // Original prepare already executed on this same period;
+                // the first pre-open candidate is NOT a reusable ticket.
+                // A newly linked/opened source cannot promote a duplicate
+                // prepare to a fresh alternate decision.
+                prePrepareSourceInstanceRef=null;
+            }
             return;
         }
         originalPeriodRef=new WeakReference<>(period);

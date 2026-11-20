@@ -1,3 +1,11 @@
+# CURRENT 20.11.2026 — unique first original prepare, no unlinked/duplicate admission reuse
+
+The canonical original pre-prepare bridge now **revokes** period/source candidate identity on any unrelated original MediaPeriod preparing within the same generation (not merely seals the source selection). Repeated prepare on the SAME period also consumes/revokes the first preopen DataSource candidate: later descriptor/factory links cannot falsely turn it into a new offer. New JVM assertions cover original-first, duplicate, foreign-before-current and later same-source failure paths. No change to Yandex playback, no source byte swap or semantic triple; original is mandatory.
+
+Last JVM #44716130564 SUCCESS, ARM13 #44716130433/#44716130607 pending at writing. Check this commit's own CI before claiming success.
+
+---
+
 # CURRENT 20.11.2026 — one-source pre-prepare freshness race closed
 
 The exact original pre-prepare DataSource candidate is revoked on open entry, read entry, failed open, close, reissued factory referencing the SAME old Java source instance, and nonunique source mapping across tracks. Weak identity-only history is bounded and fails closed on saturation; common hot-path reads skip repeated scans once the source is already marked. Original publisher open/read/close still run exactly once, bytes not mutated.

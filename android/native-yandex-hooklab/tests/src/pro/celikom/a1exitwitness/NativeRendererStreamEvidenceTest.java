@@ -2412,8 +2412,6 @@ public final class NativeRendererStreamEvidenceTest {
             e.finishEarlyOriginalSourceSet(frame,true);
         } finally {e.exitTrackPlayerSource(scope);}
         FakePeriod good=new FakePeriod(source);
-        check(!e.onOriginalPeriodBeforePrepare(new FakePeriod(new FakeSource())),
-            "PREPARE_DIFFERENT_SOURCE_REJECTED");
         check(!bridge.sawOriginalPeriodPrePrepare(frame.generation,good),
             "PREPARE_NOT_ATTESTED_UNTIL_ACTUAL_ENTER");
         check(e.onOriginalPeriodBeforePrepare(good),
@@ -2645,6 +2643,8 @@ public final class NativeRendererStreamEvidenceTest {
         FakePeriod original=new FakePeriod(source);
         check(e.onOriginalPeriodBeforePrepare(original),
             "LATER_SAME_SOURCE_STRUCTURAL_EVENT_CAN_BE_SEEN");
+        check(!bridge.sawOriginalPeriodPrePrepare(frame.generation,original),
+            "FOREIGN_PREPARE_POISONS_EVEN_LATER_SAME_SOURCE_PERIOD");
         check(!lifecycle.certifyNativeIdentity(reserved,
                 "42884423","album-1","edition-1",clock[0]),
             "LATER_MATCHED_PERIOD_MUST_NOT_REOPEN_SEALED_ORIGINAL");
@@ -2716,6 +2716,11 @@ public final class NativeRendererStreamEvidenceTest {
                 && !bridge.wasPrePrepareOriginalSourceInstance(
                     frame.generation,originalPeriod,new Object()),
             "NO_CROSS_PERIOD_OR_DATA_SOURCE_REUSE");
+        check(e.onOriginalPeriodBeforePrepare(originalPeriod),
+            "REPEATED_SAME_ORIGINAL_PERIOD_PREPARE_OBSERVED");
+        check(!bridge.wasPrePrepareOriginalSourceInstance(
+                frame.generation,originalPeriod,dataSource),
+            "DUPLICATE_PREPARE_CANNOT_REUSE_FIRST_UNOPENED_SOURCE");
         // A later different prepare, even with the same source, irrevocably
         // cancels the supposedly unique period candidate for this revision.
         e.onOriginalPeriodBeforePrepare(new FakePeriod(originalSource));
