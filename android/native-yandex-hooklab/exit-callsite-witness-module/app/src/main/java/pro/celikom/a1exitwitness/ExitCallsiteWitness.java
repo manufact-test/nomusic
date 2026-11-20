@@ -3684,18 +3684,28 @@ public final class ExitCallsiteWitness extends XposedModule {
             PublisherTrackIdProxyContract.Inspection inspection) {
         if (inspection == null) return;
         for (String name : inspection.directInterfaceNames) {
+            NativeTrackIdBetaPolicy.recordProxyShape("INTERFACE_DIRECT", name);
             emit("ISSUER_PROXY_INTERFACE", "DIRECT",
                 safeDiagnosticToken(name.toUpperCase(java.util.Locale.ROOT)));
         }
         for (PublisherTrackIdProxyContract.AnnotatedParameter parameter
                 : inspection.annotatedParameters) {
+            String methodDetail = parameter.declaringInterfaceName + "#"
+                + parameter.methodName;
+            String annotationDetail = parameter.annotationValue + "_"
+                + parameter.parameterTypeName;
+            NativeTrackIdBetaPolicy.recordProxyShape(
+                parameter.inherited ? "METHOD_INHERITED" : "METHOD_DECLARED",
+                methodDetail);
+            NativeTrackIdBetaPolicy.recordProxyShape(
+                "ANNOTATION_" + parameter.annotationKind, annotationDetail);
+            NativeTrackIdBetaPolicy.recordProxyShape(
+                "METHOD_DECLARING_LOADER", parameter.declaringLoaderName);
             emit("ISSUER_PROXY_METHOD",
                 parameter.inherited ? "INHERITED" : "DECLARED",
-                safeDiagnosticToken((parameter.declaringInterfaceName + "_"
-                    + parameter.methodName).toUpperCase(java.util.Locale.ROOT)));
+                safeDiagnosticToken(methodDetail.toUpperCase(java.util.Locale.ROOT)));
             emit("ISSUER_PROXY_ANNOTATION", parameter.annotationKind,
-                safeDiagnosticToken((parameter.annotationValue + "_"
-                    + parameter.parameterTypeName).toUpperCase(java.util.Locale.ROOT)));
+                safeDiagnosticToken(annotationDetail.toUpperCase(java.util.Locale.ROOT)));
             emit("ISSUER_PROXY_METHOD_LOADER", "DECLARING",
                 safeDiagnosticToken(parameter.declaringLoaderName
                     .toUpperCase(java.util.Locale.ROOT)));
@@ -3709,6 +3719,32 @@ public final class ExitCallsiteWitness extends XposedModule {
         emit("ISSUER_PROXY_CLASSLOADER", "API_INTERFACE",
             safeDiagnosticToken(inspection.apiClassLoaderName
                 .toUpperCase(java.util.Locale.ROOT)));
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "CLASSLOADER_REQUESTED", inspection.requestedProxyLoaderName);
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "CLASSLOADER_PROXY", inspection.proxyClassLoaderName);
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "CLASSLOADER_API", inspection.apiClassLoaderName);
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "LOADER_REQUESTED_TO_PROXY",
+            inspection.proxyLoaderMatchesRequested ? "MATCH" : "DIFFERENT");
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "LOADER_REQUESTED_TO_API",
+            inspection.apiLoaderMatchesRequested ? "MATCH" : "DIFFERENT");
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "LOADER_API_TO_PROXY",
+            inspection.apiLoaderMatchesProxy ? "MATCH" : "DIFFERENT");
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "API_ROOT_IMPLEMENTED", inspection.apiImplemented ? "MATCH" : "DIFFERENT");
+        NativeTrackIdBetaPolicy.recordProxyShape(
+            "REQUESTED_INTERFACE_SET",
+            inspection.proxyInterfacesMatchRequested ? "MATCH" : "DIFFERENT");
+        String selectionStatus = inspection.method != null ? "SELECTED"
+            : inspection.ambiguous ? "AMBIGUOUS"
+            : inspection.unsupportedTrackIdParameter ? "UNSUPPORTED_TRACKID_TYPE"
+            : !inspection.metadataComplete ? "METADATA_INCOMPLETE"
+            : "NO_EXACT_TRACKID_ANNOTATION";
+        NativeTrackIdBetaPolicy.recordProxyShape("METHOD_SELECTION", selectionStatus);
         emit("ISSUER_PROXY_LOADER_RELATION", "REQUESTED_TO_PROXY",
             inspection.proxyLoaderMatchesRequested ? "MATCH" : "DIFFERENT");
         emit("ISSUER_PROXY_LOADER_RELATION", "REQUESTED_TO_API",
@@ -5928,6 +5964,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 // from the current in-memory clone MAIN process. These do not
                 // prove playback, exact track identity or CELIKOM replacement.
                 for (String summary : NativeTrackIdBetaPolicy.diagnosticSummary()) {
+                    output.write(summary.getBytes(StandardCharsets.UTF_8));
+                    output.write('\n');
+                }
+                for (String summary : NativeTrackIdBetaPolicy.proxyShapeSummary()) {
                     output.write(summary.getBytes(StandardCharsets.UTF_8));
                     output.write('\n');
                 }

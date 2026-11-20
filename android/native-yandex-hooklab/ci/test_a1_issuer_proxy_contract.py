@@ -52,6 +52,10 @@ class IssuerProxyContractTest(unittest.TestCase):
             intercept,
         )
         self.assertNotIn("handler.invoke(", intercept)
+        policy = (MODULE / "NativeTrackIdBetaPolicy.java").read_text(encoding="utf-8")
+        self.assertIn("recordProxyShape(", policy)
+        self.assertIn("proxyShapeSummary()", policy)
+        self.assertIn("NativeTrackIdBetaPolicy.proxyShapeSummary()", code)
 
 
 if __name__ == "__main__":

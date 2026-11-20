@@ -28,7 +28,42 @@ final class NativeTrackIdBetaPolicy {
     }
     private static final AtomicIntegerArray counts=
         new AtomicIntegerArray(Step.values().length);
+    private static final Object PROXY_SHAPE_LOCK = new Object();
+    private static final java.util.ArrayList<String> proxyShapeDetails =
+        new java.util.ArrayList<>();
+    private static final int MAX_PROXY_SHAPE_DETAILS = 64;
+
     static void mark(Step step) {if(step!=null)counts.incrementAndGet(step.ordinal());}
+
+    /**
+     * Retain bounded, non-secret reflection metadata even when the proxy is
+     * created before Application.onCreate opens the local diagnostic file.
+     * Only class/interface/method/annotation metadata is accepted here.
+     */
+    static void recordProxyShape(String category, String detail) {
+        if (category == null || detail == null) return;
+        String safeCategory = safeShapeToken(category);
+        String safeDetail = safeShapeToken(detail);
+        synchronized (PROXY_SHAPE_LOCK) {
+            if (proxyShapeDetails.size() >= MAX_PROXY_SHAPE_DETAILS) return;
+            proxyShapeDetails.add(
+                "event=AUDIO_ISSUER_PROXY_SHAPE;origin=" + safeCategory
+                + ";error=" + safeDetail + ";thread=OTHER");
+        }
+    }
+
+    static String[] proxyShapeSummary() {
+        synchronized (PROXY_SHAPE_LOCK) {
+            return proxyShapeDetails.toArray(new String[0]);
+        }
+    }
+
+    private static String safeShapeToken(String value) {
+        String clean = value.toUpperCase(java.util.Locale.ROOT)
+            .replaceAll("[^A-Z0-9_.$#():<>]", "_");
+        if (clean.length() > 96) clean = clean.substring(0, 96);
+        return clean.isEmpty() ? "UNKNOWN" : clean;
+    }
     static String replacementStatus() {
         if(counts.get(Step.AUDIO_READ.ordinal())>0)return "BETA_EXO_AUDIO_READ";
         if(counts.get(Step.DATASOURCE_ARMED.ordinal())>0)return "BETA_SOURCE_ARMED";
