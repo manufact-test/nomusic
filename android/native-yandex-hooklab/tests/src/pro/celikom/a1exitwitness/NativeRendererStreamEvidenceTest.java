@@ -2807,6 +2807,46 @@ public final class NativeRendererStreamEvidenceTest {
             "NON_CREATOR_PRE_FLOW_CANNOT_LEARN_ORIGINAL_EXO");
     }
 
+    private static void testRealPublisherAnnotatedTrackIdCorrelatesCreator() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onPublisherAnnotatedTrackId("42884423"); // unscoped: NEVER trusted
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper,"42884423");}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        check(stage.exactPublisherTrackIdForCreator(wrapper,track,album)==null,
+            "UNSCOPED_ANNOTATED_ID_NOT_NATIVE_PROOF");
+        stage.enterNativeTrackSourceRequest(track,null);
+        try {stage.onPublisherAnnotatedTrackId("42884423");}
+        finally {stage.exitNativeTrackSourceRequest();}
+        check("42884423".equals(stage.exactPublisherTrackIdForCreator(
+                wrapper,track,album)), "SIGNED_API_EXACT_TRACK_AND_TCA_KEY");
+        check(stage.exactPublisherTrackIdForCreator(wrapper,new Object(),album)==null,
+            "NO_CROSS_TRACK_ID");
+        check(stage.exactPublisherTrackIdForCreator(wrapper,track,new Object())==null,
+            "NO_CROSS_ALBUM_ID");
+        Object incompatible=new Object();
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(incompatible,"42884424");}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        check(stage.exactPublisherTrackIdForCreator(incompatible,track,album)==null,
+            "ORIGINAL_WRAPPER_KEY_MISMATCH_DENIED");
+        stage.enterNativeTrackSourceRequest(track,null);
+        try {stage.onPublisherAnnotatedTrackId("42884424");}
+        finally {stage.exitNativeTrackSourceRequest();}
+        check(stage.exactPublisherTrackIdForCreator(wrapper,track,album)==null,
+            "API_ID_CONFLICT_NEVER_RECOVERS");
+        check(!contains(stage.exportLines(),"42884423"),
+            "ORIGINAL_ID_NOT_EXPORTED");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2896,6 +2936,7 @@ public final class NativeRendererStreamEvidenceTest {
         testUnlinkedOriginalPrepareSealsLateNativeAdmission();
         testExactOriginalPrepareTracksPreopenDataSourceCandidate();
         testExactCreatorBeforeFlowOriginalDataSourceLink();
+        testRealPublisherAnnotatedTrackIdCorrelatesCreator();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

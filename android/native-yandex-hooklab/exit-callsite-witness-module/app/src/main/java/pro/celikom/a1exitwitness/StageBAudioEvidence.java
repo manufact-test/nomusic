@@ -127,15 +127,88 @@ final class StageBAudioEvidence {
         final WeakReference<Object> creatorTrack;
         final WeakReference<Object> albumAtBirth;
         final int scopeAtBirth;
+        final String originalConstructorKey;
         boolean laterFlowEmitted;
-        WrapperBirth(Object wrapper,int scopeAtBirth,Object track,Object album) {
+        WrapperBirth(Object wrapper,int scopeAtBirth,Object track,Object album,
+                String constructorKey) {
             this.wrapper=new WeakReference<>(wrapper);
             this.scopeAtBirth=scopeAtBirth;
             this.creatorTrack=track==null?null:new WeakReference<>(track);
             this.albumAtBirth=album==null?null:new WeakReference<>(album);
+            this.originalConstructorKey=constructorKey;
         }
     }
     private final ArrayList<WrapperBirth> wrapperBirths = new ArrayList<>();
+    // Provenance must originate from the issuer-annotated trackId method on
+    // a REAL concrete Retrofit proxy, inside the exact Gp0 Track request.
+    // String IDs are never included in exported diagnostics or saved files.
+    private static final class PublisherTrackIdLink {
+        WeakReference<Object> track,album;
+        String id;
+        boolean conflict;
+    }
+    private final ArrayList<PublisherTrackIdLink> publisherTrackIds=new ArrayList<>();
+    private static String numericOriginalId(Object raw) {
+        if(!(raw instanceof String) && !(raw instanceof Long)
+                && !(raw instanceof Integer))return null;
+        String id=String.valueOf(raw);
+        return id.matches("[1-9][0-9]{0,23}")?id:null;
+    }
+    synchronized void onPublisherAnnotatedTrackId(Object raw) {
+        String id=numericOriginalId(raw);
+        Object track=currentScope(activeTrackScopes),album=findTrackAlbum(track);
+        if(id==null || track==null || album==null)return;
+        PublisherTrackIdLink match=null;
+        for(int i=publisherTrackIds.size()-1;i>=0;i--) {
+            PublisherTrackIdLink link=publisherTrackIds.get(i);
+            if(link.track.get()==null || link.album.get()==null)
+                publisherTrackIds.remove(i);
+            else if(link.track.get()==track) {
+                if(match!=null) {
+                    match.conflict=true;
+                    link.conflict=true;
+                    return;
+                }
+                match=link;
+            }
+        }
+        if(match!=null) {
+            if(match.album.get()!=album || !id.equals(match.id))
+                match.conflict=true;
+            return;
+        }
+        if(publisherTrackIds.size()>=32)publisherTrackIds.remove(0);
+        PublisherTrackIdLink link=new PublisherTrackIdLink();
+        link.track=new WeakReference<>(track);
+        link.album=new WeakReference<>(album);
+        link.id=id;
+        publisherTrackIds.add(link);
+    }
+    /** Exact creator Track+Album + signed tCa(String) key + API trackId. */
+    synchronized String exactPublisherTrackIdForCreator(
+            Object wrapper,Object originalTrack,Object originalAlbum) {
+        Object[] creator=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        if(creator==null || creator[0]!=originalTrack
+                || creator[1]!=originalAlbum)return null;
+        WrapperBirth birthMatch=null;
+        for(WrapperBirth birth:wrapperBirths) {
+            if(birth.wrapper.get()!=wrapper)continue;
+            if(birthMatch!=null)return null;
+            birthMatch=birth;
+        }
+        if(birthMatch==null || birthMatch.originalConstructorKey==null)
+            return null;
+        PublisherTrackIdLink matchingId=null;
+        for(PublisherTrackIdLink link:publisherTrackIds) {
+            if(link.track.get()!=originalTrack)continue;
+            if(matchingId!=null)return null;
+            matchingId=link;
+        }
+        return matchingId!=null && !matchingId.conflict
+            && matchingId.album.get()==originalAlbum
+            && birthMatch.originalConstructorKey.equals(matchingId.id)
+            ?matchingId.id:null;
+    }
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeWrapperScopes = new ThreadLocal<>();
     // NAV37: exact signed tCa creator method -> owner parameter -> Track field scope.
@@ -568,6 +641,9 @@ final class StageBAudioEvidence {
     }
 
     synchronized void onNativeTrackWrapperCreated(Object wrapper) {
+        onNativeTrackWrapperCreated(wrapper,null);
+    }
+    synchronized void onNativeTrackWrapperCreated(Object wrapper,Object originalConstructorArg) {
         mark(nativeTrackWrapperConstructed);
         boolean fromExactTcaCreator=hasNativeTcaCreatorOwnerScope();
         if(fromExactTcaCreator)mark(tcaCreatorWrapperConstructed);
@@ -605,7 +681,8 @@ final class StageBAudioEvidence {
             Object birthAlbum=fromExactTcaCreator && atBirth==12
                 ?findTrackAlbum(track):null;
             wrapperBirths.add(new WrapperBirth(wrapper,atBirth,
-                fromExactTcaCreator && atBirth==12?track:null,birthAlbum));
+                fromExactTcaCreator && atBirth==12?track:null,birthAlbum,
+                fromExactTcaCreator?numericOriginalId(originalConstructorArg):null));
         }
         if (track==null || wrapper==null) return;
         // In the issuer-signed creator, Track may reach Flow AFTER tCa
