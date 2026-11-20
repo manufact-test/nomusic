@@ -41,6 +41,16 @@ final class NativeEarlySourceLifecycleBridge
         }
     }
     private PendingApprovedAudio pendingApprovedAudio;
+    interface AuthenticatedSourceGrantRequester {
+        void request(long generation,Object originalTrack,Object originalAlbum,
+            Object originalSource,String trackId,String albumId,
+            String editionId,long originalDurationMs);
+    }
+    private AuthenticatedSourceGrantRequester authenticatedRequester;
+    synchronized void setAuthenticatedSourceGrantRequester(
+            AuthenticatedSourceGrantRequester requester) {
+        authenticatedRequester=requester;
+    }
     private long latestSetterGeneration = -1;
     private long lifecycleGeneration;
     private boolean originalSetterSucceeded;
@@ -165,6 +175,27 @@ final class NativeEarlySourceLifecycleBridge
                 track,album,edition,elapsed)
             && lifecycle.observeFileInfo(lifecycleGeneration,
                 track,album,edition);
+    }
+
+    /**
+     * Full original same-source identity AND separately proven original duration.
+     * No caller may supply its duration or edition from CELIKOM's server reply.
+     * Fail closed on absent/late proof. Network is asynchronous and cannot
+     * upgrade a period once actual publisher prepare has begun.
+     */
+    synchronized boolean onCertifiedOriginalSourceWithDuration(
+            long generation,Object originalTrack,Object originalAlbum,
+            Object originalSource,String track,String album,String edition,
+            long originalDurationMs) {
+        if(originalDurationMs<=0 || originalDurationMs>86_400_000
+                || originalPeriodPrepareSealed
+                || !onSourceBoundPublisherFileInfo(generation,originalTrack,
+                    originalAlbum,originalSource,track,album,edition))
+            return false;
+        AuthenticatedSourceGrantRequester requester=authenticatedRequester;
+        if(requester!=null)requester.request(generation,originalTrack,
+            originalAlbum,originalSource,track,album,edition,originalDurationMs);
+        return true;
     }
 
     /**

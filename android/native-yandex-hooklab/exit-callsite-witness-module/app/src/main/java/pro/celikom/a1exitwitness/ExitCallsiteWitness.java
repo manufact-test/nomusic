@@ -75,6 +75,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String OWN_ACCOUNT_TYPE =
         STOCK_ACCOUNT_TYPE + "." + PACKAGE;
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
+    private static final String OWNER_BUTTON_TAG = "celikom_a1_owner_audio_control";
+    private static volatile NativeOwnerControlPlane nativeOwnerControl;
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
@@ -5509,7 +5511,10 @@ public final class ExitCallsiteWitness extends XposedModule {
             View decor = activity.getWindow().getDecorView();
             if (!(decor instanceof FrameLayout)) return;
             FrameLayout root = (FrameLayout) decor;
-            if (root.findViewWithTag(DIAGNOSTIC_BUTTON_TAG) != null) return;
+            if (root.findViewWithTag(DIAGNOSTIC_BUTTON_TAG) != null) {
+                attachOwnerControlButton(activity,root);
+                return;
+            }
 
             TextView button = new TextView(activity);
             button.setTag(DIAGNOSTIC_BUTTON_TAG);
@@ -5558,9 +5563,129 @@ public final class ExitCallsiteWitness extends XposedModule {
             params.topMargin = diagnosticDp(activity, 52);
             params.rightMargin = diagnosticDp(activity, 12);
             root.addView(button, params);
+            attachOwnerControlButton(activity,root);
         } catch (Throwable ignored) {
             emit("DIAGNOSTIC_UI", "BUTTON", "ATTACH_FAILED");
         }
+    }
+
+
+    /** Explicit owner-only activation in the CELIKOM clone, not stock Yandex. */
+    private synchronized NativeOwnerControlPlane ownerControl(Context context) {
+        if(nativeOwnerControl==null) {
+            nativeOwnerControl=new NativeOwnerControlPlane(context,NATIVE_EARLY_ADMISSION);
+            NATIVE_EARLY_ADMISSION.setAuthenticatedSourceGrantRequester(
+                nativeOwnerControl::requestForCertifiedSource);
+        }
+        return nativeOwnerControl;
+    }
+    private void attachOwnerControlButton(Activity activity,FrameLayout root) {
+        if(root.findViewWithTag(OWNER_BUTTON_TAG)!=null)return;
+        final NativeOwnerControlPlane control=ownerControl(activity);
+        TextView button=new TextView(activity);
+        button.setTag(OWNER_BUTTON_TAG);
+        button.setText(control.enabled()?"CELIKOM: ВКЛ":"CELIKOM: ВЫКЛ");
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(12);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(diagnosticDp(activity,12),diagnosticDp(activity,8),
+            diagnosticDp(activity,12),diagnosticDp(activity,8));
+        GradientDrawable bg=new GradientDrawable();
+        bg.setColor(Color.rgb(28,38,46));
+        bg.setCornerRadius(diagnosticDp(activity,16));
+        bg.setStroke(diagnosticDp(activity,1),Color.rgb(86,202,157));
+        button.setBackground(bg);
+        button.setClickable(true);
+        button.setOnClickListener(v->{
+            if(control.enabled()) {
+                control.stop();
+                button.setText("CELIKOM: ВЫКЛ");
+                return;
+            }
+            if(!control.hasSession()) {
+                showOwnerLogin(activity,control,button);
+                return;
+            }
+            activateOwnerAudio(activity,control,button);
+        });
+        FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP|Gravity.END);
+        params.topMargin=diagnosticDp(activity,101);
+        params.rightMargin=diagnosticDp(activity,12);
+        root.addView(button,params);
+    }
+    private void activateOwnerAudio(Activity activity,
+            NativeOwnerControlPlane control,TextView button) {
+        button.setText("CELIKOM: ПРОВЕРКА");
+        control.start(code->{
+            if(activity.isFinishing() || activity.isDestroyed())return;
+            button.setText(control.enabled()?"CELIKOM: ВКЛ":"CELIKOM: ВЫКЛ");
+            String message="enabled".equals(code)
+                ?"CELIKOM включён для новых песен":
+                "not_entitled".equals(code)?"Нет доступа CELIKOM":
+                "login_required".equals(code)?"Нужно войти в CELIKOM":
+                "service_unavailable".equals(code)?"CELIKOM временно недоступен":
+                "Не удалось подтвердить доступ CELIKOM";
+            Toast.makeText(activity,message,Toast.LENGTH_SHORT).show();
+            if("login_required".equals(code))showOwnerLogin(activity,control,button);
+        });
+    }
+    private void showOwnerLogin(Activity activity,
+            NativeOwnerControlPlane control,TextView button) {
+        android.widget.LinearLayout fields=new android.widget.LinearLayout(activity);
+        fields.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad=diagnosticDp(activity,16);
+        fields.setPadding(pad,pad,pad,0);
+        android.widget.EditText email=new android.widget.EditText(activity);
+        email.setHint("Email CELIKOM");
+        email.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+            | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        android.widget.EditText password=new android.widget.EditText(activity);
+        password.setHint("Пароль CELIKOM");
+        password.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+            | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        fields.addView(email);
+        fields.addView(password);
+        new android.app.AlertDialog.Builder(activity)
+            .setTitle("Войти в CELIKOM")
+            .setView(fields)
+            .setNegativeButton("Отмена",null)
+            .setPositiveButton("Войти",(dialog,which)->{
+                String address=email.getText().toString();
+                String secret=password.getText().toString();
+                password.setText("");
+                button.setText("CELIKOM: ВХОД");
+                control.login(address,secret,code->{
+                    if(activity.isFinishing() || activity.isDestroyed())return;
+                    button.setText("CELIKOM: ВЫКЛ");
+                    if("signed_in".equals(code))
+                        activateOwnerAudio(activity,control,button);
+                    else if("verification_required".equals(code))
+                        showOwnerVerification(activity,control,button,address);
+                    else Toast.makeText(activity,
+                        "Не удалось войти в CELIKOM",Toast.LENGTH_SHORT).show();
+                });
+            }).show();
+    }
+    private void showOwnerVerification(Activity activity,
+            NativeOwnerControlPlane control,TextView button,String address) {
+        android.widget.EditText code=new android.widget.EditText(activity);
+        code.setHint("Код из письма");
+        code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        new android.app.AlertDialog.Builder(activity)
+            .setTitle("Подтверждение CELIKOM")
+            .setView(code)
+            .setNegativeButton("Отмена",null)
+            .setPositiveButton("Подтвердить",(dialog,which)->{
+                control.verify(address,code.getText().toString(),status->{
+                    if(activity.isFinishing() || activity.isDestroyed())return;
+                    if("signed_in".equals(status))
+                        activateOwnerAudio(activity,control,button);
+                    else Toast.makeText(activity,
+                        "Не удалось подтвердить CELIKOM",Toast.LENGTH_SHORT).show();
+                });
+            }).show();
     }
 
     private static Uri saveDiagnosticReportToDownloads(Context context) throws IOException {
