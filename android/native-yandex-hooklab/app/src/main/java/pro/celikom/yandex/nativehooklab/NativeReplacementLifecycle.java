@@ -54,7 +54,8 @@ public final class NativeReplacementLifecycle {
         if (!enabled) return StopVerdict.ALREADY_OFF;
         StopVerdict verdict;
         if (active == null) {
-            verdict = StopVerdict.NO_SOURCE_ISSUED;
+            verdict = issued ? StopVerdict.ALREADY_ISSUED_SOURCE_UNCHANGED
+                             : StopVerdict.NO_SOURCE_ISSUED;
         } else if (!issued) {
             active.abort(activeRevision);
             verdict = StopVerdict.CANCELLED_PENDING;
@@ -74,6 +75,47 @@ public final class NativeReplacementLifecycle {
      * Returns a generation token; no raw ID is retained outside the gate.
      * Disabled mapping returns a token but cannot offer/commit anything.
      */
+    /**
+     * Reserve the ORIGINAL playback selection before the original source
+     * setter has trustworthy track/album/edition String values.
+     * No replacement candidate may be offered at this stage. Generation
+     * advances exactly once for this selection; Next/replay always retires it.
+     */
+    public synchronized long beginUnresolvedNativeSelection(long elapsedRealtimeMs) {
+        if (active != null && !issued) active.abort(activeRevision);
+        generation++;
+        active=null;
+        issued=false;
+        issuedSource=NativeSourceGate.Choice.ORIGINAL;
+        return generation;
+    }
+
+    /**
+     * Only a semantically verified SAME-original-source identity may be
+     * certified, before the original decoder's prepare boundary. This does
+     * not read IDs or certify an arbitrary Track field by itself.
+     * A late FileInfo reply after ORIGINAL was prepared CANNOT upgrade it.
+     */
+    public synchronized boolean certifyNativeIdentity(long token,
+            String trackId,String albumId,String edition,long elapsedRealtimeMs) {
+        if(!enabled || token!=generation || issued || active!=null
+                || !NativeGrantContract.isExactTrackId(trackId)
+                || !exactText(albumId) || !exactText(edition))return false;
+        NativePrePrepareAdmission admission=new NativePrePrepareAdmission(resolveBudgetMs);
+        long revision=admission.begin(trackId,albumId,edition,elapsedRealtimeMs);
+        active=admission;
+        activeRevision=revision;
+        return true;
+    }
+
+    private static boolean exactText(String value) {
+        if(value==null || value.isEmpty() || value.length()>128
+                || !value.trim().equals(value))return false;
+        for(int i=0;i<value.length();i++)
+            if(Character.isISOControl(value.charAt(i)))return false;
+        return true;
+    }
+
     public synchronized long beginTrack(String trackId, String albumId, String edition,
                                         long elapsedRealtimeMs) {
         if (active != null && !issued) active.abort(activeRevision);
@@ -123,10 +165,20 @@ public final class NativeReplacementLifecycle {
             long generationToken, String decoderTrackId, String decoderAlbumId,
             String decoderEdition,
             long elapsedRealtimeMs) {
-        if (!live(generationToken) || issued) {
+        if (!enabled || generationToken != generation || issued) {
             return new NativePrePrepareAdmission.Decision(false,
                     NativeSourceGate.Choice.ORIGINAL,
                     NativeTrackIdentityGate.Verdict.ORIGINAL_STALE);
+        }
+        // A real original prepare while IDs are still unresolved *seals*
+        // ORIGINAL forever for this generation. It must NOT be possible
+        // to certify afterwards and apply an alternate mid-play.
+        if (active == null) {
+            issued = true;
+            issuedSource = NativeSourceGate.Choice.ORIGINAL;
+            return new NativePrePrepareAdmission.Decision(false,
+                    NativeSourceGate.Choice.ORIGINAL,
+                    NativeTrackIdentityGate.Verdict.ORIGINAL_UNPROVEN);
         }
         NativePrePrepareAdmission.Decision decision =
                 active.commitAtNativePrepare(activeRevision,

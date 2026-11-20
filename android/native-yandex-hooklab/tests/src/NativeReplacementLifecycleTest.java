@@ -164,7 +164,80 @@ public final class NativeReplacementLifecycleTest {
             "rejected server album cannot reach native alternate");
     }
 
+    private static void unresolvedOriginalSourceMustNotUpgradeAfterPrepare() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
+        s.start();
+        long first=s.beginUnresolvedNativeSelection(100);
+        yes(s.isEnabled() && s.generation()==first,"early selection reserved");
+        yes(!s.observeFileInfo(first,TRACK,ALBUM,EDITION),"unresolved no FileInfo");
+        eq(NativePrePrepareAdmission.Offer.REJECTED,offer(s,first,105),
+                "unresolved grant rejected");
+        NativePrePrepareAdmission.Decision original=
+            s.atNativePrepare(first,TRACK,ALBUM,EDITION,110);
+        yes(!original.applyOnce && original.source==NativeSourceGate.Choice.ORIGINAL,
+                "unresolved original prepare is not alternate");
+        yes(!s.certifyNativeIdentity(first,TRACK,ALBUM,EDITION,115),
+                "after real prepare cannot upgrade audio");
+        eq(NativePrePrepareAdmission.Offer.REJECTED,offer(s,first,120),
+                "postprepare grant cannot enter audio");
+        eq(NativeReplacementLifecycle.StopVerdict.ALREADY_ISSUED_SOURCE_UNCHANGED,
+                s.stop(),"stop does not retract already prepared original source");
+    }
+
+    private static void exactIdentityCanCertifySameUnpreparedSelection() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
+        s.start();
+        long first=s.beginUnresolvedNativeSelection(100);
+        yes(!s.certifyNativeIdentity(first,"title",ALBUM,EDITION,105),
+                "no guessed title as native trackId");
+        yes(!s.certifyNativeIdentity(first,TRACK,null,EDITION,105),
+                "missing album never certified");
+        long next=s.beginUnresolvedNativeSelection(120);
+        yes(!s.certifyNativeIdentity(first,TRACK,ALBUM,EDITION,121),
+                "Next invalidates old original Track identity");
+        yes(s.certifyNativeIdentity(next,TRACK,ALBUM,EDITION,122),
+                "same early setter generation accepts independently proven triple");
+        yes(!s.certifyNativeIdentity(next,TRACK,ALBUM,EDITION,123),
+                "same selected source cannot be certified twice");
+        yes(s.observeFileInfo(next,TRACK,ALBUM,EDITION),
+                "only exact FileInfo on same generation");
+        eq(NativePrePrepareAdmission.Offer.ACCEPTED_PENDING,offer(s,next,125),
+                "approved signed source waits for real prepare");
+        eq(NativeSourceGate.Choice.ALTERNATE,
+                s.atNativePrepare(next,TRACK,ALBUM,EDITION,128).source,
+                "exact same native generation accepts once");
+        yes(!s.atNativePrepare(next,TRACK,ALBUM,EDITION,129).applyOnce,
+                "no second prepare commit");
+        yes(!s.certifyNativeIdentity(next,TRACK,ALBUM,EDITION,130),
+                "issued source is not recertifiable");
+        long replay=s.beginUnresolvedNativeSelection(131);
+        yes(!s.atNativePrepare(next,TRACK,ALBUM,EDITION,132).applyOnce,
+                "late old track cannot change replay source");
+        yes(s.certifyNativeIdentity(replay,TRACK,ALBUM,EDITION,133),
+                "same track replay is a fresh native generation");
+        eq(NativeSourceGate.Choice.ORIGINAL,
+                s.atNativePrepare(replay,TRACK,ALBUM,EDITION,134).source,
+                "without independent fresh FileInfo and grant replay stays original");
+    }
+
+    private static void stopAndRestartInvalidateUnresolvedGeneration() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
+        long disabled=s.beginUnresolvedNativeSelection(10);
+        yes(!s.certifyNativeIdentity(disabled,TRACK,ALBUM,EDITION,11),
+                "disabled unresolved track cannot start alternate");
+        s.start();
+        long active=s.beginUnresolvedNativeSelection(20);
+        eq(NativeReplacementLifecycle.StopVerdict.NO_SOURCE_ISSUED,s.stop(),
+                "stop unresolved request before native source safely");
+        s.start();
+        yes(!s.certifyNativeIdentity(active,TRACK,ALBUM,EDITION,22),
+                "old pending original binding after Stop is stale");
+    }
+
     public static void main(String[] args) {
+        stopAndRestartInvalidateUnresolvedGeneration();
+        unresolvedOriginalSourceMustNotUpgradeAfterPrepare();
+        exactIdentityCanCertifySameUnpreparedSelection();
         grantFromDifferentAlbumCannotAuthorize();
         wrongAlbumAndMissingAlbumAlwaysOriginal();
         stopCancelsPendingAndPreventsGrantLeaks();

@@ -7,6 +7,12 @@ on:
     paths:
       - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java'
       - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java'
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java'
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java'
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeReplacementLifecycleTest.java'
+      - 'android/native-yandex-hooklab/tests/src/NativePrePrepareAdmissionTest.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java'
       - 'android/native-yandex-hooklab/tests/src/NativeSourceGateTest.java'
       - 'android/native-yandex-hooklab/tests/src/NativeTrackIdentityGateTest.java'
       - '.github/workflows/android-a1-native-identity-model-contract.yml'
@@ -35,7 +41,16 @@ jobs:
           javac -d "$RUNNER_TEMP/native-identity-classes" \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
+            android/native-yandex-hooklab/tests/src/NativeReplacementLifecycleTest.java \
+            android/native-yandex-hooklab/tests/src/NativePrePrepareAdmissionTest.java \
+            android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java \
             android/native-yandex-hooklab/tests/src/NativeSourceGateTest.java \
             android/native-yandex-hooklab/tests/src/NativeTrackIdentityGateTest.java
+          java -cp "$RUNNER_TEMP/native-identity-classes" NativeReplacementLifecycleTest
+          java -cp "$RUNNER_TEMP/native-identity-classes" NativePrePrepareAdmissionTest
+          java -cp "$RUNNER_TEMP/native-identity-classes" NativeGrantContractTest
           java -cp "$RUNNER_TEMP/native-identity-classes" NativeSourceGateTest
           java -cp "$RUNNER_TEMP/native-identity-classes" pro.celikom.yandex.nativehooklab.NativeTrackIdentityGateTest
