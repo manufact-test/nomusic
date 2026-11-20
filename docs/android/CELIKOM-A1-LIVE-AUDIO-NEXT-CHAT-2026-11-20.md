@@ -1,3 +1,5 @@
+> **LATEST UPDATE — BETA4, 20.11.2026:** Source commit `67db1226d98b6c2d0666f064c6441409e17d5d63`. Exact Fp0/RAa coroutine-resume scope restoration, early Retrofit proxy witness, privacy-safe proxy/issuer counters, saved CELIKOM-session auto-start, and a settings-only CELIKOM entry are now in the signed owner-phone diagnostic build. JVM/native observer, ARM13 build, and clone differential CI all pass: [#44769299260](https://github.com/manufact-test/nomusic/actions/runs/44769299260), [#44769299230](https://github.com/manufact-test/nomusic/actions/runs/44769299230), [#44769299113](https://github.com/manufact-test/nomusic/actions/runs/44769299113). **Important:** the emulator did not sign into CELIKOM or play audio; verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a=NO_GO`, diagnostic-only/not releasable. BETA4 is only for the next HONOR 50 diagnostic run, not proof of replacement. APK is in Library at `/CELIKOM-A1-RAMIL-AU-BETA4-HONOR50-20261120.apk`, SHA256 `05d078075edbe88d028dbb8b70f5e2b3cddd128cdadd250885e838f6b660dedc`. Read the BETA4 section in [CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md) for the exact phone test and next decision path.
+
 > **LATEST UPDATE — 20.11.2026:** A code-level coroutine wiring gap was found after the failed BETA3 phone test. The module already retained exact Fp0 Track and RAa wrapper continuation links, but did not restore those scopes around invokeSuspend(Object). The current fix adds those resume hooks and installs the Retrofit proxy witness before Application.attach enters attachBaseContext. It adds privacy-safe counters to distinguish proxy registration, proxy creation, annotated method selection, handler invocation and missing Track scope. This is a targeted change in the existing one-player architecture. **CI and HONOR 50 acoustic validation are still pending; no audio success is claimed.** Read the BETA3 failure handoff below before continuing.
 
 > **НОВЕЙШАЯ ТОЧКА ПЕРЕДАЧИ (20.11.2026, после живого BETA3 на HONOR 50):** BETA3 **не подменила аудио**. Читать прежде всего [CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md). Реальный TXT: `CELIKOM-A1-Diagnostics-1795187145828.txt` (прикреплён в исходном чате, в GitHub не публиковать). Подтверждено `OWNER_ENABLED=ONE`, `EXACT_PREPARE=FEW`, но `ISSUER_TRACKID=NONE`, `NATIVE_MAIN_SOURCE_ENTER=NONE`, `AUDIO_READ=NONE`. Перейти прямо к issuer TrackId и native main source wiring. Отдельная задача UX: убрать повторную активацию/лишние кнопки без отмены серверной авторизации CELIKOM. Никакой новой APK без продвижения по живой цепочке. Не считать успех CI успехом звука.
@@ -8,7 +10,7 @@
 
 - GitHub: https://github.com/manufact-test/nomusic
 - Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Код последнего завершённого этапа: `745179b11b0f837d1cdf9d46cbe142f225c2ffe3`; текущий HEAD до обновления документов: `63b341a3201884aed10eb6f6996ccb12f28c3b3f`.
+- Current BETA4 source snapshot: `67db1226d98b6c2d0666f064c6441409e17d5d63` (same single working branch); this is a signed owner-phone diagnostic build, not an audio/release acceptance.
 - Не менять архитектуру. Не пересобирать и не менять NAV40 (`34cb32c88a11743a64c9f4814fa71957223a1391`), NAV45 (`c95c0bf27157c9f3ff8bd4aa13f6ed6eabe222f8`), Test.50, Windows и издательскую Яндекс.Музыку.
 - Цель: **одна официальная Яндекс.Музыка и её родной плеер**, на HONOR 50 / Android 13. CELIKOM подменяет только одобренные треки; никаких второго плеера/логина. Сначала получить реально играющий звук, затем Pause/Seek/Next/MyWave, потом VPN и полировка.
 
@@ -95,3 +97,39 @@
 - Реально выгружен один подписанный `CELIKOM-A1-RAMIL-AU-BETA3-HONOR50-20261120.apk`, **71 569 388 bytes**, SHA256 `7eca2f8da85eb94f68c2860c6f374bb77c7681dcd8c501e1e5bffd9150454f66`; GitHub Actions artifact ID `14637281924` (`CELIKOM-A1-RAMIL-AU-BETA3-HONOR50-20261120`), 7 дней хранения. Загрузил также в личную **Library** `/CELIKOM-A1-RAMIL-AU-BETA3-HONOR50-20261120.apk`. Проверил архив ZIP и APK ZIP центральную директорию на целостность, в APK присутствует неизменённый вложенный оригинал `assets/lspatch/origin.apk`.
 - Телефон: поставить APK поверх A1 без удаления данных, в клоне Яндекса нажать CELIKOM BETA и проверить authorisation, сыграть именно 10AGE/Ramil' «Ау» `trackId 144530503`, участок 00:43–00:54, Next назад и Seek. После попытки прислать один новый TXT. В новом дампе смотреть `DIAGNOSTIC_BETA_BUILD` и `AUDIO_TRACKID_BETA` от `OWNER_ENABLED` до `AUDIO_READ`. Старые `DIAGNOSTIC_BUILD=NAV45` / `CELIKOM_REPLACEMENT=NOT_CONNECTED` сохранены для protected strict regression и **не являются приговором beta route**.
 - Следующее действие после TXT: выяснить первый NONE из последовательности BETA: `OWNER_ENABLED`, `ISSUER_TRACKID`, `EXACT_BETA_CREATOR`, `ORIGINAL_SETTER`, `SIGNED_MPEG_READY`, `GRANT_ADMITTED`, `EXACT_PREPARE`, `DATASOURCE_ARMED`, `AUDIO_READ`. Текущий реальный источник не даёт Album, поэтому beta намеренно использует отдельный wrapper identity token, не разрешает arbitrary source и не затрагивает другие треки.
+
+
+## BETA4 owner-phone diagnostic result — 20.11.2026
+
+**Source commit:** `67db1226d98b6c2d0666f064c6441409e17d5d63` on the same single branch. This is a one-time diagnostic trial build, not a product release.
+
+### What changed after BETA3
+
+- Runtime now hooks the exact `Fp0.invokeSuspend(Object)` and restores the linked original Track only during that continuation resume.
+- Runtime now hooks the exact `RAa.invokeSuspend(Object)` and restores the linked original `tCa` wrapper only during that continuation resume.
+- The Retrofit `Proxy.newProxyInstance` witness is installed before `attachBaseContext`; the exact FileInfoApi/DownloadInfoApi proxy handler is then hooked for the annotated `trackId` method.
+- New privacy-safe counters distinguish proxy-hook registration, proxy creation, annotated method selection, handler invocation, a missing Track scope, and the subsequent issuer/creator/source/audio stages. No raw track ID, token, URL, account or audio bytes are exported.
+- The approved one-track Ramil' «Ау» ID `144530503` remains explicitly allowlisted beside the two earlier trial IDs. No other IDs are admitted.
+- Removed the floating BETA and diagnostic controls. A single CELIKOM entry is attempted inside Yandex settings; the saved CELIKOM refresh session is automatically revalidated on app launch. If no CELIKOM session exists, the only manual login is to CELIKOM, never to Yandex. This UX still needs the owner's phone confirmation.
+
+### CI and APK facts — do not overstate
+
+- JVM/native observer regressions: [#44769299260 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44769299260).
+- Full signed Android 13 ARM owner-phone build: [#44769299230 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44769299230).
+- Clone-alone differential: [#44769299113 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44769299113).
+- The 75-second emulator run installed and launched the original publisher first and the CELIKOM clone second; all targeted hooks registered, the clone remained stable, and there were no observed uncaught exceptions.
+- **The emulator did not log into an owner account or play music.** The machine verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a=NO_GO`, `audio_or_account_tested=false`, `diagnostic_only_not_product_or_releasable=true`. This confirms hook registration and launch stability only; it does not prove proxy invocation, publisher track ID capture, Exo source binding, or audible replacement.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA4-HONOR50-20261120.apk`, 71,569,388 bytes, SHA256 `05d078075edbe88d028dbb8b70f5e2b3cddd128cdadd250885e838f6b660dedc`. Persistent CELIKOM owner signer verified; SHA256 certificate `048D76E1C4447FA4F3AC976C45D5A0F8427C087FA665C4FCA88CE5CAA068F9BF`, matching the previously installed owner signer. APK ZIP integrity checked; embedded original publisher APK and CELIKOM observer module are present; module DEX contains the new resume/proxy hooks and auto-start/settings entry.
+- GitHub artifact `14647192187`; APK was copied to the owner's Library at `/CELIKOM-A1-RAMIL-AU-BETA4-HONOR50-20261120.apk`.
+
+### Next action — owner phone, not another static research loop
+
+1. Install BETA4 **as an update over the existing BETA3 clone**. Do not uninstall, clear data, or remove the original Yandex app; the existing CELIKOM session must remain available.
+2. Launch the clone and check that it attempts automatic CELIKOM activation. There must be no floating BETA/diagnostic buttons.
+3. Open Yandex settings and check for the single `CELIKOM A1` entry. If it is absent, report that fact; do not sign into Yandex again.
+4. Play 10AGE / Ramil' «Ау», publisher track ID `144530503`, only at `00:43–00:54`. First decide whether the alternate audio is actually audible. Do not test Pause/Seek/Next/MyWave until it is.
+5. If the censored original still plays, use `CELIKOM A1 → Сохранить диагностику` and send one TXT. Inspect first: `ISSUER_PROXY_HOOK_REGISTERED`, `ISSUER_PROXY_CREATED`, `ISSUER_METHOD_SELECTED`, `ISSUER_HANDLER_INVOKE`, `ISSUER_TRACK_SCOPE_MISSING`, `ISSUER_TRACKID`, then `EXACT_BETA_CREATOR`, `ORIGINAL_SETTER`, `SIGNED_MPEG_READY`, `GRANT_ADMITTED`, `EXACT_PREPARE`, `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ`.
+
+**Do not call BETA4 a working replacement.** The only proof of success remains audible alternative bytes in the original Yandex ExoPlayer on HONOR 50. If the next phone diagnostic still has `ISSUER_TRACKID=NONE`, continue at the exact Retrofit proxy lifecycle; if issuer is present but source counters remain NONE, continue at the original `Track → tCa → native source → Exo DataSource` chain. No AppMetrica/DEX detour, no architecture reset, and no changes to Test.50/NAV40/NAV45/Windows/backend.
+
+

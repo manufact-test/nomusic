@@ -55,7 +55,7 @@ final class NativeTrackIdBetaPolicy {
     /**
      * Validate issuer-approved CELIKOM audio against original publisher trackId
      * WITHOUT pretending the server provided original Album/Edition. The tags
-     * are only a local, explicitly consented admission token for these 2 IDs.
+     * are only a local, explicitly consented admission token for the allowlisted trial IDs.
      * The duration belongs to the signed server audio, NOT Yandex metadata.
      */
     static NativeGrantContract.Grant signedTrialGrant(

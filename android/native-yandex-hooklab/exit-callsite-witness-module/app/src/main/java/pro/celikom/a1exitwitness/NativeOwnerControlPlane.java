@@ -237,8 +237,8 @@ final class NativeOwnerControlPlane {
         } finally {c.disconnect();}
     }
     /**
-     * Two-song explicit owner BETA. The signed original source trackId was
-     * already bound to THIS original Track/Album/source Java object lineage.
+     * Explicit owner-only trackId BETA for the IDs allowlisted by
+     * NativeTrackIdBetaPolicy. The signed ID is already bound to THIS original Track/Album/source Java object lineage.
      * CELIKOM server album/edition are not publisher identity evidence.
      */
     void requestForTrackIdBeta(long generation,Object originalTrack,
