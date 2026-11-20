@@ -9,6 +9,7 @@ import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 public final class PublisherTrackIdProxyContractTest {
+    // Uses a real java.lang.reflect.Proxy; only the Retrofit annotation types are fixtures.
     public interface BaseFileInfoApi {
         Object lookup(@Query("trackId") String trackId, String untouched);
         Object lookupAlbum(@Query("albumId") String albumId);
