@@ -1,3 +1,40 @@
+## BETA6 — точечное исправление issuer proxy и подписанная сборка владельцу (20.11.2026)
+
+**Код:** `092e68b19b9bb124794406d77a98d94eb0e0a3fe` в единственной рабочей ветке. Предыдущая функциональная реализация selector/runtime metadata: `cc42614618d4d9e1127709123d31b1ae350790a2`.
+
+### Что было не так
+
+BETA5 увидел создание proxy, но не выбрал issuer method. Старый селектор опирался на методы, объявленные непосредственно в корневом интерфейсе. Такой поиск не видит endpoint, унаследованный от родительского интерфейса. Это реальный структурный дефект старого поиска; конкретную форму runtime proxy на HONOR 50 BETA5 не сохранил, поэтому нельзя задним числом утверждать, что у владельца endpoint точно был унаследован.
+
+### Исправление BETA6
+
+- Анализируется возвращённый `Proxy.newProxyInstance` объект: фактические direct interfaces, соответствие API root и переданному interface array.
+- Публичные методы берутся через `getMethods()`, поэтому видны унаследованные endpoint-методы; сохраняется declaring interface и признак DECLARED/INHERITED.
+- Принимаются только точные Retrofit `@Query("trackId")` / `@Path("trackId")` и типы `String`, `long/Long`, `int/Integer`. Произвольные аргументы не перехватываются; неоднозначность, неподдерживаемый тип и неполная metadata закрываются отказом.
+- Hook ставится на фактический handler. Аргумент читается по точному индексу аннотированного параметра; исходные аргументы не меняются; оригинальный handler проходит ровно один раз через `chain.proceed()`.
+- Runtime metadata сохраняется bounded в памяти и экспортируется строками `AUDIO_ISSUER_PROXY_SHAPE`, даже если proxy создан раньше, чем открыт локальный TXT-файл. В строках нет значений аргументов, URL, токенов или аудиоданных.
+
+### Проверки и артефакт
+
+- JVM contract tests: PASS — реальный `java.lang.reflect.Proxy`, унаследованный Query endpoint, Path endpoint, точный индекс аргумента, оригинальный handler ровно один раз, unsupported/unannotated/ambiguous negative cases.
+- Основной JVM + Android ARM13 owner workflow: [#44786330536 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44786330536).
+- Отдельный clone-only Android ARM13 smoke: [#44786330578 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44786330578).
+- Подписанный owner artifact: [BETA6 ZIP](https://github.com/manufact-test/nomusic/actions/runs/44786330536/artifacts/14655387093), ID `14655387093`. ZIP содержит APK и эту русскую инструкцию.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA6-HONOR50-20261120.apk`, 71,573,484 bytes, SHA256 `7432616df603b4fc7e670d598caf874be35a8b7756f2cbb41b1e1675a9218e43`.
+- ZIP SHA256: `7e1fcd76aa9c86013d1de65c9ef121db5abe9943aababd51b83c1336f37e595e`.
+- Persistent owner signer: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`; CI подтвердил `owner_apk_signer_verified=true`, `owner_apk_install_mode=UPDATE_EXISTING`, `owner_phone_touched=false`.
+
+### Чего CI НЕ доказал
+
+CI verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `audio_or_account_tested=false`. Это не вход в CELIKOM на телефоне и не воспроизведение трека. Нельзя считать замену рабочей до реального звукового подтверждения.
+
+### Следующий шаг
+
+Установить BETA6 **поверх BETA5**, не удалять приложение и не очищать данные. Открыть клон, проверить одну кнопку `CELIKOM: … · TXT`, затем запустить Ramil' «Ау» ID `144530503` и слушать `00:43–00:54`.
+
+- Если слышна альтернатива — сообщить результат; только после этого проверять Pause/Seek/Next/MyWave.
+- Если слышен оригинал — нажать кнопку TXT и прислать файл. По `AUDIO_ISSUER_PROXY_SHAPE` будет видно, какие интерфейсы и методы реально получил proxy, где объявлен endpoint, какая аннотация/тип параметра присутствуют и какие ClassLoader использованы. Дальше исправлять только оставшийся первый разрыв, не трогая нижние звенья.
+
 ## BETA5 — signed owner diagnostic APK ready (20.11.2026)
 
 **Artifact:** `CELIKOM-A1-RAMIL-AU-BETA5-HONOR50-20261120.zip` in the owner's Library at `/CELIKOM-A1-RAMIL-AU-BETA5-HONOR50-20261120.zip`. ZIP contains the 71,569,388-byte APK and Russian phone instructions. APK SHA256: `3c070a7b5b72482fb271c6e263504354bfbfced6f87949de3f0a3483468eb7b2`.

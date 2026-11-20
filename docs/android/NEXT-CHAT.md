@@ -1,25 +1,26 @@
-# АКТУАЛЬНАЯ ТОЧКА — 20.11.2026, BETA5 owner-phone test
+# АКТУАЛЬНАЯ ТОЧКА — 20.11.2026, BETA6 issuer proxy correction
 
-**Начинать отсюда:** [первое сообщение следующему чату](NEXT-CHAT-START-MESSAGE-20261120-BETA5.md) и [подробный результат BETA5](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md).
+**Начинать отсюда:** [подробная история BETA5 → BETA6](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md) и [инструкция владельцу](../../android/native-yandex-hooklab/device-audio-trial/README-RU.txt).
 
 - Repo: `manufact-test/nomusic`
 - Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Последний проверенный исполняемый код BETA5: `54452d21ae91a5c4c81b4b8ccf0f8d55e3fb17a8`.
-- После него добавлены только handoff-документы. Перед любыми изменениями обязательно проверь фактический HEAD единственной рабочей ветки.
-- BETA5 подписан и установлен на HONOR 50, но реальная подмена **не работает**. Диагностика: `CELIKOM-A1-Diagnostics-1795193426305.txt`.
-- Автоактивация CELIKOM и кнопка TXT работают. Proxy hook зарегистрирован и увидел один proxy, но `ISSUER_METHOD_SELECTED=NONE`, `ISSUER_HANDLER_INVOKE=NONE`, `ISSUER_TRACKID=NONE`. Поэтому beta creator, original setter, prefetch/grant и alternate DataSource не достигаются. Оригинальный Exo продолжает читать звук; `CELIKOM_REPLACEMENT=NOT_CONNECTED`.
-- **Следующая задача только одна:** выяснить, почему runtime FileInfoApi/DownloadInfoApi proxy не проходит точный выбор метода с `@Query/@Path("trackId")`, и исправить этот ранний разрыв минимальным изменением. Не исследовать заново renderer, AppMetrica, весь DEX или архитектуру.
-- Следующий тест владельца — только после конкретного исправления и зелёного CI.
+- Текущий HEAD: `092e68b19b9bb124794406d77a98d94eb0e0a3fe`.
+- Последний проверенный код BETA6: marker `A1_TRACKID_BETA6_INHERITED_ISSUER_PROXY_20261120`.
+- BETA5 на HONOR 50 не выбрал issuer method: `ISSUER_METHOD_SELECTED=NONE`, `ISSUER_HANDLER_INVOKE=NONE`, `ISSUER_TRACKID=NONE`.
+- Исправлен ранний selector: теперь анализируется реальный Java Proxy, прямые интерфейсы и унаследованные public методы через `getMethods()`; принимаются только точные `@Query("trackId")` / `@Path("trackId")` с разрешёнными типами. Неоднозначные/неподдерживаемые формы fail-closed. Оригинальный handler вызывается через единственный `chain.proceed()`.
+- В TXT BETA6 добавлены bounded `AUDIO_ISSUER_PROXY_SHAPE` строки: direct interfaces, declaring interface/method, DECLARED/INHERITED, аннотация/тип параметра, proxy/API/method ClassLoader и итог выбора. Сводка хранится в памяти, чтобы не потерять её, если proxy создаётся до открытия локального diagnostic-файла.
+- JVM + Android ARM13 CI: **PASS**, основной owner-phone workflow [#44786330536](https://github.com/manufact-test/nomusic/actions/runs/44786330536). Отдельный clone-only ARM13 smoke тоже PASS. Это проверка сборки/запуска, **не** доказательство аудиоподмены.
+- Подписанный owner APK: [BETA6 APK ZIP artifact](https://github.com/manufact-test/nomusic/actions/runs/44786330536/artifacts/14655387093), artifact ID `14655387093`. APK SHA256: `7432616df603b4fc7e670d598caf874be35a8b7756f2cbb41b1e1675a9218e43`. ZIP SHA256: `7e1fcd76aa9c86013d1de65c9ef121db5abe9943aababd51b83c1336f37e595e`.
+- Persistent owner signer проверен: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`; режим установки `UPDATE_EXISTING`. Физический телефон владельца CI не трогал.
+- **Следующий шаг владельца:** установить BETA6 поверх BETA5, не удаляя приложение и не очищая данные; открыть клон и проверить Ramil' «Ау» ID `144530503`, участок `00:43–00:54`. Если звучит оригинал — экспортировать TXT одной кнопкой и прислать. В TXT проверить `AUDIO_ISSUER_PROXY_SHAPE` и новые issuer counters.
+- Пока владелец не услышал альтернативу в оригинальном Яндекс-плеере, статус остаётся `CELIKOM_REPLACEMENT=NOT_CONNECTED`. Pause/Seek/Next/MyWave не проверять до подтверждения самой подмены.
 
-Ниже сохранена предыдущая история и более ранние handoff; их старые HEAD/статусы не считать актуальными.
+**Ограничения:** не менять NAV40/NAV45/Test.50, Windows, backend/production и оригинальное приложение Яндекса. Не начинать новые AppMetrica/DEX/renderer исследования. Не объявлять аудиоподмену рабочей по CI или регистрации hooks.
+
+Ниже сохранена предыдущая история и старые handoff; их HEAD/статусы архивные и не считать актуальными.
 
 ---
 
-# Актуальная короткая точка передачи — 20.11.2026
-
-Продолжение CELIKOM Android A1: **[LIVE-AUDIO HANDOFF](CELIKOM-A1-LIVE-AUDIO-NEXT-CHAT-2026-11-20.md)**. После последнего прохода проверены: [JVM #44730902321 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730902321), [clone ARM13 #44730740418 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730740418), [paired ARM13 #44730740525 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730740525). Последний код `745179b1`; документация отражает полный реальный Exo byte-route и оставшиеся отсутствующие original album+edition и production grant. **Звук не подтверждён, APK нет**. Начать с короткого handoff, а ниже — архивная история.
-
----
 
 # CURRENT 20.11.2026 — real original Exo encoded-byte route, exact signed seek position, approval handoff
 
