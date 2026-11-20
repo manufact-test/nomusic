@@ -3619,12 +3619,29 @@ public final class ExitCallsiteWitness extends XposedModule {
 
 
     /**
-     * Signed original 2025 FileInfoApi/DownloadInfoApi trackId declarations
-     * are ABSTRACT. Instrument only the concrete Java Proxy implementation
-     * for the publisher's real annotated API request, not its interface.
-     * This hook is optional and pass-through: no requests, bytes, responses
-     * or identifiers are logged, intercepted or changed.
+     * Original FileInfoApi/DownloadInfoApi are abstract Retrofit interfaces.
+     * Their Java proxy classes are generated dynamically and are not a
+     * dependable Xposed target. Instead, intercept the concrete original
+     * InvocationHandler.invoke(Object,Method,Object[]) backing exactly
+     * publisher-created Retrofit proxies. The vendor invoke executes once.
+     *
+     * An exact (handler instance + signed annotated interface method) pair
+     * is required, so another service sharing the generated handler class
+     * cannot claim a trackId. Never inspect/log credentials or request data.
      */
+    private static final class IssuerTrackProxyLink {
+        final java.lang.ref.WeakReference<Object> handler;
+        final Method exactApiMethod;
+        final int trackArgumentIndex;
+        IssuerTrackProxyLink(Object object,Method method,int index) {
+            handler=new java.lang.ref.WeakReference<>(object);
+            exactApiMethod=method;
+            trackArgumentIndex=index;
+        }
+    }
+    private final java.util.ArrayList<IssuerTrackProxyLink> issuerTrackProxyLinks=
+        new java.util.ArrayList<>();
+
     private synchronized void hookConcretePublisherTrackIdProxy(
             Object originalProxy,Class<?> issuerApi) {
         if(originalProxy==null || issuerApi==null
@@ -3642,11 +3659,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                         && type!=int.class && type!=Integer.class)continue;
                 for(java.lang.annotation.Annotation annotation:annotations[i]) {
                     try {
-                        if(!annotation.annotationType().getName()
-                                .startsWith("retrofit2.http."))continue;
-                        Object name=annotation.annotationType().getMethod("value")
-                            .invoke(annotation);
-                        if("trackId".equals(name)) {
+                        String annotationType=annotation.annotationType().getName();
+                        if(!"retrofit2.http.Query".equals(annotationType)
+                                && !"retrofit2.http.Path".equals(annotationType))
+                            continue;
+                        Object parameterName=annotation.annotationType()
+                            .getMethod("value").invoke(annotation);
+                        if("trackId".equals(parameterName)) {
                             if(annotatedIndex!=-1)return;
                             annotatedIndex=i;
                         }
@@ -3654,35 +3673,63 @@ public final class ExitCallsiteWitness extends XposedModule {
                 }
             }
             if(annotatedIndex<0)continue;
-            if(publisherMethod!=null)return; // ambiguous annotated overload
+            if(publisherMethod!=null)return; // ambiguous annotated API overload
             publisherMethod=method;
             selectedIndex=annotatedIndex;
         }
         if(publisherMethod==null)return;
-        Method concrete;
+        final Object handler;
+        final Method concrete;
         try {
-            concrete=originalProxy.getClass().getDeclaredMethod(
-                publisherMethod.getName(),publisherMethod.getParameterTypes());
-            if(java.lang.reflect.Modifier.isAbstract(concrete.getModifiers())
-                    || java.lang.reflect.Modifier.isStatic(concrete.getModifiers()))
+            handler=java.lang.reflect.Proxy.getInvocationHandler(originalProxy);
+            concrete=handler.getClass().getMethod("invoke",
+                Object.class,Method.class,Object[].class);
+            if(java.lang.reflect.Modifier.isStatic(concrete.getModifiers())
+                    || java.lang.reflect.Modifier.isAbstract(concrete.getModifiers()))
                 return;
             concrete.setAccessible(true);
         } catch(Throwable ignored) {return;}
+        // A new instance may reuse the same Retrofit handler class and hook.
+        for(int i=issuerTrackProxyLinks.size()-1;i>=0;i--) {
+            IssuerTrackProxyLink old=issuerTrackProxyLinks.get(i);
+            Object previous=old.handler.get();
+            if(previous==null)issuerTrackProxyLinks.remove(i);
+            else if(previous==handler && old.exactApiMethod.equals(publisherMethod))
+                return;
+        }
+        if(issuerTrackProxyLinks.size()>=48)return; // bounded; no eviction of live links
+        IssuerTrackProxyLink link=new IssuerTrackProxyLink(
+            handler,publisherMethod,selectedIndex);
+        issuerTrackProxyLinks.add(link);
         if(!issuerTrackIdProxyMethods.add(concrete))return;
-        final int selected=selectedIndex;
         try {
             hook(concrete).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     try {
-                        // This only becomes source-bound when the existing
-                        // Gp0 Track request scope is active on THIS thread.
-                        STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
-                            chain.getArg(selected));
+                        Object receiver=chain.getThisObject();
+                        Object invoked=chain.getArg(1);
+                        Object args=chain.getArg(2);
+                        if(invoked instanceof Method && args instanceof Object[]) {
+                            synchronized(ExitCallsiteWitness.this) {
+                                for(IssuerTrackProxyLink known:issuerTrackProxyLinks) {
+                                    if(known.handler.get()!=receiver
+                                            || !known.exactApiMethod.equals(invoked))
+                                        continue;
+                                    Object[] values=(Object[])args;
+                                    if(values.length>known.trackArgumentIndex) {
+                                        STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
+                                            values[known.trackArgumentIndex]);
+                                    }
+                                    break;
+                                }
+                            }
+                        }
                     } catch(Throwable ignored) { }
-                    return chain.proceed(); // publisher's exact request, once
+                    return chain.proceed(); // original Retrofit handler ONCE
                 });
         } catch(Throwable ignored) {
             issuerTrackIdProxyMethods.remove(concrete);
+            issuerTrackProxyLinks.remove(link);
         }
     }
 
