@@ -2529,6 +2529,68 @@ public final class NativeRendererStreamEvidenceTest {
         } finally {e.exitTrackPlayerSource(scope);}
     }
 
+
+    private static void testOriginalPrepareSealsNativeLifecycleBeforeLateIdentity() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        final long[] clock={1000};
+        NativeEarlySourceLifecycleBridge bridge=
+            new NativeEarlySourceLifecycleBridge(() -> clock[0]);
+        pro.celikom.yandex.nativehooklab.NativeReplacementLifecycle lifecycle;
+        try {
+            java.lang.reflect.Field field=
+                NativeEarlySourceLifecycleBridge.class.getDeclaredField("lifecycle");
+            field.setAccessible(true);
+            lifecycle=(pro.celikom.yandex.nativehooklab.NativeReplacementLifecycle)
+                field.get(bridge);
+        } catch(ReflectiveOperationException exception) {
+            throw new AssertionError("TEST_NATIVE_LIFECYCLE_NOT_ACCESSIBLE",exception);
+        }
+        // Test-only enabled state: production hook remains OFF.
+        lifecycle.start();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        e.setEarlyOriginalSourceObserver(bridge);
+        e.setOriginalPeriodBeforePrepareObserver(bridge);
+        nav43SetupLiveSource(e);
+        e.onHookRegistration("ORIGINAL_PERIOD_PREPARE",true);
+        NativeRendererStreamEvidence.TrackPlayerScope scope=
+            e.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame;
+        try {
+            frame=e.beginEarlyOriginalSourceSet(source);
+            check(frame!=null,"PREPARE_SEAL_HAS_ORIGINAL_SETTER");
+            e.onNativePlayerSourceSetter(source);
+            e.finishEarlyOriginalSourceSet(frame,true);
+        } finally {e.exitTrackPlayerSource(scope);}
+        long token=bridge.reservedNativeGeneration();
+        check(token==lifecycle.generation() && lifecycle.isEnabled(),
+            "PREPARE_SEAL_RESERVES_ACTIVE_ENABLED_GENERATION");
+        FakePeriod period=new FakePeriod(source);
+        check(e.onOriginalPeriodBeforePrepare(period),
+            "PREPARE_SEAL_REACHED_EXACT_ORIGINAL_PERIOD");
+        check(bridge.sawOriginalPeriodPrePrepare(frame.generation,period)
+            && lifecycle.lastIssuedSource()
+                ==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
+            "PREPARE_SEAL_DOES_NOT_CHANGE_PUBLISHER_SOURCE");
+        clock[0]=1001;
+        check(!lifecycle.certifyNativeIdentity(
+                token,"42884423","42","original-edition",clock[0]),
+            "LATE_EXACT_TRACK_ALBUM_EDITION_CANNOT_UPGRADE_PREPARED_ORIGINAL");
+        check(e.onOriginalPeriodBeforePrepare(period)
+            && !lifecycle.certifyNativeIdentity(
+                token,"42884423","42","original-edition",clock[0]),
+            "REPEATED_PREPARE_NEVER_REOPENS_SOURCE_ADMISSION");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2614,6 +2676,7 @@ public final class NativeRendererStreamEvidenceTest {
         testOriginalEarlySetterFeedsExistingNativeLifecycle();
         testEarlySetterSameSourceReachesActualCurrentPeriod();
         testOriginalExactMediaPeriodBeforePrepareNoAlternate();
+        testOriginalPrepareSealsNativeLifecycleBeforeLateIdentity();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

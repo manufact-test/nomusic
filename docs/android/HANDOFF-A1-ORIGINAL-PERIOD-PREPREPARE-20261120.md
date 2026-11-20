@@ -27,3 +27,10 @@
 Порядок чтения: `docs/android/NEXT-CHAT.md` → этот handoff → `docs/android/ANDROID-A1-EARLY-CREATOR-TRACK-ALBUM-ORIGINAL-SOURCE-SETTER-20261120.md` → `docs/android/ANDROID-A1-TRACKID-BRANCH-CFG-ALL-PATH-NO-GO-20261119.md`.
 
 Финальный HEAD ветки см. самый верх `NEXT-CHAT.md` и фактический GitHub ref: этот handoff — docs-only commit поверх `f379dc62`.
+
+
+## После передачи — 20.11.2026, original prepare seals unknown selection
+
+- Paired ARM13 CI: [44704827138 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44704827138), [44704633500 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44704633500). Это не реальная проверка звучащей альтернативы.
+- Runtime bridge теперь при точном original pre-prepare событии вызывает существующий `NativeReplacementLifecycle.atNativePrepare` с неизвестными decoder IDs. Поэтому при наличии enable в будущей интеграции unknown навсегда фиксирует ORIGINAL до `chain.proceed()`; запоздалый exact-looking FileInfo/ID не сможет включить замену посреди трека. По умолчанию весь replacement OFF. Новый JVM fixture временно включает lifecycle **только в тесте**.
+- Нет подписанной семантической тройки, approved grant, source-byte routing и работающего APK. Это безопасное закрытие незаконченного runtime handoff, **не подключение звука**. Следующий приоритет — реальные и проверенные ID+edition на этом же original source до prepare и доступ к разрешённому источнику, а не ещё один статический scan.

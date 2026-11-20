@@ -34,6 +34,7 @@ final class NativeEarlySourceLifecycleBridge
     private long originalPeriodPrePrepareGeneration = -1;
     private WeakReference<Object> originalPeriodRef;
     private boolean originalPeriodAmbiguous;
+    private boolean originalPeriodPrepareSealed;
     private WeakReference<Object> trackRef;
     private WeakReference<Object> albumRef;
     private WeakReference<Object> sourceRef;
@@ -50,6 +51,7 @@ final class NativeEarlySourceLifecycleBridge
         originalPeriodPrePrepareGeneration=-1;
         originalPeriodRef=null;
         originalPeriodAmbiguous=false;
+        originalPeriodPrepareSealed=false;
         originalSetterSucceeded=false;
         trackRef=null;
         albumRef=null;
@@ -111,7 +113,16 @@ final class NativeEarlySourceLifecycleBridge
         }
         originalPeriodRef=new WeakReference<>(period);
         originalPeriodPrePrepareGeneration=generation;
-        // No semantic IDs or signed grant: original player proceeds untouched.
+        // This IS the publisher's original prepare boundary, not a late
+        // renderer read. When no independently verified descriptor IDs
+        // and approved source exist, commit ORIGINAL for this generation
+        // before the publisher prepare proceeds. Late ID/grant replies may
+        // never upgrade the already prepared original player source.
+        if(!originalPeriodPrepareSealed) {
+            originalPeriodPrepareSealed=true;
+            lifecycle.atNativePrepare(lifecycleGeneration,
+                null,null,null,elapsedClock.getAsLong());
+        }
     }
 
     synchronized boolean sawOriginalPeriodPrePrepare(long generation,Object period) {
