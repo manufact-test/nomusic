@@ -2901,6 +2901,96 @@ public final class NativeRendererStreamEvidenceTest {
         } finally {empty.exitTrackPlayerSource(blank);}
     }
 
+    private static void testApprovedNativeGrantRoutesRealOriginalExoPreprepare() {
+        final long[] clock={1000};
+        final long unix=1795160000000L,expire=((unix/1000)+500)*1000;
+        Object track=new Object(),album=new Object(),originalSource=new Object();
+        Object period=new Object(),exoSource=new Object(),prefetch=new Object();
+        byte[] encoded="CELIKOM".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        NativeExoAlternateByteRoute router=new NativeExoAlternateByteRoute(
+            (url,mime)->new NativeExoAlternateByteRoute.Cursor() {
+                int index;
+                public long open(long start) {
+                    index=(int)start;return encoded.length-start;
+                }
+                public int read(byte[] target,int offset,int length) {
+                    if(index>=encoded.length)return -1;
+                    int count=Math.min(encoded.length-index,length);
+                    System.arraycopy(encoded,index,target,offset,count);
+                    index+=count;
+                    return count;
+                }
+                public void close() {}
+            });
+        NativeEarlySourceLifecycleBridge bridge=new NativeEarlySourceLifecycleBridge(
+            ()->clock[0],router,()->unix);
+        bridge.startForAuthenticatedOwner();
+        bridge.invalidated(1);
+        bridge.pending(1,track,album,originalSource);
+        bridge.originalPublisherTrackIdCandidate(1,"42884423");
+        bridge.completed(1,true);
+        check(bridge.onSourceBoundPublisherFileInfo(
+            1,track,album,originalSource,"42884423","41","main"),
+            "ORIGINAL_TRACK_AND_PUBLISHER_FILEINFO_TRIPLE_CERTIFIED");
+        String signedUrl="https://audio.example/api/v1/audio/42?token="
+            +"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            +"&expires="+(expire/1000)+"&sid=8";
+        pro.celikom.yandex.nativehooklab.NativeGrantContract.Grant grant=
+            new pro.celikom.yandex.nativehooklab.NativeGrantContract.Grant(
+                "42884423","41","main",180000,2,true,true,
+                signedUrl,expire,"audio/mpeg");
+        pro.celikom.yandex.nativehooklab.NativeSourceGate.Candidate candidate=
+            new pro.celikom.yandex.nativehooklab.NativeSourceGate.Candidate(
+                "42884423","41","main",true,true,true,true,true,true);
+        check(bridge.offerAuthenticatedApprovedAudio(
+            1,track,album,originalSource,candidate,grant,
+            "https://audio.example",180000),
+            "APPROVED_ID_AND_SIGNED_GRANT_QUEUED_BEFORE_PREPARE");
+        check(!router.isArmed(exoSource),
+            "NO_BYTES_BEFORE_ACTUAL_PUBLISHER_PREPARE");
+        bridge.beforeOriginalPeriodPrepare(1,track,album,originalSource,
+            period,exoSource);
+        check(router.isArmed(exoSource)
+            && bridge.chosenSource()
+                ==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ALTERNATE,
+            "ACTUAL_ORIGINAL_PREPREPARE_INSTALLS_ONE_NATIVE_EXO_SOURCE");
+        check(!router.isArmed(prefetch)
+                && router.openIfApproved(prefetch,0)==null,
+            "OTHER_ORIGINAL_DATASOURCE_NEVER_SEES_ALT_BYTES");
+        try {
+            check(router.openIfApproved(exoSource,0)==encoded.length,
+                "EXO_ALT_OPEN_RETURNS_REAL_ENCODED_LENGTH");
+            byte[] actual=new byte[8];
+            check(router.readIfApproved(exoSource,actual,0,7)==7
+                && "CELIKOM".equals(new String(actual,0,7,
+                    java.nio.charset.StandardCharsets.US_ASCII)),
+                "REAL_ALTERNATE_ENCODED_BYTES_REACH_SAME_ORIGINAL_EXO");
+            check(router.closeIfApproved(exoSource),"EXO_CLOSE_ALTERNATE_ONCE");
+        } catch(java.io.IOException failure) {
+            throw new AssertionError("EXO_TRANSPORT_ERROR",failure);
+        }
+        bridge.stopForAuthenticatedOwner();
+        check(!bridge.replacementEnabled(),
+            "STOP_DISALLOWS_FUTURE_ADMISSIONS_NOT_SECOND_PLAYER");
+
+        NativeExoAlternateByteRoute noGrantRouter=
+            new NativeExoAlternateByteRoute();
+        NativeEarlySourceLifecycleBridge noGrant=
+            new NativeEarlySourceLifecycleBridge(()->1000,noGrantRouter,()->unix);
+        noGrant.startForAuthenticatedOwner();
+        noGrant.invalidated(2);
+        noGrant.pending(2,track,album,originalSource);
+        noGrant.completed(2,true);
+        check(!noGrant.onSourceBoundPublisherFileInfo(
+            2,track,album,originalSource,"42884423","41","main"),
+            "NO_UNCORROBORATED_PUBLISHER_TRACK_ID");
+        noGrant.beforeOriginalPeriodPrepare(2,track,album,
+            originalSource,new Object(),new Object());
+        check(noGrant.chosenSource()
+            ==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
+            "NO_VERIFIED_ISSUER_TRACK_ID_MEANS_ORIGINAL_EXO");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2992,6 +3082,7 @@ public final class NativeRendererStreamEvidenceTest {
         testExactCreatorBeforeFlowOriginalDataSourceLink();
         testRealPublisherAnnotatedTrackIdCorrelatesCreator();
         testRealPublisherTrackIdAtNativeSourceSetter();
+        testApprovedNativeGrantRoutesRealOriginalExoPreprepare();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

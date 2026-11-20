@@ -232,7 +232,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Uses the existing canonical NativeReplacementLifecycle model, in the
     // real source setter observer. Default is DISABLED: only ORIGINAL audio.
     private static final NativeEarlySourceLifecycleBridge NATIVE_EARLY_ADMISSION =
-        new NativeEarlySourceLifecycleBridge();
+        new NativeEarlySourceLifecycleBridge(
+            () -> System.nanoTime()/1_000_000L,
+            NATIVE_ALT_EXO_BYTES,System::currentTimeMillis);
 
     // Signed original embedded in owner-accepted NAV17 only: 2025.10.4
     // code 24025542. Counters are exported on owner tap; no hot-path disk I/O.
