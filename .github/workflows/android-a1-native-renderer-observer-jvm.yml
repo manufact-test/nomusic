@@ -4,6 +4,8 @@ on:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
     paths:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeEarlySourceLifecycleBridge.java'
       - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/build.gradle.kts'
@@ -41,8 +43,12 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeEarlySourceLifecycleBridge.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
-            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
+          java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeExoAlternateByteRouteTest
           python3 - <<'PY'
           from pathlib import Path
           src=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java').read_text()
