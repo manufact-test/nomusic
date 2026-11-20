@@ -34,3 +34,8 @@
 - Paired ARM13 CI: [44704827138 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44704827138), [44704633500 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44704633500). Это не реальная проверка звучащей альтернативы.
 - Runtime bridge теперь при точном original pre-prepare событии вызывает существующий `NativeReplacementLifecycle.atNativePrepare` с неизвестными decoder IDs. Поэтому при наличии enable в будущей интеграции unknown навсегда фиксирует ORIGINAL до `chain.proceed()`; запоздалый exact-looking FileInfo/ID не сможет включить замену посреди трека. По умолчанию весь replacement OFF. Новый JVM fixture временно включает lifecycle **только в тесте**.
 - Нет подписанной семантической тройки, approved grant, source-byte routing и работающего APK. Это безопасное закрытие незаконченного runtime handoff, **не подключение звука**. Следующий приоритет — реальные и проверенные ID+edition на этом же original source до prepare и доступ к разрешённому источнику, а не ещё один статический scan.
+
+
+## 20.11.2026 — unknown prepare fail-closed
+
+Unlinked original `o96.prepare` (wrong/NULL source, lineage mismatch, inaccessible field, nested original setter) now seals the reserved native generation ORIGINAL before publisher `prepare` proceeds. An async semantic ID/grant cannot upgrade it mid-play. New JVM regression verifies wrong-period -> late certification denied -> Next fresh generation; previous matched original-pre-prepare path preserved. Only the existing concrete hook/bridge and model tests changed. No producer IDs, approved audio bytes or actual alternate source yet.

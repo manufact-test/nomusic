@@ -1,3 +1,11 @@
+# CURRENT 20.11.2026 — unlinked original period pre-prepare closes pending admission
+
+The **same concrete, already installed original period prepare hook** now closes unresolved canonical native selection to ORIGINAL even when the original period/source cannot be associated with the successful Track/Album/source lineage. It never infers selected edition from prefetch. An async ID/grant after any unknown publisher prepare cannot upgrade the playing original. A subsequent Next begins a fresh independent selection; known periods still record structural evidence without reopening admission. Test-only enabled lifecycle exercises this failure path. JVM and ARM13 status require checking on the new commit; default feature OFF, no source byte routing, no APK.
+
+Previous paired ARM13 44704827138 / 44704633500 SUCCESS. NAV40/NAV45/Test.50/Windows/publisher original untouched.
+
+---
+
 # CURRENT 20.11.2026 — actual original prepare seals ORIGINAL if semantic identity is absent
 
 In the existing in-process ORIGINAL MediaPeriod before-prepare callback, `NativeEarlySourceLifecycleBridge` now calls the **canonical** `NativeReplacementLifecycle.atNativePrepare` once for the exact original setter generation with *unproven descriptor IDs*, yielding ORIGINAL and closing the late-certification window before the publisher method proceeds. A second prepare of the same period cannot reopen it; a conflicting period remains ambiguous. Hook and the original proceed are unchanged. Default CELIKOM admission remains OFF; **no audio substitution, no grant transport or owner APK**. Added JVM regression with test-only enabled lifecycle proving late exact-looking IDs cannot upgrade an already prepared original. CI result must be checked after this commit.

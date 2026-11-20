@@ -2591,6 +2591,76 @@ public final class NativeRendererStreamEvidenceTest {
             "REPEATED_PREPARE_NEVER_REOPENS_SOURCE_ADMISSION");
     }
 
+    private static void testUnlinkedOriginalPrepareSealsLateNativeAdmission() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        final long[] clock={1000};
+        NativeEarlySourceLifecycleBridge bridge=
+            new NativeEarlySourceLifecycleBridge(() -> clock[0]);
+        pro.celikom.yandex.nativehooklab.NativeReplacementLifecycle lifecycle;
+        try {
+            java.lang.reflect.Field field=
+                NativeEarlySourceLifecycleBridge.class.getDeclaredField("lifecycle");
+            field.setAccessible(true);
+            lifecycle=(pro.celikom.yandex.nativehooklab.NativeReplacementLifecycle)
+                field.get(bridge);
+        } catch(ReflectiveOperationException exception) {
+            throw new AssertionError("TEST_LIFECYCLE_REFLECTION_FAILED",exception);
+        }
+        lifecycle.start(); // Test only: runtime module never calls start().
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        e.setEarlyOriginalSourceObserver(bridge);
+        e.setOriginalPeriodBeforePrepareObserver(bridge);
+        nav43SetupLiveSource(e);
+        e.onHookRegistration("ORIGINAL_PERIOD_PREPARE",true);
+        NativeRendererStreamEvidence.TrackPlayerScope scope=
+            e.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame;
+        try {
+            frame=e.beginEarlyOriginalSourceSet(source);
+            check(frame!=null,"UNKNOWN_PREPARE_CANONICAL_GENERATION");
+            e.onNativePlayerSourceSetter(source);
+            e.finishEarlyOriginalSourceSet(frame,true);
+        } finally {e.exitTrackPlayerSource(scope);}
+        long reserved=bridge.reservedNativeGeneration();
+        FakePeriod wrong=new FakePeriod(new FakeSource());
+        check(!e.onOriginalPeriodBeforePrepare(wrong),
+            "FOREIGN_PERIOD_NOT_PROMOTED_TO_OWN_TRACK");
+        clock[0]=1001;
+        check(!lifecycle.certifyNativeIdentity(reserved,
+                "42884423","album-1","edition-1",clock[0]),
+            "FOREIGN_PREPARE_SEALS_ORIGINAL_BEFORE_LATE_CERTIFICATION");
+        check(lifecycle.lastIssuedSource()
+                ==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
+            "FOREIGN_PREPARE_MUST_PRESERVE_PUBLISHER_AUDIO");
+        FakePeriod original=new FakePeriod(source);
+        check(e.onOriginalPeriodBeforePrepare(original),
+            "LATER_SAME_SOURCE_STRUCTURAL_EVENT_CAN_BE_SEEN");
+        check(!lifecycle.certifyNativeIdentity(reserved,
+                "42884423","album-1","edition-1",clock[0]),
+            "LATER_MATCHED_PERIOD_MUST_NOT_REOPEN_SEALED_ORIGINAL");
+        // A new publisher setter starts an independent (unsealed) revision.
+        scope=e.enterTrackPlayerSource(wrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame next=
+                e.beginEarlyOriginalSourceSet(new FakeSource());
+            check(next!=null,"NEXT_AFTER_UNKNOWN_PREPARE_NEW_GENERATION");
+            e.onNativePlayerSourceSetter(next.source);
+            e.finishEarlyOriginalSourceSet(next,true);
+            check(bridge.reservedNativeGeneration()!=reserved,
+                "NEXT_NEVER_USES_OLD_PREPARE_REVISION");
+        } finally {e.exitTrackPlayerSource(scope);}
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2677,6 +2747,7 @@ public final class NativeRendererStreamEvidenceTest {
         testEarlySetterSameSourceReachesActualCurrentPeriod();
         testOriginalExactMediaPeriodBeforePrepareNoAlternate();
         testOriginalPrepareSealsNativeLifecycleBeforeLateIdentity();
+        testUnlinkedOriginalPrepareSealsLateNativeAdmission();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

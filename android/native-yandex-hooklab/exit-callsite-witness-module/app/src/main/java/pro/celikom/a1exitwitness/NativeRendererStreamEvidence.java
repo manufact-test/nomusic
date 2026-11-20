@@ -177,6 +177,7 @@ final class NativeRendererStreamEvidence {
     interface OriginalPeriodBeforePrepareObserver {
         void beforeOriginalPeriodPrepare(long generation,Object originalTrack,
                 Object originalAlbum,Object originalSource,Object originalPeriod);
+        void beforeUnverifiedOriginalPeriodPrepare();
     }
     private OriginalPeriodBeforePrepareObserver originalPeriodBeforePrepareObserver;
     synchronized void setOriginalPeriodBeforePrepareObserver(
@@ -190,22 +191,46 @@ final class NativeRendererStreamEvidence {
      * (prefetch is possible) and cannot authorize alternate audio alone.
      */
     synchronized boolean onOriginalPeriodBeforePrepare(Object period) {
-        if(poisoned || originalPeriodPrepareHook<=0 || period==null
-                || exactPeriodClass==null || !exactPeriodClass.isInstance(period)
-                || periodSourceField==null || originalPeriodBeforePrepareObserver==null
-                || earlySourceInFlight!=null)return false;
+        if(originalPeriodPrepareHook<=0 || originalPeriodBeforePrepareObserver==null)
+            return false;
+        // A real publisher prepare with NO provably matching original source
+        // still closes any unresolved CELIKOM candidate for this generation.
+        // This prevents a delayed ID/grant from upgrading a player that may
+        // already be preparing an unknown/prefetched period.
+        if(poisoned || period==null || exactPeriodClass==null
+                || !exactPeriodClass.isInstance(period) || periodSourceField==null
+                || earlySourceInFlight!=null) {
+            sealUnverifiedOriginalPeriodPrepare();
+            return false;
+        }
         final Object source;
         try {source=periodSourceField.get(period);}
-        catch(Throwable ignored) {return false;}
+        catch(Throwable ignored) {
+            sealUnverifiedOriginalPeriodPrepare();
+            return false;
+        }
         OriginalSetterLineage saved=exactOriginalSetterLineage;
-        if(saved==null || source==null || saved.source.get()!=source)return false;
+        if(saved==null || source==null || saved.source.get()!=source) {
+            sealUnverifiedOriginalPeriodPrepare();
+            return false;
+        }
         Object[] evidence=exactEarlySetterSourceAtGeneration(source,saved.generation);
-        if(evidence==null)return false;
+        if(evidence==null) {
+            sealUnverifiedOriginalPeriodPrepare();
+            return false;
+        }
         try {
             originalPeriodBeforePrepareObserver.beforeOriginalPeriodPrepare(
                 saved.generation,evidence[0],evidence[1],source,period);
             return true;
-        } catch(Throwable ignored) {return false;}
+        } catch(Throwable ignored) {
+            sealUnverifiedOriginalPeriodPrepare();
+            return false;
+        }
+    }
+    private void sealUnverifiedOriginalPeriodPrepare() {
+        try { originalPeriodBeforePrepareObserver.beforeUnverifiedOriginalPeriodPrepare(); }
+        catch(Throwable ignored) { }
     }
     private int trackPlayerScopeHook,nativeSourceSetterHook,livePeriodSourceHook;
     private int trackPlayerScopeEnter,playerSourceSameScope,playerSourceUnscoped;

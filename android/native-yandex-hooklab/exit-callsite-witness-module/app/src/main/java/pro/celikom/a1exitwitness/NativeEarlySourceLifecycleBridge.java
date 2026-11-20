@@ -97,6 +97,20 @@ final class NativeEarlySourceLifecycleBridge
         }
     }
 
+    @Override public synchronized void beforeUnverifiedOriginalPeriodPrepare() {
+        // This callback only arises from a registered original concrete
+        // prepare hook. A foreign/unlinked period is never evidence for an
+        // alternate, even if FileInfo or a grant arrives later.
+        sealUnknownNativePrepare();
+    }
+
+    private void sealUnknownNativePrepare() {
+        if(originalPeriodPrepareSealed)return;
+        originalPeriodPrepareSealed=true;
+        lifecycle.atNativePrepare(lifecycleGeneration,
+            null,null,null,elapsedClock.getAsLong());
+    }
+
     @Override public synchronized void beforeOriginalPeriodPrepare(
             long generation,Object track,Object album,Object source,Object period) {
         if(period==null || originalPeriodAmbiguous
@@ -118,11 +132,7 @@ final class NativeEarlySourceLifecycleBridge
         // and approved source exist, commit ORIGINAL for this generation
         // before the publisher prepare proceeds. Late ID/grant replies may
         // never upgrade the already prepared original player source.
-        if(!originalPeriodPrepareSealed) {
-            originalPeriodPrepareSealed=true;
-            lifecycle.atNativePrepare(lifecycleGeneration,
-                null,null,null,elapsedClock.getAsLong());
-        }
+        sealUnknownNativePrepare();
     }
 
     synchronized boolean sawOriginalPeriodPrePrepare(long generation,Object period) {
