@@ -111,3 +111,62 @@ The fix now:
 No publisher ID, token, account, signed URL or audio data is exported. The original publisher methods still execute exactly once. All unlinked, conflicting or stale continuations remain fail-closed. This is a targeted wiring fix inside the existing architecture, not a new player or an alternate authorization path.
 
 **Historical validation note (superseded):** at the time this section was first written, Java/Python and ARM13 CI were pending. The BETA4 results and owner-phone test requirement are recorded at the top of this document.
+
+
+## BETA5 owner-phone diagnostic result — 20.11.2026
+
+**Owner result:** BETA5 was tested on HONOR 50 / Android 13 with Ramil' «Ау», publisher track ID `144530503`, at the requested section. The owner reports that the replacement still does not work / alternate audio is not heard. **BETA5 is a failed audio trial, not a working build or release.**
+
+**Exact diagnostic:** `CELIKOM-A1-Diagnostics-1795193426305.txt`; build marker `A1_TRACKID_BETA5_RAMIL_AU_20261120`.
+
+### What worked
+
+- `BETA_OWNER_AUTO_START=ENABLED` / `ALREADY_ENABLED`: saved CELIKOM session auto-started successfully.
+- `OWNER_ENABLED=ONE`: owner activation is present in the beta path.
+- `DIAGNOSTIC_UI=ATTACHED`: the single status/TXT control is present. The BETA4 UI regression is no longer the blocker.
+- `ISSUER_PROXY_HOOK_REGISTERED=ONE`, `ISSUER_PROXY_CREATED=ONE`: the early Retrofit proxy witness registered and observed one FileInfo/DownloadInfo proxy creation.
+
+### First failed point — issuer method selection
+
+The next counters are all zero:
+
+- `ISSUER_METHOD_SELECTED=NONE`
+- `ISSUER_HANDLER_INVOKE=NONE`
+- `ISSUER_TRACKID=NONE`
+- `EXACT_BETA_CREATOR=NONE`
+- `ORIGINAL_SETTER=NONE`
+
+The current `hookConcretePublisherTrackIdProxy()` implementation searches the loaded `FileInfoApi` / `DownloadInfoApi` interfaces for a declared method whose String/numeric parameter has Retrofit `@Query` or `@Path` with the exact value `trackId`. The proxy is seen, but this selection gate does not select a method in the real phone run. The diagnostic does **not** establish why it was rejected; do not guess whether the runtime method, annotation, interface/classloader or proxy shape differs. Because no method is selected, the concrete handler invocation is not observed and no original issuer Track ID reaches CELIKOM.
+
+Downstream beta path is therefore not reached:
+
+- `PREFETCH_STARTED=NONE`
+- `SIGNED_MPEG_READY=NONE`
+- `OWNER_RESOLVE_REQUEST=NONE`
+- `GRANT_ADMITTED=NONE`
+- `DECISION_ALTERNATE=NONE`
+- `DATASOURCE_ARMED=NONE`
+- `AUDIO_OPEN=NONE`
+- `AUDIO_READ=NONE`
+
+`EXACT_PREPARE=FEW` alone is not a replacement: there is no captured issuer ID, no admitted grant, and no armed alternate DataSource.
+
+### Original Yandex playback and partial lineage evidence
+
+- Original Exo counters: `EXO_FACTORY_CREATED=MANY`, `EXO_OPEN_OK=MANY`, `EXO_READ_POSITIVE=MANY`; `EXO_IO_FAILURE=NONE`. The original player continues reading audio normally.
+- One `TCA_CREATOR_WRAPPER_FLOW_MATCH` and one `TCA_CREATOR_WRAPPER_ALBUM_LINK` were observed; `TCA_CREATOR_FLOW_LATER_SAME_TRACK=ONE` and `TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED=ONE`.
+- This does not close the active native source chain: `NATIVE_MAIN_SOURCE_ENTER=NONE`, `WRAPPER_MAIN_SOURCE=NONE`, descriptor/factory/source links are all `NONE`.
+- The aggregate status explicitly remains `CELIKOM_REPLACEMENT=NOT_CONNECTED`.
+- Renderer hooks are registered, but their registration and queue/sample-read counters do not prove a current-track replacement. Do not reopen renderer research while the earlier issuer-ID gate is still zero.
+
+### Next implementation task — keep it narrow
+
+1. Work only on the first failed gate: the real loaded FileInfo/DownloadInfo proxy method selection.
+2. Inspect the actual runtime proxy interfaces and declared/inherited methods, exact Retrofit annotations, and classloader identity. Determine why the one created proxy does not yield `ISSUER_METHOD_SELECTED`.
+3. Make the smallest fix that observes the exact original `trackId` argument inside the original request/Track scope and invokes the publisher handler exactly once unchanged. Do not capture arbitrary String/number arguments or broaden to unrelated APIs.
+4. Add focused regression coverage for the actual runtime method shape and negative/unscoped calls. Run the relevant JVM and Android ARM13 CI.
+5. Only after a real phone run captures `ISSUER_TRACKID`, continue down the existing chain in order: `EXACT_BETA_CREATOR` → `ORIGINAL_SETTER` → signed audio/grant → exact prepare → DataSource armed/open/read. Do not jump ahead or create another diagnostic-only APK.
+
+**Do not ask the owner for another phone run until there is a concrete code correction with green CI and a clear expected counter change.** No AppMetrica investigation, broad DEX scans, new renderer probes, UI redesign or architecture reset.
+
+**Preserve:** the single existing branch; NAV40/NAV45; Test.50; Windows; backend/production; the original publisher APK and its signer. Unknown or unapproved tracks must continue playing the original audio.
