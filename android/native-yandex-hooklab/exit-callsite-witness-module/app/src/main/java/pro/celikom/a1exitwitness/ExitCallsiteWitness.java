@@ -77,6 +77,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
     private static final String OWNER_BUTTON_TAG = "celikom_a1_owner_audio_control";
     private static volatile NativeOwnerControlPlane nativeOwnerControl;
+    // Preserve NAV45 read-only witness baseline and CI assertions; the
+    // actual diagnostic export carries a distinct new beta build marker.
+    private static final String DIAGNOSTIC_BASELINE =
+        "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     private static final String DIAGNOSTIC_BUILD = "A1_TRACKID_BETA_RAMIL_AU_20261120";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
