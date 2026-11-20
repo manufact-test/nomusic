@@ -51,6 +51,12 @@ final class NativeEarlySourceLifecycleBridge
             elapsedClock.getAsLong());
     }
 
+    @Override public synchronized void rejected(long generation) {
+        if(generation!=latestSetterGeneration)return;
+        clear();
+        lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
+    }
+
     @Override public synchronized void pending(long generation,
             Object originalTrack,Object originalAlbum,Object originalSource) {
         if(generation!=latestSetterGeneration || originalTrack==null
@@ -94,4 +100,5 @@ final class NativeEarlySourceLifecycleBridge
         return lifecycle.lastIssuedSource();
     }
     synchronized long reservedNativeGeneration() {return lifecycleGeneration;}
+    synchronized long currentNativeGeneration() {return lifecycle.generation();}
 }

@@ -218,6 +218,10 @@ final class NativeRendererStreamEvidence {
         // missing Track/Album or an overlapping setter. No stale generation
         // may survive Next, replay or an unscoped original source.
         default void invalidated(long generation) { }
+        // A rejected early attempt (unknown wrapper, overlapping setter,
+        // missing original album) has no finish callback. It must still
+        // cancel the unresolved native selection reserved by invalidated().
+        default void rejected(long generation) { }
         void pending(long generation,Object track,Object album,Object source);
         void completed(long generation,boolean originalSetterSucceeded);
     }
@@ -257,6 +261,12 @@ final class NativeRendererStreamEvidence {
     synchronized void setEarlyOriginalSourceObserver(EarlyOriginalSourceObserver observer) {
         earlyOriginalSourceObserver=observer;
     }
+    private void rejectEarlyOriginalSelection(long generation) {
+        if(earlyOriginalSourceObserver!=null) {
+            try {earlyOriginalSourceObserver.rejected(generation);}
+            catch(Throwable ignored) { }
+        }
+    }
     synchronized EarlyOriginalSourceFrame beginEarlyOriginalSourceSet(Object source) {
         // Every selection attempt, even one without proof, invalidates prior
         // pending generations. No repeat/Next may inherit the old candidate.
@@ -268,15 +278,25 @@ final class NativeRendererStreamEvidence {
         }
         if(earlySourceInFlight!=null) {
             earlySourceInFlight.invalid=true;
+            rejectEarlyOriginalSelection(generation);
             return null; // overlapping/nested setters are never admitted
         }
         TrackPlayerScope scope=inPlayerTrack.get();
         if(poisoned || source==null || scope==null || scope.wrapper==null
-                || earlyOriginalSourceEvidence==null)return null;
+                || earlyOriginalSourceEvidence==null) {
+            rejectEarlyOriginalSelection(generation);
+            return null;
+        }
         Object[] pair;
         try {pair=earlyOriginalSourceEvidence.exact(scope.wrapper);}
-        catch(Throwable ignored) {return null;}
-        if(pair==null || pair.length!=2 || pair[0]==null || pair[1]==null)return null;
+        catch(Throwable ignored) {
+            rejectEarlyOriginalSelection(generation);
+            return null;
+        }
+        if(pair==null || pair.length!=2 || pair[0]==null || pair[1]==null) {
+            rejectEarlyOriginalSelection(generation);
+            return null;
+        }
         EarlyOriginalSourceFrame frame=new EarlyOriginalSourceFrame(
             scope.wrapper,pair[0],pair[1],source,generation);
         earlySourceInFlight=frame;

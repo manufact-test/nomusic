@@ -2365,10 +2365,50 @@ public final class NativeRendererStreamEvidenceTest {
                   && bridge.chosenSource()==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
                 "FAILED_PUBLISHER_SETTER_NEVER_ISSUES_ALTERNATE");
             now[0]=1200;
-            e.beginEarlyOriginalSourceSet(new Object());
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame unknown=
+                e.beginEarlyOriginalSourceSet(new Object());
+            check(unknown!=null,"SAME_WRAPPER_WITH_DIFFERENT_SOURCE_CAN_BE_PENDING");
+            e.finishEarlyOriginalSourceSet(unknown,true);
             check(!bridge.isSuccessfulOriginalSource(first.generation,track,album,source),
                 "UNKNOWN_ORIGINAL_SETTER_DISCARDS_OLD_SOURCE_GENERATION");
+            now[0]=1300;
+            check(e.beginEarlyOriginalSourceSet(null)==null,
+                "NULL_ORIGINAL_SOURCE_IS_REJECTED");
+            check(bridge.currentNativeGeneration()>bridge.reservedNativeGeneration(),
+                "NULL_SOURCE_REJECT_ABORTS_RESERVED_NATIVE_GENERATION");
+            check(!bridge.isSuccessfulOriginalSource(unknown.generation,track,album,unknown.source),
+                "REJECTED_NEW_SELECTION_INVALIDATES_EARLIER_SUCCESS");
         } finally {e.exitTrackPlayerSource(frame);}
+    }
+
+    private static void testNestedEarlySourceRejectCannotLeavePendingRevision() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        NativeEarlySourceLifecycleBridge bridge=
+            new NativeEarlySourceLifecycleBridge(() -> 1000);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        e.setEarlyOriginalSourceObserver(bridge);
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame outer=
+                e.beginEarlyOriginalSourceSet(new Object());
+            check(outer!=null,"NESTED_FIRST_VALID_EARLY_SOURCE");
+            check(e.beginEarlyOriginalSourceSet(new Object())==null,
+                "NESTED_ORIGINAL_SETTER_NOT_ADMITTED");
+            check(bridge.currentNativeGeneration()>bridge.reservedNativeGeneration(),
+                "NESTED_ORIGINAL_SETTER_CANCELS_UNRESOLVED_GENERATION");
+            e.finishEarlyOriginalSourceSet(outer,true);
+            check(!bridge.isSuccessfulOriginalSource(outer.generation,track,album,outer.source),
+                "NESTED_FIRST_RESULT_CANNOT_RESTORE_STALE_SOURCE");
+        } finally {e.exitTrackPlayerSource(scope);}
     }
 
     public static void main(String[] args) {
@@ -2454,6 +2494,7 @@ public final class NativeRendererStreamEvidenceTest {
         testEarlySourceFailureConflictAndNextGeneration();
         testEarlySetterWhenFlowPrecedesWrapperBirth();
         testOriginalEarlySetterFeedsExistingNativeLifecycle();
+        testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }
