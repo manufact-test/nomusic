@@ -79,9 +79,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static volatile NativeOwnerControlPlane nativeOwnerControl;
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
-    private static final String DIAGNOSTIC_BASELINE =
-        "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    private static final String DIAGNOSTIC_BUILD = "A1_TRACKID_BETA_RAMIL_AU_20261120";
+    private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA_RAMIL_AU_20261120";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -5754,6 +5753,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 // Always include exact current build marker in owner export:
                 // circular main-process log can trim its startup marker.
                 output.write(("event=DIAGNOSTIC_BUILD;origin="+DIAGNOSTIC_BUILD
+                    +";error=ACTIVE;thread=OTHER\n").getBytes(StandardCharsets.UTF_8));
+                output.write(("event=DIAGNOSTIC_BETA_BUILD;origin="+BETA_BUILD
                     +";error=ACTIVE;thread=OTHER\n").getBytes(StandardCharsets.UTF_8));
                 int appExceptionCount=musicMetricaExceptions.get();
                 output.write(("event=METRICA_EXCEPTION_SUMMARY;origin=MUSIC_APP;error="

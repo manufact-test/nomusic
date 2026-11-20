@@ -1388,8 +1388,9 @@ final class StageBAudioEvidence {
             event("TCA_CREATOR_NOT_FLOW_ALBUM_UNOBSERVED", creatorNotFlowAlbumUnobserved),
             event("TCA_CREATOR_FLOW_LATER_SAME_TRACK", creatorFlowLaterSameTrack),
             event("TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED", creatorFlowLaterAlbumObserved),
-            "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error="
-                +NativeTrackIdBetaPolicy.replacementStatus()+";thread=OTHER"
+            // Strict triple-proof legacy status remains intentionally read-only;
+            // separate BETA stage counters below make real audio proof explicit.
+            "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
         };
     }
 }

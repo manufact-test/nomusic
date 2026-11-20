@@ -13,6 +13,8 @@ BASE = pathlib.Path(__file__).resolve().parents[1]
 SRC = BASE / "exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness"
 HOOK = SRC / "ExitCallsiteWitness.java"
 EVIDENCE = SRC / "StageBAudioEvidence.java"
+BETA_POLICY = SRC / "NativeTrackIdBetaPolicy.java"
+GRANT_CONTRACT = BASE / "app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java"
 HARNESS = """
 package pro.celikom.a1exitwitness;
 public final class StageBAudioEvidenceTest {
@@ -559,7 +561,8 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             test = pathlib.Path(tmp) / "StageBAudioEvidenceTest.java"
             test.write_text(HARNESS, encoding="utf-8")
-            subprocess.run(["javac", "-d", tmp, str(EVIDENCE), str(test)],
+            subprocess.run(["javac", "-d", tmp, str(GRANT_CONTRACT),
+                            str(BETA_POLICY), str(EVIDENCE), str(test)],
                            check=True, capture_output=True, text=True)
             done = subprocess.run(["java", "-cp", tmp,
                                    "pro.celikom.a1exitwitness.StageBAudioEvidenceTest"],
