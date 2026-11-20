@@ -33,6 +33,7 @@ final class NativeEarlySourceLifecycleBridge
     // late CURRENT player confirmation; prefetch must not count as selected.
     private long originalPeriodPrePrepareGeneration = -1;
     private WeakReference<Object> originalPeriodRef;
+    private WeakReference<Object> prePrepareSourceInstanceRef;
     private boolean originalPeriodAmbiguous;
     private boolean originalPeriodPrepareSealed;
     private WeakReference<Object> trackRef;
@@ -50,6 +51,7 @@ final class NativeEarlySourceLifecycleBridge
         confirmedCurrentOriginalGeneration=-1;
         originalPeriodPrePrepareGeneration=-1;
         originalPeriodRef=null;
+        prePrepareSourceInstanceRef=null;
         originalPeriodAmbiguous=false;
         originalPeriodPrepareSealed=false;
         originalSetterSucceeded=false;
@@ -112,7 +114,8 @@ final class NativeEarlySourceLifecycleBridge
     }
 
     @Override public synchronized void beforeOriginalPeriodPrepare(
-            long generation,Object track,Object album,Object source,Object period) {
+            long generation,Object track,Object album,Object source,Object period,
+            Object originalDataSourceCandidate) {
         if(period==null || originalPeriodAmbiguous
                 || !isSuccessfulOriginalSource(generation,track,album,source))
             return;
@@ -122,10 +125,13 @@ final class NativeEarlySourceLifecycleBridge
         if(originalPeriodRef!=null && originalPeriodRef.get()!=period) {
             originalPeriodPrePrepareGeneration=-1;
             originalPeriodRef=null;
+            prePrepareSourceInstanceRef=null;
             originalPeriodAmbiguous=true;
             return;
         }
         originalPeriodRef=new WeakReference<>(period);
+        prePrepareSourceInstanceRef=originalDataSourceCandidate==null?null:
+            new WeakReference<>(originalDataSourceCandidate);
         originalPeriodPrePrepareGeneration=generation;
         // This IS the publisher's original prepare boundary, not a late
         // renderer read. When no independently verified descriptor IDs
@@ -133,6 +139,15 @@ final class NativeEarlySourceLifecycleBridge
         // before the publisher prepare proceeds. Late ID/grant replies may
         // never upgrade the already prepared original player source.
         sealUnknownNativePrepare();
+    }
+
+    /** A structural, original-only candidate for this exact period, never a grant. */
+    synchronized boolean wasPrePrepareOriginalSourceInstance(long generation,
+            Object period,Object dataSource) {
+        return dataSource!=null
+            && sawOriginalPeriodPrePrepare(generation,period)
+            && prePrepareSourceInstanceRef!=null
+            && prePrepareSourceInstanceRef.get()==dataSource;
     }
 
     synchronized boolean sawOriginalPeriodPrePrepare(long generation,Object period) {

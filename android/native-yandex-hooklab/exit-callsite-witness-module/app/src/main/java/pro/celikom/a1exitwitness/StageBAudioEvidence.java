@@ -684,6 +684,32 @@ final class StageBAudioEvidence {
         }
     }
 
+
+    /**
+     * The already observed original creator Track + Album -> wrapper ->
+     * descriptor -> factory -> un-opened Exo DataSource instance.
+     * This only nominates a possible future byte source in the SAME
+     * original wrapper lineage; it is NOT selected decoder/PCM or an
+     * alternate entitlement. If the instance is opened/read, ambiguous,
+     * absent or rebound, never reuse it for a pre-prepare candidate.
+     */
+    synchronized Object exactFreshSourceInstanceForCreator(
+            Object wrapper,Object expectedTrack,Object expectedAlbum) {
+        if(expectedTrack==null || expectedAlbum==null)return null;
+        Object[] creator=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        if(creator==null || creator[0]!=expectedTrack || creator[1]!=expectedAlbum)
+            return null;
+        NativeTrackSourceLink link=findByWrapper(wrapper);
+        if(link==null || link.track==null || link.track.get()!=expectedTrack
+                || link.albumInstance==null || link.albumInstance.get()!=expectedAlbum
+                || link.descriptor==null || link.factoryResult==null
+                || link.sourceInstance==null || link.sourceOpened
+                || link.sourceReadAfterOpen)return null;
+        Object descriptor=link.descriptor.get(),factory=link.factoryResult.get();
+        Object dataSource=link.sourceInstance.get();
+        return descriptor!=null && factory!=null ? dataSource : null;
+    }
+
     private NativeTrackSourceLink findByWrapper(Object wrapper) {
         if (wrapper==null) return null;
         NativeTrackSourceLink match=null;

@@ -2801,6 +2801,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 NATIVE_EARLY_ADMISSION);
             NATIVE_RENDERER_EVIDENCE.setOriginalPeriodBeforePrepareObserver(
                 NATIVE_EARLY_ADMISSION);
+            // This is the already captured original creator->descriptor->
+            // factory->DataSource Java lineage, still not selected/approved.
+            NATIVE_RENDERER_EVIDENCE.setOriginalPrePrepareSourceInstanceEvidence(
+                STAGE_B_AUDIO::exactFreshSourceInstanceForCreator);
         } catch(Throwable ignored) { }
         // One exact signed original concrete MediaPeriod before prepare.
         // Fail-closed: require exactly one declared MediaPeriod contract

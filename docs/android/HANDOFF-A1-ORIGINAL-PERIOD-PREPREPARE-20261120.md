@@ -39,3 +39,8 @@
 ## 20.11.2026 — unknown prepare fail-closed
 
 Unlinked original `o96.prepare` (wrong/NULL source, lineage mismatch, inaccessible field, nested original setter) now seals the reserved native generation ORIGINAL before publisher `prepare` proceeds. An async semantic ID/grant cannot upgrade it mid-play. New JVM regression verifies wrong-period -> late certification denied -> Next fresh generation; previous matched original-pre-prepare path preserved. Only the existing concrete hook/bridge and model tests changed. No producer IDs, approved audio bytes or actual alternate source yet.
+
+
+## 20.11.2026 — pre-prepare original DataSource candidate continuity
+
+For exact creator-owned Track/Album/wrapper already linked to original Exo descriptor, factory and a unique unopened DataSource instance, the original `o96.prepare` observer now carries a weak instance identity to `NativeEarlySourceLifecycleBridge`, scoped to exactly the same source generation and concrete original period. Factory rebind, source already opened, different period/Next/Album or original mismatch deny. This bridges a potential byte-source candidate into the existing prepare hook without performing byte routing. Not selected decoder proof, semantic triple, signed grant or audible substitution; default OFF. JVM test verifies positive and all negative cases. No new APK.

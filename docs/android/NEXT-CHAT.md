@@ -1,3 +1,11 @@
+# CURRENT 20.11.2026 — original pre-prepare tied to exact fresh Exo DataSource instance (structural, no swap)
+
+The existing original `Track+Album -> tCa wrapper -> descriptor -> Exo factory -> DataSource instance` lineage can now supply **one weak, not-yet-opened original DataSource candidate** when the same original source generation enters the exact original MediaPeriod prepare observer. Any mismatched original Track/Album, opened source, other period, multi-period prefetch or Next cannot retain this candidate. The supplier is wired from the existing `StageBAudioEvidence` into the same `NativeRendererStreamEvidence`/canonical bridge; no new player or listener. Dedicated Java model regression checks positive/negative cases.
+
+**This is still not decoder-source-selection proof**, and no semantic original trackId+albumId+editionId, approved CELIKOM grant or alternate byte routing is connected. Replacement stays OFF and original audio is unmodified. CI pending for this commit; no owner APK. Signed NAV40/NAV45/Test.50/Windows untouched.
+
+---
+
 # CURRENT 20.11.2026 — unlinked original period pre-prepare closes pending admission
 
 The **same concrete, already installed original period prepare hook** now closes unresolved canonical native selection to ORIGINAL even when the original period/source cannot be associated with the successful Track/Album/source lineage. It never infers selected edition from prefetch. An async ID/grant after any unknown publisher prepare cannot upgrade the playing original. A subsequent Next begins a fresh independent selection; known periods still record structural evidence without reopening admission. Test-only enabled lifecycle exercises this failure path. JVM and ARM13 status require checking on the new commit; default feature OFF, no source byte routing, no APK.

@@ -176,8 +176,17 @@ final class NativeRendererStreamEvidence {
     private int originalPeriodPrepareHook;
     interface OriginalPeriodBeforePrepareObserver {
         void beforeOriginalPeriodPrepare(long generation,Object originalTrack,
-                Object originalAlbum,Object originalSource,Object originalPeriod);
+                Object originalAlbum,Object originalSource,Object originalPeriod,
+                Object originalDataSourceCandidate);
         void beforeUnverifiedOriginalPeriodPrepare();
+    }
+    interface OriginalPrePrepareSourceInstanceEvidence {
+        Object exact(Object wrapper,Object originalTrack,Object originalAlbum);
+    }
+    private OriginalPrePrepareSourceInstanceEvidence originalPrePrepareSourceEvidence;
+    synchronized void setOriginalPrePrepareSourceInstanceEvidence(
+            OriginalPrePrepareSourceInstanceEvidence evidence) {
+        originalPrePrepareSourceEvidence=evidence;
     }
     private OriginalPeriodBeforePrepareObserver originalPeriodBeforePrepareObserver;
     synchronized void setOriginalPeriodBeforePrepareObserver(
@@ -220,8 +229,19 @@ final class NativeRendererStreamEvidence {
             return false;
         }
         try {
+            Object dataSourceCandidate=null;
+            if(originalPrePrepareSourceEvidence!=null) {
+                Object wrapper=saved.wrapper.get();
+                if(wrapper!=null) {
+                    try {
+                        dataSourceCandidate=originalPrePrepareSourceEvidence.exact(
+                            wrapper,evidence[0],evidence[1]);
+                    } catch(Throwable ignored) { }
+                }
+            }
             originalPeriodBeforePrepareObserver.beforeOriginalPeriodPrepare(
-                saved.generation,evidence[0],evidence[1],source,period);
+                saved.generation,evidence[0],evidence[1],source,period,
+                dataSourceCandidate);
             return true;
         } catch(Throwable ignored) {
             sealUnverifiedOriginalPeriodPrepare();

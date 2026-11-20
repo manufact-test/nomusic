@@ -2661,6 +2661,75 @@ public final class NativeRendererStreamEvidenceTest {
         } finally {e.exitTrackPlayerSource(scope);}
     }
 
+    private static void testExactOriginalPrepareTracksPreopenDataSourceCandidate() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        NativeEarlySourceLifecycleBridge bridge=
+            new NativeEarlySourceLifecycleBridge(() -> 1000);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        FakeSource originalSource=new FakeSource();
+        Object descriptor=new Object(),factory=new Object(),dataSource=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        // The original Track already entered Flow before this creator birth:
+        // this is the version that can link the descriptor/factory/instance.
+        stage.onNativeTrackFlowEmission(track);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        stage.enterNativeMainSourceRequest(wrapper,null);
+        try {stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);}
+        finally {stage.exitNativeMainSourceRequest();}
+        stage.onExoFactoryCreated(descriptor,factory);
+        stage.onExoSourceInstanceCreated(dataSource,factory);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==dataSource,
+            "SAME_ORIGINAL_CREATOR_TO_UNOPENED_DATASOURCE_INSTANCE");
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,new Object(),album)==null,
+            "OTHER_TRACK_CANNOT_ADOPT_ORIGINAL_BYTES_ROUTE");
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,new Object())==null,
+            "OTHER_ALBUM_CANNOT_ADOPT_ORIGINAL_BYTES_ROUTE");
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        e.setOriginalPrePrepareSourceInstanceEvidence(
+            stage::exactFreshSourceInstanceForCreator);
+        e.setEarlyOriginalSourceObserver(bridge);
+        e.setOriginalPeriodBeforePrepareObserver(bridge);
+        nav43SetupLiveSource(e);
+        e.onHookRegistration("ORIGINAL_PERIOD_PREPARE",true);
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame;
+        try {
+            frame=e.beginEarlyOriginalSourceSet(originalSource);
+            check(frame!=null,"DATASOURCE_CANDIDATE_SETTER_CREATOR_LINK");
+            e.onNativePlayerSourceSetter(originalSource);
+            e.finishEarlyOriginalSourceSet(frame,true);
+        } finally {e.exitTrackPlayerSource(scope);}
+        FakePeriod originalPeriod=new FakePeriod(originalSource);
+        check(e.onOriginalPeriodBeforePrepare(originalPeriod),
+            "DATASOURCE_CANDIDATE_SEEN_BEFORE_ORIGINAL_PREPARE");
+        check(bridge.wasPrePrepareOriginalSourceInstance(
+                frame.generation,originalPeriod,dataSource),
+            "EXACT_ORIGINAL_PERIOD_AND_UNOPENED_DATASOURCE_CANDIDATE");
+        check(!bridge.wasPrePrepareOriginalSourceInstance(
+                frame.generation,new FakePeriod(originalSource),dataSource)
+                && !bridge.wasPrePrepareOriginalSourceInstance(
+                    frame.generation,originalPeriod,new Object()),
+            "NO_CROSS_PERIOD_OR_DATA_SOURCE_REUSE");
+        // A later different prepare, even with the same source, irrevocably
+        // cancels the supposedly unique period candidate for this revision.
+        e.onOriginalPeriodBeforePrepare(new FakePeriod(originalSource));
+        check(!bridge.wasPrePrepareOriginalSourceInstance(
+                frame.generation,originalPeriod,dataSource),
+            "PREFETCH_SECOND_PERIOD_REVOKES_CANDIDATE");
+        // A real opened instance is too late to classify as pre-open.
+        stage.onExoSourceInstanceOpen(dataSource);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==null,
+            "OPENED_SOURCE_CANNOT_BE_USED_AS_PREPREPARE_CANDIDATE");
+        check(!bridge.replacementEnabled(),
+            "SOURCE_INSTANCE_CONTINUITY_NOT_AUDIO_SUBSTITUTION");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2748,6 +2817,7 @@ public final class NativeRendererStreamEvidenceTest {
         testOriginalExactMediaPeriodBeforePrepareNoAlternate();
         testOriginalPrepareSealsNativeLifecycleBeforeLateIdentity();
         testUnlinkedOriginalPrepareSealsLateNativeAdmission();
+        testExactOriginalPrepareTracksPreopenDataSourceCandidate();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
