@@ -2857,6 +2857,12 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(concretePrepare).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         try {
+                            // Only beta first-prepare gets <=450ms grace on
+                            // a background Exo worker, never the UI thread.
+                            if(android.os.Looper.myLooper()
+                                    !=android.os.Looper.getMainLooper())
+                                NATIVE_EARLY_ADMISSION
+                                    .awaitLimitedBetaGrantAtPrepare(450);
                             NATIVE_RENDERER_EVIDENCE.onOriginalPeriodBeforePrepare(
                                 chain.getThisObject());
                         } catch(Throwable ignored) { }
@@ -5593,6 +5599,8 @@ public final class ExitCallsiteWitness extends XposedModule {
             nativeOwnerControl=new NativeOwnerControlPlane(context,NATIVE_EARLY_ADMISSION);
             NATIVE_EARLY_ADMISSION.setAuthenticatedSourceGrantRequester(
                 nativeOwnerControl::requestForCertifiedSource);
+            NATIVE_EARLY_ADMISSION.setLimitedBetaGrantRequester(
+                nativeOwnerControl::requestForTrackIdBeta);
             STAGE_B_AUDIO.setAuthenticatedPublisherTrackPrefetch(
                 nativeOwnerControl::warmFromPublisherTrackId);
         }
@@ -5603,7 +5611,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         final NativeOwnerControlPlane control=ownerControl(activity);
         TextView button=new TextView(activity);
         button.setTag(OWNER_BUTTON_TAG);
-        button.setText(control.enabled()?"CELIKOM: ВКЛ":"CELIKOM: ВЫКЛ");
+        button.setText(control.enabled()?"CELIKOM BETA: ВКЛ":"CELIKOM BETA: ВЫКЛ");
         button.setTextColor(Color.WHITE);
         button.setTextSize(12);
         button.setGravity(Gravity.CENTER);
@@ -5618,7 +5626,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         button.setOnClickListener(v->{
             if(control.enabled()) {
                 control.stop();
-                button.setText("CELIKOM: ВЫКЛ");
+                button.setText("CELIKOM BETA: ВЫКЛ");
                 return;
             }
             if(!control.hasSession()) {
@@ -5636,12 +5644,12 @@ public final class ExitCallsiteWitness extends XposedModule {
     }
     private void activateOwnerAudio(Activity activity,
             NativeOwnerControlPlane control,TextView button) {
-        button.setText("CELIKOM: ПРОВЕРКА");
+        button.setText("CELIKOM BETA: ПРОВЕРКА");
         control.start(code->{
             if(activity.isFinishing() || activity.isDestroyed())return;
-            button.setText(control.enabled()?"CELIKOM: ВКЛ":"CELIKOM: ВЫКЛ");
+            button.setText(control.enabled()?"CELIKOM BETA: ВКЛ":"CELIKOM BETA: ВЫКЛ");
             String message="enabled".equals(code)
-                ?"CELIKOM включён для новых песен":
+                ?"CELIKOM BETA: только два тестовых трека":
                 "not_entitled".equals(code)?"Нет доступа CELIKOM":
                 "login_required".equals(code)?"Нужно войти в CELIKOM":
                 "service_unavailable".equals(code)?"CELIKOM временно недоступен":
@@ -5674,10 +5682,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 String address=email.getText().toString();
                 String secret=password.getText().toString();
                 password.setText("");
-                button.setText("CELIKOM: ВХОД");
+                button.setText("CELIKOM BETA: ВХОД");
                 control.login(address,secret,code->{
                     if(activity.isFinishing() || activity.isDestroyed())return;
-                    button.setText("CELIKOM: ВЫКЛ");
+                    button.setText("CELIKOM BETA: ВЫКЛ");
                     if("signed_in".equals(code))
                         activateOwnerAudio(activity,control,button);
                     else if("verification_required".equals(code))
