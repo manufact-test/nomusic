@@ -182,15 +182,17 @@ final class NativeExoAlternateByteRoute {
             cursor.close();
             synchronized(this) {
                 opening=false;
+                boolean stale=(revision!=token);
                 if(revision==token) {
                     aborted=true;
                     signedUrl=null;
                     expectedMime=null;
                     originalSource=null;
                 }
-                // Once any alternate bytes may have reached Exo, never fall
-                // back to original inside the same decoder track.
-                if(everCommitted)
+                // A Next/close during an in-flight alternate open must
+                // never silently fall through to the stale original source.
+                // Nor may a previously emitted alternate stream mix with it.
+                if(stale || everCommitted)
                     throw failure instanceof IOException
                         ?(IOException)failure:new IOException("alternate_open_failed",failure);
             }
