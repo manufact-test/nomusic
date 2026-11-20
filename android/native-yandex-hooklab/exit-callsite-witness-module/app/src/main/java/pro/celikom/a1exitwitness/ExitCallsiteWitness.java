@@ -189,6 +189,12 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoDescriptorWitnessReady;
     private boolean exactExoSourceInstanceHookReady;
     private boolean exactExoDataOpenWitnessReady;
+    // Original signed UC2 DataSpec constructor stores position in the
+    // SECOND post-header long, private field "else" (strict 2025 gate).
+    // If the pinned structural contract drifts, use publisher original.
+    private volatile Field originalUc2PositionField;
+    private static final NativeExoAlternateByteRoute NATIVE_ALT_EXO_BYTES=
+        new NativeExoAlternateByteRoute();
     private boolean exactExoDataReadWitnessReady;
     private boolean exactExoDataCloseWitnessReady;
     private boolean nativeTrackAlbumHookAttempted;
@@ -4108,9 +4114,30 @@ public final class ExitCallsiteWitness extends XposedModule {
                 Class<?> source = Class.forName(
                     "com.yandex.music.shared.player.download2.exo.RetryingBalancingDataSource",
                     false, loader);
+                Class<?> dataSpec=Class.forName("UC2",false,loader);
+                // Source 2025 UC2 constructor: (Uri,long,int,byte[],Map,
+                // long position,long length,String,int). iput-wide in
+                // order for/else/goto; toString reads else/goto and try(J)
+                // reads only goto (length). Never choose a field heuristically.
+                try {
+                    dataSpec.getDeclaredConstructor(android.net.Uri.class,
+                        long.class,int.class,byte[].class,java.util.Map.class,
+                        long.class,long.class,String.class,int.class);
+                    Field offset=dataSpec.getDeclaredField("for");
+                    Field position=dataSpec.getDeclaredField("else");
+                    Field length=dataSpec.getDeclaredField("goto");
+                    if(offset.getType()==long.class && position.getType()==long.class
+                            && length.getType()==long.class
+                            && !java.lang.reflect.Modifier.isStatic(position.getModifiers())
+                            && !java.lang.reflect.Modifier.isStatic(length.getModifiers())) {
+                        position.setAccessible(true);
+                        originalUc2PositionField=position;
+                    }
+                } catch(Throwable ignored) {
+                    originalUc2PositionField=null; // original path unchanged
+                }
                 if (!exactExoDataOpenWitnessReady) {
-                    Method open = source.getDeclaredMethod("if",
-                        Class.forName("UC2", false, loader));
+                    Method open = source.getDeclaredMethod("if",dataSpec);
                     open.setAccessible(true);
                     hook(open).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
@@ -4119,7 +4146,22 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     chain.getThisObject());
                             } catch (Throwable ignored) { }
                             try {
-                                Object result = chain.proceed(); // single real open
+                                Long alternateLength=null;
+                                try {
+                                    Field verified=originalUc2PositionField;
+                                    Object spec=chain.getArg(0);
+                                    if(verified!=null && spec!=null
+                                            && verified.getDeclaringClass().isInstance(spec))
+                                        alternateLength=NATIVE_ALT_EXO_BYTES.openIfApproved(
+                                            chain.getThisObject(),verified.getLong(spec));
+                                } catch(java.io.IOException sourceFailure) {
+                                    // Once alternate was committed, never mix
+                                    // same decoder with original Yandex bytes.
+                                    throw sourceFailure;
+                                } catch(Throwable ignored) { }
+                                Object result=alternateLength!=null
+                                    ?alternateLength
+                                    :chain.proceed(); // publisher original only when no alt
                                 try {
                                     STAGE_B_AUDIO.onExoOpen();
                                     STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject());
@@ -4147,7 +4189,17 @@ public final class ExitCallsiteWitness extends XposedModule {
                             try {
                                 try { STAGE_B_AUDIO.onExoSourceInstanceReadAttempt(
                                     chain.getThisObject()); } catch(Throwable ignored) { }
-                                Object result = chain.proceed(); // single real read
+                                Integer alternate=null;
+                                try {
+                                    alternate=NATIVE_ALT_EXO_BYTES.readIfApproved(
+                                        chain.getThisObject(),(byte[])chain.getArg(0),
+                                        (Integer)chain.getArg(1),(Integer)chain.getArg(2));
+                                } catch(java.io.IOException failure) {
+                                    throw failure; // never mix original bytes
+                                } catch(Throwable ignored) { }
+                                Object result=alternate!=null
+                                    ?alternate
+                                    :chain.proceed(); // original read unless alt active
                                 try {
                                     int bytes = result instanceof Integer
                                         ? (Integer) result : Integer.MIN_VALUE;
@@ -4176,7 +4228,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 STAGE_B_AUDIO.onExoSourceInstanceClose(
                                     chain.getThisObject());
                             } catch (Throwable ignored) { }
-                            return chain.proceed(); // exactly one original close
+                            return NATIVE_ALT_EXO_BYTES.closeIfApproved(
+                                chain.getThisObject())
+                                ?null
+                                :chain.proceed(); // original close only if vendor opened
                         });
                     exactExoDataCloseWitnessReady=true;
                     emit("AUDIO_EXO_CLOSE_HOOK", "EXO_DATASOURCE", "REGISTERED");

@@ -86,7 +86,31 @@ def scan(splits):
                         source_open.append((method[1],len(list(audit.instructions(dex,code)))))
     if count!=6:raise ValueError("SIGNED_SIX_DEX_REQUIRED")
     longs=[name for kind,name,ftype in found if kind=="instance" and ftype=="J"]
+    method_roles={(m["declared_method"],m["signature"]):m
+                  for m in dataspec_method_wide_reads}
+    constructor=method_roles.get(("<init>",
+        "(Landroid/net/Uri;JI[BLjava/util/Map;JJLjava/lang/String;I)V"))
+    to_string=method_roles.get(("toString","()Ljava/lang/String;"))
+    subrange=method_roles.get(("case","(JJ)LUC2;"))
+    remainder=method_roles.get(("try","(J)LUC2;"))
+    verified=(
+        len(found)>0 and sorted(longs)==["else","for","goto"]
+        and constructor is not None
+        and constructor["iput_wide_order"]==["for","else","goto"]
+        and to_string is not None
+        and to_string["iget_wide_order"]==["else","goto"]
+        and subrange is not None
+        and subrange["iget_wide_order"]==["goto","else","for"]
+        and remainder is not None
+        and remainder["iget_wide_order"]==["goto"]
+        and len(source_open)==2
+    )
     return {
+        "position_field_exact_original_2025":"else" if verified else None,
+        "length_field_exact_original_2025":"goto" if verified else None,
+        "uri_offset_field_exact_original_2025":"for" if verified else None,
+        "dataspec_position_verdict":("PINNED_ORIGINAL_UC2_POSITION_CONFIRMED"
+             if verified else "FAIL_CLOSED_OFFSET_NOT_PROVEN"),
         "target":"SIGNED_ORIGINAL_MEDIA3_DATASPEC_UC2",
         "class_present":bool(found),
         "original_datasource_open_exact_signature_count":len(source_open),
@@ -95,7 +119,7 @@ def scan(splits):
         "dataspec_instance_long_field_names":longs,
         "dataspec_exact_method_wide_field_use":dataspec_method_wide_reads,
         "exact_public_position_field_present":"position" in longs,
-        "byte_offset_field_semantically_attested":False,
+        "byte_offset_field_semantically_attested":verified,
         "native_byte_route_installed":False,
     }
 
