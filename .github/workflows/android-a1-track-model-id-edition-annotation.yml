@@ -5,6 +5,7 @@ on:
     paths:
       - 'android/native-yandex-hooklab/ci/a1_private_track_model_identity_annotation.py'
       - 'android/native-yandex-hooklab/ci/a1_private_track_id_api_provenance.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_original_period_prepare_shape.py'
       - 'android/native-yandex-hooklab/ci/a1_trackid_cfg_track_alias.py'
       - 'android/native-yandex-hooklab/ci/test_a1_trackid_cfg_track_alias.py'
       - '.github/workflows/android-a1-track-model-id-edition-annotation.yml'
@@ -64,6 +65,12 @@ jobs:
           set -euo pipefail
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_track_id_api_provenance.py
           python3 -B android/native-yandex-hooklab/ci/a1_private_track_id_api_provenance.py \
+            --xapk "$RUNNER_TEMP/celikom-id-annotation/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Exact original wh6/o96 pre-prepare contract shape (one targeted signature only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_private_original_period_prepare_shape.py \
             --xapk "$RUNNER_TEMP/celikom-id-annotation/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Securely remove research input; no APK or runtime changes
         if: always()
