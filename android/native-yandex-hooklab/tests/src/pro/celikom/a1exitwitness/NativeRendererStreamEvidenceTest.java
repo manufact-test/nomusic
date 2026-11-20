@@ -2324,6 +2324,67 @@ public final class NativeRendererStreamEvidenceTest {
         } finally {e.exitTrackPlayerSource(scope);}
     }
 
+    private static void testEarlySetterSameSourceReachesActualCurrentPeriod() {
+        final long[] now={100};
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        NativeEarlySourceLifecycleBridge bridge=
+            new NativeEarlySourceLifecycleBridge(() -> now[0]);
+        nav41Setup(e);
+        nav43SetupLiveSource(e);
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        e.setExactOriginalTrackAlbumEvidence(stage::exactOriginalTrackAlbumForWrapper);
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        e.setEarlyOriginalSourceObserver(bridge);
+        e.setActiveOriginalTrackObserver(bridge);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        stage.onNativeTrackFlowEmission(track);
+        FakeSource source=new FakeSource();
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame early;
+        try {
+            early=e.beginEarlyOriginalSourceSet(source);
+            check(early!=null,"LIVE_EARLY_SETTER_HAS_CREATOR_PAIR");
+            e.onNativePlayerSourceSetter(source);
+            e.finishEarlyOriginalSourceSet(early,true);
+        } finally {e.exitTrackPlayerSource(scope);}
+        check(!bridge.wasCurrentOriginalSource(early.generation,track,album,source),
+            "ORIGINAL_SETTER_ONLY_IS_NOT_ACTIVE_RENDERER_PROOF");
+        Object uid=new Object(),stream=new Object(),renderer=new Object();
+        Nav41Id originalId=new Nav41Id(uid,-1,5);
+        Nav41Holder holder=new Nav41Holder(originalId,stream);
+        holder.nested=new FakeNested(new FakePeriod(source));
+        Nav41Engine engine=new Nav41Engine(holder,new Nav41Id(uid,-1,5));
+        nav41Attach(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(bridge.wasCurrentOriginalSource(early.generation,track,album,source),
+            "EXACT_EARLY_GENERATION_REACHES_STRICT_LIVE_ORIGINAL_PERIOD");
+        check(!bridge.wasCurrentOriginalSource(early.generation,track,album,new FakeSource()),
+            "OTHER_SOURCE_CANNOT_REUSE_LIVE_PERIOD_WITNESS");
+        check(!bridge.replacementEnabled() &&
+            bridge.chosenSource()==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
+            "LIVE_SAME_SOURCE_DOES_NOT_TURN_ON_ALTERNATE");
+        now[0]=200;
+        NativeRendererStreamEvidence.TrackPlayerScope next=e.enterTrackPlayerSource(wrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame second=
+                e.beginEarlyOriginalSourceSet(new FakeSource());
+            check(second!=null,"NEXT_HAS_INDEPENDENT_SETTER");
+            check(!bridge.wasCurrentOriginalSource(early.generation,track,album,source),
+                "NEXT_REVOKES_LATE_CURRENT_CONFIRMATION");
+            e.finishEarlyOriginalSourceSet(second,true);
+            check(!bridge.wasCurrentOriginalSource(second.generation,track,album,source),
+                "NEW_GENERATION_MUST_NOT_REUSE_OLD_LIVE_SOURCE");
+        } finally {e.exitTrackPlayerSource(next);}
+    }
+
     private static void testOriginalEarlySetterFeedsExistingNativeLifecycle() {
         final long[] now={1000};
         NativeEarlySourceLifecycleBridge bridge =
@@ -2494,6 +2555,7 @@ public final class NativeRendererStreamEvidenceTest {
         testEarlySourceFailureConflictAndNextGeneration();
         testEarlySetterWhenFlowPrecedesWrapperBirth();
         testOriginalEarlySetterFeedsExistingNativeLifecycle();
+        testEarlySetterSameSourceReachesActualCurrentPeriod();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

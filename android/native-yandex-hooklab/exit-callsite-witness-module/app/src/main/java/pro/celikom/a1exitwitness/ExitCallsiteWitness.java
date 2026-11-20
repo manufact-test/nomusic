@@ -2792,6 +2792,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                 STAGE_B_AUDIO::exactCreatorTrackAlbumBeforeSourceSet);
             NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceObserver(
                 NATIVE_EARLY_ADMISSION);
+            // Verified current-source callback is downstream from the early
+            // Player setter. Only confirm the exact same source reference;
+            // do NOT treat its late read as pre-prepare authorization.
+            NATIVE_RENDERER_EVIDENCE.setActiveOriginalTrackObserver(
+                NATIVE_EARLY_ADMISSION);
         } catch(Throwable ignored) { }
         // NAV31: observe ONLY the issuer-signed Lxh6.if field-read
         // boundary, exactly PC61 proven in the existing signed 2025 DEX

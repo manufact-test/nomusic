@@ -17,13 +17,17 @@ import java.util.function.LongSupplier;
  * Both original source and original player always execute unchanged.
  */
 final class NativeEarlySourceLifecycleBridge
-        implements NativeRendererStreamEvidence.EarlyOriginalSourceObserver {
+        implements NativeRendererStreamEvidence.EarlyOriginalSourceObserver,
+                   NativeRendererStreamEvidence.ActiveOriginalTrackObserver {
     private final NativeReplacementLifecycle lifecycle =
         new NativeReplacementLifecycle(850);
     private final LongSupplier elapsedClock;
     private long latestSetterGeneration = -1;
     private long lifecycleGeneration;
     private boolean originalSetterSucceeded;
+    // A late original player/PeriodID/SLOT_B renderer read must match the
+    // SAME earlier original source generation, never a queue/prefetch guess.
+    private long confirmedCurrentOriginalGeneration = -1;
     private WeakReference<Object> trackRef;
     private WeakReference<Object> albumRef;
     private WeakReference<Object> sourceRef;
@@ -36,6 +40,7 @@ final class NativeEarlySourceLifecycleBridge
         elapsedClock=clock;
     }
     private void clear() {
+        confirmedCurrentOriginalGeneration=-1;
         originalSetterSucceeded=false;
         trackRef=null;
         albumRef=null;
@@ -79,6 +84,25 @@ final class NativeEarlySourceLifecycleBridge
             // admission: a later FileInfo callback must not resurrect it.
             lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
         }
+    }
+
+    /**
+     * This is invoked ONLY by the pre-existing strict current PlaybackInfo
+     * PeriodID + SLOT_B + -4 same-call read guard. It is intentionally late:
+     * cannot authorize pre-prepare or upgrade the source mid-play.
+     */
+    @Override public synchronized void observe(
+            Object originalTrack,Object originalAlbum,Object activeOriginalSource) {
+        if(isSuccessfulOriginalSource(latestSetterGeneration,
+                originalTrack,originalAlbum,activeOriginalSource))
+            confirmedCurrentOriginalGeneration=latestSetterGeneration;
+    }
+
+    synchronized boolean wasCurrentOriginalSource(long generation,
+            Object originalTrack,Object originalAlbum,Object originalSource) {
+        return generation==confirmedCurrentOriginalGeneration
+            && isSuccessfulOriginalSource(generation,
+                originalTrack,originalAlbum,originalSource);
     }
 
     /** Weak same-original-source witness, not an admission/decoder decision. */
