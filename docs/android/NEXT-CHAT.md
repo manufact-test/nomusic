@@ -1,11 +1,11 @@
 # АКТУАЛЬНАЯ ТОЧКА — 20.11.2026, BETA5 owner-phone test
 
-**Начинать отсюда:** [первое сообщение следующему чату](NEXT-CHAT-START-MESSAGE-20261120-BETA5.md) и [подробный результат BETA5](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md#beta5-owner-phone-diagnostic-result--20112026).
+**Начинать отсюда:** [первое сообщение следующему чату](NEXT-CHAT-START-MESSAGE-20261120-BETA5.md) и [подробный результат BETA5](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md).
 
 - Repo: `manufact-test/nomusic`
 - Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Текущий HEAD ветки на момент передачи: `b5c25f8a42f9794615eedba430479f8cc172f315` (последний docs commit).
-- Исходный код BETA5: `54452d21ae91a5c4c81b4b8ccf0f8d55e3fb17a8`.
+- Последний проверенный исполняемый код BETA5: `54452d21ae91a5c4c81b4b8ccf0f8d55e3fb17a8`.
+- После него добавлены только handoff-документы. Перед любыми изменениями обязательно проверь фактический HEAD единственной рабочей ветки.
 - BETA5 подписан и установлен на HONOR 50, но реальная подмена **не работает**. Диагностика: `CELIKOM-A1-Diagnostics-1795193426305.txt`.
 - Автоактивация CELIKOM и кнопка TXT работают. Proxy hook зарегистрирован и увидел один proxy, но `ISSUER_METHOD_SELECTED=NONE`, `ISSUER_HANDLER_INVOKE=NONE`, `ISSUER_TRACKID=NONE`. Поэтому beta creator, original setter, prefetch/grant и alternate DataSource не достигаются. Оригинальный Exo продолжает читать звук; `CELIKOM_REPLACEMENT=NOT_CONNECTED`.
 - **Следующая задача только одна:** выяснить, почему runtime FileInfoApi/DownloadInfoApi proxy не проходит точный выбор метода с `@Query/@Path("trackId")`, и исправить этот ранний разрыв минимальным изменением. Не исследовать заново renderer, AppMetrica, весь DEX или архитектуру.
