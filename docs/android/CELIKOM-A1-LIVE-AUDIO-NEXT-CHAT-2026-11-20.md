@@ -1,3 +1,5 @@
+> **НОВЕЙШАЯ ТОЧКА ПЕРЕДАЧИ (20.11.2026, после живого BETA3 на HONOR 50):** BETA3 **не подменила аудио**. Читать прежде всего [CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md). Реальный TXT: `CELIKOM-A1-Diagnostics-1795187145828.txt` (прикреплён в исходном чате, в GitHub не публиковать). Подтверждено `OWNER_ENABLED=ONE`, `EXACT_PREPARE=FEW`, но `ISSUER_TRACKID=NONE`, `NATIVE_MAIN_SOURCE_ENTER=NONE`, `AUDIO_READ=NONE`. Перейти прямо к issuer TrackId и native main source wiring. Отдельная задача UX: убрать повторную активацию/лишние кнопки без отмены серверной авторизации CELIKOM. Никакой новой APK без продвижения по живой цепочке. Не считать успех CI успехом звука.
+
 # CELIKOM Android A1 — точка передачи, 20.11.2026
 
 ## Репозиторий и границы
