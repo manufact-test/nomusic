@@ -95,6 +95,10 @@ final class NativeExoAlternateByteRoute {
     // Retired alternate-owning instances must never silently resume vendor
     // reads after Next. Weak identity references avoid pinning old players.
     private final ArrayList<WeakReference<Object>> retiredSources=new ArrayList<>();
+    private void retire(Object source) {
+        if(source!=null && !wasRetired(source))
+            retiredSources.add(new WeakReference<>(source));
+    }
     private boolean wasRetired(Object source) {
         if(source==null)return false;
         boolean found=false;
@@ -146,8 +150,7 @@ final class NativeExoAlternateByteRoute {
     }
     synchronized void cancelForNext() {
         Object previous=originalSource==null?null:originalSource.get();
-        if(previous!=null && (everCommitted || opening) && !wasRetired(previous))
-            retiredSources.add(new WeakReference<>(previous));
+        if(everCommitted || opening)retire(previous);
         revision=-1;
         aborted=true;
         originalSource=null;
@@ -172,6 +175,7 @@ final class NativeExoAlternateByteRoute {
             token=revision;
             try {cursor=factory.create(signedUrl,expectedMime);}
             catch(RuntimeException error) {
+                if(everCommitted)retire(source);
                 opening=false;
                 aborted=true;
                 originalSource=null;
@@ -203,6 +207,7 @@ final class NativeExoAlternateByteRoute {
                 opening=false;
                 boolean stale=(revision!=token);
                 if(revision==token) {
+                    if(everCommitted)retire(source);
                     aborted=true;
                     signedUrl=null;
                     expectedMime=null;

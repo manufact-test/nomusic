@@ -146,10 +146,13 @@ public final class NativeExoAlternateByteRouteTest {
         catch(IOException expected) {noOriginalMix=true;}
         // Failed seek cancels old alternate; caller must never silently
         // claim fresh original bytes inside that same decoder stream.
-        check(afterAudio.openIfApproved(yandexDataSource,0)==null,
-            "FAILED_SEEK_DISCARDS_ALTERNATE_GENERATION");
-        check(noOriginalMix || !afterAudio.isArmed(yandexDataSource),
-            "FAILED_SEEK_CANNOT_KEEP_STALE_ALT_ARMED");
+        boolean staleSeekRejected=false;
+        try {afterAudio.openIfApproved(yandexDataSource,0);}
+        catch(IOException expected){staleSeekRejected=true;}
+        check(staleSeekRejected && noOriginalMix,
+            "FAILED_SEEK_CAN_NEVER_RESUME_ORIGINAL_AUDIO_BYTES");
+        check(afterAudio.closeIfApproved(yandexDataSource),
+            "FAILED_SEEK_ALT_STILL_OWNS_VENDOR_CLOSE");
 
         // A slow alternate HTTPS open may be in progress while Next/Stop
         // invalidates the old native selection. Never resume original bytes
