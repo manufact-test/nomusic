@@ -148,6 +148,19 @@ final class StageBAudioEvidence {
         boolean conflict;
     }
     private final ArrayList<PublisherTrackIdLink> publisherTrackIds=new ArrayList<>();
+    // 10AGE/Ramil' beta: publisher-annotated trackId was observed inside
+    // exact native Gp0(Track) request, but the publisher's Album Java object
+    // was not observed on the owner handset. Separate from strict triple IDs.
+    private static final class BetaTrackIdLink {
+        final WeakReference<Object> track;
+        final String signedId;
+        boolean conflict;
+        BetaTrackIdLink(Object track,String id) {
+            this.track=new WeakReference<>(track);
+            signedId=id;
+        }
+    }
+    private final ArrayList<BetaTrackIdLink> betaTrackIds=new ArrayList<>();
     interface AuthenticatedPublisherTrackPrefetch {void warm(String id);}
     private AuthenticatedPublisherTrackPrefetch ownerTrackPrefetch;
     synchronized void setAuthenticatedPublisherTrackPrefetch(
@@ -163,7 +176,26 @@ final class StageBAudioEvidence {
     synchronized void onPublisherAnnotatedTrackId(Object raw) {
         String id=numericOriginalId(raw);
         Object track=currentScope(activeTrackScopes),album=findTrackAlbum(track);
-        if(id==null || track==null || album==null)return;
+        if(id==null || track==null)return;
+        if(NativeTrackIdBetaPolicy.allows(id)) {
+            BetaTrackIdLink known=null;
+            for(int i=betaTrackIds.size()-1;i>=0;i--) {
+                BetaTrackIdLink previous=betaTrackIds.get(i);
+                if(previous.track.get()==null)betaTrackIds.remove(i);
+                else if(previous.track.get()==track) {
+                    if(known!=null) {known.conflict=true;previous.conflict=true;}
+                    else known=previous;
+                }
+            }
+            if(known==null) {
+                if(betaTrackIds.size()>=32)betaTrackIds.remove(0);
+                betaTrackIds.add(new BetaTrackIdLink(track,id));
+            } else if(!id.equals(known.signedId)) known.conflict=true;
+            AuthenticatedPublisherTrackPrefetch prefetch=ownerTrackPrefetch;
+            if(prefetch!=null)prefetch.warm(id);
+        }
+        // Existing strict triple remains untouched by the beta-only ledger.
+        if(album==null)return;
         PublisherTrackIdLink match=null;
         for(int i=publisherTrackIds.size()-1;i>=0;i--) {
             PublisherTrackIdLink link=publisherTrackIds.get(i);
@@ -216,6 +248,57 @@ final class StageBAudioEvidence {
             && matchingId.album.get()==originalAlbum
             && birthMatch.originalConstructorKey.equals(matchingId.id)
             ?matchingId.id:null;
+    }
+    /**
+     * Owner-approved trackId-only route: exact original tCa birth with
+     * original concrete Track reference + its ORIGINAL numeric constructor
+     * key equal to the real issuer @Query("trackId") in Gp0(Track) scope.
+     * Return the *wrapper itself* as explicit beta scope token in the
+     * pair's second slot, NEVER pretend that it is the original Album.
+     */
+    synchronized Object[] exactBetaCreatorWithoutAlbum(Object wrapper) {
+        if(wrapper==null)return null;
+        WrapperBirth birth=null;
+        for(WrapperBirth item:wrapperBirths) {
+            if(item.wrapper.get()!=wrapper)continue;
+            if(birth!=null)return null;
+            birth=item;
+        }
+        if(birth==null || birth.creatorTrack==null
+                || (birth.scopeAtBirth!=12 && birth.scopeAtBirth!=13)
+                || !NativeTrackIdBetaPolicy.allows(birth.originalConstructorKey))
+            return null;
+        Object track=birth.creatorTrack.get();
+        if(track==null)return null;
+        BetaTrackIdLink match=null;
+        for(BetaTrackIdLink item:betaTrackIds) {
+            if(item.track.get()!=track)continue;
+            if(match!=null)return null;
+            match=item;
+        }
+        return match!=null && !match.conflict
+            && birth.originalConstructorKey.equals(match.signedId)
+            ?new Object[]{track,wrapper}:null;
+    }
+    synchronized Object[] exactCreatorTrackAlbumOrBetaBeforeSourceSet(Object wrapper) {
+        Object[] original=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        return original!=null?original:exactBetaCreatorWithoutAlbum(wrapper);
+    }
+    synchronized String exactPublisherTrackIdForCreatorOrBeta(
+            Object wrapper,Object track,Object albumOrBetaToken) {
+        if(albumOrBetaToken==wrapper) {
+            Object[] exact=exactBetaCreatorWithoutAlbum(wrapper);
+            if(exact==null || exact[0]!=track)return null;
+            WrapperBirth birth=null;
+            for(WrapperBirth item:wrapperBirths) {
+                if(item.wrapper.get()==wrapper) {
+                    if(birth!=null)return null;
+                    birth=item;
+                }
+            }
+            return birth==null?null:birth.originalConstructorKey;
+        }
+        return exactPublisherTrackIdForCreator(wrapper,track,albumOrBetaToken);
     }
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeWrapperScopes = new ThreadLocal<>();
@@ -689,7 +772,8 @@ final class StageBAudioEvidence {
             Object birthAlbum=fromExactTcaCreator && atBirth==12
                 ?findTrackAlbum(track):null;
             wrapperBirths.add(new WrapperBirth(wrapper,atBirth,
-                fromExactTcaCreator && atBirth==12?track:null,birthAlbum,
+                fromExactTcaCreator && (atBirth==12 || atBirth==13)?track:null,
+                birthAlbum,
                 fromExactTcaCreator?numericOriginalId(originalConstructorArg):null));
         }
         if (track==null || wrapper==null) return;
@@ -699,7 +783,9 @@ final class StageBAudioEvidence {
         // atBirth is local to the weak birth-record branch above;
         // equivalent immutable birth condition is verified here again.
         boolean creatorOnlyAtBirth=fromExactTcaCreator
-            && !wasNativeTrackFlowItem(track) && findTrackAlbum(track)!=null;
+            && !wasNativeTrackFlowItem(track)
+            && (findTrackAlbum(track)!=null || NativeTrackIdBetaPolicy.allows(
+                numericOriginalId(originalConstructorArg)));
         if(!wasNativeTrackFlowItem(track) && !creatorOnlyAtBirth)return;
         NativeTrackSourceLink link=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
@@ -868,6 +954,49 @@ final class StageBAudioEvidence {
         return original!=null && original.length==2
             && original[0]==track && original[1]==album
             ?new Object[]{wrapper,track,album}:null;
+    }
+
+    /**
+     * Fresh native Exo source for exact same issuer Track/tCa when original
+     * Album was absent. Requires the full original descriptor/factory/source
+     * object chain; no guessed global newest source or prefetch object.
+     */
+    synchronized Object exactFreshSourceInstanceForCreatorOrBeta(
+            Object wrapper,Object track,Object albumOrBetaToken) {
+        if(albumOrBetaToken!=wrapper)
+            return exactFreshSourceInstanceForCreator(wrapper,track,albumOrBetaToken);
+        Object[] creator=exactBetaCreatorWithoutAlbum(wrapper);
+        if(creator==null || creator[0]!=track)return null;
+        NativeTrackSourceLink link=findByWrapper(wrapper);
+        if(link==null || link.track==null || link.track.get()!=track
+                || link.descriptor==null || link.factoryResult==null
+                || link.sourceInstance==null || link.sourceOpened
+                || link.sourceEverTouched || link.sourceReadAfterOpen)
+            return null;
+        Object instance=link.sourceInstance.get();
+        if(instance==null || wasSourceTouched(instance)
+                || findBySource(instance)!=link
+                || link.descriptor.get()==null || link.factoryResult.get()==null)
+            return null;
+        return instance;
+    }
+    synchronized Object[] exactFreshCreatorOrBetaForDataSource(Object dataSource) {
+        Object[] original=exactFreshCreatorForDataSource(dataSource);
+        if(original!=null)return original;
+        if(dataSource==null || touchedHistorySaturated
+                || wasSourceTouched(dataSource))return null;
+        NativeTrackSourceLink link=findBySource(dataSource);
+        if(link==null || link.sourceInstance==null
+                || link.sourceInstance.get()!=dataSource
+                || link.sourceOpened || link.sourceEverTouched
+                || link.sourceReadAfterOpen || link.descriptor==null
+                || link.descriptor.get()==null || link.factoryResult==null
+                || link.factoryResult.get()==null || link.wrapper==null
+                || link.track==null)return null;
+        Object wrapper=link.wrapper.get(),track=link.track.get();
+        Object[] token=exactBetaCreatorWithoutAlbum(wrapper);
+        return token!=null && token[0]==track
+            ?new Object[]{wrapper,track,token[1]}:null;
     }
 
     private NativeTrackSourceLink findByWrapper(Object wrapper) {

@@ -2804,12 +2804,12 @@ public final class ExitCallsiteWitness extends XposedModule {
             // native Player source setter, without waiting for renderer read.
             // No semantic IDs/pre-prepare proof, consumer or replacement yet.
             NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceEvidence(
-                STAGE_B_AUDIO::exactCreatorTrackAlbumBeforeSourceSet);
+                STAGE_B_AUDIO::exactCreatorTrackAlbumOrBetaBeforeSourceSet);
             // Real original @Query("trackId") proxy call, only within the
             // original Track request scope and matching same tCa String key.
             // Not an album/edition proof; never enable substitution from it.
             NATIVE_RENDERER_EVIDENCE.setExactPublisherTrackIdEvidence(
-                STAGE_B_AUDIO::exactPublisherTrackIdForCreator);
+                STAGE_B_AUDIO::exactPublisherTrackIdForCreatorOrBeta);
             NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceObserver(
                 NATIVE_EARLY_ADMISSION);
             // Verified current-source callback is downstream from the early
@@ -2822,7 +2822,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             // This is the already captured original creator->descriptor->
             // factory->DataSource Java lineage, still not selected/approved.
             NATIVE_RENDERER_EVIDENCE.setOriginalPrePrepareSourceInstanceEvidence(
-                STAGE_B_AUDIO::exactFreshSourceInstanceForCreator);
+                STAGE_B_AUDIO::exactFreshSourceInstanceForCreatorOrBeta);
         } catch(Throwable ignored) { }
         // One exact signed original concrete MediaPeriod before prepare.
         // Fail-closed: require exactly one declared MediaPeriod contract
@@ -4114,7 +4114,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 // that precise original prepare and the exact
                                 // publisher creator/source lineage still matches.
                                 Object[] creator=
-                                    STAGE_B_AUDIO.exactFreshCreatorForDataSource(result);
+                                    STAGE_B_AUDIO.exactFreshCreatorOrBetaForDataSource(result);
                                 if(creator!=null) {
                                     Object[] setter=
                                         NATIVE_RENDERER_EVIDENCE.exactSetterForFreshSourceCreator(

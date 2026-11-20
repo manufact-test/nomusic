@@ -11,12 +11,16 @@ import pro.celikom.yandex.nativehooklab.NativeGrantContract;
 final class NativeTrackIdBetaPolicy {
     private static final String RASKOL="42884423";
     private static final String LESHA_SVIK="39949113";
+    // Issuer Yandex Music 10AGE & Ramil' — «Ау», owner confirmed in
+    // October CELIKOM library: 144530503 (not album track 38436680).
+    static final String RAMIL_AU="144530503";
     static final String BETA_ALBUM="CELIKOM_BETA_ALBUM_UNVERIFIED";
     static final String BETA_EDITION="CELIKOM_BETA_EDITION_UNVERIFIED";
     private NativeTrackIdBetaPolicy(){}
     static boolean allows(String publisherTrackId) {
         return RASKOL.equals(publisherTrackId)
-            || LESHA_SVIK.equals(publisherTrackId);
+            || LESHA_SVIK.equals(publisherTrackId)
+            || RAMIL_AU.equals(publisherTrackId);
     }
 
     /**
