@@ -178,6 +178,7 @@ final class StageBAudioEvidence {
         Object track=currentScope(activeTrackScopes),album=findTrackAlbum(track);
         if(id==null || track==null)return;
         if(NativeTrackIdBetaPolicy.allows(id)) {
+            NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.ISSUER_TRACKID);
             BetaTrackIdLink known=null;
             for(int i=betaTrackIds.size()-1;i>=0;i--) {
                 BetaTrackIdLink previous=betaTrackIds.get(i);
@@ -276,9 +277,10 @@ final class StageBAudioEvidence {
             if(match!=null)return null;
             match=item;
         }
-        return match!=null && !match.conflict
-            && birth.originalConstructorKey.equals(match.signedId)
-            ?new Object[]{track,wrapper}:null;
+        if(match==null || match.conflict
+                || !birth.originalConstructorKey.equals(match.signedId))return null;
+        NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.EXACT_BETA_CREATOR);
+        return new Object[]{track,wrapper};
     }
     synchronized Object[] exactCreatorTrackAlbumOrBetaBeforeSourceSet(Object wrapper) {
         Object[] original=exactCreatorTrackAlbumBeforeSourceSet(wrapper);

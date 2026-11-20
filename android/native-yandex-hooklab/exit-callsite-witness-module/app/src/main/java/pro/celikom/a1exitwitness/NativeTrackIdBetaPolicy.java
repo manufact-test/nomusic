@@ -1,6 +1,7 @@
 package pro.celikom.a1exitwitness;
 
 import pro.celikom.yandex.nativehooklab.NativeGrantContract;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 /**
  * OWNER-APPROVED LIMITED TRIAL ONLY: the original publisher's trackId and
@@ -16,6 +17,27 @@ final class NativeTrackIdBetaPolicy {
     static final String RAMIL_AU="144530503";
     static final String BETA_ALBUM="CELIKOM_BETA_ALBUM_UNVERIFIED";
     static final String BETA_EDITION="CELIKOM_BETA_EDITION_UNVERIFIED";
+    /** Privacy-safe event counters; NEVER record IDs, signed URLs or tokens. */
+    enum Step {
+        ISSUER_TRACKID, EXACT_BETA_CREATOR, ORIGINAL_SETTER, OWNER_ENABLED,
+        PREFETCH_STARTED, SIGNED_MPEG_READY, OWNER_RESOLVE_REQUEST,
+        GRANT_ADMITTED, EXACT_PREPARE, DECISION_ALTERNATE,
+        DATASOURCE_ARMED, AUDIO_OPEN, AUDIO_READ
+    }
+    private static final AtomicIntegerArray counts=
+        new AtomicIntegerArray(Step.values().length);
+    static void mark(Step step) {if(step!=null)counts.incrementAndGet(step.ordinal());}
+    static String[] diagnosticSummary() {
+        Step[] steps=Step.values();
+        String[] lines=new String[steps.length];
+        for(int i=0;i<steps.length;i++) {
+            int n=counts.get(i);
+            String bucket=n==0?"NONE":n==1?"ONE":n<10?"FEW":"MANY";
+            lines[i]="event=AUDIO_TRACKID_BETA;origin="+steps[i].name()
+                +";error="+bucket+";thread=OTHER";
+        }
+        return lines;
+    }
     private NativeTrackIdBetaPolicy(){}
     static boolean allows(String publisherTrackId) {
         return RASKOL.equals(publisherTrackId)

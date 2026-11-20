@@ -77,7 +77,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String DIAGNOSTIC_BUTTON_TAG = "celikom_a1_ondevice_diagnostic_export";
     private static final String OWNER_BUTTON_TAG = "celikom_a1_owner_audio_control";
     private static volatile NativeOwnerControlPlane nativeOwnerControl;
-    private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
+    private static final String DIAGNOSTIC_BUILD = "A1_TRACKID_BETA_RAMIL_AU_20261120";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -4186,6 +4186,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     // same decoder with original Yandex bytes.
                                     throw sourceFailure;
                                 } catch(Throwable ignored) { }
+                                if(alternateLength!=null)NativeTrackIdBetaPolicy.mark(
+                                    NativeTrackIdBetaPolicy.Step.AUDIO_OPEN);
                                 Object result=alternateLength!=null
                                     ?alternateLength
                                     :chain.proceed(); // publisher original only when no alt
@@ -4224,6 +4226,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 } catch(java.io.IOException failure) {
                                     throw failure; // never mix original bytes
                                 } catch(Throwable ignored) { }
+                                if(alternate!=null && alternate>0)
+                                    NativeTrackIdBetaPolicy.mark(
+                                        NativeTrackIdBetaPolicy.Step.AUDIO_READ);
                                 Object result=alternate!=null
                                     ?alternate
                                     :chain.proceed(); // original read unless alt active
@@ -5753,6 +5758,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                 // Only explicit export captures bounded, privacy-safe counters
                 // from the current in-memory clone MAIN process. These do not
                 // prove playback, exact track identity or CELIKOM replacement.
+                for (String summary : NativeTrackIdBetaPolicy.diagnosticSummary()) {
+                    output.write(summary.getBytes(StandardCharsets.UTF_8));
+                    output.write('\n');
+                }
                 for (String summary : STAGE_B_AUDIO.exportLines()) {
                     output.write(summary.getBytes(StandardCharsets.UTF_8));
                     output.write('\n');
