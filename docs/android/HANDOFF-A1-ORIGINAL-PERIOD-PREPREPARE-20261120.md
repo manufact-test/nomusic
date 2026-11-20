@@ -59,3 +59,8 @@ Unlinked concrete original period prepare now irreversibly revokes structural un
 ## 20.11.2026 — final status of previous ARM controls
 
 Latest source code: `41146c6acd9a3b1c2981c95905101cd9a5d8a722` (same branch). JVM [44717158094 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44717158094). Prior 87e4ad3f clone [44716130433 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44716130433), JVM [44716130564 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44716130564). Prior paired [44716130607 FAILURE](https://github.com/manufact-test/nomusic/actions/runs/44716130607) was a clean Android guest two-attempt boot error **before original installed**; it is not a playback verdict. New paired [44717158096](https://github.com/manufact-test/nomusic/actions/runs/44717158096) and clone [44717158107](https://github.com/manufact-test/nomusic/actions/runs/44717158107) still pending when checked. No owner build, identity/grant/alternate byte routing.
+
+
+## 20.11.2026 — creator-before-Flow Exo source continuity
+
+`StageBAudioEvidence.onNativeTrackWrapperCreated` now captures the verified original creator-owned Track+Album+wrapper at birth scope 12 even if Flow has not emitted the Track yet. Original Exo descriptor/factory/source identity can travel with that weak verified creator lineage. The existing protected NAV40 `classifyNativeTrackAlbumForWrapper` still uses historical 12/16/17 for creator-only births, never converts early creator evidence into an invented Flow match. JVM negative/positive tests added. This does not create a playable replacement or attest semantic ID+edition.

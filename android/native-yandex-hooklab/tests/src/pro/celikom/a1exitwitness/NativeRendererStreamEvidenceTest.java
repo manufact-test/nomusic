@@ -2753,6 +2753,60 @@ public final class NativeRendererStreamEvidenceTest {
             "SOURCE_INSTANCE_CONTINUITY_NOT_AUDIO_SUBSTITUTION");
     }
 
+    private static void testExactCreatorBeforeFlowOriginalDataSourceLink() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object descriptor=new Object(),factory=new Object(),source=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        // Original Gp0 creator runs before the matching Track Flow emission.
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==12,
+            "CREATOR_PRE_FLOW_PRESERVES_NAV40_NOT_IN_FLOW");
+        Object[] pair=stage.exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        check(pair!=null && pair[0]==track && pair[1]==album,
+            "CREATOR_PRE_FLOW_EXACT_TRACK_ALBUM");
+        stage.enterNativeMainSourceRequest(wrapper,null);
+        try {stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);}
+        finally {stage.exitNativeMainSourceRequest();}
+        stage.onExoFactoryCreated(descriptor,factory);
+        stage.onExoSourceInstanceCreated(source,factory);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==source,
+            "CREATOR_PRE_FLOW_EXO_INSTANCE_PROVEN_BY_ORIGINAL_REFS");
+        stage.onNativeTrackFlowEmission(new Object());
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==12,
+            "CREATOR_OTHER_FLOW_CANNOT_PROMOTE_ORIGINAL");
+        stage.onNativeTrackFlowEmission(track);
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==16,
+            "CREATOR_OWN_FLOW_PRESERVES_NAV40_LATE_MATCH_CATEGORY");
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==source,
+            "CREATOR_SAME_EXO_INSTANCE_SURVIVES_LATE_FLOW");
+        stage.onNativeTrackAlbumConstructed(track,new Object());
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==17,
+            "CREATOR_ALBUM_CONFLICT_PRESERVES_NAV40_VERDICT");
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==null,
+            "CREATOR_ALBUM_CONFLICT_REVOKES_EXO_INSTANCE");
+        // No other Track's factory result can adopt this original wrapper.
+        StageBAudioEvidence noCreator=new StageBAudioEvidence();
+        Object unknownTrack=new Object(),unknownWrapper=new Object();
+        noCreator.onNativeTrackAlbumConstructed(unknownTrack,album);
+        noCreator.enterNativeTrackSourceRequest(unknownTrack,null);
+        try {noCreator.onNativeTrackWrapperCreated(unknownWrapper);}
+        finally {noCreator.exitNativeTrackSourceRequest();}
+        noCreator.enterNativeMainSourceRequest(unknownWrapper,null);
+        try {noCreator.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);}
+        finally {noCreator.exitNativeMainSourceRequest();}
+        noCreator.onExoFactoryCreated(descriptor,factory);
+        noCreator.onExoSourceInstanceCreated(source,factory);
+        check(noCreator.exactFreshSourceInstanceForCreator(
+                unknownWrapper,unknownTrack,album)==null,
+            "NON_CREATOR_PRE_FLOW_CANNOT_LEARN_ORIGINAL_EXO");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2841,6 +2895,7 @@ public final class NativeRendererStreamEvidenceTest {
         testOriginalPrepareSealsNativeLifecycleBeforeLateIdentity();
         testUnlinkedOriginalPrepareSealsLateNativeAdmission();
         testExactOriginalPrepareTracksPreopenDataSourceCandidate();
+        testExactCreatorBeforeFlowOriginalDataSourceLink();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

@@ -55,6 +55,10 @@ final class StageBAudioEvidence {
         WeakReference<Object> factoryResult;
         WeakReference<Object> sourceInstance;
         WeakReference<Object> albumInstance;
+        // True only for the signed creator-owned tCa born BEFORE its Track
+        // entered Flow. Keep NAV40 historical 12/16 verdicts unchanged,
+        // while allowing exact original Exo descriptor continuity.
+        boolean creatorOnlyAtBirth;
         // A positive read is only attributable after open() succeeded on
         // THIS source and THIS lineage. Never rely on aggregate read counts.
         boolean sourceOpened;
@@ -333,7 +337,8 @@ final class StageBAudioEvidence {
             if(found!=null)return 3;
             found=candidate;
         }
-        if(found==null)return classifyMissingWrapperBirth(wrapper);
+        if(found==null || found.creatorOnlyAtBirth)
+            return classifyMissingWrapperBirth(wrapper);
         Object track=found.track==null?null:found.track.get();
         if(track==null)return 4;
         if(found.albumInstance==null)return 5;
@@ -602,7 +607,13 @@ final class StageBAudioEvidence {
             wrapperBirths.add(new WrapperBirth(wrapper,atBirth,
                 fromExactTcaCreator && atBirth==12?track:null,birthAlbum));
         }
-        if (track==null || wrapper==null || !wasNativeTrackFlowItem(track)) return;
+        if (track==null || wrapper==null) return;
+        // In the issuer-signed creator, Track may reach Flow AFTER tCa
+        // construction. Preserve the creator's exact Album/source lineage
+        // without falsely promoting historical NAV40 Flow status.
+        boolean creatorOnlyAtBirth=fromExactTcaCreator && atBirth==12
+            && findTrackAlbum(track)!=null;
+        if(!wasNativeTrackFlowItem(track) && !creatorOnlyAtBirth)return;
         NativeTrackSourceLink link=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink candidate=nativeTrackSourceLinks.get(i);
@@ -624,13 +635,14 @@ final class StageBAudioEvidence {
         // Reconstructing a wrapper creates a new lineage generation. Old
         // descriptor/factory/source links must never be inherited by it.
         link.wrapper=new WeakReference<>(wrapper);
+        link.creatorOnlyAtBirth=creatorOnlyAtBirth;
         link.descriptor=null;
         link.factoryResult=null;
         link.sourceInstance=null;
         link.sourceOpened=false;
         link.sourceReadAfterOpen=false;
         link.sourceAlbumReadAfterOpen=false;
-        mark(nativeTrackWrapperLinks);
+        if(!creatorOnlyAtBirth)mark(nativeTrackWrapperLinks);
     }
 
     private MainSourceContinuationLink findMainSourceContinuation(Object continuation) {
