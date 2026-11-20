@@ -26,6 +26,8 @@ public final class NativeReplacementLifecycle {
     private long generation;
     private NativePrePrepareAdmission active;
     private long activeRevision;
+    private boolean unresolvedReserved;
+    private long unresolvedStartedAtMs;
     private boolean issued;
     private NativeSourceGate.Choice issuedSource = NativeSourceGate.Choice.ORIGINAL;
 
@@ -40,6 +42,7 @@ public final class NativeReplacementLifecycle {
         if (enabled) return;
         enabled = true;
         generation++;
+        unresolvedReserved = false;
         active = null;
         issued = false;
         issuedSource = NativeSourceGate.Choice.ORIGINAL;
@@ -64,17 +67,13 @@ public final class NativeReplacementLifecycle {
         }
         enabled = false;
         active = null;
+        unresolvedReserved = false;
         generation++;
         issued = false;
         issuedSource = NativeSourceGate.Choice.ORIGINAL;
         return verdict;
     }
 
-    /**
-     * Native track selection (not just metadata change), includes radio/Next.
-     * Returns a generation token; no raw ID is retained outside the gate.
-     * Disabled mapping returns a token but cannot offer/commit anything.
-     */
     /**
      * Reserve the ORIGINAL playback selection before the original source
      * setter has trustworthy track/album/edition String values.
@@ -85,6 +84,8 @@ public final class NativeReplacementLifecycle {
         if (active != null && !issued) active.abort(activeRevision);
         generation++;
         active=null;
+        unresolvedStartedAtMs=elapsedRealtimeMs;
+        unresolvedReserved=enabled && elapsedRealtimeMs>=0;
         issued=false;
         issuedSource=NativeSourceGate.Choice.ORIGINAL;
         return generation;
@@ -98,13 +99,19 @@ public final class NativeReplacementLifecycle {
      */
     public synchronized boolean certifyNativeIdentity(long token,
             String trackId,String albumId,String edition,long elapsedRealtimeMs) {
-        if(!enabled || token!=generation || issued || active!=null
+        if(!enabled || !unresolvedReserved || token!=generation
+                || issued || active!=null
+                || elapsedRealtimeMs<unresolvedStartedAtMs
+                || elapsedRealtimeMs-unresolvedStartedAtMs>resolveBudgetMs
                 || !NativeGrantContract.isExactTrackId(trackId)
                 || !exactText(albumId) || !exactText(edition))return false;
         NativePrePrepareAdmission admission=new NativePrePrepareAdmission(resolveBudgetMs);
-        long revision=admission.begin(trackId,albumId,edition,elapsedRealtimeMs);
+        // The deadline belongs to the ORIGINAL source selection, not to
+        // a later discovery of identifiers. Never reset the 850ms window.
+        long revision=admission.begin(trackId,albumId,edition,unresolvedStartedAtMs);
         active=admission;
         activeRevision=revision;
+        unresolvedReserved=false;
         return true;
     }
 
@@ -116,10 +123,15 @@ public final class NativeReplacementLifecycle {
         return true;
     }
 
+    /**
+     * Existing immediate exact-ID native selection entrypoint. Replaces
+     * unresolved reservation; no second certification for the same item.
+     */
     public synchronized long beginTrack(String trackId, String albumId, String edition,
                                         long elapsedRealtimeMs) {
         if (active != null && !issued) active.abort(activeRevision);
         generation++;
+        unresolvedReserved=false;
         active = null;
         issued = false;
         issuedSource = NativeSourceGate.Choice.ORIGINAL;
@@ -175,6 +187,7 @@ public final class NativeReplacementLifecycle {
         // to certify afterwards and apply an alternate mid-play.
         if (active == null) {
             issued = true;
+            unresolvedReserved=false;
             issuedSource = NativeSourceGate.Choice.ORIGINAL;
             return new NativePrePrepareAdmission.Decision(false,
                     NativeSourceGate.Choice.ORIGINAL,

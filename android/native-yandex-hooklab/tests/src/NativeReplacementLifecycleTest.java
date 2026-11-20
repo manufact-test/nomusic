@@ -192,6 +192,8 @@ public final class NativeReplacementLifecycleTest {
                 "no guessed title as native trackId");
         yes(!s.certifyNativeIdentity(first,TRACK,null,EDITION,105),
                 "missing album never certified");
+        yes(!s.certifyNativeIdentity(first,TRACK,ALBUM,EDITION,99),
+                "clock going backwards never certifies");
         long next=s.beginUnresolvedNativeSelection(120);
         yes(!s.certifyNativeIdentity(first,TRACK,ALBUM,EDITION,121),
                 "Next invalidates old original Track identity");
@@ -220,6 +222,43 @@ public final class NativeReplacementLifecycleTest {
                 "without independent fresh FileInfo and grant replay stays original");
     }
 
+    private static void unresolvedBudgetCannotRestartOnLateIdentity() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
+        s.start();
+        long late=s.beginUnresolvedNativeSelection(100);
+        yes(!s.certifyNativeIdentity(late,TRACK,ALBUM,EDITION,951),
+                "late semantic discovery does not refresh original deadline");
+        yes(!s.certifyNativeIdentity(late,TRACK,ALBUM,EDITION,1000),
+                "no late alternate after 850ms");
+        eq(NativeSourceGate.Choice.ORIGINAL,
+            s.atNativePrepare(late,TRACK,ALBUM,EDITION,1001).source,
+            "expired original selection never maps alternate");
+        long eligible=s.beginUnresolvedNativeSelection(2000);
+        yes(s.certifyNativeIdentity(eligible,TRACK,ALBUM,EDITION,2700),
+            "in-budget certificate accepted");
+        yes(s.observeFileInfo(eligible,TRACK,ALBUM,EDITION),
+            "in-budget fileinfo");
+        eq(NativePrePrepareAdmission.Offer.REJECTED,offer(s,eligible,2851),
+            "source deadline remains at original begin, not certificate time");
+        eq(NativeSourceGate.Choice.ORIGINAL,
+            s.atNativePrepare(eligible,TRACK,ALBUM,EDITION,2852).source,
+            "expired grant resolution keeps original");
+    }
+
+    private static void certificationMustRequireActualOriginalSelection() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
+        s.start();
+        long generationWithoutTrack=s.generation();
+        yes(!s.certifyNativeIdentity(generationWithoutTrack,TRACK,ALBUM,EDITION,10),
+                "start is not an original source selection");
+        long unresolved=s.beginUnresolvedNativeSelection(-1);
+        yes(!s.certifyNativeIdentity(unresolved,TRACK,ALBUM,EDITION,0),
+                "invalid original clock cannot yield valid alternate");
+        long exact=s.beginTrack(TRACK,ALBUM,EDITION,100);
+        yes(!s.certifyNativeIdentity(exact,TRACK,ALBUM,EDITION,101),
+                "legacy exact selection cannot be recertified");
+    }
+
     private static void stopAndRestartInvalidateUnresolvedGeneration() {
         NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
         long disabled=s.beginUnresolvedNativeSelection(10);
@@ -236,6 +275,8 @@ public final class NativeReplacementLifecycleTest {
 
     public static void main(String[] args) {
         stopAndRestartInvalidateUnresolvedGeneration();
+        certificationMustRequireActualOriginalSelection();
+        unresolvedBudgetCannotRestartOnLateIdentity();
         unresolvedOriginalSourceMustNotUpgradeAfterPrepare();
         exactIdentityCanCertifySameUnpreparedSelection();
         grantFromDifferentAlbumCannotAuthorize();
