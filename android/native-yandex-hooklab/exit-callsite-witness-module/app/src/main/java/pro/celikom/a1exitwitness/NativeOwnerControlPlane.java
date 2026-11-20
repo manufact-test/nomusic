@@ -35,6 +35,7 @@ final class NativeOwnerControlPlane {
     private final ExecutorService network=Executors.newSingleThreadExecutor();
     private final Handler main=new Handler(Looper.getMainLooper());
     private final AtomicLong epoch=new AtomicLong();
+    private final AtomicLong latestPrefetch=new AtomicLong();
     private volatile boolean enabled;
     private static final class WarmGrant {
         final long owner,atMs;
@@ -57,13 +58,16 @@ final class NativeOwnerControlPlane {
                 && System.currentTimeMillis()-current.atMs<30000)return;
         if(originalTrackId.equals(warmingId))return;
         warmingId=originalTrackId;
+        final long latest=latestPrefetch.incrementAndGet();
         network.execute(()->{
             try {
-                if(owner!=epoch.get() || !enabled)return;
+                if(owner!=epoch.get() || latest!=latestPrefetch.get()
+                        || !enabled)return;
                 JSONObject result=request(
                     "resolve?audio_formats=mp3&service=yandex&track_id="
                     +originalTrackId,null,access(owner));
-                if(owner!=epoch.get() || !enabled)return;
+                if(owner!=epoch.get() || latest!=latestPrefetch.get()
+                        || !enabled)return;
                 if(result.optBoolean("found") && result.optBoolean("approved")
                         && result.optBoolean("entitled")
                         && "audio/mpeg".equals(result.optString("mime_type"))) {
@@ -160,6 +164,7 @@ final class NativeOwnerControlPlane {
         epoch.incrementAndGet();
         warmGrant=null;
         warmingId=null;
+        latestPrefetch.incrementAndGet();
         enabled=false;
         bridge.stopForAuthenticatedOwner();
         // Current native decoder/source is not rewritten mid-song.
@@ -231,7 +236,8 @@ final class NativeOwnerControlPlane {
         final long owner=epoch.get();
         network.execute(()->{
             try {
-                if(!enabled || owner!=epoch.get())return;
+                if(!enabled || owner!=epoch.get()
+                        || bridge.generation()!=generation)return;
                 WarmGrant preflight=warmGrant;
                 boolean prewarmed=preflight!=null && preflight.owner==owner
                     && preflight.track.equals(originalTrackId)
