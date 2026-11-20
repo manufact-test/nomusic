@@ -3680,85 +3680,112 @@ public final class ExitCallsiteWitness extends XposedModule {
     private final java.util.ArrayList<IssuerTrackProxyLink> issuerTrackProxyLinks=
         new java.util.ArrayList<>();
 
+    private void emitIssuerProxyInspection(
+            PublisherTrackIdProxyContract.Inspection inspection) {
+        if (inspection == null) return;
+        for (String name : inspection.directInterfaceNames) {
+            emit("ISSUER_PROXY_INTERFACE", "DIRECT",
+                safeDiagnosticToken(name.toUpperCase(java.util.Locale.ROOT)));
+        }
+        for (PublisherTrackIdProxyContract.AnnotatedParameter parameter
+                : inspection.annotatedParameters) {
+            emit("ISSUER_PROXY_METHOD",
+                parameter.inherited ? "INHERITED" : "DECLARED",
+                safeDiagnosticToken((parameter.declaringInterfaceName + "_"
+                    + parameter.methodName).toUpperCase(java.util.Locale.ROOT)));
+            emit("ISSUER_PROXY_ANNOTATION", parameter.annotationKind,
+                safeDiagnosticToken((parameter.annotationValue + "_"
+                    + parameter.parameterTypeName).toUpperCase(java.util.Locale.ROOT)));
+            emit("ISSUER_PROXY_METHOD_LOADER", "DECLARING",
+                safeDiagnosticToken(parameter.declaringLoaderName
+                    .toUpperCase(java.util.Locale.ROOT)));
+        }
+        emit("ISSUER_PROXY_CLASSLOADER", "REQUESTED",
+            safeDiagnosticToken(inspection.requestedProxyLoaderName
+                .toUpperCase(java.util.Locale.ROOT)));
+        emit("ISSUER_PROXY_CLASSLOADER", "PROXY_CLASS",
+            safeDiagnosticToken(inspection.proxyClassLoaderName
+                .toUpperCase(java.util.Locale.ROOT)));
+        emit("ISSUER_PROXY_CLASSLOADER", "API_INTERFACE",
+            safeDiagnosticToken(inspection.apiClassLoaderName
+                .toUpperCase(java.util.Locale.ROOT)));
+        emit("ISSUER_PROXY_LOADER_RELATION", "REQUESTED_TO_PROXY",
+            inspection.proxyLoaderMatchesRequested ? "MATCH" : "DIFFERENT");
+        emit("ISSUER_PROXY_LOADER_RELATION", "REQUESTED_TO_API",
+            inspection.apiLoaderMatchesRequested ? "MATCH" : "DIFFERENT");
+        emit("ISSUER_PROXY_LOADER_RELATION", "API_TO_PROXY",
+            inspection.apiLoaderMatchesProxy ? "MATCH" : "DIFFERENT");
+        emit("ISSUER_PROXY_INTERFACE_CHECK", "API_ROOT",
+            inspection.apiImplemented ? "MATCH" : "DIFFERENT");
+        emit("ISSUER_PROXY_INTERFACE_CHECK", "REQUESTED_SET",
+            inspection.proxyInterfacesMatchRequested ? "MATCH" : "DIFFERENT");
+    }
+
     private synchronized void hookConcretePublisherTrackIdProxy(
-            Object originalProxy,Class<?> issuerApi) {
-        if(originalProxy==null || issuerApi==null
+            Object originalProxy, Class<?> issuerApi,
+            ClassLoader requestedProxyLoader, Class<?>[] requestedInterfaces) {
+        if (originalProxy == null || issuerApi == null
                 || !issuerApi.isInstance(originalProxy)
                 || !java.lang.reflect.Proxy.isProxyClass(originalProxy.getClass()))
             return;
-        Method publisherMethod=null;
-        int selectedIndex=-1;
-        for(Method method:issuerApi.getDeclaredMethods()) {
-            java.lang.annotation.Annotation[][] annotations=method.getParameterAnnotations();
-            int annotatedIndex=-1;
-            for(int i=0;i<annotations.length;i++) {
-                Class<?> type=method.getParameterTypes()[i];
-                if(type!=String.class && type!=long.class && type!=Long.class
-                        && type!=int.class && type!=Integer.class)continue;
-                for(java.lang.annotation.Annotation annotation:annotations[i]) {
-                    try {
-                        String annotationType=annotation.annotationType().getName();
-                        if(!"retrofit2.http.Query".equals(annotationType)
-                                && !"retrofit2.http.Path".equals(annotationType))
-                            continue;
-                        Object parameterName=annotation.annotationType()
-                            .getMethod("value").invoke(annotation);
-                        if("trackId".equals(parameterName)) {
-                            if(annotatedIndex!=-1)return;
-                            annotatedIndex=i;
-                        }
-                    } catch(Throwable ignored) { }
-                }
-            }
-            if(annotatedIndex<0)continue;
-            if(publisherMethod!=null)return; // ambiguous annotated API overload
-            publisherMethod=method;
-            selectedIndex=annotatedIndex;
-        }
-        if(publisherMethod==null)return;
+
+        PublisherTrackIdProxyContract.Inspection inspection =
+            PublisherTrackIdProxyContract.inspect(
+                originalProxy, issuerApi, requestedProxyLoader, requestedInterfaces);
+        emitIssuerProxyInspection(inspection);
+        if (inspection == null || !inspection.apiImplemented
+                || !inspection.proxyInterfacesMatchRequested
+                || !inspection.metadataComplete || inspection.ambiguous
+                || inspection.unsupportedTrackIdParameter
+                || inspection.method == null) return;
+
+        Method publisherMethod = inspection.method;
+        int selectedIndex = inspection.trackArgumentIndex;
         NativeTrackIdBetaPolicy.mark(
             NativeTrackIdBetaPolicy.Step.ISSUER_METHOD_SELECTED);
         final Object handler;
         final Method concrete;
         try {
-            handler=java.lang.reflect.Proxy.getInvocationHandler(originalProxy);
-            concrete=handler.getClass().getMethod("invoke",
-                Object.class,Method.class,Object[].class);
-            if(java.lang.reflect.Modifier.isStatic(concrete.getModifiers())
+            handler = java.lang.reflect.Proxy.getInvocationHandler(originalProxy);
+            concrete = handler.getClass().getMethod("invoke",
+                Object.class, Method.class, Object[].class);
+            if (java.lang.reflect.Modifier.isStatic(concrete.getModifiers())
                     || java.lang.reflect.Modifier.isAbstract(concrete.getModifiers()))
                 return;
             concrete.setAccessible(true);
-        } catch(Throwable ignored) {return;}
+        } catch (Throwable ignored) {
+            return;
+        }
         // A new instance may reuse the same Retrofit handler class and hook.
-        for(int i=issuerTrackProxyLinks.size()-1;i>=0;i--) {
-            IssuerTrackProxyLink old=issuerTrackProxyLinks.get(i);
-            Object previous=old.handler.get();
-            if(previous==null)issuerTrackProxyLinks.remove(i);
-            else if(previous==handler && old.exactApiMethod.equals(publisherMethod))
+        for (int i = issuerTrackProxyLinks.size() - 1; i >= 0; i--) {
+            IssuerTrackProxyLink old = issuerTrackProxyLinks.get(i);
+            Object previous = old.handler.get();
+            if (previous == null) issuerTrackProxyLinks.remove(i);
+            else if (previous == handler && old.exactApiMethod.equals(publisherMethod))
                 return;
         }
-        if(issuerTrackProxyLinks.size()>=48)return; // bounded; no eviction of live links
-        IssuerTrackProxyLink link=new IssuerTrackProxyLink(
-            handler,publisherMethod,selectedIndex);
+        if (issuerTrackProxyLinks.size() >= 48) return;
+        IssuerTrackProxyLink link = new IssuerTrackProxyLink(
+            handler, publisherMethod, selectedIndex);
         issuerTrackProxyLinks.add(link);
-        if(!issuerTrackIdProxyMethods.add(concrete))return;
+        if (!issuerTrackIdProxyMethods.add(concrete)) return;
         try {
             hook(concrete).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     try {
-                        Object receiver=chain.getThisObject();
-                        Object invoked=chain.getArg(1);
-                        Object args=chain.getArg(2);
-                        if(invoked instanceof Method && args instanceof Object[]) {
-                            synchronized(ExitCallsiteWitness.this) {
-                                for(IssuerTrackProxyLink known:issuerTrackProxyLinks) {
-                                    if(known.handler.get()!=receiver
+                        Object receiver = chain.getThisObject();
+                        Object invoked = chain.getArg(1);
+                        Object args = chain.getArg(2);
+                        if (invoked instanceof Method && args instanceof Object[]) {
+                            synchronized (ExitCallsiteWitness.this) {
+                                for (IssuerTrackProxyLink known : issuerTrackProxyLinks) {
+                                    if (known.handler.get() != receiver
                                             || !known.exactApiMethod.equals(invoked))
                                         continue;
                                     NativeTrackIdBetaPolicy.mark(
                                         NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_INVOKE);
-                                    Object[] values=(Object[])args;
-                                    if(values.length>known.trackArgumentIndex) {
+                                    Object[] values = (Object[]) args;
+                                    if (values.length > known.trackArgumentIndex) {
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
                                     }
@@ -3766,10 +3793,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 }
                             }
                         }
-                    } catch(Throwable ignored) { }
+                    } catch (Throwable ignored) { }
                     return chain.proceed(); // original Retrofit handler ONCE
                 });
-        } catch(Throwable ignored) {
+        } catch (Throwable ignored) {
             issuerTrackIdProxyMethods.remove(concrete);
             issuerTrackProxyLinks.remove(link);
         }
@@ -3791,17 +3818,25 @@ public final class ExitCallsiteWitness extends XposedModule {
             make.setAccessible(true);
             hook(make).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
-                    Object real=chain.proceed(); // unchanged Java Proxy
+                    Object requestedLoader = chain.getArg(0);
+                    Object requestedInterfaces = chain.getArg(1);
+                    Object real = chain.proceed(); // unchanged Java Proxy
+                    ClassLoader proxyLoader = requestedLoader instanceof ClassLoader
+                        ? (ClassLoader) requestedLoader : null;
+                    Class<?>[] proxyInterfaces = requestedInterfaces instanceof Class[]
+                        ? (Class<?>[]) requestedInterfaces : null;
                     try {
                         if(fileApi.isInstance(real)) {
                             NativeTrackIdBetaPolicy.mark(
                                 NativeTrackIdBetaPolicy.Step.ISSUER_PROXY_CREATED);
-                            hookConcretePublisherTrackIdProxy(real,fileApi);
+                            hookConcretePublisherTrackIdProxy(
+                                real, fileApi, proxyLoader, proxyInterfaces);
                         }
                         if(downloadApi.isInstance(real)) {
                             NativeTrackIdBetaPolicy.mark(
                                 NativeTrackIdBetaPolicy.Step.ISSUER_PROXY_CREATED);
-                            hookConcretePublisherTrackIdProxy(real,downloadApi);
+                            hookConcretePublisherTrackIdProxy(
+                                real, downloadApi, proxyLoader, proxyInterfaces);
                         }
                     } catch(Throwable ignored) { }
                     return real;

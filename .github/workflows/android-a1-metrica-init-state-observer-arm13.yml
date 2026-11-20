@@ -19,6 +19,7 @@ on:
       - 'android/native-yandex-hooklab/ci/test_a1_persistent_owner_signer.py'
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
       - 'android/native-yandex-hooklab/ci/test_a1_stage_b_audio_evidence.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_issuer_proxy_contract.py'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
@@ -43,7 +44,20 @@ on:
 permissions:
   contents: write
 jobs:
+  jvm-issuer-proxy-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify exact Retrofit proxy inheritance, annotations and classloader contract
+        run: python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_issuer_proxy_contract.py -v
+
   actual-2025-own-lspatch2-disposable-native-arm13:
+    needs: jvm-issuer-proxy-contract
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 80
     env:
@@ -105,6 +119,7 @@ jobs:
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_issuer_proxy_contract.py -v
           python3 -B -m py_compile android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py
           python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_lca9_tca_birth_origin.py -v
           # Compile actual admission/lifecycle models on BOTH native Android CI lanes.
