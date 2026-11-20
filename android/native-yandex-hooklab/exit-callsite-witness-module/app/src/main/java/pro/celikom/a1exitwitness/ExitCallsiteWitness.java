@@ -2781,6 +2781,11 @@ public final class ExitCallsiteWitness extends XposedModule {
             // No ID guesses, no audio swapping, no additional player.
             NATIVE_RENDERER_EVIDENCE.setExactOriginalTrackAlbumEvidence(
                 STAGE_B_AUDIO::exactOriginalTrackAlbumForWrapper);
+            // Original creator identity is also available at the earlier
+            // native Player source setter, without waiting for renderer read.
+            // No semantic IDs/pre-prepare proof, consumer or replacement yet.
+            NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceEvidence(
+                STAGE_B_AUDIO::exactCreatorTrackAlbumBeforeSourceSet);
         } catch(Throwable ignored) { }
         // NAV31: observe ONLY the issuer-signed Lxh6.if field-read
         // boundary, exactly PC61 proven in the existing signed 2025 DEX
@@ -2867,10 +2872,26 @@ public final class ExitCallsiteWitness extends XposedModule {
                 sourceSetter.setAccessible(true);
                 hook(sourceSetter).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
+                        Object originalSource=chain.getArg(0);
+                        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame=null;
+                        try {frame=NATIVE_RENDERER_EVIDENCE.beginEarlyOriginalSourceSet(
+                            originalSource);}
+                        catch(Throwable ignored) { }
+                        boolean success=false;
                         try {
-                            NATIVE_RENDERER_EVIDENCE.onNativePlayerSourceSetter(chain.getArg(0));
-                        } catch(Throwable ignored) { }
-                        return chain.proceed(); // unchanged original, once
+                            Object result=chain.proceed(); // exact original once
+                            success=true;
+                            // A throwing vendor setter must NOT create a
+                            // false successful source/TrackWrapper binding.
+                            try {NATIVE_RENDERER_EVIDENCE.onNativePlayerSourceSetter(
+                                originalSource);}
+                            catch(Throwable ignored) { }
+                            return result;
+                        } finally {
+                            try {NATIVE_RENDERER_EVIDENCE.finishEarlyOriginalSourceSet(
+                                frame,success);}
+                            catch(Throwable ignored) { }
+                        }
                     });
                 nav29NativeSourceSetterHooked=true;
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration("NATIVE_PLAYER_SOURCE_SETTER",true);

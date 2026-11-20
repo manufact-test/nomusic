@@ -2190,6 +2190,96 @@ public final class NativeRendererStreamEvidenceTest {
         }
     }
 
+    private static void testOriginalCreatorEarlySourceSetterBeforeFlow() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object(),source=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        check(stage.exactOriginalTrackAlbumForWrapper(wrapper)==null,
+              "FLOW_PROOF_NOT_AVAILABLE_BEFORE_FLOW");
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        final int[] called={0,0,0};
+        final long[] lastGeneration={0};
+        e.setEarlyOriginalSourceObserver(new NativeRendererStreamEvidence.EarlyOriginalSourceObserver() {
+            public void pending(long generation,Object actualTrack,Object actualAlbum,
+                                Object actualSource) {
+                check(actualTrack==track && actualAlbum==album && actualSource==source,
+                      "EARLY_EXACT_CREATOR_ORIGINAL_REFERENCES");
+                check(generation>lastGeneration[0],"EARLY_MONOTONIC_SOURCE_GENERATION");
+                lastGeneration[0]=generation;
+                called[0]++;
+            }
+            public void completed(long generation,boolean succeeded) {
+                check(generation==lastGeneration[0],"EARLY_SAME_GENERATION");
+                if(succeeded)called[1]++;else called[2]++;
+            }
+        });
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame f=
+                e.beginEarlyOriginalSourceSet(source);
+            check(f!=null && called[0]==1,"EARLY_CREATOR_BOUND_BEFORE_ORIGINAL_SETTER");
+            // Original setter executes exactly once externally; finality is
+            // observed only after it returns successfully.
+            e.finishEarlyOriginalSourceSet(f,true);
+            check(called[1]==1 && called[2]==0,"EARLY_VALID_SETTER_COMPLETION");
+        } finally {e.exitTrackPlayerSource(scope);}
+        check(e.beginEarlyOriginalSourceSet(source)==null,
+              "EARLY_UNSCOPED_SETTER_FAILS_CLOSED");
+        check(contains(e.exportLines(),"origin=IDENTITY_STATUS;error=STRUCTURAL_ONLY"),
+              "EARLY_IDENTITY_NEVER_UPGRADED_TO_AUDIO");
+    }
+
+    private static void testEarlySourceFailureConflictAndNextGeneration() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        final int[] pending={0},complete={0},rejected={0};
+        e.setEarlyOriginalSourceObserver(new NativeRendererStreamEvidence.EarlyOriginalSourceObserver() {
+            public void pending(long generation,Object a,Object b,Object c){pending[0]++;}
+            public void completed(long generation,boolean success) {
+                complete[0]++;if(!success)rejected[0]++;
+            }
+        });
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame first=
+                e.beginEarlyOriginalSourceSet(new Object());
+            check(first!=null,"EARLY_PENDING_FIRST");
+            check(e.beginEarlyOriginalSourceSet(new Object())==null,
+                  "OVERLAPPING_SETTER_NOT_ADMITTED");
+            e.finishEarlyOriginalSourceSet(first,true);
+            check(rejected[0]==1,"OVERLAPPING_INVALIDATES_PREVIOUS_GENERATION");
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame failed=
+                e.beginEarlyOriginalSourceSet(new Object());
+            check(failed!=null,"FAILURE_ATTEMPT_CAN_OBSERVE_PENDING");
+            e.finishEarlyOriginalSourceSet(failed,false);
+            check(rejected[0]==2,"THROWING_SETTER_MUST_ROLLBACK_PENDING");
+            // Same wrapper's original Album has changed after construction.
+            stage.onNativeTrackAlbumConstructed(track,new Object());
+            check(e.beginEarlyOriginalSourceSet(new Object())==null,
+                  "CONFLICTING_ALBUM_BEFORE_SETTER_REJECTED");
+        } finally {e.exitTrackPlayerSource(scope);}
+        check(pending[0]==2 && complete[0]==2,
+              "ONLY_EXACT_EARLY_CREATOR_SELECTIONS_NOTIFIED");
+        check(stage.exactCreatorTrackAlbumBeforeSourceSet(new Object())==null,
+              "UNRELATED_WRAPPER_NO_EARLY_IDENTITY");
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2269,6 +2359,8 @@ public final class NativeRendererStreamEvidenceTest {
         testNav43MissingSourceNoHistoryJoin();
         testNav44OriginalTimelineAndSourceSameItem();
         testNav44DifferentAndChangedSlotFailClosed();
+        testOriginalCreatorEarlySourceSetterBeforeFlow();
+        testEarlySourceFailureConflictAndNextGeneration();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

@@ -358,6 +358,35 @@ final class StageBAudioEvidence {
         return new Object[]{track,album};
     }
 
+    /**
+     * Original creator-owned Track + Album BEFORE the player source setter.
+     * This is NOT the later Flow/renderer proof and is not a semantic ID.
+     * Only one exact wrapper birth and the unchanged original Album are valid.
+     * No strings, vendor ID fields, cached source, or media values are read.
+     */
+    synchronized Object[] exactCreatorTrackAlbumBeforeSourceSet(Object wrapper) {
+        if(wrapper==null)return null;
+        WrapperBirth found=null;
+        for(WrapperBirth birth:wrapperBirths) {
+            if(birth.wrapper.get()!=wrapper)continue;
+            if(found!=null)return null;
+            found=birth;
+        }
+        if(found==null || found.scopeAtBirth!=12
+                || found.creatorTrack==null || found.albumAtBirth==null)return null;
+        Object track=found.creatorTrack.get();
+        Object album=found.albumAtBirth.get();
+        if(track==null || album==null || findTrackAlbum(track)!=album)return null;
+        // A wrapper rebinding or a conflicting later Flow can never recycle
+        // its creator identity for another native selection.
+        for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
+            if(link.wrapper==null || link.wrapper.get()!=wrapper)continue;
+            if(link.track==null || link.track.get()!=track)return null;
+            if(link.albumInstance!=null && link.albumInstance.get()!=album)return null;
+        }
+        return new Object[]{track,album};
+    }
+
     synchronized void onNativeTrackFlowEmission(Object track) {
         if (track == null) return;
         // Exact same Track emitted after THIS tCa birth; never bind player.

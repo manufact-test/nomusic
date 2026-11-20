@@ -208,6 +208,77 @@ final class NativeRendererStreamEvidence {
     }
     private ExactOriginalTrackAlbumEvidence exactOriginalTrackAlbumEvidence;
     private ActiveOriginalTrackObserver activeOriginalTrackObserver;
+
+    // Early original Exo Player source SETTER boundary, before vendor method
+    // execution. This is not by itself source prepare/decoder or permission.
+    // The only early identity is the exact creator-owned Java Track+Album.
+    interface EarlyOriginalSourceEvidence { Object[] exact(Object wrapper); }
+    interface EarlyOriginalSourceObserver {
+        void pending(long generation,Object track,Object album,Object source);
+        void completed(long generation,boolean originalSetterSucceeded);
+    }
+    static final class EarlyOriginalSourceFrame {
+        final Object wrapper,track,album,source;
+        final long generation;
+        boolean invalid;
+        EarlyOriginalSourceFrame(Object wrapper,Object track,Object album,
+                                 Object source,long generation) {
+            this.wrapper=wrapper;this.track=track;this.album=album;
+            this.source=source;this.generation=generation;
+        }
+    }
+    private EarlyOriginalSourceEvidence earlyOriginalSourceEvidence;
+    private EarlyOriginalSourceObserver earlyOriginalSourceObserver;
+    private EarlyOriginalSourceFrame earlySourceInFlight;
+    private long earlySourceGeneration;
+
+    synchronized void setEarlyOriginalSourceEvidence(EarlyOriginalSourceEvidence evidence) {
+        earlyOriginalSourceEvidence=evidence;
+    }
+    synchronized void setEarlyOriginalSourceObserver(EarlyOriginalSourceObserver observer) {
+        earlyOriginalSourceObserver=observer;
+    }
+    synchronized EarlyOriginalSourceFrame beginEarlyOriginalSourceSet(Object source) {
+        // Every selection attempt, even one without proof, invalidates prior
+        // pending generations. No repeat/Next may inherit the old candidate.
+        long generation=++earlySourceGeneration;
+        if(earlySourceInFlight!=null) {
+            earlySourceInFlight.invalid=true;
+            return null; // overlapping/nested setters are never admitted
+        }
+        TrackPlayerScope scope=inPlayerTrack.get();
+        if(poisoned || source==null || scope==null || scope.wrapper==null
+                || earlyOriginalSourceEvidence==null)return null;
+        Object[] pair;
+        try {pair=earlyOriginalSourceEvidence.exact(scope.wrapper);}
+        catch(Throwable ignored) {return null;}
+        if(pair==null || pair.length!=2 || pair[0]==null || pair[1]==null)return null;
+        EarlyOriginalSourceFrame frame=new EarlyOriginalSourceFrame(
+            scope.wrapper,pair[0],pair[1],source,generation);
+        earlySourceInFlight=frame;
+        // This notification is PENDING, never a source replacement decision.
+        // A failed original setter must revoke it in finishEarlyOriginalSourceSet.
+        if(earlyOriginalSourceObserver!=null) {
+            try {earlyOriginalSourceObserver.pending(
+                generation,frame.track,frame.album,frame.source);}
+            catch(Throwable ignored) {frame.invalid=true;}
+        }
+        return frame;
+    }
+    synchronized void finishEarlyOriginalSourceSet(EarlyOriginalSourceFrame frame,
+                                                    boolean originalSucceeded) {
+        if(frame==null)return;
+        boolean succeeded=originalSucceeded && !frame.invalid
+            && earlySourceInFlight==frame
+            && earlySourceGeneration==frame.generation
+            && inPlayerTrack.get()!=null
+            && inPlayerTrack.get().wrapper==frame.wrapper;
+        if(earlySourceInFlight==frame)earlySourceInFlight=null;
+        if(earlyOriginalSourceObserver!=null) {
+            try {earlyOriginalSourceObserver.completed(frame.generation,succeeded);}
+            catch(Throwable ignored) { }
+        }
+    }
     synchronized void setExactOriginalTrackAlbumEvidence(ExactOriginalTrackAlbumEvidence evidence) {
         exactOriginalTrackAlbumEvidence=evidence;
     }
