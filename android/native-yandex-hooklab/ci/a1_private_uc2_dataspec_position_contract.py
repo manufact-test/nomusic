@@ -47,6 +47,7 @@ def fields_for(dex,ci):
 def scan(splits):
     found=[]
     source_open=[]
+    dataspec_method_wide_reads=[]
     count=0
     for apk in splits:
         with zipfile.ZipFile(apk) as z:
@@ -61,6 +62,25 @@ def scan(splits):
                         if found:raise ValueError("DATASPEC_CLASS_DUPLICATE")
                         found=fields_for(dex,ci)
                 for method,flags,code in audit.method_definitions_with_flags(dex):
+                    if method[0]==DATASPEC:
+                        if len(dataspec_method_wide_reads)>40:
+                            raise ValueError("DATASPEC_WIDE_METHOD_LIMIT")
+                        reads=[]
+                        writes=[]
+                        for pc,op,words in audit.instructions(dex,code):
+                            if op not in (0x53,0x5a):
+                                continue
+                            owner,name,ftype=audit.field_id(dex,words[1])
+                            if owner!=DATASPEC or ftype!="J":continue
+                            if op==0x53:reads.append(name)
+                            else:writes.append(name)
+                        if reads or writes:
+                            dataspec_method_wide_reads.append({
+                                "declared_method":method[1],
+                                "signature":method[2],
+                                "iget_wide_order":reads[:24],
+                                "iput_wide_order":writes[:24],
+                            })
                     if method[0]==RETRY and method[2]=="(LUC2;)J":
                         if len(source_open)>=2:raise ValueError("ORIGINAL_OPEN_AMBIGUOUS")
                         source_open.append((method[1],len(list(audit.instructions(dex,code)))))
@@ -73,6 +93,7 @@ def scan(splits):
         "original_datasource_open_method_shape_only":
             [{"declared_method":name,"instruction_count":ins} for name,ins in source_open],
         "dataspec_instance_long_field_names":longs,
+        "dataspec_exact_method_wide_field_use":dataspec_method_wide_reads,
         "exact_public_position_field_present":"position" in longs,
         "byte_offset_field_semantically_attested":False,
         "native_byte_route_installed":False,
