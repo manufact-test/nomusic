@@ -22,7 +22,7 @@ class IssuerProxyContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="celikom-issuer-proxy-jvm-") as tmp:
             subprocess.run(
                 ["javac", "--release", "17", "-d", tmp, *map(str, sources)],
-                check=True, capture_output=True, text=True,
+                check=True, text=True,
             )
             result = subprocess.run(
                 ["java", "-cp", tmp,
