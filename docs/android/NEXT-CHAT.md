@@ -1,3 +1,20 @@
+# АКТУАЛЬНАЯ ТОЧКА — 20.11.2026, BETA5 owner-phone test
+
+**Начинать отсюда:** [первое сообщение следующему чату](NEXT-CHAT-START-MESSAGE-20261120-BETA5.md) и [подробный результат BETA5](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md#beta5-owner-phone-diagnostic-result--20112026).
+
+- Repo: `manufact-test/nomusic`
+- Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
+- Текущий HEAD ветки на момент передачи: `b5c25f8a42f9794615eedba430479f8cc172f315` (последний docs commit).
+- Исходный код BETA5: `54452d21ae91a5c4c81b4b8ccf0f8d55e3fb17a8`.
+- BETA5 подписан и установлен на HONOR 50, но реальная подмена **не работает**. Диагностика: `CELIKOM-A1-Diagnostics-1795193426305.txt`.
+- Автоактивация CELIKOM и кнопка TXT работают. Proxy hook зарегистрирован и увидел один proxy, но `ISSUER_METHOD_SELECTED=NONE`, `ISSUER_HANDLER_INVOKE=NONE`, `ISSUER_TRACKID=NONE`. Поэтому beta creator, original setter, prefetch/grant и alternate DataSource не достигаются. Оригинальный Exo продолжает читать звук; `CELIKOM_REPLACEMENT=NOT_CONNECTED`.
+- **Следующая задача только одна:** выяснить, почему runtime FileInfoApi/DownloadInfoApi proxy не проходит точный выбор метода с `@Query/@Path("trackId")`, и исправить этот ранний разрыв минимальным изменением. Не исследовать заново renderer, AppMetrica, весь DEX или архитектуру.
+- Следующий тест владельца — только после конкретного исправления и зелёного CI.
+
+Ниже сохранена предыдущая история и более ранние handoff; их старые HEAD/статусы не считать актуальными.
+
+---
+
 # Актуальная короткая точка передачи — 20.11.2026
 
 Продолжение CELIKOM Android A1: **[LIVE-AUDIO HANDOFF](CELIKOM-A1-LIVE-AUDIO-NEXT-CHAT-2026-11-20.md)**. После последнего прохода проверены: [JVM #44730902321 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730902321), [clone ARM13 #44730740418 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730740418), [paired ARM13 #44730740525 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730740525). Последний код `745179b1`; документация отражает полный реальный Exo byte-route и оставшиеся отсутствующие original album+edition и production grant. **Звук не подтверждён, APK нет**. Начать с короткого handoff, а ниже — архивная история.
