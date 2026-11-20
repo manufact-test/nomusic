@@ -2,6 +2,8 @@ package pro.celikom.a1exitwitness;
 
 import pro.celikom.yandex.nativehooklab.NativeReplacementLifecycle;
 import pro.celikom.yandex.nativehooklab.NativeSourceGate;
+import pro.celikom.yandex.nativehooklab.NativePrePrepareAdmission;
+import pro.celikom.yandex.nativehooklab.NativeGrantContract;
 import java.lang.ref.WeakReference;
 import java.util.function.LongSupplier;
 
@@ -23,6 +25,22 @@ final class NativeEarlySourceLifecycleBridge
     private final NativeReplacementLifecycle lifecycle =
         new NativeReplacementLifecycle(850);
     private final LongSupplier elapsedClock;
+    private final LongSupplier unixClock;
+    private final NativeExoAlternateByteRoute nativeExoBytes;
+    // Only a real original Retrofit trackId matched to same source creator
+    // may enter this coordinator. Album+edition are still independently needed.
+    private String originalPublisherTrackIdCandidate;
+    private static final class PendingApprovedAudio {
+        final String track,album,edition,origin;
+        final long durationMs;
+        final NativeGrantContract.Grant grant;
+        PendingApprovedAudio(String track,String album,String edition,
+                String origin,long durationMs,NativeGrantContract.Grant grant) {
+            this.track=track;this.album=album;this.edition=edition;
+            this.origin=origin;this.durationMs=durationMs;this.grant=grant;
+        }
+    }
+    private PendingApprovedAudio pendingApprovedAudio;
     private long latestSetterGeneration = -1;
     private long lifecycleGeneration;
     private boolean originalSetterSucceeded;
@@ -44,8 +62,23 @@ final class NativeEarlySourceLifecycleBridge
         this(() -> System.nanoTime() / 1_000_000L);
     }
     NativeEarlySourceLifecycleBridge(LongSupplier clock) {
-        if(clock==null)throw new IllegalArgumentException("CLOCK_REQUIRED");
+        this(clock,new NativeExoAlternateByteRoute(),System::currentTimeMillis);
+    }
+    NativeEarlySourceLifecycleBridge(LongSupplier clock,
+            NativeExoAlternateByteRoute route,LongSupplier unixMillis) {
+        if(clock==null || route==null || unixMillis==null)
+            throw new IllegalArgumentException("SOURCE_CLOCK_REQUIRED");
         elapsedClock=clock;
+        unixClock=unixMillis;
+        nativeExoBytes=route;
+    }
+
+    /** Only an explicit CELIKOM owner-authenticated UI action may call this. */
+    synchronized void startForAuthenticatedOwner() { lifecycle.start(); }
+    synchronized void stopForAuthenticatedOwner() {
+        lifecycle.stop();
+        pendingApprovedAudio=null;
+        // Never cut already issued/native Exo bytes mid-song on Stop.
     }
     private void clear() {
         confirmedCurrentOriginalGeneration=-1;
@@ -58,6 +91,8 @@ final class NativeEarlySourceLifecycleBridge
         trackRef=null;
         albumRef=null;
         sourceRef=null;
+        originalPublisherTrackIdCandidate=null;
+        pendingApprovedAudio=null;
     }
 
     @Override public synchronized void invalidated(long generation) {
@@ -84,6 +119,14 @@ final class NativeEarlySourceLifecycleBridge
         sourceRef=new WeakReference<>(originalSource);
     }
 
+    @Override public synchronized void originalPublisherTrackIdCandidate(
+            long generation,String originalId) {
+        if(generation==latestSetterGeneration
+                && originalId!=null
+                && NativeGrantContract.isExactTrackId(originalId))
+            originalPublisherTrackIdCandidate=originalId;
+    }
+
     @Override public synchronized void completed(long generation,boolean succeeded) {
         if(generation!=latestSetterGeneration)return;
         // A throwing/nested original setter is never a valid selection.
@@ -97,6 +140,80 @@ final class NativeEarlySourceLifecycleBridge
             // admission: a later FileInfo callback must not resurrect it.
             lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
         }
+    }
+
+    /**
+     * Invoke ONLY when an independently inspected original native
+     * FileInfo request proves the exact SAME source/Track/Album plus the
+     * publisher's own numeric trackId, albumId and editionId values.
+     * The current original Retrofit API only annotates trackId: this
+     * method has NO production caller until the other two are proven.
+     */
+    synchronized boolean onSourceBoundPublisherFileInfo(
+            long generation,Object originalTrack,Object originalAlbum,
+            Object originalSource,String track,String album,String edition) {
+        if(!isSuccessfulOriginalSource(generation,originalTrack,
+                originalAlbum,originalSource)
+                || originalPublisherTrackIdCandidate==null
+                || !originalPublisherTrackIdCandidate.equals(track))
+            return false;
+        long elapsed=elapsedClock.getAsLong();
+        return lifecycle.certifyNativeIdentity(lifecycleGeneration,
+                track,album,edition,elapsed)
+            && lifecycle.observeFileInfo(lifecycleGeneration,
+                track,album,edition);
+    }
+
+    /**
+     * ONLY after the separate CELIKOM authenticated resolve and real audio
+     * compatibility/range checks. No request or credentials are handled here.
+     * Accepted means PENDING, not audible source issuance.
+     */
+    synchronized boolean offerAuthenticatedApprovedAudio(
+            long generation,Object originalTrack,Object originalAlbum,
+            Object originalSource,NativeSourceGate.Candidate candidate,
+            NativeGrantContract.Grant grant,String allowedOrigin,
+            long originalDurationMs) {
+        if(!isSuccessfulOriginalSource(generation,originalTrack,
+                originalAlbum,originalSource)
+                || originalPublisherTrackIdCandidate==null
+                || candidate==null
+                || !originalPublisherTrackIdCandidate.equals(candidate.track)
+                || pendingApprovedAudio!=null)
+            return false;
+        if(lifecycle.offerValidated(lifecycleGeneration,candidate,grant,
+                allowedOrigin,originalDurationMs,
+                elapsedClock.getAsLong(),unixClock.getAsLong())
+                !=NativePrePrepareAdmission.Offer.ACCEPTED_PENDING)
+            return false;
+        pendingApprovedAudio=new PendingApprovedAudio(
+            candidate.track,candidate.album,candidate.edition,
+            allowedOrigin,originalDurationMs,grant);
+        return true;
+    }
+
+    private boolean commitApprovedAtOriginalPrepare(
+            long generation,Object originalTrack,Object originalAlbum,
+            Object originalSource,Object unopenedOriginalDataSource) {
+        PendingApprovedAudio approved=pendingApprovedAudio;
+        if(approved==null || unopenedOriginalDataSource==null
+                || !isSuccessfulOriginalSource(generation,originalTrack,
+                    originalAlbum,originalSource))
+            return false;
+        pendingApprovedAudio=null;
+        NativePrePrepareAdmission.Decision decision=lifecycle.atNativePrepare(
+            lifecycleGeneration,approved.track,approved.album,
+            approved.edition,elapsedClock.getAsLong());
+        if(decision.source!=NativeSourceGate.Choice.ALTERNATE
+                || !decision.applyOnce)
+            return false;
+        boolean routed=nativeExoBytes.armApproved(
+            lifecycleGeneration,unopenedOriginalDataSource,
+            approved.track,approved.album,approved.edition,approved.durationMs,
+            approved.grant,approved.origin,unixClock.getAsLong(),
+            decision.source);
+        if(!routed)lifecycle.stop(); // never report an uninstalled ALTERNATE
+        return routed;
     }
 
     @Override public synchronized void beforeUnverifiedOriginalPeriodPrepare() {
@@ -145,12 +262,16 @@ final class NativeEarlySourceLifecycleBridge
         prePrepareSourceInstanceRef=originalDataSourceCandidate==null?null:
             new WeakReference<>(originalDataSourceCandidate);
         originalPeriodPrePrepareGeneration=generation;
-        // This IS the publisher's original prepare boundary, not a late
-        // renderer read. When no independently verified descriptor IDs
-        // and approved source exist, commit ORIGINAL for this generation
-        // before the publisher prepare proceeds. Late ID/grant replies may
-        // never upgrade the already prepared original player source.
-        sealUnknownNativePrepare();
+        // Only an already authenticated, exact issuer triple can commit
+        // the alternate BEFORE this actual publisher MediaPeriod prepare.
+        // Without a fresh exact original Exo DataSource instance, original
+        // playback proceeds and later grants cannot upgrade it.
+        if(commitApprovedAtOriginalPrepare(generation,track,album,source,
+                originalDataSourceCandidate)) {
+            originalPeriodPrepareSealed=true;
+        } else {
+            sealUnknownNativePrepare();
+        }
     }
 
     /** A structural, original-only candidate for this exact period, never a grant. */
