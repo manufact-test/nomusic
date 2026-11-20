@@ -308,6 +308,9 @@ final class NativeRendererStreamEvidence {
         // cancel the unresolved native selection reserved by invalidated().
         default void rejected(long generation) { }
         void pending(long generation,Object track,Object album,Object source);
+        // Exact source-bound original Retrofit ID candidate if and ONLY if
+        // publisher Track+Album+tCa numeric key all agree. Still no edition.
+        default void originalPublisherTrackIdCandidate(long generation,String trackId) { }
         void completed(long generation,boolean originalSetterSucceeded);
     }
     static final class EarlyOriginalSourceFrame {
@@ -405,7 +408,9 @@ final class NativeRendererStreamEvidence {
         // A failed original setter must revoke it in finishEarlyOriginalSourceSet.
         if(earlyOriginalSourceObserver!=null) {
             try {earlyOriginalSourceObserver.pending(
-                generation,frame.track,frame.album,frame.source);}
+                generation,frame.track,frame.album,frame.source);
+                earlyOriginalSourceObserver.originalPublisherTrackIdCandidate(
+                    generation,frame.originalPublisherTrackIdCandidate);}
             catch(Throwable ignored) {frame.invalid=true;}
         }
         return frame;
