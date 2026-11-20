@@ -302,8 +302,7 @@ public final class StageBAudioEvidenceTest {
             issuerWrapper,NativeTrackIdBetaPolicy.RAMIL_AU);
         issuerResume.exitNativeTcaCreatorTrackScope();
         issuerResume.exitNativeTcaCreatorOwner();
-        check(issuerResume.exactBetaCreatorWithoutAlbum(issuerWrapper)!=null,
-            "ISSUER_ID_CAPTURED_ON_EXACT_Fp0_RESUME");
+        check(issuerResume.exactBetaCreatorWithoutAlbum(issuerWrapper)!=null);
 
         // RAa resumes the pinned main source builder with null wrapper,
         // but with the identical RAa instance as final continuation argument.
