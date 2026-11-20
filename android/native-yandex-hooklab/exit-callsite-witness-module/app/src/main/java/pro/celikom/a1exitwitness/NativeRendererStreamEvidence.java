@@ -173,6 +173,40 @@ final class NativeRendererStreamEvidence {
     private final ArrayList<PlayerSourceLink> playerSources=new ArrayList<>();
     private Field holderWrapperField,wrapperPeriodField,periodSourceField;
     private Class<?> exactWrapperClass,exactPeriodClass;
+    private int originalPeriodPrepareHook;
+    interface OriginalPeriodBeforePrepareObserver {
+        void beforeOriginalPeriodPrepare(long generation,Object originalTrack,
+                Object originalAlbum,Object originalSource,Object originalPeriod);
+    }
+    private OriginalPeriodBeforePrepareObserver originalPeriodBeforePrepareObserver;
+    synchronized void setOriginalPeriodBeforePrepareObserver(
+            OriginalPeriodBeforePrepareObserver observer) {
+        originalPeriodBeforePrepareObserver=observer;
+    }
+    /**
+     * Called immediately BEFORE the signed original concrete MediaPeriod
+     * prepare method. Same original source reference as the last successful
+     * publisher Player setter is required. This is NOT necessarily selected
+     * (prefetch is possible) and cannot authorize alternate audio alone.
+     */
+    synchronized boolean onOriginalPeriodBeforePrepare(Object period) {
+        if(poisoned || originalPeriodPrepareHook<=0 || period==null
+                || exactPeriodClass==null || !exactPeriodClass.isInstance(period)
+                || periodSourceField==null || originalPeriodBeforePrepareObserver==null
+                || earlySourceInFlight!=null)return false;
+        final Object source;
+        try {source=periodSourceField.get(period);}
+        catch(Throwable ignored) {return false;}
+        OriginalSetterLineage saved=exactOriginalSetterLineage;
+        if(saved==null || source==null || saved.source.get()!=source)return false;
+        Object[] evidence=exactEarlySetterSourceAtGeneration(source,saved.generation);
+        if(evidence==null)return false;
+        try {
+            originalPeriodBeforePrepareObserver.beforeOriginalPeriodPrepare(
+                saved.generation,evidence[0],evidence[1],source,period);
+            return true;
+        } catch(Throwable ignored) {return false;}
+    }
     private int trackPlayerScopeHook,nativeSourceSetterHook,livePeriodSourceHook;
     private int trackPlayerScopeEnter,playerSourceSameScope,playerSourceUnscoped;
     private int playerSourceConflict,livePeriodResolved,livePeriodUnavailable;
@@ -1329,6 +1363,7 @@ final class NativeRendererStreamEvidence {
             case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
             case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
             case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
+            case "ORIGINAL_PERIOD_PREPARE": originalPeriodPrepareHook=status; break;
             case "HOLDER_SELECT_PHASE": holderSelectHook=status; break;
             case "NATIVE_PERIOD_ADAPTER": periodAdapterHook=status; break;
             case "NATIVE_PERIOD_FACTORY": periodFactoryHook=status; break;

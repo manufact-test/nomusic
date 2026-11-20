@@ -2385,6 +2385,54 @@ public final class NativeRendererStreamEvidenceTest {
         } finally {e.exitTrackPlayerSource(next);}
     }
 
+    private static void testOriginalExactMediaPeriodBeforePrepareNoAlternate() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        NativeEarlySourceLifecycleBridge bridge=new NativeEarlySourceLifecycleBridge(() -> 123);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        e.setEarlyOriginalSourceObserver(bridge);
+        e.setOriginalPeriodBeforePrepareObserver(bridge);
+        nav43SetupLiveSource(e);
+        e.onHookRegistration("ORIGINAL_PERIOD_PREPARE",true);
+        NativeRendererStreamEvidence.TrackPlayerScope scope=e.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame;
+        try {
+            frame=e.beginEarlyOriginalSourceSet(source);
+            check(frame!=null,"PREPARE_ORIGINAL_CREATOR_LINK");
+            e.onNativePlayerSourceSetter(source);
+            e.finishEarlyOriginalSourceSet(frame,true);
+        } finally {e.exitTrackPlayerSource(scope);}
+        FakePeriod good=new FakePeriod(source);
+        check(!e.onOriginalPeriodBeforePrepare(new FakePeriod(new FakeSource())),
+            "PREPARE_DIFFERENT_SOURCE_REJECTED");
+        check(!bridge.sawOriginalPeriodPrePrepare(frame.generation,good),
+            "PREPARE_NOT_ATTESTED_UNTIL_ACTUAL_ENTER");
+        check(e.onOriginalPeriodBeforePrepare(good),
+            "SAME_ORIGINAL_SOURCE_BEFORE_REAL_PERIOD_PREPARE");
+        check(bridge.sawOriginalPeriodPrePrepare(frame.generation,good),
+            "SAME_GENERATION_EXACT_ORIGINAL_PERIOD_BOUND");
+        check(!bridge.replacementEnabled() &&
+            bridge.chosenSource()==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
+            "NO_SEMANTIC_IDS_PERIOD_PREPARE_REMAINS_ORIGINAL");
+        NativeRendererStreamEvidence.TrackPlayerScope next=e.enterTrackPlayerSource(wrapper);
+        try {
+            e.beginEarlyOriginalSourceSet(null);
+            check(!bridge.sawOriginalPeriodPrePrepare(frame.generation,good),
+                "UNKNOWN_NEXT_INVALIDATES_PRIOR_PREPARE");
+            check(!e.onOriginalPeriodBeforePrepare(good),
+                "STALE_PREPARE_SOURCE_NOT_ACCEPTED");
+        } finally {e.exitTrackPlayerSource(next);}
+    }
+
     private static void testOriginalEarlySetterFeedsExistingNativeLifecycle() {
         final long[] now={1000};
         NativeEarlySourceLifecycleBridge bridge =
@@ -2556,6 +2604,7 @@ public final class NativeRendererStreamEvidenceTest {
         testEarlySetterWhenFlowPrecedesWrapperBirth();
         testOriginalEarlySetterFeedsExistingNativeLifecycle();
         testEarlySetterSameSourceReachesActualCurrentPeriod();
+        testOriginalExactMediaPeriodBeforePrepareNoAlternate();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }

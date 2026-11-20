@@ -238,6 +238,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean rendererEngineHolderScopeHooked;
     private boolean nav29TrackPlayerScopeHooked;
     private boolean nav29NativeSourceSetterHooked;
+    private boolean a1OriginalPeriodPrepareHookAttempted;
     private boolean nav29PeriodFieldsReady;
     private boolean nav30PeriodAdapterHooked;
     private boolean nav30PeriodFactoryHooked;
@@ -2470,7 +2471,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                 && rendererSecondaryCallerHooked && rendererEngineHolderScopeHooked
                 && rendererComparatorHooked
                 && nav29TrackPlayerScopeHooked && nav29NativeSourceSetterHooked
-                && nav29PeriodFieldsReady && nav30PeriodAdapterHooked
+                && nav29PeriodFieldsReady && a1OriginalPeriodPrepareHookAttempted
+                && nav30PeriodAdapterHooked
                 && nav30PeriodFactoryHooked
                 && nav31HolderSelectHooked) return;
         try {
@@ -2797,7 +2799,56 @@ public final class ExitCallsiteWitness extends XposedModule {
             // do NOT treat its late read as pre-prepare authorization.
             NATIVE_RENDERER_EVIDENCE.setActiveOriginalTrackObserver(
                 NATIVE_EARLY_ADMISSION);
+            NATIVE_RENDERER_EVIDENCE.setOriginalPeriodBeforePrepareObserver(
+                NATIVE_EARLY_ADMISSION);
         } catch(Throwable ignored) { }
+        // One exact signed original concrete MediaPeriod before prepare.
+        // Fail-closed: require exactly one declared MediaPeriod contract
+        // void(callback,long) where callback is declared under original wh6,
+        // plus a real concrete o96 override and its signed native source
+        // field. Never hook a broad method search or an abstract interface.
+        if(nav29PeriodFieldsReady && !a1OriginalPeriodPrepareHookAttempted) {
+            a1OriginalPeriodPrepareHookAttempted=true;
+            try {
+                Class<?> mediaPeriod=Class.forName("wh6",false,loader);
+                Class<?> concrete=Class.forName("o96",false,loader);
+                if(!mediaPeriod.isInterface() || !mediaPeriod.isAssignableFrom(concrete))
+                    throw new NoSuchMethodException("SIGNED_PERIOD_INTERFACE_MISMATCH");
+                Method declared=null;
+                for(Method candidate:mediaPeriod.getDeclaredMethods()) {
+                    Class<?>[] p=candidate.getParameterTypes();
+                    if(candidate.getReturnType()!=void.class
+                        || p.length!=2 || p[1]!=long.class
+                        || !p[0].getName().startsWith(mediaPeriod.getName()+"$")
+                        || !p[0].isInterface())continue;
+                    if(declared!=null)throw new NoSuchMethodException("AMBIGUOUS_PERIOD_PREPARE");
+                    declared=candidate;
+                }
+                if(declared==null)throw new NoSuchMethodException("NO_EXACT_PERIOD_PREPARE");
+                Method concretePrepare=concrete.getDeclaredMethod(
+                    declared.getName(),declared.getParameterTypes());
+                if(concretePrepare.getReturnType()!=void.class
+                    || java.lang.reflect.Modifier.isStatic(concretePrepare.getModifiers())
+                    || java.lang.reflect.Modifier.isAbstract(concretePrepare.getModifiers()))
+                    throw new NoSuchMethodException("CONCRETE_PERIOD_PREPARE_SHAPE");
+                concretePrepare.setAccessible(true);
+                hook(concretePrepare).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            NATIVE_RENDERER_EVIDENCE.onOriginalPeriodBeforePrepare(
+                                chain.getThisObject());
+                        } catch(Throwable ignored) { }
+                        return chain.proceed(); // publisher original exactly once
+                    });
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                    "ORIGINAL_PERIOD_PREPARE",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","ORIGINAL_PERIOD_PREPARE","REGISTERED");
+            } catch(Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration(
+                    "ORIGINAL_PERIOD_PREPARE",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","ORIGINAL_PERIOD_PREPARE","NO_HOOK");
+            }
+        }
         // NAV31: observe ONLY the issuer-signed Lxh6.if field-read
         // boundary, exactly PC61 proven in the existing signed 2025 DEX
         // audit. The source-bearing holder Object field may have been

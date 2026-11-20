@@ -18,7 +18,8 @@ import java.util.function.LongSupplier;
  */
 final class NativeEarlySourceLifecycleBridge
         implements NativeRendererStreamEvidence.EarlyOriginalSourceObserver,
-                   NativeRendererStreamEvidence.ActiveOriginalTrackObserver {
+                   NativeRendererStreamEvidence.ActiveOriginalTrackObserver,
+                   NativeRendererStreamEvidence.OriginalPeriodBeforePrepareObserver {
     private final NativeReplacementLifecycle lifecycle =
         new NativeReplacementLifecycle(850);
     private final LongSupplier elapsedClock;
@@ -28,6 +29,10 @@ final class NativeEarlySourceLifecycleBridge
     // A late original player/PeriodID/SLOT_B renderer read must match the
     // SAME earlier original source generation, never a queue/prefetch guess.
     private long confirmedCurrentOriginalGeneration = -1;
+    // This is a PRE-proceed original MediaPeriod event, distinct from the
+    // late CURRENT player confirmation; prefetch must not count as selected.
+    private long originalPeriodPrePrepareGeneration = -1;
+    private WeakReference<Object> originalPeriodRef;
     private WeakReference<Object> trackRef;
     private WeakReference<Object> albumRef;
     private WeakReference<Object> sourceRef;
@@ -41,6 +46,8 @@ final class NativeEarlySourceLifecycleBridge
     }
     private void clear() {
         confirmedCurrentOriginalGeneration=-1;
+        originalPeriodPrePrepareGeneration=-1;
+        originalPeriodRef=null;
         originalSetterSucceeded=false;
         trackRef=null;
         albumRef=null;
@@ -84,6 +91,29 @@ final class NativeEarlySourceLifecycleBridge
             // admission: a later FileInfo callback must not resurrect it.
             lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
         }
+    }
+
+    @Override public synchronized void beforeOriginalPeriodPrepare(
+            long generation,Object track,Object album,Object source,Object period) {
+        if(period==null || !isSuccessfulOriginalSource(generation,track,album,source))
+            return;
+        // At most ONE exact original period for this setter generation.
+        // A distinct period (prefetch/retry ambiguity) revokes the proof.
+        if(originalPeriodRef!=null && originalPeriodRef.get()!=period) {
+            originalPeriodPrePrepareGeneration=-1;
+            originalPeriodRef=null;
+            return;
+        }
+        originalPeriodRef=new WeakReference<>(period);
+        originalPeriodPrePrepareGeneration=generation;
+        // No semantic IDs or signed grant: original player proceeds untouched.
+    }
+
+    synchronized boolean sawOriginalPeriodPrePrepare(long generation,Object period) {
+        return generation==originalPeriodPrePrepareGeneration
+            && period!=null && originalPeriodRef!=null
+            && originalPeriodRef.get()==period
+            && originalSetterSucceeded;
     }
 
     /**
