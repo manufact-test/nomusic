@@ -611,8 +611,10 @@ final class StageBAudioEvidence {
         // In the issuer-signed creator, Track may reach Flow AFTER tCa
         // construction. Preserve the creator's exact Album/source lineage
         // without falsely promoting historical NAV40 Flow status.
-        boolean creatorOnlyAtBirth=fromExactTcaCreator && atBirth==12
-            && findTrackAlbum(track)!=null;
+        // atBirth is local to the weak birth-record branch above;
+        // equivalent immutable birth condition is verified here again.
+        boolean creatorOnlyAtBirth=fromExactTcaCreator
+            && !wasNativeTrackFlowItem(track) && findTrackAlbum(track)!=null;
         if(!wasNativeTrackFlowItem(track) && !creatorOnlyAtBirth)return;
         NativeTrackSourceLink link=null;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
