@@ -214,6 +214,10 @@ final class NativeRendererStreamEvidence {
     // The only early identity is the exact creator-owned Java Track+Album.
     interface EarlyOriginalSourceEvidence { Object[] exact(Object wrapper); }
     interface EarlyOriginalSourceObserver {
+        // This is invoked on EVERY original setter attempt, including a
+        // missing Track/Album or an overlapping setter. No stale generation
+        // may survive Next, replay or an unscoped original source.
+        default void invalidated(long generation) { }
         void pending(long generation,Object track,Object album,Object source);
         void completed(long generation,boolean originalSetterSucceeded);
     }
@@ -258,6 +262,10 @@ final class NativeRendererStreamEvidence {
         // pending generations. No repeat/Next may inherit the old candidate.
         long generation=++earlySourceGeneration;
         exactOriginalSetterLineage=null; // Next/replay/unscoped setter invalidates it.
+        if(earlyOriginalSourceObserver!=null) {
+            try {earlyOriginalSourceObserver.invalidated(generation);}
+            catch(Throwable ignored) { }
+        }
         if(earlySourceInFlight!=null) {
             earlySourceInFlight.invalid=true;
             return null; // overlapping/nested setters are never admitted

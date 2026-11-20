@@ -4,6 +4,9 @@ on:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
     paths:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeEarlySourceLifecycleBridge.java'
+      - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/build.gradle.kts'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
@@ -31,6 +34,12 @@ jobs:
           test "$(cat android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/resources/META-INF/xposed/scope.list)" = pro.celikom.yandex.nativeclonelab
           mkdir -p "$RUNNER_TEMP/a1-native-renderer-observer"
           javac --release 17 -d "$RUNNER_TEMP/a1-native-renderer-observer" \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeEarlySourceLifecycleBridge.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest

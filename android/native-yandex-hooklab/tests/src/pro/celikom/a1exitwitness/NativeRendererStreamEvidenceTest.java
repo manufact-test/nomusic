@@ -2324,6 +2324,50 @@ public final class NativeRendererStreamEvidenceTest {
         } finally {e.exitTrackPlayerSource(scope);}
     }
 
+    private static void testOriginalEarlySetterFeedsExistingNativeLifecycle() {
+        final long[] now={1000};
+        NativeEarlySourceLifecycleBridge bridge =
+            new NativeEarlySourceLifecycleBridge(() -> now[0]);
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object(),
+               source=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        e.setEarlyOriginalSourceEvidence(stage::exactCreatorTrackAlbumBeforeSourceSet);
+        e.setEarlyOriginalSourceObserver(bridge);
+        NativeRendererStreamEvidence.TrackPlayerScope frame=e.enterTrackPlayerSource(wrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame first=
+                e.beginEarlyOriginalSourceSet(source);
+            check(first!=null && bridge.reservedNativeGeneration()>0,
+                "REAL_ORIGINAL_SETTER_RESERVES_CANONICAL_LIFECYCLE_GENERATION");
+            e.finishEarlyOriginalSourceSet(first,true);
+            check(bridge.isSuccessfulOriginalSource(first.generation,track,album,source),
+                "AFTER_SUCCESSFUL_ORIGINAL_SETTER_SAME_REFERENCES");
+            check(!bridge.replacementEnabled()
+                    && bridge.chosenSource()==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
+                "UNKNOWN_SEMANTIC_ID_NEVER_ENABLES_ALTERNATE");
+            now[0]=1100;
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame again=
+                e.beginEarlyOriginalSourceSet(source);
+            check(!bridge.isSuccessfulOriginalSource(first.generation,track,album,source),
+                "NEXT_INVALIDATES_LIFECYCLE_AND_ORIGINAL_PROOF");
+            e.finishEarlyOriginalSourceSet(again,false);
+            check(!bridge.isSuccessfulOriginalSource(again.generation,track,album,source),
+                "THROWING_ORIGINAL_SETTER_CANNOT_RESTORE_OLD_AUDIO");
+            now[0]=1200;
+            e.beginEarlyOriginalSourceSet(new Object());
+            check(!bridge.isSuccessfulOriginalSource(first.generation,track,album,source),
+                "UNKNOWN_ORIGINAL_SETTER_DISCARDS_OLD_SOURCE_GENERATION");
+        } finally {e.exitTrackPlayerSource(frame);}
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2406,6 +2450,7 @@ public final class NativeRendererStreamEvidenceTest {
         testOriginalCreatorEarlySourceSetterBeforeFlow();
         testEarlySourceFailureConflictAndNextGeneration();
         testEarlySetterWhenFlowPrecedesWrapperBirth();
+        testOriginalEarlySetterFeedsExistingNativeLifecycle();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
 }

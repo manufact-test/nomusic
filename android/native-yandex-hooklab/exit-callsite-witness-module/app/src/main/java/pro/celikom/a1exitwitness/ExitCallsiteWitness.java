@@ -220,6 +220,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Export on explicit owner action; never write from the audio readAt hot path.
     // This is NOT audible replacement, current-track identity or grant proof.
     private static final StageBAudioEvidence STAGE_B_AUDIO = new StageBAudioEvidence();
+    // Uses the existing canonical NativeReplacementLifecycle model, in the
+    // real source setter observer. Default is DISABLED: only ORIGINAL audio.
+    private static final NativeEarlySourceLifecycleBridge NATIVE_EARLY_ADMISSION =
+        new NativeEarlySourceLifecycleBridge();
 
     // Signed original embedded in owner-accepted NAV17 only: 2025.10.4
     // code 24025542. Counters are exported on owner tap; no hot-path disk I/O.
@@ -2786,6 +2790,8 @@ public final class ExitCallsiteWitness extends XposedModule {
             // No semantic IDs/pre-prepare proof, consumer or replacement yet.
             NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceEvidence(
                 STAGE_B_AUDIO::exactCreatorTrackAlbumBeforeSourceSet);
+            NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceObserver(
+                NATIVE_EARLY_ADMISSION);
         } catch(Throwable ignored) { }
         // NAV31: observe ONLY the issuer-signed Lxh6.if field-read
         // boundary, exactly PC61 proven in the existing signed 2025 DEX
