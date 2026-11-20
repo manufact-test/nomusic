@@ -2423,6 +2423,15 @@ public final class NativeRendererStreamEvidenceTest {
         check(!bridge.replacementEnabled() &&
             bridge.chosenSource()==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
             "NO_SEMANTIC_IDS_PERIOD_PREPARE_REMAINS_ORIGINAL");
+        FakePeriod second=new FakePeriod(source);
+        check(e.onOriginalPeriodBeforePrepare(second),
+            "SAME_SOURCE_DIFFERENT_PERIOD_IS_OBSERVED_BUT_AMBIGUOUS");
+        check(!bridge.sawOriginalPeriodPrePrepare(frame.generation,good)
+                && !bridge.sawOriginalPeriodPrePrepare(frame.generation,second),
+            "TWO_PERIODS_SAME_SOURCE_FENCE_QUEUED_PREFETCH");
+        e.onOriginalPeriodBeforePrepare(good);
+        check(!bridge.sawOriginalPeriodPrePrepare(frame.generation,good),
+            "AMBIGUOUS_GENERATION_CANNOT_REGAIN_PREPARE_PROOF");
         NativeRendererStreamEvidence.TrackPlayerScope next=e.enterTrackPlayerSource(wrapper);
         try {
             e.beginEarlyOriginalSourceSet(null);

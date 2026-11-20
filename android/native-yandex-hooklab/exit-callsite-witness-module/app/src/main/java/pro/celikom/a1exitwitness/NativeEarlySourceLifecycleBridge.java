@@ -33,6 +33,7 @@ final class NativeEarlySourceLifecycleBridge
     // late CURRENT player confirmation; prefetch must not count as selected.
     private long originalPeriodPrePrepareGeneration = -1;
     private WeakReference<Object> originalPeriodRef;
+    private boolean originalPeriodAmbiguous;
     private WeakReference<Object> trackRef;
     private WeakReference<Object> albumRef;
     private WeakReference<Object> sourceRef;
@@ -48,6 +49,7 @@ final class NativeEarlySourceLifecycleBridge
         confirmedCurrentOriginalGeneration=-1;
         originalPeriodPrePrepareGeneration=-1;
         originalPeriodRef=null;
+        originalPeriodAmbiguous=false;
         originalSetterSucceeded=false;
         trackRef=null;
         albumRef=null;
@@ -95,13 +97,16 @@ final class NativeEarlySourceLifecycleBridge
 
     @Override public synchronized void beforeOriginalPeriodPrepare(
             long generation,Object track,Object album,Object source,Object period) {
-        if(period==null || !isSuccessfulOriginalSource(generation,track,album,source))
+        if(period==null || originalPeriodAmbiguous
+                || !isSuccessfulOriginalSource(generation,track,album,source))
             return;
         // At most ONE exact original period for this setter generation.
-        // A distinct period (prefetch/retry ambiguity) revokes the proof.
+        // A distinct period (prefetch/retry ambiguity) permanently revokes
+        // this generation, even if the first period appears again later.
         if(originalPeriodRef!=null && originalPeriodRef.get()!=period) {
             originalPeriodPrePrepareGeneration=-1;
             originalPeriodRef=null;
+            originalPeriodAmbiguous=true;
             return;
         }
         originalPeriodRef=new WeakReference<>(period);
@@ -110,7 +115,8 @@ final class NativeEarlySourceLifecycleBridge
     }
 
     synchronized boolean sawOriginalPeriodPrePrepare(long generation,Object period) {
-        return generation==originalPeriodPrePrepareGeneration
+        return !originalPeriodAmbiguous
+            && generation==originalPeriodPrePrepareGeneration
             && period!=null && originalPeriodRef!=null
             && originalPeriodRef.get()==period
             && originalSetterSucceeded;
