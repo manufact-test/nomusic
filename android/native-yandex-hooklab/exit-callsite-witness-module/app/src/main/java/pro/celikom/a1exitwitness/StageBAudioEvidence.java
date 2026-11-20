@@ -175,8 +175,15 @@ final class StageBAudioEvidence {
     }
     synchronized void onPublisherAnnotatedTrackId(Object raw) {
         String id=numericOriginalId(raw);
-        Object track=currentScope(activeTrackScopes),album=findTrackAlbum(track);
-        if(id==null || track==null)return;
+        if(id==null)return;
+        Object track=currentScope(activeTrackScopes);
+        if(track==null) {
+            if(NativeTrackIdBetaPolicy.allows(id))
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.ISSUER_TRACK_SCOPE_MISSING);
+            return;
+        }
+        Object album=findTrackAlbum(track);
         if(NativeTrackIdBetaPolicy.allows(id)) {
             NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.ISSUER_TRACKID);
             BetaTrackIdLink known=null;

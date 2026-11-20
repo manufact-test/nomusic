@@ -210,7 +210,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean nativeTrackRequestHookReady;
     private boolean nativeTrackContinuationHookReady;
     private boolean nativeTrackWrapperHookReady;
-    private boolean issuerTrackIdProxyHookAttempted;
+    private boolean issuerTrackIdProxyHookReady;
+    private boolean nativeTrackContinuationResumeHookReady;
+    private boolean nativeMainContinuationResumeHookReady;
     private final java.util.HashSet<Method> issuerTrackIdProxyMethods =
         new java.util.HashSet<>();
     private boolean nativeTcaCreatorHookAttempted;
@@ -2416,6 +2418,21 @@ public final class ExitCallsiteWitness extends XposedModule {
             attach.setAccessible(true);
             hook(attach).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
+                    // Install the publisher Retrofit proxy witness BEFORE attachBaseContext.
+                    // The app may create/cache FileInfoApi proxies inside attachBaseContext.
+                    try {
+                        if (PACKAGE.equals(Application.getProcessName())) {
+                            Object earlyContext = chain.getArg(0);
+                            if (earlyContext instanceof Context) {
+                                ClassLoader earlyLoader =
+                                    ((Context) earlyContext).getClassLoader();
+                                if (earlyLoader != null) {
+                                    cloneAppClassLoader = earlyLoader;
+                                    installPublisherTrackIdProxyWitness(earlyLoader);
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) { }
                     // The app may create Account objects in attachBaseContext.
                     // Install our scoped type mapping before that code runs.
                     try { installCloneAccountTypeBridge(); }
@@ -3697,6 +3714,8 @@ public final class ExitCallsiteWitness extends XposedModule {
             selectedIndex=annotatedIndex;
         }
         if(publisherMethod==null)return;
+        NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.ISSUER_METHOD_SELECTED);
         final Object handler;
         final Method concrete;
         try {
@@ -3734,6 +3753,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     if(known.handler.get()!=receiver
                                             || !known.exactApiMethod.equals(invoked))
                                         continue;
+                                    NativeTrackIdBetaPolicy.mark(
+                                        NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_INVOKE);
                                     Object[] values=(Object[])args;
                                     if(values.length>known.trackArgumentIndex) {
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
@@ -3753,8 +3774,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     }
 
     private synchronized void installPublisherTrackIdProxyWitness(ClassLoader loader) {
-        if(loader==null || issuerTrackIdProxyHookAttempted)return;
-        issuerTrackIdProxyHookAttempted=true;
+        if(loader==null || issuerTrackIdProxyHookReady)return;
         try {
             final Class<?> fileApi=Class.forName(
                 "com.yandex.music.shared.player.content.remote.fileinfo.FileInfoApi",
@@ -3771,14 +3791,26 @@ public final class ExitCallsiteWitness extends XposedModule {
                 .intercept(chain -> {
                     Object real=chain.proceed(); // unchanged Java Proxy
                     try {
-                        if(fileApi.isInstance(real))
+                        if(fileApi.isInstance(real)) {
+                            NativeTrackIdBetaPolicy.mark(
+                                NativeTrackIdBetaPolicy.Step.ISSUER_PROXY_CREATED);
                             hookConcretePublisherTrackIdProxy(real,fileApi);
-                        if(downloadApi.isInstance(real))
+                        }
+                        if(downloadApi.isInstance(real)) {
+                            NativeTrackIdBetaPolicy.mark(
+                                NativeTrackIdBetaPolicy.Step.ISSUER_PROXY_CREATED);
                             hookConcretePublisherTrackIdProxy(real,downloadApi);
+                        }
                     } catch(Throwable ignored) { }
                     return real;
                 });
-        } catch(Throwable ignored) { }
+            issuerTrackIdProxyHookReady=true;
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_PROXY_HOOK_REGISTERED);
+            emit("AUDIO_ISSUER_PROXY_HOOK","ISSUER_TRACKID_PROXY","REGISTERED");
+        } catch(Throwable ignored) {
+            emit("AUDIO_ISSUER_PROXY_HOOK","ISSUER_TRACKID_PROXY","NO_HOOK");
+        }
     }
 
     private synchronized void installNativeTrackSourceContinuityWitness(ClassLoader loader) {
@@ -3898,6 +3930,36 @@ public final class ExitCallsiteWitness extends XposedModule {
                      "TRACK_CONTINUATION","NO_HOOK");
             }
         }
+        if (!nativeTrackContinuationResumeHookReady) {
+            try {
+                Class<?> continuation=Class.forName("Fp0",false,loader);
+                Method resume=continuation.getDeclaredMethod("invokeSuspend",Object.class);
+                resume.setAccessible(true);
+                hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object current=chain.getThisObject();
+                        boolean entered=false;
+                        try {
+                            STAGE_B_AUDIO.enterNativeTrackSourceRequest(null,current);
+                            entered=true;
+                        } catch(Throwable ignored) { }
+                        try {
+                            return chain.proceed();
+                        } finally {
+                            if(entered) {
+                                try { STAGE_B_AUDIO.exitNativeTrackSourceRequest(); }
+                                catch(Throwable ignored) { }
+                            }
+                        }
+                    });
+                nativeTrackContinuationResumeHookReady=true;
+                emit("AUDIO_NATIVE_TRACK_RESUME_HOOK",
+                     "TRACK_CONTINUATION_RESUME","REGISTERED");
+            } catch(Throwable ignored) {
+                emit("AUDIO_NATIVE_TRACK_RESUME_HOOK",
+                     "TRACK_CONTINUATION_RESUME","NO_HOOK");
+            }
+        }
         if (!nativeTrackRequestHookReady) {
             try {
                 Class<?> owner=Class.forName("Gp0",false,loader);
@@ -4004,6 +4066,36 @@ public final class ExitCallsiteWitness extends XposedModule {
             } catch (Throwable ignored) {
                 emit("AUDIO_NATIVE_MAIN_CONTINUATION_HOOK",
                      "MAIN_CONTINUATION","NO_HOOK");
+            }
+        }
+        if (!nativeMainContinuationResumeHookReady) {
+            try {
+                Class<?> continuation=Class.forName("RAa",false,loader);
+                Method resume=continuation.getDeclaredMethod("invokeSuspend",Object.class);
+                resume.setAccessible(true);
+                hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object current=chain.getThisObject();
+                        boolean entered=false;
+                        try {
+                            STAGE_B_AUDIO.enterNativeMainSourceRequest(null,current);
+                            entered=true;
+                        } catch(Throwable ignored) { }
+                        try {
+                            return chain.proceed();
+                        } finally {
+                            if(entered) {
+                                try { STAGE_B_AUDIO.exitNativeMainSourceRequest(); }
+                                catch(Throwable ignored) { }
+                            }
+                        }
+                    });
+                nativeMainContinuationResumeHookReady=true;
+                emit("AUDIO_NATIVE_MAIN_RESUME_HOOK",
+                     "MAIN_CONTINUATION_RESUME","REGISTERED");
+            } catch(Throwable ignored) {
+                emit("AUDIO_NATIVE_MAIN_RESUME_HOOK",
+                     "MAIN_CONTINUATION_RESUME","NO_HOOK");
             }
         }
         if (!nativeMainSourceHookReady) {

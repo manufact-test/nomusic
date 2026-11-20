@@ -284,6 +284,27 @@ public final class StageBAudioEvidenceTest {
         masked.exitNativeTrackSourceRequest();
         bucket(masked.exportLines(),24,"TRACK_WRAPPER_LINK","ONE");
 
+        // The publisher FileInfo proxy may be invoked only after Gp0's Fp0
+        // coroutine resumes. Restore the exact Track through that same object.
+        StageBAudioEvidence issuerResume=new StageBAudioEvidence();
+        Object issuerTrack=new Object(), issuerContinuation=new Object();
+        Object issuerWrapper=new Object();
+        issuerResume.onNativeTrackFlowEmission(issuerTrack);
+        issuerResume.enterNativeTrackSourceRequest(issuerTrack,null);
+        issuerResume.onNativeTrackContinuationConstructed(issuerContinuation);
+        issuerResume.exitNativeTrackSourceRequest();
+        issuerResume.enterNativeTrackSourceRequest(null,issuerContinuation);
+        issuerResume.onPublisherAnnotatedTrackId(NativeTrackIdBetaPolicy.RAMIL_AU);
+        issuerResume.exitNativeTrackSourceRequest();
+        issuerResume.enterNativeTcaCreatorOwner(new Object());
+        issuerResume.enterNativeTcaCreatorTrackScope(issuerTrack,1);
+        issuerResume.onNativeTrackWrapperCreated(
+            issuerWrapper,NativeTrackIdBetaPolicy.RAMIL_AU);
+        issuerResume.exitNativeTcaCreatorTrackScope();
+        issuerResume.exitNativeTcaCreatorOwner();
+        check(issuerResume.exactBetaCreatorWithoutAlbum(issuerWrapper)!=null,
+            "ISSUER_ID_CAPTURED_ON_EXACT_Fp0_RESUME");
+
         // RAa resumes the pinned main source builder with null wrapper,
         // but with the identical RAa instance as final continuation argument.
         StageBAudioEvidence mainResume=new StageBAudioEvidence();
@@ -588,6 +609,12 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("selectedTrack,chain.getArg(2)", code)
         self.assertIn("STAGE_B_AUDIO.onNativeTrackContinuationConstructed(", code)
         self.assertIn('Class.forName("Fp0",false,loader)', code)
+        self.assertIn('getDeclaredMethod("invokeSuspend",Object.class)', code)
+        self.assertIn("STAGE_B_AUDIO.enterNativeTrackSourceRequest(null,current)", code)
+        self.assertIn("STAGE_B_AUDIO.enterNativeMainSourceRequest(null,current)", code)
+        self.assertIn('emit("AUDIO_NATIVE_TRACK_RESUME_HOOK"', code)
+        self.assertIn('emit("AUDIO_NATIVE_MAIN_RESUME_HOOK"', code)
+        self.assertIn("installPublisherTrackIdProxyWitness(earlyLoader)", code)
         self.assertIn("STAGE_B_AUDIO.onNativeTrackWrapperCreated(", code)
         self.assertIn("chain.getThisObject(),chain.getArg(0)", code)
         self.assertIn("STAGE_B_AUDIO.enterNativeMainSourceRequest(", code)

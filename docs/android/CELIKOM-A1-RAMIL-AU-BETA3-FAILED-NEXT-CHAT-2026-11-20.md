@@ -49,3 +49,19 @@
 3. Длинные блоки реальной работы без промежуточных микрорепортов. Проверки через GitHub CI. Изменения атомарно в этой же ветке. Успех звука не объявлять без теста владельца.
 4. До выпуска новой версии проверить, что появился реальный маршрут от издательского Track/ID до оригинального DataSource. Не выпускать ради зеленого CI или косметики.
 5. Документировать законченные этапы в этом файле и `CELIKOM-A1-LIVE-AUDIO-NEXT-CHAT-2026-11-20.md`, передать новый HEAD следующему чату.
+
+
+## Code-level fix after the failed BETA3 run (20.11.2026)
+
+The first missing links were traced to a concrete lifecycle gap in the clone hook wiring: Stage B already retained exact Fp0 (Track request) and RAa (main source) continuation-to-object links, and its regression model already tested recovery on coroutine resume, but the runtime module hooked only their constructors and the initial suspend methods. It never restored the Track/wrapper ThreadLocal scopes around the generated invokeSuspend(Object) callbacks. Once the original suspend method returned, the ThreadLocal scope was popped; a later Retrofit issuer call or descriptor construction on coroutine resume could therefore arrive without the exact Track/wrapper context.
+
+The fix now:
+- hooks the exact signed Fp0.invokeSuspend(Object) and restores only its previously linked original Track for the duration of that resume;
+- hooks the exact signed RAa.invokeSuspend(Object) and restores only its previously linked original tCa wrapper for that resume;
+- installs the Retrofit Proxy.newProxyInstance witness before Application.attach enters attachBaseContext, so a FileInfoApi/DownloadInfoApi proxy created during app attachment is not missed;
+- retries the proxy-hook registration after attach if an early class lookup or hook registration failed;
+- exports privacy-safe counters for proxy hook registration, exact API proxy creation, annotated method selection, handler invocation, and an allowlisted ID that arrived without a restored Track scope.
+
+No publisher ID, token, account, signed URL or audio data is exported. The original publisher methods still execute exactly once. All unlinked, conflicting or stale continuations remain fail-closed. This is a targeted wiring fix inside the existing architecture, not a new player or an alternate authorization path.
+
+**Validation status at this document revision:** Java/Python regression and ARM13 CI are pending. This change is not yet confirmed on HONOR 50 and does not claim audible replacement. Do not export an APK unless the full native CI gate passes; after that, the owner must repeat the same 10AGE/Ramil' «Ау» test at 00:43–00:54.
