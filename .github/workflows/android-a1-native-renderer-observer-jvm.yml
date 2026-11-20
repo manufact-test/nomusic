@@ -10,6 +10,7 @@ on:
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeDeferredExoArmTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeDeferredFactoryIdentityTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeTrackIdBetaTrialTest.java'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRamilTrackOnlyLineageTest.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeEarlySourceLifecycleBridge.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeTrackIdBetaPolicy.java'
       - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java'
@@ -56,13 +57,15 @@ jobs:
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeCertifiedResolveBridgeTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeDeferredExoArmTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeDeferredFactoryIdentityTest.java \
-            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeTrackIdBetaTrialTest.java
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeTrackIdBetaTrialTest.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRamilTrackOnlyLineageTest.java
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeExoAlternateByteRouteTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeCertifiedResolveBridgeTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeDeferredExoArmTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeDeferredFactoryIdentityTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeTrackIdBetaTrialTest
+          java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRamilTrackOnlyLineageTest
           python3 - <<'PY'
           from pathlib import Path
           src=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java').read_text()

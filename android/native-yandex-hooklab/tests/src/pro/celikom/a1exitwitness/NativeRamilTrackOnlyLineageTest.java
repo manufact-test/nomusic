@@ -1,0 +1,108 @@
+package pro.celikom.a1exitwitness;
+
+import pro.celikom.yandex.nativehooklab.NativeSourceGate;
+
+/** Real original object references, no original Album/Edition ever asserted. */
+public final class NativeRamilTrackOnlyLineageTest {
+    private static void check(boolean ok,String message) {
+        if(!ok)throw new AssertionError(message);
+    }
+    private static StageBAudioEvidence fresh(String publisherId,Object track,
+            Object wrapper,boolean signedConstructor,boolean issuerCalled) {
+        StageBAudioEvidence evidence=new StageBAudioEvidence();
+        if(issuerCalled) {
+            evidence.enterNativeTrackSourceRequest(track,null);
+            evidence.onPublisherAnnotatedTrackId(publisherId);
+            evidence.exitNativeTrackSourceRequest();
+        }
+        evidence.enterNativeTcaCreatorOwner(new Object());
+        evidence.enterNativeTcaCreatorTrackScope(track,1);
+        evidence.onNativeTrackWrapperCreated(wrapper,
+            signedConstructor?publisherId:"321321321");
+        evidence.exitNativeTcaCreatorTrackScope();
+        evidence.exitNativeTcaCreatorOwner();
+        return evidence;
+    }
+    public static void main(String[] args) {
+        final String ramil=NativeTrackIdBetaPolicy.RAMIL_AU;
+        Object track=new Object(), wrapper=new Object(), nativeSource=new Object();
+        StageBAudioEvidence stage=fresh(ramil,track,wrapper,true,true);
+        check(stage.exactCreatorTrackAlbumBeforeSourceSet(wrapper)==null,
+            "NO_FAKE_ORIGINAL_ALBUM_PERMITTED");
+        Object[] scope=stage.exactBetaCreatorWithoutAlbum(wrapper);
+        check(scope!=null && scope[0]==track && scope[1]==wrapper,
+            "EXACT_SOURCE_CREATOR_AND_BETA_TOKEN");
+        check(ramil.equals(stage.exactPublisherTrackIdForCreatorOrBeta(
+            wrapper,track,wrapper)),"SAME_ISSUER_API_AND_TCA_CONSTRUCTOR_ID");
+
+        NativeRendererStreamEvidence renderer=new NativeRendererStreamEvidence();
+        NativeEarlySourceLifecycleBridge bridge=new NativeEarlySourceLifecycleBridge(
+            ()->1000L);
+        renderer.setEarlyOriginalSourceEvidence(
+            stage::exactCreatorTrackAlbumOrBetaBeforeSourceSet);
+        renderer.setExactPublisherTrackIdEvidence(
+            stage::exactPublisherTrackIdForCreatorOrBeta);
+        renderer.setEarlyOriginalSourceObserver(bridge);
+        bridge.startForAuthenticatedOwner();
+        NativeRendererStreamEvidence.TrackPlayerScope player=
+            renderer.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame=
+            renderer.beginEarlyOriginalSourceSet(nativeSource);
+        check(frame!=null && frame.track==track && frame.album==wrapper
+            && ramil.equals(frame.originalPublisherTrackIdCandidate),
+            "ORIGINAL_PUBLISHER_ID_AND_SOURCE_REFERENCES_ON_SETTER");
+        renderer.finishEarlyOriginalSourceSet(frame,true);
+        renderer.exitTrackPlayerSource(player);
+        check(bridge.isSuccessfulOriginalSource(1,track,wrapper,nativeSource),
+            "SUCCESSFUL_NATIVE_PLAYER_SOURCE_SETTER");
+        check(renderer.exactEarlySetterSourceAtGeneration(nativeSource,1)!=null,
+            "EXACT_EARLY_SETTER_SURVIVES_PREPARE");
+
+        Object descriptor=new Object(),factory=new Object(),dataSource=new Object();
+        stage.enterNativeMainSourceRequest(wrapper,null);
+        stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
+        stage.exitNativeMainSourceRequest();
+        stage.onExoFactoryCreated(descriptor,factory);
+        stage.onExoSourceInstanceCreated(dataSource,factory);
+        Object[] link=stage.exactFreshCreatorOrBetaForDataSource(dataSource);
+        check(link!=null && link[0]==wrapper && link[1]==track
+            && link[2]==wrapper,"EXACT_EXO_FACTORY_SOURCE_WITHOUT_ALBUM");
+        Object[] publisher=renderer.exactSetterForFreshSourceCreator(
+            link[0],link[1],link[2]);
+        check(publisher!=null && ((Long)publisher[0])==1
+            && publisher[1]==nativeSource,"EXACT_PLAYER_SOURCE_TO_EXO_DATA_SOURCE");
+        stage.onExoSourceInstanceOpenAttempt(dataSource);
+        check(stage.exactFreshCreatorOrBetaForDataSource(dataSource)==null,
+            "OPENED_ORIGINAL_SOURCE_CANNOT_BE_ARMED");
+
+        StageBAudioEvidence wrongIssuer=fresh(ramil,new Object(),new Object(),
+            true,false);
+        check(wrongIssuer.exactBetaCreatorWithoutAlbum(wrapper)==null,
+            "DIFFERENT_WRAPPER_MUST_NOT_PROMOTE");
+        Object deniedWrapper=new Object(),deniedTrack=new Object();
+        StageBAudioEvidence missingIssuer=fresh(ramil,deniedTrack,deniedWrapper,
+            true,false);
+        check(missingIssuer.exactBetaCreatorWithoutAlbum(deniedWrapper)==null,
+            "NO_ISSUER_ANNOTATION_NEVER_BETA");
+        StageBAudioEvidence wrongKey=fresh(ramil,new Object(),
+            deniedWrapper,false,true);
+        check(wrongKey.exactBetaCreatorWithoutAlbum(deniedWrapper)==null,
+            "MISMATCHED_PUBLISHER_TCA_KEY_NEVER_BETA");
+        Object unrelatedWrapper=new Object(),unrelatedTrack=new Object();
+        StageBAudioEvidence unrelated=fresh("1234567",unrelatedTrack,
+            unrelatedWrapper,true,true);
+        check(unrelated.exactBetaCreatorWithoutAlbum(unrelatedWrapper)==null,
+            "ALL_OTHERS_REMAIN_ORIGINAL");
+
+        NativeRendererStreamEvidence.TrackPlayerScope next=
+            renderer.enterTrackPlayerSource(wrapper);
+        renderer.beginEarlyOriginalSourceSet(new Object());
+        renderer.exitTrackPlayerSource(next);
+        check(renderer.exactSetterForFreshSourceCreator(
+            wrapper,track,wrapper)==null,
+            "NEXT_INVALIDATES_ORIGINAL_BETA_TRACKID_SOURCE");
+        check(bridge.chosenSource()==NativeSourceGate.Choice.ORIGINAL,
+            "STILL_ORIGINAL_WITHOUT_SIGNED_AUDIO_AND_REAL_PREPARE");
+        System.out.println("RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS");
+    }
+}

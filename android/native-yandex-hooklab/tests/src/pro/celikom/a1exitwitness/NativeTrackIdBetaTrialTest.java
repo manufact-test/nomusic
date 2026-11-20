@@ -23,7 +23,8 @@ public final class NativeTrackIdBetaTrialTest {
     private static final String LESHA="39949113";
     private static void allowlistAndSignedGrant() {
         check(NativeTrackIdBetaPolicy.allows(RASKOL)
-            && NativeTrackIdBetaPolicy.allows(LESHA),
+            && NativeTrackIdBetaPolicy.allows(LESHA)
+            && NativeTrackIdBetaPolicy.allows(NativeTrackIdBetaPolicy.RAMIL_AU),
             "BETA_ONLY_TWO_OWNER_CHOSEN_TRACKS");
         check(!NativeTrackIdBetaPolicy.allows("42884424")
             && !NativeTrackIdBetaPolicy.allows("1")
@@ -116,6 +117,7 @@ public final class NativeTrackIdBetaTrialTest {
         allowlistAndSignedGrant();
         sourceAndPrepare(RASKOL);
         sourceAndPrepare(LESHA);
+        sourceAndPrepare(NativeTrackIdBetaPolicy.RAMIL_AU);
         noGrantNoAudio();
         System.out.println("NATIVE_TWO_TRACK_CONSENTED_BETA_STRICT_SOURCE_PASS");
     }
