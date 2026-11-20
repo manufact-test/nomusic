@@ -92,6 +92,21 @@ public final class NativeReplacementLifecycle {
     }
 
     /**
+     * The original publisher setter failed before committing its source.
+     * Revoke both an unresolved reservation and an already verified pending
+     * alternate grant. This cannot revoke an already issued decoder source.
+     */
+    public synchronized boolean cancelPendingNativeSelection(long token) {
+        if(token!=generation || issued)return false;
+        if(active!=null)active.abort(activeRevision);
+        active=null;
+        unresolvedReserved=false;
+        generation++;
+        issuedSource=NativeSourceGate.Choice.ORIGINAL;
+        return true;
+    }
+
+    /**
      * Only a semantically verified SAME-original-source identity may be
      * certified, before the original decoder's prepare boundary. This does
      * not read IDs or certify an arbitrary Track field by itself.

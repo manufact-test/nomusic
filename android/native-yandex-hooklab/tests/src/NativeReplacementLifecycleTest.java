@@ -259,6 +259,35 @@ public final class NativeReplacementLifecycleTest {
                 "legacy exact selection cannot be recertified");
     }
 
+    private static void failedOriginalSetterCancelsPendingAdmission() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
+        s.start();
+        long unresolved=s.beginUnresolvedNativeSelection(100);
+        yes(s.cancelPendingNativeSelection(unresolved),
+            "failed publisher setter must cancel unresolved generation");
+        yes(!s.certifyNativeIdentity(unresolved,TRACK,ALBUM,EDITION,102),
+            "cannot promote failed source after cancel");
+        yes(!s.cancelPendingNativeSelection(unresolved),
+            "cannot abort the next selection using old token");
+        long fresh=s.beginUnresolvedNativeSelection(200);
+        yes(s.certifyNativeIdentity(fresh,TRACK,ALBUM,EDITION,201),
+            "fresh exact selection still allowed");
+        yes(s.observeFileInfo(fresh,TRACK,ALBUM,EDITION),
+            "fresh certified FileInfo");
+        eq(NativePrePrepareAdmission.Offer.ACCEPTED_PENDING,offer(s,fresh,203),
+            "fresh authorized source offered");
+        yes(s.cancelPendingNativeSelection(fresh),
+            "throwing publisher setter cancels pending signed grant too");
+        eq(NativePrePrepareAdmission.Offer.STALE,offer(s,fresh,204),
+            "pending signed grant cannot leak across failed publisher setter");
+        long committed=s.beginUnresolvedNativeSelection(300);
+        yes(s.atNativePrepare(committed,TRACK,ALBUM,EDITION,305).source
+                == NativeSourceGate.Choice.ORIGINAL,
+                "unknown decoder selects original");
+        yes(!s.cancelPendingNativeSelection(committed),
+            "already issued original decoder cannot be cancelled");
+    }
+
     private static void stopAndRestartInvalidateUnresolvedGeneration() {
         NativeReplacementLifecycle s=new NativeReplacementLifecycle(850);
         long disabled=s.beginUnresolvedNativeSelection(10);
@@ -275,6 +304,7 @@ public final class NativeReplacementLifecycleTest {
 
     public static void main(String[] args) {
         stopAndRestartInvalidateUnresolvedGeneration();
+        failedOriginalSetterCancelsPendingAdmission();
         certificationMustRequireActualOriginalSelection();
         unresolvedBudgetCannotRestartOnLateIdentity();
         unresolvedOriginalSourceMustNotUpgradeAfterPrepare();

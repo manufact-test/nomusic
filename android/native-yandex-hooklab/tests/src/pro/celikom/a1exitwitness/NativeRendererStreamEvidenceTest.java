@@ -2361,6 +2361,9 @@ public final class NativeRendererStreamEvidenceTest {
             e.finishEarlyOriginalSourceSet(again,false);
             check(!bridge.isSuccessfulOriginalSource(again.generation,track,album,source),
                 "THROWING_ORIGINAL_SETTER_CANNOT_RESTORE_OLD_AUDIO");
+            check(bridge.reservedNativeGeneration()!=0L
+                  && bridge.chosenSource()==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
+                "FAILED_PUBLISHER_SETTER_NEVER_ISSUES_ALTERNATE");
             now[0]=1200;
             e.beginEarlyOriginalSourceSet(new Object());
             check(!bridge.isSuccessfulOriginalSource(first.generation,track,album,source),

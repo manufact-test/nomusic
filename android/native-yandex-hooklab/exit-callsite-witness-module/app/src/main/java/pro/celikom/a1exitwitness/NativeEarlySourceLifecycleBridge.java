@@ -67,7 +67,12 @@ final class NativeEarlySourceLifecycleBridge
                 && albumRef!=null && sourceRef!=null
                 && trackRef.get()!=null && albumRef.get()!=null
                 && sourceRef.get()!=null;
-        if(!originalSetterSucceeded)clear();
+        if(!originalSetterSucceeded) {
+            clear();
+            // A failed publisher setter must also abort an in-flight model
+            // admission: a later FileInfo callback must not resurrect it.
+            lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
+        }
     }
 
     /** Weak same-original-source witness, not an admission/decoder decision. */
