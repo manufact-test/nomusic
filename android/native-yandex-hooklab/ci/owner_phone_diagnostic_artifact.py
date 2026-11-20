@@ -1,4 +1,4 @@
-"""Export exactly one private owner-phone diagnostic APK after native acceptance."""
+"""Export exactly one private beta owner-phone APK after strict native acceptance."""
 from __future__ import annotations
 
 import hashlib
@@ -7,7 +7,7 @@ from pathlib import Path
 
 EXPECTED_VERDICT = "METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO"
 OUTPUT_DIRECTORY = "celikom-a1-owner-phone-test"
-OUTPUT_NAME = "CELIKOM-A1-NAV45-Nonempty-MediaItem-ID-ReadOnly-20261119.apk"
+OUTPUT_NAME = "CELIKOM-A1-TRACKID-BETA2-HONOR50-20261120.apk"
 MAX_APK_BYTES = 150_000_000
 MIN_APK_BYTES = 1_000_000
 

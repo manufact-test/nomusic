@@ -91,9 +91,9 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
             export_after_native_acceptance(link, self.accepted_report(), self.runner)
 
 
-    def test_output_name_is_explicitly_versioned_nav41(self):
-        self.assertIn("NAV45", OUTPUT_NAME)
-        self.assertIn("Nonempty-MediaItem-ID", OUTPUT_NAME)
+    def test_output_name_is_explicitly_owner_consented_trial(self):
+        self.assertIn("TRACKID-BETA2", OUTPUT_NAME)
+        self.assertIn("HONOR50", OUTPUT_NAME)
 
 
 
