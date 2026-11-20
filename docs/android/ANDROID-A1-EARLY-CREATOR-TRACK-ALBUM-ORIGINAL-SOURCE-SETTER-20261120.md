@@ -11,7 +11,7 @@
 
 ## Проверка и безопасность
 - [JVM #44694252227 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44694252227): существующие regression tests + 2 новых сценария раннего setter, original Track/Album до позднего Flow, отказ при конфликте Album, вложении, failed setter и неподходящем wrapper.
-- ARM13 [#44694252239](https://github.com/manufact-test/nomusic/actions/runs/44694252239), clone-alone [#44694252308](https://github.com/manufact-test/nomusic/actions/runs/44694252308) запущены; не называть SUCCESS до фактической проверки conclusion.
+- [Publisher-first Android 13 ARM #44694252239 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44694252239): оригинальный signed 2025+собственный наблюдатель; [clone-alone ARM13 #44694252308 — SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44694252308): отдельный контроль. Оба conclusion проверены, ни один тест не доказывает работающую подмену.
 - Оригинальное приложение не модифицировано; реальный звук, сеть, медиа-тайминг, данные пользователя и второй плеер не затрагиваются. NAV40 `34cb32c8`, подписанная NAV45 `c95c0bf2`, Test.50, Windows — не тронуты. Нового owner-signed APK/ZIP **нет**.
 
 ## Важный оставшийся барьер
