@@ -83,14 +83,32 @@ public final class NativeExoAlternateByteRouteTest {
             "SEEK_REOPENS_APPROVED_RANGE_AT_EXACT_BYTE_OFFSET");
         check(route.readIfApproved(yandexDataSource,b,0,3)==3,
             "SEEK_STREAM_READ");
-        route.cancelForNext();
+        NativeEarlySourceLifecycleBridge originalSelection=new NativeEarlySourceLifecycleBridge(
+            ()->100L,route,()->now);
+        originalSelection.invalidated(2); // the real original source setter's Next hook
         check(factory.instances.get(1).closed,"NEXT_CLOSES_ALT_CURSOR");
-        check(route.openIfApproved(yandexDataSource,0)==null,
-            "NEXT_REVOKES_OLD_APPROVAL");
-        check(route.readIfApproved(yandexDataSource,b,0,8)==null,
-            "NEXT_MUST_NOT_READ_PREVIOUS_TRACK");
-        check(!route.closeIfApproved(yandexDataSource),
-            "UNOPENED_VENDOR_CLOSE_NOT_MASKED");
+        boolean staleOpenRejected=false,staleReadRejected=false;
+        try {route.openIfApproved(yandexDataSource,0);}
+        catch(IOException expected) {staleOpenRejected=true;}
+        try {route.readIfApproved(yandexDataSource,b,0,8);}
+        catch(IOException expected) {staleReadRejected=true;}
+        check(staleOpenRejected && staleReadRejected,
+            "NEXT_RETIRED_ALT_NEVER_FALLS_THROUGH_TO_VENDOR_BYTES");
+        check(route.closeIfApproved(yandexDataSource),
+            "RETIRED_ALT_OWNS_CLOSE_WITHOUT_OPENING_VENDOR");
+        Object nextSource=new Object();
+        NativeGrantContract.Grant nextGrant=new NativeGrantContract.Grant(
+            "39949113","42","main",180000,2,true,true,url,
+            expiration,"audio/mpeg");
+        check(route.armApproved(2,nextSource,"39949113","42","main",
+            180000,nextGrant,"https://audio.example",now,
+            NativeSourceGate.Choice.ALTERNATE),
+            "NEXT_EXACT_DIFFERENT_SOURCE_CAN_ARM");
+        check(route.openIfApproved(nextSource,0)==factory.data.length,
+            "NEXT_NEW_SOURCE_READS_ITS_OWN_ALTERNATE_BYTES");
+        check(route.readIfApproved(nextSource,b,0,7)==7,
+            "NEXT_ALTERNATE_READS");
+        check(route.closeIfApproved(nextSource),"NEXT_ALTERNATE_CLOSES");
         check(!route.armApproved(1,yandexDataSource,"42884423","41","main",
             180000,grant,"https://audio.example",now,
             NativeSourceGate.Choice.ALTERNATE),

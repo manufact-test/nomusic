@@ -99,6 +99,9 @@ final class NativeEarlySourceLifecycleBridge
         // Even an unknown original selection supersedes the previous one.
         // No candidate can inherit another track's revision.
         latestSetterGeneration=generation;
+        // A newly selected original player source retires old Exo alternate
+        // bytes before a new grant can arm a different DataSource instance.
+        nativeExoBytes.cancelForNext();
         clear();
         lifecycleGeneration=lifecycle.beginUnresolvedNativeSelection(
             elapsedClock.getAsLong());

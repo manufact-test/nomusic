@@ -6,6 +6,7 @@ import pro.celikom.yandex.nativehooklab.NativeSourceGate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -91,6 +92,19 @@ final class NativeExoAlternateByteRoute {
     }
 
     private final CursorFactory factory;
+    // Retired alternate-owning instances must never silently resume vendor
+    // reads after Next. Weak identity references avoid pinning old players.
+    private final ArrayList<WeakReference<Object>> retiredSources=new ArrayList<>();
+    private boolean wasRetired(Object source) {
+        if(source==null)return false;
+        boolean found=false;
+        for(int i=retiredSources.size()-1;i>=0;i--) {
+            Object saved=retiredSources.get(i).get();
+            if(saved==null)retiredSources.remove(i);
+            else if(saved==source)found=true;
+        }
+        return found;
+    }
     private WeakReference<Object> originalSource;
     private String signedUrl,expectedMime;
     private long revision=-1;
@@ -116,6 +130,7 @@ final class NativeExoAlternateByteRoute {
             NativeSourceGate.Choice nativeDecision) {
         if(nativeDecision!=NativeSourceGate.Choice.ALTERNATE
                 || selectionGeneration<=highestAcceptedGeneration || nativeSource==null
+                || wasRetired(nativeSource)
                 || originalSource!=null || opening || openedCursor!=null
                 || !NativeGrantContract.isAcceptable(grant,trackId,albumId,
                     editionId,originalDurationMs,origin,unixNowMs))
@@ -130,6 +145,9 @@ final class NativeExoAlternateByteRoute {
         return true;
     }
     synchronized void cancelForNext() {
+        Object previous=originalSource==null?null:originalSource.get();
+        if(previous!=null && (everCommitted || opening) && !wasRetired(previous))
+            retiredSources.add(new WeakReference<>(previous));
         revision=-1;
         aborted=true;
         originalSource=null;
@@ -145,6 +163,7 @@ final class NativeExoAlternateByteRoute {
         final Cursor cursor;
         final long token;
         synchronized(this) {
+            if(wasRetired(source))throw new IOException("stale_alternate_source");
             if(aborted || source==null || offset<0
                     || originalSource==null || originalSource.get()!=source
                     || signedUrl==null)return null;
@@ -204,6 +223,7 @@ final class NativeExoAlternateByteRoute {
             throws IOException {
         Cursor cursor;
         synchronized(this) {
+            if(wasRetired(source))throw new IOException("stale_alternate_source");
             if(source==null || originalSource==null
                     || originalSource.get()!=source)return null;
             if(opening)throw new IOException("alternate_open_in_progress");
@@ -221,6 +241,7 @@ final class NativeExoAlternateByteRoute {
     boolean closeIfApproved(Object source) {
         Cursor cursor;
         synchronized(this) {
+            if(wasRetired(source))return true; // vendor was never opened
             if(originalSource==null || originalSource.get()!=source)
                 return false;
             if(opening) {
