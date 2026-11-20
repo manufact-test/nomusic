@@ -774,6 +774,9 @@ class ReadOnlyMetricaWitnessTest(unittest.TestCase):
                ("AUDIO_NATIVE_TRACK_WRAPPER_HOOK","TRACK_WRAPPER"),
                ("AUDIO_NATIVE_TCA_CREATOR_HOOK","TRACK_CREATOR"),
                ("AUDIO_NATIVE_MAIN_CONTINUATION_HOOK","MAIN_CONTINUATION"),
+               ("AUDIO_NATIVE_TRACK_RESUME_HOOK","TRACK_CONTINUATION_RESUME"),
+               ("AUDIO_NATIVE_MAIN_RESUME_HOOK","MAIN_CONTINUATION_RESUME"),
+               ("AUDIO_ISSUER_PROXY_HOOK","ISSUER_TRACKID_PROXY"),
                ("AUDIO_NATIVE_MAIN_SOURCE_HOOK","MAIN_SOURCE")]
         good="".join(log(431,f"event={event};origin={origin};error=REGISTERED;thread=MAIN")
                      for event,origin in parts)
