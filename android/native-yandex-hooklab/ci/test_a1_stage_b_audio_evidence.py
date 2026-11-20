@@ -617,6 +617,8 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("autoStartOwnerIfSession(activity)", code)
         self.assertIn("attachSettingsEntry(activity)", code)
         self.assertIn("private static boolean isSettingsActivity(Activity activity)", code)
+        self.assertIn("containsSettingsLabel(", code)
+        self.assertNotIn("capturePreviousProcessExits(diagnosticContext)", code)
         self.assertIn("control.hasSession()", code)
         self.assertIn("CELIKOM_SESSION", code)
         self.assertNotIn("attachDiagnosticExportButton(activity)", code)

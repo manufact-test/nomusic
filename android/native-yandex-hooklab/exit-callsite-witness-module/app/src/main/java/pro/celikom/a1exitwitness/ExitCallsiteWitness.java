@@ -4682,7 +4682,6 @@ public final class ExitCallsiteWitness extends XposedModule {
             diagnosticContext = appContext == null ? app : appContext;
             observeOriginalPassportDecryptOutcome(app);
             preinitializeOriginalMasterKeyIfFresh(app);
-            capturePreviousProcessExits(diagnosticContext);
             emit("DIAGNOSTIC_CAPTURE", "LOCAL_FILE", "READY");
             emit("DIAGNOSTIC_BUILD", DIAGNOSTIC_BUILD, "ACTIVE");
         } catch (Throwable ignored) { }
@@ -5632,8 +5631,32 @@ public final class ExitCallsiteWitness extends XposedModule {
         if(activity==null)return false;
         String title=String.valueOf(activity.getTitle()).toLowerCase(java.util.Locale.ROOT);
         String className=activity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
-        return title.contains("настрой") || title.contains("setting")
-            || className.contains("settings") || className.contains("preference");
+        if(title.contains("настрой") || title.contains("setting")
+                || className.contains("settings") || className.contains("preference"))
+            return true;
+        try {
+            return containsSettingsLabel(
+                activity.findViewById(android.R.id.content),0);
+        } catch(Throwable ignored) { return false; }
+    }
+
+    private static boolean containsSettingsLabel(View view,int depth) {
+        if(view==null || depth>6 || view.getVisibility()!=View.VISIBLE)return false;
+        if(view instanceof TextView) {
+            CharSequence raw=((TextView)view).getText();
+            if(raw!=null) {
+                String label=raw.toString().trim().toLowerCase(java.util.Locale.ROOT);
+                if("настройки".equals(label) || "settings".equals(label)
+                        || "preferences".equals(label))return true;
+            }
+        }
+        if(view instanceof ViewGroup) {
+            ViewGroup group=(ViewGroup)view;
+            int limit=Math.min(group.getChildCount(),96);
+            for(int i=0;i<limit;i++)
+                if(containsSettingsLabel(group.getChildAt(i),depth+1))return true;
+        }
+        return false;
     }
 
     private void attachSettingsEntry(Activity activity) {
