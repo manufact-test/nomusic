@@ -2795,6 +2795,11 @@ public final class ExitCallsiteWitness extends XposedModule {
             // No semantic IDs/pre-prepare proof, consumer or replacement yet.
             NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceEvidence(
                 STAGE_B_AUDIO::exactCreatorTrackAlbumBeforeSourceSet);
+            // Real original @Query("trackId") proxy call, only within the
+            // original Track request scope and matching same tCa String key.
+            // Not an album/edition proof; never enable substitution from it.
+            NATIVE_RENDERER_EVIDENCE.setExactPublisherTrackIdEvidence(
+                STAGE_B_AUDIO::exactPublisherTrackIdForCreator);
             NATIVE_RENDERER_EVIDENCE.setEarlyOriginalSourceObserver(
                 NATIVE_EARLY_ADMISSION);
             // Verified current-source callback is downstream from the early

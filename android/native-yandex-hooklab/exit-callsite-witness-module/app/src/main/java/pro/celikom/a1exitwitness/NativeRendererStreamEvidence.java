@@ -292,6 +292,12 @@ final class NativeRendererStreamEvidence {
     // execution. This is not by itself source prepare/decoder or permission.
     // The only early identity is the exact creator-owned Java Track+Album.
     interface EarlyOriginalSourceEvidence { Object[] exact(Object wrapper); }
+    // Only the actual issuer-annotated FileInfo/DownloadInfo proxy trackId
+    // already matched to original Gp0 Track + Album + tCa key may supply it.
+    // This is a candidate, NOT edition/album/decoder/grant authorisation.
+    interface ExactPublisherTrackIdEvidence {
+        String exact(Object wrapper,Object originalTrack,Object originalAlbum);
+    }
     interface EarlyOriginalSourceObserver {
         // This is invoked on EVERY original setter attempt, including a
         // missing Track/Album or an overlapping setter. No stale generation
@@ -307,14 +313,17 @@ final class NativeRendererStreamEvidence {
     static final class EarlyOriginalSourceFrame {
         final Object wrapper,track,album,source;
         final long generation;
+        final String originalPublisherTrackIdCandidate;
         boolean invalid;
         EarlyOriginalSourceFrame(Object wrapper,Object track,Object album,
-                                 Object source,long generation) {
+                Object source,long generation,String publisherTrackIdCandidate) {
             this.wrapper=wrapper;this.track=track;this.album=album;
             this.source=source;this.generation=generation;
+            originalPublisherTrackIdCandidate=publisherTrackIdCandidate;
         }
     }
     private EarlyOriginalSourceEvidence earlyOriginalSourceEvidence;
+    private ExactPublisherTrackIdEvidence exactPublisherTrackIdEvidence;
     private EarlyOriginalSourceObserver earlyOriginalSourceObserver;
     private EarlyOriginalSourceFrame earlySourceInFlight;
     private long earlySourceGeneration;
@@ -336,6 +345,10 @@ final class NativeRendererStreamEvidence {
 
     synchronized void setEarlyOriginalSourceEvidence(EarlyOriginalSourceEvidence evidence) {
         earlyOriginalSourceEvidence=evidence;
+    }
+    synchronized void setExactPublisherTrackIdEvidence(
+            ExactPublisherTrackIdEvidence evidence) {
+        exactPublisherTrackIdEvidence=evidence;
     }
     synchronized void setEarlyOriginalSourceObserver(EarlyOriginalSourceObserver observer) {
         earlyOriginalSourceObserver=observer;
@@ -376,8 +389,17 @@ final class NativeRendererStreamEvidence {
             rejectEarlyOriginalSelection(generation);
             return null;
         }
+        String publisherTrackId=null;
+        if(exactPublisherTrackIdEvidence!=null) {
+            try {
+                String candidate=exactPublisherTrackIdEvidence.exact(
+                    scope.wrapper,pair[0],pair[1]);
+                if(candidate!=null && candidate.matches("[1-9][0-9]{0,23}"))
+                    publisherTrackId=candidate;
+            } catch(Throwable ignored) { }
+        }
         EarlyOriginalSourceFrame frame=new EarlyOriginalSourceFrame(
-            scope.wrapper,pair[0],pair[1],source,generation);
+            scope.wrapper,pair[0],pair[1],source,generation,publisherTrackId);
         earlySourceInFlight=frame;
         // This notification is PENDING, never a source replacement decision.
         // A failed original setter must revoke it in finishEarlyOriginalSourceSet.

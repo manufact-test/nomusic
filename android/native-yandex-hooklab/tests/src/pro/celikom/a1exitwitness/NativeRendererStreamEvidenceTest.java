@@ -2847,6 +2847,60 @@ public final class NativeRendererStreamEvidenceTest {
             "ORIGINAL_ID_NOT_EXPORTED");
     }
 
+    private static void testRealPublisherTrackIdAtNativeSourceSetter() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence renderer=new NativeRendererStreamEvidence();
+        renderer.setEarlyOriginalSourceEvidence(
+            stage::exactCreatorTrackAlbumBeforeSourceSet);
+        renderer.setExactPublisherTrackIdEvidence(
+            stage::exactPublisherTrackIdForCreator);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTrackSourceRequest(track,null);
+        try {stage.onPublisherAnnotatedTrackId("42884423");}
+        finally {stage.exitNativeTrackSourceRequest();}
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper,"42884423");}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        NativeRendererStreamEvidence.TrackPlayerScope scope=
+            renderer.enterTrackPlayerSource(wrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame=
+                renderer.beginEarlyOriginalSourceSet(new FakeSource());
+            check(frame!=null && "42884423".equals(
+                    frame.originalPublisherTrackIdCandidate),
+                "EXACT_ISSUER_API_TRACK_ID_REACHES_EARLY_ORIGINAL_SETTER");
+            renderer.finishEarlyOriginalSourceSet(frame,true);
+        } finally {renderer.exitTrackPlayerSource(scope);}
+        StageBAudioEvidence absent=new StageBAudioEvidence();
+        NativeRendererStreamEvidence empty=new NativeRendererStreamEvidence();
+        empty.setEarlyOriginalSourceEvidence(
+            absent::exactCreatorTrackAlbumBeforeSourceSet);
+        empty.setExactPublisherTrackIdEvidence(
+            absent::exactPublisherTrackIdForCreator);
+        Object plainTrack=new Object(),plainAlbum=new Object(),
+            plainWrapper=new Object();
+        absent.onNativeTrackAlbumConstructed(plainTrack,plainAlbum);
+        absent.enterNativeTcaCreatorOwner(new Object());
+        try {
+            absent.enterNativeTcaCreatorTrackScope(plainTrack,1);
+            try {absent.onNativeTrackWrapperCreated(plainWrapper,"42884423");}
+            finally {absent.exitNativeTcaCreatorTrackScope();}
+        } finally {absent.exitNativeTcaCreatorOwner();}
+        NativeRendererStreamEvidence.TrackPlayerScope blank=
+            empty.enterTrackPlayerSource(plainWrapper);
+        try {
+            NativeRendererStreamEvidence.EarlyOriginalSourceFrame noId=
+                empty.beginEarlyOriginalSourceSet(new FakeSource());
+            check(noId!=null && noId.originalPublisherTrackIdCandidate==null,
+                "UNPROVEN_PROXY_REQUEST_NEVER_BECOMES_SOURCE_ID");
+            empty.finishEarlyOriginalSourceSet(noId,true);
+        } finally {empty.exitTrackPlayerSource(blank);}
+    }
+
     public static void main(String[] args) {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -2937,6 +2991,7 @@ public final class NativeRendererStreamEvidenceTest {
         testExactOriginalPrepareTracksPreopenDataSourceCandidate();
         testExactCreatorBeforeFlowOriginalDataSourceLink();
         testRealPublisherAnnotatedTrackIdCorrelatesCreator();
+        testRealPublisherTrackIdAtNativeSourceSetter();
         testNestedEarlySourceRejectCannotLeavePendingRevision();
         System.out.println("NATIVE_RENDERER_READONLY_EVIDENCE_MODEL_PASS");
     }
