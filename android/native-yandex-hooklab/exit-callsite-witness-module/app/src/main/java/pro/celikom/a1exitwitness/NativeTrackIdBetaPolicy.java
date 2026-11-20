@@ -27,6 +27,11 @@ final class NativeTrackIdBetaPolicy {
     private static final AtomicIntegerArray counts=
         new AtomicIntegerArray(Step.values().length);
     static void mark(Step step) {if(step!=null)counts.incrementAndGet(step.ordinal());}
+    static String replacementStatus() {
+        if(counts.get(Step.AUDIO_READ.ordinal())>0)return "BETA_EXO_AUDIO_READ";
+        if(counts.get(Step.DATASOURCE_ARMED.ordinal())>0)return "BETA_SOURCE_ARMED";
+        return "BETA_NO_ALTERNATE_AUDIO_PROOF";
+    }
     static String[] diagnosticSummary() {
         Step[] steps=Step.values();
         String[] lines=new String[steps.length];
