@@ -497,6 +497,14 @@ def scan(splits):
         else:
             entry["abstract_or_missing_concrete_original_body"]+=1
     return {
+        # Only whitelisted ORIGINAL Retrofit parameter annotation labels;
+        # no private method/field names, IDs or account data.
+        "issuer_api_identity_parameter_labels": {
+            category:sorted({value for method,labels in api_specs.items()
+                if APIS[method[0]]==category
+                for _index,value in labels})
+            for category in sorted(APIS.values())
+        },
         "annotated_trackid_original_entrypoint_shapes": api_entry_shapes,
         "direct_original_api_method_interception_proven": False,
         "trackid_api_exact_intermediate_field_writer_provenance": field_writer_provenance,
