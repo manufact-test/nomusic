@@ -54,3 +54,8 @@ For exact creator-owned Track/Album/wrapper already linked to original Exo descr
 ## 20.11.2026 — unique pre-prepare source witness correction
 
 Unlinked concrete original period prepare now irreversibly revokes structural unique-period evidence for this setter generation, even if the expected period arrives later. Reentrant/repeated prepare of same period consumes the previous unopened DataSource candidate, never upgrades it from a later factory result. No audio bytes, source or player control mutation. Tests cover duplicate and foreign-before-later-current conditions; no semantic triple, approved grant or working audio substitution yet.
+
+
+## 20.11.2026 — final status of previous ARM controls
+
+Latest source code: `41146c6acd9a3b1c2981c95905101cd9a5d8a722` (same branch). JVM [44717158094 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44717158094). Prior 87e4ad3f clone [44716130433 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44716130433), JVM [44716130564 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44716130564). Prior paired [44716130607 FAILURE](https://github.com/manufact-test/nomusic/actions/runs/44716130607) was a clean Android guest two-attempt boot error **before original installed**; it is not a playback verdict. New paired [44717158096](https://github.com/manufact-test/nomusic/actions/runs/44717158096) and clone [44717158107](https://github.com/manufact-test/nomusic/actions/runs/44717158107) still pending when checked. No owner build, identity/grant/alternate byte routing.
