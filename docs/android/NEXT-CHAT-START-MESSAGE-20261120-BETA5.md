@@ -6,7 +6,6 @@
 **GitHub:** `manufact-test/nomusic`
 **Единственная рабочая ветка:** `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 **Последний проверенный код BETA5:** `54452d21ae91a5c4c81b4b8ccf0f8d55e3fb17a8`. После него в ветке есть документационные коммиты; перед изменением кода обязательно прочитай фактический HEAD ветки.
-**Код BETA5:** `54452d21ae91a5c4c81b4b8ccf0f8d55e3fb17a8`.
 
 Сначала прочитай:
 1. `docs/android/NEXT-CHAT.md` — актуальная точка в самом верху.
