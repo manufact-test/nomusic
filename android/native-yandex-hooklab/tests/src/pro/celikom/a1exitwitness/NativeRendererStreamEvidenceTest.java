@@ -2901,7 +2901,8 @@ public final class NativeRendererStreamEvidenceTest {
         } finally {empty.exitTrackPlayerSource(blank);}
     }
 
-    private static void testApprovedNativeGrantRoutesRealOriginalExoPreprepare() {
+    private static void testApprovedNativeGrantRoutesRealOriginalExoPreprepare()
+            throws java.io.IOException {
         final long[] clock={1000};
         final long unix=1795160000000L,expire=((unix/1000)+500)*1000;
         Object track=new Object(),album=new Object(),originalSource=new Object();
@@ -2991,7 +2992,7 @@ public final class NativeRendererStreamEvidenceTest {
             "NO_VERIFIED_ISSUER_TRACK_ID_MEANS_ORIGINAL_EXO");
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws java.io.IOException {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
         testUnscopedAndPoisonedStack();
