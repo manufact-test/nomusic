@@ -5,6 +5,7 @@ on:
     paths:
       - 'android/native-yandex-hooklab/ci/a1_private_track_model_identity_annotation.py'
       - 'android/native-yandex-hooklab/ci/a1_private_track_id_api_provenance.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_uc2_dataspec_position_contract.py'
       - 'android/native-yandex-hooklab/ci/a1_private_original_period_prepare_shape.py'
       - 'android/native-yandex-hooklab/ci/a1_trackid_cfg_track_alias.py'
       - 'android/native-yandex-hooklab/ci/test_a1_trackid_cfg_track_alias.py'
@@ -71,6 +72,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/a1_private_original_period_prepare_shape.py \
+            --xapk "$RUNNER_TEMP/celikom-id-annotation/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Inspect EXACT original Exo DataSpec range-offset shape for real source routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_uc2_dataspec_position_contract.py
+          python3 -B android/native-yandex-hooklab/ci/a1_private_uc2_dataspec_position_contract.py \
             --xapk "$RUNNER_TEMP/celikom-id-annotation/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Securely remove research input; no APK or runtime changes
         if: always()
