@@ -182,9 +182,11 @@ final class NativeEarlySourceLifecycleBridge
         // one selection. This is NOT an original album/edition identity.
         LimitedBetaGrantRequester requester=limitedBetaRequester;
         if(requester!=null && lifecycle.isEnabled()
-                && NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate))
+                && NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate)) {
+            NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.ORIGINAL_SETTER);
             requester.request(generation,trackRef.get(),albumRef.get(),
                 sourceRef.get(),originalPublisherTrackIdCandidate);
+        }
     }
 
     /**
@@ -269,6 +271,7 @@ final class NativeEarlySourceLifecycleBridge
         pendingApprovedAudio=new PendingApprovedAudio(
             scoped.trackId,scoped.albumId,scoped.editionId,allowedOrigin,
             scoped.durationMs,scoped);
+        NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.GRANT_ADMITTED);
         notifyAll(); // bounded Exo pre-prepare beta wait only
         return true;
     }
@@ -335,6 +338,7 @@ final class NativeEarlySourceLifecycleBridge
         if(decision.source!=NativeSourceGate.Choice.ALTERNATE
                 || !decision.applyOnce)
             return false;
+        NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.DECISION_ALTERNATE);
         if(unopenedOriginalDataSource==null) {
             // Selection is committed BEFORE publisher prepare, but factory
             // instantiation must still prove the original creator and source.
@@ -348,6 +352,8 @@ final class NativeEarlySourceLifecycleBridge
             approved.grant,approved.origin,unixClock.getAsLong(),
             decision.source);
         exactAlternateDataSourceInstalled=routed;
+        if(routed)NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.DATASOURCE_ARMED);
         if(!routed)lifecycle.stop(); // never report an uninstalled ALTERNATE
         return routed;
     }
@@ -379,6 +385,8 @@ final class NativeEarlySourceLifecycleBridge
             approved.grant,approved.origin,unixClock.getAsLong(),
             NativeSourceGate.Choice.ALTERNATE);
         exactAlternateDataSourceInstalled=routed;
+        if(routed)NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.DATASOURCE_ARMED);
         return routed;
     }
 
@@ -428,6 +436,7 @@ final class NativeEarlySourceLifecycleBridge
             }
             return;
         }
+        NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.EXACT_PREPARE);
         originalPeriodRef=new WeakReference<>(period);
         prePrepareSourceInstanceRef=originalDataSourceCandidate==null?null:
             new WeakReference<>(originalDataSourceCandidate);

@@ -58,6 +58,7 @@ final class NativeOwnerControlPlane {
                 && System.currentTimeMillis()-current.atMs<30000)return;
         if(originalTrackId.equals(warmingId))return;
         warmingId=originalTrackId;
+        NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.PREFETCH_STARTED);
         final long latest=latestPrefetch.incrementAndGet();
         network.execute(()->{
             try {
@@ -79,8 +80,12 @@ final class NativeOwnerControlPlane {
                             !=null
                             && verifyMpegRange(grant.audioUrl)
                             && owner==epoch.get() && latest==latestPrefetch.get())
-                        warmGrant=new WarmGrant(owner,originalTrackId,grant,
-                            System.currentTimeMillis());
+                        {
+                            warmGrant=new WarmGrant(owner,originalTrackId,grant,
+                                System.currentTimeMillis());
+                            NativeTrackIdBetaPolicy.mark(
+                                NativeTrackIdBetaPolicy.Step.SIGNED_MPEG_READY);
+                        }
                 }
             } catch(Exception ignored) { }
             finally {if(owner==epoch.get())warmingId=null;}
@@ -161,6 +166,8 @@ final class NativeOwnerControlPlane {
                 if(g==epoch.get() && !enabled) {
                     bridge.startForAuthenticatedOwner();
                     enabled=true;
+                    NativeTrackIdBetaPolicy.mark(
+                        NativeTrackIdBetaPolicy.Step.OWNER_ENABLED);
                 }
             });
             return "enabled";
@@ -237,6 +244,7 @@ final class NativeOwnerControlPlane {
     void requestForTrackIdBeta(long generation,Object originalTrack,
             Object originalAlbum,Object originalSource,String publisherTrackId) {
         if(!enabled || !NativeTrackIdBetaPolicy.allows(publisherTrackId))return;
+        NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_REQUEST);
         final long owner=epoch.get();
         WarmGrant ready=warmGrant;
         long now=System.currentTimeMillis();
