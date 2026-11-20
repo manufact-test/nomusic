@@ -453,6 +453,26 @@ final class NativeRendererStreamEvidence {
         return new Object[]{track,album,originalSource};
     }
 
+    /**
+     * A just-created original Exo DataSource is linked to the exact same
+     * publisher setter wrapper, Track, Album, Sl6 source and generation.
+     * This does not provide a grant, IDs, or a pre-prepare decision.
+     */
+    synchronized Object[] exactSetterForFreshSourceCreator(Object wrapper,
+            Object track,Object album) {
+        OriginalSetterLineage saved=exactOriginalSetterLineage;
+        if(poisoned || earlySourceInFlight!=null || saved==null
+                || saved.generation!=earlySourceGeneration
+                || wrapper==null || track==null || album==null
+                || saved.wrapper.get()!=wrapper || saved.track.get()!=track
+                || saved.album.get()!=album)return null;
+        Object nativeSource=saved.source.get();
+        if(nativeSource==null
+                || exactEarlySetterSourceAtGeneration(nativeSource,
+                    saved.generation)==null)return null;
+        return new Object[]{Long.valueOf(saved.generation),nativeSource};
+    }
+
     synchronized void setExactOriginalTrackAlbumEvidence(ExactOriginalTrackAlbumEvidence evidence) {
         exactOriginalTrackAlbumEvidence=evidence;
     }

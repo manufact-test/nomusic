@@ -4099,9 +4099,26 @@ public final class ExitCallsiteWitness extends XposedModule {
                     .intercept(chain -> {
                         Object result = chain.proceed(); // exact vendor factory once
                         try {
-                            if (result != null)
+                            if (result != null) {
                                 STAGE_B_AUDIO.onExoSourceInstanceCreated(
                                     result,chain.getThisObject());
+                                // A native DataSource is often born only AFTER
+                                // original MediaPeriod.prepare. Arm it solely
+                                // when the alternate was already committed at
+                                // that precise original prepare and the exact
+                                // publisher creator/source lineage still matches.
+                                Object[] creator=
+                                    STAGE_B_AUDIO.exactFreshCreatorForDataSource(result);
+                                if(creator!=null) {
+                                    Object[] setter=
+                                        NATIVE_RENDERER_EVIDENCE.exactSetterForFreshSourceCreator(
+                                            creator[0],creator[1],creator[2]);
+                                    if(setter!=null)NATIVE_EARLY_ADMISSION
+                                        .armDeferredOriginalDataSource(
+                                            (Long)setter[0],creator[1],creator[2],
+                                            setter[1],result);
+                                }
+                            }
                         } catch (Throwable ignored) { }
                         return result;
                     });

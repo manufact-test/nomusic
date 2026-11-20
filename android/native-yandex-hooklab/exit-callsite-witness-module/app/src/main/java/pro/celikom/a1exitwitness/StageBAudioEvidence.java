@@ -845,6 +845,31 @@ final class StageBAudioEvidence {
         return descriptor!=null && factory!=null ? dataSource : null;
     }
 
+    /**
+     * The SAME original Track/Album/tCa -> descriptor -> factory -> FRESH
+     * DataSource identity that the original publisher just constructed.
+     * Never claim current playback, audio rights or edition from this alone.
+     */
+    synchronized Object[] exactFreshCreatorForDataSource(Object dataSource) {
+        if(dataSource==null || touchedHistorySaturated
+                || wasSourceTouched(dataSource))return null;
+        NativeTrackSourceLink link=findBySource(dataSource);
+        if(link==null || link.sourceInstance==null
+                || link.sourceInstance.get()!=dataSource
+                || link.sourceOpened || link.sourceEverTouched
+                || link.sourceReadAfterOpen || link.descriptor==null
+                || link.descriptor.get()==null || link.factoryResult==null
+                || link.factoryResult.get()==null || link.wrapper==null
+                || link.track==null || link.albumInstance==null)return null;
+        Object wrapper=link.wrapper.get(),track=link.track.get();
+        Object album=link.albumInstance.get();
+        if(wrapper==null || track==null || album==null)return null;
+        Object[] original=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        return original!=null && original.length==2
+            && original[0]==track && original[1]==album
+            ?new Object[]{wrapper,track,album}:null;
+    }
+
     private NativeTrackSourceLink findByWrapper(Object wrapper) {
         if (wrapper==null) return null;
         NativeTrackSourceLink match=null;
