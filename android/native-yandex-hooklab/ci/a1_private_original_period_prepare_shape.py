@@ -48,6 +48,7 @@ def declared_methods(dex, class_index):
 
 def scan(splits):
     found={}
+    callbacks={}
     dex_count=0
     for apk in splits:
         with zipfile.ZipFile(apk) as z:
@@ -59,6 +60,9 @@ def scan(splits):
                 for ci in range(dex.class_count):
                     base=dex.class_offset+ci*32
                     desc=dex.descriptor(dex.u32(base))
+                    if desc.startswith("Lwh6$") and desc.endswith(";"):
+                        if desc in callbacks:raise ValueError("PERIOD_CALLBACK_CLASS_DUPLICATE")
+                        callbacks[desc]=bool(dex.u32(base+4)&0x200)
                     if desc not in (IFACE,CONCRETE):
                         continue
                     if desc in found:
@@ -83,14 +87,20 @@ def scan(splits):
          and not (flags&0x0400) and not (flags&0x0008))
         for (owner,name,proto),flags in concrete["methods"]
     )
+    callback_interface_count=sum(
+        callbacks.get(audit.parse_types(proto)[0]) is True
+        for _name,proto in candidates
+    )
     return {
         "verdict": ("ONE_EXACT_CONCRETE_PERIOD_PREPARE_SHAPE"
                     if iface["is_interface"] and not concrete["is_interface"]
                     and len(candidates)==1 and exact_matches==1
+                    and callback_interface_count==1
                     else "NO_GO_PERIOD_PREPARE_SHAPE_NOT_UNIQUE"),
         "original_period_interface_defined":iface["is_interface"],
         "concrete_period_class_defined":not concrete["is_interface"],
         "callback_long_void_contract_count":len(candidates),
+        "nested_callback_interface_count":callback_interface_count,
         "concrete_override_count":exact_matches,
         "live_original_prepare_observed":False,
         "current_track_album_edition_attested":False,
