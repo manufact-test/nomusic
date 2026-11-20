@@ -2723,6 +2723,24 @@ public final class NativeRendererStreamEvidenceTest {
                 frame.generation,originalPeriod,dataSource),
             "PREFETCH_SECOND_PERIOD_REVOKES_CANDIDATE");
         // A real opened instance is too late to classify as pre-open.
+        stage.onExoSourceInstanceOpenAttempt(dataSource);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==null,
+            "OPEN_STARTED_BEFORE_SUCCESS_CANNOT_BE_PREPREPARE_CANDIDATE");
+        stage.onExoSourceInstanceOpenFailure(dataSource);
+        stage.onExoSourceInstanceClose(dataSource);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==null,
+            "FAILED_OPEN_AND_CLOSE_CANNOT_RESET_SOURCE_FRESHNESS");
+        stage.onExoSourceInstanceCreated(dataSource,factory);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==null,
+            "REUSED_SAME_DATASOURCE_INSTANCE_CANNOT_BE_FRESH");
+        Object genuinelyNewSource=new Object();
+        stage.onExoSourceInstanceCreated(genuinelyNewSource,factory);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)
+                ==genuinelyNewSource,
+            "FRESH_FACTORY_SOURCE_INSTANCE_ELIGIBLE_BEFORE_FIRST_READ");
+        stage.onExoSourceInstanceReadAttempt(genuinelyNewSource);
+        check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==null,
+            "READ_ENTRY_REVOKES_FRESHNESS_BEFORE_BYTES_RETURN");
         stage.onExoSourceInstanceOpen(dataSource);
         check(stage.exactFreshSourceInstanceForCreator(wrapper,track,album)==null,
             "OPENED_SOURCE_CANNOT_BE_USED_AS_PREPREPARE_CANDIDATE");

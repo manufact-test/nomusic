@@ -58,6 +58,7 @@ final class StageBAudioEvidence {
         // A positive read is only attributable after open() succeeded on
         // THIS source and THIS lineage. Never rely on aggregate read counts.
         boolean sourceOpened;
+        boolean sourceEverTouched;
         boolean sourceReadAfterOpen;
         boolean sourceAlbumReadAfterOpen;
     }
@@ -83,6 +84,39 @@ final class StageBAudioEvidence {
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<TrackAlbumLink> nativeTrackAlbumLinks = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
+    // First open/read/close permanently disqualifies this Java instance as a
+    // *fresh* candidate even if a later factory links that SAME instance.
+    // Weak, bounded, identity-only; saturation fails closed.
+    private final ArrayList<WeakReference<Object>> touchedSourceInstances =
+        new ArrayList<>();
+    private WeakReference<Object> lastTouchedSource;
+    private boolean touchedHistorySaturated;
+    private static final int MAX_TOUCHED_SOURCE_INSTANCES = 256;
+    private boolean wasSourceTouched(Object source) {
+        if(source==null || touchedHistorySaturated)return true;
+        if(lastTouchedSource!=null && lastTouchedSource.get()==source)return true;
+        for(int i=touchedSourceInstances.size()-1;i>=0;i--) {
+            Object prior=touchedSourceInstances.get(i).get();
+            if(prior==source) {
+                lastTouchedSource=touchedSourceInstances.get(i);
+                return true;
+            }
+            if(prior==null)touchedSourceInstances.remove(i);
+        }
+        return false;
+    }
+    private void markSourceTouched(Object source) {
+        if(source==null || wasSourceTouched(source))return;
+        if(touchedSourceInstances.size()>=MAX_TOUCHED_SOURCE_INSTANCES) {
+            // No evicted live source may ever be accidentally treated as
+            // a new unopened DataSource on a future factory rebind.
+            if(touchedSourceInstances.get(0).get()!=null)
+                touchedHistorySaturated=true;
+            touchedSourceInstances.remove(0);
+        }
+        lastTouchedSource=new WeakReference<>(source);
+        touchedSourceInstances.add(lastTouchedSource);
+    }
     // NAV40: exact original tCa creator-owned Track + Album, weak only.
     private static final class WrapperBirth {
         final WeakReference<Object> wrapper;
@@ -704,9 +738,11 @@ final class StageBAudioEvidence {
                 || link.albumInstance==null || link.albumInstance.get()!=expectedAlbum
                 || link.descriptor==null || link.factoryResult==null
                 || link.sourceInstance==null || link.sourceOpened
-                || link.sourceReadAfterOpen)return null;
+                || link.sourceEverTouched || link.sourceReadAfterOpen)return null;
         Object descriptor=link.descriptor.get(),factory=link.factoryResult.get();
         Object dataSource=link.sourceInstance.get();
+        if(dataSource==null || wasSourceTouched(dataSource)
+                || findBySource(dataSource)!=link)return null;
         return descriptor!=null && factory!=null ? dataSource : null;
     }
 
@@ -847,6 +883,7 @@ final class StageBAudioEvidence {
         if (link!=null && source!=null) {
             link.sourceInstance=new WeakReference<>(source);
             link.sourceOpened=false;
+            link.sourceEverTouched=wasSourceTouched(source);
             link.sourceReadAfterOpen=false;
             link.sourceAlbumReadAfterOpen=false;
             trackSourceReadInspectionBudget.set(0);
@@ -866,9 +903,11 @@ final class StageBAudioEvidence {
 
     void onExoSourceInstanceOpenAttempt(Object source) {
         synchronized(this) {
+            markSourceTouched(source);
             NativeTrackSourceLink link=findBySource(source);
             if (link!=null) {
                 link.sourceOpened=false;
+                link.sourceEverTouched=true;
                 link.sourceAlbumReadAfterOpen=false;
                 trackSourceReadInspectionBudget.set(0);
             }
@@ -878,19 +917,25 @@ final class StageBAudioEvidence {
     }
 
     void onExoSourceInstanceOpenFailure(Object source) {
-        // A late or overlapping failed open must revoke previous success.
+        // A failed open is not a fresh source; do not rewind after failure.
         synchronized(this) {
+            markSourceTouched(source);
             NativeTrackSourceLink link=findBySource(source);
-            if (link!=null) link.sourceOpened=false;
+            if (link!=null) {
+                link.sourceOpened=false;
+                link.sourceEverTouched=true;
+            }
         }
     }
 
     void onExoSourceInstanceClose(Object source) {
         // Fail closed before the unmodified vendor close(), even if it throws.
         synchronized(this) {
+            markSourceTouched(source);
             NativeTrackSourceLink link=findBySource(source);
             if (link!=null) {
                 link.sourceOpened=false;
+                link.sourceEverTouched=true;
                 mark(linkedSourceCloseCalls);
             }
         }
@@ -899,10 +944,12 @@ final class StageBAudioEvidence {
     void onExoSourceInstanceOpen(Object source) {
         if (sameExoSource(source)) mark(exoSourceInstancesOpened);
         synchronized(this) {
+            markSourceTouched(source);
             NativeTrackSourceLink link=findBySource(source);
             if (link!=null) {
                 // Called after the original vendor open() returned normally.
                 link.sourceOpened=true;
+                link.sourceEverTouched=true;
                 link.sourceAlbumReadAfterOpen=false;
                 if (link.albumInstance!=null && link.albumInstance.get()!=null)
                     mark(trackSourceAlbumOpenLinks);
@@ -924,7 +971,16 @@ final class StageBAudioEvidence {
         mark(trackSourceDistinctPositiveReads);
     }
 
+    /** Invoked before publisher read(), not after its first bytes. */
+    synchronized void onExoSourceInstanceReadAttempt(Object source) {
+        NativeTrackSourceLink link=findBySource(source);
+        if(link!=null && link.sourceEverTouched)return;
+        markSourceTouched(source);
+        if(link!=null)link.sourceEverTouched=true;
+    }
+
     void onExoSourceInstanceRead(Object source,int count) {
+        onExoSourceInstanceReadAttempt(source);
         // Privacy-safe, bounded first reads only. No buffers, offsets,
         // DataSpec, titles, URLs, content or vendor toString() are inspected.
         if (count > 0 && firstAtMost(exoSourceReadProbeBudget,16)

@@ -1,3 +1,11 @@
+# CURRENT 20.11.2026 — one-source pre-prepare freshness race closed
+
+The exact original pre-prepare DataSource candidate is revoked on open entry, read entry, failed open, close, reissued factory referencing the SAME old Java source instance, and nonunique source mapping across tracks. Weak identity-only history is bounded and fails closed on saturation; common hot-path reads skip repeated scans once the source is already marked. Original publisher open/read/close still run exactly once, bytes not mutated.
+
+**Still no semantic trackId+albumId+editionId from this same source; no approved grant/alternate routing; replacement OFF, no owner APK.** The preceding HEAD 69ab6ebe had JVM + both ARM13 SUCCESS (44710291864, 44710292001, 44710291805). Check new CI after this commit.
+
+---
+
 # CURRENT 20.11.2026 — original pre-prepare tied to exact fresh Exo DataSource instance (structural, no swap)
 
 The existing original `Track+Album -> tCa wrapper -> descriptor -> Exo factory -> DataSource instance` lineage can now supply **one weak, not-yet-opened original DataSource candidate** when the same original source generation enters the exact original MediaPeriod prepare observer. Any mismatched original Track/Album, opened source, other period, multi-period prefetch or Next cannot retain this candidate. The supplier is wired from the existing `StageBAudioEvidence` into the same `NativeRendererStreamEvidence`/canonical bridge; no new player or listener. Dedicated Java model regression checks positive/negative cases.
