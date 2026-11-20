@@ -5650,6 +5650,7 @@ public final class ExitCallsiteWitness extends XposedModule {
         params.topMargin=diagnosticDp(activity,101);
         params.rightMargin=diagnosticDp(activity,12);
         root.addView(button,params);
+        emit("BETA_OWNER_UI","BUTTON","ATTACHED");
     }
     private void activateOwnerAudio(Activity activity,
             NativeOwnerControlPlane control,TextView button) {
@@ -5658,7 +5659,7 @@ public final class ExitCallsiteWitness extends XposedModule {
             if(activity.isFinishing() || activity.isDestroyed())return;
             button.setText(control.enabled()?"CELIKOM BETA: ВКЛ":"CELIKOM BETA: ВЫКЛ");
             String message="enabled".equals(code)
-                ?"CELIKOM BETA: только два тестовых трека":
+                ?"CELIKOM BETA включён. Проверяем Ramil Ау":
                 "not_entitled".equals(code)?"Нет доступа CELIKOM":
                 "login_required".equals(code)?"Нужно войти в CELIKOM":
                 "service_unavailable".equals(code)?"CELIKOM временно недоступен":
