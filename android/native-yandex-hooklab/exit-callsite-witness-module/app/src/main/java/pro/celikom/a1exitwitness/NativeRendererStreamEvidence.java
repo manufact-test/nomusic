@@ -231,6 +231,21 @@ final class NativeRendererStreamEvidence {
     private EarlyOriginalSourceObserver earlyOriginalSourceObserver;
     private EarlyOriginalSourceFrame earlySourceInFlight;
     private long earlySourceGeneration;
+    // Strong Track/Album/source refs live ONLY in the synchronous hook frame;
+    // after a successful original setter only weak identity lineage is kept.
+    // Never label this object as current PCM or decoder pre-prepare proof.
+    private static final class OriginalSetterLineage {
+        final WeakReference<Object> wrapper,track,album,source;
+        final long generation;
+        OriginalSetterLineage(EarlyOriginalSourceFrame frame) {
+            wrapper=new WeakReference<>(frame.wrapper);
+            track=new WeakReference<>(frame.track);
+            album=new WeakReference<>(frame.album);
+            source=new WeakReference<>(frame.source);
+            generation=frame.generation;
+        }
+    }
+    private OriginalSetterLineage exactOriginalSetterLineage;
 
     synchronized void setEarlyOriginalSourceEvidence(EarlyOriginalSourceEvidence evidence) {
         earlyOriginalSourceEvidence=evidence;
@@ -242,6 +257,7 @@ final class NativeRendererStreamEvidence {
         // Every selection attempt, even one without proof, invalidates prior
         // pending generations. No repeat/Next may inherit the old candidate.
         long generation=++earlySourceGeneration;
+        exactOriginalSetterLineage=null; // Next/replay/unscoped setter invalidates it.
         if(earlySourceInFlight!=null) {
             earlySourceInFlight.invalid=true;
             return null; // overlapping/nested setters are never admitted
@@ -274,11 +290,35 @@ final class NativeRendererStreamEvidence {
             && inPlayerTrack.get()!=null
             && inPlayerTrack.get().wrapper==frame.wrapper;
         if(earlySourceInFlight==frame)earlySourceInFlight=null;
+        if(succeeded)exactOriginalSetterLineage=new OriginalSetterLineage(frame);
         if(earlyOriginalSourceObserver!=null) {
             try {earlyOriginalSourceObserver.completed(frame.generation,succeeded);}
             catch(Throwable ignored) { }
         }
     }
+    /**
+     * Exact immutable original setter lineage for one successful selection
+     * attempt, never a current-player, PCM, edition or ID assertion.
+     * Any later source setter invalidates the previous generation first.
+     */
+    synchronized Object[] exactEarlySetterSourceAtGeneration(
+            Object originalSource,long expectedGeneration) {
+        OriginalSetterLineage saved=exactOriginalSetterLineage;
+        if(poisoned || earlySourceInFlight!=null || originalSource==null
+                || saved==null || expectedGeneration!=earlySourceGeneration
+                || expectedGeneration!=saved.generation
+                || saved.source.get()!=originalSource
+                || earlyOriginalSourceEvidence==null)return null;
+        Object wrapper=saved.wrapper.get(),track=saved.track.get(),album=saved.album.get();
+        if(wrapper==null || track==null || album==null)return null;
+        Object[] still;
+        try {still=earlyOriginalSourceEvidence.exact(wrapper);}
+        catch(Throwable ignored) {return null;}
+        if(still==null || still.length!=2
+                || still[0]!=track || still[1]!=album)return null;
+        return new Object[]{track,album,originalSource};
+    }
+
     synchronized void setExactOriginalTrackAlbumEvidence(ExactOriginalTrackAlbumEvidence evidence) {
         exactOriginalTrackAlbumEvidence=evidence;
     }

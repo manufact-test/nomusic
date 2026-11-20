@@ -372,13 +372,27 @@ final class StageBAudioEvidence {
             if(found!=null)return null;
             found=birth;
         }
-        if(found==null || found.scopeAtBirth!=12
-                || found.creatorTrack==null || found.albumAtBirth==null)return null;
-        Object track=found.creatorTrack.get();
-        Object album=found.albumAtBirth.get();
+        if(found==null || (found.scopeAtBirth!=12 && found.scopeAtBirth!=14))
+            return null;
+        Object track,album;
+        if(found.scopeAtBirth==12) {
+            // Signed original creator Track not in Flow at wrapper birth.
+            if(found.creatorTrack==null || found.albumAtBirth==null)return null;
+            track=found.creatorTrack.get();
+            album=found.albumAtBirth.get();
+        } else {
+            // The same original creator Track had ALREADY entered the
+            // original Flow when the wrapper was constructed. Its exact
+            // Track+Album reference is in the unique at-birth wrapper link.
+            NativeTrackSourceLink linked=findByWrapper(wrapper);
+            if(linked==null || linked.track==null || linked.albumInstance==null)
+                return null;
+            track=linked.track.get();
+            album=linked.albumInstance.get();
+            if(!wasNativeTrackFlowItem(track))return null;
+        }
         if(track==null || album==null || findTrackAlbum(track)!=album)return null;
-        // A wrapper rebinding or a conflicting later Flow can never recycle
-        // its creator identity for another native selection.
+        // A rebinding or conflicting later Flow cannot recycle creator proof.
         for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
             if(link.wrapper==null || link.wrapper.get()!=wrapper)continue;
             if(link.track==null || link.track.get()!=track)return null;
