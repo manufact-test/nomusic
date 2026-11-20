@@ -57,6 +57,16 @@ final class NativeEarlySourceLifecycleBridge
             AuthenticatedSourceGrantRequester requester) {
         authenticatedRequester=requester;
     }
+
+    /** The user's two-ID beta is separate from exact-triple admission. */
+    interface LimitedBetaGrantRequester {
+        void request(long generation,Object originalTrack,Object originalAlbum,
+            Object originalSource,String exactPublisherTrackId);
+    }
+    private LimitedBetaGrantRequester limitedBetaRequester;
+    synchronized void setLimitedBetaGrantRequester(LimitedBetaGrantRequester requester) {
+        limitedBetaRequester=requester;
+    }
     private long latestSetterGeneration = -1;
     private long lifecycleGeneration;
     private boolean originalSetterSucceeded;
@@ -96,6 +106,7 @@ final class NativeEarlySourceLifecycleBridge
         pendingApprovedAudio=null;
         deferredIssuedAudio=null;
         deferredIssuedGeneration=-1;
+        notifyAll();
         // Never cut already issued/native Exo bytes mid-song on Stop.
     }
     private void clear() {
@@ -114,6 +125,7 @@ final class NativeEarlySourceLifecycleBridge
         deferredIssuedAudio=null;
         deferredIssuedGeneration=-1;
         exactAlternateDataSourceInstalled=false;
+        notifyAll();
     }
 
     @Override public synchronized void invalidated(long generation) {
@@ -163,7 +175,16 @@ final class NativeEarlySourceLifecycleBridge
             // A failed publisher setter must also abort an in-flight model
             // admission: a later FileInfo callback must not resurrect it.
             lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
+            return;
         }
+        // Exact Track/Album/source are original Java references. Only the
+        // publisher-signed Retrofit trackId + creator tCa key can name this
+        // one selection. This is NOT an original album/edition identity.
+        LimitedBetaGrantRequester requester=limitedBetaRequester;
+        if(requester!=null && lifecycle.isEnabled()
+                && NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate))
+            requester.request(generation,trackRef.get(),albumRef.get(),
+                sourceRef.get(),originalPublisherTrackIdCandidate);
     }
 
     /**
@@ -207,6 +228,68 @@ final class NativeEarlySourceLifecycleBridge
         if(requester!=null)requester.request(generation,originalTrack,
             originalAlbum,originalSource,track,album,edition,originalDurationMs);
         return true;
+    }
+
+    /**
+     * Explicit owner-consented two-song trackId-only BETA. Never infer an
+     * original Album/Edition or duration from the server; the strict native
+     * source/track reference and original issuer Retrofit trackId MUST match.
+     * The signed CELIKOM server duration/album placeholders are scope tags
+     * inside the existing admission gate, never publisher identity evidence.
+     */
+    synchronized boolean offerLimitedBetaSignedAudio(long generation,
+            Object originalTrack,Object originalAlbum,Object originalSource,
+            String exactPublisherTrackId,NativeGrantContract.Grant serverGrant,
+            String allowedOrigin) {
+        if(!lifecycle.isEnabled() || originalPeriodPrepareSealed
+                || originalPeriodRef!=null || pendingApprovedAudio!=null
+                || !isSuccessfulOriginalSource(generation,originalTrack,
+                    originalAlbum,originalSource)
+                || originalPublisherTrackIdCandidate==null
+                || !originalPublisherTrackIdCandidate.equals(exactPublisherTrackId))
+            return false;
+        long now=unixClock.getAsLong();
+        NativeGrantContract.Grant scoped=NativeTrackIdBetaPolicy.signedTrialGrant(
+            exactPublisherTrackId,serverGrant,allowedOrigin,now);
+        if(scoped==null || !"audio/mpeg".equals(scoped.mimeType))
+            return false;
+        long elapsed=elapsedClock.getAsLong();
+        if(!lifecycle.certifyNativeIdentity(lifecycleGeneration,scoped.trackId,
+                scoped.albumId,scoped.editionId,elapsed)
+                || !lifecycle.observeFileInfo(lifecycleGeneration,scoped.trackId,
+                    scoped.albumId,scoped.editionId))
+            return false;
+        NativeSourceGate.Candidate candidate=new NativeSourceGate.Candidate(
+            scoped.trackId,scoped.albumId,scoped.editionId,
+            true,true,true,true,true,true);
+        if(lifecycle.offerValidated(lifecycleGeneration,candidate,scoped,
+                allowedOrigin,scoped.durationMs,elapsed,now)
+                !=NativePrePrepareAdmission.Offer.ACCEPTED_PENDING)
+            return false;
+        pendingApprovedAudio=new PendingApprovedAudio(
+            scoped.trackId,scoped.albumId,scoped.editionId,allowedOrigin,
+            scoped.durationMs,scoped);
+        notifyAll(); // bounded Exo pre-prepare beta wait only
+        return true;
+    }
+
+    /** Optional bounded grace window on the native Exo worker, never UI thread. */
+    synchronized void awaitLimitedBetaGrantAtPrepare(long maxMs) {
+        if(!lifecycle.isEnabled() || !originalSetterSucceeded
+                || !NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate)
+                || pendingApprovedAudio!=null || originalPeriodPrepareSealed
+                || maxMs<=0)return;
+        long finish=System.nanoTime()+Math.min(maxMs,450L)*1000000L;
+        while(pendingApprovedAudio==null && !originalPeriodPrepareSealed
+                && originalSetterSucceeded && lifecycle.isEnabled()) {
+            long remaining=finish-System.nanoTime();
+            if(remaining<=0)break;
+            try {wait(Math.max(1L,(remaining+999999L)/1000000L));}
+            catch(InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
     }
 
     /**
