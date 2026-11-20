@@ -1,3 +1,9 @@
+# Актуальная короткая точка передачи — 20.11.2026
+
+Продолжение CELIKOM Android A1: **[LIVE-AUDIO HANDOFF](CELIKOM-A1-LIVE-AUDIO-NEXT-CHAT-2026-11-20.md)**. После последнего прохода проверены: [JVM #44730902321 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730902321), [clone ARM13 #44730740418 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730740418), [paired ARM13 #44730740525 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44730740525). Последний код `745179b1`; документация отражает полный реальный Exo byte-route и оставшиеся отсутствующие original album+edition и production grant. **Звук не подтверждён, APK нет**. Начать с короткого handoff, а ниже — архивная история.
+
+---
+
 # CURRENT 20.11.2026 — real original Exo encoded-byte route, exact signed seek position, approval handoff
 
 **Working executable HEAD:** [745179b1](https://github.com/manufact-test/nomusic/commit/745179b11b0f837d1cdf9d46cbe142f225c2ffe3); do not restart architecture or touch NAV40/NAV45/Test.50/Windows/backend. Sole branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
