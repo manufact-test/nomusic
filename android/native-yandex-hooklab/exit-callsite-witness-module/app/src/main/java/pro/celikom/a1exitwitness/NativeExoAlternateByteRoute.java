@@ -94,6 +94,7 @@ final class NativeExoAlternateByteRoute {
     private WeakReference<Object> originalSource;
     private String signedUrl,expectedMime;
     private long revision=-1;
+    private long highestAcceptedGeneration=-1;
     private Cursor openedCursor;
     private boolean opening,everCommitted,aborted;
     NativeExoAlternateByteRoute() {
@@ -114,12 +115,13 @@ final class NativeExoAlternateByteRoute {
             NativeGrantContract.Grant grant,String origin,long unixNowMs,
             NativeSourceGate.Choice nativeDecision) {
         if(nativeDecision!=NativeSourceGate.Choice.ALTERNATE
-                || selectionGeneration<0 || nativeSource==null
+                || selectionGeneration<=highestAcceptedGeneration || nativeSource==null
                 || originalSource!=null || opening || openedCursor!=null
                 || !NativeGrantContract.isAcceptable(grant,trackId,albumId,
                     editionId,originalDurationMs,origin,unixNowMs))
             return false;
         revision=selectionGeneration;
+        highestAcceptedGeneration=selectionGeneration;
         originalSource=new WeakReference<>(nativeSource);
         signedUrl=grant.audioUrl;
         expectedMime=grant.mimeType;
@@ -143,12 +145,22 @@ final class NativeExoAlternateByteRoute {
         final Cursor cursor;
         final long token;
         synchronized(this) {
-            if(aborted || opening || source==null || offset<0
+            if(aborted || source==null || offset<0
                     || originalSource==null || originalSource.get()!=source
                     || signedUrl==null)return null;
+            if(opening)throw new IOException("alternate_open_overlap");
             opening=true;
             token=revision;
-            cursor=factory.create(signedUrl,expectedMime);
+            try {cursor=factory.create(signedUrl,expectedMime);}
+            catch(RuntimeException error) {
+                opening=false;
+                aborted=true;
+                originalSource=null;
+                signedUrl=null;
+                expectedMime=null;
+                if(everCommitted)throw new IOException("alternate_factory_failed",error);
+                return null;
+            }
             Cursor old=openedCursor;
             openedCursor=null;
             if(old!=null)old.close();
@@ -190,8 +202,13 @@ final class NativeExoAlternateByteRoute {
             throws IOException {
         Cursor cursor;
         synchronized(this) {
-            if(source==null || openedCursor==null || originalSource==null
+            if(source==null || originalSource==null
                     || originalSource.get()!=source)return null;
+            if(opening)throw new IOException("alternate_open_in_progress");
+            if(openedCursor==null) {
+                if(everCommitted)throw new IOException("alternate_read_without_open");
+                return null;
+            }
             cursor=openedCursor;
         }
         // No additional player or buffer/PCM transformation. Blocking read
@@ -202,8 +219,19 @@ final class NativeExoAlternateByteRoute {
     boolean closeIfApproved(Object source) {
         Cursor cursor;
         synchronized(this) {
-            if(originalSource==null || originalSource.get()!=source
-                    || openedCursor==null)return false;
+            if(originalSource==null || originalSource.get()!=source)
+                return false;
+            if(opening) {
+                // A concurrent close invalidates the in-flight alternate
+                // before it can publish a stream for the old DataSource.
+                aborted=true;
+                revision=-1;
+                originalSource=null;
+                signedUrl=null;
+                expectedMime=null;
+                return true;
+            }
+            if(openedCursor==null)return everCommitted;
             cursor=openedCursor;
             openedCursor=null;
         }

@@ -91,6 +91,10 @@ public final class NativeExoAlternateByteRouteTest {
             "NEXT_MUST_NOT_READ_PREVIOUS_TRACK");
         check(!route.closeIfApproved(yandexDataSource),
             "UNOPENED_VENDOR_CLOSE_NOT_MASKED");
+        check(!route.armApproved(1,yandexDataSource,"42884423","41","main",
+            180000,grant,"https://audio.example",now,
+            NativeSourceGate.Choice.ALTERNATE),
+            "NEXT_CANNOT_REUSE_OLD_SIGNED_SELECTION_GENERATION");
 
         Factory broken=new Factory();
         broken.fail=true;
@@ -103,6 +107,10 @@ public final class NativeExoAlternateByteRouteTest {
             "FAILED_FIRST_ALT_OPEN_RETURNS_CONTROL_TO_ORIGINAL");
         check(beforeAnyByte.openIfApproved(yandexDataSource,0)==null,
             "FAILED_ALT_SOURCE_NOT_REARMED");
+        check(!beforeAnyByte.armApproved(3,yandexDataSource,"42884423","41","main",
+            180000,grant,"https://audio.example",now,
+            NativeSourceGate.Choice.ALTERNATE),
+            "FAILED_OPEN_CANNOT_REARM_SAME_SELECTION");
         Factory drop=new Factory();
         NativeExoAlternateByteRoute afterAudio=new NativeExoAlternateByteRoute(drop);
         check(afterAudio.armApproved(4,yandexDataSource,"42884423","41","main",
@@ -115,6 +123,16 @@ public final class NativeExoAlternateByteRouteTest {
         try {afterAudio.openIfApproved(yandexDataSource,2);}
         catch(IOException expected){threw=true;}
         check(threw,"AFTER_ALT_BYTES_NO_UNSAFE_ORIGINAL_MIXING");
+        boolean noOriginalMix=false;
+        try {afterAudio.readIfApproved(yandexDataSource,b,0,2);}
+        catch(IOException expected) {noOriginalMix=true;}
+        // Failed seek cancels old alternate; caller must never silently
+        // claim fresh original bytes inside that same decoder stream.
+        check(afterAudio.openIfApproved(yandexDataSource,0)==null,
+            "FAILED_SEEK_DISCARDS_ALTERNATE_GENERATION");
+        check(noOriginalMix || !afterAudio.isArmed(yandexDataSource),
+            "FAILED_SEEK_CANNOT_KEEP_STALE_ALT_ARMED");
+
         System.out.println("NATIVE_EXO_SINGLE_PLAYER_ENCODED_BYTES_ROUTE_PASS");
     }
 }
