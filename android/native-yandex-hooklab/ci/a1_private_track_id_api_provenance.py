@@ -386,6 +386,7 @@ def scan(splits):
     apis_seen = set()
     api_specs = {}
     method_defs = {}
+    api_interfaces = {}
     api_calls = []
     accessor = {}
     dex_count = 0
@@ -401,6 +402,10 @@ def scan(splits):
                     if owner not in APIS:
                         continue
                     apis_seen.add(APIS[owner])
+                    flags=dex.u32(dex.class_offset + ci * 32 + 4)
+                    if owner in api_interfaces:
+                        raise ValueError("SOURCE_API_DEFINED_TWICE")
+                    api_interfaces[owner]=bool(flags & 0x0200)
                     for method, labels in api_parameter_labels(dex, ci).items():
                         if method[0] != owner:
                             raise ValueError("SOURCE_API_ANNOTATION_OWNER_DRIFT")
@@ -409,6 +414,8 @@ def scan(splits):
                                 raise ValueError("SOURCE_API_ANNOTATED_METHOD_DUPLICATE")
                             api_specs[method] = sorted(labels)
                 for method, flags, off in audit.method_definitions_with_flags(dex):
+                    if method[0] in APIS:
+                        method_defs[method]=flags
                     if method[0] in (TRACK, ALBUM) and method[1] in ("super", "if"):
                         key = ("TRACK" if method[0] == TRACK else "ALBUM") + "_" + method[1]
                         # String-producing getter method shape is informative
@@ -468,7 +475,30 @@ def scan(splits):
     upstream_rows = inspect_one_upstream_hop(splits, next_hops)
     field_writer_provenance, writer_param_hops = inspect_exact_source_field_writers(splits, field_targets)
     writer_upstream_rows = inspect_one_upstream_hop(splits, writer_param_hops)
+    # This is exactly the annotated Retrofit method set already established
+    # above, NOT another codebase-wide search. An interface-only method has
+    # no concrete DEX code body to intercept with a direct Xposed hook.
+    # If so, the existing abstract API route is a semantic annotation
+    # witness, not a viable direct in-process interception point.
+    api_entry_shapes={}
+    for method in targets:
+        owner=method[0]
+        label=APIS[owner]
+        entry=api_entry_shapes.setdefault(label, {
+            "annotated_track_id_methods":0,
+            "declared_on_interface":api_interfaces.get(owner),
+            "concrete_method_bodies_in_declaring_owner":0,
+            "abstract_or_missing_concrete_original_body":0,
+        })
+        entry["annotated_track_id_methods"]+=1
+        flags=method_defs.get(method)
+        if flags is not None and not (flags & 0x0400):
+            entry["concrete_method_bodies_in_declaring_owner"]+=1
+        else:
+            entry["abstract_or_missing_concrete_original_body"]+=1
     return {
+        "annotated_trackid_original_entrypoint_shapes": api_entry_shapes,
+        "direct_original_api_method_interception_proven": False,
         "trackid_api_exact_intermediate_field_writer_provenance": field_writer_provenance,
         "trackid_api_exact_field_writer_upstream": {
             "inbound_call_count": len(writer_upstream_rows),
