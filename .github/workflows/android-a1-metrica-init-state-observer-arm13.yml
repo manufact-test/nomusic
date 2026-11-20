@@ -20,6 +20,8 @@ on:
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
       - 'android/native-yandex-hooklab/ci/test_a1_stage_b_audio_evidence.py'
       - 'android/native-yandex-hooklab/ci/test_a1_issuer_proxy_contract.py'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/PublisherTrackIdProxyContractTest.java'
+      - 'android/native-yandex-hooklab/tests/src/retrofit2/http/**'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
