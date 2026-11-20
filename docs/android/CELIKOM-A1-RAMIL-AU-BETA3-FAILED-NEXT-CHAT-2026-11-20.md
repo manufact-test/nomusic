@@ -1,17 +1,16 @@
-## BETA5 correction — restore diagnostics, remove only the BETA control (20.11.2026)
+## BETA5 — signed owner diagnostic APK ready (20.11.2026)
 
-**Owner feedback on BETA4:** the clone opened like a plain Yandex app: the BETA control was gone, the diagnostic export button was also gone, and there was no visible way to tell whether CELIKOM had activated or to send a TXT. The speculative Yandex-settings entry did not appear on the owner's phone. This was a real UI regression introduced by the BETA4 change; do not ask the owner to search Yandex settings.
+**Artifact:** `CELIKOM-A1-RAMIL-AU-BETA5-HONOR50-20261120.zip` in the owner's Library at `/CELIKOM-A1-RAMIL-AU-BETA5-HONOR50-20261120.zip`. ZIP contains the 71,569,388-byte APK and Russian phone instructions. APK SHA256: `3c070a7b5b72482fb271c6e263504354bfbfced6f87949de3f0a3483468eb7b2`.
 
-**Correction in BETA5:**
-- Restore the previously proven top-right diagnostic export button, now labelled with CELIKOM activation state and TXT action.
-- Keep the separate BETA enable/disable button removed. There is no “join beta” or “connect to beta” control.
-- Attempt CELIKOM activation automatically from the saved encrypted CELIKOM session on app launch. The button shows `ПРОВЕРКА`, `ВКЛ`, `НЕТ СЕССИИ`, `НЕТ ДОСТУПА`, `СЕРВЕР` or `ОШИБКА`; transient activation failures can retry on a later activity resume.
-- Pressing the single diagnostic button saves the privacy-safe TXT to Downloads / CELIKOM A1. It does not require navigating to a Yandex settings screen.
-- Yandex account credentials are not read or used. No server-side auth model or audio architecture changes.
+**Build and verification:** source commit `54452d21ae91a5c4c81b4b8ccf0f8d55e3fb17a8`; [signed owner diagnostic workflow #44774533273 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44774533273); artifact ID `14649922260`. The exact owner signer certificate `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` was verified and matches the installed owner certificate. CI used `UPDATE_EXISTING`, did not authorize a fresh install, and did not touch the owner's physical phone. The native Android 13 ARM publisher-first/clone-second 75-second smoke test passed and cleanup completed.
 
-**BETA5 is not built/phone-tested yet at this document revision.** The BETA4 APK remains the failed UI build and should not be used for another audio test. Wait for the signed BETA5 artifact and install it as an update over BETA4 without clearing app data. Then check the single status/diagnostic button and test Ramil' «Ау» ID `144530503`, 00:43–00:54. If status is not `ВКЛ` or the censored original still plays, press that button and send the TXT. CI pass is not proof of audible replacement.
+**Do not overstate the result:** machine verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a=NO_GO`, `audio_or_account_tested=false`, `diagnostic_only_not_product_or_releasable=true`. The emulator did not sign into CELIKOM or play audio. This is specifically the next HONOR 50 owner diagnostic/audio trial, not proof that replacement works.
 
-# CELIKOM Android A1 — BETA3 failure / BETA4 current handoff (20 ноября 2026)
+**BETA5 UI correction:** one top-right `CELIKOM: <status> · TXT` control is restored; separate BETA/join control and speculative Yandex-settings entry are absent. CELIKOM auto-starts from the saved CELIKOM session. Status values distinguish checking, enabled, no session, no access, server failure and error. Pressing the same control exports the privacy-safe TXT.
+
+**Owner test:** install the ZIP's APK as an update over BETA4. Do not uninstall the clone, clear its data, or remove the original Yandex Music app. Launch the clone and check that the single top-right status/diagnostic control is visible and reports `ВКЛ`. Then play Ramil' «Ау», ID `144530503`, at `00:43–00:54`. Decide by ear whether the alternate version plays. If the status is not `ВКЛ`, the button is missing, or the censored original plays, press the diagnostic button if available and send the TXT. Do not test Pause/Seek/Next/MyWave yet.
+
+# CELIKOM Android A1 — BETA3 failure / BETA5 current handoff (20 ноября 2026)
 
 ## BETA4 update — signed owner-phone diagnostic build (20.11.2026)
 
