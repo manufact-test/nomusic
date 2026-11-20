@@ -10,27 +10,27 @@ import retrofit2.http.Query;
 
 public final class PublisherTrackIdProxyContractTest {
     public interface BaseFileInfoApi {
-        @Query("trackId") Object lookup(String trackId, String untouched);
-        @Query("albumId") Object lookupAlbum(String albumId);
+        Object lookup(@Query("trackId") String trackId, String untouched);
+        Object lookupAlbum(@Query("albumId") String albumId);
     }
     public interface FileInfoApi extends BaseFileInfoApi {
-        @Query("format") Object format(String format);
+        Object format(@Query("format") String format);
     }
     public interface ExtendedFileInfoApi extends FileInfoApi {}
     public interface ExtraApi {
-        @Path("id") Object unrelated(long id);
+        Object unrelated(@Path("id") long id);
     }
     public interface DownloadInfoApi {
-        @Path("trackId") Object download(long trackId, int retry);
+        Object download(@Path("trackId") long trackId, int retry);
     }
     public interface UnsupportedApi {
-        @Query("trackId") Object objectTrack(Object trackId);
+        Object objectTrack(@Query("trackId") Object trackId);
         Object unannotated(String trackId, long number);
-        @Query("id") Object wrongName(String id);
+        Object wrongName(@Query("id") String id);
     }
     public interface AmbiguousApi {
-        @Query("trackId") Object byString(String id);
-        @Path("trackId") Object byLong(long id);
+        Object byString(@Query("trackId") String id);
+        Object byLong(@Path("trackId") long id);
     }
     public interface DuplicateParameterApi {
         Object both(@Query("trackId") String first,
