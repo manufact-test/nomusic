@@ -40,9 +40,9 @@ final class NativeOwnerControlPlane {
     private static final class WarmGrant {
         final long owner,atMs;
         final String track;
-        final JSONObject response;
-        WarmGrant(long owner,String track,JSONObject response,long atMs) {
-            this.owner=owner;this.track=track;this.response=response;this.atMs=atMs;
+        final NativeGrantContract.Grant grant;
+        WarmGrant(long owner,String track,NativeGrantContract.Grant grant,long atMs) {
+            this.owner=owner;this.track=track;this.grant=grant;this.atMs=atMs;
         }
     }
     // One short-lived, owner-session-only speculative result. This is NEVER
@@ -71,10 +71,17 @@ final class NativeOwnerControlPlane {
                 if(result.optBoolean("found") && result.optBoolean("approved")
                         && result.optBoolean("entitled")
                         && "audio/mpeg".equals(result.optString("mime_type"))) {
-                    // No admission here. The signed URL remains in volatile
-                    // memory only and is validated AGAINST publisher IDs later.
-                    warmGrant=new WarmGrant(owner,originalTrackId,result,
-                        System.currentTimeMillis());
+                    NativeGrantContract.Grant grant=readGrant(result);
+                    // This preflight checks only CELIKOM-issued signed audio,
+                    // NEVER the identity of the currently playing Yandex source.
+                    if(NativeGrantContract.isAcceptable(grant,grant.trackId,
+                            grant.albumId,grant.editionId,grant.durationMs,ORIGIN,
+                            System.currentTimeMillis())
+                            && grant.trackId.equals(originalTrackId)
+                            && verifyMpegRange(grant.audioUrl)
+                            && owner==epoch.get() && latest==latestPrefetch.get())
+                        warmGrant=new WarmGrant(owner,originalTrackId,grant,
+                            System.currentTimeMillis());
                 }
             } catch(Exception ignored) { }
             finally {if(owner==epoch.get())warmingId=null;}
@@ -242,26 +249,24 @@ final class NativeOwnerControlPlane {
                 boolean prewarmed=preflight!=null && preflight.owner==owner
                     && preflight.track.equals(originalTrackId)
                     && System.currentTimeMillis()-preflight.atMs<30000;
-                JSONObject resolved=prewarmed?preflight.response
-                    :request("resolve?audio_formats=mp3&service=yandex&track_id="
+                NativeGrantContract.Grant grant;
+                if(prewarmed) {
+                    grant=preflight.grant;
+                } else {
+                    JSONObject resolved=request(
+                        "resolve?audio_formats=mp3&service=yandex&track_id="
                         +originalTrackId,null,access(owner));
-                if(!resolved.optBoolean("found")
-                        || !resolved.optBoolean("approved")
-                        || !resolved.optBoolean("entitled"))return;
-                String mime=resolved.getString("mime_type");
-                // First audible trial uses a genuinely inspected MPEG stream;
-                // an arbitrary audio/mp4/AAC/DRM stream is not assumed compatible.
-                if(!"audio/mpeg".equals(mime))return;
-                URI url=new URI(ORIGIN).resolve(resolved.getString("audio_url"));
-                NativeGrantContract.Grant grant=new NativeGrantContract.Grant(
-                    resolved.getString("track_id"),resolved.getString("album_id"),
-                    resolved.getString("edition_id"),resolved.getLong("duration_ms"),
-                    resolved.getLong("version"),true,true,url.toString(),
-                    Math.multiplyExact(resolved.getLong("expires_at"),1000),mime);
+                    if(!resolved.optBoolean("found")
+                            || !resolved.optBoolean("approved")
+                            || !resolved.optBoolean("entitled")
+                            || !"audio/mpeg".equals(resolved.optString("mime_type")))
+                        return;
+                    grant=readGrant(resolved);
+                }
                 long now=System.currentTimeMillis();
                 if(!NativeGrantContract.isAcceptable(grant,originalTrackId,
                         originalAlbumId,originalEditionId,originalDurationMs,ORIGIN,now)
-                        || !verifyMpegRange(grant.audioUrl))return;
+                        || !prewarmed && !verifyMpegRange(grant.audioUrl))return;
                 if(!enabled || owner!=epoch.get() || bridge.generation()!=generation
                         || !bridge.isSuccessfulOriginalSource(generation,originalTrack,
                             originalAlbum,originalSource))return;
@@ -275,6 +280,17 @@ final class NativeOwnerControlPlane {
                 // Any failure => original. Never log signed URL or credentials.
             }
         });
+    }
+    private static NativeGrantContract.Grant readGrant(JSONObject resolved)
+            throws Exception {
+        URI url=new URI(ORIGIN).resolve(resolved.getString("audio_url"));
+        return new NativeGrantContract.Grant(
+            resolved.getString("track_id"),resolved.getString("album_id"),
+            resolved.getString("edition_id"),resolved.getLong("duration_ms"),
+            resolved.getLong("version"),resolved.getBoolean("approved"),
+            resolved.getBoolean("entitled"),url.toString(),
+            Math.multiplyExact(resolved.getLong("expires_at"),1000),
+            resolved.getString("mime_type"));
     }
     private static boolean verifyMpegRange(String url) {
         HttpsURLConnection c=null;
