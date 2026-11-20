@@ -41,6 +41,12 @@ final class NativeEarlySourceLifecycleBridge
         }
     }
     private PendingApprovedAudio pendingApprovedAudio;
+    // The native Exo factory may instantiate its first DataSource AFTER
+    // MediaPeriod.prepare. The already committed pre-prepare ALTERNATE may be
+    // armed only on the exact same original creator's first UNOPENED DataSource.
+    private PendingApprovedAudio deferredIssuedAudio;
+    private long deferredIssuedGeneration=-1;
+    private boolean exactAlternateDataSourceInstalled;
     interface AuthenticatedSourceGrantRequester {
         void request(long generation,Object originalTrack,Object originalAlbum,
             Object originalSource,String trackId,String albumId,
@@ -88,6 +94,8 @@ final class NativeEarlySourceLifecycleBridge
     synchronized void stopForAuthenticatedOwner() {
         lifecycle.stop();
         pendingApprovedAudio=null;
+        deferredIssuedAudio=null;
+        deferredIssuedGeneration=-1;
         // Never cut already issued/native Exo bytes mid-song on Stop.
     }
     private void clear() {
@@ -103,6 +111,9 @@ final class NativeEarlySourceLifecycleBridge
         sourceRef=null;
         originalPublisherTrackIdCandidate=null;
         pendingApprovedAudio=null;
+        deferredIssuedAudio=null;
+        deferredIssuedGeneration=-1;
+        exactAlternateDataSourceInstalled=false;
     }
 
     @Override public synchronized void invalidated(long generation) {
@@ -230,7 +241,7 @@ final class NativeEarlySourceLifecycleBridge
             long generation,Object originalTrack,Object originalAlbum,
             Object originalSource,Object unopenedOriginalDataSource) {
         PendingApprovedAudio approved=pendingApprovedAudio;
-        if(approved==null || unopenedOriginalDataSource==null
+        if(approved==null
                 || !isSuccessfulOriginalSource(generation,originalTrack,
                     originalAlbum,originalSource))
             return false;
@@ -241,12 +252,50 @@ final class NativeEarlySourceLifecycleBridge
         if(decision.source!=NativeSourceGate.Choice.ALTERNATE
                 || !decision.applyOnce)
             return false;
+        if(unopenedOriginalDataSource==null) {
+            // Selection is committed BEFORE publisher prepare, but factory
+            // instantiation must still prove the original creator and source.
+            deferredIssuedAudio=approved;
+            deferredIssuedGeneration=generation;
+            return true;
+        }
         boolean routed=nativeExoBytes.armApproved(
             lifecycleGeneration,unopenedOriginalDataSource,
             approved.track,approved.album,approved.edition,approved.durationMs,
             approved.grant,approved.origin,unixClock.getAsLong(),
             decision.source);
+        exactAlternateDataSourceInstalled=routed;
         if(!routed)lifecycle.stop(); // never report an uninstalled ALTERNATE
+        return routed;
+    }
+
+    /**
+     * A genuine publisher factory-return hook calls this BEFORE the first
+     * original open, using the SAME creator Track/Album/source generation and
+     * the exact newly constructed DataSource instance. Any prefetch, reused
+     * object, Next, owner Stop or second prepare permanently fails closed.
+     */
+    synchronized boolean armDeferredOriginalDataSource(long generation,
+            Object originalTrack,Object originalAlbum,Object originalSource,
+            Object unopenedOriginalDataSource) {
+        PendingApprovedAudio approved=deferredIssuedAudio;
+        if(approved==null || deferredIssuedGeneration!=generation
+                || unopenedOriginalDataSource==null || originalPeriodAmbiguous
+                || !originalPeriodPrepareSealed || originalPeriodRef==null
+                || !sawOriginalPeriodPrePrepare(generation,originalPeriodRef.get())
+                || !isSuccessfulOriginalSource(generation,originalTrack,
+                    originalAlbum,originalSource) || !lifecycle.isEnabled())
+            return false;
+        // One opportunity only. An ambiguous second factory call cannot
+        // reuse an earlier ticket; the native route itself checks exact grants.
+        deferredIssuedAudio=null;
+        deferredIssuedGeneration=-1;
+        boolean routed=nativeExoBytes.armApproved(
+            lifecycleGeneration,unopenedOriginalDataSource,
+            approved.track,approved.album,approved.edition,approved.durationMs,
+            approved.grant,approved.origin,unixClock.getAsLong(),
+            NativeSourceGate.Choice.ALTERNATE);
+        exactAlternateDataSourceInstalled=routed;
         return routed;
     }
 
@@ -255,6 +304,8 @@ final class NativeEarlySourceLifecycleBridge
         // Even if a same-source period later prepares, this generation is
         // no longer UNIQUE; revoke all historical pre-prepare candidates.
         originalPeriodAmbiguous=true;
+        deferredIssuedAudio=null;
+        deferredIssuedGeneration=-1;
         originalPeriodPrePrepareGeneration=-1;
         originalPeriodRef=null;
         prePrepareSourceInstanceRef=null;
@@ -283,6 +334,8 @@ final class NativeEarlySourceLifecycleBridge
                 originalPeriodRef=null;
                 prePrepareSourceInstanceRef=null;
                 originalPeriodAmbiguous=true;
+                deferredIssuedAudio=null;
+                deferredIssuedGeneration=-1;
             } else {
                 // Original prepare already executed on this same period;
                 // the first pre-open candidate is NOT a reusable ticket.
@@ -360,7 +413,8 @@ final class NativeEarlySourceLifecycleBridge
     /** No owner-enable or exact decoder source exists in this module yet. */
     synchronized boolean replacementEnabled() {return lifecycle.isEnabled();}
     synchronized NativeSourceGate.Choice chosenSource() {
-        return lifecycle.lastIssuedSource();
+        return exactAlternateDataSourceInstalled
+            ?lifecycle.lastIssuedSource():NativeSourceGate.Choice.ORIGINAL;
     }
     synchronized long reservedNativeGeneration() {return lifecycleGeneration;}
     synchronized long currentNativeGeneration() {return lifecycle.generation();}
