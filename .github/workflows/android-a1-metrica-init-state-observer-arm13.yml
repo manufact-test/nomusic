@@ -1,4 +1,4 @@
-name: CELIKOM A1 Ramil Au Beta4 owner-phone audio test — no acoustic proof
+name: CELIKOM A1 Ramil Au Beta6 owner-phone audio test — no acoustic proof
 on:
   push:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
@@ -298,17 +298,15 @@ jobs:
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          source_apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA3-HONOR50-20261120.apk"
-          test -s "$source_apk"
-          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA5-HONOR50-20261120.apk"
-          mv "$source_apk" "$apk"
+          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA6-HONOR50-20261120.apk"
+          test -s "$apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
           sha256sum "$apk"
       - name: Upload private one-time owner-phone diagnostic bundle
         if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-beta-audio]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-RAMIL-AU-BETA5-HONOR50-20261120
+          name: CELIKOM-A1-RAMIL-AU-BETA6-HONOR50-20261120
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7
