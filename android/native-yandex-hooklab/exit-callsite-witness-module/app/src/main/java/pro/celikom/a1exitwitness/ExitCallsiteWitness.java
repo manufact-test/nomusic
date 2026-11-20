@@ -5576,6 +5576,8 @@ public final class ExitCallsiteWitness extends XposedModule {
             nativeOwnerControl=new NativeOwnerControlPlane(context,NATIVE_EARLY_ADMISSION);
             NATIVE_EARLY_ADMISSION.setAuthenticatedSourceGrantRequester(
                 nativeOwnerControl::requestForCertifiedSource);
+            STAGE_B_AUDIO.setAuthenticatedPublisherTrackPrefetch(
+                nativeOwnerControl::warmFromPublisherTrackId);
         }
         return nativeOwnerControl;
     }

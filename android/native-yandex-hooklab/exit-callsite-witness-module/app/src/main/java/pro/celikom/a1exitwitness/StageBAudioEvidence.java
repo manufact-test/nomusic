@@ -148,6 +148,12 @@ final class StageBAudioEvidence {
         boolean conflict;
     }
     private final ArrayList<PublisherTrackIdLink> publisherTrackIds=new ArrayList<>();
+    interface AuthenticatedPublisherTrackPrefetch {void warm(String id);}
+    private AuthenticatedPublisherTrackPrefetch ownerTrackPrefetch;
+    synchronized void setAuthenticatedPublisherTrackPrefetch(
+            AuthenticatedPublisherTrackPrefetch prefetch) {
+        ownerTrackPrefetch=prefetch;
+    }
     private static String numericOriginalId(Object raw) {
         if(!(raw instanceof String) && !(raw instanceof Long)
                 && !(raw instanceof Integer))return null;
@@ -183,6 +189,8 @@ final class StageBAudioEvidence {
         link.album=new WeakReference<>(album);
         link.id=id;
         publisherTrackIds.add(link);
+        AuthenticatedPublisherTrackPrefetch prefetch=ownerTrackPrefetch;
+        if(prefetch!=null)prefetch.warm(id);
     }
     /** Exact creator Track+Album + signed tCa(String) key + API trackId. */
     synchronized String exactPublisherTrackIdForCreator(
