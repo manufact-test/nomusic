@@ -34,6 +34,7 @@ final class NativeEarlySourceLifecycleBridge
     private String originalPublisherTrackIdCandidate;
     private String requestedLimitedBetaTrackId;
     private boolean publisherTrackIdConflict;
+    private boolean publisherTrackIdCandidatePending;
     private static final class PendingApprovedAudio {
         final String track,album,edition,origin;
         final long durationMs;
@@ -131,6 +132,7 @@ final class NativeEarlySourceLifecycleBridge
         originalPublisherTrackIdCandidate=null;
         requestedLimitedBetaTrackId=null;
         publisherTrackIdConflict=false;
+        publisherTrackIdCandidatePending=false;
         pendingApprovedAudio=null;
         deferredIssuedAudio=null;
         deferredIssuedGeneration=-1;
@@ -175,6 +177,7 @@ final class NativeEarlySourceLifecycleBridge
             // A second identity for one setter generation is ambiguity, not
             // a reason to replace the first grant candidate.
             publisherTrackIdConflict=true;
+            publisherTrackIdCandidatePending=false;
             originalPublisherTrackIdCandidate=null;
             pendingApprovedAudio=null;
             lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
@@ -182,7 +185,18 @@ final class NativeEarlySourceLifecycleBridge
             return;
         }
         originalPublisherTrackIdCandidate=originalId;
+        publisherTrackIdCandidatePending=false;
+        notifyAll();
         requestLimitedBetaIfReady(generation);
+    }
+
+    @Override public synchronized void publisherTrackIdCandidatePending(
+            long generation,boolean pending) {
+        if(generation!=latestSetterGeneration || originalPeriodPrepareSealed
+                || originalPeriodRef!=null || publisherTrackIdConflict
+                || originalPublisherTrackIdCandidate!=null)return;
+        publisherTrackIdCandidatePending=pending;
+        notifyAll();
     }
 
     @Override public synchronized void completed(long generation,boolean succeeded) {
@@ -215,6 +229,7 @@ final class NativeEarlySourceLifecycleBridge
         if(requestedLimitedBetaTrackId!=null) {
             if(requestedLimitedBetaTrackId.equals(originalPublisherTrackIdCandidate))return;
             publisherTrackIdConflict=true;
+            publisherTrackIdCandidatePending=false;
             originalPublisherTrackIdCandidate=null;
             pendingApprovedAudio=null;
             lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
@@ -328,16 +343,21 @@ final class NativeEarlySourceLifecycleBridge
     /** Optional bounded grace window on the native Exo worker, never UI thread. */
     synchronized void awaitLimitedBetaGrantAtPrepare(long maxMs) {
         if(!lifecycle.isEnabled() || !originalSetterSucceeded
-                || publisherTrackIdConflict
-                || !NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate)
+                || publisherTrackIdConflict || limitedBetaRequester==null
                 || pendingApprovedAudio!=null || originalPeriodPrepareSealed
-                || maxMs<=0)return;
+                || maxMs<=0
+                || (!publisherTrackIdCandidatePending
+                    && !NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate)))
+            return;
         // Owner-only allowlisted first-prepare grace: the original network
         // preflight + signed MPEG Range check can outlast the former 450ms.
         // Still worker-only, capped and always fail-open to original audio.
         long finish=System.nanoTime()+Math.min(maxMs,3000L)*1000000L;
         while(pendingApprovedAudio==null && !originalPeriodPrepareSealed
-                && originalSetterSucceeded && lifecycle.isEnabled()) {
+                && originalSetterSucceeded && lifecycle.isEnabled()
+                && !publisherTrackIdConflict
+                && (publisherTrackIdCandidatePending
+                    || NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate))) {
             long remaining=finish-System.nanoTime();
             if(remaining<=0)break;
             try {wait(Math.max(1L,(remaining+999999L)/1000000L));}
