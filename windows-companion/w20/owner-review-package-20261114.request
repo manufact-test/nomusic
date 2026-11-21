@@ -1,5 +1,5 @@
-CELIKOM Windows W172 — one private internal owner-review build, 21 November 2026
-App 0.24.53.0; update supervisor 0.24.53.0; native host/module source unchanged (0.24.32).
+CELIKOM Windows W173 — one private internal owner-review build, 21 November 2026
+App 0.24.54.0; update supervisor 0.24.54.0; native host/module source unchanged (0.24.32).
 
 Yandex compatibility:
 - Official Yandex 5.128.0.r22145392 was extracted from the signed Yandex S3 installer.
@@ -9,11 +9,12 @@ Yandex compatibility:
 - W172 CI verified official publisher signature, native image construction, install/restore sandbox and preservation of original vendor bytes.
 - Older official Yandex pins and all previous snapshots remain additive; no existing backup is overwritten.
 
-W172 changes:
+W172 compatibility retained; W173 owner-visible Start behavior fix:
 - Add exact signed Yandex 5.128.0 vendor pair to the immutable CELIKOM compatibility catalog.
 - Keep the existing safe first-install and vendor-update snapshot lifecycle.
 - Previously approved ACTIVE installations can reconnect to this verified vendor update without another consent dialog.
+- Keep the normal “Подождите, идёт подключение к Яндекс Музыке” message throughout Start; do not show a separate vendor-update banner or invalidate an in-flight Start.
 - Existing 5.126.1 and 5.127.0 compatibility entries remain unchanged.
 
-Package is INTERNAL ONLY and unsigned. Stage-only distribution; no production signing, feed publication, server deployment or claim of owner acoustic acceptance.
+Package is INTERNAL ONLY and unsigned. Version 0.24.54.0 contains only the W173 Start-presentation fix on top of W172. Stage-only distribution; no production signing, feed publication, server deployment or claim of owner acoustic acceptance.
 Preserve saved CELIKOM login and subscription state. Installer must only replace CELIKOM application files; never bundle or deploy Yandex binaries.
