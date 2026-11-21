@@ -97,7 +97,10 @@ public final class StageBAudioEvidenceTest {
         none.exitNativeTcaCreatorOwner();
         Object[] noIssuer=none.exactCreatorTrackAlbumOrBetaBeforeSourceSet(nw);
         check(noIssuer!=null && none.exactPublisherTrackIdForCreatorOrBeta(
-            nw,noIssuer[0],noIssuer[1])==null);
+            nw,noIssuer[0],noIssuer[1])==null); // creator not yet in Flow
+        none.onNativeTrackFlowEmission(nt);
+        check(id.equals(none.exactPublisherTrackIdForCreatorOrBeta(
+            nw,noIssuer[0],noIssuer[1]))); // cached publisher source, no FileInfo
 
         clock.set(1000L);
         StageBAudioEvidence expired=new StageBAudioEvidence(clock::get);
@@ -110,9 +113,10 @@ public final class StageBAudioEvidenceTest {
         expired.onNativeTrackWrapperCreated(ew,id);
         expired.exitNativeTcaCreatorTrackScope();
         expired.exitNativeTcaCreatorOwner();
+        expired.onNativeTrackFlowEmission(et);
         Object[] old=expired.exactCreatorTrackAlbumOrBetaBeforeSourceSet(ew);
         check(old!=null && expired.exactPublisherTrackIdForCreatorOrBeta(
-            ew,old[0],old[1])==null);
+            ew,old[0],old[1])==null); // stale API ticket still rejects
 
         clock.set(1000L);
         StageBAudioEvidence beta=new StageBAudioEvidence(clock::get);
@@ -129,6 +133,22 @@ public final class StageBAudioEvidenceTest {
         check(bound!=null && bound[0]==bt && bound[1]==bw);
         check(id.equals(beta.exactPublisherTrackIdForCreatorOrBeta(
             bw,bound[0],bound[1])));
+
+        // Cached original publisher source without an Album reference:
+        // still requires the exact Track creator birth and later original Flow.
+        StageBAudioEvidence cachedNoAlbum=new StageBAudioEvidence(clock::get);
+        Object ct=new Object(),cw=new Object();
+        cachedNoAlbum.enterNativeTcaCreatorOwner(new Object());
+        cachedNoAlbum.enterNativeTcaCreatorTrackScope(ct,1);
+        cachedNoAlbum.onNativeTrackWrapperCreated(cw,id);
+        cachedNoAlbum.exitNativeTcaCreatorTrackScope();
+        cachedNoAlbum.exitNativeTcaCreatorOwner();
+        check(cachedNoAlbum.exactCreatorTrackAlbumOrBetaBeforeSourceSet(cw)==null);
+        cachedNoAlbum.onNativeTrackFlowEmission(ct);
+        Object[] cached=cachedNoAlbum.exactCreatorTrackAlbumOrBetaBeforeSourceSet(cw);
+        check(cached!=null && cached[0]==ct && cached[1]==cw);
+        check(id.equals(cachedNoAlbum.exactPublisherTrackIdForCreatorOrBeta(
+            cw,cached[0],cached[1])));
 
         // Real owner device also observes tCa creator when Track is already
         // in Flow and its original Album is present (birth scope 14).
