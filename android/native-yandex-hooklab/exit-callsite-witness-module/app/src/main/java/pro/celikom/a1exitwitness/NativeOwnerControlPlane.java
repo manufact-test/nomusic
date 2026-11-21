@@ -63,32 +63,38 @@ final class NativeOwnerControlPlane {
         network.execute(()->{
             try {
                 if(owner!=epoch.get() || latest!=latestPrefetch.get()
-                        || !enabled)return;
+                        || !enabled) {
+                    NativeTrackIdBetaPolicy.mark(
+                        NativeTrackIdBetaPolicy.Step.OWNER_PREFETCH_SUPERSEDED);
+                    return;
+                }
                 JSONObject result=request(
                     "resolve?audio_formats=mp3&service=yandex&track_id="
                     +originalTrackId,null,access(owner));
                 if(owner!=epoch.get() || latest!=latestPrefetch.get()
-                        || !enabled)return;
-                if(result.optBoolean("found") && result.optBoolean("approved")
-                        && result.optBoolean("entitled")
-                        && "audio/mpeg".equals(result.optString("mime_type"))) {
-                    NativeGrantContract.Grant grant=readGrant(result);
-                    // This preflight checks only CELIKOM-issued signed audio,
-                    // NEVER the identity of the currently playing Yandex source.
-                    if(NativeTrackIdBetaPolicy.signedTrialGrant(
-                            originalTrackId,grant,ORIGIN,System.currentTimeMillis())
-                            !=null
-                            && verifyMpegRange(grant.audioUrl)
-                            && owner==epoch.get() && latest==latestPrefetch.get())
-                        {
-                            warmGrant=new WarmGrant(owner,originalTrackId,grant,
-                                System.currentTimeMillis());
-                            NativeTrackIdBetaPolicy.mark(
-                                NativeTrackIdBetaPolicy.Step.SIGNED_MPEG_READY);
-                        }
+                        || !enabled) {
+                    NativeTrackIdBetaPolicy.mark(
+                        NativeTrackIdBetaPolicy.Step.OWNER_PREFETCH_SUPERSEDED);
+                    return;
                 }
-            } catch(Exception ignored) { }
-            finally {if(owner==epoch.get())warmingId=null;}
+                if(!approvedMpeg(result))return;
+                NativeGrantContract.Grant grant=readGrant(result);
+                // Server grant is never an original Yandex track/source proof.
+                if(!validTrialGrant(originalTrackId,grant))return;
+                if(!verifiedRange(grant.audioUrl))return;
+                if(owner!=epoch.get() || latest!=latestPrefetch.get() || !enabled) {
+                    NativeTrackIdBetaPolicy.mark(
+                        NativeTrackIdBetaPolicy.Step.OWNER_PREFETCH_SUPERSEDED);
+                    return;
+                }
+                warmGrant=new WarmGrant(owner,originalTrackId,grant,
+                    System.currentTimeMillis());
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.SIGNED_MPEG_READY);
+            } catch(Exception ignored) {
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.OWNER_NETWORK_OR_RESPONSE_ERROR);
+            } finally {if(owner==epoch.get())warmingId=null;}
         });
     }
     NativeOwnerControlPlane(Context context,NativeEarlySourceLifecycleBridge bridge) {
@@ -251,17 +257,18 @@ final class NativeOwnerControlPlane {
         if(ready!=null && ready.owner==owner
                 && publisherTrackId.equals(ready.track)
                 && now>=ready.atMs && now-ready.atMs<30000
-                && NativeTrackIdBetaPolicy.signedTrialGrant(
-                    publisherTrackId,ready.grant,ORIGIN,now)!=null) {
-            // Fast synchronous path: network, HTTP206 and MPEG sync were
-            // verified already by the separate background prefetch lane.
-            bridge.offerLimitedBetaSignedAudio(generation,originalTrack,
-                originalAlbum,originalSource,publisherTrackId,ready.grant,ORIGIN);
+                && validTrialGrant(publisherTrackId,ready.grant)) {
+            // Fast synchronous path: same signed, previously range-checked grant.
+            offerExactBeta(generation,originalTrack,originalAlbum,originalSource,
+                publisherTrackId,ready.grant);
             return;
         }
         network.execute(()->{
-            if(!enabled || owner!=epoch.get() || bridge.generation()!=generation)
+            if(!enabled || owner!=epoch.get() || bridge.generation()!=generation) {
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.OWNER_SOURCE_WINDOW_CLOSED);
                 return;
+            }
             try {
                 WarmGrant warmed=warmGrant;
                 NativeGrantContract.Grant grant;
@@ -275,23 +282,23 @@ final class NativeOwnerControlPlane {
                     JSONObject response=request(
                         "resolve?audio_formats=mp3&service=yandex&track_id="
                             +publisherTrackId,null,access(owner));
-                    if(!response.optBoolean("found")
-                            || !response.optBoolean("approved")
-                            || !response.optBoolean("entitled")
-                            || !"audio/mpeg".equals(response.optString("mime_type")))
-                        return;
+                    if(!approvedMpeg(response))return;
                     grant=readGrant(response);
                 }
-                if(NativeTrackIdBetaPolicy.signedTrialGrant(
-                        publisherTrackId,grant,ORIGIN,System.currentTimeMillis())
-                        ==null || !verified && !verifyMpegRange(grant.audioUrl))
-                    return;
+                if(!validTrialGrant(publisherTrackId,grant))return;
+                if(!verified && !verifiedRange(grant.audioUrl))return;
                 if(!enabled || owner!=epoch.get()
-                        || bridge.generation()!=generation)return;
-                bridge.offerLimitedBetaSignedAudio(generation,originalTrack,
-                    originalAlbum,originalSource,publisherTrackId,grant,ORIGIN);
+                        || bridge.generation()!=generation) {
+                    NativeTrackIdBetaPolicy.mark(
+                        NativeTrackIdBetaPolicy.Step.OWNER_SOURCE_WINDOW_CLOSED);
+                    return;
+                }
+                offerExactBeta(generation,originalTrack,originalAlbum,
+                    originalSource,publisherTrackId,grant);
             } catch(Exception ignored) {
-                // No delayed fallback can replace an already prepared track.
+                // No secrets, URL, IDs, statuses, response bodies or credentials logged.
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.OWNER_NETWORK_OR_RESPONSE_ERROR);
             }
         });
     }
@@ -346,6 +353,38 @@ final class NativeOwnerControlPlane {
                 // Any failure => original. Never log signed URL or credentials.
             }
         });
+    }
+    private static boolean approvedMpeg(JSONObject response) {
+        boolean ok=response.optBoolean("found") && response.optBoolean("approved")
+            && response.optBoolean("entitled")
+            && "audio/mpeg".equals(response.optString("mime_type"));
+        NativeTrackIdBetaPolicy.mark(ok
+            ?NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_APPROVED
+            :NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_NOT_APPROVED);
+        return ok;
+    }
+    private static boolean validTrialGrant(String id,NativeGrantContract.Grant grant) {
+        boolean ok=NativeTrackIdBetaPolicy.signedTrialGrant(
+            id,grant,ORIGIN,System.currentTimeMillis())!=null;
+        if(ok)NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.OWNER_SIGNED_GRANT_VALID);
+        else NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.OWNER_RESPONSE_INVALID);
+        return ok;
+    }
+    private static boolean verifiedRange(String url) {
+        boolean ok=verifyMpegRange(url);
+        NativeTrackIdBetaPolicy.mark(ok
+            ?NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_VALID
+            :NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_REJECTED);
+        return ok;
+    }
+    private void offerExactBeta(long generation,Object originalTrack,Object originalAlbum,
+            Object originalSource,String publisherTrackId,NativeGrantContract.Grant grant) {
+        if(!bridge.offerLimitedBetaSignedAudio(generation,originalTrack,
+                originalAlbum,originalSource,publisherTrackId,grant,ORIGIN))
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.OWNER_OFFER_REJECTED);
     }
     private static NativeGrantContract.Grant readGrant(JSONObject resolved)
             throws Exception {

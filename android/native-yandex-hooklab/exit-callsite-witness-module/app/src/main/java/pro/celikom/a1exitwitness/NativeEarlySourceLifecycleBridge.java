@@ -282,7 +282,10 @@ final class NativeEarlySourceLifecycleBridge
                 || !NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate)
                 || pendingApprovedAudio!=null || originalPeriodPrepareSealed
                 || maxMs<=0)return;
-        long finish=System.nanoTime()+Math.min(maxMs,450L)*1000000L;
+        // Owner-only allowlisted first-prepare grace: the original network
+        // preflight + signed MPEG Range check can outlast the former 450ms.
+        // Still worker-only, capped and always fail-open to original audio.
+        long finish=System.nanoTime()+Math.min(maxMs,3000L)*1000000L;
         while(pendingApprovedAudio==null && !originalPeriodPrepareSealed
                 && originalSetterSucceeded && lifecycle.isEnabled()) {
             long remaining=finish-System.nanoTime();
