@@ -4,7 +4,7 @@
 ## Рабочая точка
 - Репозиторий: `manufact-test/nomusic`
 - Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Текущий HEAD ветки: `156fdb09ab863d747fbd8068dd4c71aeecd77f39`
+- HEAD перед текущей чисткой handoff: `156fdb09ab863d747fbd8068dd4c71aeecd77f39`; чистка создаёт следующий docs-only commit. В начале каждого нового чата получать фактический HEAD ветки через GitHub, не полагаться на старый SHA из сообщения.
 - Последний пакетный/code snapshot BETA12: `21e00e7805640c7d8765b9180510005b8154798d`
 - Функциональная линия: native change `65bc7a613762cef00fe9cbcff7c7949ea6af67de`; regression test `75b33733a2e8106823b1dcb4d7b3ac68298c9881`.
 - С момента переданного владельцем HEAD `7081e467da212fd28c7f0d1de83eec147eaad60f` ветка продвинулась на 16 коммитов. Ветка не переключалась.
