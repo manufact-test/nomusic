@@ -81,7 +81,9 @@ The correct follow-up audit covers every replacement created since the 0.4.78 ac
 - Active release during this audit: `admin-rejected-cleanup-1b532497bf6e`. The audit successfully loaded and ran the cleanup normalizer and full decoder from that active release, confirming the feature survived the later server release.
 - This proves the stored results are canonical and fully decodable. It does **not** prove which original uploads contained removable metadata or how many bytes were removed.
 
-The actual 0.4.78 upload pipeline normalizes the authenticated raw MP3 in a private temporary file before measuring, decoding, hashing and storing it. The original upload bytes are not retained. To report per-song detections in future, the upload path needs a private cleanup receipt (input/output digest, removed ID3/Info-Xing/APE/ID3v1/padding counts and bytes, decoder result); the current schema and logs do not contain those fields.
+The actual 0.4.78 upload pipeline normalizes the authenticated raw MP3 in a private temporary file before measuring, decoding, hashing and storing it. The original upload bytes are not retained.
+
+**Owner decision: do not add a cleanup journal, per-song removal counters, telemetry, or retention of original MP3 files.** The product requirement is that valid songs are cleaned, fully decoded and stored correctly, while damaged files are rejected. The existing server pipeline already does this. Recording which tags were removed adds no user-facing value and is not required for acceptance. Reopen this only if a real upload failure demonstrates a concrete diagnostic need; do not add it speculatively.
 
 The previously reported “Каменные цветы” sample (Track ID `48591846`, replacement `30`) is present and approved/active. Its stored MP3 has two leading ID3v2.4 headers and one Info/Xing frame; the stored hash is valid and the live server inspector returns 277969 ms. This upload dates to 18 October, so it is a useful legacy sample but not a new W173 owner upload. The 0.24.51 baseline parser already handled consecutive leading ID3 tags; this sample does not prove the W170-only interleaved Info/Xing or extended UTF-8 ID3v1 cases.
 
@@ -90,6 +92,21 @@ The previously reported “Каменные цветы” sample (Track ID `4859
 1. Install 0.24.54 over the existing CELIKOM installation; preserve login and settings.
 2. Confirm Start shows only the standard connection message and does not ask for a second click during the verified Yandex 5.128.0 reconnect.
 3. Continue real playback and upload checks.
-4. To field-prove the W170-only parser additions, use a real MP3 with duplicate Info/Xing frames separated by ID3 or the bounded extended UTF-8 ID3v1 tail.
+4. No special metadata samples or cleanup journal are required for acceptance. Continue ordinary real-song uploads; investigate only if a real file fails or is stored incorrectly.
 
 Keep W170 PR #65 in draft. Do not merge or publish without owner approval.
+
+## Mainline consolidation handoff
+
+The owner requested that the latest working Windows version become the canonical version on `main`, and that obsolete Windows experiments/PR clutter be cleaned up.
+
+Current repository state at handoff:
+- `main` remains at `affb7b225d2e7eb2835f53294e975a1e60bb758b`; its Windows app and Update Supervisor projects still declare **0.24.48**.
+- W173 working branch: `experiment/windows-w172-yandex-51280-compat-20261121`; current documentation HEAD at handoff: `cfa6b37350ee7d944ba73db265831c59c30ac84f`.
+- W173 code/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; app and Update Supervisor **0.24.54.0**, Native **0.24.32**.
+- W173 is 84 commits ahead of main, with merge base exactly `affb7b225d2e7eb2835f53294e975a1e60bb758b`. The current compare shows Windows W15/W20/W24/W81 source plus Windows docs/workflow changes; no server source or Android source appears in the changed-file list. Re-check the complete diff before merging.
+- PR #65 remains an open draft but points to the older W170 branch `experiment/windows-w170-mainline-20261121` at `6ce4cc21352912ab31578190007042397e083f64`, not the W173 candidate. PR #64 is a closed duplicate. Do not merge PR #65 as-is.
+- PR #62 is the separate already-deployed server upload-cleanup review branch; PR #66 is the separate admin rejected/disabled cleanup work. Neither is part of the Windows W173 mainline consolidation.
+- Existing `backup/*`, Android A1 branches and server/extension work are not disposable Windows clutter.
+
+Next chat task: make W173 the canonical Windows implementation on `main` after verifying the exact owner-accepted package and the complete diff. Create a fresh pre-merge backup of main, run the appropriate full main/Windows CI and safe installer checks on the exact merge candidate, then merge through a reviewed PR. After main is confirmed at 0.24.54.0 and checks pass, close the obsolete W170 PR #65 as superseded and remove only clearly obsolete unprotected Windows experiment branches. Preserve all `backup/*` refs, Android branches, server/extension branches, PR #62 and PR #66. Do not bulk-delete branches or reset/force-push main. Keep one canonical production line: `main`.
