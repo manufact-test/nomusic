@@ -2,7 +2,7 @@ name: Upload cleanup inspection
 on:
   push:
     branches: [feature/upload-auto-cleanup-20261121]
-    paths: ['.github/workflows/upload-cleanup-20261121.yml', '.github/scripts/upload-cleanup/**', 'server/src/Application/*Normalizer*', 'server/src/Application/Mp3DecodeValidator.php', 'server/tests/mp3-cleanup*', 'extension/src/upload/mp3-duration.ts']
+    paths: ['.github/workflows/upload-cleanup-20261121.yml', '.github/scripts/upload-cleanup/**', 'server/src/Application/*Normalizer*', 'server/src/Application/Mp3DecodeValidator.php', 'server/tests/mp3-cleanup*', 'extension/**', 'server/src/Application/UploadService.php', 'server/tests/uploads.php', 'scripts/test-mp3-cleanup.mjs', 'scripts/test-upload-cleanup-browser.mjs']
 permissions:
   contents: read
   actions: read
@@ -98,14 +98,40 @@ jobs:
           php -l server/src/Application/UploadService.php
           php -l server/src/Application/Mp3Normalizer.php
           php -l server/src/Application/Mp3DecodeValidator.php
-          node scripts/test-mp3-cleanup.mjs
+          CLEANUP_RELEASE_FIXTURES=dist/upload-cleanup node scripts/test-mp3-cleanup.mjs
+          REQUIRE_BROWSER_AUDIO=1 node scripts/test-upload-cleanup-browser.mjs
           php server/tests/uploads.php
           npm --prefix extension run validate
           npm run security
           npm run build:extension
+          cp server/src/Application/{UploadService,Mp3Normalizer,Mp3DecodeValidator}.php dist/upload-cleanup/
+          cp decoder-artifact/{mp3-validator,LICENSE.LGPLv2.1,source.tar.gz} dist/upload-cleanup/
+          cp .github/scripts/upload-cleanup/{probe.php,smoke.php} dist/upload-cleanup/
+          (cd dist/upload-cleanup && sha256sum *.php *.mp3 mp3-validator LICENSE.LGPLv2.1 source.tar.gz > payload.sha256)
+          tar -czf dist/upload-cleanup.tar.gz -C dist/upload-cleanup .
       - uses: actions/upload-artifact@v4
         with:
           name: celikom-extension-0.4.78
           path: |
             extension/dist/celikom-extension-0.4.78.zip
             extension/dist/celikom-extension-0.4.78.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upload-cleanup-server-payload
+          path: dist/upload-cleanup.tar.gz
+  deploy:
+    needs: [verify, inspect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: upload-cleanup-server-payload
+          path: dist
+      - name: Install upload-only delta with backup and automatic rollback
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/upload-cleanup/deploy.sh

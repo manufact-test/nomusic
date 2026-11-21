@@ -149,6 +149,51 @@ try {
         $stmt->execute([$created['replacement_id']]);
         expect((int) $stmt->fetchColumn() === 2612, 'Asset uses inspected MP3 duration, not supplied Track duration');
     });
+    run('Automatic cleanup stores canonical bytes, deduplicates tag variants and leaves no temporary file', function () use ($service, $fields, $file, $ownerHash, $path, $pdo): void {
+        $audio = file_get_contents($path);
+        $tag = "ID3\x04\x00\x00\x00\x00\x00\x00";
+        $input = tempnam(sys_get_temp_dir(), 'cleanup-upload-');
+        $before = glob(sys_get_temp_dir() . '/celikom-mp3-*');
+        $request = array_merge($fields, ['track_id' => '799085', 'request_id' => '10000000-0000-4000-8000-000000000085']);
+        try {
+            file_put_contents($input, $tag . $audio . 'TAG' . str_repeat("\0", 125));
+            $upload = array_merge($file, ['tmp_name' => $input, 'size' => filesize($input)]);
+            $first = $service->upload($request, $upload, $ownerHash);
+            $stmt = $pdo->prepare('SELECT a.sha256, a.size_bytes FROM audio_assets a JOIN track_replacements r ON r.audio_asset_id=a.id WHERE r.id=?');
+            $stmt->execute([$first['replacement_id']]); $asset = $stmt->fetch(PDO::FETCH_ASSOC);
+            expect($asset['sha256'] === hash('sha256', $audio) && (int) $asset['size_bytes'] === strlen($audio), 'Only canonical audio stored');
+            file_put_contents($input, $audio);
+            clearstatcache(true, $input); $upload['size'] = filesize($input);
+            $retry = $service->upload($request, $upload, $ownerHash);
+            expect($retry['duplicate'] && $retry['replacement_id'] === $first['replacement_id'], 'Tag-only difference is same upload');
+            expect(glob(sys_get_temp_dir() . '/celikom-mp3-*') === $before, 'Temporary files cleaned on success and duplicate');
+            $bad = array_merge($request, ['track_id' => '799086', 'duration_ms' => '20000']);
+            try { $service->upload($bad, $upload, $ownerHash); throw new RuntimeException('duration accepted'); }
+            catch (DomainException $e) { expect($e->getMessage() === 'duration_mismatch', 'Duration guard retained'); }
+            expect(glob(sys_get_temp_dir() . '/celikom-mp3-*') === $before, 'Temporary file cleaned on rejection');
+        } finally { unlink($input); }
+    });
+    run('Pre-cleanup submission digest remains retryable without rewriting the legacy asset', function () use ($service, $fields, $file, $ownerHash, $path, $pdo, $storage): void {
+        $legacy = "ID3\x04\x00\x00\x00\x00\x00\x00" . file_get_contents($path);
+        $input = tempnam(sys_get_temp_dir(), 'legacy-upload-'); file_put_contents($input, $legacy);
+        $request = array_merge($fields, ['track_id' => '799087', 'request_id' => '10000000-0000-4000-8000-000000000087']);
+        $upload = array_merge($file, ['tmp_name' => $input, 'size' => strlen($legacy)]);
+        try {
+            $created = $service->upload($request, $upload, $ownerHash);
+            $sha = hash('sha256', $legacy); $key = 'audio/legacy-' . $sha . '.mp3';
+            $source = fopen($input, 'rb'); try { $storage->put($key, $source); } finally { fclose($source); }
+            $pdo->prepare("INSERT INTO audio_assets(storage_driver,storage_key,sha256,mime_type,size_bytes,duration_ms) VALUES('local',?,?, 'audio/mpeg',?,2612)")->execute([$key,$sha,strlen($legacy)]);
+            $legacyAsset = (int) $pdo->lastInsertId();
+            $pdo->prepare('UPDATE track_replacements SET audio_asset_id=? WHERE id=?')->execute([$legacyAsset,$created['replacement_id']]);
+            $pdo->prepare('UPDATE upload_submissions SET sha256=? WHERE request_id=? AND uploader_hash=?')->execute([$sha,$request['request_id'],$ownerHash]);
+            $retry = $service->upload($request, $upload, $ownerHash);
+            expect($retry['duplicate'] && $retry['replacement_id'] === $created['replacement_id'], 'Legacy request retry');
+            $request['request_id'] = '10000000-0000-4000-8000-000000000088';
+            $retry = $service->upload($request, $upload, $ownerHash);
+            expect($retry['duplicate'] && $retry['replacement_id'] === $created['replacement_id'], 'Legacy track retry with fresh request');
+            expect($storage->getSize($key) === strlen($legacy), 'Existing asset never rewritten');
+        } finally { unlink($input); }
+    });
     run('Stage 7 byte-identical upload under different name and same request is idempotent', function () use ($service, $fields, $file, $ownerHash, $created, $pdo): void {
         $again = $service->upload($fields, array_merge($file, ['name' => 'renamed.mp3']), $ownerHash);
         expect($again['duplicate'] && $again['replacement_id'] === $created['replacement_id'], 'Idempotency key');
@@ -177,7 +222,7 @@ try {
     run('Stage 7 blocks a different MP3 for a Track ID already in pending', function () use ($service, $fields, $file, $ownerHash, $path, $pdo): void {
         $other = tempnam(sys_get_temp_dir(), 'celikom-different-');
         $bytes = file_get_contents($path);
-        $bytes[100] = chr(ord($bytes[100]) ^ 0x4f);
+        $bytes[3] = chr(ord($bytes[3]) ^ 0x08); /* Copyright header bit: different valid MP3, not damaged Huffman data. */
         file_put_contents($other, $bytes);
         try {
             $different = array_merge($fields, ['request_id' => '10000000-0000-4000-8000-000000000039']);

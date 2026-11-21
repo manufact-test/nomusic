@@ -29,6 +29,12 @@ try {
   const result=spawnSync('php',['server/tests/mp3-cleanup.php',corrupt],{encoding:'utf8'});
   assert.notEqual(result.status,0,'decoder must reject valid headers with damaged audio');
   assert.match(result.stderr,/invalid_mp3/);
+  if(rate===44100 && process.env.CLEANUP_RELEASE_FIXTURES){
+    const destination=process.env.CLEANUP_RELEASE_FIXTURES;fs.mkdirSync(destination,{recursive:true});
+    fs.copyFileSync(input,path.join(destination,'fixture.mp3'));
+    fs.writeFileSync(path.join(destination,'expected.mp3'),raw);
+    fs.writeFileSync(path.join(destination,'corrupt.mp3'),bad);
+  }
  }
  console.log('MP3_JS_PHP_PCM_AND_CORRUPTION_PASS: MPEG1, MPEG2, 44.1/48/22.05kHz; identical decoded PCM; broken payload denied');
 }finally{fs.rmSync(tmp,{recursive:true,force:true});}
