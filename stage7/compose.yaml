@@ -1,0 +1,55 @@
+# Local owner-only sandbox. Never connects to live Hostinger, and binds HTTP to loopback.
+services:
+  db:
+    image: mysql:8.0
+    restart: "no"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${STAGE7_ROOT_PASSWORD:?Required local sandbox credential}
+      MYSQL_DATABASE: celikom_test_stage7
+      MYSQL_USER: celikom_stage7
+      MYSQL_PASSWORD: ${STAGE7_DB_PASSWORD:?Required local sandbox credential}
+    volumes:
+      - stage7_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [isolated]
+
+  api:
+    build:
+      context: ../server
+      dockerfile: ../stage7/local-api.Dockerfile
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8787:80"
+    environment:
+      APP_ENV: local
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: celikom_test_stage7
+      DB_USER: celikom_stage7
+      DB_PASSWORD: ${STAGE7_DB_PASSWORD:?Required}
+      STORAGE_DRIVER: local
+      STORAGE_PATH: /var/private/audio
+      AUDIO_SIGNING_KEY: ${STAGE7_SIGNING_KEY:?Required}
+      API_TEST_TOKEN: ${STAGE7_API_TOKEN:?Required}
+      UPLOAD_OWNER_TOKEN: ${STAGE7_UPLOAD_TOKEN:?Required}
+      FEATURE_REPLACEMENTS: "1"
+      FEATURE_ANALYTICS: "0"
+      FEATURE_OWNER_UPLOADS: "1"
+      MAX_AUDIO_SIZE: "31457280"
+    volumes:
+      - stage7_audio:/var/private/audio
+    networks: [isolated]
+
+networks:
+  isolated:
+    internal: false
+volumes:
+  stage7_mysql:
+  stage7_audio:

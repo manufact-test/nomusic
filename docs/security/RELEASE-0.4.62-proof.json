@@ -1,0 +1,11 @@
+{
+  "version": "0.4.62",
+  "apk": "not applicable",
+  "zip_sha256": "af40d0a6b7411c2d1965cf38d6233dd5294beb1f11ff357e1c57a8037b16c5e4",
+  "bytes": 2483607,
+  "tests_passed": 317,
+  "production_api_origin_verified": true,
+  "repository_private": false,
+  "server_or_playback_logic_changed": false,
+  "core_version_updated": true
+}

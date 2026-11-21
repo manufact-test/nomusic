@@ -1,0 +1,46 @@
+name: Hostinger private audio operations
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/deploy/hostinger-audio-request.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+      - name: Install audio inspection utilities (probe only)
+        run: |
+          if [[ "$(node -p "require('./.github/deploy/hostinger-audio-request.json').operation")" == "probe" ]]; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+            ffprobe -version | head -n 1
+          else
+            echo 'Audio tools are not needed for this server-only operation.'
+          fi
+      - name: Validate operation scripts (no Hostinger mutations)
+        run: |
+          bash -n .github/scripts/hostinger-audio.sh
+          php -l .github/scripts/hostinger-audio-remote.php
+      - name: Execute restricted private operation
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/hostinger-audio.sh

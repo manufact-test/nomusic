@@ -1,0 +1,57 @@
+name: CELIKOM Stage 9 owner-approved SMTP setup
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-stage9-mail.yml
+      - .github/deploy/hostinger-stage9-mail-request.json
+      - .github/scripts/hostinger-stage9-mail.sh
+      - .github/scripts/hostinger-stage9-mail-remote.php
+      - server/src/Auth/SmtpMailer.php
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  provision-private:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Verify private site request and script syntax
+        run: |
+          bash -n .github/scripts/hostinger-stage9-mail.sh
+          php -l .github/scripts/hostinger-stage9-mail-remote.php
+          php -l server/src/Auth/SmtpMailer.php
+          node --input-type=module <<'CHECK'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const req=JSON.parse(fs.readFileSync('.github/deploy/hostinger-stage9-mail-request.json','utf8'));
+          assert.deepEqual(Object.keys(req),['operation','target']);
+          assert.ok(['prepare','provision'].includes(req.operation));
+          assert.equal(req.target,'hostinger-private-test');
+          assert.equal(process.env.GITHUB_REPOSITORY,'manufact-test/nomusic');
+          assert.equal(process.env.GITHUB_REF,'refs/heads/feature/api-range');
+          CHECK
+      - name: Apply private SMTP only on explicit provision request
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          CELIKOM_SMTP_HOST: ${{ secrets.CELIKOM_SMTP_HOST }}
+          CELIKOM_SMTP_PORT: ${{ secrets.CELIKOM_SMTP_PORT }}
+          CELIKOM_SMTP_USER: ${{ secrets.CELIKOM_SMTP_USER }}
+          CELIKOM_SMTP_PASSWORD: ${{ secrets.CELIKOM_SMTP_PASSWORD }}
+          CELIKOM_MAIL_FROM: ${{ secrets.CELIKOM_MAIL_FROM }}
+          CELIKOM_SMTP_TEST_TO: ${{ secrets.CELIKOM_SMTP_TEST_TO }}
+        run: bash .github/scripts/hostinger-stage9-mail.sh

@@ -7,6 +7,7 @@ vendor/
 dist/
 extension/dist/
 server/vendor/
+server/storage/
 *.log
 *.pem
 *.key
@@ -14,3 +15,14 @@ server/vendor/
 *.pfx
 .idea/
 .vscode/
+stage7/.runtime/
+android/**/build/
+android/**/.gradle/
+android/**/local.properties
+android/spike/app/src/main/res/raw/*.wav
+android/native-research/*/src/main/res/raw/*.wav
+android/spike/app/src/main/assets/shared-surface-probe.js
+
+android/spike/app/src/main/assets/mobile-playback.js
+
+android/companion-probe/app/src/main/assets/catalog-diagnostic.json

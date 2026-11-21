@@ -1,0 +1,149 @@
+name: CELIKOM owner admin and FAQ mobile v5.14 private installation
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/celikom-owner-ui-v514-deploy.yml
+      - website/public/admin/index.php
+      - website/app/src/CmsFaqManager.php
+      - website/app/src/CmsEditor.php
+      - website/public/assets/css/admin-workspace.css
+      - website/public/assets/js/admin-workspace.js
+      - website/app/src/CmsV10OwnerMotion.php
+      - website/public/assets/css/v10/owner-v10-motion.css
+      - website/public/assets/js/v10/owner-v10-motion.js
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-website-staging
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3', tools: none, coverage: none}
+      - name: Verify website and CMS changes and production release lock
+        run: |
+          set -euo pipefail
+          php -l website/public/admin/index.php
+          php -l website/app/src/CmsFaqManager.php
+          php -l website/app/src/CmsEditor.php
+          php website/tests/Stage9CmsFaqTest.php
+          php -l website/app/src/CmsV10OwnerMotion.php
+          php website/tests/CmsV10OwnerMotionTest.php
+          node --check website/public/assets/js/admin-workspace.js
+          node --check website/public/assets/js/v10/owner-v10-motion.js
+          test ! -e website/RELEASE_READY
+          grep -Fq '&& false' .github/workflows/deploy-celikom-website.yml
+      - name: Stage changes, verify protected preview, preserve backups
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF" = refs/heads/feature/api-range
+          umask 077
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$tmp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$tmp/known"
+          chmod 600 "$tmp/id" "$tmp/known"
+          so=(-T -p 65002 -i "$tmp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$tmp/known")
+          sc=(-P 65002 -i "$tmp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$tmp/known")
+          host=u235811320@92.113.19.189
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          stage="$root/celikom-private/owner-ui-514-$GITHUB_SHA"
+          ssh "${so[@]}" "$host" "test -f '$root/celikom-private/app/staging-approved.php' && test ! -e '$root/celikom-private/app/release-approved.php' && test ! -e '$stage' && test -f '$root/celikom-private/demo-audio/clips/service.mp3' && test -f '$root/celikom-private/demo-audio/clips/restored.mp3' && mkdir -m 700 '$stage'"
+          scp "${sc[@]}" website/public/admin/index.php "$host:$stage/admin-index.php"
+          scp "${sc[@]}" website/app/src/CmsFaqManager.php "$host:$stage/CmsFaqManager.php"
+          scp "${sc[@]}" website/app/src/CmsEditor.php "$host:$stage/CmsEditor.php"
+          scp "${sc[@]}" website/public/assets/css/admin-workspace.css "$host:$stage/admin-workspace.css"
+          scp "${sc[@]}" website/public/assets/js/admin-workspace.js "$host:$stage/admin-workspace.js"
+          scp "${sc[@]}" website/app/src/CmsV10OwnerMotion.php "$host:$stage/CmsV10OwnerMotion.php"
+          scp "${sc[@]}" website/public/assets/css/v10/owner-v10-motion.css "$host:$stage/owner-v10-motion.css"
+          scp "${sc[@]}" website/public/assets/js/v10/owner-v10-motion.js "$host:$stage/owner-v10-motion.js"
+          ssh "${so[@]}" "$host" "env DEPLOY_SHA='$GITHUB_SHA' bash -se" <<'INSTALL'
+          set -euo pipefail
+          root=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com
+          stage="$root/celikom-private/owner-ui-514-$DEPLOY_SHA"
+          backup="$root/celikom-private/owner-ui-514-backup-$DEPLOY_SHA"
+          test -f "$root/celikom-private/app/staging-approved.php"
+          test ! -e "$root/celikom-private/app/release-approved.php"
+          test ! -e "$backup"
+          /opt/alt/php83/usr/bin/php -l "$stage/admin-index.php"
+          /opt/alt/php83/usr/bin/php -l "$stage/CmsFaqManager.php"
+          /opt/alt/php83/usr/bin/php -l "$stage/CmsEditor.php"
+          /opt/alt/php83/usr/bin/php -l "$stage/CmsV10OwnerMotion.php"
+          mkdir -m 700 "$backup"
+          cp -p "$root/public_html/admin/index.php" "$backup/admin-index.php"
+          cp -p "$root/celikom-private/app/src/CmsV10OwnerMotion.php" "$backup/CmsV10OwnerMotion.php"
+          cp -p "$root/celikom-private/app/src/CmsFaqManager.php" "$backup/CmsFaqManager.php"
+          cp -p "$root/celikom-private/app/src/CmsEditor.php" "$backup/CmsEditor.php"
+          cp -p "$root/public_html/assets/css/v10/owner-v10-motion.css" "$backup/owner-v10-motion.css"
+          cp -p "$root/public_html/assets/js/v10/owner-v10-motion.js" "$backup/owner-v10-motion.js"
+          for n in admin-workspace.css admin-workspace.js; do
+            if test "$n" = admin-workspace.css; then base="$root/public_html/assets/css";else base="$root/public_html/assets/js";fi
+            if test -f "$base/$n";then cp -p "$base/$n" "$backup/$n";fi
+          done
+          rollback() {
+            cp -p "$backup/admin-index.php" "$root/public_html/admin/index.php"
+            cp -p "$backup/CmsV10OwnerMotion.php" "$root/celikom-private/app/src/CmsV10OwnerMotion.php"
+            cp -p "$backup/CmsFaqManager.php" "$root/celikom-private/app/src/CmsFaqManager.php"
+            cp -p "$backup/CmsEditor.php" "$root/celikom-private/app/src/CmsEditor.php"
+            cp -p "$backup/owner-v10-motion.css" "$root/public_html/assets/css/v10/owner-v10-motion.css"
+            cp -p "$backup/owner-v10-motion.js" "$root/public_html/assets/js/v10/owner-v10-motion.js"
+            for n in admin-workspace.css admin-workspace.js;do
+              if test "$n" = admin-workspace.css;then base="$root/public_html/assets/css";else base="$root/public_html/assets/js";fi
+              if test -f "$backup/$n";then cp -p "$backup/$n" "$base/$n";else rm -f "$base/$n";fi
+            done
+            echo 'V514_OWNER_UI_ROLLED_BACK'
+          }
+          trap rollback ERR
+          cp -p "$stage/admin-workspace.css" "$root/public_html/assets/css/admin-workspace.css"
+          cp -p "$stage/admin-workspace.js" "$root/public_html/assets/js/admin-workspace.js"
+          cp -p "$stage/admin-index.php" "$root/public_html/admin/index.php"
+          cp -p "$stage/CmsV10OwnerMotion.php" "$root/celikom-private/app/src/CmsV10OwnerMotion.php"
+          cp -p "$stage/CmsFaqManager.php" "$root/celikom-private/app/src/CmsFaqManager.php"
+          cp -p "$stage/CmsEditor.php" "$root/celikom-private/app/src/CmsEditor.php"
+          cp -p "$stage/owner-v10-motion.css" "$root/public_html/assets/css/v10/owner-v10-motion.css"
+          cp -p "$stage/owner-v10-motion.js" "$root/public_html/assets/js/v10/owner-v10-motion.js"
+          secret="$root/celikom-private/staging-owner-credentials.txt"
+          password=$(sed -n 's/^HTTP Basic password: //p' "$secret")
+          test -n "$password"
+          base=https://lemonchiffon-narwhal-791953.hostingersite.com
+          landing=$(mktemp);admin=$(mktemp)
+          for n in 1 2 3 4;do
+            front=$(curl -sS --max-time 25 -u "review:$password" -o "$landing" -w '%{http_code}' "$base/?owner-ui=$DEPLOY_SHA-$n")
+            panel=$(curl -sS --max-time 25 -u "review:$password" -o "$admin" -w '%{http_code}' "$base/admin/?owner-ui=$DEPLOY_SHA-$n")
+            if test "$front" = 200 && test "$panel" = 200 &&
+               grep -Fq 'owner-v10-motion.css?v=514' "$landing" &&
+               grep -Fq 'owner-v10-motion.js?v=514' "$landing" &&
+               grep -Fq 'owner-sound-player.js?v=511' "$landing" &&
+               grep -Fq 'data-demo-ready="true"' "$landing" &&
+               grep -Fq '/assets/css/admin-workspace.css?v=518' "$admin" &&
+               grep -Fq '/assets/js/admin-workspace.js?v=517' "$admin" &&
+               grep -Fq 'Вход администратора' "$admin" &&
+               grep -Fq 'class="faq-item"' "$landing" &&
+               test -f "$root/public_html/assets/css/admin-workspace.css" &&
+               test -f "$root/public_html/assets/js/admin-workspace.js";then
+               echo 'OWNER_SITE_AND_CMS_STAGING_VERIFIED'
+               break
+            fi
+            if test "$n" -eq 4;then rollback;echo 'V514_LIVE_SMOKE_FAILED';exit 1;fi
+            sleep 3
+          done
+          rm -f "$landing" "$admin"
+          trap - ERR
+          INSTALL
+          for route in / /admin/ '/?demo_audio=service';do
+            code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://lemonchiffon-narwhal-791953.hostingersite.com$route")
+            test "$code" = 401
+          done
+          echo 'V514_CLOSED_SITE_AND_ADMIN_READY'

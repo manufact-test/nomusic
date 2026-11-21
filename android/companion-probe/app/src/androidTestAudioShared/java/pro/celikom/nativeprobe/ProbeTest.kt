@@ -1,0 +1,307 @@
+package pro.celikom.nativeprobe
+
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.MediaMetadata
+import android.media.audiofx.AudioEffect
+import android.os.Environment
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import android.content.ContentValues
+import android.provider.MediaStore
+import android.graphics.Bitmap
+
+@RunWith(AndroidJUnit4::class)
+class ProbeTest {
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context = instrumentation.targetContext
+    @Test fun publicSnapshotsExpireAndRetainBoundedTrackTransitions() {
+        ProbeStore.clear(context)
+        fun snapshot(title: String)=org.json.JSONObject().put("sessions",org.json.JSONArray().put(org.json.JSONObject()
+            .put("media_id",title).put("metadata",org.json.JSONObject().put("title",title))))
+        ProbeStore.publicMedia(context,snapshot("one"))
+        var saved=org.json.JSONObject(context.getSharedPreferences("native_probe",0).getString("public_media","{}"))
+        val observed=saved.getLong("observed_elapsed_ms")
+        assertTrue(ProbeStore.freshPublicMedia(saved,observed+5000))
+        assertFalse(ProbeStore.freshPublicMedia(saved,observed+5001))
+        assertFalse(ProbeStore.freshPublicMedia(saved,observed-1))
+        saved.put("process_instance","previous-process")
+        assertFalse(ProbeStore.freshPublicMedia(saved,observed))
+        for (i in 0..24) ProbeStore.publicMedia(context,snapshot("track-$i"))
+        ProbeStore.publicMedia(context,snapshot("track-24"))
+        val history=org.json.JSONArray(context.getSharedPreferences("native_probe",0).getString("public_media_history","[]"))
+        assertEquals(20,history.length())
+        assertEquals("track-24",history.getJSONObject(19).getJSONArray("sessions").getJSONObject(0).getString("media_id"))
+        if (BuildConfig.PANEL_ONLY) {
+            ProbeStore.put(context,"public_browser",org.json.JSONObject().put("status","connected"))
+            ProbeStore.put(context,"public_media",saved)
+            ProbeStore.put(context,"catalog_match",org.json.JSONObject().put("status","unique_metadata_candidate_unverified").put("candidate_track_id","123"))
+            val report=ProbeStore.report(context)
+            assertEquals("data_stale",report.getJSONObject("public_browser").getString("status"))
+            assertFalse(report.getJSONObject("catalog_match").has("candidate_track_id"))
+            assertEquals("observation_stale",report.getJSONObject("catalog_match").getString("status"))
+        }
+        ProbeStore.clear(context)
+    }
+    @Test fun catalogMatchRejectsAmbiguityRemixesMissingDataAndStaleSnapshots() {
+        val now=System.currentTimeMillis()
+        fun row(id: String, title: String="Здравствуй", album: String="BRATLAND")=org.json.JSONObject()
+            .put("track_id",id).put("title",title).put("artist","MACAN, Три дня дождя").put("album",album)
+            .put("duration_ms",228000).put("replacement_available",true)
+        fun snapshot(vararg rows: org.json.JSONObject)=org.json.JSONObject().put("schema",1).put("generated_at_ms",now)
+            .put("complete",true).put("tracks",org.json.JSONArray(rows.toList()))
+        fun match(s: org.json.JSONObject)=CatalogMatcher.match(s,"Здравствуй","Три дня дождя, MACAN","BRATLAND",228000,now)
+        val unique=match(snapshot(row("141103805")))
+        assertEquals("unique_metadata_candidate_unverified",unique.getString("status"))
+        assertEquals("141103805",unique.getString("candidate_track_id"))
+        assertFalse(unique.getBoolean("exact_track_id_verified"));assertFalse(unique.getBoolean("replacement_started"))
+        val duplicate=match(snapshot(row("141103805"),row("141103806")))
+        assertEquals("ambiguous_metadata_candidates",duplicate.getString("status"));assertFalse(duplicate.has("candidate_track_id"))
+        assertEquals("no_complete_metadata_match",match(snapshot(row("1","Здравствуй (Remix)"))).getString("status"))
+        assertEquals("no_complete_metadata_match",match(snapshot(row("1",album=""))).getString("status"))
+        val mismatch=row("1").put("duration_ms",230000)
+        assertEquals("no_complete_metadata_match",match(snapshot(mismatch)).getString("status"))
+        assertEquals("catalog_snapshot_stale",match(snapshot(row("1")).put("generated_at_ms",now-8*86400000L)).getString("status"))
+        assertEquals("catalog_incomplete",match(snapshot(row("1")).put("complete",false)).getString("status"))
+        assertEquals("insufficient_current_metadata",CatalogMatcher.match(snapshot(row("1")),"Здравствуй","MACAN","",228000,now).getString("status"))
+    }
+    @Test fun sessionIdentityRejectsArbitraryExtrasAndStripsLinkSecrets() {
+        val extras=android.os.Bundle().apply {
+            putString("com.example.track_id","141103805")
+            putString("password","private-password")
+            putString("track_url","https://music.yandex.ru/album/37458189/track/141103805?token=private-token")
+            putString("duration","228000");putString("media_id","13")
+        }
+        val safe=SessionIdentity.extras(extras)
+        assertEquals("141103805",safe.getJSONObject("track_id_candidates").getString("com.example.track_id"))
+        assertEquals(1,safe.getJSONObject("track_id_candidates").length())
+        assertFalse(safe.toString().contains("private-password"));assertFalse(safe.toString().contains("private-token"))
+        assertFalse(safe.getBoolean("exact_track_id_verified"))
+    }
+    @Test fun trackIdentityRecordsOnlyPublicTrackPathAndNeverCredentials() {
+        val safe=MediaIdentity.uri(android.net.Uri.parse("https://music.yandex.ru/album/38763902/track/142820338?token=secret#secret"))
+        assertEquals("142820338",safe.getString("track_id_candidate"))
+        assertFalse(safe.toString().contains("secret"))
+        val credential=MediaIdentity.uri(android.net.Uri.parse("https://user:secret@music.yandex.ru/album/1/track/2"))
+        assertFalse(credential.has("track_id_candidate"));assertFalse(credential.toString().contains("secret"))
+        val stream=MediaIdentity.uri(android.net.Uri.parse("https://stream.example.org/private-secret?token=secret"))
+        assertFalse(stream.toString().contains("secret"));assertFalse(stream.has("public_track_url"))
+    }
+    @Test fun modernConnectionRecoversThenReusesAndObservesTrackChanges() {
+        ProbeStore.clear(context);ProbeStore.setEnabled(context,true)
+        ProbeLibraryFixture.admissions=0
+        val component=android.content.ComponentName(context,ProbeLibraryFixture::class.java)
+        lateinit var probe: ModernMediaProbe
+        instrumentation.runOnMainSync {
+            probe=ModernMediaProbe(context,{ _, _, _ -> },context.packageName)
+            probe.connect(component)
+        }
+        fun awaitTitle(title: String) {
+            val deadline=android.os.SystemClock.elapsedRealtime()+10000
+            while (android.os.SystemClock.elapsedRealtime()<deadline) {
+                val data=org.json.JSONObject(context.getSharedPreferences("native_probe",0).getString("public_media","{}"))
+                if (data.optJSONArray("sessions")?.optJSONObject(0)?.optJSONObject("metadata")?.optString("title")==title) return
+                android.os.SystemClock.sleep(100)
+            }
+            fail("Expected current metadata: $title")
+        }
+        try {
+            awaitTitle("Probe one")
+            val sessionEvidence=ProbeStore.report(context).getJSONObject("session_identity")
+            assertEquals("141103805",sessionEvidence.getJSONObject("session_extras").getJSONObject("track_id_candidates").getString("com.example.track_id"))
+            assertEquals(0,sessionEvidence.getInt("commands_sent"))
+            assertFalse(sessionEvidence.toString().contains("private-fixture"))
+            val identityDeadline=android.os.SystemClock.elapsedRealtime()+5000
+            var identity=ProbeStore.report(context).getJSONObject("track_identity")
+            while (identity.optString("status")!="current_item_received" && android.os.SystemClock.elapsedRealtime()<identityDeadline) {
+                android.os.SystemClock.sleep(100);identity=ProbeStore.report(context).getJSONObject("track_identity")
+            }
+            assertEquals("current_item_received",identity.optString("status"))
+            assertEquals("142820338",identity.getJSONObject("library_item").getJSONObject("request_uri").getString("track_id_candidate"))
+            assertFalse(identity.toString().contains("private-test"))
+            assertFalse(identity.getJSONObject("library_item").getBoolean("exact_track_id_verified"))
+            assertTrue(ProbeLibraryFixture.admissions>=2)
+            val admissions=ProbeLibraryFixture.admissions
+            instrumentation.runOnMainSync { repeat(3) { probe.connect(component) } }
+            assertEquals(admissions,ProbeLibraryFixture.admissions)
+            instrumentation.runOnMainSync { ProbeLibraryFixture.instance!!.change("Probe two","2") }
+            awaitTitle("Probe two")
+            assertEquals(BuildConfig.VERSION_NAME,ProbeStore.report(context).getString("probe_version"))
+        } finally {
+            instrumentation.runOnMainSync { probe.stop();context.stopService(Intent(context,ProbeLibraryFixture::class.java)) }
+            ProbeStore.clear(context)
+        }
+    }
+    @Test fun boundedReportRejectsSpoofAndDoesNotRequestAudioOrNetwork() {
+        ProbeStore.clear(context)
+        val spoof = Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION)
+            .putExtra(AudioEffect.EXTRA_PACKAGE_NAME, ProbeStore.YANDEX)
+            .putExtra(AudioEffect.EXTRA_AUDIO_SESSION, 42)
+        SessionReceiver().onReceive(context, spoof)
+        val first = ProbeStore.report(context).getJSONArray("events").getJSONObject(0)
+        assertFalse(first.getBoolean("verified_panel_caller")); assertFalse(first.getBoolean("effect_applied"))
+        assertEquals(1, ProbeStore.report(context).getJSONArray("events").length())
+        ProbeStore.clear(context)
+        repeat(40) { index -> ProbeStore.event(context, ProbeStore.effectEvent(Intent(spoof).putExtra(AudioEffect.EXTRA_AUDIO_SESSION, index + 1), null)) }
+        assertEquals(30, ProbeStore.report(context).getJSONArray("events").length())
+        ProbeStore.setEnabled(context, false); SessionReceiver().onReceive(context, spoof)
+        assertEquals(30, ProbeStore.report(context).getJSONArray("events").length())
+        ProbeStore.setEnabled(context, true)
+        val permissions = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions?.toList() ?: emptyList()
+        for (name in listOf("android.permission.INTERNET", "android.permission.RECORD_AUDIO")) assertFalse(permissions.contains(name))
+        val metadata = MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_MEDIA_ID, "144530503")
+            .putString(MediaMetadata.METADATA_KEY_MEDIA_URI, "https://user:secret@example.org/track/144530503?token=secret#secret")
+            .putString("private.credentials", "secret").build()
+        val safe = ProbeStore.metadata(metadata)
+        assertFalse(safe.toString().contains("secret")); assertFalse(safe.getBoolean("exact_track_id_verified"))
+        val bundle = android.os.Bundle().apply { putString("trackId", "36116709"); putString("media_id", "-4"); putString("password", "secret") }
+        assertEquals("36116709", ProbeStore.numericCandidates(bundle).getString("trackId"))
+        assertFalse(ProbeStore.numericCandidates(bundle).toString().contains("secret"))
+        assertFalse(ProbeStore.numericCandidates(bundle).has("media_id"))
+        ProbeStore.clear(context)
+    }
+    @Test fun sharedLinkIsExplicitReferenceAndNeverClaimsCurrentTrack() {
+        ProbeStore.clear(context)
+        assertTrue(ProbeStore.acceptSharedLink(context, "https://music.yandex.ru/album/1777786/track/36116709?token=do-not-store"))
+        val report = ProbeStore.report(context)
+        assertEquals("36116709", report.getJSONObject("shared_track").getString("track_id"))
+        assertFalse(report.getJSONObject("shared_track").getBoolean("current_track_verified"))
+        assertFalse(report.toString().contains("do-not-store"))
+        assertFalse(ProbeStore.acceptSharedLink(context, "https://example.org/album/1/track/2"))
+        assertFalse(ProbeStore.acceptSharedLink(context, "https://music.yandex.ru/album/1/track/2evil"))
+        assertFalse(ProbeStore.acceptSharedLink(context, "https://user:secret@music.yandex.ru/album/1/track/2"))
+        if (BuildConfig.PANEL_ONLY) {
+            assertFalse(report.getBoolean("automatic_track_observation"))
+            val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SERVICES)
+            assertFalse(info.services?.any { it.name.endsWith("MusicListener") } ?: false)
+            assertFalse(report.getJSONObject("media").has("sessions"))
+            assertFalse(report.getJSONObject("media").getBoolean("fresh"))
+        }
+        ProbeStore.clear(context)
+    }
+    @Test fun shortAttenuationReleasesAfterActivityFinishes() {
+        ProbeStore.clear(context); ProbeStore.setEnabled(context,true)
+        val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        instrumentation.waitForIdleSync()
+        val track=android.media.AudioTrack.Builder().setAudioAttributes(android.media.AudioAttributes.Builder()
+            .setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            .setAudioFormat(android.media.AudioFormat.Builder().setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(8000).setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+            .setTransferMode(android.media.AudioTrack.MODE_STATIC).setBufferSizeInBytes(16000).build()
+        try {
+            track.write(ByteArray(16000),0,16000); track.setLoopPoints(0,8000,-1); track.play()
+            ProbeStore.event(context, ProbeStore.effectEvent(Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
+                .putExtra(AudioEffect.EXTRA_AUDIO_SESSION,track.audioSessionId),ProbeStore.YANDEX))
+            instrumentation.runOnMainSync { context.startForegroundService(Intent(context,AttenuationService::class.java).putExtra("play_tone",true)) }
+            android.os.SystemClock.sleep(500)
+            assertEquals("waiting",ProbeStore.report(context).getJSONObject("attenuation_test").getString("status"))
+            instrumentation.runOnMainSync { activity.finish() }
+            android.os.SystemClock.sleep(4000)
+            val active=ProbeStore.report(context).getJSONObject("attenuation_test")
+            assertEquals(active.toString(),"attenuating",active.getString("status")); assertTrue(active.getBoolean("effect_attached"))
+            val blocking = java.util.concurrent.CountDownLatch(1)
+            val unblocked = java.util.concurrent.CountDownLatch(1)
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                blocking.countDown(); android.os.SystemClock.sleep(10000); unblocked.countDown()
+            }
+            assertTrue(blocking.await(2,java.util.concurrent.TimeUnit.SECONDS))
+            android.os.SystemClock.sleep(7000)
+            assertEquals(1L,unblocked.count) // The effect must release while UI dispatch is stalled.
+            val result=ProbeStore.report(context).getJSONObject("attenuation_test")
+            assertEquals("finished",result.getString("status")); assertEquals("timeout",result.getString("reason")); assertTrue(result.getBoolean("released"))
+            assertFalse(result.getBoolean("audible_result_verified"))
+            val tone=result.getJSONObject("test_tone")
+            assertEquals("local_test_tone",tone.getString("source"));assertTrue(tone.getBoolean("different_from_yandex_session"))
+            assertTrue(tone.getInt("played_frames")>16000);assertEquals(112000,tone.getInt("submitted_frames"))
+            assertTrue(tone.getBoolean("released"));assertFalse(tone.getBoolean("focus_requested"))
+            assertTrue(result.getBoolean("wake_lock_held_at_attach")); assertTrue(result.getBoolean("wake_lock_released"))
+            assertTrue(result.getLong("elapsed_ms") in 9500..11500)
+            assertTrue(result.getLong("mute_elapsed_ms") in 6000..8500)
+            assertTrue(unblocked.await(5,java.util.concurrent.TimeUnit.SECONDS))
+            assertTrue(result.getLong("finished_at_ms")-result.getLong("started_at_ms")<12000)
+        } finally { context.stopService(Intent(context,AttenuationService::class.java));track.stop();track.release();ProbeStore.clear(context) }
+    }
+    @Test fun attenuationRequiresFreshVerifiedNonGlobalSession() {
+        val now = System.currentTimeMillis()
+        fun report(session: Int, verified: Boolean, age: Long) = org.json.JSONObject().put("events", org.json.JSONArray().put(
+            org.json.JSONObject().put("action", AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
+                .put("session_id", session).put("verified_panel_caller", verified).put("caller_package", ProbeStore.YANDEX)
+                .put("observed_at_ms", now-age)))
+        assertEquals(42, AttenuationService.verifiedSession(report(42,true,1000),now))
+        assertNull(AttenuationService.verifiedSession(report(0,true,0),now))
+        assertNull(AttenuationService.verifiedSession(report(-1,true,0),now))
+        assertNull(AttenuationService.verifiedSession(report(42,false,0),now))
+        assertNull(AttenuationService.verifiedSession(report(42,true,60001),now))
+        assertNull(AttenuationService.verifiedSession(report(42,true,-1),now))
+        val info=context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SERVICES)
+        val service=info.services!!.first { it.name.endsWith("AttenuationService") }
+        assertFalse(service.exported)
+        if (android.os.Build.VERSION.SDK_INT >= 29) assertEquals(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,service.foregroundServiceType)
+    }
+    @Test fun manifestDiscoveryIsBoundedAndReportsProtectedDisabledAndModernServices() {
+        assertEquals("connection_failed",PublicMediaProbe.connectionStatus(listOf("connection_failed_callback"),false))
+        assertEquals("connection_failed",PublicMediaProbe.connectionStatus(listOf("connect_exception"),false))
+        assertEquals("connection_timeout",PublicMediaProbe.connectionStatus(listOf("timeout_without_callback"),false))
+        assertEquals("connecting",PublicMediaProbe.connectionStatus(listOf("connection_failed_callback","connecting"),false))
+        assertEquals("connected",PublicMediaProbe.connectionStatus(listOf("connection_failed_callback"),true))
+        assertEquals(3,MediaServiceDiscovery.actions.size)
+        assertTrue(MediaServiceDiscovery.actions.contains("androidx.media3.session.MediaLibraryService"))
+        val service=android.content.pm.ServiceInfo().apply { packageName=ProbeStore.YANDEX;exported=true;enabled=true }
+        assertEquals("disabled",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX,false))
+        service.enabled=false;assertEquals("eligible",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX,true));service.enabled=true
+        service.permission="protected";assertEquals("permission_protected",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
+        service.permission=null;service.enabled=false;assertEquals("disabled",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
+        service.enabled=true;service.exported=false;assertEquals("not_exported",MediaServiceDiscovery.reason(service,ProbeStore.YANDEX))
+        val discovery=MediaServiceDiscovery.scan(context,context.packageName)
+        assertTrue(discovery.report.getBoolean("installed"));assertTrue(discovery.report.getJSONArray("declared_services").length()<=60)
+        assertTrue(discovery.candidates.size<=3)
+        assertTrue(discovery.report.has("enabled_query_counts"))
+        val services=discovery.report.getJSONArray("declared_services")
+        val privateService= (0 until services.length()).map { services.getJSONObject(it) }.first { it.getString("name").endsWith("AttenuationService") }
+        assertEquals("not_exported",privateService.getString("eligibility"))
+        assertFalse(discovery.candidates.any { it.name.endsWith("AttenuationService") })
+    }
+    @Test fun publicBrowserRejectsForeignPrivateOrUnexportedServices() {
+        val s = android.content.pm.ServiceInfo().apply { packageName = ProbeStore.YANDEX; exported = true; enabled = true }
+        assertTrue(PublicMediaProbe.eligible(s))
+        s.permission = "android.permission.MEDIA_CONTENT_CONTROL"; assertFalse(PublicMediaProbe.eligible(s))
+        s.permission = null; s.exported = false; assertFalse(PublicMediaProbe.eligible(s))
+        s.exported = true; s.packageName = "other.app"; assertFalse(PublicMediaProbe.eligible(s))
+    }
+    @Test fun nativeUiStartsWithoutYandexOrLoginAndProducesScreenshot() {
+        val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        instrumentation.waitForIdleSync()
+        val view = activity.window.decorView
+        assertTrue(view.width > 0); assertTrue(view.height > 0)
+        // Idle Java messages do not guarantee the first Surface frame has been presented.
+        // Reject the blank launch frame and wait for the actual native screen background.
+        fun rendered(image: Bitmap): Boolean {
+            var dark = 0
+            for (y in 2..13) for (x in 1..14) {
+                val pixel = image.getPixel(image.width * x / 16, image.height * y / 16)
+                if (android.graphics.Color.red(pixel) in 8..14 && android.graphics.Color.green(pixel) in 13..19 &&
+                    android.graphics.Color.blue(pixel) in 16..22) dark++
+            }
+            return dark >= 20
+        }
+        var image = instrumentation.uiAutomation.takeScreenshot()
+        val drawDeadline = android.os.SystemClock.elapsedRealtime() + 5000
+        while (!rendered(image) && android.os.SystemClock.elapsedRealtime() < drawDeadline) {
+            image.recycle(); android.os.SystemClock.sleep(100)
+            image = instrumentation.uiAutomation.takeScreenshot()
+        }
+        assertTrue("Native screen must be drawn, not the blank launch window", rendered(image))
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "native-probe.png")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("Cannot save screenshot")
+        context.contentResolver.openOutputStream(uri)!!.use { assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+        image.recycle()
+        instrumentation.runOnMainSync { activity.finish() }
+    }
+}

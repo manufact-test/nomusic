@@ -1,0 +1,5 @@
+{
+  "operation": "audit",
+  "target": "hostinger-private-test",
+  "expected_release": "0.4.23-df8bd247b9ae0a6ff1ecc75f453403fa84be8529"
+}

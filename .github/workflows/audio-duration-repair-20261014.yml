@@ -1,0 +1,161 @@
+name: Repair two owner-approved MP3 duration failures
+on:
+  push:
+    branches: [feature/api-range]
+    paths: [.github/workflows/audio-duration-repair-20261014.yml]
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read-only audio duration and silence audit
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work=$(mktemp -d)
+          target=u235811320@92.113.19.189
+          remote=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming/duration-audit-${GITHUB_RUN_ID}.php
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/key"
+          ssh-keygen -y -P '' -f "$work/key" > "$work/public"
+          test "$(ssh-keygen -lf "$work/public" -E sha256 | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          opts=(-i "$work/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          trap 'ssh -p 65002 "${opts[@]}" "$target" "rm -f '\''$remote'\''" || true; rm -rf "$work"' EXIT
+          cat > "$work/audit.php" <<'PHP'
+          <?php
+          ini_set('display_errors','0');
+          try {
+          $app='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
+          require $app.'/current/bootstrap.php';$config=require $app.'/current/config/app.php';
+          $pdo=Celikom\Database\Connection::open($config);
+          $pdo->exec('SET TRANSACTION READ ONLY');$pdo->beginTransaction();
+          $q=$pdo->query("SELECT t.service_track_id,t.title,t.artist,t.duration_ms AS original_ms,r.id AS replacement_id,r.version,r.audio_asset_id,a.duration_ms,a.sha256,a.storage_key,a.size_bytes FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id WHERE t.service='yandex' AND t.service_track_id IN ('50163040','48591588') AND r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL ORDER BY t.service_track_id");
+          $rows=$q->fetchAll(PDO::FETCH_ASSOC);$pdo->commit();
+          if(count($rows)!==2)throw new RuntimeException('two_active_required');
+          $id=$argv[1]??'';
+          if($id==='inspect'){foreach($rows as &$r){unset($r['storage_key']);}echo json_encode($rows,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
+          foreach($rows as $r){if($r['service_track_id']!==$id)continue;
+          $s=new Celikom\Storage\LocalStorageAdapter($config['storage_path']);$stream=$s->openStream($r['storage_key']);
+          if($s->getSize($r['storage_key'])!==(int)$r['size_bytes'])throw new RuntimeException('size');
+          fpassthru($stream);fclose($stream);exit;}
+          throw new RuntimeException('id');
+          }catch(Throwable $e){fwrite(STDERR,'Restricted audio audit failed: '.get_class($e)."\n");exit(1);}
+          PHP
+          scp -P 65002 "${opts[@]}" "$work/audit.php" "$target:$remote"
+          ssh -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote' inspect" > "$work/metadata.json"
+          cat "$work/metadata.json"
+          command -v ffmpeg || { sudo apt-get update -qq; sudo apt-get install -y -qq ffmpeg; }
+          for id in 50163040 48591588; do
+            ssh -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote' '$id'" > "$work/$id.mp3"
+          done
+          cat > "$work/prepare.py" <<'PYTHON'
+          import sys,json,pathlib,subprocess,hashlib,math,struct
+          work=pathlib.Path(sys.argv[1]); rows=json.loads((work/'metadata.json').read_text())
+          expected={'48591588':('cd3cc2270a3bb6e62cc0e2431d83a69b8e20f376e962f74baec3ed3fd177d354',270480,18,2),'50163040':('fbab3cff59d1581b48c4b15773a1684265d3566ff56c8b8f78664d465ba752e1',187520,21,2)}
+          def frames(data):
+           p=0
+           if data[:3]==b'ID3':
+            p=10+sum(data[6+i]<<(7*(3-i)) for i in range(4))
+            if data[3]==4 and data[5]&16:p+=10
+           result=[]
+           while p+4<=len(data):
+            h=int.from_bytes(data[p:p+4],'big')
+            if h>>21!=0x7ff:break
+            assert (h>>19)&3==3 and (h>>17)&3==1 and (h>>10)&3==0,'Require MPEG1 Layer3 44100Hz'
+            bitrates=[0,32,40,48,56,64,80,96,112,128,160,192,224,256,320,0]
+            br=bitrates[(h>>12)&15];assert br==320 and (h>>6)&3!=3,'Require 320kbps stereo'
+            n=144000*br//44100+((h>>9)&1);assert p+n<=len(data)
+            result.append(data[p:p+n]);p+=n
+           tail=data[p:]
+           if tail[:3]==b'TAG':tail=tail[128:]
+           assert len(tail)<=4096 and not tail.strip(b'\x00'),'Unexpected trailer'
+           return result
+          def pcm(path):
+           return subprocess.check_output(['ffmpeg','-v','error','-i',str(path),'-map','0:a:0','-f','s16le','-acodec','pcm_s16le','-'])
+          manifest=[]
+          for r in sorted(rows,key=lambda r:r['service_track_id']):
+           id=r['service_track_id'];src=work/(id+'.mp3');data=src.read_bytes();e=expected[id]
+           assert (hashlib.sha256(data).hexdigest(),int(r['original_ms']),int(r['replacement_id']),int(r['version']))==e
+           fs=frames(data);target=round(int(r['original_ms'])/1000*44100/1152)
+           if id=='50163040':
+            assert target<len(fs)
+            original_pcm=pcm(src);sample_cut=target*1152
+            tail=original_pcm[sample_cut*4:];values=struct.unpack('<'+'h'*(len(tail)//2),tail)
+            assert max(map(abs,values),default=0)<185,'Tail must stay below -45dBFS'
+            fixed=b''.join(fs[:target]);kind='trim_trailing_silence'
+           else:
+            assert 0<target-len(fs)<100
+            silence=work/'silence.mp3'
+            subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','anullsrc=r=44100:cl=stereo','-t','4','-c:a','libmp3lame','-b:a','320k','-write_xing','0','-id3v2_version','0',str(silence)],check=True)
+            sf=frames(silence.read_bytes());fixed=b''.join(fs+sf[:target-len(fs)]);kind='pad_trailing_silence'
+           dst=work/(id+'-fixed.mp3');dst.write_bytes(fixed)
+           newframes=frames(fixed);assert len(newframes)==target
+           assert newframes[:min(len(fs),target)]==fs[:min(len(fs),target)]
+           # Decoder sees identical existing music samples through the edit boundary.
+           a=pcm(src);b=pcm(dst);common=min(len(a),len(b));assert a[:common]==b[:common],'Existing PCM must be byte-identical'
+           duration=round(target*1152/44100*1000);assert abs(duration-int(r['original_ms']))<30
+           m=dict(r,new_sha256=hashlib.sha256(fixed).hexdigest(),new_size=len(fixed),new_duration_ms=duration,repair=kind);manifest.append(m)
+           print(json.dumps({'track':id,'repair':kind,'old_ms':int(r['duration_ms']),'new_ms':duration,'target_ms':int(r['original_ms']),'original_music_frames_preserved':True,'decoded_music_samples_identical':True}))
+          (work/'repair-manifest.json').write_text(json.dumps(manifest))
+          PYTHON
+          python3 "$work/prepare.py" "$work"
+          cat > "$work/repair.php" <<'PHP_REPAIR'
+          <?php
+          ini_set('display_errors','0');
+          $pdo=null;
+          try {
+          if(PHP_SAPI!=='cli')throw new RuntimeException('cli');
+          $app='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom';
+          require $app.'/current/bootstrap.php';$config=require $app.'/current/config/app.php';
+          $pdo=Celikom\Database\Connection::open($config);
+          $manifest=json_decode(file_get_contents(__DIR__.'/repair-manifest.json'),true,16,JSON_THROW_ON_ERROR);
+          if(count($manifest)!==2 || array_column($manifest,'service_track_id')!==['48591588','50163040'])throw new RuntimeException('scope');
+          $backup=$app.'/backups/duration-repair-'.gmdate('YmdTHis').'-'.bin2hex(random_bytes(4));
+          if(!mkdir($backup,0700,true))throw new RuntimeException('backup');
+          $storage=new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
+          $pdo->beginTransaction();$before=[];$after=[];
+          foreach($manifest as $m){
+          $q=$pdo->prepare("SELECT t.id AS track_id,t.service_track_id,t.duration_ms AS original_ms,r.*,a.storage_key,a.sha256,a.size_bytes,a.duration_ms AS audio_ms FROM tracks t JOIN track_replacements r ON r.track_id=t.id JOIN audio_assets a ON a.id=r.audio_asset_id WHERE t.service='yandex' AND t.service_track_id=? AND r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL FOR UPDATE");
+          $q->execute([$m['service_track_id']]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);
+          if(count($rows)!==1)throw new RuntimeException('active');$r=$rows[0];
+          if((int)$r['id']!==(int)$m['replacement_id'] || (int)$r['version']!==(int)$m['version'] || $r['sha256']!==$m['sha256'] || (int)$r['original_ms']!==(int)$m['original_ms'] || $r['version']>=4294967295)throw new RuntimeException('lease');
+          $old=$storage->openStream($r['storage_key']);$oldBackup=$backup.'/'.$m['service_track_id'].'-original.mp3';
+          $out=fopen($oldBackup,'xb');if(!$out)throw new RuntimeException('backup_file');stream_copy_to_stream($old,$out);fclose($old);fclose($out);chmod($oldBackup,0600);
+          if(hash_file('sha256',$oldBackup)!==$r['sha256'])throw new RuntimeException('old_hash');
+          $file=__DIR__.'/'.$m['service_track_id'].'-fixed.mp3';
+          if(is_link($file)||!is_file($file)||hash_file('sha256',$file)!==$m['new_sha256']||filesize($file)!==(int)$m['new_size'])throw new RuntimeException('new_file');
+          $duration=(new Celikom\Application\Mp3Inspector())->durationMs($file);
+          if($duration===null||abs($duration-(int)$m['new_duration_ms'])>100||abs($duration-(int)$r['original_ms'])>1000)throw new RuntimeException('new_duration');
+          $key='audio/'.substr($m['new_sha256'],0,2).'/'.$m['new_sha256'].'.mp3';
+          if(!$storage->exists($key)){$f=fopen($file,'rb');$storage->put($key,$f);fclose($f);}
+          $verify=$storage->openStream($key);$hc=hash_init('sha256');hash_update_stream($hc,$verify);fclose($verify);
+          if(hash_final($hc)!==$m['new_sha256']||$storage->getSize($key)!==(int)$m['new_size'])throw new RuntimeException('stored');
+          $stmt=$pdo->prepare("INSERT INTO audio_assets(storage_driver,storage_key,sha256,mime_type,size_bytes,duration_ms) VALUES('local',?,?,'audio/mpeg',?,?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+          $stmt->execute([$key,$m['new_sha256'],$m['new_size'],$duration]);$assetId=(int)$pdo->lastInsertId();
+          $check=$pdo->prepare('SELECT * FROM audio_assets WHERE id=?');$check->execute([$assetId]);$a=$check->fetch(PDO::FETCH_ASSOC);
+          if(!$a||$a['storage_key']!==$key||$a['sha256']!==$m['new_sha256']||abs((int)$a['duration_ms']-$duration)>100)throw new RuntimeException('asset');
+          $before[]=$r;$new=['audio_asset_id'=>$assetId,'duration_ms'=>$duration,'sha256'=>$m['new_sha256'],'version'=>(int)$r['version']+1];
+          $pdo->prepare('UPDATE track_replacements SET audio_asset_id=?,version=version+1 WHERE id=?')->execute([$assetId,$r['id']]);
+          $admin=(int)$pdo->query("SELECT id FROM admins WHERE role='owner' AND enabled=1 ORDER BY id LIMIT 1")->fetchColumn();if(!$admin)throw new RuntimeException('owner');
+          $pdo->prepare("INSERT INTO audit_log(admin_id,action,entity_type,entity_id,reason,before_json,after_json) VALUES(?,'audio_trailing_silence_repair','replacement',?,'Owner requested repair of trailing silence; encoded MP3 frames preserved',?,?)")->execute([$admin,$r['id'],json_encode($r,JSON_THROW_ON_ERROR),json_encode($new,JSON_THROW_ON_ERROR)]);
+          $after[]=['track_id'=>$m['service_track_id'],'replacement_id'=>(int)$r['id'],'old_duration_ms'=>(int)$r['audio_ms'],'new_duration_ms'=>$duration,'original_ms'=>(int)$r['original_ms'],'new_version'=>$new['version']];
+          }
+          file_put_contents($backup.'/before.json',json_encode($before,JSON_THROW_ON_ERROR));chmod($backup.'/before.json',0600);
+          file_put_contents($backup.'/manifest.json',json_encode($manifest,JSON_THROW_ON_ERROR));chmod($backup.'/manifest.json',0600);
+          $pdo->commit();echo json_encode(['committed'=>true,'tracks'=>$after],JSON_THROW_ON_ERROR),"\n";
+          }catch(Throwable $e){if($pdo && $pdo->inTransaction())$pdo->rollBack();fwrite(STDERR,'Restricted repair failed: '.get_class($e)."\n");exit(1);}
+          PHP_REPAIR
+          repair_dir=/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/incoming/duration-repair-${GITHUB_RUN_ID}
+          ssh -p 65002 "${opts[@]}" "$target" "umask 077; mkdir '$repair_dir'"
+          trap 'ssh -p 65002 "${opts[@]}" "$target" "rm -f '\''$remote'\''; rm -f '\''$repair_dir/repair.php'\'' '\''$repair_dir/repair-manifest.json'\'' '\''$repair_dir/48591588-fixed.mp3'\'' '\''$repair_dir/50163040-fixed.mp3'\''; rmdir '\''$repair_dir'\''" || true; rm -rf "$work"' EXIT
+          scp -P 65002 "${opts[@]}" "$work/repair.php" "$work/repair-manifest.json" "$work/48591588-fixed.mp3" "$work/50163040-fixed.mp3" "$target:$repair_dir/"
+          ssh -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php -l '$repair_dir/repair.php'; /opt/alt/php83/usr/bin/php '$repair_dir/repair.php'"
+          ssh -p 65002 "${opts[@]}" "$target" "/opt/alt/php83/usr/bin/php '$remote' inspect"

@@ -1,0 +1,47 @@
+/*
+ * CELIKOM / accepted v10 geometry, verified against CELIKOM_SITE_CLEAN_v10.html.
+ * Stage 3 tokens. The v10 CSS cascade remains the visual source of truth.
+ * Do not adjust tokens for a redesign without explicit approval.
+ */
+:root {
+  --ck-ink: #0B1013;
+  --ck-mint: #66E0BF;
+  --ck-paper: #F7F8F4;
+  --ck-muted: #556368;
+  --ck-stroke: #DCE8E3;
+  --ck-link: #14594D;
+  --ck-white: #FFFFFF;
+  --ck-font: "Manrope", Arial, sans-serif;
+  --ck-container-max: 1240px;
+  --ck-gutter: 44px;
+  --ck-section-gap: 82px;
+  --ck-button-radius: 14px;
+  --ck-button-height: 58px;
+  --ck-card-radius: 26px;
+  --ck-board-radius: 35px;
+  --ck-faq-card-radius: 23px;
+  --ck-heading-hero: clamp(48px, 5.3vw, 76px);
+  --ck-heading-letter-spacing: -.075em;
+  --ck-body-size: 16px;
+  --ck-motion-base: 200ms;
+}
+@media (max-width: 1050px) {
+  :root { --ck-gutter: 30px; --ck-section-gap: 64px; }
+}
+@media (max-width: 800px) {
+  :root { --ck-section-gap: 54px; }
+}
+@media (max-width: 540px) {
+  :root {
+    --ck-gutter: 18px;
+    --ck-section-gap: 48px;
+    --ck-heading-hero: clamp(34px, 9.5vw, 39px);
+    --ck-button-height: 54px;
+  }
+}
+@media (max-width: 350px) {
+  :root { --ck-gutter: 14px; --ck-heading-hero: 33px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --ck-motion-base: 0ms; }
+}

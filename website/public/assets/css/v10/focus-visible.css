@@ -1,0 +1,7 @@
+/* Stage 3 accessibility-only addition: approved v10 layout remains untouched.
+   :focus-visible has no effect on idle screenshots or ordinary card styling. */
+#faq .faq-item summary:focus-visible {
+  outline: 3px solid #14594d;
+  outline-offset: 3px;
+  border-radius: 6px;
+}

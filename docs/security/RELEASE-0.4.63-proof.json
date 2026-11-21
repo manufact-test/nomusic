@@ -1,0 +1,11 @@
+{
+  "version": "0.4.63",
+  "zip_sha256": "f38bf2991408315187266aedc4059c707d5bcc738c4d58d61b4cb731ce6824a0",
+  "bytes": 2484415,
+  "tests_passed": 321,
+  "scope": "fixed footer geometry; non-authoritative diagnostics visibility hint; five-minute same-song version display preview with background live verification",
+  "playback_logic_changed": false,
+  "export_ownership_check_preserved": true,
+  "live_submit_verification_preserved": true,
+  "browser_visual_verified": false
+}

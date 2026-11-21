@@ -65,6 +65,14 @@
       }
     }
 
+    transfer(element, mediaId, oldToken, token) {
+      const lease = this.current;
+      if (!lease || lease.element !== element || lease.mediaId !== mediaId || lease.token !== oldToken) throw new Error("Original guard handoff changed");
+      // Keep the physical mute and latest logical intent across the handoff.
+      lease.token = token;
+      return this.state();
+    }
+
     state() {
       const lease = this.current;
       return lease ? { active: true, mediaId: lease.mediaId, token: lease.token, volume: lease.volume, muted: lease.muted } : { active: false };
