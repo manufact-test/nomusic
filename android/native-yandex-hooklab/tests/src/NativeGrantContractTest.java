@@ -28,6 +28,8 @@ public final class NativeGrantContractTest {
     }
     private static void exactOriginalContract() {
         yes(accept(good(GOOD)), "exact signed session grant accepted structurally");
+        yes(accept(grant("42498653",true,true,GOOD,EXPIRES,"audio/mp4")),
+                "signed M4A grant accepted structurally for the same exact track/album/edition contract");
         yes(accept(good(GOOD.replace("&sid=7",""))), "optional SID allowed if server issues none");
         yes(!accept(good(GOOD + "&celikom_native_query_guard=0")),
                 "do not blindly port desktop-only padding to native Android");
