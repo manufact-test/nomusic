@@ -2015,8 +2015,9 @@ try
     var invalidAudio = Path.Combine(folder, "fake.mp3");
     await File.WriteAllBytesAsync(invalidAudio, new byte[2048]);
     var fake = await AudioPreflight.CheckAsync(invalidAudio, 2350);
-    Test(fake.Blocked && fake.DurationMs == null,
-        "fake MP3 is rejected locally (not just filename validation)");
+    Test(fake.Blocked && fake.DurationMs == null &&
+         fake.DurationMessage.Contains("повреждён"),
+        "fake MP3 is rejected locally with a clear damaged-file message");
     File.Delete(testAudio);
     File.Delete(invalidAudio);
 
@@ -2078,9 +2079,6 @@ try
     damagedPayload[100] = 0xff;
     Test(AudioPreflight.Mp3DurationMs(damagedPayload) == duration,
         "W170 structural preflight leaves full MP3 payload decoding to the server");
-    var invalidMessage = await AudioPreflight.CheckAsync(invalidAudio, 2350);
-    Test(invalidMessage.Blocked && invalidMessage.DurationMessage.Contains("повреждён"),
-        "W170 damaged MP3 receives a clear local error");
 
     // GitHub Windows installer workflow injects the built ZIP after Inno Setup.
     var zipFixture = Environment.GetEnvironmentVariable("CELIKOM_UPDATE_TEST_PACKAGE");
