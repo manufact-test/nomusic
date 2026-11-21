@@ -2,7 +2,7 @@ name: Rejected admin song cleanup
 on:
   push:
     branches: [fix/admin-rejected-cleanup-20261121]
-    paths: ['.github/workflows/admin-rejected-cleanup-20261121.yml', '.github/scripts/admin-rejected-cleanup/**']
+    paths: ['.github/workflows/admin-rejected-cleanup-20261121.yml', '.github/scripts/admin-rejected-cleanup/**', 'server/tests/bulk-moderation.php', 'server/tests/bulk-moderation-browser.mjs']
 permissions:
   contents: read
 concurrency:

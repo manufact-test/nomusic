@@ -11,6 +11,22 @@ use Celikom\Database\Connection;
 use Celikom\Database\MigrationRunner;
 use Celikom\Storage\LocalStorageAdapter;
 
+/* Interleave a second committed transaction after the first snapshot read,
+ * before the production moderation service acquires its normal row locks. */
+class InactiveRaceStatement extends PDOStatement
+{
+    public static ?Closure $hook=null;
+    protected function __construct() {}
+    public function execute(?array $params=null): bool
+    {
+        $ok=parent::execute($params);
+        if(self::$hook!==null && str_starts_with($this->queryString,'SELECT track_id FROM track_replacements WHERE id = ?')) {
+            $hook=self::$hook;self::$hook=null;$hook();
+        }
+        return $ok;
+    }
+}
+
 $config = require dirname(__DIR__) . '/config/app.php';
 if (!str_starts_with((string)$config['db_name'],'celikom_test')) {
     throw new RuntimeException('Bulk tests require isolated disposable MySQL');
@@ -289,6 +305,27 @@ run('Disabled inactive row without history can be physically removed without tou
     $response=$submit('/admin/bulk/execute',['csrf'=>$csrf,'selected'=>[$id=>'1:0'],'bulk_action'=>'delete','confirm_batch'=>'1','confirm_count'=>'1']);
     expect($response->status===200 && $readState($id)===[],'Unreferenced disabled row deleted');
     expect($storage->exists($key),'Approved shared asset preserved');
+});
+run('Concurrent archive cannot be resurrected by an individual form using an older repeatable-read snapshot',function()
+    use($create,$base,$asset,$pdo,$storage,$config,$ownerId,$readState):void {
+    $id=$create($base+300,$asset);
+    $pdo->prepare("UPDATE track_replacements SET status='disabled' WHERE id=?")->execute([$id]);
+    $pdo->prepare('INSERT INTO upload_submissions(uploader_hash,request_id,service,service_track_id,sha256,replacement_id) VALUES(?,?,?,?,?,?)')->execute([
+        hash('sha256','race-'.$id),'10000000-0000-4000-8000-'.sprintf('%012d',$id),'yandex',(string)($base+300),str_repeat('c',64),$id
+    ]);
+    $race=Celikom\Database\Connection::open($config);
+    $race->exec('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    $race->setAttribute(PDO::ATTR_STATEMENT_CLASS,[InactiveRaceStatement::class]);
+    $other=Celikom\Database\Connection::open($config);$archived=false;
+    InactiveRaceStatement::$hook=static function() use($other,$storage,$ownerId,$id,&$archived):void {
+        $result=(new Celikom\Admin\BulkModerationService($other,$storage))->execute($ownerId,'owner',[$id=>['version'=>1,'active'=>0]],'delete','Concurrent owner cleanup',false,true);
+        expect($result['archived']===[$id],'Concurrent archive committed');$archived=true;
+    };
+    try {
+        try { (new Celikom\Admin\ModerationService($race,$storage))->replacement($ownerId,$id,'reactivate','Stale open individual form',0,true); throw new RuntimeException('Hidden inactive row resurrected'); }
+        catch(DomainException $e) { expect($archived && $e->getMessage()==='candidate_removed','Current locking read sees removal after earlier snapshot'); }
+    } finally { InactiveRaceStatement::$hook=null; }
+    $state=$readState($id);expect($state['status']==='disabled' && (int)$state['is_active']===0 && (int)$state['version']===2,'No hidden active version created');
 });
 fwrite(STDOUT,"CELIKOM bulk moderation MySQL E2E PASS (synthetic, no production writes)\n");
 unlink($audioPath);
