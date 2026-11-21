@@ -350,8 +350,11 @@ final class NativeOwnerControlPlane {
     }
     private static boolean approvedAudio(JSONObject response) {
         boolean found=response.optBoolean("found");
-        boolean approved=response.optBoolean("approved");
-        boolean entitled=response.optBoolean("entitled");
+        boolean legacy=NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            found,response.has("approved"),response.has("entitled"),
+            response.optString("audio_url",""));
+        boolean approved=response.optBoolean("approved",legacy);
+        boolean entitled=response.optBoolean("entitled",legacy);
         String mime=response.optString("mime_type","");
         boolean supportedMime="audio/mpeg".equals(mime) || "audio/mp4".equals(mime);
         if(!found)NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_NOT_FOUND);
@@ -394,12 +397,20 @@ final class NativeOwnerControlPlane {
     }
     private static NativeGrantContract.Grant readGrant(JSONObject resolved)
             throws Exception {
+        // Never fabricate approval from an explicit false/null response.
+        // In deployed v1, both fields are absent and the authenticated
+        // session-bound signed ticket is the equivalent positive evidence.
+        boolean legacy=NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            resolved.optBoolean("found"),resolved.has("approved"),
+            resolved.has("entitled"),resolved.optString("audio_url",""));
+        boolean approved=legacy || resolved.getBoolean("approved");
+        boolean entitled=legacy || resolved.getBoolean("entitled");
         URI url=new URI(ORIGIN).resolve(resolved.getString("audio_url"));
         return new NativeGrantContract.Grant(
             resolved.getString("track_id"),resolved.optString("album_id",""),
             resolved.optString("edition_id",""),resolved.getLong("duration_ms"),
-            resolved.getLong("version"),resolved.getBoolean("approved"),
-            resolved.getBoolean("entitled"),url.toString(),
+            resolved.getLong("version"),approved,
+            entitled,url.toString(),
             Math.multiplyExact(resolved.getLong("expires_at"),1000),
             resolved.getString("mime_type"));
     }

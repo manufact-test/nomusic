@@ -2,6 +2,10 @@ package pro.celikom.a1exitwitness;
 
 import pro.celikom.yandex.nativehooklab.NativeGrantContract;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * OWNER-APPROVED LIMITED TRIAL ONLY: the original publisher's trackId and
@@ -102,6 +106,53 @@ final class NativeTrackIdBetaPolicy {
         return RASKOL.equals(publisherTrackId)
             || LESHA_SVIK.equals(publisherTrackId)
             || RAMIL_AU.equals(publisherTrackId);
+    }
+
+    /**
+     * The deployed CELIKOM resolve v1 returns no approved/entitled booleans.
+     * Its positive result is produced only by an approved, active catalogue
+     * lookup AFTER the authenticated account/entitlement gate. A missing
+     * boolean is acceptable only for THAT legacy shape, with a session-bound
+     * signed audio ticket. Explicit false, partial schemas and test-token
+     * responses without sid remain rejected. NativeGrantContract and the
+     * actual server-verified audio Range still validate the ticket afterwards.
+     */
+    static boolean legacyAuthenticatedPositiveResolve(boolean found,
+            boolean hasApproved,boolean hasEntitled,String relativeAudioUrl) {
+        if(!found || hasApproved || hasEntitled || relativeAudioUrl==null
+                || relativeAudioUrl.length()>1024)return false;
+        try {
+            URI u=new URI(relativeAudioUrl);
+            if(u.isAbsolute() || u.getRawAuthority()!=null
+                    || u.getRawFragment()!=null || u.getRawPath()==null
+                    || !u.getRawPath().matches("/api/v1/audio/[1-9][0-9]{0,17}"))
+                return false;
+            String q=u.getRawQuery();
+            if(q==null || q.length()>512)return false;
+            String[] parts=q.split("&",-1);
+            if(parts.length!=3)return false;
+            Set<String> seen=new HashSet<>();
+            for(String part:parts) {
+                int eq=part.indexOf('=');
+                if(eq<=0 || eq!=part.lastIndexOf('='))return false;
+                String key=part.substring(0,eq),value=part.substring(eq+1);
+                if(!seen.add(key))return false;
+                switch(key) {
+                    case "token":
+                        if(!value.matches("[a-f0-9]{64}"))return false;
+                        break;
+                    case "expires":
+                        if(!value.matches("[0-9]{9,12}"))return false;
+                        break;
+                    case "sid":
+                        if(!value.matches("[1-9][0-9]{0,17}"))return false;
+                        break;
+                    default:return false;
+                }
+            }
+            return seen.contains("token") && seen.contains("expires")
+                && seen.contains("sid");
+        } catch(URISyntaxException ignored) {return false;}
     }
 
     /**

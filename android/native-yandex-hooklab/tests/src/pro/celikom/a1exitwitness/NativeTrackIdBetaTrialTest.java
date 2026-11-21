@@ -113,7 +113,34 @@ public final class NativeTrackIdBetaTrialTest {
         bridge.stopForAuthenticatedOwner();
         check(!bridge.replacementEnabled(),"OWNER_STOP_REVOKES_NEW_ADMISSION");
     }
+    private static void liveLegacyResolveContract() {
+        String ticket="/api/v1/audio/42?token="
+            +"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            +"&expires=1795160300&sid=8";
+        check(NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            true,false,false,ticket),"LIVE_APPROVED_ACTIVE_AUTHENTICATED_V1_ACCEPTABLE");
+        check(!NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            false,false,false,ticket),"NO_CATALOG_ROW_STILL_FAILS_CLOSED");
+        check(!NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            true,true,false,ticket),"EXPLICIT_APPROVAL_FIELD_NEVER_IGNORED");
+        check(!NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            true,false,true,ticket),"PARTIAL_OR_EXPLICIT_ENTITLEMENT_NOT_IGNORED");
+        check(!NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            true,false,false,ticket.replace("&sid=8","")),
+            "LEGACY_WITHOUT_AUTH_SESSION_TICKET_REJECTED");
+        check(!NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            true,false,false,ticket.replace("sid=8","sid=0")),
+            "LEGACY_BAD_SESSION_REJECTED");
+        check(!NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            true,false,false,ticket.replace("/api/v1/audio/42",
+                "https://attacker.example/api/v1/audio/42")),
+            "LEGACY_FOREIGN_ORIGIN_REJECTED");
+        check(!NativeTrackIdBetaPolicy.legacyAuthenticatedPositiveResolve(
+            true,false,false,ticket.replace("&sid=8","&sid=8&unknown=1")),
+            "LEGACY_UNKNOWN_QUERY_FIELD_REJECTED");
+    }
     public static void main(String[] args) {
+        liveLegacyResolveContract();
         allowlistAndSignedGrant();
         sourceAndPrepare(RASKOL);
         sourceAndPrepare(LESHA);
