@@ -61,3 +61,39 @@
 - Не спрашивать то, что уже известно из истории и диагностики. Владелец тестирует на одном телефоне; любые действия на телефоне — только если без них нельзя подтвердить реальный результат.
 - Если нужна проверка владельцем, дать одну короткую инструкцию и дождаться результата. До фактической проверки не говорить «готово».
 - Приоритет — работающая мобильная версия CELIKOM, не новые исследовательские документы и не косметические улучшения диагностики.
+
+
+---
+
+## 2026-11-21 follow-up — late creator Flow + original source continuity
+
+Current branch HEAD: `75b33733a2e8106823b1dcb4d7b3ac68298c9881`.
+
+### BETA11 diagnosis
+
+The last owner diagnostic showed:
+- Publisher proxy interception worked, but no allowlisted publisher ID was bound to the selected creator Track.
+- The exact creator Track+Album wrapper was observed; the same Track entered Flow later.
+- The original setter/Track ID candidate path was one-shot: it evaluated before that later Flow event and was never retried.
+- `OWNER_RESOLVE_REQUEST=NONE`, while `PREFETCH_STARTED=ONE` and `OWNER_RESOLVE_NOT_APPROVED=ONE`. The rejected call was speculative prefetch; the source-bound resolve for the selected original setter never ran.
+- Exo descriptor/factory/DataSource objects were created and used, but Track→descriptor→factory→DataSource lineage counters remained zero. `download2.o.for` and its continuation route were not observed.
+
+### Changes now on the working branch
+
+1. `NativeRendererStreamEvidence` retains the exact successful original Player setter lineage and rechecks the publisher ID after the same creator Track enters Flow.
+2. `NativeEarlySourceLifecycleBridge` accepts that late candidate only for the same setter generation, dispatches the source-bound resolve once, and rejects conflicting IDs or any candidate arriving after prepare.
+3. The existing pre-prepare grace now waits briefly for an explicitly proven allowlisted creator Track whose same-Track Flow event is pending, then waits for its grant. It does not wait for arbitrary tracks.
+4. `StageBAudioEvidence` now carries the exact TrackWrapper through the real `cA9.extends` Player selection call and through the exact original MediaPeriod prepare, recovered only when the period's source field is the same object as the successful Player source setter. This gives existing descriptor/factory/DataSource hooks the correct wrapper scope without falsely marking `download2.o.for` as entered.
+5. Regression coverage now checks late Flow promotion, rejection after prepare, bounded pre-prepare waiting, selected-wrapper descriptor/factory continuity, and exact MediaPeriod-source→Player-wrapper identity.
+
+### Verification
+
+- JVM regression workflow: SUCCESS on HEAD `75b33733a2e8106823b1dcb4d7b3ac68298c9881`. Test output: `RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS`.
+- ARM13 workflow `44897905526`: running on code commit `65bc7a613762cef00fe9cbcff7c7949ea6af67de`; scoped-module build had started. Await final conclusion before declaring ARM13 green.
+- Clone-alone differential workflow `44897905524`: running; not product acceptance.
+- No owner-phone APK was exported. The workflow was not dispatched with the APK export input.
+- Live admin was not accessed: no authorized hosting/admin browser connector was available in this session. Backend route and client contracts were inspected in the repository.
+
+### Next action
+
+Check the final result of ARM13 workflow `44897905526`. If green, prepare ONE functional owner-phone build only for this code change and test the same Ramil' «Ау» selection. The decisive result is now whether `ORIGINAL_SETTER` and source-bound `OWNER_RESOLVE_REQUEST` appear, the server approves the exact selected Track ID, and the same original wrapper reaches descriptor→factory→fresh DataSource before its first open. Do not repeat NAV40/NAV45 or reopen adjacent class investigations.
