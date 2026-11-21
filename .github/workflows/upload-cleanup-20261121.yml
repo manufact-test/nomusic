@@ -5,6 +5,7 @@ on:
     paths: ['.github/workflows/upload-cleanup-20261121.yml', '.github/scripts/upload-cleanup/**', 'server/src/Application/*Normalizer*', 'server/src/Application/Mp3DecodeValidator.php', 'server/tests/mp3-cleanup*', 'extension/src/upload/mp3-duration.ts']
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: celikom-hostinger-private-test
   cancel-in-progress: false
@@ -36,3 +37,61 @@ jobs:
             dist/validator/mp3-validator.sha256
             dist/validator/LICENSE.LGPLv2.1
             dist/validator/source.tar.gz
+  verify:
+    needs: decoder
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-cleanup-tests
+      CELIKOM_API_BASE_URL: https://darkred-camel-588676.hostingersite.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo, mbstring, curl
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: mp3-validator
+          path: decoder-artifact
+      - run: |
+          mkdir -p server/tools
+          cp decoder-artifact/mp3-validator server/tools/mp3-validator
+          chmod 700 server/tools/mp3-validator
+          npm ci
+          npm run test:extension
+          php -l server/src/Application/UploadService.php
+          php -l server/src/Application/Mp3Normalizer.php
+          php -l server/src/Application/Mp3DecodeValidator.php
+          node scripts/test-mp3-cleanup.mjs
+          php server/tests/uploads.php
+          npm --prefix extension run validate
+          npm run security
+          npm run build:extension
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-extension-0.4.78
+          path: |
+            extension/dist/celikom-extension-0.4.78.zip
+            extension/dist/celikom-extension-0.4.78.zip.sha256
