@@ -89,9 +89,12 @@ Latest functional code/test commit: `75b33733a2e8106823b1dcb4d7b3ac68298c9881`. 
 - JVM regression workflow `44897928916`: SUCCESS on functional code/test commit `75b33733a2e8106823b1dcb4d7b3ac68298c9881`. Output: `RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS`.
 - ARM13 workflow `44897905526`: SUCCESS on code commit `65bc7a613762cef00fe9cbcff7c7949ea6af67de`; scoped-module build and no-suppression native ARM13 publisher-first side-by-side 75s test passed.
 - Clone-alone differential workflow `44897905524`: SUCCESS. This is a CI safety check, not audio acceptance.
-- No APK was exported by those runs. The next packaging commit requests one private BETA12 owner-phone functional-validation APK after the same native gate passes.
+- BETA12 export workflow `44898991151`: SUCCESS. Both `jvm-issuer-proxy-contract` and `actual-2025-own-lspatch2-disposable-native-arm13` passed; the no-suppression native ARM13 publisher-first side-by-side 75s gate passed.
+- Private owner-phone artifact uploaded: `CELIKOM-A1-RAMIL-AU-BETA12-HONOR50-20261121`, artifact ID `14705751633`. [GitHub Actions run and artifact](https://github.com/manufact-test/nomusic/actions/runs/44898991151/artifacts/14705751633).
+- APK: `CELIKOM-A1-RAMIL-AU-BETA12-HONOR50-20261121.apk`, 71,581,676 bytes. SHA-256: `9c802efbe099c4eb8da4fd51d9c66f779a5936ca622172163e4acfe1500d4b11`.
+- The artifact gate verified persistent owner signer and `UPDATE_EXISTING`; install over BETA11, do not uninstall or clear data.
 - Live admin was not accessed: no authorized hosting/admin browser connector was available in this session. Backend route and client contracts were inspected in the repository.
 
 ### Next action
 
-Complete the single BETA12 export workflow, then test the same Ramil' «Ау» selection on the owner's existing phone. Install over BETA11 without clearing data. The decisive result is whether `ORIGINAL_SETTER` and source-bound `OWNER_RESOLVE_REQUEST` appear, the server approves the exact selected Track ID, and the same original wrapper reaches descriptor→factory→fresh DataSource before its first open. Only the phone test can confirm audible substitution. Do not repeat NAV40/NAV45 or reopen adjacent class investigations.
+One owner-phone functional check remains: install BETA12 over BETA11 and play the same Ramil' «Ау» track (album `38902809`, Track ID `144530503`). Confirm whether approved alternative №1 is actually audible. If original audio remains, send the CELIKOM TXT diagnostic; no screenshots, ADB, cable, or data reset. Only this phone test can prove audible substitution. Do not repeat NAV40/NAV45 or reopen adjacent class investigations.
