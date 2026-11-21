@@ -11,7 +11,7 @@ Date: 21 November 2026
 - Work branch: `experiment/windows-w170-mainline-20261121`
 - Main before work: `affb7b225d2e7eb2835f53294e975a1e60bb758b`
 - Main backup: `backup/windows-main-pre-upload-cleanup-20261121` at the same SHA
-- The PR branch starts from current main, restores the owner-accepted 0.24.51 Windows UI/installer baseline, and retains unrelated current-main Android A1 changes. Current-main W23 host/tests/package and DiagnosticLog/PlaybackSourceEvidence files are intentionally kept unchanged. Main remains unchanged pending review.
+- The PR branch starts from current main, restores the owner-accepted 0.24.51 Windows UI/installer baseline, and retains unrelated current-main Android A1 changes. Current-main W23 host/tests/package are intentionally kept unchanged; DiagnosticLog/PlaybackSourceEvidence use the accepted W169 baseline to preserve its truthful diagnostics contract. Main remains unchanged pending review.
 - Shared server cleanup is already deployed. Do not deploy or copy the historical server branch.
 
 ## Server contract verified
