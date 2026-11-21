@@ -21,7 +21,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -32,11 +32,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W172_NATIVE_DEPENDENCIES_FAILED' }
           node windows-companion/w23/build.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W172_NATIVE_BUILD_FAILED' }
-      - name: Download and verify official signed Yandex 5.128.0; stage native image only
+      - name: Download and verify official signed Yandex 5.128.0; test real native install/restore
         shell: pwsh
         run: |
           $report = Join-Path $env:RUNNER_TEMP 'w172-yandex-51280-candidate.json'
-          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.128.0' -ValidateCandidate -StageOnly -ReportPath $report
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.128.0' -ValidateCandidate -ReportPath $report
           if ($LASTEXITCODE -notin @(0,$null)) { throw 'W172_VENDOR_CANDIDATE_FAILED' }
           $data = Get-Content $report -Raw | ConvertFrom-Json
           if ($data.status -ne 'candidate_requires_runtime_review' -or
@@ -47,7 +47,7 @@ jobs:
               $data.asarSha256 -notmatch '^[0-9a-f]{64}$') {
             throw 'W172_OFFICIAL_51280_PROVENANCE_OR_IMAGE_INVALID'
           }
-          foreach ($required in @('vendor-installer-signature','inner-executable-signature-and-version','native-image-builder-staged','native-image-builder-staged-only')) {
+          foreach ($required in @('vendor-installer-signature','inner-executable-signature-and-version','native-image-builder-staged','native-install-and-byte-exact-restore-sandbox')) {
             if ($data.checks -notcontains $required) { throw "W172_MISSING_CHECK_$required" }
           }
           Write-Host "W172_OFFICIAL_YANDEX_51280_VERIFIED exeVersion=$($data.exeVersion)"
