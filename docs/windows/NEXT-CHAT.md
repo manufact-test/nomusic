@@ -6,6 +6,7 @@ Read **`docs/windows/W172-YANDEX-51280-COMPATIBILITY-20261121.md`** first. This 
 
 - Repository: `manufact-test/nomusic`
 - Working branch: `experiment/windows-w172-yandex-51280-compat-20261121`
+- Final handoff HEAD: `c41bea8edbe58fcdb924c7c8b05d42cf276cb4a9`.
 - Rollback branch: `backup/windows-w172-pre-yandex-51280-20261121` @ `6ce4cc21352912ab31578190007042397e083f64`
 - Parent W170 branch: `experiment/windows-w170-mainline-20261121`; PR #65 remains draft.
 - `main` is unchanged.
