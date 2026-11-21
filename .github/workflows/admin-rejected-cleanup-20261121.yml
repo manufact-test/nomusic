@@ -1,0 +1,21 @@
+name: Rejected admin song cleanup
+on:
+  push:
+    branches: [fix/admin-rejected-cleanup-20261121]
+    paths: ['.github/workflows/admin-rejected-cleanup-20261121.yml', '.github/scripts/admin-rejected-cleanup/**']
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect rejection history and active admin sources
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/admin-rejected-cleanup/inspect.sh
