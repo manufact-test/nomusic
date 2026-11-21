@@ -29,7 +29,7 @@ jobs:
           TARGET=u235811320@92.113.19.189
           DOMAIN=/home/u235811320/domains/darkred-camel-588676.hostingersite.com
           echo "GIT_RESOLVE_SHA256=$(sha256sum server/src/Application/ResolveService.php | cut -d' ' -f1)"
-          "${SSH[@]}" "$TARGET" "python3 - '$DOMAIN' <<'PY'
+          "${SSH[@]}" "$TARGET" "python3 - '$DOMAIN'" <<'PY'
           from pathlib import Path
           from hashlib import sha256
           import sys
@@ -49,7 +49,6 @@ jobs:
           print('LIVE_ENTITLED_FIELD='+str("'entitled'" in code))
           print('LIVE_RESOLVE_ROUTE='+str('/api/v1/resolve' in app.read_text(errors='replace')))
           PY
-          "
           "${SSH[@]}" "$TARGET" "cd '$DOMAIN/celikom/current' && php" <<'PHP'
           <?php
           try {
