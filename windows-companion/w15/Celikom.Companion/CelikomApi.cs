@@ -17,6 +17,7 @@ public sealed class ApiFailure(int code, string category) : Exception(category)
 public sealed class CelikomApi : IDisposable
 {
     private readonly HttpClient _http;
+    private readonly HttpClient _contributionHttp;
     private readonly SessionStore _store;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     // Prevent an in-flight auth refresh (or login) from resurrecting a user
@@ -33,7 +34,13 @@ public sealed class CelikomApi : IDisposable
             ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
             : new HttpClient(handler);
         _http.Timeout = TimeSpan.FromSeconds(9);
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("CELIKOM-WindowsCompanion/0.15");
+        // Uploads keep their longer timeout but share the injected transport in tests.
+        // Production uses a dedicated handler, with the same redirect/cookie restrictions.
+        _contributionHttp = handler is null
+            ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
+            : new HttpClient(handler, disposeHandler: false);
+        _contributionHttp.Timeout = TimeSpan.FromMinutes(2);
+        _contributionHttp.DefaultRequestHeaders.UserAgent.ParseAdd("CELIKOM-WindowsCompanion/0.15");
     }
 
     public SecretRecord Settings => Volatile.Read(ref _current);
@@ -459,9 +466,6 @@ public sealed class CelikomApi : IDisposable
         if (!GrantValidator.IsTrackId(trackId) || !IsLoggedIn)
             throw new ApiFailure(401, "INVALID_SESSION");
         var auth = Settings;
-        using var http = new HttpClient(new HttpClientHandler
-            { AllowAutoRedirect = false, UseCookies = false })
-            { Timeout = TimeSpan.FromMinutes(2) };
         using var form = new MultipartFormDataContent();
         form.Add(new StringContent("yandex"), "service");
         form.Add(new StringContent(trackId), "track_id");
@@ -486,7 +490,7 @@ public sealed class CelikomApi : IDisposable
             auth.Origin + "/api/v1/" + route);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
         request.Content = form;
-        using var response = await http.SendAsync(request,
+        using var response = await _contributionHttp.SendAsync(request,
             HttpCompletionOption.ResponseHeadersRead, ct);
         if (Settings.AccessToken != auth.AccessToken || Settings.Origin != auth.Origin)
             throw new ApiFailure(401, "INVALID_SESSION");
@@ -553,5 +557,10 @@ public sealed class CelikomApi : IDisposable
         return result;
     }
 
-    public void Dispose() { _http.Dispose(); _refreshLock.Dispose(); }
+    public void Dispose()
+    {
+        _contributionHttp.Dispose();
+        _http.Dispose();
+        _refreshLock.Dispose();
+    }
 }
