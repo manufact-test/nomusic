@@ -67,4 +67,6 @@ The earlier five-record check was not the complete post-activation population. A
 - Active release observed: `admin-rejected-cleanup-1b532497bf6e`. The audit successfully instantiated the cleanup normalizer and full decoder from that active release, so the cleanup feature remained present after the later release.
 - The audit confirms every stored object is canonical/idempotent and fully decodable. It cannot reveal which raw inputs contained removable metadata: `UploadService` calculates the raw digest only in request memory, stores the normalized digest, and `Mp3Normalizer` does not persist per-file removal counters. Original raw bytes are not retained.
 
-Do not state that the 13 original uploads had no metadata. To make future per-song cleanup results observable, add a private upload receipt with original/canonical digests, removed metadata counts/bytes and decoder result. This is a telemetry gap, not a failure of the normalization/decode checks.
+Do not state that the 13 original uploads had no metadata: the audit inspected canonical stored files after cleanup, not the raw incoming bytes.
+
+**Owner decision: no per-song cleanup journal, removed-tag counters, extra telemetry, or retention of raw upload files.** The required outcome is that valid uploads are cleaned, fully decoded and stored correctly, and damaged uploads are rejected. The current pipeline and the 13/13 post-activation audit support that outcome. Do not add a logging/receipt feature unless a concrete real-world upload failure later demonstrates that it is necessary.
