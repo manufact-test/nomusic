@@ -20,3 +20,59 @@ jobs:
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
         run: bash .github/scripts/admin-bulk-restore/inspect.sh
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-bulk-restore-tests
+      BULK_DEBUG_LIVE_MERGE: '1'
+      BULK_HTML_OUT: /tmp/celikom-bulk-restore.html
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo, mbstring, curl
+          coverage: none
+      - name: Verify restored UI, moderation, permissions, races and search
+        run: |
+          set -euo pipefail
+          for name in AdminPanel ModerationService BulkModerationService BulkModerationView; do php -l "server/src/Admin/$name.php"; done
+          php -l .github/scripts/admin-bulk-restore/install.php
+          php -l .github/scripts/admin-bulk-restore/smoke.php
+          bash -n .github/scripts/admin-bulk-restore/deploy.sh
+          php server/tests/bulk-moderation.php
+          node server/tests/bulk-moderation-browser.mjs /tmp/celikom-bulk-restore.html
+          php server/tests/admin-search.php
+  deploy:
+    needs: [inspect, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Back up and restore admin-only delta
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/admin-bulk-restore/deploy.sh
