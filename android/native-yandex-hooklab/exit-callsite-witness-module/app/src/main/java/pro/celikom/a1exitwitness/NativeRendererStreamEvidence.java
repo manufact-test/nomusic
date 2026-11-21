@@ -429,7 +429,38 @@ final class NativeRendererStreamEvidence {
             try {earlyOriginalSourceObserver.completed(frame.generation,succeeded);}
             catch(Throwable ignored) { }
         }
+        // The issuer proxy may complete on another executor. If the exact
+        // creator Track enters Flow while this setter is in flight, re-check
+        // once the successful original setter lineage has been retained.
+        if(succeeded)refreshEarlyOriginalPublisherTrackIdCandidate();
     }
+
+    /**
+     * Re-evaluate the publisher ID only for the SAME successful original
+     * Player setter after its creator Track has entered the original Flow.
+     * This preserves the no-Flow fail-closed rule while avoiding a one-shot
+     * lookup that ran too early at setter entry.
+     */
+    synchronized void refreshEarlyOriginalPublisherTrackIdCandidate() {
+        OriginalSetterLineage saved=exactOriginalSetterLineage;
+        EarlyOriginalSourceObserver observer=earlyOriginalSourceObserver;
+        ExactPublisherTrackIdEvidence evidence=exactPublisherTrackIdEvidence;
+        if(poisoned || earlySourceInFlight!=null || saved==null
+                || observer==null || evidence==null
+                || saved.generation!=earlySourceGeneration)return;
+        Object wrapper=saved.wrapper.get(),track=saved.track.get();
+        Object album=saved.album.get(),source=saved.source.get();
+        if(wrapper==null || track==null || album==null || source==null)return;
+        Object[] same=exactEarlySetterSourceAtGeneration(source,saved.generation);
+        if(same==null || same[0]!=track || same[1]!=album || same[2]!=source)return;
+        final String candidate;
+        try {candidate=evidence.exact(wrapper,track,album);}
+        catch(Throwable ignored) {return;}
+        if(candidate==null || !candidate.matches("[1-9][0-9]{0,23}"))return;
+        try {observer.originalPublisherTrackIdCandidate(saved.generation,candidate);}
+        catch(Throwable ignored) { }
+    }
+
     /**
      * Exact immutable original setter lineage for one successful selection
      * attempt, never a current-player, PCM, edition or ID assertion.
