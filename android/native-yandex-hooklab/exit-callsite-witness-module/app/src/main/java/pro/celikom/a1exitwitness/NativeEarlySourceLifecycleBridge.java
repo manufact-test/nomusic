@@ -22,8 +22,10 @@ final class NativeEarlySourceLifecycleBridge
         implements NativeRendererStreamEvidence.EarlyOriginalSourceObserver,
                    NativeRendererStreamEvidence.ActiveOriginalTrackObserver,
                    NativeRendererStreamEvidence.OriginalPeriodBeforePrepareObserver {
+    // A3s owner-only Exo grace must share the exact same source budget.
+    // Otherwise valid first-download grants still expire at the old 850ms gate.
     private final NativeReplacementLifecycle lifecycle =
-        new NativeReplacementLifecycle(850);
+        new NativeReplacementLifecycle(3000);
     private final LongSupplier elapsedClock;
     private final LongSupplier unixClock;
     private final NativeExoAlternateByteRoute nativeExoBytes;

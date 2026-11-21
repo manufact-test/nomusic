@@ -302,7 +302,34 @@ public final class NativeReplacementLifecycleTest {
                 "old pending original binding after Stop is stale");
     }
 
+    private static void ownerOnlyColdNetworkGraceHasMatchingAdmissionDeadline() {
+        NativeReplacementLifecycle s=new NativeReplacementLifecycle(3000);
+        s.start();
+        long t=s.beginUnresolvedNativeSelection(100);
+        yes(s.certifyNativeIdentity(t,TRACK,ALBUM,EDITION,2600),
+            "same native source may certify after a slow first HTTPS resolve");
+        yes(s.observeFileInfo(t,TRACK,ALBUM,EDITION),
+            "matching native identity required even for cold audio");
+        eq(NativePrePrepareAdmission.Offer.ACCEPTED_PENDING,offer(s,t,2601),
+            "owner signed grant admitted within matching 3000ms window");
+        eq(NativeSourceGate.Choice.ALTERNATE,
+            s.atNativePrepare(t,TRACK,ALBUM,EDITION,2610).source,
+            "first original period may commit signed alternate");
+        long late=s.beginUnresolvedNativeSelection(4000);
+        yes(!s.certifyNativeIdentity(late,TRACK,ALBUM,EDITION,7100),
+            "deadline stays closed after 3000ms");
+        eq(NativeSourceGate.Choice.ORIGINAL,
+            s.atNativePrepare(late,TRACK,ALBUM,EDITION,7101).source,
+            "late grants never replace already-preparing original audio");
+        long interrupted=s.beginUnresolvedNativeSelection(8000);
+        long next=s.beginUnresolvedNativeSelection(8100);
+        yes(!s.certifyNativeIdentity(interrupted,TRACK,ALBUM,EDITION,8200),
+            "Next cancels the previous owner network generation");
+        yes(next!=interrupted,"generation changes on next");
+    }
+
     public static void main(String[] args) {
+        ownerOnlyColdNetworkGraceHasMatchingAdmissionDeadline();
         stopAndRestartInvalidateUnresolvedGeneration();
         failedOriginalSetterCancelsPendingAdmission();
         certificationMustRequireActualOriginalSelection();
