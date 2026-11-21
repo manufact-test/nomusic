@@ -36,7 +36,7 @@ jobs:
         shell: pwsh
         run: |
           $report = Join-Path $env:RUNNER_TEMP 'w172-yandex-51280-candidate.json'
-          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.128.0' -ValidateCandidate -ReportPath $report
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.128.0' -ValidateCandidate -StageOnly -ReportPath $report
           if ($LASTEXITCODE -notin @(0,$null)) { throw 'W172_VENDOR_CANDIDATE_FAILED' }
           $data = Get-Content $report -Raw | ConvertFrom-Json
           if ($data.status -ne 'candidate_requires_runtime_review' -or
@@ -47,7 +47,7 @@ jobs:
               $data.asarSha256 -notmatch '^[0-9a-f]{64}$') {
             throw 'W172_OFFICIAL_51280_PROVENANCE_OR_IMAGE_INVALID'
           }
-          foreach ($required in @('vendor-installer-signature','inner-executable-signature-and-version','native-image-builder-staged','native-install-and-byte-exact-restore-sandbox')) {
+          foreach ($required in @('vendor-installer-signature','inner-executable-signature-and-version','native-image-builder-staged','native-image-builder-staged-only')) {
             if ($data.checks -notcontains $required) { throw "W172_MISSING_CHECK_$required" }
           }
           Write-Host "W172_OFFICIAL_YANDEX_51280_VERIFIED exeVersion=$($data.exeVersion)"
@@ -55,9 +55,11 @@ jobs:
           Write-Host "W172_EXE_SHA256=$($data.exeSha256)"
           Write-Host "W172_ASAR_SHA256=$($data.asarSha256)"
           Write-Host 'W172_NATIVE_IMAGE_AND_BYTE_EXACT_RESTORE_PASS'
-      - name: Existing recovery and Windows Start contracts
+      - name: Existing native image, recovery and Windows Start contracts
         shell: pwsh
         run: |
+          dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W172_NATIVE_IMAGE_CONTRACT_FAILED' }
           dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw 'W172_RECOVERY_CONTRACT_FAILED' }
           dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
@@ -65,6 +67,7 @@ jobs:
           dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
           if ($LASTEXITCODE -ne 0) { throw 'W172_GUI_BUILD_FAILED' }
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: CELIKOM-W172-YANDEX-51280-CANDIDATE-REPORT
           path: ${{ runner.temp }}/w172-yandex-51280-candidate.json
