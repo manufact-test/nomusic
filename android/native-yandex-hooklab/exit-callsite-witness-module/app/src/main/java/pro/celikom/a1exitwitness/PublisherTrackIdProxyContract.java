@@ -235,8 +235,15 @@ final class PublisherTrackIdProxyContract {
         if (annotation == null) return null;
         String name = annotation.annotationType().getName();
         String kind;
-        if ("retrofit2.http.Query".equals(name)) kind = "QUERY";
-        else if ("retrofit2.http.Path".equals(name)) kind = "PATH";
+        // Exact publisher Yandex Music 2025.10.4 signed classes4.dex:
+        // FileInfoApi.if param0 @LVz8;(value="trackId") — Query.
+        // DownloadInfoApi.if param0 @Lfj7;(value="trackId") — Path.
+        // Embedded unmodified origin.apk SHA256:
+        // 1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56
+        if ("retrofit2.http.Query".equals(name) || "Vz8".equals(name))
+            kind = "QUERY";
+        else if ("retrofit2.http.Path".equals(name) || "fj7".equals(name))
+            kind = "PATH";
         else return null;
         try {
             Object value = annotation.annotationType()

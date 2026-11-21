@@ -174,6 +174,60 @@ public final class PublisherTrackIdProxyContractTest {
             "UNRELATED_API_CANNOT_CLAIM_PROXY");
     }
 
+
+    private static void signedPublisherObfuscatedAnnotations() throws Exception {
+        // Exact signed-2025 Retrofit annotations are LVz8;/Lfj7;, not unminified.
+        Class<?> fileApi = Class.forName("ObfuscatedPublisherApis$FileInfoApi");
+        ClassLoader loader = fileApi.getClassLoader();
+        Class<?>[] fileInterfaces = { fileApi };
+        AtomicInteger originalCalls = new AtomicInteger();
+        AtomicReference<Object[]> originalArgs = new AtomicReference<>();
+        InvocationHandler original = (p, m, a) -> {
+            originalCalls.incrementAndGet();
+            originalArgs.set(a.clone());
+            return null;
+        };
+        Object fileProxy = Proxy.newProxyInstance(loader, fileInterfaces, original);
+        PublisherTrackIdProxyContract.Inspection file =
+            PublisherTrackIdProxyContract.inspect(
+                fileProxy, fileApi, loader, fileInterfaces);
+        check(file.method != null, "SIGNED_FILEINFO_MINIFIED_QUERY_SELECTED");
+        check(file.trackArgumentIndex == 0, "SIGNED_FILEINFO_TRACKID_ARG0");
+        check("QUERY".equals(file.annotationKind), "SIGNED_FILEINFO_QUERY_KIND");
+        check("trackId".equals(file.annotationValue), "SIGNED_FILEINFO_EXACT_VALUE");
+        check(file.annotatedParameters.size() == 2,
+            "SIGNED_FILEINFO_NONTRACK_QUERY_PRESENT");
+        Method call = fileApi.getMethod("getFileInfo", String.class, String.class);
+        call.invoke(fileProxy, "144530503", "codecs-unchanged");
+        check(originalCalls.get() == 1,
+            "SIGNED_FILEINFO_ORIGINAL_HANDLER_EXACTLY_ONCE");
+        check("144530503".equals(originalArgs.get()[0]),
+            "SIGNED_FILEINFO_TRACKID_PASSED_UNCHANGED");
+        check("codecs-unchanged".equals(originalArgs.get()[1]),
+            "SIGNED_FILEINFO_OTHER_ARGS_UNCHANGED");
+
+        Class<?> downloadApi = Class.forName("ObfuscatedPublisherApis$DownloadInfoApi");
+        Class<?>[] downloadInterfaces = { downloadApi };
+        Object downloadProxy = Proxy.newProxyInstance(
+            loader, downloadInterfaces, (p, m, a) -> null);
+        PublisherTrackIdProxyContract.Inspection download =
+            PublisherTrackIdProxyContract.inspect(
+                downloadProxy, downloadApi, loader, downloadInterfaces);
+        check(download.method != null, "SIGNED_DOWNLOADINFO_MINIFIED_PATH_SELECTED");
+        check(download.trackArgumentIndex == 0, "SIGNED_DOWNLOADINFO_ARG0");
+        check("PATH".equals(download.annotationKind), "SIGNED_DOWNLOADINFO_PATH_KIND");
+
+        Class<?> badApi = Class.forName("ObfuscatedPublisherApis$FakeApi");
+        Class<?>[] badInterfaces = { badApi };
+        Object badProxy = Proxy.newProxyInstance(
+            loader, badInterfaces, (p, m, a) -> null);
+        PublisherTrackIdProxyContract.Inspection bad =
+            PublisherTrackIdProxyContract.inspect(
+                badProxy, badApi, loader, badInterfaces);
+        check(bad.method == null && bad.annotatedParameters.isEmpty(),
+            "UNRECOGNIZED_SAME_VALUE_ANNOTATION_MUST_NOT_SELECT");
+    }
+
     public static void main(String[] args) throws Exception {
         inheritedMethodAndOriginalInvocationOnce();
         inheritedThroughProxySubinterface();
@@ -181,6 +235,7 @@ public final class PublisherTrackIdProxyContractTest {
         rejectUnsupportedAndUnannotatedArguments();
         rejectAmbiguousMethodsAndParameters();
         rejectWrongProxyInterfaceAndLoaderMetadata();
+        signedPublisherObfuscatedAnnotations();
         System.out.println("ISSUER_PROXY_INHERITED_DECLARED_ANNOTATION_CLASSLOADER_PASS");
     }
 }

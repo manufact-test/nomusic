@@ -1,4 +1,4 @@
-name: CELIKOM A1 Ramil Au Beta6 owner-phone audio test — no acoustic proof
+name: CELIKOM A1 Ramil Au Beta7 owner-phone audio test — no acoustic proof
 on:
   push:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
@@ -22,6 +22,9 @@ on:
       - 'android/native-yandex-hooklab/ci/test_a1_issuer_proxy_contract.py'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/PublisherTrackIdProxyContractTest.java'
       - 'android/native-yandex-hooklab/tests/src/retrofit2/http/**'
+      - 'android/native-yandex-hooklab/tests/src/Vz8.java'
+      - 'android/native-yandex-hooklab/tests/src/fj7.java'
+      - 'android/native-yandex-hooklab/tests/src/ObfuscatedPublisherApis.java'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
@@ -298,7 +301,7 @@ jobs:
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA6-HONOR50-20261120.apk"
+          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA7-HONOR50-20261121.apk"
           test -s "$apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
           sha256sum "$apk"
@@ -306,7 +309,7 @@ jobs:
         if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-beta-audio]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
         uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-A1-RAMIL-AU-BETA6-HONOR50-20261120
+          name: CELIKOM-A1-RAMIL-AU-BETA7-HONOR50-20261121
           path: ${{ runner.temp }}/celikom-a1-owner-phone-test/
           if-no-files-found: error
           retention-days: 7

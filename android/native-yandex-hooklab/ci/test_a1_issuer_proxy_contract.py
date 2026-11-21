@@ -17,6 +17,9 @@ class IssuerProxyContractTest(unittest.TestCase):
             MODULE / "PublisherTrackIdProxyContract.java",
             TESTS / "retrofit2/http/Query.java",
             TESTS / "retrofit2/http/Path.java",
+            TESTS / "Vz8.java",
+            TESTS / "fj7.java",
+            TESTS / "ObfuscatedPublisherApis.java",
             TESTS / "pro/celikom/a1exitwitness/PublisherTrackIdProxyContractTest.java",
         ]
         with tempfile.TemporaryDirectory(prefix="celikom-issuer-proxy-jvm-") as tmp:
