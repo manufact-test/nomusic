@@ -5,8 +5,8 @@
 [Setup]
 AppId={{D99FDB90-46BF-4EE5-989E-659A2B6450D6}
 AppName=CELIKOM
-AppVersion=0.24.52
-VersionInfoVersion=0.24.52.0
+AppVersion=0.24.53
+VersionInfoVersion=0.24.53.0
 VersionInfoCompany=CELIKOM
 VersionInfoProductName=CELIKOM
 VersionInfoDescription=CELIKOM Windows Setup
@@ -22,7 +22,7 @@ Compression=lzma2
 SolidCompression=yes
 DisableDirPage=yes
 OutputDir=..\output
-OutputBaseFilename=CELIKOM-W170-WINDOWS-UPLOAD-CLEANUP-02452-UNSIGNED
+OutputBaseFilename=CELIKOM-W172-YANDEX-51280-COMPATIBILITY-02453-UNSIGNED
 UninstallDisplayIcon={app}\{#AppExecutable}
 CloseApplications=yes
 RestartApplications=no
