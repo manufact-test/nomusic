@@ -510,6 +510,8 @@ public sealed class CelikomApi : IDisposable
                 ? e.GetString() ?? "CONTRIBUTION_FAILED" : "CONTRIBUTION_FAILED";
             throw new ApiFailure((int)response.StatusCode, error);
         }
+        if (audioFile is not null && response.StatusCode != HttpStatusCode.Accepted)
+            throw new ApiFailure(502, "UPLOAD_NOT_CONFIRMED");
         return result;
     }
 
@@ -524,7 +526,7 @@ public sealed class CelikomApi : IDisposable
     private static string SafeMetadata(string value) =>
         value is { Length: <= 240 } && !value.Any(char.IsControl) ? value.Trim() : "";
 
-    public Task<JsonElement> UploadTrackAsync(string id, string audioFile, long durationMs,
+    public async Task<JsonElement> UploadTrackAsync(string id, string audioFile, long durationMs,
         string title, string artist, Guid requestKey, IProgress<int>? progress,
         CancellationToken ct = default)
     {
@@ -539,7 +541,16 @@ public sealed class CelikomApi : IDisposable
             ["artist"] = SafeMetadata(artist),
             ["album"] = ""
         };
-        return SendContributionAsync("uploads", id, fields, audioFile, ct, progress);
+        // Local preflight only inspects the selected file. Send its original bytes
+        // unchanged; the shared server performs authoritative MP3 cleanup.
+        var result = await SendContributionAsync("uploads", id, fields, audioFile, ct, progress);
+        if (result.ValueKind != JsonValueKind.Object ||
+            !result.TryGetProperty("status", out var status) ||
+            status.ValueKind != JsonValueKind.String || status.GetString() != "pending" ||
+            !result.TryGetProperty("replacement_id", out var replacementId) ||
+            !replacementId.TryGetInt64(out var idValue) || idValue < 1)
+            throw new ApiFailure(502, "UPLOAD_NOT_CONFIRMED");
+        return result;
     }
 
     public void Dispose() { _http.Dispose(); _refreshLock.Dispose(); }
