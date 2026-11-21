@@ -11,7 +11,7 @@ Date: 21 November 2026
 - Work branch: `experiment/windows-w170-mainline-20261121`
 - Main before work: `affb7b225d2e7eb2835f53294e975a1e60bb758b`
 - Main backup: `backup/windows-main-pre-upload-cleanup-20261121` at the same SHA
-- The PR branch starts from current main, selectively restores the owner-accepted 0.24.51 Windows source, and retains unrelated current-main Android A1 changes. Main remains unchanged pending review.
+- The PR branch starts from current main, restores the owner-accepted 0.24.51 Windows UI/installer baseline, and retains unrelated current-main Android A1 changes. Current-main W23 host/tests/package and DiagnosticLog/PlaybackSourceEvidence files are intentionally kept unchanged. Main remains unchanged pending review.
 - Shared server cleanup is already deployed. Do not deploy or copy the historical server branch.
 
 ## Server contract verified
@@ -57,7 +57,7 @@ The real owner-provided problem MP3 and a real damaged MP3 still need an install
 
 ## Scope guard
 
-No changes to playback, volume, Next/Previous, radio, audio routing, native Yandex integration, Android, permissions/access, billing, moderation, or the server. No server deployment. No installer/package release has been claimed yet.
+W170 upload changes do not modify playback, volume, Next/Previous, radio, audio routing, native Yandex integration, Android, permissions/access, billing, moderation, or the server. Current-main native host and playback-evidence files are retained unchanged. No server deployment. No installer/package release has been claimed yet.
 
 ## Next
 
