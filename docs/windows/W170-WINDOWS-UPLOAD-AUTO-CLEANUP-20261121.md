@@ -2,6 +2,8 @@
 
 Date: 21 November 2026
 
+**Historical checkpoint:** W170/0.24.52 is superseded by W173/0.24.54.0. The old pending-owner-test notes later in this document describe the state at the original W170 handoff; current runtime audit and owner decisions are in `W173-START-UX-AND-OWNER-UPLOAD-AUDIT-20261121.md` and `NEXT-CHAT.md`.
+
 ## Baseline and safety
 
 - Repository: `manufact-test/nomusic`
