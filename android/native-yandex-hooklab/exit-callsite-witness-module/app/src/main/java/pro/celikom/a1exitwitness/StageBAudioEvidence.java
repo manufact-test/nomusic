@@ -1072,6 +1072,23 @@ final class StageBAudioEvidence {
         popScope(activeWrapperScopes);
     }
 
+    /**
+     * The signed cA9.extends selection call is the exact TrackWrapper-bearing
+     * caller of the original Player source setter. Keep that same wrapper in
+     * scope while the vendor builds its source descriptor; this is distinct
+     * from claiming that download2.o.for was entered.
+     */
+    synchronized void enterNativePlayerSourceSelection(Object wrapper) {
+        Object scopedWrapper=wrapper;
+        if(scopedWrapper==null || !hasWrapperLink(scopedWrapper))
+            scopedWrapper=null;
+        pushScope(activeWrapperScopes,scopedWrapper);
+    }
+
+    void exitNativePlayerSourceSelection() {
+        popScope(activeWrapperScopes);
+    }
+
     private synchronized boolean hasWrapperLink(Object wrapper) {
         return findByWrapper(wrapper)!=null;
     }
