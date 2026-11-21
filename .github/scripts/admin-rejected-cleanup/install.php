@@ -8,7 +8,7 @@ foreach ($manifest as $name => $hashes) {
     if (!in_array($name, ['AdminPanel.php','ModerationService.php','BulkModerationService.php','BulkModerationView.php','bulk-moderation.js','admin-style.css'], true)) throw new RuntimeException('path');
     $target = $release . '/src/Admin/' . $name;
     $old = is_file($target) ? hash_file('sha256', $target) : null;
-    if ($old !== $hashes['before'] || hash_file('sha256', $payload . '/' . $name) !== $hashes['after']) throw new RuntimeException('source_changed');
+    if (!in_array($old, $hashes['before'], true) || hash_file('sha256', $payload . '/' . $name) !== $hashes['after']) throw new RuntimeException('source_changed');
 }
 foreach ($manifest as $name => $hashes) {
     $target = $release . '/src/Admin/' . $name;

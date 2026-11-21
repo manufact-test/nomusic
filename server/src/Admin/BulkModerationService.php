@@ -145,7 +145,7 @@ final class BulkModerationService
             if ((int)($active->fetchColumn() ?: 0) !== $expected['active']) {
                 throw new \DomainException('stale_moderation_form');
             }
-            $removed = $this->pdo->prepare('SELECT 1 FROM bulk_moderation_tombstones WHERE replacement_id=?');
+            $removed = $this->pdo->prepare('SELECT 1 FROM bulk_moderation_tombstones WHERE replacement_id=? FOR UPDATE');
             $removed->execute([$id]);
             if ($removed->fetchColumn() !== false) throw new \DomainException('candidate_removed');
             $rowHistory = $this->hasForeignReferences('track_replacements', $id);

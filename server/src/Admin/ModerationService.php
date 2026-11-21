@@ -46,7 +46,7 @@ final class ModerationService
             if ($expectedVersion !== null && (int)$before['version'] !== $expectedVersion) {
                 throw new \DomainException('stale_moderation_version');
             }
-            $removed = $this->pdo->prepare('SELECT 1 FROM bulk_moderation_tombstones WHERE replacement_id=?');
+            $removed = $this->pdo->prepare('SELECT 1 FROM bulk_moderation_tombstones WHERE replacement_id=? FOR UPDATE');
             $removed->execute([$id]);
             if ($removed->fetchColumn() !== false) throw new \DomainException('candidate_removed');
             $active = $this->pdo->prepare("SELECT id FROM track_replacements WHERE track_id = ?
