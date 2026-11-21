@@ -193,6 +193,26 @@ final class NativeRendererStreamEvidence {
             OriginalPeriodBeforePrepareObserver observer) {
         originalPeriodBeforePrepareObserver=observer;
     }
+
+    /**
+     * Resolve the wrapper only from the exact MediaPeriod source field that
+     * equals the SAME successful original Player setter source reference.
+     * Used solely to carry that wrapper through this period's factory work.
+     */
+    synchronized Object exactOriginalWrapperForPeriod(Object period) {
+        if(poisoned || period==null || exactPeriodClass==null
+                || !exactPeriodClass.isInstance(period) || periodSourceField==null
+                || earlySourceInFlight!=null)return null;
+        final Object source;
+        try {source=periodSourceField.get(period);}
+        catch(Throwable ignored) {return null;}
+        OriginalSetterLineage saved=exactOriginalSetterLineage;
+        if(saved==null || source==null || saved.source.get()!=source)return null;
+        Object[] evidence=exactEarlySetterSourceAtGeneration(source,saved.generation);
+        if(evidence==null)return null;
+        return saved.wrapper.get();
+    }
+
     /**
      * Called immediately BEFORE the signed original concrete MediaPeriod
      * prepare method. Same original source reference as the last successful
