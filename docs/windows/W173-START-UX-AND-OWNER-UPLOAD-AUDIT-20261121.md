@@ -9,7 +9,7 @@ Date: 21 November 2026
 - W173 package commit: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`
 - W172 official Yandex 5.128.0 baseline retained unchanged.
 - App and Update Supervisor: **0.24.54.0**
-- Native host/module: **0.24.32**
+- Embedded native host/module marker: **0.24.31** (unchanged from the accepted W170/mainline baseline used by this package).
 - W170 upload changes remain included.
 - Internal unsigned stage only. No production release, signing, stable-feed publication, server deployment, or PR merge.
 
@@ -87,12 +87,9 @@ The actual 0.4.78 upload pipeline normalizes the authenticated raw MP3 in a priv
 
 The previously reported “Каменные цветы” sample (Track ID `48591846`, replacement `30`) is present and approved/active. Its stored MP3 has two leading ID3v2.4 headers and one Info/Xing frame; the stored hash is valid and the live server inspector returns 277969 ms. This upload dates to 18 October, so it is a useful legacy sample but not a new W173 owner upload. The 0.24.51 baseline parser already handled consecutive leading ID3 tags; this sample does not prove the W170-only interleaved Info/Xing or extended UTF-8 ID3v1 cases.
 
-## Remaining owner acceptance
+## Owner acceptance
 
-1. Install 0.24.54 over the existing CELIKOM installation; preserve login and settings.
-2. Confirm Start shows only the standard connection message and does not ask for a second click during the verified Yandex 5.128.0 reconnect.
-3. Continue real playback and upload checks.
-4. No special metadata samples or cleanup journal are required for acceptance. Continue ordinary real-song uploads; investigate only if a real file fails or is stored incorrectly.
+The owner installed the exact 0.24.54.0 W173 package, checked it on the target machine, and confirmed that it works and is accepted. This exact source/package is the production candidate to promote to `main`; no repeat installation, broad runtime test, or rebuild is required for this repository consolidation.
 
 PR #65 is an older W170 draft pointing at the 0.24.52 branch, not this W173 0.24.54 candidate. Do not merge it as-is. The owner has requested W173 become canonical on `main`; follow the reviewed mainline-consolidation sequence in `docs/windows/NEXT-CHAT.md`.
 
@@ -103,7 +100,7 @@ The owner requested that the latest working Windows version become the canonical
 Current repository state at handoff:
 - `main` remains at `affb7b225d2e7eb2835f53294e975a1e60bb758b`; its Windows app and Update Supervisor projects still declare **0.24.48**.
 - W173 working branch: `experiment/windows-w172-yandex-51280-compat-20261121`; use `docs/windows/NEXT-CHAT.md` for the current branch HEAD and mainline-consolidation handoff.
-- W173 code/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; app and Update Supervisor **0.24.54.0**, Native **0.24.32**.
+- W173 code/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; app and Update Supervisor **0.24.54.0**, Native host/module marker **0.24.31**.
 - The initial W173 comparison reported 84 commits ahead of main, with merge base exactly `affb7b225d2e7eb2835f53294e975a1e60bb758b`; documentation-only handoff commits were added afterward. The changed-file inventory at that check showed Windows W15/W20/W24/W81 source plus Windows docs/workflow changes, with no server or Android source. Re-run the live compare and inspect the complete diff before merging.
 - PR #65 remains an open draft but points to the older W170 branch `experiment/windows-w170-mainline-20261121` at `6ce4cc21352912ab31578190007042397e083f64`, not the W173 candidate. PR #64 is a closed duplicate. Do not merge PR #65 as-is.
 - PR #62 is the separate already-deployed server upload-cleanup review branch; PR #66 is the separate admin rejected/disabled cleanup work. Neither is part of the Windows W173 mainline consolidation.
