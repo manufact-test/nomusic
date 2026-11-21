@@ -1,0 +1,22 @@
+name: Admin bulk moderation restore
+on:
+  push:
+    branches: [fix/admin-bulk-restore-20261121]
+    paths: ['.github/scripts/admin-bulk-restore/**', '.github/workflows/admin-bulk-restore-20261121.yml']
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read current and retained bulk moderation sources
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/admin-bulk-restore/inspect.sh
