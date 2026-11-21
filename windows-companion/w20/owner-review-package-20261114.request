@@ -1,20 +1,25 @@
-CELIKOM Windows W169 — one private internal owner build, 17 November 2026
-App 0.24.51.0. Updated native 0.24.32.
-Current branch: experiment/windows-w167-owner-ui-regressions-20261116
-Rollback: backup/windows-w169-pre-track-handoff-crash-investigation-20261117 @ 92e0d9e63f5fd7dc7f243d7c2a2202cf5ad8b2de
-Main untouched.
-UI checkpoint 1ac135ba5312473cc6c7feca8d1f5f57726f5342; native callback/promise containment b2f9131132e26020fd861dcb71d3c33b8ff9a0c1.
+CELIKOM Windows W170 — one private internal owner-review build, 21 November 2026
+App 0.24.52.0. Native host and native module version remain unchanged.
+Current branch: experiment/windows-w170-mainline-20261121
+Accepted Windows UI baseline: backup/windows-02451-owner-accepted-exact-20261117 @ c717428a7d9f01fc8e33b482fcf66a9ed1a02947
+Main pre-work backup: backup/windows-main-pre-upload-cleanup-20261121 @ affb7b225d2e7eb2835f53294e975a1e60bb758b
+Main remains unchanged until PR #65 is reviewed and merged.
 
-Changes ONLY:
-- Keep previous title, artist and status through <=2.5-second good-connection Next metadata gaps; never mask real Stop, host loss, VPN network recovery or actual error.
-- Prevent exceptions in asynchronous native relay tick and CDP callbacks from bubbling out into Yandex Electron main process; no change to normal player/reload/audio behavior.
-- Preserve 0.24.50 green approved-availability and connected pause statuses, Start banner, idle prompt and spacing.
+W170 changes ONLY the Windows upload path:
+- Existing authenticated multipart POST /api/v1/uploads is retained.
+- MP3 duration preflight now recognizes the bounded metadata variants accepted by the browser extension and shared server cleaner.
+- Local inspection never rewrites or transcodes the selected file; original bytes are sent to the shared server unchanged.
+- Require HTTP 202, status=pending and a positive replacement_id before displaying upload success.
+- Map invalid_mp3, invalid_m4a, upload_too_large and missing server confirmation to clear user messages.
+- Preserve 30 MiB size limit, 1.5-second duration tolerance, rights declaration, request_id deduplication and in-flight submit guard.
+- Full MP3 decoding and authoritative cleanup remain server-side. Server already deployed; DO NOT redeploy it.
 
-IMPORTANT: user-observed Yandex restart root cause is not conclusively known from old 0.24.49 diagnostics. Native exception guards address a concrete process-killing hazard but still require manual owner runtime confirmation. No false assertion of full crash fix.
+No changes to playback, volume, Next/Previous, radio, audio routing, native Yandex host, Android, access, billing or moderation.
+No server files, server deployment, signing, production feed or release.
 
 Expected output:
-- CELIKOM-W169-TRACK-HANDOFF-02451-UNSIGNED.exe
-- CELIKOM-Windows-0.24.51.zip
+- CELIKOM-W170-WINDOWS-UPLOAD-CLEANUP-02452-UNSIGNED.exe
+- CELIKOM-Windows-0.24.52.zip
 - SHA256SUMS.txt
 
-One owner-review installer only; stage-only distribution, not a release. Test .NET W15, W23 native tests, W24 image, safe native upgrade, installer+update+uninstall, and exact hashes. No signing, production feed, Hostinger deployment, server or VPN modification. 
+One owner-review installer only; stage-only distribution. Run W15 contract tests, W23 native tests, W24 image-builder tests, warnings-as-errors GUI/supervisor builds, safe install/upgrade/uninstall checks and exact installer/ZIP hashes.
