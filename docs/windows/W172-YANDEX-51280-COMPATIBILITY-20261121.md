@@ -40,7 +40,15 @@ The exact version and both file hashes were added as a new immutable entry to `O
   - W21 recovery contract: **41 passed**.
   - W15 native/Start contract: **467 passed**.
   - GUI build with warnings as errors passed.
-- W20 installer staging: [run 44892155319](https://github.com/manufact-test/nomusic/actions/runs/44892155319) — **in progress at this documentation checkpoint**. Update this file with the final artifact ID, EXE/ZIP hashes and conclusion after it finishes.
+- W20 safe installer staging: [run 44892155319](https://github.com/manufact-test/nomusic/actions/runs/44892155319) — **SUCCESS**.
+  - GUI and supervisor warning-as-error builds passed.
+  - W15, W24 and W21 tests passed; updater ZIP metadata/anti-downgrade passed.
+  - Disposable install, same-AppId in-place upgrade and uninstall smoke passed; Yandex directory was absent and untouched.
+  - One internal artifact: [14703035385 — CELIKOM-Windows-internal-stage](https://github.com/manufact-test/nomusic/actions/runs/44892155319/artifacts/14703035385), expires **1 December 2026, 10:02 UTC**.
+  - Installer: `CELIKOM-W172-YANDEX-51280-COMPATIBILITY-02453-UNSIGNED.exe`
+  - ZIP: `CELIKOM-Windows-0.24.53.zip` (one root installer, byte-identical to the standalone EXE).
+  - Installer SHA256: `3869af717c7f85841d2853799065d00002f605ac31ed871000e76cc56c51451d`
+  - ZIP SHA256: `5c37df6ce37cd6bcbf9a0a5fa46bdd83da3d5fb9d3ac85ffa3093ce3c61f4cf4`
 
 CI proves official vendor provenance, image construction and reversible install/restore in a disposable Windows sandbox. It does **not** prove audible replacement on the owner's PC. Owner playback and real MP3 upload remain the final field checks.
 
