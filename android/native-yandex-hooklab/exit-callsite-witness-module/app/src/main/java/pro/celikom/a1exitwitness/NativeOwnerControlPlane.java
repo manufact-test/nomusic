@@ -89,8 +89,6 @@ final class NativeOwnerControlPlane {
                 }
                 warmGrant=new WarmGrant(owner,originalTrackId,grant,
                     System.currentTimeMillis());
-                NativeTrackIdBetaPolicy.mark(
-                    NativeTrackIdBetaPolicy.Step.SIGNED_MPEG_READY);
             } catch(Exception ignored) {
                 NativeTrackIdBetaPolicy.mark(
                     NativeTrackIdBetaPolicy.Step.OWNER_NETWORK_OR_RESPONSE_ERROR);
@@ -329,11 +327,7 @@ final class NativeOwnerControlPlane {
                     JSONObject resolved=request(
                         "resolve?audio_formats=mp3,m4a&service=yandex&track_id="
                         +originalTrackId,null,access(owner));
-                    if(!resolved.optBoolean("found")
-                            || !resolved.optBoolean("approved")
-                            || !resolved.optBoolean("entitled")
-                            || !"audio/mpeg".equals(resolved.optString("mime_type")))
-                        return;
+                    if(!approvedAudio(resolved))return;
                     grant=readGrant(resolved);
                 }
                 long now=System.currentTimeMillis();
@@ -384,6 +378,11 @@ final class NativeOwnerControlPlane {
         boolean ok=verifyAudioRange(url,mimeType);
         NativeTrackIdBetaPolicy.mark(ok ? NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_VALID
             : NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_REJECTED);
+        if(ok) {
+            NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.SIGNED_AUDIO_READY);
+            if("audio/mpeg".equals(mimeType))
+                NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.SIGNED_MPEG_READY);
+        }
         return ok;
     }
     private void offerExactBeta(long generation,Object originalTrack,Object originalAlbum,
