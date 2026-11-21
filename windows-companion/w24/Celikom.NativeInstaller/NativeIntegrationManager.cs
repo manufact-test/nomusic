@@ -26,6 +26,13 @@ public static class NativeIntegrationManager
         "de2849a1378daff16500fd5c8499634aab8d994c1ffb1b1d8a6bc264edd9aada";
     public const string Official51270AsarSha256 =
         "c176ff3cecdddfab76b2d0d90bf527bbed226919fab37f5723b46913084620cb";
+    // Official Yandex 5.128.0, extracted from the signed Yandex S3 installer
+    // and verified in the W172 Windows image-builder/snapshot sandbox.
+    public const string Official51280Version = "5.128.0.r22145392";
+    public const string Official51280ExeSha256 =
+        "0fdd7b7b25fed66701a61eda514767e15f735893782b331a05f830ad36f45f3d";
+    public const string Official51280AsarSha256 =
+        "b50abc625d3f426aa140b17861f8075eff3e17d71b2038e48ded1b6592cb8d0b";
 
     private static string? TrustedAsarForVersion(string? version) => version switch
     {
