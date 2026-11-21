@@ -35,6 +35,18 @@ No shell invocation from PHP: proc_open receives a fixed argv array. Input has a
 
 ## Status
 
-Candidate verification/deployment pending. Follow the branch workflow for the exact result. Do not re-run a successful deployment blindly: original-source digest guards intentionally reject a second installation.
+Deployed successfully on 2026-11-21 at 10:31 Minsk (07:31 UTC).
+
+- Code/release commit: 823c0613c2122d201165ae45952598b60c935c4b.
+- Workflow 44880432304: inspection, pinned decoder, verification and deployment all succeeded. Verify job 136774379166; deployment job 136774800576.
+- Active server release: upload-cleanup-823c0613c212. Backup: /home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom/backups/upload-cleanup-823c0613c212/. Its previous-release file identifies the exact prior release, and UploadService.php/public-index.php preserve the replaced file and launcher metadata.
+- Exact-delta assertion passed. Both candidate and active HTTPS/FPM probes accepted the repairable synthetic MP3, checked exact cleaned bytes and rejected broken payloads. Public /api/v1/config remained healthy; shared env and public launcher content hashes stayed unchanged. Random QA endpoint was removed by finally.
+- 371 extension tests, native Chrome File/DataTransfer UI, PHP/JS PCM comparisons, MySQL canonical/legacy retries, temp-file cleanup, security and package validation all passed. Source playback delta asserted VERSION only.
+- Delivered ZIP: 2,491,316 bytes. SHA-256 67873c1085b0926a5f40531d17b06d444cbe0b5124442f2cdfa49245794bb56c. CI artifact 14697433285 was downloaded and its contained ZIP compared byte-for-byte with the delivered local package.
+- Library ZIP libfile_a081342241dc819193a14eff8a34a577; checksum libfile_4cd03b082e0c81919713771bada95551. PR 62 remains unmerged for review; deployed backend is an exact upload-only patch of the actual active release, not this branch's entire server tree.
+
+Owner confirmation using their own installed 0.4.78 upload remains pending; do not claim every possible malformed MP3 is supported. This implementation covers the known bounded metadata patterns and refuses unknown damage rather than guessing. Existing Android/Windows client-side preflight is outside this change.
+
+Do not re-run a successful deployment blindly: original-source digest guards intentionally reject a second installation. For rollback, first require that current still resolves to this release; atomically restore the path recorded in backup/previous-release and restore public index mtime. Never roll back over a later release from another chat. No DB or audio-asset rollback is required because this deployment performs neither migrations nor catalog writes. Future server rollouts must preserve these three classes and private tools or merge this upload delta first; deploying a historical complete server checkout would discard the feature.
 
 Stable baseline: fix/desktop-wave-metadata-20261118 @ d12cdcdaf96b95710b93e783898fe59488f27dff (owner accepted 0.4.77). Branch: feature/upload-auto-cleanup-20261121. Backend old UploadService SHA-256 dd4ec0501fb88b06e5aaf8d423fe83581fc7321207138cb0cdcad3128ab95c7b; old Mp3Inspector 0485502c2488a1125bd4b5d898133f68f7fb870914626d9659b330ee9f122a25.
