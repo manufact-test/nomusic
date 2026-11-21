@@ -1,0 +1,79 @@
+name: CELIKOM A1 one-time live resolve contract audit (read-only)
+on:
+  push:
+    branches:
+      - experiment/android-a1-metrica-init-state-observer-arm13-20261112
+    paths:
+      - .github/workflows/android-a1-live-resolve-readonly-audit.yml
+permissions:
+  contents: read
+jobs:
+  live-resolve-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect active server code and exact catalog record without mutation or secrets in output
+        shell: bash
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          printf '%s\n' "$HOST_KEY" > "$RUNNER_TEMP/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          chmod 600 "$RUNNER_TEMP/key" "$RUNNER_TEMP/known_hosts"
+          SSH=(ssh -T -p 65002 -i "$RUNNER_TEMP/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts")
+          TARGET=u235811320@92.113.19.189
+          DOMAIN=/home/u235811320/domains/darkred-camel-588676.hostingersite.com
+          echo "GIT_RESOLVE_SHA256=$(sha256sum server/src/Application/ResolveService.php | cut -d' ' -f1)"
+          "${SSH[@]}" "$TARGET" "python3 - '$DOMAIN' <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          import sys
+          domain=Path(sys.argv[1])
+          pointer=domain/'celikom'/'current'
+          if not pointer.is_symlink(): raise SystemExit('ACTIVE_RELEASE_LINK_MISSING')
+          release=pointer.resolve()
+          if not release.is_relative_to((domain/'celikom'/'releases').resolve()):
+              raise SystemExit('ACTIVE_RELEASE_OUTSIDE_DOMAIN')
+          src=(release/'src'/'Application'/'ResolveService.php')
+          app=(release/'src'/'Application.php')
+          if not src.is_file() or not app.is_file(): raise SystemExit('ACTIVE_PHP_SOURCE_MISSING')
+          code=src.read_text(errors='replace')
+          print('LIVE_RESOLVE_SHA256='+sha256(src.read_bytes()).hexdigest())
+          print('LIVE_FOUND_TRUE='+str("'found' => true" in code))
+          print('LIVE_APPROVED_TRUE='+str("'approved' => true" in code))
+          print('LIVE_ENTITLED_FIELD='+str("'entitled'" in code))
+          print('LIVE_RESOLVE_ROUTE='+str('/api/v1/resolve' in app.read_text(errors='replace')))
+          PY
+          "
+          "${SSH[@]}" "$TARGET" "cd '$DOMAIN/celikom/current' && php" <<'PHP'
+          <?php
+          try {
+            require_once getcwd().'/bootstrap.php';
+            $config = require getcwd().'/config/app.php';
+            $pdo = \Celikom\Database\Connection::open($config);
+            $pdo->setAttribute(PDO::ATTR_TIMEOUT, 3);
+            $sql = "SELECT t.service_album_id AS album_id, r.status, r.is_active,
+                      (r.disabled_at IS NULL) AS not_disabled, a.mime_type
+                    FROM tracks t
+                    LEFT JOIN track_replacements r ON r.track_id=t.id
+                    LEFT JOIN audio_assets a ON a.id=r.audio_asset_id
+                    WHERE t.service=? AND t.service_track_id=?
+                    ORDER BY r.id DESC LIMIT 10";
+            $q=$pdo->prepare($sql);
+            $q->execute(['yandex','144530503']);
+            $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+            echo 'LIVE_CATALOG_TRACK_EXISTS='.($rows ? 'YES' : 'NO')."\n";
+            echo 'LIVE_CATALOG_ALBUM_MATCH='.(count(array_filter($rows,static fn($r)=> (string)$r['album_id']==='38902809'))>0?'YES':'NO')."\n";
+            $active=array_values(array_filter($rows,static fn($r)=>$r['status']==='approved' && (int)$r['is_active']===1 && (int)$r['not_disabled']===1));
+            echo 'LIVE_APPROVED_ACTIVE_COUNT='.count($active)."\n";
+            echo 'LIVE_ACTIVE_MIME='.($active ? preg_replace('/[^a-z0-9\/\-]/','',(string)$active[0]['mime_type']) : 'NONE')."\n";
+          } catch (Throwable $e) {
+            echo 'LIVE_DB_READONLY_CHECK=UNAVAILABLE'."\n";
+          }
+          PHP
+          rm -f "$RUNNER_TEMP/key" "$RUNNER_TEMP/known_hosts"
