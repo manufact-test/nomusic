@@ -47,6 +47,15 @@ jobs:
           print('LIVE_FOUND_TRUE='+str("'found' => true" in code))
           print('LIVE_APPROVED_TRUE='+str("'approved' => true" in code))
           print('LIVE_ENTITLED_FIELD='+str("'entitled'" in code))
+          catalog=release/'src'/'Repositories'/'PdoCatalogRepository.php'
+          if not catalog.is_file(): raise SystemExit('LIVE_CATALOG_CODE_MISSING')
+          catalog_code=catalog.read_text(errors='replace').lower()
+          print('LIVE_CATALOG_FILTERS_APPROVED='+str("r.status = 'approved'" in catalog_code))
+          print('LIVE_CATALOG_FILTERS_ACTIVE='+str('r.is_active = 1' in catalog_code))
+          print('LIVE_CATALOG_FILTERS_NOT_DISABLED='+str('r.disabled_at is null' in catalog_code))
+          print('LIVE_RESOLVE_CONTAINS_AUTH_SESSION='+str('session_id' in code))
+          print('LIVE_RESOLVE_HAS_POSITIVE_FOUND='+str("'found' => true" in code))
+          print('LIVE_ROUTE_USES_USER_ACCESS='+str('userAccess($headers)' in app.read_text(errors='replace')))
           print('LIVE_RESOLVE_ROUTE='+str('/api/v1/resolve' in app.read_text(errors='replace')))
           PY
           "${SSH[@]}" "$TARGET" "cd '$DOMAIN/celikom/current' && php" <<'PHP'
