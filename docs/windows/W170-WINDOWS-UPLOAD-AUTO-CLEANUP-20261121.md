@@ -6,7 +6,7 @@ Date: 21 November 2026
 
 - Repository: `manufact-test/nomusic`
 - Accepted Windows baseline: app **0.24.51.0**, native **0.24.32**
-- W170 owner-review target: app **0.24.52.0**; native host/version unchanged
+- W170 owner-review target: app and update supervisor **0.24.52.0**; native host/module version unchanged
 - Baseline branch: `backup/windows-02451-owner-accepted-exact-20261117`
 - Baseline commit: `c717428a7d9f01fc8e33b482fcf66a9ed1a02947`
 - Work branch: `experiment/windows-w170-mainline-20261121`
