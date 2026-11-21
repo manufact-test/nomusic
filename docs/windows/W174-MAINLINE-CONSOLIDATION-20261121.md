@@ -10,7 +10,7 @@ The owner asked to make the latest personally installed and verified CELIKOM Win
 
 - Repository: `manufact-test/nomusic`
 - Canonical branch: `main`
-- Merge commit / current main SHA: `aa713b99824f20abbe7c239bf06e356cf3f7f367`
+- W173 code-promotion squash-merge commit: `aa713b99824f20abbe7c239bf06e356cf3f7f367`. Handoff documentation was committed afterward; resolve the live `main` ref before any future ref operation.
 - PR head before merge: `02b3b904bba78ffe490cf8a9ecaac0c20385543a`
 - Source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`
 - CELIKOM app: **0.24.54**
