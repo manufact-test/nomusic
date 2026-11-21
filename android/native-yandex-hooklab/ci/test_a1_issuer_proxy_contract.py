@@ -56,6 +56,11 @@ class IssuerProxyContractTest(unittest.TestCase):
         ):
             self.assertIn(marker, stage)
         self.assertIn('else if("38436680".equals(id))', stage)
+        for marker in ("noteUnscopedPublisherId(id)",
+                       "issuerTicketMatchesCreator(birth)",
+                       "ISSUER_ASYNC_CREATOR_BOUND",
+                       "issuerClock.getAsLong()"):
+            self.assertIn(marker, stage)
         self.assertNotIn("NativeTrackIdBetaPolicy.allows(\"38436680\")", stage)
 
         self.assertIn("inspection.proxyInterfacesMatchRequested", selection)

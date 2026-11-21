@@ -15,6 +15,17 @@ import java.util.ArrayList;
  * Export runs only when the owner explicitly saves diagnostics.
  */
 final class StageBAudioEvidence {
+    // Android's Retrofit executor invokes the signed FileInfoApi method on a
+    // DIFFERENT thread from the issuer's Gp0/Track request. Bind that exact
+    // issuer-supplied numeric key only to a same-key signed tCa creator and
+    // exact original player source setter, never to a guessed current track.
+    private static final long ASYNC_ISSUER_MAX_AGE_MS = 30_000L;
+    private final java.util.function.LongSupplier issuerClock;
+    StageBAudioEvidence() { this(() -> System.nanoTime()/1_000_000L); }
+    StageBAudioEvidence(java.util.function.LongSupplier clock) {
+        if(clock==null) throw new IllegalArgumentException("ISSUER_CLOCK_REQUIRED");
+        issuerClock=clock;
+    }
     // Up to 16 real descriptor objects weakly held, reference (==) only.
     // Neither source identity, URL nor track fields are ever serialized.
     private final ArrayList<WeakReference<Object>> nativeDescriptors = new ArrayList<>();
@@ -128,14 +139,16 @@ final class StageBAudioEvidence {
         final WeakReference<Object> albumAtBirth;
         final int scopeAtBirth;
         final String originalConstructorKey;
+        final long bornElapsedMs;
         boolean laterFlowEmitted;
         WrapperBirth(Object wrapper,int scopeAtBirth,Object track,Object album,
-                String constructorKey) {
+                String constructorKey,long bornElapsedMs) {
             this.wrapper=new WeakReference<>(wrapper);
             this.scopeAtBirth=scopeAtBirth;
             this.creatorTrack=track==null?null:new WeakReference<>(track);
             this.albumAtBirth=album==null?null:new WeakReference<>(album);
             this.originalConstructorKey=constructorKey;
+            this.bornElapsedMs=bornElapsedMs;
         }
     }
     private final ArrayList<WrapperBirth> wrapperBirths = new ArrayList<>();
@@ -148,6 +161,69 @@ final class StageBAudioEvidence {
         boolean conflict;
     }
     private final ArrayList<PublisherTrackIdLink> publisherTrackIds=new ArrayList<>();
+    // Issuer annotation-proven IDs waiting for an exact signed original
+    // tCa(String) creator. In-memory only; IDs never leave in diagnostic TXT.
+    private static final class AsyncIssuerObservation {
+        final String id;
+        long observedElapsedMs;
+        AsyncIssuerObservation(String value,long now) {
+            id=value;observedElapsedMs=now;
+        }
+    }
+    private final ArrayList<AsyncIssuerObservation> unscopedIssuerObservations =
+        new ArrayList<>();
+    private static boolean inIssuerWindow(long a,long b) {
+        if(a<0 || b<0)return false;
+        long delta=a>=b?a-b:b-a;
+        return delta<=ASYNC_ISSUER_MAX_AGE_MS;
+    }
+    private void noteUnscopedPublisherId(String id) {
+        if(!NativeTrackIdBetaPolicy.allows(id))return;
+        long now=issuerClock.getAsLong();
+        for(int i=unscopedIssuerObservations.size()-1;i>=0;i--) {
+            AsyncIssuerObservation previous=unscopedIssuerObservations.get(i);
+            if(!inIssuerWindow(now,previous.observedElapsedMs)
+                    || now<previous.observedElapsedMs)
+                unscopedIssuerObservations.remove(i);
+            else if(id.equals(previous.id)) {
+                previous.observedElapsedMs=now;
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_ID_OBSERVED);
+                return;
+            }
+        }
+        if(unscopedIssuerObservations.size()>=3)return; // no eviction of live IDs
+        unscopedIssuerObservations.add(new AsyncIssuerObservation(id,now));
+        NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_ID_OBSERVED);
+    }
+    private boolean issuerTicketMatchesCreator(WrapperBirth birth) {
+        if(birth==null || !NativeTrackIdBetaPolicy.allows(
+                birth.originalConstructorKey))return false;
+        long now=issuerClock.getAsLong();
+        for(AsyncIssuerObservation ticket:unscopedIssuerObservations) {
+            if(!birth.originalConstructorKey.equals(ticket.id))continue;
+            if(now<ticket.observedElapsedMs
+                    || !inIssuerWindow(now,ticket.observedElapsedMs)
+                    || !inIssuerWindow(birth.bornElapsedMs,ticket.observedElapsedMs)) {
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_CREATOR_STALE);
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+    private WrapperBirth uniqueOriginalCreatorBirth(Object wrapper) {
+        if(wrapper==null)return null;
+        WrapperBirth birth=null;
+        for(WrapperBirth item:wrapperBirths) {
+            if(item.wrapper.get()!=wrapper)continue;
+            if(birth!=null)return null;
+            birth=item;
+        }
+        return birth;
+    }
     // 10AGE/Ramil' beta: publisher-annotated trackId was observed inside
     // exact native Gp0(Track) request, but the publisher's Album Java object
     // was not observed on the owner handset. Separate from strict triple IDs.
@@ -201,9 +277,15 @@ final class StageBAudioEvidence {
         if(track==null) {
             NativeTrackIdBetaPolicy.mark(
                 NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_SCOPE_ABSENT);
-            if(allowed)
+            if(allowed) {
                 NativeTrackIdBetaPolicy.mark(
                     NativeTrackIdBetaPolicy.Step.ISSUER_TRACK_SCOPE_MISSING);
+                noteUnscopedPublisherId(id);
+                // Start the SAME authenticated prefetch normally started by
+                // the in-scope issuer path; no source or grant is admitted here.
+                AuthenticatedPublisherTrackPrefetch prefetch=ownerTrackPrefetch;
+                if(prefetch!=null)prefetch.warm(id);
+            }
             return;
         }
         NativeTrackIdBetaPolicy.mark(
@@ -309,7 +391,23 @@ final class StageBAudioEvidence {
             if(match!=null)return null;
             match=item;
         }
-        if(match==null || match.conflict
+        if(match==null) {
+            // Original tCa constructor key, original creator Track identity,
+            // and an independently observed exact Retrofit trackId must all
+            // match within a short cross-thread window.
+            if(!issuerTicketMatchesCreator(birth)
+                    || (birth.scopeAtBirth==12
+                        && (!birth.laterFlowEmitted
+                            || !wasNativeTrackFlowItem(track))))return null;
+            match=new BetaTrackIdLink(track,birth.originalConstructorKey);
+            if(betaTrackIds.size()>=32)betaTrackIds.remove(0);
+            betaTrackIds.add(match);
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_CREATOR_BOUND);
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_TRACKID);
+        }
+        if(match.conflict
                 || !birth.originalConstructorKey.equals(match.signedId))return null;
         NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.EXACT_BETA_CREATOR);
         return new Object[]{track,wrapper};
@@ -332,7 +430,30 @@ final class StageBAudioEvidence {
             }
             return birth==null?null:birth.originalConstructorKey;
         }
-        return exactPublisherTrackIdForCreator(wrapper,track,albumOrBetaToken);
+        String strict=exactPublisherTrackIdForCreator(
+            wrapper,track,albumOrBetaToken);
+        if(strict!=null)return strict;
+        // The album-present route has the issuer's REAL original Album Java
+        // identity, so bind within that stronger original creator chain.
+        Object[] exact=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        if(exact==null || exact[0]!=track || exact[1]!=albumOrBetaToken)
+            return null;
+        WrapperBirth birth=uniqueOriginalCreatorBirth(wrapper);
+        if(birth==null || !issuerTicketMatchesCreator(birth))return null;
+        for(PublisherTrackIdLink existing:publisherTrackIds)
+            if(existing.track.get()==track)return null; // conflict never overwritten
+        if(publisherTrackIds.size()>=32)publisherTrackIds.remove(0);
+        PublisherTrackIdLink linked=new PublisherTrackIdLink();
+        linked.track=new WeakReference<>(track);
+        linked.album=new WeakReference<>(albumOrBetaToken);
+        linked.id=birth.originalConstructorKey;
+        publisherTrackIds.add(linked);
+        NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_CREATOR_BOUND);
+        NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.ISSUER_TRACKID);
+        return exactPublisherTrackIdForCreator(
+            wrapper,track,albumOrBetaToken);
     }
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeTrackScopes = new ThreadLocal<>();
     private final ThreadLocal<ArrayList<WeakReference<Object>>> activeWrapperScopes = new ThreadLocal<>();
@@ -808,7 +929,8 @@ final class StageBAudioEvidence {
             wrapperBirths.add(new WrapperBirth(wrapper,atBirth,
                 fromExactTcaCreator && (atBirth==12 || atBirth==13)?track:null,
                 birthAlbum,
-                fromExactTcaCreator?numericOriginalId(originalConstructorArg):null));
+                fromExactTcaCreator?numericOriginalId(originalConstructorArg):null,
+                issuerClock.getAsLong()));
         }
         if (track==null || wrapper==null) return;
         // In the issuer-signed creator, Track may reach Flow AFTER tCa

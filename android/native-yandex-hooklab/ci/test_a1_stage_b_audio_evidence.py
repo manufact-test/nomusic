@@ -63,7 +63,108 @@ public final class StageBAudioEvidenceTest {
         evidence.onExoSourceInstanceCreated(source,factory);
         return evidence;
     }
+
+    static void beta9CrossThreadFixture() {
+        java.util.concurrent.atomic.AtomicLong clock=new java.util.concurrent.atomic.AtomicLong(1000L);
+        String id=NativeTrackIdBetaPolicy.RAMIL_AU;
+        StageBAudioEvidence e=new StageBAudioEvidence(clock::get);
+        e.onPublisherAnnotatedTrackId(id); // concrete Retrofit worker, no Track ThreadLocal
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        e.onNativeTrackAlbumConstructed(track,album);
+        e.enterNativeTcaCreatorOwner(new Object());
+        e.enterNativeTcaCreatorTrackScope(track,1);
+        e.onNativeTrackWrapperCreated(wrapper,id);
+        e.exitNativeTcaCreatorTrackScope();
+        e.exitNativeTcaCreatorOwner();
+        Object[] pair=e.exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
+        check(pair!=null && pair[0]==track && pair[1]==album);
+        check(id.equals(e.exactPublisherTrackIdForCreatorOrBeta(
+            wrapper,pair[0],pair[1])));
+        clock.set(75000L); // a bound original wrapper can outlive issuer ticket
+        check(id.equals(e.exactPublisherTrackIdForCreatorOrBeta(
+            wrapper,pair[0],pair[1])));
+        e.onNativeTrackAlbumConstructed(track,new Object());
+        check(e.exactPublisherTrackIdForCreatorOrBeta(
+            wrapper,pair[0],pair[1])==null);
+
+        StageBAudioEvidence none=new StageBAudioEvidence(clock::get);
+        Object nt=new Object(),na=new Object(),nw=new Object();
+        none.onNativeTrackAlbumConstructed(nt,na);
+        none.enterNativeTcaCreatorOwner(new Object());
+        none.enterNativeTcaCreatorTrackScope(nt,1);
+        none.onNativeTrackWrapperCreated(nw,id);
+        none.exitNativeTcaCreatorTrackScope();
+        none.exitNativeTcaCreatorOwner();
+        Object[] noIssuer=none.exactCreatorTrackAlbumOrBetaBeforeSourceSet(nw);
+        check(noIssuer!=null && none.exactPublisherTrackIdForCreatorOrBeta(
+            nw,noIssuer[0],noIssuer[1])==null);
+
+        clock.set(1000L);
+        StageBAudioEvidence expired=new StageBAudioEvidence(clock::get);
+        expired.onPublisherAnnotatedTrackId(id);
+        clock.set(90000L);
+        Object et=new Object(),ea=new Object(),ew=new Object();
+        expired.onNativeTrackAlbumConstructed(et,ea);
+        expired.enterNativeTcaCreatorOwner(new Object());
+        expired.enterNativeTcaCreatorTrackScope(et,1);
+        expired.onNativeTrackWrapperCreated(ew,id);
+        expired.exitNativeTcaCreatorTrackScope();
+        expired.exitNativeTcaCreatorOwner();
+        Object[] old=expired.exactCreatorTrackAlbumOrBetaBeforeSourceSet(ew);
+        check(old!=null && expired.exactPublisherTrackIdForCreatorOrBeta(
+            ew,old[0],old[1])==null);
+
+        clock.set(1000L);
+        StageBAudioEvidence beta=new StageBAudioEvidence(clock::get);
+        beta.onPublisherAnnotatedTrackId(id);
+        Object bt=new Object(),bw=new Object();
+        beta.enterNativeTcaCreatorOwner(new Object());
+        beta.enterNativeTcaCreatorTrackScope(bt,1);
+        beta.onNativeTrackWrapperCreated(bw,id);
+        beta.exitNativeTcaCreatorTrackScope();
+        beta.exitNativeTcaCreatorOwner();
+        check(beta.exactCreatorTrackAlbumOrBetaBeforeSourceSet(bw)==null);
+        beta.onNativeTrackFlowEmission(bt);
+        Object[] bound=beta.exactCreatorTrackAlbumOrBetaBeforeSourceSet(bw);
+        check(bound!=null && bound[0]==bt && bound[1]==bw);
+        check(id.equals(beta.exactPublisherTrackIdForCreatorOrBeta(
+            bw,bound[0],bound[1])));
+
+        // Real owner device also observes tCa creator when Track is already
+        // in Flow and its original Album is present (birth scope 14).
+        StageBAudioEvidence inFlow=new StageBAudioEvidence(clock::get);
+        inFlow.onPublisherAnnotatedTrackId(id);
+        Object ft=new Object(),fa=new Object(),fw=new Object();
+        inFlow.onNativeTrackAlbumConstructed(ft,fa);
+        inFlow.onNativeTrackFlowEmission(ft);
+        inFlow.enterNativeTcaCreatorOwner(new Object());
+        inFlow.enterNativeTcaCreatorTrackScope(ft,1);
+        inFlow.onNativeTrackWrapperCreated(fw,id);
+        inFlow.exitNativeTcaCreatorTrackScope();
+        inFlow.exitNativeTcaCreatorOwner();
+        Object[] found=inFlow.exactCreatorTrackAlbumOrBetaBeforeSourceSet(fw);
+        check(found!=null && found[0]==ft && found[1]==fa);
+        check(id.equals(inFlow.exactPublisherTrackIdForCreatorOrBeta(
+            fw,found[0],found[1])));
+
+        // Another original signed constructor ID never borrows Ramil's
+        // Retrofit ticket, even with an otherwise exact original object chain.
+        StageBAudioEvidence mismatched=new StageBAudioEvidence(clock::get);
+        mismatched.onPublisherAnnotatedTrackId(id);
+        Object mt=new Object(),ma=new Object(),mw=new Object();
+        mismatched.onNativeTrackAlbumConstructed(mt,ma);
+        mismatched.enterNativeTcaCreatorOwner(new Object());
+        mismatched.enterNativeTcaCreatorTrackScope(mt,1);
+        mismatched.onNativeTrackWrapperCreated(mw,"123456789");
+        mismatched.exitNativeTcaCreatorTrackScope();
+        mismatched.exitNativeTcaCreatorOwner();
+        Object[] mismatch=mismatched.exactCreatorTrackAlbumOrBetaBeforeSourceSet(mw);
+        check(mismatch!=null && mismatched.exactPublisherTrackIdForCreatorOrBeta(
+            mw,mismatch[0],mismatch[1])==null);
+    }
+
     public static void main(String[] argv) {
+        beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
         check(initial.length == 68);

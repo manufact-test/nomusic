@@ -1,33 +1,12 @@
-CELIKOM Android A1 — RAMIL' «АУ», BETA8 (HONOR 50 / Android 13)
-Дата: 21.11.2026. Узкая диагностическая сборка после подтверждённого BETA7 прохода Proxy→метод→handler. У BETA7 не возникал ISSUER_TRACKID. В BETA8 добавлены только конечные анонимные категории аргумента и его поточного Track-scope; оригинальный вызов Retrofit и аудио сохранены без изменения. Это НЕ готовая аудиоподмена.
+CELIKOM Android A1 — Ramil' «Ау», BETA9 (HONOR 50 / Android 13)
+21.11.2026. Исправляем подтверждённый BETA8 разрыв: FileInfoApi отдаёт нужный оригинальный trackId, но запрос выполняется на другом потоке, где нет исходной Track-рамки.
+BETA9 сохраняет этот ID ненадолго (30 секунд) и привязывает только при точном совпадении оригинального ключа tCa(String), оригинальных Track/Album/Wrapper и настоящего setter плеера Яндекса. Не подменяет API/логин; без подтверждения совпадений играет оригинал.
 
-1. Установить APK поверх BETA7. Не удалять приложение, не очищать данные и не трогать оригинальную Яндекс.Музыку. Это сохраняет зашифрованную CELIKOM-сессию, если она была в предыдущей сборке.
-2. Запустить CELIKOM/Yandex clone. Отдельной кнопки «Подключиться к BETA» нет: при старте приложение автоматически проверяет сохранённую CELIKOM-сессию и запрашивает активацию у CELIKOM. Учётная запись Яндекса не читается и не используется.
-3. Вверху справа должна быть одна кнопка статуса/диагностики:
-   - «CELIKOM: ВКЛ · TXT» — серверная CELIKOM-активация подтверждена;
-   - «CELIKOM: ПРОВЕРКА · TXT» — запрос активации выполняется;
-   - «CELIKOM: НЕТ СЕССИИ · TXT» — сохранённая CELIKOM-сессия не найдена;
-   - «CELIKOM: НЕТ ДОСТУПА · TXT» — CELIKOM-сервер не выдал доступ;
-   - «CELIKOM: СЕРВЕР · TXT» / «ОШИБКА» — запрос не завершился успешно.
-   Нажатие на эту единственную кнопку сохраняет TXT в «Загрузки / CELIKOM A1». Никакой кнопки BETA/ручного подключения нет.
-4. Открыть 10AGE, Ramil' — «Ау» (2019), ID 144530503: https://music.yandex.ru/album/38902809/track/144530503
-5. Слушать участок 00:43–00:54. Сейчас проверяем только факт звучания альтернативной версии прямо в оригинальном ExoPlayer Яндекса. Pause/Resume, Seek, Next и MyWave пока не тестировать.
-6. Если звучит цензурный оригинал, нажать единственную кнопку «CELIKOM: … · TXT» и прислать файл из «Загрузки / CELIKOM A1». Ничего не переустанавливать и данные не очищать.
+1. Установить APK поверх BETA8. НЕ удалять приложение и НЕ очищать данные.
+2. Запустить CELIKOM/Yandex. Доступ к CELIKOM включается автоматически, кнопки BETA отдельно нет.
+3. Проверить 10AGE, Ramil' — «Ау», ID 144530503: https://music.yandex.ru/album/38902809/track/144530503
+4. Послушать 00:43–00:54. Пока не проверять паузу/перемотку/радио.
+5. Если оригинал, нажать «CELIKOM: … · TXT» вверху справа и прислать файл.
 
-В TXT BETA8 дополнительно сохраняет строки AUDIO_ISSUER_PROXY_SHAPE:
-- реальные direct interfaces созданного Java Proxy;
-- Query/Path-методы и значения аннотаций;
-- отметку DECLARED/INHERITED и тип параметра;
-- ClassLoader proxy, API и declaring interface, а также отношения между ними;
-- итог METHOD_SELECTION: SELECTED / AMBIGUOUS / UNSUPPORTED_TRACKID_TYPE / NO_EXACT_TRACKID_ANNOTATION.
-
-Эти сведения нужны, чтобы подтвердить фактическую форму runtime proxy, а не гадать по имени интерфейса. Значения аргументов запросов, track ID, URL, токены, пароли, учётные данные и аудиоданные не экспортируются.
-
-CI подтверждает JVM-контракт, сборку и Android 13 ARM smoke test, но не доказывает слышимую подмену. Финальное подтверждение — только реальный тест на HONOR 50.
-
-BETA8 (только счётчики, не аудио):
-- ISSUER_HANDLER_ARGS_PRESENT/MISSING — существует ли именно параметр помеченный @Query("trackId");
-- ISSUER_VALUE_NULL/NONNUMERIC/TARGET_ALLOWLISTED/KNOWN_OTHER_VERSION/OTHER_NUMERIC — безопасная категория значения, сам ID не записывается;
-- ISSUER_VALUE_SCOPE_PRESENT/ABSENT — существовала ли на том же потоке точная Track-рамка.
-- ISSUER_PROCESSING_EXCEPTION — внутренняя ошибка чтения аргумента.
-- Если ISSUER_TRACKID=NONE, дальнейшие цепочки намеренно остаются ORIGINAL; не трактовать зелёную CI как звучание CELIKOM.
+Для диагностики BETA9: ISSUER_ASYNC_ID_OBSERVED, ISSUER_ASYNC_CREATOR_BOUND, ISSUER_ASYNC_CREATOR_STALE, ISSUER_TRACKID, EXACT_BETA_CREATOR, ORIGINAL_SETTER, PREFETCH_STARTED, SIGNED_MPEG_READY, OWNER_RESOLVE_REQUEST, GRANT_ADMITTED, EXACT_PREPARE, DATASOURCE_ARMED, AUDIO_OPEN, AUDIO_READ.
+Зелёная CI проверяет установку и запуск Android 13, НЕ доказывает звучание подмены.

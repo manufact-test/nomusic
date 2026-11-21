@@ -92,7 +92,7 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
 
 
     def test_output_name_is_explicitly_owner_consented_trial(self):
-        self.assertIn("RAMIL-AU-BETA8", OUTPUT_NAME)
+        self.assertIn("RAMIL-AU-BETA9", OUTPUT_NAME)
         self.assertIn("HONOR50", OUTPUT_NAME)
 
 
