@@ -9,6 +9,10 @@ namespace Celikom.Companion;
 /// </summary>
 public static class StartupHostPreflight
 {
+    public static bool ShouldContinuePendingStartOnVerifiedVendorUpdate(
+        bool startInProgress, NativeInstallState state) =>
+        startInProgress && state == NativeInstallState.VerifiedVendorUpdate;
+
     public static string? BlockReason(NativeInstallState state, YandexHostResult? report)
     {
         if (state == NativeInstallState.Active) return null;
