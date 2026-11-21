@@ -1,4 +1,43 @@
-# CURRENT WINDOWS W170 — owner runtime testing (21 November 2026)
+# CURRENT WINDOWS W172 — Yandex 5.128.0 owner build (21 November 2026)
+
+Read **`docs/windows/W172-YANDEX-51280-COMPATIBILITY-20261121.md`** first. This is the active Windows handoff for the current owner build.
+
+## Repository state
+
+- Repository: `manufact-test/nomusic`
+- Working branch: `experiment/windows-w172-yandex-51280-compat-20261121`
+- Rollback branch: `backup/windows-w172-pre-yandex-51280-20261121` @ `6ce4cc21352912ab31578190007042397e083f64`
+- Parent W170 branch: `experiment/windows-w170-mainline-20261121`; PR #65 remains draft.
+- `main` is unchanged.
+- Target app/supervisor: **0.24.53.0**; native host/module remains **0.24.32**.
+- Official Yandex build: **5.128.0.r22145392**.
+
+## What W172 changed
+
+- Added the exact Yandex 5.128.0 official EXE/ASAR pair to the immutable compatibility catalog.
+- Kept all previous verified Yandex pins and snapshot history.
+- The existing prior-consent reconnect path recognizes the new vendor update; no second consent dialog for an already active owner-approved integration.
+- Preserved W170 upload changes in the same owner-review build.
+- No audio bridge source changes, no server deployment, no Yandex binary bundled.
+
+## Verification
+
+- W172 candidate/sandbox [44892009619](https://github.com/manufact-test/nomusic/actions/runs/44892009619) — SUCCESS.
+- Official installer and inner EXE signatures verified; actual 5.128.0 image builder passed; byte-exact install/restore sandbox passed.
+- W24 native image contract: 20 passed; W21 recovery: 41 passed; W15 native/Start contract: 467 passed.
+- GUI warnings-as-errors build passed.
+- W20 owner installer staging [44892155319](https://github.com/manufact-test/nomusic/actions/runs/44892155319) was still running when this handoff was written. Add the final artifact ID and hashes after completion.
+
+CI proves signed vendor provenance and reversible integration construction. It does not prove audible replacement on the owner's PC. The owner must still test playback and a real MP3 upload after installing 0.24.53.
+
+## Owner handoff
+
+When the W20 package is ready, provide the single installer and its ZIP/checksums. Owner installs over the existing CELIKOM app; do not uninstall CELIKOM or Yandex and do not ask for a Yandex downgrade. Then test Start, mapped replacement playback, and real MP3 upload. If anything fails, request the CELIKOM diagnostic and fix only the confirmed issue.
+
+---
+
+# PREVIOUS WINDOWS W170 — owner upload runtime testing (21 November 2026)
+
 
 Read **`docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md`** first. This is the active Windows handoff; older W169/W168/W167 sections below are history.
 
