@@ -44,12 +44,14 @@ class IssuerProxyContractTest(unittest.TestCase):
         self.assertIn('"audio/mp4".equals(mime)', owner)
         self.assertIn("private static boolean verifyAudioRange(String url,String mimeType)", owner)
         self.assertIn("head[4]=='f' && head[5]=='t' && head[6]=='y' && head[7]=='p'", owner)
+        self.assertIn("if(!approvedAudio(resolved))return;", owner)
+        self.assertNotIn('!"audio/mpeg".equals(resolved.optString("mime_type"))', owner)
         self.assertNotIn("audio_formats=mp3&service=yandex&track_id=", owner)
         self.assertNotIn("verifyMpegRange", owner)
         policy = (MODULE / "NativeTrackIdBetaPolicy.java").read_text(encoding="utf-8")
         for marker in ("OWNER_RESOLVE_NOT_FOUND", "OWNER_RESOLVE_NOT_ENTITLED",
                        "OWNER_RESOLVE_UNSUPPORTED_MIME", "OWNER_RESOLVE_MPEG",
-                       "OWNER_RESOLVE_MP4"):
+                       "OWNER_RESOLVE_MP4", "SIGNED_AUDIO_READY"):
             self.assertIn(marker, policy)
 
     def test_runtime_hook_uses_exact_proxy_shape_and_original_handler_once(self):
