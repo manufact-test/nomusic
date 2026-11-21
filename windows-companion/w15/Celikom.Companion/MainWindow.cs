@@ -655,9 +655,7 @@ public sealed partial class MainWindow : Form
                 await ConnectYandexAsync(sender, e);
                 return;
             }
-            _compactStartupText = "Проверяем пробный период или подписку…";
-            RenderCompact();
-            LayoutCompact();
+            // Keep the normal connection banner throughout entitlement checks.
             var access = await StartupActivationRecovery.ActivateAsync(
                 ct => _api.ActivatePlaybackAsync(ct), StillSameStart,
                 code => DiagnosticLog.Record(code));
@@ -1059,13 +1057,33 @@ public sealed partial class MainWindow : Form
                 !inspected.Item3.MatchesApplication))
             {
                 // Never claim connected when Yandex replaced the native host.
+                // A verified vendor update discovered while the owner is already
+                // pressing Start is handed to that same Start flow: keep the
+                // normal connection banner and let ConnectYandexAsync stage the
+                // verified pair. Do not invalidate the user's click.
                 _bridge.SetEnabled(false);
-                _compactStarting = false;
                 _resumeAfterNetworkFailure = false;
-                ++_compactStartEpoch; // invalidate any old pending Start
-                _compactStartupText = inspected.Item2 == NativeInstallState.VerifiedVendorUpdate
-                    ? "Яндекс обновился. Нажми «Старт» для безопасного переподключения."
-                    : "Яндекс изменился. Подключение остановлено, оригиналы сохранены.";
+                var continuePendingStart =
+                    StartupHostPreflight.ShouldContinuePendingStartOnVerifiedVendorUpdate(
+                        _compactStarting, inspected.Item2);
+                if (continuePendingStart)
+                {
+                    _compactStartupText = CompactPlaybackPresentation.ConnectingMessage;
+                    DiagnosticLog.Record("YANDEX_VENDOR_UPDATE_DURING_START");
+                }
+                else
+                {
+                    _compactStarting = false;
+                    ++_compactStartEpoch; // retire any stale playback monitor
+                    // A reviewed update is an internal reconnect detail, not
+                    // a separate user-facing status. The next Start shows the
+                    // ordinary connection message immediately.
+                    _compactStartupText = inspected.Item2 == NativeInstallState.VerifiedVendorUpdate
+                        ? ""
+                        : "Яндекс изменился. Подключение остановлено, оригиналы сохранены.";
+                    RenderCompact();
+                    LayoutCompact();
+                }
                 DiagnosticLog.Record("YANDEX_VENDOR_UPDATE_DETECTED");
             }
         }
@@ -1128,9 +1146,8 @@ public sealed partial class MainWindow : Form
             !_closing && !IsDisposed && _api.IsLoggedIn &&
             _api.Settings.InstallationId == account.InstallationId &&
             string.Equals(_api.Settings.Email, account.Email, StringComparison.OrdinalIgnoreCase);
-        _compactStartupText = "Проверяем пробный период или подписку…";
-        RenderCompact();
-        LayoutCompact();
+        // The normal connection banner remains visible during the internal
+        // entitlement check and native image preparation.
         UpdateSafe();
         try
         {
@@ -1151,9 +1168,6 @@ public sealed partial class MainWindow : Form
                 DiagnosticLog.Record("NATIVE_INSTALL_ENTITLEMENT_DENIED");
                 return;
             }
-            _compactStartupText = CompactPlaybackPresentation.ConnectingMessage;
-            RenderCompact();
-            LayoutCompact();
             DiagnosticLog.Record(upgrading ? "NATIVE_UPGRADE_REQUEST" : "NATIVE_INSTALL_REQUEST");
             _bridge.SetEnabled(false);
             if (upgrading)
