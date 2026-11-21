@@ -2007,6 +2007,10 @@ try
     var unicodeOk = await AudioPreflight.CheckAsync(unicodeAudio, duration);
     Test(!unicodeOk.Blocked, "unicode filenames cannot trigger name-based rejection");
     File.Delete(unicodeAudio);
+    var allowedBoundary = await AudioPreflight.CheckAsync(testAudio, duration!.Value + 1500);
+    var rejectedBoundary = await AudioPreflight.CheckAsync(testAudio, duration.Value + 1501);
+    Test(!allowedBoundary.Blocked && rejectedBoundary.Blocked,
+        "W170 preserves the exact 1500 ms duration tolerance");
     var wrongDuration = await AudioPreflight.CheckAsync(testAudio, 223000);
     Test(wrongDuration.Blocked && wrongDuration.DurationMessage.Contains("Допуск подмены"),
         "large duration mismatch is rejected BEFORE any upload");
@@ -2051,8 +2055,9 @@ try
     await File.WriteAllBytesAsync(cleanupFixturePath, cleanupFixture);
     var cleanupPreflight = await AudioPreflight.CheckAsync(
         cleanupFixturePath, infoDuration);
-    Test(!cleanupPreflight.Blocked && cleanupPreflight.DurationMs == infoDuration,
-        "W170 repairable MP3 metadata passes local duration preflight unchanged");
+    Test(!cleanupPreflight.Blocked && cleanupPreflight.DurationMs == infoDuration &&
+         (await File.ReadAllBytesAsync(cleanupFixturePath)).SequenceEqual(cleanupFixture),
+        "W170 repairable MP3 metadata passes preflight and original file bytes remain unchanged");
 
     var inflatedTagBody = "TAG" + new string('Ж', 27) + new string('x', 97);
     var inflatedTail = Concat(Encoding.UTF8.GetBytes(inflatedTagBody), new byte[] { 7 });
