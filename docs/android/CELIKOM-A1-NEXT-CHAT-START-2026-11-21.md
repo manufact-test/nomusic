@@ -66,6 +66,15 @@
 
 Если ещё оригинал, проверить в TXT сначала `OWNER_RESOLVE_APPROVED`, `GRANT_ADMITTED`, `DECISION_ALTERNATE`, `DATASOURCE_ARMED`, `AUDIO_OPEN/READ`, затем source lineage. Не начинать NAV40/NAV45 и не выпускать диагностические APK без правки. Только реальное звучание подтверждает успех.
 
+## BETA13 — собрана, ждёт реального звукового теста
+- Последний пакетный/code HEAD: `8a0cb99863e9e11d805141f87124990a0129c4f5`. Это commit сборки именно BETA13, ветка прежняя.
+- BETA13 export workflow `44903467475` SUCCESS: оба job `jvm-issuer-proxy-contract` и `actual-2025-own-lspatch2-disposable-native-arm13` SUCCESS. Важный verdict native остаётся `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`: это safety gate, НЕ акустическая приёмка.
+- JVM `44903467410` SUCCESS, clone-alone `44903467398` SUCCESS. Предшествующий полный native `44903018363` SUCCESS.
+- [BETA13 GitHub artifact](https://github.com/manufact-test/nomusic/actions/runs/44903467475/artifacts/14706654912), artifact ID `14706654912`, ZIP 51,709,505 bytes, живой до 28.11.2026. Имя APK внутри: `CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk`. Его SHA-256 по GitHub native export log: `9cdca506afb01402e2fe50409f1ec129676849e76de0bebfe917288c2fcdf459`.
+- Owner signer совпал с сохранённым установленным сертификатом; свежая установка не разрешалась, процесс сборки был настроен на обновление имеющегося приложения без сброса данных.
+- Инструкция владельцу дана: установить BETA13 поверх BETA12 без удаления и очистки данных, включить «Ау» из альбома `38902809`, проверить `00:43–00:54`. Если звучит оригинал — прислать TXT. **Результат на телефоне пока не получен; не объявлять подмену работающей.**
+- В BETA13 устранён именно обнаруженный сбой совместимости с legacy-сервером. Второй блокер `wrapper → descriptor/factory → unopened DataSource` оставался недоказанным в BETA12 и может проявиться следующим; продолжать по новому TXT, не заниматься повторно NAV40/NAV45 и не возвращаться к уже проверенному серверному формату без оснований.
+
 ## Жёсткие ограничения
 - Не начинать проект заново, не менять архитектуру, не повторять NAV40/NAV45.
 - Не трогать закрытые маршруты LyEa/LCK1.
