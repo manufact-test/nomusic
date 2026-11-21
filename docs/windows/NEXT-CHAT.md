@@ -6,7 +6,7 @@ Read **`docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md`** FIRST. Work
 
 **Scope:** no playback, volume, Next/Previous, radio, Android, native Yandex integration, access, moderation, billing, or server code/deployment changes. The shared server cleanup was already deployed and verified; never redeploy the historical server branch.
 
-**Verification status:** W170 synthetic tests added for multiple ID3v2.4 blocks/footer, duplicate Info/Xing headers, interleaved tags, APEv2, UTF-8 inflated ID3v1, embedded metadata rejection, duration boundary, original-byte preservation, HTTP 202 confirmation, idempotent retry, and server decoder rejection. Windows integration CI and owner runtime checks are still pending. No new installer/ZIP has been claimed.
+**Verification status:** W170 synthetic tests added for multiple ID3v2.4 blocks/footer, duplicate Info/Xing headers, interleaved tags, APEv2, UTF-8 inflated ID3v1, embedded metadata rejection, duration boundary, original-byte preservation, HTTP 202 confirmation, idempotent retry, and server decoder rejection. Windows integration CI and owner runtime checks are still pending. W170 internal owner-review build target is **0.24.52.0**; the stage-only package workflow is enabled on this branch, with no production release/signing/feed publication.
 
 ---
 
