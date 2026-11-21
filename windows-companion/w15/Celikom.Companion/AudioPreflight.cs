@@ -229,10 +229,11 @@ public static class AudioPreflight
                         bytes, position + 3, tailLength - 4);
                 }
                 catch (DecoderFallbackException) { return null; }
+                if (text.Length > 0 && text[0] == '\uFEFF') text = text[1..];
                 var characters = 0;
                 foreach (var rune in text.EnumerateRunes())
                 {
-                    if (Rune.IsControl(rune)) return null;
+                    if (rune.Value is >= 1 and <= 0x1f or 0x7f) return null;
                     characters++;
                 }
                 if (characters != 124) return null;
