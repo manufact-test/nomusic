@@ -6,6 +6,9 @@ on:
       - experiment/windows-w172-yandex-51280-compat-20261121
     paths:
       - .github/workflows/windows-w172-51280-candidate.yml
+      - windows-companion/w15/Celikom.Companion/**
+      - windows-companion/w15/Celikom.Companion.Tests/**
+      - windows-companion/w24/Celikom.NativeInstaller/**
   workflow_dispatch:
 
 permissions:
