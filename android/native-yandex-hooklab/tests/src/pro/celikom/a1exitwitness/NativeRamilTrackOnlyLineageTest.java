@@ -1,11 +1,16 @@
 package pro.celikom.a1exitwitness;
 
 import pro.celikom.yandex.nativehooklab.NativeSourceGate;
+import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Real original object references, no original Album/Edition ever asserted. */
 public final class NativeRamilTrackOnlyLineageTest {
+    private static final class TestPeriod { Object source; }
+    private static final class TestWrapper { TestPeriod period; }
+    private static final class TestHolder { Object nested; }
+
     private static void check(boolean ok,String message) {
         if(!ok)throw new AssertionError(message);
     }
@@ -170,6 +175,23 @@ public final class NativeRamilTrackOnlyLineageTest {
             "ORIGINAL_PUBLISHER_ID_AND_SOURCE_REFERENCES_ON_SETTER");
         renderer.finishEarlyOriginalSourceSet(frame,true);
         renderer.exitTrackPlayerSource(player);
+        try {
+            Field holderWrapper=TestHolder.class.getDeclaredField("nested");
+            Field wrapperPeriod=TestWrapper.class.getDeclaredField("period");
+            Field periodSource=TestPeriod.class.getDeclaredField("source");
+            renderer.setExactActivePeriodFields(holderWrapper,wrapperPeriod,
+                periodSource,TestWrapper.class,TestPeriod.class,Object.class);
+            TestPeriod exactPeriod=new TestPeriod();
+            exactPeriod.source=nativeSource;
+            check(renderer.exactOriginalWrapperForPeriod(exactPeriod)==wrapper,
+                "PERIOD_SOURCE_RETAINS_EXACT_PLAYER_WRAPPER");
+            TestPeriod unrelatedPeriod=new TestPeriod();
+            unrelatedPeriod.source=new Object();
+            check(renderer.exactOriginalWrapperForPeriod(unrelatedPeriod)==null,
+                "UNRELATED_PERIOD_CANNOT_INHERIT_PLAYER_WRAPPER");
+        } catch(ReflectiveOperationException failure) {
+            throw new AssertionError("EXACT_PERIOD_SOURCE_TEST_SETUP",failure);
+        }
         check(bridge.isSuccessfulOriginalSource(1,track,wrapper,nativeSource),
             "SUCCESSFUL_NATIVE_PLAYER_SOURCE_SETTER");
         check(renderer.exactEarlySetterSourceAtGeneration(nativeSource,1)!=null,
