@@ -6,6 +6,7 @@ Date: 21 November 2026
 
 - Repository: `manufact-test/nomusic`
 - Accepted Windows baseline: app **0.24.51.0**, native **0.24.32**
+- W170 owner-review target: app **0.24.52.0**; native host/version unchanged
 - Baseline branch: `backup/windows-02451-owner-accepted-exact-20261117`
 - Baseline commit: `c717428a7d9f01fc8e33b482fcf66a9ed1a02947`
 - Work branch: `experiment/windows-w170-mainline-20261121`
@@ -57,7 +58,7 @@ The real owner-provided problem MP3 and a real damaged MP3 still need an install
 
 ## Scope guard
 
-W170 upload changes do not modify playback, volume, Next/Previous, radio, audio routing, native Yandex integration, Android, permissions/access, billing, moderation, or the server. Current-main native host and playback-evidence files are retained unchanged. No server deployment. No installer/package release has been claimed yet.
+W170 upload changes do not modify playback, volume, Next/Previous, radio, audio routing, native Yandex integration, Android, permissions/access, billing, moderation, or the server. Current-main native host and playback-evidence files are retained unchanged. No server deployment. W170 internal owner-review installer/ZIP is stage-only; no production release, signing or feed publication.
 
 ## Next
 
