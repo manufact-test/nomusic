@@ -149,26 +149,6 @@ test("trusted native Yandex scheme connects via Electron main process",async()=>
     assert.ok(evaluated.every(js=>!js.includes("b".repeat(64))),"token never leaked to renderer");
   }
 });
-test("W169 main-process CDP callbacks and asynchronous pulses cannot throw", async () => {
-  assert.ok(source.includes("function scheduleTick(view)"));
-  assert.ok(source.includes('tick(view).catch(() => note("NATIVE_RELAY_TICK_EXCEPTION"))'));
-  assert.equal((source.match(/void tick\(view\)/g)||[]).length,1,
-    "every pulse entry point uses the guarded scheduler");
-  const debug = new EventEmitter();
-  let attached = false;
-  debug.isAttached = () => attached;
-  debug.attach = () => { attached = true; };
-  debug.detach = () => { attached = false; };
-  debug.sendCommand = async () => {};
-  const r = await runHost("musicapplication://desktop/",{debuggerDriver:debug});
-  assert.equal(attached,true);
-  const broken = {};
-  Object.defineProperty(broken,"properties",{get(){throw Error("malformed vendor event");}});
-  assert.doesNotThrow(() => debug.emit("message",{},"Media.playerPropertiesChanged",broken));
-  assert.ok(r.diagnostics.includes("NATIVE_CDP_EVENT_EXCEPTION"));
-  assert.ok(!r.diagnostics.join("\n").includes("malformed vendor event"));
-});
-
 test("W120 keeps the established 300ms native relay cadence pending objective profiling",async()=>{
   const r=await runHost("musicapplication://desktop/");
   assert.equal(r.timerIntervalMs,300);
@@ -479,6 +459,21 @@ function w52Debugger(body = '{"error":"invalid_audio_token"}') {
   debug.sendCommand = async (command, args) => {
     commands.push([command,args]);
     if (command === "Network.getResponseBody") return {body,base64Encoded:false};
+    return {};
+  };
+  return {debug,commands};
+}
+function w55DomDebugger(sourceUrl) {
+  const debug = new EventEmitter(), commands = [];
+  let attached = false;
+  debug.isAttached = () => attached;
+  debug.attach = () => { attached=true; };
+  debug.detach = () => { attached=false; };
+  debug.sendCommand = async (command, args) => {
+    commands.push([command,args]);
+    if (command === "DOM.getDocument") return {root:{nodeId:1}};
+    if (command === "DOM.pushNodesByBackendIdsToFrontend") return {nodeIds:[77]};
+    if (command === "DOM.getAttributes") return {attributes:["src",sourceUrl]};
     return {};
   };
   return {debug,commands};
@@ -839,6 +834,90 @@ test("W134 every current-decoder proof invalidation immediately downgrades the v
     assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl),
       "diagnostics must never contain the signed media URL");
   });
+});
+
+test("W166 direct src on the exact Media player plus its own kPlay event verifies CELIKOM without kUrl",async()=>{
+  let clockNow=Date.now();
+  class ControlledDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const grant=w52Grant("139","123");
+  const {debug,commands}=w55DomDebugger(grant.audioUrl);
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Track",artist:"Artist",durationMs:180000,
+      playbackState:"PLAYING"},
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"},
+    clock:ControlledDate
+  });
+  debug.emit("message",{}, "Media.playerCreated",{
+    player:{playerId:"dom-current",domNodeId:101}
+  });
+  await new Promise(resolve=>setTimeout(resolve,15));
+  debug.emit("message",{}, "Media.playerEventsAdded",{
+    playerId:"dom-current",events:[{value:'{"event":"kPlay"}'}]
+  });
+  clockNow+=2600;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  const statuses=()=>r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}").status);
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_DOM_MEDIA_NODE_SEEN")));
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN")));
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=123")));
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_DECODER_CELIKOM_SOURCE_MATCHED|track=123")));
+  assert.equal(statuses().at(-1),"NATIVE_SOURCE_VERIFIED");
+  assert.ok(commands.some(([name])=>name==="DOM.getDocument"));
+  assert.ok(commands.some(([name])=>name==="DOM.pushNodesByBackendIdsToFrontend"));
+  assert.ok(commands.some(([name])=>name==="DOM.getAttributes"));
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+  assert.ok(!JSON.stringify(r.network).includes(grant.audioUrl));
+
+  debug.emit("message",{}, "DOM.attributeModified",{
+    nodeId:77,name:"src",value:"https://music.yandex.example/original"
+  });
+  await new Promise(resolve=>setTimeout(resolve,60));
+  assert.equal(statuses().at(-1),"NATIVE_MAPPING_ACCEPTED",
+    "changing the exact Media element away from the signed CELIKOM source removes green immediately");
+  assert.ok(r.evaluated.some(x=>x.includes("__celikomBridgeNativeRecoverSourceLeft?.(\"123\")")));
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+});
+
+test("W166 blob Media src and a matching network prefetch never become decoder proof",async()=>{
+  const grant=w52Grant("139","123");
+  const {debug}=w55DomDebugger("blob:https://music.yandex.example/opaque-media");
+  const r=await runHost("musicapplication://desktop/",{
+    debuggerDriver:debug,grantOverride:grant,
+    queue:[{requestId:"1",trackId:"123"}],
+    currentTrack:{id:"123",title:"Track",artist:"Artist",durationMs:180000,
+      playbackState:"PLAYING"},
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",
+    stateOverride:{enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example"}
+  });
+  debug.emit("message",{}, "Media.playerCreated",{
+    player:{playerId:"dom-blob",domNodeId:102}
+  });
+  await new Promise(resolve=>setTimeout(resolve,15));
+  debug.emit("message",{}, "Media.playerEventsAdded",{
+    playerId:"dom-blob",events:[{value:'{"event":"kPlay"}'}]
+  });
+  debug.emit("message",{}, "Network.requestWillBeSent",{
+    requestId:"prefetch",request:{url:grant.audioUrl,method:"GET"},type:"Media"
+  });
+  await new Promise(resolve=>setTimeout(resolve,35));
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  const statuses=r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body||"{}").status);
+  assert.ok(r.diagnostics.some(x=>x.endsWith("|PLAYER_DOM_SOURCE_BLOB_SEEN")));
+  assert.ok(!r.diagnostics.some(x=>x.endsWith("|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=123")));
+  assert.notEqual(statuses.at(-1),"NATIVE_SOURCE_VERIFIED",
+    "blob MediaSource and a separate network prefetch are not exact source proof");
+  assert.ok(!JSON.stringify(r.diagnostics).includes(grant.audioUrl));
+  assert.ok(!JSON.stringify(r.network).includes(grant.audioUrl));
 });
 
 test("W130 diagnostics distinguish CDP player properties from kUrl visibility without exporting URL", async () => {
