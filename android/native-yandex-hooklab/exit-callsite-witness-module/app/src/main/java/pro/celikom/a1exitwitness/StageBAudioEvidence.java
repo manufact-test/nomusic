@@ -174,15 +174,40 @@ final class StageBAudioEvidence {
         return id.matches("[1-9][0-9]{0,23}")?id:null;
     }
     synchronized void onPublisherAnnotatedTrackId(Object raw) {
+        // Metadata-only issuer argument witness. Never persist the actual ID,
+        // titles, request parameters, selected objects or network URLs.
+        if(raw==null) {
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_NULL);
+            return;
+        }
         String id=numericOriginalId(raw);
-        if(id==null)return;
+        if(id==null) {
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_NONNUMERIC);
+            return;
+        }
+        final boolean allowed=NativeTrackIdBetaPolicy.allows(id);
+        if(allowed)
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_TARGET_ALLOWLISTED);
+        else if("38436680".equals(id)) // known *other* Ramil' edition, NOT allowed
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_KNOWN_OTHER_VERSION);
+        else
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_OTHER_NUMERIC);
         Object track=currentScope(activeTrackScopes);
         if(track==null) {
-            if(NativeTrackIdBetaPolicy.allows(id))
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_SCOPE_ABSENT);
+            if(allowed)
                 NativeTrackIdBetaPolicy.mark(
                     NativeTrackIdBetaPolicy.Step.ISSUER_TRACK_SCOPE_MISSING);
             return;
         }
+        NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.ISSUER_VALUE_SCOPE_PRESENT);
         Object album=findTrackAlbum(track);
         if(NativeTrackIdBetaPolicy.allows(id)) {
             NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.ISSUER_TRACKID);

@@ -79,7 +79,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    private static final String BETA_BUILD = "A1_TRACKID_BETA7_EXACT_R8_RETROFIT_20261121";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA8_ISSUER_VALUE_SCOPE_20261121";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3821,15 +3821,24 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     NativeTrackIdBetaPolicy.mark(
                                         NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_INVOKE);
                                     Object[] values = (Object[]) args;
-                                    if (values.length > known.trackArgumentIndex) {
+                                    if (known.trackArgumentIndex >= 0
+                                            && values.length > known.trackArgumentIndex) {
+                                        NativeTrackIdBetaPolicy.mark(
+                                            NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_PRESENT);
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
+                                    } else {
+                                        NativeTrackIdBetaPolicy.mark(
+                                            NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_MISSING);
                                     }
                                     break;
                                 }
                             }
                         }
-                    } catch (Throwable ignored) { }
+                    } catch (Throwable ignored) {
+                        NativeTrackIdBetaPolicy.mark(
+                            NativeTrackIdBetaPolicy.Step.ISSUER_PROCESSING_EXCEPTION);
+                    }
                     return chain.proceed(); // original Retrofit handler ONCE
                 });
         } catch (Throwable ignored) {

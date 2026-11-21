@@ -43,6 +43,21 @@ class IssuerProxyContractTest(unittest.TestCase):
         end = code.index("private synchronized void installPublisherTrackIdProxyWitness(", start)
         selection = code[start:end]
         self.assertIn("PublisherTrackIdProxyContract.inspect(", selection)
+        self.assertIn("ISSUER_HANDLER_ARGS_PRESENT", selection)
+        self.assertIn("ISSUER_HANDLER_ARGS_MISSING", selection)
+        self.assertIn("ISSUER_PROCESSING_EXCEPTION", selection)
+        stage = (MODULE / "StageBAudioEvidence.java").read_text(encoding="utf-8")
+        for marker in (
+            "ISSUER_VALUE_NULL", "ISSUER_VALUE_NONNUMERIC",
+            "ISSUER_VALUE_TARGET_ALLOWLISTED",
+            "ISSUER_VALUE_KNOWN_OTHER_VERSION",
+            "ISSUER_VALUE_OTHER_NUMERIC", "ISSUER_VALUE_SCOPE_PRESENT",
+            "ISSUER_VALUE_SCOPE_ABSENT",
+        ):
+            self.assertIn(marker, stage)
+        self.assertIn('else if("38436680".equals(id))', stage)
+        self.assertNotIn("NativeTrackIdBetaPolicy.allows(\"38436680\")", stage)
+
         self.assertIn("inspection.proxyInterfacesMatchRequested", selection)
         self.assertIn("inspection.apiImplemented", selection)
         self.assertNotIn("issuerApi.getDeclaredMethods()", selection)
