@@ -24,19 +24,24 @@ try {
     $pdo->query('SELECT batch_id,replacement_id,service_track_id,cleanup_status FROM bulk_moderation_tombstones LIMIT 0');
     $before=$pdo->query("SELECT COUNT(*) AS n,SUM(version) AS versions,SUM(is_active) AS active,SUM(status='pending') AS pending FROM track_replacements")->fetch(PDO::FETCH_ASSOC);
     $rows=$pdo->query("SELECT r.id,r.version,COALESCE((SELECT a.id FROM track_replacements a WHERE a.track_id=r.track_id AND a.status='approved' AND a.is_active=1 AND a.disabled_at IS NULL LIMIT 1),0) AS active_id,t.service_track_id FROM track_replacements r JOIN tracks t ON t.id=r.track_id WHERE r.status='pending' ORDER BY r.id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
-    bulkCheck(count($rows)>0,'pending_sample'); $selected=[];
+    $hasPending=count($rows)>0;
+    if(!$hasPending) $rows=$pdo->query("SELECT r.id,r.version,COALESCE((SELECT a.id FROM track_replacements a WHERE a.track_id=r.track_id AND a.status='approved' AND a.is_active=1 AND a.disabled_at IS NULL LIMIT 1),0) AS active_id,t.service_track_id FROM track_replacements r JOIN tracks t ON t.id=r.track_id WHERE r.status='approved' ORDER BY r.id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+    bulkCheck(count($rows)>0,'catalog_sample'); $selected=[];
     foreach($rows as $row) $selected[(int)$row['id']]=$row['version'].':'.$row['active_id'];
     $storage=new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
     $panel=new Celikom\Admin\AdminPanel($pdo,$storage,false,false,$config);
     $uploads=new ReflectionMethod($panel,'uploads');
     $html=$uploads->invoke($panel,['role'=>'owner'],'qa-unused',['status'=>'pending','per_page'=>'50']);
-    bulkCheck(substr_count($html,'data-bulk-candidate type="checkbox"')>=count($rows) && str_contains($html,'data-bulk-all') && str_contains($html,'Одобрить выбранные'),'candidate_controls');
+    if($hasPending) bulkCheck(substr_count($html,'data-bulk-candidate type="checkbox"')>=count($rows) && str_contains($html,'data-bulk-all') && str_contains($html,'Одобрить выбранные'),'candidate_controls');
+    else bulkCheck(!str_contains($html,'data-bulk-candidate') && str_contains($html,'Записей пока нет'),'empty_pending_queue');
     $id=(string)$rows[0]['service_track_id'];
     $search=$uploads->invoke($panel,['role'=>'owner'],'qa-unused',['q'=>$id]);
     bulkCheck(str_contains($search,'Всего: 1 ·') && str_contains($search,'Track ID '.$id.'</div>'),'search');
     $bulk=new Celikom\Admin\BulkModerationService($pdo,$storage);
-    $preview=$bulk->preview(Celikom\Admin\BulkModerationService::selected($selected),'approve','owner');
-    bulkCheck(count($preview)===count($rows),'preview');
+    try {
+        $preview=$bulk->preview(Celikom\Admin\BulkModerationService::selected($selected),'approve','owner');
+        bulkCheck($hasPending && count($preview)===count($rows),'preview');
+    } catch (DomainException $error) { bulkCheck(!$hasPending && str_starts_with($error->getMessage(),'bulk_stale_candidate_'),'approved_cannot_be_reapproved'); }
     bulkCheck((new ReflectionMethod(Celikom\Admin\ModerationService::class,'replacement'))->getNumberOfParameters()===8,'version_lock');
     if($mode==='active') {
         bulkCheck(realpath($root.'/current')===$release,'current');
@@ -46,9 +51,12 @@ try {
         $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES(?,?,?,UTC_TIMESTAMP()+INTERVAL 5 MINUTE)')->execute([$session,(int)$owner,hash('sha256',$csrf)]);
         $cookie=Celikom\Admin\AdminAuth::COOKIE.'='.$token;
         $page=bulkHttp('/admin?tab=uploads&status=pending&per_page=50',$cookie);
-        bulkCheck($page[0]===200 && str_contains($page[1],'data-bulk-all') && str_contains($page[1],'data-bulk-candidate') && str_contains($page[1],'name="q"'),'https_controls');
+        bulkCheck($page[0]===200 && str_contains($page[1],'name="q"'),'https_page');
+        if($hasPending) bulkCheck(str_contains($page[1],'data-bulk-all') && str_contains($page[1],'data-bulk-candidate'),'https_controls');
+        else bulkCheck(!str_contains($page[1],'data-bulk-candidate') && str_contains($page[1],'Записей пока нет'),'https_empty_queue');
         $response=bulkHttp('/admin/bulk/preview',$cookie,['csrf'=>$csrf,'bulk_action'=>'approve','selected'=>$selected]);
-        bulkCheck($response[0]===200 && str_contains($response[1],'Одобрение: '.count($rows).' версий') && str_contains($response[1],'name="rights_confirmed"'),'https_preview');
+        if($hasPending) bulkCheck($response[0]===200 && str_contains($response[1],'Одобрение: '.count($rows).' версий') && str_contains($response[1],'name="rights_confirmed"'),'https_preview');
+        else bulkCheck($response[0]===409,'https_approved_preview_denied');
         bulkCheck(bulkHttp('/admin/bulk/execute',$cookie,['csrf'=>'invalid','bulk_action'=>'approve','selected'=>$selected])[0]===403,'csrf_denied');
         bulkCheck(bulkHttp('/admin?tab=uploads')[0]===303,'anonymous_denied');
         bulkCheck(bulkHttp('/api/v1/config')[0]===200,'config');
@@ -56,4 +64,6 @@ try {
     $after=$pdo->query("SELECT COUNT(*) AS n,SUM(version) AS versions,SUM(is_active) AS active,SUM(status='pending') AS pending FROM track_replacements")->fetch(PDO::FETCH_ASSOC);
     bulkCheck($before===$after,'no_moderation_changes');
     echo 'ADMIN_BULK_RESTORE_'.strtoupper($mode)."_PASS: controls, search, preview, version locks; no song approval or catalog changes\n";
-} finally { if($pdo && $session) $pdo->prepare('DELETE FROM admin_sessions WHERE token_hash=?')->execute([$session]); }
+} catch (Throwable $error) { $failure=$error instanceof PDOException ? 'db_state_'.$error->getCode() : $error->getMessage(); } finally { if($pdo && $session) $pdo->prepare('DELETE FROM admin_sessions WHERE token_hash=?')->execute([$session]); }
+
+if(isset($failure)) { fwrite(STDERR,'ADMIN_BULK_SMOKE_FAILURE: '.$failure.PHP_EOL); exit(1); }

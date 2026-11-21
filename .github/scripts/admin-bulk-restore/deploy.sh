@@ -50,23 +50,23 @@ cp -p "$public_index" "$backup/public-index.php"
 for name in AdminPanel ModerationService BulkModerationService BulkModerationView; do "$php" -l "$candidate/src/Admin/$name.php"; done
 "$php" -r '
 $scan=static function(string $root):array{$out=[];$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS));foreach($it as $entry){$name=substr($entry->getPathname(),strlen($root)+1);$out[$name]=$entry->isLink()?"link:".readlink($entry->getPathname()):hash_file("sha256",$entry->getPathname());}return $out;};
-$a=$scan($argv[1]);$b=$scan($argv[2]);foreach(array_unique(array_merge(array_keys($a),array_keys($b)))as $name)if(($a[$name]??null)!==($b[$name]??null)&&!in_array($name,["src/Admin/AdminPanel.php","src/Admin/ModerationService.php","src/Admin/BulkModerationService.php","src/Admin/BulkModerationView.php","src/Admin/bulk-moderation.js","src/Admin/admin-style.css"],true))exit(1);echo "ADMIN_BULK_RESTORE_SINGLE_FILE_PASS\n";
+$a=$scan($argv[1]);$b=$scan($argv[2]);foreach(array_unique(array_merge(array_keys($a),array_keys($b)))as $name)if(($a[$name]??null)!==($b[$name]??null)&&!in_array($name,["src/Admin/AdminPanel.php","src/Admin/ModerationService.php","src/Admin/BulkModerationService.php","src/Admin/BulkModerationView.php","src/Admin/bulk-moderation.js","src/Admin/admin-style.css"],true))exit(1);echo "ADMIN_BULK_RESTORE_ONLY_ADMIN_DELTA_PASS\n";
 ' "$old" "$candidate"
 "$php" "$input/payload/smoke.php" "$candidate" candidate
 test "$(readlink -f "$root/current")" = "$old"
 rollback(){
  status=$?
  if [[ "$status" != 0 && "$(readlink -f "$root/current")" == "$candidate" ]]; then
-  ln -s "$old" "$root/.admin-search-rollback-$id"
-  mv -Tf "$root/.admin-search-rollback-$id" "$root/current"
+  ln -s "$old" "$root/.admin-bulk-restore-rollback-$id"
+  mv -Tf "$root/.admin-bulk-restore-rollback-$id" "$root/current"
   touch -r "$backup/public-index.php" "$public_index"
   echo ADMIN_BULK_RESTORE_ROLLBACK_COMPLETE
  fi
  exit "$status"
 }
 trap rollback EXIT
-ln -s "$candidate" "$root/.admin-search-current-$id"
-mv -Tf "$root/.admin-search-current-$id" "$root/current"
+ln -s "$candidate" "$root/.admin-bulk-restore-current-$id"
+mv -Tf "$root/.admin-bulk-restore-current-$id" "$root/current"
 touch "$public_index"
 sleep 3
 "$php" "$input/payload/smoke.php" "$candidate" active
