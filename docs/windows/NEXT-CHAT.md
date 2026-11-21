@@ -81,18 +81,18 @@ The owner has said the latest version appears to work and wants it made primary.
 # PREVIOUS WINDOWS W170 — owner upload runtime testing (21 November 2026)
 
 
-Read **`docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md`** first. This is the active Windows handoff; older W169/W168/W167 sections below are history.
+This section is historical context for the original W170 upload change. The active handoff is the W173 section at the top of this file.
 
 ## Repository state
 
 - Repository: `manufact-test/nomusic`
 - Working branch: `experiment/windows-w170-mainline-20261121`
-- PR: [#65 — W170 Windows upload compatibility](https://github.com/manufact-test/nomusic/pull/65) — open as **draft**, mergeable; keep draft until owner runtime acceptance.
+- PR: [#65 — W170 Windows upload compatibility](https://github.com/manufact-test/nomusic/pull/65) — still open as a draft on the older W170 branch; it is superseded by the W173 candidate and must not be merged as-is.
 - Product: CELIKOM Windows only.
 - Owner-accepted source baseline: app **0.24.51.0**, native **0.24.32**.
 - W170 internal build: app **0.24.52.0**, update supervisor **0.24.52.0**, native host/module unchanged.
 - Main pre-work backup: `backup/windows-main-pre-upload-cleanup-20261121` @ `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
-- `main` has not been changed. Do not merge PR #65 or modify main before the owner finishes the real-file tests.
+- At the W173 handoff, `main` still contains Windows 0.24.48. The owner has requested W173 0.24.54.0 become canonical on main; follow the W173 mainline-consolidation plan at the top of this file.
 
 ## What W170 changed
 
@@ -125,16 +125,16 @@ The owner was already given these files in the previous chat:
 
 This is one internal unsigned owner-review build, not a production release. No signing, public feed or server deployment.
 
-## What is still waiting for the owner
+## Owner runtime follow-up — superseded by W173
 
-The CI/synthetic checks are complete. Real runtime verification is **not** complete yet. The owner is testing 0.24.52 and will send diagnostics or report problems in this chat.
+The original W170 handoff was waiting for real-file testing on 0.24.52. Subsequent owner testing moved to W172/W173 and official Yandex 5.128.0.
 
-When the owner sends evidence:
-1. Read the exact diagnostic/file before drawing conclusions.
-2. Check specifically whether a repairable real MP3 reaches the server, whether a damaged MP3 gets a clear rejection, and whether retry after a lost response uses the same `request_id` without duplicate creation.
-3. Distinguish client-side preflight rejection from server-side validation and server confirmation.
-4. Fix only confirmed W170 upload issues. Do not reopen unrelated accepted playback/VPN work.
-5. Do not generate another package unless a code fix is actually needed.
+- The owner confirmed Yandex 5.128.0 works and several real songs reached the moderation queue.
+- Five new submissions were inspected at the stored/canonical-file level; later widened read-only audit covered all **13** post-activation uploads.
+- Run [44895271863](https://github.com/manufact-test/nomusic/actions/runs/44895271863) verified **13/13** stored hash, size, duration, canonical-normalizer and full-decode checks; 9 approved, 4 pending, 0 failures.
+- This does not identify which original files contained removable metadata because the audit reads files after server cleanup.
+- Owner explicitly declined a per-song cleanup journal, removed-tag counters, extra telemetry and raw-file retention. Do not add these.
+- Continue from the W173 current handoff; do not reopen the W170 work as a separate new task.
 
 ## Hard boundaries
 
