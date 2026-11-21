@@ -134,6 +134,23 @@ public final class StageBAudioEvidenceTest {
         check(id.equals(beta.exactPublisherTrackIdForCreatorOrBeta(
             bw,bound[0],bound[1])));
 
+        // The owner may have other numeric FileInfo calls for unrelated
+        // songs while the actual selected original is served from cache.
+        StageBAudioEvidence unrelatedRequest=new StageBAudioEvidence(clock::get);
+        unrelatedRequest.onPublisherAnnotatedTrackId("987654321");
+        Object urt=new Object(),ura=new Object(),urw=new Object();
+        unrelatedRequest.onNativeTrackAlbumConstructed(urt,ura);
+        unrelatedRequest.enterNativeTcaCreatorOwner(new Object());
+        unrelatedRequest.enterNativeTcaCreatorTrackScope(urt,1);
+        unrelatedRequest.onNativeTrackWrapperCreated(urw,id);
+        unrelatedRequest.exitNativeTcaCreatorTrackScope();
+        unrelatedRequest.exitNativeTcaCreatorOwner();
+        unrelatedRequest.onNativeTrackFlowEmission(urt);
+        Object[] unrelatedPair=unrelatedRequest.exactCreatorTrackAlbumOrBetaBeforeSourceSet(urw);
+        check(unrelatedPair!=null && id.equals(
+            unrelatedRequest.exactPublisherTrackIdForCreatorOrBeta(
+                urw,unrelatedPair[0],unrelatedPair[1])));
+
         // Cached original publisher source without an Album reference:
         // still requires the exact Track creator birth and later original Flow.
         StageBAudioEvidence cachedNoAlbum=new StageBAudioEvidence(clock::get);
