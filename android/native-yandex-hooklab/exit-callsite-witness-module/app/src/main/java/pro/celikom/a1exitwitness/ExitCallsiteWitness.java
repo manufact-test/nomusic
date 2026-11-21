@@ -2880,17 +2880,32 @@ public final class ExitCallsiteWitness extends XposedModule {
                 concretePrepare.setAccessible(true);
                 hook(concretePrepare).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
+                        boolean stageScope=false;
                         try {
-                            // Only beta first-prepare gets <=450ms grace on
-                            // a background Exo worker, never the UI thread.
-                            if(android.os.Looper.myLooper()
-                                    !=android.os.Looper.getMainLooper())
-                                NATIVE_EARLY_ADMISSION
-                                    .awaitLimitedBetaGrantAtPrepare(3000);
-                            NATIVE_RENDERER_EVIDENCE.onOriginalPeriodBeforePrepare(
-                                chain.getThisObject());
+                            Object exactWrapper=NATIVE_RENDERER_EVIDENCE
+                                .exactOriginalWrapperForPeriod(chain.getThisObject());
+                            if(exactWrapper!=null) {
+                                STAGE_B_AUDIO.enterNativePlayerSourceSelection(exactWrapper);
+                                stageScope=true;
+                            }
                         } catch(Throwable ignored) { }
-                        return chain.proceed(); // publisher original exactly once
+                        try {
+                            try {
+                                // Only exact owner-approved first-prepare gets
+                                // bounded grace on a background Exo worker.
+                                if(android.os.Looper.myLooper()
+                                        !=android.os.Looper.getMainLooper())
+                                    NATIVE_EARLY_ADMISSION
+                                        .awaitLimitedBetaGrantAtPrepare(3000);
+                                NATIVE_RENDERER_EVIDENCE.onOriginalPeriodBeforePrepare(
+                                    chain.getThisObject());
+                            } catch(Throwable ignored) { }
+                            return chain.proceed(); // publisher original exactly once
+                        } finally {
+                            try {
+                                if(stageScope)STAGE_B_AUDIO.exitNativePlayerSourceSelection();
+                            } catch(Throwable ignored) { }
+                        }
                     });
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration(
                     "ORIGINAL_PERIOD_PREPARE",true);
