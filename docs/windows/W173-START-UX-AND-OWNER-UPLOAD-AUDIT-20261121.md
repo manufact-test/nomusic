@@ -104,7 +104,7 @@ Current repository state at handoff:
 - `main` remains at `affb7b225d2e7eb2835f53294e975a1e60bb758b`; its Windows app and Update Supervisor projects still declare **0.24.48**.
 - W173 working branch: `experiment/windows-w172-yandex-51280-compat-20261121`; use `docs/windows/NEXT-CHAT.md` for the current branch HEAD and mainline-consolidation handoff.
 - W173 code/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; app and Update Supervisor **0.24.54.0**, Native **0.24.32**.
-- W173 is 84 commits ahead of main, with merge base exactly `affb7b225d2e7eb2835f53294e975a1e60bb758b`. The current compare shows Windows W15/W20/W24/W81 source plus Windows docs/workflow changes; no server source or Android source appears in the changed-file list. Re-check the complete diff before merging.
+- The initial W173 comparison reported 84 commits ahead of main, with merge base exactly `affb7b225d2e7eb2835f53294e975a1e60bb758b`; documentation-only handoff commits were added afterward. The changed-file inventory at that check showed Windows W15/W20/W24/W81 source plus Windows docs/workflow changes, with no server or Android source. Re-run the live compare and inspect the complete diff before merging.
 - PR #65 remains an open draft but points to the older W170 branch `experiment/windows-w170-mainline-20261121` at `6ce4cc21352912ab31578190007042397e083f64`, not the W173 candidate. PR #64 is a closed duplicate. Do not merge PR #65 as-is.
 - PR #62 is the separate already-deployed server upload-cleanup review branch; PR #66 is the separate admin rejected/disabled cleanup work. Neither is part of the Windows W173 mainline consolidation.
 - Existing `backup/*`, Android A1 branches and server/extension work are not disposable Windows clutter.
