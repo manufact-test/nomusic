@@ -1,5 +1,5 @@
 "use strict";
-const CELIKOM_NATIVE_VERSION = "0.24.32";
+const CELIKOM_NATIVE_VERSION = "0.24.31";
 
 /**
  * CELIKOM main-process relay for genuine Yandex Music desktop.
@@ -596,12 +596,10 @@ async function tick(view) {
       const checkedAt = Date.now();
       const firstSeenAt = previous?.trackId === trackId && previous?.firstSeenAt
         ? previous.firstSeenAt : checkedAt;
-      // Only matching current decoder kUrl + kIsPlaying is evidence of our
-      // source reaching the actual player. HTTP 206 or a mapped file-info
-      // is NOT enough for the green "Подмена активна" label.
-      // Queue identity and CDP player-property events can arrive in either
-      // order. Reconcile the retained current decoder state after observing
-      // the queue, rather than requiring kUrl/kIsPlaying to arrive second.
+      // Only the exact current Media player's signed kUrl or direct src
+      // attribute, paired with that same player's PLAYING state, is evidence
+      // of CELIKOM reaching the player. Network 206 and file-info mapping are
+      // not enough. Queue identity and CDP events may arrive in either order.
       const decoderPlayer = currentDecoderPlayer(view, trackId, firstSeenAt, checkedAt);
       const decoderConfirmed = !!decoderPlayer;
       if (decoderConfirmed) {
@@ -727,6 +725,7 @@ const nativeMediaHttpSuccess = new WeakMap();
 const nativeNetworkObserversReady = new WeakSet();
 const nativeUnfetchedReloadAttempt = new WeakMap();
 const nativeDecoderPlayers = new WeakMap();
+const nativeDecoderDomRefreshers = new WeakMap();
 const verifiedDecoderSource = new WeakMap();
 const AUDIO_RESOURCE_PATH = /^\/api\/v1\/audio\/([1-9][0-9]{0,17})$/;
 function rememberExpectedAudio(view, grant) {
@@ -764,6 +763,9 @@ function rememberExpectedAudio(view, grant) {
     entries.set(resourceId, { href: url.origin + url.pathname + url.search,
       expiresAt, yandexTrackId: grant.trackId, gainApplied: grant.gainApplied === true,
       gainDb: Number.isFinite(grant.gainDb) ? grant.gainDb : null, recordedAt: now });
+    // If the Media player already exposed its own direct src before this
+    // approved grant arrived, re-read only that same player's src attribute.
+    nativeDecoderDomRefreshers.get(view)?.(grant.trackId);
   } catch { /* Invalid grant is handled by the existing renderer validator. */ }
 }
 function classifyPlayerUrl(view, resourceId, actualUrl) {
@@ -859,100 +861,215 @@ function observeNativePlayback(view) {
   // Prefetch GETs, grant delivery, HTTP 206 and renderer status do not count.
   const decoderPlayers = new Map();
   nativeDecoderPlayers.set(view, decoderPlayers);
+  const decoderPlayerNodes = new Map();
+  const decoderNodePlayers = new Map();
+  const pendingDecoderNodes = new Map();
+  let domReady = false;
+  const createDecoderPlayer = () => ({
+    playing:false, playingPropertySeen:false, sourceTrackId:null, sourceAt:null,
+    gainApplied:null, gainDb:null, pipelineFailed:false, evidenceReportedFor:null,
+    lastVolume:null, volumeTrackId:null, urlPropertySeen:false, sourceKind:null
+  });
+  const getDecoderPlayer = id => {
+    let player = decoderPlayers.get(id);
+    if (player) return player;
+    if (decoderPlayers.size >= 32) {
+      const oldest = decoderPlayers.keys().next().value;
+      decoderPlayers.delete(oldest);
+      const node = decoderPlayerNodes.get(oldest);
+      if (node) decoderNodePlayers.delete(node.nodeId);
+      decoderPlayerNodes.delete(oldest);
+      pendingDecoderNodes.delete(oldest);
+    }
+    player = createDecoderPlayer();
+    decoderPlayers.set(id, player);
+    return player;
+  };
+  const verifyDecoderPlayer = player => {
+    const current = lastStatus.get(view)?.trackId;
+    if (!player || player.playing !== true || player.pipelineFailed === true ||
+        !current || player.sourceTrackId !== current ||
+        !Number.isSafeInteger(player.sourceAt) ||
+        player.evidenceReportedFor === current) return;
+    player.evidenceReportedFor = current;
+    verifiedDecoderSource.set(view, {trackId:current, at:Date.now()});
+    note("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", current);
+    if (player.sourceKind === "dom")
+      note("PLAYER_DOM_SOURCE_CELIKOM_MATCHED", current);
+    if (player.gainApplied === true)
+      note("PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", current);
+    else if (Number.isFinite(player.gainDb) && player.gainDb !== 0)
+      note("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", current);
+    void execute(view,
+      ";window.__celikomBridgeNativeConfirmedCurrentSource?.(" +
+      JSON.stringify(current) + ")").catch(() => null);
+  };
+  const applyDecoderUrl = (player, rawUrl, sourceKind) => {
+    const previousTrackId = player.sourceTrackId;
+    const currentTrackId = lastStatus.get(view)?.trackId;
+    const wasCurrentCelikom = player.playing && !!previousTrackId &&
+      previousTrackId === currentTrackId;
+    player.sourceTrackId = null;
+    player.sourceAt = null;
+    player.gainApplied = null;
+    player.gainDb = null;
+    player.sourceKind = null;
+    player.evidenceReportedFor = null;
+    verifiedDecoderSource.delete(view);
+    if (typeof rawUrl === "string" && rawUrl.length <= 4096) {
+      try {
+        const actual = new URL(rawUrl);
+        const expectedOrigin = nativeAudioOrigins.get(view);
+        const resourceId = expectedOrigin && actual.origin === expectedOrigin &&
+          !actual.username && !actual.password &&
+          AUDIO_RESOURCE_PATH.exec(actual.pathname)?.[1];
+        const expected = resourceId && nativeExpectedAudio.get(view)?.get(resourceId);
+        const classification = resourceId && expected ?
+          classifyPlayerUrl(view, resourceId, actual) : "";
+        if (expected?.expiresAt > Date.now() &&
+            (classification === "PLAYER_URL_MATCH" ||
+             classification === "PLAYER_URL_SIGNED_FIELDS_INTACT")) {
+          player.sourceTrackId = expected.yandexTrackId;
+          player.sourceAt = Date.now();
+          player.pipelineFailed = false;
+          player.gainApplied = expected.gainApplied === true;
+          player.gainDb = expected.gainDb;
+          player.sourceKind = sourceKind;
+        }
+      } catch { /* Unknown native URL: no source evidence. */ }
+    }
+    if (wasCurrentCelikom && player.sourceTrackId !== previousTrackId) {
+      downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
+      if (!player.sourceTrackId) {
+        nativeRecoveryHolds.delete(view);
+        nativeRecoveryHoldBlocked.add(view);
+        note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
+        return !!currentTrackId;
+      }
+    }
+    return false;
+  };
+  const requestSourceRecovery = () => {
+    const currentTrackId = lastStatus.get(view)?.trackId;
+    if (currentTrackId)
+      void execute(view,
+        ";window.__celikomBridgeNativeRecoverSourceLeft?.(" +
+        JSON.stringify(currentTrackId) + ")").catch(() => null);
+  };
+  const captureDomSource = (playerId, rawUrl) => {
+    const player = decoderPlayers.get(playerId);
+    if (!player || player.urlPropertySeen) return;
+    if (typeof rawUrl === "string") {
+      note(rawUrl.startsWith("blob:") ?
+        "PLAYER_DOM_SOURCE_BLOB_SEEN" : "PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN");
+    }
+    const sourceLeftCurrent = applyDecoderUrl(player,
+      typeof rawUrl === "string" ? rawUrl : null, "dom");
+    decoderPlayers.set(playerId, player);
+    if (sourceLeftCurrent && player.playing) requestSourceRecovery();
+    if (player.sourceKind !== "dom" && typeof rawUrl === "string" &&
+        !rawUrl.startsWith("blob:"))
+      note("PLAYER_DOM_SOURCE_OTHER");
+    verifyDecoderPlayer(player);
+  };
+  const readMediaPlayerNode = async (playerId, backendNodeId) => {
+    if (!Number.isSafeInteger(backendNodeId) || backendNodeId <= 0) return;
+    if (!domReady) {
+      pendingDecoderNodes.set(playerId, backendNodeId);
+      return;
+    }
+    try {
+      const pushed = await debug.sendCommand(
+        "DOM.pushNodesByBackendIdsToFrontend", {backendNodeIds:[backendNodeId]});
+      const nodeId = pushed?.nodeIds?.[0];
+      if (!Number.isSafeInteger(nodeId) || nodeId <= 0) {
+        note("PLAYER_DOM_NODE_UNAVAILABLE");
+        return;
+      }
+      const oldNode = decoderPlayerNodes.get(playerId);
+      if (oldNode) decoderNodePlayers.delete(oldNode.nodeId);
+      decoderPlayerNodes.set(playerId, {backendNodeId, nodeId});
+      decoderNodePlayers.set(nodeId, playerId);
+      pendingDecoderNodes.delete(playerId);
+      note("PLAYER_DOM_MEDIA_NODE_SEEN");
+      const result = await debug.sendCommand("DOM.getAttributes", {nodeId});
+      const attributes = result?.attributes;
+      if (!Array.isArray(attributes) || attributes.length > 256) {
+        note("PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING");
+        return;
+      }
+      let found = false;
+      for (let i = 0; i + 1 < attributes.length; i += 2) {
+        if (attributes[i] !== "src") continue;
+        found = true;
+        captureDomSource(playerId, attributes[i + 1]);
+        break;
+      }
+      if (!found) note("PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING");
+    } catch { note("PLAYER_DOM_UNAVAILABLE"); }
+  };
+  nativeDecoderDomRefreshers.set(view, trackId => {
+    for (const [playerId, player] of decoderPlayers) {
+      if (!player.playing || player.urlPropertySeen ||
+          (player.sourceKind === "dom" && player.sourceTrackId === trackId)) continue;
+      const node = decoderPlayerNodes.get(playerId);
+      if (node) void readMediaPlayerNode(playerId, node.backendNodeId);
+      else if (pendingDecoderNodes.has(playerId))
+        void readMediaPlayerNode(playerId, pendingDecoderNodes.get(playerId));
+    }
+  });
+  const initializeDomObserver = () => {
+    Promise.resolve(debug.sendCommand("DOM.getDocument", {depth:1, pierce:true})).then(
+      () => {
+        if (!validView(view)) return;
+        domReady = true;
+        note("PLAYER_DOM_READY");
+        for (const [playerId, backendNodeId] of pendingDecoderNodes)
+          void readMediaPlayerNode(playerId, backendNodeId);
+      },
+      () => { if (validView(view)) note("PLAYER_DOM_UNAVAILABLE"); });
+  };
   const capturePlayerProperties = params => {
     const id = params?.playerId;
     if (typeof id !== "string" || id.length < 1 || id.length > 128 ||
         !/^[a-zA-Z0-9_-]+$/.test(id) || !Array.isArray(params?.properties)) return;
-    if (!decoderPlayers.has(id) && decoderPlayers.size >= 32)
-      decoderPlayers.delete(decoderPlayers.keys().next().value);
-    const prev = decoderPlayers.get(id) || {
-      playing:false, sourceTrackId:null, sourceAt:null, gainApplied:null, gainDb:null,
-      pipelineFailed:false, evidenceReportedFor:null, lastVolume:null, volumeTrackId:null
-    };
+    const prev = getDecoderPlayer(id);
     const properties = params.properties.slice(0, 30);
-    // Distinguish "CDP attached but no player properties" from "player
-    // properties exist but this Yandex build does not expose kUrl". Never
-    // record the property value or any media URL.
+    // Never record property values or media URLs. This Yandex build may omit
+    // kUrl; the fallback below reads only the src attribute of this exact
+    // Media player's own DOM node and still requires the same player to play.
     if (properties.length) note("PLAYER_CDP_PROPERTIES_SEEN");
-    if (properties.some(prop => prop?.name === "kUrl"))
+    if (properties.some(prop => prop?.name === "kUrl")) {
       note("PLAYER_CDP_URL_PROPERTY_SEEN");
+      prev.urlPropertySeen = true;
+    }
     let sourceLeftCurrent = false;
-    // CDP does not promise a useful order for changed properties. Resolve
-    // source + playing state before consuming kVolume so a same-event volume
-    // sample cannot be lost when kVolume arrives first in the array.
     for (const prop of properties) {
       if (prop?.name === "kUrl") {
-        const previousTrackId = prev.sourceTrackId;
-        const wasCurrentCelikom = prev.playing && !!previousTrackId &&
-          previousTrackId === lastStatus.get(view)?.trackId;
-        prev.sourceTrackId = null;
-        prev.sourceAt = null;
-        prev.gainApplied = null;
-        prev.gainDb = null;
-        prev.evidenceReportedFor = null;
-        verifiedDecoderSource.delete(view);
-        if (typeof prop.value !== "string" || prop.value.length > 4096) continue;
-        try {
-          const actual = new URL(prop.value);
-          const expectedOrigin = nativeAudioOrigins.get(view);
-          const resourceId = expectedOrigin && actual.origin === expectedOrigin &&
-            !actual.username && !actual.password &&
-            AUDIO_RESOURCE_PATH.exec(actual.pathname)?.[1];
-          const expected = resourceId && nativeExpectedAudio.get(view)?.get(resourceId);
-          const classification = resourceId && expected ?
-            classifyPlayerUrl(view, resourceId, actual) : "";
-          if (expected?.expiresAt > Date.now() &&
-              (classification === "PLAYER_URL_MATCH" ||
-               classification === "PLAYER_URL_SIGNED_FIELDS_INTACT")) {
-            prev.sourceTrackId = expected.yandexTrackId;
-            prev.sourceAt = Date.now();
-            prev.pipelineFailed = false;
-            prev.gainApplied = expected.gainApplied === true;
-            prev.gainDb = expected.gainDb;
-          }
-        } catch { /* Unknown native URL: no source evidence. */ }
-        if (wasCurrentCelikom && prev.sourceTrackId !== previousTrackId) {
-          const currentTrackId = lastStatus.get(view)?.trackId;
-          downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
-          if (!prev.sourceTrackId) {
-            // An explicit current decoder URL change is stronger than the
-            // transient route hold: invalidate it and allow normal recovery.
-            nativeRecoveryHolds.delete(view);
-            nativeRecoveryHoldBlocked.add(view);
-            note("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", currentTrackId);
-            sourceLeftCurrent = !!currentTrackId;
-          }
-        }
-      } else if (prop?.name === "kIsPlaying") {
+        if (applyDecoderUrl(prev, prop.value, "cdp"))
+          sourceLeftCurrent = true;
+      } else if (prop?.name === "kIsPlaying" &&
+          (prop.value === "true" || prop.value === "false")) {
         const currentTrackId = lastStatus.get(view)?.trackId;
         const wasCurrentVerified = prev.playing && !!currentTrackId &&
           prev.sourceTrackId === currentTrackId;
+        prev.playingPropertySeen = true;
         prev.playing = prop.value === "true";
         if (prev.playing) prev.pipelineFailed = false;
         if (!prev.playing) {
-          if (wasCurrentVerified)
+          if (wasCurrentVerified) {
             downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
+            verifiedDecoderSource.delete(view);
+          }
           prev.evidenceReportedFor = null;
           prev.lastVolume = null;
           prev.volumeTrackId = null;
-          verifiedDecoderSource.delete(view);
         }
       }
     }
-    if (sourceLeftCurrent && prev.playing) {
-      const currentTrackId = lastStatus.get(view)?.trackId;
-      if (currentTrackId) {
-        // Evaluate only after all changed properties are applied, so a
-        // same-event pause prevents recovery from firing.
-        void execute(view,
-          ";window.__celikomBridgeNativeRecoverSourceLeft?.(" +
-          JSON.stringify(currentTrackId) + ")").catch(() => null);
-      }
-    }
+    if (sourceLeftCurrent && prev.playing) requestSourceRecovery();
     for (const prop of properties) {
       if (prop?.name !== "kVolume") continue;
-      // Optional CDP property, not all Electron builds expose it. Only
-      // track a real signed-current decoder, never log values or URLs.
       const currentId = lastStatus.get(view)?.trackId;
       const value = prop.value;
       const volume = typeof value === "string" &&
@@ -969,25 +1086,7 @@ function observeNativePlayback(view) {
       }
     }
     decoderPlayers.set(id, prev);
-    const current = lastStatus.get(view)?.trackId;
-    if (prev.playing && prev.sourceTrackId && current === prev.sourceTrackId &&
-        prev.evidenceReportedFor !== current) {
-      prev.evidenceReportedFor = current;
-      verifiedDecoderSource.set(view, {trackId: current, at: Date.now()});
-      note("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", current);
-      // This proves only which signed CELIKOM URL the current decoder selected,
-      // not that the rendered samples were heard at the configured loudness.
-      if (prev.gainApplied === true)
-        note("PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED", current);
-      else if (Number.isFinite(prev.gainDb) && prev.gainDb !== 0)
-        note("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", current);
-      // If old signed URL 403 already recovered to a CONFIRMED CURRENT
-      // native decoder, do not fire a second 650ms reload that could pop.
-      // Observer absent? Existing bounded recovery remains unchanged.
-      void execute(view,
-        ";window.__celikomBridgeNativeConfirmedCurrentSource?.(" +
-        JSON.stringify(current) + ")").catch(() => null);
-    }
+    verifyDecoderPlayer(prev);
   };
   if (debug && typeof debug.attach === "function" &&
       typeof debug.sendCommand === "function" &&
@@ -1002,8 +1101,40 @@ function observeNativePlayback(view) {
       // The W48 independent probe has been disabled; matched GETs now
       // originate from Yandex itself (possibly its prefetcher, not sound).
       debug.on("message", (_event, method, params) => {
-        try {
         if (!validView(view)) return;
+        if (method === "Media.playerCreated") {
+          const mediaPlayer = params?.player;
+          const id = mediaPlayer?.playerId;
+          const backendNodeId = mediaPlayer?.domNodeId;
+          if (typeof id === "string" && id.length >= 1 && id.length <= 128 &&
+              /^[a-zA-Z0-9_-]+$/.test(id)) {
+            getDecoderPlayer(id);
+            if (Number.isSafeInteger(backendNodeId) && backendNodeId > 0)
+              void readMediaPlayerNode(id, backendNodeId);
+            else note("PLAYER_DOM_MEDIA_NODE_UNAVAILABLE");
+          }
+          return;
+        }
+        if (method === "DOM.documentUpdated") {
+          decoderNodePlayers.clear();
+          decoderPlayerNodes.clear();
+          pendingDecoderNodes.clear();
+          domReady = false;
+          initializeDomObserver();
+          return;
+        }
+        if (method === "DOM.attributeModified" && params?.name === "src" &&
+            Number.isSafeInteger(params?.nodeId)) {
+          const playerId = decoderNodePlayers.get(params.nodeId);
+          if (playerId) captureDomSource(playerId, params.value);
+          return;
+        }
+        if (method === "DOM.attributeRemoved" && params?.name === "src" &&
+            Number.isSafeInteger(params?.nodeId)) {
+          const playerId = decoderNodePlayers.get(params.nodeId);
+          if (playerId) captureDomSource(playerId, null);
+          return;
+        }
         const requestId = typeof params?.requestId === "string" &&
           params.requestId.length < 160 ? params.requestId : null;
         if (method === "Network.requestWillBeSent" && requestId) {
@@ -1120,12 +1251,14 @@ function observeNativePlayback(view) {
             downgradeVerifiedPlaybackHeartbeat(view, verified.trackId);
             verifiedDecoderSource.delete(view);
           }
-          // A playing decoder disappearing is actual player-loss evidence,
-          // even on Yandex builds that do not expose kUrl.
           if (lost?.playing === true) {
             nativeRecoveryHolds.delete(view);
             nativeRecoveryHoldBlocked.add(view);
           }
+          const node = decoderPlayerNodes.get(params.playerId);
+          if (node) decoderNodePlayers.delete(node.nodeId);
+          decoderPlayerNodes.delete(params.playerId);
+          pendingDecoderNodes.delete(params.playerId);
           decoderPlayers.delete(params.playerId);
         }
         if (method === "Media.playerErrorsRaised" &&
@@ -1153,14 +1286,43 @@ function observeNativePlayback(view) {
           note("PLAYER_CDP_ERROR_MESSAGE");
         else if (method === "Media.playerEventsAdded" &&
             Array.isArray(params?.events)) {
+          const id = params?.playerId;
+          const player = typeof id === "string" &&
+            /^[a-zA-Z0-9_-]{1,128}$/.test(id) ? getDecoderPlayer(id) : null;
           for (const item of params.events.slice(0, 30)) {
             const value = String(item?.value || "").slice(0, 256);
-            // Fixed Chromium Media event enum names only, never log raw
-            // potentially sensitive media error text or source URLs.
-            if (/\bkPlay\b/.test(value)) note("PLAYER_CDP_EVENT_START");
-            else if (/\bkPause\b/.test(value)) note("PLAYER_CDP_EVENT_PAUSE");
-            else if (/\bkPipelineError\b/.test(value))
+            if (/\bkPlay\b/.test(value)) {
+              note("PLAYER_CDP_EVENT_START");
+              if (player && !player.playingPropertySeen) {
+                player.playing = true;
+                player.pipelineFailed = false;
+                const node = decoderPlayerNodes.get(id);
+                if (node) void readMediaPlayerNode(id, node.backendNodeId);
+                else if (pendingDecoderNodes.has(id))
+                  void readMediaPlayerNode(id, pendingDecoderNodes.get(id));
+              }
+            } else if (/\bkPause\b/.test(value)) {
+              note("PLAYER_CDP_EVENT_PAUSE");
+              if (player && !player.playingPropertySeen) {
+                const currentTrackId = lastStatus.get(view)?.trackId;
+                const wasCurrentVerified = player.playing && !!currentTrackId &&
+                  player.sourceTrackId === currentTrackId;
+                player.playing = false;
+                if (wasCurrentVerified) {
+                  downgradeVerifiedPlaybackHeartbeat(view, currentTrackId);
+                  verifiedDecoderSource.delete(view);
+                }
+                player.evidenceReportedFor = null;
+                player.lastVolume = null;
+                player.volumeTrackId = null;
+              }
+            } else if (/\bkPipelineError\b/.test(value)) {
               note("PLAYER_CDP_EVENT_PIPELINE_ERROR");
+            }
+          }
+          if (player) {
+            decoderPlayers.set(id, player);
+            verifyDecoderPlayer(player);
           }
         } else if (method === "Media.playerPropertiesChanged" &&
             Array.isArray(params?.properties)) {
@@ -1171,21 +1333,12 @@ function observeNativePlayback(view) {
             if (prop.value === "false") note("PLAYER_CDP_STATE_NOT_PLAYING");
           }
         }
-        } catch {
-          // An unexpected CDP payload must not throw out of Electron's
-          // main-process event handler and restart Yandex. Fail closed for
-          // this passive decoder witness without touching audio controls.
-          verifiedDecoderSource.delete(view);
-          decoderPlayers.clear();
-          nativeDecoderPlayers.delete(view);
-          note("NATIVE_CDP_EVENT_EXCEPTION");
-        }
       });
       debug.on("detach", () => {
         if (!validView(view)) return;
         // A detached CDP observer can no longer prove which source is
         // currently playing. Downgrade any green heartbeat immediately and
-        // invalidate the witness; never retain an old kUrl/kIsPlaying pair.
+        // invalidate both Media and DOM source witnesses.
         const verified = verifiedDecoderSource.get(view);
         if (verified?.trackId)
           downgradeVerifiedPlaybackHeartbeat(view, verified.trackId);
@@ -1194,7 +1347,12 @@ function observeNativePlayback(view) {
         nativeMediaHttpSuccess.delete(view);
         nativeNetworkObserversReady.delete(view);
         nativeUnfetchedReloadAttempt.delete(view);
+        nativeDecoderDomRefreshers.delete(view);
         decoderPlayers.clear();
+        decoderPlayerNodes.clear();
+        decoderNodePlayers.clear();
+        pendingDecoderNodes.clear();
+        domReady = false;
         nativeDecoderPlayers.delete(view);
         note("PLAYER_CDP_DETACHED");
       });
@@ -1204,6 +1362,10 @@ function observeNativePlayback(view) {
           if (validView(view)) note("PLAYER_CDP_UNAVAILABLE");
           try { if (debug.isAttached()) debug.detach(); } catch {}
         });
+      // DOM is read-only and restricted to the src attribute on the exact
+      // node associated by Media.playerCreated. Never inspect page scripts,
+      // text, account data, successful response bodies or arbitrary elements.
+      initializeDomObserver();
       // Passive read-only recording of status and request destination class;
       // Network is NOT intercepted, requests are never modified or retried.
       // Bound Chromium's retained Network payload buffers. We only need
@@ -1255,6 +1417,7 @@ function observeNativePlayback(view) {
     lastStatus.delete(view);
     deliveredRecoveryEpoch.delete(view);
     nativeRecoveryHolds.delete(view);
+    nativeDecoderDomRefreshers.delete(view);
     if (wasSelected && choosePlaybackView() === null) {
       const token = readToken();
       if (token) void localRequest(token, "/v1/heartbeat", "POST", heartbeatPayload({
@@ -1265,14 +1428,9 @@ function observeNativePlayback(view) {
   });
 }
 
-// Fire-and-forget pulse rejections must never bubble up to Electron's main
-// process. They are diagnostic-only and must not close/relaunch Yandex.
-function scheduleTick(view) {
-  void tick(view).catch(() => note("NATIVE_RELAY_TICK_EXCEPTION"));
-}
 app.on("web-contents-created", (_event, view) => {
-  view.on("dom-ready", () => { injected.delete(view); scheduleTick(view); });
-  view.on("did-finish-load", () => { injected.delete(view); scheduleTick(view); });
+  view.on("dom-ready", () => { injected.delete(view); void tick(view); });
+  view.on("did-finish-load", () => { injected.delete(view); void tick(view); });
   view.on("console-message", (event, _level, legacy) => {
     const msg = typeof event?.message === "string" ? event.message : legacy;
     if (msg === "[CELIKOM] Native file-info source connector attached") note("RESOURCE_ATTACHED");
@@ -1323,6 +1481,6 @@ const timer = setInterval(() => {
   }
   const views = webContents.getAllWebContents();
   if (views.length) note("WEB_CONTENTS_PRESENT");
-  for (const view of views) scheduleTick(view);
+  for (const view of views) void tick(view);
 }, 300);
 if (timer.unref) timer.unref();
