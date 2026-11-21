@@ -15,22 +15,24 @@ if (!browser) {
   console.log('Bulk layout needs Chromium; skipped outside CI');
   process.exit(0);
 }
+const expected=Number(process.argv[3]||50);
+if(!Number.isInteger(expected)||expected<1||expected>50)throw Error('Invalid expected count');
 const source=await readFile(process.argv[2],'utf8');
 const injection='<script>try {'
  + 'const bar=document.querySelector("[data-bulk-select]");'
  + 'const boxes=[...document.querySelectorAll("[data-bulk-candidate]")];'
- + 'if(!bar || boxes.length!==50)throw Error("50 checkboxes absent");'
+ + 'if(!bar || boxes.length!=='+expected+')throw Error("Checkboxes absent");'
  + 'if(boxes.some(x=>x.checked))throw Error("Preselected");'
  + 'bar.querySelector("[data-bulk-all]").click();'
- + 'if(boxes.filter(x=>x.checked).length!==50 || !bar.querySelector("[data-bulk-count]").textContent.includes("50 из 50"))throw Error("Select all");'
- + 'if(bar.querySelector("[name=bulk_action]").disabled)throw Error("Actions disabled");'
+ + 'if(boxes.filter(x=>x.checked).length!==boxes.length || !bar.querySelector("[data-bulk-count]").textContent.includes(boxes.length+" из "+boxes.length))throw Error("Select all");'
+ + 'const onlyPending=boxes.every(x=>x.dataset.bulkStatus==="pending");for(const b of bar.querySelectorAll("[name=bulk_action]")){if(b.disabled!==(b.value!=="delete"&&!onlyPending))throw Error("Wrong action availability")}'
  + 'const form=document.querySelector("#bulk-selection");'
  + 'if(new FormData(form).getAll(boxes[0].name).length!==1)throw Error("Form association");'
  + 'const els=[bar,...bar.querySelectorAll("button"),...document.querySelectorAll(".bulk-card-check")];'
  + 'for(const el of els){const r=el.getBoundingClientRect();if(r.width && (r.left<-1 || r.right>innerWidth+1))throw Error("Horizontal overflow element")}'
  + 'if(document.documentElement.scrollWidth>innerWidth+1)throw Error("Page horizontal overflow");'
  + 'bar.querySelector("[data-bulk-none]").click();'
- + 'if(boxes.some(x=>x.checked) || !bar.querySelector("[data-bulk-count]").textContent.includes("0 из 50"))throw Error("Clear selection");'
+ + 'if(boxes.some(x=>x.checked) || !bar.querySelector("[data-bulk-count]").textContent.includes("0 из "+boxes.length))throw Error("Clear selection");'
  + 'document.body.dataset.bulkLayout="pass";'
  + '}catch(e){document.body.dataset.bulkLayout=e.message}</script>';
 const directory=await mkdtemp(join(tmpdir(),'celikom-bulk-browser-'));

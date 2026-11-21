@@ -38,3 +38,8 @@ Status: successfully activated on 2026-11-21 at 11:26 Moscow (08:26 UTC).
 - Owner reports all five real songs already approved. No request to upload more songs is needed; visible selection on newly pending real uploads remains for the next normal owner use. Pending rows/select-all/confirmation/batch execution were exercised with 50 disposable fixtures and real Chromium, not by remoderating owner songs.
 
 Do not blindly re-run the successful deployment: before-hash guards intentionally reject an already-restored admin. Roll back only if current still equals this release; atomically restore backup/previous-release and launcher mtime, never overwrite a subsequent deployment from another chat. Branch fix/admin-bulk-restore-20261121; application code restored in dee3537a99f263709c6df6b38bb47f7dd0b3594b; deployment smoke update 067968ce4eaefac0d406c386d86993557827d0c7. Exact file hashes: .github/scripts/admin-bulk-restore/manifest.json.
+
+
+## Subsequent inactive cleanup
+
+Release admin-rejected-cleanup-1b532497bf6e adds owner deletion of disabled versions and safe removal of referenced rejected/disabled history from admin lists. Bulk selection/search remain installed; current upload/audio/playback/configuration remain untouched. See docs/admin/INACTIVE-SONG-CLEANUP-20261121.md before any rollback, because that release preserves removed history behind tombstones and prevents stale reactivation.

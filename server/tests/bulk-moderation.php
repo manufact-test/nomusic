@@ -11,6 +11,22 @@ use Celikom\Database\Connection;
 use Celikom\Database\MigrationRunner;
 use Celikom\Storage\LocalStorageAdapter;
 
+/* Interleave a second committed transaction after the first snapshot read,
+ * before the production moderation service acquires its normal row locks. */
+class InactiveRaceStatement extends PDOStatement
+{
+    public static ?Closure $hook=null;
+    protected function __construct() {}
+    public function execute(?array $params=null): bool
+    {
+        $ok=parent::execute($params);
+        if(self::$hook!==null && str_starts_with($this->queryString,'SELECT track_id FROM track_replacements WHERE id = ?')) {
+            $hook=self::$hook;self::$hook=null;$hook();
+        }
+        return $ok;
+    }
+}
+
 $config = require dirname(__DIR__) . '/config/app.php';
 if (!str_starts_with((string)$config['db_name'],'celikom_test')) {
     throw new RuntimeException('Bulk tests require isolated disposable MySQL');
@@ -241,6 +257,75 @@ run('FK-linked upload history cannot be erased, but other IDs in batch proceed',
     expect($readState($protected)['status']==='pending','Protected history retained');
     expect($readState($free)===[],'Independent mapping deleted');
     expect(str_contains($response->body,'#'.$protected),'Conflict named');
+});
+run('Rejected and disabled uploaded rows are removed from all queues without erasing history or current replacement',function()
+    use($create,$base,$asset,$submit,$csrf,$selected,$pdo,$readState,$app,$get,$storage,$key):void {
+    foreach(['rejected','disabled'] as $i=>$status) {
+        $id=$create($base+200+$i,$asset);
+        $pdo->prepare('UPDATE track_replacements SET status=?,is_active=0 WHERE id=?')->execute([$status,$id]);
+        $track=$pdo->query('SELECT track_id FROM track_replacements WHERE id='.(int)$id)->fetchColumn();
+        $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active) VALUES(?,?,'approved',1)")->execute([$track,$asset]);
+        $current=(int)$pdo->lastInsertId(); $currentBefore=$readState($current);
+        $pdo->prepare('INSERT INTO upload_submissions(uploader_hash,request_id,service,service_track_id,sha256,replacement_id) VALUES(?,?,?,?,?,?)')->execute([
+            hash('sha256','inactive-test-'.$id),'10000000-0000-4000-8000-'.sprintf('%012d',$id),'yandex',(string)($base+200+$i),str_repeat('b',64),$id
+        ]);
+        $choice=[$id=>'1:'.$current];
+        $page=$app->handle('GET','/admin',['tab'=>'uploads','status'=>$status,'per_page'=>'50'],$get);
+        expect($page->status===200 && str_contains($page->body,'name="selected['.$id.']"'),'Inactive owner checkbox');
+        expect(str_contains($page->body,'data-bulk-status="'.$status.'"'),'Action status is explicit');
+        if($status==='disabled' && ($out=getenv('BULK_INACTIVE_HTML_OUT'))!==false) file_put_contents($out,$page->body);
+        $preview=$submit('/admin/bulk/preview',['csrf'=>$csrf,'selected'=>$choice,'bulk_action'=>'delete']);
+        expect($preview->status===200,'Inactive delete preview');
+        $form=['csrf'=>$csrf,'selected'=>$choice,'bulk_action'=>'delete','confirm_batch'=>'1','confirm_count'=>'1'];
+        $response=$submit('/admin/bulk/execute',$form);
+        expect($response->status===200 && str_contains($response->body,'Удалено из списка с сохранением истории: 1'),'Visible deletion result');
+        expect($readState($id)['status']===$status && (int)$readState($id)['version']===2,'Inactive history retained and version fenced');
+        expect($readState($current)===$currentBefore,'New approved mapping unchanged');
+        $q=$pdo->prepare('SELECT COUNT(*) FROM upload_submissions WHERE replacement_id=?');$q->execute([$id]);expect((int)$q->fetchColumn()===1,'Upload history preserved');
+        $q=$pdo->prepare('SELECT cleanup_status FROM bulk_moderation_tombstones WHERE replacement_id=?');$q->execute([$id]);expect($q->fetchColumn()==='retained_history','Archive marker');
+        expect($storage->exists($key),'Shared approved audio still exists');
+        foreach([['status'=>$status],[],['q'=>(string)($base+200+$i)]] as $query) {
+            $html=$app->handle('GET','/admin',array_merge(['tab'=>'uploads','per_page'=>'50'],$query),$get);
+            expect($html->status===200 && !str_contains($html->body,'#'.$id.' ·'),'Removed row absent from filter/all/search');
+        }
+        expect($submit('/admin/bulk/execute',$form)->status===409,'Old delete cannot repeat');
+        $form['selected'][$id]='2:'.$current;
+        expect($submit('/admin/bulk/execute',$form)->status===409,'Forged fresh version cannot redelete removed row');
+        $q=$pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE entity_type='track_replacement' AND entity_id=? AND action='replacement_bulk_archive'");$q->execute([$id]);expect((int)$q->fetchColumn()===1,'Exactly one archive audit');
+        if($status==='disabled') {
+            try { (new Celikom\Admin\ModerationService($pdo,$storage))->replacement(1,$id,'reactivate','stale hidden form',0,true); throw new RuntimeException('Archived reactivation allowed'); }
+            catch(DomainException $e) { expect($e->getMessage()==='candidate_removed','Individual stale form cannot resurrect removed row'); }
+        }
+    }
+});
+run('Disabled inactive row without history can be physically removed without touching approved shared audio',function()
+    use($create,$base,$asset,$submit,$csrf,$pdo,$readState,$storage,$key):void {
+    $id=$create($base+250,$asset);
+    $pdo->prepare("UPDATE track_replacements SET status='disabled',disabled_at=UTC_TIMESTAMP() WHERE id=?")->execute([$id]);
+    $response=$submit('/admin/bulk/execute',['csrf'=>$csrf,'selected'=>[$id=>'1:0'],'bulk_action'=>'delete','confirm_batch'=>'1','confirm_count'=>'1']);
+    expect($response->status===200 && $readState($id)===[],'Unreferenced disabled row deleted');
+    expect($storage->exists($key),'Approved shared asset preserved');
+});
+run('Concurrent archive cannot be resurrected by an individual form using an older repeatable-read snapshot',function()
+    use($create,$base,$asset,$pdo,$storage,$config,$ownerId,$readState):void {
+    $id=$create($base+300,$asset);
+    $pdo->prepare("UPDATE track_replacements SET status='disabled' WHERE id=?")->execute([$id]);
+    $pdo->prepare('INSERT INTO upload_submissions(uploader_hash,request_id,service,service_track_id,sha256,replacement_id) VALUES(?,?,?,?,?,?)')->execute([
+        hash('sha256','race-'.$id),'10000000-0000-4000-8000-'.sprintf('%012d',$id),'yandex',(string)($base+300),str_repeat('c',64),$id
+    ]);
+    $race=Celikom\Database\Connection::open($config);
+    $race->exec('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    $race->setAttribute(PDO::ATTR_STATEMENT_CLASS,[InactiveRaceStatement::class]);
+    $other=Celikom\Database\Connection::open($config);$archived=false;
+    InactiveRaceStatement::$hook=static function() use($other,$storage,$ownerId,$id,&$archived):void {
+        $result=(new Celikom\Admin\BulkModerationService($other,$storage))->execute($ownerId,'owner',[$id=>['version'=>1,'active'=>0]],'delete','Concurrent owner cleanup',false,true);
+        expect($result['archived']===[$id],'Concurrent archive committed');$archived=true;
+    };
+    try {
+        try { (new Celikom\Admin\ModerationService($race,$storage))->replacement($ownerId,$id,'reactivate','Stale open individual form',0,true); throw new RuntimeException('Hidden inactive row resurrected'); }
+        catch(DomainException $e) { expect($archived && $e->getMessage()==='candidate_removed','Current locking read sees removal after earlier snapshot'); }
+    } finally { InactiveRaceStatement::$hook=null; }
+    $state=$readState($id);expect($state['status']==='disabled' && (int)$state['is_active']===0 && (int)$state['version']===2,'No hidden active version created');
 });
 fwrite(STDOUT,"CELIKOM bulk moderation MySQL E2E PASS (synthetic, no production writes)\n");
 unlink($audioPath);
