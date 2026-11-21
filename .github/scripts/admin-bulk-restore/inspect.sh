@@ -22,7 +22,7 @@ echo "ADMIN_FILES"
 find "$live/src/Admin" -maxdepth 1 -type f -printf '%f\n' | sort
 for base in "$live" "$root/releases/admin-song-search-4bf2ac511142"; do
  test -d "$base" || continue
- for name in AdminPanel.php BulkModerationService.php bulk-moderation.js admin-style.css; do
+ for name in AdminPanel.php ModerationService.php BulkModerationService.php BulkModerationView.php bulk-moderation.js admin-style.css; do
   file="$base/src/Admin/$name"
   test -f "$file" || continue
   echo "SOURCE_BEGIN:$(basename "$base"):$name"
