@@ -1289,3 +1289,13 @@ The previous developer's useful research **was already saved**: [YANDEX-MEDIA3-R
 - Current branch HEAD: `de67ab7e1eb58d64d4901e8d3e54499055e4553b`.
 - Added explicit signed `audio/mp4` acceptance assertion to `NativeGrantContractTest.java`; isolated exact-identity Java workflow `44893887112` SUCCESS.
 - Latest owner audio workflow `44893907029`: JVM issuer-proxy/contract job SUCCESS; isolated ARM13 build/test job queued/in progress. No APK artifact yet.
+
+## Authoritative next-chat handoff — 21.11.2026
+
+The concise continuation brief is now saved at [CELIKOM-A1-NEXT-CHAT-START-2026-11-21.md](CELIKOM-A1-NEXT-CHAT-START-2026-11-21.md). **Use it as the starting point**; it supersedes the older 'await NAV18' / generic next-step paragraphs above wherever they conflict.
+
+Important correction from the actual BETA11 TXT: EXACT_PREPARE=ONE (so do not say there was no prepare); creator Track+Album later Flow link was observed once; however ORIGINAL_SETTER=NONE, NATIVE_MAIN_SOURCE_ENTER=NONE, WRAPPER_MAIN_SOURCE=NONE, TRACK_DESCRIPTOR_FACTORY_LINK=NONE, DECISION_ALTERNATE=NONE, DATASOURCE_ARMED=NONE, AUDIO_OPEN/READ=NONE. Original Exo reads are present but CELIKOM_REPLACEMENT=NOT_CONNECTED. OWNER_RESOLVE_NOT_APPROVED is an aggregate gate result, not proof of missing/unapproved DB row.
+
+Current code snapshot before this documentation-only handoff: 4b0351eddf3daead5cc88c4e8a93f6079173b9bd; new handoff document commit 415d45988fe80d4e8295dceee219b50981ec9687 is docs-only. Fetch actual branch HEAD before coding.
+
+CI at last check: workflow 44893907029 JVM issuer-proxy contract SUCCESS; native ARM13 publisher-first 75s test still running. 44893887129 clone-alone differential SUCCESS; 44893887112 exact identity Java models SUCCESS; previous owner-audio ARM13 run 44893567368 SUCCESS. No new owner APK exported or installed.
