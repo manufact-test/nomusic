@@ -50,8 +50,8 @@ final class BulkModerationView
                 . '<option value="rights">Проблемы с правами</option>'
                 . '<option value="other">Другая причина</option></select></label>';
         } elseif ($action === 'delete') {
-            $html .= '<p class="bulk-danger-note">Необратимое удаление. Записи с заявками, жалобами, наградами'
-                . ' или другими ссылками будут защищены. Аудит и запрет автоматического повторного импорта сохраняются.</p>'
+            $html .= '<p class="bulk-danger-note">Удаление из списка. Для записей с заявками, жалобами, наградами'
+                . ' и другими связями необходимая история сохранится. Общие аудиофайлы не затрагиваются.</p>'
                 . '<label class="form-field">Введите число ' . $count . ' для подтверждения'
                 . '<input type="number" name="confirm_count" min="' . $count . '" max="' . $count
                 . '" required autocomplete="off"></label>';
@@ -75,10 +75,17 @@ final class BulkModerationView
             . '<p class="muted">Партия: <code>' . self::e($r['batch'])
             . '</code>. Каждое решение зафиксировано в журнале.</p>';
         if ($r['success']) $html .= '<p>Успешные ID: ' . implode(', ',array_map('intval',$r['success'])) . '</p>';
+        if (!empty($r['archived'])) $html .= '<p>Удалено из списка с сохранением истории: '
+            . count($r['archived']) . '. История загрузок и связанные записи сохранены.</p>';
         if ($r['conflicts']) {
             $html .= '<h2>Пропущенные записи</h2><ul>';
             foreach ($r['conflicts'] as $id => $error)
-                $html .= '<li>#' . (int)$id . ' · ' . self::e($error) . '</li>';
+                $html .= '<li>#' . (int)$id . ' · ' . self::e(match($error) {
+                    'candidate_has_history_reject_instead' => 'Сначала отклоните или отключите эту версию.',
+                    'candidate_removed','bulk_missing_candidate' => 'Эта запись уже удалена из списка.',
+                    'candidate_changed','stale_moderation_form','stale_moderation_version' => 'Запись изменилась. Обновите список.',
+                    default => 'Не удалось обработать запись. Обновите список и повторите.'
+                }) . '</li>';
             $html .= '</ul><p>Обновите очередь и повторите только нужные записи.</p>';
         }
         if ($r['cleanup_warnings'])

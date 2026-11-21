@@ -726,7 +726,10 @@ final class AdminPanel
         $duration = self::durationFilter($query);
         // Cast before subtraction: MySQL unsigned durations can be shorter as well as longer.
         $difference = 'ABS(CAST(a.duration_ms AS SIGNED) - CAST(t.duration_ms AS SIGNED))';
-        $conditions = $status !== '' ? ['r.status = ?'] : [];
+        /* Historical rows removed by the owner stay out of every queue/filter/search. */
+        $visible = 'NOT EXISTS (SELECT 1 FROM bulk_moderation_tombstones b WHERE b.replacement_id=r.id)';
+        $conditions = [$visible];
+        if ($status !== '') $conditions[] = 'r.status = ?';
         $params = $status !== '' ? [$status] : [];
         if ($duration === 'mismatch' && $status === '') $conditions[] = "(r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))";
         if ($duration !== '') $conditions[] = $difference . ($duration === 'mismatch' ? ' > 1500' : ' <= 1500');
@@ -735,7 +738,7 @@ final class AdminPanel
         if ($searchWhere !== '') $conditions[] = $searchWhere;
         $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';
         $joins = ' FROM track_replacements r JOIN tracks t ON t.id=r.track_id JOIN audio_assets a ON a.id=r.audio_asset_id ';
-        $mismatchCount = (int) $this->pdo->query('SELECT COUNT(*)' . $joins . ' WHERE ' . $difference . " > 1500 AND (r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))")->fetchColumn();
+        $mismatchCount = (int) $this->pdo->query('SELECT COUNT(*)' . $joins . ' WHERE ' . $visible . ' AND ' . $difference . " > 1500 AND (r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))")->fetchColumn();
         $count = $this->pdo->prepare('SELECT COUNT(*)' . $joins . $where);
         $count->execute($params);
         $total = (int) $count->fetchColumn();
@@ -769,7 +772,7 @@ final class AdminPanel
         $selectable = 0;
         if (in_array($admin['role'],['owner','moderator'],true)) {
             foreach ($rows as $r) {
-                if ($r['status']==='pending' || ($r['status']==='rejected' && $admin['role']==='owner')) ++$selectable;
+                if ($r['status']==='pending' || (in_array($r['status'],['rejected','disabled'],true) && $admin['role']==='owner')) ++$selectable;
             }
         }
         if ($selectable > 0) {
@@ -782,7 +785,7 @@ final class AdminPanel
                 . '<button type="submit" name="bulk_action" value="reject" data-bulk-action class="danger" disabled>Отклонить</button>'
                 . ($admin['role']==='owner'
                     ? '<button type="submit" name="bulk_action" value="delete" data-bulk-action class="danger" disabled>Удалить</button>' : '')
-                . '</div><p class="muted">Выделение действует только на текущей странице. Перед обработкой потребуется отдельное подтверждение.</p></form>';
+                . '</div><p class="muted">Выделение действует только на текущей странице. Перед обработкой потребуется отдельное подтверждение. Одобрение и отклонение доступны только для записей «На проверке».</p></form>';
         }
         $html .= '<div class="cards">';
         foreach ($rows as $r) {
@@ -790,9 +793,9 @@ final class AdminPanel
             $trackId = (string) $r['service_track_id'];
             $html .= '<article class="track-card"><div class="track-top">'
                 . ($selectable > 0 && ($r['status']==='pending'
-                    || ($r['status']==='rejected' && $admin['role']==='owner'))
+                    || (in_array($r['status'],['rejected','disabled'],true) && $admin['role']==='owner'))
                     ? '<label class="bulk-card-check"><input data-bulk-candidate type="checkbox"'
-                        . ' form="bulk-selection" name="selected[' . $id . ']" value="'
+                        . ' data-bulk-status="' . self::e($r['status']) . '" form="bulk-selection" name="selected[' . $id . ']" value="'
                         . (int)$r['version'] . ':' . (int)($r['active_id']??0) . '">Выбрать</label>'
                     : '')
                 . '<div class="track-heading">'

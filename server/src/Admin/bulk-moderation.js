@@ -10,7 +10,8 @@
   function sync() {
     const n = boxes.filter((box) => box.checked).length;
     count.textContent = 'Выбрано ' + n + ' из ' + boxes.length;
-    submit.forEach((button) => { button.disabled = !n; });
+    const onlyPending = boxes.filter((box) => box.checked).every((box) => box.dataset.bulkStatus === 'pending');
+    submit.forEach((button) => { button.disabled = !n || (button.value !== 'delete' && !onlyPending); });
     all.disabled = n === boxes.length;
     none.disabled = n === 0;
   }

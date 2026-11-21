@@ -1,0 +1,26 @@
+{
+  "AdminPanel.php": {
+    "before": "da68e3a917022eaa9bdd05a4882814512b49a32df27430a40ae3d4d531dc4df1",
+    "after": "f5e5a3515dae9a0d539870e4b80ee11820422dbf15f3980dc72b75eb4ddf76a5"
+  },
+  "ModerationService.php": {
+    "before": "f558e76622d4b50356bf76a66d473a1f9c06eb6ae3813bf033c8f2a51e58457a",
+    "after": "05441c67096e78a908b2607be4a110f05ce8e7c7ed43e729a5d05917e739c945"
+  },
+  "BulkModerationService.php": {
+    "before": "7603fbf06f2f20dcef83ee31841eeaea84d085dbe51fb81317c48032eadd5dbf",
+    "after": "0c3899e5c9c5b6729fde8af83f515c473d10fa16706d95d8e56e71b6dad417b5"
+  },
+  "BulkModerationView.php": {
+    "before": "563203e177612277d69d679451cd8da3a6b985837846e2996a3630a25fc19bdd",
+    "after": "16cb0c5fc77ce2842fa71fd25eb5c0eed892d6f9a51845158a8313653a1cdaf5"
+  },
+  "bulk-moderation.js": {
+    "before": "b0816a5e9c1cf24b5089f4ae1e30830477de3feee116bb36bac3fbe73896c23f",
+    "after": "7c2ee25ff4a44af6f8f282a4b2000bb4f01ab9f685fe3dbde2268155fe07fb21"
+  },
+  "admin-style.css": {
+    "before": "e2087b0e76f0d08dc4ed2e944a82f0253cfd1720b160a3c6c09df395e9df1181",
+    "after": "e2087b0e76f0d08dc4ed2e944a82f0253cfd1720b160a3c6c09df395e9df1181"
+  }
+}
