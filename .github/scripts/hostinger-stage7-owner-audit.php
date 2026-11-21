@@ -289,6 +289,60 @@ try {
         ];
     }
 
+    // One previously reported difficult owner sample: verify it only if an upload is already present.
+    $legacyStmt = $pdo->prepare("SELECT t.service_track_id,t.artist,t.title,t.duration_ms track_duration_ms,
+        r.id replacement_id,r.status,r.is_active,r.created_at,
+        a.mime_type,a.size_bytes,a.duration_ms asset_duration_ms,a.sha256,a.storage_key,
+        COUNT(u.id) submission_count
+      FROM tracks t
+      JOIN track_replacements r ON r.track_id=t.id
+      JOIN audio_assets a ON a.id=r.audio_asset_id
+      LEFT JOIN upload_submissions u ON u.replacement_id=r.id
+      WHERE t.service='yandex' AND t.service_track_id=?
+      GROUP BY t.service_track_id,t.artist,t.title,t.duration_ms,r.id,r.status,r.is_active,r.created_at,
+        a.mime_type,a.size_bytes,a.duration_ms,a.sha256,a.storage_key
+      ORDER BY r.id DESC LIMIT 5");
+    $legacyStmt->execute(['48591846']);
+    $legacyRows = $legacyStmt->fetchAll(PDO::FETCH_ASSOC);
+    $legacyProbe = [];
+    foreach ($legacyRows as $row) {
+        $key = (string)$row['storage_key'];
+        if (!str_starts_with($key, 'audio/') || str_contains($key, '..'))
+            throw new RuntimeException('unsafe_legacy_storage_key');
+        $path = $root . '/shared/audio/' . $key;
+        $real = realpath($path);
+        $audioRoot = realpath($root . '/shared/audio');
+        $size = (int)$row['size_bytes'];
+        $hashOk = $real && $audioRoot &&
+            str_starts_with($real, $audioRoot . DIRECTORY_SEPARATOR) &&
+            is_file($real) && filesize($real) === $size &&
+            hash_equals((string)$row['sha256'], (string)hash_file('sha256', $real));
+        $metadata = [];
+        $serverDuration = null;
+        if ($hashOk && $size >= 1024 && $size <= 31457280 && $row['mime_type'] === 'audio/mpeg') {
+            $bytes = file_get_contents($real);
+            if (is_string($bytes)) $metadata = inspectMp3Bytes($bytes);
+            if (class_exists(Celikom\Application\Mp3Inspector::class)) {
+                try { $serverDuration = (new Celikom\Application\Mp3Inspector())->durationMs($real); }
+                catch (Throwable) { $serverDuration = null; }
+            }
+        }
+        $legacyProbe[] = [
+            'replacement_id' => (int)$row['replacement_id'],
+            'track_id' => (string)$row['service_track_id'],
+            'artist' => (string)$row['artist'],
+            'title' => (string)$row['title'],
+            'status' => (string)$row['status'],
+            'active' => (bool)$row['is_active'],
+            'created_at' => (string)$row['created_at'],
+            'submission_count' => (int)$row['submission_count'],
+            'size_bytes' => $size,
+            'private_file_hash_valid' => (bool)$hashOk,
+            'server_mp3_inspector_duration_ms' => $serverDuration,
+            'mp3_metadata' => $metadata
+        ];
+    }
+
     $approved = $pdo->query("SELECT r.status,r.is_active,a.sha256,a.size_bytes,a.storage_key
         FROM track_replacements r JOIN audio_assets a ON a.id=r.audio_asset_id WHERE r.id=1")
         ->fetch(PDO::FETCH_ASSOC);
@@ -310,6 +364,7 @@ try {
         'new_since_previous_audit' => $newCount,
         'pending_total' => $pendingCount,
         'recent_owner_submissions' => $items,
+        'known_legacy_track_48591846' => $legacyProbe,
         'original_approved_audio_intact' => (bool)$approvedOk
     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), "\n";
     if (!$approvedOk) exit(1);
