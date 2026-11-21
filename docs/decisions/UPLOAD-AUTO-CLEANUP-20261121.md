@@ -57,3 +57,14 @@ Stable baseline: fix/desktop-wave-metadata-20261118 @ d12cdcdaf96b95710b93e78389
 Owner installed 0.4.78 and uploaded several real songs. Read-only workflow 44883847547 inspected all five new replacement records after activation. All five are pending, each has one submission, matching physical size/SHA-256, compatible measured duration, canonical already-normalized MP3 bytes and successful full decoding of the stored object. Active release remains upload-cleanup-823c0613c212. Moderation/catalog/account data were not modified.
 
 The report is CMS-encrypted before being attached to Actions; titles, asset identifiers and hashes are not printed in public CI logs. No user audio is copied out of hosting. Exact original metadata cleanup per upload cannot be reconstructed: current schema retains the canonical asset/submission digest, not original tags, raw bytes or a per-upload removed-byte counter. Do not infer that a particular song required repair merely because the stored file is clean. This verifies ingestion/storage/decodability, not musical correctness of the replacement or every possible future input.
+
+
+## Follow-up audit — all uploads since activation (2026-11-21 10:38 UTC)
+
+The earlier five-record check was not the complete post-activation population. A widened read-only receipt audit now covers every replacement created since activation (up to 1000 records, rather than only the latest five).
+
+- [Private read-only receipt run 44895271863](https://github.com/manufact-test/nomusic/actions/runs/44895271863): **13 total; 13 checked; 13/13 stored hash, size, duration, canonical-normalizer and full-decode checks passed; 9 approved, 4 pending; 0 failed checks**.
+- Active release observed: `admin-rejected-cleanup-1b532497bf6e`. The audit successfully instantiated the cleanup normalizer and full decoder from that active release, so the cleanup feature remained present after the later release.
+- The audit confirms every stored object is canonical/idempotent and fully decodable. It cannot reveal which raw inputs contained removable metadata: `UploadService` calculates the raw digest only in request memory, stores the normalized digest, and `Mp3Normalizer` does not persist per-file removal counters. Original raw bytes are not retained.
+
+Do not state that the 13 original uploads had no metadata. To make future per-song cleanup results observable, add a private upload receipt with original/canonical digests, removed metadata counts/bytes and decoder result. This is a telemetry gap, not a failure of the normalization/decode checks.
