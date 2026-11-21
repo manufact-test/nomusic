@@ -10,9 +10,9 @@ Read these documents first:
 
 The owner wants the latest working CELIKOM Windows version to become the one canonical version in GitHub `main`. Main should no longer misleadingly show an older Windows version while the latest implementation lives on a side branch. After the correct version is established on main, clean up obsolete Windows-only experimental branches/PR clutter so the repository is easier to navigate.
 
-**Target:** W173 / CELIKOM Windows app **0.24.54.0**, Update Supervisor **0.24.54.0**, Native **0.24.32**, compatible with official Yandex Music **5.128.0**.
+**Target:** W173 / CELIKOM Windows app **0.24.54.0**, Update Supervisor **0.24.54.0**, Native host/module **0.24.31**, compatible with official Yandex Music **5.128.0**.
 
-The owner has said the latest version appears to work and wants it made primary. The prior conversation explicitly confirmed Yandex 5.128.0 works and new songs reached moderation. The W173 0.24.54 package was prepared to fix the extra red “Yandex updated” message and preserve the same Start click; if the exact 0.24.54 owner install is not yet confirmed in the current chat, verify that narrowly before declaring runtime acceptance. Do not restart broad testing or rebuild without a concrete need.
+The owner explicitly confirmed that he installed the exact W173 0.24.54.0 package, checked it, and it works. Treat the W173 source/package checkpoint as the owner-accepted production candidate. Do not ask for another confirmation, repeat broad runtime tests, or rebuild without a concrete failure.
 
 ## Exact repository state
 
@@ -22,8 +22,8 @@ The owner has said the latest version appears to work and wants it made primary.
 - Main Windows app and Update Supervisor still declare **0.24.48**. This is older than the current owner candidate.
 - Current Windows work branch: `experiment/windows-w172-yandex-51280-compat-20261121`.
 - W173 source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; later commits on the W173 branch are documentation/handoff updates. Resolve the live branch HEAD from GitHub before making any ref changes.
-- W173 app and Update Supervisor: **0.24.54.0**; Native: **0.24.32**.
-- The initial W173 comparison reported 84 commits ahead of main, with merge base exactly main HEAD above; documentation-only handoff commits were added afterward. Re-run the live compare and inspect the full diff before merging. The changed-file inventory at that check included Windows W15/W20/W24/W81 code, Windows CI/workflows and Windows docs, with no server or Android source.
+- W173 app and Update Supervisor: **0.24.54.0**; embedded native host/module marker: **0.24.31**.
+- Live W173 comparison: 96 commits ahead, 0 behind, 29 changed files. The W173 code/package checkpoint is 0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d; the 14 commits after that checkpoint are documentation-only handoff updates. The reviewed inventory contains Windows W15/W20/W24/W81 code, Windows CI/workflows and Windows docs, with no Android, server or browser-extension source.
 - Main pre-W170 backup exists: `backup/windows-main-pre-upload-cleanup-20261121` at `affb7b225d2e7eb2835f53294e975a1e60bb758b`. Still create a fresh pre-consolidation backup before the mainline operation.
 
 ## W173 implementation and verification
@@ -56,11 +56,11 @@ The owner has said the latest version appears to work and wants it made primary.
 ## Required execution sequence
 
 1. Inspect current main, W173 branch HEAD, full commit graph, full file diff, PR #65 and all related workflow status. Confirm no unreviewed server/Android/extension changes are being brought across.
-2. Confirm the exact owner-accepted target is 0.24.54.0 / W173. If unclear, ask one concise confirmation; do not assume an unsigned CI package is a public release.
+2. Use the exact W173 0.24.54.0 package/source already installed and accepted by the owner. It is an internal unsigned owner build, not a public signed release; do not ask the owner to repeat acceptance.
 3. Create a fresh immutable backup branch from current main before changing main.
 4. Open a new PR from W173 to main (PR #65 points at the older W170 branch; do not silently pretend it contains W173). Ensure the PR description records W173, 0.24.54.0, Yandex 5.128.0 and the verification evidence.
 5. Run full main CI, Windows integration CI, W20 safe installer validation and any required repository gates on the exact merge candidate. Fix only actual failures.
-6. Merge the reviewed W173 PR to main only after the checks and owner acceptance are clear. Verify main's app, supervisor and installer versions all read 0.24.54.0 and main contains the W173 Yandex compatibility and Start UX fix.
+6. Merge the reviewed W173 PR to main after the exact PR-head checks pass. Verify main's app, supervisor and installer versions all read 0.24.54.0 and the embedded native host/module marker remains 0.24.31; verify Yandex 5.128.0 compatibility and the W173 Start UX fix.
 7. Close PR #65 as superseded by the W173 mainline PR. Leave PR #62 and #66 untouched.
 8. Only then remove clearly obsolete, unprotected Windows experiment branches/duplicate PR clutter. Preserve backups and all Android/server/extension work. Verify branch and PR lists after cleanup.
 9. Update this handoff with the final main SHA, merged PR, CI run IDs, retained backup branch and exactly which obsolete Windows refs were removed.
