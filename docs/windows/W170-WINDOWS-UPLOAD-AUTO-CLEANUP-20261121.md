@@ -8,10 +8,10 @@ Date: 21 November 2026
 - Accepted Windows baseline: app **0.24.51.0**, native **0.24.32**
 - Baseline branch: `backup/windows-02451-owner-accepted-exact-20261117`
 - Baseline commit: `c717428a7d9f01fc8e33b482fcf66a9ed1a02947`
-- Work branch: `experiment/windows-upload-auto-cleanup-20261121`
+- Work branch: `experiment/windows-w170-mainline-20261121`
 - Main before work: `affb7b225d2e7eb2835f53294e975a1e60bb758b`
 - Main backup: `backup/windows-main-pre-upload-cleanup-20261121` at the same SHA
-- The work branch is based on the accepted 0.24.51 Windows snapshot. Main remains unchanged pending review.
+- The PR branch starts from current main, selectively restores the owner-accepted 0.24.51 Windows source, and retains unrelated current-main Android A1 changes. Main remains unchanged pending review.
 - Shared server cleanup is already deployed. Do not deploy or copy the historical server branch.
 
 ## Server contract verified
