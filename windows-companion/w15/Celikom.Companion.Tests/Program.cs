@@ -1278,6 +1278,14 @@ try
     Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate,
             new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.127.0.r22015925")) == null,
         "W80 fully reviewed new vendor pair is startable even with previous snapshot");
+    Test(StartupHostPreflight.ShouldContinuePendingStartOnVerifiedVendorUpdate(true,
+            Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate),
+        "W173 verified Yandex update discovered during Start preserves the same user Start request");
+    Test(!StartupHostPreflight.ShouldContinuePendingStartOnVerifiedVendorUpdate(false,
+            Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate) &&
+         !StartupHostPreflight.ShouldContinuePendingStartOnVerifiedVendorUpdate(true,
+            Celikom.NativeInstaller.NativeInstallState.Changed),
+        "W173 only a reviewed vendor update preserves Start; background or changed files do not bypass safety");
     Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
             new YandexHostResult(YandexHostStatus.UntrustedExecutable, "5.128.0.r24000000"))!
             .Contains("заблокировано"),
@@ -1497,7 +1505,7 @@ try
              true, false, true) == "Проверяем состояние воспроизведения…",
          "W160 compact track line preserves last-known playing/paused state during server recovery");
     Test(CompactPlaybackPresentation.ConnectingMessage ==
-             "Подождите, идёт подключение\nк приложению Яндекса." &&
+             "Подождите, идёт подключение\nк Яндекс Музыке." &&
          CompactPlaybackPresentation.TrackStatusBottomSpacingPx == 18 &&
          CompactPlaybackPresentation.ActiveTrackStatusHeightPx == 28 &&
          CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 2 &&
