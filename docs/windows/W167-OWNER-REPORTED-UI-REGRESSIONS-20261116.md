@@ -2,7 +2,7 @@
 
 Date: 16 November 2026  
 Product: CELIKOM Windows only  
-Status: **handoff only. No W167 code fix or installer has been made. W166 / 0.24.48.0 is not owner-accepted.**
+Status: **W167 UI source fixes are committed on the W165-based branch; Main CI, Windows integration CI and the single internal owner-review package all succeeded. Owner manual acceptance is still required. W166 / 0.24.48.0 remains rejected and was not used as the base.**
 
 ## 1. Source of truth — use the previous version
 
@@ -17,8 +17,16 @@ Repository: `manufact-test/nomusic`
 This is the exact pre-W166 backup snapshot:
 `backup/windows-main-pre-w166-owner-status-dom-observer-20261116`
 
-The branch contains the **W165 / 0.24.47.0 code**, with only the W165 documentation commits after the code checkpoint. The code checkpoint is:
+The branch started from the W165 / 0.24.47.0 code checkpoint:
 `ebd16ca19f37620d620c0a6ee5e9e5361fddd607`
+
+W167 source checkpoint:
+`e88280740457bf539ec8e661416a26d9de1e1102`
+
+Rollback before W167 source fixes:
+`backup/windows-w167-pre-ui-fixes-20261116` @ `ea788eaed198b71db787215b9ba85829766d6062`
+
+W167 owner-review version: **0.24.49.0** (native module remains **0.24.31**).
 
 - Owner-review version: **0.24.47.0**
 - Native module: **0.24.31**
@@ -135,11 +143,11 @@ Do not modify:
 
 Do not repeat broad VPN/audio testing. There is no new audio regression in the owner's latest report.
 
-## 6. W167 implementation order
+## 6. W167 implementation and focused verification
 
 1. Confirm the W167 branch is based on W165 and inspect the exact current source before editing. Keep main/W166 untouched.
 2. Fix Start-state presentation first: immediate green connection message from the click, no disabled text or idle module hint during the explicit operation; preserve module upgrade and fail-closed checks.
-3. Remove the short `Ожидаем воспроизведения в Яндекс Музыке…` flash while preserving W164 metadata grace and no-raw-Track-ID behavior.
+3. Remove the short `Ожидаем воспроизведения в Яндекс Музыке…` flash while preserving W164 metadata grace and all real playback/error states.
 4. Make `Пауза` neutral. Keep the service connection indicator independent.
 5. Carry forward only the compact active-status spacing improvement and tighten it slightly if required by the screenshot.
 6. Investigate active green status separately against real current-source evidence. Reuse W165's exact wording; do not force a false green.
@@ -168,6 +176,39 @@ Read before editing:
 
 W166 is a rejected owner build and comparison point, not the implementation base.
 
-## 9. Truthful status
+## 9. W167 implementation checkpoint
 
-No W167 code has been changed, no W167 CI has run, and no W167 installer exists yet. This handoff records the owner's observed defects and the exact rollback baseline. Do not claim any of the reported UI problems are fixed until the owner installs and checks the next build.
+Source checkpoint: `e88280740457bf539ec8e661416a26d9de1e1102`
+CI validation checkpoint: `8964ec124025cf2f480c0f913f5b7b2d69a90f00`
+W20 package source commit: `025a51d7478b3c7591f893a5dc55fd8ecfee7bdc`
+
+- Start now keeps the connecting banner through module validation/upgrade; the completion gate requires integration idle and the expected module installed. Consent cancellation clears the banner cleanly.
+- The fresh `UNKNOWN` playback placeholder is blank. The old waiting copy was removed from both compact and legacy UI paths.
+- Pause is neutral in compact and legacy UI. The service-heartbeat indicator remains independent.
+- Active green presentation uses one strict predicate: fresh heartbeat + current `ACTIVE_REPLACEMENT` + `PLAYING` + `NATIVE_SOURCE_VERIFIED` + approved presence.
+- No DOM observer or W166 implementation was copied. The available W54 diagnostic lacks `kUrl` proof, and no fresh W55 diagnostic was supplied. Therefore code can present green when exact proof arrives, but CI cannot establish whether the current Yandex runtime emits that proof.
+- Active status row is 28 px high with a 2 px lower gap; idle placeholder spacing remains 18 px.
+- No audio/VPN/native host/renderer/server/auth/Android/extension files were changed.
+
+Focused W167 regression assertions were added and passed in the W20 W15 test step.
+
+Verification:
+- Main CI [43903409504](https://github.com/manufact-test/nomusic/actions/runs/43903409504) — **SUCCESS**.
+- Windows integration CI [43903409454](https://github.com/manufact-test/nomusic/actions/runs/43903409454) — **SUCCESS**.
+- W20 safe installer staging [43903271312](https://github.com/manufact-test/nomusic/actions/runs/43903271312) — **SUCCESS**.
+- W15 contract tests: `W15_NATIVE_CONTRACT_PASS 436`.
+- W23 native tests and W24 image-builder tests passed.
+- W20 warnings-as-errors compile, stage-only distribution policy, installer PE identity/version, updater ZIP selection and anti-downgrade all passed.
+- Disposable Windows per-user install, same-AppId in-place upgrade and uninstall passed; Yandex files were not touched.
+- Exactly one installer EXE was packaged into one ZIP; the ZIP contains only that root installer and its bytes match the standalone EXE.
+
+Owner-review package:
+- Version: **0.24.49.0**, native module **0.24.31**.
+- Installer: `CELIKOM-W167-OWNER-UI-REGRESSIONS-02449-UNSIGNED.exe`.
+- ZIP: `CELIKOM-Windows-0.24.49.zip`.
+- EXE SHA256: `f363a23b90a58268d31f2c5a34313f35510645ab34bcf2c9acfcc3521b14a852`.
+- ZIP SHA256: `abd7ab026a6dcfa7532f4aa833c7db2c4bf93c81e76c17afa001b941dfa15f0e`.
+- Actions artifact ID: `14242836055`; expires **26 November 2026, 16:06:19 UTC**.
+- Verified Library folder: `/CELIKOM/W167/` with EXE, ZIP and `SHA256SUMS.txt`.
+
+Owner runtime acceptance is still pending. CI proves compilation, contracts and packaging, not the actual Start/Next/Pause visual sequence. The active label remains intentionally neutral unless exact current decoder-source proof is emitted. If the owner hears CELIKOM but sees neutral status, collect a fresh W54/W55 diagnostic from 0.24.49.0 before any observer change. Do not weaken the proof gate.
