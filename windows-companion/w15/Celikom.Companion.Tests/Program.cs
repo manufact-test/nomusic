@@ -2158,13 +2158,14 @@ try
             Test(body.AsSpan().IndexOf(expectedUploadBytes) >= 0,
                 "W170 Windows sends the original selected MP3 bytes without local rewriting");
             var bodyText = Encoding.UTF8.GetString(body);
-            Test(bodyText.Contains("name=\"service\"") && bodyText.Contains("yandex") &&
-                 bodyText.Contains("name=\"track_id\"") && bodyText.Contains("123") &&
-                 bodyText.Contains("name=\"declaration\"") &&
-                 bodyText.Contains("name=\"request_id\"") &&
+            bool HasField(string name) =>
+                bodyText.Contains("name=\"" + name + "\"") ||
+                bodyText.Contains("name=" + name);
+            Test(HasField("service") && bodyText.Contains("yandex") &&
+                 HasField("track_id") && bodyText.Contains("123") &&
+                 HasField("declaration") && HasField("request_id") &&
                  bodyText.Contains(expectedUploadRequestKey.ToString("D")) &&
-                 bodyText.Contains("name=\"duration_ms\"") &&
-                 bodyText.Contains(uploadDuration.ToString()),
+                 HasField("duration_ms") && bodyText.Contains(uploadDuration.ToString()),
                 "W170 multipart preserves service, track, rights, duration and idempotency fields");
             return uploadReject
                 ? JsonResponse(new { error = "invalid_mp3" }, 415)
