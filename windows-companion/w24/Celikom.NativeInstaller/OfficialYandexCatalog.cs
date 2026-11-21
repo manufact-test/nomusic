@@ -29,6 +29,10 @@ public static class OfficialYandexCatalog
         NativeIntegrationManager.Official51270Version,
         NativeIntegrationManager.Official51270ExeSha256,
         NativeIntegrationManager.Official51270AsarSha256);
+    private static readonly Build Known51280 = new(
+        NativeIntegrationManager.Official51280Version,
+        NativeIntegrationManager.Official51280ExeSha256,
+        NativeIntegrationManager.Official51280AsarSha256);
 
     // Signed originals extracted only on disposable Windows CI from Yandex's
     // official S3 installer archives. The native image builder was exercised
@@ -47,7 +51,8 @@ public static class OfficialYandexCatalog
         new("5.126.1.56270518164a6ebd4b974971490df41224a69d68",
             "f5fb2817e331aa0b2dd0a6c7b0a360c89b5ae96afc535ca085abe514f8de4ae4",
             "5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215"),
-        Known51270
+        Known51270,
+        Known51280
     };
 
     private static readonly SemaphoreSlim Gate = new(1, 1);
@@ -153,6 +158,9 @@ public static class OfficialYandexCatalog
         if (!entries.TryGetValue(Known51270.Version, out var builtIn) ||
             builtIn != Known51270)
             throw new InvalidDataException("CATALOG_BUILTIN_PIN_REMOVED");
+        if (!entries.TryGetValue(Known51280.Version, out var newest) ||
+            newest != Known51280)
+            throw new InvalidDataException("CATALOG_51280_PIN_REMOVED");
         return entries;
     }
 

@@ -13,6 +13,44 @@ void Test(bool condition, string message)
     if (!condition) throw new Exception("W15_TEST_FAILED: " + message);
 }
 
+byte[] Concat(params byte[][] parts)
+{
+    var result = new byte[parts.Sum(part => part.Length)];
+    var offset = 0;
+    foreach (var part in parts)
+    {
+        Buffer.BlockCopy(part, 0, result, offset, part.Length);
+        offset += part.Length;
+    }
+    return result;
+}
+
+byte[] Id3v24(int bodyLength, bool footer = false)
+{
+    var tag = new byte[10 + bodyLength + (footer ? 10 : 0)];
+    Encoding.ASCII.GetBytes("ID3").CopyTo(tag, 0);
+    tag[3] = 4;
+    tag[5] = footer ? (byte)16 : (byte)0;
+    tag[6] = (byte)((bodyLength >> 21) & 127);
+    tag[7] = (byte)((bodyLength >> 14) & 127);
+    tag[8] = (byte)((bodyLength >> 7) & 127);
+    tag[9] = (byte)(bodyLength & 127);
+    if (footer)
+    {
+        var at = 10 + bodyLength;
+        Encoding.ASCII.GetBytes("3DI").CopyTo(tag, at);
+        tag[at + 3] = 4;
+        tag[at + 5] = 16;
+        Array.Copy(tag, 6, tag, at + 6, 4);
+    }
+    return tag;
+}
+
+void WriteLittleEndian(byte[] bytes, int offset, uint value)
+{
+    for (var i = 0; i < 4; i++) bytes[offset + i] = (byte)(value >> (i * 8));
+}
+
 Test(!StableUpdateTrustConfiguration.TryGetProduction(out _),
     "W117 production updater stays disabled until real owner-approved trust pins are embedded");
 using (var trustKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
@@ -1240,6 +1278,14 @@ try
     Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate,
             new YandexHostResult(YandexHostStatus.OfficialBaselineVerified, "5.127.0.r22015925")) == null,
         "W80 fully reviewed new vendor pair is startable even with previous snapshot");
+    Test(StartupHostPreflight.ShouldContinuePendingStartOnVerifiedVendorUpdate(true,
+            Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate),
+        "W173 verified Yandex update discovered during Start preserves the same user Start request");
+    Test(!StartupHostPreflight.ShouldContinuePendingStartOnVerifiedVendorUpdate(false,
+            Celikom.NativeInstaller.NativeInstallState.VerifiedVendorUpdate) &&
+         !StartupHostPreflight.ShouldContinuePendingStartOnVerifiedVendorUpdate(true,
+            Celikom.NativeInstaller.NativeInstallState.Changed),
+        "W173 only a reviewed vendor update preserves Start; background or changed files do not bypass safety");
     Test(StartupHostPreflight.BlockReason(Celikom.NativeInstaller.NativeInstallState.Changed,
             new YandexHostResult(YandexHostStatus.UntrustedExecutable, "5.128.0.r24000000"))!
             .Contains("заблокировано"),
@@ -1270,15 +1316,6 @@ try
          !PlaybackSourceEvidence.Verified(true, "SDK_MAPPING_ACCEPTED", "approved") &&
          !PlaybackSourceEvidence.Verified(true, "NATIVE_CONNECTED", "approved"),
          "W89 mapping or Yandex connection alone must never paint the current track green");
-    Test(PlaybackSourceEvidence.ActiveReplacement(true, true,
-             "NATIVE_SOURCE_VERIFIED", "ACTIVE_REPLACEMENT", "PLAYING", "approved") &&
-         !PlaybackSourceEvidence.ActiveReplacement(true, true,
-             "NATIVE_SOURCE_VERIFIED", "ACTIVE_REPLACEMENT", "PAUSED", "approved") &&
-         !PlaybackSourceEvidence.ActiveReplacement(true, true,
-             "NATIVE_MAPPING_ACCEPTED", "ACTIVE_REPLACEMENT", "PLAYING", "approved") &&
-         !PlaybackSourceEvidence.ActiveReplacement(true, true,
-             "NATIVE_SOURCE_VERIFIED", "UNKNOWN", "PLAYING", "approved"),
-         "W166 only a verified currently-playing CELIKOM source is active");
     Test(PlaybackSourceEvidence.MappedButUnverified(true,
              "NATIVE_MAPPING_ACCEPTED", "approved") &&
          !PlaybackSourceEvidence.Verified(true,
@@ -1286,12 +1323,90 @@ try
          CompactPlaybackPresentation.VersionAvailableMessage == "Версия CELIKOM доступна" &&
          CompactPlaybackPresentation.ActiveVersionMessage == "Играет версия CELIKOM" &&
          CompactPlaybackPresentation.ServiceEnabledMessage == "Сервис включён",
-         "W159 a mapped current track keeps neutral availability copy after VPN recovery and Next");
+         "W159 a mapped current track keeps availability copy after VPN recovery and Next");
     Test(PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(false, "NATIVE_SOURCE_VERIFIED", "approved") &&
          !PlaybackSourceEvidence.Verified(true, "NATIVE_SOURCE_VERIFIED", "none") &&
          !PlaybackSourceEvidence.MappedButUnverified(true, "NATIVE_SOURCE_VERIFIED", "approved"),
          "W89 only exact current decoder proof while enabled with approved version may paint green");
+    Test(CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, true, "ACTIVE_REPLACEMENT", "PLAYING", "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, true, "ACTIVE_REPLACEMENT", "PAUSED", "NATIVE_SOURCE_VERIFIED", "approved") &&
+         !CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, true, "ACTIVE_REPLACEMENT", "PLAYING", "NATIVE_MAPPING_ACCEPTED", "approved") &&
+         !CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+             true, false, "ACTIVE_REPLACEMENT", "PLAYING", "NATIVE_SOURCE_VERIFIED", "approved"),
+         "W167 green active status requires fresh PLAYING decoder proof and approved presence");
+    Test(CompactPlaybackPresentation.IdleTrackPrompt ==
+             "Откройте Яндекс Музыку и выберите песню." &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, false, "UNKNOWN", TimeSpan.FromSeconds(1)) &&
+         CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, false, "UNKNOWN", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, true, "UNKNOWN", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, true, false, "UNKNOWN", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, false, false, false, "PLAYING", TimeSpan.FromSeconds(3)) &&
+         !CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+             true, true, true, false, false, "UNKNOWN", TimeSpan.FromSeconds(3)),
+         "W168 idle guidance appears only for first connected idle session, never during Next");
+    Test(CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.VersionAvailableMessage,
+             true, true, false, true, false) &&
+         CompactPlaybackPresentation.StatusIsGreen(
+             "Пауза", true, true, false, false, false) &&
+         CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.ActiveVersionMessage,
+             true, true, false, true, true) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.ActiveVersionMessage,
+             true, true, false, true, false) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             CompactPlaybackPresentation.VersionAvailableMessage,
+             true, true, false, false, false) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             "Пауза", true, false, false, false, false) &&
+         !CompactPlaybackPresentation.StatusIsGreen(
+             "Пауза", true, true, true, false, false),
+         "W168 green availability and connected pause never fake active-decoder proof");
+    Test(CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "UNKNOWN", TimeSpan.FromMilliseconds(500)) &&
+         CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_MAPPING_ACCEPTED", "PAUSED", TimeSpan.FromSeconds(2)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, false, "Предыдущая песня",
+             "NATIVE_CONNECTED", "UNKNOWN", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "UNKNOWN", TimeSpan.FromMilliseconds(2600)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, true, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "PLAYING", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "STOPPED", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, false, false, false, false, true, "Предыдущая песня",
+             "NATIVE_CONNECTED", "PLAYING", TimeSpan.FromSeconds(1)) &&
+         !CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+             true, true, false, false, false, true, "Предыдущая песня",
+             "HOST_ERROR", "UNKNOWN", TimeSpan.FromSeconds(1)),
+         "W169 2.5-second title handoff covers ID-less Next but never hides Stop, VPN, stale heartbeat, host errors");
+    Test(!CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, true, false, true) &&
+         CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, false, true) &&
+         !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(false, false, true, true) &&
+         !CompactPlaybackPresentation.ShouldShowModuleUpdateHint(true, false, false, true),
+         "W167 module-update hint is hidden only during Start/reconnect or after playback is enabled");
+    Test(!CompactPlaybackPresentation.CanCompleteStartPresentation(true, true, true) &&
+         !CompactPlaybackPresentation.CanCompleteStartPresentation(false, false, true) &&
+         !CompactPlaybackPresentation.CanCompleteStartPresentation(false, true, false) &&
+         CompactPlaybackPresentation.CanCompleteStartPresentation(false, true, true),
+         "W167 Start banner cannot complete while native module validation/upgrade is still in progress");
     Test(PlaybackSourceEvidence.OriginalVerified(true,
              "NATIVE_ORIGINAL_SOURCE_VERIFIED", "ORIGINAL") &&
          !PlaybackSourceEvidence.OriginalVerified(true, "ORIGINAL", "ORIGINAL") &&
@@ -1390,16 +1505,10 @@ try
              true, false, true) == "Проверяем состояние воспроизведения…",
          "W160 compact track line preserves last-known playing/paused state during server recovery");
     Test(CompactPlaybackPresentation.ConnectingMessage ==
-             "Подождите, идёт подключение\nк приложению Яндекса." &&
+             "Подождите, идёт подключение\nк Яндекс Музыке." &&
          CompactPlaybackPresentation.TrackStatusBottomSpacingPx == 18 &&
          CompactPlaybackPresentation.ActiveTrackStatusHeightPx == 28 &&
-         CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 4 &&
-         CompactPlaybackPresentation.VersionStatusTone(false, false) ==
-             CompactPlaybackPresentation.StatusTone.Neutral &&
-         CompactPlaybackPresentation.VersionStatusTone(false, true) ==
-             CompactPlaybackPresentation.StatusTone.Accent &&
-         CompactPlaybackPresentation.VersionStatusTone(true, true) ==
-             CompactPlaybackPresentation.StatusTone.Danger &&
+         CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx == 2 &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PLAYING") == "Музыка продолжает играть." &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("PAUSED") == "Пауза" &&
          CompactPlaybackPresentation.StaleHeartbeatMessage("UNKNOWN") == "Проверяем состояние воспроизведения…" &&
@@ -1430,7 +1539,7 @@ try
          CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
              false, false, true) == "Проверяем состояние воспроизведения…" &&
          CompactPlaybackPresentation.TrackPlaceholder(true, true, "UNKNOWN",
-             false, false, true) == "Ожидаем воспроизведения в Яндекс Музыке…",
+             false, false, true) == "",
          "W161 unknown track state no longer refers to an unspecified current player");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, true, "PAUSED",
              false, false, true) == "Пауза" &&
@@ -1906,6 +2015,10 @@ try
     var unicodeOk = await AudioPreflight.CheckAsync(unicodeAudio, duration);
     Test(!unicodeOk.Blocked, "unicode filenames cannot trigger name-based rejection");
     File.Delete(unicodeAudio);
+    var allowedBoundary = await AudioPreflight.CheckAsync(testAudio, duration!.Value + 1500);
+    var rejectedBoundary = await AudioPreflight.CheckAsync(testAudio, duration.Value + 1501);
+    Test(!allowedBoundary.Blocked && rejectedBoundary.Blocked,
+        "W170 preserves the exact 1500 ms duration tolerance");
     var wrongDuration = await AudioPreflight.CheckAsync(testAudio, 223000);
     Test(wrongDuration.Blocked && wrongDuration.DurationMessage.Contains("Допуск подмены"),
         "large duration mismatch is rejected BEFORE any upload");
@@ -1914,11 +2027,71 @@ try
     var invalidAudio = Path.Combine(folder, "fake.mp3");
     await File.WriteAllBytesAsync(invalidAudio, new byte[2048]);
     var fake = await AudioPreflight.CheckAsync(invalidAudio, 2350);
-    Test(fake.Blocked && fake.DurationMs == null,
-        "fake MP3 is rejected locally (not just filename validation)");
+    Test(fake.Blocked && fake.DurationMs == null &&
+         fake.DurationMessage.Contains("повреждён"),
+        "fake MP3 is rejected locally with a clear damaged-file message");
     File.Delete(testAudio);
     File.Delete(invalidAudio);
 
+    var footerTag = Id3v24(35, footer: true);
+    var secondTag = Id3v24(34);
+    var doubleTagged = Concat(footerTag, secondTag, frames);
+    Test(AudioPreflight.Mp3DurationMs(doubleTagged) == duration,
+        "W170 multiple leading ID3v2.4 blocks and a validated footer are accepted");
+    var malformedFooter = footerTag.ToArray();
+    malformedFooter[10 + 35] = (byte)'X';
+    Test(AudioPreflight.Mp3DurationMs(Concat(malformedFooter, frames)) is null,
+        "W170 malformed ID3v2.4 footer is rejected");
+    var excessiveTags = Concat(Id3v24(1), Id3v24(1), Id3v24(1),
+        Id3v24(1), Id3v24(1), frames);
+    Test(AudioPreflight.Mp3DurationMs(excessiveTags) is null,
+        "W170 excessive leading metadata blocks remain bounded");
+
+    var infoFrame = frames.AsSpan(0, 417).ToArray();
+    Encoding.ASCII.GetBytes("Info").CopyTo(infoFrame, 36);
+    var infoDuration = AudioPreflight.Mp3DurationMs(Concat(infoFrame, frames));
+    var cleanupFixture = Concat(Id3v24(30), infoFrame, Id3v24(30),
+        infoFrame, frames, Encoding.ASCII.GetBytes("TAG"), new byte[125]);
+    Test(infoDuration is not null &&
+         AudioPreflight.Mp3DurationMs(cleanupFixture) == infoDuration,
+        "W170 duplicate Info/Xing headers and interleaved ID3 tags count only the first header");
+    Test(AudioPreflight.Mp3DurationMs(Concat(infoFrame,
+            frames.AsSpan(0, 417).ToArray(), Id3v24(30), frames)) is null &&
+         AudioPreflight.Mp3DurationMs(Concat(infoFrame, frames, infoFrame)) is null,
+        "W170 metadata appearing inside audio is never skipped");
+    var cleanupFixturePath = Path.Combine(folder, "repairable-metadata.mp3");
+    await File.WriteAllBytesAsync(cleanupFixturePath, cleanupFixture);
+    var cleanupPreflight = await AudioPreflight.CheckAsync(
+        cleanupFixturePath, infoDuration);
+    Test(!cleanupPreflight.Blocked && cleanupPreflight.DurationMs == infoDuration &&
+         (await File.ReadAllBytesAsync(cleanupFixturePath)).SequenceEqual(cleanupFixture),
+        "W170 repairable MP3 metadata passes preflight and original file bytes remain unchanged");
+
+    var inflatedTagBody = "TAG" + new string('Ж', 27) + new string('x', 97);
+    var inflatedTail = Concat(Encoding.UTF8.GetBytes(inflatedTagBody), new byte[] { 7 });
+    Test(AudioPreflight.Mp3DurationMs(Concat(frames, inflatedTail)) == duration,
+        "W170 bounded UTF-8 inflated ID3v1 trailer is accepted by character count");
+    Test(AudioPreflight.Mp3DurationMs(Concat(frames, inflatedTail, new byte[] { 1 })) is null,
+        "W170 extra control bytes after an inflated ID3v1 trailer are rejected");
+
+    var apeItem = new byte[] { 4, 0, 0, 0, 0, 0, 0, 0,
+        84, 105, 116, 108, 101, 0, 84, 101, 115, 116 };
+    var apeFooter = new byte[32];
+    Encoding.ASCII.GetBytes("APETAGEX").CopyTo(apeFooter, 0);
+    WriteLittleEndian(apeFooter, 8, 2000);
+    WriteLittleEndian(apeFooter, 12, (uint)(32 + apeItem.Length));
+    WriteLittleEndian(apeFooter, 16, 1);
+    Test(AudioPreflight.Mp3DurationMs(Concat(frames, apeItem, apeFooter)) == duration,
+        "W170 validated APEv2 footer is accepted");
+    var invalidApeFooter = apeFooter.ToArray();
+    WriteLittleEndian(invalidApeFooter, 8, 1234);
+    Test(AudioPreflight.Mp3DurationMs(Concat(frames, apeItem, invalidApeFooter)) is null,
+        "W170 malformed APEv2 footer is rejected");
+
+    var damagedPayload = frames.ToArray();
+    damagedPayload[100] = 0xff;
+    Test(AudioPreflight.Mp3DurationMs(damagedPayload) == duration,
+        "W170 structural preflight leaves full MP3 payload decoding to the server");
 
     // GitHub Windows installer workflow injects the built ZIP after Inno Setup.
     var zipFixture = Environment.GetEnvironmentVariable("CELIKOM_UPDATE_TEST_PACKAGE");
@@ -1940,7 +2113,20 @@ try
         Test(!File.Exists(Path.Combine(AppUpdateManager.RunningVersion.ToString(), "fake")),
             "upgrade acceptance never modifies Yandex");
     }
-        var expectedAccess = new string('b', 64);
+        var uploadBytes = cleanupFixture;
+    var uploadDuration = infoDuration ?? throw new Exception("W170 cleanup fixture duration missing");
+    var uploadPath = Path.Combine(folder, "repairable-original.mp3");
+    await File.WriteAllBytesAsync(uploadPath, uploadBytes);
+    var damagedUploadPath = Path.Combine(folder, "structurally-valid-damaged.mp3");
+    await File.WriteAllBytesAsync(damagedUploadPath, damagedPayload);
+    var expectedUploadBytes = uploadBytes;
+    var expectedUploadRequestKey = Guid.NewGuid();
+    var uploadRequests = 0;
+    var uploadDuplicate = false;
+    var uploadReject = false;
+    var uploadResponseStatus = 202;
+
+    var expectedAccess = new string('b', 64);
     var expectedRefresh = new string('c', 64);
     var backendCalls = new List<string>();
     using var api = new CelikomApi(store, new FakeHandler(request =>
@@ -1967,6 +2153,32 @@ try
                  "W72 entitlement GET bypasses stale cached VPN route and cache");
             return JsonResponse(new { allowed = true, source = "promo",
                 valid_until = (string?)null, reason = "promo_lifetime" });
+        }
+        if (path == "/api/v1/uploads")
+        {
+            uploadRequests++;
+            Test(request.Method == HttpMethod.Post &&
+                 request.Headers.Authorization?.Parameter == expectedAccess,
+                "W170 uploads use authenticated POST to the shared endpoint");
+            Test(request.Content?.Headers.ContentType?.MediaType == "multipart/form-data",
+                "W170 upload remains multipart/form-data");
+            var body = request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            Test(body.AsSpan().IndexOf(expectedUploadBytes) >= 0,
+                "W170 Windows sends the original selected MP3 bytes without local rewriting");
+            var bodyText = Encoding.UTF8.GetString(body);
+            bool HasField(string name) =>
+                bodyText.Contains("name=\"" + name + "\"") ||
+                bodyText.Contains("name=" + name);
+            Test(HasField("service") && bodyText.Contains("yandex") &&
+                 HasField("track_id") && bodyText.Contains("123") &&
+                 HasField("declaration") && HasField("request_id") &&
+                 bodyText.Contains(expectedUploadRequestKey.ToString("D")) &&
+                 HasField("duration_ms") && bodyText.Contains(uploadDuration.ToString()),
+                "W170 multipart preserves service, track, rights, duration and idempotency fields");
+            return uploadReject
+                ? JsonResponse(new { error = "invalid_mp3" }, 415)
+                : JsonResponse(new { status = "pending", replacement_id = 321,
+                    duplicate = uploadDuplicate }, uploadResponseStatus);
         }
         if (path == "/api/v1/promos/redeem")
         {
@@ -2038,6 +2250,51 @@ try
     Test(resolved?.AudioUrl == "https://api.celikom.example" + audio, "live-contract resolve mapping");
     Test(backendCalls.SequenceEqual(new [] { "/api/v1/auth/login", "/api/v1/resolve" }),
         "only expected private backend endpoints");
+    var uploadKey = expectedUploadRequestKey;
+    var firstUpload = await api.UploadTrackAsync("123", uploadPath, uploadDuration,
+        "Fixture title", "Fixture artist", uploadKey, null);
+    Test(firstUpload.GetProperty("status").GetString() == "pending" &&
+         firstUpload.GetProperty("replacement_id").GetInt32() == 321 &&
+         uploadRequests == 1,
+        "W170 upload is reported only after HTTP 202 pending confirmation");
+
+    uploadDuplicate = true;
+    var duplicateUpload = await api.UploadTrackAsync("123", uploadPath, uploadDuration,
+        "Fixture title", "Fixture artist", uploadKey, null);
+    Test(duplicateUpload.GetProperty("duplicate").GetBoolean() &&
+         uploadRequests == 2,
+        "W170 repeated submission reuses the same request ID for server deduplication");
+
+    uploadResponseStatus = 200;
+    var unconfirmedUploadRejected = false;
+    try
+    {
+        await api.UploadTrackAsync("123", uploadPath, uploadDuration,
+            "Fixture title", "Fixture artist", uploadKey, null);
+    }
+    catch (ApiFailure error) when (error.Category == "UPLOAD_NOT_CONFIRMED")
+    {
+        unconfirmedUploadRejected = true;
+    }
+    Test(unconfirmedUploadRejected,
+        "W170 a generic 2xx response without the server's 202 contract is not shown as success");
+
+    uploadResponseStatus = 202;
+    uploadReject = true;
+    expectedUploadBytes = damagedPayload;
+    expectedUploadRequestKey = Guid.NewGuid();
+    var serverRejectedDamaged = false;
+    try
+    {
+        await api.UploadTrackAsync("123", damagedUploadPath, uploadDuration,
+            "Fixture title", "Fixture artist", expectedUploadRequestKey, null);
+    }
+    catch (ApiFailure error) when (error.Category == "invalid_mp3")
+    {
+        serverRejectedDamaged = true;
+    }
+    Test(serverRejectedDamaged && uploadRequests == 4,
+        "W170 server decoder rejection is surfaced without an automatic duplicate POST");
     // W68 launch gate: trial begins on explicit first Start, never on login,
     // preview, or local session load. The server is the only clock/authority.
     var beforeTrialCalls = backendCalls.Count;
@@ -2599,12 +2856,6 @@ try
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_CPU_HIGH") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CDP_PROPERTIES_SEEN") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CDP_URL_PROPERTY_SEEN") &&
-         DiagnosticLog.IsIncidentCode("PLAYER_DOM_MEDIA_NODE_SEEN") &&
-         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN") &&
-         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_BLOB_SEEN") &&
-         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_OTHER") &&
-         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING") &&
-         DiagnosticLog.IsIncidentCode("PLAYER_DOM_SOURCE_CELIKOM_MATCHED") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
@@ -2638,12 +2889,6 @@ try
         when + "|NATIVE_ELECTRON_CPU_HIGH\n" +
         when + "|PLAYER_CDP_PROPERTIES_SEEN\n" +
         when + "|PLAYER_CDP_URL_PROPERTY_SEEN\n" +
-        when + "|PLAYER_DOM_MEDIA_NODE_SEEN\n" +
-        when + "|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN\n" +
-        when + "|PLAYER_DOM_SOURCE_BLOB_SEEN\n" +
-        when + "|PLAYER_DOM_SOURCE_OTHER\n" +
-        when + "|PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING\n" +
-        when + "|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_SELECTED|track=739209\n" +
         when + "|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209\n" +
         when + "|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209\n" +
@@ -2659,7 +2904,7 @@ try
         "successful MP3 probe never implies audio replacement");
     Test(snapshot.Contains("PLAYER_CDP_PROPERTIES_SEEN/PLAYER_CDP_URL_PROPERTY_SEEN show Media-domain field availability only"),
         "W130 export explicitly says CDP field visibility is not current-source proof");
-    Test(snapshot.Contains("CodeBaseline=W55_PASSIVE_DOM_MEDIA_SOURCE_WITNESS_AND_TRACK_UI_FIX"), "W55 truthful diagnostics baseline");
+    Test(snapshot.Contains("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE"), "W54 truthful diagnostics baseline");
     Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
         "W53 native URL mismatch reaches actual exported TXT");
     Test(snapshot.Contains("PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209"),
@@ -2676,12 +2921,6 @@ try
          snapshot.Contains("ElectronCpuHighObserved=true") &&
          snapshot.Contains("NativeDecoderPropertiesObserved=true") &&
          snapshot.Contains("NativeDecoderUrlPropertyObserved=true") &&
-         snapshot.Contains("NativeDomMediaNodeObserved=true") &&
-         snapshot.Contains("NativeDomSourceAttributeObserved=true") &&
-         snapshot.Contains("NativeDomSourceBlobObserved=true") &&
-         snapshot.Contains("NativeDomSourceOtherObserved=true") &&
-         snapshot.Contains("NativeDomSourceAttributeMissingObserved=true") &&
-         snapshot.Contains("NativeDomCelikomSourceMatched=true") &&
          snapshot.Contains("PlayerGainVariantUrlSelectedObserved=true") &&
          snapshot.Contains("PlayerGainVariantUrlMissingObserved=true") &&
          snapshot.Contains("PlayerNativeVolumeDropObserved=true") &&
@@ -2694,12 +2933,6 @@ try
          importedNativeIncidents.Any(x => x.Contains("|NATIVE_ELECTRON_CPU_HIGH")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CDP_PROPERTIES_SEEN")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CDP_URL_PROPERTY_SEEN")) &&
-         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_MEDIA_NODE_SEEN")) &&
-         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN")) &&
-         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_BLOB_SEEN")) &&
-         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_OTHER")) &&
-         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING")) &&
-         importedNativeIncidents.Any(x => x.Contains("|PLAYER_DOM_SOURCE_CELIKOM_MATCHED|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_NATIVE_VOLUME_DROP|track=739209")) &&
          importedNativeIncidents.Any(x => x.Contains("|PLAYER_CURRENT_SOURCE_LEFT_CELIKOM|track=739209")),
@@ -2719,14 +2952,8 @@ try
             root.GetProperty("scopeSeconds").GetInt32() == 900,
             "W70 auto-attachment includes version, bounded scope and platform");
         Test(root.GetProperty("nativeDecoderPropertiesObserved").GetBoolean() &&
-             root.GetProperty("nativeDecoderUrlPropertyObserved").GetBoolean() &&
-             root.GetProperty("nativeDomMediaNodeObserved").GetBoolean() &&
-             root.GetProperty("nativeDomSourceAttributeObserved").GetBoolean() &&
-             root.GetProperty("nativeDomSourceBlobObserved").GetBoolean() &&
-             root.GetProperty("nativeDomSourceOtherObserved").GetBoolean() &&
-             root.GetProperty("nativeDomSourceAttributeMissingObserved").GetBoolean() &&
-             root.GetProperty("nativeDomCelikomSourceMatched").GetBoolean(),
-            "W166 auto-support distinguishes CDP and passive DOM decoder source witnesses");
+             root.GetProperty("nativeDecoderUrlPropertyObserved").GetBoolean(),
+            "W130 auto-support distinguishes CDP player-property and kUrl visibility");
         var events = root.GetProperty("events");
         Test(events.GetArrayLength() <= 64 &&
              events.EnumerateArray().Any(x => x.GetProperty("code").GetString() ==

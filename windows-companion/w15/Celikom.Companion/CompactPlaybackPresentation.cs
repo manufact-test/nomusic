@@ -4,20 +4,15 @@ public static class CompactPlaybackPresentation
 {
     public const string VersionAvailableMessage = "Версия CELIKOM доступна";
     public const string ActiveVersionMessage = "Играет версия CELIKOM";
+    public const string IdleTrackPrompt = "Откройте Яндекс Музыку и выберите песню.";
     public const string ServiceEnabledMessage = "Сервис включён";
-    // Extra room belongs to the disabled/placeholder state only.
+    // Idle/disabled copy keeps its original breathing room. A real track status
+    // stays compact, with only a 2 px gap before the Account card.
     public const int TrackStatusBottomSpacingPx = 18;
-    // The live track status is a single compact line, not a 40 px spacer.
     public const int ActiveTrackStatusHeightPx = 28;
-    public const int ActiveTrackStatusBottomSpacingPx = 4;
+    public const int ActiveTrackStatusBottomSpacingPx = 2;
 
-    public enum StatusTone { Neutral, Accent, Danger }
-
-    public static StatusTone VersionStatusTone(bool hasProblem, bool activelyReplacing) =>
-        hasProblem ? StatusTone.Danger :
-        activelyReplacing ? StatusTone.Accent : StatusTone.Neutral;
-
-    public const string ConnectingMessage = "Подождите, идёт подключение\nк приложению Яндекса.";
+    public const string ConnectingMessage = "Подождите, идёт подключение\nк Яндекс Музыке.";
 
     public static string StaleHeartbeatMessage(string? playbackState) => playbackState switch
     {
@@ -64,6 +59,57 @@ public static class CompactPlaybackPresentation
         bool playerUnavailable) =>
         bridgeEnabled && heartbeatFresh && !playerUnavailable;
 
+    public static bool ShouldShowModuleUpdateHint(bool playbackEnabled, bool startInProgress,
+        bool autoReconnectBusy, bool moduleMismatch) =>
+        !playbackEnabled && !startInProgress && !autoReconnectBusy && moduleMismatch;
+
+    public static bool CanCompleteStartPresentation(bool integrationBusy, bool moduleMatches,
+        bool startupComplete) =>
+        !integrationBusy && moduleMatches && startupComplete;
+
+    // Green is reserved for proof about the current audible decoder source.
+    // Mapping, availability, a connected service or PAUSED state are insufficient.
+    public static bool ActiveReplacementStatusIsGreen(bool bridgeEnabled, bool heartbeatFresh,
+        string? source, string? playbackState, string? nativeStatus, string? presenceStatus) =>
+        heartbeatFresh && source == "ACTIVE_REPLACEMENT" && playbackState == "PLAYING" &&
+        PlaybackSourceEvidence.Verified(bridgeEnabled, nativeStatus, presenceStatus);
+
+    // An empty track at initial connection is guidance, not a Next transition.
+    public static bool ShouldShowIdleTrackPrompt(bool enabled, bool heartbeatFresh,
+        bool playerUnavailable, bool connecting, bool seenTrack,
+        string? playbackState, TimeSpan noTrackFor) =>
+        enabled && heartbeatFresh && !playerUnavailable && !connecting &&
+        !seenTrack && playbackState == "UNKNOWN" &&
+        noTrackFor >= TimeSpan.FromMilliseconds(2500);
+
+    // An approved available version and connected pause are positive statuses,
+    // but "playing CELIKOM" still requires strict current-decoder proof.
+    public static bool StatusIsGreen(string? visibleText,
+        bool enabled, bool heartbeatFresh, bool playerUnavailable,
+        bool versionApproved, bool replacementVerified) =>
+        ServiceConnected(enabled, heartbeatFresh, playerUnavailable) &&
+        ((visibleText == ActiveVersionMessage && replacementVerified) ||
+         (visibleText == VersionAvailableMessage && versionApproved) ||
+         visibleText == "Пауза");
+
+    // W169: bridge/renderer briefly lose track identity while moving between
+    // songs. Keep the last displayed real title for a bounded 2.5-second
+    // handoff only while the native player is still alive. Do not hide real
+    // Stop, app loss, VPN recovery or a failed native host.
+    public static bool HoldPreviousTrackDuringGap(bool enabled, bool heartbeatFresh,
+        bool playerUnavailable, bool networkRecovering, bool connecting,
+        bool previouslyHadTrack, string? previousTitle,
+        string? nativeStatus, string? playbackState, TimeSpan elapsed) =>
+        enabled && heartbeatFresh && !playerUnavailable &&
+        !networkRecovering && !connecting && previouslyHadTrack &&
+        !string.IsNullOrWhiteSpace(previousTitle) &&
+        nativeStatus is "RESOLVING" or "NATIVE_CONNECTED" or
+            "NATIVE_MAPPING_ACCEPTED" or "NATIVE_SOURCE_VERIFIED" or
+            "NATIVE_ORIGINAL_SOURCE_VERIFIED" or "NATIVE_RECOVERING" &&
+        playbackState is "UNKNOWN" or "PLAYING" or "PAUSED" &&
+        elapsed >= TimeSpan.Zero &&
+        elapsed <= TimeSpan.FromMilliseconds(2500);
+
     public static string NetworkRecoveryPlaybackMessage(string? playbackState) => playbackState switch
     {
         "PLAYING" => "Музыка продолжает играть.",
@@ -93,7 +139,7 @@ public static class CompactPlaybackPresentation
             "PLAYING" => "Играет. Данные текущего трека недоступны.",
             "PAUSED" => "Пауза",
             "STOPPED" => "Воспроизведение остановлено",
-            _ => "Ожидаем воспроизведения в Яндекс Музыке…"
+            _ => ""
         };
     }
 }

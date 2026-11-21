@@ -6,6 +6,12 @@ on:
     # documentation pushes must not create intermediate Windows installers.
     branches:
       - main
+      # W167 isolated internal owner-review build; main remains unchanged.
+      - experiment/windows-w167-owner-ui-regressions-20261116
+      # W170 upload-cleanup owner-review package from the accepted Windows line.
+      - experiment/windows-w170-mainline-20261121
+      # W172 verified Yandex 5.128.0 compatibility owner-review build.
+      - experiment/windows-w172-yandex-51280-compat-20261121
     paths:
       - windows-companion/w20/owner-review-package-20261114.request
   workflow_dispatch:
@@ -26,10 +32,10 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Setup Node 22 (only for building embedded assets)
+      - name: Setup Node 24 (only for building embedded assets)
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - name: Build CELIKOM native host and renderer files
         shell: pwsh
         working-directory: windows-companion/w23

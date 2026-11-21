@@ -17,6 +17,7 @@ public sealed class ApiFailure(int code, string category) : Exception(category)
 public sealed class CelikomApi : IDisposable
 {
     private readonly HttpClient _http;
+    private readonly HttpMessageHandler? _contributionHandler;
     private readonly SessionStore _store;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     // Prevent an in-flight auth refresh (or login) from resurrecting a user
@@ -34,6 +35,9 @@ public sealed class CelikomApi : IDisposable
             : new HttpClient(handler);
         _http.Timeout = TimeSpan.FromSeconds(9);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("CELIKOM-WindowsCompanion/0.15");
+        // Reuse the injected transport in contract tests; production keeps the
+        // original fresh-per-upload client to avoid stale connections after VPN changes.
+        _contributionHandler = handler;
     }
 
     public SecretRecord Settings => Volatile.Read(ref _current);
@@ -459,9 +463,13 @@ public sealed class CelikomApi : IDisposable
         if (!GrantValidator.IsTrackId(trackId) || !IsLoggedIn)
             throw new ApiFailure(401, "INVALID_SESSION");
         var auth = Settings;
-        using var http = new HttpClient(new HttpClientHandler
-            { AllowAutoRedirect = false, UseCookies = false })
-            { Timeout = TimeSpan.FromMinutes(2) };
+        using var http = _contributionHandler is null
+            ? new HttpClient(new HttpClientHandler
+                { AllowAutoRedirect = false, UseCookies = false })
+                { Timeout = TimeSpan.FromMinutes(2) }
+            : new HttpClient(_contributionHandler, disposeHandler: false)
+                { Timeout = TimeSpan.FromMinutes(2) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("CELIKOM-WindowsCompanion/0.15");
         using var form = new MultipartFormDataContent();
         form.Add(new StringContent("yandex"), "service");
         form.Add(new StringContent(trackId), "track_id");
@@ -510,6 +518,8 @@ public sealed class CelikomApi : IDisposable
                 ? e.GetString() ?? "CONTRIBUTION_FAILED" : "CONTRIBUTION_FAILED";
             throw new ApiFailure((int)response.StatusCode, error);
         }
+        if (audioFile is not null && response.StatusCode != HttpStatusCode.Accepted)
+            throw new ApiFailure(502, "UPLOAD_NOT_CONFIRMED");
         return result;
     }
 
@@ -524,7 +534,7 @@ public sealed class CelikomApi : IDisposable
     private static string SafeMetadata(string value) =>
         value is { Length: <= 240 } && !value.Any(char.IsControl) ? value.Trim() : "";
 
-    public Task<JsonElement> UploadTrackAsync(string id, string audioFile, long durationMs,
+    public async Task<JsonElement> UploadTrackAsync(string id, string audioFile, long durationMs,
         string title, string artist, Guid requestKey, IProgress<int>? progress,
         CancellationToken ct = default)
     {
@@ -539,7 +549,16 @@ public sealed class CelikomApi : IDisposable
             ["artist"] = SafeMetadata(artist),
             ["album"] = ""
         };
-        return SendContributionAsync("uploads", id, fields, audioFile, ct, progress);
+        // Local preflight only inspects the selected file. Send its original bytes
+        // unchanged; the shared server performs authoritative MP3 cleanup.
+        var result = await SendContributionAsync("uploads", id, fields, audioFile, ct, progress);
+        if (result.ValueKind != JsonValueKind.Object ||
+            !result.TryGetProperty("status", out var status) ||
+            status.ValueKind != JsonValueKind.String || status.GetString() != "pending" ||
+            !result.TryGetProperty("replacement_id", out var replacementId) ||
+            !replacementId.TryGetInt64(out var idValue) || idValue < 1)
+            throw new ApiFailure(502, "UPLOAD_NOT_CONFIRMED");
+        return result;
     }
 
     public void Dispose() { _http.Dispose(); _refreshLock.Dispose(); }
