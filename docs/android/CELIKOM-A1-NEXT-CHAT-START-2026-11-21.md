@@ -47,22 +47,31 @@
 - Добавлены regression tests для позднего Flow, границы prepare, bounded wait и точной идентичности Player source → MediaPeriod → TrackWrapper.
 - Это исправления в существующей цепочке, не новая архитектура. Не считать их доказанными на телефоне до анализа диагностики.
 
-## Следующий шаг
-Ожидаемый следующий вход — TXT-диагностика владельца после проверки BETA12. Сначала прочитать её целиком и сопоставить фактические события:
-- publisher Track ID и точный source-bound resolve;
-- ответ/причина grant gate;
-- original Player setter и его generation;
-- descriptor → factory → тот же unopened DataSource;
-- `DECISION_ALTERNATE`, `DATASOURCE_ARMED`, `AUDIO_OPEN/READ`.
+## BETA12 на телефоне: что выявлено 21.11.2026
+Файл: `CELIKOM-A1-Diagnostics-1795261506252(1).txt`. Владелец слышит оригинал.
 
-Не просить повторно устанавливать APK, делать скриншоты, использовать ADB/кабель/PowerShell/IDE, если диагностика не покажет реальную необходимость. Не выпускать APK ради новых счётчиков. Следующий шаг должен исправлять конкретный разрыв, обнаруженный в последней диагностике.
+- Улучшение относительно BETA11: `ORIGINAL_CREATOR_KEY_CONFIRMED=FEW`, `ORIGINAL_SETTER=ONE`, `OWNER_RESOLVE_REQUEST=ONE` (раньше source-bound resolve не происходил).
+- `OWNER_RESOLVE_APPROVED=NONE`, `OWNER_RESOLVE_NOT_APPROVED_FLAG=FEW`, `OWNER_RESOLVE_NOT_FOUND=NONE`, `OWNER_RESOLVE_NOT_ENTITLED=NONE`, `OWNER_NETWORK_OR_RESPONSE_ERROR=NONE`, `GRANT_ADMITTED=NONE`. Это оказалось **отсутствием** ключей ответа, а не явным серверным отказом.
+- `EXACT_PREPARE=FEW`, `DECISION_ALTERNATE=NONE`, `DATASOURCE_ARMED=NONE`, `AUDIO_OPEN/READ=NONE`, `CELIKOM_REPLACEMENT=NOT_CONNECTED`. Wrapper→descriptor/factory/DataSource всё ещё не подтверждён; исправление resolve ещё не доказывает звук.
+- Старый `DIAGNOSTIC_BETA_BUILD=A1_TRACKID_BETA11...` в BETA12 был неизменённым маркером; для BETA13 метка исправлена.
+
+## Установленная причина и исправление
+- Выполнен **только читающий** SSH-аудит реально развёрнутого сервера через GitHub Actions: run `44902845389` SUCCESS. Действующий `ResolveService.php` SHA-256 `eb8069111eb10b236d4ae69fd70f4bb7da818048212d14dc960b16640d5bbe18`, не совпадает с кодом ветки (`c56a49b5a3703dea69794201cf4be4dbe3cbe133871de72d3edc574897eaa040`).
+- Реальный API v1 выдаёт `found=true`, но без `approved` и `entitled`. В этом сервере каталог выбирает только approved + active + not disabled, а маршрут включает account/entitlement access и signed session URL. Live-строку БД через PHP CLI получить не удалось (`LIVE_DB_READONLY_CHECK=UNAVAILABLE`), не утверждать, что SQL-строка проверена. Сам сервер **не изменён**.
+- Android `NativeOwnerControlPlane.approvedAudio()` раньше превращал отсутствие этих полей в false. Точечная правка `ab40154a81fc046b51e3b8b2e2662f30f916111b`: legacy-положительный ответ допускается только если оба поля отсутствуют, `found=true`, подписанный билет имеет строгую форму `/api/v1/audio/{id}?token=...&expires=...&sid=...`; explicit false, частичные схемы, чужие адреса/отсутствие sid отклоняются. Полный `NativeGrantContract`, оригинальные source/Track/Album проверки и реальная audio Range проверка остаются.
+- JVM workflow `44903018408` SUCCESS (включая regression на legacy-safe контракт и Ramil lineage). ARM13 `44903018363`, clone-alone `44903018414` требуют проверки завершения. Одноразовый read-only audit workflow удалён, чтобы не захламлять репозиторий.
+
+## Следующий шаг
+После зелёного native CI экспортировать BETA13 одним owner-phone APK. Один тест той же «Ау» непосредственно из альбома: 00:43–00:54. Никаких ADB, очистки данных или повторного логина.
+
+Если ещё оригинал, проверить в TXT сначала `OWNER_RESOLVE_APPROVED`, `GRANT_ADMITTED`, `DECISION_ALTERNATE`, `DATASOURCE_ARMED`, `AUDIO_OPEN/READ`, затем source lineage. Не начинать NAV40/NAV45 и не выпускать диагностические APK без правки. Только реальное звучание подтверждает успех.
 
 ## Жёсткие ограничения
 - Не начинать проект заново, не менять архитектуру, не повторять NAV40/NAV45.
 - Не трогать закрытые маршруты LyEa/LCK1.
 - Не ослаблять Track ID, Album ID, source identity, подписи или fail-closed проверки.
 - Не менять сервер/оригинальный Яндекс.
-- Не утверждать, что live Hostinger/admin DB проверена: в предыдущей сессии авторизованного доступа к ней не было. Проверять самостоятельно только если доступный авторизованный браузер реально есть.
+- PHP-код живого сервера проверен read-only SSH, но SQL-строку действующей БД прочитать не удалось. Не заявлять, что БД проверена или подтверждён звук.
 - Работать крупными последовательными блоками; без мелких промежуточных отчётов.
 
 ## Документация
