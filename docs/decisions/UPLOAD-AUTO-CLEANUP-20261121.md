@@ -57,3 +57,8 @@ Stable baseline: fix/desktop-wave-metadata-20261118 @ d12cdcdaf96b95710b93e78389
 Owner installed 0.4.78 and uploaded several real songs. Read-only workflow 44883847547 inspected all five new replacement records after activation. All five are pending, each has one submission, matching physical size/SHA-256, compatible measured duration, canonical already-normalized MP3 bytes and successful full decoding of the stored object. Active release remains upload-cleanup-823c0613c212. Moderation/catalog/account data were not modified.
 
 The report is CMS-encrypted before being attached to Actions; titles, asset identifiers and hashes are not printed in public CI logs. No user audio is copied out of hosting. Exact original metadata cleanup per upload cannot be reconstructed: current schema retains the canonical asset/submission digest, not original tags, raw bytes or a per-upload removed-byte counter. Do not infer that a particular song required repair merely because the stored file is clean. This verifies ingestion/storage/decodability, not musical correctness of the replacement or every possible future input.
+
+
+## Subsequent admin-only restoration
+
+On 2026-11-21, release admin-bulk-restore-067968ce4eae cloned the active upload-cleanup release and restored six Admin files only. The upload pipeline/normalizer/private decoder are preserved byte-for-byte by its exact-delta assertion. All five owner songs were already approved before that restoration and were not remoderated. See docs/admin/ADMIN-BULK-RESTORE-20261121.md for the missing bulk/search recovery and shared snapshot deployment warning.
