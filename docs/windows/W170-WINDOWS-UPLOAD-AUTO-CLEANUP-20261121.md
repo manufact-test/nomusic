@@ -40,6 +40,27 @@ Only upload-related source and contract tests were changed:
 4. `CelikomApi.UploadTrackAsync` now requires HTTP 202 plus a `pending` response and positive `replacement_id`. A generic 2xx or malformed success body is not reported as an accepted upload.
 5. Server `invalid_mp3`, `invalid_m4a`, `upload_too_large` and unconfirmed responses have readable Windows messages. Failed POSTs are not automatically retried.
 
+## Verification — completed 21 November 2026
+
+- Main CI: [run 44887076540](https://github.com/manufact-test/nomusic/actions/runs/44887076540) — **SUCCESS**.
+- Windows integration CI: [run 44887076485](https://github.com/manufact-test/nomusic/actions/runs/44887076485) — **SUCCESS**.
+- W20 internal safe-installer staging: [run 44887071981](https://github.com/manufact-test/nomusic/actions/runs/44887071981) — **SUCCESS**.
+- W15 contract tests: `W15_NATIVE_CONTRACT_PASS 467`.
+- W23 native tests: **156 passed**; W24 image-builder tests: **20 passed**; W21 recovery contract: **41 passed**; renderer bundle: **PASS**.
+- GUI and update supervisor compiled with warnings treated as errors.
+- Installer validation, PE version/anti-downgrade checks, disposable per-user install/uninstall smoke, single-installer ZIP packaging and SHA256 manifest all passed.
+- PR #65 is open as a draft and reports mergeable. `main` has not been modified; keep the PR draft until the owner finishes runtime checks.
+
+## Internal owner-review package
+
+- App: **0.24.52.0**; update supervisor: **0.24.52.0**; native host/module unchanged (**0.24.32**).
+- Installer: `CELIKOM-W170-WINDOWS-UPLOAD-CLEANUP-02452-UNSIGNED.exe`
+- ZIP: `CELIKOM-Windows-0.24.52.zip` (contains exactly one root installer, byte-identical to the standalone EXE).
+- Installer SHA256: `4a5c75bc70a936acfbc6af0c1c9d03281921203afce75b5fed55473a7ef59dc7`
+- ZIP SHA256: `edd505333e400f0ef5da3d0c0aff3983b14255979cb5eb0f4d6fb7c7f5e67a4c`
+- Actions artifact ID: `14700675953`, run `44887071981`, expires **1 December 2026, 08:58:05 UTC**.
+- Artifact includes the EXE, ZIP and `SHA256SUMS.txt`; both hashes were independently recalculated and matched. Package remains internal and unsigned; no production release, signing or feed publication.
+
 ## Tests added
 
 Synthetic, non-musical fixtures cover:
@@ -54,7 +75,7 @@ Synthetic, non-musical fixtures cover:
 - original MP3 bytes preserved through multipart upload;
 - HTTP 202 / pending confirmation, same-request-ID duplicate retry, rejection of generic 200, and propagation of server `invalid_mp3`.
 
-The real owner-provided problem MP3 and a real damaged MP3 still need an installed Windows build and owner runtime verification. Synthetic fixtures do not replace that check.
+The CI checks above passed, but synthetic fixtures do not replace owner runtime verification. The real owner-provided repairable MP3, a known damaged MP3, and a retry after a lost response still need to be tested in the installed 0.24.52 build. No owner diagnostics have been reviewed yet.
 
 ## Scope guard
 
@@ -62,7 +83,7 @@ W170 upload changes do not modify playback, volume, Next/Previous, radio, audio 
 
 ## Next
 
-1. Run Windows integration CI and W15 contract tests on the PR.
-2. Fix any build/test failures without expanding scope.
-3. Build one internal Windows owner-review package from the accepted 0.24.51 line.
-4. Owner tests: the known repairable MP3, a damaged MP3, and retrying the same upload after a lost response.
+1. Owner tests the known repairable MP3, a damaged MP3, and retrying the same upload after a lost response.
+2. Review any diagnostics the owner supplies; fix only confirmed W170 upload regressions.
+3. Keep PR #65 in draft and keep `main` unchanged until owner runtime acceptance.
+4. Do not rebuild or publish another package unless a code fix is needed.
