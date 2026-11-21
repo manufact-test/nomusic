@@ -1,3 +1,15 @@
+# CURRENT WINDOWS W170 (21 November 2026)
+
+Read **`docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md`** FIRST. Work branch: `experiment/windows-upload-auto-cleanup-20261121`; accepted baseline: app **0.24.51.0**, native **0.24.32**, source checkpoint before W170 docs: `3b4531082e081c2e98f84b3b5aa3b9d50c2d6f0e`. The current `main` was backed up at `backup/windows-main-pre-upload-cleanup-20261121` @ `affb7b225d2e7eb2835f53294e975a1e60bb758b` and has not been modified. The working branch is based on the exact accepted 0.24.51 snapshot, not the stale 0.24.48 main Windows source.
+
+**W170 implementation:** Windows already uses shared `POST /api/v1/uploads`. MP3 local duration preflight was aligned with the extension's bounded metadata parser; it accepts known repairable leading ID3/Info/Xing/APE/ID3v1 variants without rewriting the selected file. The original MP3 is sent unchanged. The client now requires HTTP 202 plus `status=pending` and a positive `replacement_id` before reporting success. Server `invalid_mp3` and unconfirmed responses have readable errors. Existing 30 MiB limit, 1.5 s tolerance, rights declaration, request ID and duplicate-submit guard remain.
+
+**Scope:** no playback, volume, Next/Previous, radio, Android, native Yandex integration, access, moderation, billing, or server code/deployment changes. The shared server cleanup was already deployed and verified; never redeploy the historical server branch.
+
+**Verification status:** W170 synthetic tests added for multiple ID3v2.4 blocks/footer, duplicate Info/Xing headers, interleaved tags, APEv2, UTF-8 inflated ID3v1, embedded metadata rejection, duration boundary, original-byte preservation, HTTP 202 confirmation, idempotent retry, and server decoder rejection. Windows integration CI and owner runtime checks are still pending. No new installer/ZIP has been claimed.
+
+---
+
 # CURRENT WINDOWS W169 (17 November 2026)
 
 Read **`docs/windows/W169-TRACK-HANDOFF-AND-YANDEX-RESTART-GUARD-20261117.md`** before any other Windows history. Active source: UI `1ac135ba5312473cc6c7feca8d1f5f57726f5342`, native exception guards `b2f9131132e26020fd861dcb71d3c33b8ff9a0c1`. App **0.24.51.0**, native **0.24.32**, backup `backup/windows-w169-pre-track-handoff-crash-investigation-20261117` @ `92e0d9e63f5fd7dc7f243d7c2a2202cf5ad8b2de`. Owner says green status in 0.24.50 works; preserve it. No VPN modifications. **Actual Yandex restart mechanism not proven by old diagnostics; guards eliminate unsafe unhandled Node rejection/callback failure but runtime owner must confirm.**
