@@ -38,6 +38,15 @@ mkdir -p "$input/payload"
 tar -xzf "$input/payload.tar.gz" -C "$input/payload"
 old=$(readlink -f "$root/current")
 [[ "$old" == "$root/releases/"* ]]
+# A test/docs-only follow-up must not redeploy an identical application delta.
+if "$php" -r '
+$m=json_decode(file_get_contents($argv[2]),true,16,JSON_THROW_ON_ERROR);
+foreach($m as $n=>$h)if(!is_file($argv[1]."/src/Admin/".$n)||hash_file("sha256",$argv[1]."/src/Admin/".$n)!==$h["after"])exit(1);
+' "$old" "$input/payload/manifest.json"; then
+  "$php" "$input/payload/smoke.php" "$old" active
+  echo ADMIN_REJECTED_CLEANUP_ALREADY_CURRENT_PASS
+  exit 0
+fi
 test ! -e "$candidate" && test ! -e "$backup"
 env_hash=$(sha256sum "$root/shared/env" | awk '{print $1}')
 public_hash=$(sha256sum "$public_index" | awk '{print $1}')
