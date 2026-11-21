@@ -32,6 +32,8 @@ final class NativeEarlySourceLifecycleBridge
     // Only a real original Retrofit trackId matched to same source creator
     // may enter this coordinator. Album+edition are still independently needed.
     private String originalPublisherTrackIdCandidate;
+    private String requestedLimitedBetaTrackId;
+    private boolean publisherTrackIdConflict;
     private static final class PendingApprovedAudio {
         final String track,album,edition,origin;
         final long durationMs;
@@ -102,9 +104,13 @@ final class NativeEarlySourceLifecycleBridge
     }
 
     /** Only an explicit CELIKOM owner-authenticated UI action may call this. */
-    synchronized void startForAuthenticatedOwner() { lifecycle.start(); }
+    synchronized void startForAuthenticatedOwner() {
+        lifecycle.start();
+        requestLimitedBetaIfReady(latestSetterGeneration);
+    }
     synchronized void stopForAuthenticatedOwner() {
         lifecycle.stop();
+        requestedLimitedBetaTrackId=null;
         pendingApprovedAudio=null;
         deferredIssuedAudio=null;
         deferredIssuedGeneration=-1;
@@ -123,6 +129,8 @@ final class NativeEarlySourceLifecycleBridge
         albumRef=null;
         sourceRef=null;
         originalPublisherTrackIdCandidate=null;
+        requestedLimitedBetaTrackId=null;
+        publisherTrackIdConflict=false;
         pendingApprovedAudio=null;
         deferredIssuedAudio=null;
         deferredIssuedGeneration=-1;
@@ -159,10 +167,22 @@ final class NativeEarlySourceLifecycleBridge
 
     @Override public synchronized void originalPublisherTrackIdCandidate(
             long generation,String originalId) {
-        if(generation==latestSetterGeneration
-                && originalId!=null
-                && NativeGrantContract.isExactTrackId(originalId))
-            originalPublisherTrackIdCandidate=originalId;
+        if(generation!=latestSetterGeneration || originalPeriodPrepareSealed
+                || originalPeriodRef!=null || publisherTrackIdConflict
+                || !NativeGrantContract.isExactTrackId(originalId))return;
+        if(originalPublisherTrackIdCandidate!=null
+                && !originalPublisherTrackIdCandidate.equals(originalId)) {
+            // A second identity for one setter generation is ambiguity, not
+            // a reason to replace the first grant candidate.
+            publisherTrackIdConflict=true;
+            originalPublisherTrackIdCandidate=null;
+            pendingApprovedAudio=null;
+            lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
+            notifyAll();
+            return;
+        }
+        originalPublisherTrackIdCandidate=originalId;
+        requestLimitedBetaIfReady(generation);
     }
 
     @Override public synchronized void completed(long generation,boolean succeeded) {
@@ -179,15 +199,41 @@ final class NativeEarlySourceLifecycleBridge
             lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
             return;
         }
-        // Exact Track/Album/source are original Java references. Only the
-        // publisher-signed Retrofit trackId + creator tCa key can name this
-        // one selection. This is NOT an original album/edition identity.
-        LimitedBetaGrantRequester requester=limitedBetaRequester;
-        if(requester!=null && lifecycle.isEnabled()
-                && NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate)) {
-            NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.ORIGINAL_SETTER);
-            requester.request(generation,trackRef.get(),albumRef.get(),
-                sourceRef.get(),originalPublisherTrackIdCandidate);
+        // The source setter may complete before its creator Track enters
+        // Flow. A later exact same-Track Flow observation can supply the
+        // publisher ID and will re-enter this same guarded request path.
+        requestLimitedBetaIfReady(generation);
+    }
+
+    private void requestLimitedBetaIfReady(long generation) {
+        if(generation!=latestSetterGeneration || !originalSetterSucceeded
+                || publisherTrackIdConflict || !lifecycle.isEnabled()
+                || originalPeriodPrepareSealed || originalPeriodRef!=null
+                || limitedBetaRequester==null
+                || !NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate))
+            return;
+        if(requestedLimitedBetaTrackId!=null) {
+            if(requestedLimitedBetaTrackId.equals(originalPublisherTrackIdCandidate))return;
+            publisherTrackIdConflict=true;
+            originalPublisherTrackIdCandidate=null;
+            pendingApprovedAudio=null;
+            lifecycle.cancelPendingNativeSelection(lifecycleGeneration);
+            notifyAll();
+            return;
+        }
+        Object track=trackRef==null?null:trackRef.get();
+        Object album=albumRef==null?null:albumRef.get();
+        Object source=sourceRef==null?null:sourceRef.get();
+        if(track==null || album==null || source==null)return;
+        requestedLimitedBetaTrackId=originalPublisherTrackIdCandidate;
+        NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.ORIGINAL_SETTER);
+        try {
+            limitedBetaRequester.request(generation,track,album,source,
+                requestedLimitedBetaTrackId);
+        } catch(Throwable ignored) {
+            requestedLimitedBetaTrackId=null;
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.OWNER_NETWORK_OR_RESPONSE_ERROR);
         }
     }
 
@@ -245,8 +291,9 @@ final class NativeEarlySourceLifecycleBridge
             Object originalTrack,Object originalAlbum,Object originalSource,
             String exactPublisherTrackId,NativeGrantContract.Grant serverGrant,
             String allowedOrigin) {
-        if(!lifecycle.isEnabled() || originalPeriodPrepareSealed
-                || originalPeriodRef!=null || pendingApprovedAudio!=null
+        if(!lifecycle.isEnabled() || publisherTrackIdConflict
+                || originalPeriodPrepareSealed || originalPeriodRef!=null
+                || pendingApprovedAudio!=null
                 || !isSuccessfulOriginalSource(generation,originalTrack,
                     originalAlbum,originalSource)
                 || originalPublisherTrackIdCandidate==null
@@ -281,6 +328,7 @@ final class NativeEarlySourceLifecycleBridge
     /** Optional bounded grace window on the native Exo worker, never UI thread. */
     synchronized void awaitLimitedBetaGrantAtPrepare(long maxMs) {
         if(!lifecycle.isEnabled() || !originalSetterSucceeded
+                || publisherTrackIdConflict
                 || !NativeTrackIdBetaPolicy.allows(originalPublisherTrackIdCandidate)
                 || pendingApprovedAudio!=null || originalPeriodPrepareSealed
                 || maxMs<=0)return;
