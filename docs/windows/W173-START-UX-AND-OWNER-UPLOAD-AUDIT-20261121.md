@@ -98,7 +98,7 @@ PR #65 is an older W170 draft pointing at the 0.24.52 branch, not this W173 0.24
 W173 **0.24.54.0** was promoted to the canonical Windows production line on GitHub `main`.
 
 - PR: [#67](https://github.com/manufact-test/nomusic/pull/67) — merged successfully by squash.
-- Current `main` SHA: `aa713b99824f20abbe7c239bf06e356cf3f7f367`.
+- W173 code-promotion squash-merge commit: `aa713b99824f20abbe7c239bf06e356cf3f7f367`. Handoff documentation was committed afterward; resolve the live `main` ref before any future ref operation.
 - Pre-merge backup: `backup/windows-main-pre-w173-consolidation-20261121` @ `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
 - PR general CI [44898409654](https://github.com/manufact-test/nomusic/actions/runs/44898409654) and Windows integration CI [44898409698](https://github.com/manufact-test/nomusic/actions/runs/44898409698): SUCCESS.
 - Main general CI [44898706705](https://github.com/manufact-test/nomusic/actions/runs/44898706705), Windows integration CI [44898706600](https://github.com/manufact-test/nomusic/actions/runs/44898706600), and W20 safe installer stage [44898706605](https://github.com/manufact-test/nomusic/actions/runs/44898706605): SUCCESS.
