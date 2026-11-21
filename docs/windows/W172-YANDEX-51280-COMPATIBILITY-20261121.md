@@ -2,6 +2,8 @@
 
 Date: 21 November 2026
 
+**Historical checkpoint:** W172/0.24.53 is superseded by W173/0.24.54.0, which keeps the Yandex 5.128.0 compatibility work and fixes the owner-reported Start presentation. Current status and the mainline-consolidation task are in `W173-START-UX-AND-OWNER-UPLOAD-AUDIT-20261121.md`, `W174-MAINLINE-CONSOLIDATION-20261121.md` and `NEXT-CHAT.md`.
+
 ## Repository and safety
 
 - Repository: `manufact-test/nomusic`
