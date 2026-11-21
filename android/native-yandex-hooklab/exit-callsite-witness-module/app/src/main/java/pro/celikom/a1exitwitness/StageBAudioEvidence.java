@@ -197,6 +197,13 @@ final class StageBAudioEvidence {
         NativeTrackIdBetaPolicy.mark(
             NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_ID_OBSERVED);
     }
+    // An expired issuer ticket is a hard rejection: it must never turn into
+    // a weaker constructor-only fallback when the callback arrived too late.
+    private boolean hasObservedPublisherTicket(String id) {
+        for(AsyncIssuerObservation observed:unscopedIssuerObservations)
+            if(id!=null && id.equals(observed.id))return true;
+        return false;
+    }
     private boolean issuerTicketMatchesCreator(WrapperBirth birth) {
         if(birth==null || !NativeTrackIdBetaPolicy.allows(
                 birth.originalConstructorKey))return false;
@@ -392,19 +399,22 @@ final class StageBAudioEvidence {
             match=item;
         }
         if(match==null) {
-            // Original tCa constructor key, original creator Track identity,
-            // and an independently observed exact Retrofit trackId must all
-            // match within a short cross-thread window.
-            if(!issuerTicketMatchesCreator(birth)
-                    || (birth.scopeAtBirth==12
-                        && (!birth.laterFlowEmitted
-                            || !wasNativeTrackFlowItem(track))))return null;
+            // Cached original audio can skip the Retrofit FileInfo call.
+            // The unchanged publisher tCa(String) constructor is an alternate
+            // source of the SAME allowlisted track key, but ONLY for its exact
+            // creator-owned Track, subsequently seen in original Flow.
+            if((birth.scopeAtBirth==12 && !birth.laterFlowEmitted)
+                    || !wasNativeTrackFlowItem(track))return null;
+            boolean hadIssuer=issuerTicketMatchesCreator(birth);
+            if(!hadIssuer && hasObservedPublisherTicket(birth.originalConstructorKey))
+                return null; // stale ticket, never weaken its window
             match=new BetaTrackIdLink(track,birth.originalConstructorKey);
             if(betaTrackIds.size()>=32)betaTrackIds.remove(0);
             betaTrackIds.add(match);
-            NativeTrackIdBetaPolicy.mark(
-                NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_CREATOR_BOUND);
-            NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.mark(hadIssuer
+                ?NativeTrackIdBetaPolicy.Step.ISSUER_ASYNC_CREATOR_BOUND
+                :NativeTrackIdBetaPolicy.Step.ORIGINAL_CREATOR_KEY_CONFIRMED);
+            if(hadIssuer)NativeTrackIdBetaPolicy.mark(
                 NativeTrackIdBetaPolicy.Step.ISSUER_TRACKID);
         }
         if(match.conflict
@@ -439,9 +449,23 @@ final class StageBAudioEvidence {
         if(exact==null || exact[0]!=track || exact[1]!=albumOrBetaToken)
             return null;
         WrapperBirth birth=uniqueOriginalCreatorBirth(wrapper);
-        if(birth==null || !issuerTicketMatchesCreator(birth))return null;
+        if(birth==null || !NativeTrackIdBetaPolicy.allows(
+                birth.originalConstructorKey))return null;
         for(PublisherTrackIdLink existing:publisherTrackIds)
             if(existing.track.get()==track)return null; // conflict never overwritten
+        for(BetaTrackIdLink existing:betaTrackIds)
+            if(existing.track.get()==track)return null;
+        if(!issuerTicketMatchesCreator(birth)) {
+            if(hasObservedPublisherTicket(birth.originalConstructorKey)
+                    || !wasNativeTrackFlowItem(track)
+                    || (birth.scopeAtBirth==12 && !birth.laterFlowEmitted))
+                return null;
+            // Original signed tCa(String), same Track+Album+wrapper and Flow.
+            // No guessed latest ID, UI title, network rewriting or second player.
+            NativeTrackIdBetaPolicy.mark(
+                NativeTrackIdBetaPolicy.Step.ORIGINAL_CREATOR_KEY_CONFIRMED);
+            return birth.originalConstructorKey;
+        }
         if(publisherTrackIds.size()>=32)publisherTrackIds.remove(0);
         PublisherTrackIdLink linked=new PublisherTrackIdLink();
         linked.track=new WeakReference<>(track);
@@ -933,6 +957,16 @@ final class StageBAudioEvidence {
                 issuerClock.getAsLong()));
         }
         if (track==null || wrapper==null) return;
+        // Warm a strictly allowlisted first-party constructor key even if
+        // original FileInfo is already cached and Retrofit is never invoked.
+        // Warm never authorizes a source: the real setter and signed grant do.
+        if(fromExactTcaCreator) {
+            String key=numericOriginalId(originalConstructorArg);
+            if(NativeTrackIdBetaPolicy.allows(key)) {
+                AuthenticatedPublisherTrackPrefetch prefetch=ownerTrackPrefetch;
+                if(prefetch!=null)prefetch.warm(key);
+            }
+        }
         // In the issuer-signed creator, Track may reach Flow AFTER tCa
         // construction. Preserve the creator's exact Album/source lineage
         // without falsely promoting historical NAV40 Flow status.
