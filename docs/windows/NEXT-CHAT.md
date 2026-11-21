@@ -26,13 +26,13 @@ Read **`docs/windows/W172-YANDEX-51280-COMPATIBILITY-20261121.md`** first. This 
 - Official installer and inner EXE signatures verified; actual 5.128.0 image builder passed; byte-exact install/restore sandbox passed.
 - W24 native image contract: 20 passed; W21 recovery: 41 passed; W15 native/Start contract: 467 passed.
 - GUI warnings-as-errors build passed.
-- W20 owner installer staging [44892155319](https://github.com/manufact-test/nomusic/actions/runs/44892155319) was still running when this handoff was written. Add the final artifact ID and hashes after completion.
+- W20 owner installer staging [44892155319](https://github.com/manufact-test/nomusic/actions/runs/44892155319) — SUCCESS. Artifact [14703035385](https://github.com/manufact-test/nomusic/actions/runs/44892155319/artifacts/14703035385), expires 1 December 2026, 10:02 UTC. Installer SHA256: `3869af717c7f85841d2853799065d00002f605ac31ed871000e76cc56c51451d`; ZIP SHA256: `5c37df6ce37cd6bcbf9a0a5fa46bdd83da3d5fb9d3ac85ffa3093ce3c61f4cf4`.
 
 CI proves signed vendor provenance and reversible integration construction. It does not prove audible replacement on the owner's PC. The owner must still test playback and a real MP3 upload after installing 0.24.53.
 
 ## Owner handoff
 
-When the W20 package is ready, provide the single installer and its ZIP/checksums. Owner installs over the existing CELIKOM app; do not uninstall CELIKOM or Yandex and do not ask for a Yandex downgrade. Then test Start, mapped replacement playback, and real MP3 upload. If anything fails, request the CELIKOM diagnostic and fix only the confirmed issue.
+Owner package is ready: `CELIKOM-W172-YANDEX-51280-COMPATIBILITY-02453-UNSIGNED.exe` and `CELIKOM-Windows-0.24.53.zip`. Install over the existing CELIKOM app; do not uninstall CELIKOM or Yandex and do not ask for a Yandex downgrade. Then test Start, mapped replacement playback, and real MP3 upload. If anything fails, request the CELIKOM diagnostic and fix only the confirmed issue.
 
 ---
 
