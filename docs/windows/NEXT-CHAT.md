@@ -23,7 +23,7 @@ The owner has said the latest version appears to work and wants it made primary.
 - Current Windows work branch: `experiment/windows-w172-yandex-51280-compat-20261121`.
 - W173 source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; later commits on the W173 branch are documentation/handoff updates. Resolve the live branch HEAD from GitHub before making any ref changes.
 - W173 app and Update Supervisor: **0.24.54.0**; Native: **0.24.32**.
-- W173 branch is 84 commits ahead of main; merge base is exactly main HEAD above. Re-read the full compare/diff before merging. The changed-file inventory includes Windows W15/W20/W24/W81 code, Windows CI/workflows and Windows docs; no server or Android source files appeared in the current compare.
+- The initial W173 comparison reported 84 commits ahead of main, with merge base exactly main HEAD above; documentation-only handoff commits were added afterward. Re-run the live compare and inspect the full diff before merging. The changed-file inventory at that check included Windows W15/W20/W24/W81 code, Windows CI/workflows and Windows docs, with no server or Android source.
 - Main pre-W170 backup exists: `backup/windows-main-pre-upload-cleanup-20261121` at `affb7b225d2e7eb2835f53294e975a1e60bb758b`. Still create a fresh pre-consolidation backup before the mainline operation.
 
 ## W173 implementation and verification
