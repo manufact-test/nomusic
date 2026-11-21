@@ -88,6 +88,11 @@ public static class AudioPreflight
         uint U32(int at, bool little = false) =>
             little ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(at, 4)) :
                 BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(at, 4));
+        int[] mpeg1Bitrates =
+            [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+        int[] mpeg2Bitrates =
+            [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144];
+        int[] baseRates = [44100, 48000, 32000];
 
         var position = 0;
         var tagCount = 0;
@@ -130,10 +135,8 @@ public static class AudioPreflight
             if ((header >> 21) != 0x7ff || version == 1 || layer != 1 ||
                 bitrateIndex is < 1 or > 14 || rateIndex == 3) return null;
 
-            int[] bitrates = version == 3
-                ? [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
-                : [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144];
-            var rate = new[] { 44100, 48000, 32000 }[rateIndex] /
+            var bitrates = version == 3 ? mpeg1Bitrates : mpeg2Bitrates;
+            var rate = baseRates[rateIndex] /
                 (version == 3 ? 1 : version == 2 ? 2 : 4);
             var frameBytes = (int)Math.Floor((version == 3 ? 144d : 72d) *
                 bitrates[bitrateIndex] * 1000 / rate) + (int)((header >> 9) & 1);
@@ -190,7 +193,6 @@ public static class AudioPreflight
             if (++audioFrames > 500000 || samples / (double)sampleRate > 86400) return null;
         }
 
-        var audioEnd = position;
         var end = size;
         if (end - position >= 128 && Marker(end - 128, "TAG")) end -= 128;
         if (end - position >= 32 && Marker(end - 32, "APETAGEX"))
