@@ -1,5 +1,5 @@
 CELIKOM Windows W170 — one private internal owner-review build, 21 November 2026
-App 0.24.52.0. Native host and native module version remain unchanged.
+App 0.24.52.0; update supervisor 0.24.52.0. Native host and native module version remain unchanged.
 Current branch: experiment/windows-w170-mainline-20261121
 Accepted Windows UI baseline: backup/windows-02451-owner-accepted-exact-20261117 @ c717428a7d9f01fc8e33b482fcf66a9ed1a02947
 Main pre-work backup: backup/windows-main-pre-upload-cleanup-20261121 @ affb7b225d2e7eb2835f53294e975a1e60bb758b
