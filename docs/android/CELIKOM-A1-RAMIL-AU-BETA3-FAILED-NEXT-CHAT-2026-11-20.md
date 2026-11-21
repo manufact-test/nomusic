@@ -1,3 +1,18 @@
+## BETA7 (21.11.2026) — точная причина провала BETA6, исправлено в runtime
+
+Owner HONOR 50 BETA6: TXT `CELIKOM-A1-Diagnostics-1795242480443.txt` доказывает `ISSUER_PROXY_CREATED=ONE`, direct FileInfoApi, ClassLoader `MATCH`, `METHOD_SELECTION=NO_EXACT_TRACKID_ANNOTATION`. Поэтому issuer method/handler/trackId отсутствуют, звук остался оригинальным.
+
+**Прямая точечная DEX-проверка** встроенного неподменённого signed `origin.apk`, SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`:
+- `classes4.dex` `FileInfoApi.if` — String parameter index 0, annotation `LVz8;` с `value="trackId"` (обфусцированный Retrofit Query), далее девять параметров codecs/transports/quality/ts/sign/measuredNetworkSpeedKbps/estimatedNetworkSpeedKbps/network/device.
+- `DownloadInfoApi.if` — String parameter index 0, annotation `Lfj7;` с `value="trackId"` (обфусцированный Retrofit Path), далее direct/preview/formatFlags.
+- Прежний Java filter в `PublisherTrackIdProxyContract.readAnnotationValue()` принимал только строки `retrofit2.http.Query/Path`, поэтому все фактические аннотации подписанного оригинала игнорировались. Унаследованность не является причиной BETA6 отказа.
+
+Минимально исправлен только exact annotation name mapping: `Vz8 → QUERY`, `fj7 → PATH`, при прежнем строгом `value="trackId"`, безопасном типе и единственном оригинальном handler invocation. JVM contract tests включают точные R8 Java annotation fixtures, неизменность аргументов, отрицательный чужой annotation type с тем же `trackId`. Не вводились произвольные захваты типов и не менялся оригинальный Retrofit.
+
+Код: `91c7c48a83e3a835df8eb8bf0cf5583e8c092f10`. JVM + paired ARM13 workflow [#44876036321 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44876036321), clone-only ARM13 [#44876036314 SUCCESS](https://github.com/manufact-test/nomusic/actions/runs/44876036314). APK: [artifact ID 14696546070](https://github.com/manufact-test/nomusic/actions/runs/44876036321/artifacts/14696546070), SHA256 `3d57b7127afb66fd63c9ec6c6a1e06e2d89b440556434ec726c16140b0f4814c`; ZIP SHA256 `802cfcd745f283450c09436190a3fb546338f892fdb19616ac3909a2259a4e44`. Persistent owner signer verified, install `UPDATE_EXISTING`.
+
+Ограничение: CI verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. Настоящее аудио не проверено; BETA7 только ожидает owner-phone test. Следующее действие — установить поверх BETA6 без очистки, Ramil' «Ау» 00:43–00:54; при оригинале прислать TXT. Порядок дальнейшего gate: issuer method → handler → trackId → beta creator → original setter → grant → prepare → alternate DataSource.
+
 ## BETA6 — точечное исправление issuer proxy и подписанная сборка владельцу (20.11.2026)
 
 **Код:** `092e68b19b9bb124794406d77a98d94eb0e0a3fe` в единственной рабочей ветке. Предыдущая функциональная реализация selector/runtime metadata: `cc42614618d4d9e1127709123d31b1ae350790a2`.

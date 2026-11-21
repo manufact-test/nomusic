@@ -1,25 +1,20 @@
-# АКТУАЛЬНАЯ ТОЧКА — 20.11.2026, BETA6 issuer proxy correction
+# АКТУАЛЬНАЯ ТОЧКА — 21.11.2026, BETA7 exact signed Retrofit R8
 
-**Начинать отсюда:** [подробная история BETA5 → BETA6](CELIKOM-A1-RAMIL-AU-BETA3-FAILED-NEXT-CHAT-2026-11-20.md) и [инструкция владельцу](../../android/native-yandex-hooklab/device-audio-trial/README-RU.txt).
+- Единственный repo/branch: `manufact-test/nomusic`, `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Код BETA7: `91c7c48a83e3a835df8eb8bf0cf5583e8c092f10`. Следующие коммиты после него документальные.
+- **BETA6 провалилась на HONOR 50.** В реальном TXT `CELIKOM-A1-Diagnostics-1795242480443.txt`: `OWNER_ENABLED=ONE`, `ISSUER_PROXY_CREATED=ONE`, direct `FileInfoApi`, все ClassLoader и набор интерфейсов `MATCH`; `METHOD_SELECTION=NO_EXACT_TRACKID_ANNOTATION`, `ISSUER_METHOD_SELECTED=NONE`, `ISSUER_HANDLER_INVOKE=NONE`, `ISSUER_TRACKID=NONE`, `CELIKOM_REPLACEMENT=NOT_CONNECTED`.
+- **Точная причина доказана прямой проверкой встроенного в BETA6 неподменённого signed `origin.apk`**, SHA256 `1d0527a1b63e4d6eab7671258ec42a87e6e36b53e2c1f352c25a5b6f8ffb1b56`. В `classes4.dex` оригинального Yandex Music 2025.10.4 `FileInfoApi.if`: первый String parameter имеет runtime `@LVz8;(value="trackId")` (обфусцированный Retrofit Query); `DownloadInfoApi.if`: первый String parameter имеет `@Lfj7;(value="trackId")` (обфусцированный Retrofit Path). BETA6 сравнивала имена аннотаций только с `retrofit2.http.Query/Path`; поэтому неверно игнорировала точные оригинальные annotations. Это **НЕ** проблема наследования или ClassLoader.
+- BETA7 минимально распознаёт только эти две дополнительных **точно установленных** аннотации, оставляя проверку `value="trackId"`, точный аргумент, разрешённые типы, fail-closed неоднозначность и один `chain.proceed()` оригинального handler. Никаких generic String/number перехватов.
+- JVM `#44876036321` PASS (включая реальный Java Proxy с фикстурами `Vz8` / `fj7`, нетронутые аргументы, handler exactly once и отрицательные кейсы). Основной Android ARM13 `#44876036321` PASS; clone-only Android ARM13 `#44876036314` PASS; owner signer `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf` совпадает с установленным, `UPDATE_EXISTING`, phone untouched.
+- Новая подписанная **BETA7**: [GitHub Actions artifact #14696546070](https://github.com/manufact-test/nomusic/actions/runs/44876036321/artifacts/14696546070), внутри `CELIKOM-A1-RAMIL-AU-BETA7-HONOR50-20261121.apk` (71,573,484 bytes, SHA256 `3d57b7127afb66fd63c9ec6c6a1e06e2d89b440556434ec726c16140b0f4814c`). ZIP SHA256 `802cfcd745f283450c09436190a3fb546338f892fdb19616ac3909a2259a4e44`.
+- CI verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`: CI не слушал музыку, не логинился в аккаунт и не доказал подмену; owner phone QA **ещё не проводилось для BETA7**.
+- Следующий единственный шаг: поставить BETA7 **поверх BETA6** без удаления/очистки, включить Ramil' «Ау» ID `144530503` и послушать 00:43–00:54. Если цензурный оригинал — экспортировать TXT; ожидаем `ISSUER_METHOD_SELECTED` и затем `ISSUER_HANDLER_INVOKE`/`ISSUER_TRACKID`; если первый из них сработает, идти дальше по уже известной цепочке `EXACT_BETA_CREATOR → ORIGINAL_SETTER → signed grant → prepare → DataSource`. Не трогать нижние звенья без реального `ISSUER_TRACKID`.
+- Не трогать Test.50, NAV40, NAV45, Windows, backend/production, оригинал Яндекса, архитектуру. Не исследовать снова AppMetrica, DEX вширь или renderer.
 
-- Repo: `manufact-test/nomusic`
-- Единственная рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
-- Текущий HEAD: `092e68b19b9bb124794406d77a98d94eb0e0a3fe`.
-- Последний проверенный код BETA6: marker `A1_TRACKID_BETA6_INHERITED_ISSUER_PROXY_20261120`.
-- BETA5 на HONOR 50 не выбрал issuer method: `ISSUER_METHOD_SELECTED=NONE`, `ISSUER_HANDLER_INVOKE=NONE`, `ISSUER_TRACKID=NONE`.
-- Исправлен ранний selector: теперь анализируется реальный Java Proxy, прямые интерфейсы и унаследованные public методы через `getMethods()`; принимаются только точные `@Query("trackId")` / `@Path("trackId")` с разрешёнными типами. Неоднозначные/неподдерживаемые формы fail-closed. Оригинальный handler вызывается через единственный `chain.proceed()`.
-- В TXT BETA6 добавлены bounded `AUDIO_ISSUER_PROXY_SHAPE` строки: direct interfaces, declaring interface/method, DECLARED/INHERITED, аннотация/тип параметра, proxy/API/method ClassLoader и итог выбора. Сводка хранится в памяти, чтобы не потерять её, если proxy создаётся до открытия локального diagnostic-файла.
-- JVM + Android ARM13 CI: **PASS**, основной owner-phone workflow [#44786330536](https://github.com/manufact-test/nomusic/actions/runs/44786330536). Отдельный clone-only ARM13 smoke тоже PASS. Это проверка сборки/запуска, **не** доказательство аудиоподмены.
-- Подписанный owner APK: [BETA6 APK ZIP artifact](https://github.com/manufact-test/nomusic/actions/runs/44786330536/artifacts/14655387093), artifact ID `14655387093`. APK SHA256: `7432616df603b4fc7e670d598caf874be35a8b7756f2cbb41b1e1675a9218e43`. ZIP SHA256: `7e1fcd76aa9c86013d1de65c9ef121db5abe9943aababd51b83c1336f37e595e`.
-- Persistent owner signer проверен: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`; режим установки `UPDATE_EXISTING`. Физический телефон владельца CI не трогал.
-- **Следующий шаг владельца:** установить BETA6 поверх BETA5, не удаляя приложение и не очищая данные; открыть клон и проверить Ramil' «Ау» ID `144530503`, участок `00:43–00:54`. Если звучит оригинал — экспортировать TXT одной кнопкой и прислать. В TXT проверить `AUDIO_ISSUER_PROXY_SHAPE` и новые issuer counters.
-- Пока владелец не услышал альтернативу в оригинальном Яндекс-плеере, статус остаётся `CELIKOM_REPLACEMENT=NOT_CONNECTED`. Pause/Seek/Next/MyWave не проверять до подтверждения самой подмены.
-
-**Ограничения:** не менять NAV40/NAV45/Test.50, Windows, backend/production и оригинальное приложение Яндекса. Не начинать новые AppMetrica/DEX/renderer исследования. Не объявлять аудиоподмену рабочей по CI или регистрации hooks.
-
-Ниже сохранена предыдущая история и старые handoff; их HEAD/статусы архивные и не считать актуальными.
+Ниже история BETA6 и прежние handoff, не считать её последними результатами.
 
 ---
+
 
 
 # CURRENT 20.11.2026 — real original Exo encoded-byte route, exact signed seek position, approval handoff
