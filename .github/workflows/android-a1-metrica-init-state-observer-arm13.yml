@@ -25,6 +25,7 @@ on:
       - 'android/native-yandex-hooklab/tests/src/Vz8.java'
       - 'android/native-yandex-hooklab/tests/src/fj7.java'
       - 'android/native-yandex-hooklab/tests/src/ObfuscatedPublisherApis.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
