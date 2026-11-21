@@ -6,7 +6,6 @@ Date: 21 November 2026
 
 - Repository: `manufact-test/nomusic`
 - W172 branch: `experiment/windows-w172-yandex-51280-compat-20261121`
-- Final W172 handoff HEAD: `c41bea8edbe58fcdb924c7c8b05d42cf276cb4a9`.
 - Exact pre-W172 rollback branch: `backup/windows-w172-pre-yandex-51280-20261121` @ `6ce4cc21352912ab31578190007042397e083f64`
 - Parent owner-review line: `experiment/windows-w170-mainline-20261121`; W170 PR #65 remains draft and separate.
 - `main` was not changed.
