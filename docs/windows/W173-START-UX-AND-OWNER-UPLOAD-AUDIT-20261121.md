@@ -94,7 +94,7 @@ The previously reported “Каменные цветы” sample (Track ID `4859
 3. Continue real playback and upload checks.
 4. No special metadata samples or cleanup journal are required for acceptance. Continue ordinary real-song uploads; investigate only if a real file fails or is stored incorrectly.
 
-Keep W170 PR #65 in draft. Do not merge or publish without owner approval.
+PR #65 is an older W170 draft pointing at the 0.24.52 branch, not this W173 0.24.54 candidate. Do not merge it as-is. The owner has requested W173 become canonical on `main`; follow the reviewed mainline-consolidation sequence in `docs/windows/NEXT-CHAT.md`.
 
 ## Mainline consolidation handoff
 
@@ -102,7 +102,7 @@ The owner requested that the latest working Windows version become the canonical
 
 Current repository state at handoff:
 - `main` remains at `affb7b225d2e7eb2835f53294e975a1e60bb758b`; its Windows app and Update Supervisor projects still declare **0.24.48**.
-- W173 working branch: `experiment/windows-w172-yandex-51280-compat-20261121`; current documentation HEAD at handoff: `cfa6b37350ee7d944ba73db265831c59c30ac84f`.
+- W173 working branch: `experiment/windows-w172-yandex-51280-compat-20261121`; use `docs/windows/NEXT-CHAT.md` for the current branch HEAD and mainline-consolidation handoff.
 - W173 code/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; app and Update Supervisor **0.24.54.0**, Native **0.24.32**.
 - W173 is 84 commits ahead of main, with merge base exactly `affb7b225d2e7eb2835f53294e975a1e60bb758b`. The current compare shows Windows W15/W20/W24/W81 source plus Windows docs/workflow changes; no server source or Android source appears in the changed-file list. Re-check the complete diff before merging.
 - PR #65 remains an open draft but points to the older W170 branch `experiment/windows-w170-mainline-20261121` at `6ce4cc21352912ab31578190007042397e083f64`, not the W173 candidate. PR #64 is a closed duplicate. Do not merge PR #65 as-is.
