@@ -6,9 +6,9 @@ Date: 21 November 2026
 
 The owner wants one clear canonical CELIKOM Windows production line. The latest working version should be in GitHub `main`; older competing Windows snapshots and obsolete experiment/PR clutter should be cleaned up afterward so it is obvious which version is current.
 
-Target candidate: **W173 / CELIKOM Windows 0.24.54.0**, Update Supervisor **0.24.54.0**, Native **0.24.32**, official Yandex Music **5.128.0**.
+Target candidate: **W173 / CELIKOM Windows 0.24.54.0**, Update Supervisor **0.24.54.0**, embedded native host/module marker **0.24.31**, official Yandex Music **5.128.0**.
 
-The owner says the latest version appears to work and is suitable to become primary. The conversation explicitly confirms Yandex 5.128.0 works and real songs reached moderation. The 0.24.54 W173 package was built to remove the extra red “Yandex updated” prompt and preserve the existing Start click. If the exact 0.24.54 installation is not clearly confirmed in the next chat, verify only that point before final acceptance; do not restart broad tests or rebuild without a concrete issue.
+The owner explicitly confirmed that he installed the exact W173 0.24.54.0 package, checked it, and it works. This exact package/source is the authoritative owner-accepted candidate. Do not ask for another confirmation, repeat broad runtime testing, or rebuild without a concrete failure.
 
 ## Repository snapshot
 
@@ -61,7 +61,7 @@ The audit inspected canonical files after cleanup. It cannot retrospectively tel
 
 1. Read `docs/windows/NEXT-CHAT.md` and this document. Inspect the current refs again; do not rely blindly on this snapshot if main or W173 moved.
 2. Inspect full commit graph and complete file diff from current main to W173. Verify that only intended Windows code/docs/workflow changes are included. Confirm no server, Android, browser-extension, access or unrelated admin changes are accidentally entering main.
-3. Confirm the exact owner-accepted build is 0.24.54.0. If there is ambiguity about whether the W173 installer was installed and tested, ask one concise question; do not claim owner acceptance based only on CI.
+3. Treat W173 0.24.54.0 as owner-accepted: the owner has already installed and tested this exact package. Proceed with the verified source; do not ask him to repeat the check.
 4. Create a new immutable backup branch from current main.
 5. Create a fresh PR from W173 to main. PR #65 cannot represent W173 because its head is an older branch. Put the exact target versions and CI evidence in the new PR description.
 6. Run full main CI, Windows integration CI, W20 safe installer validation and all applicable gates against the exact PR head. Fix only real failures.
