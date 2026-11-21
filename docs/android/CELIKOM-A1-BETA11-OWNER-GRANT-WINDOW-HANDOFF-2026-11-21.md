@@ -39,6 +39,13 @@
 - Owner is correct that «Ау» is selected directly from the album and that the Windows desktop + extension already replace this exact song. Historical mapping in project evidence: album `38902809`, track `144530503`, approved/active replacement #1, 180872 ms MP3, prior byte-for-byte match with extension record. Do not request MyWave discovery or ask owner to re-establish this fact.
 - Correct interpretation of BETA11 `OWNER_RESOLVE_NOT_APPROVED=ONE`: this was one aggregate fail of `found && approved && entitled && mime == audio/mpeg`; the TXT did not reveal which operand failed. It did not prove the server row was absent/unapproved.
 - Found direct client parity bug: extension requests `audio_formats=mp3,m4a`, Android requested `audio_formats=mp3` and rejected all but `audio/mpeg`, while server `ResolveService` filters M4A unless both formats are requested. Shared Android grant contract + Exo alternate byte route already allow `audio/mp4`.
-- Branch candidate HEAD `cbe70bb0d050ff9172272dc997af868e963e1ef1` implements dual-format resolve, strict MPEG/MP4 response validation, MP3/M4A-specific Range signature checks, shared approval gate for certified and limited-beta paths, and per-reason privacy-safe counters. JVM issuer-proxy contract test passed; ARM13 module build/workflow `44893567368` was still in progress at the last check. No APK exported/installed.
+- Branch candidate HEAD `de67ab7e1eb58d64d4901e8d3e54499055e4553b` implements dual-format resolve, strict MPEG/MP4 response validation, MP3/M4A-specific Range signature checks, shared approval gate for certified and limited-beta paths, and per-reason privacy-safe counters. JVM issuer-proxy contract test passed; ARM13 module build/workflow `44893567368` was still in progress at the last check. No APK exported/installed.
 - Separate source identity gap remains: latest TXT still has no `ORIGINAL_SETTER`, `NATIVE_MAIN_SOURCE_ENTER`, `WRAPPER_MAIN_SOURCE`, `TRACK_DESCRIPTOR_FACTORY_LINK`, `DECISION_ALTERNATE` or `DATASOURCE_ARMED`. The creator Track/Album later Flow link exists, but no exact live original source-to-unopened-DataSource chain yet. Format patch alone cannot prove acoustic replacement.
 - No live admin/database inspection was performed in this chat. Historical approved mapping is already known. Do not ask owner for screenshots; use authenticated admin access only when a real logged-in browser/DB connection is available, and never claim that check was performed without it.
+
+
+### Latest verification update (21.11.2026)
+
+- Current branch HEAD: `de67ab7e1eb58d64d4901e8d3e54499055e4553b`.
+- Added explicit signed `audio/mp4` acceptance assertion to `NativeGrantContractTest.java`; isolated exact-identity Java workflow `44893887112` SUCCESS.
+- Latest owner audio workflow `44893907029`: JVM issuer-proxy/contract job SUCCESS; isolated ARM13 build/test job queued/in progress. No APK artifact yet.
