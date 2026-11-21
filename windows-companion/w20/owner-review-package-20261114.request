@@ -1,25 +1,19 @@
-CELIKOM Windows W170 — one private internal owner-review build, 21 November 2026
-App 0.24.52.0; update supervisor 0.24.52.0. Native host and native module version remain unchanged.
-Current branch: experiment/windows-w170-mainline-20261121
-Accepted Windows UI baseline: backup/windows-02451-owner-accepted-exact-20261117 @ c717428a7d9f01fc8e33b482fcf66a9ed1a02947
-Main pre-work backup: backup/windows-main-pre-upload-cleanup-20261121 @ affb7b225d2e7eb2835f53294e975a1e60bb758b
-Main remains unchanged until PR #65 is reviewed and merged.
+CELIKOM Windows W172 — one private internal owner-review build, 21 November 2026
+App 0.24.53.0; update supervisor 0.24.53.0; native host/module source unchanged (0.24.32).
 
-W170 changes ONLY the Windows upload path:
-- Existing authenticated multipart POST /api/v1/uploads is retained.
-- MP3 duration preflight now recognizes the bounded metadata variants accepted by the browser extension and shared server cleaner.
-- Local inspection never rewrites or transcodes the selected file; original bytes are sent to the shared server unchanged.
-- Require HTTP 202, status=pending and a positive replacement_id before displaying upload success.
-- Map invalid_mp3, invalid_m4a, upload_too_large and missing server confirmation to clear user messages.
-- Preserve 30 MiB size limit, 1.5-second duration tolerance, rights declaration, request_id deduplication and in-flight submit guard.
-- Full MP3 decoding and authoritative cleanup remain server-side. Server already deployed; DO NOT redeploy it.
+Yandex compatibility:
+- Official Yandex 5.128.0.r22145392 was extracted from the signed Yandex S3 installer.
+- Installer SHA256: 2f931b7e6fc340e7a6a0d67888c2f963e2547f4c393703424956487af3af73e7
+- Inner EXE SHA256: 0fdd7b7b25fed66701a61eda514767e15f735893782b331a05f830ad36f45f3d
+- app.asar SHA256: b50abc625d3f426aa140b17861f8075eff3e17d71b2038e48ded1b6592cb8d0b
+- W172 CI verified official publisher signature, native image construction, install/restore sandbox and preservation of original vendor bytes.
+- Older official Yandex pins and all previous snapshots remain additive; no existing backup is overwritten.
 
-No changes to playback, volume, Next/Previous, radio, audio routing, native Yandex host, Android, access, billing or moderation.
-No server files, server deployment, signing, production feed or release.
+W172 changes:
+- Add exact signed Yandex 5.128.0 vendor pair to the immutable CELIKOM compatibility catalog.
+- Keep the existing safe first-install and vendor-update snapshot lifecycle.
+- Previously approved ACTIVE installations can reconnect to this verified vendor update without another consent dialog.
+- Existing 5.126.1 and 5.127.0 compatibility entries remain unchanged.
 
-Expected output:
-- CELIKOM-W170-WINDOWS-UPLOAD-CLEANUP-02452-UNSIGNED.exe
-- CELIKOM-Windows-0.24.52.zip
-- SHA256SUMS.txt
-
-One owner-review installer only; stage-only distribution. Run W15 contract tests, W23 native tests, W24 image-builder tests, warnings-as-errors GUI/supervisor builds, safe install/upgrade/uninstall checks and exact installer/ZIP hashes.
+Package is INTERNAL ONLY and unsigned. Stage-only distribution; no production signing, feed publication, server deployment or claim of owner acoustic acceptance.
+Preserve saved CELIKOM login and subscription state. Installer must only replace CELIKOM application files; never bundle or deploy Yandex binaries.
