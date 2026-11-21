@@ -18,7 +18,7 @@ The owner says the latest version appears to work and is suitable to become prim
 - Main Windows app and Update Supervisor still declare **0.24.48**.
 - W173 source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`.
 - W173 branch: `experiment/windows-w172-yandex-51280-compat-20261121`.
-- W173 branch was 84 commits ahead of main, merge base exactly main snapshot above.
+- The initial W173 comparison reported 84 commits ahead of main, with merge base exactly main snapshot above; documentation-only handoff commits were added afterward. Re-run the live compare before merging.
 - Latest W173 package is internal/unsigned, not a signed public release.
 - Main pre-W170 backup exists: `backup/windows-main-pre-upload-cleanup-20261121` @ `affb7b225d2e7eb2835f53294e975a1e60bb758b`. Create a fresh backup immediately before mainline consolidation anyway.
 
