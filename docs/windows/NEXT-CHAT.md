@@ -21,8 +21,7 @@ The owner has said the latest version appears to work and wants it made primary.
 - `main` HEAD at handoff: `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
 - Main Windows app and Update Supervisor still declare **0.24.48**. This is older than the current owner candidate.
 - Current Windows work branch: `experiment/windows-w172-yandex-51280-compat-20261121`.
-- W173 source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`.
-- W173 source/package checkpoint is `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; later commits on the W173 branch are documentation/handoff updates. Resolve the live branch HEAD from GitHub before making any ref changes.
+- W173 source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; later commits on the W173 branch are documentation/handoff updates. Resolve the live branch HEAD from GitHub before making any ref changes.
 - W173 app and Update Supervisor: **0.24.54.0**; Native: **0.24.32**.
 - W173 branch is 84 commits ahead of main; merge base is exactly main HEAD above. Re-read the full compare/diff before merging. The changed-file inventory includes Windows W15/W20/W24/W81 code, Windows CI/workflows and Windows docs; no server or Android source files appeared in the current compare.
 - Main pre-W170 backup exists: `backup/windows-main-pre-upload-cleanup-20261121` at `affb7b225d2e7eb2835f53294e975a1e60bb758b`. Still create a fresh pre-consolidation backup before the mainline operation.
