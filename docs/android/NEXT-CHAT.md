@@ -1,3 +1,5 @@
+> **НОВАЯ ТОЧКА ПЕРЕДАЧИ 21.11.2026:** [BETA9 — ожидание реальной диагностики владельца](./CELIKOM-A1-BETA9-OWNER-TXT-NEXT-CHAT-2026-11-21.md). BETA9 APK загружен в ChatGPT Library (`/CELIKOM-A1-RAMIL-AU-BETA9-HONOR50-20261121.apk`, upload confirmed), поскольку sandbox-ссылка у владельца не скачивается. Записать следующий TXT только после проверки его `DIAGNOSTIC_BETA_BUILD`. Код BETA9 `7fac727c`; CI green, звук владельцем ещё не подтверждён. **Начинать со свежего owner TXT, не с архивных разделов ниже.**
+
 # АКТУАЛЬНАЯ ТОЧКА — 21.11.2026, BETA9 original issuer async ID → signed creator
 
 - Единственный repo/branch: `manufact-test/nomusic` / `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.

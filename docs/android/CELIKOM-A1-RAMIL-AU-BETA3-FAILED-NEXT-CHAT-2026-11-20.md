@@ -1,3 +1,5 @@
+> **АКТУАЛЬНАЯ ПЕРЕДАЧА 21.11.2026:** [BETA9 owner TXT next-chat](./CELIKOM-A1-BETA9-OWNER-TXT-NEXT-CHAT-2026-11-21.md). Подписанный BETA9 APK уже загружен в Библиотеку ChatGPT (успешно, `/CELIKOM-A1-RAMIL-AU-BETA9-HONOR50-20261121.apk`). Прежний sandbox URL у пользователя не работал. Следующая диагностика ещё не получена, звучание альтернативы не подтверждено. Сначала проверить маркер версии в новом TXT.
+
 ## BETA9, 21.11.2026 — verified async issuer ID gap and bounded original creator-join
 
 Owner BETA8 TXT `CELIKOM-A1-Diagnostics-1795247871997.txt`: publisher Retrofit exact `@Query("trackId")` API and handler operate, **`ISSUER_VALUE_TARGET_ALLOWLISTED=ONE`**, but **`ISSUER_VALUE_SCOPE_PRESENT=NONE` / `ISSUER_VALUE_SCOPE_ABSENT=FEW`**, `ISSUER_TRACK_SCOPE_MISSING=ONE`, no `ISSUER_TRACKID` or `ORIGINAL_SETTER`; CELIKOM session enabled, original player Exo reads observed, alternate audio never connected. Supported conclusion: issuer ID is intercepted **outside the original Track ThreadLocal scope**. Do not claim the exact thread or original caller asynchronous scheduling is independently proven.
