@@ -70,15 +70,24 @@ final class UploadService
         if ($size > $this->maxBytes) {
             throw new \LengthException('upload_too_large');
         }
-        // Inspect actual bytes independently of filename and browser MIME.
+        /* Only the authenticated, bounded upload is normalized. Original and stored
+         * digests are kept separate so retries from pre-cleanup clients remain valid. */
+        $originalSha = hash_file('sha256', $path);
+        if ($originalSha === false) throw new \RuntimeException('upload_hash_failed');
+        $preparedPath = null;
+        try {
         $isM4a = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)) === 'm4a';
         $mime = $isM4a ? 'audio/mp4' : 'audio/mpeg';
         $extension = $isM4a ? 'm4a' : 'mp3';
-        // The strict frame inspector, not finfo's platform-dependent guess,
-        // is the authoritative MP3 content check. Some valid tagged MP3s
-        // report application/octet-stream or application/x-id3.
-        $measuredDuration = $isM4a ? (new M4aInspector())->durationMs($path)
-            : (new Mp3Inspector())->durationMs($path);
+        if ($isM4a) {
+            $measuredDuration = (new M4aInspector())->durationMs($path);
+        } else {
+            $prepared = (new Mp3Normalizer())->prepare($path);
+            $preparedPath = $prepared['path'];
+            $path = $preparedPath; $size = $prepared['size'];
+            $measuredDuration = $prepared['duration_ms'];
+            (new Mp3DecodeValidator())->check($path);
+        }
         if ($measuredDuration === null) throw new \DomainException($isM4a ? 'invalid_m4a' : 'invalid_mp3');
         $known = $this->pdo->prepare('SELECT duration_ms FROM tracks WHERE service=? AND service_track_id=?');
         $known->execute([$service, $trackId]);
@@ -95,7 +104,7 @@ final class UploadService
         if ($existing !== null) {
             if (($existing['replacement_status'] ?? null) !== 'pending'
                 || $existing['service'] !== $service || $existing['service_track_id'] !== $trackId
-                || $existing['sha256'] !== $sha) {
+                || !in_array($existing['sha256'], [$sha, $originalSha], true)) {
                 throw new \DomainException('idempotency_conflict');
             }
             return ['status' => 'pending', 'replacement_id' => (int) $existing['replacement_id'], 'duplicate' => true];
@@ -103,7 +112,7 @@ final class UploadService
 
         // Fast path for an already queued track. We still repeat this under the
         // row lock to serialize two concurrent uploads with different MP3s.
-        $priorTrack = $this->existingTrackUpload($service, $trackId, $sha);
+        $priorTrack = $this->existingTrackUpload($service, $trackId, $sha, $originalSha);
         if ($priorTrack !== null) {
             return $priorTrack;
         }
@@ -140,7 +149,7 @@ final class UploadService
             $lockedDuration = $stmt->fetchColumn();
             if ($lockedDuration === false) throw new \RuntimeException('track_missing');
             if (abs($measuredDuration - (int) $lockedDuration) > 1500) throw new \DomainException('duration_mismatch');
-            $priorTrack = $this->existingTrackUpload($service, $trackId, $sha);
+            $priorTrack = $this->existingTrackUpload($service, $trackId, $sha, $originalSha);
             if ($priorTrack !== null) {
                 $this->pdo->commit();
                 return $priorTrack;
@@ -189,7 +198,7 @@ final class UploadService
             if ($error instanceof \PDOException && ($error->errorInfo[1] ?? null) === 1062) {
                 $retry = $this->submission($uploaderHash, $requestId);
                 if ($retry && ($retry['replacement_status'] ?? null) === 'pending' &&
-                    $retry['sha256'] === $sha && $retry['service_track_id'] === $trackId &&
+                    in_array($retry['sha256'], [$sha, $originalSha], true) && $retry['service_track_id'] === $trackId &&
                     $retry['service'] === $service) {
                     return ['status' => 'pending', 'replacement_id' => (int) $retry['replacement_id'], 'duplicate' => true];
                 }
@@ -197,17 +206,18 @@ final class UploadService
             }
             throw $error;
         }
+        } finally { if ($preparedPath !== null && is_file($preparedPath)) unlink($preparedPath); }
     }
 
     /** @return array{status:string,replacement_id:int,duplicate:bool}|null */
-    private function existingTrackUpload(string $service, string $trackId, string $sha): ?array
+    private function existingTrackUpload(string $service, string $trackId, string $sha, string $originalSha): ?array
     {
         $prior = (new TrackUploadStatusService($this->pdo))->get($service, $trackId);
         if ($prior === null) return null;
         if ($prior['status'] === 'approved') {
             throw new \DomainException('track_already_approved');
         }
-        if ($prior['sha256'] !== $sha) {
+        if (!in_array($prior['sha256'], [$sha, $originalSha], true)) {
             throw new \DomainException('track_pending');
         }
         return ['status' => 'pending', 'replacement_id' => (int) $prior['id'], 'duplicate' => true];

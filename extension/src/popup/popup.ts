@@ -673,7 +673,7 @@ uploadForm?.addEventListener("submit", async (event) => {
         invalid_session: "Войдите в аккаунт ещё раз.",
         rate_limited: uploadRateLimitMessage(),
         upload_too_large: "Файл превышает допустимый размер.",
-        invalid_mp3: "Файл не прошёл проверку MP3.",
+        invalid_mp3: "MP3 повреждён или содержит неподдерживаемые данные. Служебные теги очищаются автоматически; выберите другой исходный файл.",
         invalid_m4a: "M4A не поддерживается или повреждён. Нужен M4A с кодеком AAC без защиты DRM.",
         duration_mismatch: "Длительность файла не подходит для подмены. Выберите подходящую версию.",
         idempotency_conflict: "Повтор запроса не совпадает с исходным.",
@@ -860,7 +860,7 @@ async function syncBackgroundUpload(): Promise<void> {
     failed: saved.code==="rate_limited" || saved.httpStatus===429 ? uploadRateLimitMessage(saved.retryAt)
       : saved.code==="stalled"?"Соединение зависло. Проверьте интернет или VPN."
       : saved.code==="timeout"?"Сервер не ответил за две минуты. Проверьте статус трека."
-      : saved.code==="invalid_mp3"?"Файл не прошёл проверку MP3."
+      : saved.code==="invalid_mp3"?"MP3 повреждён или содержит неподдерживаемые данные. Выберите другой исходный файл."
       : "Загрузка не завершена. Попробуйте ещё раз."
   };
   uploadMessage((descriptions[saved.phase] || "Проверяем загрузку…") +

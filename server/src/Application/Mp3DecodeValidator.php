@@ -1,0 +1,50 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Celikom\Application;
+
+/* Decode to a null sink. No transcoding, network access, shell, or media output. */
+final class Mp3DecodeValidator
+{
+    public function check(string $path): void
+    {
+        $tools = dirname(__DIR__, 2) . '/tools';
+        $binary = $tools . '/mp3-validator';
+        if (!is_executable($binary) || !is_callable('proc_open')) throw new \RuntimeException('audio_validation_unavailable');
+        $lock = null;
+        for ($i = 0; $i < 2; ++$i) {
+            $candidate = @fopen($tools . '/decode-slot-' . $i . '.lock', 'c');
+            if ($candidate !== false && flock($candidate, LOCK_EX | LOCK_NB)) { $lock = $candidate; break; }
+            if ($candidate !== false) fclose($candidate);
+        }
+        if ($lock === null) throw new \RuntimeException('audio_validation_busy');
+        $process = null; $pipes = [];
+        try {
+            $process = proc_open([$binary, '-nostdin', '-hide_banner', '-v', 'error', '-xerror',
+                '-err_detect', 'explode', '-threads', '1', '-protocol_whitelist', 'file',
+                '-f', 'mp3', '-i', $path, '-map', '0:a:0', '-threads', '1', '-f', 'null', '-'],
+                [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['pipe', 'w']], $pipes,
+                null, ['LANG' => 'C', 'LC_ALL' => 'C'], ['bypass_shell' => true]);
+            if (!is_resource($process)) throw new \RuntimeException('audio_validation_unavailable');
+            stream_set_blocking($pipes[2], false);
+            $deadline = microtime(true) + 15; $errors = ''; $exit = -1;
+            do {
+                $chunk = stream_get_contents($pipes[2]);
+                if ($chunk !== false) $errors .= $chunk;
+                if (strlen($errors) > 8192) { proc_terminate($process, 9); throw new \DomainException('invalid_mp3'); }
+                $status = proc_get_status($process);
+                if (!$status['running']) { $exit = $status['exitcode']; break; }
+                if (microtime(true) >= $deadline) { proc_terminate($process, 9); throw new \RuntimeException('audio_validation_timeout'); }
+                usleep(10000);
+            } while (true);
+            $chunk = stream_get_contents($pipes[2]);
+            if ($chunk !== false) $errors .= $chunk;
+            if ($exit !== 0 || $errors !== '') throw new \DomainException('invalid_mp3');
+        } finally {
+            foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
+            if (is_resource($process)) { $status = proc_get_status($process); if ($status['running']) proc_terminate($process, 9); proc_close($process); }
+            flock($lock, LOCK_UN); fclose($lock);
+        }
+    }
+}

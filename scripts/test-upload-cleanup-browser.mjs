@@ -1,0 +1,76 @@
+import {access,readFile,writeFile,mkdtemp,rm,mkdir,cp} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {pathToFileURL} from 'node:url';
+let binary;
+for(const p of ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){try{await access(p);binary=p;break}catch{}}
+if(!binary){if(process.env.REQUIRE_BROWSER_AUDIO==='1')throw Error('Chromium required');console.log('Upload recovery native check deferred to CI');process.exit(0);}
+const fixture64=(await readFile('dist/upload-cleanup/fixture.mp3')).toString('base64');
+const directory=await mkdtemp(join(tmpdir(),'celikom-upload-recovery-'));
+try{
+ await cp('extension/dist/unpacked',join(directory,'runtime'),{recursive:true});
+ const runtimeVersion=JSON.parse(await readFile(join(directory,'runtime/manifest.json'),'utf8')).version;
+ const file=join(directory,'runtime/popup/popup.html');
+ let html=await readFile(file,'utf8');
+ html=html.replace('<script type="module" src="popup.js"></script>',`<script>
+ const nativeTimeout=window.setTimeout.bind(window);
+ window.setTimeout=(fn,ms,...args)=>nativeTimeout(fn,ms===30000||ms===60000?500:ms,...args);
+ const state={enabled:false,phase:'STOPPED',bridge:{healthy:true},track:{id:'1944599',confidence:260,ambiguous:false,metadata:{title:'Папиросы',artist:'Зануда',durationMs:200820}}};
+ let blockStart=false,blockVersion=false,finishStart,posts=0;
+ const access={allowed:true,source:'promo',reason:'promo_active',valid_until:null};
+ window.chrome={runtime:{getURL:p=>new URL('../'+p,location.href).href,getManifest:()=>({version:'0.4.47'}),sendMessage:async m=>{
+  if(m.type==='CELIKOM_STATUS_GET')return structuredClone(state);
+  if(m.type==='CELIKOM_ENABLED_SET'){
+   if(m.enabled&&blockStart)return new Promise(resolve=>finishStart=resolve);
+   state.enabled=m.enabled;state.phase=m.enabled?'READY':'STOPPED';return structuredClone(state);
+  }
+  if(m.action==='track-status')return blockVersion?new Promise(()=>{}):{ok:true,status:'none'};
+  if(m.action==='status')return {ok:true,available:true,signedIn:true,user:{email:'fixture@example.org'}};
+  if(m.action==='entitlement'||m.action==='access-preview')return {ok:true,entitlement:access};
+  if(m.action==='contribution-access')return {ok:true,access_token:'a'.repeat(64)};
+  return {ok:true,tickets:[]};
+ }},storage:{local:{get:async()=>({}),set:async()=>{},remove:async()=>{}},session:{get:async()=>({}),set:async()=>{},remove:async()=>{}}}};
+ window.fetch=async(url,options={})=>{if(options.method==='POST')posts++;return new Response(JSON.stringify(String(url).includes('/tracks/upload-status')?{status:'none'}:{baseUrl:'https://fixture.example',incident:{service:'yandex',active:false}}),{headers:{'content-type':'application/json'}});};
+ </script><script type="module">
+ (async()=>{try{
+  await import('./popup.js');
+  const wait=ms=>new Promise(resolve=>nativeTimeout(resolve,ms)),check=(v,m)=>{if(!v)throw Error(m)},q=s=>document.querySelector(s);
+  const until=async(test,label)=>{for(let i=0;i<150;i++){if(test())return;await wait(20);}throw Error(label);};
+  state.track.metadata.durationMs=2100;
+  await wait(30);q('[data-action=add]').click();await until(()=>!q('[data-upload-form]').hidden,'form');
+  const bytes=Uint8Array.from(atob('${fixture64}'),c=>c.charCodeAt(0));
+  const choose=b=>{const transfer=new DataTransfer();transfer.items.add(new File([b],'fixture.mp3',{type:'audio/mpeg'}));const input=q('[data-upload-file]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));};
+  choose(bytes);await until(()=>q('[data-upload-duration]').dataset.kind==='ok','repairable file blocked');
+  check(q('[data-upload-file]').files[0].size===bytes.length,'original retry identity preserved');
+  check(q('[data-upload-rights]').checked===false,'rights declaration never automated');
+  choose(bytes.slice(0,bytes.length-200));await until(()=>q('[data-upload-duration]').dataset.kind==='error','truncation not blocked');
+  check(q('[data-upload-submit]').disabled,'damaged upload button enabled');
+  choose(bytes);await until(()=>q('[data-upload-duration]').dataset.kind==='ok','valid file recovery blocked');
+  check(posts===0,'preflight sent unintended POST');
+  document.body.dataset.recoveryResult='pass';
+ }catch(e){document.body.dataset.recoveryResult=e.message}})();
+ </script>`);
+ await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
+ const browser=spawn(binary,['--headless=new','--allow-file-access-from-files','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe']});
+ let browserStderr='';browser.stderr.on('data',chunk=>{browserStderr=(browserStderr+chunk.toString()).slice(-4000);});
+ const exited=new Promise(resolve=>browser.once('exit',resolve));
+ let socket;
+ try{
+  const pause=ms=>new Promise(r=>setTimeout(r,ms));let port;
+  for(let i=0;i<200&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0];}catch{}if(!port)await pause(50);}
+  if(!port)throw Error('Chrome debug port unavailable: '+browserStderr);
+  const pages=await fetch('http://127.0.0.1:'+port+'/json/list').then(r=>r.json());const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable');
+  socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
+  let id=0;const pending=new Map();socket.onmessage=event=>{const m=JSON.parse(event.data);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(Error(m.error.message));else resolve(m.result);}};
+  const call=(method,params={})=>new Promise((resolve,reject)=>{const seq=++id;pending.set(seq,{resolve,reject});socket.send(JSON.stringify({id:seq,method,params}));});
+  let state;
+  for(let i=0;i<200;i++){
+   const r=await call('Runtime.evaluate',{expression:'JSON.stringify({result:document.body?.dataset.recoveryResult,step:document.body?.dataset.recoveryStep})',returnByValue:true});
+   state=JSON.parse(r.result.value||'{}');if(state.result)break;await pause(100);
+  }
+  if(state?.result!=='pass')throw Error('Upload recovery browser: '+(state?.result||'no result at '+state?.step));
+  const shot=await call('Page.captureScreenshot',{format:'png'});await writeFile(join(process.cwd(),'dist/layout-proof/upload-recovery.png'),Buffer.from(shot.data,'base64'));
+ }finally{socket?.close();browser.kill('SIGTERM');await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);}
+ console.log('NATIVE_CHROME_UPLOAD_CLEANUP_PASS: repairable MP3 selected via File/DataTransfer, damaged file blocked, retry restored, no POST');
+}finally{await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
