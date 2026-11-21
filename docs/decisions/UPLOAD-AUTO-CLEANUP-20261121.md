@@ -50,3 +50,10 @@ Owner confirmation using their own installed 0.4.78 upload remains pending; do n
 Do not re-run a successful deployment blindly: original-source digest guards intentionally reject a second installation. For rollback, first require that current still resolves to this release; atomically restore the path recorded in backup/previous-release and restore public index mtime. Never roll back over a later release from another chat. No DB or audio-asset rollback is required because this deployment performs neither migrations nor catalog writes. Future server rollouts must preserve these three classes and private tools or merge this upload delta first; deploying a historical complete server checkout would discard the feature.
 
 Stable baseline: fix/desktop-wave-metadata-20261118 @ d12cdcdaf96b95710b93e783898fe59488f27dff (owner accepted 0.4.77). Branch: feature/upload-auto-cleanup-20261121. Backend old UploadService SHA-256 dd4ec0501fb88b06e5aaf8d423fe83581fc7321207138cb0cdcad3128ab95c7b; old Mp3Inspector 0485502c2488a1125bd4b5d898133f68f7fb870914626d9659b330ee9f122a25.
+
+
+## Post-install owner upload check (2026-11-21)
+
+Owner installed 0.4.78 and uploaded several real songs. Read-only workflow 44883847547 inspected all five new replacement records after activation. All five are pending, each has one submission, matching physical size/SHA-256, compatible measured duration, canonical already-normalized MP3 bytes and successful full decoding of the stored object. Active release remains upload-cleanup-823c0613c212. Moderation/catalog/account data were not modified.
+
+The report is CMS-encrypted before being attached to Actions; titles, asset identifiers and hashes are not printed in public CI logs. No user audio is copied out of hosting. Exact original metadata cleanup per upload cannot be reconstructed: current schema retains the canonical asset/submission digest, not original tags, raw bytes or a per-upload removed-byte counter. Do not infer that a particular song required repair merely because the stored file is clean. This verifies ingestion/storage/decodability, not musical correctness of the replacement or every possible future input.
