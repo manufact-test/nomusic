@@ -12,7 +12,7 @@ public static class CompactPlaybackPresentation
     public const int ActiveTrackStatusHeightPx = 28;
     public const int ActiveTrackStatusBottomSpacingPx = 2;
 
-    public const string ConnectingMessage = "Подождите, идёт подключение\nк приложению Яндекса.";
+    public const string ConnectingMessage = "Подождите, идёт подключение\nк Яндекс Музыке.";
 
     public static string StaleHeartbeatMessage(string? playbackState) => playbackState switch
     {
