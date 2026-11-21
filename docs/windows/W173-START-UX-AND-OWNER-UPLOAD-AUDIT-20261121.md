@@ -74,10 +74,14 @@ All five:
 
 Four remain pending and inactive; one is approved and active. The original approved audio asset remains intact.
 
-Metadata observations in this new batch:
-- Four files have no detected ID3/APE/Info-Xing tail metadata.
-- “Наполовину пуст” has one ordinary Info/Xing frame.
-- None has duplicate Info/Xing frames separated by an interleaved ID3 tag or the extended UTF-8 ID3v1 tail. Therefore this batch confirms ordinary upload acceptance and storage integrity, but does not field-prove those two W170-specific edge patterns.
+**Correction — the metadata classification above is not evidence about the original uploads.** That script inspected files already stored after the 0.4.78 server-side cleanup. The absence of tags in a canonical stored MP3 does not mean the incoming file had no metadata; the cleanup may already have removed it. The database keeps the canonical digest and does not retain the raw upload or per-upload removed-tag counters. Therefore it is impossible to identify retrospectively which of replacements 1546–1550 required cleanup. The earlier wording implying that these source files lacked the special patterns is withdrawn.
+
+The correct follow-up audit covers every replacement created since the 0.4.78 activation, not just the five newest rows:
+- [Private read-only upload receipt check 44895271863](https://github.com/manufact-test/nomusic/actions/runs/44895271863) — **13 total; 13 checked; 13/13 stored hash, size, duration, canonical-normalizer and full-decode checks passed; 9 approved, 4 pending; 0 failed checks**.
+- Active release during this audit: `admin-rejected-cleanup-1b532497bf6e`. The audit successfully loaded and ran the cleanup normalizer and full decoder from that active release, confirming the feature survived the later server release.
+- This proves the stored results are canonical and fully decodable. It does **not** prove which original uploads contained removable metadata or how many bytes were removed.
+
+The actual 0.4.78 upload pipeline normalizes the authenticated raw MP3 in a private temporary file before measuring, decoding, hashing and storing it. The original upload bytes are not retained. To report per-song detections in future, the upload path needs a private cleanup receipt (input/output digest, removed ID3/Info-Xing/APE/ID3v1/padding counts and bytes, decoder result); the current schema and logs do not contain those fields.
 
 The previously reported “Каменные цветы” sample (Track ID `48591846`, replacement `30`) is present and approved/active. Its stored MP3 has two leading ID3v2.4 headers and one Info/Xing frame; the stored hash is valid and the live server inspector returns 277969 ms. This upload dates to 18 October, so it is a useful legacy sample but not a new W173 owner upload. The 0.24.51 baseline parser already handled consecutive leading ID3 tags; this sample does not prove the W170-only interleaved Info/Xing or extended UTF-8 ID3v1 cases.
 
