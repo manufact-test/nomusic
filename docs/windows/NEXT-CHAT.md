@@ -1,80 +1,59 @@
-# CURRENT WINDOWS W173 — make the latest working build canonical on main (21 November 2026)
+# CURRENT WINDOWS — canonical CELIKOM 0.24.54.0 on main (21 November 2026)
 
 Read these documents first:
 
-1. `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md` — exact next task: make the latest working Windows version canonical on main and safely remove obsolete Windows-only clutter.
-2. `docs/windows/W173-START-UX-AND-OWNER-UPLOAD-AUDIT-20261121.md` — latest Windows code, Yandex 5.128.0, Start UX correction, package and owner upload audit.
-3. `docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md` — original upload contract and Windows-side preflight details.
+1. `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md` — completed promotion record, final main SHA, CI and backup.
+2. `docs/windows/W173-START-UX-AND-OWNER-UPLOAD-AUDIT-20261121.md` — owner-accepted W173 implementation, Yandex 5.128.0 compatibility, Start UX and upload audit.
+3. `docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md` — original Windows upload compatibility contract.
 
-## Immediate next-chat task
-
-The owner wants the latest working CELIKOM Windows version to become the one canonical version in GitHub `main`. Main should no longer misleadingly show an older Windows version while the latest implementation lives on a side branch. After the correct version is established on main, clean up obsolete Windows-only experimental branches/PR clutter so the repository is easier to navigate.
-
-**Target:** W173 / CELIKOM Windows app **0.24.54.0**, Update Supervisor **0.24.54.0**, Native host/module **0.24.31**, compatible with official Yandex Music **5.128.0**.
-
-The owner explicitly confirmed that he installed the exact W173 0.24.54.0 package, checked it, and it works. Treat the W173 source/package checkpoint as the owner-accepted production candidate. Do not ask for another confirmation, repeat broad runtime tests, or rebuild without a concrete failure.
-
-## Exact repository state
+## Canonical production state
 
 - Repository: `manufact-test/nomusic`.
-- Default branch: `main`.
-- `main` HEAD at handoff: `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
-- Main Windows app and Update Supervisor still declare **0.24.48**. This is older than the current owner candidate.
-- Current Windows work branch: `experiment/windows-w172-yandex-51280-compat-20261121`.
-- W173 source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; later commits on the W173 branch are documentation/handoff updates. Resolve the live branch HEAD from GitHub before making any ref changes.
-- W173 app and Update Supervisor: **0.24.54.0**; embedded native host/module marker: **0.24.31**.
-- Live W173 comparison: 96 commits ahead, 0 behind, 29 changed files. The W173 code/package checkpoint is 0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d; the 14 commits after that checkpoint are documentation-only handoff updates. The reviewed inventory contains Windows W15/W20/W24/W81 code, Windows CI/workflows and Windows docs, with no Android, server or browser-extension source.
-- Main pre-W170 backup exists: `backup/windows-main-pre-upload-cleanup-20261121` at `affb7b225d2e7eb2835f53294e975a1e60bb758b`. Still create a fresh pre-consolidation backup before the mainline operation.
+- The only canonical Windows production line is GitHub `main`.
+- Current `main` HEAD: `aa713b99824f20abbe7c239bf06e356cf3f7f367`.
+- Promoted implementation: W173 / CELIKOM Windows **0.24.54.0**.
+- App: **0.24.54**; Update Supervisor: **0.24.54.0**; installer: **0.24.54.0**.
+- Official Yandex Music **5.128.0** compatibility pin is present.
+- The exact W173 0.24.54.0 package was installed and accepted by the owner before promotion. Do not ask the owner to repeat that test or rebuild without a concrete failure.
+- PR [#67](https://github.com/manufact-test/nomusic/pull/67) was squash-merged successfully. Merge commit: `aa713b99824f20abbe7c239bf06e356cf3f7f367`.
 
-## W173 implementation and verification
+## Verified backup
 
-- W172 added the exact signed official Yandex 5.128.0 EXE/ASAR pair to the compatibility catalog and preserves prior approved integration state.
-- W173 fixes the owner-visible Start flow: keep the normal “Подождите, идёт подключение к Яндекс Музыке” message; do not show the extra red vendor-update prompt; do not invalidate an in-flight Start when the exact verified Yandex update is discovered. Unknown/modified files remain fail-closed.
-- W173 does not change playback, gain, VPN, audio routing, native host version, Android, extension, account/access, or server behavior.
-- W172 candidate CI: [44894403337](https://github.com/manufact-test/nomusic/actions/runs/44894403337) — SUCCESS.
-- W20 safe internal installer stage: [44894407351](https://github.com/manufact-test/nomusic/actions/runs/44894407351) — SUCCESS.
-- W15: **469 passed**; W21: **41 passed**; W24: **20 passed**; GUI warnings-as-errors build passed; disposable install, in-place upgrade, uninstall and package integrity checks passed.
-- Internal owner package: EXE `CELIKOM-W173-START-UX-02454-UNSIGNED.exe`; ZIP `CELIKOM-Windows-0.24.54.zip`; artifact ID `14703029534` on run `44894407351`; expires **1 December 2026, 10:30 UTC**. Package is unsigned/internal only. EXE SHA256: `da5877bb01dca6048ce85cb07881f663c3a16cb81ec1f3b16074837bf9b60f33`; ZIP SHA256: `d719af9688d74230440887707b9a6cd1c8e2b08af6026cd406c909fd4d3fb4b3`.
+- Pre-promotion `main` HEAD: `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
+- Immutable backup: `backup/windows-main-pre-w173-consolidation-20261121`.
+- Verified backup ref still points exactly to the pre-promotion SHA above.
+- Preserve this backup.
 
-## Upload cleanup — verified; do not add logging
+## CI and installer verification
 
-- Shared server cleanup version 0.4.78 is already deployed. Do not redeploy it as part of Windows consolidation.
-- Windows W170 preserves the original selected MP3 bytes and sends them to the existing authenticated `POST /api/v1/uploads`; server normalizes, measures, fully decodes and stores the canonical file.
-- Private read-only audit [44895271863](https://github.com/manufact-test/nomusic/actions/runs/44895271863): **13/13** post-activation uploads passed stored hash, size, duration, canonical-normalizer and full-decode checks; 9 approved, 4 pending, 0 failed checks.
-- The audit reads canonical stored files after cleanup, so it cannot identify retrospectively which raw upload had tags removed. Do not misstate this as “no source metadata found”.
-- **Owner decision: do not add a per-song cleanup journal, removed-tag counters, extra telemetry, or raw-file retention.** The required outcome is clean, working songs accepted and damaged files rejected. The existing pipeline and audit cover that. Do not create a logging project or complicate the uploader.
+All checks below completed successfully:
 
-## PRs and branches — handle carefully
+- PR #67 general CI: [44898409654](https://github.com/manufact-test/nomusic/actions/runs/44898409654).
+- PR #67 Windows integration CI: [44898409698](https://github.com/manufact-test/nomusic/actions/runs/44898409698).
+- Main push general CI: [44898706705](https://github.com/manufact-test/nomusic/actions/runs/44898706705).
+- Main push Windows integration CI: [44898706600](https://github.com/manufact-test/nomusic/actions/runs/44898706600).
+- Main push W20 safe installer stage: [44898706605](https://github.com/manufact-test/nomusic/actions/runs/44898706605).
+- W20 artifact: [14705515606 — CELIKOM-Windows-internal-stage-aa713b99824f20abbe7c239bf06e356cf3f7f367](https://github.com/manufact-test/nomusic/actions/runs/44898706605/artifacts/14705515606). Internal unsigned staging artifact; expires 1 December 2026, 11:24 UTC.
+- W20 compiled the installer, verified app/supervisor/PE versions and updater ZIP anti-downgrade, and passed disposable per-user install/uninstall smoke.
+- Existing official Yandex 5.128.0 candidate verification: [44894403337](https://github.com/manufact-test/nomusic/actions/runs/44894403337) — SUCCESS.
+- Existing W173 owner package stage: [44894407351](https://github.com/manufact-test/nomusic/actions/runs/44894407351) — SUCCESS.
 
-- PR **#65** is still an open draft, but its head is the older W170 branch `experiment/windows-w170-mainline-20261121` at `6ce4cc21352912ab31578190007042397e083f64`. It is not the W173 branch. Do not merge it as-is.
-- PR **#64** is a closed duplicate of the old W170 work.
-- PR **#62** is the separate already-deployed server upload-cleanup review; do not fold it into Windows mainline consolidation.
-- PR **#66** is separate admin rejected/disabled cleanup; do not fold it into Windows mainline consolidation.
-- Preserve all `backup/*` branches, Android A1 branches, and server/extension branches. These are not obsolete Windows experiments.
-- Candidate obsolete Windows-only work branches can be reviewed after main is validated: old W170 branch and superseded W172/W173 working branches. Delete only after the latest code is safely on main, a fresh backup exists, CI is green, and the owner-facing build is identified. Never bulk-delete by name pattern.
+## Scope and owner decisions
 
-## Required execution sequence
+- W170 upload compatibility, W172 Yandex 5.128.0 support and W173 Start UX are now part of `main`.
+- No Android, server, browser-extension, access, billing, playback, gain, VPN or audio-routing changes were included in the promotion.
+- Shared server cleanup 0.4.78 is already deployed. Do not redeploy it as part of Windows work.
+- Do not add a per-song cleanup journal, removed-tag counters, extra telemetry or raw MP3 retention.
+- The owner explicitly asked to postpone old-branch/PR cleanup. **Do not delete branches, close old PRs or perform repository housekeeping now.** Revisit only after the planned move to the owner's separate server, if the owner wants it then.
+- PR #65 (older W170), PR #62 (server upload cleanup) and PR #66 (admin cleanup) were left untouched. All backup, Android, server and extension refs remain untouched.
 
-1. Inspect current main, W173 branch HEAD, full commit graph, full file diff, PR #65 and all related workflow status. Confirm no unreviewed server/Android/extension changes are being brought across.
-2. Use the exact W173 0.24.54.0 package/source already installed and accepted by the owner. It is an internal unsigned owner build, not a public signed release; do not ask the owner to repeat acceptance.
-3. Create a fresh immutable backup branch from current main before changing main.
-4. Open a new PR from W173 to main (PR #65 points at the older W170 branch; do not silently pretend it contains W173). Ensure the PR description records W173, 0.24.54.0, Yandex 5.128.0 and the verification evidence.
-5. Run full main CI, Windows integration CI, W20 safe installer validation and any required repository gates on the exact merge candidate. Fix only actual failures.
-6. Merge the reviewed W173 PR to main after the exact PR-head checks pass. Verify main's app, supervisor and installer versions all read 0.24.54.0 and the embedded native host/module marker remains 0.24.31; verify Yandex 5.128.0 compatibility and the W173 Start UX fix.
-7. Close PR #65 as superseded by the W173 mainline PR. Leave PR #62 and #66 untouched.
-8. Only then remove clearly obsolete, unprotected Windows experiment branches/duplicate PR clutter. Preserve backups and all Android/server/extension work. Verify branch and PR lists after cleanup.
-9. Update this handoff with the final main SHA, merged PR, CI run IDs, retained backup branch and exactly which obsolete Windows refs were removed.
+## Next-chat operating rules
 
-## Hard rules
-
-- One canonical Windows production line: `main`.
-- Do not reset or force-push main.
-- Do not delete `backup/*` branches.
-- Do not touch Android, browser extension, server deployment, auth/access, billing, playback, volume, VPN, routing or unrelated admin moderation work.
-- Do not merge PR #62 or #66 as part of this task.
-- Do not add per-song cleanup logs or retain source MP3s.
-- No new installer unless a code change is necessary. The existing W173 package is an internal unsigned owner-review build, not a signed public release.
-- Work in one complete block, with no unnecessary intermediate reports. Stop only for an owner decision or a real blocker.
+- Start from current `main`, not an old Windows experiment branch.
+- Treat 0.24.54.0 as the current owner-accepted Windows baseline.
+- Do not redo mainline consolidation; it is complete.
+- Do not clean up branches or PRs until the owner explicitly reopens that task after the server migration.
+- Continue only with the next concrete CELIKOM task. Keep work focused and avoid unnecessary status reports.
 
 ---
 
