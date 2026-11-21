@@ -26,6 +26,10 @@ public sealed partial class MainWindow
     private readonly Label _compactTrackArtist = new();
     private readonly Label _compactVersionStatus = new();
     private readonly Label _compactStartup = new();
+    private bool _compactSeenTrackSinceStart;
+    private DateTimeOffset _compactNoTrackSince = DateTimeOffset.MinValue;
+    private DateTimeOffset _compactTrackGapStartedAt = DateTimeOffset.MinValue;
+    private bool _compactHoldingTrackTransition;
     private readonly Panel _compactUploadResult = new();
     private readonly Label _compactUploadResultTitle = new();
     private readonly Label _compactUploadResultNote = new();
@@ -626,9 +630,6 @@ public sealed partial class MainWindow
     {
         if (!_compactReady) return;
         var playback = playbackSnapshot ?? _bridge.GetPlaybackSnapshot();
-        var connected = _bridgeStarted && _api.IsLoggedIn &&
-            _nativeInstallState == NativeInstallState.Active &&
-            _installedModule.MatchesApplication;
         _compactAccountTrigger.Text = _api.IsLoggedIn ? "Аккаунт · подключён" :
             "Аккаунт · требуется вход";
         _compactAccountFrame.OutlineColor = !_api.IsLoggedIn ? Danger : Border;
@@ -639,12 +640,13 @@ public sealed partial class MainWindow
         _start.Text = "Старт";
         var nativeStatus = playback.Status;
         var heartbeatFresh = playback.HeartbeatFresh;
-        var serviceConnected = CompactPlaybackPresentation.ServiceConnected(
-            connected && playback.Enabled, heartbeatFresh, playback.PlayerUnavailable);
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
-        if (_compactStarting && CompactPlaybackPresentation.StartupComplete(
-            playback.Enabled, heartbeatFresh, playback.PlayerUnavailable, nativeStatus))
+        if (_compactStarting && CompactPlaybackPresentation.CanCompleteStartPresentation(
+            _integrationBusy,
+            _nativeInstallState == NativeInstallState.Active && _installedModule.MatchesApplication,
+            CompactPlaybackPresentation.StartupComplete(
+                playback.Enabled, heartbeatFresh, playback.PlayerUnavailable, nativeStatus)))
         {
             ++_compactStartEpoch;
             _compactStarting = false;
@@ -662,10 +664,14 @@ public sealed partial class MainWindow
         var previousRenderedTrackId = _compactRenderedTrackId;
         var previousTrackTitle = _compactTrack.Text;
         var previousTrackArtist = _compactTrackArtist.Text;
-        _compactRenderedTrackId = id;
-        _compactRenderedTrackDurationMs = playback.DurationMs;
+        _compactHoldingTrackTransition = false;
         if (valid)
         {
+            _compactTrackGapStartedAt = DateTimeOffset.MinValue;
+            _compactRenderedTrackId = id;
+            _compactRenderedTrackDurationMs = playback.DurationMs;
+            _compactSeenTrackSinceStart = true;
+            _compactNoTrackSince = DateTimeOffset.MinValue;
             var title = playback.Title;
             var artist = playback.Artist;
             if (title.Length > 0)
@@ -694,6 +700,11 @@ public sealed partial class MainWindow
                 !metadataTransitionPending;
             var retainPrevious = title.Length == 0 && previousTitleIsReal &&
                 (sameStableTrack || metadataPending);
+            // A new ID can precede its metadata. The old title/artist and
+            // corresponding status stay stable until the real new title arrives.
+            _compactHoldingTrackTransition = retainPrevious && !sameStableTrack &&
+                metadataPending && playback.Enabled && heartbeatFresh &&
+                !_resumeAfterNetworkFailure && !playback.PlayerUnavailable;
 
             var trackText = CompactPlaybackPresentation.TrackTitle(
                 title, previousTrackTitle, retainPrevious);
@@ -706,8 +717,25 @@ public sealed partial class MainWindow
         }
         else
         {
-            _compactMetadataPendingTrackId = "";
-            _compactMetadataPendingAt = DateTimeOffset.MinValue;
+            if (_compactTrackGapStartedAt == DateTimeOffset.MinValue)
+                _compactTrackGapStartedAt = DateTimeOffset.UtcNow;
+            _compactHoldingTrackTransition =
+                CompactPlaybackPresentation.HoldPreviousTrackDuringGap(
+                    playback.Enabled, heartbeatFresh, playback.PlayerUnavailable,
+                    _resumeAfterNetworkFailure || playback.NativeNetworkRecoveryPending,
+                    _compactStarting || _autoReconnectBusy,
+                    GrantValidator.IsTrackId(previousRenderedTrackId),
+                    previousTrackTitle, nativeStatus, playback.PlaybackState,
+                    DateTimeOffset.UtcNow - _compactTrackGapStartedAt);
+            if (!_compactHoldingTrackTransition)
+            {
+                _compactRenderedTrackId = id;
+                _compactRenderedTrackDurationMs = playback.DurationMs;
+                _compactMetadataPendingTrackId = "";
+                _compactMetadataPendingAt = DateTimeOffset.MinValue;
+            }
+            if (_compactNoTrackSince == DateTimeOffset.MinValue)
+                _compactNoTrackSince = DateTimeOffset.UtcNow;
             var displayPlaybackState = !heartbeatFresh || _resumeAfterNetworkFailure
                 ? _networkRecoveryPlaybackState : playback.PlaybackState;
             var trackText = CompactPlaybackPresentation.TrackPlaceholder(
@@ -715,12 +743,20 @@ public sealed partial class MainWindow
                 displayPlaybackState,
                 _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
                 _api.IsLoggedIn, playback.PlayerUnavailable);
-            if (!string.Equals(_compactTrack.Text, trackText, StringComparison.Ordinal))
-                _compactTrack.Text = trackText;
-            if (_compactTrackArtist.Text.Length > 0) _compactTrackArtist.Text = "";
+            if (CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
+                    playback.Enabled, heartbeatFresh, playback.PlayerUnavailable,
+                    _compactStarting || _autoReconnectBusy, _compactSeenTrackSinceStart,
+                    displayPlaybackState, DateTimeOffset.UtcNow - _compactNoTrackSince))
+                trackText = CompactPlaybackPresentation.IdleTrackPrompt;
+            if (!_compactHoldingTrackTransition)
+            {
+                if (!string.Equals(_compactTrack.Text, trackText, StringComparison.Ordinal))
+                    _compactTrack.Text = trackText;
+                if (_compactTrackArtist.Text.Length > 0) _compactTrackArtist.Text = "";
+            }
         }
 
-        _compactTrack.ForeColor = !valid && paused && serviceConnected ? Accent : Ink;
+        _compactTrack.ForeColor = Ink;
         _compactUploadTrack.Text = _compactTrack.Text +
             (_compactTrackArtist.Text.Length > 0 ? " — " + _compactTrackArtist.Text : "");
         _compactSuggestTrack.Text = _compactUploadTrack.Text;
@@ -728,7 +764,9 @@ public sealed partial class MainWindow
         _compactUploadDurationKnown.Text = duration >= 1000 ?
             "Длительность: " + TimeSpan.FromMilliseconds(duration).ToString(@"m\:ss") : "";
 
-        if (id != _compactPresenceTrack)
+        // Do not discard the last approved track on a brief ID-less bridge
+        // pulse. A genuine new track ID still starts its own presence request.
+        if ((!_compactHoldingTrackTransition || valid) && id != _compactPresenceTrack)
         {
             _compactPresenceTrack = valid ? id : "";
             _compactPresenceStatus = "";
@@ -756,9 +794,10 @@ public sealed partial class MainWindow
             playback.PlaybackState, playback.PlayerUnavailable);
         var hostProblem = hostHealth.Level is UserFacingPlaybackHealth.Severity.Error or
             UserFacingPlaybackHealth.Severity.Warning;
-        var hostNeedsStart = !playback.Enabled && !_compactStarting && !_autoReconnectBusy &&
+        var hostNeedsStart = CompactPlaybackPresentation.ShouldShowModuleUpdateHint(
+            playback.Enabled, _compactStarting, _autoReconnectBusy,
             _nativeInstallState == NativeInstallState.Active &&
-            !_installedModule.MatchesApplication;
+            !_installedModule.MatchesApplication);
         var hostHint = hostNeedsStart
             ? "Нажми «Старт», чтобы обновить модуль CELIKOM." : "";
         var networkRecoveryPending = !playback.Enabled && _resumeAfterNetworkFailure;
@@ -774,9 +813,9 @@ public sealed partial class MainWindow
             actionProblem ? _compactStartupText : "";
         // An accepted file-info mapping is not proof of sound. Only a CDP
         // decoder kUrl match for the CURRENT playing track may use green.
-        var activelyReplacing = PlaybackSourceEvidence.ActiveReplacement(
-            playback.Enabled, heartbeatFresh, nativeStatus, playback.Source,
-            playback.PlaybackState, _compactPresenceStatus);
+        var activelyReplacing = CompactPlaybackPresentation.ActiveReplacementStatusIsGreen(
+            playback.Enabled, heartbeatFresh, playback.Source, playback.PlaybackState,
+            nativeStatus, _compactPresenceStatus);
         // File-info mapping remains a playback hint only while the CURRENT
         // Yandex player is playing. On pause/stop show the actual playback
         // state instead of resurrecting an older "pending source" label.
@@ -788,6 +827,7 @@ public sealed partial class MainWindow
                 playback.Enabled, nativeStatus, playback.Source) &&
             playback.PlaybackState == "PLAYING";
         var versionStatusText = problemText.Length > 0 ? problemText :
+            _compactHoldingTrackTransition ? _compactVersionStatus.Text :
             hostHint.Length > 0 ? hostHint :
             playback.PlayerUnavailable ? "Подключитесь к Яндекс Музыке" :
             networkRecoveryPending ? CompactPlaybackPresentation.NetworkRecoveryMessage :
@@ -804,14 +844,12 @@ public sealed partial class MainWindow
             _compactVersionStatus.Text = versionStatusText;
         // A current mapped track uses the same neutral availability copy
         // before/after VPN recovery and Next. Only exact decoder proof is green.
-        _compactVersionStatus.ForeColor =
-            CompactPlaybackPresentation.VersionStatusTone(
-                problemText.Length > 0, activelyReplacing) switch
-            {
-                CompactPlaybackPresentation.StatusTone.Danger => Danger,
-                CompactPlaybackPresentation.StatusTone.Accent => Accent,
-                _ => Secondary
-            };
+        _compactVersionStatus.ForeColor = problemText.Length > 0 ? Danger :
+            _compactHoldingTrackTransition ? _compactVersionStatus.ForeColor :
+            CompactPlaybackPresentation.StatusIsGreen(
+                versionStatusText, playback.Enabled, heartbeatFresh,
+                playback.PlayerUnavailable, valid && _compactPresenceStatus == "approved",
+                activelyReplacing) ? Accent : Secondary;
         _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
@@ -834,9 +872,10 @@ public sealed partial class MainWindow
             var hasTrack = GrantValidator.IsTrackId(_compactRenderedTrackId);
             var showTrack = hasTrack || !_compactStarting;
             var showArtist = !string.IsNullOrWhiteSpace(_compactTrackArtist.Text);
-            var hostNeedsStart = !_bridge.Enabled && !_compactStarting &&
-                !_autoReconnectBusy && _nativeInstallState == NativeInstallState.Active &&
-                !_installedModule.MatchesApplication;
+            var hostNeedsStart = CompactPlaybackPresentation.ShouldShowModuleUpdateHint(
+                _bridge.Enabled, _compactStarting, _autoReconnectBusy,
+                _nativeInstallState == NativeInstallState.Active &&
+                !_installedModule.MatchesApplication);
             var showVersionStatus = hasTrack || !string.IsNullOrWhiteSpace(_compactVersionStatus.Text) &&
                 (hostNeedsStart || UserFacingPlaybackHealth.Host(
                     _nativeInstallState, _hostReport, _installedModule.MatchesApplication)
@@ -861,8 +900,7 @@ public sealed partial class MainWindow
                 (_compactAccess, 35, 8, true),
                 (_compactTrack, 32, trackGap, showTrack),
                 (_compactTrackArtist, 25, artistGap, showArtist),
-                (_compactVersionStatus,
-                    CompactPlaybackPresentation.ActiveTrackStatusHeightPx,
+                (_compactVersionStatus, CompactPlaybackPresentation.ActiveTrackStatusHeightPx,
                     CompactPlaybackPresentation.ActiveTrackStatusBottomSpacingPx, showVersionStatus),
                 (_compactAccountFrame, _compactAccountOpen ? 54 + CompactAccountHeight() : 44, 10, true),
                 (_compactSupportFrame, _compactSupportOpen ?

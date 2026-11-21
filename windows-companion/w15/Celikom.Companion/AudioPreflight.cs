@@ -37,7 +37,9 @@ public static class AudioPreflight
 
         if (duration is null)
             return new Result(null, true,
-                "Не удалось проверить длительность аудиофайла. Этот файл нельзя отправить.");
+                info.Extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase)
+                    ? "MP3 повреждён или содержит неподдерживаемые данные. Служебные теги очищаются автоматически; выберите другой исходный файл."
+                    : "Не удалось проверить длительность M4A. Выберите другой файл AAC без DRM.");
         if (originalDurationMs is null or < 1000 or > 86400000)
             return new Result(duration, true,
                 "Не удалось определить длительность текущей песни в Яндексе. Подождите определения трека.");
@@ -72,84 +74,179 @@ public static class AudioPreflight
         bool Marker(int at, string text)
         {
             if (at < 0 || at + text.Length > size) return false;
-            for (var j = 0; j < text.Length; j++)
-                if (bytes[at + j] != text[j]) return false;
+            for (var i = 0; i < text.Length; i++)
+                if (bytes[at + i] != text[i]) return false;
             return true;
         }
-        uint U32(int p, bool little = false) =>
-            little ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(p, 4)) :
-                BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(p, 4));
-        int pos = 0, tags = 0;
-        while (pos + 10 <= size && Marker(pos, "ID3"))
+        bool AllZero(int from, int to)
         {
-            if (++tags > 4) return null;
-            var ver = bytes[pos + 3];
-            var rev = bytes[pos + 4];
-            var flags = bytes[pos + 5];
-            if (ver is not (2 or 3 or 4) || rev == 255 ||
-                (flags & (ver == 2 ? 0x3f : ver == 3 ? 0x1f : 0x0f)) != 0)
-                return null;
-            for (var j = 6; j < 10; j++)
-                if ((bytes[pos + j] & 128) != 0) return null;
-            var tagSize = (bytes[pos + 6] << 21) + (bytes[pos + 7] << 14) +
-                (bytes[pos + 8] << 7) + bytes[pos + 9];
-            var next = pos + 10 + tagSize + (ver == 4 && (flags & 16) != 0 ? 10 : 0);
-            if (next > size - 1024 || next > 8 * 1024 * 1024 || next <= pos) return null;
-            pos = next;
+            if (from < 0 || to < from || to > size) return false;
+            for (var i = from; i < to; i++)
+                if (bytes[i] != 0) return false;
+            return true;
         }
-        if (pos >= size - 1024) return null;
-        int frames = 0, sampleRate = 0, mpegVersion = -1;
-        long samples = 0;
-        while (pos + 4 <= size)
+        uint U32(int at, bool little = false) =>
+            little ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(at, 4)) :
+                BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(at, 4));
+        int[] mpeg1Bitrates =
+            [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+        int[] mpeg2Bitrates =
+            [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144];
+        int[] baseRates = [44100, 48000, 32000];
+
+        var position = 0;
+        var tagCount = 0;
+        var metadataBytes = 0;
+        bool SkipLeadingTags()
         {
-            var h = U32(pos);
-            if ((h >> 21) != 0x7ff) break;
-            var ver = (int)((h >> 19) & 3);
-            var layer = (int)((h >> 17) & 3);
-            var idx = (int)((h >> 12) & 15);
-            var rateIdx = (int)((h >> 10) & 3);
-            if (ver == 1 || layer != 1 || idx is < 1 or > 14 || rateIdx == 3) break;
-            int[] bits = ver == 3
-                ? [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320]
-                : [0,8,16,24,32,40,48,56,64,80,96,112,128,144];
-            var rate = (new[] { 44100, 48000, 32000 })[rateIdx] /
-                (ver == 3 ? 1 : ver == 2 ? 2 : 4);
-            var frameLength = (int)Math.Floor((ver == 3 ? 144d : 72d) *
-                bits[idx] * 1000 / rate) + (int)((h >> 9) & 1);
-            if (frameLength is < 24 or > 1441 || pos + frameLength > size ||
-                (sampleRate != 0 && (sampleRate != rate || mpegVersion != ver)))
-                return null;
-            sampleRate = rate;
-            mpegVersion = ver;
-            samples += ver == 3 ? 1152 : 576;
-            pos += frameLength;
-            if (++frames > 500000 || samples / sampleRate > 86400) return null;
-        }
-        var end = size;
-        if (end - pos >= 128 && Marker(end - 128, "TAG")) end -= 128;
-        if (end - pos >= 32 && Marker(end - 32, "APETAGEX"))
-        {
-            var tail = end - 32;
-            var ver = U32(tail + 8, true);
-            var length = U32(tail + 12, true);
-            var items = U32(tail + 16, true);
-            if (ver != 2000 || length < 32 || length > 1048576 ||
-                items > 128 || length > end - pos) return null;
-            end -= (int)length;
-            if (end - pos >= 32 && Marker(end - 32, "APETAGEX"))
+            while (Marker(position, "ID3"))
             {
-                if (U32(end - 24, true) != ver || U32(end - 20, true) != length)
-                    return null;
+                if (position + 10 > size || ++tagCount > 4) return false;
+                var version = bytes[position + 3];
+                var revision = bytes[position + 4];
+                var flags = bytes[position + 5];
+                if (version is not (2 or 3 or 4) || revision == 255 ||
+                    (flags & (version == 2 ? 0x3f : version == 3 ? 0x1f : 0x0f)) != 0)
+                    return false;
+                for (var i = 6; i < 10; i++)
+                    if ((bytes[position + i] & 128) != 0) return false;
+                var length = 10 + (bytes[position + 6] << 21) +
+                    (bytes[position + 7] << 14) + (bytes[position + 8] << 7) +
+                    bytes[position + 9] +
+                    (version == 4 && (flags & 16) != 0 ? 10 : 0);
+                metadataBytes += length;
+                if (position + length > size || metadataBytes > 8 * 1024 * 1024)
+                    return false;
+                if (version == 4 && (flags & 16) != 0 &&
+                    !Marker(position + length - 10, "3DI")) return false;
+                position += length;
+            }
+            return true;
+        }
+
+        (int Bytes, int Rate, int Version, int Samples, bool Metadata)? FrameAt(int at)
+        {
+            if (at + 4 > size) return null;
+            var header = U32(at);
+            var version = (int)((header >> 19) & 3);
+            var layer = (int)((header >> 17) & 3);
+            var bitrateIndex = (int)((header >> 12) & 15);
+            var rateIndex = (int)((header >> 10) & 3);
+            if ((header >> 21) != 0x7ff || version == 1 || layer != 1 ||
+                bitrateIndex is < 1 or > 14 || rateIndex == 3) return null;
+
+            var bitrates = version == 3 ? mpeg1Bitrates : mpeg2Bitrates;
+            var rate = baseRates[rateIndex] /
+                (version == 3 ? 1 : version == 2 ? 2 : 4);
+            var frameBytes = (int)Math.Floor((version == 3 ? 144d : 72d) *
+                bitrates[bitrateIndex] * 1000 / rate) + (int)((header >> 9) & 1);
+            if (frameBytes is < 24 or > 1441 || at + frameBytes > size) return null;
+
+            var crcBytes = ((header >> 16) & 1) == 0 ? 2 : 0;
+            var mono = ((header >> 6) & 3) == 3;
+            var sideInfoBytes = version == 3
+                ? (mono ? 17 : 32) : (mono ? 9 : 17);
+            var sideInfoStart = at + 4 + crcBytes;
+            var infoAt = sideInfoStart + sideInfoBytes;
+            var metadata = (Marker(infoAt, "Info") || Marker(infoAt, "Xing")) &&
+                infoAt + 8 <= at + frameBytes && AllZero(sideInfoStart, infoAt);
+            return (frameBytes, rate, version, version == 3 ? 1152 : 576, metadata);
+        }
+
+        if (!SkipLeadingTags()) return null;
+
+        (int Bytes, int Rate, int Version, int Samples, bool Metadata)? signature = null;
+        var hasFirstInfo = false;
+        var metadataFrames = 0;
+        while (true)
+        {
+            var frame = FrameAt(position);
+            if (frame is null || !frame.Value.Metadata) break;
+            if (++metadataFrames > 4) return null;
+            var current = frame.Value;
+            if (signature is not null &&
+                (signature.Value.Rate != current.Rate ||
+                 signature.Value.Version != current.Version)) return null;
+            signature ??= current;
+            hasFirstInfo = true;
+            position += current.Bytes;
+            if (!SkipLeadingTags()) return null;
+        }
+
+        var audioFrames = 0;
+        long samples = hasFirstInfo ? signature!.Value.Samples : 0;
+        var sampleRate = signature?.Rate ?? 0;
+        var mpegVersion = signature?.Version ?? -1;
+        while (position + 4 <= size)
+        {
+            var frame = FrameAt(position);
+            if (frame is null) break;
+            var current = frame.Value;
+            if (current.Metadata ||
+                (sampleRate != 0 &&
+                 (sampleRate != current.Rate || mpegVersion != current.Version)))
+                return null;
+            sampleRate = current.Rate;
+            mpegVersion = current.Version;
+            position += current.Bytes;
+            samples += current.Samples;
+            if (++audioFrames > 500000 || samples / (double)sampleRate > 86400) return null;
+        }
+
+        var end = size;
+        if (end - position >= 128 && Marker(end - 128, "TAG")) end -= 128;
+        if (end - position >= 32 && Marker(end - 32, "APETAGEX"))
+        {
+            var footer = end - 32;
+            var apeVersion = U32(footer + 8, little: true);
+            var apeBytes = U32(footer + 12, little: true);
+            var itemCount = U32(footer + 16, little: true);
+            if (apeVersion != 2000 || apeBytes < 32 || apeBytes > 1_048_576 ||
+                itemCount > 128 || apeBytes > end - position) return null;
+            end -= (int)apeBytes;
+            if (end - position >= 32 && Marker(end - 32, "APETAGEX"))
+            {
+                if (U32(end - 24, little: true) != apeVersion ||
+                    U32(end - 20, little: true) != apeBytes) return null;
                 end -= 32;
             }
         }
-        if (end - pos >= 128 && Marker(end - 128, "TAG")) end -= 128;
-        if (end - pos >= 128 && Marker(pos, "TAG")) pos += 128;
-        if (end - pos > 4096 || end < pos || frames < 2 || sampleRate == 0) return null;
-        for (var i = pos; i < end; i++)
-            if (bytes[i] != 0) return null;
-        var ms = (long)Math.Round(1000d * samples / sampleRate);
-        return ms is >= 1000 and <= 86400000 ? ms : null;
+        if (end - position >= 128 && Marker(end - 128, "TAG")) end -= 128;
+        if (end - position >= 128 && Marker(position, "TAG"))
+        {
+            var tailLength = end - position;
+            if (tailLength == 128 || AllZero(position + 128, end))
+            {
+                position = end;
+            }
+            else
+            {
+                if (tailLength > 512) return null;
+                string text;
+                try
+                {
+                    text = new UTF8Encoding(false, true).GetString(
+                        bytes, position + 3, tailLength - 4);
+                }
+                catch (DecoderFallbackException) { return null; }
+                if (text.Length > 0 && text[0] == '\uFEFF') text = text[1..];
+                var characters = 0;
+                foreach (var rune in text.EnumerateRunes())
+                {
+                    if (rune.Value is >= 1 and <= 0x1f or 0x7f) return null;
+                    characters++;
+                }
+                if (characters != 124) return null;
+                position = end;
+            }
+        }
+
+        if (end < position || end - position > 4096 ||
+            !AllZero(position, end) || audioFrames < 2 || sampleRate == 0)
+            return null;
+        var durationMs = (long)Math.Round(
+            1000d * samples / sampleRate, MidpointRounding.AwayFromZero);
+        return durationMs is >= 1000 and <= 86400000 ? durationMs : null;
     }
 
     private readonly record struct Box(string Type, int Start, int End);

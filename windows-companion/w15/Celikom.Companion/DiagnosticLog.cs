@@ -58,9 +58,6 @@ public static class DiagnosticLog
         ((code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
              "NATIVE_ELECTRON_CPU_HIGH" or
              "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
-             "PLAYER_DOM_MEDIA_NODE_SEEN" or "PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN" or
-             "PLAYER_DOM_SOURCE_BLOB_SEEN" or "PLAYER_DOM_SOURCE_OTHER" or
-             "PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING" or "PLAYER_DOM_SOURCE_CELIKOM_MATCHED" or
              "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
              "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
              "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
@@ -250,9 +247,6 @@ public static class DiagnosticLog
             (code is "NATIVE_ELECTRON_EVENT_LOOP_STALL" or "NATIVE_ELECTRON_MEMORY_HIGH" or
                 "NATIVE_ELECTRON_CPU_HIGH" or
                 "PLAYER_CDP_PROPERTIES_SEEN" or "PLAYER_CDP_URL_PROPERTY_SEEN" or
-                "PLAYER_DOM_MEDIA_NODE_SEEN" or "PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN" or
-                "PLAYER_DOM_SOURCE_BLOB_SEEN" or "PLAYER_DOM_SOURCE_OTHER" or
-             "PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING" or "PLAYER_DOM_SOURCE_CELIKOM_MATCHED" or
                 "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
                 "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
                 "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
@@ -313,18 +307,6 @@ public static class DiagnosticLog
                 e.code == "PLAYER_CDP_PROPERTIES_SEEN"),
             nativeDecoderUrlPropertyObserved = parsedEvents.Any(e =>
                 e.code == "PLAYER_CDP_URL_PROPERTY_SEEN"),
-            nativeDomMediaNodeObserved = parsedEvents.Any(e =>
-                e.code == "PLAYER_DOM_MEDIA_NODE_SEEN"),
-            nativeDomSourceAttributeObserved = parsedEvents.Any(e =>
-                e.code == "PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN"),
-            nativeDomSourceBlobObserved = parsedEvents.Any(e =>
-                e.code == "PLAYER_DOM_SOURCE_BLOB_SEEN"),
-            nativeDomSourceOtherObserved = parsedEvents.Any(e =>
-                e.code == "PLAYER_DOM_SOURCE_OTHER"),
-            nativeDomSourceAttributeMissingObserved = parsedEvents.Any(e =>
-                e.code == "PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING"),
-            nativeDomCelikomSourceMatched = parsedEvents.Any(e =>
-                e.code == "PLAYER_DOM_SOURCE_CELIKOM_MATCHED"),
             events
         };
     }
@@ -339,7 +321,7 @@ public static class DiagnosticLog
         var readDirectory = diagnosticDirectory ?? DirectoryPath;
         ArchiveNativeIncidents(readDirectory, DateTimeOffset.UtcNow);
         var text = new StringBuilder();
-        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W55");
+        text.AppendLine("CELIKOM WINDOWS OWNER DIAGNOSTICS — W54");
         text.AppendLine("GeneratedUTC=" + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
         text.AppendLine("AppVersion=" + (typeof(DiagnosticLog).Assembly.GetName().Version?.ToString() ?? "unknown"));
         text.AppendLine("NativeModuleVersion=" +
@@ -347,7 +329,7 @@ public static class DiagnosticLog
                 ? nativeModuleVersion : "unknown"));
         text.AppendLine("NativeModuleMatchesApp=" +
             (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
-        text.AppendLine("CodeBaseline=W55_PASSIVE_DOM_MEDIA_SOURCE_WITNESS_AND_TRACK_UI_FIX");
+        text.AppendLine("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
             Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
@@ -360,7 +342,6 @@ public static class DiagnosticLog
         text.AppendLine("PLAYER_AUDIO_RESOURCE_TIMING_SEEN can be preloading. PLAYER_NET_HTTP_PARTIAL/FINISHED does NOT prove audio decoded.");
         text.AppendLine("PLAYER_URL_* compares exact signed origin/path/query in memory, never exports links, tokens, sid, HTTP bodies or keys.");
         text.AppendLine("PLAYER_CDP_PROPERTIES_SEEN/PLAYER_CDP_URL_PROPERTY_SEEN show Media-domain field availability only, NOT current-track or replacement proof.");
-        text.AppendLine("PLAYER_DOM_* inspects only the src attribute of the exact DOM node associated with a Media player; signed URLs and attribute values are never exported.");
         text.AppendLine("PLAYER_403_* distinguishes native HTTP denial classes, not confirmed PHP origin unless a fixed PHP error enum is present.");
         text.AppendLine("PNR: NOT_IMPLEMENTED_OR_NOT_IDENTIFIED.");
         text.AppendLine("Events: UTC | allowlisted code | optional numeric track or CELIKOM resource_id. No raw request URLs or error messages.");
@@ -412,24 +393,6 @@ public static class DiagnosticLog
                 .ToString().ToLowerInvariant());
         text.AppendLine("NativeDecoderUrlPropertyObserved=" +
             entries.Any(s => s.Contains("|PLAYER_CDP_URL_PROPERTY_SEEN", StringComparison.Ordinal))
-                .ToString().ToLowerInvariant());
-        text.AppendLine("NativeDomMediaNodeObserved=" +
-            entries.Any(s => s.Contains("|PLAYER_DOM_MEDIA_NODE_SEEN", StringComparison.Ordinal))
-                .ToString().ToLowerInvariant());
-        text.AppendLine("NativeDomSourceAttributeObserved=" +
-            entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_SEEN", StringComparison.Ordinal))
-                .ToString().ToLowerInvariant());
-        text.AppendLine("NativeDomSourceBlobObserved=" +
-            entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_BLOB_SEEN", StringComparison.Ordinal))
-                .ToString().ToLowerInvariant());
-        text.AppendLine("NativeDomSourceOtherObserved=" +
-            entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_OTHER", StringComparison.Ordinal))
-                .ToString().ToLowerInvariant());
-        text.AppendLine("NativeDomSourceAttributeMissingObserved=" +
-            entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_ATTRIBUTE_MISSING", StringComparison.Ordinal))
-                .ToString().ToLowerInvariant());
-        text.AppendLine("NativeDomCelikomSourceMatched=" +
-            entries.Any(s => s.Contains("|PLAYER_DOM_SOURCE_CELIKOM_MATCHED", StringComparison.Ordinal))
                 .ToString().ToLowerInvariant());
         text.AppendLine("FastPauseTrackAttribution=NOT_AVAILABLE_WITHOUT_PLAYER_TRACK_ID");
         text.AppendLine("PlayerNetworkRequestObserved=" +

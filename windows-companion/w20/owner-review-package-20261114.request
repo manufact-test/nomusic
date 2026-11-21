@@ -1,54 +1,25 @@
-CELIKOM Windows — W166 owner status, pause tone and passive DOM decoder witness
-Requested build: 0.24.48.0 (native module 0.24.31; W23 package 0.24.11)
-Source checkpoint: 5bfd6c6e33c4a1008952ba1fc6c53918ce93792e
-Purpose: exactly one internal owner-review installer and ZIP for W166.
+CELIKOM Windows W170 — one private internal owner-review build, 21 November 2026
+App 0.24.52.0; update supervisor 0.24.52.0. Native host and native module version remain unchanged.
+Current branch: experiment/windows-w170-mainline-20261121
+Accepted Windows UI baseline: backup/windows-02451-owner-accepted-exact-20261117 @ c717428a7d9f01fc8e33b482fcf66a9ed1a02947
+Main pre-work backup: backup/windows-main-pre-upload-cleanup-20261121 @ affb7b225d2e7eb2835f53294e975a1e60bb758b
+Main remains unchanged until PR #65 is reviewed and merged.
 
-Owner result on W165 / 0.24.47.0:
-- Active status remained “Версия CELIKOM доступна” and neutral.
-- “Пауза” appeared green while paused.
-- Active status spacing was smaller, but the owner requested a further reduction.
-- W165 is NOT owner-accepted. Do not claim its text/color issue was solved.
+W170 changes ONLY the Windows upload path:
+- Existing authenticated multipart POST /api/v1/uploads is retained.
+- MP3 duration preflight now recognizes the bounded metadata variants accepted by the browser extension and shared server cleaner.
+- Local inspection never rewrites or transcodes the selected file; original bytes are sent to the shared server unchanged.
+- Require HTTP 202, status=pending and a positive replacement_id before displaying upload success.
+- Map invalid_mp3, invalid_m4a, upload_too_large and missing server confirmation to clear user messages.
+- Preserve 30 MiB size limit, 1.5-second duration tolerance, rights declaration, request_id deduplication and in-flight submit guard.
+- Full MP3 decoding and authoritative cleanup remain server-side. Server already deployed; DO NOT redeploy it.
 
-Previously accepted behavior:
-- Owner accepted 0.24.46.0 VPN/audio continuity: CELIKOM playback continued through repeated VPN changes without extra recovery text.
-- Do not repeat VPN/audio work or alter playback, source routing, Yandex files or VPN recovery.
+No changes to playback, volume, Next/Previous, radio, audio routing, native Yandex host, Android, access, billing or moderation.
+No server files, server deployment, signing, production feed or release.
 
-W166 UI changes:
-- Active current-track status row height: 28 px (was 40 px).
-- Active current-track status bottom gap: 4 px (was 8 px).
-- Idle/disabled placeholder spacing remains 18 px.
-- “Пауза” is neutral. Green is reserved for a verified currently-playing CELIKOM source.
-- Verified active wording remains “Играет версия CELIKOM”.
-
-W166 native observer compatibility change:
-- Current Yandex builds may expose Media player properties but omit CDP kUrl.
-- When kUrl is absent, use a passive, read-only fallback tied to the exact Media.playerCreated player:
-  Media.playerCreated.domNodeId -> DOM.getDocument -> DOM.pushNodesByBackendIdsToFrontend -> DOM.getAttributes.
-- Inspect only the src attribute of that exact Media player DOM node. Do not inspect page text, scripts, account data, or arbitrary DOM.
-- A CELIKOM match still requires an exact approved/entitled signed grant URL, same current Yandex queue track ID, and PLAYING state from that same Media player (kPlay/kPause events only as fallback when kIsPlaying is not exposed).
-- If kUrl exists, it remains authoritative; DOM fallback is disabled for that player.
-- A blob: MediaSource src, mapping, grant, HTTP 206, network prefetch, or generic playback event alone NEVER proves CELIKOM decoder source.
-- Source changes away from the signed CELIKOM URL immediately invalidate the green state.
-- No Runtime.evaluate, Network.getResponseBody, extra fetches, or playback commands were added. This is a read-only observer only.
-- Raw URLs, src values, tokens, and query strings are never written to diagnostics.
-
-W55 diagnostics now include:
-- NativeDomMediaNodeObserved
-- NativeDomSourceAttributeObserved
-- NativeDomSourceBlobObserved
-- NativeDomSourceOtherObserved
-- NativeDomSourceAttributeMissingObserved
-- NativeDomCelikomSourceMatched
-
-Source/verification intent:
-- Focused W15 tests cover pause tone, strict active-state gating, 28 px/4 px active row, and idle 18 px spacing.
-- Focused W23 tests cover direct same-player src + kPlay verification, immediate downgrade when src changes away, and fail-closed blob src even with a matching network prefetch.
-- W20 must compile the Windows app and native host with warnings as errors, run W15/W23 tests, and pass Windows install/uninstall smoke.
-- Main CI, Windows integration CI and W20 run/artifact are pending until this request change triggers the workflows.
-
-Requested output:
-- CELIKOM-W166-OWNER-STATUS-DOM-OBSERVER-02448-UNSIGNED.exe
-- One ZIP containing that exact same installer: CELIKOM-Windows-0.24.48.zip
+Expected output:
+- CELIKOM-W170-WINDOWS-UPLOAD-CLEANUP-02452-UNSIGNED.exe
+- CELIKOM-Windows-0.24.52.zip
 - SHA256SUMS.txt
 
-Scope: one internal unsigned owner-review build only, privately retained as a GitHub Actions artifact. No production signing, stable feed, Hostinger deployment, customer publication or release. No intermediate installers; this request-file update triggers exactly one W20 build.
+One owner-review installer only; stage-only distribution. Run W15 contract tests, W23 native tests, W24 image-builder tests, warnings-as-errors GUI/supervisor builds, safe install/upgrade/uninstall checks and exact installer/ZIP hashes.
