@@ -69,7 +69,7 @@ final class NativeOwnerControlPlane {
                     return;
                 }
                 JSONObject result=request(
-                    "resolve?audio_formats=mp3&service=yandex&track_id="
+                    "resolve?audio_formats=mp3,m4a&service=yandex&track_id="
                     +originalTrackId,null,access(owner));
                 if(owner!=epoch.get() || latest!=latestPrefetch.get()
                         || !enabled) {
@@ -77,11 +77,11 @@ final class NativeOwnerControlPlane {
                         NativeTrackIdBetaPolicy.Step.OWNER_PREFETCH_SUPERSEDED);
                     return;
                 }
-                if(!approvedMpeg(result))return;
+                if(!approvedAudio(result))return;
                 NativeGrantContract.Grant grant=readGrant(result);
                 // Server grant is never an original Yandex track/source proof.
                 if(!validTrialGrant(originalTrackId,grant))return;
-                if(!verifiedRange(grant.audioUrl))return;
+                if(!verifiedRange(grant.audioUrl,grant.mimeType))return;
                 if(owner!=epoch.get() || latest!=latestPrefetch.get() || !enabled) {
                     NativeTrackIdBetaPolicy.mark(
                         NativeTrackIdBetaPolicy.Step.OWNER_PREFETCH_SUPERSEDED);
@@ -280,13 +280,13 @@ final class NativeOwnerControlPlane {
                     grant=warmed.grant;
                 } else {
                     JSONObject response=request(
-                        "resolve?audio_formats=mp3&service=yandex&track_id="
+                        "resolve?audio_formats=mp3,m4a&service=yandex&track_id="
                             +publisherTrackId,null,access(owner));
-                    if(!approvedMpeg(response))return;
+                    if(!approvedAudio(response))return;
                     grant=readGrant(response);
                 }
                 if(!validTrialGrant(publisherTrackId,grant))return;
-                if(!verified && !verifiedRange(grant.audioUrl))return;
+                if(!verified && !verifiedRange(grant.audioUrl,grant.mimeType))return;
                 if(!enabled || owner!=epoch.get()
                         || bridge.generation()!=generation) {
                     NativeTrackIdBetaPolicy.mark(
@@ -327,7 +327,7 @@ final class NativeOwnerControlPlane {
                     grant=preflight.grant;
                 } else {
                     JSONObject resolved=request(
-                        "resolve?audio_formats=mp3&service=yandex&track_id="
+                        "resolve?audio_formats=mp3,m4a&service=yandex&track_id="
                         +originalTrackId,null,access(owner));
                     if(!resolved.optBoolean("found")
                             || !resolved.optBoolean("approved")
@@ -339,7 +339,7 @@ final class NativeOwnerControlPlane {
                 long now=System.currentTimeMillis();
                 if(!NativeGrantContract.isAcceptable(grant,originalTrackId,
                         originalAlbumId,originalEditionId,originalDurationMs,ORIGIN,now)
-                        || !prewarmed && !verifyMpegRange(grant.audioUrl))return;
+                        || !prewarmed && !verifyAudioRange(grant.audioUrl,grant.mimeType))return;
                 if(!enabled || owner!=epoch.get() || bridge.generation()!=generation
                         || !bridge.isSuccessfulOriginalSource(generation,originalTrack,
                             originalAlbum,originalSource))return;
@@ -354,13 +354,21 @@ final class NativeOwnerControlPlane {
             }
         });
     }
-    private static boolean approvedMpeg(JSONObject response) {
-        boolean ok=response.optBoolean("found") && response.optBoolean("approved")
-            && response.optBoolean("entitled")
-            && "audio/mpeg".equals(response.optString("mime_type"));
-        NativeTrackIdBetaPolicy.mark(ok
-            ?NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_APPROVED
-            :NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_NOT_APPROVED);
+    private static boolean approvedAudio(JSONObject response) {
+        boolean found=response.optBoolean("found");
+        boolean approved=response.optBoolean("approved");
+        boolean entitled=response.optBoolean("entitled");
+        String mime=response.optString("mime_type","");
+        boolean supportedMime="audio/mpeg".equals(mime) || "audio/mp4".equals(mime);
+        if(!found)NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_NOT_FOUND);
+        else if(!approved)NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_NOT_APPROVED_FLAG);
+        else if(!entitled)NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_NOT_ENTITLED);
+        else if(!supportedMime)NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_UNSUPPORTED_MIME);
+        else if("audio/mpeg".equals(mime))NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_MPEG);
+        else NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_MP4);
+        boolean ok=found && approved && entitled && supportedMime;
+        NativeTrackIdBetaPolicy.mark(ok ? NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_APPROVED
+            : NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_NOT_APPROVED);
         return ok;
     }
     private static boolean validTrialGrant(String id,NativeGrantContract.Grant grant) {
@@ -372,11 +380,10 @@ final class NativeOwnerControlPlane {
             NativeTrackIdBetaPolicy.Step.OWNER_RESPONSE_INVALID);
         return ok;
     }
-    private static boolean verifiedRange(String url) {
-        boolean ok=verifyMpegRange(url);
-        NativeTrackIdBetaPolicy.mark(ok
-            ?NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_VALID
-            :NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_REJECTED);
+    private static boolean verifiedRange(String url,String mimeType) {
+        boolean ok=verifyAudioRange(url,mimeType);
+        NativeTrackIdBetaPolicy.mark(ok ? NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_VALID
+            : NativeTrackIdBetaPolicy.Step.OWNER_AUDIO_RANGE_REJECTED);
         return ok;
     }
     private void offerExactBeta(long generation,Object originalTrack,Object originalAlbum,
@@ -397,31 +404,25 @@ final class NativeOwnerControlPlane {
             Math.multiplyExact(resolved.getLong("expires_at"),1000),
             resolved.getString("mime_type"));
     }
-    private static boolean verifyMpegRange(String url) {
+    private static boolean verifyAudioRange(String url,String mimeType) {
+        if(!"audio/mpeg".equals(mimeType) && !"audio/mp4".equals(mimeType))return false;
         HttpsURLConnection c=null;
         try {
             c=(HttpsURLConnection)new URL(url).openConnection();
-            c.setConnectTimeout(2200);
-            c.setReadTimeout(2200);
-            c.setInstanceFollowRedirects(false);
-            c.setUseCaches(false);
+            c.setConnectTimeout(2200); c.setReadTimeout(2200);
+            c.setInstanceFollowRedirects(false); c.setUseCaches(false);
             c.setRequestProperty("Range","bytes=0-4095");
-            c.setRequestProperty("Accept","audio/mpeg");
-            if(c.getResponseCode()!=206 || !"audio/mpeg".equals(c.getContentType()))
-                return false;
+            c.setRequestProperty("Accept","audio/mpeg, audio/mp4");
+            if(c.getResponseCode()!=206 || !mimeType.equals(c.getContentType()))return false;
             String range=c.getHeaderField("Content-Range");
-            if(range==null || !range.matches("bytes 0-[0-9]+/[1-9][0-9]*"))
-                return false;
+            if(range==null || !range.matches("bytes 0-[0-9]+/[1-9][0-9]*"))return false;
             try(InputStream in=c.getInputStream()) {
-                byte[] head=new byte[3];
-                int got=0;
-                while(got<3) {
-                    int n=in.read(head,got,3-got);
-                    if(n<0)return false;
-                    got+=n;
-                }
-                return head[0]=='I' && head[1]=='D' && head[2]=='3'
-                    || (head[0]&255)==255 && ((head[1]&255)&224)==224;
+                byte[] head=new byte[12]; int got=0;
+                while(got<head.length) {int n=in.read(head,got,head.length-got);if(n<0)return false;got+=n;}
+                if("audio/mpeg".equals(mimeType))
+                    return head[0]=='I' && head[1]=='D' && head[2]=='3'
+                        || (head[0]&255)==255 && ((head[1]&255)&224)==224;
+                return head[4]=='f' && head[5]=='t' && head[6]=='y' && head[7]=='p';
             }
         } catch(Exception ignored) {return false;}
         finally {if(c!=null)c.disconnect();}
