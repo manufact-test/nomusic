@@ -1,6 +1,7 @@
 package pro.celikom.a1exitwitness;
 
 import pro.celikom.yandex.nativehooklab.NativeSourceGate;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** Real original object references, no original Album/Edition ever asserted. */
@@ -43,6 +44,8 @@ public final class NativeRamilTrackOnlyLineageTest {
             stage::exactCreatorTrackAlbumOrBetaBeforeSourceSet);
         renderer.setExactPublisherTrackIdEvidence(
             stage::exactPublisherTrackIdForCreatorOrBeta);
+        renderer.setPublisherTrackIdPendingEvidence(
+            stage::mayResolvePublisherTrackIdAfterFlow);
         renderer.setEarlyOriginalSourceObserver(bridge);
         AtomicInteger requests=new AtomicInteger();
         bridge.setLimitedBetaGrantRequester((generation,t,a,s,id)->{
@@ -56,8 +59,9 @@ public final class NativeRamilTrackOnlyLineageTest {
         NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame=
             renderer.beginEarlyOriginalSourceSet(source);
         check(frame!=null && frame.track==track && frame.album==album
-            && frame.originalPublisherTrackIdCandidate==null,
-            "CREATOR_KEY_WITHHELD_BEFORE_FLOW");
+            && frame.originalPublisherTrackIdCandidate==null
+            && frame.publisherTrackIdCandidatePending,
+            "CREATOR_KEY_WITHHELD_BUT_EXACT_FLOW_IS_PENDING");
         renderer.finishEarlyOriginalSourceSet(frame,true);
         check(requests.get()==0,"NO_BETA_REQUEST_BEFORE_CREATOR_FLOW");
         if(prepareBeforeFlow)
@@ -66,6 +70,72 @@ public final class NativeRamilTrackOnlyLineageTest {
         renderer.refreshEarlyOriginalPublisherTrackIdCandidate();
         renderer.exitTrackPlayerSource(player);
         return requests.get();
+    }
+
+    private static int lateFlowDuringPrepareWait() {
+        final String ramil=NativeTrackIdBetaPolicy.RAMIL_AU;
+        StageBAudioEvidence stage=new StageBAudioEvidence(()->1000L);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object source=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        stage.enterNativeTcaCreatorTrackScope(track,1);
+        stage.onNativeTrackWrapperCreated(wrapper,ramil);
+        stage.exitNativeTcaCreatorTrackScope();
+        stage.exitNativeTcaCreatorOwner();
+
+        NativeRendererStreamEvidence renderer=new NativeRendererStreamEvidence();
+        NativeEarlySourceLifecycleBridge bridge=new NativeEarlySourceLifecycleBridge(
+            ()->1000L);
+        renderer.setEarlyOriginalSourceEvidence(
+            stage::exactCreatorTrackAlbumOrBetaBeforeSourceSet);
+        renderer.setExactPublisherTrackIdEvidence(
+            stage::exactPublisherTrackIdForCreatorOrBeta);
+        renderer.setPublisherTrackIdPendingEvidence(
+            stage::mayResolvePublisherTrackIdAfterFlow);
+        renderer.setEarlyOriginalSourceObserver(bridge);
+        AtomicInteger requests=new AtomicInteger();
+        bridge.setLimitedBetaGrantRequester((generation,t,a,s,id)->{
+            check(generation==1 && t==track && a==album && s==source
+                && ramil.equals(id),"PREPARE_WAIT_USES_EXACT_CREATOR_ID");
+            requests.incrementAndGet();
+        });
+        bridge.startForAuthenticatedOwner();
+        NativeRendererStreamEvidence.TrackPlayerScope player=
+            renderer.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame=
+            renderer.beginEarlyOriginalSourceSet(source);
+        check(frame!=null && frame.publisherTrackIdCandidatePending,
+            "PREPARE_WAIT_HAS_EXACT_PENDING_CREATOR");
+        renderer.finishEarlyOriginalSourceSet(frame,true);
+
+        AtomicBoolean returned=new AtomicBoolean(false);
+        Thread waiter=new Thread(()->{
+            bridge.awaitLimitedBetaGrantAtPrepare(250);
+            returned.set(true);
+        });
+        waiter.start();
+        pause(35);
+        check(!returned.get(),"PREPARE_WAIT_DOES_NOT_SKIP_PENDING_FLOW");
+        stage.onNativeTrackFlowEmission(track);
+        renderer.refreshEarlyOriginalPublisherTrackIdCandidate();
+        check(requests.get()==1,"PENDING_FLOW_DISPATCHES_SOURCE_BOUND_REQUEST");
+        try {waiter.join(1000L);}
+        catch(InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("PREPARE_WAIT_INTERRUPTED",interrupted);
+        }
+        check(returned.get(),"PREPARE_WAIT_REMAINS_BOUNDED");
+        renderer.exitTrackPlayerSource(player);
+        return requests.get();
+    }
+
+    private static void pause(long millis) {
+        try {Thread.sleep(millis);}
+        catch(InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("TEST_INTERRUPTED",interrupted);
+        }
     }
 
     public static void main(String[] args) {
@@ -87,6 +157,8 @@ public final class NativeRamilTrackOnlyLineageTest {
             stage::exactCreatorTrackAlbumOrBetaBeforeSourceSet);
         renderer.setExactPublisherTrackIdEvidence(
             stage::exactPublisherTrackIdForCreatorOrBeta);
+        renderer.setPublisherTrackIdPendingEvidence(
+            stage::mayResolvePublisherTrackIdAfterFlow);
         renderer.setEarlyOriginalSourceObserver(bridge);
         bridge.startForAuthenticatedOwner();
         NativeRendererStreamEvidence.TrackPlayerScope player=
@@ -152,6 +224,8 @@ public final class NativeRamilTrackOnlyLineageTest {
             "LATE_CREATOR_FLOW_COMPLETES_TRACKID_BEFORE_PREPARE");
         check(lateFlowRequests(true)==0,
             "LATE_CREATOR_FLOW_AFTER_PREPARE_CANNOT_UPGRADE");
+        check(lateFlowDuringPrepareWait()==1,
+            "PREPARE_GRACE_WAITS_FOR_LATE_EXACT_FLOW_ID");
         System.out.println("RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS");
     }
 }
