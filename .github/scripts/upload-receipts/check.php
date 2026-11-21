@@ -14,7 +14,7 @@ try {
         a.storage_key,a.sha256,a.size_bytes,a.duration_ms,a.mime_type,
         (SELECT COUNT(*) FROM upload_submissions u WHERE u.replacement_id=r.id) AS submissions
         FROM track_replacements r JOIN tracks t ON t.id=r.track_id JOIN audio_assets a ON a.id=r.audio_asset_id
-        WHERE r.created_at >= '2026-11-21 07:31:00' ORDER BY r.id DESC LIMIT 25")->fetchAll(PDO::FETCH_ASSOC);
+        WHERE r.created_at >= '2026-11-21 07:31:00' ORDER BY r.id DESC LIMIT 1000")->fetchAll(PDO::FETCH_ASSOC);
     $storage = new Celikom\Storage\LocalStorageAdapter($config['storage_path']);
     $results = [];
     foreach ($rows as $row) {
@@ -41,5 +41,30 @@ try {
         } catch (Throwable $e) { $row['checked'] = false; $row['check_error'] = get_class($e) . ':' . $e->getMessage(); }
         $results[] = $row;
     }
-    echo json_encode(['at_utc'=>gmdate('c'),'active_release'=>basename($live),'recent_uploads'=>$results], JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
+    $summary = [
+        'total' => count($results),
+        'checked' => 0,
+        'stored_hash_ok' => 0,
+        'stored_size_ok' => 0,
+        'duration_ok' => 0,
+        'already_canonical' => 0,
+        'full_decode_ok' => 0,
+        'pending' => 0,
+        'approved' => 0,
+        'failed_checks' => 0
+    ];
+    foreach ($results as $item) {
+        if (($item['status'] ?? '') === 'pending') ++$summary['pending'];
+        if (($item['status'] ?? '') === 'approved') ++$summary['approved'];
+        if (!($item['checked'] ?? false)) ++$summary['failed_checks'];
+        if ($item['checked'] ?? false) ++$summary['checked'];
+        foreach (['stored_hash_ok','stored_size_ok','duration_ok','already_clean','full_decode_ok'] as $field) {
+            if (($item[$field] ?? false) === true) {
+                $key = $field === 'already_clean' ? 'already_canonical' : $field;
+                ++$summary[$key];
+            }
+        }
+    }
+    echo json_encode(['at_utc'=>gmdate('c'),'active_release'=>basename($live),
+        'summary'=>$summary,'recent_uploads'=>$results], JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
 } finally { $pdo->rollBack(); }
