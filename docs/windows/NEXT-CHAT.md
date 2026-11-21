@@ -1,12 +1,64 @@
-# CURRENT WINDOWS W170 (21 November 2026)
+# CURRENT WINDOWS W170 — owner runtime testing (21 November 2026)
 
-Read **`docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md`** FIRST. Work branch: `experiment/windows-w170-mainline-20261121` (PR #65); accepted Windows baseline: app **0.24.51.0**, native **0.24.32**. The current `main` was backed up at `backup/windows-main-pre-upload-cleanup-20261121` @ `affb7b225d2e7eb2835f53294e975a1e60bb758b` and has not been modified. The PR branch restores the accepted 0.24.51 Windows UI/installer baseline while retaining current main Android A1 changes and the current main W23 host/tests/package unchanged, with DiagnosticLog/PlaybackSourceEvidence restored to the accepted W169 diagnostics contract.
+Read **`docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md`** first. This is the active Windows handoff; older W169/W168/W167 sections below are history.
 
-**W170 implementation:** Windows already uses shared `POST /api/v1/uploads`. MP3 local duration preflight was aligned with the extension's bounded metadata parser; it accepts known repairable leading ID3/Info/Xing/APE/ID3v1 variants without rewriting the selected file. The original MP3 is sent unchanged. The client now requires HTTP 202 plus `status=pending` and a positive `replacement_id` before reporting success. Server `invalid_mp3` and unconfirmed responses have readable errors. Existing 30 MiB limit, 1.5 s tolerance, rights declaration, request ID and duplicate-submit guard remain.
+## Repository state
 
-**Scope:** no playback, volume, Next/Previous, radio, Android, native Yandex integration, access, moderation, billing, or server code/deployment changes. The shared server cleanup was already deployed and verified; never redeploy the historical server branch.
+- Repository: `manufact-test/nomusic`
+- Working branch: `experiment/windows-w170-mainline-20261121`
+- PR: [#65 — W170 Windows upload compatibility](https://github.com/manufact-test/nomusic/pull/65) — open as **draft**, mergeable; keep draft until owner runtime acceptance.
+- Product: CELIKOM Windows only.
+- Owner-accepted source baseline: app **0.24.51.0**, native **0.24.32**.
+- W170 internal build: app **0.24.52.0**, update supervisor **0.24.52.0**, native host/module unchanged.
+- Main pre-work backup: `backup/windows-main-pre-upload-cleanup-20261121` @ `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
+- `main` has not been changed. Do not merge PR #65 or modify main before the owner finishes the real-file tests.
 
-**Verification status:** W170 synthetic tests added for multiple ID3v2.4 blocks/footer, duplicate Info/Xing headers, interleaved tags, APEv2, UTF-8 inflated ID3v1, embedded metadata rejection, duration boundary, original-byte preservation, HTTP 202 confirmation, idempotent retry, and server decoder rejection. Windows integration CI and owner runtime checks are still pending. W170 internal owner-review app/supervisor build target is **0.24.52.0**; the stage-only package workflow is enabled on this branch, with no production release/signing/feed publication.
+## What W170 changed
+
+- Windows already used the shared authenticated `POST /api/v1/uploads`; the endpoint was not replaced.
+- MP3 local duration preflight now recognizes the bounded leading ID3v2 / Info-Xing / APEv2 / ID3v1 metadata variants accepted by the extension/server cleanup.
+- Local inspection is read-only: no cleanup, rewrite or transcoding in Windows. The original selected bytes go to the server unchanged.
+- Upload success requires HTTP **202**, `status=pending`, and a positive `replacement_id`; generic 2xx or malformed bodies are not success.
+- Clear errors are shown for `invalid_mp3`, `invalid_m4a`, `upload_too_large`, and missing server confirmation.
+- Existing 30 MiB limit, 1.5-second duration tolerance, rights declaration, request ID/deduplication and in-flight duplicate-submit guard remain.
+- The deployed server remains authoritative for metadata cleanup, duration measurement and full audio decode. **Do not redeploy server code.**
+
+## Verification and delivered package
+
+All checks for the built source passed on 21 November:
+
+- Main CI [44887076540](https://github.com/manufact-test/nomusic/actions/runs/44887076540) — SUCCESS.
+- Windows integration CI [44887076485](https://github.com/manufact-test/nomusic/actions/runs/44887076485) — SUCCESS.
+- W20 safe internal installer staging [44887071981](https://github.com/manufact-test/nomusic/actions/runs/44887071981) — SUCCESS.
+- W15 native contract: **467 passed**.
+- W23 native tests: **156 passed**; W24 image-builder: **20 passed**; W21 recovery contract: **41 passed**.
+- GUI and supervisor warning-as-error builds, PE/version/anti-downgrade validation, disposable per-user install/uninstall, package and checksum checks all passed.
+
+The owner was already given these files in the previous chat:
+
+- `CELIKOM-W170-WINDOWS-UPLOAD-CLEANUP-02452-UNSIGNED.exe`
+- `CELIKOM-Windows-0.24.52.zip` (contains exactly one root EXE, byte-identical to the standalone installer).
+- Installer SHA256: `4a5c75bc70a936acfbc6af0c1c9d03281921203afce75b5fed55473a7ef59dc7`
+- ZIP SHA256: `edd505333e400f0ef5da3d0c0aff3983b14255979cb5eb0f4d6fb7c7f5e67a4c`
+- GitHub Actions artifact ID `14700675953`, run `44887071981`; expires **1 December 2026, 08:58:05 UTC**.
+
+This is one internal unsigned owner-review build, not a production release. No signing, public feed or server deployment.
+
+## What is still waiting for the owner
+
+The CI/synthetic checks are complete. Real runtime verification is **not** complete yet. The owner is testing 0.24.52 and will send diagnostics or report problems in this chat.
+
+When the owner sends evidence:
+1. Read the exact diagnostic/file before drawing conclusions.
+2. Check specifically whether a repairable real MP3 reaches the server, whether a damaged MP3 gets a clear rejection, and whether retry after a lost response uses the same `request_id` without duplicate creation.
+3. Distinguish client-side preflight rejection from server-side validation and server confirmation.
+4. Fix only confirmed W170 upload issues. Do not reopen unrelated accepted playback/VPN work.
+5. Do not generate another package unless a code fix is actually needed.
+
+## Hard boundaries
+
+Do not change playback, volume, Next/Previous, radio, VPN, audio routing, native Yandex host, Android, browser extension, auth/access, billing, moderation, or the already-deployed server. No speculative refactors or broad audits. Preserve the main backup and the current owner-accepted Windows line.
+
 
 ---
 
