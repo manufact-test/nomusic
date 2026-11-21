@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
 
 /**
  * OWNER-APPROVED LIMITED TRIAL ONLY: the original publisher's trackId and
@@ -44,6 +45,8 @@ final class NativeTrackIdBetaPolicy {
         OWNER_AUDIO_RANGE_VALID, OWNER_AUDIO_RANGE_REJECTED,
         OWNER_PREFETCH_SUPERSEDED, OWNER_SOURCE_WINDOW_CLOSED,
         OWNER_OFFER_REJECTED, OWNER_NETWORK_OR_RESPONSE_ERROR,
+        OWNER_RESOLVE_JSON_INVALID, OWNER_RESOLVE_TRANSPORT_ERROR,
+        OWNER_RESOLVE_CONSTRUCTION_ERROR, OWNER_LEGACY_REQUEST_BOUND,
         GRANT_ADMITTED, EXACT_PREPARE, DECISION_ALTERNATE,
         DATASOURCE_ARMED, AUDIO_OPEN, AUDIO_READ
     }
@@ -153,6 +156,70 @@ final class NativeTrackIdBetaPolicy {
             return seen.contains("token") && seen.contains("expires")
                 && seen.contains("sid");
         } catch(URISyntaxException ignored) {return false;}
+    }
+
+    /**
+     * Parse only the result of the authenticated, uncached, nonredirecting
+     * CELIKOM resolve GET for this exact allowlisted track. Deployed v1
+     * selects on service+track_id but does not echo track_id. For that
+     * specific legacy schema the request scope is the catalogue identity,
+     * NOT independent publisher identity or proof of audio access.
+     * A present mismatched ID, a partial approval schema, and an unknown
+     * legacy shape fail closed. The exact original source, session-bound
+     * signature/expiry and actual Range validation remain mandatory.
+     */
+    static NativeGrantContract.Grant parseTrialResolve(
+            String requestedTrackId,Map<String,?> fields,String allowedOrigin) {
+        if(!allows(requestedTrackId) || fields==null
+                || !Boolean.TRUE.equals(fields.get("found")))return null;
+        Object rawUrl=fields.get("audio_url");
+        if(!(rawUrl instanceof String))return null;
+        String relative=(String)rawUrl;
+        boolean legacy=legacyAuthenticatedPositiveResolve(true,
+            fields.containsKey("approved"),fields.containsKey("entitled"),relative);
+        if(!legacy && !(Boolean.TRUE.equals(fields.get("approved"))
+                && Boolean.TRUE.equals(fields.get("entitled"))))return null;
+        if(fields.containsKey("track_id")) {
+            if(!requestedTrackId.equals(fields.get("track_id")))return null;
+        } else {
+            if(!legacy || fields.containsKey("album_id") || fields.containsKey("edition_id"))
+                return null;
+            Set<String> known=Set.of("found","replacement_id","audio_url",
+                "duration_ms","mime_type","version","gain_db","gain_applied",
+                "expires_at","cache_ttl_seconds");
+            if(!known.containsAll(fields.keySet()))return null;
+            // Exact deployed v1 response, not an arbitrary positive JSON.
+            if(!Boolean.FALSE.equals(fields.get("gain_applied")))return null;
+        }
+        long duration=positiveInteger(fields.get("duration_ms"));
+        long version=positiveInteger(fields.get("version"));
+        long expiry=positiveInteger(fields.get("expires_at"));
+        long replacement=positiveInteger(fields.get("replacement_id"));
+        if(duration<=0 || version<=0 || expiry<=0 || expiry>Long.MAX_VALUE/1000L)
+            return null;
+        Object mime=fields.get("mime_type");
+        if(!"audio/mpeg".equals(mime) && !"audio/mp4".equals(mime))return null;
+        try {
+            URI url=new URI(allowedOrigin).resolve(relative);
+            if(legacy && (replacement<=0 ||
+                    !("/api/v1/audio/"+replacement).equals(url.getRawPath())))
+                return null;
+            Object album=fields.get("album_id"),edition=fields.get("edition_id");
+            // Only explicit metadata is carried; no album/edition synthesis.
+            if(album!=null && !(album instanceof String)
+                    || edition!=null && !(edition instanceof String))return null;
+            return new NativeGrantContract.Grant(requestedTrackId,
+                (String)album,(String)edition,duration,version,true,true,
+                url.toString(),expiry*1000L,(String)mime);
+        } catch(URISyntaxException | IllegalArgumentException | NullPointerException e) {
+            return null;
+        }
+    }
+
+    private static long positiveInteger(Object value) {
+        if(!(value instanceof Integer) && !(value instanceof Long))return -1L;
+        long number=((Number)value).longValue();
+        return number>0?number:-1L;
     }
 
     /**

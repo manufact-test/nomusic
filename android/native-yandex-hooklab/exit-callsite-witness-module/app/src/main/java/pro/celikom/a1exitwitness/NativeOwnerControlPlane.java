@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import org.json.JSONObject;
+import org.json.JSONException;
 import pro.celikom.yandex.nativehooklab.NativeGrantContract;
 import pro.celikom.yandex.nativehooklab.NativeSourceGate;
 import java.io.ByteArrayOutputStream;
@@ -78,7 +79,8 @@ final class NativeOwnerControlPlane {
                     return;
                 }
                 if(!approvedAudio(result))return;
-                NativeGrantContract.Grant grant=readGrant(result);
+                NativeGrantContract.Grant grant=readTrialGrant(originalTrackId,result);
+                if(grant==null)return;
                 // Server grant is never an original Yandex track/source proof.
                 if(!validTrialGrant(originalTrackId,grant))return;
                 if(!verifiedRange(grant.audioUrl,grant.mimeType))return;
@@ -89,9 +91,8 @@ final class NativeOwnerControlPlane {
                 }
                 warmGrant=new WarmGrant(owner,originalTrackId,grant,
                     System.currentTimeMillis());
-            } catch(Exception ignored) {
-                NativeTrackIdBetaPolicy.mark(
-                    NativeTrackIdBetaPolicy.Step.OWNER_NETWORK_OR_RESPONSE_ERROR);
+            } catch(Exception failure) {
+                markResolveFailure(failure);
             } finally {if(owner==epoch.get())warmingId=null;}
         });
     }
@@ -281,7 +282,8 @@ final class NativeOwnerControlPlane {
                         "resolve?audio_formats=mp3,m4a&service=yandex&track_id="
                             +publisherTrackId,null,access(owner));
                     if(!approvedAudio(response))return;
-                    grant=readGrant(response);
+                    grant=readTrialGrant(publisherTrackId,response);
+                    if(grant==null)return;
                 }
                 if(!validTrialGrant(publisherTrackId,grant))return;
                 if(!verified && !verifiedRange(grant.audioUrl,grant.mimeType))return;
@@ -293,10 +295,8 @@ final class NativeOwnerControlPlane {
                 }
                 offerExactBeta(generation,originalTrack,originalAlbum,
                     originalSource,publisherTrackId,grant);
-            } catch(Exception ignored) {
-                // No secrets, URL, IDs, statuses, response bodies or credentials logged.
-                NativeTrackIdBetaPolicy.mark(
-                    NativeTrackIdBetaPolicy.Step.OWNER_NETWORK_OR_RESPONSE_ERROR);
+            } catch(Exception failure) {
+                markResolveFailure(failure);
             }
         });
     }
@@ -394,6 +394,33 @@ final class NativeOwnerControlPlane {
                 originalAlbum,originalSource,publisherTrackId,grant,ORIGIN))
             NativeTrackIdBetaPolicy.mark(
                 NativeTrackIdBetaPolicy.Step.OWNER_OFFER_REJECTED);
+    }
+    private static void markResolveFailure(Exception failure) {
+        NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.OWNER_NETWORK_OR_RESPONSE_ERROR);
+        // Only bounded failure categories, never exception messages / URLs.
+        NativeTrackIdBetaPolicy.mark(failure instanceof JSONException
+            ?NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_JSON_INVALID
+            :failure instanceof IOException
+                ?NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_TRANSPORT_ERROR
+                :NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_CONSTRUCTION_ERROR);
+    }
+    private static NativeGrantContract.Grant readTrialGrant(
+            String requestedTrackId,JSONObject response) throws JSONException {
+        java.util.Map<String,Object> fields=new java.util.HashMap<>();
+        java.util.Iterator<String> keys=response.keys();
+        while(keys.hasNext()) {
+            String key=keys.next();
+            Object value=response.get(key);
+            fields.put(key,value==JSONObject.NULL?null:value);
+        }
+        NativeGrantContract.Grant grant=NativeTrackIdBetaPolicy.parseTrialResolve(
+            requestedTrackId,fields,ORIGIN);
+        if(grant==null)NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.OWNER_RESOLVE_JSON_INVALID);
+        else if(!response.has("track_id"))NativeTrackIdBetaPolicy.mark(
+            NativeTrackIdBetaPolicy.Step.OWNER_LEGACY_REQUEST_BOUND);
+        return grant;
     }
     private static NativeGrantContract.Grant readGrant(JSONObject resolved)
             throws Exception {
