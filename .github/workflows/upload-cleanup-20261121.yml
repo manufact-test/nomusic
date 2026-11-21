@@ -2,7 +2,7 @@ name: Upload cleanup inspection
 on:
   push:
     branches: [feature/upload-auto-cleanup-20261121]
-    paths: ['.github/workflows/upload-cleanup-20261121.yml', '.github/scripts/upload-cleanup/inspect.sh']
+    paths: ['.github/workflows/upload-cleanup-20261121.yml', '.github/scripts/upload-cleanup/**', 'server/src/Application/*Normalizer*', 'server/src/Application/Mp3DecodeValidator.php', 'server/tests/mp3-cleanup*', 'extension/src/upload/mp3-duration.ts']
 permissions:
   contents: read
 concurrency:
@@ -19,3 +19,20 @@ jobs:
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
         run: bash .github/scripts/upload-cleanup/inspect.sh
+  decoder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build isolated static MP3-only validator from pinned FFmpeg source
+        run: bash .github/scripts/upload-cleanup/build-decoder.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mp3-validator
+          path: |
+            dist/validator/mp3-validator
+            dist/validator/mp3-validator.sha256
+            dist/validator/LICENSE.LGPLv2.1
+            dist/validator/source.tar.gz
