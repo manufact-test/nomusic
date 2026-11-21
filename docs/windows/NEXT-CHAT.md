@@ -10,7 +10,7 @@ Read these documents first:
 
 - Repository: `manufact-test/nomusic`.
 - The only canonical Windows production line is GitHub `main`.
-- Current `main` HEAD: `aa713b99824f20abbe7c239bf06e356cf3f7f367`.
+- W173 code-promotion squash-merge commit: `aa713b99824f20abbe7c239bf06e356cf3f7f367`. Handoff documentation was committed afterward; resolve the live `main` ref before any future ref operation.
 - Promoted implementation: W173 / CELIKOM Windows **0.24.54.0**.
 - App: **0.24.54**; Update Supervisor: **0.24.54.0**; installer: **0.24.54.0**.
 - Official Yandex Music **5.128.0** compatibility pin is present.
