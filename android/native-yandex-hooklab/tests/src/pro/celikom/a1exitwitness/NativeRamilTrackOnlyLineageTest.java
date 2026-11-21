@@ -1,6 +1,7 @@
 package pro.celikom.a1exitwitness;
 
 import pro.celikom.yandex.nativehooklab.NativeSourceGate;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Real original object references, no original Album/Edition ever asserted. */
 public final class NativeRamilTrackOnlyLineageTest {
@@ -23,6 +24,50 @@ public final class NativeRamilTrackOnlyLineageTest {
         evidence.exitNativeTcaCreatorOwner();
         return evidence;
     }
+    private static int lateFlowRequests(boolean prepareBeforeFlow) {
+        final String ramil=NativeTrackIdBetaPolicy.RAMIL_AU;
+        StageBAudioEvidence stage=new StageBAudioEvidence(()->1000L);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object source=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        stage.enterNativeTcaCreatorTrackScope(track,1);
+        stage.onNativeTrackWrapperCreated(wrapper,ramil);
+        stage.exitNativeTcaCreatorTrackScope();
+        stage.exitNativeTcaCreatorOwner();
+
+        NativeRendererStreamEvidence renderer=new NativeRendererStreamEvidence();
+        NativeEarlySourceLifecycleBridge bridge=new NativeEarlySourceLifecycleBridge(
+            ()->1000L);
+        renderer.setEarlyOriginalSourceEvidence(
+            stage::exactCreatorTrackAlbumOrBetaBeforeSourceSet);
+        renderer.setExactPublisherTrackIdEvidence(
+            stage::exactPublisherTrackIdForCreatorOrBeta);
+        renderer.setEarlyOriginalSourceObserver(bridge);
+        AtomicInteger requests=new AtomicInteger();
+        bridge.setLimitedBetaGrantRequester((generation,t,a,s,id)->{
+            check(generation==1 && t==track && a==album && s==source
+                && ramil.equals(id),"LATE_FLOW_RETAINS_EXACT_ORIGINAL_SETTER");
+            requests.incrementAndGet();
+        });
+        bridge.startForAuthenticatedOwner();
+        NativeRendererStreamEvidence.TrackPlayerScope player=
+            renderer.enterTrackPlayerSource(wrapper);
+        NativeRendererStreamEvidence.EarlyOriginalSourceFrame frame=
+            renderer.beginEarlyOriginalSourceSet(source);
+        check(frame!=null && frame.track==track && frame.album==album
+            && frame.originalPublisherTrackIdCandidate==null,
+            "CREATOR_KEY_WITHHELD_BEFORE_FLOW");
+        renderer.finishEarlyOriginalSourceSet(frame,true);
+        check(requests.get()==0,"NO_BETA_REQUEST_BEFORE_CREATOR_FLOW");
+        if(prepareBeforeFlow)
+            bridge.beforeOriginalPeriodPrepare(1,track,album,source,new Object(),null);
+        stage.onNativeTrackFlowEmission(track);
+        renderer.refreshEarlyOriginalPublisherTrackIdCandidate();
+        renderer.exitTrackPlayerSource(player);
+        return requests.get();
+    }
+
     public static void main(String[] args) {
         final String ramil=NativeTrackIdBetaPolicy.RAMIL_AU;
         Object track=new Object(), wrapper=new Object(), nativeSource=new Object();
@@ -59,9 +104,9 @@ public final class NativeRamilTrackOnlyLineageTest {
             "EXACT_EARLY_SETTER_SURVIVES_PREPARE");
 
         Object descriptor=new Object(),factory=new Object(),dataSource=new Object();
-        stage.enterNativeMainSourceRequest(wrapper,null);
+        stage.enterNativePlayerSourceSelection(wrapper);
         stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
-        stage.exitNativeMainSourceRequest();
+        stage.exitNativePlayerSourceSelection();
         stage.onExoFactoryCreated(descriptor,factory);
         stage.onExoSourceInstanceCreated(dataSource,factory);
         Object[] link=stage.exactFreshCreatorOrBetaForDataSource(dataSource);
@@ -103,6 +148,10 @@ public final class NativeRamilTrackOnlyLineageTest {
             "NEXT_INVALIDATES_ORIGINAL_BETA_TRACKID_SOURCE");
         check(bridge.chosenSource()==NativeSourceGate.Choice.ORIGINAL,
             "STILL_ORIGINAL_WITHOUT_SIGNED_AUDIO_AND_REAL_PREPARE");
+        check(lateFlowRequests(false)==1,
+            "LATE_CREATOR_FLOW_COMPLETES_TRACKID_BEFORE_PREPARE");
+        check(lateFlowRequests(true)==0,
+            "LATE_CREATOR_FLOW_AFTER_PREPARE_CANNOT_UPGRADE");
         System.out.println("RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS");
     }
 }
