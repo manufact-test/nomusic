@@ -153,7 +153,7 @@ public static class AudioPreflight
         if (!SkipLeadingTags()) return null;
 
         (int Bytes, int Rate, int Version, int Samples, bool Metadata)? signature = null;
-        byte[]? firstInfo = null;
+        var hasFirstInfo = false;
         var metadataFrames = 0;
         while (true)
         {
@@ -165,15 +165,13 @@ public static class AudioPreflight
                 (signature.Value.Rate != current.Rate ||
                  signature.Value.Version != current.Version)) return null;
             signature ??= current;
-            if (firstInfo is null)
-                firstInfo = bytes.AsSpan(position, current.Bytes).ToArray();
+            hasFirstInfo = true;
             position += current.Bytes;
             if (!SkipLeadingTags()) return null;
         }
 
-        var audioStart = position;
         var audioFrames = 0;
-        long samples = firstInfo is null ? 0 : signature!.Value.Samples;
+        long samples = hasFirstInfo ? signature!.Value.Samples : 0;
         var sampleRate = signature?.Rate ?? 0;
         var mpegVersion = signature?.Version ?? -1;
         while (position + 4 <= size)
@@ -189,7 +187,7 @@ public static class AudioPreflight
             mpegVersion = current.Version;
             position += current.Bytes;
             samples += current.Samples;
-            if (++audioFrames > 500000 || samples / sampleRate > 86400) return null;
+            if (++audioFrames > 500000 || samples / (double)sampleRate > 86400) return null;
         }
 
         var audioEnd = position;
