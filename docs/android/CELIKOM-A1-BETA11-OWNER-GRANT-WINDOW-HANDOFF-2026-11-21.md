@@ -49,3 +49,15 @@
 - Current branch HEAD: `de67ab7e1eb58d64d4901e8d3e54499055e4553b`.
 - Added explicit signed `audio/mp4` acceptance assertion to `NativeGrantContractTest.java`; isolated exact-identity Java workflow `44893887112` SUCCESS.
 - Latest owner audio workflow `44893907029`: JVM issuer-proxy/contract job SUCCESS; isolated ARM13 build/test job queued/in progress. No APK artifact yet.
+
+## Authoritative correction and handoff (21.11.2026)
+
+This section supersedes the earlier speculative interpretation and 'verify whether the active row is missing' as the assumed root cause.
+
+- Owner confirms this is the same «Ау» selected directly from album 38902809, Yandex ID 144530503; Windows and browser extension already replace this exact song. Historical active/approved replacement #1 and MP3 180872 ms are established project facts. Do not ask owner to rediscover the song, use MyWave, or send screenshots.
+- BETA11 counters show EXACT_PREPARE=ONE, TCA_CREATOR_WRAPPER_FLOW_MATCH=ONE, TCA_CREATOR_WRAPPER_ALBUM_LINK=ONE, and later Flow same-track/album observations = ONE. They also show ORIGINAL_SETTER=NONE, ISSUER_TRACKID=NONE, ISSUER_VALUE_TARGET_ALLOWLISTED=NONE, ORIGINAL_CREATOR_KEY_CONFIRMED=NONE, NATIVE_MAIN_SOURCE_ENTER=NONE, WRAPPER_MAIN_SOURCE=NONE, TRACK_DESCRIPTOR_FACTORY_LINK=NONE, DECISION_ALTERNATE=NONE, DATASOURCE_ARMED=NONE, AUDIO_OPEN/READ=NONE. CELIKOM_REPLACEMENT=NOT_CONNECTED; original Exo reads are not alternate playback.
+- OWNER_RESOLVE_NOT_APPROVED=ONE is only an aggregate found/approved/entitled/MIME check. It does not establish that the catalogue row is absent or unapproved. The MP3/M4A request mismatch is a real Android-vs-extension parity defect and has been patched, but the known «Ау» record is MP3, so do not claim that format mismatch alone explains the failure.
+- Current next technical focus: establish the exact publisher track ID Android sends to resolve, compare it with 144530503 and the extension's actual request, then connect the exact same original creator Track+Album through the original Player source setter to descriptor/factory and the same unopened DataSource. Keep strict identity and fail-closed gates.
+- Live Hostinger/admin DB was not inspected in this chat. If authenticated admin/browser access is available in the next chat, inspect it directly; do not ask owner for screenshots. Do not claim live DB verification if no authenticated access exists.
+- Latest CI at last check: 44893907029 JVM issuer-proxy SUCCESS, ARM13 75s publisher-first test still in progress; 44893887129 clone-alone differential SUCCESS; 44893887112 exact-identity Java models SUCCESS; 44893567368 prior owner-audio ARM13 test SUCCESS. No new APK has been exported/installed.
+- Follow CELIKOM-A1-NEXT-CHAT-START-2026-11-21.md for the required no-detours working strategy.
