@@ -2955,13 +2955,21 @@ public final class ExitCallsiteWitness extends XposedModule {
                 selection.setAccessible(true);
                 hook(selection).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
+                        boolean stageScope=false;
                         NativeRendererStreamEvidence.TrackPlayerScope frame=null;
+                        try {
+                            STAGE_B_AUDIO.enterNativePlayerSourceSelection(chain.getArg(2));
+                            stageScope=true;
+                        } catch(Throwable ignored) { }
                         try { frame=NATIVE_RENDERER_EVIDENCE.enterTrackPlayerSource(
                             chain.getArg(2)); } catch(Throwable ignored) { }
                         try { return chain.proceed(); }
                         finally {
                             try {
                                 if(frame!=null)NATIVE_RENDERER_EVIDENCE.exitTrackPlayerSource(frame);
+                            } catch(Throwable ignored) { }
+                            try {
+                                if(stageScope)STAGE_B_AUDIO.exitNativePlayerSourceSelection();
                             } catch(Throwable ignored) { }
                         }
                     });
@@ -3977,7 +3985,16 @@ public final class ExitCallsiteWitness extends XposedModule {
                     .intercept(chain -> {
                         try { STAGE_B_AUDIO.onNativeTrackFlowEmission(chain.getArg(0)); }
                         catch (Throwable ignored) { }
-                        return chain.proceed();
+                        Object result=chain.proceed();
+                        // Re-evaluate only the still-current successful Player
+                        // setter. Stage B has now observed this exact Track's
+                        // Flow emission; the bridge rejects any post-prepare
+                        // or superseded generation.
+                        try {
+                            NATIVE_RENDERER_EVIDENCE
+                                .refreshEarlyOriginalPublisherTrackIdCandidate();
+                        } catch(Throwable ignored) { }
+                        return result;
                     });
                 nativeTrackFlowHookReady=true;
                 emit("AUDIO_NATIVE_TRACK_FLOW_HOOK","TRACK_FLOW","REGISTERED");
