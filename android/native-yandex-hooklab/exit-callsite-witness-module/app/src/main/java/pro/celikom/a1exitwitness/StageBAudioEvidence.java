@@ -426,6 +426,31 @@ final class StageBAudioEvidence {
         Object[] original=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
         return original!=null?original:exactBetaCreatorWithoutAlbum(wrapper);
     }
+
+    /**
+     * Bounded pre-prepare wait is justified only for this exact album-present
+     * tCa creator birth whose allowlisted Track has not yet emitted its same
+     * original Flow item. Stale unscoped issuer tickets never extend the wait.
+     */
+    synchronized boolean mayResolvePublisherTrackIdAfterFlow(
+            Object wrapper,Object track,Object album) {
+        if(wrapper==null || track==null || album==null)return false;
+        WrapperBirth birth=null;
+        for(WrapperBirth item:wrapperBirths) {
+            if(item.wrapper.get()!=wrapper)continue;
+            if(birth!=null)return false;
+            birth=item;
+        }
+        if(birth==null || birth.scopeAtBirth!=12 || birth.laterFlowEmitted
+                || birth.creatorTrack==null || birth.creatorTrack.get()!=track
+                || !NativeTrackIdBetaPolicy.allows(birth.originalConstructorKey))
+            return false;
+        Object albumAtBirth=birth.albumAtBirth==null?null:birth.albumAtBirth.get();
+        if(albumAtBirth!=album || findTrackAlbum(track)!=album)return false;
+        return !hasObservedPublisherTicket(birth.originalConstructorKey)
+            || issuerTicketMatchesCreator(birth);
+    }
+
     synchronized String exactPublisherTrackIdForCreatorOrBeta(
             Object wrapper,Object track,Object albumOrBetaToken) {
         if(albumOrBetaToken==wrapper) {
