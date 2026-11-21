@@ -1,0 +1,33 @@
+name: Private read-only upload receipt check
+on:
+  push:
+    branches: [feature/upload-auto-cleanup-20261121]
+    paths: ['.github/workflows/upload-receipts-20261121.yml', '.github/scripts/upload-receipts/**']
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check recent staged files without changing moderation or catalog
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f report.json' EXIT
+          bash .github/scripts/upload-receipts/check.sh > report.json
+          openssl cms -encrypt -binary -aes-256-cbc -in report.json -out report.cms -outform DER .github/scripts/upload-receipts/report-cert.pem
+          echo 'PRIVATE_READ_ONLY_CHECK_COMPLETE'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: private-upload-receipts
+          path: report.cms
+          retention-days: 3
