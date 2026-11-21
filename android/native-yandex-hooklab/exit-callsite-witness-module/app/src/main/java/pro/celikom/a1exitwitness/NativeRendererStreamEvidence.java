@@ -298,6 +298,11 @@ final class NativeRendererStreamEvidence {
     interface ExactPublisherTrackIdEvidence {
         String exact(Object wrapper,Object originalTrack,Object originalAlbum);
     }
+    // True only when this exact creator-owned Track+Album has an allowlisted
+    // original constructor key and its same-Track Flow emission is still pending.
+    interface PublisherTrackIdPendingEvidence {
+        boolean mayArriveAfterFlow(Object wrapper,Object originalTrack,Object originalAlbum);
+    }
     interface EarlyOriginalSourceObserver {
         // This is invoked on EVERY original setter attempt, including a
         // missing Track/Album or an overlapping setter. No stale generation
@@ -311,22 +316,27 @@ final class NativeRendererStreamEvidence {
         // Exact source-bound original Retrofit ID candidate if and ONLY if
         // publisher Track+Album+tCa numeric key all agree. Still no edition.
         default void originalPublisherTrackIdCandidate(long generation,String trackId) { }
+        default void publisherTrackIdCandidatePending(long generation,boolean pending) { }
         void completed(long generation,boolean originalSetterSucceeded);
     }
     static final class EarlyOriginalSourceFrame {
         final Object wrapper,track,album,source;
         final long generation;
         final String originalPublisherTrackIdCandidate;
+        final boolean publisherTrackIdCandidatePending;
         boolean invalid;
         EarlyOriginalSourceFrame(Object wrapper,Object track,Object album,
-                Object source,long generation,String publisherTrackIdCandidate) {
+                Object source,long generation,String publisherTrackIdCandidate,
+                boolean publisherTrackIdPending) {
             this.wrapper=wrapper;this.track=track;this.album=album;
             this.source=source;this.generation=generation;
             originalPublisherTrackIdCandidate=publisherTrackIdCandidate;
+            publisherTrackIdCandidatePending=publisherTrackIdPending;
         }
     }
     private EarlyOriginalSourceEvidence earlyOriginalSourceEvidence;
     private ExactPublisherTrackIdEvidence exactPublisherTrackIdEvidence;
+    private PublisherTrackIdPendingEvidence publisherTrackIdPendingEvidence;
     private EarlyOriginalSourceObserver earlyOriginalSourceObserver;
     private EarlyOriginalSourceFrame earlySourceInFlight;
     private long earlySourceGeneration;
@@ -352,6 +362,10 @@ final class NativeRendererStreamEvidence {
     synchronized void setExactPublisherTrackIdEvidence(
             ExactPublisherTrackIdEvidence evidence) {
         exactPublisherTrackIdEvidence=evidence;
+    }
+    synchronized void setPublisherTrackIdPendingEvidence(
+            PublisherTrackIdPendingEvidence evidence) {
+        publisherTrackIdPendingEvidence=evidence;
     }
     synchronized void setEarlyOriginalSourceObserver(EarlyOriginalSourceObserver observer) {
         earlyOriginalSourceObserver=observer;
@@ -401,8 +415,16 @@ final class NativeRendererStreamEvidence {
                     publisherTrackId=candidate;
             } catch(Throwable ignored) { }
         }
+        boolean publisherTrackIdPending=false;
+        if(publisherTrackId==null && publisherTrackIdPendingEvidence!=null) {
+            try {
+                publisherTrackIdPending=publisherTrackIdPendingEvidence
+                    .mayArriveAfterFlow(scope.wrapper,pair[0],pair[1]);
+            } catch(Throwable ignored) { }
+        }
         EarlyOriginalSourceFrame frame=new EarlyOriginalSourceFrame(
-            scope.wrapper,pair[0],pair[1],source,generation,publisherTrackId);
+            scope.wrapper,pair[0],pair[1],source,generation,publisherTrackId,
+            publisherTrackIdPending);
         earlySourceInFlight=frame;
         // This notification is PENDING, never a source replacement decision.
         // A failed original setter must revoke it in finishEarlyOriginalSourceSet.
@@ -410,7 +432,9 @@ final class NativeRendererStreamEvidence {
             try {earlyOriginalSourceObserver.pending(
                 generation,frame.track,frame.album,frame.source);
                 earlyOriginalSourceObserver.originalPublisherTrackIdCandidate(
-                    generation,frame.originalPublisherTrackIdCandidate);}
+                    generation,frame.originalPublisherTrackIdCandidate);
+                earlyOriginalSourceObserver.publisherTrackIdCandidatePending(
+                    generation,frame.publisherTrackIdCandidatePending);}
             catch(Throwable ignored) {frame.invalid=true;}
         }
         return frame;
