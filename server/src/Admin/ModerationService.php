@@ -15,12 +15,15 @@ final class ModerationService
     public function __construct(private readonly \PDO $pdo, private readonly StorageAdapter $storage,
         private readonly ?\Celikom\Reward\RewardService $rewards = null) {}
 
-    public function replacement(int $adminId, int $id, string $action, string $reason, int $expectedActive, bool $rightsConfirmed): void
+    public function replacement(int $adminId, int $id, string $action, string $reason, int $expectedActive, bool $rightsConfirmed, ?int $expectedVersion = null, ?string $batchId = null): void
     {
         if ($adminId < 1 || $id < 1 || $expectedActive < 0
             || !in_array($action, ['approve','reactivate','reject','duplicate','wrong_track','bad_quality','disable'], true)
             || strlen($reason) > 500 || (trim($reason) === '')) {
             throw new \InvalidArgumentException('invalid_moderation_action');
+        }
+        if ($batchId !== null && !preg_match('/^[a-f0-9]{24}$/D', $batchId)) {
+            throw new \InvalidArgumentException('invalid_moderation_batch');
         }
         if (in_array($action, ['approve','reactivate'], true) && !$rightsConfirmed) {
             throw new \DomainException('approval_requires_rights_and_reason');
@@ -40,6 +43,9 @@ final class ModerationService
             $get->execute([$id]);
             $before = $get->fetch(\PDO::FETCH_ASSOC);
             if (!$before || (int) $before['track_id'] !== (int) $trackId) throw new \DomainException('candidate_changed');
+            if ($expectedVersion !== null && (int)$before['version'] !== $expectedVersion) {
+                throw new \DomainException('stale_moderation_version');
+            }
             $active = $this->pdo->prepare("SELECT id FROM track_replacements WHERE track_id = ?
                 AND status = 'approved' AND is_active = 1 AND disabled_at IS NULL FOR UPDATE");
             $active->execute([(int) $trackId]);
@@ -88,7 +94,8 @@ final class ModerationService
             $result = $after->fetch(\PDO::FETCH_ASSOC);
             if ($action === 'approve') $this->rewards?->recordApprovedUpload($id, $adminId);
             $this->audit($adminId, 'replacement_' . $action, 'track_replacement', $id, $reason,
-                self::snapshot($before), self::snapshot($result));
+                self::snapshot($before), $batchId === null ? self::snapshot($result)
+                    : array_merge(self::snapshot($result), ['batch_id'=>$batchId]));
             $this->pdo->commit();
         } catch (\Throwable $error) {
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();

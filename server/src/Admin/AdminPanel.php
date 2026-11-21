@@ -60,11 +60,13 @@ final class AdminPanel
             if(!$ticket)return Response::json(400,['error'=>'invalid_request']);
             try{$thread=(new \Celikom\Support\SupportService($this->pdo,$this->config))->thread($ticket);}
             catch(\DomainException){return Response::json(404,['error'=>'not_found']);}
-            if($thread['kind']!=='song'||!is_array($thread['report']))return Response::json(404,['error'=>'not_found']);
-            $payload=json_encode(['schema'=>'celikom-song-diagnostic-v1','ticket'=>$ticket,
+            if(!is_array($thread['report'])||($thread['kind']!=='song'&&
+              !($thread['kind']==='general'&&($thread['report']['platform']??null)==='windows')))
+                 return Response::json(404,['error'=>'not_found']);
+            $payload=json_encode(['schema'=>'celikom-support-diagnostic-v1','ticket'=>$ticket,'kind'=>$thread['kind'],
               'report'=>$thread['report']],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
             return new Response(200,['Content-Type'=>'application/json; charset=utf-8',
-             'Content-Disposition'=>'attachment; filename="CELIKOM-song-'.$ticket.'-diagnostics.json"',
+             'Content-Disposition'=>'attachment; filename="CELIKOM-support-'.$ticket.'-diagnostics.json"',
              'X-Content-Type-Options'=>'nosniff','Cache-Control'=>'no-store'], $payload);
         }
         if(in_array($path,['/admin/support/reply','/admin/support/resolve-song'],true)){
@@ -182,6 +184,54 @@ final class AdminPanel
                 return $this->page('<section class="panel"><h1>Проверьте настройки</h1><p>Укажите процент за песню, месячный предел не ниже этого процента и срок от 1 дня.</p><a href="/admin?tab=rewards">Вернуться</a></section>',status:400);
             } catch (\DomainException) {
                 return $this->page('<section class="panel"><h1>Настройки уже изменились</h1><p>Обновите страницу и сохраните ещё раз.</p><a href="/admin?tab=rewards">Вернуться</a></section>',status:409);
+            }
+        }
+        if (in_array($path, ['/admin/bulk/preview','/admin/bulk/execute'], true)) {
+            if (!in_array($admin['role'],['owner','moderator'],true)) return Response::json(403,['error'=>'forbidden']);
+            if ($method !== 'POST') return Response::json(405,['error'=>'method_not_allowed']);
+            $form = $this->form($headers,$body,16384);
+            if (!AdminAuth::validCsrf($admin,$form['csrf']??null)) return Response::json(403,['error'=>'csrf_failed']);
+            try {
+                $selected = BulkModerationService::selected($form['selected']??null);
+                $action = $form['bulk_action']??null;
+                if (!is_string($action)) throw new \InvalidArgumentException('bulk_action_invalid');
+                if ($action === 'delete' && $admin['role'] !== 'owner') return Response::json(403,['error'=>'forbidden']);
+                $bulk = new BulkModerationService($this->pdo,$this->storage,
+                    $this->rewardEligibilityEnabled ? new \Celikom\Reward\RewardService($this->pdo) : null);
+                if ($path === '/admin/bulk/preview') {
+                    $rows = $bulk->preview($selected,$action,(string)$admin['role']);
+                    return $this->page(BulkModerationView::confirmation($admin['csrf'],$selected,$rows,$action));
+                }
+                if (($form['confirm_batch']??null) !== '1')
+                    throw new \InvalidArgumentException('bulk_confirmation_required');
+                if ($action === 'delete' && ($form['confirm_count']??null) !== (string)count($selected))
+                    throw new \InvalidArgumentException('bulk_delete_confirmation_required');
+                if ($action === 'delete') {
+                    $note=$form['review_note']??'';
+                    if (!is_string($note) || !mb_check_encoding($note,'UTF-8')
+                        || mb_strlen($note,'UTF-8')>180 || preg_match('/[\x00-\x1F\x7F]/u',$note))
+                        throw new \InvalidArgumentException('bulk_delete_note_invalid');
+                    $decision=['delete','Удаление после проверки'.(trim($note)!==''?' · '.trim($note):'')];
+                } else {
+                    $decision=self::replacementDecision([
+                        'decision'=>$action==='approve'?'approval':'rejection',
+                        'reject_category'=>$form['reject_category']??null,
+                        'review_note'=>$form['review_note']??''
+                    ],$action);
+                    if ($decision===null) throw new \InvalidArgumentException('bulk_decision_invalid');
+                }
+                [$realAction,$reason]=$decision;
+                $result=$bulk->execute((int)$admin['id'],(string)$admin['role'],$selected,
+                    $realAction,$reason,($form['rights_confirmed']??null)==='1',true);
+                return $this->page(BulkModerationView::result($result),
+                    status:$result['conflicts']?(count($result['success'])?207:409):200);
+            } catch (\InvalidArgumentException) {
+                return Response::json(400,['error'=>'invalid_bulk_request']);
+            } catch (\DomainException) {
+                return $this->page('<section class="panel"><h1>Массовая операция не выполнена</h1>'
+                    . '<p>Записи изменились или обязательное подтверждение отсутствует. Обновите очередь.</p>'
+                    . '<a class="btn" href="/admin?tab=uploads&amp;status=pending&amp;per_page=50">Вернуться</a>'
+                    . '</section>',status:409);
             }
         }
         if ($path === '/admin/action' && $method === 'POST') {
@@ -438,6 +488,11 @@ final class AdminPanel
             if($source===false) throw new \RuntimeException('promo_script_not_found');
             $sources[]=$source;
         }
+        if(str_contains($inner,'data-bulk-select')) {
+            $source=file_get_contents(__DIR__.'/bulk-moderation.js');
+            if($source===false)throw new \RuntimeException('bulk_script_not_found');
+            $sources[]=$source;
+        }
         if(str_contains($inner,'data-gain-audio')) {
             $source=file_get_contents(__DIR__.'/audio-gain.js');
             if($source===false)throw new \RuntimeException('audio_gain_script_not_found');
@@ -568,6 +623,28 @@ final class AdminPanel
             ? (int) $value : 25;
     }
 
+    /** Bounded UTF-8 search text; arrays and malformed input are ignored. */
+    private static function songSearch(array $query): string
+    {
+        $value = $query['q'] ?? '';
+        if (!is_string($value) || strlen($value) > 2048 || !preg_match('//u', $value)) return '';
+        $value = trim(preg_replace('/[\s\x00-\x1F\x7F]+/u', ' ', $value) ?? '');
+        preg_match('/^.{0,160}/us', $value, $match);
+        return trim($match[0] ?? '');
+    }
+
+    /** Every word must match; SQL wildcards are treated as literal characters. */
+    private static function songSearchWhere(string $search, string $alias, array &$params): string
+    {
+        if ($search === '') return '';
+        $parts = [];
+        foreach (preg_split('/\s+/u', $search, 12, PREG_SPLIT_NO_EMPTY) as $word) {
+            $parts[] = "CONCAT_WS(' ', $alias.artist, $alias.title, $alias.service_track_id) COLLATE utf8mb4_unicode_ci LIKE ? ESCAPE '!'";
+            $params[] = '%' . strtr($word, ['!'=>'!!', '%'=>'!%', '_'=>'!_']) . '%';
+        }
+        return '(' . implode(' AND ', $parts) . ')';
+    }
+
     /** User-supplied values never become free-form SQL predicates or LIMITs. */
     private function queueOptions(string $tab, array $query, array $statuses): array
     {
@@ -586,6 +663,17 @@ final class AdminPanel
                 . self::e($tab === 'requests' && $value === 'pending' ? 'Ожидают загрузки' : self::statusLabel($value)) . '</option>';
         }
         $form .= '</select></label>';
+        if (in_array($tab, ['uploads','requests'], true)) {
+            $search = self::songSearch($query);
+            $form .= '<label class="form-field">Поиск песни'
+                . '<input type="search" name="q" maxlength="160" value="' . self::e($search)
+                . '" placeholder="Название, исполнитель или Track ID"></label>';
+            if ($search !== '') {
+                $clear = ['tab'=>$tab, 'status'=>$status, 'per_page'=>(string)$perPage];
+                if ($tab === 'uploads') $clear['duration'] = self::durationFilter($query);
+                $form .= '<a class="btn" href="' . self::e('/admin?' . http_build_query($clear)) . '">Сбросить поиск</a>';
+            }
+        }
         if ($tab === 'uploads') {
             $duration = self::durationFilter($query);
             $form .= '<label class="form-field">Длительность<select name="duration">';
@@ -603,11 +691,12 @@ final class AdminPanel
         return [$status, $page, $offset, $form, $perPage];
     }
 
-    private function queuePages(string $tab, string $status, int $page, int $perPage, int $total, string $duration = ''): string
+    private function queuePages(string $tab, string $status, int $page, int $perPage, int $total, string $duration = '', string $search = ''): string
     {
         $totalPages = max(1, (int) ceil($total / $perPage));
         $base = '/admin?tab=' . rawurlencode($tab) . '&status=' . rawurlencode($status)
-            . '&per_page=' . $perPage . ($duration !== '' ? '&duration=' . rawurlencode($duration) : '') . '&page=';
+            . '&per_page=' . $perPage . ($duration !== '' ? '&duration=' . rawurlencode($duration) : '')
+            . ($search !== '' ? '&q=' . rawurlencode($search) : '') . '&page=';
         $view = '<nav class="pagination" aria-label="Страницы списка"><span>Всего: '
             . $total . ' · Страница ' . $page . ' из ' . $totalPages . '</span><div class="pages">';
         $link = static fn(int $i): string => $base . $i;
@@ -641,6 +730,9 @@ final class AdminPanel
         $params = $status !== '' ? [$status] : [];
         if ($duration === 'mismatch' && $status === '') $conditions[] = "(r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))";
         if ($duration !== '') $conditions[] = $difference . ($duration === 'mismatch' ? ' > 1500' : ' <= 1500');
+        $search = self::songSearch($query);
+        $searchWhere = self::songSearchWhere($search, 't', $params);
+        if ($searchWhere !== '') $conditions[] = $searchWhere;
         $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';
         $joins = ' FROM track_replacements r JOIN tracks t ON t.id=r.track_id JOIN audio_assets a ON a.id=r.audio_asset_id ';
         $mismatchCount = (int) $this->pdo->query('SELECT COUNT(*)' . $joins . ' WHERE ' . $difference . " > 1500 AND (r.status='pending' OR (r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL))")->fetchColumn();
@@ -673,11 +765,37 @@ final class AdminPanel
             . ($mismatchCount > 0 ? '<div class="duration-summary"><strong>Версий с расхождением длительности: ' . $mismatchCount
                 . '</strong><span>Разница больше 1,5 секунды — расширение не запустит подмену.</span>'
                 . '<a class="btn" href="/admin?tab=uploads&amp;duration=mismatch&amp;per_page=' . $perPage . '">Показать проблемные версии</a></div>' : '')
-            . $filter . '<div class="cards">';
+            . $filter;
+        $selectable = 0;
+        if (in_array($admin['role'],['owner','moderator'],true)) {
+            foreach ($rows as $r) {
+                if ($r['status']==='pending' || ($r['status']==='rejected' && $admin['role']==='owner')) ++$selectable;
+            }
+        }
+        if ($selectable > 0) {
+            $html .= '<form id="bulk-selection" data-bulk-select method="post" action="/admin/bulk/preview" class="bulk-bar">'
+                . '<input type="hidden" name="csrf" value="' . $csrf . '">'
+                . '<strong>Массовая модерация</strong><span data-bulk-count aria-live="polite">Выбрано 0 из ' . $selectable . '</span>'
+                . '<div class="bulk-tools"><button type="button" class="btn" data-bulk-all>Выделить все на странице (' . $selectable . ')</button>'
+                . '<button type="button" class="btn" data-bulk-none>Снять выделение</button></div>'
+                . '<div class="bulk-actions"><button type="submit" name="bulk_action" value="approve" data-bulk-action class="primary" disabled>Одобрить выбранные</button>'
+                . '<button type="submit" name="bulk_action" value="reject" data-bulk-action class="danger" disabled>Отклонить</button>'
+                . ($admin['role']==='owner'
+                    ? '<button type="submit" name="bulk_action" value="delete" data-bulk-action class="danger" disabled>Удалить</button>' : '')
+                . '</div><p class="muted">Выделение действует только на текущей странице. Перед обработкой потребуется отдельное подтверждение.</p></form>';
+        }
+        $html .= '<div class="cards">';
         foreach ($rows as $r) {
             $id = (int) $r['id'];
             $trackId = (string) $r['service_track_id'];
-            $html .= '<article class="track-card"><div class="track-top"><div class="track-heading">'
+            $html .= '<article class="track-card"><div class="track-top">'
+                . ($selectable > 0 && ($r['status']==='pending'
+                    || ($r['status']==='rejected' && $admin['role']==='owner'))
+                    ? '<label class="bulk-card-check"><input data-bulk-candidate type="checkbox"'
+                        . ' form="bulk-selection" name="selected[' . $id . ']" value="'
+                        . (int)$r['version'] . ':' . (int)($r['active_id']??0) . '">Выбрать</label>'
+                    : '')
+                . '<div class="track-heading">'
                 . '<span class="track-icon" aria-hidden="true">♫</span><div>'
                 . '<h2 class="track-title">#' . $id . ' · '
                 . self::e(self::displayTitle($r['artist'], $r['title'])) . '</h2>'
@@ -805,9 +923,10 @@ final class AdminPanel
             }
             $html .= '</article>';
         }
-        if (!$rows) $html .= '<section class="empty"><strong>Записей пока нет</strong>'
-            . 'Попробуйте изменить фильтры статуса и длительности.</section>';
-        return $html . '</div>' . $this->queuePages('uploads', $status, $page, $perPage, $total, $duration);
+        if (!$rows) $html .= '<section class="empty"><strong>'
+            . ($search !== '' ? 'Песни не найдены' : 'Записей пока нет') . '</strong>'
+            . 'Попробуйте изменить поиск или фильтры статуса и длительности.</section>';
+        return $html . '</div>' . $this->queuePages('uploads', $status, $page, $perPage, $total, $duration, $search);
     }
 
     private function requests(array $admin, string $csrf, array $query): string
@@ -817,8 +936,12 @@ final class AdminPanel
         [$status,$page,$offset,$filter,$perPage] = $this->queueOptions('requests', $query,
             ['pending','uploaded','fulfilled','reviewed','rejected']);
         $progress = \Celikom\Application\TrackRequestProgress::sql();
-        $where = $status !== '' ? ' WHERE ' . $progress . ' = ? ' : ' ';
+        $conditions = $status !== '' ? [$progress . ' = ?'] : [];
         $params = $status !== '' ? [$status] : [];
+        $search = self::songSearch($query);
+        $searchWhere = self::songSearchWhere($search, 'r', $params);
+        if ($searchWhere !== '') $conditions[] = $searchWhere;
+        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) . ' ' : ' ';
         $grouped="SELECT MAX(r.id) AS id FROM track_requests r $where GROUP BY r.service,r.service_track_id";
         $count=$this->pdo->prepare("SELECT COUNT(*) FROM ($grouped) grouped_requests");
         $count->execute($params);
@@ -862,7 +985,7 @@ final class AdminPanel
         }
         if (!$rows) $html .= '<section class="empty"><strong>Нет предложений с выбранным статусом</strong>'
             . 'Загруженные и выполненные предложения доступны через фильтр статуса.</section>';
-        return $html . '</div>' . $this->queuePages('requests', $status, $page, $perPage, $total);
+        return $html . '</div>' . $this->queuePages('requests', $status, $page, $perPage, $total, '', $search);
     }
 
     private function reports(array $admin, string $csrf, array $query): string
