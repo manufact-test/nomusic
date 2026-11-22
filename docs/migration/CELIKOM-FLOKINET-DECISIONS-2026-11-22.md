@@ -29,6 +29,8 @@
 - GitHub Deploy Key `celikom-floki-github-readonly` добавлен владельцем для `manufact-test/nomusic` без записи. Тест с VPS пользователем `celikom-mirror`: `git ls-remote git@github.com:manufact-test/nomusic.git refs/heads/main` вернул `248c643e...`, `CELIKOM_GITHUB_READ_OK`. Доступ GitHub → FlokiNET подтверждён.
 - Forgejo SSH конфигурация: `SSH_DOMAIN=127.0.0.1`, `SSH_PORT=22`, `DISABLE_SSH=false`; Forgejo HTTP слушает `127.0.0.1:3000`, OpenSSH на порту 22. Для штатного Git push планируется локальный `git@127.0.0.1` с отдельным Forgejo SSH deploy key с правом записи только в `celadmin/nomusic`. **Пока ключ и синхронизация не настроены**; прямую модификацию bare Git каталога Forgejo не использовать.
 
+- 23.11.2026: GitHub→Forgejo: `main` успешно pushed, затем 1421 ветка успешно массово передана через `git push --atomic` (без force, без delete). Сравнение нормализованных `SHA ref` локального зеркала и `git ls-remote --heads forgejo`: 1421/1421 совпадают, результат `CELIKOM_ALL_1421_BRANCHES_VERIFIED`. Тегов в источнике 0. **Периодическая синхронизация ещё не настроена.**
+
 ## Очередность дальнейших действий
 1. Прежде чем активировать self-hosted runner, проверить права доступа к секретам и изоляцию. Self-hosted workflows могут исполнять произвольный код; пользователь `celikom-ci` и cgroup сами по себе не являются достаточной защитой. Рассмотреть одноразовую ограниченную контейнерную среду без Docker socket, host mounts, root, и доступа к production network.
 2. Настроить одностороннее приватное GitHub → Forgejo зеркало и контролировать совпадение refs; не смешивать CI и backup-секреты.
