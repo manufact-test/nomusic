@@ -26,6 +26,9 @@
 - Официальный контейнер GitHub Actions runner `ghcr.io/actions/actions-runner:2.338.2` скачан и в `--network=none` проверен без регистрации: UID/GID `1001:1001`, `config.sh` и `run.sh` исполняемы, результат `CELIKOM_OFFICIAL_RUNNER_READY`. **Runner пока не зарегистрирован и задания не принимает.**
 - Согласно документации Forgejo 17, существующий нормальный репозиторий НЕ может быть превращён в встроенный pull mirror без повторного создания; текущий `celadmin/nomusic` с 19 issues и 16 PR сохраняем, не удаляем ради зеркала. Потребуется другой односторонний sync (приватный GitHub read-only источник + безопасное обновление refs через штатный git transport), с контрольными проверками.
 
+- GitHub Deploy Key `celikom-floki-github-readonly` добавлен владельцем для `manufact-test/nomusic` без записи. Тест с VPS пользователем `celikom-mirror`: `git ls-remote git@github.com:manufact-test/nomusic.git refs/heads/main` вернул `248c643e...`, `CELIKOM_GITHUB_READ_OK`. Доступ GitHub → FlokiNET подтверждён.
+- Forgejo SSH конфигурация: `SSH_DOMAIN=127.0.0.1`, `SSH_PORT=22`, `DISABLE_SSH=false`; Forgejo HTTP слушает `127.0.0.1:3000`, OpenSSH на порту 22. Для штатного Git push планируется локальный `git@127.0.0.1` с отдельным Forgejo SSH deploy key с правом записи только в `celadmin/nomusic`. **Пока ключ и синхронизация не настроены**; прямую модификацию bare Git каталога Forgejo не использовать.
+
 ## Очередность дальнейших действий
 1. Прежде чем активировать self-hosted runner, проверить права доступа к секретам и изоляцию. Self-hosted workflows могут исполнять произвольный код; пользователь `celikom-ci` и cgroup сами по себе не являются достаточной защитой. Рассмотреть одноразовую ограниченную контейнерную среду без Docker socket, host mounts, root, и доступа к production network.
 2. Настроить одностороннее приватное GitHub → Forgejo зеркало и контролировать совпадение refs; не смешивать CI и backup-секреты.
