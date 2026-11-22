@@ -62,7 +62,7 @@ jobs:
           revisions="$(MYSQL_PWD='ci-disposable-mysql' mysql -N -B --protocol=TCP -h 127.0.0.1 -P 3306 -u root celikom_site_restore -e 'SELECT COUNT(*) FROM content_revisions;')"
           [[ "$revisions" =~ ^[0-9]+$ && "$revisions" -ge 1 ]]
           echo "Website CMS isolated SQL restore PASS: $tables tables."
-          size_kb="$(ssh "${ssh_opts[@]}" "$target" "du -sk '$root/public_html' '$private' | awk '{s+=\\$1} END {print s}'")"
+          size_kb="$(ssh "${ssh_opts[@]}" "$target" "du -sk '$root/public_html' '$private' | awk '{s+=\$1} END {print s}'")"
           [[ "$size_kb" =~ ^[0-9]+$ && "$size_kb" -lt 5000000 ]] || { echo 'Website tree too large for safe CI scratch'; exit 1; }
           ssh "${ssh_opts[@]}" "$target" "tar -C '$root' --exclude='celikom-private/backups' --exclude='celikom-private/.backup-export-*' -czf - public_html celikom-private" > "$work/site-files.tar.gz"
           tar -tzf "$work/site-files.tar.gz" >/dev/null
