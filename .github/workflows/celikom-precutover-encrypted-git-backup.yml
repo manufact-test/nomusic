@@ -1,0 +1,75 @@
+name: CELIKOM encrypted pre-cutover full Git mirror (owner recovery)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/celikom-precutover-encrypted-git-backup.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Create and independently stage encrypted complete Git bundle
+        shell: bash
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          REPO_NAME: ${{ github.repository }}
+          REF_NAME: ${{ github.ref }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$REPO_NAME" == "manufact-test/nomusic" && "$REF_NAME" == "refs/heads/main" ]]
+          [[ -n "${HOSTINGER_SSH_KEY:-}" && -n "${GH_READ_TOKEN:-}" ]]
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          printf '%s\n' 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINWjfyJq4jT+q78CczF7TQM1R2HgjLWjJmfJwafEe9bx celikom-git-recovery-2026-11-22' > "$work/recipient.pub"
+          cat > "$work/askpass" <<'ASKPASS'
+          #!/bin/sh
+          case "$1" in *Username*) printf '%s' x-access-token ;; *) printf '%s' "$GH_READ_TOKEN" ;; esac
+          ASKPASS
+          chmod 0700 "$work/askpass"
+          GIT_TERMINAL_PROMPT=0 GIT_ASKPASS="$work/askpass" git clone --mirror --quiet "https://github.com/$REPO_NAME.git" "$work/repo.git"
+          unset GH_READ_TOKEN
+          heads="$(git -C "$work/repo.git" for-each-ref --format='%(refname)' refs/heads | wc -l | tr -d ' ')"
+          tags="$(git -C "$work/repo.git" for-each-ref --format='%(refname)' refs/tags | wc -l | tr -d ' ')"
+          [[ "$heads" -ge 1400 ]] || { echo "Ref inventory unexpectedly incomplete"; exit 1; }
+          git -C "$work/repo.git" fsck --no-reflogs --full --no-progress > "$work/fsck-output" 2>&1 || { echo "Mirror object validation failed"; exit 1; }
+          git -C "$work/repo.git" bundle create "$work/all-git-refs.bundle" --all
+          git -C "$work/repo.git" bundle verify "$work/all-git-refs.bundle" > "$work/verify-output" 2>&1 || { echo "Bundle integrity validation failed"; exit 1; }
+          git clone --quiet --mirror "$work/all-git-refs.bundle" "$work/verify.git"
+          check_heads="$(git -C "$work/verify.git" for-each-ref --format='%(refname)' refs/heads | wc -l | tr -d ' ')"
+          check_tags="$(git -C "$work/verify.git" for-each-ref --format='%(refname)' refs/tags | wc -l | tr -d ' ')"
+          [[ "$check_heads" == "$heads" && "$check_tags" == "$tags" ]] || { echo "Bundle restore refs mismatch"; exit 1; }
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq age >/dev/null
+          age -R "$work/recipient.pub" -o "$work/celikom-git-bundle.age" "$work/all-git-refs.bundle"
+          [[ -s "$work/celikom-git-bundle.age" ]] || exit 1
+          encrypted_sha="$(sha256sum "$work/celikom-git-bundle.age" | awk '{print $1}')"
+          # SSH identity and known host are pinned to the existing approved CELIKOM Hostinger endpoint.
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$work/sshkey"
+          ssh-keygen -y -P '' -f "$work/sshkey" > "$work/sshpub"
+          [[ "$(ssh-keygen -lf "$work/sshpub" | awk '{print $2}')" == 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk' ]]
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$work/known_hosts"
+          ssh_opts=(-i "$work/sshkey" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          target='u235811320@92.113.19.189'
+          base='/home/u235811320/domains/darkred-camel-588676.hostingersite.com/celikom'
+          remote="$base/backups/git-mirror"
+          final="celikom-git-full-$RUN_ID.age"
+          ssh -T -p 65002 "${ssh_opts[@]}" "$target" "test ! -L '$base/backups' && test ! -L '$remote' && umask 077 && mkdir -p '$remote' && chmod 0700 '$remote'"
+          scp -q -P 65002 "${ssh_opts[@]}" "$work/celikom-git-bundle.age" "$target:$remote/.$final.partial"
+          remote_sha="$(ssh -T -p 65002 "${ssh_opts[@]}" "$target" "sha256sum '$remote/.$final.partial'" | awk '{print $1}')"
+          [[ "$remote_sha" == "$encrypted_sha" ]] || { echo "Encrypted remote digest mismatch"; exit 1; }
+          ssh -T -p 65002 "${ssh_opts[@]}" "$target" "chmod 0600 '$remote/.$final.partial' && test ! -e '$remote/$final' && mv '$remote/.$final.partial' '$remote/$final'"
+          echo "Encrypted independent Git mirror PASS: $heads branch refs, $tags tags, full bundle restore ref counts verified."
+          echo "Encrypted archive SHA256: $encrypted_sha"
+          echo "Git repository is not stored in workflow artifacts. Recovery private key is not available to GitHub or Hostinger."
