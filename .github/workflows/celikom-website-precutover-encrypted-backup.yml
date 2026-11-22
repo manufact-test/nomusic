@@ -34,6 +34,7 @@ jobs:
           SITE_DB_PASSWORD: ${{ secrets.CELIKOM_STAGING_DB_PASSWORD }}
         run: |
           set -euo pipefail
+          SITE_DB_USER="${SITE_DB_USER:-u235811320_celikom_stage}"
           [[ "$GITHUB_REPOSITORY" == "manufact-test/nomusic" && "$GITHUB_REF" == "refs/heads/main" ]]
           [[ -n "$SSH_KEY" && -n "$KNOWN_HOSTS" && -n "$SITE_DB_USER" && -n "$SITE_DB_PASSWORD" ]]
           umask 077
