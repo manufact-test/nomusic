@@ -10,6 +10,7 @@
 
 ## Состояние на 22.11.2026
 - VPS: Ubuntu 24.04, x86_64, 4 vCPU, 3.8 GiB RAM, ~87 GiB disk (73 GiB свободно до swap), Docker, Nginx, PHP 8.3, MariaDB Docker, Forgejo.
+- Проверка Docker sandbox 22.11.2026 успешна: Alpine 3.21 под UID/GID `997:988`, лимит CPU 1.5, RAM 1800M, RAM+swap 3300M, `--cap-drop=ALL`, `--security-opt=no-new-privileges`, `--read-only`, без mounts или docker.sock; GitHub API доступен; результат `PRODUCTION_PATHS_HIDDEN`, `GITHUB_NETWORK_OK`, `CELIKOM_CI_SANDBOX_OK`. **Это только предварительный smoke-test; доступ к сети хоста/сервисам и безопасность исполнения workflow не доказаны. Runner ещё не зарегистрирован.**
 - `celikom-ci`: пользователь создан (shell nologin). `celikom-ci.slice` с CPU 150%, MemoryHigh 1200M, MemoryMax 1800M, MemorySwapMax 1536M, TasksMax 200 создан; **runner ещё не установлен / не запущен, slice ещё не привязан к его службе**. Swap 4.0 GiB создан (`/swapfile-celikom`, swappiness 10).
 - Forgejo `celadmin/nomusic` приватный, импорт GitHub: 1421 ветка, 3238 коммитов, 19 issues и 16 PR. `main` в Forgejo и `source-main` совпадали по `4538934e` на момент проверки. Автоматического зеркала пока нет.
 - HTTPS `api.celikom.com` установлен, цепочка TLS проверена, Certbot dry run успешен, deploy hook делает `nginx -t` и reload; публичный API пока закрыт и отвечает 404 — **продакшен не включён**.
