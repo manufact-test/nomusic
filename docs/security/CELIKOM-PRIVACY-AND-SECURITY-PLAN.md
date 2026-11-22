@@ -107,7 +107,7 @@ P0 — обязательно до соответствующего production-�
 
 - [x] GitHub `manufact-test/nomusic` visibility changed to **private** and verified via the connected repository metadata.
 - [x] Existing ChatGPT Plus GitHub connector retains repository read/write permissions; actual read of both `main` (Windows) and Android A1 working branch passed.
-- [ ] Confirm an actual write/commit and subsequent read-back on `main` (this document is the write smoke test).
+- [x] Actual documentation-only commit to `main` and subsequent read-back succeeded; proof commit `77600dcb88b8bbdbcab375f5ad5253cb5957fb10`.
 - [ ] Independently assess historical exposure, forks/mirrors, previously public artifacts, repository secrets and 2FA/permissions.
 - [ ] Backups, FlokiNET provisioning, self-hosted runner isolation, cutover and billing safety gates remain pending.
 
