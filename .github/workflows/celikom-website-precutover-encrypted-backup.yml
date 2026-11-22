@@ -1,0 +1,84 @@
+name: CELIKOM private website and CMS encrypted pre-cutover backup
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/celikom-website-precutover-encrypted-backup.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-website-staging
+  cancel-in-progress: false
+jobs:
+  snapshot:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_site_restore
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Private website and CMS snapshot; encrypted output only
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+          SITE_DB_USER: ${{ secrets.CELIKOM_STAGING_DB_USER }}
+          SITE_DB_PASSWORD: ${{ secrets.CELIKOM_STAGING_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "manufact-test/nomusic" && "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ -n "$SSH_KEY" && -n "$KNOWN_HOSTS" && -n "$SITE_DB_USER" && -n "$SITE_DB_PASSWORD" ]]
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$work/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$work/known_hosts"
+          chmod 0600 "$work/id" "$work/known_hosts"
+          ssh_opts=(-T -p 65002 -i "$work/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts" -o ConnectTimeout=15)
+          scp_opts=(-q -P 65002 -i "$work/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts")
+          target='u235811320@92.113.19.189'
+          root='/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com'
+          private="$root/celikom-private"
+          remote="$private/.backup-export-$GITHUB_RUN_ID.php"
+          php -l .github/scripts/celikom-site-db-export.php >/dev/null
+          ssh "${ssh_opts[@]}" "$target" "test -f '$private/app/staging-approved.php' && test ! -e '$private/app/release-approved.php' && test ! -L '$private' && test ! -e '$remote'"
+          scp "${scp_opts[@]}" .github/scripts/celikom-site-db-export.php "$target:$remote"
+          printf '%s\0%s' "$SITE_DB_USER" "$SITE_DB_PASSWORD" | ssh "${ssh_opts[@]}" "$target" "'/opt/alt/php83/usr/bin/php' '$remote' precutover" > "$work/site.sql"
+          ssh "${ssh_opts[@]}" "$target" "rm -f '$remote'"
+          [[ -s "$work/site.sql" ]]
+          gzip -n -c "$work/site.sql" > "$work/site-db.sql.gz"
+          if ! command -v mysql >/dev/null 2>&1; then sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq default-mysql-client >/dev/null; fi
+          MYSQL_PWD='ci-disposable-mysql' mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u root celikom_site_restore < "$work/site.sql" 2>"$work/import-errors" || { echo 'Isolated website SQL restore failed'; exit 1; }
+          tables="$(MYSQL_PWD='ci-disposable-mysql' mysql -N -B --protocol=TCP -h 127.0.0.1 -P 3306 -u root celikom_site_restore -e 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE="BASE TABLE";')"
+          [[ "$tables" =~ ^[0-9]+$ && "$tables" -ge 11 ]]
+          revisions="$(MYSQL_PWD='ci-disposable-mysql' mysql -N -B --protocol=TCP -h 127.0.0.1 -P 3306 -u root celikom_site_restore -e 'SELECT COUNT(*) FROM content_revisions;')"
+          [[ "$revisions" =~ ^[0-9]+$ && "$revisions" -ge 1 ]]
+          echo "Website CMS isolated SQL restore PASS: $tables tables."
+          size_kb="$(ssh "${ssh_opts[@]}" "$target" "du -sk '$root/public_html' '$private' | awk '{s+=\\$1} END {print s}'")"
+          [[ "$size_kb" =~ ^[0-9]+$ && "$size_kb" -lt 5000000 ]] || { echo 'Website tree too large for safe CI scratch'; exit 1; }
+          ssh "${ssh_opts[@]}" "$target" "tar -C '$root' --exclude='celikom-private/backups' --exclude='celikom-private/.backup-export-*' -czf - public_html celikom-private" > "$work/site-files.tar.gz"
+          tar -tzf "$work/site-files.tar.gz" >/dev/null
+          tar -C "$work" -cf "$work/site-snapshot.tar" site-db.sql.gz site-files.tar.gz
+          [[ "$(tar -tf "$work/site-snapshot.tar" | wc -l)" -eq 2 ]]
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq age >/dev/null
+          printf '%s\n' 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINWjfyJq4jT+q78CczF7TQM1R2HgjLWjJmfJwafEe9bx celikom-git-recovery-2026-11-22' > "$work/recipient.pub"
+          age -R "$work/recipient.pub" -o "$work/website-cms-snapshot.age" "$work/site-snapshot.tar"
+          sha="$(sha256sum "$work/website-cms-snapshot.age" | awk '{print $1}')"
+          dest="$private/backups/precutover"
+          final="website-cms-$GITHUB_RUN_ID.age"
+          ssh "${ssh_opts[@]}" "$target" "test ! -L '$private/backups' && test ! -L '$dest' && umask 077 && mkdir -p '$dest' && chmod 0700 '$dest'"
+          scp "${scp_opts[@]}" "$work/website-cms-snapshot.age" "$target:$dest/.$final.partial"
+          remote_sha="$(ssh "${ssh_opts[@]}" "$target" "sha256sum '$dest/.$final.partial'" | awk '{print $1}')"
+          [[ "$sha" == "$remote_sha" ]] || { echo 'Encrypted website archive remote SHA mismatch'; exit 1; }
+          ssh "${ssh_opts[@]}" "$target" "chmod 0600 '$dest/.$final.partial' && test ! -e '$dest/$final' && mv '$dest/.$final.partial' '$dest/$final'"
+          echo "Website/CMS encrypted tree and DB backup PASS; isolated $tables-table restore PASS."
+          echo "Encrypted archive SHA256: $sha"
