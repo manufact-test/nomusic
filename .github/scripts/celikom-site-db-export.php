@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ini_set('display_errors', '0');
-if (PHP_SAPI !== 'cli' || $argc !== 1 || $argv[1] !== 'precutover') exit(2);
+if (PHP_SAPI !== 'cli' || $argc !== 2 || $argv[1] !== 'precutover') exit(2);
 try {
     $root = '/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com';
     $private = $root . '/celikom-private';

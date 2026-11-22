@@ -2,7 +2,7 @@ name: CELIKOM private website and CMS encrypted pre-cutover backup
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/celikom-website-precutover-encrypted-backup.yml]
+    paths: [.github/workflows/celikom-website-precutover-encrypted-backup.yml, .github/scripts/celikom-site-db-export.php]
   workflow_dispatch:
 permissions:
   contents: read
