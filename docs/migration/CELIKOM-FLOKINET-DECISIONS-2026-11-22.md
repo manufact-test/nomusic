@@ -33,6 +33,9 @@
 
 - 23.11.2026: на VPS создан `/usr/local/sbin/celikom-mirror-sync` (запуск от `celikom-mirror`, GitHub read key → Forgejo write key, `flock`, без force push/удаления), ручной запуск дал `VERIFIED_REFS=1421` и `CELIKOM_MIRROR_SYNC_OK`. Созданы `celikom-mirror-sync.service` с hardening/CPU/Memory ограничениями и `celikom-mirror-sync.timer` каждые 15 минут; после стартовой проверки `Result=success`, `ExecMainStatus=0`, таймер включён, `CELIKOM_MIRROR_TIMER_CONFIGURED`. Следующий контроль: убедиться, что самостоятельный запуск по таймеру доходит до `CELIKOM_MIRROR_SYNC_OK` и переносит свежий коммит документации без ручного запуска.
 
+- 23.11.2026: CI security audit: одноразовый Docker Alpine контейнер в стандартной сети `bridge` достучался до SSH хоста через gateway (`CI_CAN_REACH_HOST_SSH`). UFW active, разрешены 22/80/443 (включая IPv6), `DOCKER-USER` пока без правил, Docker networks только default bridge/host/none. **Self-hosted runner не зарегистрирован; соединение Docker→host нужно закрыть через отдельную CI-сеть и проверенные firewall rules прежде чем пускать workflow.**
+- Timer `celikom-mirror-sync.timer` enabled+active; журнал `celikom-mirror-sync.service` показывал успешный запуск в 23:18:42–23:18:48 с `VERIFIED_REFS=1421`, но это мог быть первоначальный ручной `systemctl start`: самостоятельный scheduled tick ещё не подтверждён на момент аудита.
+
 ## Очередность дальнейших действий
 1. Прежде чем активировать self-hosted runner, проверить права доступа к секретам и изоляцию. Self-hosted workflows могут исполнять произвольный код; пользователь `celikom-ci` и cgroup сами по себе не являются достаточной защитой. Рассмотреть одноразовую ограниченную контейнерную среду без Docker socket, host mounts, root, и доступа к production network.
 2. Настроить одностороннее приватное GitHub → Forgejo зеркало и контролировать совпадение refs; не смешивать CI и backup-секреты.
