@@ -1,8 +1,32 @@
 # CELIKOM — аудит резервирования перед миграцией
 
-**Дата:** 2026-11-22. **Статус:** документальный аудит, **НЕ выполненный production-backup**. Только чтение GitHub и документации, без SSH, дампов, копирования секретов, запуска workflows и изменений пользовательских данных.
+**Дата:** 2026-11-22. **Статус:** подтверждены резервные копии Git и CMS, SQL snapshot/restore основного сервера и хеш-аудит аудио. **НЕ завершено** независимое offsite-копирование основного SQL и самих аудиофайлов, а также ключей подписи и релизных артефактов. Ни один production-объект не изменён.
 
 Основания: `docs/security/CELIKOM-PRIVACY-AND-SECURITY-PLAN.md`, `docs/adr/0002-public-development-private-release.md`, `docs/runbooks/stage14-hardening.md`, `docs/deployment/hostinger-stage5-operations.md`, `docs/website/checkpoints/2026-10-18-V5-18-FINAL-STAGING-CLOSEOUT.md`, `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md`, Android handoff.
+
+
+## Исполнение 22.11.2026 — проверено по реальным Actions
+
+Этот раздел имеет приоритет над первоначальным аудитом ниже, который фиксировал состояние **до** выполнения резервирования.
+
+| Объект | Результат | Доказательство |
+|---|---|---|
+| Git full mirror | **PASS**: все **1 421** ветки, 0 tags; bundle создан и проверен восстановлением списка refs; зашифрован возрастным ключом age на отдельный SSH recipient | Workflow [45041712215](https://github.com/manufact-test/nomusic/actions/runs/45041712215) |
+| Git ciphertext | **PASS**: приватный каталог Hostinger `celikom/backups/git-mirror/celikom-git-full-45041712215.age`, SHA-256 `33815437d2938b76d94048b64a1926d832b7213bde8407f546cba2b6640db1ad` | Remote checksum compared byte-for-byte; **no** GitHub artifacts |
+| Backend snapshot | **PASS**: свежий приватный SQL-дамп **43 таблиц**, копия закрытой конфигурации, SHA-256 inventory **1 545** аудиофайлов; аудиофайлы **не скопированы** | Workflow [45041366103](https://github.com/manufact-test/nomusic/actions/runs/45041366103) |
+| Restore backend | **PASS**: изолированное восстановление SQL **43 таблиц** и сверка количества строк, hash-check всех 1 545 исходных аудио, конфигурация; live БД не менялась | Workflow [45041783963](https://github.com/manufact-test/nomusic/actions/runs/45041783963) |
+| Default restricted request | **PASS**: `.github/deploy/hostinger-stage5-request.json` возвращён в режим `audit`; последующая проверка SUCCESS | Workflow [45042303667](https://github.com/manufact-test/nomusic/actions/runs/45042303667) |
+| Website/CMS | **PASS**: отдельный зашифрованный архив приватных и публичных файлов сайта плюс SQL **11 таблиц**; дамп импортирован в disposable MySQL, публикации существуют | Workflow [45042927595](https://github.com/manufact-test/nomusic/actions/runs/45042927595), финальная повторная проверка [45043191558](https://github.com/manufact-test/nomusic/actions/runs/45043191558) |
+| Website ciphertext | **PASS**: приватный каталог Hostinger `celikom-private/backups/precutover/website-cms-45043191558.age`, SHA-256 `9bc1546e7274c86dbced3d012b01ed8a826ee30ba58e00ded8d77847218a3757` | Encrypted remote SHA verified |
+| CI после исправления PHP newline | General CI **PASS** on `44d3917bcf16e9f4b75719e8ed44c8f2d85adfa0`; Windows integration should be checked independently | Workflow [45043191590](https://github.com/manufact-test/nomusic/actions/runs/45043191590) |
+
+**Recovery identity:** archives use the same *public* SSH Ed25519 recipient (`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINWjfyJq4jT+q78CczF7TQM1R2HgjLWjJmfJwafEe9bx`). The corresponding private recovery key was generated outside GitHub and Hostinger and linked to the owner in ChatGPT; **owner's secure offline custody is not yet confirmed**. Never put the private key, users' SQL, unencrypted media or env into repository or workflow artifacts. To restore encrypted backups use `age -d -i <owner-key> archive.age` in a trusted offline environment, check SHA-256 of ciphertext first, and test `git clone --mirror` or isolated MySQL before cutover.
+
+**Still P0 / NO-GO for provider-loss recovery:** the full original **1 545 audio files** have **not** been transferred off Hostinger; SQL snapshot and site backup ciphertext are **also on Hostinger**, not yet in independent offsite storage. No FlokiNET IP/credentials or verified SSH access has been provided. Source GitHub release assets/PR metadata and private app signing keys still require separately verified custody. Do not shut down Hostinger or start paid subscriptions based on these backups alone.
+
+**Immediate next action:** obtain one secure FlokiNET initial-access channel (owner's hosting panel/SSH bootstrap) and stream verified encrypted media + current databases + website/Git archives to the new VPS, then a second independent backup destination. Keep minimal owner involvement and current ChatGPT Plus / GitHub Private / self-hosted-runner strategy. Do not alter application architecture or branch history.
+
+---
 
 ## 1. Проверено по GitHub 22.11.2026
 
