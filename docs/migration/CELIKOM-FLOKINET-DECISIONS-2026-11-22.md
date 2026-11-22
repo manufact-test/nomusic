@@ -31,6 +31,8 @@
 
 - 23.11.2026: GitHub→Forgejo: `main` успешно pushed, затем 1421 ветка успешно массово передана через `git push --atomic` (без force, без delete). Сравнение нормализованных `SHA ref` локального зеркала и `git ls-remote --heads forgejo`: 1421/1421 совпадают, результат `CELIKOM_ALL_1421_BRANCHES_VERIFIED`. Тегов в источнике 0. **Периодическая синхронизация ещё не настроена.**
 
+- 23.11.2026: на VPS создан `/usr/local/sbin/celikom-mirror-sync` (запуск от `celikom-mirror`, GitHub read key → Forgejo write key, `flock`, без force push/удаления), ручной запуск дал `VERIFIED_REFS=1421` и `CELIKOM_MIRROR_SYNC_OK`. Созданы `celikom-mirror-sync.service` с hardening/CPU/Memory ограничениями и `celikom-mirror-sync.timer` каждые 15 минут; после стартовой проверки `Result=success`, `ExecMainStatus=0`, таймер включён, `CELIKOM_MIRROR_TIMER_CONFIGURED`. Следующий контроль: убедиться, что самостоятельный запуск по таймеру доходит до `CELIKOM_MIRROR_SYNC_OK` и переносит свежий коммит документации без ручного запуска.
+
 ## Очередность дальнейших действий
 1. Прежде чем активировать self-hosted runner, проверить права доступа к секретам и изоляцию. Self-hosted workflows могут исполнять произвольный код; пользователь `celikom-ci` и cgroup сами по себе не являются достаточной защитой. Рассмотреть одноразовую ограниченную контейнерную среду без Docker socket, host mounts, root, и доступа к production network.
 2. Настроить одностороннее приватное GitHub → Forgejo зеркало и контролировать совпадение refs; не смешивать CI и backup-секреты.
