@@ -1,0 +1,2 @@
+Test portable Windows-related Linux checks using isolated FlokiNET x64 runner.
+One-off staged preflight, no publishing or production secrets.
