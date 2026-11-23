@@ -1,2 +1,2 @@
-Probe .NET 10 WinForms cross-compilation on isolated FlokiNET Linux x64 runner.
-No signing, deploy, or release operations.
+FlokiNET .NET10 Windows WinForms cross-compilation; writable DOTNET_INSTALL_DIR under runner.temp.
+Retry after permission diagnosis, no release, signing or production secrets.
