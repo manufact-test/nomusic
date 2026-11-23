@@ -1,0 +1,2 @@
+Probe .NET 10 WinForms cross-compilation on isolated FlokiNET Linux x64 runner.
+No signing, deploy, or release operations.
