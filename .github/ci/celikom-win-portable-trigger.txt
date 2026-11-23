@@ -1,2 +1,4 @@
-Repeat FlokiNET Windows portable CI with no sudo/php installer; report missing tools explicitly.
-Trigger 2026-11-23 19:09 UTC
+CELIKOM Windows portable CI recheck on FlokiNET isolated runner.
+Image: celikom/actions-runner-tools:2.338.2
+Tools preinstalled: PHP 8.3 + pdo_mysql, Ruby, zip, Node 24 (setup).
+No deployment, signing, or production secrets.
