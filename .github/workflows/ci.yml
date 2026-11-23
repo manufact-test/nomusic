@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - 'docs/**'
       - '.github/ci/celikom-runner-smoke-trigger.txt'
+      - '.github/ci/celikom-win-portable-trigger.txt'
+      - '.github/workflows/celikom-win-portable-floki-preflight.yml'
   pull_request:
     branches: [main, develop]
 
