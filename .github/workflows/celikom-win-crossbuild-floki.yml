@@ -35,14 +35,14 @@ jobs:
           test -x /usr/bin/dotnet
           dotnet --version
           dotnet --list-sdks
-          dotnet --version | grep -E '^10\\.'
+          dotnet --version | cut -d. -f1 | grep -Fx 10
       - name: Cross-compile Windows WinForms companion and updater on Linux
         shell: bash
         run: |
           set -euo pipefail
           dotnet --version
           dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj \
-            -c Release -p:EnableWindowsTargeting=true -warnaserror -m:1 -m:1
+            -c Release -p:EnableWindowsTargeting=true -warnaserror -m:1
           dotnet build windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj \
-            -c Release -p:EnableWindowsTargeting=true -warnaserror
+            -c Release -p:EnableWindowsTargeting=true -warnaserror -m:1
           echo CELIKOM_WINDOWS_CROSSBUILD_COMPILE_OK
