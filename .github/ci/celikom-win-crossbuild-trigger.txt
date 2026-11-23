@@ -1,2 +1,1 @@
-Test native .NET 10.0.115 SDK preinstalled in celikom/actions-runner-dotnet:2.338.2 on FlokiNET.
-Windows WinForms cross-compilation only, no signed release or deployment.
+Verify unsigned Win-x64 single-file PE outputs (Companion and UpdateSupervisor) on FlokiNET .NET SDK 10.0.115. Internal crosspublish feasibility, no signing, no installer, no artifact export.
