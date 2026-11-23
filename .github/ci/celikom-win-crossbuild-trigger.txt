@@ -1,2 +1,2 @@
-FlokiNET .NET 10 crossbuild retry using GITHUB_ENV to select writable runner temporary install directory.
-Trigger 2026-11-23T19:11Z
+Test native .NET 10.0.115 SDK preinstalled in celikom/actions-runner-dotnet:2.338.2 on FlokiNET.
+Windows WinForms cross-compilation only, no signed release or deployment.
