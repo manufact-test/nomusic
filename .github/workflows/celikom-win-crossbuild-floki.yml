@@ -1,16 +1,19 @@
-name: CELIKOM Windows x64 cross-build feasibility on FlokiNET
+name: CELIKOM Windows x64 build on isolated FlokiNET
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
+      - 'windows-companion/**'
       - '.github/ci/celikom-win-crossbuild-trigger.txt'
+      - '.github/workflows/celikom-win-crossbuild-floki.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: celikom-win-crossbuild-floki
-  cancel-in-progress: false
+  group: celikom-win-crossbuild-floki-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   cross-compile:
@@ -47,6 +50,7 @@ jobs:
             -c Release -p:EnableWindowsTargeting=true -warnaserror -m:1
           echo CELIKOM_WINDOWS_CROSSBUILD_COMPILE_OK
       - name: Publish unsigned Windows single-file EXEs on Linux
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[qa-exe]')
         shell: bash
         run: |
           set -euo pipefail
