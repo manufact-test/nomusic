@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: celikom-win-portable-floki
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   portable-build-ci:
@@ -25,11 +25,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: pdo_mysql, fileinfo
-          coverage: none
+      - name: Detect minimal portable tooling on official self-hosted image
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in node ruby php zip; do
+            if command -v "$tool" >/dev/null; then
+              echo "FOUND: $tool"
+            else
+              echo "MISSING: $tool"
+            fi
+          done
+          command -v php
+          command -v ruby
       - name: W113/W148 signed stable release and production trust contract
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/windows-stable-signed-release.yml"); puts "W155_RELEASE_WORKFLOW_YAML_PASS"'
