@@ -17,6 +17,8 @@
 
 - 23.11.2026: клиентская панель FlokiNET показывала `Down for Maintenance (Err 3)`, но VPS успешно доступен по SSH, `nginx`, `forgejo`, `celikom-mirror-sync.timer` active. В журнале **самостоятельный запуск** зеркала в 09:45 UTC: `VERIFIED_REFS=1421`, `CELIKOM_MIRROR_SYNC_OK`; таймер каждые 15 минут **действительно работает**. VPS uptime ~16 часов, нагрузка 0.09/0.02/0, RAM 2.6 GiB available, swap 1.3 MiB used. Провайдерский биллинг и работа VPS — разные вещи. CI постоянная защита/runner всё ещё не настроены.
 
+- **23.11.2026 — постоянные правила CI-сети установлены и проверены:** `/usr/local/sbin/celikom-ci-network-guard`, systemd `celikom-ci-network-guard.service`, `Result=success`, `ExecMainStatus=0`, iptables INPUT `-i br-celikomci -j REJECT`, цепочка DOCKER-USER блокирует private IPv4 networks и пересылку CI через интерфейсы кроме `eth0`. Тест в `celikom-ci-net`: `SSH_BLOCKED`, `GITHUB_OK`. **Следующая проверка:** доступ к публичному IP VPS, gateway, внутренним портам 3000/3307/8081, стандартному Docker bridge и общая корректность. GitHub runner НЕ зарегистрирован.
+
 ## Точный стоп-пункт и следующие задачи
 1. **Никаких дальнейших работ в ночь 23.11.2026.** На следующей сессии проверка самостоятельного таймера уже пройдена 23.11.2026 (09:45 UTC). Поддерживать зеркало и наблюдать ошибки в журналах; сверку main по SHA можно выполнить при необходимости.
 2. Постоянно, узко и безопасно закрыть сеть `celikom-ci-net` от SSH, nginx, DB, Forgejo и других сетей host/docker, оставляя GitHub connectivity; проверить правила после reboot. Не мешать Hostinger/MariaDB.
