@@ -22,7 +22,8 @@ permissions:
 jobs:
   portable-build-ci:
     name: Linux extension and server package build
-    runs-on: ubuntu-22.04
+    # Trusted main/manual builds use FlokiNET; pull requests remain GitHub-hosted.
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-22.04' || 'celikom-ci-smoke-only' }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -31,11 +32,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - uses: shivammathur/setup-php@v2
+      - name: Set up PHP on GitHub-hosted PR runner
+        if: github.event_name == 'pull_request'
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: pdo_mysql, fileinfo
           coverage: none
+      - name: Verify built-in FlokiNET PHP and Ruby
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -v | head -1
+          php -m | grep -Fx 'pdo_mysql'
+          ruby -e 'require "yaml"; puts "CELIKOM_RUBY_READY"'
+          command -v zip
+          echo CELIKOM_FLOKINET_PORTABLE_TOOLCHAIN_READY
       - name: W113/W148 signed stable release and production trust contract
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/windows-stable-signed-release.yml"); puts "W155_RELEASE_WORKFLOW_YAML_PASS"'
