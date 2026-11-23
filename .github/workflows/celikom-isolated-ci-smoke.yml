@@ -1,0 +1,30 @@
+name: CELIKOM isolated CI smoke (no secrets)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/ci/celikom-runner-smoke-trigger.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-isolated-ci-smoke
+  cancel-in-progress: false
+
+jobs:
+  sandbox-probe:
+    name: Isolated runner smoke
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 5
+    steps:
+      - name: Verify sandbox without checkout or secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -S /var/run/docker.sock
+          test ! -e /srv/celikom/migration
+          test ! -e /var/lib/forgejo
+          test ! -e /srv/celikom/data
+          echo 'CELIKOM_SELF_HOSTED_SANDBOX_SMOKE_OK'
