@@ -50,3 +50,12 @@ jobs:
           npm run build:extension
       - name: Verify extension checksum
         run: cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256
+      - name: Upload isolated extension preflight ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: celikom-floki-extension-preflight-${{ github.sha }}
+          path: |
+            extension/dist/celikom-extension-*.zip
+            extension/dist/celikom-extension-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 3
