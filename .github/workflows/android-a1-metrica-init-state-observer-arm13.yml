@@ -51,7 +51,9 @@ permissions:
   contents: write
 jobs:
   jvm-issuer-proxy-contract:
-    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    runs-on: celikom-ci-smoke-only
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
