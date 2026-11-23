@@ -1,0 +1,2 @@
+CELIKOM isolated self-hosted runner first smoke test
+No production secrets, no checkout, no build.
