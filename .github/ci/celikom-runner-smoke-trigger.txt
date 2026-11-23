@@ -1,4 +1,3 @@
-CELIKOM isolated self-hosted runner smoke + extension ZIP build
-Runner image: celikom/actions-runner-zip:2.338.2
-Trigger: 2026-11-23 18:38 UTC
-No production secrets or deploy.
+CELIKOM isolated FlokiNET self-hosted runner
+Test archive upload (extension v0.4.73 ZIP + sha256)
+Trigger: 2026-11-23T18:44:00Z
