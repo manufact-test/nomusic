@@ -41,7 +41,7 @@ jobs:
           test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
           test "$(cat android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/resources/META-INF/xposed/scope.list)" = pro.celikom.yandex.nativeclonelab
           mkdir -p "$RUNNER_TEMP/a1-native-renderer-observer"
-          javac --release 17 -d "$RUNNER_TEMP/a1-native-renderer-observer" \
+          javac -encoding UTF-8 --release 17 -d "$RUNNER_TEMP/a1-native-renderer-observer" \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
