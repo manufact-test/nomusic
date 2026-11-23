@@ -1,2 +1,2 @@
-Test portable Windows-related Linux checks using isolated FlokiNET x64 runner.
-One-off staged preflight, no publishing or production secrets.
+Repeat FlokiNET Windows portable CI with no sudo/php installer; report missing tools explicitly.
+Trigger 2026-11-23 19:09 UTC
