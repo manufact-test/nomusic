@@ -23,7 +23,7 @@ permissions:
   contents: read
 jobs:
   nav17-owned-observer-no-vendor-code:
-    runs-on: ubuntu-24.04
+    runs-on: celikom-ci-smoke-only
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
