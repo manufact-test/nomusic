@@ -1,2 +1,4 @@
-CELIKOM isolated self-hosted runner smoke + extension build preflight
-Run 2026-11-23 18:22 UTC
+CELIKOM isolated self-hosted runner smoke + extension ZIP build
+Runner image: celikom/actions-runner-zip:2.338.2
+Trigger: 2026-11-23 18:38 UTC
+No production secrets or deploy.
