@@ -19,6 +19,8 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+      DOTNET_CLI_HOME: /home/runner/_work/_temp
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,20 +28,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Select writable .NET install directory
+      - name: Validate preinstalled .NET 10 SDK in isolated image
         shell: bash
-        run: echo "DOTNET_INSTALL_DIR=$RUNNER_TEMP/celikom-dotnet-sdk" >> "$GITHUB_ENV"
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: '10.0.x'
-          skip-lts-prepass: true
+        run: |
+          set -euo pipefail
+          test -x /usr/bin/dotnet
+          dotnet --version
+          dotnet --list-sdks
+          dotnet --version | grep -E '^10\\.'
       - name: Cross-compile Windows WinForms companion and updater on Linux
         shell: bash
         run: |
           set -euo pipefail
           dotnet --version
           dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj \
-            -c Release -p:EnableWindowsTargeting=true -warnaserror
+            -c Release -p:EnableWindowsTargeting=true -warnaserror -m:1 -m:1
           dotnet build windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj \
             -c Release -p:EnableWindowsTargeting=true -warnaserror
           echo CELIKOM_WINDOWS_CROSSBUILD_COMPILE_OK
