@@ -1,2 +1,2 @@
-CELIKOM isolated self-hosted runner first smoke test
-No production secrets, no checkout, no build.
+CELIKOM isolated self-hosted runner smoke + extension build preflight
+Run 2026-11-23 18:22 UTC

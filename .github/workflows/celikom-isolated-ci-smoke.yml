@@ -28,3 +28,25 @@ jobs:
           test ! -e /var/lib/forgejo
           test ! -e /srv/celikom/data
           echo 'CELIKOM_SELF_HOSTED_SANDBOX_SMOKE_OK'
+
+  extension-preflight:
+    name: Extension build on FlokiNET
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install extension workspace
+        run: npm ci --no-audit --no-fund
+      - name: Test and build extension
+        run: |
+          npm run test:extension
+          npm run build:extension
+      - name: Verify extension checksum
+        run: cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256

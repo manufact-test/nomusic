@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - '.github/ci/celikom-runner-smoke-trigger.txt'
   pull_request:
     branches: [main, develop]
 
