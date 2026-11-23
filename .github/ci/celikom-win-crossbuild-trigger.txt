@@ -1,2 +1,2 @@
-FlokiNET .NET10 Windows WinForms cross-compilation; writable DOTNET_INSTALL_DIR under runner.temp.
-Retry after permission diagnosis, no release, signing or production secrets.
+FlokiNET .NET 10 crossbuild retry using GITHUB_ENV to select writable runner temporary install directory.
+Trigger 2026-11-23T19:11Z
