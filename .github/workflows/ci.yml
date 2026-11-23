@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - 'docs/**'
       - '.github/ci/celikom-runner-smoke-trigger.txt'
+      - '.github/ci/celikom-win-crossbuild-trigger.txt'
+      - '.github/workflows/celikom-win-crossbuild-floki.yml'
       - '.github/ci/celikom-win-portable-trigger.txt'
       - '.github/workflows/celikom-win-portable-floki-preflight.yml'
   pull_request:

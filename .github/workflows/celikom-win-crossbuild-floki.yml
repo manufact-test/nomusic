@@ -1,0 +1,41 @@
+name: CELIKOM Windows x64 cross-build feasibility on FlokiNET
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/ci/celikom-win-crossbuild-trigger.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-win-crossbuild-floki
+  cancel-in-progress: false
+
+jobs:
+  cross-compile:
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Cross-compile Windows WinForms companion and updater on Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet --version
+          dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj \
+            -c Release -p:EnableWindowsTargeting=true -warnaserror
+          dotnet build windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj \
+            -c Release -p:EnableWindowsTargeting=true -warnaserror
+          echo CELIKOM_WINDOWS_CROSSBUILD_COMPILE_OK
