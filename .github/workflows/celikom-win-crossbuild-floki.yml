@@ -46,3 +46,31 @@ jobs:
           dotnet build windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj \
             -c Release -p:EnableWindowsTargeting=true -warnaserror -m:1
           echo CELIKOM_WINDOWS_CROSSBUILD_COMPILE_OK
+      - name: Publish unsigned Windows single-file EXEs on Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/celikom-win-x64-crosspublish"
+          mkdir -p "$out/companion" "$out/supervisor"
+          dotnet publish windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj \
+            -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:DebugType=None -m:1 -o "$out/companion"
+          dotnet publish windows-companion/w15/Celikom.UpdateSupervisor/Celikom.UpdateSupervisor.csproj \
+            -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:DebugType=None -m:1 -o "$out/supervisor"
+          python3 - "$out" <<'PY'
+          import hashlib, pathlib, sys
+          root=pathlib.Path(sys.argv[1])
+          for rel in ("companion/CELIKOM.Companion.exe", "supervisor/CELIKOM.UpdateSupervisor.exe"):
+              path=root/rel
+              assert path.is_file(), f"Missing exe: {rel}"
+              with path.open("rb") as f:
+                  assert f.read(2)==b"MZ", f"Not a Windows PE executable: {rel}"
+              size=path.stat().st_size
+              assert size>2_000_000, f"Unexpectedly small executable: {rel} ({size})"
+              digest=hashlib.sha256(path.read_bytes()).hexdigest()
+              print(f"CELIKOM_CROSSPUBLISH_PE_VALID {rel} bytes={size} sha256={digest}")
+          PY
+          echo CELIKOM_WINDOWS_UNSIGNED_CROSSPUBLISH_OK
