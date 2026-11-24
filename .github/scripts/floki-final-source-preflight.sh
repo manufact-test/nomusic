@@ -37,5 +37,68 @@ command -v gzip
 if command -v crontab >/dev/null; then
   crontab -l 2>/dev/null | awk '/darkred-camel-588676|lemonchiffon-narwhal-791953|celikom/{n++}END{print "CELIKOM_CRON_MATCHES",n+0}' || true
 fi
+
+# Canonical row fingerprints, not row values; both schemas compared independently.
+"$PHP" -r '
+
+function fingerprint(PDO $p, string $kind): void {
+ $p->setAttribute(PDO::ATTR_STRINGIFY_FETCHES,true);
+ $tables=$p->query("SHOW FULL TABLES WHERE Table_type=\"BASE TABLE\"")->fetchAll(PDO::FETCH_COLUMN);
+ sort($tables,SORT_STRING);
+ foreach($tables as $t){
+  if(!preg_match("/^[a-zA-Z0-9_]+$/D",$t))throw new RuntimeException("Unexpected table");
+  $q=$p->query("SELECT * FROM `".$t."`");
+  $rows=[];
+  while(($row=$q->fetch(PDO::FETCH_NUM))!==false){
+   $h=hash_init("sha256");
+   foreach($row as $v){
+    if($v===null)hash_update($h,"N;");
+    else {$v=(string)$v;hash_update($h,"V".strlen($v).":".$v);}
+   }
+   $rows[]=hash_final($h);
+  }
+  sort($rows,SORT_STRING);
+  echo "FINGERPRINT ",$kind," ",$t," ",count($rows)," ",hash("sha256",implode("\n",$rows)),PHP_EOL;
+ }
+}
+
+require $argv[1]."/celikom/current/bootstrap.php";$c=require $argv[1]."/celikom/current/config/app.php";
+if($c["db_name"]!=="u235811320_celikom")exit(2);
+fingerprint(Celikom\Database\Connection::open($c),"api");
+' "$API"
+"$PHP" -r '
+
+function fingerprint(PDO $p, string $kind): void {
+ $p->setAttribute(PDO::ATTR_STRINGIFY_FETCHES,true);
+ $tables=$p->query("SHOW FULL TABLES WHERE Table_type=\"BASE TABLE\"")->fetchAll(PDO::FETCH_COLUMN);
+ sort($tables,SORT_STRING);
+ foreach($tables as $t){
+  if(!preg_match("/^[a-zA-Z0-9_]+$/D",$t))throw new RuntimeException("Unexpected table");
+  $q=$p->query("SELECT * FROM `".$t."`");
+  $rows=[];
+  while(($row=$q->fetch(PDO::FETCH_NUM))!==false){
+   $h=hash_init("sha256");
+   foreach($row as $v){
+    if($v===null)hash_update($h,"N;");
+    else {$v=(string)$v;hash_update($h,"V".strlen($v).":".$v);}
+   }
+   $rows[]=hash_final($h);
+  }
+  sort($rows,SORT_STRING);
+  echo "FINGERPRINT ",$kind," ",$t," ",count($rows)," ",hash("sha256",implode("\n",$rows)),PHP_EOL;
+ }
+}
+
+require $argv[1]."/celikom-private/app/bootstrap.php";$c=Celikom\Website\CmsConfig::databaseSettings();
+if(!preg_match("/^u235811320_celikom_stage[a-zA-Z0-9_]*$/D",$c["dbname"]))exit(2);
+fingerprint(Celikom\Website\Database::connect($c),"cms");
+' "$WEB"
+file_fingerprint(){
+  cd "$1"
+  find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | awk -v kind="$2" '{print "FILE_FINGERPRINT",kind,$1}'
+}
+(file_fingerprint "$API/celikom/shared/audio" audio)
+(file_fingerprint "$WEB/celikom-private/media" cms-media)
+echo HOSTINGER_SOURCE_FINGERPRINT_OK
 echo HOSTINGER_FINAL_SOURCE_PREFLIGHT_OK
 REMOTE
