@@ -2,22 +2,33 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-echo '=== Run scheduled mirror job once ==='
-systemctl start celikom-mirror-sync.service
-systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp
-journalctl -u celikom-mirror-sync.service -n 35 --no-pager -o cat | grep -E 'FETCH GITHUB|PUSH FORGEJO|VERIFIED_REFS=|CELIKOM_MIRROR_SYNC_OK|Permission denied|fatal:|error:|Failed to start' || true
-echo '=== Independent mirror refs comparison ==='
-runuser -u celikom-mirror -- bash -c '
-set -euo pipefail
-R=/home/celikom-mirror/github-mirror.git
-S=/home/celikom-mirror/.ssh
-tmp=$(mktemp -d)
-trap "rm -rf \"$tmp\"" EXIT
-git --git-dir="$R" for-each-ref --format="%(objectname) %(refname)" refs/heads refs/tags | LC_ALL=C sort > "$tmp/local"
-FG="ssh -i $S/forgejo-write -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$S/forgejo_known_hosts -o BatchMode=yes"
-GIT_SSH_COMMAND="$FG" git --git-dir="$R" ls-remote --heads --tags forgejo | awk "\$2 !~ /\\^\\{\\}$/ {print \$1 \" \" \$2}" | LC_ALL=C sort > "$tmp/remote"
-cmp "$tmp/local" "$tmp/remote"
-echo "MIRROR_EXACT_REFS=$(wc -l < "$tmp/local")"
-'
-systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus
-echo CELIKOM_MIRROR_REPAIR_RECHECK_OK
+A=/srv/celikom/migration/sites-20261124/android-private
+echo '=== Android updater files in copied private tree ==='
+find "$A" -type f \( -name stable.json -o -name '*.apk' -o -name '*.sig' -o -name 'manifest*.json' \) -printf '%P %s bytes\n' | sort | tail -n 65
+echo '=== Exact stable manifest metadata (no tokens or URLs) ==='
+python3 - "$A" <<'PY'
+import json,pathlib,sys,hashlib
+root=pathlib.Path(sys.argv[1])
+files=list(root.rglob("stable.json"))
+for p in files:
+    try:
+        o=json.loads(p.read_text())
+    except Exception:
+        continue
+    print("MANIFEST",p.relative_to(root))
+    for k in ("schemaVersion","enabled","channel","packageName","versionCode","versionName","signerSha256","sizeBytes","minSdk"):
+        print(k,repr(o.get(k)))
+    url=o.get("apkUrl","")
+    print("apkUrl_path",url.split("?",1)[0].split("/")[-1] if isinstance(url,str) else "INVALID")
+    if isinstance(url,str):
+        name=url.split("/")[-1]
+        matches=list(root.rglob(name))
+        for m in matches:
+            h=hashlib.sha256(m.read_bytes()).hexdigest()
+            print("APK_MATCH",m.relative_to(root),m.stat().st_size,h)
+PY
+echo '=== Android build-input baseline private copy ==='
+f=/srv/celikom-releases/private/android-build-inputs/CELIKOM-0.3.22-install.apk
+stat -c 'mode=%a owner=%U:%G size=%s' "$f"
+sha256sum "$f"
+echo CELIKOM_ANDROID_PRIVATE_INPUT_INVENTORY_OK
