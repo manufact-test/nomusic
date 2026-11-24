@@ -74,6 +74,17 @@ jobs:
           npm ci --no-audit --no-fund
           npm run build
           npm run security
+      - name: Verify private build spool contract
+        run: node --test .github/scripts/tests/floki-private-build-spool.test.mjs
+      - name: Keep verified ZIPs in persistent private FlokiNET runner spool
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node .github/scripts/floki-private-build-spool.mjs \
+            "$GITHUB_WORKSPACE" /home/runner/celikom-build-spool \
+            "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
 
   windows-integration-ci:
     needs: portable-build-ci
