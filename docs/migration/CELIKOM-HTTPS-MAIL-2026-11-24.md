@@ -15,3 +15,9 @@ FlokiNET ticket #477936: outgoing SMTP 25/465/587 requires a refundable EUR 150 
 
 ## Local regression
 `php server/tests/mail-transport.php` — offline request contract, errors, input validation and old test sink/SMTP readiness. No secrets, network, or database required. Included in server foundation CI. Real delivery remains a separate gate.
+
+## 24.11.2026 — delivery checkpoint
+
+- Owner completed all seven Brevo DNS records in Njalla; Brevo confirmed domain authenticated and branded. Sender `noreply@celikom.com` verified; DKIM and DMARC green. Owner explicitly chose full-access API key; keep it server-only and recommend IP restriction after checking egress. Do not request key in chat.
+- FlokiNET SSH host test using HTTPS POST to Brevo returned HTTP 201 / `CELIKOM_BREVO_ACCEPTED`; owner supplied screenshot of message received in Gmail inbox from the verified sender. SMTP unblock deposit is unnecessary. This proves direct provider delivery, not yet PHP/FPM application integration.
+- Commit `6ac2ff6b60f98adcf85269d0c0040e6d06225dac`: CI run 45390870777 passed repository/runtime tests including `CELIKOM_MAIL_TRANSPORT_TESTS_OK`; final artifact upload failed due to GitHub storage quota. Windows integration run 45390870712 succeeded. Still deploy reviewed backend code in staging, verify PHP curl, securely install API key, then test real registration/reset/support. No public cutover yet.
