@@ -2,31 +2,26 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Read-only audit; no permission changes.
-ctr=celikom-mdb-check-20261122
-app=/srv/celikom/app/staging-20261122
-api_sql(){
-  docker exec -i "$ctr" sh -c '
-    if [ -n "${MARIADB_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MARIADB_ROOT_PASSWORD_FILE")
-    elif [ -n "${MYSQL_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MYSQL_ROOT_PASSWORD_FILE")
-    elif [ -n "${MARIADB_ROOT_PASSWORD:-}" ]; then MYSQL_PWD=$MARIADB_ROOT_PASSWORD
-    else exit 2; fi
-    export MYSQL_PWD
-    exec mariadb -uroot --max-allowed-packet=64M "$@"
-  ' sh "$@"
-}
-
-read -r old_api api_account < <(runuser -u www-data -- php -r 'require $argv[1]."/bootstrap.php";$c=require $argv[1]."/config/app.php";$p=Celikom\Database\Connection::open($c);$r=$p->query("SELECT DATABASE(),CURRENT_USER()")->fetch(PDO::FETCH_NUM);echo implode(" ",$r),PHP_EOL;' "$app")
-[[ "$old_api" =~ ^[A-Za-z0-9_]+$ && "$api_account" =~ ^[A-Za-z0-9_]+@[A-Za-z0-9_.%:-]+$ ]]
-u=$(printf '%s' "$api_account" | cut -d@ -f1)
-h=$(printf '%s' "$api_account" | cut -d@ -f2)
-echo '=== API database privilege audit ==='
-api_sql -e "SELECT Db,Select_priv,Insert_priv,Update_priv,Delete_priv,Grant_priv FROM mysql.db WHERE User='$u' AND Host='$h' AND REPLACE(Db,CHAR(92),'') IN ('$old_api','celikom_cutover_20261124') ORDER BY Db"
-api_sql -e "SELECT COUNT(*) AS cutover_schema_exists FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='celikom_cutover_20261124'"
-mysql --protocol=socket -uroot -e "SELECT COUNT(*) AS cms_cutover_schema_exists FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='celikom_website_cutover_20261124'"
-test ! -e /etc/nginx/conf.d/celikom-cutover-probe.conf
-for p in /api/v1/health /api/v1/config /admin/; do
-  printf '%s ' "$p"
-  curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://api.celikom.com$p"
+echo '=== Recovery inventory (metadata only) ==='
+df -h /srv /root
+find /root /srv/celikom -xdev -type f \( -name 'celikom-offsite-*.tar.gpg' -o -name '*.age' -o -name '*.bundle' \) -printf '%p %s bytes\n' 2>/dev/null | sort
+for path in /root/celikom-cutover-snapshot-YaDz8eHD/intake/api.sql.gz /root/celikom-cutover-snapshot-YaDz8eHD/intake/cms.sql.gz /srv/celikom/migration/refresh-20261124-151155/database/celikom.sql.gz /srv/celikom/migration/sites-20261124/database/cms.sql.gz; do
+  test -f "$path" && test ! -L "$path"
+  gzip -t "$path"
+  sha256sum "$path"
 done
-echo CELIKOM_DB_READONLY_AUDIT_OK
+for d in /srv/celikom/migration/sites-20261124/android-public /srv/celikom/migration/sites-20261124/android-private /srv/celikom/migration/sites-20261124/api-public /srv/celikom/data/candidate-20261124/audio; do
+  test -d "$d"
+  printf '%s files=' "$d"
+  find "$d" -type f | wc -l
+done
+echo '=== Encryption availability ==='
+for cmd in age gpg tar; do command -v "$cmd" || true; done
+echo '=== Scheduled renewal and runner status ==='
+systemctl is-enabled certbot.timer
+systemctl is-active certbot.timer
+systemctl show certbot.timer -p NextElapseUSecRealtime
+systemctl is-active celikom-ci-runner.service
+systemctl is-active celikom-mirror-sync.timer
+systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus
+echo CELIKOM_RECOVERY_INVENTORY_OK
