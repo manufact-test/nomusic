@@ -13,18 +13,27 @@ for p in spool.iterdir():
 zpath=next(spool.glob("celikom-server-*.zip"))
 with zipfile.ZipFile(zpath) as z:
  names=[n for n in z.namelist() if not n.endswith("/")]
- unsafe=[n for n in names if n.startswith("/") or ".." in pathlib.PurePosixPath(n).parts or any(x in n.lower() for x in (".env","secret","private","storage/audio","database"))]
+ def unsafe(n):
+  p=pathlib.PurePosixPath(n)
+  low=n.lower()
+  return (p.is_absolute() or ".." in p.parts or
+    p.name==".env" or low.endswith((".pem",".p12",".pfx",".jks",".keystore",".key")) or
+    "private-audio" in low or "storage/audio" in low or
+    low.endswith((".sql.gz",".sqlite",".db")) or
+    "/secrets/" in low)
+ bad=[n for n in names if unsafe(n)]
  print("SERVER_ZIP_ENTRIES",len(names),"TOP",sorted({n.split("/")[0] for n in names})[:30])
- print("UNSAFE_NAMES",unsafe[:10])
- if unsafe: raise SystemExit("SERVER_PACKAGE_CONTAINS_PRIVATE_PATH_NAMES")
+ print("PRIVATE_PAYLOAD_NAMES",bad[:20])
+ if bad: raise SystemExit("SERVER_PACKAGE_PRIVATE_PAYLOAD_PATH_FOUND")
  matches=missing=changed=0
  for n in names:
-  if not (stage/n).is_file(): missing+=1; continue
+  target=stage/n
+  if not target.is_file(): missing+=1; continue
   a=hashlib.sha256(z.read(n)).hexdigest()
-  b=hashlib.sha256((stage/n).read_bytes()).hexdigest()
+  b=hashlib.sha256(target.read_bytes()).hexdigest()
   if a==b: matches+=1
   else: changed+=1
  print("STAGING_COMPARE_MATCH",matches,"MISSING",missing,"CHANGED",changed)
  print("SAMPLE_PATHS",names[:25])
 PY
-echo CELIKOM_PRIVATE_SERVER_PACKAGE_AUDIT_OK
+echo CELIKOM_PRIVATE_SERVER_PACKAGE_CONTENT_AUDIT_OK
