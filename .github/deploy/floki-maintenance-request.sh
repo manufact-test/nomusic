@@ -2,27 +2,42 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-SRC=/srv/celikom/migration/sites-20261124/android-private/android-updates
-DST=/srv/celikom-releases/private/android-updates
-NAME=93-5ceb9db20d47390e88cd316c3f74c1928534b35bc54e316f5b841f49b951ff6a.apk
-python3 - "$SRC/stable.json" "$SRC/releases/$NAME" <<'PY'
-import json,pathlib,hashlib,sys
-m=json.loads(pathlib.Path(sys.argv[1]).read_text())
-expected={"schemaVersion":1,"enabled":True,"channel":"stable","packageName":"pro.celikom.nativeprobe","versionCode":93,"versionName":"0.3.92","signerSha256":"67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f","sizeBytes":8845385,"minSdk":28}
-for k,v in expected.items():
- if m.get(k)!=v: raise SystemExit("ANDROID_STABLE_MANIFEST_MISMATCH_"+k)
-if m.get("apkUrl","").split("/")[-1]!=pathlib.Path(sys.argv[2]).name: raise SystemExit("ANDROID_STABLE_ASSET_NAME_MISMATCH")
-b=pathlib.Path(sys.argv[2]).read_bytes()
-if len(b)!=expected["sizeBytes"] or hashlib.sha256(b).hexdigest()!=m.get("apkSha256"): raise SystemExit("ANDROID_STABLE_APK_HASH_MISMATCH")
-print("ANDROID_STABLE_SOURCE_VERIFIED",len(b),hashlib.sha256(b).hexdigest())
-print("ANDROID_STABLE_MANIFEST_SHA256",hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())
+GATE=/usr/local/sbin/celikom-deploy-gateway
+HELPER=/usr/local/sbin/celikom-android-build-input-export
+RULE=/etc/sudoers.d/celikom-deploy
+[[ -f "$GATE" && ! -L "$GATE" && $(stat -c '%u:%a' "$GATE") == 0:755 ]]
+[[ -f "$RULE" && ! -L "$RULE" && $(stat -c '%u:%a' "$RULE") == 0:440 ]]
+[[ ! -e "$HELPER" && ! -L "$HELPER" ]]
+work=$(mktemp -d /root/celikom-android-export.XXXXXXXX)
+trap 'rm -rf -- "$work"' EXIT
+cat > "$work/helper" <<'HELPER_SCRIPT'
+#!/bin/bash
+set -Eeuo pipefail
+umask 077
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+[[ $(id -u) == 0 && $# == 0 ]] || exit 64
+FILE=/srv/celikom-releases/private/android-build-inputs/CELIKOM-0.3.22-install.apk
+[[ -f "$FILE" && ! -L "$FILE" ]]
+[[ $(stat -c '%u:%a:%s' "$FILE") == 0:600:8587421 ]]
+[[ $(sha256sum "$FILE" | cut -d' ' -f1) == 170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9 ]]
+exec cat -- "$FILE"
+HELPER_SCRIPT
+python3 - "$GATE" "$work/gateway" <<'PY'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1]).read_text()
+needle='  stage-release-02455) exec sudo -n /usr/local/sbin/celikom-floki-ops stage-release-02455 ;;'
+assert p.count(needle)==1 and 'android-build-input)' not in p
+p=p.replace(needle,needle+'\n  android-build-input) exec sudo -n /usr/local/sbin/celikom-android-build-input-export ;;')
+pathlib.Path(sys.argv[2]).write_text(p)
 PY
-install -d -o root -g root -m 700 "$DST" "$DST/releases"
-if [[ -e "$DST/stable.json" ]]; then cmp "$SRC/stable.json" "$DST/stable.json"; else install -o root -g root -m 600 "$SRC/stable.json" "$DST/stable.json"; fi
-if [[ -e "$DST/releases/$NAME" ]]; then cmp "$SRC/releases/$NAME" "$DST/releases/$NAME"; else install -o root -g root -m 600 "$SRC/releases/$NAME" "$DST/releases/$NAME"; fi
-cmp "$SRC/stable.json" "$DST/stable.json"
-cmp "$SRC/releases/$NAME" "$DST/releases/$NAME"
-test "$(stat -c %i "$SRC/releases/$NAME")" != "$(stat -c %i "$DST/releases/$NAME")"
-sha256sum "$DST/stable.json" "$DST/releases/$NAME"
-stat -c '%n mode=%a owner=%U:%G size=%s' "$DST" "$DST/stable.json" "$DST/releases" "$DST/releases/$NAME"
-echo CELIKOM_ANDROID_STABLE_PRIVATE_STAGE_OK
+cat > "$work/sudoers" <<'SUDOERS'
+celikom-deploy ALL=(root) NOPASSWD: /usr/local/sbin/celikom-floki-ops status, /usr/local/sbin/celikom-floki-ops stage-release-02455, /usr/local/sbin/celikom-android-build-input-export
+SUDOERS
+bash -n "$work/helper"
+bash -n "$work/gateway"
+visudo -cf "$work/sudoers"
+install -o root -g root -m 755 "$work/helper" "$HELPER"
+install -o root -g root -m 755 "$work/gateway" "$GATE"
+install -o root -g root -m 440 "$work/sudoers" "$RULE"
+visudo -c >/dev/null
+echo CELIKOM_ANDROID_READONLY_EXPORT_READY
