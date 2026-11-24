@@ -2,28 +2,27 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-S=/srv/celikom/ci-runner/runner/celikom-build-spool/d7537830c054a7878b080e21b9ea91e21e29bc56-45433182374-1
-python3 - "$S" /srv/celikom/app/staging-20261122 <<'PY'
-import pathlib,zipfile,json,hashlib,sys
-spool=pathlib.Path(sys.argv[1]); stage=pathlib.Path(sys.argv[2]); z=zipfile.ZipFile(next(spool.glob("celikom-server-*.zip")))
-pack=set(n.rstrip("/") for n in z.namelist() if n and not n.endswith("/"))
-staged=set()
-for p in stage.rglob("*"):
- if p.is_file():
-  rel=p.relative_to(stage).as_posix()
-  if rel==".env" or rel.startswith(("storage/","vendor/")): continue
-  staged.add(rel)
-print("ZIP_FILES",len(pack),"STAGING_FILES_EXCLUDING_ENV_STORAGE_VENDOR",len(staged))
-print("STAGING_ONLY_FILES")
-for n in sorted(staged-pack): print("STAGE_ONLY",n)
-print("ZIP_ONLY_FILES")
-for n in sorted(pack-staged): print("ZIP_ONLY",n)
-for p in [pathlib.Path("/srv/celikom/app/staging-20261122/package.json"),stage/"composer.json"]:
- if p.is_file():
-  try:
-   d=json.loads(p.read_text())
-   print("VERSION_METADATA",p.name,{k:d.get(k) for k in ("name","version","description")})
-  except Exception: pass
-print("BUILD_PACKAGE_SHA256",hashlib.sha256(next(spool.glob("celikom-server-*.zip")).read_bytes()).hexdigest())
-PY
-echo CELIKOM_STAGE_FILESET_DIFF_OK
+S=/srv/celikom/app/staging-20261122
+echo '=== Stage-only code and dependency metadata ==='
+for f in src/Admin/BulkModerationService.php src/Admin/BulkModerationView.php src/Admin/bulk-moderation.js src/Application/Mp3DecodeValidator.php src/Application/Mp3Normalizer.php tools/LICENSE.LGPLv2.1 tools/mp3-validator tools/source.tar.gz tools/decode-slot-0.lock; do
+  p="$S/$f"
+  [[ -e "$p" ]] || continue
+  stat -c '%n type=%F mode=%a owner=%U:%G size=%s' "$p"
+  sha256sum "$p"
+  file "$p"
+done
+echo '=== PHP and JS syntax ==='
+for f in "$S/src/Admin/BulkModerationService.php" "$S/src/Admin/BulkModerationView.php" "$S/src/Application/Mp3DecodeValidator.php" "$S/src/Application/Mp3Normalizer.php"; do php -l "$f"; done
+node --check "$S/src/Admin/bulk-moderation.js"
+echo '=== New component dependencies ==='
+grep -RInE 'BulkModeration(Service|View)|Mp3(Normalizer|DecodeValidator)|mp3-validator|source\.tar\.gz|decode-slot' "$S/src" "$S/config" "$S/deploy" | head -n 100
+echo '=== Validator executable metadata ==='
+ldd "$S/tools/mp3-validator" 2>&1 | head -n 30 || true
+timeout 5 "$S/tools/mp3-validator" --version 2>&1 | head -n 20 || true
+echo '=== Source archive inventory ==='
+tar -tzf "$S/tools/source.tar.gz" | head -n 80
+echo '=== License header ==='
+sed -n '1,28p' "$S/tools/LICENSE.LGPLv2.1"
+echo '=== Root package version ==='
+node -p "require('/srv/celikom/app/staging-20261122/../staging-20261122/package.json').version" 2>/dev/null || true
+echo CELIKOM_STAGE_ONLY_COMPONENT_AUDIT_OK
