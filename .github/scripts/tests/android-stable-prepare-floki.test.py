@@ -42,9 +42,11 @@ class AndroidStableTest(unittest.TestCase):
     def test_signature_and_package_contract(self):
         sig,badging = self.evidence()
         m.verify_tool_output(sig,badging,self.fixture())
+        m.verify_tool_output(sig.replace("v2): true","v2): false"),badging,self.fixture())
+        m.verify_tool_output(sig.replace("v3): true","v3): false"),badging,self.fixture())
         for s,b in ((sig.replace(m.SIGNER,"0"*64),badging),
                     (sig+"Signer #2 certificate SHA-256 digest: "+"1"*64+"\n",badging),
-                    (sig.replace("v3): true","v3): false"),badging),
+                    (sig.replace("v2): true","v2): false").replace("v3): true","v3): false"),badging),
                     (sig,badging.replace("versionCode='94'","versionCode='93'")),
                     (sig,badging.replace(m.PACKAGE,"other")),
                     (sig,badging.replace("sdkVersion:'28'","sdkVersion:'29'"))):

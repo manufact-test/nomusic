@@ -70,9 +70,11 @@ def verify_tool_output(signature, badging, m):
     # apksigner must itself have exited successfully before parsing its proof.
     require(re.findall(r"(?m)^Signer #(\d+) certificate SHA-256 digest: ([a-fA-F0-9]{64})\s*$",
                        signature) == [("1", SIGNER)], "APK_SIGNER")
-    for scheme in ("v2", "v3"):
-        require(re.search(r"(?m)^Verified using " + scheme +
-                          r" scheme \([^\r\n]+\): true\s*$", signature), "APK_SIGNATURE_" + scheme)
+    # Match the original Android release verifier: a valid v2 OR v3 scheme.
+    # apksigner itself verifies the APK against its declared platform range.
+    require(any(re.search(r"(?m)^Verified using " + scheme +
+                          r" scheme \([^\r\n]+\): true\s*$", signature)
+                for scheme in ("v2", "v3")), "APK_MODERN_SIGNATURE_MISSING")
     package = re.findall(r"(?m)^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
     require(package == [(PACKAGE, str(m["versionCode"]), m["versionName"])], "APK_PACKAGE_VERSION")
     sdk = re.findall(r"(?m)^sdkVersion:'([0-9]+)'\s*$", badging)
@@ -99,8 +101,7 @@ def apk_digest(path):
 def verify_apk(path, m, apksigner, aapt):
     validate_manifest(m)
     require(apk_digest(path) == (m["sizeBytes"], m["apkSha256"]), "APK_HASH_SIZE")
-    signature = run_tool([apksigner, "verify", "--verbose", "--print-certs",
-                          "--min-sdk-version", "28", path.resolve()])
+    signature = run_tool([apksigner, "verify", "--verbose", "--print-certs", path.resolve()])
     badging = run_tool([aapt, "dump", "badging", path.resolve()])
     verify_tool_output(signature, badging, m)
     require(apk_digest(path) == (m["sizeBytes"], m["apkSha256"]), "APK_CHANGED")

@@ -5,3 +5,4 @@ No deployment, signing, or production secrets.
 2026-11-25 read-only private signed candidate transport
 2026-11-25 Android private stable candidate contract.
 2026-11-25 verify exact original legacy Android APK against Floki candidate digest.
+2026-11-25 verify legacy identity with original v2-or-v3 policy and run contract together.
