@@ -33,6 +33,7 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 case "${SSH_ORIGINAL_COMMAND:-}" in
   status) exec sudo -n /usr/local/sbin/celikom-floki-ops status ;;
   stage-release-02455) exec sudo -n /usr/local/sbin/celikom-floki-ops stage-release-02455 ;;
+  android-build-input) exec sudo -n /usr/local/sbin/celikom-android-build-input-export ;;
   *) echo FLOKI_DEPLOY_COMMAND_REFUSED >&2; exit 64 ;;
 esac
 GATEWAY
@@ -155,8 +156,9 @@ OPS_SCRIPT
 # Check generated scripts before changing account/SSH configuration.
 bash -n "$work/gateway"
 bash -n "$work/ops"
+bash -n .github/scripts/floki-android-build-input-export.sh
 cat > "$work/sudoers" <<'SUDOERS'
-celikom-deploy ALL=(root) NOPASSWD: /usr/local/sbin/celikom-floki-ops status, /usr/local/sbin/celikom-floki-ops stage-release-02455
+celikom-deploy ALL=(root) NOPASSWD: /usr/local/sbin/celikom-floki-ops status, /usr/local/sbin/celikom-floki-ops stage-release-02455, /usr/local/sbin/celikom-android-build-input-export
 SUDOERS
 visudo -cf "$work/sudoers"
 ssh-keygen -q -t ed25519 -N '' -C celikom-floki-deploy -f "$work/key"
@@ -164,6 +166,7 @@ useradd --system --no-create-home --home-dir "$HOME_DIR" --shell /bin/bash "$USE
 install -d -o root -g root -m 755 "$HOME_DIR" "$HOME_DIR/.ssh"
 install -o root -g root -m 755 "$work/gateway" "$GATE"
 install -o root -g root -m 755 "$work/ops" "$OPS"
+install -o root -g root -m 755 .github/scripts/floki-android-build-input-export.sh /usr/local/sbin/celikom-android-build-input-export
 install -o root -g root -m 440 "$work/sudoers" "$RULE"
 printf 'restrict,command="%s" %s\n' "$GATE" "$(cat "$work/key.pub")" > "$work/authorized_keys"
 install -o root -g root -m 644 "$work/authorized_keys" "$HOME_DIR/.ssh/authorized_keys"
