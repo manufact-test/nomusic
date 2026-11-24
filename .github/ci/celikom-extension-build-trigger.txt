@@ -1,1 +1,2 @@
 2026-11-25: verify existing extension workflow can build migrated main and deliver to private FlokiNET spool without GitHub artifact quota.
+Re-run after explicitly forcing the intentionally unsafe test fixture mode under umask 077.

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile, lstat } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile, lstat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { stageBuild } from '../floki-private-build-spool.mjs';
@@ -49,6 +49,8 @@ test('invalid identifiers, symlinks, and nonprivate spool are rejected', async t
     const f = await fixture(t);
     await assert.rejects(stageBuild({ ...f, runId: '../escape' }), /INVALID_BUILD_IDENTITY/);
     await mkdir(f.spool, { mode: 0o755 });
+    // A restrictive CI umask must not accidentally make the unsafe fixture safe.
+    await chmod(f.spool, 0o755);
     await assert.rejects(stageBuild(f), /UNSAFE_PRIVATE_SPOOL/);
     const source = path.join(f.workspace, 'dist/celikom-server-1.2.3.zip');
     await renameForTest(source, source + '.real');
