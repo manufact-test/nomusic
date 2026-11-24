@@ -96,8 +96,8 @@ if(process.argv[1] && import.meta.url===pathToFileURL(resolve(process.argv[1])).
   if(process.getuid()!==0 || process.argv.length!==6) fail("ROOT_AND_ARGS_REQUIRED");
   const [source,version,seq,pin]=process.argv.slice(2);
   if (!/^\/root\/celikom-release-import\/[a-zA-Z0-9._-]+$/.test(source) || pin!=="/root/celikom-secrets/windows-stable-public.der") fail("PATH_NOT_APPROVED");
-  for (const d of ["/root","/root/celikom-release-import","/root/celikom-secrets","/srv","/srv/celikom","/srv/celikom/releases","/srv/celikom/releases/windows","/srv/celikom/releases/windows/stable"]) await safeDirectory(d,0);
+  for (const d of ["/root","/root/celikom-release-import","/root/celikom-secrets","/srv","/srv/celikom-releases","/srv/celikom-releases/windows","/srv/celikom-releases/windows/stable"]) await safeDirectory(d,0);
   await safeFile(pin,0,256);
-  const result=await promoteLocalFeed({source,root:"/srv/celikom/releases/windows/stable",version,sequence:Number(seq),pinnedPublicKeyDerBase64:(await readFile(pin)).toString("base64"),uid:0});
+  const result=await promoteLocalFeed({source,root:"/srv/celikom-releases/windows/stable",version,sequence:Number(seq),pinnedPublicKeyDerBase64:(await readFile(pin)).toString("base64"),uid:0});
   console.log("FLOKI_WINDOWS_FEED_LOCAL_PROMOTION_OK",JSON.stringify(result));
 }
