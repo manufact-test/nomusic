@@ -3,24 +3,19 @@ set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 S=/srv/celikom/app/staging-20261122
-echo '=== Bulk moderation implementation ==='
-for f in "$S/src/Admin/BulkModerationService.php" "$S/src/Admin/BulkModerationView.php" "$S/src/Admin/bulk-moderation.js"; do
- echo "FILE=$f"; sed -n '1,260p' "$f"
-done
-echo '=== MP3 normalization implementation ==='
-for f in "$S/src/Application/Mp3Normalizer.php" "$S/src/Application/Mp3DecodeValidator.php"; do
- echo "FILE=$f"; sed -n '1,240p' "$f"
-done
-echo '=== Database dependencies ==='
-grep -RInE 'bulk_moderation_tombstones|bulk_moderation|moderation_batch|replacement_id' "$S/migrations" "$S/src" | head -n 100
-echo '=== FFmpeg validator binary static metadata (no execution) ==='
-readelf -h "$S/tools/mp3-validator" | grep -E 'Class:|Machine:|Type:'
-readelf -n "$S/tools/mp3-validator" | grep -A2 'Build ID' | head -n 4
-strings "$S/tools/mp3-validator" | grep -E -m 15 'ffmpeg version|configuration:|libavcodec|LAME|mp3-validator|Copyright|LGPL|GPL' || true
-echo '=== FFmpeg source archive root metadata ==='
-tar -tzf "$S/tools/source.tar.gz" > /tmp/celikom-ffmpeg-source-list.txt
-head -n 20 /tmp/celikom-ffmpeg-source-list.txt
-tar -xOzf "$S/tools/source.tar.gz" FFmpeg-2f5e4b9521db2ae309e5c2dd6e409fab27e1ad99/LICENSE.md | head -n 80
-echo '=== app.php exact differing mail-related lines only ==='
-diff -u "$S/config/app.php" <(unzip -p /srv/celikom/ci-runner/runner/celikom-build-spool/d7537830c054a7878b080e21b9ea91e21e29bc56-45433182374-1/celikom-server-0.4.57.zip config/app.php) | grep -E '^[+-].*(mail|brevo|CELIKOM)' || true
-echo CELIKOM_HOSTINGER_ONLY_SOURCE_REVIEW_OK
+echo '=== Runtime config keys only ==='
+runuser -u www-data -- php -r '$c=require $argv[1]; echo implode("\n",array_keys($c)),"\n";' "$S/config/app.php"
+echo '=== DB schema existence check only; no row data ==='
+runuser -u www-data -- php -r '
+require $argv[1]."/bootstrap.php";
+$c=require $argv[1]."/config/app.php";
+$dsn="mysql:host=".$c["db_host"].";port=".($c["db_port"]??3306).";dbname=".$c["db_name"].";charset=utf8mb4";
+$p=new PDO($dsn,$c["db_user"],$c["db_password"],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+foreach (["bulk_moderation_tombstones","track_replacements","audio_assets","tracks"] as $t) {
+ $q=$p->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?");
+ $q->execute([$t]); echo "TABLE_",$t,"=",$q->fetchColumn(),"\n";
+}
+$q=$p->query("SELECT column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=\x27bulk_moderation_tombstones\x27 ORDER BY ordinal_position");
+foreach($q->fetchAll(PDO::FETCH_ASSOC) as $r) echo "COLUMN ",$r["column_name"]," ",$r["data_type"]," nullable=",$r["is_nullable"],"\n";
+' "$S"
+echo CELIKOM_BULK_MODERATION_DB_SCHEMA_CHECK_OK
