@@ -1,0 +1,26 @@
+name: CELIKOM final Hostinger source preflight
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/floki-final-source-preflight.sh'
+      - '.github/workflows/floki-final-source-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+jobs:
+  source:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect only the two old CELIKOM applications
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/floki-final-source-preflight.sh
