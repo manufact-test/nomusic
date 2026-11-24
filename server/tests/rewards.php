@@ -32,8 +32,17 @@ try {
     }
     $create=function(?int $user)use($pdo,$storage,&$candidates,&$assets,&$tracks,&$paths,&$keys):int {
         $path=tempnam(sys_get_temp_dir(),'celikom-reward-');$paths[]=$path;
-        $frames=str_repeat(hex2bin('fffb9064').str_repeat("\0",413),100);
-        file_put_contents($path,"ID3\x04\x00\x00\x00\x00\x00\x10".random_bytes(16).$frames);
+        // Distinct synthetic audio, not just distinct removable ID3 metadata.
+        $frequency=1300+count($paths)*37;
+        $process=proc_open(['ffmpeg','-hide_banner','-loglevel','error','-f','lavfi',
+            '-i','sine=frequency='.$frequency.':sample_rate=44100','-t','2.612',
+            '-ac','1','-c:a','libmp3lame','-b:a','128k','-write_xing','0',
+            '-id3v2_version','0','-f','mp3','-y',$path],
+            [0=>['file','/dev/null','r'],1=>['file','/dev/null','w'],2=>['pipe','w']],$pipes,
+            null,['LANG'=>'C','LC_ALL'=>'C'],['bypass_shell'=>true]);
+        if(!is_resource($process)) throw new RuntimeException('synthetic_mp3_encoder_unavailable');
+        $errors=stream_get_contents($pipes[2]);fclose($pipes[2]);
+        if(proc_close($process)!==0) throw new RuntimeException('synthetic_mp3_encode_failed: '.substr((string)$errors,0,500));
         $uuid=bin2hex(random_bytes(4)).'-0000-4000-8000-'.bin2hex(random_bytes(6));
         $fields=['service'=>'yandex','track_id'=>(string)random_int(880000000,889999999),'duration_ms'=>'2612',
             'declaration'=>'1','request_id'=>$uuid,'user_id'=>'99999999','uploaded_by_user_id'=>'99999999'];

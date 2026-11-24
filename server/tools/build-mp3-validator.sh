@@ -4,6 +4,7 @@ umask 077
 archive="${1:?Usage: build-mp3-validator.sh /path/to/ffmpeg-source.tar.gz}"
 expected=82ce458e07914714c28028caed59326d1ac1b97fdf800201934162cc9434ff69
 printf '%s  %s\n' "$expected" "$archive" | sha256sum --check --status
+output="$(cd "$(dirname "$0")" && pwd)/mp3-validator"
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
 tar -xzf "$archive" -C "$work"
@@ -33,6 +34,6 @@ test -x "$source/configure"
     --enable-swresample
   make -j"${JOBS:-2}" ffmpeg
   strip ffmpeg
-  install -m 0755 ffmpeg "$(cd "$(dirname "$0")" && pwd)/mp3-validator"
+  install -m 0755 ffmpeg "$output"
 )
-sha256sum "$(cd "$(dirname "$0")" && pwd)/mp3-validator"
+sha256sum "$output"
