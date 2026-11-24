@@ -2,40 +2,58 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Read-only audit of the exact reconciled CI packages; no database, deployment,
-# release activation, permissions changes, or access to private credentials.
-python3 - <<'PY'
-import hashlib, json, os, pathlib, stat, zipfile
-base=pathlib.Path('/srv/celikom/ci-runner/runner/celikom-build-spool/5745e10c3a02917964e6aa433e59b24f4e684f34-45498064520-1')
-for p in [base,*base.parents]:
-    st=p.lstat()
-    assert stat.S_ISDIR(st.st_mode) and not p.is_symlink()
-assert base.stat().st_mode & 0o077 == 0
-for name,size,sha in [
-    ('celikom-server-0.4.57.zip',1136102,'15ad1af4be74a29d0ab182ac966755b4aac60e8995adba68f146d4827900526d'),
-    ('celikom-extension-0.4.73.zip',2489436,'968e34ef72927ce5be5007d1ed210a9b6910b45d4fa423b67fdc3db16a75becb'),
-]:
-    path=base/name
-    st=path.lstat()
-    assert stat.S_ISREG(st.st_mode) and st.st_nlink == 1 and st.st_size == size and st.st_mode & 0o077 == 0
-    with path.open('rb') as f: assert hashlib.file_digest(f,'sha256').hexdigest()==sha
-    with zipfile.ZipFile(path) as z:
-        assert z.testzip() is None
-        if name.startswith('celikom-server-'):
-            modes={'tools/mp3-validator':0o755,'tools/decode-slot-0.lock':0o660,'tools/decode-slot-1.lock':0o660}
-            for entry,expected in modes.items():
-                info=z.getinfo(entry)
-                mode=info.external_attr >> 16
-                assert stat.S_ISREG(mode) and stat.S_IMODE(mode)==expected, (entry, oct(mode))
-                print(entry,oct(stat.S_IMODE(mode)))
-            for entry in ['src/Application/Mp3DecodeValidator.php','src/Application/Mp3Normalizer.php',
-                'src/Admin/BulkModerationService.php','src/Admin/BulkModerationView.php','src/Admin/bulk-moderation.js',
-                'migrations/021_bulk_moderation_tombstones_reconcile.sql']:
-                assert entry in z.namelist(), entry
-            assert b'$admissionDeadline' in z.read('src/Application/Mp3DecodeValidator.php')
-            assert '.env' not in z.namelist() and not any(n.startswith('tests/') for n in z.namelist())
-        else:
-            assert json.loads(z.read('api/config.json'))['baseUrl']=='https://api.celikom.com'
-    print('VERIFIED',name,size,sha)
-print('CELIKOM_RECONCILED_PRIVATE_PACKAGE_AUDIT_OK')
+# Rehearse file recovery from the owner's existing encrypted offsite archive.
+# No production restore, database connection, service changes or secret output.
+ARCHIVE=/srv/celikom/migration/backups/celikom-offsite-20261122.tar.gpg
+KEY=/srv/celikom/migration/secrets/celikom-offsite-20261122.key
+[[ -f "$ARCHIVE" && ! -L "$ARCHIVE" ]]
+[[ -f "$KEY" && ! -L "$KEY" && $(stat -c '%u' "$KEY") == 0 ]]
+[[ $(stat -c '%a' "$KEY") == 600 || $(stat -c '%a' "$KEY") == 400 ]]
+test "$(stat -c %s "$ARCHIVE")" = 9733284276
+printf '%s  %s\n' 9d94a07d3306acd8874a7d3ad959234427d67a0d1b9c402526abb492e3acff15 "$ARCHIVE" | sha256sum -c -
+available=$(df -B1 --output=avail /srv/celikom/migration | tail -1)
+(( available >= 22000000000 )) || { echo RECOVERY_FREE_SPACE_TOO_LOW; exit 1; }
+work=$(mktemp -d /srv/celikom/migration/offsite-restore-check.XXXXXXXX)
+trap 'rm -rf -- "$work"' EXIT
+chmod 700 "$work"
+install -d -m 700 "$work/gnupg" "$work/tree"
+# Python data filter rejects unsafe symlinks, special files and path escape.
+python3 -c 'import tarfile; assert hasattr(tarfile,"data_filter")'
+gpg --homedir "$work/gnupg" --batch --no-tty --pinentry-mode loopback --passphrase-file "$KEY" --decrypt "$ARCHIVE" 2>/dev/null | \
+  python3 -c 'import sys,tarfile; t=tarfile.open(fileobj=sys.stdin.buffer,mode="r|*"); t.extractall(sys.argv[1],filter="data"); t.close(); sys.stdin.buffer.read()' "$work/tree"
+python3 - "$work/tree" <<'PY'
+import pathlib,sys,hashlib,gzip,tarfile,stat,os
+root=pathlib.Path(sys.argv[1])
+imp=root/'srv/celikom/migration/hostinger-import'
+orig=pathlib.Path('/srv/celikom/migration/hostinger-import')
+assert imp.is_dir() and orig.is_dir()
+assert (root/'etc/nginx').is_dir() and (root/'etc/letsencrypt').is_dir()
+def digest(path):
+    with path.open('rb') as f: return hashlib.file_digest(f,'sha256').hexdigest()
+count=0
+audio=0
+sql=0
+for p in imp.rglob('*'):
+    if p.is_symlink() or not p.is_file(): continue
+    relative=p.relative_to(imp)
+    other=orig/relative
+    assert other.is_file() and not other.is_symlink(), 'original snapshot member missing'
+    assert p.stat().st_size==other.stat().st_size and digest(p)==digest(other), 'restored snapshot mismatch'
+    count+=1
+    if p.suffix.lower() in {'.mp3','.m4a','.wav'}: audio+=1
+    if p.name.endswith('.sql.gz'):
+        with gzip.open(p,'rb') as f:
+            while f.read(1024*1024): pass
+        sql+=1
+    elif p.suffix.lower()=='.sql':
+        assert p.stat().st_size>0
+        sql+=1
+assert audio>=1544 and sql>=1, (audio,sql)
+git_archive=root/'srv/celikom/migration/backups/forgejo-baseline-20261122.tar.gz'
+assert git_archive.is_file()
+with tarfile.open(git_archive,'r|gz') as f:
+    git_members=sum(1 for _ in f)
+assert git_members>0
+print('OFFSITE_RESTORED_IMPORT_FILES',count,'AUDIO',audio,'SQL',sql,'FORGEJO_ARCHIVE_MEMBERS',git_members)
+print('CELIKOM_ENCRYPTED_OFFSITE_FILE_RESTORE_OK')
 PY
