@@ -41,11 +41,15 @@ jobs:
           "status=$($report.status)" >> $env:GITHUB_OUTPUT
           "version=$($report.vendorVersion)" >> $env:GITHUB_OUTPUT
           Write-Host "W102_15MIN_RELEASE_WATCH $($report.status) $($report.vendorVersion)"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: yandex-windows-15min-discovery
-          path: ${{ runner.temp }}/yandex-watch.json
-          retention-days: 3
+      - name: Preserve reviewed discovery status in run summary (no artifact quota)
+        shell: pwsh
+        env:
+          REVIEW_STATUS: ${{ steps.result.outputs.status }}
+          REVIEW_VERSION: ${{ steps.result.outputs.version }}
+        run: |
+          "### CELIKOM Windows release discovery" >> $env:GITHUB_STEP_SUMMARY
+          "Status: $env:REVIEW_STATUS" >> $env:GITHUB_STEP_SUMMARY
+          "Vendor version: $env:REVIEW_VERSION" >> $env:GITHUB_STEP_SUMMARY
 
   verify-new:
     needs: discover
