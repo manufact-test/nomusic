@@ -70,10 +70,21 @@ jobs:
           grep -F "WHERE u.email = ?" .github/scripts/hostinger-windows-gain-remote.php
           grep -F "CELIKOM_W98_TEST_EMAIL" .github/scripts/hostinger-windows-gain-stage.sh
       - name: Build browser extension and private server package on supported ZIP runner
+        env:
+          CELIKOM_API_BASE_URL: https://api.celikom.com
         run: |
           npm ci --no-audit --no-fund
           npm run build
           npm run security
+          node --input-type=module <<'CHECK'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const api = JSON.parse(readFileSync('extension/dist/unpacked/api/config.json','utf8'));
+          const manifest = JSON.parse(readFileSync('extension/dist/unpacked/manifest.json','utf8'));
+          assert.equal(api.baseUrl, 'https://api.celikom.com');
+          assert.deepEqual([...manifest.host_permissions].sort(), ['https://api.celikom.com/*','https://music.yandex.ru/*'].sort());
+          console.log('CELIKOM_FLOKI_EXTENSION_ORIGIN_OK');
+          CHECK
       - name: Verify private build spool contract
         run: node --test .github/scripts/tests/floki-private-build-spool.test.mjs
       - name: Keep verified ZIPs in persistent private FlokiNET runner spool

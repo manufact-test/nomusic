@@ -1852,6 +1852,30 @@ try
     Test(!Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(folder, "session.dpapi"))).Contains(first.BridgeToken),
         "bridge token is encrypted at rest");
 
+    // FlokiNET cutover: preserve the exact encrypted session and migrate only
+    // the approved legacy production authority, never custom/test origins.
+    var migrationStore = new SessionStore(Path.Combine(folder, "origin-migration"));
+    var legacySession = migrationStore.LoadOrCreate() with
+    {
+        Origin = "https://darkred-camel-588676.hostingersite.com",
+        Email = "migration@example.test",
+        AccessToken = new string('a', 64),
+        RefreshToken = new string('b', 64)
+    };
+    migrationStore.Save(legacySession);
+    using (var migratedApi = new CelikomApi(migrationStore))
+    {
+        var expected = legacySession with { Origin = "https://api.celikom.com" };
+        Test(migratedApi.Settings == expected && migratedApi.IsLoggedIn,
+            "Floki migration retains account, tokens and installation");
+        Test(migrationStore.LoadOrCreate() == expected, "Floki migration persists encrypted origin");
+        Test(CelikomApi.MigrateProductionOrigin(expected) == expected, "Floki migration idempotent");
+        var custom = legacySession with { Origin = "https://example.test" };
+        Test(CelikomApi.MigrateProductionOrigin(custom) == custom, "Floki migration leaves unrelated origin alone");
+        var lookalike = legacySession with { Origin = "https://darkred-camel-588676.hostingersite.com.example.test" };
+        Test(CelikomApi.MigrateProductionOrigin(lookalike) == lookalike, "Floki migration rejects lookalike");
+    }
+
     // W111: an updater must prove the SAME account and installation survived,
     // not merely that some new DPAPI file is decryptable after reinstall.
     var witnessDir = Path.Combine(folder, "session-identity-fixture");

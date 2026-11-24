@@ -25,11 +25,22 @@ public sealed class CelikomApi : IDisposable
     private readonly object _sessionCommitLock = new();
     private SecretRecord _current;
     private const int MaxJsonBytes = 48 * 1024;
+    public const string ProductionOrigin = "https://api.celikom.com";
+    private const string LegacyProductionOrigin = "https://darkred-camel-588676.hostingersite.com";
+
+    // Only the exact former first-party origin may carry its existing session
+    // to the new first-party endpoint. Never migrate an arbitrary custom URL.
+    public static SecretRecord MigrateProductionOrigin(SecretRecord session) =>
+        string.Equals(session.Origin, LegacyProductionOrigin, StringComparison.Ordinal)
+            ? session with { Origin = ProductionOrigin }
+            : session;
 
     public CelikomApi(SessionStore store, HttpMessageHandler? handler = null)
     {
         _store = store;
-        _current = store.LoadOrCreate();
+        var saved = store.LoadOrCreate();
+        _current = MigrateProductionOrigin(saved);
+        if (_current != saved) store.Save(_current);
         _http = handler is null
             ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
             : new HttpClient(handler);
@@ -425,7 +436,7 @@ public sealed class CelikomApi : IDisposable
     {
         await RequestAsync(new Uri(GrantValidator.NormalizeOrigin(
             Settings.Origin.Length > 0 ? Settings.Origin :
-                "https://darkred-camel-588676.hostingersite.com") + "api/v1/auth/request-reset"),
+                ProductionOrigin) + "api/v1/auth/request-reset"),
             HttpMethod.Post, new { email = email.Trim() }, null, ct);
     }
 
@@ -434,7 +445,7 @@ public sealed class CelikomApi : IDisposable
     {
         await RequestAsync(new Uri(GrantValidator.NormalizeOrigin(
             Settings.Origin.Length > 0 ? Settings.Origin :
-                "https://darkred-camel-588676.hostingersite.com") + "api/v1/auth/reset-password"),
+                ProductionOrigin) + "api/v1/auth/reset-password"),
             HttpMethod.Post,
             new { email = email.Trim(), code = code.Trim(), new_password = newPassword }, null, ct);
     }
@@ -442,7 +453,7 @@ public sealed class CelikomApi : IDisposable
     public Task<JsonElement> GetConfigAsync(CancellationToken ct = default)
     {
         var origin = Settings.Origin.Length != 0 ? Settings.Origin :
-            "https://darkred-camel-588676.hostingersite.com";
+            ProductionOrigin;
         return RequestAsync(new Uri(origin + "/api/v1/config"),
             HttpMethod.Get, null, null, ct);
     }

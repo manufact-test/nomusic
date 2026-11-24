@@ -21,7 +21,7 @@ public sealed partial class MainWindow : Form
     private static readonly Color AccentInk = ColorTranslator.FromHtml("#07110E");
     private static readonly Color Border = ColorTranslator.FromHtml("#2A3439");
     private static readonly Color Danger = ColorTranslator.FromHtml("#F05A69");
-    private const string DefaultApiOrigin = "https://darkred-camel-588676.hostingersite.com";
+    private const string DefaultApiOrigin = CelikomApi.ProductionOrigin;
 
     private readonly SessionStore _store = new();
     private NativeTokenPublisher? _nativeToken;
