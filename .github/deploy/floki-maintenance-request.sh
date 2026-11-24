@@ -3,26 +3,24 @@ set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 S=/srv/celikom/app/staging-20261122
-echo '=== Stage-only code and dependency metadata ==='
-for f in src/Admin/BulkModerationService.php src/Admin/BulkModerationView.php src/Admin/bulk-moderation.js src/Application/Mp3DecodeValidator.php src/Application/Mp3Normalizer.php tools/LICENSE.LGPLv2.1 tools/mp3-validator tools/source.tar.gz tools/decode-slot-0.lock; do
-  p="$S/$f"
-  [[ -e "$p" ]] || continue
-  stat -c '%n type=%F mode=%a owner=%U:%G size=%s' "$p"
-  sha256sum "$p"
-  file "$p"
+echo '=== Bulk moderation implementation ==='
+for f in "$S/src/Admin/BulkModerationService.php" "$S/src/Admin/BulkModerationView.php" "$S/src/Admin/bulk-moderation.js"; do
+ echo "FILE=$f"; sed -n '1,260p' "$f"
 done
-echo '=== PHP and JS syntax ==='
-for f in "$S/src/Admin/BulkModerationService.php" "$S/src/Admin/BulkModerationView.php" "$S/src/Application/Mp3DecodeValidator.php" "$S/src/Application/Mp3Normalizer.php"; do php -l "$f"; done
-node --check "$S/src/Admin/bulk-moderation.js"
-echo '=== New component dependencies ==='
-grep -RInE 'BulkModeration(Service|View)|Mp3(Normalizer|DecodeValidator)|mp3-validator|source\.tar\.gz|decode-slot' "$S/src" "$S/config" "$S/deploy" | head -n 100
-echo '=== Validator executable metadata ==='
-ldd "$S/tools/mp3-validator" 2>&1 | head -n 30 || true
-timeout 5 "$S/tools/mp3-validator" --version 2>&1 | head -n 20 || true
-echo '=== Source archive inventory ==='
-tar -tzf "$S/tools/source.tar.gz" | head -n 80
-echo '=== License header ==='
-sed -n '1,28p' "$S/tools/LICENSE.LGPLv2.1"
-echo '=== Root package version ==='
-node -p "require('/srv/celikom/app/staging-20261122/../staging-20261122/package.json').version" 2>/dev/null || true
-echo CELIKOM_STAGE_ONLY_COMPONENT_AUDIT_OK
+echo '=== MP3 normalization implementation ==='
+for f in "$S/src/Application/Mp3Normalizer.php" "$S/src/Application/Mp3DecodeValidator.php"; do
+ echo "FILE=$f"; sed -n '1,240p' "$f"
+done
+echo '=== Database dependencies ==='
+grep -RInE 'bulk_moderation_tombstones|bulk_moderation|moderation_batch|replacement_id' "$S/migrations" "$S/src" | head -n 100
+echo '=== FFmpeg validator binary static metadata (no execution) ==='
+readelf -h "$S/tools/mp3-validator" | grep -E 'Class:|Machine:|Type:'
+readelf -n "$S/tools/mp3-validator" | grep -A2 'Build ID' | head -n 4
+strings "$S/tools/mp3-validator" | grep -E -m 15 'ffmpeg version|configuration:|libavcodec|LAME|mp3-validator|Copyright|LGPL|GPL' || true
+echo '=== FFmpeg source archive root metadata ==='
+tar -tzf "$S/tools/source.tar.gz" > /tmp/celikom-ffmpeg-source-list.txt
+head -n 20 /tmp/celikom-ffmpeg-source-list.txt
+tar -xOzf "$S/tools/source.tar.gz" FFmpeg-2f5e4b9521db2ae309e5c2dd6e409fab27e1ad99/LICENSE.md | head -n 80
+echo '=== app.php exact differing mail-related lines only ==='
+diff -u "$S/config/app.php" <(unzip -p /srv/celikom/ci-runner/runner/celikom-build-spool/d7537830c054a7878b080e21b9ea91e21e29bc56-45433182374-1/celikom-server-0.4.57.zip config/app.php) | grep -E '^[+-].*(mail|brevo|CELIKOM)' || true
+echo CELIKOM_HOSTINGER_ONLY_SOURCE_REVIEW_OK
