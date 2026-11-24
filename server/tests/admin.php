@@ -555,6 +555,105 @@ try{
         $q=$pdo->prepare("SELECT COUNT(*) FROM track_requests WHERE service_track_id=? AND status='reviewed'");$q->execute([$popular]);expect((int)$q->fetchColumn()===3,'All pending requests reviewed');
         $q=$pdo->prepare('SELECT COUNT(*) FROM track_request_reviews v JOIN track_requests r ON r.id=v.track_request_id WHERE r.service_track_id=?');$q->execute([$popular]);expect((int)$q->fetchColumn()===3,'History for each requester preserved');
     });
+    run('Bulk moderation full synthetic HTTP acceptance: confirmation, partial conflict, history and shared media safety',
+        function() use($app,$pdo,$storage,$catalog,$adminId,$actionHeaders,$csrf):void {
+        // All fixtures are confined to the disposable test DB above.
+        $keys = [];
+        $makeAsset = static function() use($pdo,$storage,&$keys):array {
+            $data = random_bytes(2048);
+            $hash = hash('sha256',$data);
+            $key = 'audio/bulk-ci-'.$hash.'.mp3';
+            $stream = fopen('php://temp','w+b');
+            try {
+                fwrite($stream,$data); rewind($stream); $storage->put($key,$stream);
+            } finally { fclose($stream); }
+            $keys[] = $key;
+            $pdo->prepare('INSERT INTO audio_assets(storage_driver,storage_key,sha256,mime_type,size_bytes,duration_ms)
+                VALUES(?,?,?,?,?,?)')->execute(['local',$key,$hash,'audio/mpeg',strlen($data),2612]);
+            return [(int)$pdo->lastInsertId(),$key,$hash];
+        };
+        $makeCandidate = static function(int $asset) use($pdo):array {
+            $track = '896'.random_int(100000000,999999999);
+            $pdo->prepare('INSERT INTO tracks(service,service_track_id,artist,title,duration_ms)
+                VALUES(?,?,?,?,?)')->execute(['yandex',$track,'Bulk CI','Synthetic',2612]);
+            $id = (int)$pdo->lastInsertId();
+            $pdo->prepare("INSERT INTO track_replacements(track_id,audio_asset_id,status,is_active)
+                VALUES(?,?,'pending',0)")->execute([$id,$asset]);
+            return [(int)$pdo->lastInsertId(),$track];
+        };
+        $post = static fn(string $route,array $form) => $app->handle('POST','/admin/bulk/'.$route,
+            headers:$actionHeaders,body:http_build_query(['csrf'=>$csrf]+$form));
+        $state = static function(int $id) use($pdo):array {
+            $q=$pdo->prepare('SELECT status,version,is_active FROM track_replacements WHERE id=?');
+            $q->execute([$id]); return $q->fetch(PDO::FETCH_ASSOC) ?: [];
+        };
+        $tombstone = static function(int $id) use($pdo):string {
+            $q=$pdo->prepare('SELECT cleanup_status FROM bulk_moderation_tombstones WHERE replacement_id=?');
+            $q->execute([$id]); return (string)$q->fetchColumn();
+        };
+        try {
+            [$sharedAsset,$sharedKey] = $makeAsset();
+            [$uniqueAsset,$uniqueKey] = $makeAsset();
+            [$historyAsset,$historyKey,$historyHash] = $makeAsset();
+            [$active,$activeTrack] = $makeCandidate($sharedAsset);
+            [$shared,$sharedTrack] = $makeCandidate($sharedAsset);
+            [$unique,$uniqueTrack] = $makeCandidate($uniqueAsset);
+            [$history,$historyTrack] = $makeCandidate($historyAsset);
+            $pdo->prepare('INSERT INTO upload_submissions(uploader_hash,request_id,service,service_track_id,sha256,replacement_id)
+                VALUES(?,?,?,?,?,?)')->execute([hash('sha256','bulk-ci-'.$history),
+                    '10000000-0000-4000-8000-'.str_pad((string)$history,12,'0',STR_PAD_LEFT),
+                    'yandex',$historyTrack,$historyHash,$history]);
+
+            $approval=['bulk_action'=>'approve','selected'=>[$active=>'1:0',$shared=>'1:0']];
+            expect($app->handle('POST','/admin/bulk/preview',headers:$actionHeaders,
+                body:http_build_query($approval))->status===403,'Bulk preview requires CSRF');
+            expect($app->handle('GET','/admin/bulk/preview',headers:$actionHeaders)->status===405,'Bulk preview is POST only');
+            $preview=$post('preview',$approval);
+            expect($preview->status===200 && str_contains($preview->body,'confirm_batch'),'Preview is a separate confirmation');
+            expect($state($active)['status']==='pending' && $state($shared)['status']==='pending','Preview does not mutate');
+            expect($post('execute',$approval+['rights_confirmed'=>'1'])->status===400,'Explicit batch confirmation required');
+            expect($post('execute',$approval+['confirm_batch'=>'1'])->status===409,'Approval requires rights');
+            $pdo->prepare('UPDATE track_replacements SET version=version+1 WHERE id=?')->execute([$shared]);
+            $partial=$post('execute',$approval+['confirm_batch'=>'1','rights_confirmed'=>'1']);
+            expect($partial->status===207,'Stale row produces partial conflict');
+            expect((int)$catalog->findActive('yandex',$activeTrack)['replacement_id']===$active,'Approved mapping activated');
+            expect($state($shared)['status']==='pending' && $catalog->findActive('yandex',$sharedTrack)===null,'Stale mapping untouched');
+            $reject=['bulk_action'=>'reject','selected'=>[$shared=>'2:0',$history=>'1:0'],
+                'reject_category'=>'bad_quality','confirm_batch'=>'1'];
+            expect($post('preview',$reject)->status===200 && $post('execute',$reject)->status===200,'Reject two candidates');
+            expect($state($shared)['status']==='rejected' && $state($history)['status']==='rejected','Rejection persisted');
+            $delete=['bulk_action'=>'delete','selected'=>[$shared=>'3:0',$unique=>'1:0',$history=>'2:0']];
+            expect($post('preview',$delete)->status===200,'Owner delete preview');
+            $pdo->prepare("UPDATE admins SET role='moderator' WHERE id=?")->execute([$adminId]);
+            try {
+                expect($post('execute',$delete+['confirm_batch'=>'1','confirm_count'=>'3'])->status===403,'Moderator cannot delete');
+            } finally { $pdo->prepare("UPDATE admins SET role='owner' WHERE id=?")->execute([$adminId]); }
+            expect($post('execute',$delete+['confirm_batch'=>'1','confirm_count'=>'2'])->status===400,'Delete count must match');
+            $removed=$post('execute',$delete+['confirm_batch'=>'1','confirm_count'=>'3']);
+            expect($removed->status===200,'All three inactive candidates handled');
+            expect($state($shared)===[] && $tombstone($shared)==='shared' && $storage->exists($sharedKey),'Shared audio retained');
+            expect($state($unique)===[] && $tombstone($unique)==='done' && !$storage->exists($uniqueKey),'Unreferenced candidate cleaned');
+            expect($state($history)['status']==='rejected' && $tombstone($history)==='retained_history'
+                && $storage->exists($historyKey),'Referenced history archived without losing media');
+            $q=$pdo->prepare('SELECT COUNT(*) FROM upload_submissions WHERE replacement_id=?');
+            $q->execute([$history]); expect((int)$q->fetchColumn()===1,'Upload history preserved');
+            expect($post('preview',['bulk_action'=>'delete','selected'=>[$history=>'3:0']])->status===409,'Archived row excluded');
+            expect($post('execute',['bulk_action'=>'delete','selected'=>[$active=>'2:'.$active],
+                'confirm_batch'=>'1','confirm_count'=>'1'])->status===409,'Active mapping cannot be bulk deleted');
+            expect((int)$catalog->findActive('yandex',$activeTrack)['replacement_id']===$active,'Active shared mapping preserved');
+            $q=$pdo->prepare("SELECT action,after_json FROM audit_log WHERE admin_id=? AND entity_type='track_replacement'
+                AND entity_id IN (?,?,?,?) AND JSON_EXTRACT(after_json,'$.batch_id') IS NOT NULL");
+            $q->execute([$adminId,$active,$shared,$unique,$history]);
+            $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+            expect(count($rows)===6,'Each successful decision has a batch audit; stale/denied operations have none');
+            $actions=array_count_values(array_column($rows,'action'));
+            expect(($actions['replacement_approve']??0)===1 && ($actions['replacement_bad_quality']??0)===2
+                && ($actions['replacement_bulk_delete']??0)===2 && ($actions['replacement_bulk_archive']??0)===1,
+                'Audits preserve actual decision types');
+        } finally {
+            foreach($keys as $key) if($storage->exists($key)) $storage->delete($key);
+        }
+    });
     run('Stage 8 all committed admin decisions include audit',function()use($pdo,$adminId):void{
         $q=$pdo->prepare('SELECT COUNT(*) FROM audit_log WHERE admin_id=?');$q->execute([$adminId]);
         expect((int)$q->fetchColumn()>=4,'Audited approved, disabled, rejected and reviewed');
