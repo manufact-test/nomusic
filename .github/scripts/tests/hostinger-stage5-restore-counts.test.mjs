@@ -34,6 +34,12 @@ test("W98 restore accepts a pre-sidecar snapshot", () => {
   assert.equal(parsed.split("\n").filter(Boolean).length, 4);
 });
 
+test("Restore includes bulk moderation history when present, without rejecting older snapshots", () => {
+  const parsed = parseSnapshotTableCountsJson(JSON.stringify({...base, bulk_moderation_tombstones: 7}));
+  assert.ok(parsed.includes("bulk_moderation_tombstones\t7\n"));
+  assert.throws(() => parseSnapshotTableCountsJson(JSON.stringify({...base, bulk_moderation_tombstones: -1})));
+});
+
 test("W98 restore rejects missing required tables", () => {
   assert.throws(() => parseSnapshotTableCountsJson(JSON.stringify({
     schema_migrations: 1, tracks: 1, audio_assets: 1

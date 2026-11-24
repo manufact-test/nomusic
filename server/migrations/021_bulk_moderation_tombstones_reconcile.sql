@@ -1,5 +1,5 @@
 -- Reconcile the owner-only bulk moderation tombstone schema for clean installations.
--- Existing databases may already have the original 019 migration applied; IF NOT EXISTS
+-- Existing databases may already have the original 019 migration applied. IF NOT EXISTS
 -- preserves that table and its history while making the schema reproducible from source.
 CREATE TABLE IF NOT EXISTS bulk_moderation_tombstones (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

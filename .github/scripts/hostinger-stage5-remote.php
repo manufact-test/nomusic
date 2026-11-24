@@ -292,7 +292,7 @@ try {
     if ($operation === 'restore-counts') {
         // This manifest contains only table names and row counts, never row data.
         $counts = $manifest['tables'] ?? null;
-        $required = ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements', 'bulk_moderation_tombstones'];
+        $required = ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements'];
         if (!is_array($counts) || count($counts) < count($required) || count($counts) > 100)
             throw new RuntimeException('snapshot-table-counts-invalid');
         foreach ($required as $table) {
