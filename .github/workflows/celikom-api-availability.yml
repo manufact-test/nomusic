@@ -26,9 +26,18 @@ jobs:
         run: |
           set -o pipefail
           node .github/scripts/celikom-api-monitor.mjs | tee api-availability.json
-      - uses: actions/upload-artifact@v4
+      - name: Preserve public probe report in run summary (no artifact quota)
         if: always()
-        with:
-          name: celikom-api-availability-${{ github.run_id }}
-          path: api-availability.json
-          retention-days: 7
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '### CELIKOM public API probe'
+            if test -s api-availability.json; then
+              printf '%s\n' '```json'
+              cat api-availability.json
+              printf '%s\n' '```'
+            else
+              echo 'Probe report missing; inspect the failed step.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
