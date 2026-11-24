@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace Celikom\Auth;
 
-/** Private credentials are supplied from Hostinger's env; SMTP TLS is required. */
+/** Transactional mail facade; selects one explicit transport, never retries through another provider. */
 final class SmtpMailer
 {
     public function __construct(private readonly array $config) {}
@@ -11,6 +11,9 @@ final class SmtpMailer
     {
         if (($this->config['environment'] ?? '') === 'test'
             && ($this->config['mail_test_sink'] ?? null) instanceof \Closure) return true;
+        if (($this->config['mail_transport'] ?? '') === 'brevo') {
+            return (new BrevoMailer($this->config))->ready();
+        }
         return ($this->config['mail_transport'] ?? '') === 'smtp'
             && preg_match('/^[a-zA-Z0-9.-]{4,200}$/D', (string)($this->config['mail_host'] ?? ''))
             && in_array((int)($this->config['mail_port'] ?? 0), [465, 587], true)
@@ -43,6 +46,10 @@ final class SmtpMailer
         if (($this->config['environment'] ?? '') === 'test'
             && ($this->config['mail_test_sink'] ?? null) instanceof \Closure) {
             ($this->config['mail_test_sink'])($to, $message, $purpose);
+            return;
+        }
+        if (($this->config['mail_transport'] ?? '') === 'brevo') {
+            (new BrevoMailer($this->config))->deliver($to, $message, $purpose, $subjectText);
             return;
         }
         $host = (string)$this->config['mail_host'];

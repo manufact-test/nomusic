@@ -91,6 +91,9 @@ for (const file of phpFiles) {
   if (lint.status !== 0) throw new Error(lint.stderr || lint.stdout);
 }
 
+const mailTransport = spawnSync("php", [path.join(serverRoot, "tests", "mail-transport.php")], { stdio: "inherit" });
+if (mailTransport.status !== 0) process.exit(mailTransport.status || 1);
+
 const smoke = spawnSync("php", [path.join(serverRoot, "tests", "database.php")], { stdio: "inherit" });
 if (smoke.status !== 0) process.exit(smoke.status || 1);
 if (process.env.DB_NAME) {

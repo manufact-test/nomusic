@@ -34,8 +34,9 @@ return [
     'paid_entitlement_enabled' => $boolean('FEATURE_PAID_ENTITLEMENT'),
     'referrals_enabled' => $boolean('FEATURE_REFERRAL_ATTRIBUTION'),
     'reward_eligibility_enabled' => $boolean('FEATURE_REWARD_ELIGIBILITY'),
-    // Owner-supplied private mail credentials; default OFF until SMTP and DNS are verified.
+    // Private mail credentials; default OFF until the selected transport and DNS are verified.
     'mail_transport' => $value('CELIKOM_MAIL_TRANSPORT'),
+    'mail_brevo_api_key' => $value('CELIKOM_BREVO_API_KEY'),
     'mail_host' => $value('CELIKOM_SMTP_HOST'),
     'mail_port' => (int)$value('CELIKOM_SMTP_PORT','0'),
     'mail_user' => $value('CELIKOM_SMTP_USER'),
