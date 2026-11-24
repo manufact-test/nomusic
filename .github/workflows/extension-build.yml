@@ -3,6 +3,9 @@ name: Extension artifact
 on:
   workflow_dispatch:
   push:
+    branches: [main]
+    paths:
+      - '.github/ci/celikom-extension-build-trigger.txt'
     tags:
       - "extension-v*"
 
@@ -16,6 +19,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -37,7 +42,7 @@ jobs:
         run: cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256
 
       - name: Verify migrated main origin and keep private extension ZIP on FlokiNET
-        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -56,7 +61,7 @@ jobs:
             "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" --extension-only
 
       - name: Upload immutable artifact for existing tag/non-main builds
-        if: github.ref != 'refs/heads/main' || github.event_name != 'workflow_dispatch'
+        if: github.ref != 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: celikom-extension-${{ github.ref_name }}
