@@ -2,45 +2,60 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-python3 - <<'PY'
-import hashlib, pathlib, stat, json
-# Independently compare the existing Android candidate with its known identity.
-ad=pathlib.Path('/srv/celikom-releases/public/android')
-apk_sha='5ceb9db20d47390e88cd316c3f74c1928534b35bc54e316f5b841f49b951ff6a'
-manifest=ad/'updates/android/stable.json'
-apk=ad/'releases'/('93-'+apk_sha+'.apk')
-for p in (manifest,apk):
-    st=p.lstat()
-    assert stat.S_ISREG(st.st_mode) and st.st_uid==0 and not st.st_mode&0o022
-assert hashlib.sha256(manifest.read_bytes()).hexdigest()=='d61f4476f9e008b37d141e56f82f98867f634285dad15d24c646ff6959bcc03e'
-m=json.loads(manifest.read_bytes())
-assert m['versionCode']==93 and m['versionName']=='0.3.92' and m['packageName']=='pro.celikom.nativeprobe'
-assert m['signerSha256']=='67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f'
-assert m['apkSha256']==apk_sha and m['apkUrl']=='https://celikom.com/releases/android/93-'+apk_sha+'.apk'
-assert apk.stat().st_size==m['sizeBytes']==8845385
-with apk.open('rb') as f: assert hashlib.file_digest(f,'sha256').hexdigest()==apk_sha
-print('CELIKOM_ANDROID_LEGACY_PRIVATE_CANDIDATE_BYTES_MATCH')
+# Actual decoder check in the same isolated permission model previously
+# accepted. Do not make the existing staged application traversable.
+decode_work=$(mktemp -d /tmp/celikom-mp3-check.XXXXXXXX)
+trap 'rm -rf -- "$decode_work"' EXIT
+cat > "$decode_work/test.sh" <<'BASH'
+#!/bin/bash
+set -Eeuo pipefail
+umask 077
+work=$1
+ZIP=/srv/celikom-releases/private/backend/5745e10c3a02917964e6aa433e59b24f4e684f34/celikom-server-0.4.57.zip
+[[ -f "$ZIP" && ! -L "$ZIP" && $(stat -c '%u:%a:%s' "$ZIP") == 0:600:1136102 ]]
+printf '%s  %s\n' 15ad1af4be74a29d0ab182ac966755b4aac60e8995adba68f146d4827900526d "$ZIP" | sha256sum -c -
+chgrp www-data "$work"
+chmod 750 "$work"
+install -d -o root -g www-data -m 750 "$work/tools" "$work/src" "$work/src/Application"
+python3 - "$ZIP" "$work" <<'PY'
+import zipfile,pathlib,sys
+root=pathlib.Path(sys.argv[2])
+with zipfile.ZipFile(sys.argv[1]) as z:
+    for name in ('tools/mp3-validator','src/Application/Mp3Inspector.php','src/Application/Mp3Normalizer.php','src/Application/Mp3DecodeValidator.php'):
+        (root/name).write_bytes(z.read(name))
 PY
-# Real decode of a newly synthesized 1.3-second silent MP3 on the actual
-# VPS under www-data. No system encoder or changes to the staged application.
-BIN=/srv/celikom/app/staging-20261122/tools/mp3-validator
-test -f "$BIN" && test ! -L "$BIN"
-printf '%s  %s\n' d9c6e49ef3246c77a112a0832a44a179f28fd0f0b147bd10572b2b79ab2d2939 "$BIN" | sha256sum -c -
-work=$(mktemp -d /tmp/celikom-synthetic-decode.XXXXXXXX)
-trap 'rm -rf -- "$work"' EXIT
-chown root:www-data "$work"
-chmod 0750 "$work"
+chown root:www-data "$work/tools/mp3-validator" "$work/src/Application/"*.php
+chmod 750 "$work/tools/mp3-validator"
+chmod 640 "$work/src/Application/"*.php
+printf '%s  %s\n' d9c6e49ef3246c77a112a0832a44a179f28fd0f0b147bd10572b2b79ab2d2939 "$work/tools/mp3-validator" | sha256sum -c -
+install -o root -g www-data -m 660 /dev/null "$work/tools/decode-slot-0.lock"
+install -o root -g www-data -m 660 /dev/null "$work/tools/decode-slot-1.lock"
 printf '%s' 'H4sIAAAAAAAAA/v/2eIIAwMDsweQYPBx9HU11jM0MAjFBvDLEgH+A+2Kh9mFXylV7FowateoXaN2jdo1ateoXaN2jdo1ateoXaN2jdo1ateoXcPLLooBPe0CAFVCqgp0EAAA' | base64 -d | gzip -d > "$work/synthetic.mp3"
-chown root:www-data "$work/synthetic.mp3"
-chmod 0640 "$work/synthetic.mp3"
+chgrp www-data "$work/synthetic.mp3"
+chmod 640 "$work/synthetic.mp3"
 printf '%s  %s\n' 7237bf4bf7e791bdd272b96a42af8b72a460574e3024967eeefb83cbdcb0d711 "$work/synthetic.mp3" | sha256sum -c -
-runuser -u www-data -- timeout 20 "$BIN" -nostdin -hide_banner -v error -xerror -err_detect explode -threads 1 -protocol_whitelist file -f mp3 -i "$work/synthetic.mp3" -map 0:a:0 -threads 1 -f null - 2>"$work/errors"
-test ! -s "$work/errors"
-echo CELIKOM_VPS_ACTUAL_SYNTHETIC_MP3_DECODE_OK
-
-# Remove the disposable decoder fixture before the separate recovery rehearsal.
-rm -rf -- "$work"
+runuser -u www-data -- test -x "$work/tools/mp3-validator"
+runuser -u www-data -- test ! -w "$work/tools"
+runuser -u www-data -- test ! -w "$work/tools/mp3-validator"
+runuser -u www-data -- test -w "$work/tools/decode-slot-0.lock"
+runuser -u www-data -- test -w "$work/tools/decode-slot-1.lock"
+runuser -u www-data -- php -r '
+require $argv[1]."/src/Application/Mp3Inspector.php";
+require $argv[1]."/src/Application/Mp3Normalizer.php";
+require $argv[1]."/src/Application/Mp3DecodeValidator.php";
+$p=(new Celikom\Application\Mp3Normalizer())->prepare($argv[1]."/synthetic.mp3");
+try {
+    (new Celikom\Application\Mp3DecodeValidator())->check($p["path"]);
+    if ($p["duration_ms"] < 1000 || $p["size"] < 1024) throw new RuntimeException("bad_synthetic_fixture");
+    echo "CELIKOM_VPS_ACTUAL_SYNTHETIC_MP3_DECODE_OK duration_ms=",$p["duration_ms"]," size=",$p["size"],PHP_EOL;
+} finally { unlink($p["path"]); }
+' "$work"
+BASH
+decoder_status=0
+bash "$decode_work/test.sh" "$decode_work" || decoder_status=$?
+rm -rf -- "$decode_work"
 trap - EXIT
+echo "DECODER_REHEARSAL_STATUS=$decoder_status"
 
 # Rehearse file recovery from the owner's existing encrypted offsite archive.
 # No production restore, database connection, service changes or secret output.
@@ -126,3 +141,5 @@ assert git_members>0
 print('OFFSITE_RESTORED_IMPORT_FILES',count,'AUDIO',audio,'SQL',sql,'FORGEJO_ARCHIVE_MEMBERS',git_members)
 print('CELIKOM_ENCRYPTED_OFFSITE_FILE_RESTORE_OK')
 PY
+
+[[ "$decoder_status" == 0 ]]
