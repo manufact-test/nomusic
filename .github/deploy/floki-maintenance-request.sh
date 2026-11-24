@@ -2,26 +2,19 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-echo '=== Recovery inventory (metadata only) ==='
-df -h /srv /root
-find /root /srv/celikom -xdev -type f \( -name 'celikom-offsite-*.tar.gpg' -o -name '*.age' -o -name '*.bundle' \) -printf '%p %s bytes\n' 2>/dev/null | sort
-for path in /root/celikom-cutover-snapshot-YaDz8eHD/intake/api.sql.gz /root/celikom-cutover-snapshot-YaDz8eHD/intake/cms.sql.gz /srv/celikom/migration/refresh-20261124-151155/database/celikom.sql.gz /srv/celikom/migration/sites-20261124/database/cms.sql.gz; do
-  test -f "$path" && test ! -L "$path"
-  gzip -t "$path"
-  sha256sum "$path"
-done
-for d in /srv/celikom/migration/sites-20261124/android-public /srv/celikom/migration/sites-20261124/android-private /srv/celikom/migration/sites-20261124/api-public /srv/celikom/data/candidate-20261124/audio; do
-  test -d "$d"
-  printf '%s files=' "$d"
-  find "$d" -type f | wc -l
-done
-echo '=== Encryption availability ==='
-for cmd in age gpg tar; do command -v "$cmd" || true; done
-echo '=== Scheduled renewal and runner status ==='
-systemctl is-enabled certbot.timer
-systemctl is-active certbot.timer
-systemctl show certbot.timer -p NextElapseUSecRealtime
-systemctl is-active celikom-ci-runner.service
-systemctl is-active celikom-mirror-sync.timer
-systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus
-echo CELIKOM_RECOVERY_INVENTORY_OK
+echo '=== Mirror sync last failure ==='
+systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp
+systemctl show celikom-mirror-sync.timer -p LastTriggerUSec -p NextElapseUSecRealtime
+journalctl -u celikom-mirror-sync.service --since '90 minutes ago' --no-pager -o cat | python3 -c 'import sys,re
+for s in sys.stdin:
+    if re.search(r"fatal:|error:|failed|denied|rejected|VERIFIED_REFS=|CELIKOM_MIRROR_SYNC_OK|exit-code|timed out|could not|unable to|lock",s,re.I):
+        s=re.sub(r"https?://[^\s]+","[URL]",s)
+        s=re.sub(r"(?i)(authorization:|bearer |token=|password=).*",r"\1[REDACTED]",s)
+        print(s[:500].rstrip())' | tail -n 45
+echo '=== Mirror local state ==='
+runuser -u celikom-mirror -- git --git-dir=/home/celikom-mirror/github-mirror.git rev-parse refs/heads/main
+runuser -u celikom-mirror -- git --git-dir=/home/celikom-mirror/github-mirror.git for-each-ref --format='%(refname)' | wc -l
+echo '=== Verify existing offsite ciphertext ==='
+archive=/srv/celikom/migration/backups/celikom-offsite-20261122.tar.gpg
+printf '%s  %s\n' 9d94a07d3306acd8874a7d3ad959234427d67a0d1b9c402526abb492e3acff15 "$archive" | sha256sum -c -
+echo CELIKOM_MIRROR_DIAGNOSTIC_AND_BACKUP_HASH_OK
