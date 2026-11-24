@@ -2,73 +2,84 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Prepare configuration only. Do not switch live traffic in this operation.
-dir=/root/celikom-cutover-prepared
-install -d -m 700 "$dir"
-python3 - <<'PY'
-import pathlib,re,os
-d=pathlib.Path("/root/celikom-cutover-prepared")
-outer=pathlib.Path("/etc/nginx/sites-enabled/celikom-api-https").resolve()
-inner=pathlib.Path("/etc/nginx/sites-enabled/celikom-api-staging").resolve()
-website=pathlib.Path("/etc/nginx/sites-enabled/celikom-site-https").resolve()
-preview=pathlib.Path("/etc/nginx/sites-enabled/celikom-website-preview").resolve()
-for p in [outer,inner,website,preview]:
-    assert str(p).startswith("/etc/nginx/sites-available/")
-    assert p.is_file() and p.stat().st_uid==0
-s=outer.read_text()
-assert s.count("    location / {")==1 and "server_name api.celikom.com;" in s and "access_log off;" in s
-route="""    location ^~ /api/v1/ {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header Authorization $http_authorization;
-        client_max_body_size 32m;
-        proxy_read_timeout 120s;
-        proxy_buffering off;
-    }
-    location ~ ^/admin(?:/|$) {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header Authorization $http_authorization;
-        client_max_body_size 32m;
-        proxy_read_timeout 120s;
-    }
-"""
-# Keep explicit health/config locations (they have precedence).
-s=s.replace("    location / {",route+"    location / {")
-(d/"api-https.conf").write_text(s)
-s=inner.read_text()
-assert s.count("client_max_body_size 1m;")==1 and "listen 127.0.0.1:8081;" in s and "fastcgi_param SCRIPT_FILENAME $document_root/index.php;" in s
-s=s.replace("client_max_body_size 1m;","client_max_body_size 32m;\n    set_real_ip_from 127.0.0.1;\n    real_ip_header X-Real-IP;")
-s=s.replace("fastcgi_param SCRIPT_FILENAME $document_root/index.php;","fastcgi_param SCRIPT_FILENAME $document_root/index.php;\n        fastcgi_param HTTPS on;\n        fastcgi_param HTTP_AUTHORIZATION $http_authorization;\n        fastcgi_read_timeout 120s;")
-(d/"api-staging.conf").write_text(s)
-s=website.read_text()
-assert s.count("proxy_set_header X-Forwarded-Proto https;")==1
-s=s.replace("proxy_set_header X-Forwarded-Proto https;","proxy_set_header X-Forwarded-Proto https;\n        proxy_set_header X-Real-IP $remote_addr;")
-(d/"site-https.conf").write_text(s)
-s=preview.read_text()
-assert s.count("listen 127.0.0.1:8082;")==1
-s=s.replace("listen 127.0.0.1:8082;","listen 127.0.0.1:8082;\n    set_real_ip_from 127.0.0.1;\n    real_ip_header X-Real-IP;")
-(d/"website-preview.conf").write_text(s)
-env=pathlib.Path("/srv/celikom/app/staging-20261122/.env")
-assert env.is_file() and not env.is_symlink()
-data=env.read_bytes()
-flags={k: b"1" for k in [b"FEATURE_ADMIN",b"FEATURE_REPLACEMENTS",b"FEATURE_USER_AUTH",b"FEATURE_USER_ENTITLEMENT",b"FEATURE_OWNER_UPLOADS",b"FEATURE_UPLOADS",b"FEATURE_REWARD_ELIGIBILITY"]}
-flags.update({k:b"0" for k in [b"CELIKOM_APP_DEBUG",b"FEATURE_ANALYTICS",b"FEATURE_BILLING_VIEWS",b"FEATURE_PAID_ENTITLEMENT",b"FEATURE_REFERRAL_ATTRIBUTION",b"FEATURE_OWNER_REPORTS"]})
-for k,v in flags.items():
-    pattern=rb"(?m)^\s*"+re.escape(k)+rb"\s*=[^\r\n]*$"
-    data,n=re.subn(pattern,k+b"="+v,data)
-    assert n<=1
-    if not n: data+=b"\n"+k+b"="+v+b"\n"
-(d/"api.env").write_bytes(data)
-for p in d.iterdir(): os.chmod(p,0o600)
-print("CUTOVER_CONFIG_CANDIDATES_READY")
+# API-only FastCGI runtime limits; no global PHP pool or public routing changes.
+live=$(readlink -f /etc/nginx/sites-enabled/celikom-api-staging)
+candidate=/root/celikom-cutover-prepared/api-staging.conf
+app=/srv/celikom/app/staging-20261122
+[[ "$live" == /etc/nginx/sites-available/* && -f "$live" && -f "$candidate" ]]
+backup=$(mktemp -d /root/celikom-api-fpm-backup-XXXXXXXX)
+cp -a "$live" "$backup/live"
+cp -a "$candidate" "$backup/candidate"
+probe=$(mktemp "$app/.fpm-upload-probe-XXXXXXXX.php")
+tmp=$(mktemp -d)
+ok=0
+cleanup(){
+  rc=$?
+  rm -f "$probe"
+  rm -rf "$tmp"
+  if [[ "$ok" != 1 ]]; then
+    cp -a "$backup/live" "$live"
+    cp -a "$backup/candidate" "$candidate"
+    nginx -t && systemctl reload nginx || true
+    echo CELIKOM_API_UPLOAD_ROLLBACK
+  fi
+  exit "$rc"
+}
+trap cleanup EXIT
+cat > "$probe" <<'PHP'
+<?php
+header('Content-Type: application/json');
+echo json_encode(['upload'=>ini_get('upload_max_filesize'),'post'=>ini_get('post_max_size'),'execution'=>ini_get('max_execution_time'),'error'=>$_FILES['file']['error']??-1,'size'=>$_FILES['file']['size']??0,'actual'=>isset($_FILES['file']['tmp_name'])&&is_uploaded_file($_FILES['file']['tmp_name'])?filesize($_FILES['file']['tmp_name']):0]);
+PHP
+chmod 644 "$probe"
+python3 - "$live" "$candidate" "$probe" "$backup" <<'PY'
+import pathlib,re,sys
+live,candidate,probe,backup=map(pathlib.Path,sys.argv[1:])
+param=r'fastcgi_param PHP_ADMIN_VALUE "upload_max_filesize=30M\npost_max_size=32M\nmax_execution_time=120";'
+for p in (live,candidate):
+    assert p.stat().st_uid==0
+    s=p.read_text()
+    assert 'listen 127.0.0.1:8081;' in s
+    assert 'PHP_ADMIN_VALUE' not in s and 'PHP_VALUE' not in s
+    anchor='fastcgi_param SCRIPT_FILENAME $document_root/index.php;'
+    assert s.count(anchor)==1
+    s=s.replace(anchor,anchor+'\n        '+param)
+    s,n=re.subn(r'client_max_body_size (?:1m|32m);','client_max_body_size 32m;',s)
+    assert n==1
+    p.write_text(s)
+s=live.read_text()
+passes=re.findall(r'^\s*fastcgi_pass\s+([^;\n]+);',s,re.M)
+assert len(passes)==1 and re.fullmatch(r'unix:/run/php/[A-Za-z0-9_.-]+\.sock|127\.0\.0\.1:\d+',passes[0])
+(backup/'live-final').write_text(s)
+# A disposable loopback-only HTTP listener using the exact API FastCGI socket and limits.
+extra='\nserver {\n    listen 127.0.0.1:18081;\n    server_name localhost;\n    access_log off;\n    client_max_body_size 32m;\n    location = /probe {\n        include fastcgi_params;\n        fastcgi_param SCRIPT_FILENAME '+str(probe)+';\n        '+param+'\n        fastcgi_pass '+passes[0]+';\n        fastcgi_read_timeout 120s;\n    }\n    location / { return 404; }\n}\n'
+assert not re.search(r'listen\s+[^;]*18081',s)
+live.write_text(s+extra)
 PY
-# Verify PHP FPM limits (effective values, no environment or secret data).
-php-fpm8.3 -i 2>/dev/null | grep -E '^(upload_max_filesize|post_max_size|max_execution_time|memory_limit) =>'
-echo '=== Current API application readiness ==='
-runuser -u www-data -- php -r 'require "/srv/celikom/app/staging-20261122/bootstrap.php";$c=require "/srv/celikom/app/staging-20261122/config/app.php";$p=Celikom\Database\Connection::open($c);foreach(["admins","users","tracks","audio_assets","track_replacements","subscriptions","billing_payments"] as $t)echo "TARGET_COUNT ",$t," ",$p->query("SELECT COUNT(*) FROM ".$t)->fetchColumn(),PHP_EOL;'
-echo CELIKOM_CUTOVER_CONFIGURATION_PREPARED
+nginx -t
+systemctl reload nginx
+for i in $(seq 1 20); do
+  if curl -fsS --max-time 3 http://127.0.0.1:18081/probe > /dev/null; then break; fi
+  sleep 1
+done
+truncate -s 31457280 "$tmp/upload.bin"
+curl --fail --silent --show-error --max-time 120 -F "file=@$tmp/upload.bin" http://127.0.0.1:18081/probe > "$tmp/result.json"
+python3 - "$tmp/result.json" <<'PY'
+import json,sys
+v=json.load(open(sys.argv[1]))
+assert v=={'upload':'30M','post':'32M','execution':'120','error':0,'size':31457280,'actual':31457280},v
+print('API_FPM_HTTP_30M_UPLOAD_OK',v)
+PY
+cat "$backup/live-final" > "$live"
+nginx -t
+systemctl reload nginx
+for i in $(seq 1 15); do
+  if [[ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 https://api.celikom.com/api/v1/health)" == 200 && "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 https://api.celikom.com/admin/)" == 404 ]]; then
+    ok=1
+    break
+  fi
+  sleep 1
+done
+[[ "$ok" == 1 ]]
+echo "API_FPM_BACKUP $backup"
+echo CELIKOM_API_UPLOAD_LIMITS_VERIFIED
