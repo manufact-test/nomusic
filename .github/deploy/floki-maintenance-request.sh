@@ -2,19 +2,22 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-S=/home/celikom-mirror/.ssh
+echo '=== Run scheduled mirror job once ==='
+systemctl start celikom-mirror-sync.service
+systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp
+journalctl -u celikom-mirror-sync.service -n 35 --no-pager -o cat | grep -E 'FETCH GITHUB|PUSH FORGEJO|VERIFIED_REFS=|CELIKOM_MIRROR_SYNC_OK|Permission denied|fatal:|error:|Failed to start' || true
+echo '=== Independent mirror refs comparison ==='
+runuser -u celikom-mirror -- bash -c '
+set -euo pipefail
 R=/home/celikom-mirror/github-mirror.git
-echo '=== Check private/public key pairs ==='
-for name in github-readonly forgejo-write; do
-  derived=$(runuser -u celikom-mirror -- ssh-keygen -y -P '' -f "$S/$name" | ssh-keygen -lf - | awk '{print $2}')
-  declared=$(ssh-keygen -lf "$S/$name.pub" | awk '{print $2}')
-  printf '%s derived=%s declared=%s match=' "$name" "$derived" "$declared"
-  [[ "$derived" == "$declared" ]] && echo YES || { echo NO; exit 1; }
-done
-echo '=== Test exact GitHub source key ==='
-GH="ssh -i $S/github-readonly -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$S/known_hosts -o BatchMode=yes -o ConnectTimeout=10"
-runuser -u celikom-mirror -- env GIT_SSH_COMMAND="$GH" git ls-remote git@github.com:manufact-test/nomusic.git refs/heads/main
-echo '=== Test exact Forgejo destination key ==='
-FG="ssh -i $S/forgejo-write -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$S/forgejo_known_hosts -o BatchMode=yes -o ConnectTimeout=10"
-runuser -u celikom-mirror -- env GIT_SSH_COMMAND="$FG" git ls-remote git@127.0.0.1:celadmin/nomusic.git HEAD
-echo CELIKOM_MIRROR_BOTH_KEYS_AUTHENTICATED
+S=/home/celikom-mirror/.ssh
+tmp=$(mktemp -d)
+trap "rm -rf \"$tmp\"" EXIT
+git --git-dir="$R" for-each-ref --format="%(objectname) %(refname)" refs/heads refs/tags | LC_ALL=C sort > "$tmp/local"
+FG="ssh -i $S/forgejo-write -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$S/forgejo_known_hosts -o BatchMode=yes"
+GIT_SSH_COMMAND="$FG" git --git-dir="$R" ls-remote --heads --tags forgejo | awk "\$2 !~ /\\^\\{\\}$/ {print \$1 \" \" \$2}" | LC_ALL=C sort > "$tmp/remote"
+cmp "$tmp/local" "$tmp/remote"
+echo "MIRROR_EXACT_REFS=$(wc -l < "$tmp/local")"
+'
+systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus
+echo CELIKOM_MIRROR_REPAIR_RECHECK_OK
