@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   portable-build-ci:
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[windows-feed-transfer]')
+    if: github.event_name != 'push' || (!contains(github.event.head_commit.message, '[windows-feed-transfer]') && !contains(github.event.head_commit.message, '[android-feed-prepare]'))
     name: Linux extension and server package build
     runs-on: celikom-ci-smoke-only
     timeout-minutes: 25
@@ -115,3 +115,14 @@ jobs:
           cmp latest.json manifest.json
           cmp latest.json.sig manifest.json.sig
           echo CELIKOM_WINDOWS_PRIVATE_DRAFT_TRANSFER_OK
+  android-private-feed-contract:
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[android-feed-prepare]')
+    name: Android private stable candidate contract
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test strict candidate identity and version without signing secrets
+        run: python3 .github/scripts/tests/android-stable-prepare-floki.test.py
