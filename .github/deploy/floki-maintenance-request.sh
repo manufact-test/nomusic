@@ -2,34 +2,33 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+systemctl start celikom-mirror-sync.service
+systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp
+R=/home/celikom-mirror/github-mirror.git
+GH=/home/celikom-mirror/.ssh/github-readonly
+FG=/home/celikom-mirror/.ssh/forgejo-write
+GHCMD="ssh -i $GH -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/home/celikom-mirror/.ssh/known_hosts -o BatchMode=yes"
+FGCMD="ssh -i $FG -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/home/celikom-mirror/.ssh/forgejo_known_hosts -o BatchMode=yes"
+gh=$(GIT_SSH_COMMAND="$GHCMD" git ls-remote git@github.com:manufact-test/nomusic.git refs/heads/main | awk '{print $1}')
+local=$(git --git-dir="$R" rev-parse refs/heads/main)
+fj=$(GIT_SSH_COMMAND="$FGCMD" git --git-dir="$R" ls-remote git@127.0.0.1:celadmin/nomusic.git refs/heads/main | awk '{print $1}')
+printf 'GITHUB_MAIN=%s\nLOCAL_MIRROR_MAIN=%s\nFORGEJO_MAIN=%s\n' "$gh" "$local" "$fj"
+[[ "$gh" == "$local" && "$local" == "$fj" ]]
 S=/srv/celikom/app/staging-20261122
-echo '=== Migration tracker structure and applied migration tail ==='
-runuser -u www-data -- php -r '
-require $argv[1]."/bootstrap.php"; $c=require $argv[1]."/config/app.php";
-$p=new PDO("mysql:host=".$c["db_host"].";port=".$c["db_port"].";dbname=".$c["db_name"].";charset=utf8mb4",$c["db_user"],$c["db_password"],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-$r=$p->query("SHOW CREATE TABLE schema_migrations")->fetch(PDO::FETCH_NUM); echo $r[1],"\n";
-foreach($p->query("SELECT * FROM schema_migrations ORDER BY 1 DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC) as $row) echo "APPLIED_META ",json_encode($row,JSON_UNESCAPED_SLASHES),"\n";
-' "$S"
-echo '=== Validator file modes at both imported copies ==='
-for f in /srv/celikom/app/staging-20261122/tools/mp3-validator /srv/celikom/migration/hostinger-import/live-release/tools/mp3-validator; do
- if [[ -e "$f" ]]; then stat -c '%n mode=%a owner=%U:%G size=%s' "$f"; sha256sum "$f"; fi
+for rel in server/src/Admin/AdminPanel.php server/src/Admin/ModerationService.php server/src/Application/UploadService.php server/src/Admin/admin-style.css server/config/app.php .env.example; do
+  stage="$S/${rel#server/}"
+  [[ -f "$stage" ]] || { echo "STAGE_MISSING $rel"; continue; }
+  tmp=$(mktemp)
+  git --git-dir="$R" show "refs/heads/main:$rel" > "$tmp"
+  diff -u "$tmp" "$stage" > /tmp/celikom-one-diff.txt || true
+  plus=$(grep -c '^+' /tmp/celikom-one-diff.txt || true)
+  minus=$(grep -c '^-' /tmp/celikom-one-diff.txt || true)
+  hunks=$(grep -c '^@@' /tmp/celikom-one-diff.txt || true)
+  printf 'SOURCE_DIFF %s stage_added=%s repo_only=%s hunks=%s\n' "$rel" "$((plus>2?plus-2:0))" "$((minus>2?minus-2:0))" "$hunks"
+  grep '^@@' /tmp/celikom-one-diff.txt | head -n 8 || true
+  rm -f "$tmp"
 done
-runuser -u www-data -- php -r '$p=$argv[1]; echo "STAGING_MP3_VALIDATOR_EXECUTABLE=",is_executable($p)?"yes":"no","\n";' "$S/tools/mp3-validator"
-echo '=== MP3 validator embedded build strings (static read only) ==='
-python3 - "$S/tools/mp3-validator" <<'PY'
-import pathlib,re,sys
-b=pathlib.Path(sys.argv[1]).read_bytes()
-ss=[x.decode("ascii","ignore") for x in re.findall(rb"[\x20-\x7e]{8,}",b)]
-for s in ss:
- if re.search(r"ffmpeg version|configuration:|libavcodec|libavformat|libavutil|LAME|LGPL|GPL|Copyright",s,re.I):
-  print(s[:1000])
-PY
-echo '=== FFmpeg source license and version metadata ==='
-tar -xOzf "$S/tools/source.tar.gz" FFmpeg-2f5e4b9521db2ae309e5c2dd6e409fab27e1ad99/LICENSE.md > /tmp/celikom-ffmpeg-license.txt
-sed -n '1,100p' /tmp/celikom-ffmpeg-license.txt
-tar -xOzf "$S/tools/source.tar.gz" FFmpeg-2f5e4b9521db2ae309e5c2dd6e409fab27e1ad99/RELEASE > /tmp/celikom-ffmpeg-release.txt
-cat /tmp/celikom-ffmpeg-release.txt
-echo '=== Bulk moderation test and migration source search ==='
-find "$S" -type f \( -iname '*bulk*test*' -o -iname '*moderation*test*' -o -iname '*mp3*test*' \) -printf '%P\n' | sort
-grep -RIl 'bulk_moderation_tombstones' "$S/migrations" "$S/tests" 2>/dev/null || true
-echo CELIKOM_MIGRATION_MP3_EXEC_AND_LICENSE_CHECK_OK
+echo '=== Git history for missing migration ==='
+git --git-dir="$R" log --all --oneline -- server/migrations/019_bulk_moderation_tombstones.sql | head -n 10 || true
+git --git-dir="$R" ls-tree -r --name-only refs/heads/main | grep -E 'bulk_moderation|Mp3Normalizer|Mp3DecodeValidator|mp3-validator' || true
+echo CELIKOM_MIRROR_SOURCE_DRIFT_AUDIT_OK
