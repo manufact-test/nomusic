@@ -30,7 +30,7 @@ import javax.net.ssl.HttpsURLConnection;
 final class NativeOwnerControlPlane {
     interface Status { void done(String code); }
     private static final String ORIGIN =
-        "https://darkred-camel-588676.hostingersite.com";
+        "https://api.celikom.com";
     private final NativeOwnerSession session;
     private final NativeEarlySourceLifecycleBridge bridge;
     private final ExecutorService network=Executors.newSingleThreadExecutor();

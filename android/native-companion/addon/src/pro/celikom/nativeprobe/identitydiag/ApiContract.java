@@ -4,7 +4,7 @@ import java.net.*;
 import java.util.*;
 /** Pure validation shared by the network client and host tests. */
 final class ApiContract {
- static final String ORIGIN="https://darkred-camel-588676.hostingersite.com";
+ static final String ORIGIN="https://api.celikom.com";
  static void config(JSONObject j)throws Exception {
   if(j.optInt("api_version")!=1||j.optBoolean("maintenance",true)||j.optJSONObject("features")==null||!j.getJSONObject("features").optBoolean("replacements",false))throw new Exception("service_unavailable");
   String minimum=j.optString("minimum_extension_version","0.4.0");if(!minimum.matches("[0-9]{1,5}[.][0-9]{1,5}[.][0-9]{1,5}"))throw new Exception("invalid_api_config");String[] parts=minimum.split("[.]");int[] supported={0,4,58};for(int i=0;i<3;i++){int n=Integer.parseInt(parts[i]);if(n>supported[i])throw new Exception("android_client_update_required");if(n<supported[i])break;}

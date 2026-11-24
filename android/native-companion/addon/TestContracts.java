@@ -8,7 +8,9 @@ public class TestContracts {
   long now=System.currentTimeMillis(),expires=now/1000+600;String query="expires="+expires+"&token="+String.join("",Collections.nCopies(64,"a"));JSONObject good=new JSONObject().put("found",true).put("replacement_id",7).put("version",1).put("duration_ms",183720).put("expires_at",expires).put("gain_db",0).put("mime_type","audio/mpeg").put("audio_url","/api/v1/audio/7?"+query);
   ok(ApiContract.audio(good,now).startsWith(ApiContract.ORIGIN+"/api/v1/audio/7?"),"same-origin signed audio");
   rejects(copy(good).put("audio_url","https://evil.example/api/v1/audio/7?"+query),now,"cross-origin audio");
-  rejects(copy(good).put("audio_url","http://darkred-camel-588676.hostingersite.com/api/v1/audio/7?"+query),now,"cleartext audio");
+  ok(ApiContract.ORIGIN.equals("https://api.celikom.com"),"FlokiNET API pinned");
+  rejects(copy(good).put("audio_url","https://darkred-camel-588676.hostingersite.com/api/v1/audio/7?"+query),now,"retired origin rejected");
+  rejects(copy(good).put("audio_url","http://api.celikom.com/api/v1/audio/7?"+query),now,"cleartext audio");
   rejects(copy(good).put("audio_url","/api/v1/audio/7?"+query+"&token="+String.join("",Collections.nCopies(64,"b"))),now,"duplicate query token");
   rejects(copy(good).put("audio_url","/api/v1/audio/7?"+query+"&other=x"),now,"unknown query");
   rejects(copy(good).put("audio_url","/api/v1/audio/8?"+query),now,"wrong replacement");
