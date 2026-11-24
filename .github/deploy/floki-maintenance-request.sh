@@ -4,18 +4,26 @@ umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 S=/srv/celikom/ci-runner/runner/celikom-build-spool/d7537830c054a7878b080e21b9ea91e21e29bc56-45433182374-1
 python3 - "$S" /srv/celikom/app/staging-20261122 <<'PY'
-import pathlib,zipfile,difflib,sys,re
-spool=pathlib.Path(sys.argv[1]); stage=pathlib.Path(sys.argv[2]); zpath=next(spool.glob("celikom-server-*.zip"))
-with zipfile.ZipFile(zpath) as z:
- for name in ["config/app.php","src/Admin/AdminPanel.php","src/Admin/ModerationService.php","src/Application/UploadService.php"]:
-  a=z.read(name).decode("utf-8",errors="replace").splitlines()
-  b=(stage/name).read_text(errors="replace").splitlines()
-  diff=list(difflib.unified_diff(b,a,fromfile="Hostinger-import/"+name,tofile="Floki-build/"+name,n=2))
-  print("=== DIFF",name,"changed_lines",sum(1 for x in diff if x.startswith(("+","-")) and not x.startswith(("+++","---"))),"===")
-  if name=="config/app.php":
-   chosen=[x for x in diff if x.startswith(("@@","+++","---")) or ("CELIKOM_" in x or "mail_" in x or "upload_" in x or "storage_" in x)]
-  else:
-   chosen=[x for x in diff if x.startswith(("@@","+++","---")) or x.startswith(("+","-"))]
-  print("\n".join(chosen[:90]))
+import pathlib,zipfile,json,hashlib,sys
+spool=pathlib.Path(sys.argv[1]); stage=pathlib.Path(sys.argv[2]); z=zipfile.ZipFile(next(spool.glob("celikom-server-*.zip")))
+pack=set(n.rstrip("/") for n in z.namelist() if n and not n.endswith("/"))
+staged=set()
+for p in stage.rglob("*"):
+ if p.is_file():
+  rel=p.relative_to(stage).as_posix()
+  if rel==".env" or rel.startswith(("storage/","vendor/")): continue
+  staged.add(rel)
+print("ZIP_FILES",len(pack),"STAGING_FILES_EXCLUDING_ENV_STORAGE_VENDOR",len(staged))
+print("STAGING_ONLY_FILES")
+for n in sorted(staged-pack): print("STAGE_ONLY",n)
+print("ZIP_ONLY_FILES")
+for n in sorted(pack-staged): print("ZIP_ONLY",n)
+for p in [pathlib.Path("/srv/celikom/app/staging-20261122/package.json"),stage/"composer.json"]:
+ if p.is_file():
+  try:
+   d=json.loads(p.read_text())
+   print("VERSION_METADATA",p.name,{k:d.get(k) for k in ("name","version","description")})
+  except Exception: pass
+print("BUILD_PACKAGE_SHA256",hashlib.sha256(next(spool.glob("celikom-server-*.zip")).read_bytes()).hexdigest())
 PY
-echo CELIKOM_BACKEND_CODE_DIFF_REVIEW_READY
+echo CELIKOM_STAGE_FILESET_DIFF_OK
