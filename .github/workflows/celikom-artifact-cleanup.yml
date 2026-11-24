@@ -1,0 +1,174 @@
+name: CELIKOM old CI artifact cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Delete obsolete allowlisted CI artifacts (unchecked = preview only)"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: celikom-artifact-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APPLY: ${{ inputs.apply }}
+    steps:
+      - name: Inventory and clean obsolete reproducible artifacts only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, json, re, urllib.request, urllib.error
+          from datetime import datetime, timezone, timedelta
+          from collections import defaultdict
+
+          repo = "manufact-test/nomusic"
+          assert os.environ["GITHUB_REPOSITORY"] == repo
+          assert os.environ["GITHUB_REF"] == "refs/heads/main"
+          base = "https://api.github.com/repos/" + repo
+          token = os.environ["GH_TOKEN"]
+          apply = os.environ["APPLY"] == "true"
+          cutoff = datetime.now(timezone.utc) - timedelta(days=3)
+          keep = 5
+          protected = {14705515606, 14700675953, 14703029534, 14706654912, 14705751633}
+          patterns = [
+              ("windows-internal", r"CELIKOM-Windows-internal-stage-[a-f0-9]{40}"),
+              ("android-a1-owner", r"CELIKOM-A1-RAMIL-AU-BETA[0-9]+-HONOR50-[0-9]{8}"),
+              ("extension-ci", r"celikom-extension-[a-f0-9]{40}"),
+              ("extension-private", r"celikom-stage9-private-chrome-[a-f0-9]{40}"),
+              ("server-ci", r"celikom-server-[a-f0-9]{40}"),
+              ("layout-ci", r"celikom-layout-[a-f0-9]{40}"),
+              ("yandex-watch", r"yandex-windows-candidate-report"),
+          ]
+
+          def api(path, method="GET"):
+              req = urllib.request.Request(base + path, method=method, headers={
+                  "Authorization": "Bearer " + token,
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "CELIKOM-owner-artifact-cleanup"
+              })
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  if method == "DELETE":
+                      if response.status != 204:
+                          raise RuntimeError("unexpected delete response")
+                      return None
+                  return json.load(response)
+
+          def category(a):
+              name = a["name"]
+              for family, pattern in patterns:
+                  if re.fullmatch(pattern, name):
+                      return family
+              return None
+
+          def when(a):
+              return datetime.fromisoformat(a["created_at"].replace("Z", "+00:00"))
+
+          # Inventory all pages before any DELETE; concurrent list changes fail closed.
+          rows, seen = [], set()
+          total = None
+          for page in range(1, 1001):
+              data = api("/actions/artifacts?per_page=100&page=" + str(page))
+              if total is None:
+                  total = data["total_count"]
+              elif total != data["total_count"]:
+                  raise RuntimeError("inventory changed; run again")
+              batch = data["artifacts"]
+              for a in batch:
+                  if a["id"] in seen:
+                      raise RuntimeError("duplicate inventory item; run again")
+                  seen.add(a["id"])
+                  rows.append(a)
+              if len(batch) < 100:
+                  break
+          else:
+              raise RuntimeError("inventory page limit reached")
+          if len(rows) != total:
+              raise RuntimeError("incomplete inventory; no deletion")
+
+          groups = defaultdict(list)
+          for a in rows:
+              if not a["expired"] and category(a):
+                  groups[category(a)].append(a)
+
+          candidates = []
+          retained = set(protected)
+          for family, artifacts in groups.items():
+              artifacts.sort(key=lambda a: (when(a), a["id"]), reverse=True)
+              revisions = set()
+              # Keep at least five distinct source revisions, plus all duplicates
+              # of those revisions; use run ID if the source SHA is absent.
+              for a in artifacts:
+                  run = a.get("workflow_run") or {}
+                  revision = run.get("head_sha") or run.get("id") or a["id"]
+                  if len(revisions) < keep or revision in revisions:
+                      revisions.add(revision)
+                      retained.add(a["id"])
+              for a in artifacts:
+                  if a["id"] not in retained and when(a) < cutoff:
+                      if (a.get("workflow_run") or {}).get("id"):
+                          candidates.append(a)
+
+          candidates.sort(key=lambda a: (-a["size_in_bytes"], a["id"]))
+          print("MODE:", "DELETE" if apply else "PREVIEW")
+          print("INVENTORY:", len(rows))
+          for family, artifacts in sorted(groups.items()):
+              n = sum(category(a) == family for a in candidates)
+              print(f"{family}: live={len(artifacts)} candidates={n}")
+          print("CANDIDATES:", len(candidates))
+          print("CANDIDATE_BYTES:", sum(a["size_in_bytes"] for a in candidates))
+          for a in candidates:
+              print(f'candidate id={a["id"]} bytes={a["size_in_bytes"]} name={a["name"]}')
+
+          deleted, skipped, freed = 0, 0, 0
+          if apply:
+              for a in candidates:
+                  ident = a["id"]
+                  runid = a["workflow_run"]["id"]
+                  # Do not delete any artifact used by an active run.
+                  run = api("/actions/runs/" + str(runid))
+                  if run["status"] != "completed":
+                      skipped += 1
+                      continue
+                  try:
+                      fresh = api("/actions/artifacts/" + str(ident))
+                  except urllib.error.HTTPError as e:
+                      if e.code == 404:
+                          skipped += 1
+                          continue
+                      raise
+                  if (fresh["id"] != ident or fresh["name"] != a["name"]
+                          or fresh["created_at"] != a["created_at"]
+                          or fresh["size_in_bytes"] != a["size_in_bytes"]
+                          or fresh["expired"] or ident in retained
+                          or category(fresh) != category(a) or when(fresh) >= cutoff
+                          or (fresh.get("workflow_run") or {}).get("id") != runid):
+                      skipped += 1
+                      continue
+                  api("/actions/artifacts/" + str(ident), "DELETE")
+                  deleted += 1
+                  freed += a["size_in_bytes"]
+                  print("DELETED", ident, flush=True)
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("## CELIKOM CI artifact cleanup\n")
+              f.write(f"Mode: {'DELETE' if apply else 'PREVIEW'}\n\n")
+              f.write(f"- Inventory: {len(rows)}\n- Candidates: {len(candidates)}\n")
+              f.write(f"- Candidate storage: {sum(a['size_in_bytes'] for a in candidates)/1024**3:.2f} GiB\n")
+              f.write(f"- Deleted: {deleted}\n- Skipped: {skipped}\n- Deleted storage: {freed/1024**3:.2f} GiB\n")
+              f.write("- Unknown artifacts, encrypted backups, releases, branches, sources and protected IDs are not touched.\n")
+          print("CELIKOM_ARTIFACT_CLEANUP_OK", "deleted=", deleted, "bytes=", freed)
+          PY
