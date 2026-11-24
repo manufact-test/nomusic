@@ -14,6 +14,7 @@ on:
         options:
           - status
           - stage-release-02455
+          - android-build-input
 permissions:
   contents: read
 concurrency:
@@ -42,7 +43,7 @@ jobs:
           else
             read -r op < .github/deploy/floki-request.txt
           fi
-          case "$op" in status|stage-release-02455) ;; *) exit 64 ;; esac
+          case "$op" in status|stage-release-02455|android-build-input) ;; *) exit 64 ;; esac
           [[ -n "$FLOKI_DEPLOY_CONNECTION" ]] || { echo FLOKI_DEPLOY_SECRET_MISSING; exit 2; }
           tmp=$(mktemp -d)
           trap 'rm -rf -- "$tmp"' EXIT
@@ -52,7 +53,16 @@ jobs:
           tail -n +2 "$tmp/bundle" > "$tmp/key"
           grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
           ssh-keygen -y -P '' -f "$tmp/key" >/dev/null
-          ssh -T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+          sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
             -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 \
-            -o ClearAllForwardings=yes celikom-deploy@95.133.160.111 "$op"
+            -o ClearAllForwardings=yes)
+          if [[ "$op" == android-build-input ]]; then
+            out="$tmp/CELIKOM-0.3.22-install.apk"
+            ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 "$op" > "$out"
+            test "$(stat -c %s "$out")" = 8587421
+            printf '%s  %s\n' 170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9 "$out" | sha256sum --check --status
+            echo CELIKOM_ANDROID_BUILD_INPUT_PRIVATE_FETCH_OK
+          else
+            ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 "$op"
+          fi
