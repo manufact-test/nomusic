@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   portable-build-ci:
-    if: github.event_name != 'push' || (!contains(github.event.head_commit.message, '[windows-feed-transfer]') && !contains(github.event.head_commit.message, '[android-feed-prepare]'))
+    if: github.event_name != 'push' || (!contains(github.event.head_commit.message, '[windows-feed-transfer]') && !contains(github.event.head_commit.message, '[android-feed-prepare]') && !contains(github.event.head_commit.message, '[android-legacy-signature]'))
     name: Linux extension and server package build
     runs-on: celikom-ci-smoke-only
     timeout-minutes: 25
@@ -126,3 +126,52 @@ jobs:
           persist-credentials: false
       - name: Test strict candidate identity and version without signing secrets
         run: python3 .github/scripts/tests/android-stable-prepare-floki.test.py
+
+  android-legacy-signature-audit:
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[android-legacy-signature]')
+    name: Verify original legacy Android 0.3.92 signed APK
+    # Official Android SDK tools already provided on the hosted build runner.
+    # Only the exact existing legacy updater's public APK is read. No secrets,
+    # production access, build, upload, signature change or release publication.
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify pinned legacy bytes and APK signing identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          tmp=$(mktemp -d "$RUNNER_TEMP/celikom-legacy-apk.XXXXXXXX")
+          trap 'rm -rf -- "$tmp"' EXIT
+          sha=5ceb9db20d47390e88cd316c3f74c1928534b35bc54e316f5b841f49b951ff6a
+          url="https://lemonchiffon-narwhal-791953.hostingersite.com/releases/android/93-$sha.apk"
+          code=$(curl --fail --silent --show-error --proto '=https' --connect-timeout 15 --max-time 90 \
+            --max-filesize 8845385 --output "$tmp/legacy.apk" --write-out '%{http_code}' "$url")
+          test "$code" = 200
+          test "$(stat -c %s "$tmp/legacy.apk")" = 8845385
+          printf '%s  %s\n' "$sha" "$tmp/legacy.apk" | sha256sum -c -
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          tools="$sdk/build-tools/36.0.0"
+          if [[ ! -x "$tools/apksigner" || ! -x "$tools/aapt" ]]; then
+            tools=$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          fi
+          test -x "$tools/apksigner" && test -x "$tools/aapt"
+          # These are the known identity fields of the separately preserved
+          # Floki candidate; the private manifest is not read or exported here.
+          python3 - "$tmp/identity.json" <<'PY'
+          import json,sys
+          h="5ceb9db20d47390e88cd316c3f74c1928534b35bc54e316f5b841f49b951ff6a"
+          m=dict(schemaVersion=1,enabled=True,channel="stable",packageName="pro.celikom.nativeprobe",
+                 versionCode=93,versionName="0.3.92",signerSha256="67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f",
+                 apkSha256=h,sizeBytes=8845385,minSdk=28,
+                 apkUrl="https://celikom.com/releases/android/93-"+h+".apk",notesRu="")
+          with open(sys.argv[1],"w") as f:json.dump(m,f)
+          PY
+          python3 .github/scripts/android-stable-prepare-floki.py verify --manifest "$tmp/identity.json" \
+            --apk "$tmp/legacy.apk" --apksigner "$tools/apksigner" --aapt "$tools/aapt"
+          echo CELIKOM_LEGACY_ANDROID_APK_IDENTITY_OK
