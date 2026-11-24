@@ -12,12 +12,25 @@ final class Mp3DecodeValidator
         $tools = dirname(__DIR__, 2) . '/tools';
         $binary = $tools . '/mp3-validator';
         if (!is_executable($binary) || !is_callable('proc_open')) throw new \RuntimeException('audio_validation_unavailable');
+        // A short, bounded admission wait absorbs ordinary upload bursts without
+        // adding decoder slots, blocking indefinitely, or holding database locks.
         $lock = null;
-        for ($i = 0; $i < 2; ++$i) {
-            $candidate = @fopen($tools . '/decode-slot-' . $i . '.lock', 'c');
-            if ($candidate !== false && flock($candidate, LOCK_EX | LOCK_NB)) { $lock = $candidate; break; }
-            if ($candidate !== false) fclose($candidate);
-        }
+        $admissionDeadline = hrtime(true) + 2_000_000_000;
+        do {
+            $contended = false;
+            for ($i = 0; $i < 2; ++$i) {
+                $candidate = @fopen($tools . '/decode-slot-' . $i . '.lock', 'c');
+                if ($candidate === false) continue;
+                $wouldBlock = 0;
+                if (flock($candidate, LOCK_EX | LOCK_NB, $wouldBlock)) { $lock = $candidate; break; }
+                $contended = $contended || $wouldBlock === 1;
+                fclose($candidate);
+            }
+            if ($lock !== null) break;
+            $remainingNs = $admissionDeadline - hrtime(true);
+            if (!$contended || $remainingNs <= 0) break;
+            usleep((int) min(25_000, max(1, intdiv($remainingNs, 1000))));
+        } while (hrtime(true) < $admissionDeadline);
         if ($lock === null) throw new \RuntimeException('audio_validation_busy');
         $process = null; $pipes = [];
         try {

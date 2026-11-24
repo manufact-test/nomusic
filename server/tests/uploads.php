@@ -75,6 +75,51 @@ try {
             if (is_file($prepared['path'])) unlink($prepared['path']);
         }
     });
+    run('MP3 decoder admits a waiting request without exceeding two slots and rejects sustained saturation', function () use ($validPath): void {
+        $tools = dirname(__DIR__) . '/tools';
+        $slot0 = fopen($tools . '/decode-slot-0.lock', 'c');
+        $slot1 = fopen($tools . '/decode-slot-1.lock', 'c');
+        expect(is_resource($slot0) && is_resource($slot1), 'Both decoder lock files are available');
+        try {
+            expect(flock($slot0, LOCK_EX | LOCK_NB) && flock($slot1, LOCK_EX | LOCK_NB), 'Both slots held');
+            $started = hrtime(true);
+            try {
+                (new Mp3DecodeValidator())->check($validPath);
+                throw new \LogicException('Saturated decoder must not start a third process');
+            } catch (\RuntimeException $e) {
+                expect($e->getMessage() === 'audio_validation_busy', 'Saturation remains a retryable busy failure');
+            }
+            $elapsed = (hrtime(true) - $started) / 1e9;
+            expect($elapsed >= 1.8 && $elapsed < 5.0, 'Admission wait is bounded near two seconds');
+            flock($slot1, LOCK_UN);
+            fclose($slot1);
+            $slot1 = null;
+
+            // Keep slot 0 held. An independent PHP process temporarily holds slot 1
+            // and acknowledges readiness before the validator begins waiting.
+            $holder = proc_open([PHP_BINARY, '-r',
+                '$f=fopen($argv[1],"c"); if(!$f || !flock($f,LOCK_EX|LOCK_NB)) exit(2); echo "READY\n"; fflush(STDOUT); usleep(500000); flock($f,LOCK_UN); fclose($f);',
+                $tools . '/decode-slot-1.lock'],
+                [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $holderPipes);
+            expect(is_resource($holder), 'Independent slot holder starts');
+            try {
+                stream_set_timeout($holderPipes[1], 3);
+                expect(trim((string) fgets($holderPipes[1])) === 'READY', 'Second slot is independently held');
+                $started = hrtime(true);
+                (new Mp3DecodeValidator())->check($validPath);
+                expect((hrtime(true) - $started) / 1e9 >= 0.2, 'Waited for a real slot instead of bypassing lock');
+            } finally {
+                fclose($holderPipes[1]);
+                $holderStatus = proc_close($holder);
+            }
+            expect($holderStatus === 0, 'Slot holder released successfully');
+        } finally {
+            foreach ([$slot0, $slot1] as $slot) {
+                if (is_resource($slot)) { flock($slot, LOCK_UN); fclose($slot); }
+            }
+        }
+        (new Mp3DecodeValidator())->check($validPath);
+    });
     run('Stage 7 MP3 measures full audio duration and rejects damaged endings', function () use ($path): void {
         $inspector = new Mp3Inspector();
         expect($inspector->durationMs($path) === 2612, 'Frame-derived duration');
