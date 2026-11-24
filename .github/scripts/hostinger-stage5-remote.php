@@ -130,7 +130,7 @@ try {
                 'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
                 'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials',
                 'subscriptions','billing_events','billing_payments','billing_adjustments',
-                'referrals','referral_codes','reward_ledger','reward_policy','reward_allocations','service_incident_locks','service_incidents','incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'windows_gain_variants', 'support_tickets', 'support_messages', 'admin_navigation_seen'], true)) throw new RuntimeException('unknown_table');
+                'referrals','referral_codes','reward_ledger','reward_policy','reward_allocations','service_incident_locks','service_incidents','incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'windows_gain_variants', 'support_tickets', 'support_messages', 'admin_navigation_seen', 'bulk_moderation_tombstones'], true)) throw new RuntimeException('unknown_table');
             // Authentication sessions and rate-limit/navigation witnesses are expected to change during normal use.
             if (in_array($table, $volatileRowCountTables, true)) continue;
             $currentCount = (int) $pdo->query('SELECT COUNT(*) FROM ' . chr(96) . $table . chr(96))->fetchColumn();
@@ -221,7 +221,7 @@ try {
         $optional = ['admins', 'admin_sessions', 'admin_login_attempts', 'audit_log',
             'track_request_reviews', 'reports', 'users', 'user_devices', 'user_sessions',
             'user_auth_attempts', 'user_auth_events', 'user_email_security', 'entitlement_ledger', 'account_trials',
-            'subscriptions', 'billing_events', 'billing_payments', 'billing_adjustments', 'referral_codes', 'referrals', 'reward_ledger', 'reward_policy', 'reward_allocations', 'service_incident_locks', 'service_incidents', 'incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'windows_gain_variants', 'support_tickets', 'support_messages', 'admin_navigation_seen'];
+            'subscriptions', 'billing_events', 'billing_payments', 'billing_adjustments', 'referral_codes', 'referrals', 'reward_ledger', 'reward_policy', 'reward_allocations', 'service_incident_locks', 'service_incidents', 'incident_compensations', 'promo_codes', 'promo_redemptions', 'promo_attempt_buckets', 'windows_gain_variants', 'support_tickets', 'support_messages', 'admin_navigation_seen', 'bulk_moderation_tombstones'];
         $present = $pdo->prepare('SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = DATABASE() AND table_name = ?');
         foreach ($optional as $extra) {
@@ -292,7 +292,7 @@ try {
     if ($operation === 'restore-counts') {
         // This manifest contains only table names and row counts, never row data.
         $counts = $manifest['tables'] ?? null;
-        $required = ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements'];
+        $required = ['schema_migrations', 'tracks', 'audio_assets', 'track_replacements', 'bulk_moderation_tombstones'];
         if (!is_array($counts) || count($counts) < count($required) || count($counts) > 100)
             throw new RuntimeException('snapshot-table-counts-invalid');
         foreach ($required as $table) {

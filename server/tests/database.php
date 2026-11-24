@@ -34,7 +34,13 @@ run('MySQL migrations apply and rerun without changes', function () use ($runner
     $runner->run();
     expect($runner->run() === [], 'Migration retry');
 });
-foreach (['track_replacements', 'audio_assets', 'tracks', 'analytics_events', 'analytics_daily_aggregates'] as $table) {
+run('Bulk moderation tombstone migration is present and indexed for clean installs', function () use ($pdo): void {
+    $exists = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='bulk_moderation_tombstones'")->fetchColumn();
+    expect($exists === 1, 'Tombstone table exists');
+    $unique = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='bulk_moderation_tombstones' AND index_name='tombstone_replacement' AND non_unique=0")->fetchColumn();
+    expect($unique === 1, 'One tombstone per removed replacement');
+});
+foreach (['bulk_moderation_tombstones', 'track_replacements', 'audio_assets', 'tracks', 'analytics_events', 'analytics_daily_aggregates'] as $table) {
     $pdo->exec('DELETE FROM ' . $table);
 }
 $directory = $config['storage_path'];

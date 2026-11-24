@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/smoke.php';
 
 use Celikom\Admin\AdminAuth;
+use Celikom\Admin\BulkModerationService;
 use Celikom\Admin\ModerationService;
 use Celikom\Application;
 use Celikom\Application\TrackRequestService;
@@ -21,6 +22,17 @@ if (!str_starts_with((string) $config['db_name'], 'celikom_test')) {
 $pdo = Connection::open($config);
 (new MigrationRunner($pdo, dirname(__DIR__) . '/migrations'))->run();
 $storage = new LocalStorageAdapter($config['storage_path']);
+run('Bulk moderation selection is bounded and carries version/active compare-and-swap state', function (): void {
+    $selected = BulkModerationService::selected([101 => '3:0', 102 => '4:101']);
+    expect($selected[101] === ['version' => 3, 'active' => 0], 'First selected state');
+    expect($selected[102] === ['version' => 4, 'active' => 101], 'Second selected state');
+    $tooMany = [];
+    for ($id = 1; $id <= 51; ++$id) $tooMany[$id] = '1:0';
+    foreach ([null, [], [0 => '1:0'], ['01' => '1:0'], [1 => '0:0'], [1 => '4294967296:0'], [1 => '1:-1'], [1 => '1:0:1'], $tooMany] as $invalid) {
+        try { BulkModerationService::selected($invalid); throw new RuntimeException('Invalid bulk selection accepted'); }
+        catch (InvalidArgumentException) { /* expected */ }
+    }
+});
 $config['admin_enabled'] = true;
 $config['api_enabled'] = true;
 $config['test_api_token'] = str_repeat('stage8-test-read-', 3);

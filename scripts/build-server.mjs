@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,8 +9,13 @@ const version = JSON.parse(await readFile(path.join(root, "package.json"), "utf8
 const output = path.join(root, "dist"); const stage = path.join(output, "server-package");
 await rm(stage, { recursive: true, force: true }); await mkdir(stage, { recursive: true });
 // Allowlist: no .env, user music, vendor, tests or repository metadata.
-for (const name of ["bootstrap.php", "composer.json", ".env.example", "README.md", "bin", "config", "cron", "deploy", "migrations", "public", "src"]) {
+for (const name of ["bootstrap.php", "composer.json", ".env.example", "README.md", "bin", "config", "cron", "deploy", "migrations", "public", "src", "tools"]) {
   await cp(path.join(root, "server", name), path.join(stage, name), { recursive: true });
+}
+const toolsDirectory = path.join(stage, "tools");
+await chmod(path.join(toolsDirectory, "mp3-validator"), 0o755);
+for (const slot of ["decode-slot-0.lock", "decode-slot-1.lock"]) {
+  await chmod(path.join(toolsDirectory, slot), 0o660);
 }
 await cp(path.join(root, "docs/deployment/hostinger-private-test.md"), path.join(stage, "HOSTINGER.md"));
 async function walk(dir) {

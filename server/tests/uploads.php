@@ -10,6 +10,8 @@ use Celikom\Application\DeferredFingerprintService;
 use Celikom\Application\TrackRequestService;
 use Celikom\Application\UploadRateLimiter;
 use Celikom\Application\Mp3Inspector;
+use Celikom\Application\Mp3Normalizer;
+use Celikom\Application\Mp3DecodeValidator;
 use Celikom\Database\Connection;
 use Celikom\Database\MigrationRunner;
 use Celikom\Repositories\PdoCatalogRepository;
@@ -25,18 +27,35 @@ $pdo = Connection::open($config);
 (new MigrationRunner($pdo, dirname(__DIR__) . '/migrations'))->run();
 $storage = new LocalStorageAdapter($config['storage_path']);
 $ownerHash = hash('sha256', 'stage7-ci-isolated-owner');
-$path = sys_get_temp_dir() . '/celikom-stage7-' . bin2hex(random_bytes(8)) . '.mp3';
-// Synthetic MP3 frame stream: MPEG1 Layer3, 128 kbps, 44.1 kHz.
-// No copyrighted audio or live library asset is involved.
+$path = sys_get_temp_dir() . '/celikom-stage7-frames-' . bin2hex(random_bytes(8)) . '.mp3';
+// Structural-only MPEG frame fixture; no copyrighted or live library audio.
 $frame = hex2bin('fffb9064') . str_repeat("\0", 413);
 file_put_contents($path, str_repeat($frame, 100));
-$size = filesize($path);
+$validPath = sys_get_temp_dir() . '/celikom-stage7-valid-' . bin2hex(random_bytes(8)) . '.mp3';
+$encode = static function (string $output, int $frequency): void {
+    $process = proc_open([
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi',
+        '-i', 'sine=frequency=' . $frequency . ':sample_rate=44100',
+        '-t', '2.612', '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '128k',
+        '-write_xing', '0', '-id3v2_version', '0', '-y', $output,
+    ], [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['pipe', 'w']],
+        $pipes, null, ['LANG' => 'C', 'LC_ALL' => 'C'], ['bypass_shell' => true]);
+    if (!is_resource($process)) throw new RuntimeException('synthetic_mp3_encoder_unavailable');
+    $errors = is_resource($pipes[2] ?? null) ? stream_get_contents($pipes[2]) : '';
+    if (is_resource($pipes[2] ?? null)) fclose($pipes[2]);
+    $status = proc_close($process);
+    if ($status !== 0) throw new RuntimeException('synthetic_mp3_encode_failed: ' . substr((string)$errors, 0, 500));
+};
+$encode($validPath, 440);
+$validDuration = (new Mp3Inspector())->durationMs($validPath);
+if ($validDuration === null) throw new RuntimeException('synthetic_mp3_duration_unavailable');
+$size = filesize($validPath);
 $fields = [
-    'service' => 'yandex', 'track_id' => '799001', 'duration_ms' => '2606',
+    'service' => 'yandex', 'track_id' => '799001', 'duration_ms' => (string)$validDuration,
     'artist' => 'synthetic', 'title' => 'stage7', 'album' => '', 'declaration' => '1',
     'request_id' => '10000000-0000-4000-8000-000000000001',
 ];
-$file = ['error' => UPLOAD_ERR_OK, 'tmp_name' => $path, 'name' => 'audio.mp3', 'size' => $size];
+$file = ['error' => UPLOAD_ERR_OK, 'tmp_name' => $validPath, 'name' => 'audio.mp3', 'size' => $size];
 $service = new UploadService($pdo, $storage, 31457280, static fn (string $p): bool => is_file($p),
     new DeferredFingerprintService($pdo));
 $catalog = new PdoCatalogRepository($pdo);
@@ -44,6 +63,17 @@ $catalog = new PdoCatalogRepository($pdo);
 try {
     run('Stage 7 structural MP3 probe accepts synthetic frames', function () use ($path): void {
         expect((new Mp3Inspector())->check($path), 'Synthetic MPEG frames');
+    });
+    run('MP3 normalization and bounded decoder validate the complete generated stream', function () use ($validPath, $validDuration): void {
+        $prepared = (new Mp3Normalizer())->prepare($validPath);
+        try {
+            expect($prepared['duration_ms'] === $validDuration, 'Frame duration survives normalization');
+            expect($prepared['size'] > 0 && $prepared['size'] <= filesize($validPath), 'Normalized size is bounded');
+            expect((fileperms($prepared['path']) & 0777) === 0600, 'Temporary normalized file is private');
+            (new Mp3DecodeValidator())->check($prepared['path']);
+        } finally {
+            if (is_file($prepared['path'])) unlink($prepared['path']);
+        }
     });
     run('Stage 7 MP3 measures full audio duration and rejects damaged endings', function () use ($path): void {
         $inspector = new Mp3Inspector();
@@ -67,14 +97,14 @@ try {
         try { expect($inspector->durationMs($tagged) === 2612, 'Standard ID3 tags accepted'); }
         finally { unlink($tagged); }
     });
-    run('Tagged MP3 with ordinary APEv2 footer is measured and accepted into pending moderation', function () use ($path, $service, $fields, $file, $ownerHash): void {
+    run('Tagged MP3 with ordinary APEv2 footer is measured and accepted into pending moderation', function () use ($validPath, $validDuration, $service, $fields, $file, $ownerHash): void {
         $item = pack('V2', 4, 0) . "Title\0Test";
         $footer = 'APETAGEX' . pack('V4', 2000, 32 + strlen($item), 1, 0) . str_repeat("\0", 8);
         $tagged = tempnam(sys_get_temp_dir(), 'celikom-ape-');
-        $audio = file_get_contents($path);
+        $audio = file_get_contents($validPath);
         file_put_contents($tagged, $audio . $item . $footer);
         try {
-            expect((new Mp3Inspector())->durationMs($tagged) === 2612, 'Bounded APEv2 accepted');
+            expect((new Mp3Inspector())->durationMs($tagged) === $validDuration, 'Bounded APEv2 accepted');
             $request = array_merge($fields, [
                 'track_id' => '799081',
                 'request_id' => '10000000-0000-4000-8000-000000000081'
@@ -88,7 +118,7 @@ try {
             expect((new Mp3Inspector())->durationMs($tagged) === null, 'Malformed APE footer rejected');
         } finally { unlink($tagged); }
     });
-    run('Consecutive ID3v2.4 tags are accepted as MP3 without weakening frame validation', function () use ($path,$service,$fields,$file,$ownerHash): void {
+    run('Consecutive ID3v2.4 tags are accepted as MP3 without weakening frame validation', function () use ($validPath,$validDuration,$service,$fields,$file,$ownerHash): void {
         // Synthetic reproduction of an actual user file: ID3v2.4 tag at 0,
         // another at offset 45, MPEG audio starts at offset 89.
         $header = static function (int $length): string {
@@ -98,12 +128,12 @@ try {
         };
         $prefix = $header(35) . str_repeat('A', 35)
             . $header(34) . str_repeat('B', 34);
-        $audio = file_get_contents($path);
+        $audio = file_get_contents($validPath);
         $tagged = tempnam(sys_get_temp_dir(), 'celikom-id3-double-');
         file_put_contents($tagged, $prefix . $audio);
         try {
             $inspector = new Mp3Inspector();
-            expect($inspector->durationMs($tagged) === 2612, 'Double ID3v2 tags preserve MPEG duration');
+            expect($inspector->durationMs($tagged) === $validDuration, 'Double ID3v2 tags preserve MPEG duration');
             $data = array_merge($fields, [
                 'track_id' => '799082',
                 'request_id' => '10000000-0000-4000-8000-000000000082',
@@ -122,20 +152,20 @@ try {
             expect($inspector->durationMs($tagged) === null, 'Excessive tags rejected');
         } finally { unlink($tagged); }
     });
-    run('Uploads reject duration mismatch before creating a track or asset', function () use ($service,$fields,$file,$ownerHash,$pdo): void {
-        $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>'4113']);
+    run('Uploads reject duration mismatch before creating a track or asset', function () use ($service,$fields,$file,$ownerHash,$pdo,$validDuration): void {
+        $bad=array_merge($fields,['track_id'=>'799999','duration_ms'=>(string)($validDuration + 1501)]);
         try {$service->upload($bad,$file,$ownerHash);throw new RuntimeException('mismatch accepted');}
         catch (DomainException $e) {expect($e->getMessage()==='duration_mismatch','Mismatch rejected');}
         expect((int)$pdo->query("SELECT COUNT(*) FROM tracks WHERE service_track_id='799999'")->fetchColumn()===0,'No track created');
     });
     $created = $service->upload($fields, $file, $ownerHash);
-    run('Upload uses stored original duration despite spoofed supplied duration',function() use($service,$fields,$file,$ownerHash,$pdo):void{
-        $pdo->exec("UPDATE tracks SET duration_ms=4113 WHERE service_track_id='799001'");
+    run('Upload uses stored original duration despite spoofed supplied duration',function() use($service,$fields,$file,$ownerHash,$pdo,$validDuration):void{
+        $pdo->prepare('UPDATE tracks SET duration_ms=? WHERE service_track_id=?')->execute([$validDuration + 1501, '799001']);
         try {try{$service->upload($fields,$file,$ownerHash);throw new RuntimeException('stored mismatch accepted');}
         catch(DomainException $e){expect($e->getMessage()==='duration_mismatch','Stored original authoritative');}}
-        finally{$pdo->exec("UPDATE tracks SET duration_ms=2606 WHERE service_track_id='799001'");}
+        finally{$pdo->prepare('UPDATE tracks SET duration_ms=? WHERE service_track_id=?')->execute([$validDuration, '799001']);}
     });
-    run('Stage 7 upload creates only pending candidate and fingerprint job', function () use ($pdo, $catalog, $created): void {
+    run('Stage 7 upload creates only pending candidate and fingerprint job', function () use ($pdo, $catalog, $created, $validDuration): void {
         expect($created['status'] === 'pending' && !$created['duplicate'], 'Only pending');
         expect($catalog->findActive('yandex', '799001') === null, 'No active replacement');
         expect($catalog->findByReplacement((int) $created['replacement_id']) === null, 'No public audio');
@@ -147,7 +177,7 @@ try {
             'Pending and deferred fingerprint only');
         $stmt = $pdo->prepare('SELECT a.duration_ms FROM audio_assets a JOIN track_replacements r ON r.audio_asset_id = a.id WHERE r.id = ?');
         $stmt->execute([$created['replacement_id']]);
-        expect((int) $stmt->fetchColumn() === 2612, 'Asset uses inspected MP3 duration, not supplied Track duration');
+        expect((int) $stmt->fetchColumn() === $validDuration, 'Asset uses inspected MP3 duration, not supplied Track duration');
     });
     run('Stage 7 byte-identical upload under different name and same request is idempotent', function () use ($service, $fields, $file, $ownerHash, $created, $pdo): void {
         $again = $service->upload($fields, array_merge($file, ['name' => 'renamed.mp3']), $ownerHash);
@@ -169,16 +199,16 @@ try {
         $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         expect(count($ids) === 2 && $ids[0] === $ids[1], 'One reusable asset');
         expect($catalog->findActive('yandex', '799002') === null, 'Still pending');
-        $sha = hash_file('sha256', $file['tmp_name']);
+        $prepared = (new Mp3Normalizer())->prepare($file['tmp_name']);
+        try { $sha = hash_file('sha256', $prepared['path']); }
+        finally { if (is_file($prepared['path'])) unlink($prepared['path']); }
         $stmt = $pdo->prepare('SELECT COUNT(*) FROM audio_assets WHERE sha256 = ?');
         $stmt->execute([$sha]);
         expect((int) $stmt->fetchColumn() === 1, 'No second physical AudioAsset row');
     });
-    run('Stage 7 blocks a different MP3 for a Track ID already in pending', function () use ($service, $fields, $file, $ownerHash, $path, $pdo): void {
-        $other = tempnam(sys_get_temp_dir(), 'celikom-different-');
-        $bytes = file_get_contents($path);
-        $bytes[100] = chr(ord($bytes[100]) ^ 0x4f);
-        file_put_contents($other, $bytes);
+    run('Stage 7 blocks a different valid MP3 for a Track ID already in pending', function () use ($service, $fields, $file, $ownerHash, $encode, $pdo): void {
+        $other = sys_get_temp_dir() . '/celikom-different-' . bin2hex(random_bytes(8)) . '.mp3';
+        $encode($other, 880);
         try {
             $different = array_merge($fields, ['request_id' => '10000000-0000-4000-8000-000000000039']);
             $input = array_merge($file, ['tmp_name' => $other, 'size' => filesize($other)]);
@@ -191,7 +221,7 @@ try {
             $count = (int) $pdo->query("SELECT COUNT(*) FROM track_replacements r JOIN tracks t
                 ON t.id = r.track_id WHERE t.service_track_id='799001' AND r.status='pending'")->fetchColumn();
             expect($count === 1, 'Only original candidate retained');
-        } finally { unlink($other); }
+        } finally { if (is_file($other)) unlink($other); }
     });
     run('Stage 7 read-only track state detects pending across popup/browser sessions', function () use ($config): void {
         $config['owner_uploads_enabled'] = true;
@@ -280,4 +310,5 @@ try {
     fwrite(STDOUT, "CELIKOM Stage 7 isolated upload foundation passed.\n");
 } finally {
     unlink($path);
+    if (is_file($validPath)) unlink($validPath);
 }

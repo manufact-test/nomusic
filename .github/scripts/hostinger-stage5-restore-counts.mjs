@@ -7,7 +7,8 @@ const REQUIRED_TABLES = [
   "schema_migrations",
   "tracks",
   "audio_assets",
-  "track_replacements"
+  "track_replacements",
+  "bulk_moderation_tombstones"
 ];
 
 export function parseSnapshotTableCountsJson(source) {
