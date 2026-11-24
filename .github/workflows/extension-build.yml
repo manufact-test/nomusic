@@ -27,6 +27,8 @@ jobs:
         run: npm ci
 
       - name: Test and build extension
+        env:
+          CELIKOM_API_BASE_URL: ${{ github.ref == 'refs/heads/main' && 'https://api.celikom.com' || '' }}
         run: |
           npm run test:extension
           npm run build:extension
@@ -34,7 +36,27 @@ jobs:
       - name: Verify checksum
         run: cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256
 
-      - name: Upload immutable artifact
+      - name: Verify migrated main origin and keep private extension ZIP on FlokiNET
+        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node --test .github/scripts/tests/floki-private-build-spool.test.mjs
+          node --input-type=module <<'CHECK'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const api=JSON.parse(readFileSync('extension/dist/unpacked/api/config.json','utf8'));
+          const manifest=JSON.parse(readFileSync('extension/dist/unpacked/manifest.json','utf8'));
+          assert.equal(api.baseUrl,'https://api.celikom.com');
+          assert.deepEqual([...manifest.host_permissions].sort(),['https://api.celikom.com/*','https://music.yandex.ru/*'].sort());
+          CHECK
+          node .github/scripts/floki-private-build-spool.mjs \
+            "$GITHUB_WORKSPACE" /home/runner/celikom-build-spool \
+            "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" --extension-only
+
+      - name: Upload immutable artifact for existing tag/non-main builds
+        if: github.ref != 'refs/heads/main' || github.event_name != 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: celikom-extension-${{ github.ref_name }}

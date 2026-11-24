@@ -19,7 +19,8 @@ async function regularBytes(file, max) {
 
 // This is a private, non-privileged runner spool. It is NOT a deployment
 // directory, an HTTP document root or an authority for release approval.
-export async function stageBuild({ workspace, spool, sha, runId, attempt }) {
+export async function stageBuild({ workspace, spool, sha, runId, attempt, extensionOnly = false }) {
+    if (typeof extensionOnly !== 'boolean') throw Error('INVALID_BUILD_SCOPE');
     if (!shaPattern.test(sha) || !numberPattern.test(runId) || !numberPattern.test(attempt)) {
         throw Error('INVALID_BUILD_IDENTITY');
     }
@@ -28,6 +29,7 @@ export async function stageBuild({ workspace, spool, sha, runId, attempt }) {
         ['extension', 'extension/package.json', 'extension/dist', 'celikom-extension'],
         ['server-private', 'package.json', 'dist', 'celikom-server'],
     ]) {
+        if (extensionOnly && kind !== 'extension') continue;
         const version = JSON.parse(await readFile(path.join(workspace, packagePath), 'utf8')).version;
         if (typeof version !== 'string' || !versionPattern.test(version)) throw Error('INVALID_BUILD_VERSION');
         const name = prefix + '-' + version + '.zip';
@@ -73,9 +75,10 @@ export async function stageBuild({ workspace, spool, sha, runId, attempt }) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-    const [workspace, spool, sha, runId, attempt] = process.argv.slice(2);
+    const [workspace, spool, sha, runId, attempt, scope, ...extra] = process.argv.slice(2);
     if (!workspace || !spool || !sha || !runId || !attempt) throw Error('MISSING_BUILD_ARGUMENTS');
-    const receipt = await stageBuild({ workspace, spool, sha, runId, attempt });
+    if (extra.length || (scope !== undefined && scope !== '--extension-only')) throw Error('INVALID_BUILD_SCOPE');
+    const receipt = await stageBuild({ workspace, spool, sha, runId, attempt, extensionOnly: scope === '--extension-only' });
     console.log(JSON.stringify(receipt, null, 2));
     console.log('CELIKOM_FLOKI_PRIVATE_BUILD_SPOOL_OK');
 }

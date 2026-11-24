@@ -59,3 +59,15 @@ async function renameForTest(a, b) {
     const { rename } = await import('node:fs/promises');
     await rename(a, b);
 }
+
+test('manual main extension build stages only the verified extension without any backend package', async t => {
+    const f = await fixture(t);
+    await rm(path.join(f.workspace, 'dist'), { recursive: true });
+    const receipt = await stageBuild({ ...f, extensionOnly: true });
+    assert.equal(receipt.state, 'private-unreleased-ci');
+    assert.deepEqual(receipt.files.map(x => x.kind), ['extension']);
+    assert.deepEqual((await readdir(path.join(f.spool, f.sha + '-123-1'))).sort(), [
+        'celikom-extension-4.5.6.zip', 'celikom-extension-4.5.6.zip.sha256', 'receipt.json',
+    ]);
+    await assert.rejects(stageBuild({ ...f, extensionOnly: 'true' }), /INVALID_BUILD_SCOPE/);
+});
