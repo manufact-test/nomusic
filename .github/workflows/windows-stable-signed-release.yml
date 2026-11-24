@@ -5,18 +5,18 @@ on:
     branches:
       - main
     paths:
-      - ".github/release/owner-bootstrap-0.24.38.trigger"
+      - ".github/release/owner-bootstrap-0.24.55.trigger"
   workflow_dispatch:
     inputs:
       version:
         description: Version already committed to main
         required: true
-        default: '0.24.38'
+        default: '0.24.55'
         type: string
       sequence:
         description: Strictly increasing signed release sequence
         required: true
-        default: '1'
+        default: '2'
         type: string
       expires_at:
         description: Leave blank to use an automatic 7-day UTC expiry
@@ -24,7 +24,7 @@ on:
         default: ''
         type: string
       publish_to_production:
-        description: Publish only after celikom.com DNS, TLS and feed are live
+        description: Disabled during migration; private preparation only
         required: true
         default: false
         type: boolean
@@ -47,8 +47,8 @@ jobs:
       public_key_der_base64: ${{ steps.derive-public-key.outputs.public_key_der_base64 }}
     env:
       CELIKOM_STABLE_ORIGIN: https://celikom.com
-      RELEASE_VERSION: ${{ inputs.version || '0.24.38' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '1' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.55' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '2' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +67,7 @@ jobs:
           MANIFEST_PRIVATE_PEM: ${{ secrets.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM }}
         run: |
           $ErrorActionPreference='Stop'
+          if ('${{ inputs.publish_to_production }}' -eq 'true') { throw 'FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED' }
           if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W155_P256_PRIVATE_KEY_NOT_CONFIGURED' }
           node .github/scripts/windows-stable-key-public.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_PIN_DERIVATION_FAILED' }
@@ -235,6 +236,41 @@ jobs:
             "- $zipName"
             '- SHA256SUMS.txt'
           ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Preserve signed feed metadata in a separate unpublished draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $version=$env:RELEASE_VERSION
+          $out=Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
+          $tag="celikom-windows-v$version-floki-feed-candidate"
+          $versionRoot=Join-Path $out $version
+          $files=@(
+            (Join-Path $out 'latest.json'),
+            (Join-Path $out 'latest.json.sig'),
+            (Join-Path $out 'manifest-public-key.der'),
+            (Join-Path $versionRoot 'manifest.json'),
+            (Join-Path $versionRoot 'manifest.json.sig')
+          )
+          foreach ($f in $files) {
+            if (!(Test-Path -LiteralPath $f -PathType Leaf)) { throw 'FLOKI_FEED_METADATA_MISSING' }
+          }
+          gh release create $tag @files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --draft --title "CELIKOM Windows $version - private feed metadata (DRAFT)" --notes "Private migration staging only. Do not publish. Installer in matching owner-bootstrap draft; source $env:GITHUB_SHA; sequence $env:RELEASE_SEQUENCE."
+          if ($LASTEXITCODE -ne 0) { throw 'FLOKI_FEED_DRAFT_FAILED' }
+          $view=gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets,url
+          if ($LASTEXITCODE -ne 0) { throw 'FLOKI_FEED_DRAFT_VERIFY_FAILED' }
+          $record=($view -join [Environment]::NewLine) | ConvertFrom-Json
+          if (!$record.isDraft -or $record.tagName -cne $tag) { throw 'FLOKI_FEED_MUST_REMAIN_PRIVATE' }
+          $names=@($files | ForEach-Object { [IO.Path]::GetFileName($_) } | Sort-Object)
+          $actual=@($record.assets | ForEach-Object { [string]$_.name } | Sort-Object)
+          if (Compare-Object -ReferenceObject $names -DifferenceObject $actual) { throw 'FLOKI_FEED_ASSET_SET_MISMATCH' }
+          foreach ($asset in $record.assets) {
+            $local=@($files | Where-Object { [IO.Path]::GetFileName($_) -ceq $asset.name })
+            if ($local.Count -ne 1 -or (Get-Item -LiteralPath $local[0]).Length -ne [int64]$asset.size) { throw 'FLOKI_FEED_ASSET_SIZE_MISMATCH' }
+          }
+          "Private feed metadata: $($record.url)" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       # The Actions artifact is needed only by the separately approved live-feed
       # publisher. The owner bootstrap uses the unpublished draft release above.
