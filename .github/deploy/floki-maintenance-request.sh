@@ -2,19 +2,24 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-echo '=== Mirror sync last failure ==='
-systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp
-systemctl show celikom-mirror-sync.timer -p LastTriggerUSec -p NextElapseUSecRealtime
-journalctl -u celikom-mirror-sync.service --since '90 minutes ago' --no-pager -o cat | python3 -c 'import sys,re
-for s in sys.stdin:
-    if re.search(r"fatal:|error:|failed|denied|rejected|VERIFIED_REFS=|CELIKOM_MIRROR_SYNC_OK|exit-code|timed out|could not|unable to|lock",s,re.I):
-        s=re.sub(r"https?://[^\s]+","[URL]",s)
-        s=re.sub(r"(?i)(authorization:|bearer |token=|password=).*",r"\1[REDACTED]",s)
-        print(s[:500].rstrip())' | tail -n 45
-echo '=== Mirror local state ==='
-runuser -u celikom-mirror -- git --git-dir=/home/celikom-mirror/github-mirror.git rev-parse refs/heads/main
-runuser -u celikom-mirror -- git --git-dir=/home/celikom-mirror/github-mirror.git for-each-ref --format='%(refname)' | wc -l
-echo '=== Verify existing offsite ciphertext ==='
-archive=/srv/celikom/migration/backups/celikom-offsite-20261122.tar.gpg
-printf '%s  %s\n' 9d94a07d3306acd8874a7d3ad959234427d67a0d1b9c402526abb492e3acff15 "$archive" | sha256sum -c -
-echo CELIKOM_MIRROR_DIAGNOSTIC_AND_BACKUP_HASH_OK
+echo '=== Mirror service contract ==='
+systemctl cat celikom-mirror-sync.service | sed -E '/Environment(File)?=/s/=.*/=[REDACTED]/'
+echo '=== Sync executable (secrets excluded) ==='
+sed -n '1,240p' /usr/local/sbin/celikom-mirror-sync | sed -E 's/(TOKEN|PASSWORD|SECRET|PRIVATE_KEY)=.*/\1=[REDACTED]/I'
+echo '=== SSH client configuration ==='
+runuser -u celikom-mirror -- ssh -G git@127.0.0.1 2>/dev/null | grep -E '^(hostname|user|port|identityfile|identitiesonly|identityagent|proxycommand|proxyjump) '
+echo '=== Mirror account SSH file metadata and public fingerprints ==='
+find /home/celikom-mirror/.ssh -maxdepth 1 -type f -printf '%f %m %u:%g %s bytes\n' 2>/dev/null | sort || true
+for f in /home/celikom-mirror/.ssh/*.pub; do
+  [[ -f "$f" ]] && ssh-keygen -lf "$f" || true
+done
+echo '=== Forgejo authorized public key fingerprints ==='
+for f in /var/lib/forgejo/.ssh/authorized_keys /home/git/.ssh/authorized_keys /var/lib/gitea/.ssh/authorized_keys; do
+  if [[ -f "$f" ]]; then
+    echo "FILE=$f"
+    ssh-keygen -lf "$f" || true
+  fi
+done
+echo '=== Read-only authenticated push endpoint probe ==='
+runuser -u celikom-mirror -- env GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=yes' git ls-remote forgejo HEAD 2>&1 | head -n 8 || true
+echo CELIKOM_FORGEJO_SSH_DIAGNOSTIC_OK
