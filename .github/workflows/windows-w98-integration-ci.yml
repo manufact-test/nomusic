@@ -85,6 +85,8 @@ jobs:
           assert.deepEqual([...manifest.host_permissions].sort(), ['https://api.celikom.com/*','https://music.yandex.ru/*'].sort());
           console.log('CELIKOM_FLOKI_EXTENSION_ORIGIN_OK');
           CHECK
+      - name: Verify local FlokiNET signed feed promotion
+        run: node --test .github/scripts/tests/windows-stable-publish-floki.test.mjs
       - name: Verify private build spool contract
         run: node --test .github/scripts/tests/floki-private-build-spool.test.mjs
       - name: Keep verified ZIPs in persistent private FlokiNET runner spool
