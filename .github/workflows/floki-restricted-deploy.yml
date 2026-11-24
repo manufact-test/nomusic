@@ -1,0 +1,58 @@
+name: CELIKOM restricted FlokiNET deployment
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/deploy/floki-request.txt'
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Restricted server operation
+        required: true
+        type: choice
+        default: status
+        options:
+          - status
+          - stage-release-02455
+permissions:
+  contents: read
+concurrency:
+  group: celikom-floki-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: floki-deploy
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run only the authorized FlokiNET operation
+        env:
+          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
+          INPUT_OPERATION: ${{ inputs.operation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            op="$INPUT_OPERATION"
+          else
+            read -r op < .github/deploy/floki-request.txt
+          fi
+          case "$op" in status|stage-release-02455) ;; *) exit 64 ;; esac
+          [[ -n "$FLOKI_DEPLOY_CONNECTION" ]] || { echo FLOKI_DEPLOY_SECRET_MISSING; exit 2; }
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          printf '%s\n' "$FLOKI_DEPLOY_CONNECTION" | tr -d '\r' > "$tmp/bundle"
+          unset FLOKI_DEPLOY_CONNECTION
+          head -n 1 "$tmp/bundle" > "$tmp/known_hosts"
+          tail -n +2 "$tmp/bundle" > "$tmp/key"
+          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
+          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null
+          ssh -T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 \
+            -o ClearAllForwardings=yes celikom-deploy@95.133.160.111 "$op"
