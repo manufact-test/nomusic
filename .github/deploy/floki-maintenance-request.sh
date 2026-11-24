@@ -2,10 +2,9 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-echo '=== Independent scheduled Forgejo mirror tick ==='
-systemctl show celikom-mirror-sync.timer -p LastTriggerUSec -p NextElapseUSecRealtime
+echo '=== Catch Forgejo mirror up to current main ==='
+systemctl start celikom-mirror-sync.service
 systemctl show celikom-mirror-sync.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp
-journalctl -u celikom-mirror-sync.service --since '2026-11-24 20:14:00 UTC' --no-pager -o short-iso | grep -E 'Started CELIKOM|VERIFIED_REFS=|CELIKOM_MIRROR_SYNC_OK|Permission denied|fatal:|Failed to start' | tail -n 30
 runuser -u celikom-mirror -- bash -c '
 set -euo pipefail
 S=/home/celikom-mirror/.ssh
@@ -18,4 +17,5 @@ fj=$(GIT_SSH_COMMAND="$FG" git --git-dir="$R" ls-remote git@127.0.0.1:celadmin/n
 printf "GITHUB_MAIN=%s\nLOCAL_MIRROR_MAIN=%s\nFORGEJO_MAIN=%s\n" "$gh" "$local" "$fj"
 [[ "$gh" == "$local" && "$local" == "$fj" ]]
 '
-echo CELIKOM_SCHEDULED_MIRROR_MAIN_EQUAL_OK
+journalctl -u celikom-mirror-sync.service -n 10 --no-pager -o cat | grep -E 'VERIFIED_REFS=|CELIKOM_MIRROR_SYNC_OK' | tail -n 2
+echo CELIKOM_CURRENT_MAIN_MIRROR_EQUAL_OK
