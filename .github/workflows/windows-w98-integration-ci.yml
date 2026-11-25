@@ -276,7 +276,7 @@ jobs:
       - name: W22/W23/W60 original-source, VPN, 403 and audio regressions
         shell: pwsh
         run: |
-          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/initial-current-source.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w60/current-source-refresh.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W98_AUDIO_REGRESSION' }
       - name: W21 crash rollback and unknown updater refusal
         run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
