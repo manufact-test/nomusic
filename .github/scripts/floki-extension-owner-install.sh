@@ -7,8 +7,8 @@ umask 077
 [[ "$(id -u)" == 0 ]]
 
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=eee6e0a466c4fc985323ab6bf2e1b688fb4679de
-BLOB=99dc1fb5d7b1b52c20b758df37f2d7dfbbbf1c11
+COMMIT=e7ff860c83bf1a238991939f990ee1e7b85f3957
+BLOB=24fbec9bbb7b17e50ba2d987276b2d59967f544f
 SOURCE=.github/scripts/floki-extension-owner-consumer.py
 DEST=/usr/local/lib/celikom-extension-release/consumer.py
 SERVICE=/etc/systemd/system/celikom-extension-owner.service
