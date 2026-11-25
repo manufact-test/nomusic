@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   portable-build-ci:
-    if: github.event_name != 'push' || (!contains(github.event.head_commit.message, '[windows-feed-transfer]') && !contains(github.event.head_commit.message, '[android-feed-prepare]') && !contains(github.event.head_commit.message, '[android-legacy-signature]'))
+    if: github.event_name != 'push' || (!contains(github.event.head_commit.message, '[windows-feed-transfer]') && !contains(github.event.head_commit.message, '[android-feed-prepare]') && !contains(github.event.head_commit.message, '[android-legacy-signature]') && !contains(github.event.head_commit.message, '[windows-protected-source]'))
     name: Linux extension and server package build
     runs-on: celikom-ci-smoke-only
     timeout-minutes: 25
@@ -175,3 +175,66 @@ jobs:
           python3 .github/scripts/android-stable-prepare-floki.py verify --manifest "$tmp/identity.json" \
             --apk "$tmp/legacy.apk" --apksigner "$tools/apksigner" --aapt "$tools/aapt"
           echo CELIKOM_LEGACY_ANDROID_APK_IDENTITY_OK
+
+  protected-windows-source-rehearsal:
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[windows-protected-source]')
+    name: Protected Windows signed source rehearsal (no deploy)
+    # The original signing environment already has draft access. GitHub
+    # requires push permission for private draft assets. Never give this job
+    # to the isolated Floki runner or inject deployment/signing secrets here.
+    permissions:
+      contents: write
+    environment: windows-stable-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify exact existing signed candidate without publishing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          api="https://api.github.com/repos/manufact-test/nomusic"
+          get() {
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 180 --max-filesize "$4" -H "Authorization: Bearer $GH_TOKEN" -H "Accept: $3" -H 'X-GitHub-Api-Version: 2022-11-28' "$api/$1" -o "$2"
+          }
+          get releases/457091607 "$tmp/owner.json" application/vnd.github+json 1000000
+          get releases/457092651 "$tmp/feed.json" application/vnd.github+json 1000000
+          node - "$tmp" <<'NODE'
+          const fs=require('fs'), assert=require('assert/strict'), p=process.argv[2];
+          for(const [file,id,tag,assets] of [
+            ['owner.json',457091607,'celikom-windows-v0.24.55-owner-bootstrap',[[788114886,'CELIKOM-Windows-0.24.55.exe',85145078]]],
+            ['feed.json',457092651,'celikom-windows-v0.24.55-floki-feed-candidate',[[788118277,'latest.json',851],[788118273,'latest.json.sig',71],[788118274,'manifest-public-key.der',91],[788118276,'manifest.json',851],[788118267,'manifest.json.sig',71]]]
+          ]) {
+            const x=JSON.parse(fs.readFileSync(p+'/'+file));
+            assert.equal(x.id,id);assert.equal(x.tag_name,tag);assert.equal(x.draft,true);assert.equal(x.target_commitish,'61d17d9eb97f3db5c58c906e30da6c19ee737090');
+            for(const [id,name,size] of assets)assert(x.assets.some(a=>a.id===id&&a.name===name&&a.size===size));
+          }
+          NODE
+          get releases/assets/788114886 "$tmp/CELIKOM-Windows-0.24.55.exe" application/octet-stream 85145078
+          get releases/assets/788118277 "$tmp/latest.json" application/octet-stream 851
+          get releases/assets/788118273 "$tmp/latest.json.sig" application/octet-stream 71
+          get releases/assets/788118274 "$tmp/manifest-public-key.der" application/octet-stream 91
+          get releases/assets/788118276 "$tmp/manifest.json" application/octet-stream 851
+          get releases/assets/788118267 "$tmp/manifest.json.sig" application/octet-stream 71
+          unset GH_TOKEN
+          cd "$tmp"
+          printf '%s\n' 'f4c9a7881164ac7a9b5681d9f3568e5cbd3a9915c9e1da7b475caa20d3fb6487  CELIKOM-Windows-0.24.55.exe' '9601539c709a554ec7e1f774756c78e2bfdda148d11ea7dd11946a9a5ec66d1a  latest.json' 'a5974b77e7df9a4fb148445c66fed7ca9ed6f3282b398838991fba8b9efb25c9  latest.json.sig' '46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95  manifest-public-key.der' | sha256sum -c
+          cmp latest.json manifest.json
+          cmp latest.json.sig manifest.json.sig
+          mkdir -m 700 0.24.55
+          mv CELIKOM-Windows-0.24.55.exe manifest.json manifest.json.sig 0.24.55/
+          python3 "$GITHUB_WORKSPACE/.github/scripts/windows-stable-private-import.py" pack \
+            --source "$tmp" --output "$tmp/transport.zip" --pin "$tmp/manifest-public-key.der" \
+            --version 0.24.55 --sequence 2
+          echo CELIKOM_WINDOWS_PROTECTED_SOURCE_BUNDLE_VERIFIED
+          # No artifact upload, no server credentials, no release mutation.
