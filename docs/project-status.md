@@ -1,3 +1,15 @@
+## 2026-11-25 — Extension 0.4.79 / FlokiNET owner acceptance pending
+
+Current extension checkpoint: [EXTENSION-FLOKINET-2026-11-25.md](handoff/EXTENSION-FLOKINET-2026-11-25.md).
+Source main commit 0e7d22025ff6f968478b30e61444d168c1c16830; owner ZIP
+https://celikom.com/downloads/extension/celikom-extension-0.4.79.zip
+(SHA-256 585f996e24040ff0d190d23eb95d8270eecc86909a435946fab24e17ca98d1af).
+363 extension tests and full CI pass; live authorized Start/entitlement/resolve/Range pass.
+Installed owner's former origin/failure cause not confirmed. Real Yandex owner acceptance pending.
+Playback remains the handed-off main 0.4.73 architecture. Android/Windows untouched.
+Infrastructure authority remains latest Nov25 sections of docs/migration/CELIKOM-NEXT-CHAT-START-2026-11-23.md.
+Historical sections below do not override the current migration checkpoint.
+
 ## 2026-10-20 — CELIKOM 0.4.58: VPN recovery without browser online event (OWNER RETEST PENDING)
 
 Owner reported installed **0.4.57** failed to auto-reconnect after switching VPN; manual reconnection worked. Diagnostic evidence: repeated `auth/me` `auth_timeout` (~20 s), then `auth_network_error`; fail-open restored original (`api_network_error`), bridge remained healthy, while `replacementError=access_reconnecting`, `suspended=true`, `recovering=false`, `player.connected=false`. Actual VPN/server route cause unproven; `online` event was not evidenced at return.

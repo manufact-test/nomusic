@@ -339,3 +339,16 @@ Owner specifically wants large batches, no repeated plans or tiny status reports
 - #45607054609 **SUCCESS**: .github/deploy/floki-maintenance-request.sh returned to existing safe no-op after the backup, offsite transfer and server verification. No pending privileged backup script is armed.
 - Private encrypted offsite recovery draft #458032380 remains draft=true, asset #791316309 exactly 11,668,572 bytes and GitHub digest sha256:4fa123474c973539fd3a03b424b6f36c89c4fa35aad16a31a104d88fa10fef0d. Save the offline recovery passphrase separately; never make this draft public. This is an independent ciphertext copy, not a second copy of secret keys.
 - **User handoff rule:** infrastructure and backup are ready for starting owner testing, not proof of playback. Owner will supply desired scope/content of three separate startup messages (Windows, browser extension, Android); DO NOT compose them prematurely. Owner should install latest exact extension 0.4.73 (new API origin) during its test chat, because his currently installed package may still target old Hostinger. Do not claim this is the cause without checking that installation. Do not retire old Hostinger or publish public Android OTA/paid features until owner acceptance.
+
+
+## 2026-11-25 — Browser extension 0.4.79 ready for owner acceptance
+
+See [extension checkpoint](../handoff/EXTENSION-FLOKINET-2026-11-25.md) for exact source, SHA, checks and boundaries.
+
+- Owner candidate: https://celikom.com/downloads/extension/celikom-extension-0.4.79.zip ; 2,490,404 bytes; SHA-256 585f996e24040ff0d190d23eb95d8270eecc86909a435946fab24e17ca98d1af. Existing site Basic Auth retained. Original 0.4.73 ZIP and route preserved.
+- Source main 0e7d22025ff6f968478b30e61444d168c1c16830. Playback unchanged from handed-off main0.4.73, except version string. New default API origin and rejection of legacy hosting builds; old Hostinger extension build entry retired; Start errors no longer all reported as outage.
+- Local baseline0.4.73 reproduced exact handed-off SHA. Candidate local/Floki builds identical; 363/363 extension tests,4/4 spool tests, manifest/security and full CI45612205528 PASS. Live authorized auth/me,entitlement,Start,resolve,signed206/seek and probe-session revocation PASS45611263231; existing trial unchanged.
+- Protected independent promotion45613004378 PASS; root immutable files, safe ZIP, exact receipt/hash, nginx syntax/reload, old/new anonymous401 and API200 verified. Isolated CI never received deployment secrets or root rights; no spool code executed by root.
+- Installed owner ZIP/origin and original failure cause are not yet confirmed. Browser download behind owner's existing Basic credentials and real Yandex playback await owner acceptance. No claim that changing host was proven to fix the reported installation.
+- Unpacked ZIP upgrades remain manual: replace same folder contents, Reload existing extension, reload Yandex tab, reauthenticate existing account if needed. Chrome Reload does not fetch new releases. Store/managed distribution remains separate future work; no fake update_url.
+- Android/Windows, server application/DB/flags and paid functions untouched. Hostinger retained frozen for rollback. Maintenance request returned to safe no-op.
