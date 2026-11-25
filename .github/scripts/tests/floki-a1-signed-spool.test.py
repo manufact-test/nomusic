@@ -44,6 +44,8 @@ class A1SpoolContract(unittest.TestCase):
     def write(self):
         self.meta_file.write_text(json.dumps(self.meta))
         self.proof_file.write_text(json.dumps(self.proof))
+        self.meta_file.chmod(0o600)
+        self.proof_file.chmod(0o600)
 
     def call_stage(self):
         return STAGE.stage(self.apk, self.meta_file, self.proof_file, self.spool)
