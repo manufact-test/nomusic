@@ -68,6 +68,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && !in_array($_SERVER['REQUEST_METHOD'], [
         exit(47);
     }
     http_response_code(503);
+    header('X-Celikom-PHP-Write-Freeze: active');
     header('Retry-After: 300');
     header('Cache-Control: no-store');
     exit;
