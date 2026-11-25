@@ -5,3 +5,4 @@
 2026-11-25: owner confirmed corrected clipboard enrollment; verify exact signed 0.24.55 transfer.
 2026-11-25: classify invalid owner-enrollment format without logging input; accept exact one-line encoded transport option.
 2026-11-25: existing owner secret is private key only; independently authenticated host fingerprint pinned, strict SSH host check retained.
+2026-11-25: exact W175 0.24.56 P-256 sequence3, signed source 3c743332d134618fd4bba39ee826e833f39aa54c, send to protected Floki data-only intake, root verify only, no feed publication.
