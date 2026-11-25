@@ -94,3 +94,9 @@ jobs:
             done
           done
           echo CELIKOM_OLD_ROUTING_READONLY_AUDIT_COMPLETE
+          # Compiles modified PHP in an owner-private temporary directory; never
+          # replaces a public source file or changes an old HTTP route.
+          ssh -T -p 65002 -i "$d/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$d/known" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 \
+            u235811320@92.113.19.189 'bash -s -- preflight' < .github/scripts/floki-cutover-source-freeze.sh
+          echo CELIKOM_PHP_WRITE_FENCE_PRIVATE_PREFLIGHT_DONE
