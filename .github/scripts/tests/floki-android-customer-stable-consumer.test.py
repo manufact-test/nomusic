@@ -61,7 +61,7 @@ class AndroidCustomerApprovalTests(unittest.TestCase):
         self.assertNotIn("alias /srv/celikom-releases/public/android/",installer)
         self.assertNotIn("chmod -R",installer)
         self.assertNotIn("chown -R",installer)
-        self.assertIn("ANDROID_CUSTOMER_STABLE_NOT_APPROVED_KEEP_OTA_UNCHANGED",
+        self.assertIn("ANDROID_PUBLIC_STABLE_NOT_APPROVED_KEEP_OTA_UNCHANGED",
                       (ROOT/"floki-android-customer-stable-consumer.py").read_text())
 
     def test_owner_only_not_auto_published(self):
