@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "channel": "owner-only",
+  "approved": [
+    {
+      "version": "0.4.82",
+      "source_commit": "2532f18acacfe246bf7c57bfb299338430b32754",
+      "run_id": "45666962945",
+      "attempt": "1",
+      "name": "celikom-extension-0.4.82.zip",
+      "size": 2491981,
+      "sha256": "f8c03532c26d6465191779229f414554b86ff01b19fa71cb849f4fdc0992d3ac"
+    }
+  ],
+  "public_stable": null
+}
