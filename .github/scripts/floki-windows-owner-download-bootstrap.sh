@@ -38,7 +38,7 @@ assert "(?<celikomwinver>" not in s
 routes=r'''    # CELIKOM OWNER WINDOWS SIGNED DYNAMIC ROUTES
     # Only files separately copied from root-pinned P-256 verified releases.
     # Site-level Basic Authentication is deliberately inherited.
-    location ~ ^/downloads/windows/CELIKOM-Windows-(?<celikomwinver>(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,4}))\.exe$ {
+    location ~ "^/downloads/windows/CELIKOM-Windows-(?<celikomwinver>(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,4}))\.exe$" {
         alias /srv/celikom-releases/owner-downloads/CELIKOM-Windows-$celikomwinver.exe;
         default_type application/octet-stream;
         add_header Content-Disposition 'attachment; filename="CELIKOM-Windows-$celikomwinver.exe"' always;
