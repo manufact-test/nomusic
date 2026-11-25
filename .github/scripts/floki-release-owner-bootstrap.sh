@@ -61,7 +61,7 @@ echo CELIKOM_WINDOWS_INITIAL_PROMOTION_RETURNED
 # Independent extension publisher; no new version-specific Nginx change later.
 fetch_exact 0ab4f261dcc744d150262339a8b2fede34f8c68b \
   .github/scripts/floki-extension-owner-install.sh \
-  EXTENSION_INSTALL_BLOB_TO_PIN \
+  59f79307212195715695c52d2fc1a2eed3522b15 \
   "$INTAKE/floki-extension-owner-install.sh" 0600
 bash "$INTAKE/floki-extension-owner-install.sh"
 echo CELIKOM_EXTENSION_INITIAL_PROMOTION_RETURNED
