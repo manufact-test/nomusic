@@ -24,7 +24,22 @@ REAL=$(readlink -f "$SITE")
 [[ "$(sha256sum /root/celikom-secrets/windows-stable-public.der | cut -d' ' -f1)" == 46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95 ]]
 
 tmp=$(mktemp -d /root/celikom-windows-public-feed.XXXXXXXX)
-trap 'rm -rf -- "$tmp"' EXIT
+ready=0
+cleanup() {
+  local rc=$?
+  if [[ "$ready" != 1 && -f "$tmp/site.conf" ]]; then
+    # Restore precisely the previous site configuration on a failed first activation.
+    cp -a "$tmp/site.conf" "$REAL"
+    nginx -t && systemctl reload nginx || true
+    systemctl disable --now celikom-windows-customer-stable.timer >/dev/null 2>&1 || true
+    rm -f -- "$SERVICE" "$TIMER" "$APP"
+    systemctl daemon-reload || true
+    echo CUSTOMER_WINDOWS_FIRST_ACTIVATION_ROLLED_BACK
+  fi
+  rm -rf -- "$tmp"
+  return "$rc"
+}
+trap cleanup EXIT
 runuser -u celikom-mirror -- git --git-dir="$MIRROR" show "$COMMIT:$SOURCE" > "$tmp/consumer.py"
 [[ "$(git hash-object "$tmp/consumer.py")" == "$BLOB" ]]
 python3 -m py_compile "$tmp/consumer.py"
@@ -141,4 +156,5 @@ systemctl start celikom-windows-customer-stable.service
 [[ ! -f /srv/celikom-releases/windows/customer-stable/latest.json ]]
 systemctl enable --now celikom-windows-customer-stable.timer
 systemctl is-active celikom-windows-customer-stable.timer
+ready=1
 echo CUSTOMER_WINDOWS_UPDATER_READY_NO_UNACCEPTED_RELEASE_PUBLISHED
