@@ -2,46 +2,41 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# READ-ONLY, NO live edits, no tokens, no credentials printed.
-python3 - <<'PY'
-import pathlib,zipfile,json,hashlib,os
-paths={
-  "extension_zip":"/srv/celikom-releases/private/extension/celikom-extension-0.4.73.zip",
-  "live_api_env":"/srv/celikom/app/staging-20261122/.env",
-  "live_cms_config":"/srv/celikom-site/celikom-private/staging-config.php",
-  "api_front":"/etc/nginx/sites-available/celikom-api-https",
-  "api_backend":"/etc/nginx/sites-available/celikom-api-staging",
-  "site_front":"/etc/nginx/sites-available/celikom-site-https",
-  "site_backend":"/etc/nginx/sites-available/celikom-website-preview",
-  "basic_credentials":"/etc/nginx/celikom-site.htpasswd",
-  "android_private":"/srv/celikom-releases/private/android-v95/CELIKOM-Android-0.3.94-SIGNED.apk"
-}
-for k,s in paths.items():
- p=pathlib.Path(s)
- if not p.is_file() or p.is_symlink(): print("MISSING_BACKUP_INPUT",k);continue
- st=p.stat()
- print("INPUT_METADATA",k,"uid",st.st_uid,"gid",st.st_gid,"mode",oct(st.st_mode & 0o777),"size",st.st_size)
-z=pathlib.Path(paths["extension_zip"])
-if z.is_file():
- with zipfile.ZipFile(z) as a:
-  assert a.testzip() is None
-  j=json.loads(a.read("api/config.json"))
-  m=json.loads(a.read("manifest.json"))
-  print("EXACT_STAGED_EXTENSION_ORIGIN",j.get("baseUrl"))
-  print("EXACT_STAGED_EXTENSION_VERSION",m.get("version"))
-  print("EXACT_STAGED_EXTENSION_HOST_PERMISSIONS",sorted(m.get("host_permissions",[])))
-  print("EXACT_STAGED_EXTENSION_SHA256",hashlib.file_digest(z.open("rb"),"sha256").hexdigest())
-for name in ["celikom-final-delta-20261125.tar.gpg"]:
- p=pathlib.Path("/srv/celikom/migration/backups")/name
- print("FINAL_DELTA_CIPHERTEXT_EXISTS",p.exists())
-PY
-for url in \
-  https://api.celikom.com/api/v1/health \
-  https://api.celikom.com/api/v1/config \
-  https://api.celikom.com/api/v1/auth/me \
-  https://api.celikom.com/api/v1/entitlement \
-  https://api.celikom.com/api/v1/auth/activate; do
- code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$url")
- echo "LIVE_HTTP_NOAUTH" "${url#https://api.celikom.com}" "$code"
+# Read-only, no secrets or SQL rows in output.
+root=/root/celikom-cutover-snapshot-zOYBzdmN/intake
+for item in \
+  'api 24f79abcbf40096161b2a57168bb31a447d5e35e88c9e3b729474b0ea6cc4ec9' \
+  'cms 19d592658438d55703c82691f42aec9b87b1fe53fd02f805c644f6107490552d'; do
+  read -r name expected <<< "$item"
+  path="$root/$name.sql.gz"
+  test -f "$path" && test ! -L "$path"
+  digest=$(sha256sum "$path" | cut -d' ' -f1)
+  test "$digest" = "$expected"
+  gzip -t "$path"
+  echo "FINAL_FROZEN_SQL_PRESENT_AND_INTEGRITY_OK" "$name" "$(stat -c %s "$path")"
 done
-echo CELIKOM_READONLY_EXTENSION_AND_BACKUP_ROOT_CAUSE_INVENTORY_OK
+# Failed additive archive must not leave loose SQL/config secrets.
+dir=/srv/celikom/migration/final-delta-20261125
+if test -d "$dir"; then
+  find "$dir" -maxdepth 3 -type f -printf 'FAILED_BACKUP_RESIDUAL_FILENAME %P %s\n'
+fi
+test ! -f /srv/celikom/migration/backups/celikom-final-delta-20261125.tar.gpg
+echo POSTCUTOVER_ENCRYPTED_DELTA_NOT_COMPLETE
+nginx -t
+for endpoint in /api/v1/health /api/v1/config /api/v1/auth/me /api/v1/entitlement; do
+  status=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://api.celikom.com$endpoint")
+  echo "PUBLIC_API_STATUS" "$endpoint" "$status"
+done
+tmp=$(mktemp)
+trap 'rm -f -- "$tmp"' EXIT
+status=$(curl -sS --max-time 15 -o "$tmp" -w '%{http_code}' \
+  -X POST -H 'Content-Type: application/json' -d '{}' \
+  https://api.celikom.com/api/v1/auth/activate)
+test "$status" = 401
+python3 - "$tmp" <<'PY'
+import json,sys
+data=json.load(open(sys.argv[1]))
+assert isinstance(data,dict) and isinstance(data.get('error'),str)
+print('PUBLIC_API_AUTH_ACTIVATE_POST_REACHABLE_WITH_JSON_401')
+PY
+echo CELIKOM_POSTCUTOVER_SQL_AND_API_AUTH_READONLY_ACCEPTANCE_COMPLETE
