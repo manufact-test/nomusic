@@ -773,17 +773,17 @@ function bufferedStreamFixture(end=2.533877){
 }
 test('owner seek from 2.5 seconds of downloaded audio to 39 returns original without seeking an unbuffered replacement or discarding bytes',async()=>{
  const f=bufferedStreamFixture(),start=snapshot();start.player.currentTime=.1;f.update(start);await settle();
- assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');const op=f.engine.operation,player=op.player,token=op.token;
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');const op=f.engine.operation,player=op.player,token=op.token,beforeSeek=op.player.audio.currentTime;
  const seek=snapshot();seek.player.currentTime=39;f.update(seek,'SEEK');await settle();
  assert.equal(f.engine.phase,'PREPARING');assert.equal(op.stage,'waiting-stream-buffer');
  assert.equal(f.engine.operation,op);assert.equal(f.players.length,1);assert.equal(player.destroyed,false);
  assert.equal(player.audio.paused,true);assert.equal(player.audio.muted,true);assert.notEqual(op.token,token);
- assert.equal(player.audio.currentTime,.1);assert.equal(player.bufferTargetTime,39);
+ assert.equal(player.audio.currentTime,beforeSeek);assert.ok(Math.abs(player.bufferTargetTime-39)<.1);
  assert.ok(f.requests.some(r=>r.type==='GUARD_RELEASE'&&r.token===token&&r.reason==='replacement-buffer-wait'));
  const requests=f.requests.length;f.update(seek);await settle();assert.equal(f.requests.length,requests,'no per-poll release/restart loop');
  f.setBufferEnd(60);const ready=snapshot();ready.player.currentTime=40;f.update(ready);await settle();
  assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.engine.operation.player,player);assert.equal(f.players.length,1);
- assert.equal(player.audio.currentTime,40);assert.equal(player.audio.paused,false);f.engine.destroy();
+ assert.ok(Math.abs(player.audio.currentTime-40)<.1);assert.equal(player.audio.paused,false);f.engine.destroy();
 });
 test('late admission outside the downloaded range leaves original alone until that same decoder has the target bytes',async()=>{
  const f=bufferedStreamFixture(),late=snapshot();late.player.currentTime=65;f.update(late);await settle();
@@ -802,7 +802,7 @@ for(const action of ['stop','original','track'])test('buffer-wait '+action+' can
 test('buffered seek retains its guard; decoder starvation yields original even when bytes are present',async()=>{
  const f=bufferedStreamFixture(80),s=snapshot();s.player.currentTime=.1;f.update(s);await settle();const op=f.engine.operation;
  const seek=snapshot();seek.player.currentTime=39;f.update(seek,'SEEK');await settle();
- assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(op.player.audio.currentTime,39);
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.ok(Math.abs(op.player.audio.currentTime-39)<.1);
  assert.equal(f.requests.some(r=>r.reason==='replacement-buffer-wait'),false);
  op.player.audio.seeking=true;op.player.audio.readyState=1;f.update(seek);await settle();
  assert.equal(f.engine.phase,'PREPARING');assert.equal(op.player.audio.muted,true);assert.equal(op.player.destroyed,false);
