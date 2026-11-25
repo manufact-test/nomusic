@@ -56,6 +56,20 @@ jobs:
       - name: 'Tool inventory wine=${{ steps.packtools.outputs.wine }} nsis=${{ steps.packtools.outputs.nsis }} apt=${{ steps.packtools.outputs.apt }} uid=${{ steps.packtools.outputs.user }}'
         shell: bash
         run: true
+      - name: Unprivileged official-package Wine feasibility (read-only)
+        id: wineapt
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "package_candidate=$(apt-cache policy wine64 2>/dev/null | sed -n 's/^ *Candidate: //p' | head -1 | tr -cd 'A-Za-z0-9.:-' || true)"
+            echo "wine_loader_candidate=$(apt-cache policy libwine 2>/dev/null | sed -n 's/^ *Candidate: //p' | head -1 | tr -cd 'A-Za-z0-9.:-' || true)"
+            echo "archive=$(command -v dpkg-deb || echo missing)"
+            echo "pkg_dir=$(test -d /var/lib/apt/lists && find /var/lib/apt/lists -type f | wc -l || echo missing)"
+          } >> "$GITHUB_OUTPUT"
+      - name: 'Wine package sources wine64=${{ steps.wineapt.outputs.package_candidate }} libwine=${{ steps.wineapt.outputs.wine_loader_candidate }} dpkg=${{ steps.wineapt.outputs.archive }} lists=${{ steps.wineapt.outputs.pkg_dir }}'
+        shell: bash
+        run: true
       - name: W178 current-track native source revalidation regression tests
         shell: bash
         working-directory: windows-companion/w23
