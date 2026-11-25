@@ -76,6 +76,21 @@ else
   echo CELIKOM_WINDOWS_PREVIOUS_PROMOTION_PRESERVED
 fi
 
+# Preinstall the separate customer-signed Windows update channel. It stays
+# EMPTY until a checked owner-acceptance record is approved on main.
+# Never expose the owner candidate 'stable/current' directly.
+fetch_exact 1289086284901a4fa8b40d616fd86c8b81e944e5 \
+  .github/scripts/floki-windows-customer-stable-install.sh \
+  6282b07a646353244ed46d9174e29c0df068cef7 \
+  "$INTAKE/floki-windows-customer-stable-install.sh" 0600
+if [[ ! -e /etc/systemd/system/celikom-windows-customer-stable.timer ]]; then
+  bash "$INTAKE/floki-windows-customer-stable-install.sh"
+  echo CELIKOM_CUSTOMER_WINDOWS_FEED_READY_AWAITING_OWNER_ACCEPTANCE
+else
+  systemctl is-active celikom-windows-customer-stable.timer
+  echo CELIKOM_CUSTOMER_WINDOWS_FEED_ALREADY_ARMED
+fi
+
 # Independent extension publisher; no new version-specific Nginx change later.
 fetch_exact c78fa1a638d43a12e259e35789700957a58b7b45 \
   .github/scripts/floki-extension-owner-install.sh \
