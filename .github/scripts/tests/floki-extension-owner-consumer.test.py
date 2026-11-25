@@ -66,6 +66,13 @@ class OwnerPublisherTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             consumer.check_zip(out.getvalue(), "0.4.82")
 
+    def test_withdrawn_owner_release_is_noop(self):
+        from unittest.mock import patch
+        with patch.object(consumer, "root_dir"), \
+             patch.object(consumer, "trusted_approvals", return_value={}), \
+             patch.object(consumer.os, "open", side_effect=AssertionError("MUST_NOT_PUBLISH")):
+            consumer.main()
+
     def test_sha256_stable(self):
         self.assertEqual(consumer.digest(b"abc"),
                          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
