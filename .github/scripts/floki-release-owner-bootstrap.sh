@@ -116,6 +116,18 @@ else
   systemctl is-active celikom-android-stable-owner.timer
 fi
 
+# Prepare stable Android public OTA routes. Public manifest remains ABSENT until
+# owner acceptance; legacy installed app still uses Hostinger during the bridge.
+fetch_exact d5488aad4aaa01594f9adc0c5a5827d6651ef1cf \
+  .github/scripts/floki-android-customer-stable-install.sh \
+  1634eb8eb3bfe1c395c53105b1ee84914e15ebce \
+  "$INTAKE/floki-android-customer-stable-install.sh" 0600
+if [[ ! -e /etc/systemd/system/celikom-android-customer-stable.timer ]]; then
+  bash "$INTAKE/floki-android-customer-stable-install.sh"
+else
+  systemctl is-active celikom-android-customer-stable.timer
+fi
+
 [[ "$(readlink /srv/celikom-releases/windows/stable/current)" == versions/0.24.56 ]]
 [[ -f /srv/celikom-releases/owner-downloads/CELIKOM-Windows-latest.exe ]]
 # No new extension latest is expected until its owner-approved candidate
