@@ -300,11 +300,11 @@ def publish(a):
         old_version = json.loads(current_m)["version"]
         previous_stable = versions / old_version / ("CELIKOM-Windows-" + old_version + ".exe")
         require(previous_stable.is_file(), "PREVIOUS_ACCEPTED_INSTALLER_MISSING")
-    replace_file(latest, m["manifest.json"])
-    replace_file(latest_sig, m["manifest.json.sig"])
-    atomically_point_accepted_installer(version_dir / ("CELIKOM-Windows-" + v + ".exe"),
-                                       stable_link)
     try:
+        replace_file(latest, m["manifest.json"])
+        replace_file(latest_sig, m["manifest.json.sig"])
+        atomically_point_accepted_installer(
+            version_dir / ("CELIKOM-Windows-" + v + ".exe"), stable_link)
         verify_public(v, m, a)
     except BaseException:
         if current_m is not None:
