@@ -74,8 +74,10 @@ WantedBy=timers.target
 UNIT
 chmod 0644 "$SERVICE" "$TIMER"
 systemctl daemon-reload
-systemctl enable --now celikom-windows-signed-owner.timer
+# First prove and promote the already staged 0.24.56, then schedule updates.
+# Avoid racing a timer-fired import against this first install.
 systemctl start celikom-windows-signed-owner.service
+systemctl enable --now celikom-windows-signed-owner.timer
 systemctl is-active celikom-windows-signed-owner.timer
 [[ "$(readlink /srv/celikom-releases/windows/stable/current)" == versions/0.24.56 ]]
 [[ -f /srv/celikom-releases/owner-downloads/CELIKOM-Windows-0.24.56.exe ]]
