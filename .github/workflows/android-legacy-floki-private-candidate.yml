@@ -6,6 +6,10 @@ on:
         description: Build only the exact legacy migration bridge, never publish OTA
         type: boolean
         default: false
+      prepare_private_manifests:
+        description: Verify the existing signed bridge and prepare private OTA manifest candidates only
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -178,3 +182,103 @@ jobs:
         if: always()
         shell: bash
         run: rm -rf -- "$RUNNER_TEMP/legacy-bridge-private"
+
+  prepare-private-manifests:
+    if: >-
+      github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.prepare_private_manifests == true && inputs.sign_private_candidate != true) ||
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[legacy-bridge-manifest]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+      - name: Verify exact existing private release and original stable manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
+          p="$RUNNER_TEMP/legacy-bridge-manifests"
+          mkdir "$p"
+          gh api "repos/$GITHUB_REPOSITORY/releases/457921929" > "$p/release.json"
+          python3 - "$p/release.json" <<'PY'
+          import json,pathlib,sys
+          j=json.loads(pathlib.Path(sys.argv[1]).read_bytes())
+          assert j['draft'] is True and j['tag_name']=='celikom-legacy-bridge-private-45589980361-1'
+          a=[a for a in j['assets'] if a['name']=='CELIKOM-Android-0.3.94-SIGNED.apk']
+          assert len(a)==1 and a[0]['id']==790988439 and a[0]['size']==8845385
+          assert a[0]['digest']=='sha256:d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469'
+          assert not any(a['name'] in ('stable-floki-candidate.json','stable-hostinger-bridge-candidate.json') for a in j['assets'])
+          PY
+          gh release download celikom-legacy-bridge-private-45589980361-1 --repo "$GITHUB_REPOSITORY" \
+            --pattern CELIKOM-Android-0.3.94-SIGNED.apk --dir "$p"
+          echo "d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469  $p/CELIKOM-Android-0.3.94-SIGNED.apk" | sha256sum -c -
+          code=$(curl -fsS --retry 2 --max-time 20 -w '%{http_code}' \
+            'https://lemonchiffon-narwhal-791953.hostingersite.com/updates/android/stable.json' \
+            -o "$p/current.json")
+          test "$code" = 200
+          python3 - "$p/current.json" <<'PY'
+          import json,pathlib,sys
+          m=json.loads(pathlib.Path(sys.argv[1]).read_bytes())
+          assert m['versionCode']==93 and m['versionName']=='0.3.92'
+          assert m['apkSha256']=='5ceb9db20d47390e88cd316c3f74c1928534b35bc54e316f5b841f49b951ff6a'
+          assert m['sizeBytes']==8845385
+          print('CELIKOM_LEGACY_OTA_SOURCE_FLOOR_93_VERIFIED')
+          PY
+      - name: Independently verify APK and prepare both candidate manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          p="$RUNNER_TEMP/legacy-bridge-manifests"
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          python3 .github/scripts/android-stable-prepare-floki.py prepare \
+            --current "$p/current.json" --apk "$p/CELIKOM-Android-0.3.94-SIGNED.apk" \
+            --output "$p/prepared" --version 0.3.94 --code 95 \
+            --notes 'CELIKOM 0.3.94: переход на новый сервер.' \
+            --apksigner "$sdk/build-tools/36.0.0/apksigner" --aapt "$sdk/build-tools/36.0.0/aapt"
+          python3 - "$p" <<'PY'
+          import importlib.util,json,pathlib,sys
+          p=pathlib.Path(sys.argv[1])
+          s=importlib.util.spec_from_file_location("validator",".github/scripts/android-stable-prepare-floki.py")
+          v=importlib.util.module_from_spec(s);s.loader.exec_module(v)
+          m=v.validate_manifest(v.load_manifest(p/'prepared/stable.json'))
+          assert m['versionCode']==95 and m['versionName']=='0.3.94'
+          old=dict(m); old['apkUrl']=old['apkUrl'].replace(v.ORIGIN,v.OLD_ORIGIN,1)
+          v.validate_manifest(old,v.OLD_ORIGIN)
+          assert {k for k in m if m[k]!=old[k]}=={'apkUrl'}
+          for name,obj in [('stable-floki-candidate.json',m),('stable-hostinger-bridge-candidate.json',old)]:
+              (p/name).write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
+          print('CELIKOM_LEGACY_DUAL_ORIGIN_PRIVATE_MANIFESTS_VERIFIED')
+          PY
+      - name: Attach data-only candidates to the existing private draft, never publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/457921929" --jq .draft)" = true
+          p="$RUNNER_TEMP/legacy-bridge-manifests"
+          gh release upload celikom-legacy-bridge-private-45589980361-1 \
+            "$p/stable-floki-candidate.json" "$p/stable-hostinger-bridge-candidate.json" \
+            --repo "$GITHUB_REPOSITORY"
+          gh api "repos/$GITHUB_REPOSITORY/releases/457921929" --jq '{id,draft,assets:[.assets[]|{name,id,size,digest}]}'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/457921929" --jq .draft)" = true
+          echo CELIKOM_LEGACY_OTA_CANDIDATES_PRIVATE_NOT_PUBLISHED
+      - name: Clean temporary files
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/legacy-bridge-manifests"
