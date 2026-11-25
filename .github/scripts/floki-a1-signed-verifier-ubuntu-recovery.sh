@@ -6,16 +6,17 @@ umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 [[ "$(id -u)" == 0 && $# == 0 ]] || { echo A1_ROOT_REQUIRED; exit 64; }
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=7366d6bd7b6fdddcea3ae27b2cf0658473dda4b3
-BLOB=a9e915186e7c0e3bbce0b8ffda7c046500ca99a3
+COMMIT=b7764101e878ea7c6117dfca6286ca0f20888f26
+BLOB=abde17a59570260cb590a4873408577acfa1b56c
 ORIGINAL_BLOB=a00a77580a413c9cf9babb57efb0225b244d6757
+PREVIOUS_BLOB=a9e915186e7c0e3bbce0b8ffda7c046500ca99a3
 DEST=/usr/local/lib/celikom-a1-signed-owner/consumer.py
 SERVICE=celikom-a1-signed-owner.service
 TIMER=celikom-a1-signed-owner.timer
 [[ -d "$MIRROR" && ! -L "$MIRROR" ]]
 [[ -f "$DEST" && ! -L "$DEST" ]]
 [[ "$(stat -c '%u:%a:%h' "$DEST")" == 0:644:1 ]]
-[[ "$(git hash-object "$DEST")" == "$ORIGINAL_BLOB" || "$(git hash-object "$DEST")" == "$BLOB" ]] ||
+[[ "$(git hash-object "$DEST")" == "$ORIGINAL_BLOB" || "$(git hash-object "$DEST")" == "$PREVIOUS_BLOB" || "$(git hash-object "$DEST")" == "$BLOB" ]] ||
   { echo A1_ROOT_UNEXPECTED_INSTALLED_CONSUMER; exit 1; }
 tmp=$(mktemp -d /root/celikom-a1-verifier-fix.XXXXXXXX)
 trap 'rm -rf -- "$tmp"' EXIT
