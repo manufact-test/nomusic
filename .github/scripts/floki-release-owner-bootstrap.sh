@@ -104,6 +104,18 @@ else
   echo CELIKOM_EXTENSION_PREVIOUS_PROMOTION_PRESERVED
 fi
 
+# Legacy Android is distinct from A1. This only arms its private signed
+# owner download and does not touch public OTA or the old Hostinger bridge.
+fetch_exact 8cfda5b4826633800fcd80099e661065c65b330b \
+  .github/scripts/floki-android-stable-owner-install.sh \
+  f6e68975f52a802d751003fee1c9a2f23a7d9ae1 \
+  "$INTAKE/floki-android-stable-owner-install.sh" 0600
+if [[ ! -e /etc/systemd/system/celikom-android-stable-owner.timer ]]; then
+  bash "$INTAKE/floki-android-stable-owner-install.sh"
+else
+  systemctl is-active celikom-android-stable-owner.timer
+fi
+
 [[ "$(readlink /srv/celikom-releases/windows/stable/current)" == versions/0.24.56 ]]
 [[ -f /srv/celikom-releases/owner-downloads/CELIKOM-Windows-latest.exe ]]
 # No new extension latest is expected until its owner-approved candidate
