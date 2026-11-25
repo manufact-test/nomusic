@@ -70,6 +70,22 @@ jobs:
       - name: 'Wine package sources wine64=${{ steps.wineapt.outputs.package_candidate }} libwine=${{ steps.wineapt.outputs.wine_loader_candidate }} dpkg=${{ steps.wineapt.outputs.archive }} lists=${{ steps.wineapt.outputs.pkg_dir }}'
         shell: bash
         run: true
+      - name: Read-only Floki API and admin login form acceptance (no credentials)
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          url=https://api.celikom.com
+          code=$(curl --fail-with-body -sS --connect-timeout 5 --max-time 20 -o "$tmp/health" -w '%{http_code}' "$url/api/v1/health")
+          test "$code" = 200
+          code=$(curl --fail-with-body -sS --connect-timeout 5 --max-time 20 -o "$tmp/login" -w '%{http_code}' "$url/admin/login")
+          test "$code" = 200
+          grep -Eqi '<form' "$tmp/login"
+          grep -Eqi 'password' "$tmp/login"
+          code=$(curl -sS --connect-timeout 5 --max-time 20 -o "$tmp/me" -w '%{http_code}' "$url/api/v1/auth/me")
+          test "$code" = 401
+          echo CELIKOM_W178_LIVE_PUBLIC_ADMIN_FORM_AND_AUTH_ROUTE_OK
       - name: W178 current-track native source revalidation regression tests
         shell: bash
         working-directory: windows-companion/w23
