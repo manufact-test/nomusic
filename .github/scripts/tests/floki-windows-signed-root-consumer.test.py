@@ -65,7 +65,7 @@ class RootConsumerContractTests(unittest.TestCase):
     def test_nginx_bootstrap_pythons_and_installer_hash_pins_match(self):
         directory=pathlib.Path(__file__).resolve().parents[1]
         nginx=(directory/"floki-windows-owner-download-bootstrap.sh").read_text()
-        snippets=re.findall(r"<<'PY'\\n(.*?)\\nPY",nginx,re.S)
+        snippets=re.findall(r"<<'PY'\n(.*?)\nPY",nginx,re.S)
         self.assertGreaterEqual(len(snippets),2)
         for i,src in enumerate(snippets):
             compile(src,"nginx-bootstrap-"+str(i),"exec")
@@ -75,7 +75,7 @@ class RootConsumerContractTests(unittest.TestCase):
         for file in ("floki-windows-signed-root-consumer.py",
                      "floki-windows-owner-download-bootstrap.sh"):
             data=(directory/file).read_bytes()
-            sha=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\\0"+data).hexdigest()
+            sha=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
             self.assertIn(sha,installer,"installer must pin reviewed root source "+file)
 
 if __name__=="__main__":
