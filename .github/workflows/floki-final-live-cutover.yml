@@ -56,3 +56,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: bash .github/scripts/floki-cutover-runner.sh
+# Execute after validated signed clients, fresh isolated CRUD/HTTP acceptance, current source-to-target media parity, and tested rollback.
