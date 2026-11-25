@@ -98,9 +98,9 @@ fi
 # Preinstall the separate customer-signed Windows update channel. It stays
 # EMPTY until a checked owner-acceptance record is approved on main.
 # Never expose the owner candidate 'stable/current' directly.
-fetch_exact 0596901578bbb69cb24885b47b9dedbe6a8b6420 \
+fetch_exact 3808f82b26bce8172208d1bc8039864596fc3f88 \
   .github/scripts/floki-windows-customer-stable-install.sh \
-  97a0b1c8ac0436e264b34ce1426e19cb519a162f \
+  22499058fd0cab1bb17649ac0bf2a474546a7907 \
   "$INTAKE/floki-windows-customer-stable-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-windows-customer-stable.timer ]]; then
   bash "$INTAKE/floki-windows-customer-stable-install.sh"
