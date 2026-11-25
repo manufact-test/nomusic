@@ -1,0 +1,74 @@
+name: CELIKOM Windows one-time root-owned signed spool activation
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/deploy/windows-root-bootstrap.trigger'
+permissions:
+  contents: read
+concurrency:
+  group: celikom-windows-one-time-root-bootstrap
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    environment: floki-deploy
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authorize reviewed root bootstrap code by exact Git object identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git hash-object .github/scripts/floki-windows-signed-root-consumer.py)" == 4f629e109adb0c33a0b9ca63f4090a0b5402ecc9 ]]
+          [[ "$(git hash-object .github/scripts/floki-windows-owner-download-bootstrap.sh)" == aa974b6f7052ce0da2397fe24f93f19555e4907a ]]
+          [[ "$(git hash-object .github/scripts/floki-windows-root-consumer-install.sh)" == fe6511bff688a2167d596210251fb30fb627dc8c ]]
+          python3 -m py_compile .github/scripts/floki-windows-signed-root-consumer.py
+          bash -n .github/scripts/floki-windows-owner-download-bootstrap.sh
+          bash -n .github/scripts/floki-windows-root-consumer-install.sh
+          echo WINDOWS_ROOT_BOOTSTRAP_CODE_HASHES_PINNED
+      - name: Transfer reviewed code only through existing protected root maintenance gateway
+        env:
+          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          [[ -n "$FLOKI_DEPLOY_CONNECTION" ]] || { echo FLOKI_DEPLOY_SECRET_MISSING; exit 2; }
+          temp=$(mktemp -d)
+          trap 'rm -rf -- "$temp"' EXIT
+          printf '%s\n' "$FLOKI_DEPLOY_CONNECTION" | tr -d '\r' > "$temp/bundle"
+          unset FLOKI_DEPLOY_CONNECTION
+          head -n 1 "$temp/bundle" > "$temp/known_hosts"
+          tail -n +2 "$temp/bundle" > "$temp/key"
+          rm "$temp/bundle"
+          chmod 600 "$temp/key" "$temp/known_hosts"
+          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$temp/known_hosts"
+          ssh-keygen -y -P '' -f "$temp/key" >/dev/null
+          payload="$temp/reviewed-bootstrap.sh"
+          {
+            echo '#!/bin/bash'
+            echo 'set -Eeuo pipefail'
+            echo 'umask 077'
+            echo '[[ "$(id -u)" == 0 ]]'
+            echo '[[ ! -L /root/celikom-windows-bootstrap-intake ]]'
+            echo 'install -d -o root -g root -m 700 /root/celikom-windows-bootstrap-intake'
+            for name in floki-windows-signed-root-consumer.py floki-windows-owner-download-bootstrap.sh floki-windows-root-consumer-install.sh; do
+              printf "base64 -d > /root/celikom-windows-bootstrap-intake/%s <<'CELIKOM_REVIEWED_CODE'\n" "$name"
+              base64 -w0 ".github/scripts/$name"
+              printf '\nCELIKOM_REVIEWED_CODE\n'
+              printf 'chown root:root /root/celikom-windows-bootstrap-intake/%s\nchmod 600 /root/celikom-windows-bootstrap-intake/%s\n' "$name" "$name"
+            done
+            echo 'bash /root/celikom-windows-bootstrap-intake/floki-windows-root-consumer-install.sh'
+          } > "$payload"
+          [[ "$(wc -c < "$payload")" -lt 131072 ]]
+          bash -n "$payload"
+          sshargs=(-T -i "$temp/key" -o BatchMode=yes -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$temp/known_hosts"
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20
+            -o ClearAllForwardings=yes)
+          ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 maintenance < "$payload"
+          echo WINDOWS_ROOT_SIGNED_RELEASE_AUTOMATION_INSTALLED
