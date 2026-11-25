@@ -24,6 +24,10 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   // The first native state may arrive after Yandex has already cached its
   // current original source. Repair only that current entity at a safe delay.
   let initialCurrentSourceCheck = null;
+  // W178: a newly selected current song can already have an original source
+  // cached by Yandex, without a post-attach getFileInfo call. Observe only
+  // the actual playing/paused queue entity, never a prefetched song.
+  let currentCatchup = null;
   let networkRecoveryPending = false;
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
@@ -113,6 +117,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       pending.set(requestId, { finish, trackId });
       signal.addEventListener("abort", abort, { once: true });
       queued.push({ requestId, trackId, recovery: opts.background === true });
+      report("RESOLVE_QUEUED", trackId);
     })
   });
 
@@ -121,14 +126,20 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     const items = [];
     while (queued.length > 0 && items.length < 6) {
       const candidate = queued.shift();
-      if (pending.has(candidate.requestId)) items.push(candidate);
+      if (pending.has(candidate.requestId)) {
+        items.push(candidate);
+        report("RESOLVE_DEQUEUED", candidate.trackId);
+      }
     }
     return items;
   };
   window.__celikomBridgeNativeReceive = (requestId, grant) => {
     if (stopped || typeof requestId !== "string") return;
     const job = pending.get(requestId);
-    job?.finish(grant ?? null);
+    if (job) {
+      report("RESOLVE_REPLY_RECEIVED", job.trackId);
+      job.finish(grant ?? null);
+    }
   };
   const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
   let expiredSourceTrack = null, expiredSourceFailedTrack = null;
@@ -230,20 +241,24 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     const check = initialCurrentSourceCheck;
     if (!check || stopped || !attached || !adapter.enabled ||
         networkRecoveryPending || !playerSourceRefresh.attached ||
-        Date.now() - check.startedAt < 3500) return;
+        Date.now() - check.startedAt < 3500) return "";
     const current = playerSourceRefresh.currentTrack();
     if (!current || (current.playbackState !== "PLAYING" &&
-        current.playbackState !== "PAUSED")) return;
+        current.playbackState !== "PAUSED")) return "";
     // Exactly one attempt for this initial enable generation. Ordinary
     // getFileInfo mappings, original classifications and prefetched tracks
     // must not trigger any additional Yandex reload.
     initialCurrentSourceCheck = null;
     const trackId = current.id;
     if (adapter.hasMappedTrack(trackId) ||
-        adapter.classificationForTrack(trackId) !== "UNKNOWN") return;
+        adapter.classificationForTrack(trackId) !== "UNKNOWN") return trackId;
     report("NATIVE_INITIAL_SOURCE_REVALIDATE", trackId);
     void adapter.prime(trackId).then(found => {
-      if (!found || stopped || !attached || !adapter.enabled ||
+      if (!found) {
+        report("NATIVE_INITIAL_SOURCE_NO_GRANT", trackId);
+        return;
+      }
+      if (stopped || !attached || !adapter.enabled ||
           networkRecoveryPending || check.generation !== stateTransitionGeneration ||
           playerSourceRefresh.currentTrackId() !== trackId ||
           adapter.hasMappedTrack(trackId)) return;
@@ -259,10 +274,61 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       if (!stopped && check.generation === stateTransitionGeneration)
         report("NATIVE_INITIAL_SOURCE_REVALIDATE_FAILED", trackId);
     });
+    return trackId;
+  }
+  function checkCurrentCatchup(initialAttemptId) {
+    if (stopped || !attached || !adapter.enabled ||
+        networkRecoveryPending || !playerSourceRefresh.attached) {
+      currentCatchup = null;
+      return;
+    }
+    const current = playerSourceRefresh.currentTrack();
+    if (!current || (current.playbackState !== "PLAYING" &&
+        current.playbackState !== "PAUSED")) {
+      currentCatchup = null;
+      return;
+    }
+    const now = Date.now(), generation = stateTransitionGeneration;
+    if (!currentCatchup || currentCatchup.id !== current.id ||
+        currentCatchup.generation !== generation) {
+      currentCatchup = { id: current.id, firstSeenAt: now,
+        generation, attempted: false };
+    }
+    if (initialAttemptId === current.id) currentCatchup.attempted = true;
+    // The initial enable-time repair owns its first 3.5-second window.
+    // One later check per *new* current ID is enough; never poll resolve
+    // forever, interfere with autoplay, or reload absent-original songs.
+    if (initialCurrentSourceCheck || currentCatchup.attempted ||
+        now - currentCatchup.firstSeenAt < 3500) return;
+    currentCatchup.attempted = true;
+    const id = current.id;
+    if (adapter.hasMappedTrack(id) ||
+        adapter.classificationForTrack(id) !== "UNKNOWN") return;
+    report("NATIVE_CURRENT_CATCHUP_REVALIDATE", id);
+    void adapter.prime(id).then(found => {
+      if (!found) {
+        report("NATIVE_CURRENT_CATCHUP_NO_GRANT", id);
+        return;
+      }
+      if (stopped || !attached || !adapter.enabled ||
+          networkRecoveryPending || generation !== stateTransitionGeneration ||
+          playerSourceRefresh.currentTrackId() !== id ||
+          adapter.hasMappedTrack(id)) return;
+      report("NATIVE_CURRENT_CATCHUP_RELOAD", id);
+      void playerSourceRefresh.request(id).then(ok => {
+        if (!stopped && generation === stateTransitionGeneration)
+          report(ok ? "NATIVE_CURRENT_CATCHUP_RELOAD_OK" :
+            "NATIVE_CURRENT_CATCHUP_RELOAD_DEFERRED", id);
+      });
+    }).catch(() => {
+      if (!stopped && generation === stateTransitionGeneration)
+        report("NATIVE_CURRENT_CATCHUP_FAILED", id);
+    });
   }
   window.__celikomBridgeNativeCheckDeferred = () => {
     const deferred = deferredRecovery.check();
-    checkInitialCurrentSource();
+    const initialAttemptId = checkInitialCurrentSource();
+    checkCurrentCatchup(initialAttemptId);
     return deferred;
   };
   // Only CDP-verified current decoder source may suppress a waiting or

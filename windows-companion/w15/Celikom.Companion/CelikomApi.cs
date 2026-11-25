@@ -160,11 +160,20 @@ public sealed class CelikomApi : IDisposable
 
     public async Task<SourceGrant?> ResolveAsync(string id, CancellationToken ct)
     {
-        if (!GrantValidator.IsTrackId(id) || !IsLoggedIn) return null;
+        if (!GrantValidator.IsTrackId(id)) return null;
+        if (!IsLoggedIn)
+        {
+            DiagnosticLog.Record("RESOLVE_LOCAL_SESSION_MISSING", id);
+            return null;
+        }
         var session = Settings;
         Uri origin;
         try { origin = GrantValidator.NormalizeOrigin(session.Origin); }
-        catch { return null; }
+        catch
+        {
+            DiagnosticLog.Record("RESOLVE_LOCAL_ORIGIN_INVALID", id);
+            return null;
+        }
         var target = new Uri(origin,
             "/api/v1/resolve?service=yandex&track_id=" + Uri.EscapeDataString(id) + "&audio_formats=mp3,m4a&audio_profile=windows_gain_v1");
         JsonElement result;
@@ -174,14 +183,39 @@ public sealed class CelikomApi : IDisposable
         }
         catch (ApiFailure ex) when (ex.HttpStatus == 401)
         {
-            if (!await RefreshOnceAsync(session.AccessToken, ct)) return null;
+            if (!await RefreshOnceAsync(session.AccessToken, ct))
+            {
+                DiagnosticLog.Record("RESOLVE_SESSION_REFRESH_FAILED", id);
+                return null;
+            }
             var newer = Settings;
             if (!IsLoggedIn || newer.InstallationId != session.InstallationId ||
-                newer.Origin != session.Origin) return null;
+                newer.Origin != session.Origin)
+            {
+                DiagnosticLog.Record("RESOLVE_SESSION_CHANGED", id);
+                return null;
+            }
             result = await RequestAsync(target, HttpMethod.Get, null, newer.AccessToken, ct);
         }
-        if (Settings.Origin != session.Origin || !IsLoggedIn) return null;
-        return GrantValidator.FromResolve(result, id, origin, DateTimeOffset.UtcNow);
+        if (Settings.Origin != session.Origin || !IsLoggedIn)
+        {
+            DiagnosticLog.Record("RESOLVE_SESSION_CHANGED", id);
+            return null;
+        }
+        // W178: a normal catalog miss is not an expired DPAPI session or a
+        // rejected signed grant. Export only the class and numeric track ID.
+        // Never export owner credentials, signed URLs, grants or HTTP bodies.
+        if (result.ValueKind == JsonValueKind.Object &&
+            result.TryGetProperty("found", out var found) &&
+            found.ValueKind == JsonValueKind.False)
+        {
+            DiagnosticLog.Record("RESOLVE_SERVER_NOT_FOUND", id);
+            return null;
+        }
+        var grant = GrantValidator.FromResolve(result, id, origin, DateTimeOffset.UtcNow);
+        DiagnosticLog.Record(grant is null ? "RESOLVE_GRANT_REJECTED" :
+            "RESOLVE_GRANT_VALID", id);
+        return grant;
     }
 
     private async Task<bool> RefreshOnceAsync(string failedAccess, CancellationToken ct)
