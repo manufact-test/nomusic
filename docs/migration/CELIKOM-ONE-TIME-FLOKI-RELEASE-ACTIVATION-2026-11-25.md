@@ -16,7 +16,7 @@
 | Линия | Подготовленный механизм | Публикация/автообновление |
 | --- | --- | --- |
 | Windows owner | 0.24.56, подписанный P-256 feed, immutable root importer, защищённый latest и URL каждой версии | Автопубликация тестовых релизов после однократной установки; **VPS ещё не активирован** |
-| Windows customer | Отдельная подпись+SHA проверка из доверенного immutable owner-store, `.github/release/windows-customer-stable.json`, динамический публичный `/downloads/windows/CELIKOM-Windows-stable.exe` и `/CELIKOM/Windows/Updates/stable/latest.json[.sig]` | `approved:null`, канал пуст до разрешения; old→new ещё не принят |
+| Windows customer | Отдельная подпись+SHA проверка из доверенного immutable owner-store, `.github/release/windows-customer-stable.json`, динамический публичный `/downloads/windows/CELIKOM-Windows-stable.exe` и `/CELIKOM/Windows/Updates/stable/latest.json[.sig]` | `approved:null`, но при первоначальной установке отдельно публикуется **уже принятая подписанная 0.24.55 (seq2)** как база для возврата и автообновления; версия 0.24.56 остаётся тестовой, old→new ещё не испытан |
 | Legacy Android owner | Проверенный приватный оригинально подписанный 0.3.94/code95, hash `d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469`; CI data-only stage `45683010606` успешен | Кандидат ожидает root signer/API/HTTPS проверки. Запланирован `/downloads/android/CELIKOM-Android-latest.apk`, закрытый Basic |
 | Legacy Android customer | Отдельный `.github/release/android-customer-stable.json`; публичный `/updates/android/stable.json` и immutable `/releases/android/<code>-<sha>.apk` | `approved:null`, **пустой до приёмки**. Старым клиентам нужен Hostinger bridge |
 | Android A1 | BETA16 root HTTPS receipt и timer подтверждены отдельным Android чатом | A1 тестовая линия, НЕ изменять |
@@ -32,13 +32,13 @@
 При первом запуске:
 1. Проверяет существующую подпись Windows 0.24.55, старую точку `stable/current`, root pin, site config, private spool, рабочие команды и зеркальную копию main.
 2. Устанавливает и активирует root Windows owner consumer; проверяет именно EXE 0.24.56 через сайт и предыдущий 0.24.55, сохраняет откат.
-3. Создаёт **пустой** публичный подписанный Windows consumer feed, отдельный от тестового latest.
+3. Создаёт отдельный публичный подписанный Windows customer feed, **публикует только уже принятую 0.24.55/seq2** (включая её immutable манифест и EXE, полный HTTP SHA), а 0.24.56 туда не отправляет до явной приёмки. Это нужно для bootstrap, rollback и реального автообновления старых клиентов.
 4. Устанавливает root extension owner promoter, не публикует отозванные версии.
 5. Устанавливает root legacy Android private signed owner promoter и отдельный отключённый до приёмки публичный OTA.
 6. Готовит два отсутствующих data-only mounts ci02, без перезапуска занятого Runner.Worker; при сомнении fail closed.
 7. Проверяет статусы таймеров и не изменяет A1/платежи/API/музыку/базу/Hostinger.
 
-После запуска **обязательно** проверить вывод команд, работающие nginx и нужные systemd timers, точный root receipt и authenticated **полный HTTPS GET с SHA** Windows и Android, `ci02` mounts и что публичные `approved:null` **не раскрывают** APK/EXE. Дополнительно выполнить один последующий независимый release cycle и тест настоящего обновления с установленной клиентской версии, прежде чем говорить «всё работает». До этого Windows/Android public feed пусты, это не баг, а защита.
+После запуска **обязательно** проверить вывод команд, работающие nginx и нужные systemd timers, точный root receipt и authenticated **полный HTTPS GET с SHA** Windows и Android, `ci02` mounts и что Windows public выдаёт только **ранее принятую 0.24.55** (НЕ тестовую 0.24.56), а Android public `approved:null` не раскрывает APK. Дополнительно выполнить один последующий независимый release cycle и тест настоящего обновления с установленной клиентской версии, прежде чем говорить «всё работает». До этого Android public feed пуст, а Windows public feed содержит только уже принятую 0.24.55/seq2. Новые релизы в обоих каналах требуют явной приёмки владельца.
 
 **Не переключать старый Hostinger updater** просто из-за зелёного root таймера: старому Android 0.3.92 нужна отдельная проверка на телефоне и затем атомарное включение на Hostinger ранее подготовленного exact 0.3.94/95 bridge manifest+APK с идентичным старым хостом. Файлы уже лежат в приватном GitHub draft `457921929` и имеют утверждённые SHA. Не передавать signing key и host SSH в untrusted runner.
 
@@ -48,7 +48,7 @@
 
 Поля `windows_owner_sha256`, `windows_customer_sha256`, `android_owner_sha256`, `android_customer_sha256`, `extension_owner_sha256` равны точному SHA-256 подтверждённой сборки либо `null`, пока её публикация не доказана. Отдельный статус A1 **не выводит** capability URL, проверять существующий подписанный A1 root receipt через его передачу. Timestamp `checked_at` означает обновление статуса, **не** время публикации и не доказывает новую версию сам по себе.
 
-Разработчик сверяет **именно** этот SHA-256 с CI provenance, затем даёт владельцу уже подтверждённую закрытую ссылку на `celikom.com`. Нельзя выводить ссылку по одним лишь GitHub draft/CI log. Если публичный статус не доступен через браузер ChatGPT, использовать точный HTTPS GET из доверенного CI без ключей — но не просить повторно SSH.
+Разработчик сверяет **именно** этот SHA-256 с CI provenance, затем даёт владельцу уже подтверждённую закрытую ссылку на `celikom.com`. У Windows customer после начальной установки SHA будет указывать на ранее принятую 0.24.55, а не на тестовую 0.24.56. Нельзя выводить ссылку по одним лишь GitHub draft/CI log. Если публичный статус не доступен через браузер ChatGPT, использовать точный HTTPS GET из доверенного CI без ключей — но не просить повторно SSH.
 
 ## Как выпускать новые версии после однократного запуска
 
@@ -61,7 +61,7 @@
 ## Acceptance checklist
 
 - [ ] Один защищённый запуск root script, все таймеры active и site Nginx -t, ни одна ранее рабочая служба не ухудшилась.
-- [ ] Windows 56 owner complete GET SHA match, Windows customer default `approved:null` и no public unexpected download.
+- [ ] Windows 56 owner complete GET SHA match, Windows customer default `approved:null`, HTTPS signed baseline 0.24.55 GET+SHA и отсутствие публичной тестовой 0.24.56.
 - [ ] Android 95 owner root certificate/manifest/download proof, Android customer default `approved:null`, BETA16 сохранён.
 - [ ] Оба runner видят только нужные private data-only каталоги; самостоятельные последующие сборки проходят по обоим исполнителям.
 - [ ] Owner отклоняет неудачную версию без публикации для клиентов, принимает следующую exact версию.
