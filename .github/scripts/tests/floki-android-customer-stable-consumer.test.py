@@ -42,6 +42,28 @@ class AndroidCustomerApprovalTests(unittest.TestCase):
         self.assertIn('4680ed1fb55e5b34b2a947af60874562218587d8',bootstrap)
         self.assertIn('4253ebb4dd5985677160a01688f867dd6e8425dc',bootstrap)
 
+    def test_isolated_ota_does_not_touch_existing_android_public_directory(self):
+        installer=(ROOT/"floki-android-customer-stable-install.sh").read_text()
+        status=(ROOT/"floki-release-public-receipt.py").read_text()
+        self.assertEqual(
+            str(m.PUBLIC),"/srv/celikom-releases/public/android-ota-stable")
+        self.assertIn(
+            "PUBLIC=/srv/celikom-releases/public/android-ota-stable",installer)
+        self.assertIn(
+            "alias /srv/celikom-releases/public/android-ota-stable/stable.json",
+            installer)
+        self.assertIn(
+            "alias /srv/celikom-releases/public/android-ota-stable/$celikomlegacyapk",
+            installer)
+        self.assertIn(
+            'ANDROID_CUSTOMER=BASE/"public/android-ota-stable/accepted.json"',
+            status)
+        self.assertNotIn("alias /srv/celikom-releases/public/android/",installer)
+        self.assertNotIn("chmod -R",installer)
+        self.assertNotIn("chown -R",installer)
+        self.assertIn("ANDROID_CUSTOMER_STABLE_NOT_APPROVED_KEEP_OTA_UNCHANGED",
+                      (ROOT/"floki-android-customer-stable-consumer.py").read_text())
+
     def test_owner_only_not_auto_published(self):
         with patch.object(m.os,"geteuid",return_value=0),\
              patch.object(m.Path,"lstat",return_value=type("S",(),{"st_mode":0o040755})()),\
