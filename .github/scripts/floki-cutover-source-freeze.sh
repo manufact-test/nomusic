@@ -22,7 +22,7 @@ restore(){
     [[ -f "$path" && ! -L "$path" ]] || { echo "FREEZE_TARGET_CONFLICT $key"; return 1; }
     if [[ "$(sha256sum "$path" | cut -d' ' -f1)" == "$before" ]]; then continue; fi
     [[ "$(head -n 1 "$path")" == "$header" ]] || { echo "FREEZE_OWNER_MARKER_CONFLICT $key"; return 1; }
-    tmp=$(mktemp ".github/scripts/floki-cutover-source-freeze.sh.restore.XXXXXXXX")
+    tmp=$(mktemp "$path.restore.XXXXXXXX")
     cp -p "$state/$key.original" "$tmp"
     mv -f -- "$tmp" "$path"
     [[ "$(sha256sum "$path" | cut -d' ' -f1)" == "$before" ]]
@@ -30,6 +30,22 @@ restore(){
 }
 case "$command" in
 freeze)
+  # A prior attempt may have stopped after writing only private backup files.
+  # Clear that abandoned preparation ONLY when both live .htaccess files still
+  # match the exact original hashes. Never clear an active write freeze.
+  if [[ -d "$state" && ! -L "$state" ]]; then
+    [[ "$(sha256sum "$api" | cut -d' ' -f1)" == "$expected_api" ]]
+    [[ "$(sha256sum "$site" | cut -d' ' -f1)" == "$expected_site" ]]
+    if [[ -f "$state/api.original" ]]; then
+      [[ "$(sha256sum "$state/api.original" | cut -d' ' -f1)" == "$expected_api" ]]
+    fi
+    if [[ -f "$state/site.original" ]]; then
+      [[ "$(sha256sum "$state/site.original" | cut -d' ' -f1)" == "$expected_site" ]]
+    fi
+    rm -f -- "$state/api.original" "$state/site.original"
+    rmdir "$state"
+    echo SOURCE_ABANDONED_PRE_FREEZE_BACKUPS_CLEARED
+  fi
   [[ ! -e "$state" && ! -L "$state" ]]
   for key in api site; do
     if [[ "$key" == api ]]; then path=$api; before=$expected_api; else path=$site; before=$expected_site; fi
@@ -52,7 +68,7 @@ freeze)
   for key in api site; do
     if [[ "$key" == api ]]; then path=$api; else path=$site; fi
     cp -p "$path" "$state/$key.original"
-    tmp=$(mktemp ".github/scripts/floki-cutover-source-freeze.sh.freeze.XXXXXXXX")
+    tmp=$(mktemp "$path.freeze.XXXXXXXX")
     {
       printf '%s\n' "$header"
       cat <<'HTACCESS'
