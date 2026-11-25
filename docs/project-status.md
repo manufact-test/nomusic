@@ -1,3 +1,12 @@
+## 2026-11-25 — Extension 0.4.81 VPN candidate; owner retest pending
+
+Latest: [VPN recovery checkpoint](handoff/EXTENSION-0481-VPN-RECOVERY-2026-11-25.md).
+Source4cc7814454111f89eb5fe779e5093e6ab584a71d; ZIP2,491,245 bytes;
+SHA-2569ddf20fef3c597eb8e91af7c51a4938fde85df792923473c934fe53e258b2380.
+381 extension tests/isolated build pass. ZIP delivered privately in the conversation;
+website promotion and full CI did not start on GitHub (not passed). Site0.4.80 retained.
+No server/DB/paid feature or Android/Windows changes in this candidate.
+
 ## 2026-11-25 — Extension 0.4.80 ready for owner retest
 
 Latest: [intro/CORS checkpoint](handoff/EXTENSION-0480-OWNER-REPORT-2026-11-25.md).

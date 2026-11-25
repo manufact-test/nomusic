@@ -372,3 +372,12 @@ See [owner report and rollout record](../handoff/EXTENSION-0480-OWNER-REPORT-202
 -368 extension tests; full CI45651328437, private build45651329460, corrected live CORS+promotion45652652451 all SUCCESS. External health/config200, preflight204, anonymous auth401 with CORS and owner ZIP401 confirmed. Actual owner listening/VPN retest pending.
 - Deployment incident: restrictive umask created unreadable runtime source and API500 approximately16:12:50–16:15:47UTC. Original-byte rollback also carried wrong mode; separate recovery45652145816 restored0644 and health200. Corrected rollout explicitly sets readable mode before rename. DB/data/flags unchanged. Full incident and backup in linked record; do not describe this as host failure or a successful availability rollback.
 - Shared administrative request reset to no-op; preserve concurrent Windows main work. Android/Windows not changed by this extension work; Hostinger retained for rollback.
+
+
+## 2026-11-25 — Extension 0.4.81 VPN candidate, private conversation delivery
+
+See [VPN recovery checkpoint](../handoff/EXTENSION-0481-VPN-RECOVERY-2026-11-25.md).
+- Source4cc7814454111f89eb5fe779e5093e6ab584a71d; ZIP2,491,245 bytes; SHA-2569ddf20fef3c597eb8e91af7c51a4938fde85df792923473c934fe53e258b2380. Local/Floki builds identical;381 tests,4 spool tests, manifest/security PASS in45656926920.
+- Owner0.4.80 diagnostic shows11/12 recent intros at100ms, but one5s lookup joined at3.7s after VPN transport errors.0.4.81 retains only existing unexpired grant during forced route revalidation, retries unappended MP3 ranges without disposing buffered audio, and reuses accepted complete-file alignment for late MP3 joins. Authority deadline/revocation and cancellation fences tested; no rejected MSE live-join.
+- Full CI45656927103 attempts1/2 and protected promotion45657466101 failed before runner steps. No provider reason confirmed; no paid workaround. Do not claim full CI or publish a0.4.81 site URL. ZIP privately delivered through the conversation; existing0.4.80 website file unchanged.
+- No server source/config/DB/payment change or root deployment executed in this turn. Administrative request returned to safe no-op. Actual owner VPN listening test pending; late complete-file adoption can cost additional transfer while original continues.
