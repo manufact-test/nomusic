@@ -163,7 +163,7 @@ final class StageBAudioEvidence {
     }
     private final ArrayList<OriginalChildCoroutineCapture> originalChildCaptures =
         new ArrayList<>();
-    private final ThreadLocal<ArrayList<WeakReference<Object>>>
+    private final ThreadLocal<ArrayList<OriginalChildCoroutineCapture>>
         activeOriginalChildSourceScopes = new ThreadLocal<>();
     // First open/read/close permanently disqualifies this Java instance as a
     // *fresh* candidate even if a later factory links that SAME instance.
@@ -1330,31 +1330,46 @@ final class StageBAudioEvidence {
             if(instance==null) {originalChildCaptures.remove(i);continue;}
             if(instance==coroutine) {prior.conflict=true;return;}
         }
-        if(argument==null || argument!=captured || originalChildCaptures.size()>=32)
-            return;
-        originalChildCaptures.add(new OriginalChildCoroutineCapture(coroutine,argument));
+        if(originalChildCaptures.size()>=32)return;
+        boolean valid=argument!=null && argument==captured;
+        OriginalChildCoroutineCapture witness=
+            new OriginalChildCoroutineCapture(coroutine,valid?argument:null);
+        witness.conflict=!valid;
+        originalChildCaptures.add(witness);
     }
 
     synchronized void enterOriginalChildCoroutineResume(Object coroutine,Object captured) {
-        Object source=null;
+        OriginalChildCoroutineCapture witness=null;
         if(coroutine!=null && captured!=null) {
             for(OriginalChildCoroutineCapture prior:originalChildCaptures) {
                 if(prior.coroutine.get()!=coroutine)continue;
-                if(!prior.conflict && prior.source.get()==captured)source=captured;
+                if(!prior.conflict && prior.source.get()==captured)witness=prior;
                 break;
             }
         }
-        pushScope(activeOriginalChildSourceScopes,source);
-        mark(source!=null?childCoroutineScopeMatch:childCoroutineScopeReject);
+        ArrayList<OriginalChildCoroutineCapture> stack=activeOriginalChildSourceScopes.get();
+        if(stack==null) {
+            stack=new ArrayList<>();
+            activeOriginalChildSourceScopes.set(stack);
+        }
+        stack.add(witness); // a null inner frame masks the outer frame
+        mark(witness!=null?childCoroutineScopeMatch:childCoroutineScopeReject);
     }
 
     void exitOriginalChildCoroutineResume() {
-        popScope(activeOriginalChildSourceScopes);
+        ArrayList<OriginalChildCoroutineCapture> stack=activeOriginalChildSourceScopes.get();
+        if(stack==null)return;
+        if(!stack.isEmpty())stack.remove(stack.size()-1);
+        if(stack.isEmpty())activeOriginalChildSourceScopes.remove();
     }
 
     synchronized Object[] exactOriginalChildCoroutineCreator(Object item) {
-        Object source=currentScope(activeOriginalChildSourceScopes);
-        if(source==null || item==null)return null;
+        ArrayList<OriginalChildCoroutineCapture> stack=activeOriginalChildSourceScopes.get();
+        if(stack==null || stack.isEmpty() || item==null)return null;
+        OriginalChildCoroutineCapture witness=stack.get(stack.size()-1);
+        if(witness==null || witness.conflict || witness.coroutine.get()==null)return null;
+        Object source=witness.source.get();
+        if(source==null)return null;
         OriginalMediaSourceItemLink unique=null;
         for(OriginalMediaSourceItemLink anchor:originalMediaSourceItems) {
             Object anchoredSource=anchor.source.get(),anchoredItem=anchor.item.get();

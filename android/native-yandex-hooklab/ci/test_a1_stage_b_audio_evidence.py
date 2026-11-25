@@ -401,6 +401,7 @@ public final class StageBAudioEvidenceTest {
         check(e.exactOriginalChildCoroutineCreator(childItem)==null);
         e.onOriginalChildCoroutineConstructed(coroutine,source,source);
         e.onOriginalChildCoroutineConstructed(wrongCoroutine,source,new Object());
+        e.onOriginalChildCoroutineConstructed(wrongCoroutine,source,source); // invalid first capture stays poisoned
         e.enterOriginalChildCoroutineResume(wrongCoroutine,source);
         check(e.exactOriginalChildCoroutineCreator(childItem)==null);
         e.exitOriginalChildCoroutineResume();
@@ -427,9 +428,10 @@ public final class StageBAudioEvidenceTest {
         e.onExoSourceInstanceCreated(dataSource,factory);
         Object[] fresh=e.exactFreshCreatorOrBetaForDataSource(dataSource);
         check(fresh!=null && fresh[0]==wrapper && fresh[1]==track && fresh[2]==album);
+        e.onOriginalChildCoroutineConstructed(coroutine,source,source); // invalidate even inside active scope
+        check(e.exactOriginalChildCoroutineCreator(childItem)==null);
         e.exitOriginalChildCoroutineResume();
         check(e.exactOriginalChildCoroutineCreator(childItem)==null);
-        e.onOriginalChildCoroutineConstructed(coroutine,source,source);
         e.enterOriginalChildCoroutineResume(coroutine,source);
         check(e.exactOriginalChildCoroutineCreator(childItem)==null);
         e.exitOriginalChildCoroutineResume();
