@@ -20,3 +20,5 @@
 2026-11-25: validate reviewed root consumer auth-field fix, exact hash pins, bootstrap Python+Bash syntax and re-check signed 0.24.56 reproducible private spool.
 
 2026-11-25: rerun signed 0.24.56 owner data-only staging with corrected isolated root-consumer tests; do not trigger protected admin root deploy.
+
+2026-11-25: final W176 regression: quote Nginx version matcher, latest trusted script Git object pins, isolated safe root parser; idempotently prove stored signed 0.24.56 without publishing.
