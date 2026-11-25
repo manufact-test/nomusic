@@ -1,3 +1,11 @@
+## 2026-11-25 — Extension 0.4.80 ready for owner retest
+
+Latest: [intro/CORS checkpoint](EXTENSION-0480-OWNER-REPORT-2026-11-25.md).
+Source6c1b3491f790e4160464f75af722d64bf8521bc5. Owner ZIP:
+https://celikom.com/downloads/extension/celikom-extension-0.4.80.zip
+SHA-256 e7304c49db0fdc2c11e5eeb4f1428bda796ddf44aca2729fa2d01520cf1481c0.
+368 extension tests/full CI and corrected live rollout PASS. Original fragment during intro addressed with early preparation and a bounded hold; real listening/VPN acceptance pending. Deployment500 incident caused by source mode was repaired and recorded in the checkpoint. No playback architecture or Android/Windows changes.
+
 # CELIKOM extension — FlokiNET acceptance checkpoint, 2026-11-25
 
 ## Current owner candidate
