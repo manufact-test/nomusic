@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 BASE=Path("/srv/celikom-releases")
 OUTPUT=BASE/"release-status"/"receipt.json"
 WIN_OWNER=BASE/"windows/stable/current"
+WIN_OWNER_VERIFIED=BASE/"windows/stable/owner-verified.json"
 WIN_CUSTOMER=BASE/"windows/customer-stable/accepted.json"
 ANDROID_OWNER=BASE/"private/android-stable/current-owner.json"
 ANDROID_CUSTOMER=BASE/"public/android/accepted.json"
@@ -65,7 +66,12 @@ def snapshot():
     win=json.loads(read(WIN_OWNER.parent/target/"manifest.json"))
     require(win["version"]==target.removeprefix("versions/"),
             "WINDOWS_OWNER_VERSION")
-    result={"windows_owner_sha256":digest(win,"sha256")}
+    confirmed=optional_json(WIN_OWNER_VERIFIED)
+    owner_sha=(digest(confirmed,"sha256")
+      if confirmed and confirmed.get("https_verified") is True and
+         confirmed.get("version")==win["version"] and
+         confirmed.get("sha256")==win["sha256"] else None)
+    result={"windows_owner_sha256":owner_sha}
     customer=optional_json(WIN_CUSTOMER)
     result["windows_customer_sha256"]=(digest(customer,"sha256")
         if customer and customer.get("https_verified") is True else None)
