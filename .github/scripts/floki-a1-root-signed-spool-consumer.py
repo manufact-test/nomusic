@@ -39,15 +39,22 @@ def check(ok, reason):
         raise RuntimeError("A1_ROOT_" + reason)
 
 
-def safe_json(path, owner, max_size=4096):
-    st = path.lstat()
-    check(stat.S_ISREG(st.st_mode) and st.st_uid == owner and st.st_nlink == 1
-          and stat.S_IMODE(st.st_mode) == 0o600 and st.st_size <= max_size,
-          "UNSAFE_JSON")
-    with path.open("rb") as source:
-        raw = source.read(max_size + 1)
-    check(len(raw) == st.st_size, "JSON_CHANGED")
-    return json.loads(raw)
+def safe_json(dirfd, filename, owner, max_size=4096):
+    fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                 dir_fd=dirfd)
+    try:
+        st = os.fstat(fd)
+        check(stat.S_ISREG(st.st_mode) and st.st_uid == owner and st.st_nlink == 1
+              and stat.S_IMODE(st.st_mode) == 0o600 and st.st_size <= max_size,
+              "UNSAFE_JSON")
+        with os.fdopen(fd, "rb") as source:
+            fd = -1
+            raw = source.read(max_size + 1)
+        check(len(raw) == st.st_size, "JSON_CHANGED")
+        return json.loads(raw)
+    finally:
+        if fd >= 0:
+            os.close(fd)
 
 
 def validate_dir(path, owner, mode):
@@ -81,19 +88,17 @@ def validate_provenance(meta, proof, run, attempt, digest):
     return name, size
 
 
-def snapshot_apk(source_path, owner, size, digest, tempdir):
-    st = source_path.lstat()
-    check(stat.S_ISREG(st.st_mode) and st.st_uid == owner and st.st_nlink == 1
-          and stat.S_IMODE(st.st_mode) == 0o600 and st.st_size == size,
-          "UNSAFE_APK_INPUT")
-    fd = os.open(source_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+def snapshot_apk(dirfd, filename, owner, size, digest, tempdir):
+    fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                 dir_fd=dirfd)
     out = tempdir / "verified.apk"
     hash_obj = hashlib.sha256()
     total = 0
     try:
-        current = os.fstat(fd)
-        check(current.st_ino == st.st_ino and current.st_dev == st.st_dev
-              and current.st_size == size, "SOURCE_REPLACED")
+        st = os.fstat(fd)
+        check(stat.S_ISREG(st.st_mode) and st.st_uid == owner
+              and st.st_nlink == 1 and stat.S_IMODE(st.st_mode) == 0o600
+              and st.st_size == size, "UNSAFE_APK_INPUT")
         with os.fdopen(fd, "rb") as inp, out.open("xb") as output:
             fd = -1
             while data := inp.read(1024 * 1024):
@@ -168,26 +173,35 @@ def verify_live_https(url, size, digest):
     print("A1_ROOT_EXTERNAL_HTTPS_200_SIZE_SHA256_VERIFIED")
 
 
-def atomic_receipt(run, attempt, digest, name, size, url):
+def atomic_receipt(receipts_fd, run, attempt, digest, name, size, url):
     record = {"run": run, "attempt": attempt, "sha256": digest, "name": name,
               "size": size, "url": url, "https_verified": True}
-    dest = RECEIPTS / f"a1-{run}-{attempt}.json"
+    filename = f"a1-{run}-{attempt}.json"
     payload = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode()
-    if dest.exists() or dest.is_symlink():
-        st = dest.lstat()
-        check(stat.S_ISREG(st.st_mode) and st.st_uid == 0 and
-              dest.read_bytes() == payload, "RECEIPT_CONFLICT")
+    try:
+        fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=receipts_fd)
+    except FileNotFoundError:
+        fd = -1
+    if fd >= 0:
+        with os.fdopen(fd, "rb") as prior:
+            st = os.fstat(prior.fileno())
+            check(stat.S_ISREG(st.st_mode) and st.st_uid == 0
+                  and prior.read() == payload, "RECEIPT_CONFLICT")
     else:
-        fd, tmp = tempfile.mkstemp(prefix=".receipt-", dir=RECEIPTS)
+        import secrets
+        tmp = ".receipt-" + secrets.token_hex(16)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                     0o644, dir_fd=receipts_fd)
         try:
             with os.fdopen(fd, "wb") as output:
                 output.write(payload)
                 output.flush()
                 os.fsync(output.fileno())
-            os.chmod(tmp, 0o644)
-            os.link(tmp, dest)
+            os.chmod(tmp, 0o644, dir_fd=receipts_fd, follow_symlinks=False)
+            os.link(tmp, filename, src_dir_fd=receipts_fd,
+                    dst_dir_fd=receipts_fd, follow_symlinks=False)
         finally:
-            os.unlink(tmp)
+            os.unlink(tmp, dir_fd=receipts_fd)
     print("A1_ROOT_OWNER_DOWNLOAD_READY", run, attempt, url)
 
 
@@ -200,41 +214,71 @@ def main():
         path = Path(binary)
         check(path.is_file() and not path.is_symlink() and
               path.stat().st_uid == 0, "MISSING_SIGNING_VERIFIER")
-    spool_st = SPOOL.lstat()
-    check(stat.S_ISDIR(spool_st.st_mode) and spool_st.st_uid != 0
-          and stat.S_IMODE(spool_st.st_mode) == 0o700,
-          "UNSAFE_RUNNER_SPOOL")
-    validate_dir(RECEIPTS, 0, 0o755)
-    lock_fd = os.open(PRIVATE / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    spool_fd = os.open(SPOOL, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        pending = []
-        for item in SPOOL.iterdir():
-            if item.name == "receipts" or item.name.startswith(".incoming-"):
-                continue
-            match = RUN_DIR.fullmatch(item.name)
-            check(match, "UNKNOWN_SPOOL_MEMBER")
-            validate_dir(item, spool_st.st_uid, 0o700)
-            pending.append((item, *match.groups()))
-        check(len(pending) <= 12, "SPOOL_OVER_LIMIT")
-        for item, run_str, attempt_str, digest in sorted(pending,
-                                                          key=lambda item: int(item[1])):
-            run, attempt = int(run_str), int(attempt_str)
-            meta = safe_json(item / "metadata.json", spool_st.st_uid)
-            proof = safe_json(item / "BUILD-PROVENANCE.json", spool_st.st_uid)
-            name, size = validate_provenance(meta, proof, run, attempt, digest)
-            with tempfile.TemporaryDirectory(prefix=".a1-import-", dir=PRIVATE) as td:
-                apk = snapshot_apk(item / name, spool_st.st_uid, size,
-                                   digest, Path(td))
-                verify_signature(apk)
-                url = hand_to_existing_receiver(apk, meta, Path(td))
-                verify_live_https(url, size, digest)
-                atomic_receipt(run, attempt, digest, name, size, url)
-            # Trust nothing after this point; root-owned receipt is durable.
-            # shutil.rmtree is fd-based on supported Linux Python.
-            shutil.rmtree(item)
+        spool_st = os.fstat(spool_fd)
+        check(stat.S_ISDIR(spool_st.st_mode) and spool_st.st_uid != 0
+              and stat.S_IMODE(spool_st.st_mode) == 0o700,
+              "UNSAFE_RUNNER_SPOOL")
+        receipts_fd = os.open("receipts", os.O_RDONLY | os.O_DIRECTORY |
+                              os.O_NOFOLLOW, dir_fd=spool_fd)
+        try:
+            receipts_st = os.fstat(receipts_fd)
+            check(stat.S_ISDIR(receipts_st.st_mode) and receipts_st.st_uid == 0
+                  and stat.S_IMODE(receipts_st.st_mode) == 0o755,
+                  "UNSAFE_RECEIPTS_DIR")
+            lock_fd = os.open(PRIVATE / "lock", os.O_CREAT | os.O_RDWR |
+                              os.O_NOFOLLOW, 0o600)
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                pending = []
+                for dirname in os.listdir(spool_fd):
+                    if dirname == "receipts" or dirname.startswith(".incoming-"):
+                        continue
+                    match = RUN_DIR.fullmatch(dirname)
+                    check(match, "UNKNOWN_SPOOL_MEMBER")
+                    pending.append((dirname, *match.groups()))
+                check(len(pending) <= 12, "SPOOL_OVER_LIMIT")
+                for dirname, run_str, attempt_str, digest in sorted(
+                        pending, key=lambda item: int(item[1])):
+                    item_fd = os.open(dirname, os.O_RDONLY | os.O_DIRECTORY |
+                                      os.O_NOFOLLOW, dir_fd=spool_fd)
+                    try:
+                        item_st = os.fstat(item_fd)
+                        check(stat.S_ISDIR(item_st.st_mode) and
+                              item_st.st_uid == spool_st.st_uid and
+                              stat.S_IMODE(item_st.st_mode) == 0o700,
+                              "UNSAFE_PENDING_DIR")
+                        run, attempt = int(run_str), int(attempt_str)
+                        meta = safe_json(item_fd, "metadata.json", spool_st.st_uid)
+                        proof = safe_json(item_fd, "BUILD-PROVENANCE.json",
+                                          spool_st.st_uid)
+                        name, size = validate_provenance(meta, proof, run,
+                                                         attempt, digest)
+                        with tempfile.TemporaryDirectory(prefix=".a1-import-",
+                                                         dir=PRIVATE) as td:
+                            apk = snapshot_apk(item_fd, name, spool_st.st_uid,
+                                               size, digest, Path(td))
+                            verify_signature(apk)
+                            url = hand_to_existing_receiver(apk, meta, Path(td))
+                            verify_live_https(url, size, digest)
+                            atomic_receipt(receipts_fd, run, attempt, digest,
+                                           name, size, url)
+                        current = os.stat(dirname, dir_fd=spool_fd,
+                                          follow_symlinks=False)
+                        check(current.st_ino == item_st.st_ino and
+                              current.st_dev == item_st.st_dev,
+                              "PENDING_DIR_SWAPPED")
+                    finally:
+                        os.close(item_fd)
+                    # Only remove verified runner-owned data, not its receipt.
+                    shutil.rmtree(SPOOL / dirname)
+            finally:
+                os.close(lock_fd)
+        finally:
+            os.close(receipts_fd)
     finally:
-        os.close(lock_fd)
+        os.close(spool_fd)
 
 
 if __name__ == "__main__":
