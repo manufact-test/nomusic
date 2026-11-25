@@ -142,8 +142,15 @@ if ! systemctl start celikom-extension-owner.service; then
   echo EXTENSION_OWNER_ACTIVATION_FAILED_KEEP_TIMER_DISABLED
   exit 1
 fi
-[[ -f /srv/celikom-releases/owner-downloads/celikom-extension-0.4.82.zip ]]
-[[ -f /srv/celikom-releases/owner-downloads/celikom-extension-latest.zip ]]
+# The owner withdrew 0.4.82 after a playback regression; until a future
+# candidate is explicitly approved, install the timer but publish NO new ZIP.
+# Keep the previously live owner download untouched.
+if [[ -f /srv/celikom-releases/private/extension/current-owner.json ]]; then
+  [[ -f /srv/celikom-releases/owner-downloads/celikom-extension-latest.zip ]]
+  echo EXTENSION_OWNER_ALREADY_VERIFIED_LATEST_PRESENT
+else
+  echo EXTENSION_OWNER_AWAITING_NEXT_APPROVED_CANDIDATE
+fi
 systemctl enable --now celikom-extension-owner.timer
 systemctl is-active celikom-extension-owner.timer
-echo EXTENSION_OWNER_0482_PUBLISHED_AND_RECURRING_TIMER_READY
+echo EXTENSION_OWNER_PERMANENT_PUBLISHER_ARMED
