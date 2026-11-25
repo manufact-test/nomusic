@@ -14,6 +14,8 @@ jobs:
     if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: floki-deploy
+    permissions:
+      contents: write
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
