@@ -223,9 +223,9 @@ fi
 
 # Prepare stable Android public OTA routes. Public manifest remains ABSENT until
 # owner acceptance; legacy installed app still uses Hostinger during the bridge.
-fetch_exact ac5fe52bad38980dec83f3c9d09ea4dcf4099e0e \
+fetch_exact c0ea40e92c70efb4a4f48ff54b397bb32c4e0288 \
   .github/scripts/floki-android-customer-stable-install.sh \
-  4680ed1fb55e5b34b2a947af60874562218587d8 \
+  4253ebb4dd5985677160a01688f867dd6e8425dc \
   "$INTAKE/floki-android-customer-stable-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-android-customer-stable.timer ]]; then
   bash "$INTAKE/floki-android-customer-stable-install.sh"
