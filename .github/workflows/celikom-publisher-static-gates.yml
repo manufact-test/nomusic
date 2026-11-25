@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/scripts/floki-extension-owner-consumer.py'
       - '.github/scripts/floki-extension-owner-install.sh'
+      - '.github/scripts/floki-release-owner-bootstrap.sh'
       - '.github/scripts/tests/floki-extension-owner-consumer.test.py'
       - '.github/workflows/celikom-publisher-static-gates.yml'
 permissions:
@@ -23,6 +24,8 @@ jobs:
           set -euo pipefail
           python3 -m py_compile .github/scripts/floki-extension-owner-consumer.py
           bash -n .github/scripts/floki-extension-owner-install.sh
+          bash -n .github/scripts/floki-release-owner-bootstrap.sh
+          ! grep -q EXTENSION_INSTALL_BLOB_TO_PIN .github/scripts/floki-release-owner-bootstrap.sh
           python3 .github/scripts/tests/floki-extension-owner-consumer.test.py
           echo EXTENSION_PRIVATE_PUBLISHER_STATIC_GATES_OK
       - name: Verify Windows saved root consumer syntax and safety suite
