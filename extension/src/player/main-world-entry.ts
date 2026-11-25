@@ -16,6 +16,7 @@
   const DIRECTION_OUT = "from-main";
   const VISIBLE_TIMEOUT_MS = 12000;
   const HIDDEN_TIMEOUT_MS = 120000;
+  const INTRO_WAIT_MS = 1500;
   let controllerSession = null;
   let lastHeartbeatAt = 0;
   let sequence = 0;
@@ -75,7 +76,11 @@
     pending.promise=new Promise((resolve,reject)=>{pending.resolve=resolve;pending.reject=reject;});
     pending.promise.catch(()=>{});
     heldStart=pending;
-    pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},400);
+    // The native clock is paused: retain this single bounded deadline while
+    // authenticated lookup and the decoder run. An older transition timer must
+    // not unmute the original first. Readiness/polls never renew the deadline.
+    root.clearTimeout(handoff.timer); handoff.timer = null;
+    pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},INTRO_WAIT_MS);
     trace(snapshot,"intro-start-held");return pending.promise;
   }
 

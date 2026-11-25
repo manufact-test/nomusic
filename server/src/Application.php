@@ -69,12 +69,23 @@ final class Application
         // audio fetch is cross-origin even though the signed audio URL is valid.
         // Grant CORS ONLY to the token-scoped audio route, not login/API routes.
         if (in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)
-            || self::isNativeAudioOrigin($method, $path, $headers['origin'] ?? '')) {
+            || self::isNativeAudioOrigin($method, $path, $headers['origin'] ?? '')
+            || self::isExtensionApiOrigin($method, $path, $headers['origin'] ?? '')) {
             $response->headers['Access-Control-Allow-Origin'] = $headers['origin'];
             $response->headers['Access-Control-Expose-Headers'] = 'Accept-Ranges, Content-Range, Content-Length, ETag';
             $response->headers['Vary'] = 'Origin';
         }
         return $response;
+    }
+
+    // Unpacked Chrome/Brave installs have per-install IDs. CORS permits transport
+    // only: no cookies, credentials, account identity or entitlement is granted.
+    // Bearer/session and signed-audio validation remain mandatory on every route.
+    private static function isExtensionApiOrigin(string $method, string $path, string $origin): bool
+    {
+        return in_array($method, ['GET', 'HEAD', 'POST', 'OPTIONS'], true)
+            && str_starts_with($path, '/api/v1/')
+            && preg_match('~^chrome-extension://[a-p]{32}$~D', $origin) === 1;
     }
 
     private static function isNativeAudioOrigin(string $method, string $path, string $origin): bool
@@ -105,7 +116,8 @@ final class Application
         }
         if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1/') &&
             (in_array($headers['origin'] ?? '', $this->config['allowed_origins'], true)
-            || self::isNativeAudioOrigin($method, $path, $headers['origin'] ?? ''))) {
+            || self::isNativeAudioOrigin($method, $path, $headers['origin'] ?? '')
+            || self::isExtensionApiOrigin($method, $path, $headers['origin'] ?? ''))) {
             return new Response(204, ['Access-Control-Allow-Methods' => 'GET, HEAD, POST, OPTIONS', 'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Range, X-Celikom-Upload-Attempt', 'Access-Control-Max-Age' => '600']);
         }
         if ($method === 'GET' && in_array($path, ['/health', '/api/v1/health'], true)) {

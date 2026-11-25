@@ -82,7 +82,9 @@ jobs:
           ffmpeg -hide_banner -encoders | grep -F libmp3lame
 
       - name: Verify repository
-        run: npm run ci
+        run: |
+          php scripts/test-extension-cors.php
+          npm run ci
 
       # Trusted main deliverables are independently built and checked in the
       # FlokiNET portable job of windows-w98-integration-ci.yml. The generic

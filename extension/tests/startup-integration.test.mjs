@@ -581,7 +581,7 @@ for(const action of ['pause','load','source','stop','timeout'])test('bounded int
   if(action==='pause'||action==='load')vm.runInContext('original.'+action+'()',main);
   if(action==='source')vm.runInContext("original.src='https://strm-fra-03.strm.yandex.net/changed';original.dispatchEvent(new Event('timeupdate'))",main);
   if(action==='stop')f.changeStorage({enabled:{newValue:false}});
-  if(action==='timeout')await new Promise(r=>setTimeout(r,430));
+  if(action==='timeout')await new Promise(r=>setTimeout(r,1530));
   await wait();
   if(['pause','load','source'].includes(action)){
    assert.equal(vm.runInContext('original.paused',main),true);
@@ -593,7 +593,7 @@ for(const action of ['pause','load','source','stop','timeout'])test('bounded int
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });
 
-for(const delay of [20,450])test('intro positive verdict after '+delay+'ms retains a single replacement and valid lease',async()=>{
+for(const delay of [20,450,1200])test('intro positive verdict after '+delay+'ms retains a single replacement and valid lease',async()=>{
  const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
@@ -619,7 +619,7 @@ for(const action of ['timeout','pause'])test('reserved preparation survives intr
   vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play().catch(()=>{})',main);await wait();
   const token=vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated);
   assert.equal(vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.getDiagnostics().guard.token',main),token);
-  if(action==='pause')vm.runInContext('original.pause()',main);else await new Promise(r=>setTimeout(r,430));
+  if(action==='pause')vm.runInContext('original.pause()',main);else await new Promise(r=>setTimeout(r,1530));
   await wait();assert.notEqual(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated),token);
   vm.runInContext('finishLoad()',isolated);await wait();await wait();
   assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'REPLACEMENT_ACTIVE');

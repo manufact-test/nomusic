@@ -639,12 +639,13 @@ test('join timing history retains twelve recent activations without URLs or cred
 });
 
 
-test('metadata-only existing handoff keeps its prior admission and reservation rules',async()=>{
+test('verified paused metadata warms during an existing handoff without early guard admission',async()=>{
  const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
  const metadata=snapshot('2',{guard:{transitioning:true}});Object.assign(metadata.player,{readyState:1,paused:true,currentTime:0.1});
- f.update(metadata);await settle();assert.equal(f.players.length,0);
+ f.update(metadata);await settle();assert.equal(f.players.length,1);
+ assert.equal(f.engine.activationCount,0);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
  metadata.player.readyState=4;f.update(metadata);await settle();
- assert.equal(f.engine.activationCount,1);assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'&&r.preparing),true);
+ assert.equal(f.engine.activationCount,1);assert.equal(f.players.length,1,'ready state reuses the metadata-warmed decoder');
  f.engine.destroy();await settle();
 });
 
