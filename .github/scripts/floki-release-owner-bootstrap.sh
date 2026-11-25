@@ -130,8 +130,29 @@ fetch_exact() {
   runuser -u celikom-mirror -- git --git-dir="$MIRROR" show "$commit:$path" > "$d"
   [[ "$(git hash-object "$d")" == "$blob" ]] || { rm -f "$d"; echo CELIKOM_RELEASE_SOURCE_PIN_MISMATCH; exit 1; }
   if [[ -e "$destination" || -L "$destination" ]]; then
-    [[ ! -L "$destination" && "$(git hash-object "$destination")" == "$blob" ]] ||
-      { rm -f "$d"; echo CELIKOM_RELEASE_INSTALLED_FILE_CONFLICT; exit 1; }
+    [[ -f "$destination" && ! -L "$destination" ]] ||
+      { rm -f "$d"; echo CELIKOM_RELEASE_INSTALLED_FILE_UNSAFE; exit 1; }
+    local old_hash
+    old_hash=$(git hash-object "$destination")
+    if [[ "$old_hash" != "$blob" ]]; then
+      # First activation was rolled back during public 403 proof. Upgrade ONLY
+      # the exact reviewed Windows customer bootstrap stored in private intake.
+      # Never overwrite installed root consumers or any unexpected file.
+      if [[ "$path" == .github/scripts/floki-windows-customer-stable-install.sh &&
+            "$old_hash" == 22499058fd0cab1bb17649ac0bf2a474546a7907 &&
+            "$destination" == "$INTAKE/floki-windows-customer-stable-install.sh" &&
+            "$(stat -c '%u:%a:%h' "$destination")" == 0:600:1 ]]; then
+        local replacement
+        replacement=$(mktemp "$INTAKE/.windows-customer-install.XXXXXXXX")
+        install -o root -g root -m "$mode" "$d" "$replacement"
+        mv -T "$replacement" "$destination"
+        echo CELIKOM_VERIFIED_CUSTOMER_INSTALLER_UPDATED_AFTER_ROLLBACK
+      else
+        rm -f "$d"
+        echo CELIKOM_RELEASE_INSTALLED_FILE_CONFLICT
+        exit 1
+      fi
+    fi
   else
     install -o root -g root -m "$mode" "$d" "$destination"
   fi
@@ -160,12 +181,12 @@ else
   echo CELIKOM_WINDOWS_PREVIOUS_PROMOTION_PRESERVED
 fi
 
-# Preinstall the separate customer-signed Windows update channel. It stays
-# EMPTY until a checked owner-acceptance record is approved on main.
+# Preinstall customer-signed Windows updater with the already accepted 0.24.55
+# baseline; newer versions remain gated by explicit owner acceptance.
 # Never expose the owner candidate 'stable/current' directly.
-fetch_exact 3808f82b26bce8172208d1bc8039864596fc3f88 \
+fetch_exact f1a9a5420d7b69f1ae4fd44c263e6f6fb09b3a9b \
   .github/scripts/floki-windows-customer-stable-install.sh \
-  22499058fd0cab1bb17649ac0bf2a474546a7907 \
+  b1ca1c8aa0075774f7ea3e88a27c2c3e6c15ccac \
   "$INTAKE/floki-windows-customer-stable-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-windows-customer-stable.timer ]]; then
   bash "$INTAKE/floki-windows-customer-stable-install.sh"
