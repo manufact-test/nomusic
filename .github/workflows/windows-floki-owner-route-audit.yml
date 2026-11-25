@@ -1,0 +1,44 @@
+name: CELIKOM Windows Floki owner delivery route audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/deploy/windows-owner-audit-trigger.txt'
+permissions:
+  contents: read
+concurrency:
+  group: celikom-windows-owner-route-audit
+  cancel-in-progress: false
+jobs:
+  audit:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: celikom-ci-smoke-only
+    environment: floki-deploy
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect only release paths and exact owner download routing
+        env:
+          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          [[ -n "$FLOKI_DEPLOY_CONNECTION" ]] || { echo FLOKI_DEPLOY_SECRET_MISSING; exit 2; }
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          printf '%s\n' "$FLOKI_DEPLOY_CONNECTION" | tr -d '\r' > "$tmp/bundle"
+          unset FLOKI_DEPLOY_CONNECTION
+          head -n 1 "$tmp/bundle" > "$tmp/known_hosts"
+          tail -n +2 "$tmp/bundle" > "$tmp/key"
+          rm "$tmp/bundle"
+          chmod 600 "$tmp/key" "$tmp/known_hosts"
+          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
+          ssh-keygen -y -P '' -f "$tmp/key" > /dev/null
+          sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$tmp/known_hosts" -o GlobalKnownHostsFile=/dev/null
+            -o ConnectTimeout=20 -o ClearAllForwardings=yes)
+          bash -n .github/scripts/floki-windows-owner-readonly-inventory.sh
+          ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 maintenance < .github/scripts/floki-windows-owner-readonly-inventory.sh
