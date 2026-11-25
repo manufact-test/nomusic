@@ -11,3 +11,5 @@ for p in Path('/etc/nginx/sites-enabled').iterdir():
   if any(s in line for s in ['server_name','location','alias','auth_basic','include','proxy_pass','root ']): print(line)
 print('EXTENSION_NGINX_AUDIT_PASS')
 PY
+
+echo EXTENSION_DOWNLOAD_ROUTE_CHECK_COMPLETE
