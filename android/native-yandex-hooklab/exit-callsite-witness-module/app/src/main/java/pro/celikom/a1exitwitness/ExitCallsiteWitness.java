@@ -79,7 +79,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    private static final String BETA_BUILD = "A1_TRACKID_BETA14_ORIGINAL_MEDIAITEM_SOURCE_BRIDGE_20261125";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA15_ORIGINAL_CHILD_GATE_DIAGNOSTIC_20261125";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -4298,22 +4298,30 @@ public final class ExitCallsiteWitness extends XposedModule {
                 hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
                         try {
+                            STAGE_B_AUDIO.onOriginalChildEntered();
                             Object item=chain.getArg(2),descriptor=chain.getArg(1);
                             Object[] creator=STAGE_B_AUDIO.exactOriginalMediaItemCreator(item);
+                            STAGE_B_AUDIO.onOriginalChildCreatorMatch(creator!=null);
                             if(creator!=null) {
                                 Object[] setter=NATIVE_RENDERER_EVIDENCE
                                     .exactSetterForFreshSourceCreator(
                                         creator[0],creator[1],creator[2]);
-                                // Same actual iLb object delivered by Player
-                                // setter, not merely a shared logical ID.
-                                if(setter!=null && setter[1]==creator[3])
-                                    STAGE_B_AUDIO.onOriginalMediaItemDescriptor(
-                                        item,creator[0],descriptor);
+                                STAGE_B_AUDIO.onOriginalChildSetterMatch(setter!=null);
+                                if(setter!=null) {
+                                    // Same actual iLb object delivered by
+                                    // Player setter, not merely shared ID.
+                                    if(setter[1]==creator[3])
+                                        STAGE_B_AUDIO.onOriginalMediaItemDescriptor(
+                                            item,creator[0],descriptor);
+                                    else
+                                        STAGE_B_AUDIO.onOriginalChildSetterSourceDifferent();
+                                }
                             }
                         } catch(Throwable ignored) { }
                         return chain.proceed(); // original child source once
                     });
                 originalMediaItemChildDescriptorHookReady=true;
+                STAGE_B_AUDIO.onOriginalChildHookRegistered();
                 emit("AUDIO_ORIGINAL_MEDIAITEM_HOOK","CHILD_DESCRIPTOR","REGISTERED");
             } catch(Throwable ignored) {
                 emit("AUDIO_ORIGINAL_MEDIAITEM_HOOK","CHILD_DESCRIPTOR","NO_HOOK");

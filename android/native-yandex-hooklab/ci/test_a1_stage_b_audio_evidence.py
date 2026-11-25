@@ -233,6 +233,24 @@ public final class StageBAudioEvidenceTest {
             && fresh[2]==album);
         bucket(e.exportLines(),0,"ORIGINAL_MEDIAITEM_SOURCE_ANCHOR","ONE");
         bucket(e.exportLines(),0,"ORIGINAL_MEDIAITEM_DESCRIPTOR_LINK","ONE");
+        // Runtime-safe BETA15 stage classification (no private values logged).
+        e.onOriginalChildHookRegistered();
+        e.onOriginalChildEntered();
+        e.onOriginalChildCreatorMatch(true);
+        e.onOriginalChildSetterMatch(true);
+        e.onOriginalChildEntered();
+        e.onOriginalChildCreatorMatch(false);
+        e.onOriginalChildEntered();
+        e.onOriginalChildCreatorMatch(true);
+        e.onOriginalChildSetterMatch(false);
+        e.onOriginalChildSetterSourceDifferent();
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_HOOK_REGISTERED","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_ENTER","FEW");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CREATOR_MATCH","FEW");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CREATOR_MISSING","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_SETTER_MATCH","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_SETTER_MISSING","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_SETTER_SOURCE_DIFFERENT","ONE");
         bucket(e.exportLines(),0,"TRACK_DESCRIPTOR_FACTORY_LINK","ONE");
         bucket(e.exportLines(),0,"TRACK_FACTORY_SOURCE_LINK","ONE");
 
@@ -264,8 +282,8 @@ public final class StageBAudioEvidenceTest {
         beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 71);
-        for (int i=0;i<70;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial.length == 78);
+        for (int i=0;i<77;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
@@ -853,6 +871,10 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn('STAGE_B_AUDIO.onOriginalMediaItemDescriptor(', code)
         self.assertIn('"SOURCE_ANCHOR","REGISTERED"', code)
         self.assertIn('"CHILD_DESCRIPTOR","REGISTERED"', code)
+        self.assertIn("STAGE_B_AUDIO.onOriginalChildHookRegistered()",code)
+        self.assertIn("STAGE_B_AUDIO.onOriginalChildEntered()",code)
+        self.assertIn("STAGE_B_AUDIO.onOriginalChildCreatorMatch(creator!=null)",code)
+        self.assertIn("STAGE_B_AUDIO.onOriginalChildSetterMatch(setter!=null)",code)
         self.assertIn("result=chain.proceed(); // exactly one unmodified original call", code)
         self.assertIn("result=chain.proceed();", code)
         self.assertIn('Class.forName("Dp0",false,loader)', code)

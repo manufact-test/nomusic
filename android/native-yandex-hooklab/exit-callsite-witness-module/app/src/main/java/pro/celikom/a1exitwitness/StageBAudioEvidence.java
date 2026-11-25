@@ -44,6 +44,15 @@ final class StageBAudioEvidence {
     private final AtomicLong originalMediaItemAnchors = new AtomicLong();
     private final AtomicLong originalMediaItemDescriptors = new AtomicLong();
     private final AtomicLong originalMediaItemConflicts = new AtomicLong();
+    // BETA15: finite labels only, never MediaItem values, identities or URLs.
+    // These split the unlinked BETA14 child-factory seam into exact reasons.
+    private final AtomicLong originalChildHookRegistered = new AtomicLong();
+    private final AtomicLong originalChildEntered = new AtomicLong();
+    private final AtomicLong originalChildCreatorMatched = new AtomicLong();
+    private final AtomicLong originalChildCreatorMissing = new AtomicLong();
+    private final AtomicLong originalChildSetterMatched = new AtomicLong();
+    private final AtomicLong originalChildSetterMissing = new AtomicLong();
+    private final AtomicLong originalChildSetterSourceDifferent = new AtomicLong();
     private final AtomicLong exoOpenResults = new AtomicLong();
     private final AtomicLong exoPositiveReads = new AtomicLong();
     private final AtomicLong exoEndOfSource = new AtomicLong();
@@ -1187,6 +1196,22 @@ final class StageBAudioEvidence {
         };
     }
 
+    synchronized void onOriginalChildHookRegistered() {
+        mark(originalChildHookRegistered);
+    }
+    synchronized void onOriginalChildEntered() {
+        mark(originalChildEntered);
+    }
+    synchronized void onOriginalChildCreatorMatch(boolean matched) {
+        mark(matched?originalChildCreatorMatched:originalChildCreatorMissing);
+    }
+    synchronized void onOriginalChildSetterMatch(boolean matched) {
+        mark(matched?originalChildSetterMatched:originalChildSetterMissing);
+    }
+    synchronized void onOriginalChildSetterSourceDifferent() {
+        mark(originalChildSetterSourceDifferent);
+    }
+
     /** Only the exact original iLb MediaItem matched by == may bind QAa. */
     synchronized boolean onOriginalMediaItemDescriptor(Object item,
             Object wrapper,Object descriptor) {
@@ -1669,6 +1694,14 @@ final class StageBAudioEvidence {
             event("ORIGINAL_MEDIAITEM_SOURCE_ANCHOR", originalMediaItemAnchors),
             event("ORIGINAL_MEDIAITEM_DESCRIPTOR_LINK", originalMediaItemDescriptors),
             event("ORIGINAL_MEDIAITEM_IDENTITY_CONFLICT", originalMediaItemConflicts),
+            event("ORIGINAL_CHILD_HOOK_REGISTERED", originalChildHookRegistered),
+            event("ORIGINAL_CHILD_ENTER", originalChildEntered),
+            event("ORIGINAL_CHILD_CREATOR_MATCH", originalChildCreatorMatched),
+            event("ORIGINAL_CHILD_CREATOR_MISSING", originalChildCreatorMissing),
+            event("ORIGINAL_CHILD_SETTER_MATCH", originalChildSetterMatched),
+            event("ORIGINAL_CHILD_SETTER_MISSING", originalChildSetterMissing),
+            event("ORIGINAL_CHILD_SETTER_SOURCE_DIFFERENT",
+                originalChildSetterSourceDifferent),
             event("TRACK_DESCRIPTOR_FACTORY_LINK", trackDescriptorFactoryLinks),
             event("TRACK_FACTORY_SOURCE_LINK", trackFactorySourceLinks),
             event("TRACK_SOURCE_OPEN_LINK", trackSourceOpenLinks),
