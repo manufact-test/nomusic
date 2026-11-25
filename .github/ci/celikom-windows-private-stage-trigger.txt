@@ -3,3 +3,4 @@
 2026-11-25: owner confirmed dedicated Windows intake credential enrollment; one-time exact 0.24.55 transport and independent root import, no publication.
 2026-11-25: validate enrolled clipboard format without printing secret; retry exact signed private transfer.
 2026-11-25: owner confirmed corrected clipboard enrollment; verify exact signed 0.24.55 transfer.
+2026-11-25: classify invalid owner-enrollment format without logging input; accept exact one-line encoded transport option.

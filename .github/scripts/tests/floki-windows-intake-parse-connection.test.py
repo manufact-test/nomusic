@@ -12,6 +12,12 @@ class EnrollmentTest(unittest.TestCase):
         self.assertEqual(parse((PIN+"\n"+KEY).encode()), (PIN+"\n", KEY))
     def test_clipboard_whitespace(self):
         self.assertEqual(parse(("\ufeff\n  "+PIN.replace(" ssh-ed25519 ","  ssh-ed25519\t")+"  \r\n\r\n"+KEY.replace("\n","\r\n")+"\r\n").encode()),(PIN+"\n", KEY))
+    def test_single_line_envelope(self):
+        raw = (PIN+"\n"+KEY).encode()
+        envelope = b"CELIKOM-WINDOWS-INTAKE-V1:" + base64.b64encode(raw)
+        self.assertEqual(parse(envelope+b"\n"),(PIN+"\n",KEY))
+        with self.assertRaisesRegex(ValueError,"ENVELOPE_INVALID"):
+            parse(b"CELIKOM-WINDOWS-INTAKE-V1:!!!!")
     def test_wrong_host(self):
         with self.assertRaisesRegex(ValueError,"HOST_PIN_LINE_INVALID"):
             parse((PIN.replace("95.133.160.111","127.0.0.1")+"\n"+KEY).encode())

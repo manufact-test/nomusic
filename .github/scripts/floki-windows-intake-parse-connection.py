@@ -12,6 +12,15 @@ import sys
 
 
 def parse(raw):
+    if len(raw) > 24576:
+        raise ValueError("WINDOWS_INTAKE_ENROLLMENT_TOO_LARGE")
+    envelope = b"CELIKOM-WINDOWS-INTAKE-V1:"
+    cleaned = raw.strip()
+    if cleaned.startswith(envelope):
+        try:
+            raw = base64.b64decode(cleaned[len(envelope):], validate=True)
+        except (ValueError, TypeError):
+            raise ValueError("WINDOWS_INTAKE_ENROLLMENT_ENVELOPE_INVALID") from None
     if len(raw) > 16384:
         raise ValueError("WINDOWS_INTAKE_ENROLLMENT_TOO_LARGE")
     try:
@@ -23,7 +32,20 @@ def parse(raw):
         raise ValueError("WINDOWS_INTAKE_ENROLLMENT_LINES_INVALID")
     parts = lines[0].split()
     if len(parts) != 3 or parts[:2] != ["95.133.160.111", "ssh-ed25519"]:
-        raise ValueError("WINDOWS_INTAKE_HOST_PIN_LINE_INVALID")
+        # Fixed classifications only. Never log any actual input or key material.
+        if lines[0].startswith("-----BEGIN "):
+            kind = "PRIVATE_KEY_FIRST"
+        elif parts[:2] == ["95.133.160.111", "ssh-ed25519"]:
+            kind = "HOST_PIN_EXTRA_OR_MISSING_FIELDS"
+        elif parts and parts[0] == "95.133.160.111":
+            kind = "HOST_PIN_ALGORITHM_OR_FIELDS"
+        elif any(x.split()[:2] == ["95.133.160.111", "ssh-ed25519"] for x in lines[1:]):
+            kind = "EXTRA_LEADING_TEXT"
+        elif "\\n" in lines[0]:
+            kind = "LITERAL_NEWLINE_ESCAPES"
+        else:
+            kind = "UNRECOGNIZED_FIRST_LINE"
+        raise ValueError("WINDOWS_INTAKE_HOST_PIN_LINE_INVALID_" + kind)
     try:
         host_key = base64.b64decode(parts[2], validate=True)
     except (ValueError, TypeError):
