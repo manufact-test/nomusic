@@ -14,6 +14,15 @@
 
 ---
 
+## FOLLOW-UP 25.11 — CI inventory and withdrawn extension candidate
+
+- Dual-runner data-only inventory run **45679020658**: two simultaneously completed checks, `ci01` has safe `celikom-build-spool`, `celikom-windows-signed-spool` and `celikom-a1-signed-spool`; `ci02` currently has only safe `celikom-build-spool`. No production/SSH access was exposed. The installer `.github/scripts/floki-runner2-signed-spool-parity.sh` prepares only two missing bind mounts, checks idle Worker, protects local spool data and rolls back failed restart. Actual host activation not yet performed.
+- **Extension 0.4.82 withdrawn by its developer** after a confirmed playback restart regression at commit `33de3505041c3abbeaa3127d7ce2f3c481d16b3a`. The separate owner approval array was cleared. Releasing this ZIP is explicitly prohibited. The extension promoter now installs with no approved candidate and leaves existing 0.4.80 intact; it can publish a later explicitly approved fixed version.
+- One-shot Windows+extension bootstrap now refuses to report full success when runner2 parity fails and can resume safely after Windows completion. Every pinned file must be checked before execution. No VPS state has been modified by infrastructure work in this conversation.
+- Remaining unavoidable acceptance gates: host-side installer invocation and real HTTPS response; Windows installed-client update after owner-accepted release and signed public manifest; Android stable original-certificate OTA and Hostinger bridge after verified legacy client migration; first Chrome Web Store listing and publisher credentials provided via the owner's own account. Do not confuse a one-time publication setup with tested customer update functionality.
+
+---
+
 25.11.2026. Приоритетная точка передачи инфраструктурному чату.
 
 ## Цель владельца — работающий выпуск, а не сохранённые сборки
