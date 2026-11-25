@@ -53,17 +53,17 @@ fetch_exact() {
   fi
   rm -f "$d"
 }
-fetch_exact 1f438a88bca19cbdec95c44dd03b4c3285435046 \
+fetch_exact 4e69e2c5acd63fd6e88d3b814eb4abd5aa8beeb4 \
   .github/scripts/floki-windows-signed-root-consumer.py \
-  9ff780d3719ff6b3f9a00d21f8164bcae9e37140 \
+  c1cb5505e86d09f6dac0517ac710ad558406df74 \
   "$INTAKE/floki-windows-signed-root-consumer.py" 0600
 fetch_exact 1f438a88bca19cbdec95c44dd03b4c3285435046 \
   .github/scripts/floki-windows-owner-download-bootstrap.sh \
   3ba778b967970249a78f8e68e6b1686955cb6f9b \
   "$INTAKE/floki-windows-owner-download-bootstrap.sh" 0600
-fetch_exact 1f438a88bca19cbdec95c44dd03b4c3285435046 \
+fetch_exact d4f397ddb3850ea4cf55ec9c01f7bd7644ce3a2d \
   .github/scripts/floki-windows-root-consumer-install.sh \
-  ab1750213b98ae8c3ff4e4c901d1edf7c33623bf \
+  833688233cb9bdb28201e75e70e2a49269a1dc43 \
   "$INTAKE/floki-windows-root-consumer-install.sh" 0600
 
 # A prior successful Windows activation must survive a later extension failure.
