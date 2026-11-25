@@ -275,6 +275,9 @@ def main():
     root_dir(OWNER)
     root_dir(VERSIONS.parent)
     allowed = trusted_approvals()
+    if not allowed:
+        print("EXTENSION_OWNER_NO_APPROVED_RELEASE_KEEP_EXISTING_DOWNLOAD_UNCHANGED")
+        return
     fd = os.open(STATE.parent / ".owner-promoter.lock",
                  os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:
