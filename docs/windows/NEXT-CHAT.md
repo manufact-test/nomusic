@@ -1,3 +1,17 @@
+# АКТУАЛЬНО — W177: Windows 0.24.56 НЕ подменяет музыку; диагностика ожидается (26.11.2026)
+
+**Статус:** передача в следующий Windows-чат. Владелец сообщил после получения установщика 0.24.56: «там нихуя не работает»; новую диагностику 0.24.56 он пришлёт в следующем чате, её в этой переписке ещё нет. **Ничего не объявлять исправленным / принятым.** 0.24.54 была последней лично принятой работающей по музыке; 0.24.55 после миграции не подменяла; 0.24.56 содержит попытку исправления и **пока тоже не принята**.
+
+**Обязательно первым делом читать:** [W177 handoff и точные доказательства](./W177-OWNER-02456-PLAYBACK-FAILURE-HANDOFF-20261126.md). Там: предыдущая W54 диагностика из **0.24.55**, серверный resolve/Range proof по «Ау» (не owner-пользователь), патч cold-start `renderer-entry.mjs`, проверки CI, версия, SHA/sequence, ограничения обновлений и порядок анализа новой диагностики.
+
+**Release:** 0.24.56, signed P-256 sequence=3; EXE SHA-256 `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a`. Owner EXE `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.56.exe`, защищённый owner latest `https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe`. В соседнем инфраструктурном чате owner 0.24.56 была перенесена root publisher на сайт; ссылка ранее передана владельцу. **Здесь повторный полный owner-auth HTTP200/EXE SHA не выполнен**; перед новой ссылкой проверить root receipt и реальный файл, не полагаться на зелёный CI. `main` на момент handoff до документирующего коммита `5fd98c7ef66418f2c9ead345d89b47476dc52746`; перечитать актуальный HEAD перед работой.
+
+**Граница релизов:** `.github/release/windows-customer-stable.json` имеет `approved:null`. Owner candidate 0.24.56 **не выпущена всем**, customer подписанный baseline = 0.24.55/seq2, реальный auto-update old→new **не протестирован**. После подтверждённого исправления воспроизведения и команды владельца отдельно завершить real OTA и rollback. Никаких публичных публикаций, оплаты, отключения Hostinger, изменений Android/extension/аудиоархитектуры.
+
+**Первая операция следующего чата:** принять/прочитать **новую диагностику установленной 0.24.56**, не перепутать с W54 `AppVersion=0.24.55.0`, локализовать реальный разрыв между availability → signed grant → native source → audible output. Не гадать, не перестраивать проигрыватель, не требовать от владельца CMD/PowerShell/IDE. Исправления в `main` с бэкапом, CI; новый EXE строго **выше** 0.24.56 с новым подписанным sequence; выдача только после проверенной публикации на `celikom.com`.
+
+---
+
 ## Infrastructure release addendum — 25 November 2026 (owner downloads)
 
 The CELIKOM infrastructure chat prepared a single trusted Floki bootstrap at `.github/scripts/floki-release-owner-bootstrap.sh` and reused the existing Windows signed-spool root consumer, installer and P-256 pin, without changing audio code. Exact 0.24.56 EXE SHA-256 `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a` remains privately staged pending live root activation and full owner-auth HTTPS confirmation. The next Windows developer **must not** run a separate per-release root installer or create more ad hoc GitHub download links; use the permanent signed owner producer/consumer after bootstrap.
