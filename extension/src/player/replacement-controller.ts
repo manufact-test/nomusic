@@ -176,7 +176,7 @@
           throw new Error("replacement_duration_or_token_invalid");
         }
         if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
-        operation.completeJoin = !operation.asset.demoLoop && operation.asset.mimeType === "audio/mpeg"
+        operation.completeJoin = operation.wasUnavailable && !operation.asset.demoLoop && operation.asset.mimeType === "audio/mpeg"
           && this.snapshot?.player?.currentTime > 0.25;
         if(operation.completeJoin && this.snapshot?.guard?.transitioning) {
           await this.bridge.request("GUARD_TRANSITION_END",{token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,resourceRevision:operation.resourceRevision});
@@ -208,23 +208,10 @@
       try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
-        // A VPN-delayed decoder can finish after the bounded native intro
-        // was released. Reuse the accepted complete-file alignment path;
-        // never seek a newly opened partial MSE stream into an audible join.
-        if (!operation.completeJoin && operation.asset.mimeType === "audio/mpeg"
-          && this.snapshot.player.currentTime > 0.25 && operation.player.mediaSource) {
-          operation.completeJoin = true;
-          operation.stage = "loading-complete-file";
-          operation.player.destroy();
-          operation.player = this.createPlayer((reason, detail) => { if (this.current(operation)) this.abort(reason, true, detail); });
-          if (operation.player.audio?.dataset) operation.player.audio.dataset.celikomTrackId = operation.trackId;
-          await operation.player.prepare(operation.asset, {completeMp3:true});
-          if (!this.current(operation)) return;
-          if (Math.abs(operation.player.audio.duration * 1000 - operation.asset.durationMs) > 1500) throw new Error("replacement_duration_mismatch");
-          operation.loadedAt = Date.now();
-          this.update(await this.bridge.getSnapshot());
-          if (!this.current(operation) || !this.eligible()) return;
-        }
+        // Retain the ordinary streaming decoder after a delayed intro. The
+        // accepted guard/sync path follows the fresh master clock; converting
+        // here would throw away verified bytes and download the MP3 again.
+        // Complete-file alignment stays limited to newly approved mid-song assets.
         if(operation.completeJoin && !operation.joinAligned) {
           operation.stage="aligning-complete-file";
           await operation.player.prepareCompleteJoin(this.snapshot, async()=>{

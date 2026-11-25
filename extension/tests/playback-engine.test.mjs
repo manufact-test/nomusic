@@ -313,7 +313,7 @@ test("track change during API resolve discards a late asset without muting the n
   assert.equal(f.players.length, 0); assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
 });
 
-async function remoteStreamFixture(statuses = [], onRetry = null) {
+async function remoteStreamFixture(statuses = [], onRetry = null, control = {}) {
   const media = new Media(); media.readyState = 0;
   let source; let revoked = false; let cancelledBodies = 0; const calls = []; const chunks = []; const fatals = [];
   class FakeSourceBuffer extends EventTarget {
@@ -373,13 +373,13 @@ async function remoteStreamFixture(statuses = [], onRetry = null) {
       return {
         status: 206,
         headers: new Headers({ "Content-Type": "audio/mpeg", "Content-Range": "bytes " + from + "-" + to + "/" + bytesTotal }),
-        arrayBuffer: async () => bytes.buffer
+        arrayBuffer: async () => { if(from===0)await control.beforeFirstBody?.();return bytes.buffer; }
       };
     }
   };
   const player = new ReplacementPlayer(env, (reason, detail) => fatals.push({ reason, detail }));
-  await player.prepare({ url: signed, demoLoop: false, durationMs: 180872 });
-  return { player, calls, chunks, fatals, source, get revoked() { return revoked; }, get cancelledBodies() { return cancelledBodies; } };
+  if(!control.skipPrepare)await player.prepare({ url: signed, demoLoop: false, durationMs: 180872 });
+  return { player, signed, calls, chunks, fatals, get source() { return source; }, get revoked() { return revoked; }, get cancelledBodies() { return cancelledBodies; } };
 }
 
 test("remote MP3 uses CSP-allowed MediaSource blob and bounded verified 206 byte ranges", async () => {
@@ -689,29 +689,42 @@ test('complete-file mode cannot alter accepted guarded intro preparation',async(
  assert.equal(complete,false);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');f.engine.destroy();
 });
 
-test('VPN-delayed positive resolve joins a complete MP3 at fresh time without guarding original during download',async()=>{
- const gate=deferred(),f=fixture({resolveAsset:()=>gate.promise}),create=f.engine.createPlayer;let complete,aligns=0;
- f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.prepare=async(asset,options)=>{complete=options.completeMp3;await prepare(asset)};p.prepareCompleteJoin=async(_s,refresh)=>{aligns++;p.audio.currentTime=(await refresh()).player.currentTime};return p;};
+test('delayed ordinary MP3 resolve preserves streaming preparation instead of waiting for an entire file',async()=>{
+ const gate=deferred(),f=fixture({resolveAsset:()=>gate.promise}),create=f.engine.createPlayer;const modes=[];
+ f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.mediaSource={};
+  p.prepare=async(asset,options)=>{modes.push(options.completeMp3);if(options.completeMp3)await new Promise(()=>{});await prepare(asset)};
+  p.prepareCompleteJoin=()=>{throw Error('ordinary streaming join must not request a complete file')};return p;};
  f.engine.configure(true,'');const start=snapshot();Object.assign(start.player,{paused:true,currentTime:.1});f.update(start);await settle();
  const late=snapshot();late.player.currentTime=3.7;f.update(late);gate.resolve({...remoteAsset(),mimeType:'audio/mpeg'});await settle();
- assert.equal(complete,true);assert.equal(aligns,1);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ assert.deepEqual(modes,[false]);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.players.length,1);
  assert.ok(Math.abs(f.players[0].audio.currentTime-3.7)<.1);assert.equal(f.requests.filter(r=>r.type==='GUARD_ENGAGE').length,1);
- assert.equal(f.engine.startupHistory.at(-1).joinMode,'complete-file');f.engine.destroy();
+ assert.equal(f.engine.startupHistory.at(-1).joinMode,'guarded-sync');f.engine.destroy();
 });
-test('decoder finishing after intro release is replaced once with a complete native join; stale partial stream never plays',async()=>{
+for(const lateTime of [2.4,17.7])test('decoder finishing after intro release at '+lateTime+'s keeps its stream without redownloading byte zero',async()=>{
  const gate=deferred(),f=fixture({resolveAsset:async()=>({...remoteAsset(),mimeType:'audio/mpeg'})}),create=f.engine.createPlayer;const modes=[];
- f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;const first=f.players.length===1;p.mediaSource=first?{}:null;
-  p.prepare=async(asset,options)=>{modes.push(options.completeMp3);if(first)await gate.promise;await prepare(asset)};
-  p.prepareCompleteJoin=async(_s,refresh)=>{p.audio.currentTime=(await refresh()).player.currentTime};return p;};
+ f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.mediaSource={};
+  p.prepare=async(asset,options)=>{modes.push(options.completeMp3);if(options.completeMp3)await new Promise(()=>{});await gate.promise;await prepare(asset)};return p;};
  f.engine.configure(true,'');const start=snapshot();Object.assign(start.player,{paused:true,currentTime:.1});f.update(start);await settle();
+ const first=f.engine.operation.player;const late=snapshot();late.player.currentTime=lateTime;f.update(late);gate.resolve();await settle();await settle();
+ assert.deepEqual(modes,[false]);assert.equal(f.players.length,1);assert.equal(f.players[0],first);assert.equal(first.destroyed,false);
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.ok(Math.abs(first.audio.currentTime-lateTime)<.1);f.engine.destroy();
+});
+test('actual controller and ReplacementPlayer retain verified 206 streaming bytes after a slow intro instead of re-fetching a complete MP3',async()=>{
+ const gate=deferred(),remote=await remoteStreamFixture([],null,{skipPrepare:true,beforeFirstBody:()=>gate.promise});
+ const f=fixture({resolveAsset:async()=>({...remoteAsset(),url:remote.signed,mimeType:'audio/mpeg'})});let players=0;
+ f.engine.createPlayer=fatal=>{players++;remote.player.onFatal=fatal;return remote.player;};f.engine.configure(true,'');
+ const start=snapshot();Object.assign(start.player,{paused:true,currentTime:.1});f.update(start);await settle();
  const late=snapshot();late.player.currentTime=2.4;f.update(late);gate.resolve();await settle();await settle();
- assert.deepEqual(modes,[false,true]);assert.equal(f.players.length,2);assert.equal(f.players[0].destroyed,true);
- assert.equal(f.players[0].audio.paused,true);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
- assert.ok(Math.abs(f.players[1].audio.currentTime-2.4)<.1);f.engine.destroy();
+ try{
+  assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(players,1);assert.equal(remote.player.destroyed,false);
+  assert.equal(remote.player.audio.paused,false);assert.ok(Math.abs(remote.player.audio.currentTime-2.4)<.1,JSON.stringify({time:remote.player.audio.currentTime,master:f.engine.snapshot.player,duration:remote.player.audio.duration,drift:f.engine.driftMs}));
+  assert.equal(remote.calls.filter(([from])=>from===0).length,1);assert.deepEqual(remote.calls[0],[0,65535]);
+  assert.equal(remote.fatals.length,0);assert.equal(f.engine.operation.player,remote.player);
+ }finally{f.engine.destroy();}
 });
 test('Stop during VPN late-file preparation cancels adoption and bounded restore history never exposes URLs',async()=>{
  const gate=deferred(),f=fixture({loadGate:gate,resolveAsset:async()=>({...remoteAsset(),mimeType:'audio/mpeg'})});
- f.engine.configure(true,'');f.update(snapshot());await settle();assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
+ f.engine.configure(true,'');f.engine.negativeResolution={trackId:'2',until:Date.now()-1};f.update(snapshot());await settle();assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
  f.engine.configure(false,'');gate.resolve();await settle();assert.equal(f.engine.activationCount,0);assert.equal(f.players[0].destroyed,true);
  assert.equal(f.engine.restoreHistory.length,1);assert.equal(f.engine.restoreHistory[0].phase,'PREPARING');
  assert.equal(JSON.stringify(f.engine.restoreHistory).includes('https:'),false);f.engine.destroy();
