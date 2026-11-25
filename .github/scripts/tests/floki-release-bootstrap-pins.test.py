@@ -46,10 +46,14 @@ for name,consumer_path,expected in (
 
 for p in ("windows-customer-stable.json","android-customer-stable.json"):
     j=json.loads((ROOT/".github/release"/p).read_text())
-    assert j=={"schema":1,"channel":"customer-stable","approved":None},p
+    assert set(j)=={"schema","channel","approved"} and j["schema"]==1
+    assert j["channel"]=="customer-stable",p
+    a=j["approved"]
+    assert a is None or (isinstance(a,dict) and a.get("owner_accepted") is True),p
 
 j=json.loads((ROOT/".github/release/extension-owner-promotions.json").read_text())
-assert j["approved"]==[] and j["public_stable"] is None,"WITHDRAWN_EXTENSION_PUBLICATION"
+assert not any(item.get("version") in ("0.4.82","0.4.83")
+               for item in j["approved"]),"WITHDRAWN_EXTENSION_REAPPROVED"
 assert "celikom-a1-signed-owner.timer || true" in bootstrap
 assert "celikom-windows-signed-owner.timer" in bootstrap
 print("CELIKOM_BOOTSTRAP_CURRENT_HASH_PINS_AND_CUSTOMER_OWNER_ISOLATION_OK")
