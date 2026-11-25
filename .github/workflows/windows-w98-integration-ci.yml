@@ -6,6 +6,17 @@ on:
       - main
     paths-ignore:
       - 'docs/**'
+      # Android A1 research and OTA delivery have dedicated workflows.
+      # Do not occupy Floki runners with Windows/extension builds for Android-only commits.
+      - 'android/**'
+      - '.github/workflows/android-*.yml'
+      - '.github/workflows/floki-android-*.yml'
+      - '.github/workflows/celikom-a1-*.yml'
+      - '.github/scripts/floki-android-*.py'
+      - '.github/scripts/floki-android-*.sh'
+      - '.github/scripts/tests/floki-android-*.py'
+      - '.github/release/android-*.json'
+      - '.github/ci/android-*'
       - '.github/ci/celikom-runner-smoke-trigger.txt'
       - '.github/ci/celikom-win-crossbuild-trigger.txt'
       - '.github/workflows/celikom-win-crossbuild-floki.yml'
