@@ -1,0 +1,37 @@
+name: CELIKOM dual runner data-only spool inventory
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/celikom-runner-spool-inventory.yml'
+permissions:
+  contents: read
+jobs:
+  two-independent-checks:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        slot: [one, two]
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 5
+    steps:
+      - name: Inspect only isolated data-only spool mounts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import os,stat
+          from pathlib import Path
+          print("RUNNER_IDENTITY",os.getenv("RUNNER_NAME","not-present"),"SLOT",os.getenv("RUNNER_OS","unknown"))
+          for name in ("celikom-build-spool","celikom-windows-signed-spool","celikom-a1-signed-spool"):
+              path=Path("/home/runner")/name
+              if not path.exists() or path.is_symlink():
+                  print("SPOOL_MISSING",name)
+                  continue
+              s=path.lstat()
+              safe=stat.S_ISDIR(s.st_mode) and s.st_uid==os.getuid() and stat.S_IMODE(s.st_mode)==0o700
+              print("SPOOL_DATA_ONLY",name,"safe" if safe else "UNSAFE", "dev",s.st_dev)
+          # No production mounts, secrets or CI runner credentials are printed.
+          PY
