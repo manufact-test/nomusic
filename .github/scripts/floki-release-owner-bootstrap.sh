@@ -155,9 +155,9 @@ else
 fi
 # Publish ONLY SHA-256 proofs (no private URLs or identities) so future ChatGPT
 # development chats can verify server publication without an operator SSH visit.
-fetch_exact 4d569e5cc13935a9b6e0ec9baaa4b95769e6c68a \
+fetch_exact f73066d89a760dc734deb25cdd53bdf5bf95ba6c \
   .github/scripts/floki-release-status-install.sh \
-  a22c4102a9cf1e4af8579381592d1d2ec52fe5e9 \
+  fd4f438704a9156f112038a33f139581566a3731 \
   "$INTAKE/floki-release-status-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-release-status.timer ]]; then
   bash "$INTAKE/floki-release-status-install.sh"
