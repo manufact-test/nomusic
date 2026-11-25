@@ -6,8 +6,8 @@ umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 [[ "$(id -u)" == 0 && $# == 0 ]] || { echo A1_ROOT_REQUIRED; exit 64; }
 MIRROR=/home/celikom-mirror/github-mirror.git
-SOURCE_COMMIT=aabb755632d6b4073c551be1c1dec8ed61101e7f
-CONSUMER_BLOB=547babe434317a6790d26a64891b1085c3f7aa21
+SOURCE_COMMIT=28a6d279c6c5cfe481ef776203a91391ed868839
+CONSUMER_BLOB=338221072cf4f65e03467e94fc753a1bf4c9eec6
 SPOOL=/srv/celikom/ci-runner/runner/celikom-a1-signed-spool
 IMPORT=/root/celikom-a1-signed-import
 DEST=/usr/local/lib/celikom-a1-signed-owner
@@ -54,6 +54,9 @@ UMask=0077
 ExecStart=/usr/bin/python3 /usr/local/lib/celikom-a1-signed-owner/consumer.py
 TimeoutStartSec=550
 NoNewPrivileges=yes
+# Permit only the root-owned verifier to drop to the fixed deploy identity.
+# The direct Python child drop does not use PAM or setuid helpers.
+AmbientCapabilities=CAP_SETUID CAP_SETGID
 PrivateTmp=yes
 ProtectSystem=full
 ProtectKernelTunables=yes
