@@ -70,22 +70,37 @@ jobs:
       - name: 'Wine package sources wine64=${{ steps.wineapt.outputs.package_candidate }} libwine=${{ steps.wineapt.outputs.wine_loader_candidate }} dpkg=${{ steps.wineapt.outputs.archive }} lists=${{ steps.wineapt.outputs.pkg_dir }}'
         shell: bash
         run: true
-      - name: Read-only Floki API and admin login form acceptance (no credentials)
+      - name: W178 classify live API, admin-login and bearer route HTTP statuses
+        id: livehttp
         shell: bash
         run: |
           set -euo pipefail
           tmp=$(mktemp -d)
           trap 'rm -rf -- "$tmp"' EXIT
-          url=https://api.celikom.com
-          code=$(curl --fail-with-body -sS --connect-timeout 5 --max-time 20 -o "$tmp/health" -w '%{http_code}' "$url/api/v1/health")
-          test "$code" = 200
-          code=$(curl --fail-with-body -sS --connect-timeout 5 --max-time 20 -o "$tmp/login" -w '%{http_code}' "$url/admin/login")
-          test "$code" = 200
-          grep -Eqi '<form' "$tmp/login"
-          grep -Eqi 'password' "$tmp/login"
-          code=$(curl -sS --connect-timeout 5 --max-time 20 -o "$tmp/me" -w '%{http_code}' "$url/api/v1/auth/me")
-          test "$code" = 401
-          echo CELIKOM_W178_LIVE_PUBLIC_ADMIN_FORM_AND_AUTH_ROUTE_OK
+          base=https://api.celikom.com
+          for name in health admin auth; do
+            case "$name" in
+              health) path=/api/v1/health ;;
+              admin) path=/admin/login ;;
+              auth) path=/api/v1/auth/me ;;
+            esac
+            code=$(curl -sS --connect-timeout 5 --max-time 20 -o "$tmp/$name" -w '%{http_code}' "$base$path" 2>/dev/null) || code=000
+            [[ "$code" =~ ^[0-9]{3}$ ]] || code=000
+            echo "${name}_status=$code" >> "$GITHUB_OUTPUT"
+          done
+          echo "admin_form=$(grep -Eqi '<form' "$tmp/admin" && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+          echo "admin_password_field=$(grep -Eqi 'password' "$tmp/admin" && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - name: 'W178 live API health=${{ steps.livehttp.outputs.health_status }} admin_login=${{ steps.livehttp.outputs.admin_status }} auth_me=${{ steps.livehttp.outputs.auth_status }} admin_form=${{ steps.livehttp.outputs.admin_form }} password=${{ steps.livehttp.outputs.admin_password_field }}'
+        shell: bash
+        run: true
+      - name: Require expected live admin form and API statuses before acceptance
+        shell: bash
+        run: |
+          test '${{ steps.livehttp.outputs.health_status }}' = 200
+          test '${{ steps.livehttp.outputs.admin_status }}' = 200
+          test '${{ steps.livehttp.outputs.auth_status }}' = 401
+          test '${{ steps.livehttp.outputs.admin_form }}' = yes
+          test '${{ steps.livehttp.outputs.admin_password_field }}' = yes
       - name: W178 current-track native source revalidation regression tests
         shell: bash
         working-directory: windows-companion/w23
