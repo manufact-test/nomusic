@@ -173,6 +173,20 @@ def atomic_immutable_copy(src, dest, expected_sha, size):
             os.unlink(temp)
 
 
+def atomically_point_accepted_installer(source, destination):
+    # A public stable URL exists only after owner acceptance. It is a hard link
+    # to an already-verified immutable installer, never a mutable CI artifact.
+    fd, tmp = tempfile.mkstemp(prefix=".windows-customer-current-", dir=destination.parent)
+    os.close(fd)
+    os.unlink(tmp)
+    try:
+        os.link(source, tmp)
+        os.replace(tmp, destination)
+    finally:
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+
+
 def replace_file(dest, data):
     fd, temp = tempfile.mkstemp(prefix=".latest-verified-", dir=dest.parent)
     try:
@@ -205,18 +219,21 @@ def verify_public(v, m, a):
     for suffix, content in payloads:
         with client.open("https://celikom.com" + suffix, timeout=40) as r:
             require(r.status == 200 and r.read(16385) == content, "PUBLIC_MANIFEST_MISMATCH")
-    with client.open("https://celikom.com/CELIKOM/Windows/Updates/stable/" +
-                     v + "/" + exe, timeout=180) as r:
-        require(r.status == 200, "EXE_NOT_200")
-        h = hashlib.sha256()
-        size = 0
-        while chunk := r.read(1024 * 1024):
-            size += len(chunk)
-            require(size <= 125_000_000, "EXE_OVERSIZE")
-            h.update(chunk)
-    require(size == a["size"] if "size" in a else
-            size == json.loads(m["manifest.json"])["packageSize"], "EXE_SIZE")
-    require(h.hexdigest() == a["sha256"], "EXE_HASH")
+    expected_size = json.loads(m["manifest.json"])["packageSize"]
+    for public_path in (
+        "/CELIKOM/Windows/Updates/stable/" + v + "/" + exe,
+        "/downloads/windows/CELIKOM-Windows-stable.exe",
+    ):
+        with client.open("https://celikom.com" + public_path, timeout=180) as r:
+            require(r.status == 200, "EXE_NOT_200")
+            h = hashlib.sha256()
+            size = 0
+            while chunk := r.read(1024 * 1024):
+                size += len(chunk)
+                require(size <= 125_000_000, "EXE_OVERSIZE")
+                h.update(chunk)
+        require(size == expected_size, "EXE_SIZE")
+        require(h.hexdigest() == a["sha256"], "EXE_HASH")
     print("CELIKOM_CUSTOMER_WINDOWS_HTTPS_200_FULL_SHA256", v, a["sha256"])
 
 
@@ -267,17 +284,27 @@ def publish(a):
                     "CURRENT_SIGNATURE_CONFLICT")
             verify_public(v, m, a)
             return
+    stable_link = CUSTOMER / "CELIKOM-Windows-stable.exe"
+    previous_stable = None
+    if current_m is not None:
+        old_version = json.loads(current_m)["version"]
+        previous_stable = versions / old_version / ("CELIKOM-Windows-" + old_version + ".exe")
+        require(previous_stable.is_file(), "PREVIOUS_ACCEPTED_INSTALLER_MISSING")
     replace_file(latest, m["manifest.json"])
     replace_file(latest_sig, m["manifest.json.sig"])
+    atomically_point_accepted_installer(version_dir / ("CELIKOM-Windows-" + v + ".exe"),
+                                       stable_link)
     try:
         verify_public(v, m, a)
     except BaseException:
         if current_m is not None:
             replace_file(latest, current_m)
             replace_file(latest_sig, current_s)
+            atomically_point_accepted_installer(previous_stable, stable_link)
         else:
             latest.unlink(missing_ok=True)
             latest_sig.unlink(missing_ok=True)
+            stable_link.unlink(missing_ok=True)
         raise
     print("CELIKOM_CUSTOMER_WINDOWS_SIGNED_RELEASE_APPROVED", v, a["sequence"])
 
