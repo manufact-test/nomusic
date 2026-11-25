@@ -47,6 +47,7 @@ on:
         required: false
         type: boolean
         default: false
+# BETA14 owner-phone export requires existing JVM, publisher-first ARM13, and persistent owner signer.
 permissions:
   contents: read
 jobs:
