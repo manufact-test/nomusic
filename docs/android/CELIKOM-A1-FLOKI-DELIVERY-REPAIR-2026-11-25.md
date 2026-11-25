@@ -47,3 +47,22 @@ The installer is intentionally fail-closed, does not change Nginx/API/Windows, u
 
 ## Previous failed approach not to repeat
 Do not assign \`FLOKI_DEPLOY_CONNECTION\` or SSH operations to \`celikom-ci-smoke-only\`. The isolated runner is explicitly denied host port 22 and the Docker gateway; those refusals are **expected security**, not a broken SSH key. Do not weaken isolation to fix delivery. The independent root promotion is the permanent solution.
+
+## Latest checkpoint — signed BETA16 already staged on Floki runner
+
+On 25 November, workflow run **45663779624** completed **success** on **celikom-floki-ci01**, label \`celikom-ci-smoke-only\`. Observed actual log:
+
+\`\`\`text
+Ran 6 tests in 0.147s
+OK
+A1_SOURCE_RUN_AND_BOTH_NATIVE_JVM_GATES_VERIFIED
+A1_PRIVATE_RELEASE_PROVENANCE_SIZE_AND_DIGEST_VERIFIED
+A1_APKSIGNER_AND_ORIGINAL_PACKAGE_VERIFIED
+A1_SIGNED_SPOOL_READY 45652314715 1 5faf46740dce159aee6a04bee3020aba046f1ae7c61bf9e53e649d4fc4bb3035 root-promotion-pending
+A1_APK_PRIVATELY_STAGED_AWAIT_INDEPENDENT_ROOT_PROMOTION
+\`\`\`
+
+**APK build and runner staging are complete. Stop rebuilding/retrying and do not switch runner just to stage the same file again.** Additional CI runner may serve other tasks, but it cannot (and must not) bypass the host isolation for root publication.
+
+**Only remaining delivery blocker:** the one-time trusted root bootstrap described above must be executed on the FlokiNET host. Then read its trusted receipt and independently verify HTTPS 200/size/SHA-256 before giving the owner a URL. Installing the root consumer on CI is prohibited. These commands do not require the owner to run ADB, Android IDE, or a second phone.
+
