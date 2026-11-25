@@ -102,3 +102,17 @@ Corrected trusted consumer `.github/scripts/floki-a1-root-signed-spool-consumer.
 The hardened root service keeps `NoNewPrivileges=yes` and adds *only* `AmbientCapabilities=CAP_SETUID CAP_SETGID` so the credential drop is permitted even where default root service capability set is insufficient. No other service, SSH, nginx, receiver ownership or CI runner privileges change. Fresh bootstrap pins were updated at commit `a279bd3877c4f942613b3cfe5e1e940b01939a2c`. One-time trusted recovery script at commit `1782d4dd696e9d73990be40eb4c8d920a89bfa9c`, Git blob `c4f33cecf49065f62a6aef5eb823e809babe91b0`, ensures expected installed consumer blob, pins new consumer blob, writes only A1 unit drop-in, reloads systemd, tests NNP stays enabled and verifies BETA16 root receipt before restarting timer. Timer stays stopped on any failure.
 
 Android A1 spool CI was retriggered by `e9eedf1144b228ca6e99876d92b652b898b3660d` to exercise upgraded offline tests. **Final live deployment and HTTPS acceptance not yet confirmed.** Next administrator step is the pinned root recovery; don't rebuild APK or restart entire bootstrap.
+
+## Owner acceptance — BETA16 published on FlokiNET (25 November)
+
+Owner executed trusted UID-drop repair at source commit `1782d4dd696e9d73990be40eb4c8d920a89bfa9c` (pinned repair blob `c4f33cecf49065f62a6aef5eb823e809babe91b0`). The root script emitted:
+
+```text
+A1_ROOT_BETA16_RECEIPT
+{"attempt":1,"https_verified":true,"name":"CELIKOM-A1-RAMIL-AU-BETA16-HONOR50-20261125.apk","run":45652314715,"sha256":"5faf46740dce159aee6a04bee3020aba046f1ae7c61bf9e53e649d4fc4bb3035","size":71585772,"url":"https://celikom.com/downloads/a1/b8dc1997548a9f98a5989927e8ea15735fb23cea210bc6cf/CELIKOM-A1-RAMIL-AU-BETA16-HONOR50-20261125.apk"}
+A1_ROOT_BETA16_PUBLICATION_AND_TIMER_READY
+```
+
+**Delivered:** BETA16 is published from FlokiNET, with root verification of APK signer/package, size, digest, and HTTPS GET; independent root receipt is recorded and Android publisher timer reactivated. GitHub is no longer the APK download endpoint. The link is a private **owner capability URL**; do not advertise as public stable feed.
+
+**Not yet accepted:** owner installation/listening on Honor 50, actual audible Ramil «Ау» substitution and corresponding diagnostics, and a future fresh Android build traversing this route automatically. Keep those acceptance stages separate; success of publication does not prove replacement acoustics or customer auto-update.
