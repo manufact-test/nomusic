@@ -3,6 +3,9 @@
 # Existing Hostinger old-client bridge and A1 service are never modified.
 set -Eeuo pipefail
 umask 077
+# The parent bootstrap prints its own line only; failed nested preflights must
+# also report their exact line without disclosing file contents or credentials.
+trap 'rc=$?; echo "ANDROID_CUSTOMER_STABLE_INSTALL_FAILED line=$LINENO exit=$rc" >&2' ERR
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
 COMMIT=c68e3b4b32400ae4f42b5d4c8ad39164d71d30d7
@@ -98,8 +101,36 @@ if [[ -e /srv/celikom-releases/public ]]; then
 else
   install -d -o root -g root -m 0755 /srv/celikom-releases/public
 fi
-[[ ! -e "$PUBLIC" ]]
-install -d -o root -g root -m 0755 "$PUBLIC"
+# This directory may already exist from an earlier rejected/partial
+# migration. Refuse links and non-root files, but do not fail solely because
+# an otherwise clean root-owned public/Android directory already exists.
+if [[ -e "$PUBLIC" || -L "$PUBLIC" ]]; then
+  [[ -d "$PUBLIC" && ! -L "$PUBLIC" &&
+     "$(stat -c '%u:%a' "$PUBLIC")" == 0:755 ]] || {
+    echo ANDROID_CUSTOMER_PUBLIC_DIRECTORY_UNSAFE >&2
+    exit 1
+  }
+  python3 - "$PUBLIC" <<'PY'
+from pathlib import Path
+import os,stat,sys
+folder=Path(sys.argv[1])
+for entry in folder.iterdir():
+    st=entry.lstat()
+    assert entry.name==".publish.lock" and stat.S_ISREG(st.st_mode) and \
+        st.st_uid==0 and not st.st_mode&0o077, "ANDROID_CUSTOMER_PUBLIC_UNEXPECTED_CONTENT"
+print("ANDROID_CUSTOMER_EXISTING_EMPTY_PUBLIC_DIRECTORY_ACCEPTED")
+PY
+else
+  install -d -o root -g root -m 0755 "$PUBLIC"
+fi
+# Nginx must be able to traverse the public subtree. Never alter owner-only
+# signed APK directories, private spools, or live website permissions.
+for dir in /srv/celikom-releases /srv/celikom-releases/public "$PUBLIC"; do
+  if ! runuser -u www-data -- test -x "$dir"; then
+    echo "ANDROID_CUSTOMER_NGINX_PARENT_NOT_TRAVERSABLE $dir" >&2
+    exit 1
+  fi
+done
 install -o root -g root -m 0644 "$tmp/consumer.py" "$DEST"
 
 cat > "$SERVICE" <<'UNIT'
