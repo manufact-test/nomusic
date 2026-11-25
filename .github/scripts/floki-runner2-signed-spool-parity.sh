@@ -54,20 +54,16 @@ import os,sys
 source,target=sys.argv[1:3]
 s=open(source).read()
 base="/srv/celikom/ci-runner/runner/"
-marker=base+"celikom-build-spool:/home/runner/celikom-build-spool"
+# Runner2 was provisioned using Docker --mount type=bind syntax.
+# Never substitute into a partial path or an unknown mount option.
+marker="--mount type=bind,src="+base+"celikom-build-spool,dst=/home/runner/celikom-build-spool"
 assert s.count(marker)==1,"RUNNER2_UNIT_UNKNOWN_SHARED_BIND"
 assert "celikom-floki-ci02" in s and "ExecStart=" in s and "docker" in s,"RUNNER2_UNIT_UNKNOWN_EXEC"
 assert "celikom-windows-signed-spool" not in s and "celikom-a1-signed-spool" not in s,"RUNNER2_UNIT_PARTIAL_CUSTOM_BIND"
-pos=s.index(marker)
-segment=s[max(0,pos-110):pos]
-if "-v " in segment or "--volume " in segment:
-    additions=" -v "+base+"celikom-windows-signed-spool:/home/runner/celikom-windows-signed-spool"
-    additions+=" -v "+base+"celikom-a1-signed-spool:/home/runner/celikom-a1-signed-spool"
-elif "--mount " in segment and "type=bind" in segment:
-    additions=" --mount type=bind,src="+base+"celikom-windows-signed-spool,dst=/home/runner/celikom-windows-signed-spool"
-    additions+=" --mount type=bind,src="+base+"celikom-a1-signed-spool,dst=/home/runner/celikom-a1-signed-spool"
-else:
-    raise ValueError("RUNNER2_UNIT_MOUNT_STYLE_UNKNOWN")
+pos=s.index(marker)+len(marker)
+assert pos==len(s) or s[pos].isspace() or s[pos]=="\\", "RUNNER2_UNIT_SHARED_MOUNT_OPTIONS_UNKNOWN"
+additions=" --mount type=bind,src="+base+"celikom-windows-signed-spool,dst=/home/runner/celikom-windows-signed-spool"
+additions+=" --mount type=bind,src="+base+"celikom-a1-signed-spool,dst=/home/runner/celikom-a1-signed-spool"
 s=s.replace(marker,marker+additions)
 with open(target,"w") as f:
     f.write(s);f.flush();os.fsync(f.fileno())
