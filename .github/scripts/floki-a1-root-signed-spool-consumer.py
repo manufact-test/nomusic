@@ -16,6 +16,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -145,7 +146,20 @@ def hand_to_existing_receiver(apk, meta, tempdir):
         result = subprocess.run(["/usr/sbin/runuser", "-u", "celikom-deploy",
                                  "--", str(RECEIVER)],
                                 stdin=input_stream, capture_output=True,
-                                text=True, timeout=320, check=True)
+                                text=True, timeout=320, check=False)
+    if result.returncode != 0:
+        # This is the root journal (not a public release log). Expose only a
+        # bounded diagnostic, never the stdout capability URL, raw metadata,
+        # download tokens or 64-character SHA values.
+        detail = result.stderr.strip()[-1800:]
+        detail = re.sub(r"https://celikom\\.com/downloads/a1/\\S+",
+                        "[REDACTED_CAPABILITY_URL]", detail)
+        detail = re.sub(r"[0-9a-fA-F]{32,}", "[REDACTED]", detail)
+        detail = re.sub(r"/srv/celikom-a1-downloads/files/\\S+",
+                        "[REDACTED_DEPLOY_FILE]", detail)
+        print("A1_ROOT_RECEIVER_EXIT", result.returncode, file=sys.stderr)
+        print("A1_ROOT_RECEIVER_STDERR", detail or "[empty]", file=sys.stderr)
+        check(False, "RECEIVER_PROCESS_FAILED")
     output = result.stdout.splitlines()
     check(len(output) == 2 and output[0].startswith("A1_DOWNLOAD_URL=")
           and output[1] == "A1_RECEIVED_SHA256=" + meta["sha256"],
