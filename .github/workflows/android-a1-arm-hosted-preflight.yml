@@ -69,6 +69,17 @@ jobs:
                   }
                   found=[key for key,terms in reasons.items() if any(term in summary for term in terms)]
                   print("A1_HOSTED_DISPATCH_"+name, "status",data.get("status"),"conclusion",data.get("conclusion"),"reason",",".join(found) or "UNKNOWN","output_present",bool(summary))
+                  for key in ("title","summary"):
+                      value=output.get(key) or ""
+                      clean=" ".join(value.split())
+                      print("A1_HOSTED_DISPATCH_"+name+"_OUTPUT_"+key.upper(),repr(clean[:400]))
               except urllib.error.HTTPError as error:
                   print("A1_HOSTED_DISPATCH_"+name,"API_UNAVAILABLE",error.code)
           PY
+      - name: Local CI capability fingerprint (no paths or secrets)
+        shell: bash
+        run: |
+          for tool in java javac gradle sdkmanager docker sudo gh; do
+            if command -v "$tool" >/dev/null 2>&1; then echo "A1_TOOL_${tool}=YES"; else echo "A1_TOOL_${tool}=NO"; fi
+          done
+          uname -m
