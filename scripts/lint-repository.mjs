@@ -14,6 +14,14 @@ const immutableNoFinalNewline = new Map([
   ["website/app/Templates/site-v10.html", "ece0795ff0a007fd41f361af1838837b7efd2d71"],
   ["website/reference/v10/CELIKOM_SITE_CLEAN_v10_sanitized.html", "609a03b919454d93da1a2c23a302648b55184845"]
 ]);
+// Exact reviewed Git blobs contain only OpenSSH format delimiters and
+// synthetic parser test data, never a credential. Exempt ONLY the PEM
+// delimiter detector for these immutable bytes; all other secret checks
+// still apply, and any source edit requires a new explicit review.
+const publicPemFormatFixtures = new Map([
+  [".github/scripts/floki-windows-intake-parse-connection.py", "125bbbd36ec3b635b23a2182549c9fe12f0c6471"],
+  [".github/scripts/tests/floki-windows-intake-parse-connection.test.py", "30c1b3511d0cf191b7e3913f0bf6491493ed9ee4"]
+]);
 const secretPatterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\bghp_[A-Za-z0-9]{30,}\b/,
@@ -57,7 +65,15 @@ for (const file of files) {
   }
   if (source.includes("\0")) failures.push(`${relative} contains a NUL byte`);
   for (const pattern of secretPatterns) {
-    if (pattern.test(source)) failures.push(`${relative} matches a forbidden credential pattern`);
+    if (!pattern.test(source)) continue;
+    if (pattern === secretPatterns[0]) {
+      const exactGitBlob = createHash("sha1")
+        .update(`blob ${Buffer.byteLength(source, "utf8")}\0`)
+        .update(source, "utf8")
+        .digest("hex");
+      if (publicPemFormatFixtures.get(relative.split(path.sep).join("/")) === exactGitBlob) continue;
+    }
+    failures.push(`${relative} matches a forbidden credential pattern`);
   }
   if (file.endsWith(".json")) {
     try {
