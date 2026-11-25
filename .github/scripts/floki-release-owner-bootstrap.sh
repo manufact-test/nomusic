@@ -24,8 +24,7 @@ esac
 [[ -d /srv/celikom/ci-runner/runner/celikom-build-spool ]]
 [[ -d /srv/celikom-releases/owner-downloads ]]
 if [[ -e /etc/systemd/system/celikom-extension-owner.timer ]]; then
-  [[ -f /etc/systemd/system/celikom-extension-owner.service &&
-     -f /srv/celikom-releases/private/extension/current-owner.json ]]
+  [[ -f /etc/systemd/system/celikom-extension-owner.service ]]
 else
   [[ ! -e /etc/systemd/system/celikom-extension-owner.service ]]
 fi
@@ -78,9 +77,9 @@ else
 fi
 
 # Independent extension publisher; no new version-specific Nginx change later.
-fetch_exact 0ab4f261dcc744d150262339a8b2fede34f8c68b \
+fetch_exact c78fa1a638d43a12e259e35789700957a58b7b45 \
   .github/scripts/floki-extension-owner-install.sh \
-  59f79307212195715695c52d2fc1a2eed3522b15 \
+  e0f7cd875648e305f00e95b80e52d3cfbe1dd55d \
   "$INTAKE/floki-extension-owner-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-extension-owner.timer ]]; then
   bash "$INTAKE/floki-extension-owner-install.sh"
@@ -92,7 +91,13 @@ fi
 
 [[ "$(readlink /srv/celikom-releases/windows/stable/current)" == versions/0.24.56 ]]
 [[ -f /srv/celikom-releases/owner-downloads/CELIKOM-Windows-latest.exe ]]
-[[ -f /srv/celikom-releases/owner-downloads/celikom-extension-latest.zip ]]
+# No new extension latest is expected until its owner-approved candidate
+# exists; the previously accepted 0.4.80 download stays untouched.
+if [[ -f /srv/celikom-releases/private/extension/current-owner.json ]]; then
+  [[ -f /srv/celikom-releases/owner-downloads/celikom-extension-latest.zip ]]
+else
+  echo CELIKOM_EXTENSION_RECURRING_PUBLISHER_READY_NO_CURRENT_CANDIDATE
+fi
 systemctl is-active celikom-windows-signed-owner.timer
 systemctl is-active celikom-extension-owner.timer
 # Runner2 must see the same DATA-ONLY signed spools; never grant host SSH.
