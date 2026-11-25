@@ -60,6 +60,20 @@ jobs:
             echo PHP_ENTRYPOINT_INVENTORY
             find "$root" -maxdepth 3 -type f -name '*.php' -printf 'PHP_PUBLIC %P\n' | LC_ALL=C sort | head -n 120
             echo PHP_PUBLIC_COUNT $(find "$root" -maxdepth 3 -type f -name '*.php' | wc -l)
+            echo PINNED_PHP_ENTRYPOINT_METADATA
+            while IFS= read -r rel; do
+              f="$root/$rel"
+              test -f "$f" && test ! -L "$f"
+              printf 'PHP_INPUT %s ' "$rel"
+              sha256sum "$f" | awk '{print $1}'
+              PHP_ENTRYPOINT="$f" php -r '
+                $s=file_get_contents(getenv("PHP_ENTRYPOINT"));
+                echo "PHP_SHAPE bytes=",strlen($s)," php_start=",str_starts_with($s,"<?php")?1:0,
+                     " strict=",preg_match("~^<\\?php\\s*declare\\s*\\(\\s*strict_types\\s*=\\s*1\\s*\\)\\s*;~",$s)?1:0,
+                     " namespace=",preg_match("~^<\\?php.{0,500}\\bnamespace\\s+~s",$s)?1:0,
+                     " opens=",substr_count($s,"<?php"),PHP_EOL;
+              '
+            done < <(find "$root" -maxdepth 3 -type f -name '*.php' -printf '%P\n' | LC_ALL=C sort)
             echo DIRECT_PHP_AUTH_WRITERS
             for f in "$root/admin/index.php" "$root/api/index.php" "$root/index.php"; do
               if test -f "$f" && test ! -L "$f"; then sha256sum "$f"; fi
