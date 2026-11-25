@@ -223,9 +223,9 @@ fi
 
 # Prepare stable Android public OTA routes. Public manifest remains ABSENT until
 # owner acceptance; legacy installed app still uses Hostinger during the bridge.
-fetch_exact 351e855cf43b642450c888ff5679030c6d8ce54a \
+fetch_exact ac5fe52bad38980dec83f3c9d09ea4dcf4099e0e \
   .github/scripts/floki-android-customer-stable-install.sh \
-  16d4d3d411e6395e2c42de82ed071dd78ec3a044 \
+  4680ed1fb55e5b34b2a947af60874562218587d8 \
   "$INTAKE/floki-android-customer-stable-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-android-customer-stable.timer ]]; then
   bash "$INTAKE/floki-android-customer-stable-install.sh"
@@ -260,9 +260,9 @@ else
 fi
 # Publish ONLY SHA-256 proofs (no private URLs or identities) so future ChatGPT
 # development chats can verify server publication without an operator SSH visit.
-fetch_exact f73066d89a760dc734deb25cdd53bdf5bf95ba6c \
+fetch_exact 0300994c183d80286830146f3361464a152d5ab1 \
   .github/scripts/floki-release-status-install.sh \
-  fd4f438704a9156f112038a33f139581566a3731 \
+  bf709c0790a04e1af1672f6bc8c31355619febd2 \
   "$INTAKE/floki-release-status-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-release-status.timer ]]; then
   bash "$INTAKE/floki-release-status-install.sh"
