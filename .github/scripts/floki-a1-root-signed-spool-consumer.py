@@ -222,7 +222,12 @@ def main():
               "UNTRUSTED_SIGNING_VERIFIER_PATH")
         for component in (path, resolved, *path.parents, *resolved.parents):
             st = component.lstat()
-            check(st.st_uid == 0 and not (st.st_mode & 0o022),
+            # POSIX symlinks conventionally report 0777; their mode bits
+            # do not confer write access. Require root ownership of the
+            # link itself and non-writable permissions on real directories
+            # and executable files (including the resolved final target).
+            check(st.st_uid == 0 and
+                  (stat.S_ISLNK(st.st_mode) or not (st.st_mode & 0o022)),
                   "UNTRUSTED_SIGNING_VERIFIER_PATH")
     spool_fd = os.open(SPOOL, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
