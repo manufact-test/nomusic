@@ -10,6 +10,7 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
 import tempfile
 
 REPO = "manufact-test/nomusic"
@@ -101,7 +102,7 @@ def prepare(version, sequence, commit, output):
                  and "sha256:" + sha(target) == a["digest"], "DRAFT_ASSET_BYTES_MISMATCH")
         pin = root / "manifest-public-key.der"
         need(sha(pin) == PIN_SHA256, "PIN_BYTES_MISMATCH")
-        subprocess.run(["python3", str(HERE / "windows-stable-private-import.py"), "pack",
+        subprocess.run([sys.executable, str(HERE / "windows-stable-private-import.py"), "pack",
                         "--source", str(root), "--output", str(output), "--pin", str(pin),
                         "--version", version, "--sequence", str(sequence)], check=True, timeout=120)
     print("CELIKOM_WINDOWS_PRIVATE_DRAFT_SOURCE_OK", version, sequence, sha(output))
