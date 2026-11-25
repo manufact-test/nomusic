@@ -1,0 +1,76 @@
+name: CELIKOM signed legacy Android owner Floki data-only stage
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release/android-stable-owner-request.json'
+      - '.github/workflows/android-stable-owner-floki-spool.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-legacy-android-stable-stage
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 18
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'build-tools;36.0.0'
+
+      - name: Static verifier checks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile .github/scripts/floki-android-stable-draft-source.py
+          python3 -m py_compile .github/scripts/floki-android-stable-signed-spool.py
+          python3 -m py_compile .github/scripts/floki-android-stable-root-consumer.py
+          echo ANDROID_STABLE_DATA_ONLY_SOURCE_SAFETY_OK
+
+      - name: Verify private draft and exact signed original legacy APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          out="$RUNNER_TEMP/celikom-legacy-android-owner-stage"
+          python3 .github/scripts/floki-android-stable-draft-source.py \
+            --request .github/release/android-stable-owner-request.json \
+            --output "$out"
+          unset GH_TOKEN
+          apk=$(find "$out" -maxdepth 1 -type f -name 'CELIKOM-Android-*.apk' -print -quit)
+          test -n "$apk"
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}/build-tools/36.0.0"
+          "$sdk/apksigner" verify --verbose --print-certs "$apk" > "$out/signer.txt"
+          grep -Fqx 'Signer #1 certificate SHA-256 digest: 67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f' "$out/signer.txt"
+          test "$(grep -Ec '^Signer #[0-9]+ certificate SHA-256 digest:' "$out/signer.txt")" = 1
+          grep -Eq 'Verified using v[23] scheme .*: true' "$out/signer.txt"
+          "$sdk/aapt" dump badging "$apk" | grep -F "package: name='pro.celikom.nativeprobe' versionCode='95' versionName='0.3.94'" >/dev/null
+          python3 .github/scripts/floki-android-stable-signed-spool.py \
+            --apk "$apk" --manifest "$out/stable-floki-candidate.json" \
+            --proof "$out/proof.json"
+          echo ANDROID_STABLE_OWNER_SIGNED_DATA_STAGED_AWAIT_TRUSTED_ROOT_PROMOTION
+
+      - name: Remove transient private draft copies
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/celikom-legacy-android-owner-stage"
