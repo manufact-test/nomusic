@@ -11,15 +11,15 @@ import {createUploadJournal} from '../dist/unpacked/upload/upload-journal.js';
 import {readFile} from 'node:fs/promises';
 const source=(await readFile(new URL('../dist/unpacked/background/service-worker.js',import.meta.url),'utf8')).replace(/^import .*$/gm,'');
 function fixture() {
- const networkListeners=new Map();
+ const networkListeners=new Map(),timers=new Map();let timerId=0;
  let handler,allowed=true,trialStarted=0,localSession=true,controller={track:{id:"144530503"},player:{mediaId:"1"},phase:"READY",bridge:{healthy:true}},connectionError=null;
  const local={enabled:false},sent=[],icons=[];
  const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
  const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={withDiagnosticsAccess:async()=>{throw Error('access_denied')},installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
- vm.runInNewContext(source,{addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,publicPlaybackState,redactDiagnostics,startAccessError,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createUploadBroker,createUploadJournal,createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
+ vm.runInNewContext(source,{setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,at:Date.now()+ms});return id},clearTimeout:id=>timers.delete(id),addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,publicPlaybackState,redactDiagnostics,startAccessError,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createUploadBroker,createUploadJournal,createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
  const send=(type,more={},sender={id:'worker',url:'chrome-extension://worker/popup/popup.html'})=>new Promise(resolve=>handler({type,...more},sender,resolve));
- return {setController:(value,error=null)=>{controller=value;connectionError=error},send,local,sent,icons,auth,network:(name)=>networkListeners.get(name)?.(),setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
+ return {timers,runTimers:()=>{for(const [id,t] of [...timers])if(t.at<=Date.now()){timers.delete(id);t.fn()}},setController:(value,error=null)=>{controller=value;connectionError=error},send,local,sent,icons,auth,network:(name)=>networkListeners.get(name)?.(),setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
 }
 test('Stage10 verified Start activates trial before enabling the existing controller',async()=>{
  const f=fixture();const state=await f.send('CELIKOM_ENABLED_SET',{enabled:true});
@@ -264,5 +264,56 @@ test('Start preserves actionable public failures and never enables playback on a
   const f=fixture();f.auth.entitlement=async()=>{throw Error(error);};
   const result=await f.send('CELIKOM_ENABLED_SET',{enabled:true});
   assert.equal(result.accessError,expected);assert.equal(f.local.enabled,false);assert.equal(f.sent.length,0);
+ }
+});
+
+const vpnSender={id:'worker',url:'https://music.yandex.ru/',tab:{id:1}};
+const flush=async()=>{await new Promise(setImmediate);await new Promise(setImmediate)};
+test('VPN hint does not interrupt a current grant; a delayed successful check renews it without unavailable state',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});const f=fixture();f.local.enabled=true;
+ await f.send('CELIKOM_CONTEXT_PING',{enabled:true,healthy:true},vpnSender);await flush();f.sent.length=0;
+ t.mock.timers.tick(2000);let finish,calls=0;f.auth.entitlement=()=>{calls++;return new Promise(r=>finish=r)};
+ f.network('online');await flush();assert.equal(calls,1,'network hint still forces a real server check');
+ assert.equal(f.sent.some(m=>m.state==='unavailable'),false);
+ t.mock.timers.tick(3000);finish({allowed:true,source:'promo',valid_until:null});await flush();
+ assert.equal(f.sent.at(-1).state,'allowed');assert.equal(f.sent.some(m=>m.state==='unavailable'),false);
+ assert.equal(f.timers.size,0);assert.equal(f.local.enabled,true);
+});
+test('a hanging VPN recheck is suspended at the original grant deadline, not ten seconds after each hint',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});const f=fixture();f.local.enabled=true;
+ await f.send('CELIKOM_CONTEXT_PING',{},vpnSender);await flush();
+ f.auth.entitlement=()=>new Promise(()=>{});
+ t.mock.timers.tick(6000);f.network('offline');await flush();
+ t.mock.timers.tick(3000);f.network('online');await flush();assert.equal(f.sent.at(-1).state,'allowed');
+ t.mock.timers.tick(1001);f.runTimers();await flush();assert.equal(f.sent.at(-1).state,'unavailable');
+ assert.equal(f.local.enabled,true);assert.equal(f.trials,0);
+});
+test('transient VPN failure retains only the existing grant; retry failure never extends authority',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});const f=fixture();f.local.enabled=true;
+ await f.send('CELIKOM_CONTEXT_PING',{},vpnSender);await flush();f.sent.length=0;
+ f.auth.entitlement=async()=>{throw Error('auth_timeout')};t.mock.timers.tick(5000);f.network('online');await flush();
+ assert.equal(f.sent.some(m=>m.state==='unavailable'),false);assert.equal(f.sent.some(m=>m.recovered===true),false);
+ t.mock.timers.tick(5001);f.runTimers();await flush();assert.equal(f.sent.at(-1).state,'unavailable');
+ await f.send('CELIKOM_CONTEXT_PING',{},vpnSender);await flush();assert.equal(f.sent.at(-1).state,'unavailable');
+});
+test('expired subscription and definite revocation bypass remaining VPN lease immediately',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});
+ for(const result of [{allowed:false,reason:'trial_inactive'},new Error('invalid_session')]){
+  const f=fixture();f.local.enabled=true;await f.send('CELIKOM_CONTEXT_PING',{},vpnSender);await flush();
+  f.auth.entitlement=async()=>{if(result instanceof Error)throw result;return result};f.network('online');await flush();
+  assert.equal(f.local.enabled,false);assert.equal(f.timers.size,0);
+ }
+});
+test('a short server grant and Stop/logout during VPN validation cannot be extended or resurrected',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});
+ const short=fixture();short.local.enabled=true;short.auth.entitlement=async()=>({allowed:true,valid_until:new Date(Date.now()+1000).toISOString()});
+ await short.send('CELIKOM_CONTEXT_PING',{},vpnSender);await flush();short.auth.entitlement=()=>new Promise(()=>{});short.network('online');await flush();
+ t.mock.timers.tick(1001);short.runTimers();await flush();assert.equal(short.sent.at(-1).state,'unavailable');
+ for(const action of ['stop','logout']){
+  const f=fixture();f.local.enabled=true;await f.send('CELIKOM_CONTEXT_PING',{},vpnSender);await flush();
+  let finish;f.auth.entitlement=()=>new Promise(r=>finish=r);f.network('online');await flush();
+  if(action==='stop')await f.send('CELIKOM_ENABLED_SET',{enabled:false});else await f.send('CELIKOM_AUTH',{action:'logout'});
+  const count=f.sent.length;t.mock.timers.tick(12000);f.runTimers();finish({allowed:true,source:'promo',valid_until:null});await flush();
+  assert.equal(f.local.enabled,false);assert.equal(f.sent.length,count);
  }
 });

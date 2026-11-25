@@ -11,6 +11,9 @@ const flush=async()=>{for(let i=0;i<60;i++)await Promise.resolve();};
 
 // Transport and media decoding are controlled independently. The production
 // controller/player run unchanged; no production endpoint or account is used.
+// Keep the native intro PAUSED to isolate MSE transport/decoder deadlines.
+// A progressing native clock now selects complete-file adoption; that race is
+// covered separately in playback-engine and complete-file-join tests.
 function fixture(t, firstHeadersDelay, {bodyDelay=0, decode=false, status=206}={}) {
   t.mock.timers.enable({apis:['Date','setTimeout'],now:1000000});
   let requests=0, aborted=0, source, current;
@@ -51,7 +54,7 @@ function fixture(t, firstHeadersDelay, {bodyDelay=0, decode=false, status=206}={
   const engine=new ReplacementController(bridge,environment,{resolveAsset:async()=>asset,createPlayer:fatal=>{
     const p=new ReplacementPlayer(environment,(...args)=>{fatals.push(args);fatal(...args);});players.push(p);return p;
   }});
-  function update(){current={observedAt:Date.now(),track:{id:'144530503',confidence:240,ambiguous:false,metadata:{durationMs:200000}},player:{mediaId:'media-2',paused:false,ended:false,seeking:false,readyState:4,currentTime:(Date.now()-1000000)/1000+7,duration:200,volume:1,muted:false,playbackRate:1}};engine.update(current);}
+  function update(){current={observedAt:Date.now(),track:{id:'144530503',confidence:240,ambiguous:false,metadata:{durationMs:200000}},player:{mediaId:'media-2',paused:true,ended:false,seeking:false,readyState:4,currentTime:.1,duration:200,volume:1,muted:false,playbackRate:1}};engine.update(current);}
   engine.configure(true,'');update();
   t.after(()=>engine.destroy());
   return {engine,players,fatals,bridgeRequests,update,get requests(){return requests;},get aborted(){return aborted;},async advance(ms){t.mock.timers.tick(ms);update();await flush();}};
@@ -62,7 +65,7 @@ test('eleven-second first headers activate on the first attempt without a toggle
   await f.advance(10000);
   assert.equal(f.engine.phase,'PREPARING');assert.equal(f.engine.lastError,null);
   assert.equal(f.aborted,0);assert.equal(f.requests,1);
-  assert.equal(f.bridgeRequests.includes('GUARD_ENGAGE'),false,'initial original keeps playing while downloading');
+  assert.equal(f.bridgeRequests.includes('GUARD_ENGAGE'),false,'transport alone cannot engage a native guard before decoder readiness');
   await f.advance(1000);
   assert.equal(f.engine.activationCount,1);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
   assert.equal(f.requests,1);assert.equal(f.engine.restoreCount,0);

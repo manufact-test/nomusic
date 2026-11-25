@@ -114,57 +114,50 @@ function createGainChain(context, audio, db) {
         const requestSize = offset === 0 ? 64 * 1024 : chunkSize;
         const lastRequested = total === null
           ? offset + requestSize - 1 : Math.min(total - 1, offset + requestSize - 1);
-        let response;
-        Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
-        let attempt = 0;
-        // Hosting may reject short bursts. Retry only temporary HTTP failures,
-        // with the same signed URL/range; never bypass revoked/expired access.
+        let bytes, last, attempt = 0;
+        // Retry only the SAME unappended range. A VPN can reset headers or a
+        // partially read body while minutes of valid audio remain buffered.
+        // The outer 15s deadline covers all retries; never retry decoder writes.
         for (;;) {
+          Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now(),attempt:attempt+1});
           try {
-            response = await this.environment.fetch(asset.url, {
-              method: "GET",
-              headers: { Range: "bytes=" + offset + "-" + lastRequested },
-              credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
+            const response = await this.environment.fetch(asset.url, {
+              method:"GET",headers:{Range:"bytes="+offset+"-"+lastRequested},
+              credentials:"omit",cache:"no-store",redirect:"error",signal:abort.signal
             });
-          } catch (_error) { throw new Error(this.streamState.phase==="timeout"?"remote-stream-timeout":"remote-stream-network"); }
-          this.streamState.httpStatus=response.status;
-          if (response.status === 206) break;
-          const retry = [429, 502, 503, 504].includes(response.status) && attempt < 2;
-          // Discard the error body without buffering or exposing server text.
-          try { await response.body?.cancel(); } catch (_error) { /* status remains authoritative */ }
-          if (!retry) {
-            const edgeBlock = [401,403,429].includes(response.status) && response.headers?.get?.("content-type")?.includes("text/html");
-            const error = new Error(edgeBlock ? "remote-stream-route-blocked" : "remote-stream-http");
-            error.streamDetail = { httpStatus: response.status, offset, attempts: attempt + 1 };
-            throw error;
+            this.streamState.httpStatus = response.status;
+            if (response.status !== 206) {
+              try { await response.body?.cancel(); } catch (_) { /* status wins */ }
+              const edgeBlock=[401,403,429].includes(response.status)&&response.headers?.get?.("content-type")?.includes("text/html");
+              const error=new Error(edgeBlock?"remote-stream-route-blocked":"remote-stream-http");
+              error.streamDetail={httpStatus:response.status,offset,attempts:attempt+1};throw error;
+            }
+            if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("audio/mpeg")) throw new Error("remote-stream-format");
+            const match=/^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
+            if (!match) throw new Error("remote-stream-range");
+            const from=Number(match[1]), length=Number(match[3]);last=Number(match[2]);
+            if (!Number.isSafeInteger(length)||length<1||length>maxSize||from!==offset||last<from||last>lastRequested
+              ||(total!==null&&length!==total)) throw new Error("remote-stream-range");
+            total=length;this.streamState.phase="body";
+            bytes=await response.arrayBuffer();
+            if(bytes.byteLength!==last-from+1||bytes.byteLength>requestSize)throw new Error("remote-stream-range");
+            break;
+          } catch (error) {
+            if(this.destroyed)return;
+            if(abort.signal.aborted)throw new Error(this.streamState.phase==="timeout"?"remote-stream-timeout":"remote-stream-cancelled");
+            const network=error instanceof TypeError;
+            const temporary=network||(error.message==="remote-stream-http"&&[429,502,503,504].includes(error.streamDetail?.httpStatus));
+            if(!temporary||attempt>=2)throw network?new Error("remote-stream-network"):error;
+            attempt++;
+            Object.assign(this.streamState,{phase:"retry-wait",networkRetries:(this.streamState.networkRetries||0)+(network?1:0)});
+            await new Promise(resolve=>{
+              const done=()=>{this.environment.clearTimeout(timer);abort.signal.removeEventListener("abort",done);resolve();};
+              const timer=this.environment.setTimeout(done,attempt*500);
+              abort.signal.addEventListener("abort",done,{once:true});if(abort.signal.aborted)done();
+            });
+            if(this.destroyed)return;
+            if(abort.signal.aborted)throw new Error(this.streamState.phase==="timeout"?"remote-stream-timeout":"remote-stream-cancelled");
           }
-          attempt++;
-          await new Promise((resolve) => {
-            const done = () => {
-              this.environment.clearTimeout(timer);
-              abort.signal.removeEventListener("abort", done);
-              resolve();
-            };
-            const timer = this.environment.setTimeout(done, attempt * 500);
-            abort.signal.addEventListener("abort", done, { once: true });
-            if (abort.signal.aborted) done();
-          });
-          if (this.destroyed || abort.signal.aborted) return;
-        }
-        if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("audio/mpeg")) {
-          throw new Error("remote-stream-format");
-        }
-        const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
-        if (!match) throw new Error("remote-stream-range");
-        const from = Number(match[1]), last = Number(match[2]), length = Number(match[3]);
-        if (!Number.isSafeInteger(length) || length < 1 || length > maxSize
-            || from !== offset || last < from || last > lastRequested
-            || (total !== null && length !== total)) throw new Error("remote-stream-range");
-        total = length;
-        this.streamState.phase="body";
-        const bytes = await response.arrayBuffer();
-        if (bytes.byteLength !== last - from + 1 || bytes.byteLength > requestSize) {
-          throw new Error("remote-stream-range");
         }
         if (this.destroyed || abort.signal.aborted) return;
         this.streamState.phase="buffering";

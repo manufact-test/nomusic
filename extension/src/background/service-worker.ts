@@ -29,13 +29,17 @@ let intentGeneration = 0;
 let accessCheck: Promise<string> | null = null;
 let accessValidUntil = 0;
 let accessRetryAt = 0;
+let connectivityLeaseTimer = null;
+function clearConnectivityLeaseTimer() {
+  if (connectivityLeaseTimer !== null) { clearTimeout(connectivityLeaseTimer); connectivityLeaseTimer = null; }
+}
 // A VPN route may change without a Chrome online/visibility event. The next
 // bounded authorization retry must discard GET transport from the old route.
 let resetTransportOnRetry = false;
 let accessEpoch = 0;
 let lastPagePulseAt = 0, lastRecoveryHintAt = 0, lastRecoveryHintReason = "";
-async function playbackAccess(): Promise<string> {
-  if (accessValidUntil > Date.now()) return "allowed";
+async function playbackAccess(force = false): Promise<string> {
+  if (!force && accessValidUntil > Date.now()) return "allowed";
   if (accessRetryAt > Date.now()) return "unavailable";
   const generation = intentGeneration;
   const epoch = accessEpoch;
@@ -46,8 +50,12 @@ async function playbackAccess(): Promise<string> {
     }
     const pending = userAuth.entitlement().then((result) => {
     if (generation !== intentGeneration || epoch !== accessEpoch) return "unavailable";
-    if (!result.allowed) return result.reason === "service_incident" ? "incident" : "denied";
+    if (!result.allowed) {
+      accessValidUntil = 0; clearConnectivityLeaseTimer();
+      return result.reason === "service_incident" ? "incident" : "denied";
+    }
     accessValidUntil = result.source === "promo" && result.valid_until === null ? Date.now() + 10000 : Math.min(Date.now() + 10000, Date.parse(result.valid_until));
+    clearConnectivityLeaseTimer();
     if (accessValidUntil <= Date.now()) return "denied";
     // A confirmed server decision, not a browser online hint, releases an
     // access suspension. The existing heartbeat continues to enforce auth.
@@ -58,9 +66,11 @@ async function playbackAccess(): Promise<string> {
     return "allowed";
   }).catch((error) => {
     if (generation !== intentGeneration || epoch !== accessEpoch) return "unavailable";
-    if (["invalid_session", "account_disabled", "email_unverified", "access_denied"].includes(error?.message)) return "denied";
+    if (["invalid_session", "account_disabled", "email_unverified", "access_denied"].includes(error?.message)) {
+      accessValidUntil = 0; clearConnectivityLeaseTimer(); return "denied";
+    }
     resetTransportOnRetry = true;
-    accessRetryAt = Date.now() + 5000; return "unavailable";
+    accessRetryAt = Date.now() + 5000; return accessValidUntil > Date.now() ? "allowed" : "unavailable";
   }).finally(() => { if (accessCheck === pending) accessCheck = null; });
     accessCheck = pending;
   }
@@ -71,16 +81,32 @@ function resetConnectivity(tabId = null) {
   const notify = state => Number.isInteger(tabId)
     ? chrome.tabs.sendMessage(tabId,{type:"CELIKOM_ACCESS_STATE",state,recovered:state==="allowed"}).catch(()=>undefined)
     : musicTabs.send({type:"CELIKOM_ACCESS_STATE",state,recovered:state==="allowed"}).catch(()=>undefined);
-  actionIcon.clear();
-  accessEpoch++; accessValidUntil = 0; accessRetryAt = 0; accessCheck = null; resetTransportOnRetry = false;
+  // A route hint does not revoke a still-valid server grant. Keep only its
+  // ORIGINAL deadline (max 10s), never extend it without a fresh server decision.
+  if (accessValidUntil <= Date.now()) actionIcon.clear();
+  clearConnectivityLeaseTimer();
+  accessEpoch++; accessRetryAt = 0; accessCheck = null; resetTransportOnRetry = false;
   userAuth.resetTransport?.(); resolveApi.resetTransport?.();
-  const epoch = accessEpoch;
+  const epoch = accessEpoch, generation = intentGeneration;
   void (async () => {
-    if (!await readEnabled() || epoch !== accessEpoch) return;
-    await notify("unavailable");
-    const access = await playbackAccess();
-    if (epoch !== accessEpoch || !await readEnabled()) return;
+    if (!await readEnabled() || epoch !== accessEpoch || generation !== intentGeneration) return;
+    if (accessValidUntil > Date.now()) {
+      connectivityLeaseTimer = setTimeout(() => {
+        if (epoch !== accessEpoch || generation !== intentGeneration) return;
+        connectivityLeaseTimer = null;
+        void (async () => {
+          if (accessValidUntil > Date.now() || !await readEnabled()
+            || epoch !== accessEpoch || generation !== intentGeneration) return;
+          actionIcon.clear(); await notify("unavailable");
+        })().catch(() => undefined);
+      }, accessValidUntil - Date.now());
+    } else await notify("unavailable");
+    const access = await playbackAccess(true);
+    if (epoch !== accessEpoch || generation !== intentGeneration || !await readEnabled()) return;
     if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
+    // A transient failure may consume the existing grant, but is not a
+    // verified recovery and cannot renew the deadline or restart a decoder.
+    if (access === "allowed" && accessRetryAt > 0) return;
     await notify(access);
   })().catch(() => undefined);
 }
@@ -208,7 +234,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     if (m.action === "logout" || m.action === "login" || m.action === "verify-email") {
       intentGeneration++;
       actionIcon.clear();
-      accessValidUntil = 0;
+      accessValidUntil = 0; clearConnectivityLeaseTimer();
       accessRetryAt = 0;
       void chrome.storage.local.set({ enabled: false });
     }
@@ -294,7 +320,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     const enabled = normalizeEnabled((message as { enabled?: unknown }).enabled);
     const generation = ++intentGeneration;
     void (async () => {
-      accessValidUntil = 0;
+      accessValidUntil = 0; clearConnectivityLeaseTimer();
       accessRetryAt = 0;
       if (enabled) {
         // Explicit retry discards stale read checks retained by the worker

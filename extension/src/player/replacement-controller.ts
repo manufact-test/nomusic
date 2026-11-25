@@ -43,6 +43,7 @@
       this.activationCount = 0;
       this.startupHistory = [];
       this.restoreCount = 0;
+      this.restoreHistory = [];
       this.lastRestore = null;
     }
     publishPolicy(reset = false) {
@@ -169,7 +170,7 @@
           throw new Error("replacement_duration_or_token_invalid");
         }
         if (!operation.asset.demoLoop) this.event("replacement_available", { service: "yandex" });
-        operation.completeJoin = operation.wasUnavailable && !operation.asset.demoLoop && operation.asset.mimeType === "audio/mpeg"
+        operation.completeJoin = !operation.asset.demoLoop && operation.asset.mimeType === "audio/mpeg"
           && this.snapshot?.player?.currentTime > 0.25;
         if(operation.completeJoin && this.snapshot?.guard?.transitioning) {
           await this.bridge.request("GUARD_TRANSITION_END",{token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
@@ -201,6 +202,23 @@
       try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
+        // A VPN-delayed decoder can finish after the bounded native intro
+        // was released. Reuse the accepted complete-file alignment path;
+        // never seek a newly opened partial MSE stream into an audible join.
+        if (!operation.completeJoin && operation.asset.mimeType === "audio/mpeg"
+          && this.snapshot.player.currentTime > 0.25 && operation.player.mediaSource) {
+          operation.completeJoin = true;
+          operation.stage = "loading-complete-file";
+          operation.player.destroy();
+          operation.player = this.createPlayer((reason, detail) => { if (this.current(operation)) this.abort(reason, true, detail); });
+          if (operation.player.audio?.dataset) operation.player.audio.dataset.celikomTrackId = operation.trackId;
+          await operation.player.prepare(operation.asset, {completeMp3:true});
+          if (!this.current(operation)) return;
+          if (Math.abs(operation.player.audio.duration * 1000 - operation.asset.durationMs) > 1500) throw new Error("replacement_duration_mismatch");
+          operation.loadedAt = Date.now();
+          this.update(await this.bridge.getSnapshot());
+          if (!this.current(operation) || !this.eligible()) return;
+        }
         if(operation.completeJoin && !operation.joinAligned) {
           operation.stage="aligning-complete-file";
           await operation.player.prepareCompleteJoin(this.snapshot, async()=>{
@@ -231,6 +249,7 @@
           prepareMs:Date.now()-operation.startedAt,
           resolveMs:operation.resolvedAt-operation.startedAt,
           loadMs:operation.loadedAt-operation.resolvedAt,
+          joinMode:operation.completeJoin ? "complete-file" : "guarded-sync",
           masterTimeMs:Math.round(this.snapshot.player.currentTime*1000)});
         if(this.startupHistory.length>12)this.startupHistory.shift();
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
@@ -262,6 +281,8 @@
         readyState: this.snapshot?.player?.readyState ?? null, seeking: Boolean(this.snapshot?.player?.seeking),
         snapshotReason: this.snapshot?.reason || null
       };
+      this.restoreHistory.push({reason:String(reason).slice(0,96),trackId:operation.trackId,phase:this.phase,at:Date.now(),httpStatus:Number.isInteger(detail?.httpStatus) ? detail.httpStatus : null});
+      if (this.restoreHistory.length > 12) this.restoreHistory.shift();
       ++this.generation;
       this.operation = null;
       this.phase = "RESTORING";
