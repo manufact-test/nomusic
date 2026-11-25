@@ -2,46 +2,28 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Install the independent root-only signed data consumer, and test a real
-# existing current-release replay. No public feed, DB, key or account changes.
-lib=/usr/local/lib/celikom-windows-intake
-home=/var/lib/celikom-windows-intake
-tool="$lib/windows-stable-private-consume.py"
-pin=/root/celikom-secrets/windows-stable-public.der
-floor=/srv/celikom-releases/windows/stable
-source=/root/celikom-release-import/windows-02455
-test "$(stat -c '%u:%a' "$lib")" = 0:755
-test ! -e "$tool" && test ! -L "$tool"
-test "$(id -G celikom-windows-intake)" = "$(id -g celikom-windows-intake)"
-test "$(stat -c '%U:%a' /home/celops/.celikom-windows-intake-enrollment)" = celops:600
-work=$(mktemp -d /root/celikom-consume-rehearsal.XXXXXXXX)
-installed=0
-success=0
-cleanup(){
-  if [[ "$success" != 1 && "$installed" == 1 ]]; then rm -f -- "$tool"; fi
-  rm -rf -- "$work"
-}
-trap cleanup EXIT
+# Read-only enrollment format and host-key check. Never output enrollment data.
+enroll=/home/celops/.celikom-windows-intake-enrollment
+test "$(stat -c '%U:%a' "$enroll")" = celops:600
+work=$(mktemp -d /root/celikom-intake-enroll-audit.XXXXXXXX)
+trap 'rm -rf -- "$work"' EXIT
 systemctl start celikom-mirror-sync.service
-mirror=/home/celikom-mirror/github-mirror.git
-runuser -u celikom-mirror -- git --git-dir="$mirror" show "4274820e1ffc712ef0f31eea8cb94985140fa020" > "$work/consume.py"
-test "$(git hash-object "$work/consume.py")" = 4274820e1ffc712ef0f31eea8cb94985140fa020
-python3 -c 'import ast,pathlib,sys;ast.parse(pathlib.Path(sys.argv[1]).read_text())' "$work/consume.py"
-install -o root -g root -m 644 "$work/consume.py" "$tool"
-installed=1
-before=$(sha256sum "$floor/current/manifest.json" "$floor/current/manifest.json.sig" "$floor/current/CELIKOM-Windows-0.24.55.exe")
-python3 "$lib/windows-stable-private-import.py" pack --source "$source" \
-  --output "$work/transfer.zip" --pin "$pin" --version 0.24.55 --sequence 2
-digest=$(sha256sum "$work/transfer.zip" | cut -d' ' -f1)
-reply=$(runuser -u celikom-windows-intake -- env -i PATH=/usr/bin:/bin LANG=C.UTF-8 \
-  SSH_ORIGINAL_COMMAND="stage-windows 0.24.55 2 $digest" "$lib/gateway" < "$work/transfer.zip")
-test "$reply" = "CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK private-staged 0.24.55 2 $digest"
-echo "$reply"
-/usr/bin/python3 "$tool"
-test ! -e "$home/incoming/windows-0.24.55-2-$digest.zip"
-test ! -e /root/celikom-release-import/windows-0.24.55
-test "$before" = "$(sha256sum "$floor/current/manifest.json" "$floor/current/manifest.json.sig" "$floor/current/CELIKOM-Windows-0.24.55.exe")"
-test "$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' https://celikom.com/CELIKOM/Windows/Updates/stable/latest.json)" = 401
-test "$(stat -c '%U:%a' /home/celops/.celikom-windows-intake-enrollment)" = celops:600
-success=1
-echo CELIKOM_WINDOWS_ROOT_CONSUMER_REAL_REPLAY_OK
+runuser -u celikom-mirror -- git --git-dir=/home/celikom-mirror/github-mirror.git show 6dce5ff7caa58cab7f20796f939858a84cac0df6 > "$work/parse.py"
+test "$(git hash-object "$work/parse.py")" = 6dce5ff7caa58cab7f20796f939858a84cac0df6
+python3 "$work/parse.py" "$enroll" "$work"
+python3 - "$work/known_hosts" <<'PY'
+import pathlib,sys
+pin=pathlib.Path(sys.argv[1]).read_text().split()
+pub=pathlib.Path('/etc/ssh/ssh_host_ed25519_key.pub').read_text().split()
+assert pin==['95.133.160.111',*pub[:2]]
+print('WINDOWS_INTAKE_SERVER_HOST_PIN_MATCH')
+PY
+ssh-keygen -y -P '' -f "$work/key" > "$work/pub"
+python3 - "$work/pub" <<'PY'
+import pathlib,sys
+p=pathlib.Path(sys.argv[1]).read_text().split()
+a=pathlib.Path('/var/lib/celikom-windows-intake/.ssh/authorized_keys').read_text().split()
+assert p[:2]==a[1:3]
+print('WINDOWS_INTAKE_SERVER_ENROLLED_KEY_MATCH')
+PY
+echo WINDOWS_INTAKE_SOURCE_ENROLLMENT_VALID
