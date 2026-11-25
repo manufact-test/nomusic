@@ -28,7 +28,7 @@ jobs:
           unset HOSTINGER_SSH_KEY
           ssh-keygen -y -P '' -f "$d/key" > "$d/pub"
           test "$(ssh-keygen -lf "$d/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
-          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0JI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$d/known"
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$d/known"
           ssh -T -p 65002 -i "$d/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$d/known" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 u235811320@92.113.19.189 'bash -s' <<'REMOTE'
           set -Eeuo pipefail
           for domain in darkred-camel-588676.hostingersite.com lemonchiffon-narwhal-791953.hostingersite.com; do
