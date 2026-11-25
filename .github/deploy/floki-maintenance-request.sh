@@ -1,52 +1,64 @@
 #!/bin/bash
 set -Eeuo pipefail
 umask 077
-php <<'PHP'
-<?php
-declare(strict_types=1);
-ini_set('display_errors','0');
-require '/srv/celikom/app/staging-20261122/bootstrap.php';
-$config=require '/srv/celikom/app/staging-20261122/config/app.php';
-$pdo=Celikom\Database\Connection::open($config);
-function check(bool $ok,string $code):void{if(!$ok)throw new RuntimeException($code);}
-function httpProbe(string $path,string $token='',?array $post=null,?string $range=null):array{
- $url='https://api.celikom.com'.$path;$ch=curl_init($url);$headers=[];
- if($token!=='')$headers[]='Authorization: Bearer '.$token;
- if($post!==null)$headers[]='Content-Type: application/json';
- if($range!==null)$headers[]='Range: '.$range;
- $replyHeaders=[];curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>25,CURLOPT_HTTPHEADER=>$headers,
- CURLOPT_HEADERFUNCTION=>static function($ch,$line)use(&$replyHeaders){$p=explode(':',$line,2);if(count($p)===2)$replyHeaders[strtolower(trim($p[0]))]=trim($p[1]);return strlen($line);}]);
- if($post!==null)curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode($post,JSON_FORCE_OBJECT|JSON_THROW_ON_ERROR)]);
- $body=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);curl_close($ch);check(is_string($body)&&strlen($body)<65536,'http_body');return[$status,$body,$replyHeaders];
+python3 - <<'PY'
+import os,sys,hashlib,json,subprocess,datetime,urllib.request,urllib.error
+from pathlib import Path
+root=Path('/srv/celikom-releases/windows/stable')
+cur=root/'current'
+expected='0.24.55'
+def check(cond,code):
+ if not cond: raise RuntimeError(code)
+check(cur.is_symlink() and os.readlink(cur)=='versions/'+expected,'WINDOWS_CURRENT_POINTER_MISMATCH')
+vdir=cur
+manifest=vdir/'manifest.json'
+signature=vdir/'manifest.json.sig'
+installer=vdir/('CELIKOM-Windows-'+expected+'.exe')
+key=Path('/root/celikom-secrets/windows-stable-public.der')
+for p in (manifest,signature,installer,key):
+ check(p.is_file(),'WINDOWS_FILE_MISSING_'+p.name)
+check(64<=signature.stat().st_size<=80,'WINDOWS_SIGNATURE_SIZE_INVALID')
+check(hashlib.sha256(key.read_bytes()).hexdigest()=='46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95','WINDOWS_PUBLIC_PIN_MISMATCH')
+verify=subprocess.run(['openssl','dgst','-sha256','-verify',str(key),'-keyform','DER','-signature',str(signature),str(manifest)],capture_output=True,text=True,timeout=15)
+check(verify.returncode==0,'WINDOWS_MANIFEST_SIGNATURE_INVALID')
+data=json.loads(manifest.read_text('utf8'))
+check(data.get('schema')==2 and data.get('version')==expected and data.get('sequence')==2,'WINDOWS_MANIFEST_IDENTITY_INVALID')
+check(data.get('channel')=='stable' and data.get('publisher')=='CELIKOM','WINDOWS_MANIFEST_CHANNEL_INVALID')
+expected_url='https://celikom.com/CELIKOM/Windows/Updates/stable/'+expected+'/CELIKOM-Windows-'+expected+'.exe'
+check(data.get('packageUrl')==expected_url,'WINDOWS_MANIFEST_PACKAGE_URL_INVALID')
+expiry=datetime.datetime.fromisoformat(data['expiresAt'].replace('Z','+00:00'))
+now=datetime.datetime.now(datetime.timezone.utc)
+check(expiry>now,'WINDOWS_MANIFEST_EXPIRED')
+check(installer.stat().st_size==data['packageSize'],'WINDOWS_EXE_SIZE_MISMATCH')
+digest=hashlib.sha256(installer.read_bytes()).hexdigest()
+check(digest==data['sha256']=='f4c9a7881164ac7a9b5681d9f3568e5cbd3a9915c9e1da7b475caa20d3fb6487','WINDOWS_EXE_HASH_MISMATCH')
+check(installer.open('rb').read(2)==b'MZ','WINDOWS_EXE_PE_HEADER_INVALID')
+print('WINDOWS_RELEASE_LOCAL_SIGNED_P256_OK','version='+expected,'sequence=2','sha256='+digest,'size='+str(installer.stat().st_size),'expiresAt='+data['expiresAt'])
+print('WINDOWS_MANIFEST_VALID_FOR_HOURS',round((expiry-now).total_seconds()/3600,1))
+def probe(hostpath):
+ try:
+  req=urllib.request.Request(hostpath,headers={'User-Agent':'CELIKOM-Windows-ReadOnly-Owner-Audit'})
+  with urllib.request.urlopen(req,timeout=18) as response:
+   code=response.status
+ except urllib.error.HTTPError as e:
+  code=e.code
+ return code
+expected_responses={
+ 'https://api.celikom.com/api/v1/health':{200},
+ 'https://api.celikom.com/api/v1/config':{200},
+ 'https://api.celikom.com/api/v1/auth/me':{401},
+ 'https://api.celikom.com/api/v1/entitlement':{401},
+ 'https://api.celikom.com/api/v1/resolve?service=yandex&track_id=144530503':{401},
+ 'https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.55.exe':{401},
+ 'https://celikom.com/CELIKOM/Windows/Updates/stable/latest.json':{401},
+ 'https://celikom.com/CELIKOM/Windows/Updates/stable/latest.json.sig':{401},
+ 'https://celikom.com/CELIKOM/Windows/Updates/stable/0.24.55/manifest.json':{401}
 }
-$session=null;$hash=null;$signed=null;
-try{
- $selected=null;
- foreach($pdo->query("SELECT id FROM users WHERE status='active' AND first_activated_at IS NOT NULL AND EXISTS(SELECT 1 FROM account_trials t WHERE t.user_id=users.id) ORDER BY id")->fetchAll(PDO::FETCH_COLUMN)as$id){
-  $access=(new Celikom\Entitlement\EntitlementService($pdo,(bool)($config['paid_entitlement_enabled']??false)))->check((int)$id)->json();
-  $q=$pdo->prepare('SELECT id FROM user_devices WHERE user_id=? ORDER BY id LIMIT 1');$q->execute([$id]);$device=$q->fetchColumn();
-  if($access['allowed']&&$device!==false){$selected=[(int)$id,(int)$device];break;}
- }
- check($selected!==null,'existing_verified_access_required');
- [$userId,$deviceId]=$selected;
- $trialQuery=$pdo->prepare('SELECT * FROM account_trials WHERE user_id=?');$trialQuery->execute([$userId]);$trialBefore=$trialQuery->fetchAll(PDO::FETCH_ASSOC);
- $token=bin2hex(random_bytes(32));$hash=hash('sha256',$token);
- $pdo->prepare('INSERT INTO user_sessions(user_id,device_id,access_hash,refresh_hash,access_expires_at,refresh_expires_at) VALUES(?,?,?,?,UTC_TIMESTAMP()+INTERVAL 5 MINUTE,UTC_TIMESTAMP()+INTERVAL 5 MINUTE)')->execute([$userId,$deviceId,$hash,hash('sha256',bin2hex(random_bytes(32)))]);
- $session=(int)$pdo->lastInsertId();
- [$status,$body]=httpProbe('/api/v1/auth/me',$token);$me=json_decode($body,true,16,JSON_THROW_ON_ERROR);check($status===200&&(int)($me['user']['id']??0)===$userId,'auth_me');echo "AUTHENTICATED_ME_PASS\n";
- [$status,$body]=httpProbe('/api/v1/entitlement',$token);$entitlement=json_decode($body,true,16,JSON_THROW_ON_ERROR);check($status===200&&($entitlement['allowed']??false)===true,'entitlement');echo "AUTHENTICATED_ENTITLEMENT_PASS\n";
- [$status,$body]=httpProbe('/api/v1/auth/activate',$token,[]);$start=json_decode($body,true,16,JSON_THROW_ON_ERROR);check($status===200&&($start['entitlement']['allowed']??false)===true,'activate');echo "AUTHENTICATED_START_PASS\n";
- $trialQuery->execute([$userId]);check($trialQuery->fetchAll(PDO::FETCH_ASSOC)===$trialBefore,'existing_trial_unchanged');echo "EXISTING_TRIAL_UNCHANGED_PASS\n";
- $track=$pdo->query("SELECT t.service_track_id FROM track_replacements r JOIN tracks t ON t.id=r.track_id JOIN audio_assets a ON a.id=r.audio_asset_id WHERE r.status='approved' AND r.is_active=1 AND r.disabled_at IS NULL AND a.mime_type='audio/mpeg' AND a.size_bytes>8192 ORDER BY r.id DESC LIMIT 1")->fetchColumn();check($track!==false,'approved_sample');
- [$status,$body]=httpProbe('/api/v1/resolve?audio_formats=mp3,m4a&service=yandex&track_id='.rawurlencode((string)$track),$token);$result=json_decode($body,true,16,JSON_THROW_ON_ERROR);check($status===200&&($result['found']??false)===true,'resolve');
- $signed=$result['audio_url'];check(is_string($signed)&&str_starts_with($signed,'/api/v1/audio/'),'same_origin_audio');echo "AUTHENTICATED_RESOLVE_SAME_ORIGIN_PASS\n";
- foreach(['bytes=0-1023','bytes=4096-5119']as$range){
-  [$status,$body,$headers]=httpProbe($signed,'',null,$range);
-  check($status===206&&strlen($body)===1024&&str_starts_with($headers['content-type']??'','audio/')&&isset($headers['content-range']),'range');
- }echo "SIGNED_RANGE_206_SEEK_PASS\n";
-}finally{
- if($session!==null)$pdo->prepare('DELETE FROM user_sessions WHERE id=? AND access_hash=?')->execute([$session,$hash]);
-}
-if($signed!==null){[$status]=httpProbe($signed,'',null,'bytes=0-1023');check(in_array($status,[401,403],true),'expired_probe_denied');echo "REMOVED_PROBE_SESSION_DENIED_PASS\n";}
-echo "FLOKI_EXTENSION_AUTH_ACCESS_RANGE_PASS\n";
-PHP
+for url,allowed in expected_responses.items():
+ status=probe(url)
+ print('WINDOWS_HTTP',url,status)
+ check(status in allowed,'WINDOWS_HTTP_UNEXPECTED_'+str(status))
+result=subprocess.run(['nginx','-t'],capture_output=True,text=True,timeout=15)
+check(result.returncode==0,'WINDOWS_NGINX_SYNTAX_INVALID')
+print('WINDOWS_FLOKI_READONLY_AUDIT_PASS')
+PY
