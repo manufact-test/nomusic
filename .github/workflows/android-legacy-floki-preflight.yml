@@ -1,0 +1,94 @@
+name: CELIKOM archived Android stable migration-only preflight
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/android-legacy-floki-bridge-source.py'
+      - '.github/workflows/android-legacy-floki-preflight.yml'
+permissions:
+  contents: read
+jobs:
+  exact-legacy-source-host-regression:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: migration
+      - uses: actions/checkout@v4
+        with:
+          ref: 8a215d59432d9b6d11ab1971af6189cd230b52f3
+          persist-credentials: false
+          path: legacy-source
+      - name: Prepare exact accepted stable with only origin and forward-version changes
+        shell: bash
+        run: python3 migration/.github/scripts/android-legacy-floki-bridge-source.py --checkout legacy-source
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+      - name: Fetch and verify original pinned Java dependencies, no Hostinger or Actions artifacts
+        working-directory: legacy-source/android/native-companion
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deps
+          curl -fsSL --retry 4 --max-time 90 -o deps/annotation.jar 'https://dl.google.com/dl/android/maven2/androidx/annotation/annotation-jvm/1.9.1/annotation-jvm-1.9.1.jar'
+          curl -fsSL --retry 4 --max-time 90 -o deps/common.aar 'https://dl.google.com/dl/android/maven2/androidx/media3/media3-common/1.8.0/media3-common-1.8.0.aar'
+          curl -fsSL --retry 4 --max-time 90 -o deps/session.aar 'https://dl.google.com/dl/android/maven2/androidx/media3/media3-session/1.8.0/media3-session-1.8.0.aar'
+          for n in common session; do unzip -p "deps/$n.aar" classes.jar > "deps/$n.jar"; rm "deps/$n.aar"; done
+          curl -fsSL --retry 4 --max-time 90 -o deps/guava.jar 'https://repo.maven.apache.org/maven2/com/google/guava/guava/33.3.1-android/guava-33.3.1-android.jar'
+          curl -fsSL --retry 4 --max-time 90 -o deps/json.jar 'https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar'
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          pins=json.loads(pathlib.Path('build-inputs.json').read_text())['dependencies']
+          assert set(pins)=={'annotation.jar','common.jar','session.jar','guava.jar','json.jar'}
+          for name,want in pins.items():
+              assert hashlib.sha256((pathlib.Path('deps')/name).read_bytes()).hexdigest()==want,name
+          print('CELIKOM_LEGACY_BRIDGE_PINNED_DEPENDENCIES_OK')
+          PY
+      - name: Original release-signature, archive, CI provenance and host regression checks
+        working-directory: legacy-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 android/native-companion/tests/check_release_contract.py
+          python3 android/native-companion/tests/check_release_archive.py
+          python3 android/native-companion/tests/check_ci_provenance.py
+          python3 android/native-companion/tests/check_release_modes.py
+          python3 android/native-companion/tests/run_engine.py
+      - name: Compile exact source and D8 locally, no APK output
+        working-directory: legacy-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=android/native-companion
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          CP="$SDK/platforms/android-36/android.jar"
+          for name in annotation common guava session; do CP="$CP:$ROOT/deps/$name.jar"; done
+          out=$(mktemp -d)
+          trap 'rm -rf -- "$out"' EXIT
+          mkdir "$out/classes" "$out/dex"
+          find "$ROOT/addon/src" -type f -name '*.java' | sort > "$out/sources.txt"
+          javac -encoding UTF-8 -source 8 -target 8 -cp "$CP" -d "$out/classes" @"$out/sources.txt"
+          jar cf "$out/addon.jar" -C "$out/classes" .
+          D8=(java -Xmx1500m -cp "$SDK/build-tools/36.0.0/lib/d8.jar" com.android.tools.r8.D8 --min-api 28 --lib "$SDK/platforms/android-36/android.jar" --output "$out/dex")
+          for n in annotation common guava session; do D8+=(--classpath "$ROOT/deps/$n.jar"); done
+          "${D8[@]}" "$out/addon.jar"
+          test -s "$out/dex/classes.dex"
+          python3 - "$out/dex/classes.dex" <<'PY'
+          import pathlib,sys
+          b=pathlib.Path(sys.argv[1]).read_bytes()
+          assert b.startswith(b'dex\n')
+          for x in (b'https://api.celikom.com',b'celikom.com',b'0.3.94'):
+              assert x in b,x
+          assert b'hostingersite.com' not in b
+          print('CELIKOM_LEGACY_BRIDGE_DEX_NEW_ORIGINS_VERIFIED')
+          PY
+          echo CELIKOM_LEGACY_BRIDGE_SOURCE_PREFLIGHT_PASS_NOT_SIGNED_OR_PUBLISHED
