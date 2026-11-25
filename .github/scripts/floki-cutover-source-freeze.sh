@@ -67,6 +67,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && !in_array($_SERVER['REQUEST_METHOD'], [
         fwrite(STDERR, "CELIKOM_PHP_WRITE_FREEZE_CLI_PROOF\n");
         exit(47);
     }
+    // Deliberate no-write probe: HTTP 200 avoids Hostinger replacing error responses.
+    // Never reaches the actual application, never bypasses a write.
+    if (isset($_SERVER['REQUEST_URI']) && str_contains($_SERVER['REQUEST_URI'], '__celikom_php_freeze_probe_20261125')) {
+        http_response_code(200);
+        header('Cache-Control: no-store');
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "CELIKOM_PHP_WRITE_FENCE_PROBE_ACTIVE";
+        exit;
+    }
     http_response_code(503);
     header('X-Celikom-PHP-Write-Freeze: active');
     header('Retry-After: 300');
