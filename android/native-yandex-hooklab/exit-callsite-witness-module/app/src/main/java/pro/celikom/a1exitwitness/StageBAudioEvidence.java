@@ -67,6 +67,15 @@ final class StageBAudioEvidence {
     private final AtomicLong childWrapperLinkAmbiguous = new AtomicLong();
     private final AtomicLong childOriginalCreatorRejected = new AtomicLong();
     private final AtomicLong childBetaCreatorRejected = new AtomicLong();
+    // BETA17: read-only, identity-only comparison of the caller dA9/gA9
+    // objects in signed iLb.<init> and lLb.if. NOT an approval/binding gate.
+    private final AtomicLong childCallerContextUnavailable = new AtomicLong();
+    private final AtomicLong childCallerPairSameItem = new AtomicLong();
+    private final AtomicLong childCallerPairDifferentItem = new AtomicLong();
+    private final AtomicLong childCallerPairAmbiguous = new AtomicLong();
+    private final AtomicLong childCallerOwnerOnly = new AtomicLong();
+    private final AtomicLong childCallerConfigOnly = new AtomicLong();
+    private final AtomicLong childCallerNoMatch = new AtomicLong();
     private final AtomicLong exoOpenResults = new AtomicLong();
     private final AtomicLong exoPositiveReads = new AtomicLong();
     private final AtomicLong exoEndOfSource = new AtomicLong();
@@ -130,12 +139,15 @@ final class StageBAudioEvidence {
     // Of6 across a coroutine boundary, outside cA9's ThreadLocal scope.
     // No global/latest wrapper, value-based equality or vendor fields.
     private static final class OriginalMediaSourceItemLink {
-        final WeakReference<Object> source,item,wrapper;
+        final WeakReference<Object> source,item,wrapper,owner,configuration;
         boolean conflicted;
-        OriginalMediaSourceItemLink(Object source,Object item,Object wrapper) {
+        OriginalMediaSourceItemLink(Object source,Object item,Object wrapper,
+                Object owner,Object configuration) {
             this.source=new WeakReference<>(source);
             this.item=new WeakReference<>(item);
             this.wrapper=new WeakReference<>(wrapper);
+            this.owner=new WeakReference<>(owner);
+            this.configuration=new WeakReference<>(configuration);
         }
     }
     private final ArrayList<OriginalMediaSourceItemLink>
@@ -1165,6 +1177,10 @@ final class StageBAudioEvidence {
      * candidate, not an approved source, a current MediaItem or a ticket.
      */
     synchronized void onOriginalMediaSourceConstructed(Object source,Object item) {
+        onOriginalMediaSourceConstructed(source,item,null,null);
+    }
+    synchronized void onOriginalMediaSourceConstructed(Object source,Object item,
+            Object owner,Object configuration) {
         Object wrapper=currentScope(activeWrapperScopes);
         if(source==null || item==null || wrapper==null
                 || findByWrapper(wrapper)==null)return;
@@ -1183,8 +1199,43 @@ final class StageBAudioEvidence {
         }
         if(originalMediaSourceItems.size()>=16)return; // fail closed, no live eviction
         originalMediaSourceItems.add(new OriginalMediaSourceItemLink(
-            source,item,wrapper));
+            source,item,wrapper,owner,configuration));
         mark(originalMediaItemAnchors);
+    }
+
+    /**
+     * Passive identity diagnostic only. The original strict MediaItem == gate
+     * below is unchanged even for a unique owner/config match. This reveals
+     * whether the constructor and coroutine child share an exact caller
+     * context without using equals(), IDs, values or leaked source details.
+     */
+    synchronized void onOriginalChildContextComparison(
+            Object owner,Object configuration,Object item) {
+        if(owner==null || configuration==null || item==null) {
+            mark(childCallerContextUnavailable);
+            return;
+        }
+        int exact=0,ownerOnly=0,configOnly=0;
+        boolean sameItem=false;
+        for(OriginalMediaSourceItemLink link:originalMediaSourceItems) {
+            // Dead source/wrapper anchors never become valid witnesses.
+            if(link.source.get()==null || link.wrapper.get()==null
+                    || link.item.get()==null)continue;
+            Object anchoredOwner=link.owner.get();
+            Object anchoredConfig=link.configuration.get();
+            if(anchoredOwner==null || anchoredConfig==null)continue;
+            if(anchoredOwner==owner && anchoredConfig==configuration) {
+                exact++;
+                if(link.item.get()==item)sameItem=true;
+            } else if(anchoredOwner==owner) ownerOnly++;
+            else if(anchoredConfig==configuration) configOnly++;
+        }
+        if(exact>1) mark(childCallerPairAmbiguous);
+        else if(exact==1)
+            mark(sameItem?childCallerPairSameItem:childCallerPairDifferentItem);
+        else if(ownerOnly>0)mark(childCallerOwnerOnly);
+        else if(configOnly>0)mark(childCallerConfigOnly);
+        else mark(childCallerNoMatch);
     }
 
     /**
@@ -1766,6 +1817,16 @@ final class StageBAudioEvidence {
             event("ORIGINAL_CHILD_WRAPPER_LINK_AMBIGUOUS", childWrapperLinkAmbiguous),
             event("ORIGINAL_CHILD_ORIGINAL_TRACK_ALBUM_REJECT", childOriginalCreatorRejected),
             event("ORIGINAL_CHILD_BETA_CREATOR_REJECT", childBetaCreatorRejected),
+            event("ORIGINAL_CHILD_CALLER_CONTEXT_UNAVAILABLE",
+                childCallerContextUnavailable),
+            event("ORIGINAL_CHILD_CALLER_PAIR_SAME_ITEM", childCallerPairSameItem),
+            event("ORIGINAL_CHILD_CALLER_PAIR_DIFFERENT_ITEM",
+                childCallerPairDifferentItem),
+            event("ORIGINAL_CHILD_CALLER_PAIR_AMBIGUOUS",
+                childCallerPairAmbiguous),
+            event("ORIGINAL_CHILD_CALLER_OWNER_ONLY", childCallerOwnerOnly),
+            event("ORIGINAL_CHILD_CALLER_CONFIG_ONLY", childCallerConfigOnly),
+            event("ORIGINAL_CHILD_CALLER_NO_MATCH", childCallerNoMatch),
             event("ORIGINAL_CHILD_SETTER_MATCH", originalChildSetterMatched),
             event("ORIGINAL_CHILD_SETTER_MISSING", originalChildSetterMissing),
             event("ORIGINAL_CHILD_SETTER_SOURCE_DIFFERENT",
