@@ -1,1 +1,2 @@
 2026-11-25: dry-run exact private signed source with dedicated transfer path disabled. No live publication.
+2026-11-25: verify deterministic protected draft pack after real server-side root consumption; network send remains disabled until enrollment.
