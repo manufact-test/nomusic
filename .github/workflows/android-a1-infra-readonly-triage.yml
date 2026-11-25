@@ -70,3 +70,31 @@ jobs:
               except urllib.error.HTTPError as e:
                   print('A1_JOB_METADATA',label,'HTTP',e.code)
           PY
+      - name: Read hosted check-run annotations without exposing raw messages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          root='https://api.github.com/repos/manufact-test/nomusic'
+          token=os.environ['GH_TOKEN']
+          headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json'}
+          for label,job in (('HOSTED_X64',139519347796),('HOSTED_ARM24',139519347820),('HOSTED_ARM22',139519347346)):
+              req=urllib.request.Request(f'{root}/check-runs/{job}/annotations',headers=headers)
+              try:
+                  with urllib.request.urlopen(req,timeout=15) as response:data=json.load(response)
+                  msg=' '.join(str(v.get('message','')) for v in data).lower()
+                  rules={'ACCOUNT_BILLING_OR_QUOTA':('billing','payment','budget','spending','quota','usage'),
+                         'SECURITY_POLICY':('restricted','suspended','disabled','policy','abuse'),
+                         'RUNNER_ASSIGNMENT':('runner','capacity','provisioning','allocation')}
+                  result=[key for key,terms in rules.items() if any(t in msg for t in terms)]
+                  print('A1_CHECK_ANNOTATIONS',label,'count',len(data),'classification',','.join(result) or 'NONE')
+              except urllib.error.HTTPError as e:
+                  print('A1_CHECK_ANNOTATIONS',label,'HTTP',e.code)
+          req=urllib.request.Request(root+'/actions/permissions',headers=headers)
+          try:
+              with urllib.request.urlopen(req,timeout=15) as response:obj=json.load(response)
+              print('A1_ACTIONS_POLICY','enabled',obj.get('enabled'),'allowed_actions',obj.get('allowed_actions'))
+          except urllib.error.HTTPError as e:print('A1_ACTIONS_POLICY','HTTP',e.code)
+          PY
