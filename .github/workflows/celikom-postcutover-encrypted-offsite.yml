@@ -83,7 +83,7 @@ jobs:
         with:
           key: celikom-offsite-ciphertext-${{ github.run_id }}-v2
           fail-on-cache-miss: true
-          path: ${{ runner.temp }}/celikom-offsite-verified/celikom-final-delta-20261125-v2.tar.gpg
+          path: ${{ runner.temp }}/celikom-final-encrypted/celikom-final-delta-20261125-v2.tar.gpg
       - name: Verify AES ciphertext digest and keep it only in a private draft release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,7 +93,7 @@ jobs:
           umask 077
           [[ "$GITHUB_REPOSITORY" == manufact-test/nomusic && "$GITHUB_REF" == refs/heads/main ]]
           [[ "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" == PRIVATE ]]
-          file="$RUNNER_TEMP/celikom-offsite-verified/celikom-final-delta-20261125-v2.tar.gpg"
+          file="$RUNNER_TEMP/celikom-final-encrypted/celikom-final-delta-20261125-v2.tar.gpg"
           name=celikom-final-delta-20261125-v2.tar.gpg
           tag=celikom-encrypted-recovery-postcutover-20261125-v2
           [[ -f "$file" && ! -L "$file" && "$(stat -c %s "$file")" == 11668572 ]]
@@ -117,4 +117,4 @@ jobs:
       - name: Remove temporary copies
         if: always()
         shell: bash
-        run: rm -rf -- "$RUNNER_TEMP/celikom-offsite-verified" "$RUNNER_TEMP/celikom-offsite-downloaded"
+        run: rm -rf -- "$RUNNER_TEMP/celikom-final-encrypted" "$RUNNER_TEMP/celikom-offsite-downloaded"
