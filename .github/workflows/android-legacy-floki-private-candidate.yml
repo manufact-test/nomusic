@@ -1,0 +1,180 @@
+name: CELIKOM legacy Android 0.3.94 private signed migration candidate
+on:
+  workflow_dispatch:
+    inputs:
+      sign_private_candidate:
+        description: Build only the exact legacy migration bridge, never publish OTA
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-legacy-floki-private-candidate.yml'
+permissions:
+  contents: read
+concurrency:
+  group: celikom-android-legacy-private-bridge
+  cancel-in-progress: false
+jobs:
+  signed-private-candidate:
+    if: >-
+      github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.sign_private_candidate == true) ||
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[legacy-bridge-sign]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: migration
+      - uses: actions/checkout@v4
+        with:
+          ref: 8a215d59432d9b6d11ab1971af6189cd230b52f3
+          persist-credentials: false
+          path: legacy-source
+      - name: Prepare exact accepted stable with only origin and forward-version changes
+        shell: bash
+        run: python3 migration/.github/scripts/android-legacy-floki-bridge-source.py --checkout legacy-source
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+      - name: Fetch and verify original pinned Java dependencies, no Hostinger or Actions artifacts
+        working-directory: legacy-source/android/native-companion
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deps
+          curl -fsSL --retry 4 --max-time 90 -o deps/annotation.jar 'https://dl.google.com/dl/android/maven2/androidx/annotation/annotation-jvm/1.9.1/annotation-jvm-1.9.1.jar'
+          curl -fsSL --retry 4 --max-time 90 -o deps/common.aar 'https://dl.google.com/dl/android/maven2/androidx/media3/media3-common/1.8.0/media3-common-1.8.0.aar'
+          curl -fsSL --retry 4 --max-time 90 -o deps/session.aar 'https://dl.google.com/dl/android/maven2/androidx/media3/media3-session/1.8.0/media3-session-1.8.0.aar'
+          for n in common session; do unzip -p "deps/$n.aar" classes.jar > "deps/$n.jar"; rm "deps/$n.aar"; done
+          curl -fsSL --retry 4 --max-time 90 -o deps/guava.jar 'https://repo.maven.apache.org/maven2/com/google/guava/guava/33.3.1-android/guava-33.3.1-android.jar'
+          curl -fsSL --retry 4 --max-time 90 -o deps/json.jar 'https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar'
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          pins=json.loads(pathlib.Path('build-inputs.json').read_text())['dependencies']
+          assert set(pins)=={'annotation.jar','common.jar','session.jar','guava.jar','json.jar'}
+          for name,want in pins.items():
+              assert hashlib.sha256((pathlib.Path('deps')/name).read_bytes()).hexdigest()==want,name
+          print('CELIKOM_LEGACY_BRIDGE_PINNED_DEPENDENCIES_OK')
+          PY
+      - name: Original release-signature, archive, CI provenance and host regression checks
+        working-directory: legacy-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 android/native-companion/tests/check_release_contract.py
+          python3 android/native-companion/tests/check_release_archive.py
+          python3 android/native-companion/tests/check_ci_provenance.py
+          python3 android/native-companion/tests/check_release_modes.py
+          python3 android/native-companion/tests/run_engine.py
+      - name: Require private repository before signing or delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
+      - name: Obtain pinned Apktool
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 4 --max-time 180 -o "$RUNNER_TEMP/apktool.jar" 'https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar'
+          echo "56d59c524fc764263ba8d345754d8daf55b1887818b15cd3b594f555d249e2db  $RUNNER_TEMP/apktool.jar" | sha256sum -c -
+      # One-time bridge only. Use the original established input path read-only.
+      # Never use the Floki root-equivalent administration key in a draft-write job.
+      - name: Fetch original pinned baseline once before retiring the legacy source
+        env:
+          HOST_KEY: ${{ secrets.CELIKOM_HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CELIKOM_HOSTINGER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$HOST_KEY" && test -n "$KNOWN_HOSTS"
+          mkdir -p "$RUNNER_TEMP/legacy-bridge-private"
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          printf '%s\n' "$HOST_KEY" > "$tmp/id"
+          printf '%s\n' "$KNOWN_HOSTS" > "$tmp/known_hosts"
+          unset HOST_KEY KNOWN_HOSTS
+          scp -P 65002 -i "$tmp/id" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
+            u235811320@92.113.19.189:/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private/android-build-inputs/CELIKOM-0.3.22-install.apk \
+            "$RUNNER_TEMP/legacy-bridge-private/base.apk"
+          echo "170b1883e292570d28a3b5c619cf000eaccd9d11ee85ca6f6c08f7b50e5f72c9  $RUNNER_TEMP/legacy-bridge-private/base.apk" | sha256sum -c -
+      - name: Build exact migration candidate with original signer and complete final-byte verification
+        env:
+          P12_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_P12_B64 }}
+          SIGN_JSON_B64: ${{ secrets.CELIKOM_ANDROID_SIGNING_JSON_B64 }}
+        working-directory: legacy-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          p="$RUNNER_TEMP/legacy-bridge-private"
+          test -n "$P12_B64" && test -n "$SIGN_JSON_B64"
+          mkdir "$p/signing"
+          trap 'rm -rf -- "$p/signing"' EXIT
+          printf %s "$P12_B64" | base64 -d > "$p/signing/celikom-native-probe.p12"
+          printf %s "$SIGN_JSON_B64" | base64 -d > "$p/signing/signing.json"
+          unset P12_B64 SIGN_JSON_B64
+          python3 - "$p/signing" <<'PY'
+          import json,pathlib,sys
+          p=pathlib.Path(sys.argv[1])
+          assert 1000 < (p/'celikom-native-probe.p12').stat().st_size < 65536
+          j=json.loads((p/'signing.json').read_bytes())
+          assert all(isinstance(j.get(k),str) and j[k] for k in ('alias','store_password','key_password'))
+          PY
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          ROOT=android/native-companion
+          mkdir "$p/output"
+          python3 "$ROOT/build_release.py" --sdk "$SDK" --build-tools "$SDK/build-tools/36.0.0" \
+            --apktool "$RUNNER_TEMP/apktool.jar" --base-apk "$p/base.apk" \
+            --signing-dir "$p/signing" --deps-dir "$ROOT/deps" --work-dir "$p/work" \
+            --output "$p/output/CELIKOM-Android-0.3.94-SIGNED.apk"
+          python3 - "$p/output" <<'PY'
+          import hashlib,json,os,pathlib,sys,zipfile
+          p=pathlib.Path(sys.argv[1]); apk=p/'CELIKOM-Android-0.3.94-SIGNED.apk'
+          proof=json.loads(apk.with_suffix('.verification.json').read_bytes())
+          digest=hashlib.sha256(apk.read_bytes()).hexdigest()
+          assert proof['version']=='0.3.94' and proof['version_code']==95
+          assert proof['apk_sha256']==digest and proof['signer_matches_pinned_identity'] is True
+          assert proof['signer_sha256']=='67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f'
+          assert proof['archive_integrity_verified'] and proof['original_catalogue_assets_unchanged']
+          with zipfile.ZipFile(apk) as z:
+              dex=z.read('classes2.dex')
+              assert b'https://api.celikom.com' in dex and b'celikom.com' in dex and b'0.3.94' in dex
+              assert b'hostingersite.com' not in dex
+          receipt=dict(base_source='8a215d59432d9b6d11ab1971af6189cd230b52f3',
+                       migration_commit=os.environ['GITHUB_SHA'],run_id=int(os.environ['GITHUB_RUN_ID']),
+                       version='0.3.94',version_code=95,package='pro.celikom.nativeprobe',
+                       signer_sha256=proof['signer_sha256'],apk_sha256=digest,size_bytes=apk.stat().st_size,
+                       api='https://api.celikom.com',updater='https://celikom.com',
+                       actual_phone_test=False,stable_published=False)
+          (p/'BUILD-PROVENANCE.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          (p/'SHA256SUMS.txt').write_text(digest+'  '+apk.name+'\n')
+          print('CELIKOM_LEGACY_BRIDGE_SIGNED_PRIVATE_CANDIDATE_VERIFIED',digest)
+          PY
+      - name: Deliver verified APK privately without publishing an update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
+          cd "$RUNNER_TEMP/legacy-bridge-private/output"
+          tag="celikom-legacy-bridge-private-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          gh release create "$tag" CELIKOM-Android-0.3.94-SIGNED.apk CELIKOM-Android-0.3.94-SIGNED.verification.json BUILD-PROVENANCE.json SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target main --draft \
+            --title "CELIKOM legacy 0.3.94 — private migration candidate" \
+            --notes "Legacy stable bridge only. Not A1. Do not install before migrated API acceptance. No OTA publication or physical-phone acceptance."
+          gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$tag\" and .draft == true) | {id,draft,assets:[.assets[]|{name,size,id}]}"
+          echo CELIKOM_LEGACY_BRIDGE_PRIVATE_DRAFT_CREATED_NOT_PUBLISHED
+      - name: Remove private inputs and build output from the hosted runner
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/legacy-bridge-private"
