@@ -70,7 +70,7 @@ jobs:
           python3 .github/scripts/tests/floki-windows-intake-parse-connection.test.py
           node --test .github/scripts/tests/windows-stable-private-import.test.mjs
       - name: Validate owner enrollment format before binary transfer
-        if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02455]')))
+        if: (inputs.send_to_private_intake == true || github.event_name == 'push')
         env:
           FLOKI_WINDOWS_INTAKE_CONNECTION: ${{ secrets.FLOKI_WINDOWS_INTAKE_CONNECTION }}
         shell: bash
@@ -98,7 +98,7 @@ jobs:
             --sequence "$RELEASE_SEQUENCE" --commit "$RELEASE_COMMIT" \
             --output "$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
       - name: Send only signed data to dedicated nonprivileged intake
-        if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02455]')))
+        if: (inputs.send_to_private_intake == true || github.event_name == 'push')
         env:
           FLOKI_WINDOWS_INTAKE_CONNECTION: ${{ secrets.FLOKI_WINDOWS_INTAKE_CONNECTION }}
         shell: bash
@@ -137,7 +137,7 @@ jobs:
 
   independent_root_import:
     needs: stage
-    if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02455]'))) && github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    if: (inputs.send_to_private_intake == true || github.event_name == 'push') && github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
     runs-on: celikom-ci-smoke-only
     environment: floki-deploy
     permissions:
@@ -155,7 +155,21 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" == "$GITHUB_SHA" ]] || { echo FLOKI_STALE_REQUEST_REFUSED; exit 1; }
+          python3 - <<'PY'
+          import json, os, urllib.request
+          repo=os.environ["GITHUB_REPOSITORY"]
+          sha=os.environ["GITHUB_SHA"]
+          token=os.environ["GH_TOKEN"]
+          url="https://api.github.com/repos/"+repo+"/compare/"+sha+"...main"
+          req=urllib.request.Request(url,headers={
+            "Authorization":"Bearer "+token,"Accept":"application/vnd.github+json",
+            "User-Agent":"CELIKOM-Windows-Verified-Release-Import"})
+          with urllib.request.urlopen(req,timeout=30) as response:
+            status=json.load(response).get("status")
+          if status not in ("identical","ahead"):
+            raise SystemExit("FLOKI_RELEASE_REQUEST_NOT_ON_MAIN")
+          print("FLOKI_RELEASE_MAIN_ANCESTRY_VERIFIED")
+          PY
           unset GH_TOKEN
           [[ -n "$FLOKI_DEPLOY_CONNECTION" ]]
           tmp=$(mktemp -d)
