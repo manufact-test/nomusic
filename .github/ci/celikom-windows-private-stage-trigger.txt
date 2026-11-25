@@ -16,3 +16,5 @@
 2026-11-25: stage immutable signed Windows 0.24.56/3 in private runner volume; root-independent P256 verification pending, no remote SSH.
 
 2026-11-25: independently exercise root-consumer parser and Nginx-bootstrap syntax without root; repeat signed spool exact-byte replay.
+
+2026-11-25: validate reviewed root consumer auth-field fix, exact hash pins, bootstrap Python+Bash syntax and re-check signed 0.24.56 reproducible private spool.
