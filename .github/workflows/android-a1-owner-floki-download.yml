@@ -18,7 +18,7 @@ concurrency:
 jobs:
   verify-and-deliver:
     if: github.repository == 'manufact-test/nomusic' && (github.event_name == 'push' || github.event.workflow_run.conclusion == 'success')
-    runs-on: [self-hosted, celikom-ci-smoke-only]
+    runs-on: celikom-ci-smoke-only
     environment: floki-deploy
     timeout-minutes: 22
     permissions:
