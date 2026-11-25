@@ -19,8 +19,17 @@ REAL=$(readlink -f "$SITE")
 [[ "$REAL" == /etc/nginx/sites-available/* && ! -L "$REAL" ]]
 [[ ! -e "$SERVICE" && ! -e "$TIMER" ]]
 [[ -d /srv/celikom-releases/windows/stable/versions ]]
-[[ -f /root/celikom-release-tools/windows-stable-existing-latest.mjs ]]
-[[ "$(git hash-object /root/celikom-release-tools/windows-stable-existing-latest.mjs)" == bb4d19672d45bdd0393497c3b33280308d67ef32 ]]
+# Install a pinned, self-contained signature verifier from the read-only mirror.
+# A fresh VPS is not expected to have this helper preinstalled.
+TOOLS=/root/celikom-release-tools
+VERIFY_COMMIT=1f438a88bca19cbdec95c44dd03b4c3285435046
+VERIFY_BLOB=bb4d19672d45bdd0393497c3b33280308d67ef32
+[[ ! -e "$TOOLS" || ( -d "$TOOLS" && ! -L "$TOOLS" && "$(stat -c '%u:%a' "$TOOLS")" == 0:700 ) ]]
+if [[ -e "$TOOLS/windows-stable-existing-latest.mjs" ]]; then
+  [[ -f "$TOOLS/windows-stable-existing-latest.mjs" &&
+     ! -L "$TOOLS/windows-stable-existing-latest.mjs" &&
+     "$(git hash-object "$TOOLS/windows-stable-existing-latest.mjs")" == "$VERIFY_BLOB" ]]
+fi
 [[ "$(sha256sum /root/celikom-secrets/windows-stable-public.der | cut -d' ' -f1)" == 46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95 ]]
 
 tmp=$(mktemp -d /root/celikom-windows-public-feed.XXXXXXXX)
@@ -33,6 +42,10 @@ cleanup() {
     nginx -t && systemctl reload nginx || true
     systemctl disable --now celikom-windows-customer-stable.timer >/dev/null 2>&1 || true
     rm -f -- "$SERVICE" "$TIMER" "$APP"
+    if [[ -f "$tmp/verifier-installed-by-this-run" ]]; then
+      rm -f -- "$TOOLS/windows-stable-existing-latest.mjs"
+      rmdir "$TOOLS" >/dev/null 2>&1 || true
+    fi
     systemctl daemon-reload || true
     echo CUSTOMER_WINDOWS_FIRST_ACTIVATION_ROLLED_BACK
   fi
@@ -43,6 +56,15 @@ trap cleanup EXIT
 runuser -u celikom-mirror -- git --git-dir="$MIRROR" show "$COMMIT:$SOURCE" > "$tmp/consumer.py"
 [[ "$(git hash-object "$tmp/consumer.py")" == "$BLOB" ]]
 python3 -m py_compile "$tmp/consumer.py"
+runuser -u celikom-mirror -- git --git-dir="$MIRROR" show \
+  "$VERIFY_COMMIT:.github/scripts/windows-stable-existing-latest.mjs" > "$tmp/verifier.mjs"
+[[ "$(git hash-object "$tmp/verifier.mjs")" == "$VERIFY_BLOB" ]]
+node --check "$tmp/verifier.mjs"
+install -d -o root -g root -m 0700 "$TOOLS"
+if [[ ! -e "$TOOLS/windows-stable-existing-latest.mjs" ]]; then
+  install -o root -g root -m 0600 "$tmp/verifier.mjs" "$TOOLS/windows-stable-existing-latest.mjs"
+  touch "$tmp/verifier-installed-by-this-run"
+fi
 # Validate the approval contract before enabling the timer.
 runuser -u celikom-mirror -- git --git-dir="$MIRROR" show \
   refs/heads/main:.github/release/windows-customer-stable.json > "$tmp/approval.json"
