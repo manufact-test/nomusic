@@ -57,6 +57,13 @@ jobs:
               echo "ENTRYPOINT_DIRECTIVE_MATCH ",preg_match("/celikom|bootstrap|current|index\\.php/i",$s)?1:0,PHP_EOL;
             '
             find "$root" -maxdepth 1 -type l -printf 'PUBLIC_SYMLINK %f -> %l\n'
+            echo PHP_ENTRYPOINT_INVENTORY
+            find "$root" -maxdepth 3 -type f -name '*.php' -printf 'PHP_PUBLIC %P\n' | LC_ALL=C sort | head -n 120
+            echo PHP_PUBLIC_COUNT $(find "$root" -maxdepth 3 -type f -name '*.php' | wc -l)
+            echo DIRECT_PHP_AUTH_WRITERS
+            for f in "$root/admin/index.php" "$root/api/index.php" "$root/index.php"; do
+              if test -f "$f" && test ! -L "$f"; then sha256sum "$f"; fi
+            done
           done
           REMOTE
           for url in \
