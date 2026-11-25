@@ -67,6 +67,7 @@ jobs:
       - name: Verify metadata and local private import contracts
         run: |
           python3 .github/scripts/tests/windows-stable-floki-draft-source.test.py
+          python3 .github/scripts/tests/floki-windows-intake-parse-connection.test.py
           node --test .github/scripts/tests/windows-stable-private-import.test.mjs
       - name: Prepare exact signed private draft transfer (no deployment secrets)
         env:
@@ -92,10 +93,10 @@ jobs:
           trap 'rm -rf -- "$tmp"' EXIT
           printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" | tr -d '\r' > "$tmp/bundle"
           unset FLOKI_WINDOWS_INTAKE_CONNECTION
-          head -n 1 "$tmp/bundle" > "$tmp/known_hosts"
-          tail -n +2 "$tmp/bundle" > "$tmp/key"
-          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
-          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null
+          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp"
+          rm "$tmp/bundle"
+          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null 2>&1 || { echo WINDOWS_INTAKE_PRIVATE_KEY_INVALID; exit 2; }
+          echo WINDOWS_INTAKE_PRIVATE_KEY_FORMAT_OK
           bundle="$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
           digest=$(sha256sum "$bundle" | cut -d' ' -f1)
           sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
