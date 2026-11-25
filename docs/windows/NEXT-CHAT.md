@@ -1,3 +1,13 @@
+## Infrastructure release addendum — 25 November 2026 (owner downloads)
+
+The CELIKOM infrastructure chat prepared a single trusted Floki bootstrap at `.github/scripts/floki-release-owner-bootstrap.sh` and reused the existing Windows signed-spool root consumer, installer and P-256 pin, without changing audio code. Exact 0.24.56 EXE SHA-256 `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a` remains privately staged pending live root activation and full owner-auth HTTPS confirmation. The next Windows developer **must not** run a separate per-release root installer or create more ad hoc GitHub download links; use the permanent signed owner producer/consumer after bootstrap.
+
+Owner latest = latest verified signed *test candidate* behind site Basic authentication. Customer stable update feed must remain separately controlled by owner acceptance. The signed 0.24.56 installed-client replacement/audio regression has not yet been accepted; first make the exact 0.24.56 available on celikom.com and test that version before any new Windows audio changes.
+
+Future Windows versions: only main, verified signed manifest with increasing sequence, existing spool workflow; root consumer independently validates and publishes immutable version + owner latest. Do not weaken signature pin or change Hostinger until real old→new OTA has been confirmed. Infrastructure status and blockers: `docs/migration/CELIKOM-RELEASE-PUBLICATION-HANDOFF-2026-11-25.md`.
+
+---
+
 # CURRENT WINDOWS — W176 permanent Floki delivery: signed 0.24.56 staged, owner HTTPS root activation BLOCKED (25 November 2026)
 
 ## Exact current position
