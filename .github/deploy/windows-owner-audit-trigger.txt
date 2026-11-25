@@ -1,0 +1,1 @@
+2026-11-25: audit only trusted Floki Windows private import, current root-owned stable pointer and Basic owner download routing; no file changes.
