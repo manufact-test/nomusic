@@ -1,0 +1,117 @@
+name: CELIKOM Windows private signed FlokiNET handoff
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact already signed version
+        required: true
+        type: string
+        default: '0.24.55'
+      sequence:
+        description: Exact signed sequence
+        required: true
+        type: string
+        default: '2'
+      source_commit:
+        description: Exact source commit of both existing private drafts
+        required: true
+        type: string
+        default: '61d17d9eb97f3db5c58c906e30da6c19ee737090'
+      send_to_private_intake:
+        description: Send to dedicated nonprivileged intake, never publish
+        required: true
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      sequence:
+        required: true
+        type: string
+      source_commit:
+        required: true
+        type: string
+      send_to_private_intake:
+        required: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - '.github/ci/celikom-windows-private-stage-trigger.txt'
+permissions:
+  contents: read
+concurrency:
+  group: celikom-windows-private-floki-stage
+  cancel-in-progress: false
+jobs:
+  stage:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: windows-stable-production
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    env:
+      RELEASE_VERSION: ${{ inputs.version || '0.24.55' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '2' }}
+      RELEASE_COMMIT: ${{ inputs.source_commit || '61d17d9eb97f3db5c58c906e30da6c19ee737090' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify metadata and local private import contracts
+        run: |
+          python3 .github/scripts/tests/windows-stable-floki-draft-source.test.py
+          node --test .github/scripts/tests/windows-stable-private-import.test.mjs
+      - name: Prepare exact signed private draft transfer (no deployment secrets)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -m 700 "$RUNNER_TEMP/celikom-windows-private-stage"
+          python3 .github/scripts/windows-stable-floki-draft-source.py --version "$RELEASE_VERSION" \
+            --sequence "$RELEASE_SEQUENCE" --commit "$RELEASE_COMMIT" \
+            --output "$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
+      - name: Send only signed data to dedicated nonprivileged intake
+        if: inputs.send_to_private_intake == true
+        env:
+          FLOKI_WINDOWS_INTAKE_CONNECTION: ${{ secrets.FLOKI_WINDOWS_INTAKE_CONNECTION }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ -n "$FLOKI_WINDOWS_INTAKE_CONNECTION" ]] || { echo WINDOWS_INTAKE_ENROLLMENT_REQUIRED; exit 2; }
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" | tr -d '\r' > "$tmp/bundle"
+          unset FLOKI_WINDOWS_INTAKE_CONNECTION
+          head -n 1 "$tmp/bundle" > "$tmp/known_hosts"
+          tail -n +2 "$tmp/bundle" > "$tmp/key"
+          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
+          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null
+          bundle="$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
+          digest=$(sha256sum "$bundle" | cut -d' ' -f1)
+          sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 \
+            -o ClearAllForwardings=yes)
+          reply=$(ssh "${sshargs[@]}" celikom-windows-intake@95.133.160.111 \
+            "stage-windows $RELEASE_VERSION $RELEASE_SEQUENCE $digest" < "$bundle")
+          if [[ "$reply" != "CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK private-staged $RELEASE_VERSION $RELEASE_SEQUENCE $digest" &&
+                "$reply" != "CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK already-staged $RELEASE_VERSION $RELEASE_SEQUENCE $digest" ]]; then
+            echo WINDOWS_INTAKE_RESPONSE_INVALID
+            exit 1
+          fi
+          echo "$reply"
+          echo CELIKOM_WINDOWS_PRIVATE_HANDOFF_VERIFIED_NOT_PUBLISHED
+      - name: Cleanup private local transfer files
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/celikom-windows-private-stage"

@@ -1,0 +1,1 @@
+2026-11-25: dry-run exact private signed source with dedicated transfer path disabled. No live publication.
