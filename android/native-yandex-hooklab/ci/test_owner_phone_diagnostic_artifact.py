@@ -95,6 +95,23 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
         self.assertIn("RAMIL-AU-BETA13", OUTPUT_NAME)
         self.assertIn("HONOR50", OUTPUT_NAME)
 
+    def test_delivery_keeps_native_success_gate_and_private_draft(self):
+        workflow = Path(__file__).resolve().parents[3] / ".github/workflows/android-a1-metrica-init-state-observer-arm13.yml"
+        raw = workflow.read_text()
+        start = raw.index("      - name: Deliver accepted owner-phone APK as private draft release")
+        end = raw.index("      - name: Remove all original/clone private files", start)
+        block = raw[start:end]
+        self.assertIn("if: success() &&", block)
+        self.assertIn("inputs.export_diagnostic_apk", block)
+        self.assertIn("contains(github.event.head_commit.message, '[export-beta-audio]')", block)
+        self.assertIn('--target "$GITHUB_SHA" --draft', block)
+        self.assertIn('= PRIVATE', block)
+        self.assertIn('receipt["isDraft"] is True', block)
+        self.assertNotIn("actions/upload-artifact", block)
+        self.assertNotIn("gh release edit", block)
+        self.assertNotIn("--clobber", block)
+        self.assertIn('celikom-a1-owner-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT', block)
+        self.assertIn("No-suppression native ARM13 publisher-first side-by-side 75s test", raw[:start])
 
 
 if __name__ == "__main__":
