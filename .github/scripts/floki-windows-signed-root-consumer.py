@@ -207,7 +207,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def read_owner_auth():
     # The protected original owner Basic credentials are consumed in memory
     # exclusively for exact HTTPS download verification. Never log contents.
-    file=Path("/srv/celikom/migration/sites-20261124/android-private/staging-owner-credentials.txt")
+    file=Path("/root/celikom-secrets/celikom-owner-basic-verification.txt")
     secure_root_file(file)
     values={}
     for line in file.read_text().splitlines():
