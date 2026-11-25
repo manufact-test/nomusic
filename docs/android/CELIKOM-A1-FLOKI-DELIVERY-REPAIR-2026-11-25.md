@@ -76,3 +76,11 @@ Patched the root consumer at commit `7366d6bd7b6fdddcea3ae27b2cf0658473dda4b3`, 
 Trusted **one-time repair script** `.github/scripts/floki-a1-signed-verifier-ubuntu-recovery.sh` was added at commit `fc240ecce39ec0d268b3cb6b992392438cce5d49`, Git blob `db02468bf5ef5d2a78259e6387d26ffff75d6882`. An operator with root authority may retrieve it from the read-only mirror and verify that exact blob before execution. The script refuses unexpected installed consumer state, stops only the A1 timer/service during atomic replacement, and resumes the timer. It starts the pre-existing service and prints trusted BETA16 receipt if successful. Do **not** run first-time bootstrap again or restage BETA16.
 
 This repair is committed, **but not verified on the live server yet**. Do not report release complete until trusted root receipt and independent external HTTPS file hash are verified.
+
+## Corrected Ubuntu verifier symlink mode (same date)
+
+First surgical repair installed consumer blob `a9e915186e7c0e3bbce0b8ffda7c046500ca99a3` successfully, but the service then failed with `A1_ROOT_UNTRUSTED_SIGNING_VERIFIER_PATH` from the group/world-writable bit check of a POSIX symbolic link. Root-owned Ubuntu symlinks normally have `0777` which is not their effective write permission. Confirmed against local real root-owned `/bin -> /usr/bin` chain; root-owned regular `0777` executables and writable directories remain rejected.
+
+Corrected trusted consumer at commit `b7764101e878ea7c6117dfca6286ca0f20888f26`, blob `abde17a59570260cb590a4873408577acfa1b56c`: accept 0777 **only for root-owned symlinks** while retaining root-owned non-group/world-writable real files/directories, executable check, resolved final target confined under `/usr` (not `/usr/local`), and pinned signature checks.
+
+Updated recovery script at commit `f2bb9a516eda27de9af181fffcb5ae9021e64abd`, blob `d12d4038a71e9d16bd380ec1b78e5649f242266e`, to accept the previous failed installed consumers but install only corrected code. Future first-time installer pins also updated. This corrected repair has **not yet been run or validated on Floki**; do not claim public BETA16 live.
