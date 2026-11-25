@@ -6,15 +6,15 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 # Git, Actions artifacts, stdout, or public web routes.
 basedir=/srv/celikom/migration
 key="$basedir/secrets/celikom-offsite-20261122.key"
-root="$basedir/final-delta-20261125"
-out="$basedir/backups/celikom-final-delta-20261125.tar.gpg"
+root="$basedir/final-delta-20261125-v2"
+out="$basedir/backups/celikom-final-delta-20261125-v2.tar.gpg"
 work="$root/plain"
 recovery="$root/restore-test"
 ctr=celikom-mdb-check-20261122
 api_db=celikom_cutover_20261124
 cms_db=celikom_website_cutover_20261124
-scratch_cms=celikom_final_recovery_20261125
-scratch_ctr=celikom-final-recovery-20261125
+scratch_cms=celikom_final_recovery_20261125_v2
+scratch_ctr=celikom-final-recovery-20261125-v2
 [[ ! -e "$root" && ! -L "$root" && ! -e "$out" && ! -L "$out" ]]
 [[ -f "$key" && ! -L "$key" && "$(stat -c %u "$key")" == 0 ]]
 [[ "$(stat -c %a "$key")" == 600 || "$(stat -c %a "$key")" == 400 ]]
@@ -58,7 +58,8 @@ echo CELIKOM_POST_CUTOVER_LIVE_SQL_DUMPS_COMPLETE
 copy_secure(){
  src=$1
  target=$2
- [[ -f "$src" && ! -L "$src" && "$(stat -c %u "$src")" == 0 ]]
+ [[ -f "$src" && ! -L "$src" && -r "$src" ]]
+ [[ "$(stat -c %a "$src")" =~ ^(600|640|644)$ ]]
  install -m 600 "$src" "$work/$target"
 }
 copy_secure /srv/celikom/app/staging-20261122/.env config/api.env
@@ -115,9 +116,7 @@ echo CELIKOM_FINAL_DELTA_AES256_ENCRYPTED_ARCHIVE_CREATED
 
 # Full independent decryption and safe extraction into a disposable private tree.
 install -d -m 700 "$recovery/tree" "$recovery/gnupg"
-gpg --homedir "$recovery/gnupg" --batch --no-tty --pinentry-mode loopback \
-  --passphrase-file "$key" --decrypt "$out" 2>/dev/null |
-python3 - "$recovery/tree" <<'PY'
+cat > "$root/safe-restore.py" <<'PY'
 import tarfile,sys,pathlib
 root=pathlib.Path(sys.argv[1])
 count=0
@@ -131,6 +130,9 @@ with tarfile.open(fileobj=sys.stdin.buffer,mode="r|*") as tar:
 assert count>=10,count
 print("CELIKOM_FINAL_DELTA_SAFE_ARCHIVE_MEMBERS",count)
 PY
+gpg --homedir "$recovery/gnupg" --batch --no-tty --pinentry-mode loopback \
+  --passphrase-file "$key" --decrypt "$out" 2>/dev/null | python3 "$root/safe-restore.py" "$recovery/tree"
+
 restored="$recovery/tree"
 (cd "$restored" && sha256sum -c SHA256SUMS --status)
 python3 - "$restored" <<'PY'
