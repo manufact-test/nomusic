@@ -6,7 +6,7 @@ umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
 COMMIT=fb3cb67b11d7916668d5cd6033090f1cfcf2d264
-BLOB=ANDROID_PUBLIC_CONSUMER_BLOB
+BLOB=c6ce4e6e6db125cc921663405fcd668d7c71d8b9
 SOURCE=.github/scripts/floki-android-customer-stable-consumer.py
 DEST=/usr/local/lib/celikom-android-stable-owner/customer-consumer.py
 SERVICE=/etc/systemd/system/celikom-android-customer-stable.service
@@ -88,7 +88,15 @@ PY
 
 nginx -t
 systemctl reload nginx
-install -d -o root -g root -m 0755 /srv/celikom-releases/public
+if [[ -e /srv/celikom-releases/public ]]; then
+  [[ -d /srv/celikom-releases/public &&
+     ! -L /srv/celikom-releases/public &&
+     "$(stat -c '%u' /srv/celikom-releases/public)" == 0 &&
+     "$(stat -c '%a' /srv/celikom-releases/public)" == 755 ]]
+else
+  install -d -o root -g root -m 0755 /srv/celikom-releases/public
+fi
+[[ ! -e "$PUBLIC" ]]
 install -d -o root -g root -m 0755 "$PUBLIC"
 install -o root -g root -m 0644 "$tmp/consumer.py" "$DEST"
 
