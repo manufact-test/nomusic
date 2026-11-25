@@ -5,13 +5,36 @@ Only harmless clipboard whitespace is normalized. Never print enrolled material,
 infer missing key contents, obtain new host keys or disable SSH verification.
 """
 import base64
+import hashlib
 import os
 import pathlib
 import re
 import sys
 
 
-def parse(raw):
+# Fingerprint independently confirmed through existing authenticated
+# maintenance SSH and the owner's terminal. Never trust an unverified scan.
+HOST_FINGERPRINT = "SHA256:eqVsJpDin/3W3QeDMzO1t0OOiZ03XQksrCkMgPrf9X4"
+
+
+def validate_trusted_pin(raw, fingerprint=HOST_FINGERPRINT):
+    lines = [x.strip() for x in raw.decode("ascii").splitlines()
+             if x.strip() and not x.lstrip().startswith("#")]
+    if len(set(lines)) != 1:
+        raise ValueError("WINDOWS_INTAKE_SCAN_AMBIGUOUS")
+    parts = lines[0].split()
+    if len(parts) != 3 or parts[:2] != ["95.133.160.111", "ssh-ed25519"]:
+        raise ValueError("WINDOWS_INTAKE_SCAN_HOST_INVALID")
+    blob = base64.b64decode(parts[2], validate=True)
+    if len(blob) != 51 or blob[:19] != b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x20":
+        raise ValueError("WINDOWS_INTAKE_SCAN_KEY_TYPE_INVALID")
+    actual = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+    if actual != fingerprint:
+        raise ValueError("WINDOWS_INTAKE_HOST_FINGERPRINT_MISMATCH")
+    return " ".join(parts) + "\n"
+
+
+def parse(raw, trusted_pin=None):
     if len(raw) > 24576:
         raise ValueError("WINDOWS_INTAKE_ENROLLMENT_TOO_LARGE")
     envelope = b"CELIKOM-WINDOWS-INTAKE-V1:"
@@ -28,6 +51,8 @@ def parse(raw):
     except UnicodeError:
         raise ValueError("WINDOWS_INTAKE_ENROLLMENT_ENCODING_INVALID") from None
     lines = [x.strip() for x in lines if x.strip()]
+    if lines and lines[0] == "-----BEGIN OPENSSH PRIVATE KEY-----" and trusted_pin is not None:
+        lines.insert(0, trusted_pin.strip())
     if len(lines) < 4:
         raise ValueError("WINDOWS_INTAKE_ENROLLMENT_LINES_INVALID")
     parts = lines[0].split()
@@ -56,14 +81,18 @@ def parse(raw):
         raise ValueError("WINDOWS_INTAKE_PRIVATE_KEY_BOUNDARY_INVALID")
     if not all(re.fullmatch(r"[A-Za-z0-9+/=]+", x) for x in lines[2:-1]):
         raise ValueError("WINDOWS_INTAKE_PRIVATE_KEY_TEXT_INVALID")
-    return " ".join(parts) + "\n", "\n".join(lines[1:]) + "\n"
+    pin = " ".join(parts) + "\n"
+    if trusted_pin is not None and pin != trusted_pin:
+        raise ValueError("WINDOWS_INTAKE_BUNDLED_PIN_MISMATCH")
+    return pin, "\n".join(lines[1:]) + "\n"
 
 
 def main():
     try:
-        if len(sys.argv) != 3:
+        if len(sys.argv) != 4:
             raise ValueError("WINDOWS_INTAKE_PARSER_ARGUMENTS_INVALID")
-        pin, key = parse(pathlib.Path(sys.argv[1]).read_bytes())
+        trusted_pin = validate_trusted_pin(pathlib.Path(sys.argv[3]).read_bytes())
+        pin, key = parse(pathlib.Path(sys.argv[1]).read_bytes(), trusted_pin)
         target = pathlib.Path(sys.argv[2])
         for name, value in (("known_hosts", pin), ("key", key)):
             fd = os.open(target / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)

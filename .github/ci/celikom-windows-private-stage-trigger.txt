@@ -4,3 +4,4 @@
 2026-11-25: validate enrolled clipboard format without printing secret; retry exact signed private transfer.
 2026-11-25: owner confirmed corrected clipboard enrollment; verify exact signed 0.24.55 transfer.
 2026-11-25: classify invalid owner-enrollment format without logging input; accept exact one-line encoded transport option.
+2026-11-25: existing owner secret is private key only; independently authenticated host fingerprint pinned, strict SSH host check retained.

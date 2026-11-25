@@ -82,7 +82,8 @@ jobs:
           trap 'rm -rf -- "$tmp"' EXIT
           printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" > "$tmp/bundle"
           unset FLOKI_WINDOWS_INTAKE_CONNECTION
-          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp"
+          ssh-keyscan -T 15 -t ed25519 95.133.160.111 > "$tmp/scan" 2>/dev/null
+          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
           ssh-keygen -y -P '' -f "$tmp/key" >/dev/null 2>&1 || { echo WINDOWS_INTAKE_PRIVATE_KEY_INVALID; exit 2; }
           echo WINDOWS_INTAKE_ENROLLMENT_PREFLIGHT_OK
       - name: Prepare exact signed private draft transfer (no deployment secrets)
@@ -109,7 +110,8 @@ jobs:
           trap 'rm -rf -- "$tmp"' EXIT
           printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" | tr -d '\r' > "$tmp/bundle"
           unset FLOKI_WINDOWS_INTAKE_CONNECTION
-          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp"
+          ssh-keyscan -T 15 -t ed25519 95.133.160.111 > "$tmp/scan" 2>/dev/null
+          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
           rm "$tmp/bundle"
           ssh-keygen -y -P '' -f "$tmp/key" >/dev/null 2>&1 || { echo WINDOWS_INTAKE_PRIVATE_KEY_INVALID; exit 2; }
           echo WINDOWS_INTAKE_PRIVATE_KEY_FORMAT_OK
