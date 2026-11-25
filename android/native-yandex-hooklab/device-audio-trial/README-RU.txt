@@ -1,4 +1,4 @@
-CELIKOM Android A1 — Рамиль «Ау», BETA16 (HONOR 50 / Android 13)
+CELIKOM Android A1 — Рамиль «Ау», BETA17 (HONOR 50 / Android 13)
 25.11.2026. Диагностическая сборка: отдельно фиксирует строгую причину отказа exactOriginalMediaItemCreator (Java MediaItem ==, weak refs, wrapper-link, original Track/Album и beta fallback). Это НЕ подтверждённое исправление звука.
 
 1. Установить поверх BETA15. Приложение и его данные не удалять.
