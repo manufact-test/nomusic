@@ -41,6 +41,9 @@ final class StageBAudioEvidence {
     private final AtomicLong exoDescriptorResults = new AtomicLong();
     private final AtomicLong exoFactorySameDescriptor = new AtomicLong();
     private final AtomicLong exoFactoryResults = new AtomicLong();
+    private final AtomicLong originalMediaItemAnchors = new AtomicLong();
+    private final AtomicLong originalMediaItemDescriptors = new AtomicLong();
+    private final AtomicLong originalMediaItemConflicts = new AtomicLong();
     private final AtomicLong exoOpenResults = new AtomicLong();
     private final AtomicLong exoPositiveReads = new AtomicLong();
     private final AtomicLong exoEndOfSource = new AtomicLong();
@@ -99,6 +102,21 @@ final class StageBAudioEvidence {
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<TrackAlbumLink> nativeTrackAlbumLinks = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
+    // One original cA9 selection constructs a signed iLb MediaSource with an
+    // immutable Of6 MediaItem. The later lLb child factory consumes that SAME
+    // Of6 across a coroutine boundary, outside cA9's ThreadLocal scope.
+    // No global/latest wrapper, value-based equality or vendor fields.
+    private static final class OriginalMediaSourceItemLink {
+        final WeakReference<Object> source,item,wrapper;
+        boolean conflicted;
+        OriginalMediaSourceItemLink(Object source,Object item,Object wrapper) {
+            this.source=new WeakReference<>(source);
+            this.item=new WeakReference<>(item);
+            this.wrapper=new WeakReference<>(wrapper);
+        }
+    }
+    private final ArrayList<OriginalMediaSourceItemLink>
+        originalMediaSourceItems = new ArrayList<>();
     // First open/read/close permanently disqualifies this Java instance as a
     // *fresh* candidate even if a later factory links that SAME instance.
     // Weak, bounded, identity-only; saturation fails closed.
@@ -1118,6 +1136,76 @@ final class StageBAudioEvidence {
         return findByWrapper(wrapper)!=null;
     }
 
+    /**
+     * Runs only AFTER the signed iLb constructor completed under cA9's
+     * original TrackWrapper source-selection scope. This is a structural
+     * candidate, not an approved source, a current MediaItem or a ticket.
+     */
+    synchronized void onOriginalMediaSourceConstructed(Object source,Object item) {
+        Object wrapper=currentScope(activeWrapperScopes);
+        if(source==null || item==null || wrapper==null
+                || findByWrapper(wrapper)==null)return;
+        for(int i=originalMediaSourceItems.size()-1;i>=0;i--) {
+            OriginalMediaSourceItemLink old=originalMediaSourceItems.get(i);
+            Object oldSource=old.source.get(),oldItem=old.item.get();
+            if(oldSource==null || oldItem==null || old.wrapper.get()==null) {
+                originalMediaSourceItems.remove(i);
+                continue;
+            }
+            if(oldSource==source || oldItem==item) {
+                old.conflicted=true;
+                mark(originalMediaItemConflicts);
+                return; // multiple originals may never share a selection
+            }
+        }
+        if(originalMediaSourceItems.size()>=16)return; // fail closed, no live eviction
+        originalMediaSourceItems.add(new OriginalMediaSourceItemLink(
+            source,item,wrapper));
+        mark(originalMediaItemAnchors);
+    }
+
+    /**
+     * MediaItem == across original iLb constructor and later lLb.if.
+     * Returns the *actual iLb source object* too: caller MUST require == with
+     * the source that the successful original Player setter accepted.
+     */
+    synchronized Object[] exactOriginalMediaItemCreator(Object item) {
+        if(item==null)return null;
+        OriginalMediaSourceItemLink unique=null;
+        for(OriginalMediaSourceItemLink candidate:originalMediaSourceItems) {
+            if(candidate.item.get()!=item)continue;
+            if(unique!=null)return null;
+            unique=candidate;
+        }
+        if(unique==null || unique.conflicted)return null;
+        Object wrapper=unique.wrapper.get(),source=unique.source.get();
+        if(wrapper==null || source==null || findByWrapper(wrapper)==null)
+            return null;
+        Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
+        return creator==null?null:new Object[]{
+            wrapper,creator[0],creator[1],source
+        };
+    }
+
+    /** Only the exact original iLb MediaItem matched by == may bind QAa. */
+    synchronized boolean onOriginalMediaItemDescriptor(Object item,
+            Object wrapper,Object descriptor) {
+        Object[] creator=exactOriginalMediaItemCreator(item);
+        if(creator==null || creator[0]!=wrapper || descriptor==null)return false;
+        NativeTrackSourceLink link=findByWrapper(wrapper);
+        if(link==null || link.factoryResult!=null || link.sourceInstance!=null
+                || link.descriptor!=null && link.descriptor.get()!=descriptor)
+            return false;
+        if(link.descriptor==null) {
+            link.descriptor=new WeakReference<>(descriptor);
+            mark(wrapperDescriptorLinks);
+            if(link.albumInstance!=null && link.albumInstance.get()!=null)
+                mark(trackDescriptorAlbumLinks);
+        }
+        mark(originalMediaItemDescriptors);
+        return true;
+    }
+
     synchronized void onNativeExoDescriptorBuiltForCurrentWrapper(Object descriptor) {
         Object wrapper=currentScope(activeWrapperScopes);
         if (wrapper==null || descriptor==null) return;
@@ -1578,6 +1666,9 @@ final class StageBAudioEvidence {
             event("TRACK_WRAPPER_LINK", nativeTrackWrapperLinks),
             event("WRAPPER_MAIN_SOURCE", wrapperMainSourceRequests),
             event("WRAPPER_DESCRIPTOR_LINK", wrapperDescriptorLinks),
+            event("ORIGINAL_MEDIAITEM_SOURCE_ANCHOR", originalMediaItemAnchors),
+            event("ORIGINAL_MEDIAITEM_DESCRIPTOR_LINK", originalMediaItemDescriptors),
+            event("ORIGINAL_MEDIAITEM_IDENTITY_CONFLICT", originalMediaItemConflicts),
             event("TRACK_DESCRIPTOR_FACTORY_LINK", trackDescriptorFactoryLinks),
             event("TRACK_FACTORY_SOURCE_LINK", trackFactorySourceLinks),
             event("TRACK_SOURCE_OPEN_LINK", trackSourceOpenLinks),

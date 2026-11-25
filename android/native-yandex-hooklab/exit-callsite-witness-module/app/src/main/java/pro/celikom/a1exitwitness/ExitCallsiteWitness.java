@@ -79,7 +79,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    private static final String BETA_BUILD = "A1_TRACKID_BETA13_AUTHENTICATED_LEGACY_RESOLVE_20261121";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA14_ORIGINAL_MEDIAITEM_SOURCE_BRIDGE_20261125";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -195,6 +195,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoFactoryWitnessReady;
     private boolean exactExoDescriptorWitnessReady;
     private boolean exactExoSourceInstanceHookReady;
+    private boolean originalMediaItemSourceAnchorHookReady;
+    private boolean originalMediaItemChildDescriptorHookReady;
     private boolean exactExoDataOpenWitnessReady;
     // Original signed UC2 DataSpec constructor stores position in the
     // SECOND post-header long, private field "else" (strict 2025 gate).
@@ -4251,6 +4253,72 @@ public final class ExitCallsiteWitness extends XposedModule {
     private synchronized void installExactNativeExoSourceWitness(ClassLoader loader) {
         if (loader == null || !PACKAGE.equals(Application.getProcessName())) return;
         installNativeTrackSourceContinuityWitness(loader);
+        // Signed cA9 constructs iLb(original Of6 MediaItem) before the Player
+        // source setter. A later iLb coroutine calls lLb.if with that exact
+        // original Of6 after the cA9 ThreadLocal scope has ended.
+        if (!originalMediaItemSourceAnchorHookReady) {
+            try {
+                Class<?> owner=Class.forName("iLb",false,loader);
+                java.lang.reflect.Constructor<?> constructor=
+                    owner.getDeclaredConstructor(
+                        Class.forName("dA9",false,loader),
+                        Class.forName("gA9",false,loader),
+                        Class.forName("JI7",false,loader),
+                        Class.forName("Of6",false,loader),
+                        Class.forName("Fq1",false,loader),
+                        Class.forName("Hy9$a",false,loader),
+                        Class.forName("PAa",false,loader));
+                constructor.setAccessible(true);
+                hook(constructor).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed(); // original constructor once
+                        try {
+                            STAGE_B_AUDIO.onOriginalMediaSourceConstructed(
+                                chain.getThisObject(),chain.getArg(3));
+                        } catch(Throwable ignored) { }
+                        return result;
+                    });
+                originalMediaItemSourceAnchorHookReady=true;
+                emit("AUDIO_ORIGINAL_MEDIAITEM_HOOK","SOURCE_ANCHOR","REGISTERED");
+            } catch(Throwable ignored) {
+                emit("AUDIO_ORIGINAL_MEDIAITEM_HOOK","SOURCE_ANCHOR","NO_HOOK");
+            }
+        }
+        if (!originalMediaItemChildDescriptorHookReady) {
+            try {
+                Class<?> child=Class.forName("lLb",false,loader);
+                Method method=child.getDeclaredMethod("if",
+                    Class.forName("dA9",false,loader),
+                    Class.forName("QAa",false,loader),
+                    Class.forName("Of6",false,loader),
+                    Class.forName("gA9",false,loader));
+                if(!java.lang.reflect.Modifier.isStatic(method.getModifiers()))
+                    throw new NoSuchMethodException("SIGNED_LLB_CHILD_STATIC_REQUIRED");
+                method.setAccessible(true);
+                hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        try {
+                            Object item=chain.getArg(2),descriptor=chain.getArg(1);
+                            Object[] creator=STAGE_B_AUDIO.exactOriginalMediaItemCreator(item);
+                            if(creator!=null) {
+                                Object[] setter=NATIVE_RENDERER_EVIDENCE
+                                    .exactSetterForFreshSourceCreator(
+                                        creator[0],creator[1],creator[2]);
+                                // Same actual iLb object delivered by Player
+                                // setter, not merely a shared logical ID.
+                                if(setter!=null && setter[1]==creator[3])
+                                    STAGE_B_AUDIO.onOriginalMediaItemDescriptor(
+                                        item,creator[0],descriptor);
+                            }
+                        } catch(Throwable ignored) { }
+                        return chain.proceed(); // original child source once
+                    });
+                originalMediaItemChildDescriptorHookReady=true;
+                emit("AUDIO_ORIGINAL_MEDIAITEM_HOOK","CHILD_DESCRIPTOR","REGISTERED");
+            } catch(Throwable ignored) {
+                emit("AUDIO_ORIGINAL_MEDIAITEM_HOOK","CHILD_DESCRIPTOR","NO_HOOK");
+            }
+        }
         if (!exactExoDescriptorWitnessReady) {
             try {
                 Class<?> owner = Class.forName(

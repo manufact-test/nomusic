@@ -308,7 +308,7 @@ jobs:
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk"
+          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA14-HONOR50-20261125.apk"
           test -s "$apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
           sha256sum "$apk"
@@ -325,7 +325,7 @@ jobs:
           test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ && "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ && "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk"
+          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA14-HONOR50-20261125.apk"
           test -f "$apk" && test ! -L "$apk"
           test -f "$bundle/README-RU.txt" && test ! -L "$bundle/README-RU.txt"
           # Existing private A1 drafts are delivery envelopes on main.
@@ -335,7 +335,7 @@ jobs:
           cd "$bundle"
           python3 - <<'PY'
           import hashlib, json, os, pathlib
-          name = "CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk"
+          name = "CELIKOM-A1-RAMIL-AU-BETA14-HONOR50-20261125.apk"
           apk = pathlib.Path(name)
           with apk.open("rb") as f:
               digest = hashlib.file_digest(f, "sha256").hexdigest()
@@ -373,7 +373,7 @@ jobs:
           assert receipt["targetCommitish"] == "main"
           root = pathlib.Path(sys.argv[3])
           expected = {p.name: p for p in root.iterdir() if p.is_file()}
-          assert set(expected) == {"CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk", "README-RU.txt", "BUILD-PROVENANCE.json", "SHA256SUMS.txt"}
+          assert set(expected) == {"CELIKOM-A1-RAMIL-AU-BETA14-HONOR50-20261125.apk", "README-RU.txt", "BUILD-PROVENANCE.json", "SHA256SUMS.txt"}
           provenance = json.loads(expected["BUILD-PROVENANCE.json"].read_bytes())
           assert provenance["source_commit"] == os.environ["GITHUB_SHA"]
           assert provenance["source_branch"] == os.environ["GITHUB_REF_NAME"]

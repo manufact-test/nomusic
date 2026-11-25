@@ -200,12 +200,72 @@ public final class StageBAudioEvidenceTest {
             mw,mismatch[0],mismatch[1])==null);
     }
 
+    static void originalMediaItemSourceBridgeFixture() {
+        // Same original iLb+Of6 across later child factory. No item values
+        // read; a different item, source or wrapper must never inherit it.
+        String id=NativeTrackIdBetaPolicy.RAMIL_AU;
+        StageBAudioEvidence e=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object mediaItem=new Object(),nativeMediaSource=new Object();
+        Object descriptor=new Object(),factory=new Object(),dataSource=new Object();
+        e.onNativeTrackAlbumConstructed(track,album);
+        e.onNativeTrackFlowEmission(track);
+        e.enterNativeTcaCreatorOwner(new Object());
+        e.enterNativeTcaCreatorTrackScope(track,1);
+        e.onNativeTrackWrapperCreated(wrapper,id);
+        e.exitNativeTcaCreatorTrackScope();
+        e.exitNativeTcaCreatorOwner();
+        e.enterNativePlayerSourceSelection(wrapper);
+        e.onOriginalMediaSourceConstructed(nativeMediaSource,mediaItem);
+        e.exitNativePlayerSourceSelection();
+        Object[] creator=e.exactOriginalMediaItemCreator(mediaItem);
+        check(creator!=null && creator.length==4 && creator[0]==wrapper
+            && creator[1]==track && creator[2]==album
+            && creator[3]==nativeMediaSource);
+        check(e.exactOriginalMediaItemCreator(new Object())==null);
+        check(!e.onOriginalMediaItemDescriptor(mediaItem,new Object(),descriptor));
+        check(!e.onOriginalMediaItemDescriptor(new Object(),wrapper,descriptor));
+        check(e.onOriginalMediaItemDescriptor(mediaItem,wrapper,descriptor));
+        e.onExoFactoryCreated(descriptor,factory);
+        e.onExoSourceInstanceCreated(dataSource,factory);
+        Object[] fresh=e.exactFreshCreatorOrBetaForDataSource(dataSource);
+        check(fresh!=null && fresh[0]==wrapper && fresh[1]==track
+            && fresh[2]==album);
+        bucket(e.exportLines(),0,"ORIGINAL_MEDIAITEM_SOURCE_ANCHOR","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_MEDIAITEM_DESCRIPTOR_LINK","ONE");
+        bucket(e.exportLines(),0,"TRACK_DESCRIPTOR_FACTORY_LINK","ONE");
+        bucket(e.exportLines(),0,"TRACK_FACTORY_SOURCE_LINK","ONE");
+
+        StageBAudioEvidence conflict=new StageBAudioEvidence();
+        Object ct=new Object(),ca=new Object(),cw=new Object();
+        Object commonItem=new Object(),firstSource=new Object();
+        conflict.onNativeTrackAlbumConstructed(ct,ca);
+        conflict.onNativeTrackFlowEmission(ct);
+        conflict.enterNativeTcaCreatorOwner(new Object());
+        conflict.enterNativeTcaCreatorTrackScope(ct,1);
+        conflict.onNativeTrackWrapperCreated(cw,id);
+        conflict.exitNativeTcaCreatorTrackScope();
+        conflict.exitNativeTcaCreatorOwner();
+        conflict.enterNativePlayerSourceSelection(cw);
+        conflict.onOriginalMediaSourceConstructed(firstSource,commonItem);
+        conflict.onOriginalMediaSourceConstructed(new Object(),commonItem);
+        conflict.exitNativePlayerSourceSelection();
+        check(conflict.exactOriginalMediaItemCreator(commonItem)==null);
+        check(!conflict.onOriginalMediaItemDescriptor(commonItem,cw,new Object()));
+        bucket(conflict.exportLines(),0,"ORIGINAL_MEDIAITEM_IDENTITY_CONFLICT","ONE");
+
+        StageBAudioEvidence wrongScope=new StageBAudioEvidence();
+        wrongScope.onOriginalMediaSourceConstructed(new Object(),new Object());
+        bucket(wrongScope.exportLines(),0,"ORIGINAL_MEDIAITEM_SOURCE_ANCHOR","NONE");
+    }
+
     public static void main(String[] argv) {
+        originalMediaItemSourceBridgeFixture();
         beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 68);
-        for (int i=0;i<67;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial.length == 71);
+        for (int i=0;i<70;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
@@ -785,6 +845,14 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoReadResult(", code)
         self.assertIn("STAGE_B_AUDIO.onExoFailure()", code)
         self.assertIn("STAGE_B_AUDIO.exportLines()", code)
+        self.assertIn('Class.forName("iLb",false,loader)', code)
+        self.assertIn('Class.forName("lLb",false,loader)', code)
+        self.assertIn('STAGE_B_AUDIO.onOriginalMediaSourceConstructed(', code)
+        self.assertIn('STAGE_B_AUDIO.exactOriginalMediaItemCreator(item)', code)
+        self.assertIn('setter[1]==creator[3]', code)
+        self.assertIn('STAGE_B_AUDIO.onOriginalMediaItemDescriptor(', code)
+        self.assertIn('"SOURCE_ANCHOR","REGISTERED"', code)
+        self.assertIn('"CHILD_DESCRIPTOR","REGISTERED"', code)
         self.assertIn("result=chain.proceed(); // exactly one unmodified original call", code)
         self.assertIn("result=chain.proceed();", code)
         self.assertIn('Class.forName("Dp0",false,loader)', code)
