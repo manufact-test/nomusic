@@ -45,15 +45,21 @@ trap cleanup EXIT
 ssh "${source_ssh[@]}" u235811320@92.113.19.189 'bash -s -- freeze' < .github/scripts/floki-cutover-source-freeze.sh
 frozen=1
 ssh "${source_ssh[@]}" u235811320@92.113.19.189 'bash -s -- status' < .github/scripts/floki-cutover-source-freeze.sh
-# Unmatched routes return 404 without Basic Auth before freeze. Require 403
-# specifically from the newly inserted mod_rewrite [F] rule on both old sites.
-for url in \
-  https://darkred-camel-588676.hostingersite.com/__celikom_freeze_probe_20261125 \
-  https://lemonchiffon-narwhal-791953.hostingersite.com/__celikom_freeze_probe_20261125; do
-  code=$(curl --silent --show-error --location --max-redirs 3 --max-time 20 -X POST -o /dev/null -w '%{http_code}' "$url")
-  [[ "$code" == 403 ]] || { echo "SOURCE_WRITE_FREEZE_NOT_EFFECTIVE $code"; exit 1; }
-done
+# Verify an actual application-level POST is intercepted by PHP itself.
+# A generic 401/403/404/503 without the exact marker is NOT freeze proof.
+probe="https://darkred-camel-588676.hostingersite.com/api/v1/auth/login"
+code=$(curl --silent --show-error --max-time 20 \
+  --header 'Content-Type: application/json' \
+  --data '{}' --dump-header "$tmp/freeze-response-headers" \
+  --output /dev/null --write-out '%{http_code}' "$probe")
+[[ "$code" == 503 ]] || { echo "SOURCE_PHP_WRITE_FREEZE_NOT_EFFECTIVE_HTTP_$code"; exit 1; }
+grep -Eiq '^X-Celikom-PHP-Write-Freeze: active\r?$' "$tmp/freeze-response-headers" || {
+  echo SOURCE_PHP_WRITE_FREEZE_NOT_CONFIRMED_BY_HEADER
+  exit 1
+}
 [[ "$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' https://darkred-camel-588676.hostingersite.com/api/v1/health)" == 200 ]]
+[[ "$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' https://lemonchiffon-narwhal-791953.hostingersite.com/)" == 401 ]]
+echo CELIKOM_SOURCE_PHP_FENCE_REAL_HTTP_POST_INTERCEPTED
 sleep 4
 echo CELIKOM_SOURCE_WRITE_METHODS_FROZEN
 # Rehash content under freeze, not a previous-day count or timestamp.
