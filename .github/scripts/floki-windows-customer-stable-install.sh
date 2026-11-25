@@ -1,6 +1,6 @@
 #!/bin/bash
 # One-time root-only activation of public customer signed Windows update routes.
-# A separate acceptance manifest is null by default: installs NO public release.
+# A separate acceptance manifest is null by default: seeds ONLY accepted 0.24.55 baseline.
 set -Eeuo pipefail
 umask 077
 [[ "$(id -u)" == 0 ]]
@@ -93,7 +93,7 @@ for path in ("/CELIKOM/Windows/Updates/stable/latest.json",
 assert "location = /downloads/windows/CELIKOM-Windows-stable.exe" not in s, "CUSTOMER_WINDOWS_PUBLIC_INSTALLER_CONFLICT"
 routes=r'''    # CELIKOM CUSTOMER SIGNED WINDOWS UPDATER
     # Public read-only metadata ONLY from separately accepted P-256 releases.
-    # The customer store is empty until main explicitly approves a version.
+    # Customer store starts at accepted 0.24.55; later versions require approval.
     location = /downloads/windows/CELIKOM-Windows-stable.exe {
         # Public installer is absent until the exact signed build is accepted.
         auth_basic off;
@@ -144,6 +144,24 @@ if ! nginx -t; then
 fi
 systemctl reload nginx
 
+# Seed only the previously accepted, signed 0.24.55 baseline. A client
+# upgrading from 0.24.55 MUST be able to fetch its own immutable signed
+# manifest and installer for rollback. Never seed unaccepted owner v56.
+python3 - <<'PY'
+import importlib.util,json
+from pathlib import Path
+p=Path("/usr/local/lib/celikom-windows-intake/customer-stable-consumer.py")
+spec=importlib.util.spec_from_file_location("customer_baseline",p)
+mod=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+manifest=json.loads((mod.SIGNED_ROOT/"0.24.55"/"manifest.json").read_bytes())
+assert manifest["version"]=="0.24.55" and manifest["sequence"]==2
+assert manifest["packageUrl"]=="https://celikom.com/CELIKOM/Windows/Updates/stable/0.24.55/CELIKOM-Windows-0.24.55.exe"
+mod.publish({"version":"0.24.55","sequence":2,"sha256":manifest["sha256"],
+             "owner_accepted":True})
+print("CUSTOMER_WINDOWS_ACCEPTED_BASELINE_02455_SIGNED_AND_HTTPS_VERIFIED")
+PY
+
 cat > "$SERVICE" <<'UNIT'
 [Unit]
 Description=CELIKOM approved P-256 Windows customer updater publisher
@@ -185,8 +203,10 @@ chmod 0644 "$SERVICE" "$TIMER"
 systemctl daemon-reload
 systemctl start celikom-mirror-sync.service
 systemctl start celikom-windows-customer-stable.service
-[[ ! -f /srv/celikom-releases/windows/customer-stable/latest.json ]]
+[[ -f /srv/celikom-releases/windows/customer-stable/latest.json &&
+   -f /srv/celikom-releases/windows/customer-stable/accepted.json &&
+   -f /srv/celikom-releases/windows/customer-stable/CELIKOM-Windows-stable.exe ]]
 systemctl enable --now celikom-windows-customer-stable.timer
 systemctl is-active celikom-windows-customer-stable.timer
 ready=1
-echo CUSTOMER_WINDOWS_UPDATER_READY_NO_UNACCEPTED_RELEASE_PUBLISHED
+echo CUSTOMER_WINDOWS_ACCEPTED_02455_PUBLIC_STABLE_OTA_ARMED_NO_UNACCEPTED_02456
