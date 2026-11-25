@@ -22,8 +22,8 @@ class CustomerWindowsContract(unittest.TestCase):
     def test_disabled_feed_no_publish(self):
         with patch.object(m.os,"geteuid",return_value=0), \
              patch.object(m,"secure_directory"), \
-             patch.object(m.MIRROR,"is_dir",return_value=True), \
-             patch.object(m.MIRROR,"is_symlink",return_value=False), \
+             patch.object(m.Path,"is_dir",return_value=True), \
+             patch.object(m.Path,"is_symlink",return_value=False), \
              patch.object(m.os,"open",return_value=88), \
              patch.object(m.fcntl,"flock"), \
              patch.object(m.os,"close"), \
