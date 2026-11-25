@@ -14,11 +14,11 @@ permissions:
   actions: read
 concurrency:
   group: celikom-a1-owner-https-download
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   verify-and-deliver:
     if: github.repository == 'manufact-test/nomusic' && (github.event_name == 'push' || github.event.workflow_run.conclusion == 'success')
-    runs-on: celikom-ci-smoke-only
+    runs-on: ubuntu-latest
     environment: floki-deploy
     timeout-minutes: 22
     permissions:
@@ -31,26 +31,6 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-      - name: Install pinned GitHub CLI for isolated Floki runner
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if command -v gh >/dev/null 2>&1; then exit 0; fi
-          version=2.105.0
-          bin="$HOME/.cache/celikom-a1-gh-v${version}/bin"
-          mkdir -p "$bin"
-          if [[ ! -x "$bin/gh" ]]; then
-            previously_extracted="$RUNNER_TEMP/gh_${version}_linux_amd64/bin/gh"
-            if [[ -x "$previously_extracted" ]]; then
-              install -m 700 "$previously_extracted" "$bin/gh"
-            else
-              archive="$RUNNER_TEMP/gh_${version}_linux_amd64.tar.gz"
-              curl --fail --location --silent --show-error --connect-timeout 12 --max-time 75 --retry 1 --output "$archive" "https://github.com/cli/cli/releases/download/v${version}/gh_${version}_linux_amd64.tar.gz"
-              tar -xzf "$archive" -C "$RUNNER_TEMP"
-              install -m 700 "$RUNNER_TEMP/gh_${version}_linux_amd64/bin/gh" "$bin/gh"
-            fi
-          fi
-          echo "$bin" >> "$GITHUB_PATH"
       - name: Resolve exact successful ARM export and private release
         id: source
         env:
@@ -186,33 +166,9 @@ jobs:
           sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts"
             -o GlobalKnownHostsFile=/dev/null -o ClearAllForwardings=yes -o ConnectTimeout=20)
-          target=95.133.160.111
-          if ! python3 - "$target" <<'PY'
-          import socket,sys
-          try:
-              socket.create_connection((sys.argv[1],22),timeout=3).close()
-          except OSError:
-              sys.exit(1)
-          PY
-          then
-            target=$(python3 - <<'PY'
-          import socket,struct
-          from pathlib import Path
-          for line in Path('/proc/net/route').read_text().splitlines()[1:]:
-              fields=line.split()
-              if len(fields)>3 and fields[1]=='00000000':
-                  print(socket.inet_ntoa(struct.pack('<L',int(fields[2],16))))
-                  break
-          else:
-              raise SystemExit('No Docker network gateway')
-          PY
-            )
-            sshargs+=(-o HostKeyAlias=95.133.160.111)
-            echo A1_DEPLOY_VIA_PINNED_LOCAL_GATEWAY
-          fi
           name=$(cat "$d/filename")
           cat "$d/metadata.json" "$d/$name" |
-            ssh "${sshargs[@]}" "celikom-deploy@$target" receive-a1-apk > "$d/intake.txt"
+            ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 receive-a1-apk > "$d/intake.txt"
           rm "$tmp/key" "$tmp/known_hosts"
           python3 - "$d" <<'PY'
           import json,re,sys
