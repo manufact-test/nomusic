@@ -5,6 +5,7 @@ Install only after a separate trusted administrator has reviewed this file.
 The runner can only deposit signed ZIP data. All version changes are checked
 against the root-pinned P-256 public key and existing monotonic release floor.
 """
+import base64
 import fcntl
 import hashlib
 import json
@@ -198,17 +199,55 @@ def owner_copy(version):
             os.unlink(tmp)
     print("WINDOWS_ROOT_OWNER_LATEST_READY",version,manifest["sha256"],manifest["packageSize"])
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,*args,**kwargs):
+        return None
+
+
+def read_owner_auth():
+    # The protected original owner Basic credentials are consumed in memory
+    # exclusively for exact HTTPS download verification. Never log contents.
+    file=Path("/srv/celikom/migration/sites-20261124/android-private/staging-owner-credentials.txt")
+    secure_root_file(file)
+    values={}
+    for line in file.read_text().splitlines():
+        m=re.match(r"^\\s*(HTTP Basic username|HTTP Basic password)\\s*[:=]\\s*(.*?)\\s*$",line,re.I)
+        if m:
+            values[m[1].lower()]=m[2]
+    check(set(values)=={"http basic username","http basic password"},"OWNER_BASIC_CREDENTIALS_UNAVAILABLE")
+    raw=(values["http basic username"]+":"+values["http basic password"]).encode()
+    return "Basic "+base64.b64encode(raw).decode("ascii")
+
+
 def probe_website(version):
+    manifest=json.loads((ROOT/"versions"/version/"manifest.json").read_bytes())
+    expected=manifest["sha256"]
+    expected_size=manifest["packageSize"]
+    auth=read_owner_auth()
+    opener=urllib.request.build_opener(NoRedirect())
     for path in ("/downloads/windows/CELIKOM-Windows-"+version+".exe",
                  "/downloads/windows/CELIKOM-Windows-latest.exe"):
-        req=urllib.request.Request("https://celikom.com"+path,
-                                   headers={"User-Agent":"CELIKOM-Windows-Owner-Release-Check"})
+        url="https://celikom.com"+path
+        anonymous=urllib.request.Request(url,
+            headers={"User-Agent":"CELIKOM-Windows-Owner-Release-Check"})
         try:
-            with urllib.request.urlopen(req,timeout=20) as result:
-                raise RuntimeError("WINDOWS_ROOT_OWNER_ROUTE_PUBLIC_"+str(result.status))
+            with opener.open(anonymous,timeout=20) as response:
+                raise RuntimeError("WINDOWS_ROOT_OWNER_ROUTE_PUBLIC_"+str(response.status))
         except urllib.error.HTTPError as e:
             check(e.code==401,"OWNER_ROUTE_EXPECTED_PRIVATE_401")
-        print("WINDOWS_ROOT_PRIVATE_DOWNLOAD_401_OK",path)
+        authorized=urllib.request.Request(url,headers={
+            "Authorization":auth,"User-Agent":"CELIKOM-Windows-Owner-Release-Check"})
+        with opener.open(authorized,timeout=180) as response:
+            check(response.status==200,"OWNER_AUTH_DOWNLOAD_NOT_200")
+            h=hashlib.sha256()
+            n=0
+            while chunk:=response.read(1024*1024):
+                n+=len(chunk)
+                check(n<=expected_size,"OWNER_DOWNLOAD_TOO_LARGE")
+                h.update(chunk)
+            check(n==expected_size and h.hexdigest()==expected,
+                  "OWNER_DOWNLOAD_HASH_MISMATCH")
+        print("WINDOWS_ROOT_PRIVATE_OWNER_DOWNLOAD_FULL_HASH_OK",path,expected_size)
 
 def main():
     verify_installed_tools()
