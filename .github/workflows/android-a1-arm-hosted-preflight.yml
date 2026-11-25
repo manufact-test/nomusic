@@ -69,7 +69,7 @@ jobs:
                   }
                   found=[key for key,terms in reasons.items() if any(term in summary for term in terms)]
                   print("A1_HOSTED_DISPATCH_"+name, "status",data.get("status"),"conclusion",data.get("conclusion"),"reason",",".join(found) or "UNKNOWN","output_present",bool(summary))
-                  for key in ("title","summary"):
+                  for key in ("title","summary","text"):
                       value=output.get(key) or ""
                       clean=" ".join(value.split())
                       print("A1_HOSTED_DISPATCH_"+name+"_OUTPUT_"+key.upper(),repr(clean[:400]))
