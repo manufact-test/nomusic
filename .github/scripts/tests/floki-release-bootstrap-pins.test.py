@@ -57,6 +57,21 @@ for p in ("windows-customer-stable.json","android-customer-stable.json"):
 j=json.loads((ROOT/".github/release/extension-owner-promotions.json").read_text())
 assert not any(item.get("version") in ("0.4.82","0.4.83")
                for item in j["approved"]),"WITHDRAWN_EXTENSION_REAPPROVED"
+# The live website credentials belong to the website operator (celops).
+# One-time root setup must snapshot them WITHOUT changing live-site ownership
+# and all trusted owner HTTPS verifiers must use that private root-only copy.
+private_auth = "/root/celikom-secrets/celikom-owner-basic-verification.txt"
+assert "CELIKOM_OWNER_BASIC_SOURCE_ACCEPTED_WITHOUT_CHOWN" in bootstrap
+assert "CELIKOM_OWNER_BASIC_ROOT_COPY_READY" in bootstrap
+assert "OWNER_BASIC_PRIVATE=" + private_auth in bootstrap
+assert 'OWNER_BASIC_UID" == 0' not in bootstrap
+for protected_consumer in (
+    "floki-windows-signed-root-consumer.py",
+    "floki-extension-owner-consumer.py",
+    "floki-android-stable-root-consumer.py",
+):
+    assert private_auth in (SCRIPTS/protected_consumer).read_text(), protected_consumer
+assert "CELIKOM_RELEASE_ACTIVATION_STOPPED" in bootstrap
 assert "celikom-a1-signed-owner.timer || true" in bootstrap
 assert "celikom-windows-signed-owner.timer" in bootstrap
 print("CELIKOM_BOOTSTRAP_CURRENT_HASH_PINS_AND_CUSTOMER_OWNER_ISOLATION_OK")
