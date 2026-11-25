@@ -112,7 +112,7 @@ def inspect_dex(payload):
     caller_child=0
     caller_other=0
     for mid,code in dex.code_methods():
-        if not child_refs or (b"\\x71" not in code and b"\\x77" not in code):
+        if not child_refs or (b"\x71" not in code and b"\x77" not in code):
             continue
         try:ins=decode_instructions(code)
         except FlowDecodeError:continue
