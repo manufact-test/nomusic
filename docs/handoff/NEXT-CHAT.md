@@ -1,3 +1,7 @@
+# 25 November2026 — owner baseline correction:0.4.78
+
+Read [verified78 recovery](CELIKOM-EXTENSION-078-BASELINE-CORRECTION-20261125.md). Earlier73/79 baseline-control instructions below are superseded. Final pre-migration client78 includes the77My Wave fix absent from migration main.73 retest canceled; exact78+Floki-origin control recovered,all packaged runtime bytes match original CI.84 remains held;no customer publication or backend/Android/Windows changes. Main runtime restoration is still pending matched78 owner control.
+
 # Current extension checkpoint — 25 November 2026
 
 For current FlokiNET extension work, read [0.4.82 checkpoint](CELIKOM-EXTENSION-0482-20261125.md) and the latest entries in [migration start](../migration/CELIKOM-NEXT-CHAT-START-2026-11-23.md). Source 2532f18; 387 tests and private Floki build PASS. Website publication did not start; current ZIP delivered privately. Owner VPN/Next acceptance pending. Entries below are historical and do not supersede the latest migration state.

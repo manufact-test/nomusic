@@ -1,3 +1,7 @@
+# 25 November2026 — owner baseline correction:0.4.78
+
+Read [verified78 recovery](CELIKOM-EXTENSION-078-BASELINE-CORRECTION-20261125.md). Earlier73/79 baseline-control instructions below are superseded. Final pre-migration client78 includes the77My Wave fix absent from migration main.73 retest canceled; exact78+Floki-origin control recovered,all packaged runtime bytes match original CI.84 remains held;no customer publication or backend/Android/Windows changes. Main runtime restoration is still pending matched78 owner control.
+
 ## 2026-11-25 — Extension 0.4.81 VPN candidate; owner retest pending
 
 Latest: [VPN recovery checkpoint](EXTENSION-0481-VPN-RECOVERY-2026-11-25.md).
@@ -22,7 +26,7 @@ SHA-256 e7304c49db0fdc2c11e5eeb4f1428bda796ddf44aca2729fa2d01520cf1481c0.
 - ZIP **celikom-extension-0.4.79.zip**, **2,490,404 bytes**.
 - SHA-256 **585f996e24040ff0d190d23eb95d8270eecc86909a435946fab24e17ca98d1af**.
 - Owner URL https://celikom.com/downloads/extension/celikom-extension-0.4.79.zip ; retain existing whole-site Basic gate. This is an owner acceptance package, not a public release.
-- Playback remains from the handed-off current main **0.4.73** (89726d1f5af42f4f97e1597e89499d9ee17e29db), with only its version string changed. Do not import historical unmerged 0.4.77/0.4.78 or native-engine experiments merely by version ordering.
+- Playback remains from the handed-off current main **0.4.73** (89726d1f5af42f4f97e1597e89499d9ee17e29db), with only its version string changed. CORRECTION:0.4.77/78 were delivered later on their feature branch and MUST be accounted for; the former main-only baseline selection was incomplete. Rejected native-engine experiments remain excluded.
 - Keep original 0.4.73 ZIP unchanged, SHA 968e34ef72927ce5be5007d1ed210a9b6910b45d4fa423b67fdc3db16a75becb, for rollback.
 
 ## Confirmed migration issues fixed
