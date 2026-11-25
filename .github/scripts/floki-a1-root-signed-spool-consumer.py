@@ -210,10 +210,20 @@ def main():
     validate_dir(PRIVATE, 0, 0o700)
     check(RECEIVER.is_file() and not RECEIVER.is_symlink() and
           RECEIVER.stat().st_uid == 0, "MISSING_TRUSTED_RECEIVER")
+    # Ubuntu's apt tools may be root-owned symlinks (for example via
+    # /etc/alternatives). Reject untrusted targets, not legitimate symlinks.
     for binary in ("/usr/bin/apksigner", "/usr/bin/aapt", "/usr/sbin/runuser"):
         path = Path(binary)
-        check(path.is_file() and not path.is_symlink() and
-              path.stat().st_uid == 0, "MISSING_SIGNING_VERIFIER")
+        resolved = path.resolve(strict=True)
+        check(resolved.is_file() and os.access(path, os.X_OK),
+              "MISSING_SIGNING_VERIFIER")
+        check(resolved.is_relative_to("/usr/") and not
+              resolved.is_relative_to("/usr/local/"),
+              "UNTRUSTED_SIGNING_VERIFIER_PATH")
+        for component in (path, resolved, *path.parents, *resolved.parents):
+            st = component.lstat()
+            check(st.st_uid == 0 and not (st.st_mode & 0o022),
+                  "UNTRUSTED_SIGNING_VERIFIER_PATH")
     spool_fd = os.open(SPOOL, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         spool_st = os.fstat(spool_fd)
