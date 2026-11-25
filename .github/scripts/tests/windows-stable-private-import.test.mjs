@@ -54,7 +54,7 @@ test("private Windows transport verifies signed identity, monotonic floor, archi
   res=receive(replay,await pack(replay,"replay"));assert.notEqual(res.status,0);assert.match(res.stderr,/NON_MONOTONIC_TRANSFER/);
   // Extra ZIP member and traversal path are rejected before extracting any member.
   const evil=spawnSync("python3",["-c","import io,sys,zipfile;b=io.BytesIO(sys.stdin.buffer.read());z=zipfile.ZipFile(b,'a');z.writestr('../evil','x');z.close();sys.stdout.buffer.write(b.getvalue())"],{input:bytes,maxBuffer:1024*1024});
-  assert.equal(evil.status,0);res=receive(next,evil.stdout);assert.notEqual(res.status,0);assert.match(res.stderr,/UNEXPECTED_ARCHIVE_MEMBERS/);
+  assert.equal(evil.status,0);res=receive(next,evil.stdout);assert.notEqual(res.status,0);assert.match(res.stderr,/BAD_ZIP_DIRECTORY|UNEXPECTED_ARCHIVE_MEMBERS/);
   // Corrupt signed file inside a structurally valid ZIP.
   const corrupt=spawnSync("python3",["-c","import io,sys,zipfile;a=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()));b=io.BytesIO();z=zipfile.ZipFile(b,'w');[(z.writestr(n,b'x'*len(a.read(n)) if n.endswith('.exe') else a.read(n))) for n in a.namelist()];z.close();sys.stdout.buffer.write(b.getvalue())"],{input:bytes,maxBuffer:1024*1024});
   assert.equal(corrupt.status,0);res=receive(next,corrupt.stdout);assert.notEqual(res.status,0);assert.match(res.stderr,/MANIFEST_POLICY_INVALID/);

@@ -13,6 +13,7 @@ import pathlib
 import re
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -138,6 +139,20 @@ def verify_floor(root, stage, version, sequence, pin):
          tuple(map(int, old_version.split("."))), "NON_MONOTONIC_TRANSFER")
 
 
+def check_zip_directory(bundle, count):
+    # The sender writes a plain, comment-free, non-Zip64 archive. Bound the
+    # central-directory entry count before ZipFile allocates per-entry objects.
+    with bundle.open("rb") as f:
+        size = f.seek(0, os.SEEK_END)
+        need(size >= 22, "BAD_ZIP_DIRECTORY")
+        f.seek(-22, os.SEEK_END)
+        sig, disk, cd_disk, on_disk, total, cd_size, cd_offset, comment = struct.unpack(
+            "<4s4H2IH", f.read(22))
+        need(sig == b"PK\x05\x06" and disk == cd_disk == comment == 0
+             and on_disk == total == count and 0 < cd_size <= 8192
+             and cd_offset + cd_size == size - 22, "BAD_ZIP_DIRECTORY")
+
+
 def receive(stream, dest_root, floor_root, pin, version, sequence):
     """Read a bounded archive, reject extras/paths/links, then independently
     verify its signed content. No source tree or stable feed is ever modified.
@@ -154,8 +169,9 @@ def receive(stream, dest_root, floor_root, pin, version, sequence):
         stage = work / "verified"
         stage.mkdir(mode=0o700)
         (stage / version).mkdir(mode=0o700)
+        expected = entries(version)
+        check_zip_directory(bundle, len(expected))
         with zipfile.ZipFile(bundle) as z:
-            expected = entries(version)
             members = z.infolist()
             need(len(members) == len(expected) and {x.filename for x in members} == set(expected),
                  "UNEXPECTED_ARCHIVE_MEMBERS")
@@ -174,30 +190,26 @@ def receive(stream, dest_root, floor_root, pin, version, sequence):
         verify(stage, version, sequence, pin)
         verify_floor(floor_root, stage, version, sequence, pin)
         destination = dest_root / ("windows-" + version)
-        # Private staging can be repeated for the exact same release, never replaced.
+        # The version lock and whole-directory rename ensure that no
+        # partially copied candidate becomes visible, even on interruption.
+        lock = dest_root / (".lock-windows-" + version)
+        lock.mkdir(mode=0o700)
         try:
-            destination.mkdir(mode=0o700)
-        except FileExistsError:
-            private_dir(destination)
-            private_dir(destination / version)
-            for name, (low, high) in entries(version).items():
-                old = destination / name
-                st = bounded_file(old, low, high)
-                need(st.st_uid == os.getuid() and stat.S_IMODE(st.st_mode) == 0o600
-                     and st.st_nlink == 1 and sha(old) == sha(stage / name), "IMMUTABLE_IMPORT_CONFLICT")
-            need({str(x.relative_to(destination)) for x in destination.rglob("*") if not x.is_dir()}
-                 == set(entries(version)), "IMMUTABLE_IMPORT_EXTRAS")
-            return "already-staged"
-        try:
-            # The reservation directory is private; no consumer uses it until
-            # all six verified files have arrived. A partial import is removed.
-            (destination / version).mkdir(mode=0o700)
-            for name in entries(version):
-                os.rename(stage / name, destination / name)
-        except BaseException:
-            shutil.rmtree(destination)
-            raise
-        return "private-staged"
+            if destination.exists() or destination.is_symlink():
+                private_dir(destination)
+                private_dir(destination / version)
+                for name, (low, high) in expected.items():
+                    old = destination / name
+                    st = bounded_file(old, low, high)
+                    need(st.st_uid == os.getuid() and stat.S_IMODE(st.st_mode) == 0o600
+                         and st.st_nlink == 1 and sha(old) == sha(stage / name), "IMMUTABLE_IMPORT_CONFLICT")
+                need({str(x.relative_to(destination)) for x in destination.rglob("*")}
+                     == set(expected) | {version}, "IMMUTABLE_IMPORT_EXTRAS")
+                return "already-staged"
+            os.rename(stage, destination)
+            return "private-staged"
+        finally:
+            lock.rmdir()
     finally:
         shutil.rmtree(work)
 
