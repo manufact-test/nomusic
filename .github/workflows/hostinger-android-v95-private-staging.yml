@@ -1,0 +1,90 @@
+name: CELIKOM legacy Android 0.3.94 old-updater bridge private staging only
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/hostinger-android-v95-private-staging.yml'
+permissions:
+  contents: read
+jobs:
+  stage-old-compatible-signed-bridge:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch only signed version95 from pinned private draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/457921929" --jq .draft)" = true
+          temp="$RUNNER_TEMP/old-android-v95-private"
+          mkdir "$temp"
+          for name in CELIKOM-Android-0.3.94-SIGNED.apk stable-hostinger-bridge-candidate.json; do
+            gh release download celikom-legacy-bridge-private-45589980361-1 \
+              --repo "$GITHUB_REPOSITORY" --pattern "$name" --dir "$temp"
+          done
+          printf '%s  %s\n' \
+           d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469 "$temp/CELIKOM-Android-0.3.94-SIGNED.apk" \
+           011386d2bb9c1fdb504f2b802c590b2076f07a1132c79082282f4b8846fc005f "$temp/stable-hostinger-bridge-candidate.json" | sha256sum -c --status
+          echo CELIKOM_OLD_BRIDGE_PINNED_DRAFT_BYTES_ACCEPTED
+      - name: Stage to exact nonpublic Hostinger CELIKOM private subtree only
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          test -n "$HOSTINGER_SSH_KEY"
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$tmp/key"
+          unset HOSTINGER_SSH_KEY
+          ssh-keygen -y -P '' -f "$tmp/key" > "$tmp/pub"
+          test "$(ssh-keygen -lf "$tmp/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$tmp/known"
+          sshargs=(-T -p 65002 -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 -o ClearAllForwardings=yes)
+          scpargs=(-P 65002 -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20)
+          host=u235811320@92.113.19.189
+          parent=/home/u235811320/domains/lemonchiffon-narwhal-791953.hostingersite.com/celikom-private
+          dest="$parent/android-v95-bridge-candidate"
+          # Only create a new owner-private directory. Never touch old public updater routes.
+          ssh "${sshargs[@]}" "$host" "bash -s -- '$parent' '$dest'" <<'REMOTE'
+          set -Eeuo pipefail
+          umask 077
+          [[ $# == 2 ]]
+          [[ -d "$1" && ! -L "$1" ]]
+          [[ ! -e "$2" && ! -L "$2" ]]
+          mkdir -m 700 "$2"
+          echo CELIKOM_OLD_BRIDGE_PRIVATE_STAGE_DIRECTORY_CREATED
+          REMOTE
+          src="$RUNNER_TEMP/old-android-v95-private"
+          scp "${scpargs[@]}" "$src/CELIKOM-Android-0.3.94-SIGNED.apk" "$src/stable-hostinger-bridge-candidate.json" \
+            "$host:$dest/"
+          ssh "${sshargs[@]}" "$host" "bash -s -- '$dest'" <<'REMOTE'
+          set -Eeuo pipefail
+          umask 077
+          [[ $# == 1 && -d "$1" && ! -L "$1" ]]
+          test "$(stat -c %a "$1")" = 700
+          printf '%s  %s\n' \
+            d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469 "$1/CELIKOM-Android-0.3.94-SIGNED.apk" \
+            011386d2bb9c1fdb504f2b802c590b2076f07a1132c79082282f4b8846fc005f "$1/stable-hostinger-bridge-candidate.json" | sha256sum -c --status
+          chmod 600 "$1/CELIKOM-Android-0.3.94-SIGNED.apk" "$1/stable-hostinger-bridge-candidate.json"
+          echo CELIKOM_OLD_BRIDGE_PRIVATE_STAGE_PINNED_BYTES_OK_NO_PUBLIC_UPDATE
+          REMOTE
+      - name: Erase hosted-runner private APK and key copies
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/old-android-v95-private"
