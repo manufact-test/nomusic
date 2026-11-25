@@ -407,3 +407,10 @@ Source96b62a902ac6cc005f4889d5976412c3f5901a61; run45679555946 SUCCESS:389 tests
 ## 2026-11-25 — Extension audio throughput audit awaits one host read-only invocation
 
 [Checked script and exact one-command owner invocation](../handoff/CELIKOM-EXTENSION-AUDIO-THROUGHPUT-AUDIT-20261125.md). Syntax CI45685250950 SUCCESS (Bash/Python/PHP,no production access).16 bounded64KiB/512KiB full-body signed GETs of same Au MP3,loopback/public DNS,two rounds,range/ETag/size/SHA checks,read-only deployed config/source/load inspection. DB transaction READ ONLY; no account/session/trial/config/source change or token disclosure. Protected execution45685421019 failed before steps; direct SSH network unreachable. NO actual throughput results yet. Administrative request reset if still owned by this audit; do not give deployment privileges to CI. Owner existing SSH invocation required; extension0.4.84 release still held. Do not claim source equality or header206 proves body performance.
+
+
+## 2026-11-25 — Live audio body audit PASS; exact73 client control required
+
+[Audit results and next control](../handoff/CELIKOM-EXTENSION-AUDIO-AUDIT-RESULT-20261125.md). Owner ran pinned read-only script: all16 actual64/512KiB signed206 body reads verified bytes/range/ETag/SHA.512KiB totals98.85–119.66ms(loopback),111.02–162.88ms(publicDNS from SAME VPS). Deployed4 server blobs match73;Nginx syntax passes,loadlow,~2.9millionKiB MemAvailable. No observed server-side starvation; does not measure owner ISP/VPN/Brave or independent external route. No speculative server settings change.
+
+Exact retained0.4.73 control ZIP reverified SHA968e34ef72927ce5be5007d1ed210a9b6910b45d4fa423b67fdc3db16a75becb,2489436bytes,manifest73,newAPIapi.celikom.com. Existing immutable73 owner URL retained; exact private fallback libfile_ebdf477e7478819195ff918f0064ffea. One owner control on same network/track/seek,then diagnostic before more changes.0.4.84 remains held,owner approval array empty,latest untouched. No main playback rollback or new candidate publication in this analysis; Android/Windows unchanged.
