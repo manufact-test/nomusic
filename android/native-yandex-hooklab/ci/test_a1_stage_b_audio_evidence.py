@@ -220,6 +220,7 @@ public final class StageBAudioEvidenceTest {
         Object track=new Object(),wrapper=new Object();
         Object owner=new Object(),config=new Object();
         Object item=new Object(),source=new Object(),different=new Object();
+        e.onNativeTrackFlowEmission(track); // real wrapper link prerequisite
         e.enterNativeTrackSourceRequest(track,null);
         e.onNativeTrackWrapperCreated(wrapper);
         e.exitNativeTrackSourceRequest();
