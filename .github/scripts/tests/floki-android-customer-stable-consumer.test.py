@@ -39,8 +39,8 @@ class AndroidCustomerApprovalTests(unittest.TestCase):
         self.assertIn('ANDROID_CUSTOMER_STABLE_INSTALL_FAILED line=',installer)
         self.assertIn('ANDROID_CUSTOMER_NGINX_PARENT_NOT_TRAVERSABLE',installer)
         self.assertIn('[[ ! -e "$PUBLIC/stable.json" ]]',installer)
-        self.assertIn('4680ed1fb55e5b34b2a947af60874562218587d8',bootstrap)
         self.assertIn('4253ebb4dd5985677160a01688f867dd6e8425dc',bootstrap)
+        self.assertIn('9e95fa4f3dfe2c7c201e55b01c15db0c6dbfc09e',bootstrap)
 
     def test_isolated_ota_does_not_touch_existing_android_public_directory(self):
         installer=(ROOT/"floki-android-customer-stable-install.sh").read_text()
