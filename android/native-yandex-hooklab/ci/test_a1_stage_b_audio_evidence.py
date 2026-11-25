@@ -200,6 +200,19 @@ public final class StageBAudioEvidenceTest {
             mw,mismatch[0],mismatch[1])==null);
     }
 
+    static void clearAnchorWeakRef(StageBAudioEvidence evidence,String field) {
+        try {
+            java.lang.reflect.Field list=StageBAudioEvidence.class
+                .getDeclaredField("originalMediaSourceItems");
+            list.setAccessible(true);
+            Object entry=((java.util.List<?>)list.get(evidence)).get(0);
+            java.lang.reflect.Field ref=entry.getClass().getDeclaredField(field);
+            ref.setAccessible(true);
+            ((java.lang.ref.WeakReference<?>)ref.get(entry)).clear();
+        } catch(ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
     static void originalMediaItemSourceBridgeFixture() {
         // Same original iLb+Of6 across later child factory. No item values
         // read; a different item, source or wrapper must never inherit it.
@@ -223,6 +236,7 @@ public final class StageBAudioEvidenceTest {
             && creator[1]==track && creator[2]==album
             && creator[3]==nativeMediaSource);
         check(e.exactOriginalMediaItemCreator(new Object())==null);
+        check(e.exactOriginalMediaItemCreator(null)==null);
         check(!e.onOriginalMediaItemDescriptor(mediaItem,new Object(),descriptor));
         check(!e.onOriginalMediaItemDescriptor(new Object(),wrapper,descriptor));
         check(e.onOriginalMediaItemDescriptor(mediaItem,wrapper,descriptor));
@@ -233,6 +247,11 @@ public final class StageBAudioEvidenceTest {
             && fresh[2]==album);
         bucket(e.exportLines(),0,"ORIGINAL_MEDIAITEM_SOURCE_ANCHOR","ONE");
         bucket(e.exportLines(),0,"ORIGINAL_MEDIAITEM_DESCRIPTOR_LINK","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_ITEM_NULL","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_LIVE_OTHER_ITEM_ANCHOR","FEW");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_NO_ITEM_ANCHORS","NONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_ORIGINAL_TRACK_ALBUM_REJECT","NONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_BETA_CREATOR_REJECT","NONE");
         // Runtime-safe BETA15 stage classification (no private values logged).
         e.onOriginalChildHookRegistered();
         e.onOriginalChildEntered();
@@ -271,10 +290,59 @@ public final class StageBAudioEvidenceTest {
         check(conflict.exactOriginalMediaItemCreator(commonItem)==null);
         check(!conflict.onOriginalMediaItemDescriptor(commonItem,cw,new Object()));
         bucket(conflict.exportLines(),0,"ORIGINAL_MEDIAITEM_IDENTITY_CONFLICT","ONE");
+        bucket(conflict.exportLines(),0,"ORIGINAL_CHILD_ITEM_ANCHOR_CONFLICT","ONE");
+        // Deterministically simulate weak-reference loss without GC timing.
+        clearAnchorWeakRef(e,"source");
+        check(e.exactOriginalMediaItemCreator(mediaItem)==null);
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_WEAK_SOURCE_LOST","ONE");
+        StageBAudioEvidence weakWrapper=new StageBAudioEvidence();
+        Object wt=new Object(),wa=new Object(),ww=new Object();
+        Object wi=new Object(),ws=new Object();
+        weakWrapper.onNativeTrackAlbumConstructed(wt,wa);
+        weakWrapper.onNativeTrackFlowEmission(wt);
+        weakWrapper.enterNativeTcaCreatorOwner(new Object());
+        weakWrapper.enterNativeTcaCreatorTrackScope(wt,1);
+        weakWrapper.onNativeTrackWrapperCreated(ww,id);
+        weakWrapper.exitNativeTcaCreatorTrackScope();
+        weakWrapper.exitNativeTcaCreatorOwner();
+        weakWrapper.enterNativePlayerSourceSelection(ww);
+        weakWrapper.onOriginalMediaSourceConstructed(ws,wi);
+        weakWrapper.exitNativePlayerSourceSelection();
+        clearAnchorWeakRef(weakWrapper,"wrapper");
+        check(weakWrapper.exactOriginalMediaItemCreator(wi)==null);
+        bucket(weakWrapper.exportLines(),0,"ORIGINAL_CHILD_WEAK_WRAPPER_LOST","ONE");
+        clearAnchorWeakRef(weakWrapper,"item");
+        check(weakWrapper.exactOriginalMediaItemCreator(wi)==null);
+        bucket(weakWrapper.exportLines(),0,
+            "ORIGINAL_CHILD_ONLY_EXPIRED_ITEM_ANCHORS","ONE");
+        StageBAudioEvidence noCreator=new StageBAudioEvidence();
+        Object nt=new Object(),nw=new Object(),ni=new Object(),ns=new Object();
+        noCreator.enterNativeTcaCreatorOwner(new Object());
+        noCreator.enterNativeTcaCreatorTrackScope(nt,1);
+        noCreator.onNativeTrackWrapperCreated(nw,id);
+        noCreator.exitNativeTcaCreatorTrackScope();
+        noCreator.exitNativeTcaCreatorOwner();
+        noCreator.enterNativePlayerSourceSelection(nw);
+        noCreator.onOriginalMediaSourceConstructed(ns,ni);
+        noCreator.exitNativePlayerSourceSelection();
+        check(noCreator.exactOriginalMediaItemCreator(ni)==null);
+        bucket(noCreator.exportLines(),0,
+            "ORIGINAL_CHILD_ORIGINAL_TRACK_ALBUM_REJECT","ONE");
+        bucket(noCreator.exportLines(),0,"ORIGINAL_CHILD_BETA_CREATOR_REJECT","ONE");
+        // Repeat of the same Track must not recycle an old wrapper selection.
+        noCreator.enterNativeTcaCreatorOwner(new Object());
+        noCreator.enterNativeTcaCreatorTrackScope(nt,1);
+        noCreator.onNativeTrackWrapperCreated(new Object(),id);
+        noCreator.exitNativeTcaCreatorTrackScope();
+        noCreator.exitNativeTcaCreatorOwner();
+        check(noCreator.exactOriginalMediaItemCreator(ni)==null);
+        bucket(noCreator.exportLines(),0,"ORIGINAL_CHILD_WRAPPER_LINK_MISSING","ONE");
 
         StageBAudioEvidence wrongScope=new StageBAudioEvidence();
         wrongScope.onOriginalMediaSourceConstructed(new Object(),new Object());
         bucket(wrongScope.exportLines(),0,"ORIGINAL_MEDIAITEM_SOURCE_ANCHOR","NONE");
+        check(wrongScope.exactOriginalMediaItemCreator(new Object())==null);
+        bucket(wrongScope.exportLines(),0,"ORIGINAL_CHILD_NO_ITEM_ANCHORS","ONE");
     }
 
     public static void main(String[] argv) {
@@ -282,8 +350,8 @@ public final class StageBAudioEvidenceTest {
         beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 78);
-        for (int i=0;i<77;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial.length == 90);
+        for (int i=0;i<89;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
