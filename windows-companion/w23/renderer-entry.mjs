@@ -21,6 +21,9 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
 
   let apiOrigin = "", stopped = false, attached = false, stateSeen = false;
   let stateTransitionGeneration = 0;
+  // The first native state may arrive after Yandex has already cached its
+  // current original source. Repair only that current entity at a safe delay.
+  let initialCurrentSourceCheck = null;
   let networkRecoveryPending = false;
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
@@ -223,7 +226,45 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       }
     }
   });
-  window.__celikomBridgeNativeCheckDeferred = () => deferredRecovery.check();
+  function checkInitialCurrentSource() {
+    const check = initialCurrentSourceCheck;
+    if (!check || stopped || !attached || !adapter.enabled ||
+        networkRecoveryPending || !playerSourceRefresh.attached ||
+        Date.now() - check.startedAt < 3500) return;
+    const current = playerSourceRefresh.currentTrack();
+    if (!current || (current.playbackState !== "PLAYING" &&
+        current.playbackState !== "PAUSED")) return;
+    // Exactly one attempt for this initial enable generation. Ordinary
+    // getFileInfo mappings, original classifications and prefetched tracks
+    // must not trigger any additional Yandex reload.
+    initialCurrentSourceCheck = null;
+    const trackId = current.id;
+    if (adapter.hasMappedTrack(trackId) ||
+        adapter.classificationForTrack(trackId) !== "UNKNOWN") return;
+    report("NATIVE_INITIAL_SOURCE_REVALIDATE", trackId);
+    void adapter.prime(trackId).then(found => {
+      if (!found || stopped || !attached || !adapter.enabled ||
+          networkRecoveryPending || check.generation !== stateTransitionGeneration ||
+          playerSourceRefresh.currentTrackId() !== trackId ||
+          adapter.hasMappedTrack(trackId)) return;
+      // This is the existing version-pinned source-only QUALITY_CHANGE
+      // path, not a new player, queue change, seek or forced autoplay.
+      report("NATIVE_INITIAL_SOURCE_RELOAD", trackId);
+      void playerSourceRefresh.request(trackId).then(ok => {
+        if (check.generation === stateTransitionGeneration && !stopped)
+          report(ok ? "NATIVE_INITIAL_SOURCE_RELOAD_OK" :
+            "NATIVE_INITIAL_SOURCE_RELOAD_DEFERRED", trackId);
+      });
+    }).catch(() => {
+      if (!stopped && check.generation === stateTransitionGeneration)
+        report("NATIVE_INITIAL_SOURCE_REVALIDATE_FAILED", trackId);
+    });
+  }
+  window.__celikomBridgeNativeCheckDeferred = () => {
+    const deferred = deferredRecovery.check();
+    checkInitialCurrentSource();
+    return deferred;
+  };
   // Only CDP-verified current decoder source may suppress a waiting or
   // post-prime 403 refresh. HTTP206 alone/prefetch/mapping never qualify.
   window.__celikomBridgeNativeConfirmedCurrentSource = trackId => {
@@ -332,6 +373,16 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     const transitionChanged = previousActive !== nextActive || originChanged;
     const transitionGeneration = transitionChanged
       ? ++stateTransitionGeneration : stateTransitionGeneration;
+    if (transitionChanged) {
+      // The first delivered state intentionally does not reload Yandex
+      // immediately. If its current track is already cached, the existing
+      // host pulse revisits ONLY that track after an initial settling delay,
+      // first confirming a real authorized grant.
+      initialCurrentSourceCheck = nextActive &&
+        (!stateSeen || !currentTrackId)
+          ? { generation: transitionGeneration, startedAt: Date.now() }
+          : null;
+    }
 
     // ORIGINAL songs are transparent: a VPN/entitlement state transition
     // must not call QUALITY_CHANGE unless CELIKOM previously returned a
