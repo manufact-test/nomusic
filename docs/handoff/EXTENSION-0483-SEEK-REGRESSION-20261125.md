@@ -1,0 +1,3 @@
+# Extension0.4.83 owner seek regression
+
+Owner diagnostic `Вставленный текст(20261125-190417).txt` confirms an active guarded original at43.73s but replacement seeking39s, readyState1, buffered[0,2.533877]. Only64KiB was appended; the next512KiB range is still reading.0.4.83 removed full-file restart but did not prevent guard ownership of an unbuffered/stalled decoder. Real media buffered/readiness must be tested; old synthetic decoder tests made arbitrary seeks instant and missed this. Owner0.4.82/83 approvals withdrawn; do not restore them. Withdrawal does not remove files or reset an existing latest pointer. Prepare a verified successor; leave central publication/Android/Windows/backend unchanged.
