@@ -6,7 +6,7 @@ umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
 COMMIT=47121924095e0ab205c8bd5236dd3d48abec0eb4
-BLOB=ANDROID_STABLE_ROOT_CONSUMER_BLOB
+BLOB=7caf3ed79b227802a82a05353b456813575571fd
 SOURCE=.github/scripts/floki-android-stable-root-consumer.py
 DEST=/usr/local/lib/celikom-android-stable-owner/consumer.py
 SERVICE=/etc/systemd/system/celikom-android-stable-owner.service
@@ -21,7 +21,10 @@ SPOOL=/srv/celikom/ci-runner/runner/celikom-build-spool/android-stable
 REAL=$(readlink -f "$SITE")
 [[ "$REAL" == /etc/nginx/sites-available/* && ! -L "$REAL" ]]
 [[ -d /srv/celikom/ci-runner/runner/celikom-build-spool ]]
-[[ "$(stat -c '%u:%a' /srv/celikom/ci-runner/runner/celikom-build-spool)" == 1001:700 ]]
+SPOOL_PARENT=/srv/celikom/ci-runner/runner/celikom-build-spool
+SPOOL_UID=$(stat -c '%u' "$SPOOL_PARENT")
+SPOOL_GID=$(stat -c '%g' "$SPOOL_PARENT")
+[[ "$SPOOL_UID" -gt 0 && "$(stat -c '%a' "$SPOOL_PARENT")" == 700 ]]
 [[ -d /srv/celikom-releases/owner-downloads ]]
 for bin in /usr/bin/apksigner /usr/bin/aapt; do [[ -x "$bin" ]]; done
 
@@ -84,7 +87,7 @@ PY
 nginx -t
 systemctl reload nginx
 
-install -d -o 1001 -g 1001 -m 0700 "$SPOOL"
+install -d -o "$SPOOL_UID" -g "$SPOOL_GID" -m 0700 "$SPOOL"
 install -d -o root -g root -m 0755 /usr/local/lib/celikom-android-stable-owner
 install -d -o root -g root -m 0750 "$ROOT"
 install -d -o root -g root -m 0750 "$ROOT/versions"
