@@ -138,7 +138,10 @@ else
   echo CELIKOM_EXTENSION_RECURRING_PUBLISHER_READY_NO_CURRENT_CANDIDATE
 fi
 systemctl is-active celikom-windows-signed-owner.timer
+systemctl is-active celikom-windows-customer-stable.timer
 systemctl is-active celikom-extension-owner.timer
+systemctl is-active celikom-android-stable-owner.timer
+systemctl is-active celikom-android-customer-stable.timer
 # Runner2 must see the same DATA-ONLY signed spools; never grant host SSH.
 fetch_exact c3e904bbce4f2de2c1cdd022697d43e7ea88dd82 \
   .github/scripts/floki-runner2-signed-spool-parity.sh \
@@ -152,4 +155,4 @@ else
 fi
 # Android is not changed; print only its service status, never capability tokens.
 systemctl is-active celikom-a1-signed-owner.timer || true
-echo CELIKOM_WINDOWS_AND_EXTENSION_PERMANENT_OWNER_DOWNLOADS_READY
+echo CELIKOM_ALL_RELEASE_CHANNELS_ARMED_CUSTOMER_PUBLICATION_OWNER_GATED
