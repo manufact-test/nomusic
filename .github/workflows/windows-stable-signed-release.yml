@@ -289,15 +289,18 @@ jobs:
 
   private_stage:
     needs: prepare
-    if: github.ref == 'refs/heads/main' && inputs.stage_to_floki == true
+    # Every successfully signed mainline build is copied to the isolated
+    # data-only Floki spool. Root independently checks its P-256 signature,
+    # hash and monotonic version before switching the owner download.
+    if: github.ref == 'refs/heads/main' && needs.prepare.result == 'success'
     permissions:
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
     with:
-      version: ${{ inputs.version }}
-      sequence: ${{ inputs.sequence }}
+      version: ${{ inputs.version || '0.24.56' }}
+      sequence: ${{ inputs.sequence || '3' }}
       source_commit: ${{ github.sha }}
-      send_to_private_intake: true
+      send_to_private_intake: false
 
   publish:
     needs: prepare
