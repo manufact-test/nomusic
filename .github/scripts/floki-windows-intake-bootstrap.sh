@@ -74,7 +74,16 @@ printf 'restrict,command="%s/gateway" %s\n' "$lib" "$(cat "$work/key.pub")" > "$
 install -o root -g root -m 644 "$work/authorized_keys" "$home/.ssh/authorized_keys"
 # This account MUST have no sudo privilege or supplemental group membership.
 test "$(id -G "$name")" = "$(id -g "$name")"
-if sudo -n -l -U "$name" >/dev/null 2>&1; then echo WINDOWS_INTAKE_SUDO_UNEXPECTED; exit 1; fi
+# This host's sudo -l -U returns zero even for accounts with no commands.
+# Require the explicit denial text, and refuse any listed commands or unknown response.
+set +e
+sudo_policy=$(LC_ALL=C sudo -n -l -U "$name" 2>&1)
+set -e
+if ! grep -qiE 'not allowed to run sudo|not allowed to execute|may not run sudo' <<< "$sudo_policy" ||
+     grep -qiE 'may run the following commands' <<< "$sudo_policy"; then
+  echo WINDOWS_INTAKE_SUDO_UNEXPECTED; exit 1
+fi
+echo WINDOWS_INTAKE_NO_SUDO_COMMANDS_CONFIRMED
 sshd -t
 # Exercise the actual forced command over existing loopback SSH, not a new port.
 printf '127.0.0.1 %s\n' "$(awk '{print $1 " " $2}' /etc/ssh/ssh_host_ed25519_key.pub)" > "$work/known_hosts"

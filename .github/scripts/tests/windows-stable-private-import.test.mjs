@@ -56,7 +56,8 @@ test("private Windows transport verifies signed identity, monotonic floor, archi
   remote=intakeCall(command,bytes);assert.equal(remote.status,0,remote.stderr);assert.match(remote.stdout,/already-staged/);
   remote=intakeCall("maintenance",bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/COMMAND_REFUSED/);
   remote=intakeCall(command+" ; id",bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/COMMAND_REFUSED/);
-  remote=intakeCall("stage-windows "+next.version+" "+next.sequence+" "+"0".repeat(64),bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/TRANSFER_SHA_MISMATCH/);
+  remote=intakeCall("stage-windows "+next.version+" "+next.sequence+" "+"0".repeat(64),bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/IMMUTABLE_INTAKE_CONFLICT/);
+  remote=intakeCall("stage-windows 0.24.58 5 "+"0".repeat(64),bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/TRANSFER_SHA_MISMATCH/);
   assert.deepEqual(await readFile(join(inbox,"windows-"+next.version+"-"+next.sequence+"-"+sha(bytes)+".zip")),bytes);
   assert.equal(await readlink(join(floor,"current")),"versions/0.24.55");
 
