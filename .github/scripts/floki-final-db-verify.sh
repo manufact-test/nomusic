@@ -30,4 +30,6 @@ mysql --protocol=socket -uroot -e "CREATE DATABASE $db CHARACTER SET utf8mb4"
 gzip -dc "$state/cms.sql.gz" | mysql --max-allowed-packet=64M --protocol=socket -uroot "$db"
 mysql --protocol=socket -uroot -Nse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$db' AND table_type='BASE TABLE'" | grep -x 11
 mysql --protocol=socket -uroot "$db" -Nse 'SELECT "revisions",COUNT(*) FROM content_revisions UNION ALL SELECT "drafts",COUNT(*) FROM content_drafts UNION ALL SELECT "media",COUNT(*) FROM media_assets'
+printf 'TRANSFER_API_SHA256=%s\n' "$(sha256sum "$state/api.sql.gz" | cut -d' ' -f1)"
+printf 'TRANSFER_CMS_SHA256=%s\n' "$(sha256sum "$state/cms.sql.gz" | cut -d' ' -f1)"
 echo CELIKOM_FRESH_DB_INTAKE_RESTORE_OK
