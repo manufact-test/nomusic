@@ -50,6 +50,12 @@ def field_descriptor(dex,idx):
     owner,typ,_=struct.unpack_from("<HHI",dex.data,off+idx*8)
     return (dex.type(owner),dex.type(typ))
 
+def returns_original_item_type(dex,proto):
+    total,off=struct.unpack_from("<II",dex.data,72)
+    if proto>=total or off+total*12>len(dex.data):return False
+    idx=struct.unpack_from("<I",dex.data,off+proto*12+4)[0]
+    return dex.type(idx)==OF6
+
 def child_argument_origin(dex,code,ins,index,reg,constructor_fields):
     """Finite static shape; never export field indices, owners or registers."""
     if reg is None:return "UNSUPPORTED_INVOKE_SHAPE"
@@ -70,7 +76,16 @@ def child_argument_origin(dex,code,ins,index,reg,constructor_fields):
                 return "OTHER_OF6_TYPED_FIELD_REFERENCE"
             return "OTHER_TYPED_FIELD_REFERENCE"
         elif op==0x0c and code[p+1]==reg:
-            return "INVOKE_RESULT"
+            if k==0 or ins[k-1][1] not in INVOKE_METHOD:
+                return "INVOKE_RESULT_UNLINKED"
+            invoke_pc=ins[k-1][0]
+            ref=struct.unpack_from("<H",code,invoke_pc+2)[0]
+            owner,_,proto=dex.method_signature(ref)
+            if not returns_original_item_type(dex,proto):
+                return "INVOKE_RESULT_NON_OF6_RETURN_TYPE"
+            if owner==SOURCE_OWNER:return "INVOKE_OF6_FROM_SOURCE_OWNER"
+            if owner==CHILD_OWNER:return "INVOKE_OF6_FROM_CHILD_OWNER"
+            return "INVOKE_OF6_FROM_OTHER_OWNER"
         elif op in (0x12,0x13,0x14,0x15,0x16,0x1a,0x1b,0x22) and (
                 (code[p+1]&15 if op==0x12 else code[p+1])==reg):
             return "OTHER_VALUE_PRODUCER"
