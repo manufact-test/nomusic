@@ -31,6 +31,39 @@ class CustomerWindowsContract(unittest.TestCase):
              patch.object(m,"publish",side_effect=AssertionError("MUST_NOT_PUBLISH")):
             m.main()
 
+    def test_public_version_directories_stay_nginx_readable_under_umask_077(self):
+        import os,stat,tempfile
+        with tempfile.TemporaryDirectory() as t:
+            base=Path(t)/"windows-customer-stable"
+            (base/"versions").mkdir(parents=True)
+            manifest=json.dumps({"version":"0.24.55","sequence":2,"sha256":"a"*64}).encode()
+            sig=b"s"*70
+            with patch.object(m,"CUSTOMER",base), \
+                 patch.object(m,"verify_signed",return_value={
+                    "manifest.json":manifest,"manifest.json.sig":sig}), \
+                 patch.object(m,"secure_directory"), \
+                 patch.object(m,"atomic_immutable_copy"), \
+                 patch.object(m,"atomically_point_accepted_installer"), \
+                 patch.object(m,"verify_public"):
+                old_umask=os.umask(0o077)
+                try:
+                    m.publish({"version":"0.24.55","sequence":2,
+                               "sha256":"a"*64,"owner_accepted":True})
+                finally:
+                    os.umask(old_umask)
+            version_dir=base/"versions"/"0.24.55"
+            self.assertEqual(stat.S_IMODE(version_dir.stat().st_mode),0o755)
+            self.assertEqual(json.loads((base/"accepted.json").read_text())["https_verified"],True)
+
+    def test_public_nginx_routes_never_point_at_private_signed_source(self):
+        path=ROOT/"floki-windows-customer-stable-install.sh"
+        script=path.read_text()
+        self.assertIn("auth_basic off;",script)
+        self.assertEqual(script.count("allow all;"),4)
+        self.assertIn("/srv/celikom-releases/public/windows-customer-stable",script)
+        self.assertNotIn("alias /srv/celikom-releases/windows/customer-stable",script)
+        self.assertIn("CUSTOMER_WINDOWS_NGINX_PARENT_NOT_TRAVERSABLE",script)
+
     def test_approval_requires_explicit_owner_flag(self):
         import subprocess
         valid={"schema":1,"channel":"customer-stable","approved":{
