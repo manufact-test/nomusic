@@ -12,6 +12,9 @@ on:
       - '.github/scripts/floki-windows-customer-stable-install.sh'
       - '.github/scripts/tests/floki-windows-customer-stable-consumer.test.py'
       - '.github/release/windows-customer-stable.json'
+      - '.github/scripts/floki-android-stable-root-consumer.py'
+      - '.github/scripts/floki-android-stable-owner-install.sh'
+      - '.github/scripts/tests/floki-android-stable-root-consumer.test.py'
       - '.github/scripts/tests/floki-extension-owner-consumer.test.py'
       - '.github/workflows/celikom-publisher-static-gates.yml'
 permissions:
@@ -46,3 +49,10 @@ jobs:
           python3 .github/scripts/tests/floki-windows-customer-stable-consumer.test.py
           ! grep -q CONSUMER_BLOB_PIN .github/scripts/floki-windows-customer-stable-install.sh
           echo WINDOWS_PRIVATE_PUBLISHER_STATIC_GATES_OK
+      - name: Verify independently signed legacy Android owner promoter
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/floki-android-stable-root-consumer.py
+          bash -n .github/scripts/floki-android-stable-owner-install.sh
+          python3 .github/scripts/tests/floki-android-stable-root-consumer.test.py
+          echo ANDROID_STABLE_OWNER_PROMOTER_STATIC_GATES_OK
