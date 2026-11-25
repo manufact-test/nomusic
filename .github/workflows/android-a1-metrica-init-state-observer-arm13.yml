@@ -328,23 +328,56 @@ jobs:
           apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk"
           test -f "$apk" && test ! -L "$apk"
           test -f "$bundle/README-RU.txt" && test ! -L "$bundle/README-RU.txt"
+          # Existing private A1 drafts are delivery envelopes on main.
+          # No code tag is created on a branch with different workflows.
+          # Identify the actual APK source independently and unambiguously.
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)" = main
           cd "$bundle"
-          sha256sum "$(basename "$apk")" README-RU.txt > SHA256SUMS.txt
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          name = "CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk"
+          apk = pathlib.Path(name)
+          with apk.open("rb") as f:
+              digest = hashlib.file_digest(f, "sha256").hexdigest()
+          receipt = {
+              "schema": 1,
+              "distribution_only": True,
+              "distribution_target": "main",
+              "source_repository": os.environ["GITHUB_REPOSITORY"],
+              "source_branch": os.environ["GITHUB_REF_NAME"],
+              "source_commit": os.environ["GITHUB_SHA"],
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "native_launch_gate": "METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO",
+              "acoustic_replacement_proven": False,
+              "apk": name, "apk_size": apk.stat().st_size, "apk_sha256": digest,
+          }
+          with open("BUILD-PROVENANCE.json", "x") as f:
+              json.dump(receipt, f, indent=2, sort_keys=True)
+              f.write("\n")
+          PY
+          sha256sum "$(basename "$apk")" README-RU.txt BUILD-PROVENANCE.json > SHA256SUMS.txt
           tag="celikom-a1-owner-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          # Unique draft; never publish, overwrite or reuse a previous APK.
-          gh release create "$tag" "$apk" README-RU.txt SHA256SUMS.txt \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
+          # Draft only. The main target is distribution metadata, NOT the APK
+          # source. The actual Android source SHA is recorded in the receipt.
+          gh release create "$tag" "$apk" README-RU.txt BUILD-PROVENANCE.json SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target main --draft \
             --title "CELIKOM A1 — private owner diagnostic $GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT" \
-            --notes "Private owner-only test. Native launch gate passed, acoustic replacement not proven. Source: $GITHUB_SHA. Not a stable update."
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,tagName,assets,url > "$RUNNER_TEMP/celikom-a1-delivery-receipt.json"
+            --notes "Private owner-only delivery envelope on main, not a source release. Actual Android build source: $GITHUB_SHA ($GITHUB_REF_NAME). See BUILD-PROVENANCE.json and SHA256SUMS.txt. Native launch passed; acoustic replacement not proven. Do not publish."
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,tagName,targetCommitish,assets,url > "$RUNNER_TEMP/celikom-a1-delivery-receipt.json"
           python3 - "$RUNNER_TEMP/celikom-a1-delivery-receipt.json" "$tag" "$bundle" <<'PY'
-          import json, pathlib, sys
+          import json, os, pathlib, sys
           from hashlib import file_digest
           receipt = json.loads(pathlib.Path(sys.argv[1]).read_bytes())
           assert receipt["isDraft"] is True and receipt["tagName"] == sys.argv[2]
+          assert receipt["targetCommitish"] == "main"
           root = pathlib.Path(sys.argv[3])
           expected = {p.name: p for p in root.iterdir() if p.is_file()}
-          assert set(expected) == {"CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk", "README-RU.txt", "SHA256SUMS.txt"}
+          assert set(expected) == {"CELIKOM-A1-RAMIL-AU-BETA13-HONOR50-20261121.apk", "README-RU.txt", "BUILD-PROVENANCE.json", "SHA256SUMS.txt"}
+          provenance = json.loads(expected["BUILD-PROVENANCE.json"].read_bytes())
+          assert provenance["source_commit"] == os.environ["GITHUB_SHA"]
+          assert provenance["source_branch"] == os.environ["GITHUB_REF_NAME"]
+          assert provenance["distribution_only"] is True
           assert len(receipt["assets"]) == len(expected)
           assert {a["name"] for a in receipt["assets"]} == set(expected)
           for a in receipt["assets"]:
