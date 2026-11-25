@@ -1,0 +1,9 @@
+# Extension 0.4.82 owner regression — 25 November 2026
+
+Owner report with installed 0.4.82 confirms zero activations across observed positive tracks. Auth/entitlement/resolve return HTTP 200. Resource revision remains stable during each track; the new stale-resource fence is not repeatedly canceling these preparations. Final operation is `loading-complete-file`, 17,797ms elapsed, first 524,288 bytes validated and the continuation still reading; native time55.846s after an owner seek. Both previous positive tracks were abandoned while still preparing.
+
+The 0.4.81 controller broadened complete-file mode to every delayed MP3 resolve and additionally discarded a ready MSE player once native time exceeded0.25s. This needlessly restarted download from byte zero and made ordinary joins wait for the whole file. This is our client regression, independent of the fact that automatic tests were green. Existing tests asserted the new conversion itself, rather than proving bounded successful adoption with a slow continuation.
+
+Withdraw0.4.82 from the owner approval manifest while preparing0.4.83. Do not delete immutable historical packages or alter central publication services, Windows, Android, backend, authority deadlines or Hostinger. Withdrawal prevents new promotion but does not remove already downloaded/served bytes or reset an existing latest pointer. A strictly higher verified successor is needed.
+
+Planned correction: restore the pre0.4.81 ordinary MP3 guard/sync path; reserve full-file MP3 alignment for the already accepted newly-approved-mid-song case. Keep0.4.81 network retries and0.4.82 stale-resource fences. No return to withdrawn0.4.71 prepareJoin/live-join mechanism. Add regression tests that leave whole-file continuation pending, require one original streaming decoder, and exercise delayed resolve/source changes/Stop.
