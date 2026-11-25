@@ -1,0 +1,55 @@
+name: CELIKOM A1 infrastructure read-only triage
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - '.github/workflows/android-a1-infra-readonly-triage.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: read
+  actions: read
+jobs:
+  nonintrusive-selfhosted-triage:
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 4
+    steps:
+      - name: Resource and peer-build process snapshot (read only; no command args)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo A1_RESOURCE_START
+          printf 'runner_arch='; uname -m
+          printf 'host_fingerprint='; hostname | sha256sum | cut -c1-12
+          printf 'cores='; nproc
+          printf 'uptime_and_load='; cat /proc/loadavg
+          free -m | sed -n '1,3p'
+          df -h "$RUNNER_TEMP" | tail -n1
+          ps -eo pid,ppid,comm,etime,stat,%cpu,%mem --sort=-%cpu | head -n 24
+          echo A1_RESOURCE_END
+      - name: Actions pre-start job metadata (no secrets)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          token=os.environ['GH_TOKEN']
+          root='https://api.github.com/repos/manufact-test/nomusic'
+          targets=[('X64_HOSTED',139519347796),('ARM24_HOSTED',139519347820),
+                   ('ARM22_HOSTED',139519347346),('SELF_X64_BUILD',139521422987)]
+          for label,job_id in targets:
+              req=urllib.request.Request(f'{root}/actions/jobs/{job_id}',headers={
+                  'Authorization':'Bearer '+token,
+                  'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              try:
+                  with urllib.request.urlopen(req,timeout=18) as resp:obj=json.load(resp)
+                  print('A1_JOB_METADATA',label,'status',obj.get('status'),
+                    'conclusion',obj.get('conclusion'),'runner_id',obj.get('runner_id'),
+                    'runner_name_set',bool(obj.get('runner_name')),
+                    'steps',len(obj.get('steps') or []),
+                    'started_at',obj.get('started_at'),
+                    'completed_at',obj.get('completed_at'))
+              except urllib.error.HTTPError as e:
+                  print('A1_JOB_METADATA',label,'HTTP',e.code)
+          PY
