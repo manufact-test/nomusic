@@ -39,6 +39,23 @@ jobs:
           dotnet --version
           dotnet --list-sdks
           dotnet --version | cut -d. -f1 | grep -Fx 10
+      - name: Probe supported isolated Linux packaging tools (no credentials)
+        id: packtools
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "wine=$(command -v wine || echo missing)"
+            echo "wine64=$(command -v wine64 || echo missing)"
+            echo "nsis=$(command -v makensis || echo missing)"
+            echo "inno=$(command -v iscc || echo missing)"
+            echo "sevenz=$(command -v 7z || echo missing)"
+            echo "apt=$(command -v apt-get || echo missing)"
+            echo "user=$(id -un)"
+          } >> "$GITHUB_OUTPUT"
+      - name: 'Tool inventory wine=${{ steps.packtools.outputs.wine }} nsis=${{ steps.packtools.outputs.nsis }} apt=${{ steps.packtools.outputs.apt }} uid=${{ steps.packtools.outputs.user }}'
+        shell: bash
+        run: true
       - name: W178 current-track native source revalidation regression tests
         shell: bash
         working-directory: windows-companion/w23
