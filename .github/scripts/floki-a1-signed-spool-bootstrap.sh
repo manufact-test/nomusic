@@ -6,8 +6,8 @@ umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 [[ "$(id -u)" == 0 && $# == 0 ]] || { echo A1_ROOT_REQUIRED; exit 64; }
 MIRROR=/home/celikom-mirror/github-mirror.git
-SOURCE_COMMIT=b7764101e878ea7c6117dfca6286ca0f20888f26
-CONSUMER_BLOB=abde17a59570260cb590a4873408577acfa1b56c
+SOURCE_COMMIT=aabb755632d6b4073c551be1c1dec8ed61101e7f
+CONSUMER_BLOB=547babe434317a6790d26a64891b1085c3f7aa21
 SPOOL=/srv/celikom/ci-runner/runner/celikom-a1-signed-spool
 IMPORT=/root/celikom-a1-signed-import
 DEST=/usr/local/lib/celikom-a1-signed-owner
