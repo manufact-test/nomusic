@@ -25,6 +25,7 @@ assert ".github/scripts/floki-android-stable-owner-install.sh" in files
 assert ".github/scripts/floki-android-customer-stable-install.sh" in files
 assert ".github/scripts/floki-windows-customer-stable-install.sh" in files
 assert ".github/scripts/floki-extension-owner-install.sh" in files
+assert ".github/scripts/floki-release-status-install.sh" in files
 
 for name,consumer_path,expected in (
  ("floki-windows-customer-stable-install.sh",
@@ -35,6 +36,8 @@ for name,consumer_path,expected in (
   "floki-android-customer-stable-consumer.py","BLOB="),
  ("floki-extension-owner-install.sh",
   "floki-extension-owner-consumer.py","BLOB="),
+ ("floki-release-status-install.sh",
+  "floki-release-public-receipt.py","BLOB="),
 ):
     installer=(SCRIPTS/name).read_text()
     match=re.search(r"(?m)^BLOB=([a-f0-9]{40})$",installer)
