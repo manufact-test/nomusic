@@ -11,6 +11,7 @@ import fcntl
 import hashlib
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import shutil
@@ -142,11 +143,19 @@ def hand_to_existing_receiver(apk, meta, tempdir):
         output.flush()
         os.fsync(output.fileno())
     os.chmod(wire, 0o600)
+    # Do not invoke util-linux runuser or PAM from a NoNewPrivileges=yes
+    # systemd root service: a setuid-helper/PAM transition can fail with
+    # EPERM. Drop credentials directly in Python's child immediately before
+    # exec. The root-opened private stdin fd remains valid after the drop.
+    identity = pwd.getpwnam("celikom-deploy")
+    check(identity.pw_uid > 0 and identity.pw_gid > 0,
+          "UNSAFE_DEPLOY_IDENTITY")
     with wire.open("rb") as input_stream:
-        result = subprocess.run(["/usr/sbin/runuser", "-u", "celikom-deploy",
-                                 "--", str(RECEIVER)],
+        result = subprocess.run([str(RECEIVER)],
                                 stdin=input_stream, capture_output=True,
-                                text=True, timeout=320, check=False)
+                                text=True, timeout=320, check=False,
+                                user=identity.pw_uid, group=identity.pw_gid,
+                                extra_groups=[])
     if result.returncode != 0:
         # This is the root journal (not a public release log). Expose only a
         # bounded diagnostic, never the stdout capability URL, raw metadata,
