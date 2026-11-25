@@ -209,7 +209,7 @@ public sealed class CelikomApi : IDisposable
             result.TryGetProperty("found", out var found) &&
             found.ValueKind == JsonValueKind.False)
         {
-            DiagnosticLog.Record("RESOLVE_SERVER_NOT_FOUND", id);
+            DiagnosticLog.Record("RESOLVE_SERVER_NO_GRANT", id);
             return null;
         }
         var grant = GrantValidator.FromResolve(result, id, origin, DateTimeOffset.UtcNow);
