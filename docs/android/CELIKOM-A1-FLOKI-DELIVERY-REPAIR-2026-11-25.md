@@ -66,3 +66,13 @@ A1_APK_PRIVATELY_STAGED_AWAIT_INDEPENDENT_ROOT_PROMOTION
 
 **Only remaining delivery blocker:** the one-time trusted root bootstrap described above must be executed on the FlokiNET host. Then read its trusted receipt and independently verify HTTPS 200/size/SHA-256 before giving the owner a URL. Installing the root consumer on CI is prohibited. These commands do not require the owner to run ADB, Android IDE, or a second phone.
 
+
+## Root activation failed once — narrow Ubuntu verifier fix (25 November)
+
+Owner ran the original verified bootstrap. Ubuntu installed `apksigner` and `aapt`, and created/enabled `celikom-a1-signed-owner.timer`. The initial `celikom-a1-signed-owner.service` failed at consumer line 215 with `A1_ROOT_MISSING_SIGNING_VERIFIER` **before** inspecting or publishing any APK. Original consumer rejected any symbolic link even when Ubuntu packages provided a trusted, root-owned binary through one. The failure is limited to verifier path admission; it is not an Android build failure.
+
+Patched the root consumer at commit `7366d6bd7b6fdddcea3ae27b2cf0658473dda4b3`, Git blob `a9e915186e7c0e3bbce0b8ffda7c046500ca99a3`: resolve strict path, ensure executable under distro-controlled `/usr` outside `/usr/local`, ensure both requested path and resolved target and their parents are root-owned and not group/world-writable. Certificate and exact application ID verification are unchanged. Updated fresh-install bootstrap source pin.
+
+Trusted **one-time repair script** `.github/scripts/floki-a1-signed-verifier-ubuntu-recovery.sh` was added at commit `fc240ecce39ec0d268b3cb6b992392438cce5d49`, Git blob `db02468bf5ef5d2a78259e6387d26ffff75d6882`. An operator with root authority may retrieve it from the read-only mirror and verify that exact blob before execution. The script refuses unexpected installed consumer state, stops only the A1 timer/service during atomic replacement, and resumes the timer. It starts the pre-existing service and prints trusted BETA16 receipt if successful. Do **not** run first-time bootstrap again or restage BETA16.
+
+This repair is committed, **but not verified on the live server yet**. Do not report release complete until trusted root receipt and independent external HTTPS file hash are verified.
