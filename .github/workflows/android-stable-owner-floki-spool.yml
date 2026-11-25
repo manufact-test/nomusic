@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - '.github/release/android-stable-owner-request.json'
+      - '.github/scripts/floki-android-stable-draft-source.py'
+      - '.github/scripts/floki-android-stable-signed-spool.py'
       - '.github/workflows/android-stable-owner-floki-spool.yml'
 
 permissions:
