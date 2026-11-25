@@ -2,6 +2,7 @@ import copy
 import pathlib
 import runpy
 import unittest
+import urllib.request
 
 core = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[1] / "windows-stable-floki-draft-source.py"))
 plan = core["asset_plan"]
@@ -48,6 +49,33 @@ class DraftSourceTests(unittest.TestCase):
     def test_unsafe_identity_refused(self):
         for v,s,c in (("../bad",2,commit),(version,0,commit),(version,2,"main"),(version,2**53,commit)):
             with self.assertRaises(ValueError): plan(fixture(),v,s,c)
+
+
+    def test_authenticated_api_redirect_never_leaks_bearer_to_asset_cdn(self):
+        request = urllib.request.Request(
+            "https://api.github.com/repos/manufact-test/nomusic/releases/assets/42",
+            headers={"Authorization": "Bearer do-not-send-to-cdn",
+                     "Accept": "application/octet-stream"})
+        handler = core["SafeAssetRedirect"]()
+        next_request = handler.redirect_request(request, None, 302, "",
+            {}, "https://release-assets.githubusercontent.com/example")
+        self.assertIsNone(next_request.get_header("Authorization"))
+        self.assertIsNone(next_request.get_header("Accept"))
+        for bad in ("http://release-assets.githubusercontent.com/unsafe",
+                    "https://evil.example/asset", "https://github.com/other"):
+            with self.assertRaises(ValueError):
+                handler.redirect_request(request, None, 302, "", {}, bad)
+
+    def test_api_endpoint_is_pinned_to_repository_and_token_is_required(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"GH_TOKEN": "X"*40}):
+            req = core["github_request"]("/repos/manufact-test/nomusic/releases/assets/42")
+            self.assertEqual(req.get_header("Authorization"), "Bearer " + "X"*40)
+            for bad in ("/repos/other/private/releases", "/other", "https://evil.example"):
+                with self.assertRaises(ValueError):
+                    core["github_request"](bad)
+
 
 
 if __name__=="__main__": unittest.main()
