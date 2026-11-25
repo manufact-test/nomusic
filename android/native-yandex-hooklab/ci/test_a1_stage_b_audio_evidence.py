@@ -213,6 +213,42 @@ public final class StageBAudioEvidenceTest {
             throw new AssertionError(ex);
         }
     }
+    static void originalChildCallerContextFixture() {
+        // Passive only: the same original dA9 and gA9 arguments can be
+        // observed without treating a different Of6 MediaItem as approved.
+        StageBAudioEvidence e=new StageBAudioEvidence();
+        Object track=new Object(),wrapper=new Object();
+        Object owner=new Object(),config=new Object();
+        Object item=new Object(),source=new Object(),different=new Object();
+        e.enterNativeTrackSourceRequest(track,null);
+        e.onNativeTrackWrapperCreated(wrapper);
+        e.exitNativeTrackSourceRequest();
+        e.enterNativePlayerSourceSelection(wrapper);
+        e.onOriginalMediaSourceConstructed(source,item,owner,config);
+        e.exitNativePlayerSourceSelection();
+        e.onOriginalChildContextComparison(owner,config,item);
+        e.onOriginalChildContextComparison(owner,config,different);
+        check(e.exactOriginalMediaItemCreator(different)==null);
+        e.onOriginalChildContextComparison(owner,new Object(),different);
+        e.onOriginalChildContextComparison(new Object(),config,different);
+        e.onOriginalChildContextComparison(new Object(),new Object(),different);
+        e.onOriginalChildContextComparison(null,config,item);
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CALLER_PAIR_SAME_ITEM","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CALLER_PAIR_DIFFERENT_ITEM","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CALLER_OWNER_ONLY","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CALLER_CONFIG_ONLY","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CALLER_NO_MATCH","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CALLER_CONTEXT_UNAVAILABLE","ONE");
+        e.enterNativePlayerSourceSelection(wrapper);
+        Object secondSource=new Object(),secondItem=new Object();
+        e.onOriginalMediaSourceConstructed(secondSource,secondItem,owner,config);
+        e.exitNativePlayerSourceSelection();
+        e.onOriginalChildContextComparison(owner,config,item);
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_CALLER_PAIR_AMBIGUOUS","ONE");
+        // A shared caller pair does not bypass the original MediaItem == gate.
+        check(e.exactOriginalMediaItemCreator(different)==null);
+    }
+
     static void originalMediaItemSourceBridgeFixture() {
         // Same original iLb+Of6 across later child factory. No item values
         // read; a different item, source or wrapper must never inherit it.
@@ -347,11 +383,12 @@ public final class StageBAudioEvidenceTest {
 
     public static void main(String[] argv) {
         originalMediaItemSourceBridgeFixture();
+        originalChildCallerContextFixture();
         beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 90);
-        for (int i=0;i<89;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial.length == 97);
+        for (int i=0;i<96;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();
@@ -935,6 +972,8 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn('Class.forName("lLb",false,loader)', code)
         self.assertIn('STAGE_B_AUDIO.onOriginalMediaSourceConstructed(', code)
         self.assertIn('STAGE_B_AUDIO.exactOriginalMediaItemCreator(item)', code)
+        self.assertIn('STAGE_B_AUDIO.onOriginalChildContextComparison(', code)
+        self.assertIn('chain.getArg(0),chain.getArg(3),item', code)
         self.assertIn('setter[1]==creator[3]', code)
         self.assertIn('STAGE_B_AUDIO.onOriginalMediaItemDescriptor(', code)
         self.assertIn('"SOURCE_ANCHOR","REGISTERED"', code)
