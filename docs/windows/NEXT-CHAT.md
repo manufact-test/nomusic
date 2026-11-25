@@ -1,3 +1,37 @@
+# CURRENT WINDOWS — FlokiNET owner acceptance, CELIKOM 0.24.55 (25 November 2026)
+
+## Production baseline and scope
+
+- GitHub private primary: `manufact-test/nomusic`, Windows works only in `main`; Forgejo `celadmin/nomusic` is one-way GitHub → Forgejo backup.
+- **0.24.54.0 remains the last personally accepted Windows runtime baseline.** W173 audio/Start/VPN/gain/UI must be preserved.
+- **0.24.55** is the current prepared Windows owner candidate: Companion, Update Supervisor and Inno installer all declare 0.24.55.
+- Owner-only direct EXE: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.55.exe`, protected by the existing website Basic credentials (anonymous HTTP 401). This is one installer for normal in-place upgrade, not a public release.
+- Native/Yandex playback architecture was not changed for the API migration; official Yandex 5.128.0 support remains from W173.
+- New production API: `https://api.celikom.com`. Runtime API app: `/srv/celikom/app/staging-20261122`, DB: `celikom_cutover_20261124`. Do not redeploy server or unfreeze Hostinger source to test Windows.
+- The DPAPI SessionStore stores existing user tokens and installation identity. `CelikomApi.MigrateProductionOrigin` migrates **only** the exact legacy Hostinger API origin to `https://api.celikom.com`, and persists it atomically; other origins are not rewritten. Initial 0.24.54 → 0.24.55 upgrade must be manual, because the old 0.24.54 package did not have the new feed public trust pin embedded.
+
+## Independent live FlokiNET acceptance evidence (25 November 2026)
+
+- GitHub-hosted privileged *read-only* remote check: [45611425032](https://github.com/manufact-test/nomusic/actions/runs/45611425032) — **SUCCESS**, using the existing owner-approved secured FlokiNET SSH environment. No server files or database changed.
+- Root-owned `/srv/celikom-releases/windows/stable/current` points to `versions/0.24.55`; exact `CELIKOM-Windows-0.24.55.exe` is 85,145,078 bytes, SHA-256 `f4c9a7881164ac7a9b5681d9f3568e5cbd3a9915c9e1da7b475caa20d3fb6487`, and has a PE/MZ header.
+- P-256 DER signature on the immutable 0.24.55 manifest was independently checked by OpenSSL against root-pinned public DER fingerprint `46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95`. Manifest schema2, version 0.24.55, sequence **2**, package URL/size/hash matched. The manifest expires **2026-12-01 17:14:29.349 UTC**. Check expiry before any later publishing.
+- **Signing terminology:** the P-256 *manifest* and exact installer SHA-256 are verified. The EXE itself is **not Authenticode-signed**; the signed-release workflow explicitly builds without Authenticode/PFX. Do not claim a Windows publisher certificate, or a certificate expiration date, exists.
+- Actual HTTPS checks: `GET /api/v1/health` and `/api/v1/config` 200; unauthenticated `auth/me`, `entitlement` and `resolve` 401; Nginx config syntax passes.
+- Owner download and `/CELIKOM/Windows/Updates/stable/latest.json`, detached `.sig`, immutable 0.24.55 manifest routes all return HTTP 401 anonymously. This is **intentional pre-acceptance protection**: the Windows updater does not carry the owner's Basic password; auto-update remains *blocked* until a reviewed signed feed route is approved.
+- Separate shared-backend authenticated test [45611263231](https://github.com/manufact-test/nomusic/actions/runs/45611263231) — SUCCESS: authenticated me, entitlement, Start/activate, same-origin replacement resolve, two signed Range 206 audio reads, trial unchanged; temporary session removed and subsequent access denied. This proves the new API path for a controlled session, **not** the owner's saved DPAPI session or audible replacement in CELIKOM Windows.
+- The one-off remote audit request `.github/deploy/floki-maintenance-request.sh` was returned to an inert no-op via commit `955f88593eb261a302468ecd1ca976df1f62ebd9`, and [45611603357](https://github.com/manufact-test/nomusic/actions/runs/45611603357) succeeded. Backup before audit: `backup/windows-floki-pre-acceptance-audit-20261125`.
+- No Windows EXE rebuild, server deployment, public feed publication, paid feature enablement, Android change, browser extension change, or Hostinger shutdown in this task.
+
+## Remaining work, in order
+
+1. Owner downloads the **existing exact 0.24.55 EXE** with Basic authentication and installs it over the existing Windows package; check preserved login, new API, replacement audio (including real mapped song), status colors/Start, upload, and behavior during VPN switches. Collect CELIKOM diagnostic only for a real failure.
+2. **Only after owner acceptance**, review and enable the exact fixed HTTPS signed feed routes from the root-owned FlokiNET store, public GET only for signed latest/immutable manifest/signatures and version-matched installer; never expose private storage, secrets, CMS, admin or paid endpoints. Current Basic 401 must not be bypassed early.
+3. Current `.github/workflows/windows-stable-signed-release.yml` has an **obsolete, currently blocked** `publish_to_production` path to `.github/scripts/windows-stable-publish-hostinger.sh`. Replace it with a reviewed FlokiNET production path, **not** by simply unblocking the old Hostinger job. Preserve the existing Windows-hosted build/signing and the FlokiNET private staging trust boundary.
+4. To prove real automatic upgrade, prepare the next strictly increasing version (greater than 0.24.55) and signed sequence (greater than 2), with a fresh valid expiry, verify hash/DER pin, publish atomically through the reviewed FlokiNET path and run a real owner safe-point update without playback interruption. Verify rollback, login retention and no downgrade. Do not manufacture an extra installer or update just for an unaccepted migration.
+5. Keep the exact legacy Hostinger string only in the deliberate one-time DPAPI session-origin migration and any known old-client compatibility bridge until corresponding clients are accepted. Keep old Hostinger applications frozen, not deleted; paid features off. No unrelated work or branch cleanup.
+
+---
+
 # CURRENT WINDOWS — canonical CELIKOM 0.24.54.0 on main (21 November 2026)
 
 Read these documents first:
