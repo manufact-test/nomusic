@@ -12,6 +12,12 @@ mod=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 class SanitizedReleaseStatus(unittest.TestCase):
+    def test_public_status_reads_actual_isolated_accepted_channels(self):
+        self.assertEqual(str(mod.WIN_CUSTOMER),
+            "/srv/celikom-releases/public/windows-customer-stable/accepted.json")
+        self.assertEqual(str(mod.ANDROID_CUSTOMER),
+            "/srv/celikom-releases/public/android-ota-stable/accepted.json")
+
     def test_sha_only_no_private_url_or_identity(self):
         win={"version":"0.24.56","sha256":"a"*64,
              "packageUrl":"https://celikom.com/downloads/windows/private-owner.exe"}
