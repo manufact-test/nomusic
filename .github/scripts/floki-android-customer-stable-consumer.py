@@ -175,8 +175,14 @@ def promote(a):
             require(existing["apkSha256"]==a["sha256"] and
                     existing["versionName"]==a["version_name"],
                     "CURRENT_APPROVAL_CONFLICT")
-            print("ANDROID_PUBLIC_STABLE_ALREADY_ACCEPTED",a["version_name"])
-            return
+            receipt=PUBLIC/"accepted.json"
+            if receipt.exists():
+                verified=json.loads(read_exact(receipt,4096))
+                if (verified.get("https_verified") is True and
+                    verified.get("versionCode")==a["version_code"] and
+                    verified.get("sha256")==a["sha256"]):
+                    print("ANDROID_PUBLIC_STABLE_ALREADY_ACCEPTED",a["version_name"])
+                    return
     apk,manifest,stem,size=verify_owned(a)
     current=PUBLIC/"stable.json"
     prior=read_exact(current) if current.exists() else None
@@ -193,6 +199,17 @@ def promote(a):
             current.unlink(missing_ok=True)
         else:put_manifest(prior)
         raise
+    receipt={"versionCode":a["version_code"],"versionName":a["version_name"],
+             "sha256":a["sha256"],"https_verified":True}
+    fd,t=tempfile.mkstemp(prefix=".android-accepted-",dir=PUBLIC)
+    try:
+        with os.fdopen(fd,"wb") as out:
+            out.write((json.dumps(receipt,sort_keys=True)+"\n").encode())
+            out.flush();os.fsync(out.fileno())
+        os.chown(t,0,0);os.chmod(t,0o644)
+        os.replace(t,PUBLIC/"accepted.json")
+    finally:
+        if os.path.lexists(t):os.unlink(t)
     print("ANDROID_PUBLIC_STABLE_OWNER_APPROVED",a["version_name"],a["version_code"])
 
 
