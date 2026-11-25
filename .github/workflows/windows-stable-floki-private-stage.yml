@@ -3,22 +3,22 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Exact already signed version
+        description: Exact signed Windows version
         required: true
         type: string
         default: '0.24.56'
       sequence:
-        description: Exact signed sequence
+        description: Exact monotonic signed sequence
         required: true
         type: string
         default: '3'
       source_commit:
-        description: Exact source commit of both existing private drafts
+        description: Exact source commit of the two immutable private drafts
         required: true
         type: string
         default: '3c743332d134618fd4bba39ee826e833f39aa54c'
       send_to_private_intake:
-        description: Send to dedicated nonprivileged intake, never publish
+        description: Legacy compatibility input; safe Floki spool only
         required: true
         default: false
         type: boolean
@@ -52,7 +52,7 @@ jobs:
     environment: windows-stable-production
     permissions:
       contents: write
-    timeout-minutes: 15
+    timeout-minutes: 18
     env:
       RELEASE_VERSION: ${{ inputs.version || '0.24.56' }}
       RELEASE_SEQUENCE: ${{ inputs.sequence || '3' }}
@@ -64,126 +64,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Verify metadata and local private import contracts
+      - name: Verify exact signed drafts and offline extraction/runner spool safety contracts
         run: |
           python3 .github/scripts/tests/windows-stable-floki-draft-source.test.py
-          python3 .github/scripts/tests/floki-windows-intake-parse-connection.test.py
+          python3 .github/scripts/tests/floki-windows-signed-spool.test.py
           node --test .github/scripts/tests/windows-stable-private-import.test.mjs
-      - name: Validate owner enrollment format before binary transfer
-        if: (inputs.send_to_private_intake == true || github.event_name == 'push')
-        env:
-          FLOKI_WINDOWS_INTAKE_CONNECTION: ${{ secrets.FLOKI_WINDOWS_INTAKE_CONNECTION }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          [[ -n "$FLOKI_WINDOWS_INTAKE_CONNECTION" ]] || { echo WINDOWS_INTAKE_ENROLLMENT_REQUIRED; exit 2; }
-          tmp=$(mktemp -d)
-          trap 'rm -rf -- "$tmp"' EXIT
-          printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" > "$tmp/bundle"
-          unset FLOKI_WINDOWS_INTAKE_CONNECTION
-          ssh-keyscan -T 15 -t ed25519 95.133.160.111 > "$tmp/scan" 2>/dev/null
-          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
-          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null 2>&1 || { echo WINDOWS_INTAKE_PRIVATE_KEY_INVALID; exit 2; }
-          echo WINDOWS_INTAKE_ENROLLMENT_PREFLIGHT_OK
-      - name: Prepare exact signed private draft transfer (no deployment secrets)
+      - name: Download exact P-256 signed draft and persist in isolated Floki runner spool
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           umask 077
           mkdir -m 700 "$RUNNER_TEMP/celikom-windows-private-stage"
-          python3 .github/scripts/windows-stable-floki-draft-source.py --version "$RELEASE_VERSION" \
-            --sequence "$RELEASE_SEQUENCE" --commit "$RELEASE_COMMIT" \
-            --output "$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
-      - name: Send only signed data to dedicated nonprivileged intake
-        if: (inputs.send_to_private_intake == true || github.event_name == 'push')
-        env:
-          FLOKI_WINDOWS_INTAKE_CONNECTION: ${{ secrets.FLOKI_WINDOWS_INTAKE_CONNECTION }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          [[ -n "$FLOKI_WINDOWS_INTAKE_CONNECTION" ]] || { echo WINDOWS_INTAKE_ENROLLMENT_REQUIRED; exit 2; }
-          tmp=$(mktemp -d)
-          trap 'rm -rf -- "$tmp"' EXIT
-          printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" | tr -d '\r' > "$tmp/bundle"
-          unset FLOKI_WINDOWS_INTAKE_CONNECTION
-          ssh-keyscan -T 15 -t ed25519 95.133.160.111 > "$tmp/scan" 2>/dev/null
-          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
-          rm "$tmp/bundle"
-          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null 2>&1 || { echo WINDOWS_INTAKE_PRIVATE_KEY_INVALID; exit 2; }
-          echo WINDOWS_INTAKE_PRIVATE_KEY_FORMAT_OK
+          trap 'rm -rf -- "$RUNNER_TEMP/celikom-windows-private-stage"' EXIT
           bundle="$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
-          digest=$(sha256sum "$bundle" | cut -d' ' -f1)
-          sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
-            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 \
-            -o ClearAllForwardings=yes)
-          reply=$(ssh "${sshargs[@]}" celikom-windows-intake@95.133.160.111 \
-            "stage-windows $RELEASE_VERSION $RELEASE_SEQUENCE $digest" < "$bundle")
-          if [[ "$reply" != "CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK private-staged $RELEASE_VERSION $RELEASE_SEQUENCE $digest" &&
-                "$reply" != "CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK already-staged $RELEASE_VERSION $RELEASE_SEQUENCE $digest" ]]; then
-            echo WINDOWS_INTAKE_RESPONSE_INVALID
-            exit 1
-          fi
-          echo "$reply"
-          echo CELIKOM_WINDOWS_PRIVATE_HANDOFF_VERIFIED_NOT_PUBLISHED
-      - name: Cleanup private local transfer files
-        if: always()
-        shell: bash
-        run: rm -rf -- "$RUNNER_TEMP/celikom-windows-private-stage"
-
-  independent_root_import:
-    needs: stage
-    if: (inputs.send_to_private_intake == true || github.event_name == 'push') && github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
-    runs-on: celikom-ci-smoke-only
-    environment: floki-deploy
-    permissions:
-      contents: read
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Independently verify and import staged data, no publication
-        shell: bash
-        env:
-          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          umask 077
-          python3 - <<'PY'
-          import json, os, urllib.request
-          repo=os.environ["GITHUB_REPOSITORY"]
-          sha=os.environ["GITHUB_SHA"]
-          token=os.environ["GH_TOKEN"]
-          url="https://api.github.com/repos/"+repo+"/compare/"+sha+"...main"
-          req=urllib.request.Request(url,headers={
-            "Authorization":"Bearer "+token,"Accept":"application/vnd.github+json",
-            "User-Agent":"CELIKOM-Windows-Verified-Release-Import"})
-          with urllib.request.urlopen(req,timeout=30) as response:
-            status=json.load(response).get("status")
-          if status not in ("identical","ahead"):
-            raise SystemExit("FLOKI_RELEASE_REQUEST_NOT_ON_MAIN")
-          print("FLOKI_RELEASE_MAIN_ANCESTRY_VERIFIED")
-          PY
+          python3 .github/scripts/windows-stable-floki-draft-source.py --version "$RELEASE_VERSION" \
+            --sequence "$RELEASE_SEQUENCE" --commit "$RELEASE_COMMIT" --output "$bundle"
           unset GH_TOKEN
-          [[ -n "$FLOKI_DEPLOY_CONNECTION" ]]
-          tmp=$(mktemp -d)
-          trap 'rm -rf -- "$tmp"' EXIT
-          printf '%s\n' "$FLOKI_DEPLOY_CONNECTION" | tr -d '\r' > "$tmp/bundle"
-          unset FLOKI_DEPLOY_CONNECTION
-          head -n 1 "$tmp/bundle" > "$tmp/known_hosts"
-          tail -n +2 "$tmp/bundle" > "$tmp/key"
-          rm "$tmp/bundle"
-          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
-          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null
-          sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
-            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 -o ClearAllForwardings=yes)
-          request=.github/scripts/floki-windows-private-consume-request.sh
-          bash -n "$request"
-          ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 maintenance < "$request"
+          python3 .github/scripts/floki-windows-signed-spool.py --bundle "$bundle" \
+            --version "$RELEASE_VERSION" --sequence "$RELEASE_SEQUENCE"
+          echo CELIKOM_WINDOWS_IMMUTABLE_SIGNED_DATA_STAGED_NO_SSH_NO_PUBLICATION
