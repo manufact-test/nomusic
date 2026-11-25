@@ -5,7 +5,7 @@ umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
 COMMIT=8d80dfc0753982ffe2e13bb252f2c538bccbd961
-BLOB=RELEASE_STATUS_CONSUMER_BLOB
+BLOB=b6979ca37c274e397e98fac0f40ad02764096cb5
 SOURCE=.github/scripts/floki-release-public-receipt.py
 DEST=/usr/local/lib/celikom-release-status/receipt.py
 SERVICE=/etc/systemd/system/celikom-release-status.service
