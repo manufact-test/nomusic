@@ -30,6 +30,13 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - name: Verify local data-only stage and independent root fail-closed contracts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 .github/scripts/tests/floki-a1-signed-spool.test.py
+          python3 -m py_compile .github/scripts/floki-a1-root-signed-spool-consumer.py
+          bash -n .github/scripts/floki-a1-signed-spool-bootstrap.sh
       - name: Provision GitHub CLI in isolated Floki runner
         shell: bash
         run: |
