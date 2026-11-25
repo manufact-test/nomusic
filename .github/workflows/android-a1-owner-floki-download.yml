@@ -162,7 +162,7 @@ jobs:
           test "$(grep -Ec '^Signer #[0-9]+ certificate SHA-256 digest:' "$d/signer.txt")" = 1
           grep -Eq 'Verified using v[23] scheme .*: true' "$d/signer.txt"
           "$sdk/aapt" dump badging "$apk" > "$d/badging.txt"
-          grep -Fq "package: name=\'pro.celikom.yandex.nativeclonelab\'" "$d/badging.txt"
+          grep -Fq "package: name='pro.celikom.yandex.nativeclonelab'" "$d/badging.txt"
           echo A1_APKSIGNER_AND_ORIGINAL_PACKAGE_VERIFIED
       - name: Deliver only signed APK through dedicated non-root intake, then download it anonymously over HTTPS
         if: steps.source.outputs.ready == 'true'
