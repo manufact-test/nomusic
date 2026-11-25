@@ -1,0 +1,122 @@
+name: CELIKOM encrypted post-cutover offsite copy, no recovery key
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/celikom-postcutover-encrypted-offsite.yml'
+permissions:
+  contents: read
+concurrency:
+  group: celikom-postcutover-encrypted-offsite
+  cancel-in-progress: false
+jobs:
+  export-encrypted-only:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: floki-deploy
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Retrieve only pinned AES-256 ciphertext from existing root-controlled gateway
+        env:
+          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          [[ "$GITHUB_REPOSITORY" == manufact-test/nomusic && "$GITHUB_REF" == refs/heads/main ]]
+          [[ -n "$FLOKI_DEPLOY_CONNECTION" ]]
+          d="$RUNNER_TEMP/celikom-final-encrypted"
+          mkdir -m 700 "$d"
+          printf '%s\n' "$FLOKI_DEPLOY_CONNECTION" | tr -d '\r' > "$d/connection"
+          unset FLOKI_DEPLOY_CONNECTION
+          head -n1 "$d/connection" > "$d/known-hosts"
+          tail -n+2 "$d/connection" > "$d/key"
+          rm -f "$d/connection"
+          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$d/known-hosts"
+          ssh-keygen -y -P '' -f "$d/key" > /dev/null
+          ssh_args=(-T -i "$d/key" -o BatchMode=yes -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$d/known-hosts"
+            -o GlobalKnownHostsFile=/dev/null -o ClearAllForwardings=yes -o ConnectTimeout=20)
+          ssh "${ssh_args[@]}" celikom-deploy@95.133.160.111 maintenance > "$d/wire" <<'REMOTE'
+          #!/bin/bash
+          set -Eeuo pipefail
+          umask 077
+          export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+          f=/srv/celikom/migration/backups/celikom-final-delta-20261125-v2.tar.gpg
+          [[ -f "$f" && ! -L "$f" && "$(stat -c '%u:%a:%s' "$f")" == 0:600:11668572 ]]
+          printf '%s  %s\n' 4fa123474c973539fd3a03b424b6f36c89c4fa35aad16a31a104d88fa10fef0d "$f" | sha256sum --check --status
+          echo CELIKOM_CIPHERTEXT_BEGIN
+          base64 -w 76 "$f"
+          echo CELIKOM_CIPHERTEXT_END
+          REMOTE
+          grep -qx CELIKOM_CIPHERTEXT_BEGIN "$d/wire"
+          grep -qx CELIKOM_CIPHERTEXT_END "$d/wire"
+          awk '/^CELIKOM_CIPHERTEXT_BEGIN$/ { mode=1; next } /^CELIKOM_CIPHERTEXT_END$/ { mode=0; exit } mode {print}' "$d/wire" |
+            base64 -d > "$d/celikom-final-delta-20261125-v2.tar.gpg"
+          printf '%s  %s\n' \
+            4fa123474c973539fd3a03b424b6f36c89c4fa35aad16a31a104d88fa10fef0d \
+            "$d/celikom-final-delta-20261125-v2.tar.gpg" | sha256sum --check --status
+          [[ "$(stat -c %s "$d/celikom-final-delta-20261125-v2.tar.gpg")" == 11668572 ]]
+          rm -f "$d/key" "$d/known-hosts" "$d/wire"
+          echo CELIKOM_PINNED_ENCRYPTED_OFFSITE_TRANSPORT_VERIFIED_NO_PLAINTEXT_OR_KEY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-offsite-encrypted-20261125-v2
+          path: ${{ runner.temp }}/celikom-final-encrypted/celikom-final-delta-20261125-v2.tar.gpg
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+      - name: Remove temporary encrypted payload
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/celikom-final-encrypted"
+  save-private-offsite:
+    needs: export-encrypted-only
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 12
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: celikom-offsite-encrypted-20261125-v2
+          path: ${{ runner.temp }}/celikom-offsite-verified
+      - name: Verify AES ciphertext digest and keep it only in a private draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          [[ "$GITHUB_REPOSITORY" == manufact-test/nomusic && "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" == PRIVATE ]]
+          file="$RUNNER_TEMP/celikom-offsite-verified/celikom-final-delta-20261125-v2.tar.gpg"
+          name=celikom-final-delta-20261125-v2.tar.gpg
+          tag=celikom-encrypted-recovery-postcutover-20261125-v2
+          [[ -f "$file" && ! -L "$file" && "$(stat -c %s "$file")" == 11668572 ]]
+          printf '%s  %s\n' 4fa123474c973539fd3a03b424b6f36c89c4fa35aad16a31a104d88fa10fef0d "$file" |
+            sha256sum --check --status
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            [[ "$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
+          else
+            gh release create "$tag" "$file" --repo "$GITHUB_REPOSITORY" \
+              --draft --title "CELIKOM encrypted recovery after FlokiNET cutover (PRIVATE)" \
+              --notes "Owner-only AES256 encrypted 2026-11-25 recovery delta; never publish. Contains API and CMS DBs, configurations, signed client artifacts. Password is NOT included. Verify SHA256 4fa123474c973539fd3a03b424b6f36c89c4fa35aad16a31a104d88fa10fef0d, bytes 11668572. Requires separately preserved full base offsite archive and offline recovery password."
+          fi
+          [[ "$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]]
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$name" --dir "$RUNNER_TEMP/celikom-offsite-downloaded"
+          retrieved="$RUNNER_TEMP/celikom-offsite-downloaded/$name"
+          [[ "$(stat -c %s "$retrieved")" == 11668572 ]]
+          printf '%s  %s\n' 4fa123474c973539fd3a03b424b6f36c89c4fa35aad16a31a104d88fa10fef0d "$retrieved" |
+            sha256sum --check --status
+          echo CELIKOM_FINAL_OFFSITE_PRIVATE_DRAFT_VERIFIED_INDEPENDENT_DOWNLOAD_NO_KEY
+      - name: Remove temporary copies
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/celikom-offsite-verified" "$RUNNER_TEMP/celikom-offsite-downloaded"
