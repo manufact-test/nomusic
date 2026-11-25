@@ -43,6 +43,39 @@ def of6_field(dex,idx):
     owner,type_index,_=struct.unpack_from("<HHI",dex.data,off+idx*8)
     return dex.type(owner)==SOURCE_OWNER and dex.type(type_index)==OF6
 
+def field_descriptor(dex,idx):
+    count,off=struct.unpack_from("<II",dex.data,80)
+    if idx>=count or count>500000 or off+count*8>len(dex.data):
+        return None
+    owner,typ,_=struct.unpack_from("<HHI",dex.data,off+idx*8)
+    return (dex.type(owner),dex.type(typ))
+
+def child_argument_origin(dex,code,ins,index,reg,constructor_fields):
+    """Finite static shape; never export field indices, owners or registers."""
+    if reg is None:return "UNSUPPORTED_INVOKE_SHAPE"
+    for k in range(index-1,max(-1,index-101),-1):
+        p,op,_=ins[k]
+        if op in BOUNDARY:return "CONTROL_FLOW_UNRESOLVED"
+        if op==0x07 and code[p+1]&15==reg:
+            reg=code[p+1]>>4
+        elif op==0x08 and code[p+1]==reg:
+            reg=struct.unpack_from("<H",code,p+2)[0]
+        elif op==0x09 and struct.unpack_from("<H",code,p+2)[0]==reg:
+            reg=struct.unpack_from("<H",code,p+4)[0]
+        elif op==0x54 and code[p+1]&15==reg:
+            fid=struct.unpack_from("<H",code,p+2)[0]
+            ft=field_descriptor(dex,fid)
+            if fid in constructor_fields:return "ORIGINAL_CTOR_FIELD_REFERENCE"
+            if ft is not None and ft[1]==OF6:
+                return "OTHER_OF6_TYPED_FIELD_REFERENCE"
+            return "OTHER_TYPED_FIELD_REFERENCE"
+        elif op==0x0c and code[p+1]==reg:
+            return "INVOKE_RESULT"
+        elif op in (0x12,0x13,0x14,0x15,0x16,0x1a,0x1b,0x22) and (
+                (code[p+1]&15 if op==0x12 else code[p+1])==reg):
+            return "OTHER_VALUE_PRODUCER"
+    return "PARAMETER_OR_CAPTURE_UNRESOLVED"
+
 def source_argument_register(code,pc,opcode):
     """Return the third argument in the exact static four-arg invoke."""
     if opcode==0x71: # invoke-static {C,D,E,F}: E is Of6
@@ -111,12 +144,14 @@ def inspect_dex(payload):
     caller_source=0
     caller_child=0
     caller_other=0
+    caller_suspend=0
+    origin_counts={}
     for mid,code in dex.code_methods():
         if not child_refs or (b"\x71" not in code and b"\x77" not in code):
             continue
         try:ins=decode_instructions(code)
         except FlowDecodeError:continue
-        owner,_,_=dex.method_signature(mid)
+        owner,caller_name,_=dex.method_signature(mid)
         for i,(pc,op,_) in enumerate(ins):
             if op not in (0x71,0x77):continue
             ref=struct.unpack_from("<H",code,pc+2)[0]
@@ -125,12 +160,12 @@ def inspect_dex(payload):
             if owner==SOURCE_OWNER:caller_source+=1
             elif owner==CHILD_OWNER:caller_child+=1
             else:caller_other+=1
+            if caller_name=="invokeSuspend":caller_suspend+=1
             reg=source_argument_register(code,pc,op)
-            fid=field_from_local_backtrace(dex,code,ins,i,reg)
-            if fid is None:unresolved+=1
-            elif of6_field(dex,fid):
-                if fid in ctor_fields:from_ctor_field+=1
-                else:from_other_field+=1
+            shape=child_argument_origin(dex,code,ins,i,reg,ctor_fields)
+            origin_counts[shape]=origin_counts.get(shape,0)+1
+            if shape=="ORIGINAL_CTOR_FIELD_REFERENCE":from_ctor_field+=1
+            elif shape=="OTHER_OF6_TYPED_FIELD_REFERENCE":from_other_field+=1
             else:unresolved+=1
 
     return {
@@ -145,6 +180,8 @@ def inspect_dex(payload):
         "callers_in_constructor_owner":min(caller_source,16),
         "callers_in_child_owner":min(caller_child,16),
         "callers_in_other_owner":min(caller_other,16),
+        "callers_in_coroutine_resume":min(caller_suspend,16),
+        "child_item_argument_origin_shapes":origin_counts,
     }
 
 def inspect_xapk(path):
@@ -179,6 +216,11 @@ def inspect_xapk(path):
         "callers_in_constructor_owner":min(sum(v["callers_in_constructor_owner"] for v in records),16),
         "callers_in_child_owner":min(sum(v["callers_in_child_owner"] for v in records),16),
         "callers_in_other_owner":min(sum(v["callers_in_other_owner"] for v in records),16),
+        "callers_in_coroutine_resume":min(sum(v["callers_in_coroutine_resume"] for v in records),16),
+        "child_item_argument_origin_shapes":{
+            key:min(sum(v["child_item_argument_origin_shapes"].get(key,0) for v in records),16)
+            for key in sorted({k for v in records for k in v["child_item_argument_origin_shapes"]})
+        },
         "static_only_no_runtime_source_or_audio_proof":True,
     }
 
