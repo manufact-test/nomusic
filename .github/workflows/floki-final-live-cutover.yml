@@ -57,3 +57,4 @@ jobs:
         shell: bash
         run: bash .github/scripts/floki-cutover-runner.sh
 # Execute after validated signed clients, fresh isolated CRUD/HTTP acceptance, current source-to-target media parity, and tested rollback.
+# Retry only after correcting the source tempfile path; live source hashes were unchanged after aborted pre-freeze setup.
