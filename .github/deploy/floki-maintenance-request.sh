@@ -2,41 +2,48 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Read-only, no secrets or SQL rows in output.
-root=/root/celikom-cutover-snapshot-zOYBzdmN/intake
-for item in \
-  'api 24f79abcbf40096161b2a57168bb31a447d5e35e88c9e3b729474b0ea6cc4ec9' \
-  'cms 19d592658438d55703c82691f42aec9b87b1fe53fd02f805c644f6107490552d'; do
-  read -r name expected <<< "$item"
-  path="$root/$name.sql.gz"
-  test -f "$path" && test ! -L "$path"
-  digest=$(sha256sum "$path" | cut -d' ' -f1)
-  test "$digest" = "$expected"
-  gzip -t "$path"
-  echo "FINAL_FROZEN_SQL_PRESENT_AND_INTEGRITY_OK" "$name" "$(stat -c %s "$path")"
-done
-# Failed additive archive must not leave loose SQL/config secrets.
-dir=/srv/celikom/migration/final-delta-20261125
-if test -d "$dir"; then
-  find "$dir" -maxdepth 3 -type f -printf 'FAILED_BACKUP_RESIDUAL_FILENAME %P %s\n'
-fi
-test ! -f /srv/celikom/migration/backups/celikom-final-delta-20261125.tar.gpg
-echo POSTCUTOVER_ENCRYPTED_DELTA_NOT_COMPLETE
-nginx -t
-for endpoint in /api/v1/health /api/v1/config /api/v1/auth/me /api/v1/entitlement; do
-  status=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://api.celikom.com$endpoint")
-  echo "PUBLIC_API_STATUS" "$endpoint" "$status"
-done
-tmp=$(mktemp)
-trap 'rm -f -- "$tmp"' EXIT
-status=$(curl -sS --max-time 15 -o "$tmp" -w '%{http_code}' \
-  -X POST -H 'Content-Type: application/json' -d '{}' \
-  https://api.celikom.com/api/v1/auth/activate)
-test "$status" = 401
-python3 - "$tmp" <<'PY'
-import json,sys
-data=json.load(open(sys.argv[1]))
-assert isinstance(data,dict) and isinstance(data.get('error'),str)
-print('PUBLIC_API_AUTH_ACTIVATE_POST_REACHABLE_WITH_JSON_401')
+python3 - <<'PY'
+from pathlib import Path
+from collections import Counter,deque
+import re
+logs=sorted(Path('/var/log/nginx').glob('*access*.log'))
+print('LOG_FILE_COUNT',len(logs))
+total=Counter(); endpoints=Counter()
+for f in logs:
+  if not f.is_file(): continue
+  try:
+    with f.open('r',encoding='utf-8',errors='ignore') as handle:
+      tail=deque(handle,maxlen=30000)
+  except PermissionError:
+    continue
+  samples=0
+  for line in tail:
+    if '/api/v1/' not in line or 'HTTP/' not in line: continue
+    match=re.search(r'["]([A-Z]+) (/api/v1/[^ ?"]+)[^"]* HTTP/[^"]+["] (\d{3})',line)
+    if not match: continue
+    method,path,status=match.groups()
+    if method not in ('GET','HEAD','POST','PUT','PATCH','DELETE'): continue
+    # Only whitelisted endpoint groups, never query/user identifiers.
+    if path.startswith('/api/v1/auth/'): group='/auth/*'
+    elif path.startswith('/api/v1/audio/'): group='/audio/*'
+    elif path.startswith('/api/v1/resolve'): group='/resolve'
+    elif path.startswith('/api/v1/uploads'): group='/uploads'
+    elif path.startswith('/api/v1/entitlement'): group='/entitlement'
+    elif path.startswith('/api/v1/config'): group='/config'
+    elif path.startswith('/api/v1/health'): group='/health'
+    else: group='/other'
+    key=(group,method,status)
+    endpoints[key]+=1
+    total[status]+=1
+    samples+=1
+  print('LOG_PARSED_API_ROWS',f.name,samples)
+for (group,method,status),count in sorted(endpoints.items()):
+ print('API_TRAFFIC_AGGREGATE',group,method,status,count)
+print('API_TRAFFIC_HTTP5XX_TOTAL',sum(v for k,v in total.items() if k.startswith('5')))
+print('API_TRAFFIC_ROWS_TOTAL',sum(total.values()))
 PY
-echo CELIKOM_POSTCUTOVER_SQL_AND_API_AUTH_READONLY_ACCEPTANCE_COMPLETE
+printf 'NGINX_RUNNING='; systemctl is-active nginx
+printf 'PHP_RUNNING='; systemctl is-active php8.3-fpm
+printf 'API_HEALTH='; curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' https://api.celikom.com/api/v1/health
+printf 'NEW_MAIN_MIRROR_TIMER='; systemctl is-active celikom-mirror-sync.timer
+echo CELIKOM_READONLY_LIVE_API_LOG_SUMMARY_COMPLETE
