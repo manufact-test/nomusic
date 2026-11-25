@@ -1,4 +1,5 @@
 import hashlib
+import re
 import os
 import pathlib
 import runpy
@@ -59,6 +60,23 @@ class RootConsumerContractTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):core["list_pending"]()
             finally:
                 core["SPOOL"]=old
+
+
+    def test_nginx_bootstrap_pythons_and_installer_hash_pins_match(self):
+        directory=pathlib.Path(__file__).resolve().parents[1]
+        nginx=(directory/"floki-windows-owner-download-bootstrap.sh").read_text()
+        snippets=re.findall(r"<<'PY'\\n(.*?)\\nPY",nginx,re.S)
+        self.assertGreaterEqual(len(snippets),2)
+        for i,src in enumerate(snippets):
+            compile(src,"nginx-bootstrap-"+str(i),"exec")
+        self.assertIn("CELIKOM-Windows-latest.exe",nginx)
+        self.assertIn("auth_basic",nginx)
+        installer=(directory/"floki-windows-root-consumer-install.sh").read_text()
+        for file in ("floki-windows-signed-root-consumer.py",
+                     "floki-windows-owner-download-bootstrap.sh"):
+            data=(directory/file).read_bytes()
+            sha=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\\0"+data).hexdigest()
+            self.assertIn(sha,installer,"installer must pin reviewed root source "+file)
 
 if __name__=="__main__":
     unittest.main()
