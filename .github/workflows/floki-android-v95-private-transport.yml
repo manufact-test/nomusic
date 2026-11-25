@@ -1,0 +1,105 @@
+name: CELIKOM Android v95 pinned signed bridge private FlokiNET transport
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/floki-android-v95-private-transport.yml'
+permissions:
+  contents: read
+concurrency:
+  group: celikom-floki-deploy
+  cancel-in-progress: false
+jobs:
+  private-signed-bridge-handoff:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: floki-deploy
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'build-tools;36.0.0'
+      - name: Download only exact owner-private signed APK and immutable manifests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/457921929" --jq .draft)" = true
+          tmp="$RUNNER_TEMP/private-android-v95"
+          mkdir -p "$tmp"
+          for file in CELIKOM-Android-0.3.94-SIGNED.apk stable-floki-candidate.json stable-hostinger-bridge-candidate.json; do
+            gh release download celikom-legacy-bridge-private-45589980361-1 --repo "$GITHUB_REPOSITORY" \
+              --pattern "$file" --dir "$tmp"
+          done
+          printf '%s  %s\n' \
+            d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469 "$tmp/CELIKOM-Android-0.3.94-SIGNED.apk" \
+            8e5205b64ea65b8a9879b7034a3e5c141a8e96b79a0e1a07c1d849def358478e "$tmp/stable-floki-candidate.json" \
+            011386d2bb9c1fdb504f2b802c590b2076f07a1132c79082282f4b8846fc005f "$tmp/stable-hostinger-bridge-candidate.json" | sha256sum -c --status
+          test "$(stat -c %s "$tmp/CELIKOM-Android-0.3.94-SIGNED.apk")" = 8845385
+          test "$(stat -c %s "$tmp/stable-floki-candidate.json")" = 520
+          test "$(stat -c %s "$tmp/stable-hostinger-bridge-candidate.json")" = 554
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          signature=$("$sdk/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$tmp/CELIKOM-Android-0.3.94-SIGNED.apk")
+          grep -Fqx 'Signer #1 certificate SHA-256 digest: 67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f' <<< "$signature"
+          if ! grep -Eq 'Verified using v[23] scheme .*: true' <<< "$signature"; then exit 1; fi
+          "$sdk/build-tools/36.0.0/aapt" dump badging "$tmp/CELIKOM-Android-0.3.94-SIGNED.apk" | \
+            grep -F "package: name='pro.celikom.nativeprobe' versionCode='95' versionName='0.3.94'" >/dev/null
+          echo CELIKOM_ANDROID_0394_FINAL_BYTES_AND_ORIGINAL_SIGNER_INDEPENDENTLY_ACCEPTED
+      - name: Transfer only pinned signed binary and both manifests to root-private FlokiNET
+        env:
+          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          test -n "$FLOKI_DEPLOY_CONNECTION"
+          tmp=$(mktemp -d)
+          cleanup(){
+            rc=$?
+            if [[ "$started" == 1 ]]; then
+              ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 maintenance < .github/scripts/floki-android-v95-close-intake.sh || rc=1
+            fi
+            rm -rf -- "$tmp"
+            exit "$rc"
+          }
+          started=0
+          trap cleanup EXIT
+          printf '%s\n' "$FLOKI_DEPLOY_CONNECTION" | tr -d '\r' > "$tmp/bundle"
+          unset FLOKI_DEPLOY_CONNECTION
+          head -n 1 "$tmp/bundle" > "$tmp/known_hosts"
+          tail -n +2 "$tmp/bundle" > "$tmp/key"
+          rm -f "$tmp/bundle"
+          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
+          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null
+          sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$tmp/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=20 -o ClearAllForwardings=yes)
+          bash -n .github/scripts/floki-android-v95-intake.sh
+          bash -n .github/scripts/floki-android-v95-close-intake.sh
+          started=1
+          ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 maintenance < .github/scripts/floki-android-v95-intake.sh
+          src="$RUNNER_TEMP/private-android-v95"
+          for item in \
+            "apk CELIKOM-Android-0.3.94-SIGNED.apk d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469" \
+            "floki stable-floki-candidate.json 8e5205b64ea65b8a9879b7034a3e5c141a8e96b79a0e1a07c1d849def358478e" \
+            "bridge stable-hostinger-bridge-candidate.json 011386d2bb9c1fdb504f2b802c590b2076f07a1132c79082282f4b8846fc005f"; do
+            read -r operation filename digest <<< "$item"
+            actual=$(ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 "receive-android-v95-$operation" < "$src/$filename")
+            [[ "$actual" == "$digest" ]] || { echo "ANDROID_BRIDGE_PRIVATE_TRANSFER_HASH_MISMATCH $operation"; exit 1; }
+            echo "ANDROID_V95_PRIVATE_TRANSFER_HASH_MATCH $operation"
+          done
+          echo CELIKOM_ANDROID_V95_PRIVATE_INPUT_TRANSFER_COMPLETE
+      - name: Erase temporary runner copies
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/private-android-v95"
