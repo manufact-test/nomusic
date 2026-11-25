@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/android-a1-owner-floki-spool.yml'
       - '.github/deploy/a1-owner-download-request.json'
+      - '.github/scripts/floki-a1-root-signed-spool-consumer.py'
+      - '.github/scripts/tests/floki-a1-signed-spool.test.py'
   workflow_run:
     workflows: ['CELIKOM A1 Ramil Au Beta13 owner-phone audio test — no acoustic proof']
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
