@@ -31,6 +31,25 @@ fi
 [[ "$(sha256sum /root/celikom-secrets/windows-stable-public.der | cut -d' ' -f1)" == 46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95 ]]
 nginx -t
 for cmd in git python3 node systemctl; do command -v "$cmd" >/dev/null; done
+for exe in /usr/bin/apksigner /usr/bin/aapt; do [[ -x "$exe" ]]; done
+[[ -f /srv/celikom/migration/sites-20261124/android-private/staging-owner-credentials.txt ]]
+[[ "$(stat -c '%u' /srv/celikom/migration/sites-20261124/android-private/staging-owner-credentials.txt)" == 0 ]]
+SITE=/etc/nginx/sites-enabled/celikom-site-https
+[[ -f "$SITE" ]]
+REAL=$(readlink -f "$SITE")
+[[ "$REAL" == /etc/nginx/sites-available/* && ! -L "$REAL" ]]
+python3 - "$REAL" <<'PY'
+from pathlib import Path
+import sys
+s=Path(sys.argv[1]).read_text()
+assert s.count("    # END CELIKOM OWNER DOWNLOADS\n")==1, "OWNER_NGINX_MARKER_MISSING"
+assert 'auth_basic "CELIKOM private review";' in s
+assert "auth_basic_user_file" in s
+assert "location = /downloads/windows/CELIKOM-Windows-0.24.55.exe" in s
+assert "location = /downloads/extension/celikom-extension-0.4.73.zip" in s
+print("CELIKOM_NGINX_OWNER_GATE_AND_BASE_ROUTES_PRESENT")
+PY
+[[ "$(df -Pk /srv/celikom-releases | awk 'END {print $4}')" -ge 524288 ]]
 echo CELIKOM_RELEASE_BOOTSTRAP_PRECHECK_OK
 
 INTAKE=/root/celikom-windows-bootstrap-intake
