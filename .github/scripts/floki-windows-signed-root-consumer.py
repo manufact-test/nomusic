@@ -164,8 +164,10 @@ def owner_copy(version):
           and stat.S_IMODE(st.st_mode)==0o750,"OWNER_DOWNLOAD_DIR_INVALID")
     dest=OWNER/exe
     if dest.exists() or dest.is_symlink():
-        secure_root_file(dest)
-        check(dest.stat().st_size==src.stat().st_size and digest(dest)==manifest["sha256"],
+        ss=dest.lstat()
+        check(stat.S_ISREG(ss.st_mode) and ss.st_uid==0 and ss.st_nlink in (1,2)
+              and not ss.st_mode&0o022 and
+              ss.st_size==src.stat().st_size and digest(dest)==manifest["sha256"],
               "OWNER_IMMUTABLE_CONFLICT")
     else:
         fd,tmp=tempfile.mkstemp(prefix=".windows-owner-",dir=OWNER)
@@ -180,12 +182,16 @@ def owner_copy(version):
         finally:
             os.unlink(tmp)
     latest=OWNER/"CELIKOM-Windows-latest.exe"
-    if latest.exists() and not latest.is_symlink():
-        raise RuntimeError("WINDOWS_ROOT_OWNER_LATEST_NOT_SYMLINK")
+    if latest.exists() or latest.is_symlink():
+        st=latest.lstat()
+        check(stat.S_ISREG(st.st_mode) and st.st_uid==0
+              and st.st_nlink<=2 and not st.st_mode&0o022,
+              "OWNER_LATEST_UNSAFE")
     fd,tmp=tempfile.mkstemp(prefix=".latest-link-",dir=OWNER)
     os.close(fd);os.unlink(tmp)
     try:
-        os.symlink(exe,tmp)
+        # Atomic hardlink, not symlink: safe even with Nginx disable_symlinks.
+        os.link(dest,tmp)
         os.replace(tmp,latest)
     finally:
         if os.path.lexists(tmp):
