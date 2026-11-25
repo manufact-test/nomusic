@@ -16,6 +16,7 @@ on:
       - 'android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/build.gradle.kts'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java'
+      - 'android/native-yandex-hooklab/ci/test_a1_stage_b_audio_evidence.py'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
       - 'android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag/UpdateCenter.java'
@@ -71,6 +72,7 @@ jobs:
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeDeferredFactoryIdentityTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeTrackIdBetaTrialTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRamilTrackOnlyLineageTest
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
           python3 - <<'PY'
           from pathlib import Path
           src=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java').read_text()
