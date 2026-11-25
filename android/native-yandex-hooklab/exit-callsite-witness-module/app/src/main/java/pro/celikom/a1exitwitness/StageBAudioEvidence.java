@@ -53,6 +53,20 @@ final class StageBAudioEvidence {
     private final AtomicLong originalChildSetterMatched = new AtomicLong();
     private final AtomicLong originalChildSetterMissing = new AtomicLong();
     private final AtomicLong originalChildSetterSourceDifferent = new AtomicLong();
+    // BETA16: bounded nonsecret reason buckets. All original Java identity,
+    // scope and grant gates remain fail-closed; no values/IDs/URLs emitted.
+    private final AtomicLong childNullItem = new AtomicLong();
+    private final AtomicLong childNoAnchors = new AtomicLong();
+    private final AtomicLong childLiveDifferentItem = new AtomicLong();
+    private final AtomicLong childOnlyExpiredItems = new AtomicLong();
+    private final AtomicLong childDuplicateItemAnchor = new AtomicLong();
+    private final AtomicLong childConflictedItemAnchor = new AtomicLong();
+    private final AtomicLong childWeakWrapperLost = new AtomicLong();
+    private final AtomicLong childWeakSourceLost = new AtomicLong();
+    private final AtomicLong childWrapperLinkMissing = new AtomicLong();
+    private final AtomicLong childWrapperLinkAmbiguous = new AtomicLong();
+    private final AtomicLong childOriginalCreatorRejected = new AtomicLong();
+    private final AtomicLong childBetaCreatorRejected = new AtomicLong();
     private final AtomicLong exoOpenResults = new AtomicLong();
     private final AtomicLong exoPositiveReads = new AtomicLong();
     private final AtomicLong exoEndOfSource = new AtomicLong();
@@ -1179,21 +1193,63 @@ final class StageBAudioEvidence {
      * the source that the successful original Player setter accepted.
      */
     synchronized Object[] exactOriginalMediaItemCreator(Object item) {
-        if(item==null)return null;
+        if(item==null) {
+            mark(childNullItem);
+            return null;
+        }
         OriginalMediaSourceItemLink unique=null;
+        boolean liveItem=false,expiredItem=false;
         for(OriginalMediaSourceItemLink candidate:originalMediaSourceItems) {
-            if(candidate.item.get()!=item)continue;
-            if(unique!=null)return null;
+            Object stored=candidate.item.get();
+            if(stored==null)expiredItem=true;
+            else liveItem=true;
+            if(stored!=item)continue; // no equals(), IDs or last-seen fallback
+            if(unique!=null) {
+                mark(childDuplicateItemAnchor);
+                return null;
+            }
             unique=candidate;
         }
-        if(unique==null || unique.conflicted)return null;
-        Object wrapper=unique.wrapper.get(),source=unique.source.get();
-        if(wrapper==null || source==null || findByWrapper(wrapper)==null)
+        if(unique==null) {
+            // Context only: a collected item cannot be attributed to this child.
+            mark(liveItem?childLiveDifferentItem:
+                expiredItem?childOnlyExpiredItems:childNoAnchors);
             return null;
-        Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
-        return creator==null?null:new Object[]{
-            wrapper,creator[0],creator[1],source
-        };
+        }
+        if(unique.conflicted) {
+            mark(childConflictedItemAnchor);
+            return null;
+        }
+        Object wrapper=unique.wrapper.get(),source=unique.source.get();
+        if(wrapper==null) {
+            mark(childWeakWrapperLost);
+            return null;
+        }
+        if(source==null) {
+            mark(childWeakSourceLost);
+            return null;
+        }
+        if(findByWrapper(wrapper)==null) {
+            int live=0;
+            for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
+                if(link.wrapper!=null && link.wrapper.get()==wrapper
+                        && link.track!=null && link.track.get()!=null)
+                    live++;
+            }
+            mark(live>1?childWrapperLinkAmbiguous:childWrapperLinkMissing);
+            return null;
+        }
+        Object[] creator=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        if(creator==null) {
+            // The beta path still requires its own exact issuer/Track/Flow proof.
+            mark(childOriginalCreatorRejected);
+            creator=exactBetaCreatorWithoutAlbum(wrapper);
+            if(creator==null) {
+                mark(childBetaCreatorRejected);
+                return null;
+            }
+        }
+        return new Object[]{wrapper,creator[0],creator[1],source};
     }
 
     synchronized void onOriginalChildHookRegistered() {
@@ -1698,6 +1754,18 @@ final class StageBAudioEvidence {
             event("ORIGINAL_CHILD_ENTER", originalChildEntered),
             event("ORIGINAL_CHILD_CREATOR_MATCH", originalChildCreatorMatched),
             event("ORIGINAL_CHILD_CREATOR_MISSING", originalChildCreatorMissing),
+            event("ORIGINAL_CHILD_ITEM_NULL", childNullItem),
+            event("ORIGINAL_CHILD_NO_ITEM_ANCHORS", childNoAnchors),
+            event("ORIGINAL_CHILD_LIVE_OTHER_ITEM_ANCHOR", childLiveDifferentItem),
+            event("ORIGINAL_CHILD_ONLY_EXPIRED_ITEM_ANCHORS", childOnlyExpiredItems),
+            event("ORIGINAL_CHILD_ITEM_ANCHOR_DUPLICATE", childDuplicateItemAnchor),
+            event("ORIGINAL_CHILD_ITEM_ANCHOR_CONFLICT", childConflictedItemAnchor),
+            event("ORIGINAL_CHILD_WEAK_WRAPPER_LOST", childWeakWrapperLost),
+            event("ORIGINAL_CHILD_WEAK_SOURCE_LOST", childWeakSourceLost),
+            event("ORIGINAL_CHILD_WRAPPER_LINK_MISSING", childWrapperLinkMissing),
+            event("ORIGINAL_CHILD_WRAPPER_LINK_AMBIGUOUS", childWrapperLinkAmbiguous),
+            event("ORIGINAL_CHILD_ORIGINAL_TRACK_ALBUM_REJECT", childOriginalCreatorRejected),
+            event("ORIGINAL_CHILD_BETA_CREATOR_REJECT", childBetaCreatorRejected),
             event("ORIGINAL_CHILD_SETTER_MATCH", originalChildSetterMatched),
             event("ORIGINAL_CHILD_SETTER_MISSING", originalChildSetterMissing),
             event("ORIGINAL_CHILD_SETTER_SOURCE_DIFFERENT",
