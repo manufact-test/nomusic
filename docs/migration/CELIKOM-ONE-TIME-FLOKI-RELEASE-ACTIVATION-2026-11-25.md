@@ -66,6 +66,19 @@
 
 Не запускать прежние pinned bootstrap `f2fdb044b01b8926b201ab6650e7185e50f86236`; использовать новую схему по финальной зелёной CI. После server retry тестировать HTTP 200 + complete SHA для 0.24.55 и 401 для private owner 0.24.56, затем остальные каналы. Публичная 0.24.56 остаётся **непринятой**.
 
+## Третья живая попытка: Windows и extension PASS, Android public ожидает исправления (25.11.2026)
+
+Владелец выполнил pinned `adbccbb7ee1531add7adcbdb68fdbc691a3c2062`:
+- Windows owner service `active`, ранее подписанная 0.24.56 не переустанавливалась.
+- **Windows public customer stable 0.24.55/seq2 прошла полный HTTPS 200 + SHA256 `f4c9a7881164ac7a9b5681d9f3568e5cbd3a9915c9e1da7b475caa20d3fb6487`**, таймер active. Owner-only 0.24.56 в customer feed не передавалась.
+- Extension owner routes + timer active; в `.github/release/extension-owner-promotions.json` ещё нет очередного принятого ZIP, потому `EXTENSION_OWNER_AWAITING_NEXT_APPROVED_CANDIDATE` ожидаемо.
+- Legacy Android **owner private promoter** timer active; строка `ANDROID_STABLE_SIGNED_OWNER_PUBLISHER_READY` подтверждает службу, но **не** доставку owner APK 0.3.94 (для неё требуется явный root receipt).
+- Android customer OTA инсталляция успела проверить Nginx, затем вернула `ANDROID_CUSTOMER_STABLE_FIRST_INSTALL_ROLLED_BACK` и остановилась `CELIKOM_RELEASE_ACTIVATION_STOPPED line=231 exit=1`. Public Android НЕ объявлять активным. Остальные линии откат не затронул.
+
+В старом Android public installer после Nginx оказалась немая проверка `[[ ! -e "$PUBLIC" ]]`, несовместимая с существующим каталогом после предыдущих неполных миграций. Новая версия **не доверяет содержимому** существующей папки: повторный запуск допускает только root-owned 0755 `/srv/celikom-releases/public/android` без чужих записей (кроме root-only `.publish.lock`), проверяет доступность каталога nginx и оставляет `approved:null`. На ошибке печатается строка `ANDROID_CUSTOMER_STABLE_INSTALL_FAILED line=...`. Bootstrap разрешает замену **только точной** старой root-owned 0600 Android customer installer copy (blob `4680ed1fb55e5b34b2a947af60874562218587d8`) на новый pinned blob; Windows/extension/Android owner уже active и не переустанавливаются. Если существующий каталог содержит неизвестные файлы, запуск остановится; НЕ удалять их автоматически и НЕ открывать разрешения на private каталоги.
+
+Пока нет подтверждённого успешного повторного root запуска, не утверждать, что Windows auto-updating проверен на реальном установленном клиенте, Android public OTA или A1 работают как новая единая система.
+
 ## Как выпускать новые версии после однократного запуска
 
 **Windows:** следующий подписанный private candidate через привычный workflow на `main`. Root independently verifies и сам обновляет *закрытый тестовый* owner latest; разработчик даёт только `https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe` после real HTTPS verification. Владелец вручную устанавливает в единственную CELIKOM. После «принимаю X» обновить только `.github/release/windows-customer-stable.json` с *точным* номером/sequence/SHA и `owner_accepted:true`. Отдельный root timer проверяет P-256/immutable installer/full HTTPS и обновляет публичный latest и подписанный feed. Не заменять тестовый APK/EXE другим содержимым под тем же номером.
