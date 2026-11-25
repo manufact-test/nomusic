@@ -23,6 +23,22 @@ jobs:
           set -Eeuo pipefail
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py
           python3 -B android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py --selftest
+      - name: Provision pinned GitHub CLI on either isolated Floki runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if command -v gh >/dev/null 2>&1; then exit 0; fi
+          version=2.105.0
+          bin="$HOME/.cache/celikom-a1-gh-v${version}/bin"
+          mkdir -p "$bin"
+          if [[ ! -x "$bin/gh" ]]; then
+            archive="$RUNNER_TEMP/gh_${version}_linux_amd64.tar.gz"
+            curl -fLsS --connect-timeout 12 --max-time 90 --retry 1 \
+              -o "$archive" "https://github.com/cli/cli/releases/download/v${version}/gh_${version}_linux_amd64.tar.gz"
+            tar -xzf "$archive" -C "$RUNNER_TEMP"
+            install -m 700 "$RUNNER_TEMP/gh_${version}_linux_amd64/bin/gh" "$bin/gh"
+          fi
+          echo "$bin" >> "$GITHUB_PATH"
       - name: Obtain only exact sealed owner-uploaded 2025 original XAPK
         shell: bash
         env:
