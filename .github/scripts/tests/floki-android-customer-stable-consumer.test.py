@@ -31,6 +31,17 @@ class AndroidCustomerApprovalTests(unittest.TestCase):
                 with patch.object(m.subprocess,"run",return_value=self.approval(changed)):
                     with self.assertRaises(RuntimeError):
                         m.approved()
+    def test_public_ota_restart_is_idempotent_and_fails_closed(self):
+        installer=(ROOT/"floki-android-customer-stable-install.sh").read_text()
+        bootstrap=(ROOT/"floki-release-owner-bootstrap.sh").read_text()
+        self.assertIn('ANDROID_CUSTOMER_EXISTING_EMPTY_PUBLIC_DIRECTORY_ACCEPTED',installer)
+        self.assertIn('ANDROID_CUSTOMER_PUBLIC_UNEXPECTED_CONTENT',installer)
+        self.assertIn('ANDROID_CUSTOMER_STABLE_INSTALL_FAILED line=',installer)
+        self.assertIn('ANDROID_CUSTOMER_NGINX_PARENT_NOT_TRAVERSABLE',installer)
+        self.assertIn('[[ ! -e "$PUBLIC/stable.json" ]]',installer)
+        self.assertIn('4680ed1fb55e5b34b2a947af60874562218587d8',bootstrap)
+        self.assertIn('4253ebb4dd5985677160a01688f867dd6e8425dc',bootstrap)
+
     def test_owner_only_not_auto_published(self):
         with patch.object(m.os,"geteuid",return_value=0),\
              patch.object(m.Path,"lstat",return_value=type("S",(),{"st_mode":0o040755})()),\
