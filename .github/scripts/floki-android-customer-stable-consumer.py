@@ -165,6 +165,18 @@ def verify_external(stem,expected,size,manifest):
 
 
 def promote(a):
+    # Do not fetch the same signed APK from the public site on every timer tick.
+    # Only a newly accepted immutable version needs a full external SHA proof.
+    current_path=PUBLIC/"stable.json"
+    if current_path.exists():
+        existing=json.loads(read_exact(current_path))
+        require(existing["versionCode"]<=a["version_code"],"DOWNGRADE_FORBIDDEN")
+        if existing["versionCode"]==a["version_code"]:
+            require(existing["apkSha256"]==a["sha256"] and
+                    existing["versionName"]==a["version_name"],
+                    "CURRENT_APPROVAL_CONFLICT")
+            print("ANDROID_PUBLIC_STABLE_ALREADY_ACCEPTED",a["version_name"])
+            return
     apk,manifest,stem,size=verify_owned(a)
     current=PUBLIC/"stable.json"
     prior=read_exact(current) if current.exists() else None
