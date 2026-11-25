@@ -5,8 +5,8 @@ set -Eeuo pipefail
 umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=fb3cb67b11d7916668d5cd6033090f1cfcf2d264
-BLOB=c6ce4e6e6db125cc921663405fcd668d7c71d8b9
+COMMIT=1f2ffdda34691990d8349b53c1ea7025f8bf3155
+BLOB=deb2a97334c70de96f598a8a0c4536abf6862cc0
 SOURCE=.github/scripts/floki-android-customer-stable-consumer.py
 DEST=/usr/local/lib/celikom-android-stable-owner/customer-consumer.py
 SERVICE=/etc/systemd/system/celikom-android-customer-stable.service
