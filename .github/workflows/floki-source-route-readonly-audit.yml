@@ -1,0 +1,60 @@
+name: CELIKOM read-only Hostinger freeze route diagnosis
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/floki-source-route-readonly-audit.yml'
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect only old source rewrite routes without modifying them
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          d=$(mktemp -d)
+          trap 'rm -rf -- "$d"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$d/key"
+          unset HOSTINGER_SSH_KEY
+          ssh-keygen -y -P '' -f "$d/key" > "$d/pub"
+          test "$(ssh-keygen -lf "$d/pub" | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0JI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$d/known"
+          ssh -T -p 65002 -i "$d/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$d/known" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 u235811320@92.113.19.189 'bash -s' <<'REMOTE'
+          set -Eeuo pipefail
+          for domain in darkred-camel-588676.hostingersite.com lemonchiffon-narwhal-791953.hostingersite.com; do
+            root="/home/u235811320/domains/$domain/public_html"
+            echo "SITE $domain"
+            stat -c 'PUBLIC_ROOT %F %a' "$root"
+            stat -c 'HTACCESS %F %a' "$root/.htaccess"
+            sha256sum "$root/.htaccess"
+            echo "REWRITE_DIRECTIVES"
+            grep -Ei '^[[:space:]]*(RewriteRule|RewriteCond|RewriteEngine|DirectoryIndex)' "$root/.htaccess" | head -n 50 || true
+            printf 'BASIC_AUTH_CONFIG_LINES='
+            grep -Eic '^[[:space:]]*(AuthType|AuthUserFile|Require[[:space:]])' "$root/.htaccess" || true
+            for n in index.php .htaccess; do test -e "$root/$n" && stat -c "PUBLIC_FILE $n %F %a" "$root/$n" || true; done
+          done
+          REMOTE
+          for url in \
+            'https://darkred-camel-588676.hostingersite.com/api/v1/health' \
+            'https://darkred-camel-588676.hostingersite.com/api/v1/auth/login' \
+            'https://darkred-camel-588676.hostingersite.com/__celikom_freeze_probe_20261125' \
+            'https://lemonchiffon-narwhal-791953.hostingersite.com/' \
+            'https://lemonchiffon-narwhal-791953.hostingersite.com/__celikom_freeze_probe_20261125'; do
+            for method in GET POST; do
+              headers="$d/headers"
+              code=$(curl -sS --max-time 15 -X "$method" -D "$headers" -o /dev/null -w '%{http_code}' "$url")
+              if grep -iq '^www-authenticate:' "$headers"; then auth=yes; else auth=no; fi
+              echo "PUBLIC_METHOD $method $url $code WWW_AUTH=$auth"
+            done
+          done
+          echo CELIKOM_OLD_ROUTING_READONLY_AUDIT_COMPLETE
