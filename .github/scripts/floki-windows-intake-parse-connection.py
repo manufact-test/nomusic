@@ -95,7 +95,7 @@ def main():
         pin, key = parse(pathlib.Path(sys.argv[1]).read_bytes(), trusted_pin)
         target = pathlib.Path(sys.argv[2])
         for name, value in (("known_hosts", pin), ("key", key)):
-            fd = os.open(target / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            fd = os.open(target / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
             with os.fdopen(fd, "w") as f:
                 f.write(value)
     except ValueError as e:
