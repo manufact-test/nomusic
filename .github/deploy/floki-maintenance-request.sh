@@ -2,186 +2,69 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Post-cutover encrypted, additive recovery delta.  Do not expose SQL/keys in
-# Git, Actions artifacts, stdout, or public web routes.
-basedir=/srv/celikom/migration
-key="$basedir/secrets/celikom-offsite-20261122.key"
-root="$basedir/final-delta-20261125-v2"
-out="$basedir/backups/celikom-final-delta-20261125-v2.tar.gpg"
-work="$root/plain"
-recovery="$root/restore-test"
-ctr=celikom-mdb-check-20261122
-api_db=celikom_cutover_20261124
-cms_db=celikom_website_cutover_20261124
-scratch_cms=celikom_final_recovery_20261125_v2
-scratch_ctr=celikom-final-recovery-20261125-v2
-[[ ! -e "$root" && ! -L "$root" && ! -e "$out" && ! -L "$out" ]]
-[[ -f "$key" && ! -L "$key" && "$(stat -c %u "$key")" == 0 ]]
-[[ "$(stat -c %a "$key")" == 600 || "$(stat -c %a "$key")" == 400 ]]
-[[ "$(df -B1 --output=avail "$basedir" | tail -1)" -gt 16000000000 ]]
-[[ "$(docker ps --filter "name=^/$scratch_ctr$" --format '{{.Names}}' | wc -l)" == 0 ]]
-[[ "$(mysql --protocol=socket -uroot -Nse "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='$scratch_cms'")" == 0 ]]
-install -d -m 700 "$root" "$work" "$work/sql" "$work/config" "$work/releases" "$recovery"
-made_ctr=0
-made_cms=0
-complete=0
-clean(){
- rc=$?
- if [[ "$made_ctr" == 1 ]]; then docker rm -f "$scratch_ctr" >/dev/null 2>&1 || rc=1; fi
- if [[ "$made_cms" == 1 ]]; then mysql --protocol=socket -uroot -e "DROP DATABASE IF EXISTS $scratch_cms" || rc=1; fi
- rm -rf -- "$work" "$recovery"
- if [[ "$complete" != 1 ]]; then
-   echo CELIKOM_FINAL_DELTA_BACKUP_ABORTED_NO_PRODUCTION_MUTATION
- fi
- exit "$rc"
-}
-trap clean EXIT
+# Final post-cutover verification: no live DB writes or config edits.
+backup=/srv/celikom/migration/backups/celikom-final-delta-20261125-v2.tar.gpg
+[[ -f "$backup" && ! -L "$backup" && "$(stat -c '%u:%a:%s' "$backup")" == 0:600:11668572 ]]
+printf '%s  %s\n' 4fa123474c973539fd3a03b424b6f36c89c4fa35aad16a31a104d88fa10fef0d "$backup" | sha256sum -c --status
+echo FINAL_LOCAL_ENCRYPTED_CIPHERTEXT_SHA256_MATCH
 
-api_dump(){
- docker exec -i "$ctr" sh -c '
-   if [ -n "$MARIADB_ROOT_PASSWORD_FILE" ]; then MYSQL_PWD=$(cat "$MARIADB_ROOT_PASSWORD_FILE")
-   elif [ -n "$MYSQL_ROOT_PASSWORD_FILE" ]; then MYSQL_PWD=$(cat "$MYSQL_ROOT_PASSWORD_FILE")
-   elif [ -n "$MARIADB_ROOT_PASSWORD" ]; then MYSQL_PWD=$MARIADB_ROOT_PASSWORD
-   else exit 2; fi
-   export MYSQL_PWD
-   exec mariadb-dump -uroot --single-transaction --quick --triggers --routines --events --max-allowed-packet=64M "$@"
- ' sh "$@"
-}
-runuser -u www-data -- php -r 'require "/srv/celikom/app/staging-20261122/bootstrap.php";$c=require "/srv/celikom/app/staging-20261122/config/app.php";$p=Celikom\Database\Connection::open($c);if($p->query("SELECT DATABASE()")->fetchColumn()!=="celikom_cutover_20261124")exit(2);echo "BACKUP_SOURCE_LIVE_API_DB_CONFIRMED\n";'
-runuser -u celikom-site -- php -r 'require "/srv/celikom-site/celikom-private/app/bootstrap.php";$p=Celikom\Website\Database::connect(Celikom\Website\CmsConfig::databaseSettings());if($p->query("SELECT DATABASE()")->fetchColumn()!=="celikom_website_cutover_20261124")exit(2);echo "BACKUP_SOURCE_LIVE_CMS_DB_CONFIRMED\n";'
+runuser -u www-data -- php -r '
+require "/srv/celikom/app/staging-20261122/bootstrap.php";
+$c=require "/srv/celikom/app/staging-20261122/config/app.php";
+$p=Celikom\Database\Connection::open($c);
+assert($p->query("SELECT DATABASE()")->fetchColumn()==="celikom_cutover_20261124");
+$t=(int)$p->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type=\"BASE TABLE\"")->fetchColumn();
+if($t!==44)exit(2);
+echo "FINAL_LIVE_API_DB_TABLES=", $t,PHP_EOL;
+'
+runuser -u celikom-site -- php -r '
+require "/srv/celikom-site/celikom-private/app/bootstrap.php";
+$p=Celikom\Website\Database::connect(Celikom\Website\CmsConfig::databaseSettings());
+if($p->query("SELECT DATABASE()")->fetchColumn()!=="celikom_website_cutover_20261124")exit(2);
+$t=(int)$p->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type=\"BASE TABLE\"")->fetchColumn();
+if($t!==11)exit(2);
+echo "FINAL_LIVE_CMS_DB_TABLES=",$t,PHP_EOL;
+'
+nginx -t
+systemctl is-active --quiet nginx
+systemctl is-active --quiet php8.3-fpm
+systemctl is-active --quiet celikom-mirror-sync.timer
 
-api_dump "$api_db" | gzip -n -6 > "$work/sql/api.sql.gz"
-mysqldump --protocol=socket -uroot --single-transaction --quick --triggers --routines --events --set-gtid-purged=OFF --no-tablespaces "$cms_db" | gzip -n -6 > "$work/sql/cms.sql.gz"
-for kind in api cms; do [[ -s "$work/sql/$kind.sql.gz" ]]; gzip -t "$work/sql/$kind.sql.gz"; done
-echo CELIKOM_POST_CUTOVER_LIVE_SQL_DUMPS_COMPLETE
-
-copy_secure(){
- src=$1
- target=$2
- [[ -f "$src" && ! -L "$src" && -r "$src" ]]
- [[ "$(stat -c %a "$src")" =~ ^(600|640|644)$ ]]
- install -m 600 "$src" "$work/$target"
-}
-copy_secure /srv/celikom/app/staging-20261122/.env config/api.env
-copy_secure /srv/celikom-site/celikom-private/staging-config.php config/cms-staging-config.php
-copy_secure /etc/nginx/sites-available/celikom-api-https config/api-public-nginx.conf
-copy_secure /etc/nginx/sites-available/celikom-api-staging config/api-upstream-nginx.conf
-copy_secure /etc/nginx/sites-available/celikom-site-https config/cms-public-nginx.conf
-copy_secure /etc/nginx/sites-available/celikom-website-preview config/cms-upstream-nginx.conf
-copy_secure /etc/nginx/celikom-site.htpasswd config/cms-htpasswd
-copy_secure /srv/celikom-releases/private/android-v95/CELIKOM-Android-0.3.94-SIGNED.apk releases/android-v95-signed.apk
-copy_secure /srv/celikom-releases/private/android-v95/stable-floki-candidate.json releases/android-v95-floki.json
-copy_secure /srv/celikom-releases/private/android-v95/stable-hostinger-bridge-candidate.json releases/android-v95-hostinger-bridge.json
-copy_secure /srv/celikom-releases/private/extension/celikom-extension-0.4.73.zip releases/extension-0.4.73.zip
-
-python3 - "$work" <<'PY'
-import json,pathlib,hashlib,datetime,sys
-root=pathlib.Path(sys.argv[1])
-files=[p for p in root.rglob('*') if p.is_file() and p.name not in ('metadata.json','SHA256SUMS')]
-files.sort(key=lambda p:p.relative_to(root).as_posix())
-manifest={
- "format":"CELIKOM-final-postcutover-delta-recovery-v1",
- "utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
- "live_api_db":"celikom_cutover_20261124",
- "live_cms_db":"celikom_website_cutover_20261124",
- "base_offsite_ciphertext_sha256":"9d94a07d3306acd8874a7d3ad959234427d67a0d1b9c402526abb492e3acff15",
- "base_archive_owner_offsite_copy_required":True,
- "owner_offsite_delta_download_required":True,
- "media_audio_manifest_digest":"9240eeba545d433d2fec25690c8d740de729d614db4c28f40ca91bea6b6c24ed",
- "cms_media_manifest_digest":"567dddbeb64aa8707bf9d54f9569313685652d058f6731cee06c3e2acecd9ed6",
- "files":{p.relative_to(root).as_posix():{
-     "bytes":p.stat().st_size,
-     "sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
- } for p in files}
-}
-(root/'metadata.json').write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n')
-with (root/'SHA256SUMS').open('w') as f:
-  for p in files:
-    f.write(manifest['files'][p.relative_to(root).as_posix()]['sha256']+'  '+p.relative_to(root).as_posix()+'\n')
-  f.write(hashlib.sha256((root/'metadata.json').read_bytes()).hexdigest()+'  metadata.json\n')
-print("CELIKOM_FINAL_DELTA_PLAIN_INPUT_FILES",len(files))
+tmp=$(mktemp -d)
+trap 'rm -rf -- "$tmp"' EXIT
+curl -fsS --max-time 15 https://api.celikom.com/api/v1/config > "$tmp/config"
+python3 - "$tmp/config" <<'PY'
+import json,sys
+v=json.load(open(sys.argv[1]))
+f=v["features"]
+assert v["api_version"]==1 and v["maintenance"] is False
+assert all(f[k] for k in ("replacements","auth","entitlement","rewards"))
+assert not any(f[k] for k in ("analytics","billing_views","referrals"))
+required=tuple(map(int,v["minimum_extension_version"].split(".")))
+current=(0,4,73)
+assert current>=required,(required,current)
+assert v["upload_enabled"] is True
+print("FINAL_API_EXTENSION_0473_COMPATIBLE_WITH_ENABLED_AUTH_AND_REPLACEMENTS")
 PY
-(cd "$work" && sha256sum --check SHA256SUMS --status)
-# Reuse the recovery secret that is already in the owner's offline custody.
-# Ciphertext is the only persistent backup output; no plaintext root copy.
-(
-  cd "$work"
-  tar -cf - . | gpg --batch --yes --no-tty --pinentry-mode loopback \
-    --passphrase-file "$key" --symmetric --cipher-algo AES256 \
-    --compress-algo none --output "$out"
-)
-[[ -s "$out" && ! -L "$out" ]]
-chmod 600 "$out"
-echo CELIKOM_FINAL_DELTA_AES256_ENCRYPTED_ARCHIVE_CREATED
-
-# Full independent decryption and safe extraction into a disposable private tree.
-install -d -m 700 "$recovery/tree" "$recovery/gnupg"
-cat > "$root/safe-restore.py" <<'PY'
-import tarfile,sys,pathlib
-root=pathlib.Path(sys.argv[1])
-count=0
-with tarfile.open(fileobj=sys.stdin.buffer,mode="r|*") as tar:
-  for member in tar:
-    count+=1
-    if count>70: raise ValueError("Unexpected backup member count")
-    if not (member.isfile() or member.isdir()): raise ValueError("Recovery archive has link or device")
-    if member.isfile() and member.size>200*1024*1024: raise ValueError("Unexpected member size")
-    tar.extract(member,root,filter='data')
-assert count>=10,count
-print("CELIKOM_FINAL_DELTA_SAFE_ARCHIVE_MEMBERS",count)
-PY
-gpg --homedir "$recovery/gnupg" --batch --no-tty --pinentry-mode loopback \
-  --passphrase-file "$key" --decrypt "$out" 2>/dev/null | python3 "$root/safe-restore.py" "$recovery/tree"
-
-restored="$recovery/tree"
-(cd "$restored" && sha256sum -c SHA256SUMS --status)
-python3 - "$restored" <<'PY'
-import pathlib,json,hashlib,sys
-root=pathlib.Path(sys.argv[1])
-m=json.loads((root/'metadata.json').read_bytes())
-assert m['format']=='CELIKOM-final-postcutover-delta-recovery-v1'
-assert m['live_api_db']=='celikom_cutover_20261124'
-assert m['live_cms_db']=='celikom_website_cutover_20261124'
-assert len(m['files'])>=10
-for relative,record in m['files'].items():
- p=root/relative
- assert p.is_file() and p.stat().st_size==record['bytes']
- assert hashlib.sha256(p.read_bytes()).hexdigest()==record['sha256']
-print("CELIKOM_FINAL_DELTA_ENCRYPTED_ROUNDTRIP_BYTES_MATCH")
-PY
-for kind in api cms; do gzip -t "$restored/sql/$kind.sql.gz"; done
-
-# Isolated MariaDB11 image has no network, no volumes and no production grants.
-docker run --pull=never --network none --name "$scratch_ctr" \
-  -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 \
-  -d mariadb:11.8.9-noble \
-  --innodb-buffer-pool-size=64M --max-allowed-packet=64M \
-  --max-connections=8 --performance-schema=OFF >/dev/null
-made_ctr=1
-ready=0
-for i in $(seq 1 90); do
- if docker logs "$scratch_ctr" 2>&1 | grep -Fq 'MariaDB init process done. Ready for start up.' \
-    && docker exec "$scratch_ctr" mariadb -uroot -Nse 'SELECT 1' >/dev/null 2>&1; then
-  ready=1; break
- fi
- sleep 1
+for path in /api/v1/health /api/v1/config; do
+ [[ "$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "https://api.celikom.com$path")" == 200 ]]
 done
-[[ "$ready" == 1 ]]
-docker exec "$scratch_ctr" mariadb -uroot -e 'CREATE DATABASE celikom_backup_test'
-gzip -dc "$restored/sql/api.sql.gz" | docker exec -i "$scratch_ctr" mariadb -uroot --max-allowed-packet=64M celikom_backup_test
-docker exec "$scratch_ctr" mariadb -uroot celikom_backup_test -Nse "SELECT 'API_TABLES',COUNT(*) FROM information_schema.tables WHERE table_schema='celikom_backup_test' AND table_type='BASE TABLE'; SELECT 'TRACKS',COUNT(*) FROM tracks; SELECT 'REPLACEMENTS',COUNT(*) FROM track_replacements"
-[[ "$(docker exec "$scratch_ctr" mariadb -uroot celikom_backup_test -Nse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='celikom_backup_test' AND table_type='BASE TABLE'")" == 44 ]]
-echo CELIKOM_FINAL_DELTA_API_SQL_INDEPENDENT_RESTORE_OK
+for path in /api/v1/auth/me /api/v1/entitlement; do
+ [[ "$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "https://api.celikom.com$path")" == 401 ]]
+done
+[[ "$(curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' -d '{}' -o "$tmp/activate" -w '%{http_code}' https://api.celikom.com/api/v1/auth/activate)" == 401 ]]
+python3 - "$tmp/activate" <<'PY'
+import json,sys
+assert isinstance(json.load(open(sys.argv[1]))["error"],str)
+print("FINAL_API_AUTH_ACTIVATE_POST_REAL_JSON_ROUTE_READY")
+PY
+for path in / /admin/ /downloads/windows/CELIKOM-Windows-0.24.55.exe /downloads/extension/celikom-extension-0.4.73.zip /updates/android/stable.json; do
+ [[ "$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "https://celikom.com$path")" == 401 ]]
+done
+echo FINAL_OWNER_SITE_AND_DISTRIBUTION_BASIC_AUTH_INTACT
 
-# MySQL CMS restore into a temporary, isolated schema. No live schema changes.
-mysql --protocol=socket -uroot -e "CREATE DATABASE $scratch_cms"
-made_cms=1
-gzip -dc "$restored/sql/cms.sql.gz" | mysql --protocol=socket -uroot "$scratch_cms"
-[[ "$(mysql --protocol=socket -uroot -Nse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$scratch_cms' AND table_type='BASE TABLE'")" == 11 ]]
-echo CELIKOM_FINAL_DELTA_CMS_SQL_INDEPENDENT_RESTORE_OK
-size=$(stat -c %s "$out")
-sha=$(sha256sum "$out" | cut -d' ' -f1)
-echo "CELIKOM_FINAL_DELTA_CIPHERTEXT_SIZE=$size"
-echo "CELIKOM_FINAL_DELTA_CIPHERTEXT_SHA256=$sha"
-complete=1
-echo CELIKOM_FINAL_DELTA_ENCRYPTED_RESTORE_TEST_ACCEPTED_NEEDS_OWNER_OFFSITE_COPY
+[[ -f /srv/celikom-releases/private/extension/celikom-extension-0.4.73.zip ]]
+printf '%s  %s\n' 968e34ef72927ce5be5007d1ed210a9b6910b45d4fa423b67fdc3db16a75becb /srv/celikom-releases/private/extension/celikom-extension-0.4.73.zip | sha256sum -c --status
+echo FINAL_FLOKI_EXTENSION_NEW_ORIGIN_PACKAGE_IMMUTABLE
+
+echo CELIKOM_POSTCUTOVER_FINAL_READONLY_SERVER_ACCEPTANCE_OK
