@@ -18,9 +18,9 @@ from datetime import datetime, timezone
 BASE=Path("/srv/celikom-releases")
 OUTPUT=BASE/"release-status"/"receipt.json"
 WIN_OWNER=BASE/"windows/stable/current"
-WIN_CUSTOMER=BASE/"windows/customer-stable/latest.json"
+WIN_CUSTOMER=BASE/"windows/customer-stable/accepted.json"
 ANDROID_OWNER=BASE/"private/android-stable/current-owner.json"
-ANDROID_CUSTOMER=BASE/"public/android/stable.json"
+ANDROID_CUSTOMER=BASE/"public/android/accepted.json"
 EXT_OWNER=BASE/"private/extension/current-owner.json"
 HEX=re.compile(r"[a-f0-9]{64}\Z")
 VER=re.compile(r"(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,4})\Z")
@@ -67,12 +67,14 @@ def snapshot():
             "WINDOWS_OWNER_VERSION")
     result={"windows_owner_sha256":digest(win,"sha256")}
     customer=optional_json(WIN_CUSTOMER)
-    result["windows_customer_sha256"]=digest(customer,"sha256") if customer else None
+    result["windows_customer_sha256"]=(digest(customer,"sha256")
+        if customer and customer.get("https_verified") is True else None)
     owner=optional_json(ANDROID_OWNER)
     result["android_owner_sha256"]=(digest(owner,"sha256")
         if owner and owner.get("https_verified") is True else None)
     stable=optional_json(ANDROID_CUSTOMER)
-    result["android_customer_sha256"]=(digest(stable,"apkSha256") if stable else None)
+    result["android_customer_sha256"]=(digest(stable,"sha256")
+        if stable and stable.get("https_verified") is True else None)
     ext=optional_json(EXT_OWNER)
     result["extension_owner_sha256"]=(digest(ext,"sha256")
         if ext and ext.get("https_verified") is True else None)
