@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - '.github/ci/celikom-extension-build-trigger.txt'
+      - 'extension/**'
+      - 'package.json'
+      - 'package-lock.json'
     tags:
       - "extension-v*"
 
