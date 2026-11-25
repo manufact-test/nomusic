@@ -14,7 +14,7 @@ route="$SRC/floki-windows-owner-download-bootstrap.sh"
 [[ "$(stat -c '%u:%a:%h' "$consumer")" == 0:600:1 ]]
 [[ "$(stat -c '%u:%a:%h' "$route")" == 0:600:1 ]]
 [[ "$(git hash-object "$consumer")" == 9ff780d3719ff6b3f9a00d21f8164bcae9e37140 ]]
-[[ "$(git hash-object "$route")" == aa974b6f7052ce0da2397fe24f93f19555e4907a ]]
+[[ "$(git hash-object "$route")" == 3ba778b967970249a78f8e68e6b1686955cb6f9b ]]
 python3 -m py_compile "$consumer"
 bash -n "$route"
 # For the initial migration, preserve the old root-owned 0.24.55 signed floor
