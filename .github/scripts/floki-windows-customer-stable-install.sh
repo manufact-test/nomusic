@@ -5,9 +5,9 @@ set -Eeuo pipefail
 umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=06830a1fb62dc3ef7a40286d63378cd37f0d5a76
+COMMIT=a1ba53cbd8ae6bb7aef73250978c2583fd0faad3
 SOURCE=.github/scripts/floki-windows-customer-stable-consumer.py
-BLOB=a4898589f38e051bd2c8a803e5bbc16c52ecc8f9
+BLOB=a6d85df38d6c62023fdc5070ed83d93c2e4079ae
 SITE=/etc/nginx/sites-enabled/celikom-site-https
 APP=/usr/local/lib/celikom-windows-intake/customer-stable-consumer.py
 SERVICE=/etc/systemd/system/celikom-windows-customer-stable.service
