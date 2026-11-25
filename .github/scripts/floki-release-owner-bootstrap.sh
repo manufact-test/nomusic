@@ -138,10 +138,13 @@ fetch_exact() {
       # First activation was rolled back during public 403 proof. Upgrade ONLY
       # the exact reviewed Windows customer bootstrap stored in private intake.
       # Never overwrite installed root consumers or any unexpected file.
-      if [[ "$path" == .github/scripts/floki-windows-customer-stable-install.sh &&
-            "$old_hash" == 22499058fd0cab1bb17649ac0bf2a474546a7907 &&
-            "$destination" == "$INTAKE/floki-windows-customer-stable-install.sh" &&
-            "$(stat -c '%u:%a:%h' "$destination")" == 0:600:1 ]]; then
+      if [[ ( "$path" == .github/scripts/floki-windows-customer-stable-install.sh &&
+              "$old_hash" == 22499058fd0cab1bb17649ac0bf2a474546a7907 &&
+              "$destination" == "$INTAKE/floki-windows-customer-stable-install.sh" ) ||
+            ( "$path" == .github/scripts/floki-android-customer-stable-install.sh &&
+              "$old_hash" == 4680ed1fb55e5b34b2a947af60874562218587d8 &&
+              "$destination" == "$INTAKE/floki-android-customer-stable-install.sh" ) ]] &&
+         [[ "$(stat -c '%u:%a:%h' "$destination")" == 0:600:1 ]]; then
         local replacement
         replacement=$(mktemp "$INTAKE/.windows-customer-install.XXXXXXXX")
         install -o root -g root -m "$mode" "$d" "$replacement"
