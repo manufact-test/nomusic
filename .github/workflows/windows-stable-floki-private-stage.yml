@@ -48,7 +48,7 @@ concurrency:
 jobs:
   stage:
     if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
-    runs-on: windows-2022
+    runs-on: ubuntu-latest
     environment: windows-stable-production
     permissions:
       contents: write
@@ -64,16 +64,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - name: Verify metadata and local private import contracts
         run: |
-          python .github/scripts/tests/windows-stable-floki-draft-source.test.py
-          python .github/scripts/tests/floki-windows-intake-parse-connection.test.py
+          python3 .github/scripts/tests/windows-stable-floki-draft-source.test.py
+          python3 .github/scripts/tests/floki-windows-intake-parse-connection.test.py
           node --test .github/scripts/tests/windows-stable-private-import.test.mjs
       - name: Validate owner enrollment format before binary transfer
-        if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02456]')))
+        if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02455]')))
         env:
           FLOKI_WINDOWS_INTAKE_CONNECTION: ${{ secrets.FLOKI_WINDOWS_INTAKE_CONNECTION }}
         shell: bash
@@ -86,7 +83,7 @@ jobs:
           printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" > "$tmp/bundle"
           unset FLOKI_WINDOWS_INTAKE_CONNECTION
           ssh-keyscan -T 15 -t ed25519 95.133.160.111 > "$tmp/scan" 2>/dev/null
-          python .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
+          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
           ssh-keygen -y -P '' -f "$tmp/key" >/dev/null 2>&1 || { echo WINDOWS_INTAKE_PRIVATE_KEY_INVALID; exit 2; }
           echo WINDOWS_INTAKE_ENROLLMENT_PREFLIGHT_OK
       - name: Prepare exact signed private draft transfer (no deployment secrets)
@@ -97,11 +94,11 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -m 700 "$RUNNER_TEMP/celikom-windows-private-stage"
-          python .github/scripts/windows-stable-floki-draft-source.py --version "$RELEASE_VERSION" \
+          python3 .github/scripts/windows-stable-floki-draft-source.py --version "$RELEASE_VERSION" \
             --sequence "$RELEASE_SEQUENCE" --commit "$RELEASE_COMMIT" \
             --output "$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
       - name: Send only signed data to dedicated nonprivileged intake
-        if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02456]')))
+        if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02455]')))
         env:
           FLOKI_WINDOWS_INTAKE_CONNECTION: ${{ secrets.FLOKI_WINDOWS_INTAKE_CONNECTION }}
         shell: bash
@@ -114,7 +111,7 @@ jobs:
           printf '%s\n' "$FLOKI_WINDOWS_INTAKE_CONNECTION" | tr -d '\r' > "$tmp/bundle"
           unset FLOKI_WINDOWS_INTAKE_CONNECTION
           ssh-keyscan -T 15 -t ed25519 95.133.160.111 > "$tmp/scan" 2>/dev/null
-          python .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
+          python3 .github/scripts/floki-windows-intake-parse-connection.py "$tmp/bundle" "$tmp" "$tmp/scan"
           rm "$tmp/bundle"
           ssh-keygen -y -P '' -f "$tmp/key" >/dev/null 2>&1 || { echo WINDOWS_INTAKE_PRIVATE_KEY_INVALID; exit 2; }
           echo WINDOWS_INTAKE_PRIVATE_KEY_FORMAT_OK
@@ -140,8 +137,8 @@ jobs:
 
   independent_root_import:
     needs: stage
-    if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02456]'))) && github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
-    runs-on: windows-2022
+    if: (inputs.send_to_private_intake == true || (github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-intake-enrollment-02455]'))) && github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
     environment: floki-deploy
     permissions:
       contents: read
