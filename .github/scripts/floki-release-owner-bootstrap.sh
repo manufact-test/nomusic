@@ -153,6 +153,18 @@ else
   echo CELIKOM_RUNNER2_SPOOL_PARITY_INCOMPLETE_KEEP_PREVIOUS_RELEASES
   exit 1
 fi
+# Publish ONLY SHA-256 proofs (no private URLs or identities) so future ChatGPT
+# development chats can verify server publication without an operator SSH visit.
+fetch_exact 6ad7e70db4a4cbee1ee4e1bf0fb2d40d339a87ff \
+  .github/scripts/floki-release-status-install.sh \
+  dd861ca68b28fe27fb088f5085ed4414c6c0a61b \
+  "$INTAKE/floki-release-status-install.sh" 0600
+if [[ ! -e /etc/systemd/system/celikom-release-status.timer ]]; then
+  bash "$INTAKE/floki-release-status-install.sh"
+else
+  systemctl is-active celikom-release-status.timer
+fi
+
 # Android is not changed; print only its service status, never capability tokens.
 systemctl is-active celikom-a1-signed-owner.timer || true
 echo CELIKOM_ALL_RELEASE_CHANNELS_ARMED_CUSTOMER_PUBLICATION_OWNER_GATED
