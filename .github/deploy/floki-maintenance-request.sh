@@ -2,29 +2,18 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Read-only audit of failed least-privilege intake bootstrap. Do not modify
-# sudoers, account privileges, keys, databases, or production configuration.
-name=celikom-windows-intake
-if getent passwd "$name" >/dev/null; then echo WINDOWS_INTAKE_ACCOUNT_REMAINS; exit 1; fi
-for p in /var/lib/celikom-windows-intake /usr/local/lib/celikom-windows-intake /etc/celikom-windows-intake /home/celops/.celikom-windows-intake-enrollment; do
-  test ! -e "$p" && test ! -L "$p"
+# Dedicated nonprivileged signed Windows data intake. Never modify the API,
+# database grants, source, production feed, root administration or CI network.
+work=$(mktemp -d /root/celikom-windows-intake-tools.XXXXXXXX)
+trap 'rm -rf -- "$work"' EXIT
+systemctl start celikom-mirror-sync.service
+mirror=/home/celikom-mirror/github-mirror.git
+for spec in floki-windows-intake-bootstrap.sh:7d4fae2d60bea363ae0c1ea8325d4e233dd7a585 windows-stable-private-import.py:97e53c4c5247ca555a9483f2517708d097dc5ae6 windows-stable-private-intake.py:cc84094d55f691adf9dff56aad7fb6fe72830341 windows-stable-release-verify.mjs:ae38c2c48a032fec0ad1eaae14c444e43dfb2b18 windows-stable-existing-latest.mjs:bb4d19672d45bdd0393497c3b33280308d67ef32; do
+  file=${spec%%:*}
+  hash=${spec#*:}
+  runuser -u celikom-mirror -- git --git-dir="$mirror" show "$hash" > "$work/$file"
+  test "$(git hash-object "$work/$file")" = "$hash"
+  test "$(stat -c '%u:%a' "$work/$file")" = 0:600
 done
-echo WINDOWS_INTAKE_FAILED_INSTALL_FULLY_ROLLED_BACK
-visudo -c >/dev/null
-for u in nobody www-data celikom-mirror celikom-deploy; do
-  printf 'SUDO_LIST_ACCOUNT=%s\n' "$u"
-  set +e
-  output=$(sudo -n -l -U "$u" 2>&1)
-  rc=$?
-  set -e
-  printf 'SUDO_LIST_STATUS=%s\n' "$rc"
-  # Only the policy's yes/no classification, not command arguments or keys.
-  if printf '%s\n' "$output" | grep -qiE 'not allowed to run sudo|not allowed to execute|may not run sudo'; then
-    echo SUDO_LIST_VERDICT=NO_ALLOWED_COMMANDS
-  elif printf '%s\n' "$output" | grep -qiE 'may run the following commands'; then
-    echo SUDO_LIST_VERDICT=ALLOWED_COMMANDS_PRESENT
-  else
-    echo SUDO_LIST_VERDICT=OTHER_RESPONSE
-  fi
-done
-echo WINDOWS_INTAKE_SUDO_AUDIT_OK
+bash -n "$work/floki-windows-intake-bootstrap.sh"
+bash "$work/floki-windows-intake-bootstrap.sh" "$work"
