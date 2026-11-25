@@ -56,6 +56,26 @@ def returns_original_item_type(dex,proto):
     idx=struct.unpack_from("<I",dex.data,off+proto*12+4)[0]
     return dex.type(idx)==OF6
 
+def child_invoke_result_ref(code,ins,index,reg):
+    """In-memory only; never print method references."""
+    if reg is None:return None
+    for k in range(index-1,max(-1,index-101),-1):
+        p,op,_=ins[k]
+        if op in BOUNDARY:return None
+        if op==0x07 and code[p+1]&15==reg:reg=code[p+1]>>4
+        elif op==0x08 and code[p+1]==reg:
+            reg=struct.unpack_from("<H",code,p+2)[0]
+        elif op==0x09 and struct.unpack_from("<H",code,p+2)[0]==reg:
+            reg=struct.unpack_from("<H",code,p+4)[0]
+        elif op==0x0c and code[p+1]==reg:
+            if k>0 and ins[k-1][1] in INVOKE_METHOD:
+                return struct.unpack_from("<H",code,ins[k-1][0]+2)[0]
+            return None
+        elif op==0x54 and code[p+1]&15==reg:return None
+        elif op in (0x12,0x13,0x14,0x15,0x16,0x1a,0x1b,0x22) and (
+                (code[p+1]&15 if op==0x12 else code[p+1])==reg):return None
+    return None
+
 def child_argument_origin(dex,code,ins,index,reg,constructor_fields):
     """Finite static shape; never export field indices, owners or registers."""
     if reg is None:return "UNSUPPORTED_INVOKE_SHAPE"
@@ -161,6 +181,7 @@ def inspect_dex(payload):
     caller_other=0
     caller_suspend=0
     origin_counts={}
+    producer_refs=set()
     for mid,code in dex.code_methods():
         if not child_refs or (b"\x71" not in code and b"\x77" not in code):
             continue
@@ -179,9 +200,29 @@ def inspect_dex(payload):
             reg=source_argument_register(code,pc,op)
             shape=child_argument_origin(dex,code,ins,i,reg,ctor_fields)
             origin_counts[shape]=origin_counts.get(shape,0)+1
+            if shape=="INVOKE_OF6_FROM_CHILD_OWNER":
+                producer=child_invoke_result_ref(code,ins,i,reg)
+                if producer is not None:producer_refs.add(producer)
             if shape=="ORIGINAL_CTOR_FIELD_REFERENCE":from_ctor_field+=1
             elif shape=="OTHER_OF6_TYPED_FIELD_REFERENCE":from_other_field+=1
             else:unresolved+=1
+
+    # Pass 3: resolve the single child-owner Of6 producer's *defined*
+    # return-object body, if it exists in the original signed DEX. A static
+    # producer shape still cannot certify selected-track playback or Java ==.
+    producer_return_shapes={}
+    producer_defined=0
+    for mid,code in dex.code_methods():
+        if mid not in producer_refs:continue
+        producer_defined+=1
+        try:ins=decode_instructions(code)
+        except FlowDecodeError:
+            producer_return_shapes["UNREADABLE_BODY"]=1
+            continue
+        for i,(pc,op,_) in enumerate(ins):
+            if op!=0x11:continue  # return-object vAA
+            origin=child_argument_origin(dex,code,ins,i,code[pc+1],ctor_fields)
+            producer_return_shapes[origin]=producer_return_shapes.get(origin,0)+1
 
     return {
         "exact_original_constructor_present":ctor_present,
@@ -197,6 +238,8 @@ def inspect_dex(payload):
         "callers_in_other_owner":min(caller_other,16),
         "callers_in_coroutine_resume":min(caller_suspend,16),
         "child_item_argument_origin_shapes":origin_counts,
+        "child_item_producer_bodies_defined":min(producer_defined,16),
+        "child_item_producer_return_shapes":producer_return_shapes,
     }
 
 def inspect_xapk(path):
@@ -235,6 +278,11 @@ def inspect_xapk(path):
         "child_item_argument_origin_shapes":{
             key:min(sum(v["child_item_argument_origin_shapes"].get(key,0) for v in records),16)
             for key in sorted({k for v in records for k in v["child_item_argument_origin_shapes"]})
+        },
+        "child_item_producer_bodies_defined":min(sum(v["child_item_producer_bodies_defined"] for v in records),16),
+        "child_item_producer_return_shapes":{
+            key:min(sum(v["child_item_producer_return_shapes"].get(key,0) for v in records),16)
+            for key in sorted({k for v in records for k in v["child_item_producer_return_shapes"]})
         },
         "static_only_no_runtime_source_or_audio_proof":True,
     }
