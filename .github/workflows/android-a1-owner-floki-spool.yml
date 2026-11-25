@@ -118,8 +118,12 @@ jobs:
           (p/'filename').write_text(x['name'])
           PY
           name=$(cat "$d/filename")
-          jq -r '.assets[] | select(.name != "README-RU.txt") | [.id,.name] | @tsv' "$d/release.json" |
-            while IFS=
+          jq -r '.assets[] | select(.name != "README-RU.txt") | "\(.id) \(.name)"' "$d/release.json" |
+            while read -r asset_id asset_name; do
+              [[ "$asset_id" =~ ^[0-9]+$ ]]
+              [[ "$asset_name" == "$name" || "$asset_name" == BUILD-PROVENANCE.json || "$asset_name" == SHA256SUMS.txt ]]
+              gh api -H 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" > "$d/$asset_name"
+            done
           python3 - "$d" <<'PY'
           import json,sys,hashlib
           from pathlib import Path
