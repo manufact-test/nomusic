@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$(git hash-object .github/scripts/floki-windows-signed-root-consumer.py)" == 4f629e109adb0c33a0b9ca63f4090a0b5402ecc9 ]]
+          [[ "$(git hash-object .github/scripts/floki-windows-signed-root-consumer.py)" == 9ff780d3719ff6b3f9a00d21f8164bcae9e37140 ]]
           [[ "$(git hash-object .github/scripts/floki-windows-owner-download-bootstrap.sh)" == aa974b6f7052ce0da2397fe24f93f19555e4907a ]]
           [[ "$(git hash-object .github/scripts/floki-windows-root-consumer-install.sh)" == fe6511bff688a2167d596210251fb30fb627dc8c ]]
           python3 -m py_compile .github/scripts/floki-windows-signed-root-consumer.py
