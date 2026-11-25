@@ -42,6 +42,21 @@ jobs:
             printf 'BASIC_AUTH_CONFIG_LINES='
             grep -Eic '^[[:space:]]*(AuthType|AuthUserFile|Require[[:space:]])' "$root/.htaccess" || true
             for n in index.php .htaccess; do test -e "$root/$n" && stat -c "PUBLIC_FILE $n %F %a" "$root/$n" || true; done
+            echo FRONT_CONTROLLER_DETAILS
+            phpfile="$root/index.php"
+            test -f "$phpfile" && test ! -L "$phpfile"
+            sha256sum "$phpfile"
+            wc -c "$phpfile"
+            PHP_ENTRYPOINT="$phpfile" php -r '
+              $s=file_get_contents(getenv("PHP_ENTRYPOINT"));
+              $s=substr($s,0,400);
+              $s=preg_replace("~(?i)(password|secret|token|key)[^\\r\\n]*~","<sensitive literal redacted>",$s);
+              echo "ENTRYPOINT_FIRST_BYTES ",bin2hex(substr($s,0,18)),PHP_EOL;
+              echo "ENTRYPOINT_OPENING_SHAPE ",preg_match("/^<\\?php/",file_get_contents(getenv("PHP_ENTRYPOINT")))?"PHP":"OTHER",PHP_EOL;
+              echo "ENTRYPOINT_INCLUDE_COUNT ",preg_match_all("/(?:require|include)(?:_once)?/",$s),PHP_EOL;
+              echo "ENTRYPOINT_DIRECTIVE_MATCH ",preg_match("/celikom|bootstrap|current|index\\.php/i",$s)?1:0,PHP_EOL;
+            '
+            find "$root" -maxdepth 1 -type l -printf 'PUBLIC_SYMLINK %f -> %l\n'
           done
           REMOTE
           for url in \
