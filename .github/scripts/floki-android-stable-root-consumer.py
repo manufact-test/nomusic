@@ -22,7 +22,7 @@ import urllib.request
 SPOOL=Path("/srv/celikom/ci-runner/runner/celikom-build-spool/android-stable")
 ROOT=Path("/srv/celikom-releases/private/android-stable")
 OWNER=Path("/srv/celikom-releases/owner-downloads")
-CRED=Path("/srv/celikom/migration/sites-20261124/android-private/staging-owner-credentials.txt")
+CRED=Path("/root/celikom-secrets/celikom-owner-basic-verification.txt")
 CERT="67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
 PKG="pro.celikom.nativeprobe"
 LABEL=re.compile(r"android-stable-([1-9][0-9]{0,8})-([a-f0-9]{64})\Z")
