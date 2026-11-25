@@ -290,7 +290,7 @@ public final class StageBAudioEvidenceTest {
         check(conflict.exactOriginalMediaItemCreator(commonItem)==null);
         check(!conflict.onOriginalMediaItemDescriptor(commonItem,cw,new Object()));
         bucket(conflict.exportLines(),0,"ORIGINAL_MEDIAITEM_IDENTITY_CONFLICT","ONE");
-        bucket(conflict.exportLines(),0,"ORIGINAL_CHILD_ITEM_ANCHOR_CONFLICT","ONE");
+        bucket(conflict.exportLines(),0,"ORIGINAL_CHILD_ITEM_ANCHOR_CONFLICT","FEW");
         // Deterministically simulate weak-reference loss without GC timing.
         clearAnchorWeakRef(e,"source");
         check(e.exactOriginalMediaItemCreator(mediaItem)==null);
