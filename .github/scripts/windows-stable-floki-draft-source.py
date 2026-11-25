@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Obtain only the exact two private signed Windows release drafts.
 
-This script runs on a GitHub-hosted protected job with draft-read access.
+This script runs on the protected owner-controlled FlokiNET CI runner with GitHub draft-read access.
 It does not sign, edit releases, use server credentials or publish a feed.
 """
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import re
 import subprocess
+import sys
 import tempfile
+import urllib.parse
+import urllib.request
 
 REPO = "manufact-test/nomusic"
 PIN_SHA256 = "46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95"
@@ -25,8 +29,76 @@ def need(ok, why):
         raise ValueError(why)
 
 
-def run(args):
-    return subprocess.run(args, check=True, capture_output=True, text=True, timeout=180).stdout
+API = "https://api.github.com"
+
+
+class SafeAssetRedirect(urllib.request.HTTPRedirectHandler):
+    """Never forward the GitHub API bearer token to a signed asset CDN."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        url = urllib.parse.urlsplit(newurl)
+        need(url.scheme == "https" and url.hostname in (
+            "release-assets.githubusercontent.com", "objects.githubusercontent.com",
+        ), "UNSAFE_ASSET_REDIRECT")
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None:
+            redirected.remove_header("Authorization")
+            redirected.remove_header("Accept")
+        return redirected
+
+
+def github_request(path, accept="application/vnd.github+json"):
+    need(path.startswith("/repos/" + REPO + "/"), "UNEXPECTED_GITHUB_ENDPOINT")
+    token = os.environ.get("GH_TOKEN", "")
+    need(len(token) >= 20, "GITHUB_DRAFT_READ_TOKEN_MISSING")
+    return urllib.request.Request(API + path, headers={
+        "Authorization": "Bearer " + token,
+        "Accept": accept,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "CELIKOM-Windows-Signed-Draft-Handoff",
+    })
+
+
+def github_json(path):
+    with urllib.request.urlopen(github_request(path), timeout=40) as response:
+        need(response.url.startswith(API + "/repos/" + REPO + "/"), "GITHUB_API_ORIGIN_MISMATCH")
+        raw = response.read(2_000_001)
+        need(len(raw) <= 2_000_000, "GITHUB_API_RESPONSE_TOO_LARGE")
+        return json.loads(raw)
+
+
+def private_release_records():
+    repo = github_json("/repos/" + REPO + "/")
+    need(repo.get("private") is True, "PRIVATE_REPO_REQUIRED")
+    records = []
+    for page in range(1, 12):
+        group = github_json("/repos/" + REPO + "/releases?per_page=100&page=" + str(page))
+        need(isinstance(group, list), "INVALID_RELEASE_LIST")
+        records.extend(group)
+        if len(group) < 100:
+            return records
+    raise ValueError("RELEASE_PAGE_LIMIT_EXCEEDED")
+
+
+def fetch_asset(asset, target):
+    need(asset["id"] > 0 and type(asset["size"]) is int
+         and 0 < asset["size"] <= 125_000_000, "INVALID_ASSET_SIZE")
+    request = github_request("/repos/" + REPO + "/releases/assets/" + str(asset["id"]),
+                             "application/octet-stream")
+    opener = urllib.request.build_opener(SafeAssetRedirect())
+    count = 0
+    digest = hashlib.sha256()
+    with opener.open(request, timeout=180) as response, target.open("xb") as output:
+        url = urllib.parse.urlsplit(response.geturl())
+        need(url.scheme == "https" and url.hostname in (
+            "release-assets.githubusercontent.com", "objects.githubusercontent.com"
+        ), "ASSET_DOWNLOAD_NOT_SIGNED_GITHUB_CDN")
+        while chunk := response.read(1024 * 1024):
+            count += len(chunk)
+            need(count <= asset["size"], "ASSET_EXCEEDS_DECLARED_SIZE")
+            digest.update(chunk)
+            output.write(chunk)
+    need(count == asset["size"] and "sha256:" + digest.hexdigest() == asset["digest"],
+         "DRAFT_ASSET_BYTES_MISMATCH")
 
 
 def sha(path):
@@ -82,26 +154,18 @@ def asset_plan(records, version, sequence, commit):
 
 def prepare(version, sequence, commit, output):
     identity(version, sequence, commit)
-    need(run(["gh", "repo", "view", REPO, "--json", "visibility", "--jq", ".visibility"]).strip()
-         == "PRIVATE", "PRIVATE_REPO_REQUIRED")
-    records = json.loads(run(["gh", "api", "--paginate", "--slurp", "repos/" + REPO + "/releases?per_page=100"]))
-    need(isinstance(records, list) and all(isinstance(page, list) for page in records), "INVALID_RELEASE_LIST")
-    plan = asset_plan([item for page in records for item in page], version, sequence, commit)
+    plan = asset_plan(private_release_records(), version, sequence, commit)
     with tempfile.TemporaryDirectory(prefix="celikom-draft-source-") as tmp:
         root = pathlib.Path(tmp)
         (root / version).mkdir(mode=0o700)
         for dest, (tag, a) in plan.items():
             target = root / dest
-            # gh release download enforces the authenticated private draft.
-            # The exact REST SHA and signed bytes are verified independently.
-            subprocess.run(["gh", "release", "download", tag, "--repo", REPO,
-                            "--pattern", a["name"], "--output", str(target)],
-                           check=True, timeout=180)
-            need(target.is_file() and not target.is_symlink() and target.stat().st_size == a["size"]
-                 and "sha256:" + sha(target) == a["digest"], "DRAFT_ASSET_BYTES_MISMATCH")
+            # Download only the exact REST asset ID from the selected private
+            # draft. Authorize only the GitHub API; no token reaches the CDN.
+            fetch_asset(a, target)
         pin = root / "manifest-public-key.der"
         need(sha(pin) == PIN_SHA256, "PIN_BYTES_MISMATCH")
-        subprocess.run(["python3", str(HERE / "windows-stable-private-import.py"), "pack",
+        subprocess.run([sys.executable, str(HERE / "windows-stable-private-import.py"), "pack",
                         "--source", str(root), "--output", str(output), "--pin", str(pin),
                         "--version", version, "--sequence", str(sequence)], check=True, timeout=120)
     print("CELIKOM_WINDOWS_PRIVATE_DRAFT_SOURCE_OK", version, sequence, sha(output))
