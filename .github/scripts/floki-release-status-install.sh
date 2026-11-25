@@ -4,8 +4,8 @@ set -Eeuo pipefail
 umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=8d80dfc0753982ffe2e13bb252f2c538bccbd961
-BLOB=b6979ca37c274e397e98fac0f40ad02764096cb5
+COMMIT=82d003f4cc4b7fcc073c11d00bbc65782d9d6eac
+BLOB=f0971fae2c1e01ea8c69c36626044a933fda6e79
 SOURCE=.github/scripts/floki-release-public-receipt.py
 DEST=/usr/local/lib/celikom-release-status/receipt.py
 SERVICE=/etc/systemd/system/celikom-release-status.service
