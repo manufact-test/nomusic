@@ -99,8 +99,10 @@ function createGainChain(context, audio, db) {
       const chunkSize = 512 * 1024;
       const maxSize = 30 * 1024 * 1024;
       while (!this.destroyed && !abort.signal.aborted && (total === null || offset < total)) {
+        const target = Math.max(this.audio.currentTime, this.bufferTargetTime || 0);
+        const ahead = buffer.buffered?.length ? Math.max(0, buffer.buffered.end(buffer.buffered.length - 1) - target) : 0;
         if (buffer.buffered?.length
-            && buffer.buffered.end(buffer.buffered.length - 1) - this.audio.currentTime > 120) {
+            && ahead > 120) {
           await new Promise((resolve) => {
             const timer = this.environment.setTimeout(resolve, 500);
             abort.signal.addEventListener("abort", () => { this.environment.clearTimeout(timer); resolve(); }, { once: true });
@@ -111,7 +113,7 @@ function createGainChain(context, audio, db) {
         try {
         /* A short first range reduces startup transfer without shrinking steady buffering.
            Large metadata headers continue through the same contiguous range loop. */
-        const requestSize = offset === 0 ? 64 * 1024 : chunkSize;
+        const requestSize = offset === 0 || ahead < 15 ? 64 * 1024 : ahead < 30 ? 128 * 1024 : chunkSize;
         const lastRequested = total === null
           ? offset + requestSize - 1 : Math.min(total - 1, offset + requestSize - 1);
         let bytes, last, attempt = 0;

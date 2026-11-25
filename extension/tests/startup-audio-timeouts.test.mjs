@@ -12,14 +12,13 @@ const flush=async()=>{for(let i=0;i<60;i++)await Promise.resolve();};
 // Transport and media decoding are controlled independently. The production
 // controller/player run unchanged; no production endpoint or account is used.
 // Keep the native intro PAUSED to isolate MSE transport/decoder deadlines.
-// A progressing native clock now selects complete-file adoption; that race is
-// covered separately in playback-engine and complete-file-join tests.
+// Delayed streaming clocks and actual buffer admission are covered separately.
 function fixture(t, firstHeadersDelay, {bodyDelay=0, decode=false, status=206}={}) {
   t.mock.timers.enable({apis:['Date','setTimeout'],now:1000000});
   let requests=0, aborted=0, source, current;
   const players=[],fatals=[],bridgeRequests=[];
   class Audio extends EventTarget {
-    constructor(){super();this.dataset={};this.readyState=0;this.duration=200;this.currentTime=7;this.paused=true;this.muted=true;this.volume=1;this.seeking=false;}
+    constructor(){super();this.dataset={};this.readyState=0;this.duration=200;this.currentTime=7;this.paused=true;this.muted=true;this.volume=1;this.seeking=false;this.buffered={length:0};}
     load(){if(source?.readyState==='closed')queueMicrotask(()=>{source.readyState='open';source.dispatchEvent(new Event('sourceopen'));});}
     play(){this.paused=false;return Promise.resolve();}
     pause(){this.paused=true;}
@@ -28,7 +27,7 @@ function fixture(t, firstHeadersDelay, {bodyDelay=0, decode=false, status=206}={
   }
   class Buffer extends EventTarget {
     constructor(){super();this.buffered={length:0};}
-    appendBuffer(){queueMicrotask(()=>{const audio=players.at(-1).audio;if(!decode){audio.readyState=4;audio.dispatchEvent(new Event('canplay'));}this.dispatchEvent(new Event('updateend'));});}
+    appendBuffer(){queueMicrotask(()=>{const audio=players.at(-1).audio;if(!decode){audio.buffered={length:1,start:()=>0,end:()=>200};audio.readyState=4;audio.dispatchEvent(new Event('canplay'));}this.dispatchEvent(new Event('updateend'));});}
   }
   class Source extends EventTarget {
     static isTypeSupported(){return true;}

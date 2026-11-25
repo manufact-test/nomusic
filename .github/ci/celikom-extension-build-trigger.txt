@@ -1,1 +1,1 @@
-extension-0.4.83-retain-stream-after-delayed-intro-20261125
+extension-0.4.84-buffer-admission-audible-fallback-20261125

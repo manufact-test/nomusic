@@ -645,3 +645,26 @@ test('new visible track with delayed catalog/MediaSession silences the old repla
   assert.equal(f.elements.size,0);assert.deepEqual(f.errors.map(e=>e.message),[]);
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main)}
 });
+
+test('packaged unbuffered seek releases physical original mute, keeps one decoder and later reacquires a fresh lease',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  f.changeStorage({testTrackId:{newValue:'1944599'}});
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play()',main);await wait();await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),true);
+  const player=[...f.elements][0];assert(player);const oldToken=vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated);
+  vm.runInContext('const op=__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation;op.player.mediaSource={};op.player.audio.buffered={length:1,start:()=>0,end:()=>2.533877}',isolated);
+  vm.runInContext('original.currentTime=39;original.dispatchEvent(new Event("timeupdate"))',main);await wait();await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),false,'the actual MAIN guard must unmute original during missing bytes');
+  assert.equal(player.paused,true);assert.equal(player.muted,true);assert.equal(f.elements.size,1);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'PREPARING');
+  assert.notEqual(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation.token',isolated),oldToken);
+  player.buffered={length:1,start:()=>0,end:()=>70};
+  vm.runInContext('original.currentTime=40;original.dispatchEvent(new Event("seeked"))',main);for(const callback of [...f.timers.values()])callback();await wait();await wait();
+  assert.equal(vm.runInContext('original.physicalMuted',main),true,JSON.stringify(await f.api.tabs.sendMessage(42,{type:'CELIKOM_CONTROLLER_STATUS_GET'})));assert.equal(f.elements.size,1);
+  assert.equal(player.paused,false);assert.equal(player.muted,false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'REPLACEMENT_ACTIVE');
+  assert.deepEqual(f.errors.map(e=>e.message),[]);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main)}
+});

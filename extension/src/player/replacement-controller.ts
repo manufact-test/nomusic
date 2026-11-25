@@ -107,6 +107,43 @@
       this.reconcile(eventType === "SEEK");
     }
     current(operation) { return !this.destroyed && this.operation === operation && this.generation === operation.generation; }
+    streamReady(operation) {
+      const replacement = operation.player;
+      if (!replacement?.mediaSource) return true;
+      try {
+      const audio = replacement.audio;
+      const target = root.__CELIKOM_SYNC_ENGINE_V1__.projectTime(this.snapshot.player, this.snapshot.observedAt, Date.now());
+      replacement.bufferTargetTime = target;
+      const ranges = audio.buffered;
+      let buffered = false;
+      for (let i = 0; i < (ranges?.length || 0); i++) {
+        if (target >= ranges.start(i) - 0.025 && ranges.end(i) >= Math.min(audio.duration - 0.02, target + 0.15)) { buffered = true; break; }
+      }
+      // Never initiate a seek to bytes that have not reached the decoder.
+      if (!buffered) return false;
+      if (audio.seeking && Math.abs(audio.currentTime - target) > 0.35) {
+        audio.currentTime = target;
+        return false;
+      }
+      return !audio.seeking && audio.readyState >= 3;
+      } catch (_error) { return false; }
+    }
+    waitForBuffer(operation) {
+      if (!this.current(operation) || operation.bufferWaiting) return;
+      operation.bufferWaiting = true;
+      operation.player.pause(); operation.player.audio.muted = true;
+      this.driftMs = null;
+      this.phase = "PREPARING"; operation.stage = "waiting-stream-buffer";
+      const oldToken = operation.token;
+      // Retire only this guard lease; retain decoder, verified bytes and fetch.
+      // Its late release notification must not abort the retained operation.
+      operation.generation = ++this.generation;
+      operation.token = `${this.bridge.sessionId}:${operation.generation}`;
+      operation.bufferRelease = Promise.resolve().then(() => this.bridge.request("GUARD_RELEASE", {token:oldToken,reason:"replacement-buffer-wait"}))
+        .catch(() => { try { this.bridge.post("RELEASE_NOW", {token:oldToken,reason:"replacement-buffer-wait"}); } catch (_error) { /* MAIN lease watchdog remains independent. */ } })
+        .finally(() => { operation.bufferRelease = null; });
+      this.log(`BUFFER_WAIT · ${operation.trackId}`);
+    }
     releaseIntroWait(token) {
       const operation = this.operation;
       if (this.phase !== "PREPARING" || !operation || !this.current(operation) || operation.token !== token) return false;
@@ -147,6 +184,7 @@
         void this.activate(operation);
       }
       if (this.phase === "REPLACEMENT_ACTIVE") {
+        if (!this.streamReady(operation)) { this.waitForBuffer(operation); return; }
         try { this.driftMs = operation.sync.sync(operation.player, this.snapshot, forceSync); }
         catch (error) { this.abort(error.message, true); }
       }
@@ -203,11 +241,12 @@
     async activate(operation) {
       // A seek changes readiness while preserving this track/media binding.
       // Retain its in-flight download and activate once a fresh master is ready.
-      if (!this.current(operation) || operation.activating || !this.eligible()) return;
+      if (!this.current(operation) || operation.activating || operation.bufferRelease || !this.eligible()) return;
       operation.activating = true;
       try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
+        if (!this.streamReady(operation)) { this.waitForBuffer(operation); return; }
         // Retain the ordinary streaming decoder after a delayed intro. The
         // accepted guard/sync path follows the fresh master clock; converting
         // here would throw away verified bytes and download the MP3 again.
@@ -230,10 +269,13 @@
           operation.joinAligned=true;
         }
         operation.stage="guarding";
+        operation.bufferWaiting = false;
         const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId, resourceRevision: operation.resourceRevision });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
         this.update(guard.snapshot);
         if (!this.current(operation) || !this.eligible(this.snapshot, 1)) { this.abort("guard-state-changed"); return; }
+        if (!this.streamReady(operation)) { this.waitForBuffer(operation); return; }
+        operation.bufferWaiting = false;
         this.phase = "REPLACEMENT_ACTIVE";
         this.activationCount++;
         /* Bounded timings retain each recent join without URLs or credentials.
