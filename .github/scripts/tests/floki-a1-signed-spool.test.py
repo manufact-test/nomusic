@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """No-network regression for isolated A1 staging and root verification contracts."""
 import hashlib
+import contextlib
+import io
+from unittest import mock
 import importlib.util
 import json
 import os
@@ -90,6 +93,23 @@ class A1SpoolContract(unittest.TestCase):
         wrong_meta["name"] = "../outside.apk"
         with self.assertRaisesRegex(RuntimeError,"WRONG_APK"):
             ROOT.validate_provenance(wrong_meta,self.proof,self.meta["run"],1,self.digest)
+
+    def test_root_receiver_failure_reports_reason_without_leaking_token(self):
+        # The root log is the only diagnostic channel when the deploy
+        # receiver exits nonzero; never print the private capability URL.
+        from subprocess import CompletedProcess
+        token = "a" * 48
+        log = io.StringIO()
+        fake = CompletedProcess(args=[], returncode=1, stdout="",
+            stderr=("A1_INTAKE_REJECTED https://celikom.com/downloads/a1/"
+                    + token + "/example.apk"))
+        with mock.patch.object(ROOT.subprocess, "run", return_value=fake):
+            with contextlib.redirect_stderr(log):
+                with self.assertRaisesRegex(RuntimeError, "RECEIVER_PROCESS_FAILED"):
+                    ROOT.hand_to_existing_receiver(self.apk, self.meta, self.dir)
+        self.assertIn("A1_ROOT_RECEIVER_EXIT 1", log.getvalue())
+        self.assertIn("A1_INTAKE_REJECTED", log.getvalue())
+        self.assertNotIn(token, log.getvalue())
 
     def test_root_json_no_symlink(self):
         with self.meta_file.open("rb") as _:
