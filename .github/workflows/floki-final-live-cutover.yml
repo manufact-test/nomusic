@@ -1,0 +1,38 @@
+name: CELIKOM coordinated Hostinger freeze and FlokiNET production cutover
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/floki-final-live-cutover.yml'
+  workflow_dispatch:
+    inputs:
+      execute_final_cutover:
+        description: Requires approved completed preflight and manual explicit opt-in
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: celikom-floki-deploy
+  cancel-in-progress: false
+jobs:
+  final-cutover:
+    if: >-
+      github.repository == 'manufact-test/nomusic' &&
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'push' && contains(github.event.head_commit.message, '[celikom-final-go]')) ||
+       (github.event_name == 'workflow_dispatch' && inputs.execute_final_cutover == true))
+    runs-on: ubuntu-latest
+    environment: floki-deploy
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Freeze only two old CELIKOM write surfaces, transfer final SQL and activate with rollback
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: bash .github/scripts/floki-cutover-runner.sh
