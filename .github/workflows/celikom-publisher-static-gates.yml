@@ -19,6 +19,9 @@ on:
       - '.github/scripts/floki-android-customer-stable-install.sh'
       - '.github/scripts/tests/floki-android-customer-stable-consumer.test.py'
       - '.github/scripts/tests/floki-release-bootstrap-pins.test.py'
+      - '.github/scripts/floki-release-public-receipt.py'
+      - '.github/scripts/floki-release-status-install.sh'
+      - '.github/scripts/tests/floki-release-public-receipt.test.py'
       - '.github/release/android-customer-stable.json'
       - '.github/scripts/tests/floki-extension-owner-consumer.test.py'
       - '.github/workflows/celikom-publisher-static-gates.yml'
@@ -67,3 +70,7 @@ jobs:
           echo ANDROID_PUBLIC_STABLE_OTA_STATIC_GATES_OK
           python3 .github/scripts/tests/floki-release-bootstrap-pins.test.py
           echo CELIKOM_ONE_TIME_RELEASE_ACTIVATION_SOURCE_PINS_OK
+          python3 -m py_compile .github/scripts/floki-release-public-receipt.py
+          bash -n .github/scripts/floki-release-status-install.sh
+          python3 .github/scripts/tests/floki-release-public-receipt.test.py
+          echo CELIKOM_SHA_ONLY_RELEASE_STATUS_PRIVACY_GATE_OK
