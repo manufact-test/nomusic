@@ -64,13 +64,10 @@ jobs:
           [[ "$(stat -c %s "$d/celikom-final-delta-20261125-v2.tar.gpg")" == 11668572 ]]
           rm -f "$d/key" "$d/known-hosts" "$d/wire"
           echo CELIKOM_PINNED_ENCRYPTED_OFFSITE_TRANSPORT_VERIFIED_NO_PLAINTEXT_OR_KEY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/cache/save@v4
         with:
-          name: celikom-offsite-encrypted-20261125-v2
+          key: celikom-offsite-ciphertext-${{ github.run_id }}-v2
           path: ${{ runner.temp }}/celikom-final-encrypted/celikom-final-delta-20261125-v2.tar.gpg
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
       - name: Remove temporary encrypted payload
         if: always()
         shell: bash
@@ -82,10 +79,11 @@ jobs:
       contents: write
     timeout-minutes: 12
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/cache/restore@v4
         with:
-          name: celikom-offsite-encrypted-20261125-v2
-          path: ${{ runner.temp }}/celikom-offsite-verified
+          key: celikom-offsite-ciphertext-${{ github.run_id }}-v2
+          fail-on-cache-miss: true
+          path: ${{ runner.temp }}/celikom-offsite-verified/celikom-final-delta-20261125-v2.tar.gpg
       - name: Verify AES ciphertext digest and keep it only in a private draft release
         env:
           GH_TOKEN: ${{ github.token }}
