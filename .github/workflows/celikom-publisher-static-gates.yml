@@ -8,6 +8,10 @@ on:
       - '.github/scripts/floki-extension-owner-install.sh'
       - '.github/scripts/floki-release-owner-bootstrap.sh'
       - '.github/scripts/floki-runner2-signed-spool-parity.sh'
+      - '.github/scripts/floki-windows-customer-stable-consumer.py'
+      - '.github/scripts/floki-windows-customer-stable-install.sh'
+      - '.github/scripts/tests/floki-windows-customer-stable-consumer.test.py'
+      - '.github/release/windows-customer-stable.json'
       - '.github/scripts/tests/floki-extension-owner-consumer.test.py'
       - '.github/workflows/celikom-publisher-static-gates.yml'
 permissions:
@@ -37,4 +41,8 @@ jobs:
           bash -n .github/scripts/floki-windows-owner-download-bootstrap.sh
           bash -n .github/scripts/floki-windows-root-consumer-install.sh
           python3 .github/scripts/tests/floki-windows-signed-root-consumer.test.py
+          python3 -m py_compile .github/scripts/floki-windows-customer-stable-consumer.py
+          bash -n .github/scripts/floki-windows-customer-stable-install.sh
+          python3 .github/scripts/tests/floki-windows-customer-stable-consumer.test.py
+          ! grep -q CONSUMER_BLOB_PIN .github/scripts/floki-windows-customer-stable-install.sh
           echo WINDOWS_PRIVATE_PUBLISHER_STATIC_GATES_OK
