@@ -27,6 +27,23 @@ jobs:
           df -h "$RUNNER_TEMP" | tail -n1
           ps -eo pid,ppid,comm,etime,stat,%cpu,%mem --sort=-%cpu | head -n 24
           echo A1_RESOURCE_END
+      - name: Check visible runner containers on shared Docker host (read only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! docker info >/dev/null 2>&1; then
+            echo A1_DOCKER_SOCKET_UNAVAILABLE
+            exit 0
+          fi
+          echo A1_DOCKER_RUNNER_SNAPSHOT_START
+          docker ps --format '{{.Names}}' |
+            grep -Ei 'celikom|runner' |
+            head -n 12 |
+            while IFS= read -r name; do
+              printf 'RUNNER_CONTAINER=%s\n' "$name"
+              docker stats --no-stream --format 'CPU={{.CPUPerc}} MEM={{.MemUsage}}' "$name" || true
+            done
+          echo A1_DOCKER_RUNNER_SNAPSHOT_END
       - name: Actions pre-start job metadata (no secrets)
         shell: bash
         env:
