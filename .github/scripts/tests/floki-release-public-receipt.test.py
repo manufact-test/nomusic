@@ -16,10 +16,11 @@ class SanitizedReleaseStatus(unittest.TestCase):
         win={"version":"0.24.56","sha256":"a"*64,
              "packageUrl":"https://celikom.com/downloads/windows/private-owner.exe"}
         items=[
-            {"sha256":"b"*64},
+            {"version":"0.24.56","sha256":"a"*64,"https_verified":True},
+            {"sha256":"b"*64,"https_verified":True},
             {"sha256":"c"*64,"https_verified":True,
              "url":"https://celikom.com/downloads/android/private-token"},
-            {"apkSha256":"d"*64},
+            {"sha256":"d"*64,"https_verified":True},
             {"sha256":"e"*64,"https_verified":True,"source_commit":"f"*40},
         ]
         with patch.object(mod.Path,"lstat",return_value=SimpleNamespace(
@@ -46,7 +47,7 @@ class SanitizedReleaseStatus(unittest.TestCase):
                 mod.snapshot()
     def test_unverified_state_not_reported(self):
         win={"version":"0.24.55","sha256":"a"*64}
-        values=[None,{"sha256":"c"*64,"https_verified":False},
+        values=[None,None,{"sha256":"c"*64,"https_verified":False},
                 None,{"sha256":"e"*64,"https_verified":False}]
         with patch.object(mod.Path,"lstat",return_value=SimpleNamespace(
                 st_mode=stat.S_IFLNK|0o777,st_uid=0)), \
@@ -54,7 +55,7 @@ class SanitizedReleaseStatus(unittest.TestCase):
              patch.object(mod,"read",return_value=json.dumps(win).encode()), \
              patch.object(mod,"optional_json",side_effect=values):
             d=mod.snapshot()
-        self.assertEqual(d["windows_owner_sha256"],"a"*64)
+        self.assertIsNone(d["windows_owner_sha256"])
         for v in (d["windows_customer_sha256"],d["android_owner_sha256"],
                   d["android_customer_sha256"],d["extension_owner_sha256"]):
             self.assertIsNone(v)
