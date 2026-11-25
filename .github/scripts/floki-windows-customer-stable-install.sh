@@ -7,7 +7,7 @@ umask 077
 MIRROR=/home/celikom-mirror/github-mirror.git
 COMMIT=923c93a92984c43568658185d5147ee66b7a5444
 SOURCE=.github/scripts/floki-windows-customer-stable-consumer.py
-BLOB=CONSUMER_BLOB_PIN
+BLOB=bf36992a3df8cfe8b5aefe6f20ef758a8a7f0c6b
 SITE=/etc/nginx/sites-enabled/celikom-site-https
 APP=/usr/local/lib/celikom-windows-intake/customer-stable-consumer.py
 SERVICE=/etc/systemd/system/celikom-windows-customer-stable.service
