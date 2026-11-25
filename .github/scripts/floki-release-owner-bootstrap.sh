@@ -71,6 +71,16 @@ echo CELIKOM_EXTENSION_INITIAL_PROMOTION_RETURNED
 [[ -f /srv/celikom-releases/owner-downloads/celikom-extension-latest.zip ]]
 systemctl is-active celikom-windows-signed-owner.timer
 systemctl is-active celikom-extension-owner.timer
+# Runner2 must see the same DATA-ONLY signed spools; never grant host SSH.
+fetch_exact 59bd979db70ba7a47f045a37efea28442a143dd0 \
+  .github/scripts/floki-runner2-signed-spool-parity.sh \
+  90429aff5f16ba1acb5f50e1b43ff99bf54d306d \
+  "$INTAKE/floki-runner2-signed-spool-parity.sh" 0600
+if bash "$INTAKE/floki-runner2-signed-spool-parity.sh"; then
+  echo CELIKOM_BOTH_RUNNER_DATA_SPOOL_PARITY_VERIFIED
+else
+  echo CELIKOM_RUNNER2_SPOOL_PARITY_NEEDS_SAFE_FOLLOWUP
+fi
 # Android is not changed; print only its service status, never capability tokens.
 systemctl is-active celikom-a1-signed-owner.timer || true
 echo CELIKOM_WINDOWS_AND_EXTENSION_PERMANENT_OWNER_DOWNLOADS_READY
