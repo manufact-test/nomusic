@@ -1,4 +1,19 @@
 # CELIKOM — завершение инфраструктуры выпуска и обновления
+
+## ADDENDUM 25.11 — infrastructure preparation after A1 delivery (newer than handoff below)
+
+**Android A1:** BETA16 is confirmed published at celikom.com by trusted root receipt. `celikom-a1-signed-owner.timer` was reactivated and verified; the first phone acoustic test and next fresh candidate remain separate. Details in `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md`. Do not rerun Android bootstrap or share its private capability URL with public customers.
+
+**Windows:** signed 0.24.56 spool and immutable P-256 owner promoter exist. One-time Floki root bootstrap code is prepared, tested offline, but **not yet activated on host**. Customer signed OTA feed remains disabled; do not label the unaccepted 56 as customer stable. Verified build EXE SHA-256: `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a`. Keep 0.24.55 rollback.
+
+**Extension:** `main` now contains `.github/scripts/floki-extension-owner-consumer.py`, `.github/scripts/floki-extension-owner-install.sh`, and an exact, manually approved owner-only 0.4.82 record in `.github/release/extension-owner-promotions.json`. A new version must pass Floki CI and have an explicit exact manifest approval; trusted timer then verifies immutable ZIP and real private HTTPS before updating the owner latest URL. `.github/workflows/extension-build.yml` now builds on actual extension changes on `main`. Installed Chrome/Brave extensions will later receive **customer updates only through the Chrome Web Store**, after the first item is created/approved by the store owner. Read `docs/handoff/CELIKOM-EXTENSION-STORE-AND-FLOKI-PUBLICATION-20261125.md`. Owner ZIP is not a browser auto-updater.
+
+**One-time server setup:** `.github/scripts/floki-release-owner-bootstrap.sh` (version pinned at execution; fetch it from trusted read-only mirror and verify Git blob) installs the saved Windows importer and extension recurring publisher, validates download integrity with existing owner Basic auth, and attempts safe runner2 data-only signed spool parity. Does **not** alter A1 updater, music, API, billing, Hostinger, or credentials. Runner2 parity must not restart an active `Runner.Worker`; preserve pre-existing runner2 local spool data. Failing parity is not license to open CI host SSH. Check live receipt, timers, full private HTTP200/size/SHA-256 and both runner mounts before declaring accepted.
+
+**Not yet proven:** live Windows 56/extension 82 public HTTPS full GET, subsequent independent release on each runner, stable Android legacy OTA bridge, public Windows signed OTA after owner acceptance, Chrome Web Store listing/API/approval, general customer update flow. Do not invent delivery confirmations. `main` release publisher static CI run `45678240534` succeeded (including syntax and guard tests), but host activation remains pending.
+
+---
+
 25.11.2026. Приоритетная точка передачи инфраструктурному чату.
 
 ## Цель владельца — работающий выпуск, а не сохранённые сборки
