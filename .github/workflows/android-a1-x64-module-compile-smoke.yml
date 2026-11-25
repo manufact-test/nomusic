@@ -1,0 +1,243 @@
+name: CELIKOM A1 x64 full private module compile - not ARM13 acceptance
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - '.github/workflows/android-a1-x64-module-compile-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-private-target-module-compilation:
+    permissions:
+      contents: write
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 35
+    env:
+      CELIKOM_CLEAN_ANDROID_NATIVE_REDDROID: '1'
+      CELIKOM_A1_RESOURCE_NAMESPACE_TRIAL: '1'
+      CELIKOM_A1_PASSPORT_SYNC_TRIAL: '1'
+      CELIKOM_A1_OWN_ACCOUNT_TYPE_TRIAL: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install Android 35 SDK x64 build dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+      - name: Build scoped module privately without uploading binary artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
+          test "$(cat android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/resources/META-INF/xposed/scope.list)" = pro.celikom.yandex.nativeclonelab
+          gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
+          mkdir -p "$RUNNER_TEMP/celikom-own-metrica-module"
+          cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check isolated CI, persistent owner signer tests, and own research code before vendor input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = manufact-test/nomusic
+          test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_lspatch2_namespaced_clone_arm13.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py
+          python3 -B -m py_compile android/native-yandex-hooklab/clone_lspatch_loader_zero.py android/native-yandex-hooklab/merge_lab_splits_ephemeral.py android/native-yandex-hooklab/clone_main_crash_buffer.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_metrica_manifest_preserved_detail_control.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_witness_private_parser.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_2025_audio_entrypoints.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_issuer_proxy_contract.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_lca9_tca_birth_origin.py -v
+          # Compile actual admission/lifecycle models on BOTH native Android CI lanes.
+          # All selection, file-info and pre-prepare decisions require the
+          # exact track+album+edition triple; no legacy 2-field overloads.
+          mkdir -p "$RUNNER_TEMP/celikom-a1-triple-jvm"
+          javac --release 17 -d "$RUNNER_TEMP/celikom-a1-triple-jvm" \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
+            android/native-yandex-hooklab/tests/src/NativePrePrepareAdmissionTest.java \
+            android/native-yandex-hooklab/tests/src/NativeReplacementLifecycleTest.java \
+            android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java
+          java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativePrePrepareAdmissionTest
+          java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativeReplacementLifecycleTest
+          java -cp "$RUNNER_TEMP/celikom-a1-triple-jvm" NativeGrantContractTest
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_metrica_service_snapshot.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_persistent_owner_signer.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_persistent_owner_signer.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_postlogin_receipt_witness.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_push_dex_method.py -v
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_push_dex_method.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_metrica_witness_private_parser.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_resource_package_rename.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_passport_sync_exact.py
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_passport_sync_exact.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_resource_package_rename.py -v
+          python3 -B -m py_compile android/a1-permission-catch-sourcecheck/permission_catch.py
+          python3 -B -m unittest discover -s android/a1-permission-catch-sourcecheck -p test_permission_catch.py -v
+          test -s "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_native_clone_java_rootcause_triage.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_main_crash_buffer.py -v
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/tests -p test_clone_lspatch_loader_zero.py -v
+      - name: Provision pinned GitHub CLI on isolated Floki runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if command -v gh >/dev/null 2>&1; then exit 0; fi
+          bin="$RUNNER_TEMP/celikom-a1-gh/bin"
+          mkdir -p "$bin"
+          archive="$RUNNER_TEMP/gh_2.105.0_linux_amd64.tar.gz"
+          curl -fLsS --connect-timeout 12 --max-time 90 --retry 1 \
+            -o "$archive" "https://github.com/cli/cli/releases/download/v2.105.0/gh_2.105.0_linux_amd64.tar.gz"
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          install -m 700 "$RUNNER_TEMP/gh_2.105.0_linux_amd64/bin/gh" "$bin/gh"
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Verify and privately reuse user-uploaded issuer signed 2025 XAPK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
+          mkdir -p "$RUNNER_TEMP/celikom-lspatch2-private"
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$RUNNER_TEMP/celikom-lspatch2-private" --clobber >/dev/null
+          f="$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Verify exact original 2025 Passport to userInfo to native screen DEX contract (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_private_postlogin_contract.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Scan exact 2025 onboarding preference readers and writers (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_private_onboarding_contract.py -v
+          python3 -B android/native-yandex-hooklab/ci/a1_private_onboarding_contract.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Private offline exact 2025 XAPK DEX method classifier (no code disclosure)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Generate exact private Push targets and rebuild own read-only observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePushTargets.java"
+          test ! -e "$target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_push_dex_method.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" --private-java "$target"
+          test -s "$target"
+          provider_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivatePostTrueProviderTarget.java"
+          test ! -e "$provider_target"
+          python3 -B android/a1-permission-catch-sourcecheck/permission_catch.py --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" --provider-java "$provider_target"
+          test -s "$provider_target"
+          gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
+          cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
+      - name: Verify Android SDK build tools on local x64 runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for name in aapt apksigner zipalign; do command -v "$name" >/dev/null; done
+      - name: Generate exact owned 2025 MediaDataSource read-only targets; private CI only
+        shell: bash
+        run: |
+          set -euo pipefail
+          media_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateMediaDataSourceTargets.java"
+          test ! -e "$media_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_2025_audio_entrypoints.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$media_target"
+          test -s "$media_target"
+          tca_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateTcaTrackCreatorTarget.java"
+          test ! -e "$tca_target"
+          python3 -B android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$tca_target"
+          test -s "$tca_target"
+          # NAV39: restore signed-original queue/active-period targets omitted from NAV38.
+          queue_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeQueueSlotTarget.java"
+          period_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeActivePeriodTarget.java"
+          test ! -e "$queue_target" && test ! -e "$period_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_live_queue_slot_target.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$queue_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_active_period_source_target.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$period_target"
+          test -s "$queue_target" && test -s "$period_target"
+          # NAV41: one extra private source name table, never checked into git.
+          player_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativePlayerPeriodTarget.java"
+          test ! -e "$player_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$player_target"
+          test -s "$player_target"
+          # NAV45: fail-closed on exact issuer-signed original MediaItem fields.
+          item_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateNativeCurrentMediaItemTarget.java"
+          test ! -e "$item_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$item_target"
+          test -s "$item_target"
+          grep -q "ITEM_LOGICAL_ID" "$item_target"
+          child_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateOriginalChildSourceTarget.java"
+          test ! -e "$child_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$child_target"
+          test -s "$child_target"
+          gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
+          cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          apk=Path("android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk")
+          with ZipFile(apk) as z:
+              dex=b"".join(z.read(x) for x in z.namelist() if x.startswith("classes") and x.endswith(".dex"))
+          for cls in (b"PrivateNativeQueueSlotTarget",b"PrivateNativeActivePeriodTarget",b"PrivateNativePlayerPeriodTarget",b"PrivateNativeCurrentMediaItemTarget",b"PrivateTcaTrackCreatorTarget",b"PrivateOriginalChildSourceTarget"):
+              if cls not in dex: raise SystemExit("NAV39_REQUIRED_PRIVATE_TARGET_NOT_PACKAGED")
+          print("NAV39_PRIVATE_TARGETS_PACKAGED")
+          PY
+      - name: Verify compiled full Android observer with private class targets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -s android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk
+          echo A1_X64_MODULE_COMPILE_PASS_NOT_ARM13_NOT_PHONE_AUDIO
+      - name: Wipe private inputs and generated source on persistent runner
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "$RUNNER_TEMP/celikom-lspatch2-private" "$RUNNER_TEMP/celikom-a1-gh"
+          rm -f -- "$RUNNER_TEMP"/gh_2.105.0_linux_amd64.tar.gz
+          rm -rf -- "$RUNNER_TEMP/celikom-own-metrica-module"
+          base="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness"
+          for name in PrivatePushTargets PrivatePostTrueProviderTarget PrivateMediaDataSourceTargets PrivateTcaTrackCreatorTarget PrivateNativeQueueSlotTarget PrivateNativeActivePeriodTarget PrivateNativePlayerPeriodTarget PrivateNativeCurrentMediaItemTarget PrivateOriginalChildSourceTarget; do
+            rm -f -- "$base/$name.java"
+          done
+          echo A1_PRIVATE_MODULE_BUILD_EPHEMERAL_INPUT_CLEANUP
