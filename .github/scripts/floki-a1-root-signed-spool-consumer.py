@@ -152,10 +152,10 @@ def hand_to_existing_receiver(apk, meta, tempdir):
         # bounded diagnostic, never the stdout capability URL, raw metadata,
         # download tokens or 64-character SHA values.
         detail = result.stderr.strip()[-1800:]
-        detail = re.sub(r"https://celikom\\.com/downloads/a1/\\S+",
+        detail = re.sub(r"https://celikom\.com/downloads/a1/\S+",
                         "[REDACTED_CAPABILITY_URL]", detail)
         detail = re.sub(r"[0-9a-fA-F]{32,}", "[REDACTED]", detail)
-        detail = re.sub(r"/srv/celikom-a1-downloads/files/\\S+",
+        detail = re.sub(r"/srv/celikom-a1-downloads/files/\S+",
                         "[REDACTED_DEPLOY_FILE]", detail)
         print("A1_ROOT_RECEIVER_EXIT", result.returncode, file=sys.stderr)
         print("A1_ROOT_RECEIVER_STDERR", detail or "[empty]", file=sys.stderr)
