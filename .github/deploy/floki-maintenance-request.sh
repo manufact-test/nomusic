@@ -2,31 +2,58 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Read-only audit; no permission changes.
-ctr=celikom-mdb-check-20261122
-app=/srv/celikom/app/staging-20261122
-api_sql(){
-  docker exec -i "$ctr" sh -c '
-    if [ -n "${MARIADB_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MARIADB_ROOT_PASSWORD_FILE")
-    elif [ -n "${MYSQL_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MYSQL_ROOT_PASSWORD_FILE")
-    elif [ -n "${MARIADB_ROOT_PASSWORD:-}" ]; then MYSQL_PWD=$MARIADB_ROOT_PASSWORD
-    else exit 2; fi
-    export MYSQL_PWD
-    exec mariadb -uroot --max-allowed-packet=64M "$@"
-  ' sh "$@"
-}
-
-read -r old_api api_account < <(runuser -u www-data -- php -r 'require $argv[1]."/bootstrap.php";$c=require $argv[1]."/config/app.php";$p=Celikom\Database\Connection::open($c);$r=$p->query("SELECT DATABASE(),CURRENT_USER()")->fetch(PDO::FETCH_NUM);echo implode(" ",$r),PHP_EOL;' "$app")
-[[ "$old_api" =~ ^[A-Za-z0-9_]+$ && "$api_account" =~ ^[A-Za-z0-9_]+@[A-Za-z0-9_.%:-]+$ ]]
-u=$(printf '%s' "$api_account" | cut -d@ -f1)
-h=$(printf '%s' "$api_account" | cut -d@ -f2)
-echo '=== API database privilege audit ==='
-api_sql -e "SELECT Db,Select_priv,Insert_priv,Update_priv,Delete_priv,Grant_priv FROM mysql.db WHERE User='$u' AND Host='$h' AND REPLACE(Db,CHAR(92),'') IN ('$old_api','celikom_cutover_20261124') ORDER BY Db"
-api_sql -e "SELECT COUNT(*) AS cutover_schema_exists FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='celikom_cutover_20261124'"
-mysql --protocol=socket -uroot -e "SELECT COUNT(*) AS cms_cutover_schema_exists FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='celikom_website_cutover_20261124'"
-test ! -e /etc/nginx/conf.d/celikom-cutover-probe.conf
-for p in /api/v1/health /api/v1/config /admin/; do
-  printf '%s ' "$p"
-  curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://api.celikom.com$p"
+# Exercise the new nonprivileged signed-data receiver on a disposable directory.
+# No new login account, key, sudo rule, network listener, DB or feed change.
+work=$(mktemp -d /var/tmp/celikom-windows-intake-rehearsal.XXXXXXXX)
+trap 'rm -rf -- "$work"' EXIT
+chmod 755 "$work"
+install -d -m 755 "$work/tools"
+install -d -m 700 -o nobody -g nogroup "$work/incoming"
+install -d -m 700 "$work/root-import"
+systemctl start celikom-mirror-sync.service
+mirror=/home/celikom-mirror/github-mirror.git
+for spec in windows-stable-private-import.py:6134127d051e8fe5d625c525e5485e9c801e3b24 windows-stable-private-intake.py:18b3d9beff7ef1a33cd9583bb89e8622ab6c90e3 windows-stable-release-verify.mjs:ae38c2c48a032fec0ad1eaae14c444e43dfb2b18 windows-stable-existing-latest.mjs:bb4d19672d45bdd0393497c3b33280308d67ef32; do
+  file=${spec%%:*}
+  hash=${spec#*:}
+  runuser -u celikom-mirror -- git --git-dir="$mirror" show "$hash" > "$work/tools/$file"
+  test "$(git hash-object "$work/tools/$file")" = "$hash"
+  chmod 644 "$work/tools/$file"
 done
-echo CELIKOM_DB_READONLY_AUDIT_OK
+source=/root/celikom-release-import/windows-02455
+floor=/srv/celikom-releases/windows/stable
+pin=/root/celikom-secrets/windows-stable-public.der
+install -o root -g root -m 644 "$pin" "$work/public.der"
+before=$(sha256sum "$floor/current/manifest.json" "$floor/current/manifest.json.sig" "$floor/current/CELIKOM-Windows-0.24.55.exe")
+python3 "$work/tools/windows-stable-private-import.py" pack --source "$source" --output "$work/transfer.zip" --pin "$pin" --version 0.24.55 --sequence 2
+digest=$(sha256sum "$work/transfer.zip" | cut -d' ' -f1)
+cmd="stage-windows 0.24.55 2 $digest"
+cat > "$work/tools/probe.py" <<'PY'
+import os,pathlib,runpy,sys
+assert os.getuid()!=0
+m=runpy.run_path(sys.argv[1])
+print("CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK",*m["receive"](sys.stdin.buffer,pathlib.Path(sys.argv[2]),pathlib.Path(sys.argv[3]),sys.argv[4]))
+PY
+chmod 644 "$work/tools/probe.py"
+receive() {
+  runuser -u nobody -- env -i PATH=/usr/bin:/bin LANG=C.UTF-8 python3 "$work/tools/probe.py" "$work/tools/windows-stable-private-intake.py" "$work/incoming" "$work/public.der" "$1"
+}
+first=$(receive "$cmd" < "$work/transfer.zip")
+test "$first" = "CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK private-staged 0.24.55 2 $digest"
+echo "$first"
+second=$(receive "$cmd" < "$work/transfer.zip")
+test "$second" = "CELIKOM_WINDOWS_DATA_ONLY_INTAKE_OK already-staged 0.24.55 2 $digest"
+echo "$second"
+if receive 'maintenance' </dev/null >/dev/null 2>&1; then exit 1; fi
+if receive "$cmd ; id" </dev/null >/dev/null 2>&1; then exit 1; fi
+if receive "$cmd" </dev/null >/dev/null 2>&1; then exit 1; fi
+echo WINDOWS_INTAKE_FORBIDDEN_COMMAND_AND_CORRUPT_BYTES_REFUSED
+staged="$work/incoming/windows-0.24.55-2-$digest.zip"
+test "$(stat -c '%U:%a' "$staged")" = nobody:600
+cmp "$staged" "$work/transfer.zip"
+# Independent root-side verified import into disposable root tree only.
+python3 "$work/tools/windows-stable-private-import.py" receive --dest-root "$work/root-import" --floor-root "$floor" --pin "$pin" --version 0.24.55 --sequence 2 < "$staged"
+cmp "$work/root-import/windows-0.24.55/0.24.55/CELIKOM-Windows-0.24.55.exe" "$source/0.24.55/CELIKOM-Windows-0.24.55.exe"
+test "$before" = "$(sha256sum "$floor/current/manifest.json" "$floor/current/manifest.json.sig" "$floor/current/CELIKOM-Windows-0.24.55.exe")"
+test "$(readlink "$floor/current")" = versions/0.24.55
+test "$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' https://celikom.com/CELIKOM/Windows/Updates/stable/latest.json)" = 401
+echo CELIKOM_REAL_NONPRIVILEGED_WINDOWS_INTAKE_REHEARSAL_OK

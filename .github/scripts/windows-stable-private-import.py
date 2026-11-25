@@ -71,7 +71,7 @@ def verifier_env(pin):
 def verify(directory, version, sequence, pin):
     identity(version, sequence)
     subprocess.run(["node", str(HERE / "windows-stable-release-verify.mjs"), str(directory),
-                    version, str(sequence)], env=verifier_env(pin), check=True, timeout=90)
+                    version, str(sequence)], env=verifier_env(pin), check=True, timeout=90, stdout=sys.stderr)
 
 
 def pack(source, output, version, sequence, pin):
