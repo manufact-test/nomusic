@@ -10,3 +10,5 @@
 2026-11-25: use protected Windows-hosted runner for exact signed 0.24.56 sequence3 into restricted Floki intake, independent root verification, no public auto-update.
 
 2026-11-25: dry-run exact signed 0.24.56 private draft handoff on isolated Floki runner, no receive/publish (runner availability + trust proof).
+
+2026-11-25: verify private P-256 draft transfer on Floki self-hosted runner with native token-scoped REST downloader; no intake nor publish.
