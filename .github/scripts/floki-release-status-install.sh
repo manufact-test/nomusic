@@ -50,6 +50,7 @@ routes=r'''    # CELIKOM SANITIZED SHA-ONLY RELEASE RECEIPTS
     # Does NOT contain internal links, source refs, identities or A1 capabilities.
     location = /.well-known/celikom-release-receipt.json {
         auth_basic off;
+        allow all;
         alias /srv/celikom-releases/release-status/receipt.json;
         default_type application/json;
         add_header Cache-Control "no-store" always;
