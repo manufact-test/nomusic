@@ -8,13 +8,13 @@ umask 077
 trap 'rc=$?; echo "ANDROID_CUSTOMER_STABLE_INSTALL_FAILED line=$LINENO exit=$rc" >&2' ERR
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=c68e3b4b32400ae4f42b5d4c8ad39164d71d30d7
-BLOB=4780a536bb2f95fd01732ef2d8b40b19d1e10164
+COMMIT=928fea9f81d04778a8ba7457fc978f38fada2ea1
+BLOB=30baa5338c0f380c18e77950191e4b9f2891f25c
 SOURCE=.github/scripts/floki-android-customer-stable-consumer.py
 DEST=/usr/local/lib/celikom-android-stable-owner/customer-consumer.py
 SERVICE=/etc/systemd/system/celikom-android-customer-stable.service
 TIMER=/etc/systemd/system/celikom-android-customer-stable.timer
-PUBLIC=/srv/celikom-releases/public/android
+PUBLIC=/srv/celikom-releases/public/android-ota-stable
 SITE=/etc/nginx/sites-enabled/celikom-site-https
 [[ -d "$MIRROR" && ! -L "$MIRROR" ]]
 [[ ! -e "$SERVICE" && ! -e "$TIMER" ]]
@@ -67,7 +67,7 @@ rules=r'''    # CELIKOM LEGACY ANDROID PUBLIC VERIFIED STABLE OTA
     location = /updates/android/stable.json {
         auth_basic off;
         allow all;
-        alias /srv/celikom-releases/public/android/stable.json;
+        alias /srv/celikom-releases/public/android-ota-stable/stable.json;
         default_type application/json;
         add_header Cache-Control "no-store" always;
         limit_except GET { deny all; }
@@ -75,7 +75,7 @@ rules=r'''    # CELIKOM LEGACY ANDROID PUBLIC VERIFIED STABLE OTA
     location ~ "^/releases/android/(?<celikomlegacyapk>[1-9][0-9]{0,8}-[a-f0-9]{64}\.apk)$" {
         auth_basic off;
         allow all;
-        alias /srv/celikom-releases/public/android/$celikomlegacyapk;
+        alias /srv/celikom-releases/public/android-ota-stable/$celikomlegacyapk;
         default_type application/vnd.android.package-archive;
         add_header Cache-Control "public, max-age=300, immutable" always;
         limit_except GET { deny all; }
