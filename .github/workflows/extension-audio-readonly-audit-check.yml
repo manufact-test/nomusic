@@ -1,0 +1,29 @@
+name: Extension audio readonly audit syntax
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/floki-extension-audio-readonly-audit.sh'
+      - '.github/workflows/extension-audio-readonly-audit-check.yml'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate without production access or script execution
+        run: |
+          bash -n .github/scripts/floki-extension-audio-readonly-audit.sh
+          python3 - <<'CHECK'
+          import ast,pathlib,subprocess
+          s=pathlib.Path('.github/scripts/floki-extension-audio-readonly-audit.sh').read_text()
+          py=s.split("<<'PY_AUDIO_SETTINGS'\n",1)[1].split('\nPY_AUDIO_SETTINGS',1)[0]
+          php=s.split("<<'PHP_AUDIO_PROBE'\n",1)[1].split('\nPHP_AUDIO_PROBE',1)[0]
+          ast.parse(py)
+          subprocess.run(['php','-l'],input=php,text=True,check=True)
+          print('AUDIO_AUDIT_SYNTAX_ONLY_PASS_NO_PRODUCTION_ACCESS')
+          CHECK
