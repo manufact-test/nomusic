@@ -116,3 +116,5 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+# 2026-11-25: repeat full native gate before migrated owner-only APK delivery.
