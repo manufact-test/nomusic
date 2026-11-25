@@ -18,6 +18,8 @@ on:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
+      - 'android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag/UpdateCenter.java'
+      - 'android/native-companion/addon/test_update_center_floki_origin.py'
       - '.github/workflows/android-a1-native-renderer-observer-jvm.yml'
 permissions:
   contents: read
@@ -33,6 +35,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Guard staged FlokiNET stable Android updater source (no OTA publication)
+        shell: bash
+        run: python3 -B android/native-companion/addon/test_update_center_floki_origin.py
       - name: Verify exact diagnostic scope and run real Java fail-closed reference tests
         shell: bash
         run: |

@@ -24,7 +24,9 @@ import javax.net.ssl.HttpsURLConnection;
 
 /** Isolated sideload update client; never touches audio state or accounts. */
 final class UpdateCenter {
-    static final String HOST="lemonchiffon-narwhal-791953.hostingersite.com";
+    // Staged new signed-stable feed. Already-installed old clients still require
+    // the separately prepared Hostinger bridge until signed v95 is accepted.
+    static final String HOST="celikom.com";
     static final String MANIFEST="https://"+HOST+"/updates/android/stable.json";
     static final String CERT="67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f";
     static final String CHANNEL="celikom_app_updates";
