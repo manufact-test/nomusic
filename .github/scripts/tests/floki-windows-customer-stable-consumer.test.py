@@ -44,6 +44,7 @@ class CustomerWindowsContract(unittest.TestCase):
                  patch.object(m,"secure_directory"), \
                  patch.object(m,"atomic_immutable_copy"), \
                  patch.object(m,"atomically_point_accepted_installer"), \
+                 patch.object(m.os,"chown"), \
                  patch.object(m,"verify_public"):
                 old_umask=os.umask(0o077)
                 try:
