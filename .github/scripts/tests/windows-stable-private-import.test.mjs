@@ -8,6 +8,7 @@ import {spawnSync} from "node:child_process";
 import {fileURLToPath} from "node:url";
 import {promoteLocalFeed} from "../windows-stable-publish-floki.mjs";
 const cli=fileURLToPath(new URL("../windows-stable-private-import.py",import.meta.url));
+const intake=fileURLToPath(new URL("../windows-stable-private-intake.py",import.meta.url));
 const sha=b=>createHash("sha256").update(b).digest("hex");
 const run=(args,input)=>spawnSync("python3",[cli,...args],{input,encoding:"utf8",maxBuffer:1024*1024,timeout:120000});
 test("private Windows transport verifies signed identity, monotonic floor, archive boundaries and never changes current",async t=>{
@@ -42,6 +43,22 @@ test("private Windows transport verifies signed identity, monotonic floor, archi
   }
   const next=await fixture("next","0.24.56",3);
   const bytes=await pack(next,"next");
+  // Test the real unprivileged receiver function on disposable data; the
+  // remote entrypoint itself requires a nonroot uid and fixed server paths.
+  const inbox=join(dir,"inbox");await mkdir(inbox,{mode:0o700});
+  const intakeCall=(command,input)=>spawnSync("python3",["-c",
+    "import runpy,sys,pathlib,os;m=runpy.run_path(sys.argv[1]);print(*m['receive'](sys.stdin.buffer,pathlib.Path(sys.argv[2]),pathlib.Path(sys.argv[3]),sys.argv[4],os.getuid()))",
+    intake,inbox,pin,command],{input,encoding:"utf8",maxBuffer:1024*1024,timeout:120000});
+  const command="stage-windows "+next.version+" "+next.sequence+" "+sha(bytes);
+  let remote=intakeCall(command,bytes);
+  assert.equal(remote.status,0,remote.stderr);assert.match(remote.stdout,/private-staged/);
+  remote=intakeCall(command,bytes);assert.equal(remote.status,0,remote.stderr);assert.match(remote.stdout,/already-staged/);
+  remote=intakeCall("maintenance",bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/COMMAND_REFUSED/);
+  remote=intakeCall(command+" ; id",bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/COMMAND_REFUSED/);
+  remote=intakeCall("stage-windows "+next.version+" "+next.sequence+" "+"0".repeat(64),bytes);assert.notEqual(remote.status,0);assert.match(remote.stderr,/TRANSFER_SHA_MISMATCH/);
+  assert.deepEqual(await readFile(join(inbox,"windows-"+next.version+"-"+next.sequence+"-"+sha(bytes)+".zip")),bytes);
+  assert.equal(await readlink(join(floor,"current")),"versions/0.24.55");
+
   let res=receive(next,bytes);
   assert.equal(res.status,0,res.stderr);assert.match(res.stdout,/private-staged/);
   assert.deepEqual(await readFile(join(dest,"windows-0.24.56",next.version,next.app)),next.bytes);

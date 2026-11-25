@@ -153,6 +153,30 @@ def check_zip_directory(bundle, count):
              and cd_offset + cd_size == size - 22, "BAD_ZIP_DIRECTORY")
 
 
+def unpack_verified(bundle, stage, version, sequence, pin):
+    stage.mkdir(mode=0o700)
+    (stage / version).mkdir(mode=0o700)
+    expected = entries(version)
+    check_zip_directory(bundle, len(expected))
+    with zipfile.ZipFile(bundle) as z:
+        members = z.infolist()
+        need(len(members) == len(expected) and {x.filename for x in members} == set(expected),
+             "UNEXPECTED_ARCHIVE_MEMBERS")
+        for member in members:
+            low, high = expected[member.filename]
+            mode = (member.external_attr >> 16) & 0xffff
+            need(not member.is_dir() and stat.S_IFMT(mode) in (0, stat.S_IFREG)
+                 and not member.flag_bits & 1 and member.compress_type == zipfile.ZIP_STORED
+                 and low <= member.file_size <= high and member.compress_size == member.file_size,
+                 "UNSAFE_ARCHIVE_MEMBER")
+            # Paths come only from the fixed six-name allowlist, never extraction APIs.
+            path = stage / member.filename
+            with z.open(member) as src, path.open("xb") as dst:
+                need(copy_bounded(src, dst, high) == member.file_size, "MEMBER_SIZE_MISMATCH")
+            path.chmod(0o600)
+    verify(stage, version, sequence, pin)
+
+
 def receive(stream, dest_root, floor_root, pin, version, sequence):
     """Read a bounded archive, reject extras/paths/links, then independently
     verify its signed content. No source tree or stable feed is ever modified.
@@ -167,27 +191,8 @@ def receive(stream, dest_root, floor_root, pin, version, sequence):
         with bundle.open("xb") as f:
             copy_bounded(stream, f, MAX_BUNDLE)
         stage = work / "verified"
-        stage.mkdir(mode=0o700)
-        (stage / version).mkdir(mode=0o700)
+        unpack_verified(bundle, stage, version, sequence, pin)
         expected = entries(version)
-        check_zip_directory(bundle, len(expected))
-        with zipfile.ZipFile(bundle) as z:
-            members = z.infolist()
-            need(len(members) == len(expected) and {x.filename for x in members} == set(expected),
-                 "UNEXPECTED_ARCHIVE_MEMBERS")
-            for member in members:
-                low, high = expected[member.filename]
-                mode = (member.external_attr >> 16) & 0xffff
-                need(not member.is_dir() and stat.S_IFMT(mode) in (0, stat.S_IFREG)
-                     and not member.flag_bits & 1 and member.compress_type == zipfile.ZIP_STORED
-                     and low <= member.file_size <= high and member.compress_size == member.file_size,
-                     "UNSAFE_ARCHIVE_MEMBER")
-                # Paths come only from the fixed six-name allowlist, never extraction APIs.
-                path = stage / member.filename
-                with z.open(member) as src, path.open("xb") as dst:
-                    need(copy_bounded(src, dst, high) == member.file_size, "MEMBER_SIZE_MISMATCH")
-                path.chmod(0o600)
-        verify(stage, version, sequence, pin)
         verify_floor(floor_root, stage, version, sequence, pin)
         destination = dest_root / ("windows-" + version)
         # The version lock and whole-directory rename ensure that no
