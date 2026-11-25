@@ -23,3 +23,5 @@ for p in ['/srv/celikom/ci-runner/runner','/srv/celikom/ci-runner/runner/celikom
   s=q.stat();print('DIRECTORY',p,s.st_uid,s.st_gid,oct(s.st_mode&0o777))
 PY
 echo CELIKOM_RUNNER_CAPACITY_READONLY_OK
+
+# Execute read-only capacity check.
