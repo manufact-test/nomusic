@@ -132,7 +132,13 @@ def verify_signed(v, a):
     expire = m["expiresAt"]
     from datetime import datetime, timezone
     expiration = datetime.fromisoformat(expire.replace("Z", "+00:00")).timestamp()
-    require(expiration > time.time() + 180, "SIGNED_MANIFEST_EXPIRED")
+    # Previously accepted 0.24.55/sequence2 is an immutable bootstrap and
+    # rollback image. Its correctly signed lifetime ends 2026-12-01; it must
+    # remain fetchable for old clients even after that date. Fresh future
+    # customer promotions must still have unexpired signed metadata.
+    accepted_baseline = v == "0.24.55" and a["sequence"] == 2
+    require(accepted_baseline or expiration > time.time() + 180,
+            "SIGNED_MANIFEST_EXPIRED")
     exe = "CELIKOM-Windows-" + v + ".exe"
     file = directory / exe
     s = file.lstat()
