@@ -13,6 +13,14 @@ on:
       - '.github/ci/celikom-extension-build-trigger.txt'
       - '.github/deploy/floki-maintenance-request.sh'
       - '.github/workflows/celikom-win-portable-floki-preflight.yml'
+      # Signed data-only Floki release handoff has its own pinned-contract CI.
+      - '.github/ci/celikom-windows-private-stage-trigger.txt'
+      - '.github/deploy/windows-owner-audit-trigger.txt'
+      - '.github/workflows/windows-stable-floki-private-stage.yml'
+      - '.github/workflows/windows-floki-owner-route-audit.yml'
+      - '.github/scripts/floki-windows-*.py'
+      - '.github/scripts/floki-windows-*.sh'
+      - '.github/scripts/tests/floki-windows-*.py'
   pull_request:
     branches:
       - main
