@@ -211,7 +211,7 @@ def read_owner_auth():
     secure_root_file(file)
     values={}
     for line in file.read_text().splitlines():
-        m=re.match(r"^\\s*(HTTP Basic username|HTTP Basic password)\\s*[:=]\\s*(.*?)\\s*$",line,re.I)
+        m=re.match(r"^\s*(HTTP Basic username|HTTP Basic password)\s*[:=]\s*(.*?)\s*$",line,re.I)
         if m:
             values[m[1].lower()]=m[2]
     check(set(values)=={"http basic username","http basic password"},"OWNER_BASIC_CREDENTIALS_UNAVAILABLE")
