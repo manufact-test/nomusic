@@ -337,6 +337,8 @@ def exact_source_capture_shape(dexes, caller_types):
                 continue
             nstatic,pos=uleb(dex.data,pos)
             ninstance,pos=uleb(dex.data,pos)
+            _,pos=uleb(dex.data,pos)  # direct method count
+            _,pos=uleb(dex.data,pos)  # virtual method count
             for is_instance,n in ((False,nstatic),(True,ninstance)):
                 index=0
                 for _ in range(n):
