@@ -19,7 +19,7 @@ import urllib.request
 MIRROR=Path("/home/celikom-mirror/github-mirror.git")
 APPROVAL=".github/release/android-customer-stable.json"
 OWNER=Path("/srv/celikom-releases/private/android-stable")
-PUBLIC=Path("/srv/celikom-releases/public/android")
+PUBLIC=Path("/srv/celikom-releases/public/android-ota-stable")
 HEX=re.compile(r"[a-f0-9]{64}\Z")
 VERSION=re.compile(r"0\.3\.[0-9]{1,4}\Z")
 CERT="67fe81c56fac1c1d145344b69a0e3faf9005cf6607f4e26ca27d5926c3eefc4f"
