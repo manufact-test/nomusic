@@ -1,0 +1,56 @@
+name: CELIKOM A1 original coroutine child item static read-only audit
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - '.github/workflows/android-a1-original-child-item-private-static.yml'
+      - 'android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  original-item-field-readonly:
+    if: github.repository == 'manufact-test/nomusic'
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate privacy-bounded DEX provenance parser
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py
+          python3 -B android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py --selftest
+      - name: Obtain only exact sealed owner-uploaded 2025 original XAPK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          d="$RUNNER_TEMP/a1-original-child-item-static"
+          mkdir -p -m700 "$d"
+          gh api "repos/$GITHUB_REPOSITORY/releases/442137464" \
+            --jq 'select(.draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' \
+            | grep -qx 442137464
+          gh release download a1-yandex-2025-gpr-private-test \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern yandex-music-2025-10-4-120-1gpr.xapk \
+            --dir "$d" >/dev/null
+          test "$(stat -c '%s' "$d/yandex-music-2025-10-4-120-1gpr.xapk")" = 45961661
+          test "$(sha256sum "$d/yandex-music-2025-10-4-120-1gpr.xapk" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+          echo A1_VERIFIED_PRIVATE_ORIGINAL_XAPK_IN_EPHEMERAL_JOB
+      - name: Emit only finite source-field structural classification
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          d="$RUNNER_TEMP/a1-original-child-item-static"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py \
+            --xapk "$d/yandex-music-2025-10-4-120-1gpr.xapk"
+          echo A1_STATIC_ONLY_NO_PHONE_OR_AUDIO_PROOF
+      - name: Wipe ephemeral vendor archive
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/a1-original-child-item-static"
