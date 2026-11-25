@@ -141,7 +141,7 @@ def field_from_local_backtrace(dex,code,ins,index,reg):
             return None
     return None
 
-def inspect_dex(payload):
+def inspect_dex(payload, caller_types=None):
     dex=Dex(payload)
     child_refs=set()
     for idx in range(dex.method_count):
@@ -196,7 +196,9 @@ def inspect_dex(payload):
             if owner==SOURCE_OWNER:caller_source+=1
             elif owner==CHILD_OWNER:caller_child+=1
             else:caller_other+=1
-            if caller_name=="invokeSuspend":caller_suspend+=1
+            if caller_name=="invokeSuspend":
+                caller_suspend+=1
+                if caller_types is not None:caller_types.add(owner)
             reg=source_argument_register(code,pc,op)
             shape=child_argument_origin(dex,code,ins,i,reg,ctor_fields)
             origin_counts[shape]=origin_counts.get(shape,0)+1
@@ -242,6 +244,77 @@ def inspect_dex(payload):
         "child_item_producer_return_shapes":producer_return_shapes,
     }
 
+def coroutine_source_capture(dexes, caller_types):
+    """Cross-DEX capture shape only. A typed field/argument is not identity proof."""
+    out = {
+        "unique_child_coroutine_owner": int(len(caller_types) == 1),
+        "coroutine_source_typed_fields": 0,
+        "coroutine_source_parameter_constructors": 0,
+        "coroutine_source_field_writes": 0,
+        "coroutine_source_field_reads_in_resume": 0,
+        "coroutine_constructed_inside_source_owner": 0,
+        "coroutine_constructed_inside_child_owner": 0,
+        "coroutine_constructed_inside_other_owner": 0,
+        "coroutine_resume_calls_source_owner": 0,
+    }
+    if len(caller_types) != 1:
+        return out
+    target = next(iter(caller_types))
+    for dex in dexes:
+        count, off = struct.unpack_from("<II", dex.data, 80)
+        if count > 500000 or off + count*8 > len(dex.data):
+            raise ValueError("FIELD_TABLE_BOUND")
+        source_fields = {i for i in range(count)
+                         if field_descriptor(dex, i) == (target, SOURCE_OWNER)}
+        constructors = set()
+        source_calls = set()
+        for mid in range(dex.method_count):
+            owner, name, proto = dex.method_signature(mid)
+            if owner == target and name == "<init>":
+                constructors.add(mid)
+            if owner == SOURCE_OWNER:
+                source_calls.add(mid)
+        for mid, code in dex.code_methods():
+            owner, name, proto = dex.method_signature(mid)
+            if owner == target and name == "<init>":
+                if SOURCE_OWNER in (params_for(dex, proto) or ()):
+                    out["coroutine_source_parameter_constructors"] += 1
+            if not (owner == target or constructors):
+                continue
+            try:
+                ins = decode_instructions(code)
+            except FlowDecodeError:
+                continue
+            for pc, op, _ in ins:
+                if owner == target and op in (0x54, 0x5b):
+                    ref = struct.unpack_from("<H", code, pc+2)[0]
+                    if ref in source_fields:
+                        if op == 0x5b:
+                            out["coroutine_source_field_writes"] += 1
+                        elif name == "invokeSuspend":
+                            out["coroutine_source_field_reads_in_resume"] += 1
+                if op not in INVOKE_METHOD:
+                    continue
+                ref = struct.unpack_from("<H", code, pc+2)[0]
+                if ref in constructors and op in (0x70, 0x76):
+                    key = ("coroutine_constructed_inside_source_owner" if owner == SOURCE_OWNER
+                           else "coroutine_constructed_inside_child_owner" if owner == CHILD_OWNER
+                           else "coroutine_constructed_inside_other_owner")
+                    out[key] += 1
+                if owner == target and name == "invokeSuspend" and ref in source_calls:
+                    out["coroutine_resume_calls_source_owner"] += 1
+        # DEX field IDs include references, not just definitions. Deduplicate
+        # across slices by the complete field signature internally.
+    signatures = set()
+    for dex in dexes:
+        count, off = struct.unpack_from("<II", dex.data, 80)
+        for i in range(count):
+            if field_descriptor(dex, i) == (target, SOURCE_OWNER):
+                _, _, name_idx = struct.unpack_from("<HHI", dex.data, off+i*8)
+                signatures.add(dex.string(name_idx))
+    out["coroutine_source_typed_fields"] = len(signatures)
+    return {k: min(v, 16) for k, v in out.items()}
+
 def inspect_xapk(path):
     if not path.is_file() or path.is_symlink() or path.stat().st_size!=EXPECTED_LEN:
         raise ValueError("INVALID_ORIGINAL_SIZE")
@@ -249,6 +322,8 @@ def inspect_xapk(path):
         if hashlib.file_digest(stream,"sha256").hexdigest()!=EXPECTED_SHA:
             raise ValueError("INVALID_ORIGINAL_HASH")
     records=[]
+    dexes=[]
+    caller_types=set()
     with zipfile.ZipFile(path) as xapk:
         for part in xapk.infolist():
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:continue
@@ -259,7 +334,8 @@ def inspect_xapk(path):
                     if meta.file_size>25_000_000:continue
                     dex=apk.read(name)
                     if dex.startswith(b"dex\n"):
-                        records.append(inspect_dex(dex))
+                        records.append(inspect_dex(dex, caller_types))
+                        dexes.append(Dex(dex))
     return {
         "source_input_verified":True,
         "dex_slices_checked":min(len(records),100),
@@ -284,6 +360,7 @@ def inspect_xapk(path):
             key:min(sum(v["child_item_producer_return_shapes"].get(key,0) for v in records),16)
             for key in sorted({k for v in records for k in v["child_item_producer_return_shapes"]})
         },
+        "coroutine_source_capture_shape":coroutine_source_capture(dexes, caller_types),
         "static_only_no_runtime_source_or_audio_proof":True,
     }
 
@@ -294,6 +371,8 @@ def selftest():
     d=bytes([0x77,0x04,0,0,0x15,0])
     assert source_argument_register(d,0,0x77)==0x17
     assert source_argument_register(c,0,0x6e) is None
+    assert coroutine_source_capture([], set())["unique_child_coroutine_owner"] == 0
+    assert coroutine_source_capture([], {"Lsynthetic;"})["unique_child_coroutine_owner"] == 1
     print("A1_ORIGINAL_CHILD_STATIC_PROVENANCE_SELFTEST_PASS")
 
 if __name__=="__main__":
