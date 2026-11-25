@@ -50,6 +50,14 @@
 
 Разработчик сверяет **именно** этот SHA-256 с CI provenance, затем даёт владельцу уже подтверждённую закрытую ссылку на `celikom.com`. У Windows customer после начальной установки SHA будет указывать на ранее принятую 0.24.55, а не на тестовую 0.24.56. Нельзя выводить ссылку по одним лишь GitHub draft/CI log. Если публичный статус не доступен через браузер ChatGPT, использовать точный HTTPS GET из доверенного CI без ключей — но не просить повторно SSH.
 
+## Исправление первой реальной попытки (25.11.2026)
+
+Первый запуск pinned bootstrap `3ab4efd20a92b9fd7035954e135338f6bfbc2da9` завершился непосредственно после `nginx -t`, до первого `CELIKOM_RELEASE_BOOTSTRAP_PRECHECK_OK`. Owner показал read-only диагностикой: Git/Python/Node/systemctl/nginx/apksigner/aapt OK, 38 ГБ свободно, Windows stable `versions/0.24.55`, сайт Nginx читается, файл `/srv/celikom/migration/sites-20261124/android-private/staging-owner-credentials.txt` присутствует, **его UID=1000**. Старый bootstrap ошибочно требовал UID=0. Оригинальный сайт и службы не менять.
+
+Исправлено: bootstrap принимает файл, которым управляет `celops` (проверяет UID, отсутствие symlink, права и формат двух полей), атомарно создаёт **root-only** `/root/celikom-secrets/celikom-owner-basic-verification.txt` с режимом 0600; все три доверенных root-промоутера (Windows/Android/extension) проверяют HTTPS этим локальным root-only файлом. Оригинальному сайту не делать `chown`, `chmod`, не менять его авторизацию. Ошибки теперь отмечаются `CELIKOM_RELEASE_ACTIVATION_STOPPED line=… exit=…` без вывода паролей. При будущей смене пароля Basic необходим безопасный повторный синхронизатор root credentials: повторный bootstrap создаёт копию, но если он уже установлен и требуется ротация вне bootstrap, её надо отдельно выполнять из доверенного root-контекста; не отправлять секрет в чат/CI.
+
+Предыдущий bootstrap с commit `3ab4efd20a92...` **НЕ повторять**. Новые pin SHA и результаты проверок получать из актуальной статической CI после исправления; пока проверка серверной активации не выполнена, не заявлять READY.
+
 ## Как выпускать новые версии после однократного запуска
 
 **Windows:** следующий подписанный private candidate через привычный workflow на `main`. Root independently verifies и сам обновляет *закрытый тестовый* owner latest; разработчик даёт только `https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe` после real HTTPS verification. Владелец вручную устанавливает в единственную CELIKOM. После «принимаю X» обновить только `.github/release/windows-customer-stable.json` с *точным* номером/sequence/SHA и `owner_accepted:true`. Отдельный root timer проверяет P-256/immutable installer/full HTTPS и обновляет публичный latest и подписанный feed. Не заменять тестовый APK/EXE другим содержимым под тем же номером.
