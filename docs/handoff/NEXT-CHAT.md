@@ -1,3 +1,7 @@
+# Current extension checkpoint — 25 November 2026
+
+For current FlokiNET extension work, read [0.4.82 checkpoint](CELIKOM-EXTENSION-0482-20261125.md) and the latest entries in [migration start](../migration/CELIKOM-NEXT-CHAT-START-2026-11-23.md). Source 2532f18; 387 tests and private Floki build PASS. Website publication did not start; current ZIP delivered privately. Owner VPN/Next acceptance pending. Entries below are historical and do not supersede the latest migration state.
+
 ## 2026-11-25 — Extension 0.4.81 VPN candidate; owner retest pending
 
 Latest: [VPN recovery checkpoint](EXTENSION-0481-VPN-RECOVERY-2026-11-25.md).

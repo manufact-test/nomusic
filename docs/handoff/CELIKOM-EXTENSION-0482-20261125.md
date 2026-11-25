@@ -18,7 +18,12 @@ The owner's roughly ten-second old-song incident is not fully retained in the bo
 - ZIP: `celikom-extension-0.4.82.zip`, 2,491,981 bytes.
 - SHA-256: `f8c03532c26d6465191779229f414554b86ff01b19fa71cb849f4fdc0992d3ac`.
 - API: `https://api.celikom.com`; browser host permissions remain this API and `https://music.yandex.ru/*` only.
-- Floki runner build / private publication results must be recorded after execution. This checkpoint alone does not assert owner browser acceptance or a working website download.
+- Source commit: `2532f18acacfe246bf7c57bfb299338430b32754`.
+- Floki build run `45666962945`, job `139391596431`, runner `celikom-floki-ci01`: SUCCESS, 387 extension tests, 4 spool tests, manifest/security and SHA validation. The receipt exactly matches the local ZIP. Primary private spool: `/srv/celikom/ci-runner/runner/celikom-build-spool/2532f18acacfe246bf7c57bfb299338430b32754-45666962945-1/`.
+- The independent package job `139391595937` in run `45666962906` ran simultaneously on `celikom-floki-ci02` and produced the identical extension digest. The downstream Windows-hosted job failed before steps; do not claim the whole Windows workflow passed or modify Windows to address it.
+- Full CI `45666962928` and protected publication `45667178751` failed before any runner steps. Provider reason is not exposed by the available job result. No publication command or privileged server modification executed. Do not claim full CI, a 0.4.82 website URL or owner browser acceptance.
+- The prepared, fixed-input publication request is retained at `.github/scripts/floki-extension-0482-verified-promote.sh`. It independently checks primary spool receipt/size/SHA, safe ZIP/manifest/API, immutable destination, existing private Basic gate, nginx rollback and API health; it does not execute spool code. Run only through the existing protected administrative channel after that channel can start, not on either unprivileged CI runner.
+- Website remains at the previously published 0.4.80; private conversation delivery of 0.4.82 is `libfile_721f6850ab9081918ec6296ba004e214`. Administrative request is reset to safe no-op after the failed publication.
 
 ## Delivery constraints
 
