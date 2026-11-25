@@ -30,3 +30,11 @@
 
 ## Границы
 Не создавать вторую Android ветку; не переделывать проект, бэкенд и API — текущий grant работает. Не трогать LyEa, LCK1, NAV40/NAV45, Windows, extension, stable Android v95 и старые закрытые исследования. Не угадывать ID/source/очередь, не ослаблять безопасность. Все действия пользователя ограничены **установкой APK и отправкой TXT** на одном Honor 50 без ADB/PC.
+
+## BETA16 — 25.11.2026: причина отказа creator ещё не доказана
+
+Из owner BETA15 TXT подтверждены source anchors и child enters, но не exact creator match; setter не проверялся. Для точного выяснения причины в `StageBAudioEvidence.exactOriginalMediaItemCreator` добавлены **только конечные reason counters**: null item, отсутствие anchors / live other item / expired anchors, exact item duplicate/conflict, lost weak wrapper/source, missing/ambiguous wrapper link, original Track+Album failure, beta Track/Flow/issuer rejection. Вся действующая Java identity и authorization/Range логика осталась fail-closed; IDs и URL не экспортируются.
+
+JVM harness дополнен проверками exact item, wrong item, conflict, weak loss, missing creator и repeated wrapper. Build marker: `A1_TRACKID_BETA16_CREATOR_REJECT_REASON_DIAGNOSTIC_20261125`. APK: `CELIKOM-A1-RAMIL-AU-BETA16-HONOR50-20261125.apk`. Оригинальный workflow name сохранён для FlokiNET. Source export run `45651541265` (commit `a24ec32af24a1eec1918a208031acf2dab93745d`); отдельный JVM regression run `45651822165` (CI-only commit `09ce464489ff80eae797f63074dc1ca7878701c6`). Статусы проверить, не считать зелёный CI звуком.
+
+После обеих SUCCESS и успешной независимой FlokiNET доставки получить только свежий `A1_DOWNLOAD_URL` из delivery run. Один телефон: поверх BETA15 установить BETA16, включить Рамиля «Ау» из альбома, 00:43–00:54, прислать TXT. Только её новые reason buckets могут определить минимальную точную правку; не делать source/ID/beta fallback по догадке.
