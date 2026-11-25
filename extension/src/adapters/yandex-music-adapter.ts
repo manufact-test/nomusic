@@ -168,6 +168,7 @@
       const baseUrl = this.safeCall(() => this.environment.location.href, "https://music.yandex.ru/");
       return {
         mediaId,
+        resourceRevision: this.mediaIdentities.get(element)?.revision || 1,
         tag: String(element.tagName || "").toLocaleLowerCase(),
         paused: Boolean(element.paused),
         ended: Boolean(element.ended),
@@ -504,7 +505,16 @@
       const visible = this.playerDomMetadata();
       const sessionMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], { ...session, durationMs: metadata.durationMs }, 100).selected;
       const visibleMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], visible, 100).selected;
-      const conflict = sessionMatch && visibleMatch && sessionMatch.id !== visibleMatch.id;
+      // A visible CURRENT player can already be on B while MediaSession and
+      // the delayed catalog still describe A. Missing B in the catalog is not
+      // evidence that A remains current. Never pick B from this text alone.
+      const compatible = (a,b) => {
+        a=core.normalizeText(a); b=core.normalizeText(b);
+        return a===b || (Math.min(a.length,b.length)>=4 && (a.includes(b)||b.includes(a)));
+      };
+      const textConflict = session.title && session.artist && visible.title && visible.artist
+        && (!compatible(session.title,visible.title)||!compatible(session.artist,visible.artist));
+      const conflict = Boolean(textConflict || (sessionMatch && visibleMatch && sessionMatch.id !== visibleMatch.id));
       let awaitingRefresh = false;
       let awaitingSource = false;
       if (master) {
@@ -527,7 +537,10 @@
         }
         if (pending && !conflict && ((result.selected && result.selected.id !== pending.id) || fingerprint !== pending.fingerprint || sessionObject !== pending.sessionObject)) pending = null;
         awaitingRefresh = Boolean(pending);
+        const sourcePair = JSON.stringify([assignedSource,currentSource]);
         this.mediaIdentities.set(master, {
+          revision: previous ? (previous.revision || 1) + (previous.sourcePair !== sourcePair ? 1 : 0) : 1,
+          sourcePair,
           source: source || previous?.source || "",
           // Metadata can also arrive before the stream. Keep the identity that
           // first accompanied this resource rather than relabeling it early.

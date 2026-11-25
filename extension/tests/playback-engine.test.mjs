@@ -716,3 +716,30 @@ test('Stop during VPN late-file preparation cancels adoption and bounded restore
  assert.equal(f.engine.restoreHistory.length,1);assert.equal(f.engine.restoreHistory[0].phase,'PREPARING');
  assert.equal(JSON.stringify(f.engine.restoreHistory).includes('https:'),false);f.engine.destroy();
 });
+
+test('same-track reused resource cancels a pending old resolve and only the latest resource may activate',async()=>{
+ const old=deferred();let calls=0;const f=fixture({resolveAsset:()=>++calls===1?old.promise:Promise.resolve({...remoteAsset(),replacementId:8})});f.engine.configure(true,'');
+ const a=snapshot();a.player.resourceRevision=1;f.update(a);await settle();
+ const b=snapshot();b.player.resourceRevision=2;f.update(b);await settle();
+ assert.equal(calls,2);assert.equal(f.engine.operation.resourceRevision,2);
+ old.resolve({...remoteAsset(),replacementId:7});await settle();
+ assert.equal(f.players.length,1);assert.equal(f.engine.operation.asset.replacementId,8);assert.equal(f.engine.activationCount,1);f.engine.destroy();
+});
+
+test('a fresh resource clears only an old recovery block and preserves manual Original for the same track',async()=>{
+ const f=fixture({resolveAsset:async()=>remoteAsset()}),a=snapshot();a.player.resourceRevision=1;f.update(a);await settle();
+ f.engine.abort('remote-stream-network',true);await settle();assert.equal(f.engine.blockedTrackId,'2');
+ const b=snapshot();b.player.resourceRevision=2;f.update(b);await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+ f.engine.manualRestore();await settle();const c=snapshot();c.player.resourceRevision=3;f.update(c);await settle();
+ assert.equal(f.engine.manualBypass.trackId,'2');assert.equal(f.engine.operation,null);f.engine.destroy();
+});
+
+test('rapid A B C switching during delayed resolves cannot adopt A or B after C is already active',async()=>{
+ const a=deferred(),b=deferred(),f=fixture({resolveAsset:id=>id==='2'?a.promise:id==='3'?b.promise:Promise.resolve({...remoteAsset(),replacementId:9})});
+ f.engine.configure(true,'');
+ for(const [id,revision] of [['2',1],['3',2],['4',3]]){const s=snapshot(id);s.player.resourceRevision=revision;f.update(s);await settle();}
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');assert.equal(f.engine.operation.trackId,'4');
+ b.resolve({...remoteAsset(),replacementId:8});a.resolve({...remoteAsset(),replacementId:7});await settle();
+ assert.equal(f.engine.operation.trackId,'4');assert.equal(f.engine.operation.asset.replacementId,9);
+ assert.equal(f.players.length,1);assert.equal(f.engine.activationCount,1);f.engine.destroy();
+});

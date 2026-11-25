@@ -85,12 +85,18 @@
       if (!snapshot || this.destroyed) return;
       if (this.snapshot && snapshot.observedAt < this.snapshot.observedAt) return;
       const previousId = this.snapshot?.track?.id;
+      const previousResource = this.snapshot?.player?.resourceRevision;
       this.snapshot = snapshot;
       const id = snapshot.track?.id;
       const player = snapshot.player;
       if (!this.masterClock || this.masterClock.id !== id || this.masterClock.mediaId !== player?.mediaId
         || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3) {
         this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
+      }
+      if (previousResource !== undefined && player?.resourceRevision !== previousResource) {
+        this.networkRetries = 0; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null;
+        // Manual Original is track intent and survives a resource refresh.
+        this.publishPolicy();
       }
       if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy(); }
       if (eventType === "ENDED" && player?.ended === true) {
@@ -120,7 +126,7 @@
         this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy();
       }
       const operation = this.operation;
-      const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId;
+      const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId && operation.resourceRevision === this.snapshot?.player?.resourceRevision;
       // A bound, already guarded master can temporarily have only metadata while
       // seeking/buffering. Keep the lease and pause replacement; admission still
       // requires current data, and emptied/changed/ambiguous masters fail open.
@@ -147,7 +153,7 @@
     }
     async prepare() {
       const snapshot = this.snapshot;
-      const operation = { startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
+      const operation = { startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, resourceRevision: snapshot.player.resourceRevision, sync: new this.SyncEngine(), player: null };
       operation.wasUnavailable = this.negativeResolution?.trackId === operation.trackId;
       this.operation = operation;
       this.phase = "PREPARING";
@@ -156,12 +162,12 @@
         operation.asset = this.testTrackId
           ? { found: true, url: this.environment.chrome.runtime.getURL("assets/test-audio.mp3"), demoLoop: true }
           : await this.resolveAsset(operation.trackId, { fresh: this.networkRetries > 0 || this.freshResolve === true });
-        this.freshResolve = false;
         if (!this.current(operation)) return;
+        this.freshResolve = false;
         if (!operation.asset?.found) {
           this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
           this.publishPolicy();
-          if (this.snapshot?.guard?.transitioning) await this.bridge.request("GUARD_TRANSITION_END", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
+          if (this.snapshot?.guard?.transitioning) await this.bridge.request("GUARD_TRANSITION_END", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,resourceRevision:operation.resourceRevision});
           if (!this.current(operation)) return;
           this.operation = null; this.phase = "IDLE"; this.log(`NO_REPLACEMENT · ${operation.trackId}`); return;
         }
@@ -173,13 +179,13 @@
         operation.completeJoin = !operation.asset.demoLoop && operation.asset.mimeType === "audio/mpeg"
           && this.snapshot?.player?.currentTime > 0.25;
         if(operation.completeJoin && this.snapshot?.guard?.transitioning) {
-          await this.bridge.request("GUARD_TRANSITION_END",{token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
+          await this.bridge.request("GUARD_TRANSITION_END",{token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,resourceRevision:operation.resourceRevision});
           if(!this.current(operation))return;
           this.update(await this.bridge.getSnapshot());
           if(!this.current(operation))return;
         }
         if (!operation.completeJoin && this.snapshot?.guard?.transitioning && this.eligible()) {
-          await this.bridge.request("GUARD_ENGAGE", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,preparing:true});
+          await this.bridge.request("GUARD_ENGAGE", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,resourceRevision:operation.resourceRevision,preparing:true});
           if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", {token:operation.token}); return; }
         }
         operation.resolvedAt = Date.now();
@@ -237,7 +243,7 @@
           operation.joinAligned=true;
         }
         operation.stage="guarding";
-        const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
+        const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId, resourceRevision: operation.resourceRevision });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
         this.update(guard.snapshot);
         if (!this.current(operation) || !this.eligible(this.snapshot, 1)) { this.abort("guard-state-changed"); return; }
@@ -245,7 +251,7 @@
         this.activationCount++;
         /* Bounded timings retain each recent join without URLs or credentials.
            Activation is a controller milestone, not proof of audible output. */
-        this.startupHistory.push({trackId:operation.trackId, at:Date.now(),
+        this.startupHistory.push({trackId:operation.trackId, resourceRevision:operation.resourceRevision, at:Date.now(),
           prepareMs:Date.now()-operation.startedAt,
           resolveMs:operation.resolvedAt-operation.startedAt,
           loadMs:operation.loadedAt-operation.resolvedAt,

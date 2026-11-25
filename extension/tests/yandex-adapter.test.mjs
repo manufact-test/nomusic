@@ -506,3 +506,27 @@ test("fresh metadata arriving before its stream is not mistaken for stale metada
     assert.equal(adapter.getSnapshot().track.id,"1944611");
   } finally {adapter.unmount();}
 });
+
+test('a new visible player title invalidates old MediaSession even before the new song enters the catalog',()=>{
+ const media=new FakeMedia(),{environment}=createEnvironment(media),adapter=createAdapter(environment);
+ adapter.mount({onSnapshot(){},onPlayerEvent(){}});
+ try{
+  assert.equal(adapter.getSnapshot().track.id,'155343370');
+  adapter.playerDomMetadata=()=>({title:'Entirely new song',artist:'Next Artist',album:'',coverUri:'',durationMs:193283});
+  for(let i=0;i<25;i++){const s=adapter.getSnapshot();assert.equal(s.track.id,null);assert.equal(s.track.evidence,'playback-metadata-conflict')}
+  adapter.ingestTrackPayload({id:'42',title:'Entirely new song',artists:[{name:'Next Artist'}],durationMs:193283},'fixture');
+  Object.assign(environment.navigator.mediaSession.metadata,{title:'Entirely new song',artist:'Next Artist',album:'',artwork:[]});
+  assert.equal(adapter.getSnapshot().track.id,'42');
+ }finally{adapter.unmount()}
+});
+test('resource revision changes on assigned/current source changes even when media and track IDs are reused',()=>{
+ const media=new FakeMedia(),{environment}=createEnvironment(media),adapter=createAdapter(environment);
+ adapter.mount({onSnapshot(){},onPlayerEvent(){}});
+ try{
+  const a=adapter.getSnapshot();assert.ok(Number.isSafeInteger(a.player.resourceRevision));
+  assert.equal(adapter.getSnapshot().player.resourceRevision,a.player.resourceRevision);
+  media.src='https://strm.example/new';const b=adapter.getSnapshot();assert.ok(b.player.resourceRevision>a.player.resourceRevision);assert.equal(b.track.id,null);
+  media.currentSrc=media.src;environment.navigator.mediaSession.metadata={...environment.navigator.mediaSession.metadata};
+  const c=adapter.getSnapshot();assert.ok(c.player.resourceRevision>b.player.resourceRevision);assert.equal(c.track.id,a.track.id);
+ }finally{adapter.unmount()}
+});

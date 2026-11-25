@@ -628,3 +628,20 @@ for(const action of ['timeout','pause'])test('reserved preparation survives intr
   if(action==='pause')assert.equal([...f.elements][0].paused,true);
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });
+
+test('new visible track with delayed catalog/MediaSession silences the old replacement across continued polling',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  f.changeStorage({testTrackId:{newValue:'1944599'}});
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play()',main);await wait();await wait();
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.phase',isolated),'REPLACEMENT_ACTIVE');
+  const old=[...f.elements][0];assert(old);assert.equal(old.paused,false);
+  const player={querySelector:selector=>selector.includes('Meta_title')?{textContent:'New pending track'}:selector.includes('Meta_artistCaption')?{textContent:'Another artist'}:null};
+  f.document.querySelector=selector=>selector==='#player-region'?{closest:()=>player}:null;
+  for(let i=0;i<25;i++){for(const callback of [...f.timers.values()])callback();await wait()}
+  assert.equal(old.paused,true);assert.equal(old.muted,true);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.operation',isolated),null);
+  assert.equal(f.elements.size,0);assert.deepEqual(f.errors.map(e=>e.message),[]);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main)}
+});

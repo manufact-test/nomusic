@@ -1,1 +1,1 @@
-extension-0.4.81-vpn-range-recovery-20261125
+extension-0.4.82-resource-binding-vpn-recovery-20261125

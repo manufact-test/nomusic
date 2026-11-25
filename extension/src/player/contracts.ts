@@ -41,6 +41,7 @@ export interface DetectedTrack {
 
 export interface PlayerState {
   mediaId: string;
+  resourceRevision?: number;
   tag: "audio" | "video";
   paused: boolean;
   ended: boolean;
