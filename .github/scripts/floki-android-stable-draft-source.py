@@ -42,7 +42,7 @@ class GitHubAssetRedirect(urllib.request.HTTPRedirectHandler):
 def request(path,accept="application/vnd.github+json"):
     token=os.getenv("GH_TOKEN","")
     need(len(token)>=20,"GITHUB_TOKEN_REQUIRED")
-    need(path.startswith("/repos/"+REPO+"/"),"ENDPOINT_NOT_APPROVED")
+    need(path=="/repos/"+REPO or path.startswith("/repos/"+REPO+"/"),"ENDPOINT_NOT_APPROVED")
     return urllib.request.Request(API+path,headers={
         "Authorization":"Bearer "+token,
         "Accept":accept,
