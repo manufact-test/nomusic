@@ -5,9 +5,9 @@ set -Eeuo pipefail
 umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=b83e69719b2fb4229a6119325c8778458263bbb5
+COMMIT=8287f794ed89804f791196240e9cb47f14a41ab4
 SOURCE=.github/scripts/floki-windows-customer-stable-consumer.py
-BLOB=dee86a9a9d61786c7bd0485627030be254250bbb
+BLOB=ee9e4c8d0ca43637331677b5d652ea3852906f6a
 SITE=/etc/nginx/sites-enabled/celikom-site-https
 APP=/usr/local/lib/celikom-windows-intake/customer-stable-consumer.py
 SERVICE=/etc/systemd/system/celikom-windows-customer-stable.service
@@ -90,9 +90,19 @@ assert marker not in s, "CUSTOMER_WINDOWS_DUPLICATE_ROUTES"
 for path in ("/CELIKOM/Windows/Updates/stable/latest.json",
              "/CELIKOM/Windows/Updates/stable/latest.json.sig"):
     assert "location = "+path not in s, "CUSTOMER_WINDOWS_ROUTE_CONFLICT"
+assert "location = /downloads/windows/CELIKOM-Windows-stable.exe" not in s, "CUSTOMER_WINDOWS_PUBLIC_INSTALLER_CONFLICT"
 routes=r'''    # CELIKOM CUSTOMER SIGNED WINDOWS UPDATER
     # Public read-only metadata ONLY from separately accepted P-256 releases.
     # The customer store is empty until main explicitly approves a version.
+    location = /downloads/windows/CELIKOM-Windows-stable.exe {
+        # Public installer is absent until the exact signed build is accepted.
+        auth_basic off;
+        alias /srv/celikom-releases/windows/customer-stable/CELIKOM-Windows-stable.exe;
+        default_type application/octet-stream;
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        limit_except GET { deny all; }
+    }
     location = /CELIKOM/Windows/Updates/stable/latest.json {
         auth_basic off;
         alias /srv/celikom-releases/windows/customer-stable/latest.json;
