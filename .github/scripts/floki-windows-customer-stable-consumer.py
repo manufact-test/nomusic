@@ -22,7 +22,7 @@ import urllib.request
 MIRROR = Path("/home/celikom-mirror/github-mirror.git")
 APPROVAL = ".github/release/windows-customer-stable.json"
 SIGNED_ROOT = Path("/srv/celikom-releases/windows/stable/versions")
-CUSTOMER = Path("/srv/celikom-releases/windows/customer-stable")
+CUSTOMER = Path("/srv/celikom-releases/public/windows-customer-stable")
 PIN = Path("/root/celikom-secrets/windows-stable-public.der")
 TOOLS = Path("/root/celikom-release-tools")
 PIN_SHA = "46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95"
