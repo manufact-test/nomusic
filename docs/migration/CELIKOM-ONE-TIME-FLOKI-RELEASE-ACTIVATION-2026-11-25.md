@@ -42,6 +42,14 @@
 
 **Не переключать старый Hostinger updater** просто из-за зелёного root таймера: старому Android 0.3.92 нужна отдельная проверка на телефоне и затем атомарное включение на Hostinger ранее подготовленного exact 0.3.94/95 bridge manifest+APK с идентичным старым хостом. Файлы уже лежат в приватном GitHub draft `457921929` и имеют утверждённые SHA. Не передавать signing key и host SSH в untrusted runner.
 
+## Доказательство публикации без повторных заходов по SSH
+
+Одна из задач прежней миграции — разработчик не видел, прошла ли новая версия с CI до сайта. Установщик активирует отдельную root-службу `celikom-release-status.timer`. Она читает **только** завершённые доверенные серверные подтверждения (после полного HTTPS size/SHA), и публикует маленький JSON без версий, приватных URL, capability-токенов, источников или аккаунтов по адресу `https://celikom.com/.well-known/celikom-release-receipt.json`.
+
+Поля `windows_owner_sha256`, `windows_customer_sha256`, `android_owner_sha256`, `android_customer_sha256`, `extension_owner_sha256` равны точному SHA-256 подтверждённой сборки либо `null`, пока её публикация не доказана. Отдельный статус A1 **не выводит** capability URL, проверять существующий подписанный A1 root receipt через его передачу. Timestamp `checked_at` означает обновление статуса, **не** время публикации и не доказывает новую версию сам по себе.
+
+Разработчик сверяет **именно** этот SHA-256 с CI provenance, затем даёт владельцу уже подтверждённую закрытую ссылку на `celikom.com`. Нельзя выводить ссылку по одним лишь GitHub draft/CI log. Если публичный статус не доступен через браузер ChatGPT, использовать точный HTTPS GET из доверенного CI без ключей — но не просить повторно SSH.
+
 ## Как выпускать новые версии после однократного запуска
 
 **Windows:** следующий подписанный private candidate через привычный workflow на `main`. Root independently verifies и сам обновляет *закрытый тестовый* owner latest; разработчик даёт только `https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe` после real HTTPS verification. Владелец вручную устанавливает в единственную CELIKOM. После «принимаю X» обновить только `.github/release/windows-customer-stable.json` с *точным* номером/sequence/SHA и `owner_accepted:true`. Отдельный root timer проверяет P-256/immutable installer/full HTTPS и обновляет публичный latest и подписанный feed. Не заменять тестовый APK/EXE другим содержимым под тем же номером.
