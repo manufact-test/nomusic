@@ -251,8 +251,14 @@ def publish(a):
                 a["sequence"] >= current["sequence"], "DOWNGRADE_REFUSED")
         if (current["version"] == v and current["sequence"] == a["sequence"]
                 and current["sha256"] == a["sha256"]):
-            print("CELIKOM_CUSTOMER_WINDOWS_ALREADY_ACCEPTED",v)
-            return
+            receipt = CUSTOMER / "accepted.json"
+            if receipt.exists():
+                verified = json.loads(regular(receipt, 4096))
+                if (verified.get("https_verified") is True and
+                    verified.get("sha256") == a["sha256"] and
+                    verified.get("version") == v):
+                    print("CELIKOM_CUSTOMER_WINDOWS_ALREADY_ACCEPTED",v)
+                    return
     m = verify_signed(v, a)
     versions = CUSTOMER / "versions"
     secure_directory(versions)
@@ -283,6 +289,10 @@ def publish(a):
             require(current_m == m["manifest.json"] and current_s == m["manifest.json.sig"],
                     "CURRENT_SIGNATURE_CONFLICT")
             verify_public(v, m, a)
+            replace_file(CUSTOMER / "accepted.json", (json.dumps({
+                "version": v, "sequence": a["sequence"], "sha256": a["sha256"],
+                "https_verified": True
+            }, sort_keys=True) + "\n").encode())
             return
     stable_link = CUSTOMER / "CELIKOM-Windows-stable.exe"
     previous_stable = None
@@ -306,6 +316,10 @@ def publish(a):
             latest_sig.unlink(missing_ok=True)
             stable_link.unlink(missing_ok=True)
         raise
+    replace_file(CUSTOMER / "accepted.json", (json.dumps({
+        "version": v, "sequence": a["sequence"], "sha256": a["sha256"],
+        "https_verified": True
+    }, sort_keys=True) + "\n").encode())
     print("CELIKOM_CUSTOMER_WINDOWS_SIGNED_RELEASE_APPROVED", v, a["sequence"])
 
 
