@@ -27,6 +27,11 @@ on:
       - '.github/workflows/celikom-publisher-static-gates.yml'
 permissions:
   contents: read
+# Only the latest mainline source state needs static release gates.
+# No artifact publishing or root activation occurs in this workflow.
+concurrency:
+  group: celikom-publisher-static-main
+  cancel-in-progress: true
 jobs:
   inspect:
     runs-on: celikom-ci-smoke-only
