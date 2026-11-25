@@ -59,9 +59,15 @@ for directory in ['/srv/celikom-releases/private/extension','/srv/celikom-releas
 conf=P('/etc/nginx/sites-available/celikom-site-https')
 old=read_regular(conf,131072).decode()
 assert 'auth_basic "CELIKOM private review";' in old and 'auth_basic_user_file /etc/nginx/celikom-site.htpasswd;' in old
-pattern=r'    location = /downloads/extension/celikom-extension-0\.4\.73\.zip \{[^{}]*\}'
-blocks=re.findall(pattern,old)
-assert len(blocks)==1
+needle='    location = /downloads/extension/celikom-extension-0.4.73.zip {'
+assert old.count(needle)==1
+start=old.index(needle); cursor=start+len(needle); depth=1
+while depth:
+ assert cursor<len(old)
+ if old[cursor]=='{':depth+=1
+ elif old[cursor]=='}':depth-=1
+ cursor+=1
+blocks=[old[start:cursor]]
 newblock=blocks[0].replace('0.4.73','0.4.79')
 assert 'auth_basic off' not in newblock
 if '/downloads/extension/'+name not in old:
